@@ -535,12 +535,14 @@
         default = null;
         example = lib.literalExpression "./installs.json";
         description = ''
-          Optional JSON file — { "casks": [ … ], "brews": [ … ] } — of extra
-          Homebrew packages, merged into homebrew.casks / homebrew.brews at
-          build time. The counterpart to prowl.rosterFile for packages that
-          don't belong on the tiling roster: the pounce "Install App" command's
-          "just install" lane appends here and rebuilds. null disables it. The
-          file must be tracked by the flake's git repo to be read.
+          Optional JSON file — { "casks": [ … ], "brews": [ … ],
+          "nixpkgs": [ … ] } — of extra packages. Casks and formulae merge into
+          homebrew.casks / homebrew.brews; Nixpkgs attribute paths merge into
+          environment.systemPackages. The counterpart to prowl.rosterFile for
+          packages that don't belong on the tiling roster: the pounce "Install
+          App" command's "just install" lane appends here and rebuilds. null
+          disables it. The file must be tracked by the flake's git repo to be
+          read.
         '';
       };
     };

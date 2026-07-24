@@ -14,10 +14,10 @@ let
   # pill is only a view/controller; the wake lock survives bar/shell restarts.
   awake = pkgs.writeShellScriptBin "awake" (builtins.readFile ./awake.sh);
 
-  # Extra Homebrew packages appended by the pounce "Install App" command's
-  # "just install" lane, kept in a JSON file so they stay machine-editable
-  # without hand-patching Nix (the roster's rosterFile counterpart). Shape:
-  # { "casks": [ … ], "brews": [ … ] }. null → nothing extra.
+  # Extra packages appended by the pounce "Install App" command's "just
+  # install" lane, kept in a JSON file so they stay machine-editable without
+  # hand-patching Nix (the roster's rosterFile counterpart). Shape:
+  # { "casks": [ … ], "brews": [ … ], "nixpkgs": [ … ] }. null → nothing.
   installsFile = config.nebelhaus.homebrew.installsFile;
   installs =
     if installsFile != null then
@@ -43,6 +43,7 @@ in
     jq
     lazygit
     lsd
+    mas
     fastfetch
     tree
     ttyd
@@ -85,7 +86,11 @@ in
     # never blocks. Reads `wt`'s registry — same agent-worktree flow, same home.
     (writeShellScriptBin "claude-statusline" (builtins.readFile ./statusline.sh))
     (writeShellScriptBin "claude-statusline-refresh" (builtins.readFile ./statusline-refresh.sh))
-  ];
+  ] ++ map (attr:
+    lib.attrByPath (lib.splitString "." attr)
+      (throw "nebelhaus.homebrew.installsFile: nixpkgs package '${attr}' does not exist")
+      pkgs
+  ) (installs.nixpkgs or [ ]);
 
   # The job is intentionally always present, even when the opt-in Sill pill is
   # hidden: `awake` is a rice-level capability usable from any shell. RunAtLoad
