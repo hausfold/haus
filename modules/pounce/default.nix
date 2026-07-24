@@ -31,13 +31,37 @@ let
   signedFrom =
     "${pkgs.pounce}/Applications/Pounce.app" + lib.optionalString (identity != "") "@@${identity}";
 
+  # The app font's package installs only the TTF, but its pinned source also
+  # carries the authoritative app-name → ligature mappings. Generate the same
+  # shell case table as upstream's build.js and ship it beside Install App, so
+  # roster entries can set barIcon deterministically — no web/AI guessing.
+  appIconMap = pkgs.runCommand "sketchybar-app-icon-map" { } ''
+    {
+      cat <<'EOF'
+#!/bin/bash
+icon_result=":default:"
+case "$1" in
+EOF
+      for mapping in ${pkgs.sketchybar-app-font.src}/mappings/*; do
+        patterns="$(<"$mapping")"
+        icon="$(basename "$mapping")"
+        printf '  %s)\n    icon_result=%q\n    ;;\n' "$patterns" "$icon"
+      done
+      cat <<'EOF'
+esac
+printf '%s\n' "$icon_result"
+EOF
+    } >"$out"
+    chmod 555 "$out"
+  '';
+
   # This rice's palette commands (see ./commands — one self-describing script
-  # each, metadata in a `# pounce:` header). Installed verbatim: rebuild.sh now
-  # defers host resolution to `haus rebuild` at runtime, so nothing needs a
-  # build-time `@hostname@` substitution anymore.
+  # each, metadata in a `# pounce:` header). The generated app-font lookup is
+  # private command data, not self-describing, so pounce ignores it.
   riceCommands = pkgs.runCommand "nebelhaus-pounce-commands" { } ''
     mkdir -p $out
     install -m555 ${./commands}/*.sh $out/
+    install -m555 ${appIconMap} $out/app-icon-map
     ${lib.optionalString (!config.nebelhaus.hush.enable) "rm $out/hush.sh"}
   '';
 

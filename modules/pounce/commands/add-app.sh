@@ -34,6 +34,7 @@ CHEATSHEET="$HOME/.config/pounce/cheatsheet.json"
 BREW_INDEX="$HOME/.cache/nebelhaus/brew-index.tsv"
 BREW_API="$HOME/Library/Caches/Homebrew/api"
 FLOAT_TERM="$HOME/.config/zellij/float-term.sh"
+APP_ICON_MAP="$(dirname "$0")/app-icon-map"
 
 field() { printf '%s' "$1" | cut -f"$2"; }
 notice() {
@@ -235,6 +236,7 @@ fi
 
 key=""
 workspace=""
+bar_icon=""
 
 if [ "$lane" = "Add to roster" ]; then
   # ── pick a free leader letter ───────────────────────────────────────────
@@ -269,6 +271,17 @@ if [ "$lane" = "Add to roster" ]; then
     # Workspace name = the leader letter, uppercased — the roster's convention
     # (t→T, b→B). Unique because leader keys are unique.
     workspace="$(printf '%s' "$key" | tr '[:lower:]' '[:upper:]')"
+
+    # sketchybar-app-font's own pinned map is the authority. Exact aliases and
+    # upstream wildcard patterns resolve to a verified ligature; :default:
+    # means "unknown", where keeping the workspace letter is more honest than
+    # guessing an unrelated logo.
+    if [ -x "$APP_ICON_MAP" ]; then
+      candidate="$("$APP_ICON_MAP" "$appname" 2>/dev/null)"
+      if [ -n "$candidate" ] && [ "$candidate" != ":default:" ]; then
+        bar_icon="$candidate"
+      fi
+    fi
   fi
 fi
 
@@ -277,10 +290,11 @@ if [ "$lane" = "Add to roster" ]; then
   [ -s "$ROSTER_JSON" ] || echo '[]' >"$ROSTER_JSON"
   cask=""
   [ "$type" = "cask" ] && cask="$token"
-  entry="$(jq -n --arg key "$key" --arg name "$appname" --arg cask "$cask" --arg appId "$app_id" --arg label "$appname" --arg ws "$workspace" \
+  entry="$(jq -n --arg key "$key" --arg name "$appname" --arg cask "$cask" --arg appId "$app_id" --arg barIcon "$bar_icon" --arg label "$appname" --arg ws "$workspace" \
     '{ key: $key, name: $name, label: $label }
      + (if $cask == "" then {} else { cask: $cask } end)
      + (if $appId == "" then {} else { appId: $appId } end)
+     + (if $barIcon == "" then {} else { barIcon: $barIcon } end)
      + (if $ws == "" then {} else { workspace: $ws } end)')"
   cp "$ROSTER_JSON" "$ROSTER_JSON.bak"
   jq --argjson e "$entry" '. + [$e]' "$ROSTER_JSON.bak" >"$ROSTER_JSON" || { mv "$ROSTER_JSON.bak" "$ROSTER_JSON"; exit 1; }
@@ -311,6 +325,7 @@ REBUILD_TMP="/tmp/nebelhaus-install-run.sh"
   printf 'KEY=%q\n' "$key"
   printf 'APPNAME=%q\n' "$appname"
   printf 'WORKSPACE=%q\n' "$workspace"
+  printf 'BAR_ICON=%q\n' "$bar_icon"
   printf 'TOKEN=%q\n' "$token"
   printf 'TYPE=%q\n' "$type"
   printf 'APP_ID=%q\n' "$app_id"
@@ -352,6 +367,11 @@ git add roster.json installs.json 2>/dev/null || true
 
 if [ "$LANE" = "Add to roster" ]; then
   echo "Wiring $APPNAME — building & switching (haus rebuild)…"
+  if [ -n "$BAR_ICON" ]; then
+    echo "Verified SketchyBar icon: $BAR_ICON"
+  elif [ -n "$WORKSPACE" ]; then
+    echo "No SketchyBar App Font match — keeping workspace letter $WORKSPACE."
+  fi
 else
   echo "Installing $APPNAME — building & switching (haus rebuild)…"
 fi
