@@ -14,10 +14,10 @@ let
   # pill is only a view/controller; the wake lock survives bar/shell restarts.
   awake = pkgs.writeShellScriptBin "awake" (builtins.readFile ./awake.sh);
 
-  # Extra packages appended by the pounce "Install App" command's "just
-  # install" lane, kept in a JSON file so they stay machine-editable without
-  # hand-patching Nix (the roster's rosterFile counterpart). Shape:
-  # { "casks": [ … ], "brews": [ … ], "nixpkgs": [ … ] }. null → nothing.
+  # Compatibility with the former JSON-backed "Install App" command. New
+  # installs are native host package modules that declare homebrew.casks /
+  # homebrew.brews or environment.systemPackages directly. Legacy shape:
+  # { "casks": [ … ], "brews": [ … ], "nixpkgs": [ … ] }.
   installsFile = config.nebelhaus.homebrew.installsFile;
   installs =
     if installsFile != null then
@@ -127,8 +127,8 @@ in
 
     # A minimal, opinionated starter set. Edit freely in your host file —
     # `homebrew.casks = [ ... ];` merges with whatever the modules declare.
-    # nebelhaus.homebrew.installsFile (the pounce "Install App" command) appends
-    # its casks/brews here too, so an app added from the palette is declarative.
+    # Legacy installsFile values append here too. The current pounce command
+    # writes native Nix modules that merge into these same list options.
     casks = [
       "ghostty" # the terminal the rice is themed for
     ]

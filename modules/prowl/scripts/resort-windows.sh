@@ -28,7 +28,7 @@ while IFS='|' read -r id bundle title; do
                 *) target="T" ;;
             esac
             ;;
-        # Generated from nebelhaus.prowl.apps (appId -> workspace) so this stays
+        # Generated from nebelhaus._apps (appId -> workspace) so this stays
         # in lockstep with aerospace.toml's on-window-detected rules.
 @RESORT_CASES@
         *) continue ;;

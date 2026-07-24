@@ -3,7 +3,7 @@
 # stealing the lock file.
 #
 # The workspace pills are data-driven: WORKSPACES / LAUNCHER_KEYS / ws_icon are
-# generated from nebelhaus.prowl.apps (the shared app roster) so the bar can't
+# generated from nebelhaus._apps (the resolved shared app roster) so the bar can't
 # drift from AeroSpace's launcher. Every right-side pill is individually
 # toggleable via nebelhaus.sill.items (one bool per pill): the core
 # clock/weather/media/battery/wifi default on, the extras cpu/memory/volume/
@@ -20,7 +20,7 @@ let
   withGUIWait = import ../lib/gui-wait.nix;
   userPath = "/run/current-system/sw/bin:/etc/profiles/per-user/${username}/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin";
 
-  apps = config.nebelhaus.prowl.apps;
+  apps = config.nebelhaus._apps;
 
   bashArray = xs: lib.concatMapStringsSep " " (x: ''"${x}"'') xs;
   appWorkspaces = lib.filter (w: w != null) (map (a: a.workspace) apps);
@@ -44,7 +44,7 @@ let
   # bash 3.2 (macOS /bin/bash) has no associative arrays, hence the case in a fn.
   workspacesSh = ''
     #!/bin/bash
-    # GENERATED from nebelhaus.prowl.apps by modules/sill/default.nix — do not edit.
+    # GENERATED from nebelhaus._apps by modules/sill/default.nix — do not edit.
     WORKSPACES=(${bashArray ([ "1" "2" "3" "4" ] ++ appWorkspaces)})
     # Leader picker bubbles: the digits 1-4 (focus a numbered workspace) plus one
     # per app key (jump to its workspace) — mirrors [mode.launch.binding].

@@ -9,27 +9,25 @@
 #   • Homebrew       — fuzzy-searches the offline cask + formula catalog.
 #   • Mac App Store  — searches with `mas`; `mas get` runs visibly so an account
 #                       or Touch ID prompt can never wedge a rebuild.
-#   • Nix packages   — searches the flake's pinned nixpkgs and appends the chosen
-#                       attribute path to installs.json's nixpkgs[] list.
+#   • Nix packages   — searches the flake's pinned nixpkgs revision.
 #
-# Homebrew and Nix installs are declarative: the command appends structured data
-# to files the flake reads (nebelhaus.prowl.rosterFile /
-# nebelhaus.homebrew.installsFile), then runs `haus rebuild` in a floating
-# terminal and rolls the append back if the build fails. Mac App Store installs
-# are necessarily imperative (`mas get`); they run before any optional roster
-# rebuild, in the same visible terminal.
+# Declarative selections become ordinary Nix modules under
+# hosts/<host>/packages/. mkNebelhaus auto-imports those files, so this command
+# uses the same nebelhaus.apps, Homebrew, and system-package options a person
+# writes by hand. Mac App Store installation itself is necessarily imperative;
+# an optional roster entry is still a native Nix module.
 #
-# Host-agnostic: the flake lives at ~/.config/nix by convention (override with
-# $NEBELHAUS_FLAKE), and the rebuild reuses `haus rebuild`, which resolves this
-# machine's host attr + does the passwordless switch itself.
+# The flake lives at ~/.config/nix by convention (override with
+# $NEBELHAUS_FLAKE or $HAUS_CONSUMER). The host is baked in by mkNebelhaus and
+# can be overridden with $HAUS_HOST.
 
 # A launchd GUI agent's PATH is bare; resolve our tools (jq, brew, mas, nix,
 # git, osascript, pounce) explicitly — same set prowl bakes into AeroSpace.
 export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-FLAKE_DIR="${NEBELHAUS_FLAKE:-$HOME/.config/nix}"
-ROSTER_JSON="$FLAKE_DIR/roster.json"
-INSTALLS_JSON="$FLAKE_DIR/installs.json"
+FLAKE_DIR="${NEBELHAUS_FLAKE:-${HAUS_CONSUMER:-$HOME/.config/nix}}"
+HOST="${HAUS_HOST:-@hostname@}"
+PACKAGES_DIR="$FLAKE_DIR/hosts/$HOST/packages"
 CHEATSHEET="$HOME/.config/pounce/cheatsheet.json"
 BREW_INDEX="$HOME/.cache/nebelhaus/brew-index.tsv"
 BREW_API="$HOME/Library/Caches/Homebrew/api"
@@ -40,6 +38,69 @@ field() { printf '%s' "$1" | cut -f"$2"; }
 notice() {
   printf '%s\t%s\t%s\n' "$1" "$2" "${3:-exclamationmark.triangle}" \
     | pounce -p "Install App" -i "square.and.arrow.down.on.square" >/dev/null
+}
+
+nix_string() { jq -Rn --arg value "$1" '$value'; }
+file_slug() {
+  printf '%s' "$1" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed 's/[^a-z0-9._-]/-/g; s/--*/-/g; s/^-//; s/-$//'
+}
+
+write_roster_module() {
+  local target="$1" resolved_app_id="${2:-$app_id}"
+  local id_value id_lit key_lit name_lit cask_lit app_id_lit icon_lit label_lit workspace_lit
+  if [ "$type" = "mas" ]; then id_value="mas-$token"; else id_value="$token"; fi
+  id_lit="$(nix_string "$id_value")"
+  key_lit="$(nix_string "$key")"
+  name_lit="$(nix_string "$appname")"
+  label_lit="$(nix_string "$appname")"
+  if [ "$type" = "cask" ]; then cask_lit="$(nix_string "$token")"; else cask_lit="null"; fi
+  if [ -n "$resolved_app_id" ]; then app_id_lit="$(nix_string "$resolved_app_id")"; else app_id_lit="null"; fi
+  if [ -n "$bar_icon" ]; then icon_lit="$(nix_string "$bar_icon")"; else icon_lit="null"; fi
+  if [ -n "$workspace" ]; then workspace_lit="$(nix_string "$workspace")"; else workspace_lit="null"; fi
+
+  {
+    printf '%s\n' '# Added by pounce "Install App". Safe to edit or remove.'
+    printf '%s\n' '{ lib, ... }:'
+    printf '%s\n' '{'
+    printf '  nebelhaus.apps.%s = {\n' "$id_lit"
+    printf '    enable = lib.mkDefault true;\n'
+    printf '    order = lib.mkDefault 1000;\n'
+    printf '    key = lib.mkDefault %s;\n' "$key_lit"
+    printf '    name = lib.mkDefault %s;\n' "$name_lit"
+    printf '    workspace = lib.mkDefault %s;\n' "$workspace_lit"
+    printf '    appId = lib.mkDefault %s;\n' "$app_id_lit"
+    printf '    barIcon = lib.mkDefault %s;\n' "$icon_lit"
+    printf '    label = lib.mkDefault %s;\n' "$label_lit"
+    printf '    cask = lib.mkDefault %s;\n' "$cask_lit"
+    printf '%s\n' '  };'
+    printf '%s\n' '}'
+  } >"$target"
+}
+
+write_install_module() {
+  local target="$1" token_lit
+  token_lit="$(nix_string "$token")"
+  {
+    printf '%s\n' '# Added by pounce "Install App". Safe to edit or remove.'
+    if [ "$type" = "nixpkgs" ]; then
+      printf '%s\n' '{ lib, pkgs, ... }:'
+      printf '%s\n' '{'
+      printf '%s\n' '  environment.systemPackages = ['
+      printf '    (lib.attrByPath (lib.splitString "." %s)\n' "$token_lit"
+      printf '      (throw ("pounce Install App: Nixpkgs package " + %s + " does not exist")) pkgs)\n' "$token_lit"
+      printf '%s\n' '  ];'
+    else
+      printf '%s\n' '{'
+      if [ "$type" = "cask" ]; then
+        printf '  homebrew.casks = [ %s ];\n' "$token_lit"
+      else
+        printf '  homebrew.brews = [ %s ];\n' "$token_lit"
+      fi
+    fi
+    printf '%s\n' '}'
+  } >"$target"
 }
 
 # ── source ────────────────────────────────────────────────────────────────
@@ -240,12 +301,9 @@ bar_icon=""
 
 if [ "$lane" = "Add to roster" ]; then
   # ── pick a free leader letter ───────────────────────────────────────────
-  # Taken letters = the live cheatsheet's Launch Mode page (the built roster,
-  # host list included) plus anything already queued in roster.json.
-  used="$(
-    jq -r '.[] | select(.title | test("Launch Mode")) | .items[].key' "$CHEATSHEET" 2>/dev/null
-    jq -r '.[].key' "$ROSTER_JSON" 2>/dev/null
-  )"
+  # The live cheatsheet already reflects hand-written and pounce-generated Nix
+  # entries alike, including a module created by an earlier invocation.
+  used="$(jq -r '.[] | select(.title | test("Launch Mode")) | .items[].key' "$CHEATSHEET" 2>/dev/null)"
   key_list=""
   for L in a b c d e f g h i j k l m n o p q r s t u v w x y z; do
     printf '%s\n' "$used" | grep -qx "$L" && continue
@@ -285,44 +343,42 @@ if [ "$lane" = "Add to roster" ]; then
   fi
 fi
 
-# ── stage the declarative edit (append + backup for rollback) ─────────────
-if [ "$lane" = "Add to roster" ]; then
-  [ -s "$ROSTER_JSON" ] || echo '[]' >"$ROSTER_JSON"
-  cask=""
-  [ "$type" = "cask" ] && cask="$token"
-  entry="$(jq -n --arg key "$key" --arg name "$appname" --arg cask "$cask" --arg appId "$app_id" --arg barIcon "$bar_icon" --arg label "$appname" --arg ws "$workspace" \
-    '{ key: $key, name: $name, label: $label }
-     + (if $cask == "" then {} else { cask: $cask } end)
-     + (if $appId == "" then {} else { appId: $appId } end)
-     + (if $barIcon == "" then {} else { barIcon: $barIcon } end)
-     + (if $ws == "" then {} else { workspace: $ws } end)')"
-  cp "$ROSTER_JSON" "$ROSTER_JSON.bak"
-  jq --argjson e "$entry" '. + [$e]' "$ROSTER_JSON.bak" >"$ROSTER_JSON" || { mv "$ROSTER_JSON.bak" "$ROSTER_JSON"; exit 1; }
-elif [ "$type" != "mas" ]; then
-  [ -s "$INSTALLS_JSON" ] || echo '{"casks":[],"brews":[],"nixpkgs":[]}' >"$INSTALLS_JSON"
-  cp "$INSTALLS_JSON" "$INSTALLS_JSON.bak"
-  if [ "$type" = "cask" ]; then
-    jq --arg t "$token" '.casks = ((.casks // []) + [$t] | unique)' "$INSTALLS_JSON.bak" >"$INSTALLS_JSON" \
-      || { mv "$INSTALLS_JSON.bak" "$INSTALLS_JSON"; exit 1; }
-  elif [ "$type" = "formula" ]; then
-    jq --arg t "$token" '.brews = ((.brews // []) + [$t] | unique)' "$INSTALLS_JSON.bak" >"$INSTALLS_JSON" \
-      || { mv "$INSTALLS_JSON.bak" "$INSTALLS_JSON"; exit 1; }
+# ── write one native Nix module ───────────────────────────────────────────
+target=""
+target_rel=""
+if [ "$lane" = "Add to roster" ] || [ "$type" != "mas" ]; then
+  slug="$(file_slug "$token")"
+  [ -n "$slug" ] || slug="package"
+  if [ "$lane" = "Add to roster" ]; then
+    if [ "$type" = "mas" ]; then target_name="app-mas-$slug.nix"; else target_name="app-$slug.nix"; fi
   else
-    jq --arg t "$token" '.nixpkgs = ((.nixpkgs // []) + [$t] | unique)' "$INSTALLS_JSON.bak" >"$INSTALLS_JSON" \
-      || { mv "$INSTALLS_JSON.bak" "$INSTALLS_JSON"; exit 1; }
+    target_name="$type-$slug.nix"
   fi
+  target_rel="hosts/$HOST/packages/$target_name"
+  target="$FLAKE_DIR/$target_rel"
+
+  if [ -e "$target" ]; then
+    notice "Already declared" "$target_rel already manages $token — edit or remove that Nix module first" "checkmark.circle"
+    exit 0
+  fi
+
+  mkdir -p "$PACKAGES_DIR"
+  if [ "$lane" = "Add to roster" ]; then
+    write_roster_module "$target.tmp"
+  else
+    write_install_module "$target.tmp"
+  fi
+  mv "$target.tmp" "$target"
 fi
 
-# ── rebuild in a floating terminal, with rollback on failure ──────────────
-# Reuses the shared float-term helper (same as rebuild.sh). Baked values are
-# quoted with %q; the logic body is a literal (single-quoted) heredoc.
+# ── install/rebuild in a floating terminal, rollback on failure ───────────
 REBUILD_TMP="/tmp/nebelhaus-install-run.sh"
 {
   printf 'FLAKE_DIR=%q\n' "$FLAKE_DIR"
-  printf 'ROSTER_JSON=%q\n' "$ROSTER_JSON"
-  printf 'INSTALLS_JSON=%q\n' "$INSTALLS_JSON"
+  printf 'PACKAGES_DIR=%q\n' "$PACKAGES_DIR"
+  printf 'TARGET=%q\n' "$target"
+  printf 'TARGET_REL=%q\n' "$target_rel"
   printf 'LANE=%q\n' "$lane"
-  printf 'KEY=%q\n' "$key"
   printf 'APPNAME=%q\n' "$appname"
   printf 'WORKSPACE=%q\n' "$workspace"
   printf 'BAR_ICON=%q\n' "$bar_icon"
@@ -341,11 +397,12 @@ if [ "$TYPE" = "mas" ]; then
     echo "✗ The App Store could not install $APPNAME."
     echo "  Opening its App Store page so you can finish there…"
     mas open "$TOKEN" 2>/dev/null || true
-    [ -f "$ROSTER_JSON.bak" ] && mv "$ROSTER_JSON.bak" "$ROSTER_JSON"
-    git add roster.json 2>/dev/null || true
+    [ -n "$TARGET" ] && rm -f "$TARGET" "$TARGET.tmp"
+    [ -n "$TARGET_REL" ] && git add -A -- "$TARGET_REL" 2>/dev/null || true
     echo
     echo "Press any key to close…"
     read -n 1 -s
+    rm -f "$0"
     exit 1
   fi
 
@@ -355,15 +412,15 @@ if [ "$TYPE" = "mas" ]; then
     echo
     echo "Press any key to close…"
     read -n 1 -s
+    rm -f "$0"
     exit 0
   fi
   echo
 fi
 
-# Flakes only read git-tracked files — stage the data files before building.
-# This deliberately happens after MAS's install-only fast path, which changes
-# no config and must not touch the caller's Git index.
-git add roster.json installs.json 2>/dev/null || true
+# Flakes only read git-tracked files. The MAS install-only path above has no
+# declaration and deliberately never touches the Git index.
+git add -- "$TARGET_REL"
 
 if [ "$LANE" = "Add to roster" ]; then
   echo "Wiring $APPNAME — building & switching (haus rebuild)…"
@@ -376,58 +433,58 @@ else
   echo "Installing $APPNAME — building & switching (haus rebuild)…"
 fi
 echo
+
 if haus rebuild; then
-  # For a roster app with a workspace, the on-window-detected auto-herd rule
-  # needs the bundle id, which only exists once the cask is installed. Resolve
-  # it now and, if we didn't have it, patch the entry and rebuild once more so
-  # the app's windows land on their workspace automatically.
-  if [ "$LANE" = "Add to roster" ] && [ -n "$WORKSPACE" ]; then
+  # A Homebrew cask may not expose its bundle id until the first activation.
+  # Enrich the same generated module, then rebuild once for auto-herding.
+  if [ "$LANE" = "Add to roster" ] && [ -n "$WORKSPACE" ] && [ -z "$APP_ID" ]; then
     appid="$(osascript -e "id of app \"$APPNAME\"" 2>/dev/null)"
-    have="$(jq -r --arg k "$KEY" '.[] | select(.key == $k) | .appId // ""' "$ROSTER_JSON" 2>/dev/null)"
-    if [ -n "$appid" ] && [ -z "$have" ]; then
-      jq --arg k "$KEY" --arg id "$appid" '(.[] | select(.key == $k) | .appId) |= $id' "$ROSTER_JSON" >"$ROSTER_JSON.tmp" \
-        && mv "$ROSTER_JSON.tmp" "$ROSTER_JSON" && git add roster.json 2>/dev/null
-      echo
-      echo "Resolved bundle id ($appid) — one more rebuild so windows auto-herd…"
-      echo
-      haus rebuild || true
+    if [ -n "$appid" ]; then
+      appid_lit="$(jq -Rn --arg value "$appid" '$value')"
+      if sed "s/appId = lib.mkDefault null;/appId = lib.mkDefault $appid_lit;/" "$TARGET" >"$TARGET.tmp" \
+        && mv "$TARGET.tmp" "$TARGET"; then
+        git add -- "$TARGET_REL"
+        echo
+        echo "Resolved bundle id ($appid) — one more rebuild so windows auto-herd…"
+        echo
+        haus rebuild || true
+      fi
     fi
   fi
-  # The rebuild rewrote the bar's workspace config + aerospace.toml, but the live
-  # daemons keep their old state — a newly added workspace pill / launcher binding
-  # won't show until they reload. Nudge both so the change is visible immediately.
+
   sketchybar --reload 2>/dev/null || true
   aerospace reload-config 2>/dev/null || true
-  # Commit the change so the host tree stays clean (an uncommitted roster.json
-  # otherwise blocks the next `bench ship`). Path-scoped, so nothing else you have
-  # in flight is touched; push stays your call.
-  git commit -q -m "config: add $APPNAME via pounce Install App" -- \
-    "$(basename "$ROSTER_JSON")" "$(basename "$INSTALLS_JSON")" 2>/dev/null || true
+  git commit -q -m "config: add $APPNAME via pounce Install App" -- "$TARGET_REL" 2>/dev/null || true
   echo
   if [ "$LANE" = "Add to roster" ]; then
-    echo "✓ $APPNAME is installed and wired."
+    echo "✓ $APPNAME is installed and wired in $TARGET_REL."
   else
-    echo "✓ $APPNAME is installed."
+    echo "✓ $APPNAME is installed and declared in $TARGET_REL."
   fi
-  rm -f "$ROSTER_JSON.bak" "$INSTALLS_JSON.bak"
 else
   echo
-  echo "✗ Rebuild failed — rolling back the declarative change."
+  echo "✗ Rebuild failed — removing the new Nix module."
   [ "$TYPE" = "mas" ] && echo "  $APPNAME remains installed from the Mac App Store."
-  [ -f "$ROSTER_JSON.bak" ] && mv "$ROSTER_JSON.bak" "$ROSTER_JSON"
-  [ -f "$INSTALLS_JSON.bak" ] && mv "$INSTALLS_JSON.bak" "$INSTALLS_JSON"
-  git add roster.json installs.json 2>/dev/null || true
+  rm -f "$TARGET" "$TARGET.tmp"
+  git add -A -- "$TARGET_REL" 2>/dev/null || true
 fi
 echo
 echo "Press any key to close…"
 read -n 1 -s
+rm -f "$0"
 EOF
 } >"$REBUILD_TMP"
 
 xattr -d com.apple.quarantine "$REBUILD_TMP" 2>/dev/null || true
 
-"$FLOAT_TERM" spawn \
+if ! "$FLOAT_TERM" spawn \
   --title "quick-terminal-install" \
   --w 800 --h 480 --cols 84 --rows 24 \
   --pin \
-  --command "bash $REBUILD_TMP" >/dev/null
+  --command "bash $REBUILD_TMP" >/dev/null; then
+  [ -n "$target" ] && rm -f "$target" "$target.tmp"
+  rm -f "$REBUILD_TMP"
+  rmdir "$PACKAGES_DIR" 2>/dev/null || true
+  notice "Could not open installer" "The generated module was removed; your config is unchanged"
+  exit 1
+fi

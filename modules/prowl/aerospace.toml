@@ -1,5 +1,5 @@
 # GENERATED WRAPPER — templated by modules/prowl/default.nix. The @TOKENS@
-# below are filled from nebelhaus.prowl.apps (the app roster) and the resolved
+# below are filled from nebelhaus._apps (the resolved app roster) and the resolved
 # home path at build time; don't deploy this file directly. Everything OUTSIDE
 # the tokens is the static, hand-tuned AeroSpace config.
 after-login-command = []
@@ -58,11 +58,11 @@ outer.right = [{ monitor."Built-in Retina Display" = 10 }, 20]
 # action (tap caps, then -/=). Focusing workspaces 1-4 is a caps-leader too — see
 # [mode.launch.binding] below, next to the app launchers.
 @MAIN_STATIC@
-# App-workspace throws (⌥⇧<key>) — generated from nebelhaus.prowl.apps.
+# App-workspace throws (⌥⇧<key>) — generated from nebelhaus._apps.
 @MAIN_MOVES@
 # Leader: Caps Lock is remapped to F18. Tap caps -> enter `launch` mode ->
 # letter -> open app (the launcher letters live in [mode.launch.binding] below,
-# generated from nebelhaus.prowl.apps).
+# generated from nebelhaus._apps).
 f18 = ['mode launch', 'exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh on']
 
 # ⌘space (palette), ⌥f, ⌥⇥, and ⌥⇧⇥ are part of the generated static block
@@ -113,7 +113,7 @@ shift-left = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh 
 shift-down = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'move down', 'mode navigate']
 shift-up = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'move up', 'mode navigate']
 shift-right = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'move right', 'mode navigate']
-# App launcher letters — generated from nebelhaus.prowl.apps.
+# App launcher letters — generated from nebelhaus._apps.
 @LAUNCH_LETTERS@
 # Resize mode (entered via the launch leader's -/=, or by pressing -/= while
 # navigating). Repeat -/= to keep growing/shrinking the focused tiled window;
@@ -171,7 +171,7 @@ run = 'move-node-to-workspace T'
 if.app-id = 'com.mitchellh.ghostty'
 run = 'layout floating'
 
-# App window auto-assignment — generated from nebelhaus.prowl.apps.
+# App window auto-assignment — generated from nebelhaus._apps.
 @WINDOW_RULES@
 [[on-window-detected]]
 if.app-id = 'com.apple.FaceTime'

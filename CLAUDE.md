@@ -35,7 +35,7 @@ flake.nix                 # mkNebelhaus builder + darwinModules outputs + exampl
 modules/
   default.nix             # imports all rooms
   options.nix             # all host-set knobs: git.*, theme.{accent,wallpaper}, hearth.*,
-                          #   claude.globalMd, prowl.* (the app roster), sill.*, pounce.*,
+                          #   claude.globalMd, apps.* (the shared roster), prowl.*, sill.*, pounce.*,
                           #   hush.*, trill.enable, tour.enable, homebrew.*, secrets.provider
   lib/gui-wait.nix        # withGUIWait: cold-boot-safe GUI agent launch wrapper
   den/                    # system: macOS defaults, Homebrew framework, core CLI, GC
