@@ -390,29 +390,6 @@ in
       '';
     };
 
-    prowl.apps = lib.mkOption {
-      type = lib.types.listOf appType;
-      default = [ ];
-      description = ''
-        Compatibility input for the old monolithic app list. New configurations
-        should use keyed `nebelhaus.apps.<id>` entries instead; those compose
-        across modules and are the format written by pounce "Install App".
-        Existing lists continue to participate in the resolved roster.
-      '';
-    };
-
-    prowl.rosterFile = lib.mkOption {
-      type = lib.types.nullOr lib.types.path;
-      default = null;
-      example = lib.literalExpression "./roster.json";
-      description = ''
-        Deprecated compatibility input for the former JSON-backed pounce
-        installer. New installs are native Nix modules under the consumer
-        host's packages directory and declare `nebelhaus.apps.<id>` directly.
-        Existing files continue to be read so upgrades do not break.
-      '';
-    };
-
     # ---- optional rooms ----
     # den + hearth + collar are always on (system, shell, Touch ID). These three
     # are the choosable rooms — turning one off drops its packages, agents, and
@@ -553,18 +530,6 @@ in
         description = ''
           Upgrade outdated Homebrew packages on every rebuild. Off by default
           for the same reproducibility reason as autoUpdate.
-        '';
-      };
-      installsFile = lib.mkOption {
-        type = lib.types.nullOr lib.types.path;
-        default = null;
-        example = lib.literalExpression "./installs.json";
-        description = ''
-          Deprecated compatibility input for the former JSON-backed pounce
-          installer. Existing casks, brews, and nixpkgs attribute paths remain
-          merged into their native package options so upgrades do not break.
-          New "Install App" selections are native Nix modules that declare
-          homebrew.casks, homebrew.brews, or environment.systemPackages.
         '';
       };
     };

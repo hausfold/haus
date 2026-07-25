@@ -13,17 +13,6 @@ let
   # caffeinate assertion. Keeping one derivation here means the optional bar
   # pill is only a view/controller; the wake lock survives bar/shell restarts.
   awake = pkgs.writeShellScriptBin "awake" (builtins.readFile ./awake.sh);
-
-  # Compatibility with the former JSON-backed "Install App" command. New
-  # installs are native host package modules that declare homebrew.casks /
-  # homebrew.brews or environment.systemPackages directly. Legacy shape:
-  # { "casks": [ … ], "brews": [ … ], "nixpkgs": [ … ] }.
-  installsFile = config.nebelhaus.homebrew.installsFile;
-  installs =
-    if installsFile != null then
-      builtins.fromJSON (builtins.readFile installsFile)
-    else
-      { };
 in
 {
   system.primaryUser = username;
@@ -86,11 +75,7 @@ in
     # never blocks. Reads `wt`'s registry — same agent-worktree flow, same home.
     (writeShellScriptBin "claude-statusline" (builtins.readFile ./statusline.sh))
     (writeShellScriptBin "claude-statusline-refresh" (builtins.readFile ./statusline-refresh.sh))
-  ] ++ map (attr:
-    lib.attrByPath (lib.splitString "." attr)
-      (throw "nebelhaus.homebrew.installsFile: nixpkgs package '${attr}' does not exist")
-      pkgs
-  ) (installs.nixpkgs or [ ]);
+  ];
 
   # The job is intentionally always present, even when the opt-in Sill pill is
   # hidden: `awake` is a rice-level capability usable from any shell. RunAtLoad
@@ -127,13 +112,9 @@ in
 
     # A minimal, opinionated starter set. Edit freely in your host file —
     # `homebrew.casks = [ ... ];` merges with whatever the modules declare.
-    # Legacy installsFile values append here too. The current pounce command
-    # writes native Nix modules that merge into these same list options.
     casks = [
       "ghostty" # the terminal the rice is themed for
-    ]
-    ++ (installs.casks or [ ]);
-    brews = installs.brews or [ ];
+    ];
   };
 
   # ---- Fonts ----------------------------------------------------------------

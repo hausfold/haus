@@ -247,8 +247,8 @@ if [ "$source_name" = "Nix packages" ]; then
     exit 0
   fi
   rm -f "$nix_errors"
-  # Strip Nix's system-qualified search prefix; installsFile resolves the
-  # remaining attribute path against the host's already-overlaid `pkgs`.
+  # Strip Nix's system-qualified search prefix; the generated module resolves
+  # the remaining attribute path against the host's already-overlaid `pkgs`.
   list="$(jq -r '
     to_entries[]
     | (.key | sub("^(legacyPackages|packages)\\.[^.]+\\."; "")) as $attr

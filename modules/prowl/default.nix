@@ -26,20 +26,13 @@ let
   binDir = "/etc/profiles/per-user/${username}/bin";
   launchSh = "${homeDir}/.config/aerospace/launch.sh";
 
-  # Compatibility with the short-lived JSON installer. New pounce installs are
-  # ordinary Nix modules declaring nebelhaus.apps.<id>; old roster files remain
-  # readable so existing consumers can migrate without a flag day.
-  rosterFile = config.nebelhaus.prowl.rosterFile;
-  fileApps = lib.optionals (rosterFile != null) (builtins.fromJSON (builtins.readFile rosterFile));
-
-  legacyApps = lib.filter (a: a.enable or true) (config.nebelhaus.prowl.apps ++ fileApps);
   namedEntries = lib.mapAttrsToList (id: app: { inherit id app; }) (
     lib.filterAttrs (_: app: app.enable) config.nebelhaus.apps
   );
   orderedNamedEntries = lib.sort (
     a: b: a.app.order < b.app.order || (a.app.order == b.app.order && a.id < b.id)
   ) namedEntries;
-  apps = legacyApps ++ map (entry: entry.app) orderedNamedEntries;
+  apps = map (entry: entry.app) orderedNamedEntries;
   appKeys = map (app: app.key) apps;
   duplicateKeys = lib.unique (
     lib.filter (key: lib.count (candidate: candidate == key) appKeys > 1) appKeys
@@ -106,16 +99,14 @@ let
 in
 lib.mkMerge [
   {
-    # One ordered view for prowl, sill, and pounce. Legacy entries keep their
-    # declared order; keyed entries follow by explicit order then stable id.
+    # One ordered view for prowl, sill, and pounce.
     nebelhaus._apps = apps;
   }
 
   (lib.mkIf config.nebelhaus.prowl.enable {
     # A fresh host gets a useful terminal + browser. These are field-level
     # defaults, so keyed entries compose with them and can override by app id.
-    # A legacy monolithic list keeps its historical replacement semantics.
-    nebelhaus.apps = lib.mkIf (legacyApps == [ ]) {
+    nebelhaus.apps = {
       ghostty = {
         enable = lib.mkDefault true;
         order = lib.mkDefault 10;
@@ -145,12 +136,6 @@ lib.mkMerge [
         message = "nebelhaus app leader keys must be unique; duplicated: ${lib.concatStringsSep ", " duplicateKeys}";
       }
     ];
-    warnings = lib.optional (rosterFile != null) ''
-      nebelhaus.prowl.rosterFile is deprecated. Move each JSON entry to a
-      keyed nebelhaus.apps.<id> Nix entry; pounce "Install App" now writes
-      native host package modules.
-    '';
-
   # AeroSpace itself (cask) + its tap. Roster apps that name a cask ride along.
   # Merged into den's homebrew config.
   homebrew.taps = [ "nikitabobko/tap" ];
