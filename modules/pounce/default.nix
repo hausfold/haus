@@ -208,6 +208,30 @@ lib.mkIf config.nebelhaus.pounce.enable {
     };
   };
 
+  # Attribute the launch agent to Pounce.app in Login Items & Extensions.
+  # Without an AssociatedBundleIdentifiers key, macOS Background Task Management
+  # falls back to the signing certificate's owner: the agent execs /bin/bash and
+  # the daemon copy is signed with an *individual* Developer ID, so a rice
+  # install showed the maintainer's legal name instead of "Pounce". This is the
+  # rice-side counterpart to the standalone Homebrew fix (nebelhaus/homebrew-tap#7);
+  # the daemon self-registers the bundle via LSRegisterURL (nebelhaus/pounce#29)
+  # so Launch Services can resolve com.local.pounce → the running signed copy.
+  #
+  # nix-darwin's launchd serviceConfig submodule is strictly typed with no
+  # AssociatedBundleIdentifiers option (and no freeform escape on this pin), so
+  # we can't set it above. Instead re-serialize the resolved agent plist with the
+  # key appended and force it over nix-darwin's generated copy — identical output
+  # aside from the one added key (same generators.toPlist call nix-darwin uses).
+  environment.userLaunchAgents."${config.launchd.user.agents.pounce.serviceConfig.Label}.plist".text =
+    lib.mkForce (
+      lib.generators.toPlist { escape = true; } (
+        config.launchd.user.agents.pounce.serviceConfig
+        // {
+          AssociatedBundleIdentifiers = [ "com.local.pounce" ];
+        }
+      )
+    );
+
   # All home-manager wiring in ONE block — a dynamic attr key (${username}) can't
   # be merged across multiple statements. Passed as a module FUNCTION so it gets
   # home-manager's extended `lib` (for lib.hm.dag) and the overlaid `pkgs`.
