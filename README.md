@@ -25,15 +25,6 @@ the machine, run one command, and the house stands again exactly as it was.
 > [!TIP]
 > Think *omarchy*, but for macOS instead of Arch.
 
-<div align="center">
-
-<!-- assets/tap-to-launch.webp — V3: tap ⇪, press a letter, the app launches and tiles itself -->
-![tap Caps Lock, press a letter — the app launches and tiles itself](./assets/tap-to-launch.webp)
-
-<sub>tap ⇪ → the bar sprouts letter-hints → press one → the app launches and tiles itself.</sub>
-
-</div>
-
 📖 **Full docs & guides: [nebelhaus.com](https://nebelhaus.com)** — start with
 [Install](https://nebelhaus.com/start/install/) and [First run](https://nebelhaus.com/start/first-run/),
 then the how-to guides: [Making it yours](https://nebelhaus.com/guides/making-it-yours/),
