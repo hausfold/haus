@@ -53,7 +53,7 @@ import one room into your own config.
 - 🔖 **collar** — identity & auth — Touch ID for sudo (with `reattach`, so it works inside tmux/zellij)
 - 🗝️ **secrets** — declarative secrets via [secretspec](https://secretspec.dev) — projects commit *which* secrets they need (never values); values live in the provider you pick per host: the local keychain by default, or 1Password / Bitwarden / GCP / AWS / Vault so they follow you to the next Mac
 - 🐾 **pounce** — the [Pounce](https://github.com/nebelhaus/pounce) command palette, wired in as a self-signing daemon that holds its Accessibility grant across rebuilds, and ⌘Space freed for it
-- 🐦 **trill** — the [Trill](https://github.com/nebelhaus/trill) native Messages client (iMessage/SMS/RCS over `chat.db`), installed as a Homebrew cask (`nebelhaus.trill.enable`)
+- 🐦 **trill** — the [Trill](https://github.com/nebelhaus/trill) native Messages client (iMessage/SMS/RCS over `chat.db`), installed through Nix via the `trill` flake input and copied to a fixed `/Applications/Trill.app` (`nebelhaus.trill.enable`)
 - 🤫 **hush** — a one-switch Focus/DND: a declarative global hotkey, plus optional Slack status and shell hooks (`nebelhaus.hush.*`)
 - 🎨 **theme** — the desktop wallpaper and an accent-derived bold wordmark (`nebelhaus.theme.accent` / `.wallpaper`)
 

@@ -46,7 +46,7 @@ modules/
   sill/                   # SketchyBar
   collar/                 # Touch ID sudo
   pounce/                 # the palette daemon (launchd + self-signing)
-  trill/                  # the trill Messages client, installed as a Homebrew cask
+  trill/                  # the trill Messages client, installed via the trill flake input
   hush/                   # Focus/DND one-switch: declarative hotkey 175 + Slack + hooks
   secrets/                # secretspec: declarative secrets, provider chosen per host
 hosts/example/            # the template a consumer copies
