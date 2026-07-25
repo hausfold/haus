@@ -13,9 +13,49 @@ let
   # caffeinate assertion. Keeping one derivation here means the optional bar
   # pill is only a view/controller; the wake lock survives bar/shell restarts.
   awake = pkgs.writeShellScriptBin "awake" (builtins.readFile ./awake.sh);
+
+  # Whichever system.defaults.universalaccess.* keys the host actually set (they
+  # all default to null upstream, so this is exactly the opt-ins).
+  universalaccessSet = lib.attrNames (
+    lib.filterAttrs (_: v: v != null) config.system.defaults.universalaccess
+  );
 in
 {
   system.primaryUser = username;
+
+  # ---- warn: system.defaults.universalaccess.* fails loudly without FDA -------
+  # `com.apple.universalaccess` is TCC-protected. Writing it requires the app
+  # RESPONSIBLE for the rebuild to hold Full Disk Access — nix-darwin runs
+  # `defaults write` from the activation script, so the grant that matters is
+  # the terminal (or agent) you invoked `darwin-rebuild` from, not root. Without
+  # it the write fails with "Could not write domain" and exit 1.
+  #
+  # That alone would be a papercut. What makes it worth a warning is the blast
+  # radius: nix-darwin emits the write UNGUARDED into an activation script that
+  # runs under `set -e`, roughly two thirds of the way in. So the non-zero exit
+  # ABORTS activation and silently skips everything after it — the Dock restart
+  # and every launchd daemon and user agent (awake, aerospace, hush-watcher,
+  # pounce, sketchybar). The symptom (services missing) appears nowhere near the
+  # cause, which is why upstream reports of this are so confused.
+  #
+  # Deliberately a warning, NOT an assertion: with FDA granted these options do
+  # work, so blocking them would be wrong. We just make the failure legible in
+  # advance. Drop this once upstream guards the writes.
+  #   https://github.com/nix-darwin/nix-darwin/issues/1049
+  warnings = lib.optional (universalaccessSet != [ ]) ''
+    nebelhaus: system.defaults.universalaccess is set (${lib.concatStringsSep ", " universalaccessSet}).
+
+    That domain is TCC-protected. It writes only if the app you run the rebuild
+    FROM holds Full Disk Access (System Settings ▸ Privacy & Security ▸ Full
+    Disk Access) — on macOS 26 a stale grant often needs removing and re-adding
+    with the (+) button, then restarting the terminal.
+
+    Without that grant the write exits 1, and because nix-darwin emits it
+    unguarded into an activation script running under `set -e`, activation
+    ABORTS there and skips the rest — including every launchd service the rice
+    installs (awake, aerospace, hush-watcher, pounce, sketchybar). If a rebuild
+    ever half-completes, this is the first thing to check.
+  '';
 
   programs.zsh.enable = true;
 
