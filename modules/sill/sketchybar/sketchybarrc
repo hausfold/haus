@@ -6,7 +6,7 @@
 source "$HOME/.config/sketchybar/colors.sh"
 
 # Workspace roster (WORKSPACES, LAUNCHER_KEYS, ws_icon) — GENERATED from
-# nebelhaus.prowl.apps by modules/sill/default.nix so the bar's pills stay in
+# nebelhaus._apps by modules/sill/default.nix so the bar's pills stay in
 # lockstep with AeroSpace's launcher.
 source "$HOME/.config/sketchybar/workspaces.sh"
 

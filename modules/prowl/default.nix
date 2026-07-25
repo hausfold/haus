@@ -3,9 +3,10 @@
 # a wake-time window re-sort.
 #
 # The launcher (which app lives on which workspace, its leader key + window
-# rules) is data-driven: nebelhaus.prowl.apps is the single source of truth, and
-# this module renders it into aerospace.toml (+ the wake-time resort script).
-# SketchyBar and the pounce cheatsheet read the same option so nothing drifts.
+# rules) is data-driven: keyed nebelhaus.apps entries are the composable source
+# of truth, normalized here into nebelhaus._apps. This module renders that list
+# into aerospace.toml (+ the wake-time resort script); SketchyBar and pounce read
+# the same resolved option so nothing drifts.
 {
   config,
   lib,
@@ -25,15 +26,17 @@ let
   binDir = "/etc/profiles/per-user/${username}/bin";
   launchSh = "${homeDir}/.config/aerospace/launch.sh";
 
-  # Extra roster entries appended by the pounce "Install App" command live in a
-  # JSON file (nebelhaus.prowl.rosterFile) so the roster stays machine-editable
-  # without hand-patching Nix. Read at build time and folded into the option
-  # BELOW (config block) so every consumer — this module, sill's pills, the
-  # pounce cheatsheet — sees the merged roster and nothing drifts.
-  rosterFile = config.nebelhaus.prowl.rosterFile;
-  fileApps = lib.optionals (rosterFile != null) (builtins.fromJSON (builtins.readFile rosterFile));
-
-  apps = config.nebelhaus.prowl.apps;
+  namedEntries = lib.mapAttrsToList (id: app: { inherit id app; }) (
+    lib.filterAttrs (_: app: app.enable) config.nebelhaus.apps
+  );
+  orderedNamedEntries = lib.sort (
+    a: b: a.app.order < b.app.order || (a.app.order == b.app.order && a.id < b.id)
+  ) namedEntries;
+  apps = map (entry: entry.app) orderedNamedEntries;
+  appKeys = map (app: app.key) apps;
+  duplicateKeys = lib.unique (
+    lib.filter (key: lib.count (candidate: candidate == key) appKeys > 1) appKeys
+  );
 
   # The static tiling/workspace/service bindings, shared with the pounce
   # cheatsheet (see ./wm-bindings.nix — one table, rendered both ways so they
@@ -94,12 +97,45 @@ let
   # Any roster app with a cask installs itself — declaring the app also brings it.
   rosterCasks = lib.filter (c: c != null) (map (a: a.cask) apps);
 in
-lib.mkIf config.nebelhaus.prowl.enable {
-  # Fold the JSON roster file into the roster option. List options concatenate
-  # across definitions, so this appends to the host's hand-written apps; every
-  # reader of nebelhaus.prowl.apps (here, sill, pounce) then sees both.
-  nebelhaus.prowl.apps = fileApps;
+lib.mkMerge [
+  {
+    # One ordered view for prowl, sill, and pounce.
+    nebelhaus._apps = apps;
+  }
 
+  (lib.mkIf config.nebelhaus.prowl.enable {
+    # A fresh host gets a useful terminal + browser. These are field-level
+    # defaults, so keyed entries compose with them and can override by app id.
+    nebelhaus.apps = {
+      ghostty = {
+        enable = lib.mkDefault true;
+        order = lib.mkDefault 10;
+        key = lib.mkDefault "t";
+        name = lib.mkDefault "Ghostty";
+        workspace = lib.mkDefault "T";
+        appId = lib.mkDefault "com.mitchellh.ghostty";
+        barIcon = lib.mkDefault ":ghostty:";
+        label = lib.mkDefault "Ghostty (Terminal)";
+      };
+      zen = {
+        enable = lib.mkDefault true;
+        order = lib.mkDefault 20;
+        key = lib.mkDefault "b";
+        name = lib.mkDefault "Zen";
+        workspace = lib.mkDefault "B";
+        appId = lib.mkDefault "app.zen-browser.zen";
+        barIcon = lib.mkDefault ":zen_browser:";
+        label = lib.mkDefault "Zen (Browser)";
+        cask = lib.mkDefault "zen";
+      };
+    };
+
+    assertions = [
+      {
+        assertion = duplicateKeys == [ ];
+        message = "nebelhaus app leader keys must be unique; duplicated: ${lib.concatStringsSep ", " duplicateKeys}";
+      }
+    ];
   # AeroSpace itself (cask) + its tap. Roster apps that name a cask ride along.
   # Merged into den's homebrew config.
   homebrew.taps = [ "nikitabobko/tap" ];
@@ -180,4 +216,5 @@ lib.mkIf config.nebelhaus.prowl.enable {
       executable = true;
     };
   };
-}
+  })
+]

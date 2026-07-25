@@ -14,6 +14,7 @@
   config,
   lib,
   pkgs,
+  hostname,
   username,
   ...
 }:
@@ -60,7 +61,9 @@ EOF
   # private command data, not self-describing, so pounce ignores it.
   riceCommands = pkgs.runCommand "nebelhaus-pounce-commands" { } ''
     mkdir -p $out
-    install -m555 ${./commands}/*.sh $out/
+    cp ${./commands}/*.sh $out/
+    substituteInPlace $out/add-app.sh --replace-fail '@hostname@' '${hostname}'
+    chmod 555 $out/*.sh
     install -m555 ${appIconMap} $out/app-icon-map
     ${lib.optionalString (!config.nebelhaus.hush.enable) "rm $out/hush.sh"}
   '';
@@ -78,7 +81,7 @@ EOF
     (map (a: {
       key = a.key;
       action = if a.label != null then a.label else a.name;
-    }) config.nebelhaus.prowl.apps)
+    }) config.nebelhaus._apps)
     ++ [
       {
         key = "1-4";

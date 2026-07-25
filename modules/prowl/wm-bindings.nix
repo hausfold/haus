@@ -1,6 +1,6 @@
 # The static AeroSpace bindings — the tiling/workspace/service chords that are
 # the SAME on every install (the per-app launcher chords live in the roster,
-# nebelhaus.prowl.apps). Declared ONCE here, then rendered two ways:
+# nebelhaus._apps). Declared ONCE here, then rendered two ways:
 #
 #   modules/prowl/default.nix   → the `binds` become aerospace.toml lines
 #                                 (@MAIN_STATIC@ / @SERVICE_STATIC@ tokens).
@@ -82,7 +82,7 @@
         };
       }
       # ⌥⇧<letter> throws a window to an app's workspace — those chords are
-      # generated from nebelhaus.prowl.apps (@MAIN_MOVES@), so this row is
+      # generated from nebelhaus._apps (@MAIN_MOVES@), so this row is
       # display-only: it documents the pattern, it doesn't bind anything.
       {
         keys = "⌥ ⇧ [Letter]";

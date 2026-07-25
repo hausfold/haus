@@ -71,6 +71,29 @@
           system ? "aarch64-darwin",
           extraModules ? [ ],
         }:
+        let
+          # Pounce "Install App" writes one small, ordinary Nix module per
+          # package here. Auto-importing the directory keeps the command
+          # machine-writable without inventing a parallel JSON option, while
+          # each file still composes through the exact public options a person
+          # would write by hand.
+          hostPackagesDir = if builtins.typeOf host == "path" then host + "/packages" else null;
+          hostPackageModules =
+            if hostPackagesDir != null && builtins.pathExists hostPackagesDir then
+              map (name: hostPackagesDir + "/${name}") (
+                builtins.filter (
+                  name:
+                  name != "default.nix"
+                  && nixpkgs.lib.hasSuffix ".nix" name
+                  && builtins.elem (builtins.readDir hostPackagesDir).${name} [
+                    "regular"
+                    "symlink"
+                  ]
+                ) (builtins.attrNames (builtins.readDir hostPackagesDir))
+              )
+            else
+              [ ];
+        in
         nix-darwin.lib.darwinSystem {
           inherit system;
           specialArgs = { inherit inputs username hostname; };
@@ -109,6 +132,7 @@
             self.darwinModules.default
             host
           ]
+          ++ hostPackageModules
           ++ extraModules;
         };
     in
