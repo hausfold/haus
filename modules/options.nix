@@ -377,6 +377,57 @@ in
         '';
       };
 
+    # ---- fonts ----
+    # Honest scope: this is the TERMINAL font — Ghostty's family and size, and
+    # the font package the rice installs for it. The bar (sill) deliberately
+    # keeps its own Hack Nerd Font at its own tuned sizes; unifying the two is a
+    # separate change, since the bar's pill geometry is built around them.
+    fonts.mono = {
+      name = lib.mkOption {
+        type = lib.types.str;
+        default = "JetBrainsMono Nerd Font Mono";
+        example = "Berkeley Mono";
+        description = ''
+          The terminal font family, as Ghostty's `font-family` names it.
+
+          This should be a NERD FONT patched build: starship's prompt, lsd's
+          icons, and yazi all draw with glyphs a stock font renders as tofu.
+          If you change this, set `package` too — the rice can only install a
+          font it's been given.
+        '';
+      };
+      size = lib.mkOption {
+        type = lib.types.ints.positive;
+        default = 19;
+        example = 24;
+        description = ''
+          Terminal font size in points. The single most useful knob for a
+          larger-text machine, since it moves everything the rice actually
+          lives in.
+
+          19 is the default for a reason worth knowing: the Ghostty window is
+          tiled to a fixed pixel height by prowl, and sizes that don't divide
+          that height evenly used to leave a gap under zellij's status bar.
+          That's since been fixed properly (window-padding-balance +
+          `extend-always`), so any size is safe now — 19 is simply the tuned
+          starting point.
+        '';
+      };
+      package = lib.mkOption {
+        type = lib.types.nullOr lib.types.package;
+        default = null;
+        example = lib.literalExpression "pkgs.nerd-fonts.fira-code";
+        description = ''
+          The package providing `name`. null (the default) installs the rice's
+          own JetBrains Mono Nerd Font, which is what `name` defaults to.
+
+          Set this whenever you change `name`, or the family simply won't exist
+          on the machine and Ghostty will silently fall back — the rice warns if
+          it spots that combination.
+        '';
+      };
+    };
+
     theme.accent = lib.mkOption {
       type = lib.types.enum [
         "rosewater"
