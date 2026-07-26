@@ -147,6 +147,11 @@
           ++ hostPackageModules
           ++ extraModules;
         };
+      presetFiles = {
+        full = ./presets/full.nix;
+        minimal = ./presets/minimal.nix;
+        everyday = ./presets/everyday.nix;
+      };
     in
     {
       # Import the whole house, or cherry-pick a room. Each is a nix-darwin module.
@@ -163,6 +168,90 @@
       };
 
       inherit mkNebelhaus;
+
+      # ---- presets: the shared-rice format, dogfooded --------------------------
+      # A preset is a DATA-ONLY rice: a file evaluating to an attrset whose only
+      # top-level key is `nebelhaus`. No pkgs, no lib, no config — so it cannot
+      # add a package, run an activation script, or reach anything outside the
+      # rice's own options. That boundary is what makes importing a stranger's
+      # rice a different act from running their code.
+      #
+      # The repo's own presets go through the same check and the same import
+      # path a stranger's would, deliberately: if the option surface can't
+      # express `everyday` without reaching around nebelhaus.*, it can't express
+      # a community rice either — better to learn that here than after
+      # publishing a format. See presets/README.md.
+      presets = presetFiles;
+
+      lib = {
+        # `nebelhaus.lib.checkRice ./my-rice.nix` — true, or throws naming the
+        # stray key. Exposed so a third party can self-test before publishing
+        # rather than learning the rule from a rejected PR.
+        checkRice =
+          path:
+          let
+            m = import path;
+            isData = builtins.isAttrs m;
+            stray = if isData then builtins.filter (k: k != "nebelhaus") (builtins.attrNames m) else [ ];
+          in
+          if !isData then
+            throw (
+              "checkRice: ${toString path} is a function, so it is not a data-only rice. "
+              + "A data-only rice takes no arguments — no pkgs, no lib, no config — and evaluates "
+              + "to { nebelhaus = { … }; }. A rice that genuinely needs pkgs is a power module: "
+              + "an ordinary nix-darwin module, with the trust that implies."
+            )
+          else if stray != [ ] then
+            throw (
+              "checkRice: ${toString path} sets ${builtins.concatStringsSep ", " stray} outside "
+              + "`nebelhaus`. A data-only rice may set nothing else — that boundary is the whole "
+              + "reason one can be read and trusted at a glance."
+            )
+          else
+            true;
+      };
+
+      # `nix flake check` — the presets are the community format, so the rule
+      # that defines that format has to be enforced, not merely documented.
+      #
+      # Two properties, and both matter. Data-only (checkRice) is the TRUST
+      # half: a preset can't reach outside nebelhaus.*. Evaluating a real system
+      # with each is the USEFULNESS half — a preset that is beautifully
+      # data-only and doesn't build is worse than no preset. Evaluation only:
+      # the drv paths are stripped of context, so this checks the presets rather
+      # than building nixpkgs.
+      #
+      # checkRice THROWS rather than returning false, so a stray key fails this
+      # check during evaluation, with its own message. The `dataOnly` guard
+      # below is belt-and-braces for a future checkRice that returns a bool.
+      checks = nixpkgs.lib.genAttrs [ "aarch64-darwin" "x86_64-darwin" ] (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+          names = builtins.attrNames presetFiles;
+          dataOnly = builtins.all (n: self.lib.checkRice presetFiles.${n}) names;
+          evaluated = map (
+            n:
+            "${n} ${
+              builtins.unsafeDiscardStringContext
+                (mkNebelhaus {
+                  inherit system;
+                  username = "you";
+                  hostname = "example";
+                  extraModules = [ presetFiles.${n} ];
+                }).system.drvPath
+            }"
+          ) names;
+        in
+        {
+          presets = pkgs.runCommand "nebelhaus-presets-ok" { } ''
+            ${nixpkgs.lib.optionalString (!dataOnly) "echo 'a preset is not data-only' >&2; exit 1"}
+            cat > $out <<'PRESETS'
+            ${builtins.concatStringsSep "\n" evaluated}
+            PRESETS
+          '';
+        }
+      );
 
       # `nix run github:nebelhaus/nebelhaus#pounce`
       packages = nixpkgs.lib.genAttrs
