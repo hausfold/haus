@@ -131,6 +131,27 @@
         "type": "github"
       }
     },
+    "perch": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "prebuilt": "prebuilt"
+      },
+      "locked": {
+        "lastModified": 1785069274,
+        "narHash": "sha256-nceq6s3582QvliNO1+MHrQYmwJuyjxC+fooSpuOLOv4=",
+        "owner": "nebelhaus",
+        "repo": "perch",
+        "rev": "8b51e8cc0b7bd4464bbcd393497bf2ee4f216c45",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nebelhaus",
+        "repo": "perch",
+        "type": "github"
+      }
+    },
     "pounce": {
       "inputs": {
         "nebelung": [
@@ -165,6 +186,20 @@
         "type": "path"
       },
       "parent": [
+        "perch"
+      ]
+    },
+    "prebuilt_2": {
+      "flake": false,
+      "locked": {
+        "path": "./nix/dev-app",
+        "type": "path"
+      },
+      "original": {
+        "path": "./nix/dev-app",
+        "type": "path"
+      },
+      "parent": [
         "trill"
       ]
     },
@@ -176,6 +211,7 @@
         "nix-darwin": "nix-darwin",
         "nix-index-database": "nix-index-database",
         "nixpkgs": "nixpkgs_2",
+        "perch": "perch",
         "pounce": "pounce",
         "trill": "trill"
       }
@@ -185,7 +221,7 @@
         "nixpkgs": [
           "nixpkgs"
         ],
-        "prebuilt": "prebuilt"
+        "prebuilt": "prebuilt_2"
       },
       "locked": {
         "lastModified": 1784976608,
