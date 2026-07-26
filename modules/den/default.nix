@@ -19,6 +19,12 @@ let
   universalaccessSet = lib.attrNames (
     lib.filterAttrs (_: v: v != null) config.system.defaults.universalaccess
   );
+
+  # The nebelhaus.accessibility.* keys the host actually set. Same domain as
+  # above, deliberately NOT the same mechanism — see the block that writes them.
+  a11ySet = lib.filterAttrs (_: v: v != null) {
+    inherit (config.nebelhaus.accessibility) increaseContrast differentiateWithoutColor;
+  };
 in
 {
   system.primaryUser = username;
@@ -55,6 +61,40 @@ in
     ABORTS there and skips the rest — including every launchd service the rice
     installs (awake, aerospace, hush-watcher, pounce, sketchybar). If a rebuild
     ever half-completes, this is the first thing to check.
+
+    nebelhaus.accessibility.* reaches the two useful keys in this domain
+    (increaseContrast, differentiateWithoutColor) WITHOUT that hazard — it
+    guards the write, so a missing grant costs you the setting and nothing else.
+  '';
+
+  # ---- nebelhaus.accessibility → com.apple.universalaccess -------------------
+  # Writes the two keys in that domain measured to write AND take effect on
+  # macOS 26 (checked against NSWorkspace, not a plist read-back).
+  #
+  # NOT via system.defaults.CustomUserPreferences, which would be the obvious
+  # route: that funnels through the exact same generator as the typed options
+  # warned about above — an UNGUARDED `defaults write` in an activation script
+  # running under `set -e`. Without Full Disk Access the write exits 1 and takes
+  # the remainder of activation with it, including every launchd service. Since
+  # the grant belongs to the app invoking the rebuild, an agent-driven
+  # `haus rebuild` would break on a config that works by hand — the worst kind
+  # of "works on my machine".
+  #
+  # So we emit the same command shape ourselves, guarded: on refusal, say why
+  # and carry on. Degrading to "the setting didn't apply" is the correct
+  # failure; a half-activated Mac is not.
+  system.activationScripts.postActivation.text = lib.optionalString (a11ySet != { }) ''
+    nebelhausAccessibility() {
+      if launchctl asuser "$(id -u -- ${username})" sudo --user=${username} -- \
+           defaults write com.apple.universalaccess "$1" -bool "$2" 2>/dev/null; then
+        echo "accessibility: $1 = $2" >&2
+      else
+        echo "warning: accessibility: could not set $1 — com.apple.universalaccess needs Full Disk Access on the app running this rebuild. Setting skipped; nothing else was affected." >&2
+      fi
+    }
+    ${lib.concatStringsSep "\n" (
+      lib.mapAttrsToList (k: v: "nebelhausAccessibility ${k} ${lib.boolToString v}") a11ySet
+    )}
   '';
 
   programs.zsh.enable = true;
