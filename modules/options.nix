@@ -332,6 +332,51 @@ in
       '';
     };
 
+    # ---- accessibility ----
+    # Deliberately TWO options, not a family. These are the only keys in
+    # com.apple.universalaccess measured to write AND actually take effect on
+    # macOS 26 (verified against NSWorkspace, not just a plist read-back — that
+    # distinction matters: com.apple.Accessibility accepts writes and changes
+    # nothing, and universalaccess's own FontSizeCategory writes without ever
+    # notifying a running app). Everything else in that domain stays a System
+    # Settings job until it's been measured the same way.
+    accessibility =
+      let
+        mkA11y = desc: lib.mkOption {
+          type = lib.types.nullOr lib.types.bool;
+          default = null;
+          example = true;
+          description = ''
+            ${desc}
+
+            null (the default) leaves whatever you have alone — this is a
+            personal setting, so the rice never picks a value for you.
+
+            REACHABILITY: `com.apple.universalaccess` is TCC-protected. It writes
+            only when the app that runs the rebuild holds Full Disk Access
+            (System Settings ▸ Privacy & Security ▸ Full Disk Access; on macOS 26
+            a stale grant often needs removing and re-adding with (+)). Without
+            that grant the rice logs a warning and moves on — it does NOT fail
+            the rebuild. Worth knowing: an agent-driven `haus rebuild` runs under
+            a different app than your terminal, so it may skip this while your
+            own rebuild applies it.
+          '';
+        };
+      in
+      {
+        increaseContrast = mkA11y ''
+          macOS's "Increase contrast" — stronger borders and reduced use of
+          colour alone to convey state, across native apps. This is the
+          system-level companion to a high-contrast nebelhaus theme: the theme
+          restyles the tools nebelhaus colours, this reaches everything else.
+        '';
+        differentiateWithoutColor = mkA11y ''
+          macOS's "Differentiate without colour" — native UI adds shapes and
+          text where it would otherwise rely on hue alone. The setting to pair
+          with a rice built for colour-blind readability.
+        '';
+      };
+
     theme.accent = lib.mkOption {
       type = lib.types.enum [
         "rosewater"
