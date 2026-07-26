@@ -17,6 +17,7 @@ let
   hearthCfg = config.nebelhaus.hearth;
   claudeCfg = config.nebelhaus.claude;
   accent = config.nebelhaus.theme.accent; # a Catppuccin accent name, e.g. "mauve"
+  fontsCfg = config.nebelhaus.fonts; # terminal font family/size (den installs the package)
 
   # Rice-owned preamble for ~/.claude/CLAUDE.md. The rice ships `wt` (den) on
   # PATH to every machine, and Claude Code agent worktrees live OUTSIDE the repo
@@ -856,9 +857,14 @@ in
         # ghostty's `command` runs the zellij launcher by absolute path; render
         # @HOME@ → the user's home so it isn't pinned to one account.
         "Library/Application Support/com.mitchellh.ghostty/config".text =
-          builtins.replaceStrings [ "@HOME@" ] [ config.home.homeDirectory ] (
-            builtins.readFile ./ghostty/config
-          );
+          builtins.replaceStrings
+            [ "@HOME@" "@FONT_FAMILY@" "@FONT_SIZE@" ]
+            [
+              config.home.homeDirectory
+              fontsCfg.mono.name
+              (toString fontsCfg.mono.size)
+            ]
+            (builtins.readFile ./ghostty/config);
         ".config/ghostty/themes/nebelung".source =
           "${nebelung.themes}/ghostty/themes/catppuccin-mocha.conf";
 

@@ -2,6 +2,7 @@
 # the Homebrew framework, core CLI tools, fonts, and periodic GC.
 {
   config,
+  options,
   lib,
   pkgs,
   username,
@@ -19,6 +20,19 @@ let
   universalaccessSet = lib.attrNames (
     lib.filterAttrs (_: v: v != null) config.system.defaults.universalaccess
   );
+
+  # The nebelhaus.accessibility.* keys the host actually set. Same domain as
+  # above, deliberately NOT the same mechanism — see the block that writes them.
+  a11ySet = lib.filterAttrs (_: v: v != null) {
+    inherit (config.nebelhaus.accessibility) increaseContrast differentiateWithoutColor;
+  };
+
+  fontsCfg = config.nebelhaus.fonts;
+  # Naming a family the rice was never given a package for is silent tofu:
+  # Ghostty just falls back and the powerline/icon glyphs vanish. Cheap to spot.
+  fontFamilyUnprovided =
+    fontsCfg.mono.package == null
+    && fontsCfg.mono.name != options.nebelhaus.fonts.mono.name.default;
 in
 {
   system.primaryUser = username;
@@ -42,7 +56,16 @@ in
   # work, so blocking them would be wrong. We just make the failure legible in
   # advance. Drop this once upstream guards the writes.
   #   https://github.com/nix-darwin/nix-darwin/issues/1049
-  warnings = lib.optional (universalaccessSet != [ ]) ''
+  warnings = lib.optional fontFamilyUnprovided ''
+    nebelhaus: fonts.mono.name is "${fontsCfg.mono.name}" but fonts.mono.package is null.
+
+    The rice only installs the font it's given, so unless that family is already
+    on the machine Ghostty will fall back silently — and the fallback won't be a
+    Nerd Font, so starship's prompt, lsd's icons and yazi previews render as
+    tofu. Set nebelhaus.fonts.mono.package to the matching package
+    (e.g. pkgs.nerd-fonts.fira-code).
+  ''
+  ++ lib.optional (universalaccessSet != [ ]) ''
     nebelhaus: system.defaults.universalaccess is set (${lib.concatStringsSep ", " universalaccessSet}).
 
     That domain is TCC-protected. It writes only if the app you run the rebuild
@@ -55,6 +78,40 @@ in
     ABORTS there and skips the rest — including every launchd service the rice
     installs (awake, aerospace, hush-watcher, pounce, sketchybar). If a rebuild
     ever half-completes, this is the first thing to check.
+
+    nebelhaus.accessibility.* reaches the two useful keys in this domain
+    (increaseContrast, differentiateWithoutColor) WITHOUT that hazard — it
+    guards the write, so a missing grant costs you the setting and nothing else.
+  '';
+
+  # ---- nebelhaus.accessibility → com.apple.universalaccess -------------------
+  # Writes the two keys in that domain measured to write AND take effect on
+  # macOS 26 (checked against NSWorkspace, not a plist read-back).
+  #
+  # NOT via system.defaults.CustomUserPreferences, which would be the obvious
+  # route: that funnels through the exact same generator as the typed options
+  # warned about above — an UNGUARDED `defaults write` in an activation script
+  # running under `set -e`. Without Full Disk Access the write exits 1 and takes
+  # the remainder of activation with it, including every launchd service. Since
+  # the grant belongs to the app invoking the rebuild, an agent-driven
+  # `haus rebuild` would break on a config that works by hand — the worst kind
+  # of "works on my machine".
+  #
+  # So we emit the same command shape ourselves, guarded: on refusal, say why
+  # and carry on. Degrading to "the setting didn't apply" is the correct
+  # failure; a half-activated Mac is not.
+  system.activationScripts.postActivation.text = lib.optionalString (a11ySet != { }) ''
+    nebelhausAccessibility() {
+      if launchctl asuser "$(id -u -- ${username})" sudo --user=${username} -- \
+           defaults write com.apple.universalaccess "$1" -bool "$2" 2>/dev/null; then
+        echo "accessibility: $1 = $2" >&2
+      else
+        echo "warning: accessibility: could not set $1 — com.apple.universalaccess needs Full Disk Access on the app running this rebuild. Setting skipped; nothing else was affected." >&2
+      fi
+    }
+    ${lib.concatStringsSep "\n" (
+      lib.mapAttrsToList (k: v: "nebelhausAccessibility ${k} ${lib.boolToString v}") a11ySet
+    )}
   '';
 
   programs.zsh.enable = true;
@@ -158,11 +215,15 @@ in
   };
 
   # ---- Fonts ----------------------------------------------------------------
-  # The rice's terminal font. JetBrains Mono Nerd Font carries the powerline +
-  # icon glyphs that starship, lsd, and yazi draw with — without a Nerd Font
-  # they render as tofu. hearth points Ghostty at it. `fonts.packages` is a list
-  # option, so this merges with the sketchybar-app-font sill installs.
-  fonts.packages = [ pkgs.nerd-fonts.jetbrains-mono ];
+  # The rice's terminal font, from nebelhaus.fonts.mono. JetBrains Mono Nerd
+  # Font is the default because a Nerd Font is load-bearing here: starship's
+  # powerline prompt, lsd's icons, and yazi all draw with patched glyphs that a
+  # stock font renders as tofu. hearth points Ghostty at whatever this resolves
+  # to. `fonts.packages` is a list option, so this merges with the fonts sill
+  # installs (sketchybar-app-font + Hack, which its bar config names).
+  fonts.packages = [
+    (if fontsCfg.mono.package != null then fontsCfg.mono.package else pkgs.nerd-fonts.jetbrains-mono)
+  ];
 
   # Homebrew's tap-trust check is flaky under sudo-driven activation (the
   # per-user trust store gets bypassed), so third-party taps fail with "Refusing

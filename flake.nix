@@ -165,11 +165,76 @@
       inherit mkNebelhaus;
 
       # `nix run github:nebelhaus/nebelhaus#pounce`
-      packages = nixpkgs.lib.genAttrs [ "aarch64-darwin" "x86_64-darwin" ] (system: {
-        pounce = pounce.packages.${system}.default;
-        trill = trill.packages.${system}.default;
-        perch = perch.packages.${system}.default;
-      });
+      packages = nixpkgs.lib.genAttrs
+        [
+          "aarch64-darwin"
+          "x86_64-darwin"
+          # Linux too, for options-json alone: nebelhaus.com's CI renders the
+          # options reference there. Nothing else in this set is buildable on
+          # Linux, but option metadata is pure evaluation.
+          "aarch64-linux"
+          "x86_64-linux"
+        ]
+        (
+          system:
+          let
+            pkgs = nixpkgs.legacyPackages.${system};
+            isDarwin = nixpkgs.lib.hasSuffix "-darwin" system;
+
+            # `nix build .#options-json` — machine-readable metadata for every
+            # nebelhaus.* option: type, default, example, description, and the
+            # file that declares it. nebelhaus.com's options reference is
+            # RENDERED from this instead of hand-maintained, so the page cannot
+            # drift from the module system (as prose, it drifted for months).
+            #
+            # Evaluates ONLY the per-room options files — not a darwin system —
+            # so it needs no host, no username, and no macOS. That's what lets
+            # the docs repo's Linux CI run it, and it works only because those
+            # files are pure `{ lib, ... }` modules with no config/pkgs
+            # dependencies. Keep them that way.
+            optionsEval = pkgs.lib.evalModules {
+              specialArgs = { inherit (pkgs) lib; };
+              modules = [
+                ./modules/options.nix
+                ./modules/den/options.nix
+                ./modules/theme/options.nix
+                ./modules/hearth/options.nix
+                ./modules/prowl/options.nix
+                ./modules/sill/options.nix
+                ./modules/pounce/options.nix
+                ./modules/trill/options.nix
+                ./modules/perch/options.nix
+                ./modules/hush/options.nix
+                ./modules/secrets/options.nix
+                ./modules/snippets/options.nix
+              ];
+            };
+
+            selfPrefix = toString ./.;
+          in
+          {
+            options-json =
+              (pkgs.nixosOptionsDoc {
+                inherit (optionsEval) options;
+                warningsAreErrors = false;
+                # Store paths mean nothing to a reader; keep the repo-relative
+                # path so each rendered option can link to its source.
+                transformOptions =
+                  opt:
+                  opt
+                  // {
+                    declarations = map (
+                      decl: nixpkgs.lib.removePrefix "/" (nixpkgs.lib.removePrefix selfPrefix (toString decl))
+                    ) opt.declarations;
+                  };
+              }).optionsJSON;
+          }
+          // nixpkgs.lib.optionalAttrs isDarwin {
+            pounce = pounce.packages.${system}.default;
+            trill = trill.packages.${system}.default;
+            perch = perch.packages.${system}.default;
+          }
+        );
 
       # `nix run github:nebelhaus/nebelhaus#bootstrap` — raise the house on a
       # fresh Mac. Scaffolds a thin personal config at ~/.config/nix; it never

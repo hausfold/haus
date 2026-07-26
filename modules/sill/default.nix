@@ -333,7 +333,16 @@ lib.mkIf config.nebelhaus.sill.enable {
   homebrew.brews =
     [ "FelixKratz/formulae/sketchybar" ]
     ++ lib.optional config.nebelhaus.sill.items.calendar "ical-buddy";
-  fonts.packages = [ pkgs.sketchybar-app-font ];
+  # sketchybar-app-font draws the workspace-pill logos. Hack Nerd Font draws
+  # EVERYTHING ELSE in the bar — sketchybarrc names "Hack Nerd Font" for every
+  # icon and label — and nothing installed it: den ships JetBrains Mono, this
+  # line shipped only the app font. A machine that happened to have Hack from
+  # an earlier hand-install looked fine, which is why it went unnoticed; a fresh
+  # one drew tofu across the whole bar. Declare what we name.
+  fonts.packages = [
+    pkgs.sketchybar-app-font
+    pkgs.nerd-fonts.hack
+  ];
 
   launchd.user.agents.sketchybar = {
     serviceConfig = {
