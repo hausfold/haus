@@ -2,6 +2,7 @@
 # the Homebrew framework, core CLI tools, fonts, and periodic GC.
 {
   config,
+  options,
   lib,
   pkgs,
   username,
@@ -25,6 +26,13 @@ let
   a11ySet = lib.filterAttrs (_: v: v != null) {
     inherit (config.nebelhaus.accessibility) increaseContrast differentiateWithoutColor;
   };
+
+  fontsCfg = config.nebelhaus.fonts;
+  # Naming a family the rice was never given a package for is silent tofu:
+  # Ghostty just falls back and the powerline/icon glyphs vanish. Cheap to spot.
+  fontFamilyUnprovided =
+    fontsCfg.mono.package == null
+    && fontsCfg.mono.name != options.nebelhaus.fonts.mono.name.default;
 in
 {
   system.primaryUser = username;
@@ -48,7 +56,16 @@ in
   # work, so blocking them would be wrong. We just make the failure legible in
   # advance. Drop this once upstream guards the writes.
   #   https://github.com/nix-darwin/nix-darwin/issues/1049
-  warnings = lib.optional (universalaccessSet != [ ]) ''
+  warnings = lib.optional fontFamilyUnprovided ''
+    nebelhaus: fonts.mono.name is "${fontsCfg.mono.name}" but fonts.mono.package is null.
+
+    The rice only installs the font it's given, so unless that family is already
+    on the machine Ghostty will fall back silently — and the fallback won't be a
+    Nerd Font, so starship's prompt, lsd's icons and yazi previews render as
+    tofu. Set nebelhaus.fonts.mono.package to the matching package
+    (e.g. pkgs.nerd-fonts.fira-code).
+  ''
+  ++ lib.optional (universalaccessSet != [ ]) ''
     nebelhaus: system.defaults.universalaccess is set (${lib.concatStringsSep ", " universalaccessSet}).
 
     That domain is TCC-protected. It writes only if the app you run the rebuild
@@ -198,11 +215,15 @@ in
   };
 
   # ---- Fonts ----------------------------------------------------------------
-  # The rice's terminal font. JetBrains Mono Nerd Font carries the powerline +
-  # icon glyphs that starship, lsd, and yazi draw with — without a Nerd Font
-  # they render as tofu. hearth points Ghostty at it. `fonts.packages` is a list
-  # option, so this merges with the sketchybar-app-font sill installs.
-  fonts.packages = [ pkgs.nerd-fonts.jetbrains-mono ];
+  # The rice's terminal font, from nebelhaus.fonts.mono. JetBrains Mono Nerd
+  # Font is the default because a Nerd Font is load-bearing here: starship's
+  # powerline prompt, lsd's icons, and yazi all draw with patched glyphs that a
+  # stock font renders as tofu. hearth points Ghostty at whatever this resolves
+  # to. `fonts.packages` is a list option, so this merges with the fonts sill
+  # installs (sketchybar-app-font + Hack, which its bar config names).
+  fonts.packages = [
+    (if fontsCfg.mono.package != null then fontsCfg.mono.package else pkgs.nerd-fonts.jetbrains-mono)
+  ];
 
   # Homebrew's tap-trust check is flaky under sudo-driven activation (the
   # per-user trust store gets bypassed), so third-party taps fail with "Refusing
