@@ -42,6 +42,16 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # The notch file shelf. Its overlay puts `perch` in pkgs; modules/perch
+    # places the app at a fixed /Applications path. Like trill, the flake wraps
+    # perch's CI-built, notarized release ZIP (macOS 26 blocks a from-source Nix
+    # build — see the perch repo), so this input tracks perch *releases*, not its
+    # main branch. Gated off by default until perch's first release exists.
+    perch = {
+      url = "github:nebelhaus/perch";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     nix-index-database = {
       url = "github:nix-community/nix-index-database";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -58,6 +68,7 @@
       nebelung,
       pounce,
       trill,
+      perch,
       nix-index-database,
     }:
     let
@@ -106,6 +117,7 @@
               nixpkgs.overlays = [
                 pounce.overlays.default
                 trill.overlays.default
+                perch.overlays.default
               ];
             }
             home-manager.darwinModules.home-manager
@@ -191,6 +203,7 @@
                 ./modules/sill/options.nix
                 ./modules/pounce/options.nix
                 ./modules/trill/options.nix
+                ./modules/perch/options.nix
                 ./modules/hush/options.nix
                 ./modules/secrets/options.nix
                 ./modules/snippets/options.nix
@@ -219,6 +232,7 @@
           // nixpkgs.lib.optionalAttrs isDarwin {
             pounce = pounce.packages.${system}.default;
             trill = trill.packages.${system}.default;
+            perch = perch.packages.${system}.default;
           }
         );
 
