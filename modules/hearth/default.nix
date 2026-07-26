@@ -17,6 +17,7 @@ let
   hearthCfg = config.nebelhaus.hearth;
   claudeCfg = config.nebelhaus.claude;
   accent = config.nebelhaus.theme.accent; # a Catppuccin accent name, e.g. "mauve"
+  devCfg = config.nebelhaus.developer;
   fontsCfg = config.nebelhaus.fonts; # terminal font family/size (den installs the package)
 
   # Rice-owned preamble for ~/.claude/CLAUDE.md. The rice ships `wt` (den) on
@@ -220,22 +221,35 @@ in
         VISUAL = hearthCfg.editor;
       };
 
-      # A lean terminal/dev toolbelt. Personal choices (AI CLIs, orbstack, your
-      # language toolchains) belong in your host file, not the public rice.
-      home.packages = with pkgs; [
-        bun
-        fnm # node version manager (used by the initContent below)
-        nixfmt-rfc-style
-        chafa # fast terminal image previewer / layout engine
-        glow # markdown renderer; yazi's glow previewer shells out to it
-        fd # fast finder; used by yazi/zoxide navigation
-        iina
-        duti
-      ]
-      # opencode has no x86_64-darwin build, so guard on the package's own
-      # platform list rather than hardcoding an arch — it self-heals the day
-      # upstream adds Intel, and keeps the example-intel eval green meanwhile.
-      ++ lib.optional (lib.meta.availableOn pkgs.stdenv.hostPlatform pkgs.opencode) pkgs.opencode;
+      # A lean terminal/dev toolbelt, gated by the developer pack. Personal
+      # choices (AI CLIs, orbstack, your language toolchains) belong in your
+      # host file, not the public rice.
+      home.packages =
+        with pkgs;
+        [
+          # Not developer tools: iina plays video, duti is what
+          # hearth.hijackFileAssociations drives.
+          iina
+          duti
+        ]
+        ++ lib.optionals devCfg.toolbelt.enable [
+          chafa # fast terminal image previewer / layout engine
+          glow # markdown renderer; yazi's glow previewer shells out to it
+          fd # fast finder; used by yazi/zoxide navigation
+        ]
+        # Editing the rice's own Nix is a developer activity; `haus edit` still
+        # works without a formatter.
+        ++ lib.optional devCfg.enable nixfmt-rfc-style
+        ++ lib.optionals (builtins.elem "node" devCfg.languages) [
+          bun
+          fnm # node version manager (used by the initContent below)
+        ]
+        # opencode has no x86_64-darwin build, so guard on the package's own
+        # platform list rather than hardcoding an arch — it self-heals the day
+        # upstream adds Intel, and keeps the example-intel eval green meanwhile.
+        ++ lib.optional (
+          devCfg.agents.enable && lib.meta.availableOn pkgs.stdenv.hostPlatform pkgs.opencode
+        ) pkgs.opencode;
 
       programs.zsh = {
         enable = true;
@@ -252,11 +266,16 @@ in
           export _ZO_DOCTOR=0
         '';
 
-        shellAliases = gitShellAliases // {
-          c = "claude";
-          cat = "bat --style=header,grid --tabs=2";
-          ls = "lsd";
-          lg = "lazygit";
+        # Each alias follows its own pack: aliasing `cat` to a bat that is not
+        # installed would leave a shell that greets you with "command not found".
+        shellAliases =
+          lib.optionalAttrs devCfg.git.enable (gitShellAliases // { lg = "lazygit"; })
+          // lib.optionalAttrs devCfg.agents.enable { c = "claude"; }
+          // lib.optionalAttrs devCfg.toolbelt.enable {
+            cat = "bat --style=header,grid --tabs=2";
+            ls = "lsd";
+          }
+          // {
           # mdcat's replacement: the same themed glow yazi's previewer uses, so
           # a terminal `mdcat file.md` renders markdown identically to the yazi
           # right-pane preview (Nebelung glamour port, tables and all).
@@ -312,9 +331,11 @@ in
             # Custom completions
             fpath=(~/.zsh-completions $fpath)
 
-            # fnm (Node version manager)
-            export PATH="$HOME/.fnm:$PATH"
-            eval "$(fnm env --use-on-cd --shell zsh)"
+            ${lib.optionalString (builtins.elem "node" devCfg.languages) ''
+              # fnm (Node version manager)
+              export PATH="$HOME/.fnm:$PATH"
+              eval "$(fnm env --use-on-cd --shell zsh)"
+            ''}
 
             bindkey -e
 
@@ -384,7 +405,7 @@ in
 
       # Git — identity comes from nebelhaus.git.* (your host sets it).
       programs.git = {
-        enable = true;
+        enable = devCfg.git.enable;
 
         # Nebelung delta theme: defines [delta "catppuccin-mocha"] (referenced by
         # programs.delta.options.features below). Rendered by whiskers in the
@@ -404,7 +425,7 @@ in
       };
 
       programs.delta = {
-        enable = true;
+        enable = devCfg.git.enable;
         enableGitIntegration = true;
         options = {
           side-by-side = false;
@@ -421,7 +442,7 @@ in
       # nebelung.palette — mirrors catppuccin/lazygit's mocha theme in Nebelung
       # colours (see the lazygit port in the nebelung repo for the file form).
       programs.lazygit = {
-        enable = true;
+        enable = devCfg.git.enable;
         settings.gui = {
           theme = {
             activeBorderColor = [
@@ -444,7 +465,7 @@ in
         };
       };
 
-      programs.lsd.enable = true;
+      programs.lsd.enable = devCfg.toolbelt.enable;
       programs.lsd.enableZshIntegration = false;
 
       # Theme is the Nebelung-coloured "Catppuccin Mocha" tmTheme from the
@@ -452,7 +473,7 @@ in
       # references stay valid). programs.bat.themes rebuilds the bat cache on
       # activation so it is picked up.
       programs.bat = {
-        enable = true;
+        enable = devCfg.toolbelt.enable;
         config = {
           style = "header,grid";
           tabs = "2";
@@ -465,7 +486,7 @@ in
       };
 
       programs.yazi = {
-        enable = true;
+        enable = devCfg.toolbelt.enable;
         enableZshIntegration = true;
         shellWrapperName = "yy";
         settings.mgr.show_hidden = true;
@@ -611,7 +632,7 @@ in
       };
 
       programs.zoxide = {
-        enable = true;
+        enable = devCfg.toolbelt.enable;
         enableZshIntegration = true;
         # Let zoxide take over `cd`: `cd proj` jumps by frecency, `cdi` opens
         # the interactive fzf picker. The chpwd hooks below (zellij tab-naming)
@@ -623,7 +644,7 @@ in
       # mocha --color mapping, blue muted out). home-manager turns these into the
       # --color flags in FZF_DEFAULT_OPTS.
       programs.fzf = {
-        enable = true;
+        enable = devCfg.toolbelt.enable;
         enableZshIntegration = true;
         colors = {
           "bg+" = nebelung.palette.surface0;
@@ -716,11 +737,14 @@ in
       catppuccin.zsh-syntax-highlighting.enable = false;
       catppuccin.zellij.enable = false; # managed as a raw dotfile below
 
+      # nix-index + comma (`, foo` runs a program without installing it):
+      # unambiguously developer tooling, and the index is not small, so a
+      # machine with the pack off shouldn't carry it.
       programs.nix-index = {
-        enable = true;
-        enableZshIntegration = true;
+        enable = devCfg.enable;
+        enableZshIntegration = devCfg.enable;
       };
-      programs.nix-index-database.comma.enable = true;
+      programs.nix-index-database.comma.enable = devCfg.enable;
 
       programs.home-manager.enable = true;
 
@@ -1172,7 +1196,10 @@ in
       # permission grants change), so we merge our keys in at activation and
       # never own it — every other key it holds must survive. jq is pinned from
       # the store because activation runs with a bare PATH.
-      home.activation.claudeCodeSettings = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      # Claude Code settings/hooks/statusline are agent tooling; a machine that
+      # runs no agents should not have its ~/.claude/settings.json rewritten.
+      home.activation.claudeCodeSettings = lib.mkIf devCfg.agents.enable (
+        lib.hm.dag.entryAfter [ "writeBoundary" ] ''
         run sh -c '
           settings="$0"
           mkdir -p "''${settings%/*}"
@@ -1187,6 +1214,7 @@ in
           mv "$tmp" "$settings"
           rm -f "$tmp.base"
         ' "$HOME/.claude/settings.json"
-      '';
+      ''
+      );
     };
 }

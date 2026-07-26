@@ -1,6 +1,6 @@
 # Host-provided identity. These are the values that are personal to YOU rather
 # than part of the rice — a host file (see hosts/example) sets them.
-{ lib, ... }:
+{ lib, config, ... }:
 
 let
   appType = lib.types.submodule {
@@ -117,6 +117,93 @@ in
       internal = true;
       readOnly = true;
       description = "Resolved, enabled app roster used internally by nebelhaus modules.";
+    };
+
+    # ---- the developer pack ----
+    # Lives here rather than in a room because it cuts across two: den's CLI
+    # tools and hearth's shell programs.
+    #
+    # Until this existed, "minimal" was a lie — turning off prowl, sill and
+    # pounce still installed bun, fnm, nixfmt, opencode, lazygit, delta, gh and
+    # the agent-worktree tooling, because den and hearth are imported
+    # unconditionally. A Mac for someone who doesn't write code could not be
+    # expressed at all.
+    developer = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        example = false;
+        description = ''
+          The developer pack: the CLI toolbelt, Git tooling, coding-agent
+          tooling, and language runtimes. On (the default) is the rice as it
+          has always been.
+
+          `false` is what makes a non-developer nebelhaus possible — it strips
+          those tools rather than merely hiding them. What remains is the
+          product: `haus`, `awake`, the theme, the terminal, the bar, the tiler
+          and the palette.
+
+          The sub-options below each default to THIS value, so turning it off
+          turns everything off and you can then re-enable one piece:
+
+            nebelhaus.developer.enable = false;
+            nebelhaus.developer.git.enable = true;  # …but keep git
+        '';
+      };
+
+      git.enable = lib.mkOption {
+        type = lib.types.bool;
+        default = config.nebelhaus.developer.enable;
+        defaultText = lib.literalExpression "config.nebelhaus.developer.enable";
+        description = ''
+          Git and its surroundings: the shell alias vocabulary, the themed git
+          config, delta (diff pager), lazygit, `gh`, and gnupg for commit
+          signing. Off drops all of them, and `nebelhaus.git.*` then has
+          nothing to configure.
+        '';
+      };
+
+      toolbelt.enable = lib.mkOption {
+        type = lib.types.bool;
+        default = config.nebelhaus.developer.enable;
+        defaultText = lib.literalExpression "config.nebelhaus.developer.enable";
+        description = ''
+          The terminal toolbelt: bat, fzf, fd, yazi, zoxide, lsd, glow, jq,
+          tree, chafa, ttyd and fastfetch — the themed replacements for cat,
+          find, ls and friends that the rice's shell is built around.
+
+          Off leaves a plain shell. The prompt (starship) and the colour scheme
+          stay: these are the *tools*, not the appearance.
+        '';
+      };
+
+      agents.enable = lib.mkOption {
+        type = lib.types.bool;
+        default = config.nebelhaus.developer.enable;
+        defaultText = lib.literalExpression "config.nebelhaus.developer.enable";
+        description = ''
+          Coding-agent tooling: `wt` (Claude Code agent worktrees), `zscratch`,
+          the agent-worktree statusline, opencode, and the Claude Code settings
+          and hooks hearth writes.
+
+          Off is right for any machine not running coding agents — it's a large
+          surface a non-developer never sees.
+        '';
+      };
+
+      languages = lib.mkOption {
+        type = lib.types.listOf (lib.types.enum [ "node" ]);
+        default = lib.optionals config.nebelhaus.developer.enable [ "node" ];
+        defaultText = lib.literalExpression ''[ "node" ] when developer.enable is true, else [ ]'';
+        example = [ ];
+        description = ''
+          Language runtimes to install. Currently only "node" (bun + fnm, with
+          fnm's `--use-on-cd` shell hook).
+
+          Deliberately a list rather than one bool per language, so adding
+          "rust" or "python" later doesn't change this option's shape.
+        '';
+      };
     };
   };
 }
