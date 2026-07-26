@@ -25,12 +25,12 @@ on-focused-monitor-changed = []
 automatically-unhide-macos-hidden-apps = true
 
 [gaps]
-inner.horizontal = [{ monitor."Built-in Retina Display" = 10 }, 20]
-inner.vertical = [{ monitor."Built-in Retina Display" = 10 }, 20]
-outer.left = [{ monitor."Built-in Retina Display" = 10 }, 20]
-outer.bottom = [{ monitor."Built-in Retina Display" = 10 }, 20]
-outer.top = [{ monitor."Built-in Retina Display" = 10 }, 40]
-outer.right = [{ monitor."Built-in Retina Display" = 10 }, 20]
+inner.horizontal = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTERNAL@]
+inner.vertical = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTERNAL@]
+outer.left = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTERNAL@]
+outer.bottom = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTERNAL@]
+outer.top = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_TOP_EXTERNAL@]
+outer.right = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTERNAL@]
 
 [mode.main.binding]
 

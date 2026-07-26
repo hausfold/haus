@@ -261,6 +261,14 @@ in
   # Sill), so they track sill.enable and stay rice-controlled.
   system.defaults = {
     dock = {
+      # The one macOS-side size ui.scale can move honestly. Set ONLY when you've
+      # actually asked for scaling: at scale 1.0 the rice writes nothing, so a
+      # Dock you sized by hand is left alone rather than snapped back to Apple's
+      # 48. Same principle as theme.wallpaper = "none" — don't move what wasn't
+      # asked about.
+      tilesize = lib.mkIf (config.nebelhaus.ui.scale != 1.0) (
+        lib.mkDefault (builtins.floor (48 * config.nebelhaus.ui.scale + 0.5))
+      );
       autohide = lib.mkDefault true;
       show-recents = lib.mkDefault false;
       mru-spaces = lib.mkDefault false;
