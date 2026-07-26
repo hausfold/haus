@@ -419,9 +419,14 @@ source "$HOME/.config/sketchybar/tour_item.sh"
 # re-checks after sleep (e.g. docking while the lid was shut). A no-op in fixed
 # top/bottom mode, so it's not even added there. display_change is a built-in
 # SketchyBar event, so no --add event is needed.
+#
+# updates=on is load-bearing: the item is drawing=off (headless — it draws no
+# pill), and the bar default is updates=when_shown, under which a hidden item
+# never processes events. Without this the display_change hook silently never
+# fires. (verified: a hidden when_shown item ignores triggered events.)
 if [ "$SILL_POSITION_MODE" = "auto" ]; then
     sketchybar --add item bar_position left \
-        --set bar_position drawing=off script="$HOME/.config/sketchybar/plugins/position.sh" \
+        --set bar_position drawing=off updates=on script="$HOME/.config/sketchybar/plugins/position.sh" \
         --subscribe bar_position display_change system_woke
 fi
 
