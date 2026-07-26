@@ -289,6 +289,33 @@ let
     sill_hidden() { case " $SILL_HIDDEN " in *" $1 "*) return 0 ;; *) return 1 ;; esac ; }
   '';
 
+  # Bar position (nebelhaus.sill.position). Sourced by sketchybarrc — which sets
+  # `position=$(bar_position)` on --bar — and, in auto mode, re-run by
+  # plugins/position.sh on every display_change. bar_position() echoes the
+  # position to hand sketchybar. In auto mode "docked" means any non-built-in
+  # display is attached: system_profiler is the only guaranteed source of a
+  # display's connection type, so it (not a bare display count) is what tells a
+  # clamshell external apart from the built-in. It's slow (~1s) but
+  # display_change fires rarely, so the cost is only paid on dock/undock/boot.
+  positionSh = ''
+    #!/bin/bash
+    # GENERATED from nebelhaus.sill.position by modules/sill/default.nix — do not edit.
+    SILL_POSITION_MODE="${config.nebelhaus.sill.position}"
+
+    bar_position() {
+      case "$SILL_POSITION_MODE" in
+        top | bottom) echo "$SILL_POSITION_MODE" ;;
+        auto)
+          local info total internal
+          info="$(system_profiler SPDisplaysDataType 2>/dev/null)"
+          total="$(grep -c 'Resolution:' <<<"$info")"
+          internal="$(grep -c 'Connection Type: Internal' <<<"$info")"
+          if [ "$(( total - internal ))" -gt 0 ]; then echo bottom; else echo top; fi
+          ;;
+      esac
+    }
+  '';
+
   # The haus-tour pill (plugins/tour.sh) — the first-run tutor. It must live on
   # the RIGHT (launch mode replaces the LEFT side of the bar exactly when the
   # user is mid-step), but --move'd next to the clock at the far right: added
@@ -403,6 +430,7 @@ lib.mkIf config.nebelhaus.sill.enable {
         ".config/sketchybar/workspaces.sh".text = workspacesSh;
         ".config/sketchybar/optional_items.sh".text = optionalItemsSh;
         ".config/sketchybar/hidden_items.sh".text = hiddenItemsSh;
+        ".config/sketchybar/position.sh".text = positionSh;
         ".config/sketchybar/tour_item.sh".text = tourItemSh;
         ".config/sketchybar/tour_config.sh".text = tourConfigSh;
         ".config/sketchybar/sketchybarrc".source = ./sketchybar/sketchybarrc;

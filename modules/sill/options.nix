@@ -17,6 +17,28 @@
       '';
     };
 
+    sill.position = lib.mkOption {
+      type = lib.types.enum [
+        "top"
+        "bottom"
+        "auto"
+      ];
+      default = "top";
+      example = "auto";
+      description = ''
+        Where the bar sits. `top` and `bottom` pin it there. `auto` flips it
+        at runtime — `bottom` whenever an external display is attached (docked
+        with the lid open, or clamshell), `top` on the built-in display alone —
+        driven by a `display_change` hook, so the bar moves the moment you dock
+        or undock, without a rebuild.
+
+        The bar's height/pill offsets are tuned for the notch, which only
+        exists at the top of the built-in display; at `bottom` there's no notch
+        to tuck under, so `auto` conveniently keeps the notch case (`top`) on
+        the notched screen and the plain case (`bottom`) on the external.
+      '';
+    };
+
     tour.enable = lib.mkOption {
       type = lib.types.bool;
       default = true;

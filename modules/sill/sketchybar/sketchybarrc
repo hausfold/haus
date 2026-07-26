@@ -10,6 +10,11 @@ source "$HOME/.config/sketchybar/colors.sh"
 # lockstep with AeroSpace's launcher.
 source "$HOME/.config/sketchybar/workspaces.sh"
 
+# Bar position (top/bottom/auto) — GENERATED from nebelhaus.sill.position. Defines
+# bar_position() (used on --bar below) and SILL_POSITION_MODE (gates the auto hook
+# near the end of this file).
+source "$HOME/.config/sketchybar/position.sh"
+
 # General bar appearance
 # Floating-pill look: the bar background is fully transparent so there's no solid
 # band separating the menu bar from the wallpaper — each item floats on its own
@@ -26,7 +31,7 @@ source "$HOME/.config/sketchybar/workspaces.sh"
 sketchybar --bar \
     height=36 \
     blur_radius=30 \
-    position=top \
+    position=$(bar_position) \
     padding_left=10 \
     padding_right=10 \
     margin=0 \
@@ -407,6 +412,18 @@ source "$HOME/.config/sketchybar/optional_items.sh"
 source "$HOME/.config/sketchybar/tour_item.sh"
 
 ##### Finalizing Setup #####
+
+# Auto-position hook — only in `auto` mode (nebelhaus.sill.position). A hidden
+# item subscribed to display_change re-runs bar_position() and flips the bar
+# top/bottom whenever an external display attaches or detaches; system_woke
+# re-checks after sleep (e.g. docking while the lid was shut). A no-op in fixed
+# top/bottom mode, so it's not even added there. display_change is a built-in
+# SketchyBar event, so no --add event is needed.
+if [ "$SILL_POSITION_MODE" = "auto" ]; then
+    sketchybar --add item bar_position left \
+        --set bar_position drawing=off script="$HOME/.config/sketchybar/plugins/position.sh" \
+        --subscribe bar_position display_change system_woke
+fi
 
 # Force all scripts to run at startup
 sketchybar --update
