@@ -27,6 +27,7 @@ let
     inherit (config.nebelhaus.accessibility) increaseContrast differentiateWithoutColor;
   };
 
+  devCfg = config.nebelhaus.developer;
   fontsCfg = config.nebelhaus.fonts;
   # Naming a family the rice was never given a package for is silent tofu:
   # Ghostty just falls back and the powerline/icon glyphs vanish. Cheap to spot.
@@ -119,60 +120,76 @@ in
   # Core CLI tools. The shell *experience* (aliases, starship, git, yazi, …) is
   # yours to add in your host file; these are the baseline binaries the rice and
   # its commands lean on.
-  environment.systemPackages = with pkgs; [
-    bat
-    fzf
-    delta
-    gh
-    glow
-    gnupg
-    jq
-    lazygit
-    lsd
-    mas
-    fastfetch
-    tree
-    ttyd
-    # The everyday end-user CLI: haus rebuild / update / rollback / status /
-    # edit / doctor — so a nebelhaus machine never needs raw nix incantations.
-    # System-wide (not home-manager) so sudo and non-login shells see it too.
-    # (The workshop's developer CLI is `bench` — a different name on purpose,
-    # so the two never shadow each other.)
-    (writeShellScriptBin "haus" (builtins.readFile ./haus.sh))
+  # Split by the developer pack. What stays unconditional is the PRODUCT — the
+  # tools a nebelhaus machine needs to be a nebelhaus machine even if its owner
+  # never opens a terminal by choice. Everything else is gated, because
+  # "minimal" used to install the whole dev toolbelt regardless.
+  environment.systemPackages =
+    with pkgs;
+    [
+      # The everyday end-user CLI: haus rebuild / update / rollback / status /
+      # edit / doctor — so a nebelhaus machine never needs raw nix incantations.
+      # System-wide (not home-manager) so sudo and non-login shells see it too.
+      # (The workshop's developer CLI is `bench` — a different name on purpose,
+      # so the two never shadow each other.)
+      (writeShellScriptBin "haus" (builtins.readFile ./haus.sh))
 
-    # `wt` — manages Claude Code agent worktrees: closing a `claude --worktree`
-    # pane (hearth's Super-c bind) never loses uncommitted work, and every
-    # session stays resumable. Ships here because the rice already provides the
-    # worktree keybinds; the WorktreeCreate/WorktreeRemove hooks (wired in your
-    # host's settings.json) point at this. Self-contained — no repo/flake/bench.
-    (writeShellScriptBin "wt" (builtins.readFile ./wt.sh))
+      # `awake 3h` / `awake indefinitely` — a durable controller around macOS's
+      # built-in caffeinate. Its assertion is launchd-owned below, so callers can
+      # exit (or SketchyBar can reload) without accidentally allowing idle sleep.
+      awake
 
-    # `zscratch` — feel-test a candidate zellij config / layout / plugin.wasm in
-    # a throwaway session in its OWN Ghostty window, WITHOUT a rebuild. Renders
-    # your edit over a copy of the live ~/.config/zellij into a temp config-dir
-    # and boots a fresh scratch session (its own name → its own server →
-    # recompiled wasm), so the working `main` session's tabs stay untouched.
-    # Moves the iterate-loop off `bench try switch` + restart; you rebuild once,
-    # at the end, already knowing it works. Lives here (not hearth) because it's
-    # a dev CLI on PATH like `haus`/`wt`, though it drives hearth's zellij dotfiles.
-    (writeShellScriptBin "zscratch" (builtins.readFile ./zscratch.sh))
+      # Installs App Store apps for the roster; nothing to do with writing code.
+      mas
+    ]
+    # The themed CLI toolbelt the rice's shell is built around.
+    ++ lib.optionals devCfg.toolbelt.enable [
+      bat
+      fzf
+      glow
+      jq
+      lsd
+      tree
+      ttyd
+      fastfetch
+    ]
+    # Git and its surroundings. gnupg is here rather than in the product set
+    # because the only thing the rice uses it for is commit signing.
+    ++ lib.optionals devCfg.git.enable [
+      delta
+      gh
+      gnupg
+      lazygit
+    ]
+    ++ lib.optionals devCfg.agents.enable [
+      # `wt` — manages Claude Code agent worktrees: closing a `claude --worktree`
+      # pane (hearth's Super-c bind) never loses uncommitted work, and every
+      # session stays resumable. Ships here because the rice already provides the
+      # worktree keybinds; the WorktreeCreate/WorktreeRemove hooks (wired in your
+      # host's settings.json) point at this. Self-contained — no repo/flake/bench.
+      (writeShellScriptBin "wt" (builtins.readFile ./wt.sh))
 
-    # `awake 3h` / `awake indefinitely` — a durable controller around macOS's
-    # built-in caffeinate. Its assertion is launchd-owned below, so callers can
-    # exit (or SketchyBar can reload) without accidentally allowing idle sleep.
-    awake
+      # `zscratch` — feel-test a candidate zellij config / layout / plugin.wasm in
+      # a throwaway session in its OWN Ghostty window, WITHOUT a rebuild. Renders
+      # your edit over a copy of the live ~/.config/zellij into a temp config-dir
+      # and boots a fresh scratch session (its own name → its own server →
+      # recompiled wasm), so the working `main` session's tabs stay untouched.
+      # Moves the iterate-loop off `bench try switch` + restart; you rebuild once,
+      # at the end, already knowing it works. Lives here (not hearth) because it's
+      # a dev CLI on PATH like `haus`/`wt`, though it drives hearth's zellij dotfiles.
+      (writeShellScriptBin "zscratch" (builtins.readFile ./zscratch.sh))
 
-    # `claude-statusline` — the agent-worktree HUD for Claude Code's status bar
-    # (hearth's claudeCodeSettings points the `statusLine` key here). Row 1 is
-    # THIS session's worktree name + one status token (⏏ purge / N^ commits /
-    # +A -D uncommitted); rows below list sister `wt` worktrees in flight across
-    # ALL repos, with GitHub PR state. Cheap local git runs in the render path;
-    # the cross-repo + `gh` enumeration is done detached by the companion
-    # `claude-statusline-refresh` and cached (stale-while-revalidate), so the bar
-    # never blocks. Reads `wt`'s registry — same agent-worktree flow, same home.
-    (writeShellScriptBin "claude-statusline" (builtins.readFile ./statusline.sh))
-    (writeShellScriptBin "claude-statusline-refresh" (builtins.readFile ./statusline-refresh.sh))
-  ];
+      # `claude-statusline` — the agent-worktree HUD for Claude Code's status bar
+      # (hearth's claudeCodeSettings points the `statusLine` key here). Row 1 is
+      # THIS session's worktree name + one status token (⏏ purge / N^ commits /
+      # +A -D uncommitted); rows below list sister `wt` worktrees in flight across
+      # ALL repos, with GitHub PR state. Cheap local git runs in the render path;
+      # the cross-repo + `gh` enumeration is done detached by the companion
+      # `claude-statusline-refresh` and cached (stale-while-revalidate), so the bar
+      # never blocks. Reads `wt`'s registry — same agent-worktree flow, same home.
+      (writeShellScriptBin "claude-statusline" (builtins.readFile ./statusline.sh))
+      (writeShellScriptBin "claude-statusline-refresh" (builtins.readFile ./statusline-refresh.sh))
+    ];
 
   # The job is intentionally always present, even when the opt-in Sill pill is
   # hidden: `awake` is a rice-level capability usable from any shell. RunAtLoad
