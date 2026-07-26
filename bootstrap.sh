@@ -458,7 +458,7 @@ $(say "Before you switch — what nebelhaus can and can't undo:")
                  sudo darwin-rebuild --rollback        instant, atomic
                Nix itself, entirely (daemon, /nix volume):
                  sudo /nix/nix-installer uninstall      Determinate, clean
-               a dotfile it replaced:  restore the .bak it saved (once)
+               a dotfile it replaced:  restore the .backup it saved (once)
 
   CANNOT undo  macOS system settings it changed (Dock, keyboard) — these persist
                after a rollback; use the local snapshot taken above, or revert by
