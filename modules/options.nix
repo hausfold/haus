@@ -419,6 +419,17 @@ in
       description = "The trill Messages client, installed via the trill flake (copied to /Applications).";
     };
 
+    perch.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        The perch notch file shelf, installed via the perch flake (copied to
+        /Applications). Off by default until perch's first release exists — its
+        flake pin is a bootstrap placeholder until `bench release perch` cuts a
+        real tag, so enabling it before then can't build.
+      '';
+    };
+
     tour.enable = lib.mkOption {
       type = lib.types.bool;
       default = true;
