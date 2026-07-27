@@ -28,8 +28,8 @@ automatically-unhide-macos-hidden-apps = true
 inner.horizontal = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTERNAL@]
 inner.vertical = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTERNAL@]
 outer.left = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTERNAL@]
-outer.bottom = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTERNAL@]
-outer.top = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_TOP_EXTERNAL@]
+outer.bottom = @GAP_OUTER_BOTTOM@
+outer.top = @GAP_OUTER_TOP@
 outer.right = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTERNAL@]
 
 [mode.main.binding]

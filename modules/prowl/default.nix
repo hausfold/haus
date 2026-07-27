@@ -86,12 +86,39 @@ let
   ) apps;
 
   # Window gaps follow nebelhaus.ui.scale. Base values are the tuned ones: 10 on
-  # the built-in display, 20 around an external, 40 at its top (room for the bar).
+  # the built-in display, 20 around an external. One outer edge reserves bar room
+  # (40) — whichever edge sill's bar sits on (nebelhaus.sill.position).
   gap = base: toString (builtins.floor (base * config.nebelhaus.ui.scale + 0.5));
 
+  # The bar-room reservation follows the bar. A built-in display's TOP is under
+  # the notch/menu-bar strip macOS already excludes, so a top bar needs no extra
+  # reservation there; the external, and a built-in's bottom, have no such strip,
+  # so the room is carved explicitly. `auto` maps cleanly onto the per-monitor
+  # keys — it pins the bar to the external's bottom and the built-in's notched top
+  # — so statically it reads as "bottom on external, top on built-in". (Caveat:
+  # docked with the lid open the bar sits at the bottom on BOTH displays; aerospace
+  # gaps can't flip per dock-state, so the built-in keeps its notch-tuned top in
+  # `auto`, leaving a small overlap at the built-in's bottom in that one case.)
+  barPos = if config.nebelhaus.sill.enable then config.nebelhaus.sill.position else "top";
+  monLine = builtin: external: ''[{ monitor."Built-in Retina Display" = ${builtin} }, ${external}]'';
+  outerTop =
+    {
+      top = monLine (gap 10) (gap 40);
+      bottom = monLine (gap 10) (gap 20);
+      auto = monLine (gap 10) (gap 20);
+    }
+    .${barPos};
+  outerBottom =
+    {
+      top = monLine (gap 10) (gap 20);
+      bottom = monLine (gap 40) (gap 40);
+      auto = monLine (gap 10) (gap 40);
+    }
+    .${barPos};
+
   aerospaceToml = builtins.replaceStrings
-    [ "@HOME@" "@BIN@" "@MAIN_STATIC@" "@SERVICE_STATIC@" "@MAIN_MOVES@" "@LAUNCH_LETTERS@" "@WINDOW_RULES@" "@GAP_BUILTIN@" "@GAP_EXTERNAL@" "@GAP_TOP_EXTERNAL@" ]
-    [ homeDir binDir mainStatic serviceStatic mainMoves launchLetters windowRules (gap 10) (gap 20) (gap 40) ]
+    [ "@HOME@" "@BIN@" "@MAIN_STATIC@" "@SERVICE_STATIC@" "@MAIN_MOVES@" "@LAUNCH_LETTERS@" "@WINDOW_RULES@" "@GAP_BUILTIN@" "@GAP_EXTERNAL@" "@GAP_OUTER_TOP@" "@GAP_OUTER_BOTTOM@" ]
+    [ homeDir binDir mainStatic serviceStatic mainMoves launchLetters windowRules (gap 10) (gap 20) outerTop outerBottom ]
     (builtins.readFile ./aerospace.toml);
 
   resortScript = builtins.replaceStrings [ "@RESORT_CASES@" ] [ resortCases ] (
