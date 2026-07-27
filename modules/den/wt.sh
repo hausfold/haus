@@ -42,6 +42,12 @@ WT_REGISTRY="$WT_BASE/registry.tsv"
 say() { printf '\033[38;5;103m🌫  %s\033[0m\n' "$*" >&2; }
 die() { printf '\033[38;5;167m✗  %s\033[0m\n' "$*" >&2; exit 1; }
 
+fit() { # fit <string> <maxlen> — trim to width, appending … when it overflowed
+  local s="$1" n="$2"
+  [ "$n" -lt 1 ] && n=1
+  if [ "${#s}" -gt "$n" ]; then printf '%s…' "${s:0:n-1}"; else printf '%s' "$s"; fi
+}
+
 reg_put() { # reg_put <name> <main> <branch> <wt_path> [parent] — upsert, keyed on wt_path
   # The optional 5th field is the cwd the worktree was spawned FROM (its parent
   # pane) — recorded at create so the statusline can show a session only the
@@ -342,22 +348,83 @@ cmd_list() {
   reap_sweep parked || true
   [ -n "${REAPED:-}" ] && say "swept $(printf '%s' "$REAPED" | grep -c .) merged worktree(s)"
   say "agent worktrees you can resume (wt <name>, or <repo>/<name>)"
-  printf '  %-12s %-26s %-6s %-4s %s\n' "repo" "name" "state" "chat" "last commit"
-  local any=0 main branch wt repo nm state chat last
+
+  # Gather every row FIRST, so columns can be sized to their real content and the
+  # commit message trimmed to whatever width the terminal actually has. The old
+  # layout hardcoded 12/26-wide repo/name columns and a 56-char commit slice —
+  # ~110 columns total — which wrapped into a mess in a narrow pane. Now repo/name
+  # size to content (capped), and the commit fills the remaining width, so the
+  # listing stays on one line per worktree however narrow the pane.
+  local main branch wt
+  local -a r_repo=() r_nm=() r_state=() r_chat=() r_last=()
   while IFS=$'\t' read -r main branch wt; do
     [ -n "$branch" ] || continue
     git -C "$main" show-ref -q --verify "refs/heads/$branch" 2>/dev/null || continue
-    any=1
-    repo="$(basename "$main")"
-    nm="${branch#worktree-}"
-    [ -e "$wt/.git" ] && state="live" || state="parked"
-    if [ -d "$(wt_projdir "$wt")" ]; then chat="yes"
-    elif [ "$(chat_home "$wt")" != "$wt" ]; then chat="par"   # inherited from its wt-child parent
-    else chat="·"; fi
-    last="$(git -C "$main" log -1 --format='%cr — %s' "$branch" 2>/dev/null)"
-    printf '  %-12s %-26s %-6s %-4s %s\n' "$repo" "$nm" "$state" "$chat" "${last:0:56}"
+    r_repo+=("$(basename "$main")")
+    r_nm+=("${branch#worktree-}")
+    if [ -e "$wt/.git" ]; then r_state+=("live"); else r_state+=("parked"); fi
+    if [ -d "$(wt_projdir "$wt")" ]; then r_chat+=("yes")
+    elif [ "$(chat_home "$wt")" != "$wt" ]; then r_chat+=("par")   # inherited from its wt-child parent
+    else r_chat+=("·"); fi
+    r_last+=("$(git -C "$main" log -1 --format='%cr — %s' "$branch" 2>/dev/null)")
   done <<<"$(resume_rows)"
-  [ "$any" = "1" ] || say "none parked — every worktree branch is merged & cleaned up. The fog is even."
+
+  if [ "${#r_repo[@]}" -eq 0 ]; then
+    say "none parked — every worktree branch is merged & cleaned up. The fog is even."
+    return 0
+  fi
+
+  # Column widths: header labels set the floor, content grows them up to a cap so
+  # one pathological name can't swallow the row. state/chat hold fixed values.
+  local i rw=4 nw=4 sw=6 cw=4
+  for i in "${!r_repo[@]}"; do
+    [ "${#r_repo[$i]}" -gt "$rw" ] && rw=${#r_repo[$i]}
+    [ "${#r_nm[$i]}"   -gt "$nw" ] && nw=${#r_nm[$i]}
+  done
+  [ "$rw" -gt 16 ] && rw=16
+  [ "$nw" -gt 28 ] && nw=28
+
+  # Terminal width: COLUMNS isn't exported into a script, so fall back to tput,
+  # then to 80 when there's no tty (piped / redirected).
+  local cols="${COLUMNS:-}"
+  [ -n "$cols" ] || cols="$(tput cols 2>/dev/null || echo 80)"
+
+  # Drop the (narrow, low-signal) chat column first when space is tight, then let
+  # the commit take whatever's left. 2 = indent, +1 per inter-column gap.
+  local show_chat=1 used lastw
+  used=$(( 2 + rw + 1 + nw + 1 + sw + 1 + cw + 1 ))
+  if [ $(( cols - used )) -lt 20 ]; then
+    show_chat=0
+    used=$(( 2 + rw + 1 + nw + 1 + sw + 1 ))
+  fi
+  lastw=$(( cols - used ))
+  # Truly tight pane: the fixed columns alone won't leave room for the commit.
+  # `name` is the next most compressible, so shrink it (down to a floor) to buy
+  # the commit a legible slice, rather than overflow the line.
+  if [ "$lastw" -lt 12 ]; then
+    local fixed_other=$(( 2 + rw + 1 + 1 + sw + 1 ))
+    [ "$show_chat" = 1 ] && fixed_other=$(( fixed_other + cw + 1 ))
+    nw=$(( cols - fixed_other - 12 ))
+    [ "$nw" -lt 8 ] && nw=8
+    lastw=12
+  fi
+
+  local hdr row
+  if [ "$show_chat" = 1 ]; then
+    hdr="  %-${rw}s %-${nw}s %-${sw}s %-${cw}s %s\n"
+    printf "$hdr" "repo" "name" "state" "chat" "last commit"
+    for i in "${!r_repo[@]}"; do
+      printf "$hdr" "$(fit "${r_repo[$i]}" "$rw")" "$(fit "${r_nm[$i]}" "$nw")" \
+        "${r_state[$i]}" "${r_chat[$i]}" "$(fit "${r_last[$i]}" "$lastw")"
+    done
+  else
+    hdr="  %-${rw}s %-${nw}s %-${sw}s %s\n"
+    printf "$hdr" "repo" "name" "state" "last commit"
+    for i in "${!r_repo[@]}"; do
+      printf "$hdr" "$(fit "${r_repo[$i]}" "$rw")" "$(fit "${r_nm[$i]}" "$nw")" \
+        "${r_state[$i]}" "$(fit "${r_last[$i]}" "$lastw")"
+    done
+  fi
 }
 
 cmd_resume() { # cmd_resume <name|repo/name>
