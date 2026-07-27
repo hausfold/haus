@@ -28,10 +28,24 @@ in
       {
         lib,
         pkgs,
+        osConfig,
         nebelung,
         ...
       }:
       let
+        # nebelhaus.theme.contrast selects which rendered variant everything below
+        # reads. Two derived bindings rather than threading the option through each
+        # call site: the variant renders into a SUBDIRECTORY of the same package, so
+        # the only difference is a path prefix — and "normal" is the empty prefix,
+        # i.e. byte-for-byte the paths that were here before.
+        nebelungRoot =
+          "${nebelung.themes}"
+          + lib.optionalString (osConfig.nebelhaus.theme.contrast == "high") "/high-contrast";
+        nebelungPalette =
+          if osConfig.nebelhaus.theme.contrast == "high" then
+            nebelung.palettes.nebelung-high-contrast
+          else
+            nebelung.palette;
         # `bold` is rendered in a pure derivation from the accent hex, so it
         # recolours with theme.accent like the per-tool accents do. A diagonal
         # accent→crust sweep, saturation pushed 150% so the grey-tinted Nebelung
@@ -41,7 +55,7 @@ in
           pkgs.runCommand "nebelung-bold-${accent}.png" { nativeBuildInputs = [ pkgs.imagemagick ]; }
             ''
               magick -size 6048x3928 \
-                gradient:'${nebelung.palette.${accent}}'-'${nebelung.palette.crust}' \
+                gradient:'${nebelungPalette.${accent}}'-'${nebelungPalette.crust}' \
                 -rotate -30 -gravity center -extent 3024x1964 \
                 -modulate 100,150 "$out"
             '';

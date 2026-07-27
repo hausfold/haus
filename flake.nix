@@ -134,6 +134,11 @@
                 nebelung = {
                   themes = nebelung.packages.${system}.default;
                   palette = nebelung.palette;
+                  # Every rendered variant, so a module can follow
+                  # nebelhaus.theme.contrast. Selection has to happen in the
+                  # modules rather than here: extraSpecialArgs is built before
+                  # any option is evaluated.
+                  palettes = nebelung.palettes;
                 };
               };
               home-manager.sharedModules = [

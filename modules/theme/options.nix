@@ -7,6 +7,35 @@
 
 {
   options.nebelhaus = {
+    theme.contrast = lib.mkOption {
+      type = lib.types.enum [
+        "normal"
+        "high"
+      ];
+      default = "normal";
+      example = "high";
+      description = ''
+        How far the interface separates from its background.
+
+        "high" swaps in the Nebelung high-contrast palette: the same hues and
+        the same accents, with the neutral ramp pulled apart in OKLCH so text
+        is lighter and backgrounds darker at every step. Measured rather than
+        eyeballed — body text goes from 11.3:1 to 19.9:1 against the base,
+        clearing WCAG AAA (nebelung's own CI asserts it).
+
+        Honest scope. This recolours what the rice injects colours into:
+        Ghostty, bat, delta, lsd, yazi, zellij, glow, starship, lazygit, the
+        bar, Zen and Obsidian. It does NOT reach:
+
+          - pounce, which bakes the palette into its binary at build time, so
+            its colours follow the pounce build rather than this option;
+          - macOS itself. For system-wide contrast see
+            nebelhaus.accessibility.increaseContrast — a separate, FDA-gated
+            setting. The two are complementary, and a genuinely high-contrast
+            machine wants both.
+      '';
+    };
+
     theme.accent = lib.mkOption {
       type = lib.types.enum [
         "rosewater"

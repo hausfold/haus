@@ -404,10 +404,24 @@ lib.mkIf config.nebelhaus.sill.enable {
   home-manager.users.${username} =
     {
       lib,
+      osConfig,
       nebelung,
       ...
     }:
     let
+      # nebelhaus.theme.contrast selects which rendered variant everything below
+      # reads. Two derived bindings rather than threading the option through each
+      # call site: the variant renders into a SUBDIRECTORY of the same package, so
+      # the only difference is a path prefix — and "normal" is the empty prefix,
+      # i.e. byte-for-byte the paths that were here before.
+      nebelungRoot =
+        "${nebelung.themes}"
+        + lib.optionalString (osConfig.nebelhaus.theme.contrast == "high") "/high-contrast";
+      nebelungPalette =
+        if osConfig.nebelhaus.theme.contrast == "high" then
+          nebelung.palettes.nebelung-high-contrast
+        else
+          nebelung.palette;
       # The Nebelung palette (name -> "#rrggbb") rendered as sketchybar's
       # 0xAARRGGBB colour literals, fully opaque. Generated so the palette stays
       # single-sourced from the nebelung input — sketchybarrc and every plugin
@@ -415,12 +429,12 @@ lib.mkIf config.nebelhaus.sill.enable {
       # UPPER-cased palette keys (BASE, SURFACE0, MAUVE, …).
       colorsSh = ''
         #!/bin/bash
-        # GENERATED from the `nebelung` flake input (nebelung.palette). Do not edit
+        # GENERATED from the `nebelung` flake input (nebelungPalette). Do not edit
         # by hand — change colours in ~/code/nebelhaus/nebelung and rebuild.
         ${lib.concatStringsSep "\n" (
           lib.mapAttrsToList (
             name: hex: "export ${lib.toUpper name}=0xff${lib.removePrefix "#" hex}"
-          ) nebelung.palette
+          ) nebelungPalette
         )}
       '';
     in
