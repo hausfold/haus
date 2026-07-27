@@ -4,7 +4,7 @@
 #
 # den's options — macOS defaults, fonts, Homebrew policy, and the two
 # accessibility keys that actually apply on macOS 26.
-{ lib, ... }:
+{ lib, config, ... }:
 
 {
   options.nebelhaus = {
@@ -74,14 +74,15 @@
       };
       size = lib.mkOption {
         type = lib.types.ints.positive;
-        default = 19;
+        default = builtins.floor (19 * config.nebelhaus.ui.scale + 0.5);
+        defaultText = lib.literalExpression "19, scaled by nebelhaus.ui.scale";
         example = 24;
         description = ''
           Terminal font size in points. The single most useful knob for a
           larger-text machine, since it moves everything the rice actually
           lives in.
 
-          19 is the default for a reason worth knowing: the Ghostty window is
+          19 (at ui.scale = 1.0) is the base for a reason worth knowing: the Ghostty window is
           tiled to a fixed pixel height by prowl, and sizes that don't divide
           that height evenly used to leave a gap under zellij's status bar.
           That's since been fixed properly (window-padding-balance +

@@ -85,9 +85,13 @@ let
     + lib.optionalString (isRealAssign a) "\n"
   ) apps;
 
+  # Window gaps follow nebelhaus.ui.scale. Base values are the tuned ones: 10 on
+  # the built-in display, 20 around an external, 40 at its top (room for the bar).
+  gap = base: toString (builtins.floor (base * config.nebelhaus.ui.scale + 0.5));
+
   aerospaceToml = builtins.replaceStrings
-    [ "@HOME@" "@BIN@" "@MAIN_STATIC@" "@SERVICE_STATIC@" "@MAIN_MOVES@" "@LAUNCH_LETTERS@" "@WINDOW_RULES@" ]
-    [ homeDir binDir mainStatic serviceStatic mainMoves launchLetters windowRules ]
+    [ "@HOME@" "@BIN@" "@MAIN_STATIC@" "@SERVICE_STATIC@" "@MAIN_MOVES@" "@LAUNCH_LETTERS@" "@WINDOW_RULES@" "@GAP_BUILTIN@" "@GAP_EXTERNAL@" "@GAP_TOP_EXTERNAL@" ]
+    [ homeDir binDir mainStatic serviceStatic mainMoves launchLetters windowRules (gap 10) (gap 20) (gap 40) ]
     (builtins.readFile ./aerospace.toml);
 
   resortScript = builtins.replaceStrings [ "@RESORT_CASES@" ] [ resortCases ] (

@@ -119,6 +119,47 @@ in
       description = "Resolved, enabled app roster used internally by nebelhaus modules.";
     };
 
+    # ---- ui: one scale, fanned out ----
+    # The missing abstraction. Before this, making the rice bigger meant finding
+    # and tuning every size by hand in a different file each time.
+    #
+    # Honest scope, and it is narrower than "everything": this scales the things
+    # nebelhaus itself controls and macOS lets it control — the terminal font,
+    # the Dock, and the tiling gaps. It does NOT resize the menu bar (see the
+    # note on ui.scale) and it cannot resize third-party apps; macOS has no
+    # system-wide UI scale, so the OS-level lever is display resolution
+    # (nebelhaus.displays, not built yet).
+    ui.scale = lib.mkOption {
+      type = lib.types.numbers.between 0.5 3.0;
+      default = 1.0;
+      example = 1.35;
+      description = ''
+        One number for "make the interface bigger". 1.0 is the rice as tuned;
+        1.35 is a comfortable large-print setting; below 1.0 tightens things up.
+
+        It sets the DEFAULT of the sizes it drives, so anything you pin by hand
+        still wins:
+
+          nebelhaus.ui.scale = 1.5;          # everything grows
+          nebelhaus.fonts.mono.size = 18;    # …except the terminal, pinned here
+
+        What it currently moves:
+
+          - the terminal font size (nebelhaus.fonts.mono.size)
+          - the Dock icon size (system.defaults.dock.tilesize)
+          - prowl's window gaps
+
+        What it deliberately does NOT move:
+
+          - Sill's menu bar. Its height is tuned to sit inside the macOS
+            menu-bar band so the hover-reveal covers it exactly; scaling that
+            linearly breaks the alignment rather than making it bigger. The bar
+            needs its own sizing pass, not a multiplier.
+          - anything outside nebelhaus. macOS has no system-wide UI scale, so
+            third-party apps follow only a display-resolution change.
+      '';
+    };
+
     # ---- the developer pack ----
     # Lives here rather than in a room because it cuts across two: den's CLI
     # tools and hearth's shell programs.
