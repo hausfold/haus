@@ -45,7 +45,7 @@ import one room into your own config.
 - 🗝️ **secrets** — declarative secrets via [secretspec](https://secretspec.dev) — projects commit *which* secrets they need (never values); values live in the provider you pick per host: the local keychain by default, or 1Password / Bitwarden / GCP / AWS / Vault so they follow you to the next Mac
 - 🐾 **pounce** — the [Pounce](https://github.com/nebelhaus/pounce) command palette, wired in as a self-signing daemon that holds its Accessibility grant across rebuilds, and ⌘Space freed for it
 - 🐦 **trill** — the [Trill](https://github.com/nebelhaus/trill) native Messages client (iMessage/SMS/RCS over `chat.db`), installed through Nix via the `trill` flake input and copied to a fixed `/Applications/Trill.app` (`nebelhaus.trill.enable`)
-- 🪺 **perch** — the [Perch](https://github.com/nebelhaus/perch) notch file shelf, installed through Nix via the `perch` flake input and copied to a fixed `/Applications/Perch.app` (`nebelhaus.perch.enable` — off by default until perch's first release)
+- 🪺 **perch** — the [Perch](https://github.com/nebelhaus/perch) notch file shelf, installed through Nix via the `perch` flake input and copied to a fixed `/Applications/Perch.app` (`nebelhaus.perch.enable`)
 - 🤫 **hush** — a one-switch Focus/DND: a declarative global hotkey, plus optional Slack status and shell hooks (`nebelhaus.hush.*`)
 - 🎨 **theme** — the desktop wallpaper and an accent-derived bold wordmark (`nebelhaus.theme.accent` / `.wallpaper`)
 
