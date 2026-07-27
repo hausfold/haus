@@ -66,19 +66,27 @@ in
       ...
     }:
     let
-      # nebelhaus.theme.contrast selects which rendered variant everything below
-      # reads. Two derived bindings rather than threading the option through each
-      # call site: the variant renders into a SUBDIRECTORY of the same package, so
-      # the only difference is a path prefix — and "normal" is the empty prefix,
-      # i.e. byte-for-byte the paths that were here before.
-      nebelungRoot =
-        "${nebelung.themes}"
-        + lib.optionalString (osConfig.nebelhaus.theme.contrast == "high") "/high-contrast";
-      nebelungPalette =
-        if osConfig.nebelhaus.theme.contrast == "high" then
-          nebelung.palettes.nebelung-high-contrast
-        else
-          nebelung.palette;
+      # nebelhaus.theme.{flavor,contrast} select which rendered variant everything
+      # below reads — see ../lib/nebelung.nix, which owns that resolution for
+      # hearth, sill and theme alike (it was duplicated in all three the moment
+      # `contrast` landed; the `flavor` axis would have made that six blocks).
+      #
+      # nbFlavor is not decoration. whiskers names its output after the flavor it
+      # rendered, so every path below that used to say "mocha" is now built from
+      # nbFlavor and a latte rice resolves to catppuccin-latte.conf under the latte
+      # root. Getting one wrong is invisible: the path just doesn't exist.
+      nb = import ../lib/nebelung.nix {
+        inherit lib nebelung;
+        theme = osConfig.nebelhaus.theme;
+      };
+      nebelungRoot = nb.root;
+      nebelungPalette = nb.palette;
+      nbFlavor = nb.flavor; # "mocha" | "latte"
+      # The bat theme's name AND its filename, which whiskers title-cases:
+      # "Catppuccin Mocha" / "Catppuccin Mocha.tmTheme". Named once because three
+      # places reference it — bat's own config, delta's syntax-theme (inside the
+      # rendered gitconfig) and yazi's syntect_theme — and they must agree exactly.
+      batTheme = "Catppuccin ${nb.title}";
       # Yazi preview: pipe code/text through bat (via piper) so previews match
       # the catppuccin-themed `cat` alias — colours + line numbers.
       batPreviewer = ''piper -- bat --color=always --paging=never --style=numbers --tabs=2 --terminal-width=$w "$1"'';
@@ -87,7 +95,7 @@ in
       # $GLAMOUR_STYLE in its default "auto" mode (glow 2.x), so the style must
       # be passed explicitly with `-s`: baked into the yazi previewer plugin
       # (@glowStyle@ placeholder) and the `glow -p` opener below.
-      glowStyle = "${nebelungRoot}/glow/catppuccin-mocha.json";
+      glowStyle = "${nebelungRoot}/glow/catppuccin-${nbFlavor}.json";
       glowPlugin = pkgs.runCommand "glow.yazi" { } ''
         cp -r ${./yazi/plugins/glow.yazi} $out
         chmod -R +w $out
@@ -183,9 +191,9 @@ in
       # tools nebelhaus injects colours into use for their accent.
       accentColor = nebelungPalette.${accent};
       # Zen browser accent. The nebelung zen port renders every accent under
-      # themes/Mocha/<Accent>/ (capitalised); yazi uses the lowercase name.
+      # themes/<Flavor>/<Accent>/ (both capitalised); yazi uses lowercase for both.
       zenAccent = lib.toUpper (lib.substring 0 1 accent) + lib.substring 1 (lib.stringLength accent) accent;
-      zenTheme = "${nebelungRoot}/zen/themes/Mocha/${zenAccent}";
+      zenTheme = "${nebelungRoot}/zen/themes/${nb.title}/${zenAccent}";
       obsidianTheme = "${nebelungRoot}/obsidian/Nebelung";
 
       # The zellij custom layout, rendered from the in-repo template. Only two
@@ -340,7 +348,7 @@ in
             # Nebelung zsh-syntax-highlighting colours (replaces catppuccin's
             # port). Sourced before the plugin loads — like catppuccin did —
             # which is fine: ZSH_HIGHLIGHT_STYLES is read at highlight time.
-            source ${nebelungRoot}/zsh-syntax-highlighting/themes/catppuccin_mocha-zsh-syntax-highlighting.zsh
+            source ${nebelungRoot}/zsh-syntax-highlighting/themes/catppuccin_${nbFlavor}-zsh-syntax-highlighting.zsh
 
             # Custom completions
             fpath=(~/.zsh-completions $fpath)
@@ -404,16 +412,16 @@ in
         ];
       };
 
-      # Starship, tinted with the Nebelung palette instead of stock mocha (the
-      # whiskers starship port emits exactly this [palettes.catppuccin_mocha]
+      # Starship, tinted with the Nebelung palette instead of the stock flavor (the
+      # whiskers starship port emits exactly this [palettes.catppuccin_<flavor>]
       # table; we inject the same name->#hex map so there's no duplication).
       programs.starship = {
         enable = true;
         enableZshIntegration = true;
         settings = {
           gcloud.disabled = true;
-          palette = "catppuccin_mocha";
-          palettes.catppuccin_mocha = nebelungPalette;
+          palette = "catppuccin_${nbFlavor}";
+          palettes."catppuccin_${nbFlavor}" = nebelungPalette;
         };
       };
 
@@ -421,9 +429,16 @@ in
       programs.git = {
         enable = devCfg.git.enable;
 
-        # Nebelung delta theme: defines [delta "catppuccin-mocha"] (referenced by
-        # programs.delta.options.features below). Rendered by whiskers in the
+        # Nebelung delta theme: defines [delta "catppuccin-<flavor>"] (referenced
+        # by programs.delta.options.features below). Rendered by whiskers in the
         # nebelung flake; replaces the catppuccin.delta module's include.
+        #
+        # Gotcha worth keeping: this ONE file carries a section for all four
+        # catppuccin flavors, and only the flavor it was rendered as holds Nebelung
+        # colours — the other three are stock upstream. So `features` below must
+        # name the same flavor as the variant root this include came from, or delta
+        # silently themes itself in stock Catppuccin. Both read nbFlavor, which is
+        # what keeps them agreeing.
         includes = [ { path = "${nebelungRoot}/delta/catppuccin.gitconfig"; } ];
         signing = lib.mkIf (gitCfg.signingKey != "") {
           key = gitCfg.signingKey;
@@ -444,17 +459,19 @@ in
         options = {
           side-by-side = false;
           line-numbers = true;
-          # Nebelung delta styles: the [delta "catppuccin-mocha"] feature is
+          # Nebelung delta styles: the [delta "catppuccin-<flavor>"] feature is
           # defined in the whiskers-rendered gitconfig included via
-          # programs.git.includes above. Its syntax-theme points at the
-          # "Catppuccin Mocha" bat theme, now rendered in Nebelung colours.
-          features = "catppuccin-mocha";
+          # programs.git.includes above (see the flavor gotcha there). Its
+          # syntax-theme points at the matching bat theme, in Nebelung colours.
+          features = "catppuccin-${nbFlavor}";
         };
       };
 
       # Nebelung theme (mauve accent) injected straight into settings from
-      # nebelungPalette — mirrors catppuccin/lazygit's mocha theme in Nebelung
-      # colours (see the lazygit port in the nebelung repo for the file form).
+      # nebelungPalette — mirrors catppuccin/lazygit's theme for the selected
+      # flavor in Nebelung colours (see the lazygit port in the nebelung repo for
+      # the file form). Injected rather than sourced, so it follows the palette
+      # without needing the flavor in a path.
       programs.lazygit = {
         enable = devCfg.git.enable;
         settings.gui = {
@@ -482,20 +499,22 @@ in
       programs.lsd.enable = devCfg.toolbelt.enable;
       programs.lsd.enableZshIntegration = false;
 
-      # Theme is the Nebelung-coloured "Catppuccin Mocha" tmTheme from the
-      # nebelung flake (name kept so delta's syntax-theme + yazi's syntect_theme
-      # references stay valid). programs.bat.themes rebuilds the bat cache on
-      # activation so it is picked up.
+      # Theme is the Nebelung-coloured "Catppuccin <Flavor>" tmTheme from the
+      # nebelung flake. The UPSTREAM name is kept (rather than renamed to
+      # "Nebelung") because delta's syntax-theme and yazi's syntect_theme both
+      # reference it by that name — and the whiskers-rendered files on the other end
+      # of those references are flavor-named too, so all three move together.
+      # programs.bat.themes rebuilds the bat cache on activation so it's picked up.
       programs.bat = {
         enable = devCfg.toolbelt.enable;
         config = {
           style = "header,grid";
           tabs = "2";
-          theme = "Catppuccin Mocha";
+          theme = batTheme;
         };
-        themes."Catppuccin Mocha" = {
+        themes.${batTheme} = {
           src = "${nebelungRoot}/bat/themes";
-          file = "Catppuccin Mocha.tmTheme";
+          file = "${batTheme}.tmTheme";
         };
       };
 
@@ -655,8 +674,8 @@ in
       };
 
       # Nebelung colours injected from nebelungPalette (matches catppuccin/fzf's
-      # mocha --color mapping, blue muted out). home-manager turns these into the
-      # --color flags in FZF_DEFAULT_OPTS.
+      # --color mapping for the selected flavor, blue muted out). home-manager turns
+      # these into the --color flags in FZF_DEFAULT_OPTS.
       programs.fzf = {
         enable = devCfg.toolbelt.enable;
         enableZshIntegration = true;
@@ -729,16 +748,17 @@ in
       # Catppuccin: `catppuccin.flavor` is the single source of truth — every
       # integration follows it. Raw dotfiles nix can't inject into (ghostty
       # config, zellij config.kdl) name the flavor manually; keep them in sync.
-      # Every port here is themed by Nebelung instead of stock catppuccin-mocha —
+      # Every port here is themed by Nebelung instead of stock catppuccin —
       # either by pointing the program at a whiskers-rendered file from the
       # nebelung flake (bat/delta/lsd/yazi), or by injecting nebelungPalette
       # colours straight into the program's settings (starship/fzf/lazygit).
       # Each catppuccin integration is disabled so it doesn't clobber our wiring.
-      # Colours are Nebelung; the catppuccin-mocha *names* are kept (nebelung's
-      # own convention — its ghostty output is literally catppuccin-mocha.conf).
+      # Colours are Nebelung; the upstream catppuccin *names* are kept (nebelung's
+      # own convention — its ghostty output is literally catppuccin-<flavor>.conf),
+      # which is why nbFlavor turns up in so many paths here.
       catppuccin.autoEnable = true;
       catppuccin.enable = true;
-      catppuccin.flavor = "mocha";
+      catppuccin.flavor = nbFlavor;
       catppuccin.bat.enable = false;
       catppuccin.starship.enable = false;
       catppuccin.delta.enable = false;
@@ -860,7 +880,7 @@ in
 
         # Helix nebelung theme
         ".config/helix/themes/nebelung.toml".text = ''
-          inherits = "catppuccin_mocha"
+          inherits = "catppuccin_${nbFlavor}"
 
           [palette]
           rosewater = "${nebelungPalette.rosewater}"
@@ -904,18 +924,21 @@ in
             ]
             (builtins.readFile ./ghostty/config);
         ".config/ghostty/themes/nebelung".source =
-          "${nebelungRoot}/ghostty/themes/catppuccin-mocha.conf";
+          "${nebelungRoot}/ghostty/themes/catppuccin-${nbFlavor}.conf";
 
         # lsd colours (replaces catppuccin.lsd). lsd auto-reads this file.
-        ".config/lsd/colors.yaml".source = "${nebelungRoot}/lsd/themes/catppuccin-mocha/colors.yaml";
+        ".config/lsd/colors.yaml".source = "${nebelungRoot}/lsd/themes/catppuccin-${nbFlavor}/colors.yaml";
 
         # yazi theme (replaces catppuccin.yazi): mgr/status/mode palette (mauve
         # accent) plus the syntect theme its syntect_theme line points at —
         # reusing the Nebelung bat tmTheme so previews match bat.
         ".config/yazi/theme.toml".source =
-          "${nebelungRoot}/yazi/themes/mocha/catppuccin-mocha-${accent}.toml";
-        ".config/yazi/Catppuccin-mocha.tmTheme".source =
-          "${nebelungRoot}/bat/themes/Catppuccin Mocha.tmTheme";
+          "${nebelungRoot}/yazi/themes/${nbFlavor}/catppuccin-${nbFlavor}-${accent}.toml";
+        # This target's NAME is pinned by the rendered theme.toml above: its
+        # syntect_theme line reads ~/.config/yazi/Catppuccin-<flavor>.tmTheme, so it
+        # has to carry the flavor or yazi's code previews lose their colours.
+        ".config/yazi/Catppuccin-${nbFlavor}.tmTheme".source =
+          "${nebelungRoot}/bat/themes/${batTheme}.tmTheme";
 
         # zellij
         # config.kdl bakes absolute script paths (zellij doesn't expand $HOME in

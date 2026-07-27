@@ -409,19 +409,19 @@ lib.mkIf config.nebelhaus.sill.enable {
       ...
     }:
     let
-      # nebelhaus.theme.contrast selects which rendered variant everything below
-      # reads. Two derived bindings rather than threading the option through each
-      # call site: the variant renders into a SUBDIRECTORY of the same package, so
-      # the only difference is a path prefix — and "normal" is the empty prefix,
-      # i.e. byte-for-byte the paths that were here before.
-      nebelungRoot =
-        "${nebelung.themes}"
-        + lib.optionalString (osConfig.nebelhaus.theme.contrast == "high") "/high-contrast";
+      # nebelhaus.theme.{flavor,contrast} select which rendered variant everything
+      # below reads — ../lib/nebelung.nix owns that resolution for hearth, sill and
+      # theme alike, so the flavor axis landed in one place rather than three.
+      #
+      # The bar needs only the palette, never a rendered file: every colour it
+      # draws comes from the generated colors.sh below, so light mode reaches the
+      # bar with no path change at all. (The previous `nebelungRoot` binding here
+      # was never used — dropped rather than extended.)
       nebelungPalette =
-        if osConfig.nebelhaus.theme.contrast == "high" then
-          nebelung.palettes.nebelung-high-contrast
-        else
-          nebelung.palette;
+        (import ../lib/nebelung.nix {
+          inherit lib nebelung;
+          theme = osConfig.nebelhaus.theme;
+        }).palette;
       # The Nebelung palette (name -> "#rrggbb") rendered as sketchybar's
       # 0xAARRGGBB colour literals, fully opaque. Generated so the palette stays
       # single-sourced from the nebelung input — sketchybarrc and every plugin

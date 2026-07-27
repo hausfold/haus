@@ -16,8 +16,9 @@
 
     catppuccin.url = "github:catppuccin/nix";
 
-    # The silver-mist theme (Catppuccin Mocha, whiskered). Rendered in a pure
-    # derivation so themes rebuild with `darwin-rebuild`.
+    # The silver-mist theme (Catppuccin with the blue stripped, whiskered — Mocha
+    # for dark, Latte for light). Rendered in a pure derivation so themes rebuild
+    # with `darwin-rebuild`.
     nebelung = {
       url = "github:nebelhaus/nebelung";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -135,9 +136,9 @@
                   themes = nebelung.packages.${system}.default;
                   palette = nebelung.palette;
                   # Every rendered variant, so a module can follow
-                  # nebelhaus.theme.contrast. Selection has to happen in the
-                  # modules rather than here: extraSpecialArgs is built before
-                  # any option is evaluated.
+                  # nebelhaus.theme.{flavor,contrast}. Selection has to happen in
+                  # the modules rather than here: extraSpecialArgs is built before
+                  # any option is evaluated. modules/lib/nebelung.nix does it.
                   palettes = nebelung.palettes;
                 };
               };
@@ -157,6 +158,15 @@
         minimal = ./presets/minimal.nix;
         everyday = ./presets/everyday.nix;
       };
+      # Linux is in here for the pure-evaluation outputs only (options-json, the
+      # theme-variants check) — that's what lets nebelhaus.com's Linux CI render the
+      # options reference. Anything needing a darwin system is guarded per-output.
+      allSystems = [
+        "aarch64-darwin"
+        "x86_64-darwin"
+        "aarch64-linux"
+        "x86_64-linux"
+      ];
     in
     {
       # Import the whole house, or cherry-pick a room. Each is a nix-darwin module.
@@ -229,7 +239,11 @@
       # checkRice THROWS rather than returning false, so a stray key fails this
       # check during evaluation, with its own message. The `dataOnly` guard
       # below is belt-and-braces for a future checkRice that returns a bool.
-      checks = nixpkgs.lib.genAttrs [ "aarch64-darwin" "x86_64-darwin" ] (
+      #
+      # `theme-variants` is the second check and runs on EVERY system, Linux
+      # included: it's pure lib, the same property that lets options-json build on
+      # Linux CI. `presets` stays darwin-only — it evaluates a real system.
+      checks = nixpkgs.lib.genAttrs allSystems (
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
@@ -247,8 +261,82 @@
                 }).system.drvPath
             }"
           ) names;
+
+          # ---- theme-variants -------------------------------------------------
+          # modules/lib/nebelung.nix turns nebelhaus.theme.{flavor,contrast} into a
+          # subdirectory of the nebelung themes package and a palette-variant name.
+          # That rule MIRRORS nebelung's own (`variantDir` in its
+          # scripts/generate-palette.mjs) across a repo boundary, and its failure
+          # mode is silent: a wrong subdir is just a store path that doesn't exist,
+          # discovered at activation rather than at eval. So the mapping is pinned
+          # here as a golden table — a rename on either side fails this check with
+          # the two tables diffed side by side.
+          nbStub = {
+            themes = "/THEMES";
+            palettes = nixpkgs.lib.genAttrs [
+              "nebelung"
+              "nebelung-high-contrast"
+              "nebelung-latte"
+              "nebelung-latte-high-contrast"
+            ] (name: { base = name; });
+          };
+          resolve =
+            flavor: contrast:
+            import ./modules/lib/nebelung.nix {
+              inherit (pkgs) lib;
+              nebelung = nbStub;
+              theme = { inherit flavor contrast; };
+            };
+          row =
+            flavor: contrast:
+            let
+              nb = resolve flavor contrast;
+            in
+            "${flavor}/${contrast} -> ${nb.variant} @ ${nb.root} (${nb.flavor}/${nb.title})";
+          variantTable = builtins.concatStringsSep "\n" [
+            (row "mocha" "normal")
+            (row "mocha" "high")
+            (row "latte" "normal")
+            (row "latte" "high")
+          ];
+          # The default combination must resolve to the themes-package ROOT with no
+          # suffix — that's what keeps every pre-variant path byte-identical.
+          expectedVariantTable = ''
+            mocha/normal -> nebelung @ /THEMES (mocha/Mocha)
+            mocha/high -> nebelung-high-contrast @ /THEMES/high-contrast (mocha/Mocha)
+            latte/normal -> nebelung-latte @ /THEMES/latte (latte/Latte)
+            latte/high -> nebelung-latte-high-contrast @ /THEMES/latte-high-contrast (latte/Latte)
+          '';
+          # An old nebelung lock has no latte palettes. Selecting one must throw the
+          # "run nix flake update nebelung" message rather than nix's bare
+          # "attribute missing", which points nowhere near the cause.
+          staleLockThrows =
+            !
+              (builtins.tryEval (
+                (import ./modules/lib/nebelung.nix {
+                  inherit (pkgs) lib;
+                  nebelung = {
+                    themes = "/THEMES";
+                    palettes.nebelung = { };
+                  };
+                  theme = {
+                    flavor = "latte";
+                    contrast = "normal";
+                  };
+                }).palette
+              )).success;
         in
         {
+          theme-variants = pkgs.runCommand "nebelhaus-theme-variants-ok" { } ''
+            ${nixpkgs.lib.optionalString (!staleLockThrows)
+              "echo 'a missing palette variant did not throw' >&2; exit 1"
+            }
+            diff -u ${pkgs.writeText "expected" expectedVariantTable} \
+                    ${pkgs.writeText "actual" (variantTable + "\n")}
+            touch $out
+          '';
+        }
+        // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-darwin" system) {
           presets = pkgs.runCommand "nebelhaus-presets-ok" { } ''
             ${nixpkgs.lib.optionalString (!dataOnly) "echo 'a preset is not data-only' >&2; exit 1"}
             cat > $out <<'PRESETS'
@@ -259,76 +347,69 @@
       );
 
       # `nix run github:nebelhaus/nebelhaus#pounce`
-      packages = nixpkgs.lib.genAttrs
-        [
-          "aarch64-darwin"
-          "x86_64-darwin"
-          # Linux too, for options-json alone: nebelhaus.com's CI renders the
-          # options reference there. Nothing else in this set is buildable on
-          # Linux, but option metadata is pure evaluation.
-          "aarch64-linux"
-          "x86_64-linux"
-        ]
-        (
-          system:
-          let
-            pkgs = nixpkgs.legacyPackages.${system};
-            isDarwin = nixpkgs.lib.hasSuffix "-darwin" system;
+      # Linux is in allSystems for options-json alone: nebelhaus.com's CI renders
+      # the options reference there. Nothing else in this set is buildable on
+      # Linux, but option metadata is pure evaluation.
+      packages = nixpkgs.lib.genAttrs allSystems (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+          isDarwin = nixpkgs.lib.hasSuffix "-darwin" system;
 
-            # `nix build .#options-json` — machine-readable metadata for every
-            # nebelhaus.* option: type, default, example, description, and the
-            # file that declares it. nebelhaus.com's options reference is
-            # RENDERED from this instead of hand-maintained, so the page cannot
-            # drift from the module system (as prose, it drifted for months).
-            #
-            # Evaluates ONLY the per-room options files — not a darwin system —
-            # so it needs no host, no username, and no macOS. That's what lets
-            # the docs repo's Linux CI run it, and it works only because those
-            # files are pure `{ lib, ... }` modules with no config/pkgs
-            # dependencies. Keep them that way.
-            optionsEval = pkgs.lib.evalModules {
-              specialArgs = { inherit (pkgs) lib; };
-              modules = [
-                ./modules/options.nix
-                ./modules/den/options.nix
-                ./modules/theme/options.nix
-                ./modules/hearth/options.nix
-                ./modules/prowl/options.nix
-                ./modules/sill/options.nix
-                ./modules/pounce/options.nix
-                ./modules/trill/options.nix
-                ./modules/perch/options.nix
-                ./modules/hush/options.nix
-                ./modules/secrets/options.nix
-                ./modules/snippets/options.nix
-              ];
-            };
+          # `nix build .#options-json` — machine-readable metadata for every
+          # nebelhaus.* option: type, default, example, description, and the
+          # file that declares it. nebelhaus.com's options reference is
+          # RENDERED from this instead of hand-maintained, so the page cannot
+          # drift from the module system (as prose, it drifted for months).
+          #
+          # Evaluates ONLY the per-room options files — not a darwin system —
+          # so it needs no host, no username, and no macOS. That's what lets
+          # the docs repo's Linux CI run it, and it works only because those
+          # files are pure `{ lib, ... }` modules with no config/pkgs
+          # dependencies. Keep them that way.
+          optionsEval = pkgs.lib.evalModules {
+            specialArgs = { inherit (pkgs) lib; };
+            modules = [
+              ./modules/options.nix
+              ./modules/den/options.nix
+              ./modules/theme/options.nix
+              ./modules/hearth/options.nix
+              ./modules/prowl/options.nix
+              ./modules/sill/options.nix
+              ./modules/pounce/options.nix
+              ./modules/trill/options.nix
+              ./modules/perch/options.nix
+              ./modules/hush/options.nix
+              ./modules/secrets/options.nix
+              ./modules/snippets/options.nix
+            ];
+          };
 
-            selfPrefix = toString ./.;
-          in
-          {
-            options-json =
-              (pkgs.nixosOptionsDoc {
-                inherit (optionsEval) options;
-                warningsAreErrors = false;
-                # Store paths mean nothing to a reader; keep the repo-relative
-                # path so each rendered option can link to its source.
-                transformOptions =
-                  opt:
-                  opt
-                  // {
-                    declarations = map (
-                      decl: nixpkgs.lib.removePrefix "/" (nixpkgs.lib.removePrefix selfPrefix (toString decl))
-                    ) opt.declarations;
-                  };
-              }).optionsJSON;
-          }
-          // nixpkgs.lib.optionalAttrs isDarwin {
-            pounce = pounce.packages.${system}.default;
-            trill = trill.packages.${system}.default;
-            perch = perch.packages.${system}.default;
-          }
-        );
+          selfPrefix = toString ./.;
+        in
+        {
+          options-json =
+            (pkgs.nixosOptionsDoc {
+              inherit (optionsEval) options;
+              warningsAreErrors = false;
+              # Store paths mean nothing to a reader; keep the repo-relative
+              # path so each rendered option can link to its source.
+              transformOptions =
+                opt:
+                opt
+                // {
+                  declarations = map (
+                    decl: nixpkgs.lib.removePrefix "/" (nixpkgs.lib.removePrefix selfPrefix (toString decl))
+                  ) opt.declarations;
+                };
+            }).optionsJSON;
+        }
+        // nixpkgs.lib.optionalAttrs isDarwin {
+          pounce = pounce.packages.${system}.default;
+          trill = trill.packages.${system}.default;
+          perch = perch.packages.${system}.default;
+        }
+      );
 
       # `nix run github:nebelhaus/nebelhaus#bootstrap` — raise the house on a
       # fresh Mac. Scaffolds a thin personal config at ~/.config/nix; it never
