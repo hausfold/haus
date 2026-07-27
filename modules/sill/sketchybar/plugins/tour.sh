@@ -13,7 +13,7 @@
 # RESULTING state (mode entered, workspace changed), never the keystroke.
 #
 # Steps are strictly sequential:
-#   1a  tap caps (launch mode armed)          <- launch_mode.sh on
+#   1a  tap the leader (launch mode armed)    <- launch_mode.sh on
 #   1b  press a letter (an app launches)      <- aerospace-notify.sh (workspace
 #                                                changed). The named key is
 #                                                picked to point AWAY from the
@@ -24,10 +24,14 @@
 #                                                workspace never fires and the
 #                                                step hangs (click the pill to
 #                                                skip if it somehow still can't).
-#   2   caps + arrow (navigate mode)          <- navigate_mode.sh on
-#   3   caps + -/=   (resize mode)            <- resize_mode.sh on
-#   4   ⌘Space, type tour                     <- the pounce "Haus Tour" command
+#   2   leader + arrow (navigate mode)        <- navigate_mode.sh on
+#   3   leader + -/=   (resize mode)          <- resize_mode.sh on
+#   4   palette hotkey, type tour             <- the pounce "Haus Tour" command
 #                                                (skipped when pounce is off)
+#
+# The leader and palette GLYPHS come from tour_config.sh, generated from
+# nebelhaus.keys.* — the prompts have to name the key this machine actually has,
+# or the tutor teaches a chord that does nothing.
 #
 # Left-click skips the current step (dormant: starts), right-click dismisses
 # for good. Entry points: the dormant "new here?" hint on a fresh machine,
@@ -39,7 +43,7 @@
 # clears both and re-arms the hint. $MUTED lists the right-side pills hidden
 # while a tour runs (see mute/unmute).
 #
-# Concurrency: caps->letter can fire `launch` and `workspace` back to back as
+# Concurrency: leader->letter can fire `launch` and `workspace` back to back as
 # fire-and-forget processes, so every mutation runs under the same mkdir-lock
 # trick launch_mode.sh uses. The "nice" flash sleeps WHILE holding the lock on
 # purpose: a queued event blocks until the flash lands, then reads the settled
@@ -56,9 +60,15 @@ LOCK="/tmp/sketchybar_tour.lock"
 source "$HOME/.config/sketchybar/colors.sh"
 source "$HOME/.config/sketchybar/workspaces.sh"
 
-# GENERATED gate (modules/sill/default.nix): TOUR_HAS_PALETTE=0 when pounce is
-# off, which drops step 4 and makes it a three-step tour.
+# GENERATED gates + glyphs (modules/sill/default.nix): TOUR_HAS_PALETTE=0 when
+# pounce is off, which drops step 4 and makes it a three-step tour. TOUR_LEADER /
+# TOUR_LEADER_NAME / TOUR_PALETTE name the keys this machine is actually bound to
+# (nebelhaus.keys.*). Defaults here are the house keymap, so a stale
+# tour_config.sh degrades to the old hardcoded prompts rather than blank ones.
 TOUR_HAS_PALETTE=1
+TOUR_LEADER="⇪"
+TOUR_LEADER_NAME="Caps Lock"
+TOUR_PALETTE="⌘ Space"
 [ -f "$HOME/.config/sketchybar/tour_config.sh" ] && source "$HOME/.config/sketchybar/tour_config.sh"
 TOTAL=3; [ "$TOUR_HAS_PALETTE" = 1 ] && TOTAL=4
 
@@ -106,11 +116,11 @@ step() { cat "$STATE" 2>/dev/null; }
 render() {
     local lbl
     case "$(step)" in
-        1a) lbl="1/$TOTAL · tap ⇪ (Caps Lock)" ;;
+        1a) lbl="1/$TOTAL · tap $TOUR_LEADER ($TOUR_LEADER_NAME)" ;;
         1b) lbl="1/$TOTAL · now press $(launch_key) — the letters are in the bar" ;;
-        2)  lbl="2/$TOTAL · tap ⇪, then an arrow — ⎋ ends" ;;
-        3)  lbl="3/$TOTAL · tap ⇪, then - or = — ⎋ ends" ;;
-        4)  lbl="4/$TOTAL · press ⌘ Space, type tour, hit ↵" ;;
+        2)  lbl="2/$TOTAL · tap $TOUR_LEADER, then an arrow — ⎋ ends" ;;
+        3)  lbl="3/$TOTAL · tap $TOUR_LEADER, then - or = — ⎋ ends" ;;
+        4)  lbl="4/$TOTAL · press $TOUR_PALETTE, type tour, hit ↵" ;;
         *)  return ;;
     esac
     sketchybar --set tour drawing=on \

@@ -160,6 +160,103 @@ in
       '';
     };
 
+    # ---- keys: the keymap, opened up ----
+    # Cross-cutting because the keymap is: `leader` and `windowNav` are prowl's
+    # (AeroSpace chords + the Caps Lock remap), `palette` is pounce's (an
+    # in-process hotkey), and the cheatsheet + the first-run tour describe all
+    # three. Resolved once in modules/lib/keys.nix so a chord and the caption
+    # documenting it come from the same row.
+    #
+    # Until this existed the keymap was closed: Caps Lock, ⌥, and ⌘Space were
+    # baked in. That made three whole categories of rice unexpressible — mouse-
+    # first (no leader at all), one-handed, and any NON-US KEYBOARD LAYOUT, where
+    # ⌥+letter is how you type accented characters and so cannot belong to a
+    # window manager.
+    keys = {
+      leader = lib.mkOption {
+        type = lib.types.enum [
+          "caps"
+          "alt-space"
+          "none"
+        ];
+        default = "caps";
+        example = "none";
+        description = ''
+          What enters the launcher/leader mode — tap it, then a letter opens an
+          app, a digit focuses a workspace, an arrow navigates, `-`/`=` resizes.
+
+            - "caps" (default): Caps Lock. AeroSpace can't bind Caps Lock itself,
+              so the rice remaps it to F18 with hidutil and binds that.
+            - "alt-space": the leader without giving up Caps Lock. No remap at all.
+            - "none": no leader. Caps Lock stays Caps Lock, launch mode is
+              unreachable, and nothing is remapped — the setting for a mouse-first
+              rice, or for a Mac you are handing to someone else. What the leader
+              fronted is still reachable: apps through the palette, window moves
+              through `windowNav`.
+
+          The remap is re-applied at every activation and does not survive a
+          reboot, so moving off "caps" ends it — at the latest, at next boot.
+
+          Only meaningful with nebelhaus.prowl.enable (AeroSpace owns the modes).
+        '';
+      };
+
+      palette = lib.mkOption {
+        type = lib.types.enum [
+          "cmd-space"
+          "alt-space"
+          "ctrl-space"
+          "none"
+        ];
+        default = "cmd-space";
+        example = "none";
+        description = ''
+          What opens the pounce command palette. Registered in-process by the
+          daemon, so it's near-instant and doesn't go through AeroSpace.
+
+          "cmd-space" (default) is the one value that also DISABLES Spotlight's
+          own ⌘Space, because the two can't share it. Every other value leaves
+          Spotlight alone — including "none", which hands the palette's job back
+          to Spotlight entirely. That's a fix as much as an option: the rice used
+          to take Spotlight's ⌘Space away unconditionally, even where nothing
+          claimed it.
+
+          Only meaningful with nebelhaus.pounce.enable.
+        '';
+      };
+
+      windowNav = lib.mkOption {
+        type = lib.types.enum [
+          "alt"
+          "ctrl-alt"
+          "cmd-alt"
+          "none"
+        ];
+        default = "alt";
+        example = "ctrl-alt";
+        description = ''
+          The modifier vocabulary for prowl's window chords — one setting rather
+          than a bind-per-action, because what people need to move is the
+          modifier, not the letters. It drives focus (`<mod>` + hjkl), layouts
+          (`<mod>` + `/` `,`), fullscreen, workspace back-and-forth, moving a
+          window to a workspace (`<mod>⇧` + 1-4 or an app's letter), and entering
+          service mode (`<mod>⇧;`).
+
+          "alt" (default) is ⌥. The alternatives are for **non-US keyboard
+          layouts**, where ⌥+letter types accented characters — a rice that owns
+          ⌥+letter is unusable on those, which is the concrete reason this option
+          exists.
+
+          "none" drops the modifier chords entirely: no focus/layout/move chords,
+          no service mode. Combined with `leader = "none"` that's a rice where the
+          tiler tiles and the keyboard is left alone — mouse-first. The cheatsheet
+          follows, so it never advertises a key that does nothing.
+
+          Only meaningful with nebelhaus.prowl.enable.
+        '';
+      };
+    };
+
     # ---- the developer pack ----
     # Lives here rather than in a room because it cuts across two: den's CLI
     # tools and hearth's shell programs.

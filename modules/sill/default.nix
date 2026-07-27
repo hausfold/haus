@@ -344,11 +344,26 @@ let
       sketchybar --move tour after clock
       "$HOME/.config/sketchybar/plugins/tour.sh" init
     '';
+  # The resolved keymap (../lib/keys.nix). The tour's prompts must name the keys
+  # THIS machine is bound to — a tutor telling you to tap Caps Lock on a rice where
+  # keys.leader = "alt-space" teaches a chord that does nothing.
+  k = import ../lib/keys.nix {
+    inherit lib;
+    keys = config.nebelhaus.keys;
+  };
+
   tourConfigSh = ''
     #!/bin/bash
-    # GENERATED from nebelhaus.pounce.enable by modules/sill/default.nix — do not
-    # edit. Whether the tour has a step 4 (the ⌘Space palette needs pounce).
-    TOUR_HAS_PALETTE=${if config.nebelhaus.pounce.enable then "1" else "0"}
+    # GENERATED from nebelhaus.pounce.enable + nebelhaus.keys.* by
+    # modules/sill/default.nix — do not edit. TOUR_HAS_PALETTE decides whether the
+    # tour has a step 4 (the palette step needs pounce); the glyphs name the
+    # leader and palette chords this rice actually binds.
+    TOUR_HAS_PALETTE=${
+      if config.nebelhaus.pounce.enable && k.palette != null then "1" else "0"
+    }
+    TOUR_LEADER=${lib.escapeShellArg (if k.leader != null then k.leader.glyph else "⇪")}
+    TOUR_LEADER_NAME=${lib.escapeShellArg (if k.leader != null then k.leader.name else "Caps Lock")}
+    TOUR_PALETTE=${lib.escapeShellArg (if k.palette != null then k.palette.glyph else "⌘ Space")}
   '';
 in
 lib.mkIf config.nebelhaus.sill.enable {

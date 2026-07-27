@@ -325,8 +325,50 @@
                   };
                 }).palette
               )).success;
+          # ---- keymap ---------------------------------------------------------
+          # modules/lib/keys.nix turns nebelhaus.keys.* into AeroSpace chords, the
+          # pounce hotkey, and the glyphs that caption them — and the whole reason
+          # it exists is that a chord and its caption must not drift. So the table
+          # is pinned: change a chord and this check shows you the caption that
+          # moved with it (or didn't). It also pins the two collapses that make a
+          # mouse-first rice possible, where "none" must yield NO chord rather than
+          # a default one.
+          keymapRow =
+            leader: palette: windowNav:
+            let
+              k = import ./modules/lib/keys.nix {
+                inherit (pkgs) lib;
+                keys = { inherit leader palette windowNav; };
+              };
+              show = v: f: if v == null then "-" else f v;
+            in
+            "${leader}/${palette}/${windowNav}"
+            + " leader=${show k.leader (v: "${v.chord} ${v.glyph} caps=${if v.capsRemap then "yes" else "no"}")}"
+            + " palette=${show k.palette (v: "${nixpkgs.lib.concatStringsSep "-" (v.modifiers ++ [ v.key ])} ${v.glyph} spotlight=${if v.stealsSpotlight then "yes" else "no"}")}"
+            + " nav=${show k.nav (v: "${v.chord} ${v.glyph}")}"
+            + " conflicts=${toString (builtins.length k.conflicts)}";
+          keymapTable = builtins.concatStringsSep "\n" [
+            (keymapRow "caps" "cmd-space" "alt")
+            (keymapRow "alt-space" "ctrl-space" "ctrl-alt")
+            (keymapRow "none" "none" "none")
+            # Two keys, one chord. Silent in practice (whoever registers first
+            # wins), so prowl asserts on it — this pins that it's detected at all.
+            (keymapRow "alt-space" "alt-space" "cmd-alt")
+          ];
+          expectedKeymapTable = ''
+            caps/cmd-space/alt leader=f18 ⇪ caps=yes palette=cmd-space ⌘ Space spotlight=yes nav=alt ⌥ conflicts=0
+            alt-space/ctrl-space/ctrl-alt leader=alt-space ⌥␣ caps=no palette=ctrl-space ⌃ Space spotlight=no nav=ctrl-alt ⌃⌥ conflicts=0
+            none/none/none leader=- palette=- nav=- conflicts=0
+            alt-space/alt-space/cmd-alt leader=alt-space ⌥␣ caps=no palette=alt-space ⌥ Space spotlight=no nav=cmd-alt ⌘⌥ conflicts=1
+          '';
         in
         {
+          keymap = pkgs.runCommand "nebelhaus-keymap-ok" { } ''
+            diff -u ${pkgs.writeText "expected" expectedKeymapTable} \
+                    ${pkgs.writeText "actual" (keymapTable + "\n")}
+            touch $out
+          '';
+
           theme-variants = pkgs.runCommand "nebelhaus-theme-variants-ok" { } ''
             ${nixpkgs.lib.optionalString (!staleLockThrows)
               "echo 'a missing palette variant did not throw' >&2; exit 1"
