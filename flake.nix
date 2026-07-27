@@ -46,7 +46,7 @@
     # places the app at a fixed /Applications path. Like trill, the flake wraps
     # perch's CI-built, notarized release ZIP (macOS 26 blocks a from-source Nix
     # build — see the perch repo), so this input tracks perch *releases*, not its
-    # main branch. Gated off by default until perch's first release exists.
+    # main branch (exactly like trill).
     perch = {
       url = "github:nebelhaus/perch";
       inputs.nixpkgs.follows = "nixpkgs";
