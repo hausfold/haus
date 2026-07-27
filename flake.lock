@@ -139,11 +139,11 @@
         "prebuilt": "prebuilt"
       },
       "locked": {
-        "lastModified": 1785069274,
-        "narHash": "sha256-nceq6s3582QvliNO1+MHrQYmwJuyjxC+fooSpuOLOv4=",
+        "lastModified": 1785125651,
+        "narHash": "sha256-sQx57Mrpeh7zAgY0qM2Aq4pKBC/0ORj+9JKctXQlGwY=",
         "owner": "nebelhaus",
         "repo": "perch",
-        "rev": "8b51e8cc0b7bd4464bbcd393497bf2ee4f216c45",
+        "rev": "72db8f2754cbc069cea023bad35cea00d48b4375",
         "type": "github"
       },
       "original": {
