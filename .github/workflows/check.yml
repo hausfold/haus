@@ -22,6 +22,13 @@ jobs:
       # aarch64 the way den once did.
       - run: nix eval .#darwinConfigurations.example.system.drvPath
       - run: nix eval .#darwinConfigurations.example-intel.system.drvPath
+      # The pure-lib checks (theme-variants, keymap) are declared for Linux too
+      # precisely so they can run HERE — they pin the flavor/contrast → themes-subdir
+      # table and the keys.* → chord/glyph table as golden files, both of which mirror
+      # a rule that lives in another repo or in a generated dotfile, where drift is
+      # silent. Without this line they were declared and never executed. The
+      # darwin-only `presets` check is guarded, so this builds just those two.
+      - run: nix flake check
 
   shellcheck:
     name: shell scripts
