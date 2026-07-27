@@ -61,10 +61,24 @@ in
       config,
       lib,
       pkgs,
+      osConfig,
       nebelung,
       ...
     }:
     let
+      # nebelhaus.theme.contrast selects which rendered variant everything below
+      # reads. Two derived bindings rather than threading the option through each
+      # call site: the variant renders into a SUBDIRECTORY of the same package, so
+      # the only difference is a path prefix — and "normal" is the empty prefix,
+      # i.e. byte-for-byte the paths that were here before.
+      nebelungRoot =
+        "${nebelung.themes}"
+        + lib.optionalString (osConfig.nebelhaus.theme.contrast == "high") "/high-contrast";
+      nebelungPalette =
+        if osConfig.nebelhaus.theme.contrast == "high" then
+          nebelung.palettes.nebelung-high-contrast
+        else
+          nebelung.palette;
       # Yazi preview: pipe code/text through bat (via piper) so previews match
       # the catppuccin-themed `cat` alias — colours + line numbers.
       batPreviewer = ''piper -- bat --color=always --paging=never --style=numbers --tabs=2 --terminal-width=$w "$1"'';
@@ -73,7 +87,7 @@ in
       # $GLAMOUR_STYLE in its default "auto" mode (glow 2.x), so the style must
       # be passed explicitly with `-s`: baked into the yazi previewer plugin
       # (@glowStyle@ placeholder) and the `glow -p` opener below.
-      glowStyle = "${nebelung.themes}/glow/catppuccin-mocha.json";
+      glowStyle = "${nebelungRoot}/glow/catppuccin-mocha.json";
       glowPlugin = pkgs.runCommand "glow.yazi" { } ''
         cp -r ${./yazi/plugins/glow.yazi} $out
         chmod -R +w $out
@@ -167,12 +181,12 @@ in
 
       # The accent colour (nebelhaus.theme.accent, default mauve) as the hex the
       # tools nebelhaus injects colours into use for their accent.
-      accentColor = nebelung.palette.${accent};
+      accentColor = nebelungPalette.${accent};
       # Zen browser accent. The nebelung zen port renders every accent under
       # themes/Mocha/<Accent>/ (capitalised); yazi uses the lowercase name.
       zenAccent = lib.toUpper (lib.substring 0 1 accent) + lib.substring 1 (lib.stringLength accent) accent;
-      zenTheme = "${nebelung.themes}/zen/themes/Mocha/${zenAccent}";
-      obsidianTheme = "${nebelung.themes}/obsidian/Nebelung";
+      zenTheme = "${nebelungRoot}/zen/themes/Mocha/${zenAccent}";
+      obsidianTheme = "${nebelungRoot}/obsidian/Nebelung";
 
       # The zellij custom layout, rendered from the in-repo template. Only two
       # tokens remain: the login name for the tab-bar's username pill, and
@@ -326,7 +340,7 @@ in
             # Nebelung zsh-syntax-highlighting colours (replaces catppuccin's
             # port). Sourced before the plugin loads — like catppuccin did —
             # which is fine: ZSH_HIGHLIGHT_STYLES is read at highlight time.
-            source ${nebelung.themes}/zsh-syntax-highlighting/themes/catppuccin_mocha-zsh-syntax-highlighting.zsh
+            source ${nebelungRoot}/zsh-syntax-highlighting/themes/catppuccin_mocha-zsh-syntax-highlighting.zsh
 
             # Custom completions
             fpath=(~/.zsh-completions $fpath)
@@ -399,7 +413,7 @@ in
         settings = {
           gcloud.disabled = true;
           palette = "catppuccin_mocha";
-          palettes.catppuccin_mocha = nebelung.palette;
+          palettes.catppuccin_mocha = nebelungPalette;
         };
       };
 
@@ -410,7 +424,7 @@ in
         # Nebelung delta theme: defines [delta "catppuccin-mocha"] (referenced by
         # programs.delta.options.features below). Rendered by whiskers in the
         # nebelung flake; replaces the catppuccin.delta module's include.
-        includes = [ { path = "${nebelung.themes}/delta/catppuccin.gitconfig"; } ];
+        includes = [ { path = "${nebelungRoot}/delta/catppuccin.gitconfig"; } ];
         signing = lib.mkIf (gitCfg.signingKey != "") {
           key = gitCfg.signingKey;
           signByDefault = true;
@@ -439,7 +453,7 @@ in
       };
 
       # Nebelung theme (mauve accent) injected straight into settings from
-      # nebelung.palette — mirrors catppuccin/lazygit's mocha theme in Nebelung
+      # nebelungPalette — mirrors catppuccin/lazygit's mocha theme in Nebelung
       # colours (see the lazygit port in the nebelung repo for the file form).
       programs.lazygit = {
         enable = devCfg.git.enable;
@@ -449,19 +463,19 @@ in
               accentColor
               "bold"
             ];
-            inactiveBorderColor = [ nebelung.palette.subtext0 ];
-            searchingActiveBorderColor = [ nebelung.palette.yellow ];
-            optionsTextColor = [ nebelung.palette.blue ];
-            selectedLineBgColor = [ nebelung.palette.surface0 ];
-            inactiveViewSelectedLineBgColor = [ nebelung.palette.overlay0 ];
+            inactiveBorderColor = [ nebelungPalette.subtext0 ];
+            searchingActiveBorderColor = [ nebelungPalette.yellow ];
+            optionsTextColor = [ nebelungPalette.blue ];
+            selectedLineBgColor = [ nebelungPalette.surface0 ];
+            inactiveViewSelectedLineBgColor = [ nebelungPalette.overlay0 ];
             cherryPickedCommitFgColor = [ accentColor ];
-            cherryPickedCommitBgColor = [ nebelung.palette.surface1 ];
-            markedBaseCommitFgColor = [ nebelung.palette.blue ];
-            markedBaseCommitBgColor = [ nebelung.palette.yellow ];
-            unstagedChangesColor = [ nebelung.palette.red ];
-            defaultFgColor = [ nebelung.palette.text ];
+            cherryPickedCommitBgColor = [ nebelungPalette.surface1 ];
+            markedBaseCommitFgColor = [ nebelungPalette.blue ];
+            markedBaseCommitBgColor = [ nebelungPalette.yellow ];
+            unstagedChangesColor = [ nebelungPalette.red ];
+            defaultFgColor = [ nebelungPalette.text ];
           };
-          authorColors."*" = nebelung.palette.lavender;
+          authorColors."*" = nebelungPalette.lavender;
         };
       };
 
@@ -480,7 +494,7 @@ in
           theme = "Catppuccin Mocha";
         };
         themes."Catppuccin Mocha" = {
-          src = "${nebelung.themes}/bat/themes";
+          src = "${nebelungRoot}/bat/themes";
           file = "Catppuccin Mocha.tmTheme";
         };
       };
@@ -640,28 +654,28 @@ in
         options = [ "--cmd cd" ];
       };
 
-      # Nebelung colours injected from nebelung.palette (matches catppuccin/fzf's
+      # Nebelung colours injected from nebelungPalette (matches catppuccin/fzf's
       # mocha --color mapping, blue muted out). home-manager turns these into the
       # --color flags in FZF_DEFAULT_OPTS.
       programs.fzf = {
         enable = devCfg.toolbelt.enable;
         enableZshIntegration = true;
         colors = {
-          "bg+" = nebelung.palette.surface0;
-          "bg" = nebelung.palette.base;
-          "spinner" = nebelung.palette.rosewater;
-          "hl" = nebelung.palette.red;
-          "fg" = nebelung.palette.text;
-          "header" = nebelung.palette.red;
+          "bg+" = nebelungPalette.surface0;
+          "bg" = nebelungPalette.base;
+          "spinner" = nebelungPalette.rosewater;
+          "hl" = nebelungPalette.red;
+          "fg" = nebelungPalette.text;
+          "header" = nebelungPalette.red;
           "info" = accentColor;
-          "pointer" = nebelung.palette.rosewater;
-          "marker" = nebelung.palette.lavender;
-          "fg+" = nebelung.palette.text;
+          "pointer" = nebelungPalette.rosewater;
+          "marker" = nebelungPalette.lavender;
+          "fg+" = nebelungPalette.text;
           "prompt" = accentColor;
-          "hl+" = nebelung.palette.red;
-          "selected-bg" = nebelung.palette.surface1;
-          "border" = nebelung.palette.overlay0;
-          "label" = nebelung.palette.text;
+          "hl+" = nebelungPalette.red;
+          "selected-bg" = nebelungPalette.surface1;
+          "border" = nebelungPalette.overlay0;
+          "label" = nebelungPalette.text;
         };
       };
 
@@ -717,7 +731,7 @@ in
       # config, zellij config.kdl) name the flavor manually; keep them in sync.
       # Every port here is themed by Nebelung instead of stock catppuccin-mocha —
       # either by pointing the program at a whiskers-rendered file from the
-      # nebelung flake (bat/delta/lsd/yazi), or by injecting nebelung.palette
+      # nebelung flake (bat/delta/lsd/yazi), or by injecting nebelungPalette
       # colours straight into the program's settings (starship/fzf/lazygit).
       # Each catppuccin integration is disabled so it doesn't clobber our wiring.
       # Colours are Nebelung; the catppuccin-mocha *names* are kept (nebelung's
@@ -836,7 +850,7 @@ in
         };
 
         # opencode
-        ".config/opencode/themes/nebelung.json".source = "${nebelung.themes}/opencode/nebelung.json";
+        ".config/opencode/themes/nebelung.json".source = "${nebelungRoot}/opencode/nebelung.json";
         ".config/opencode/tui.json".text = ''
           {
             "$schema": "https://opencode.ai/tui.json",
@@ -849,32 +863,32 @@ in
           inherits = "catppuccin_mocha"
 
           [palette]
-          rosewater = "${nebelung.palette.rosewater}"
-          flamingo = "${nebelung.palette.flamingo}"
-          pink = "${nebelung.palette.pink}"
-          mauve = "${nebelung.palette.mauve}"
-          red = "${nebelung.palette.red}"
-          maroon = "${nebelung.palette.maroon}"
-          peach = "${nebelung.palette.peach}"
-          yellow = "${nebelung.palette.yellow}"
-          green = "${nebelung.palette.green}"
-          teal = "${nebelung.palette.teal}"
-          sky = "${nebelung.palette.sky}"
-          sapphire = "${nebelung.palette.sapphire}"
-          blue = "${nebelung.palette.blue}"
-          lavender = "${nebelung.palette.lavender}"
-          text = "${nebelung.palette.text}"
-          subtext1 = "${nebelung.palette.subtext1}"
-          subtext0 = "${nebelung.palette.subtext0}"
-          overlay2 = "${nebelung.palette.overlay2}"
-          overlay1 = "${nebelung.palette.overlay1}"
-          overlay0 = "${nebelung.palette.overlay0}"
-          surface2 = "${nebelung.palette.surface2}"
-          surface1 = "${nebelung.palette.surface1}"
-          surface0 = "${nebelung.palette.surface0}"
-          base = "${nebelung.palette.base}"
-          mantle = "${nebelung.palette.mantle}"
-          crust = "${nebelung.palette.crust}"
+          rosewater = "${nebelungPalette.rosewater}"
+          flamingo = "${nebelungPalette.flamingo}"
+          pink = "${nebelungPalette.pink}"
+          mauve = "${nebelungPalette.mauve}"
+          red = "${nebelungPalette.red}"
+          maroon = "${nebelungPalette.maroon}"
+          peach = "${nebelungPalette.peach}"
+          yellow = "${nebelungPalette.yellow}"
+          green = "${nebelungPalette.green}"
+          teal = "${nebelungPalette.teal}"
+          sky = "${nebelungPalette.sky}"
+          sapphire = "${nebelungPalette.sapphire}"
+          blue = "${nebelungPalette.blue}"
+          lavender = "${nebelungPalette.lavender}"
+          text = "${nebelungPalette.text}"
+          subtext1 = "${nebelungPalette.subtext1}"
+          subtext0 = "${nebelungPalette.subtext0}"
+          overlay2 = "${nebelungPalette.overlay2}"
+          overlay1 = "${nebelungPalette.overlay1}"
+          overlay0 = "${nebelungPalette.overlay0}"
+          surface2 = "${nebelungPalette.surface2}"
+          surface1 = "${nebelungPalette.surface1}"
+          surface0 = "${nebelungPalette.surface0}"
+          base = "${nebelungPalette.base}"
+          mantle = "${nebelungPalette.mantle}"
+          crust = "${nebelungPalette.crust}"
         '';
 
         # ghostty (config lives in Application Support; theme lookup is XDG)
@@ -890,18 +904,18 @@ in
             ]
             (builtins.readFile ./ghostty/config);
         ".config/ghostty/themes/nebelung".source =
-          "${nebelung.themes}/ghostty/themes/catppuccin-mocha.conf";
+          "${nebelungRoot}/ghostty/themes/catppuccin-mocha.conf";
 
         # lsd colours (replaces catppuccin.lsd). lsd auto-reads this file.
-        ".config/lsd/colors.yaml".source = "${nebelung.themes}/lsd/themes/catppuccin-mocha/colors.yaml";
+        ".config/lsd/colors.yaml".source = "${nebelungRoot}/lsd/themes/catppuccin-mocha/colors.yaml";
 
         # yazi theme (replaces catppuccin.yazi): mgr/status/mode palette (mauve
         # accent) plus the syntect theme its syntect_theme line points at —
         # reusing the Nebelung bat tmTheme so previews match bat.
         ".config/yazi/theme.toml".source =
-          "${nebelung.themes}/yazi/themes/mocha/catppuccin-mocha-${accent}.toml";
+          "${nebelungRoot}/yazi/themes/mocha/catppuccin-mocha-${accent}.toml";
         ".config/yazi/Catppuccin-mocha.tmTheme".source =
-          "${nebelung.themes}/bat/themes/Catppuccin Mocha.tmTheme";
+          "${nebelungRoot}/bat/themes/Catppuccin Mocha.tmTheme";
 
         # zellij
         # config.kdl bakes absolute script paths (zellij doesn't expand $HOME in
@@ -914,7 +928,7 @@ in
               (if hearthCfg.zellijStartLocked then "locked" else "normal")
             ]
             (builtins.readFile ./zellij/config.kdl);
-        ".config/zellij/themes/nebelung.kdl".source = "${nebelung.themes}/zellij/themes/nebelung.kdl";
+        ".config/zellij/themes/nebelung.kdl".source = "${nebelungRoot}/zellij/themes/nebelung.kdl";
         # Custom layout, rendered from the in-repo template (see zellijLayout
         # in the let above).
         ".config/zellij/layouts/custom.kdl".text = zellijLayout;
