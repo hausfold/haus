@@ -22,6 +22,18 @@
 let
   identity = config.nebelhaus.pounce.signingIdentity;
 
+  # The resolved keymap (../lib/keys.nix). pounce needs it twice over: the palette
+  # hotkey it registers in-process, and the cheatsheet — which must never teach a
+  # key this machine doesn't have, so every page below is conditional on the
+  # relevant part of nebelhaus.keys.* being present.
+  k = import ../lib/keys.nix {
+    inherit lib;
+    keys = config.nebelhaus.keys;
+  };
+  # Short form, for inline use in a cheatsheet row ("⇪ v ↵"). Only read where
+  # k.leader is known non-null.
+  leaderGlyph = if k.leader != null then k.leader.glyph else "";
+
   # What the running signed copy was signed FROM — the store path AND the
   # identity. The daemon writes this to the .signed-from marker; both the
   # re-sign guard (in the daemon script) and the kickstart activation compare
@@ -73,10 +85,11 @@ EOF
   # so it needs the same values the pounce-palette wrapper bakes in.
   builtinCommandsDir = "${pkgs.pounce-commands}/share/pounce/commands";
 
-  # Launch-mode cheatsheet rows — generated from the app roster so the "Caps
-  # Lock" page always matches AeroSpace's launcher, then the fixed leader
+  # Launch-mode cheatsheet rows — generated from the app roster so the leader
+  # page always matches AeroSpace's launcher, then the fixed leader
   # actions (resize / clipboard / emoji / reopen-last-app / resort / exit)
-  # appended.
+  # appended. The whole page disappears when keys.leader = "none": there is no
+  # launch mode to document, and a page teaching an unbound key is worse than none.
   launchModeItems =
     (map (a: {
       key = a.key;
@@ -135,7 +148,7 @@ EOF
       key = it.keys;
       action = it.action;
     }) (lib.filter (it: it ? keys) section.items);
-  }) (import ../prowl/wm-bindings.nix);
+  }) (import ../prowl/wm-bindings.nix { inherit lib k; });
 
   # Wait for the GUI session (→ the /nix volume + an unlocked login keychain)
   # before touching the store path or codesign. Exec'ing via /bin/bash (boot
@@ -252,13 +265,14 @@ lib.mkIf config.nebelhaus.pounce.enable {
     # Palette settings — pounce re-reads this on each open. Edit + rebuild.
     home.file.".config/pounce/config.json".text = builtins.toJSON {
       windowMode = "compact"; # "default" | "compact"
-      # ⌘Space, registered in-process by the daemon for a near-instant open (no
-      # shell/client spawn). Set enabled = false to hand ⌘Space back to an
-      # external binder (see modules/prowl/aerospace.toml).
+      # The palette hotkey, registered in-process by the daemon for a near-instant
+      # open (no shell/client spawn). Which chord — and whether there is one at all
+      # — is nebelhaus.keys.palette.
+      # nebelhaus.keys.palette; "none" hands the chord back to the OS entirely.
       hotkey = {
-        enabled = true;
-        key = "space";
-        modifiers = [ "cmd" ];
+        enabled = k.palette != null;
+        key = if k.palette != null then k.palette.key else "space";
+        modifiers = if k.palette != null then k.palette.modifiers else [ "cmd" ];
       };
       # ⌘Tab → the MRU window switcher (the last stock macOS keybinding the rice
       # retires). Gated on Accessibility inside the daemon: unsigned/ungranted
@@ -277,9 +291,10 @@ lib.mkIf config.nebelhaus.pounce.enable {
       };
     };
 
-    home.file.".config/pounce/cheatsheet.json".text = builtins.toJSON ([
+    home.file.".config/pounce/cheatsheet.json".text = builtins.toJSON (
+    lib.optionals (k.leader != null) [
       {
-        title = "Launch Mode [Caps Lock]";
+        title = "Launch Mode [${k.leader.name}]";
         items = launchModeItems;
       }
     ]
@@ -328,20 +343,29 @@ lib.mkIf config.nebelhaus.pounce.enable {
           { key = "bench ship"; action = "Push the chain, bumping locks per hop"; }
         ];
       }
+      # Every row here is a LEADER workflow, so the page only exists when there is
+      # a leader — and the glyph is k.leader's, not a hardcoded ⇪.
       {
         title = "Workflows";
         page = "Tips";
-        items = [
-          { key = "⇪ v ↵"; action = "Pastes straight into the app you left"; }
-          { key = "⌥ ⇧ x → ⇪ x"; action = "Throw window to app's workspace, follow it"; }
-          { key = "⇪ → → →"; action = "Navigate: arrows move focus, ⇧+arrow moves the window (⎋ ends)"; }
-          { key = "⇪ - - -"; action = "Resize repeats without re-tapping caps (⎋ ends)"; }
-          { key = "⇪ → - →"; action = "Navigate and resize flow into each other — no re-tap"; }
-          { key = "⇪ `"; action = "Untangle windows after a laptop wake"; }
-        ];
+        items = lib.optionals (k.leader != null) (
+          [
+            { key = "${leaderGlyph} v ↵"; action = "Pastes straight into the app you left"; }
+          ]
+          ++ lib.optional (k.nav != null) {
+            key = "${k.nav.glyph} ⇧ x → ${leaderGlyph} x";
+            action = "Throw window to app's workspace, follow it";
+          }
+          ++ [
+            { key = "${leaderGlyph} → → →"; action = "Navigate: arrows move focus, ⇧+arrow moves the window (⎋ ends)"; }
+            { key = "${leaderGlyph} - - -"; action = "Resize repeats without re-tapping the leader (⎋ ends)"; }
+            { key = "${leaderGlyph} → - →"; action = "Navigate and resize flow into each other — no re-tap"; }
+            { key = "${leaderGlyph} `"; action = "Untangle windows after a laptop wake"; }
+          ]
+        );
       }
       {
-        title = "Palette Recipes [⌘ Space]";
+        title = "Palette Recipes [${if k.palette != null then k.palette.glyph else "haus"}]";
         page = "Tips";
         items = [
           { key = "rebuild"; action = "Rebuild + switch this Mac"; }
@@ -355,14 +379,20 @@ lib.mkIf config.nebelhaus.pounce.enable {
 
     # Free ⌘Space for the palette by disabling Spotlight's "Show Spotlight
     # search" shortcut (symbolic hotkey 64). Integer-typed values are REQUIRED —
-    # a string fragment leaves the binding half-alive and it races AeroSpace's
+    # a string fragment leaves the binding half-alive and it races the daemon's
     # Carbon ⌘Space registration. Full effect on next login; activateSettings -u
     # applies what it can now.
-    home.activation.disableSpotlightCmdSpace = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    #
+    # ONLY when the palette actually claims ⌘Space. This used to run
+    # unconditionally, so a machine whose palette lived elsewhere — or had no
+    # palette hotkey at all — still lost Spotlight's shortcut for nothing.
+    home.activation.disableSpotlightCmdSpace =
+      lib.mkIf (k.palette != null && k.palette.stealsSpotlight)
+      (lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       $DRY_RUN_CMD /usr/bin/defaults write com.apple.symbolichotkeys AppleSymbolicHotKeys \
         -dict-add 64 '<dict><key>enabled</key><integer>0</integer><key>value</key><dict><key>type</key><string>standard</string><key>parameters</key><array><integer>32</integer><integer>49</integer><integer>1048576</integer></array></dict></dict>'
       $DRY_RUN_CMD /System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings -u || true
-    '';
+    '');
 
     # A rebuild swaps the store path under the KeepAlive'd daemon, but launchd
     # keeps the OLD image running until something bounces it. The .signed-from

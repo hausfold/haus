@@ -119,9 +119,23 @@ points back to when it feels several PRs together.
 
 - **New SketchyBar plugin**: add `modules/sill/sketchybar/plugins/<name>.sh`, wire it
   into `modules/sill/sketchybar/sketchybarrc`. Follow an existing plugin.
-- **Theme**: `catppuccin.flavor` (in `hearth`) is the single source of truth; the
-  Nebelung palette is injected from the `nebelung` input. Raw dotfiles nix can't inject
-  into (ghostty `config`, zellij `config.kdl`) name the flavor manually — keep in sync.
+- **Theme**: `nebelhaus.theme.{flavor,contrast}` are the single source of truth, and
+  **`modules/lib/nebelung.nix` is the only place that resolves them.** It returns the
+  themes-package `root` to source rendered files from, the `palette` (name → hex),
+  and the `flavor` — which is load-bearing, not decoration: whiskers names its output
+  after the flavor it rendered (`catppuccin-latte.conf`, `Catppuccin Latte.tmTheme`,
+  `zen/themes/Latte/`), so paths are built from `nb.flavor`, never the literal
+  `"mocha"`. hearth, sill and theme all import it; `catppuccin.flavor` in hearth
+  follows it. Getting a path wrong here is INVISIBLE at eval (it's just a store path
+  that doesn't exist), which is why `nix flake check`'s `theme-variants` pins the
+  flavor/contrast → variant/subdir table as a golden file — and why the same rule
+  lives in exactly one place on each side of the repo boundary (nebelung's
+  `variantDir`, this file). Raw dotfiles nix can't inject into (ghostty `config`,
+  zellij `config.kdl`) reference the *rendered file*, not the flavor, so they need
+  no per-flavor edit.
+  - Adding a flavor means: a nebelung `VARIANTS` entry, one enum value in
+    `modules/theme/options.nix`, one row in the `theme-variants` golden table, and a
+    `nix flake update nebelung`. Nothing else — that's the point of the factoring.
 - **Iterating on a zellij edit** (config.kdl / a layout / a freshly-built
   plugin `.wasm`): don't `bench try switch` + restart `main` just to feel a
   keybind or colour — that nukes every tab. Use **`zscratch`** (`modules/den`):

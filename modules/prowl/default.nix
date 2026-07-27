@@ -1,6 +1,12 @@
 # Prowl — stake out your screen. AeroSpace tiling, launched via nix-darwin
-# (not Login Items) so it survives cold boot, plus the Caps→F18 leader remap and
+# (not Login Items) so it survives cold boot, plus the leader-key remap and
 # a wake-time window re-sort.
+#
+# The KEYMAP is nebelhaus.keys.* (resolved by ../lib/keys.nix), not baked in:
+# `leader` picks what enters launch mode (or removes it), `windowNav` picks the
+# modifier every window chord hangs off (or removes them). Both can be "none",
+# which is what makes a mouse-first rice — or a non-US-layout one, where ⌥+letter
+# belongs to the keyboard rather than to a window manager — expressible at all.
 #
 # The launcher (which app lives on which workspace, its leader key + window
 # rules) is data-driven: keyed nebelhaus.apps entries are the composable source
@@ -38,11 +44,20 @@ let
     lib.filter (key: lib.count (candidate: candidate == key) appKeys > 1) appKeys
   );
 
+  # The resolved keymap: chords + the glyphs that document them, from one table.
+  k = import ../lib/keys.nix {
+    inherit lib;
+    keys = config.nebelhaus.keys;
+  };
+
   # The static tiling/workspace/service bindings, shared with the pounce
   # cheatsheet (see ./wm-bindings.nix — one table, rendered both ways so they
   # can't drift). Render each item's `binds` into aerospace.toml lines; a chord
   # maps to a single command ('cmd') or a list of commands (['a', 'b']).
-  wmBindings = import ./wm-bindings.nix;
+  # A function of the keymap now, and it returns NO window sections when
+  # keys.windowNav = "none" — so the toml and the cheatsheet both go quiet
+  # together instead of one advertising what the other didn't bind.
+  wmBindings = import ./wm-bindings.nix { inherit lib k; };
   renderCmd = c: if lib.isList c then "[" + lib.concatMapStringsSep ", " (x: "'${x}'") c + "]" else "'${c}'";
   renderBinds =
     binds: lib.concatStrings (lib.mapAttrsToList (chord: cmd: "${chord} = ${renderCmd cmd}\n") binds);
@@ -59,16 +74,30 @@ let
   mainStatic = subTokens (bindingsForMode "main");
   serviceStatic = subTokens (bindingsForMode "service");
 
-  # ⌥⇧<key> throws a window to an app's workspace. Fixed actions stay out of
+  # <mod>⇧<key> throws a window to an app's workspace. Fixed actions stay out of
   # this namespace so every roster letter remains available.
   isRealAssign = a: a.appId != null && a.workspace != null && a.appId != "com.mitchellh.ghostty";
   launchInvocation = a: ''${launchSh} "${a.name}"'' + lib.optionalString (a.workspace != null) " ${a.workspace}";
 
-  mainMoves = lib.concatMapStrings (
-    a:
-    lib.optionalString (a.workspace != null)
-      "alt-shift-${a.key} = 'move-node-to-workspace ${a.workspace}'\n"
-  ) apps;
+  mainMoves = lib.optionalString (k.nav != null) (
+    lib.concatMapStrings (
+      a:
+      lib.optionalString (a.workspace != null)
+        "${k.nav.chord}-shift-${a.key} = 'move-node-to-workspace ${a.workspace}'\n"
+    ) apps
+  );
+
+  # Mode-entry chords. Structural plumbing rather than tiling commands, so they
+  # aren't cheatsheet rows and live here instead of in wm-bindings.nix — but they
+  # follow keys.* the same way, and "none" renders an empty line rather than a
+  # binding nothing can reach.
+  leaderEntry = lib.optionalString (k.leader != null) (
+    "${k.leader.chord} = ['mode launch', "
+    + "'exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh on']\n"
+  );
+  serviceEntry = lib.optionalString (k.nav != null) (
+    "${k.nav.chord}-shift-semicolon = 'mode service'\n"
+  );
 
   launchLetters = lib.concatMapStrings (
     a: "${a.key} = ['exec-and-forget ${launchInvocation a}', 'mode main']\n"
@@ -117,8 +146,8 @@ let
     .${barPos};
 
   aerospaceToml = builtins.replaceStrings
-    [ "@HOME@" "@BIN@" "@MAIN_STATIC@" "@SERVICE_STATIC@" "@MAIN_MOVES@" "@LAUNCH_LETTERS@" "@WINDOW_RULES@" "@GAP_BUILTIN@" "@GAP_EXTERNAL@" "@GAP_OUTER_TOP@" "@GAP_OUTER_BOTTOM@" ]
-    [ homeDir binDir mainStatic serviceStatic mainMoves launchLetters windowRules (gap 10) (gap 20) outerTop outerBottom ]
+    [ "@HOME@" "@BIN@" "@MAIN_STATIC@" "@SERVICE_STATIC@" "@MAIN_MOVES@" "@LEADER_ENTRY@" "@SERVICE_ENTRY@" "@LAUNCH_LETTERS@" "@WINDOW_RULES@" "@GAP_BUILTIN@" "@GAP_EXTERNAL@" "@GAP_OUTER_TOP@" "@GAP_OUTER_BOTTOM@" ]
+    [ homeDir binDir mainStatic serviceStatic mainMoves (subTokens leaderEntry) serviceEntry launchLetters windowRules (gap 10) (gap 20) outerTop outerBottom ]
     (builtins.readFile ./aerospace.toml);
 
   resortScript = builtins.replaceStrings [ "@RESORT_CASES@" ] [ resortCases ] (
@@ -161,10 +190,26 @@ lib.mkMerge [
       };
     };
 
+    # A warning rather than an assertion, deliberately: the tour still works, it
+    # just has less to teach, and blocking a legitimate combination is worse than
+    # saying so. Same call as the universalaccess warning (nebelhaus#89).
+    warnings = lib.optional (config.nebelhaus.tour.enable && k.leader == null) (
+      "nebelhaus.tour.enable is on with nebelhaus.keys.leader = \"none\": three of "
+      + "the tour's four steps teach leader moves this rice doesn't bind. Set a "
+      + "leader, or turn the tour off."
+    );
+
     assertions = [
       {
         assertion = duplicateKeys == [ ];
         message = "nebelhaus app leader keys must be unique; duplicated: ${lib.concatStringsSep ", " duplicateKeys}";
+      }
+      {
+        # Cross-room: keys.leader is prowl's chord and keys.palette is pounce's
+        # in-process hotkey, so nothing would have caught them claiming the same
+        # one — and the failure is silent, whoever registers first wins.
+        assertion = k.conflicts == [ ];
+        message = "nebelhaus.keys assigns the same chord twice: " + lib.concatStringsSep "; " k.conflicts;
       }
     ];
   # AeroSpace itself (cask) + its tap. Roster apps that name a cask ride along.
@@ -172,10 +217,15 @@ lib.mkMerge [
   homebrew.taps = [ "nikitabobko/tap" ];
   homebrew.casks = [ "aerospace" ] ++ rosterCasks;
 
-  # Caps Lock → F18, feeding AeroSpace's `launch` leader mode. Decimal values are
-  # the hidutil HID usage codes (caps lock → F18).
-  system.keyboard.enableKeyMapping = true;
-  system.keyboard.userKeyMapping = [
+  # Caps Lock → F18, feeding AeroSpace's `launch` leader mode: AeroSpace can't
+  # bind Caps Lock itself. Decimal values are the hidutil HID usage codes (caps
+  # lock → F18). Only for keys.leader = "caps" — every other value leaves the
+  # keyboard alone, which is the difference between a rice you can hand to
+  # someone else and one that takes their Caps Lock. hidutil mappings are
+  # re-applied at each activation and don't survive a reboot, so dropping this
+  # ends the remap rather than stranding it.
+  system.keyboard.enableKeyMapping = k.leader != null && k.leader.capsRemap;
+  system.keyboard.userKeyMapping = lib.optionals (k.leader != null && k.leader.capsRemap) [
     {
       HIDKeyboardModifierMappingSrc = 30064771129; # 0x700000039 caps lock
       HIDKeyboardModifierMappingDst = 30064771181; # 0x70000006D F18
@@ -221,7 +271,7 @@ lib.mkMerge [
       # file but the live daemon keeps its old in-memory bindings until it's
       # told to reload. Without this, every binding edit silently fails to take
       # until a manual `aerospace reload-config` or a reboot — which is exactly
-      # how the caps→1-4 workspace focus binds looked "broken" after landing.
+      # how the leader→1-4 workspace focus binds looked "broken" after landing.
       # Guarded so first-boot activation (no daemon yet) doesn't fail; launchd
       # RunAtLoad then starts AeroSpace with the fresh config anyway.
       onChange = ''
@@ -232,7 +282,7 @@ lib.mkMerge [
       text = resortScript;
       executable = true;
     };
-    # caps→z reopen-last-closed-app: pops the stack sill's last_closed_app.sh
+    # leader→z reopen-last-closed-app: pops the stack sill's last_closed_app.sh
     # plugin fills on every app quit, and `open -b`s it back (browser ⌘⇧T analog).
     ".config/aerospace/reopen-last-app.sh" = {
       source = ./scripts/reopen-last-app.sh;

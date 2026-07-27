@@ -33,19 +33,17 @@ in
         ...
       }:
       let
-        # nebelhaus.theme.contrast selects which rendered variant everything below
-        # reads. Two derived bindings rather than threading the option through each
-        # call site: the variant renders into a SUBDIRECTORY of the same package, so
-        # the only difference is a path prefix — and "normal" is the empty prefix,
-        # i.e. byte-for-byte the paths that were here before.
-        nebelungRoot =
-          "${nebelung.themes}"
-          + lib.optionalString (osConfig.nebelhaus.theme.contrast == "high") "/high-contrast";
+        # nebelhaus.theme.{flavor,contrast} select which rendered variant everything
+        # below reads — ../lib/nebelung.nix owns that resolution for hearth, sill and
+        # theme alike, so the flavor axis was added in one place rather than three.
+        # Only the palette is needed here (the generated wordmark reads two hexes);
+        # the three shipped wallpapers have the DARK palette baked into their pixels
+        # and do not follow theme.flavor — see the option's honest-scope note.
         nebelungPalette =
-          if osConfig.nebelhaus.theme.contrast == "high" then
-            nebelung.palettes.nebelung-high-contrast
-          else
-            nebelung.palette;
+          (import ../lib/nebelung.nix {
+            inherit lib nebelung;
+            theme = osConfig.nebelhaus.theme;
+          }).palette;
         # `bold` is rendered in a pure derivation from the accent hex, so it
         # recolours with theme.accent like the per-tool accents do. A diagonal
         # accent→crust sweep, saturation pushed 150% so the grey-tinted Nebelung

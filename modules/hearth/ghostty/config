@@ -1,4 +1,13 @@
-theme = dark:nebelung,light:Catppuccin Latte
+# ONE theme, whichever variant nebelhaus.theme.{flavor,contrast} selected —
+# hearth drops it at ~/.config/ghostty/themes/nebelung. This used to be
+# `dark:nebelung,light:Catppuccin Latte`, i.e. it followed macOS appearance and
+# fell back to STOCK Catppuccin in light mode, which meant a Mac running light
+# appearance never actually got the Nebelung palette. Now that nebelung renders a
+# light variant of its own, the rice's own option decides — and it decides for
+# bat, delta, lsd and yazi the same way, none of which can switch on appearance.
+# (Following macOS appearance with Nebelung on both sides is the roadmap's
+# `theme.scheme = "auto"`; it needs a runtime watcher, not a config line.)
+theme = nebelung
 
 font-family = @FONT_FAMILY@
 font-size = @FONT_SIZE@

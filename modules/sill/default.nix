@@ -344,11 +344,26 @@ let
       sketchybar --move tour after clock
       "$HOME/.config/sketchybar/plugins/tour.sh" init
     '';
+  # The resolved keymap (../lib/keys.nix). The tour's prompts must name the keys
+  # THIS machine is bound to — a tutor telling you to tap Caps Lock on a rice where
+  # keys.leader = "alt-space" teaches a chord that does nothing.
+  k = import ../lib/keys.nix {
+    inherit lib;
+    keys = config.nebelhaus.keys;
+  };
+
   tourConfigSh = ''
     #!/bin/bash
-    # GENERATED from nebelhaus.pounce.enable by modules/sill/default.nix — do not
-    # edit. Whether the tour has a step 4 (the ⌘Space palette needs pounce).
-    TOUR_HAS_PALETTE=${if config.nebelhaus.pounce.enable then "1" else "0"}
+    # GENERATED from nebelhaus.pounce.enable + nebelhaus.keys.* by
+    # modules/sill/default.nix — do not edit. TOUR_HAS_PALETTE decides whether the
+    # tour has a step 4 (the palette step needs pounce); the glyphs name the
+    # leader and palette chords this rice actually binds.
+    TOUR_HAS_PALETTE=${
+      if config.nebelhaus.pounce.enable && k.palette != null then "1" else "0"
+    }
+    TOUR_LEADER=${lib.escapeShellArg (if k.leader != null then k.leader.glyph else "⇪")}
+    TOUR_LEADER_NAME=${lib.escapeShellArg (if k.leader != null then k.leader.name else "Caps Lock")}
+    TOUR_PALETTE=${lib.escapeShellArg (if k.palette != null then k.palette.glyph else "⌘ Space")}
   '';
 in
 lib.mkIf config.nebelhaus.sill.enable {
@@ -409,19 +424,19 @@ lib.mkIf config.nebelhaus.sill.enable {
       ...
     }:
     let
-      # nebelhaus.theme.contrast selects which rendered variant everything below
-      # reads. Two derived bindings rather than threading the option through each
-      # call site: the variant renders into a SUBDIRECTORY of the same package, so
-      # the only difference is a path prefix — and "normal" is the empty prefix,
-      # i.e. byte-for-byte the paths that were here before.
-      nebelungRoot =
-        "${nebelung.themes}"
-        + lib.optionalString (osConfig.nebelhaus.theme.contrast == "high") "/high-contrast";
+      # nebelhaus.theme.{flavor,contrast} select which rendered variant everything
+      # below reads — ../lib/nebelung.nix owns that resolution for hearth, sill and
+      # theme alike, so the flavor axis landed in one place rather than three.
+      #
+      # The bar needs only the palette, never a rendered file: every colour it
+      # draws comes from the generated colors.sh below, so light mode reaches the
+      # bar with no path change at all. (The previous `nebelungRoot` binding here
+      # was never used — dropped rather than extended.)
       nebelungPalette =
-        if osConfig.nebelhaus.theme.contrast == "high" then
-          nebelung.palettes.nebelung-high-contrast
-        else
-          nebelung.palette;
+        (import ../lib/nebelung.nix {
+          inherit lib nebelung;
+          theme = osConfig.nebelhaus.theme;
+        }).palette;
       # The Nebelung palette (name -> "#rrggbb") rendered as sketchybar's
       # 0xAARRGGBB colour literals, fully opaque. Generated so the palette stays
       # single-sourced from the nebelung input — sketchybarrc and every plugin

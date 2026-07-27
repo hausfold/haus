@@ -43,11 +43,27 @@ overrides the preset. Compose several by listing them; later ones win.
 | `full` | the whole rice: bar, tiling, palette, developer pack. The default. |
 | `minimal` | just the themed shell — no bar, no tiling, no palette. Still a developer machine. |
 | `everyday` | the inverse: a Mac for someone who doesn't write code. No developer pack, no Caps-Lock remap. |
+| `large-print` | bigger and sharper: one UI scale, the high-contrast palette, macOS's own contrast lift. |
+
+The first three are **whole rices** — pick one. `large-print` is a **layer**: it
+describes seeing rather than the person, so it stacks:
+
+```nix
+extraModules = [ nebelhaus.presets.everyday nebelhaus.presets.large-print ];
+```
+
+That the two compose instead of one having to restate the other is the point.
+A layer preset is a shape the format supports for free — later ones win, and a
+preset that only sets what it's about doesn't collide with one that sets
+something else.
 
 `everyday` is the one worth reading if you're designing your own — it's the
 first preset that could not be expressed at all before `nebelhaus.developer`
 existed, and it's the closest thing here to a rice aimed at somebody other than
-its author.
+its author. `large-print` is worth reading for the opposite reason: its comment
+block is explicit about what it does NOT reach (system-wide text size, the menu
+bar, the palette, a different font family), which is the honest form for a rice
+whose whole promise is legibility.
 
 ## The limits, honestly
 
