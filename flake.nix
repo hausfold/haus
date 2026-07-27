@@ -157,6 +157,9 @@
         full = ./presets/full.nix;
         minimal = ./presets/minimal.nix;
         everyday = ./presets/everyday.nix;
+        # Narrow and composable on purpose — it describes seeing, not the person,
+        # so it stacks onto any of the above rather than replacing one.
+        large-print = ./presets/large-print.nix;
       };
       # Linux is in here for the pure-evaluation outputs only (options-json, the
       # theme-variants check) — that's what lets nebelhaus.com's Linux CI render the
