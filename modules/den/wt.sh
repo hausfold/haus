@@ -14,7 +14,7 @@
 #   wt reap           sweep every LANDED worktree NOW — parked ones, plus clean &
 #                     merged live checkouts (dirty/unmerged/your-own-pane are kept).
 #                     The idempotent backstop for when a pane ends WITHOUT firing
-#                     the remove hook (a `/ship` close-pane, a reboot, a crash) or
+#                     the remove hook (a manual pane close, a reboot, a crash) or
 #                     for `wt child` checkouts, which the hook never reaps.
 #   wt child <repo>   make a worktree of ANOTHER repo as a child of THIS pane —
 #                     for cross-repo work (a workshop pane editing a sub-repo).
@@ -125,7 +125,7 @@ reap_branch() { # reap_branch <main> <branch> -> 0 if the branch was deleted
 
 # reap_sweep <parked|all> — the idempotent counterpart to the WorktreeRemove hook.
 # The hook only fires on Claude's own graceful worktree teardown; anything else
-# that ends a pane (a `/ship` `zellij close-pane`, a reboot, a crash, ⌘C churn) or
+# that ends a pane (a manual `zellij close-pane`, a reboot, a crash, ⌘C churn) or
 # a `wt child` cross-repo checkout bypasses it, so merged worktrees pile up. This
 # sweep reaps them independent of pane lifecycle. Sets REAPED to a newline list of
 # "<name> (<repo>)" for what it dropped.
