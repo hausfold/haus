@@ -58,8 +58,11 @@ case "$MODE" in
 esac
 
 if [ "$ACTIVE" -eq 1 ]; then
+    # Label is drawing: tuck the icon close to it (idle padding is symmetric so
+    # the lone icon stays centred; the countdown needs the tighter gap).
     sketchybar --set caffeinate \
         icon.color="$BASE" \
+        icon.padding_right=4 \
         label="$LABEL" \
         label.drawing=on \
         label.color="$BASE" \
@@ -68,6 +71,7 @@ if [ "$ACTIVE" -eq 1 ]; then
 else
     sketchybar --set caffeinate \
         icon.color="$TEXT" \
+        icon.padding_right=10 \
         label.drawing=off \
         background.color="$SURFACE0" \
         --set caffeinate.stop label.color="$OVERLAY0"
