@@ -76,6 +76,25 @@ wt_projdir() { # wt_projdir <abs-cwd> — Claude Code's transcript dir for that 
   printf '%s/.claude/projects/%s' "$HOME" "$(printf '%s' "$1" | sed 's/[/.]/-/g')"
 }
 
+chat_home() { # chat_home <wt_path> — echo the cwd whose Claude chat this worktree resumes
+  # Claude keys a transcript to the cwd it ran in. A `wt child` worktree is spawned FROM
+  # another pane and never hosts its OWN chat — the conversation lives in that parent
+  # pane's cwd (the 5th registry field). So when this worktree has no transcript of its
+  # own but the parent does, the chat you actually want is the parent's, not an empty
+  # picker here. Falls back to the worktree's own cwd.
+  local w="$1" parent
+  [ -d "$(wt_projdir "$w")" ] && { printf '%s' "$w"; return; }
+  [ -f "$WT_REGISTRY" ] || { printf '%s' "$w"; return; }
+  parent="$(awk -F'\t' -v p="$w" '$4==p{print $5; exit}' "$WT_REGISTRY" 2>/dev/null)"
+  # Only inherit a chat from a parent that is ITSELF an agent worktree (under WT_BASE):
+  # that's the `wt child` / nested-spawn signature. A normal worktree's parent is a MAIN
+  # checkout, whose transcript is the user's unrelated work on main — never hijack to it.
+  case "$parent" in
+    "$WT_BASE"/*) [ -d "$(wt_projdir "$parent")" ] && { printf '%s' "$parent"; return; } ;;
+  esac
+  printf '%s' "$w"
+}
+
 repo_slug() { # repo_slug <checkout> — owner/name from its origin remote (for gh)
   local url
   url=$(git -C "$1" remote get-url origin 2>/dev/null) || return 1
@@ -320,7 +339,9 @@ cmd_list() {
     repo="$(basename "$main")"
     nm="${branch#worktree-}"
     [ -e "$wt/.git" ] && state="live" || state="parked"
-    [ -d "$(wt_projdir "$wt")" ] && chat="yes" || chat="·"
+    if [ -d "$(wt_projdir "$wt")" ]; then chat="yes"
+    elif [ "$(chat_home "$wt")" != "$wt" ]; then chat="par"   # inherited from its wt-child parent
+    else chat="·"; fi
     last="$(git -C "$main" log -1 --format='%cr — %s' "$branch" 2>/dev/null)"
     printf '  %-12s %-26s %-6s %-4s %s\n' "$repo" "$nm" "$state" "$chat" "${last:0:56}"
   done <<<"$(resume_rows)"
@@ -353,12 +374,23 @@ cmd_resume() { # cmd_resume <name|repo/name>
     git -C "$main" worktree add "$wt" "$branch" >&2
     reg_put "${branch#worktree-}" "$main" "$branch" "$wt" || true
   fi
+  # A `wt child` worktree has no chat of its own — resume the parent session that
+  # spawned it (see chat_home). The checkout above is still rebuilt so the branch's
+  # files are on disk; we just cd to where the transcript lives to reopen it.
+  local chat; chat="$(chat_home "$wt")"
+  if [ "$chat" != "$wt" ]; then
+    say "no chat here — this worktree was spawned via 'wt child'; its conversation lives in $chat"
+    # Claude keys the transcript off the cwd, so that dir must exist. If the parent
+    # checkout was reaped, anchor a bare dir just to reopen the chat (your work is safe
+    # on $branch; the child checkout with the files is rebuilt at $wt above).
+    [ -d "$chat" ] || mkdir -p "$chat"
+  fi
   if [ -t 1 ] && command -v claude >/dev/null 2>&1; then
-    say "reopening the chat (same cwd → same transcript) …"
-    cd "$wt" && exec claude --resume
+    say "reopening the chat …"
+    cd "$chat" && exec claude --resume
   else
     say "checkout ready. Reopen the chat with:"
-    printf '    cd %q && claude --resume\n' "$wt"
+    printf '    cd %q && claude --resume\n' "$chat"
   fi
 }
 
