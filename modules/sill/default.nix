@@ -182,7 +182,7 @@ let
               update_freq=30 \
               icon="󰅶" \
               icon.padding_left=10 \
-              icon.padding_right=4 \
+              icon.padding_right=10 \
               label.padding_right=10 \
               label.font="Hack Nerd Font:Bold:13.0" \
               background.color=$SURFACE0 \
