@@ -77,21 +77,33 @@ wt_projdir() { # wt_projdir <abs-cwd> — Claude Code's transcript dir for that 
 }
 
 chat_home() { # chat_home <wt_path> — echo the cwd whose Claude chat this worktree resumes
-  # Claude keys a transcript to the cwd it ran in. A `wt child` worktree is spawned FROM
-  # another pane and never hosts its OWN chat — the conversation lives in that parent
-  # pane's cwd (the 5th registry field). So when this worktree has no transcript of its
-  # own but the parent does, the chat you actually want is the parent's, not an empty
-  # picker here. Falls back to the worktree's own cwd.
-  local w="$1" parent
+  # Claude keys a transcript to the cwd it ran in — and EVERY local client (the CLI, the
+  # desktop app) mirrors it to the same ~/.claude/projects/<cwd>/ store, so this is
+  # client-agnostic. A spawned worktree (`wt child`, or a nested worktree) never hosts its
+  # OWN chat: the conversation lives in the pane that spawned it — the 5th registry field.
+  # So when this worktree has no transcript of its own but the parent does, the chat you
+  # want is the parent's, not an empty picker here. Falls back to the worktree's own cwd.
+  local w="$1" row main parent
   [ -d "$(wt_projdir "$w")" ] && { printf '%s' "$w"; return; }
   [ -f "$WT_REGISTRY" ] || { printf '%s' "$w"; return; }
-  parent="$(awk -F'\t' -v p="$w" '$4==p{print $5; exit}' "$WT_REGISTRY" 2>/dev/null)"
-  # Only inherit a chat from a parent that is ITSELF an agent worktree (under WT_BASE):
-  # that's the `wt child` / nested-spawn signature. A normal worktree's parent is a MAIN
-  # checkout, whose transcript is the user's unrelated work on main — never hijack to it.
-  case "$parent" in
-    "$WT_BASE"/*) [ -d "$(wt_projdir "$parent")" ] && { printf '%s' "$parent"; return; } ;;
-  esac
+  row="$(awk -F'\t' -v p="$w" '$4==p{print; exit}' "$WT_REGISTRY" 2>/dev/null)"
+  main="$(printf '%s' "$row" | cut -f2)"
+  parent="$(printf '%s' "$row" | cut -f5)"
+  [ -n "$parent" ] && [ -d "$(wt_projdir "$parent")" ] || { printf '%s' "$w"; return; }
+  # Inherit the parent's chat only when the parent is a DIFFERENT context than this
+  # worktree's own repo — a genuine spawned child. Two signatures:
+  #   1. parent is itself an agent worktree (under WT_BASE) — a nested spawn.
+  #   2. parent is a checkout of a DIFFERENT repo — a `wt child` (e.g. a workshop pane
+  #      that spawned this sub-repo worktree). The chat is one session in that pane's pile.
+  # A plain same-repo worktree's parent is its OWN main checkout, whose transcripts are the
+  # user's unrelated on-main work — never hijack resume to that, so it falls through.
+  case "$parent" in "$WT_BASE"/*) printf '%s' "$parent"; return ;; esac
+  # Cross-repo? Compare the two checkouts' git-common-dirs — both resolved by git, so
+  # symlink-consistent (a raw string compare vs the stored path breaks on /var → /private).
+  local pcommon mcommon
+  pcommon="$(git -C "$parent" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || pcommon=""
+  mcommon="$(git -C "$main" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || mcommon=""
+  [ -n "$pcommon" ] && [ "$pcommon" != "$mcommon" ] && { printf '%s' "$parent"; return; }
   printf '%s' "$w"
 }
 
@@ -374,12 +386,16 @@ cmd_resume() { # cmd_resume <name|repo/name>
     git -C "$main" worktree add "$wt" "$branch" >&2
     reg_put "${branch#worktree-}" "$main" "$branch" "$wt" || true
   fi
-  # A `wt child` worktree has no chat of its own — resume the parent session that
-  # spawned it (see chat_home). The checkout above is still rebuilt so the branch's
-  # files are on disk; we just cd to where the transcript lives to reopen it.
+  # A spawned worktree (`wt child`, nested) has no chat of its own — resume the parent
+  # session that spawned it (see chat_home). The checkout above is still rebuilt so the
+  # branch's files are on disk; we just cd to where the transcript lives to reopen it.
   local chat; chat="$(chat_home "$wt")"
   if [ "$chat" != "$wt" ]; then
-    say "no chat here — this worktree was spawned via 'wt child'; its conversation lives in $chat"
+    say "no chat in this worktree — it was spawned from a session in $chat"
+    # When that parent is a shared checkout (a workshop pane that spawned several children),
+    # its picker lists many sessions — point at the one that touched THIS branch.
+    say "in the picker, pick the session for '$branch' — last commit:"
+    say "  $(git -C "$main" log -1 --format='%s' "$branch" 2>/dev/null)"
     # Claude keys the transcript off the cwd, so that dir must exist. If the parent
     # checkout was reaped, anchor a bare dir just to reopen the chat (your work is safe
     # on $branch; the child checkout with the files is rebuilt at $wt above).
