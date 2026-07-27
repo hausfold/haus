@@ -433,6 +433,42 @@
           selfPrefix = toString ./.;
         in
         {
+          # `nix build .#wm-bindings-json` — the static tiling/workspace/service
+          # binding table as JSON, resolved for the DEFAULT keymap.
+          #
+          # Exists for the docs repo's keybinding tripwire. That script used to
+          # `nix eval --json --file modules/prowl/wm-bindings.nix`, which worked
+          # only while that file was plain data; the keys.* change made it a
+          # function of nebelhaus.keys.*, so the eval started failing with
+          # "cannot convert a function to JSON" — a regression in ANOTHER repo, on
+          # a weekly cron, with nothing here to catch it.
+          #
+          # An output is the right seam regardless: the docs already render
+          # options.md from `options-json` rather than reading module files, for
+          # the same reason. Downstream shouldn't have to know how the table is
+          # constructed, only what it resolves to.
+          #
+          # Pure evaluation of two plain files, so it builds on Linux CI.
+          wm-bindings-json =
+            let
+              # The SHIPPED defaults, not a host's. The tripwire's question is
+              # "did the default binding surface move", which is what the prose
+              # keybinding pages document.
+              k = import ./modules/lib/keys.nix {
+                inherit (pkgs) lib;
+                keys = {
+                  leader = "caps";
+                  palette = "cmd-space";
+                  windowNav = "alt";
+                };
+              };
+            in
+            pkgs.writeText "wm-bindings.json" (
+              builtins.toJSON (
+                import ./modules/prowl/wm-bindings.nix { inherit (pkgs) lib; inherit k; }
+              )
+            );
+
           options-json =
             (pkgs.nixosOptionsDoc {
               inherit (optionsEval) options;
