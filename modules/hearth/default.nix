@@ -376,8 +376,9 @@ in
           fd # fast finder; used by yazi/zoxide navigation
         ]
         # Editing the rice's own Nix is a developer activity; `haus edit` still
-        # works without a formatter.
-        ++ lib.optional devCfg.enable nixfmt-rfc-style
+        # works without a formatter. `nixfmt`, not `nixfmt-rfc-style`: nixpkgs
+        # aliased the latter to the former and now warns on every eval.
+        ++ lib.optional devCfg.enable nixfmt
         ++ lib.optionals (builtins.elem "node" devCfg.languages) [
           bun
           fnm # node version manager (used by the initContent below)

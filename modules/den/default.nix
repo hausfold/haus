@@ -246,8 +246,17 @@ in
   # per-user trust store gets bypassed), so third-party taps fail with "Refusing
   # to load cask … from untrusted tap". We curate our taps ourselves; disable the
   # requirement globally via a brew.env that `bin/brew` reads on every call.
+  #
+  # HOMEBREW_API_AUTO_UPDATE_SECS only bites hosts that set
+  # `nebelhaus.homebrew.autoUpdate = true` (the rice default is false, which
+  # disables the check outright). For those, brew re-downloads its ~15 MB
+  # formula/cask JSON API whenever the last check is older than the window —
+  # and the stock window is 450 s, so any two rebuilds more than 7½ minutes
+  # apart each pay for it. An hour still picks up a same-day cask release on
+  # the next rebuild, without re-fetching the catalogue mid-iteration.
   environment.etc."homebrew/brew.env".text = ''
     HOMEBREW_NO_REQUIRE_TAP_TRUST=1
+    HOMEBREW_API_AUTO_UPDATE_SECS=3600
   '';
 
   # ---- macOS defaults -------------------------------------------------------

@@ -31,13 +31,21 @@ let
   # unsafeDiscardStringContext because a declaration is a label to print, not a
   # store reference — carrying context here only invites nix to treat the
   # rendered docs as depending on the source tree.
+  #
+  # The store-peeling pattern is anchored WITHOUT a leading slash on purpose:
+  # `removePrefix "/"` has already run by then, so a `/nix/store/…` pattern can
+  # never match — the second pass was dead code, and any declaration the first
+  # strip missed would have rendered as `nix/store/<hash>-source/…`. Nothing
+  # hits that today (nixpkgs' own `_module.*` options carry a plain relative
+  # `_file`), which is why it went unnoticed; the anchor is fixed so the
+  # documented fallback works the day something does.
   selfPrefix = toString ../.;
 
   relative =
     decl:
     let
       stripped = lib.removePrefix "/" (lib.removePrefix selfPrefix (toString decl));
-      inStore = builtins.match "/nix/store/[^/]+/(.*)" stripped;
+      inStore = builtins.match "nix/store/[^/]+/(.*)" stripped;
     in
     builtins.unsafeDiscardStringContext (if inStore != null then builtins.head inStore else stripped);
 
