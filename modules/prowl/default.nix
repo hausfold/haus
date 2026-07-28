@@ -103,6 +103,46 @@ let
     a: "${a.key} = ['exec-and-forget ${launchInvocation a}', 'mode main']\n"
   ) apps;
 
+  # Non-app leader actions (nebelhaus.keys.leaderExtras): a leader key that runs a
+  # command instead of launching a roster app. Each command goes into its OWN
+  # script file (leaderExtraFiles below) and the binding just execs that path —
+  # NOT the command inlined. AeroSpace's toml array elements are single-quoted
+  # literal strings with no escape, so a command carrying a `'` (an
+  # `osascript -e '…'`, say) would close the string early and corrupt the config.
+  # Bouncing through a script sidesteps the quoting, and it's the pattern the rice
+  # already uses for reopen-last-app.sh / resort-windows.sh. Same
+  # [mode.launch.binding] slot as the letters: drop the indicator, run, return to
+  # main. homeDir is baked literally (like launchInvocation), so no subTokens pass.
+  leaderExtras = config.nebelhaus.keys.leaderExtras;
+  leaderExtraPath = e: "${homeDir}/.config/aerospace/leader-extra-${e.key}.sh";
+  launchExtras = lib.concatMapStrings (
+    e: "${e.key} = ['exec-and-forget ${homeDir}/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget ${leaderExtraPath e}', 'mode main']\n"
+  ) leaderExtras;
+  leaderExtraFiles = lib.listToAttrs (map (e: {
+    name = ".config/aerospace/leader-extra-${e.key}.sh";
+    value = {
+      text = "#!/bin/sh\n# nebelhaus.keys.leaderExtras — leader → ${e.key}\nexec ${e.command}\n";
+      executable = true;
+    };
+  }) leaderExtras);
+
+  # Keys already spoken for in launch mode. The letters are the dynamic roster
+  # (appKeys); the rest are the fixed actions written into aerospace.toml's
+  # [mode.launch.binding] (digits, arrows, resize, clipboard/emoji, reopen,
+  # settings, resort, cheatsheet, exit). A leaderExtras key colliding with any of
+  # them would silently shadow it, so an assertion below refuses the build.
+  reservedLaunchKeys = appKeys ++ [
+    "esc" "slash" "1" "2" "3" "4"
+    "v" "e" "z" "comma" "backtick" "minus" "equal"
+    "left" "down" "up" "right"
+    "shift-left" "shift-down" "shift-up" "shift-right"
+  ];
+  extraKeys = map (e: e.key) leaderExtras;
+  extraCollisions = lib.unique (lib.filter (key: lib.elem key reservedLaunchKeys) extraKeys);
+  extraDuplicates = lib.unique (
+    lib.filter (key: lib.count (candidate: candidate == key) extraKeys > 1) extraKeys
+  );
+
   windowRules = lib.concatMapStrings (
     a:
     lib.optionalString (isRealAssign a)
@@ -147,7 +187,7 @@ let
 
   aerospaceToml = builtins.replaceStrings
     [ "@HOME@" "@BIN@" "@MAIN_STATIC@" "@SERVICE_STATIC@" "@MAIN_MOVES@" "@LEADER_ENTRY@" "@SERVICE_ENTRY@" "@LAUNCH_LETTERS@" "@WINDOW_RULES@" "@GAP_BUILTIN@" "@GAP_EXTERNAL@" "@GAP_OUTER_TOP@" "@GAP_OUTER_BOTTOM@" ]
-    [ homeDir binDir mainStatic serviceStatic mainMoves (subTokens leaderEntry) serviceEntry launchLetters windowRules (gap 10) (gap 20) outerTop outerBottom ]
+    [ homeDir binDir mainStatic serviceStatic mainMoves (subTokens leaderEntry) serviceEntry (launchLetters + launchExtras) windowRules (gap 10) (gap 20) outerTop outerBottom ]
     (builtins.readFile ./aerospace.toml);
 
   resortScript = builtins.replaceStrings [ "@RESORT_CASES@" ] [ resortCases ] (
@@ -211,6 +251,16 @@ lib.mkMerge [
         assertion = k.conflicts == [ ];
         message = "nebelhaus.keys assigns the same chord twice: " + lib.concatStringsSep "; " k.conflicts;
       }
+      {
+        # leaderExtras shares the launch mode with the roster letters and the fixed
+        # actions; a clash there shadows one binding silently (whichever AeroSpace
+        # reads last), so refuse it at eval instead.
+        assertion = extraCollisions == [ ] && extraDuplicates == [ ];
+        message =
+          "nebelhaus.keys.leaderExtras keys must be unique and must not reuse a roster app's "
+          + "key or a built-in launch-mode key; conflicting: "
+          + lib.concatStringsSep ", " (lib.unique (extraCollisions ++ extraDuplicates));
+      }
     ];
   # AeroSpace itself (cask) + its tap. Roster apps that name a cask ride along.
   # Merged into den's homebrew config.
@@ -264,7 +314,7 @@ lib.mkMerge [
     };
   };
 
-  home-manager.users.${username}.home.file = {
+  home-manager.users.${username}.home.file = leaderExtraFiles // {
     ".config/aerospace/aerospace.toml" = {
       text = aerospaceToml;
       # AeroSpace runs as a KeepAlive launchd agent, so a rebuild rewrites this
