@@ -368,7 +368,7 @@ lib.mkIf config.nebelhaus.pounce.enable {
         title = "Claude Agents";
         page = "Tips";
         items = [
-          { key = "⌃ ⌥ c"; action = "Agent in an isolated worktree branch"; }
+          { key = "⌘ c"; action = "Agent in an isolated worktree branch"; }
           { key = "⌃ ⌥ ⇧ c"; action = "Agent in this checkout (one per tab)"; }
           { key = "bench status"; action = "Agent branches, dirty repos, stale locks"; }
           { key = "bench try"; action = "Build against local checkouts (no push)"; }

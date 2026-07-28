@@ -98,6 +98,16 @@ keybind = cmd+c=unbind
 # nothing here today, so this unbind is purely defensive: it guarantees the
 # chord keeps reaching zellij if a future ghostty release claims it.
 keybind = cmd+shift+c=unbind
+# cmd+d / cmd+shift+d → nothing at all, deliberately. Ghostty's defaults here
+# are new_split:right and new_split:down — GHOSTTY splits, invisible to zellij:
+# they nest a second terminal surface INSIDE the one zellij is driving, so the
+# multiplexer's layout, status bar and pane binds end up applying to only half
+# the window. It looks like a split and quietly breaks the session's model, and
+# it's an easy chord to hit by accident (⌘d is muscle memory from iTerm/other
+# terminals). No zellij bind is added in its place: the point is that the keys
+# do nothing, not that they do something else.
+keybind = cmd+d=unbind
+keybind = cmd+shift+d=unbind
 # ghostty binds ctrl+tab to its own next_tab/previous_tab by default, and
 # even unbound, macOS AppKit swallows ctrl+tab for focus navigation before
 # the terminal core sees it. So bind it to SEND the kitty-keyboard-protocol
