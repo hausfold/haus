@@ -64,17 +64,12 @@ render_status() {
 # no PR. When a url is given, the "#N" becomes an OSC 8 terminal hyperlink —
 # SGR color survives inside the link. The hyperlink adds ZERO visible width;
 # callers must size the segment from the plain "#N" text, not from this output
-# (plain() strips SGR, not OSC 8).
-#
-# HEADS-UP (Claude Code 2.1.3+): CC's status-line renderer STRIPS OSC 8 from
-# statusline output — it keeps the SGR color but drops the hyperlink, so these
-# "#N" pills render colored but are NOT ⌘-clickable. It's a CC regression, not a
-# bug here (the bytes we emit are correct; verify with
-# `claude-statusline | od -c | grep ']8'`). Upstream:
-# github.com/anthropics/claude-code/issues/21586 (and #27047). The OSC 8 path
-# stays — it's correct and lights up the moment CC stops filtering. For
-# clickable PR numbers meanwhile, hearth seeds `footerLinksRegexes` into
-# settings.json, which CC renders natively (no OSC 8) in the conversation footer.
+# (plain() strips SGR, not OSC 8). A "#N" is clickable ONLY when its caller
+# passes a url — every caller here does (row 1's own pill, the row-1 sister
+# cluster, and the row-2 children). CC forwards OSC 8 to the terminal, so in a
+# hyperlink-aware terminal (Ghostty) ⌘-click opens the PR; terminals/multiplexers
+# that swallow OSC 8 (some tmux builds — anthropics/claude-code#21586, #27047)
+# just show the colored "#N" with no link, which is a harmless graceful downgrade.
 render_pr() {
   local pr="$1" url="${2:-}" state="${1##* }" col="$DIM" num="${1%% *}"
   [ -n "$pr" ] || return 0
@@ -183,7 +178,13 @@ fi
 # left of the name, same as the children.
 st=$(render_status "$ahead" "$files" "$ins" "$del" "$own_pr" "$purge")
 lead="$st"; [ -z "$lead" ] && lead="${DOT}●${R}"
-prseg=$(render_pr "$own_pr")   # "#N" left of the name, mirroring the children
+# Hyperlink the own pill to its PR (OSC 8), same as the sister/child rows — the
+# url is rebuilt from the slug + number already in hand (no extra gh call). This
+# is what makes a worktree pane's OWN "#N" ⌘-clickable; before, only the sister
+# cluster and row-2 children got urls, so an in-worktree pane's own pill was dead.
+prnum="${own_pr%% *}"          # "#104"
+ownurl=""; [ -n "$own_pr" ] && ownurl="https://github.com/${slug}/pull/${prnum#\#}"
+prseg=$(render_pr "$own_pr" "$ownurl")   # "#N" left of the name, mirroring the children
 if [ "$is_wt" = 1 ]; then
   row1="${lead} ${prseg:+$prseg }${NAME}${wt_name}${R}"
 elif [ -n "$branch" ]; then
