@@ -6,17 +6,17 @@ only its own host (identity, private apps, secrets).
 
 ## Am I in the right repo? (routing)
 
-**This repo (`~/code/nebelhaus/nebelhaus`) owns THE RICE** — the generic, no-identity
+**This repo (`~/code/workshop/nebelhaus`) owns THE RICE** — the generic, no-identity
 system + shell modules. Personal machine config and the pounce/theme sources live
 elsewhere.
 
 | Want to change… | Repo |
 |---|---|
-| the rice: macOS defaults, tiling (prowl), bar (sill), shell (hearth), security (collar), secrets plumbing (secrets), pounce wiring (pounce), Messages install (trill), Focus/DND (hush), wallpaper/accent (theme) | `~/code/nebelhaus/nebelhaus` ← **you are here** |
-| the pounce palette app or its command scripts | `~/code/nebelhaus/pounce` |
-| colors / the theme palette | `~/code/nebelhaus/nebelung` |
+| the rice: macOS defaults, tiling (prowl), bar (sill), shell (hearth), security (collar), secrets plumbing (secrets), pounce wiring (pounce), Messages install (trill), Focus/DND (hush), wallpaper/accent (theme) | `~/code/workshop/nebelhaus` ← **you are here** |
+| the pounce palette app or its command scripts | `~/code/workshop/pounce` |
+| colors / the theme palette | `~/code/workshop/nebelung` |
 | one machine's personal apps / identity / secrets | `~/.config/nix` (or that machine's own config) |
-| user-facing docs / guides (nebelhaus.com) | `~/code/nebelhaus/workshop` (`web/`, Astro Starlight) |
+| user-facing docs / guides (nebelhaus.com) | `~/code/workshop` (`web/`, Astro Starlight) |
 
 > **Docs live downstream.** The how-to guides users read are the Astro site in
 > the `workshop` repo (`web/src/content/docs/`), served at nebelhaus.com. When a
@@ -25,7 +25,7 @@ elsewhere.
 
 > **Claude: enforce this.** If a request targets a different repo than the one
 > whose files you're in, STOP and say so before editing — e.g. "That's a color
-> change; the palette lives in `~/code/nebelhaus/nebelung`. Want me to switch?"
+> change; the palette lives in `~/code/workshop/nebelung`. Want me to switch?"
 > Never hardcode a user's identity here — it's a `nebelhaus.*` option the host sets.
 
 ## Architecture
@@ -66,7 +66,7 @@ nix eval .#darwinConfigurations.example.system.drvPath
 
 The `example` host uses placeholder identity (user `you`), so a full build isn't
 meaningful — real testing happens in a consumer (e.g. `~/.config/nix`, host `mbp`).
-The workshop's `bench try` (from `~/code/nebelhaus`) builds the consumer against
+The workshop's `bench try` (from `~/code/workshop`) builds the consumer against
 this **local checkout** — uncommitted edits included — so nothing needs pushing
 to test. Once committed, `bench ship` pushes and ripples the downstream lock
 updates; hand-rolled alternative: push here, then `nix flake update nebelhaus`

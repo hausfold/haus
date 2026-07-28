@@ -445,7 +445,7 @@ lib.mkIf config.nebelhaus.sill.enable {
       colorsSh = ''
         #!/bin/bash
         # GENERATED from the `nebelung` flake input (nebelungPalette). Do not edit
-        # by hand — change colours in ~/code/nebelhaus/nebelung and rebuild.
+        # by hand — change colours in ~/code/workshop/nebelung and rebuild.
         ${lib.concatStringsSep "\n" (
           lib.mapAttrsToList (
             name: hex: "export ${lib.toUpper name}=0xff${lib.removePrefix "#" hex}"

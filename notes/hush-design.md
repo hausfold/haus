@@ -191,7 +191,7 @@ nebelhaus.hush = {
 ## Cross-repo work
 
 The keystroke/state capability lives in the **pounce repo**
-(`~/code/nebelhaus/pounce`): a `pounce focus toggle|status` subcommand (or
+(`~/code/workshop/pounce`): a `pounce focus toggle|status` subcommand (or
 a generic `pounce hotkey` + `pounce read-file`?  no — keep it
 purpose-named, small surface) posting the CGEvent and reading
 Assertions.json. This repo wires it: the hotkey defaults write, the hush

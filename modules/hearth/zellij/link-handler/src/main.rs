@@ -819,7 +819,7 @@ mod tests {
     #[test]
     fn parse_url_rejects_non_urls() {
         assert_eq!(parse_url("/some/file/path"), None);
-        assert_eq!(parse_url("~/code/nebelhaus"), None);
+        assert_eq!(parse_url("~/code/workshop"), None);
         assert_eq!(parse_url("httpsish://nope"), None);
     }
 
