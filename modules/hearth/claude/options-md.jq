@@ -27,19 +27,10 @@ def field($label; $t):
 
 def room: .key | split(".") | .[1];
 
-# Drop the rice's internal options. nixosOptionsDoc filters an `internal = true`
-# option itself but NOT the submodule children underneath it, and it strips the
-# `internal` flag from its JSON — so `nebelhaus._apps.*.cask` and friends arrive
-# here looking exactly like settable options. They are the resolved app roster
-# the modules pass among themselves; an agent that tried to set one would write
-# a host file that doesn't evaluate. The rice's convention is a leading
-# underscore on the room segment, so that's what we filter on.
-[
-  to_entries[]
-  | select(.key | startswith("nebelhaus."))
-  | select((.value.loc[1] // "") | startswith("_") | not)
-]
-| sort_by(.key) as $opts
+# Internal options (`nebelhaus._apps.*`) are already pruned upstream, in
+# options-doc.nix — the public reference and this one are fed the same surface,
+# so there's deliberately no second filter here to drift out of step with it.
+[ to_entries[] | select(.key | startswith("nebelhaus.")) ] | sort_by(.key) as $opts
 
 | "# nebelhaus.* — every option on this machine's rice\n\n"
 

@@ -45,9 +45,26 @@ let
     specialArgs = { inherit lib; };
     modules = import ./options-modules.nix;
   };
+
+  # Prune the internal option trees before rendering anything.
+  #
+  # `internal = true` is not enough on its own: nixosOptionsDoc drops the marked
+  # option but NOT the submodule children underneath it, and it strips the
+  # `internal` flag from the JSON on the way out — so `nebelhaus._apps.*.cask`
+  # and friends arrived downstream looking exactly like settable options, and
+  # rendered onto the public reference as if they were. They aren't: `_apps` is
+  # the resolved app roster the modules pass among themselves, and setting one
+  # produces a host file that doesn't evaluate.
+  #
+  # Pruning here rather than in each renderer means every consumer — the docs
+  # page, the agent skill, anything added later — is fed the same public
+  # surface. The rice's convention is a leading underscore on the room segment.
+  visible = optionsEval.options // {
+    nebelhaus = lib.filterAttrs (name: _: !(lib.hasPrefix "_" name)) optionsEval.options.nebelhaus;
+  };
 in
 (pkgs.nixosOptionsDoc {
-  inherit (optionsEval) options;
+  options = visible;
   warningsAreErrors = false;
   transformOptions =
     opt:
