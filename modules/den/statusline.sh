@@ -61,10 +61,20 @@ render_status() {
 }
 
 # render_pr <prstate> [url] — "#N" colored by PR state, or nothing when there's
-# no PR. When a url is given, the "#N" becomes an OSC 8 terminal hyperlink
-# (⌘/ctrl-click to open the PR in a browser) — SGR color survives inside the
-# link. The hyperlink adds ZERO visible width; callers must size the segment
-# from the plain "#N" text, not from this output (plain() strips SGR, not OSC 8).
+# no PR. When a url is given, the "#N" becomes an OSC 8 terminal hyperlink —
+# SGR color survives inside the link. The hyperlink adds ZERO visible width;
+# callers must size the segment from the plain "#N" text, not from this output
+# (plain() strips SGR, not OSC 8).
+#
+# HEADS-UP (Claude Code 2.1.3+): CC's status-line renderer STRIPS OSC 8 from
+# statusline output — it keeps the SGR color but drops the hyperlink, so these
+# "#N" pills render colored but are NOT ⌘-clickable. It's a CC regression, not a
+# bug here (the bytes we emit are correct; verify with
+# `claude-statusline | od -c | grep ']8'`). Upstream:
+# github.com/anthropics/claude-code/issues/21586 (and #27047). The OSC 8 path
+# stays — it's correct and lights up the moment CC stops filtering. For
+# clickable PR numbers meanwhile, hearth seeds `footerLinksRegexes` into
+# settings.json, which CC renders natively (no OSC 8) in the conversation footer.
 render_pr() {
   local pr="$1" url="${2:-}" state="${1##* }" col="$DIM" num="${1%% *}"
   [ -n "$pr" ] || return 0
