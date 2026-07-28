@@ -37,11 +37,17 @@ modules/
   options.nix             # all host-set knobs: git.*, theme.{accent,wallpaper}, hearth.*,
                           #   claude.globalMd, apps.* (the shared roster), prowl.*, sill.*, pounce.*,
                           #   hush.*, trill.enable, tour.enable, homebrew.*, secrets.provider
+  options-modules.nix     # the per-room options.nix list — shared by both renderers below
+  options-doc.nix         # nixosOptionsDoc over them → the metadata the docs site
+                          #   (.#options-json) and the agent skill are both RENDERED from
   lib/gui-wait.nix        # withGUIWait: cold-boot-safe GUI agent launch wrapper
   den/                    # system: macOS defaults, Homebrew framework, core CLI, GC
                           #   + on-PATH CLIs: haus / awake / wt / zscratch / statusline
   theme/                  # desktop wallpaper + accent-derived bold wordmark
   hearth/                 # shell: zsh, starship, git, yazi, zellij, ghostty + theming
+    claude/               # the nebelhaus Claude Code skill (nebelhaus.claude.skill):
+                          #   hand-written SKILL.md + recipes, plus an option reference
+                          #   rendered per-revision — see skill.nix for why it's a package
   prowl/                  # AeroSpace tiling
   sill/                   # SketchyBar
   collar/                 # Touch ID sudo
