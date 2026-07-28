@@ -74,7 +74,15 @@ reg_del() { # reg_del <wt_path> — drop the line for a worktree we've reaped
 }
 
 git_main() { # git_main <dir> — the MAIN checkout backing any worktree of a repo
-  dirname "$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+  # Fail (empty, non-zero) when <dir> is gone or isn't a repo. Without this the
+  # rev-parse fails, `dirname ""` yields ".", and every caller then resolves that
+  # against ITS OWN cwd — so a stale registry row pointing at a deleted checkout
+  # made `wt` list the current repo's branches a second time under a repo literally
+  # named ".", as bogus "parked" rows. Callers already handle a non-zero return.
+  local common
+  common="$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
+  [ -n "$common" ] || return 1
+  dirname "$common"
 }
 
 wt_projdir() { # wt_projdir <abs-cwd> — Claude Code's transcript dir for that cwd
@@ -270,7 +278,7 @@ cmd_remove() { # [WorktreeRemove hook] JSON on stdin — retire without losing w
   local json dir main branch
   json="$(cat)"
   dir="$(hook_field "$json" worktree_path path)"
-  main="$(git_main "$dir")"
+  main="$(git_main "$dir")" || die "worktree '$dir' isn't a git checkout — nothing to retire"
   branch="$(git -C "$dir" branch --show-current 2>/dev/null || true)"
   # A --force remove would silently discard UNCOMMITTED edits. Committed work
   # always survives on the branch; park the dirty remainder there too, as a WIP
