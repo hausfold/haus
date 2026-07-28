@@ -74,15 +74,15 @@ let
   mainStatic = subTokens (bindingsForMode "main");
   serviceStatic = subTokens (bindingsForMode "service");
 
-  # <mod>⇧<key> throws a window to an app's workspace. Fixed actions stay out of
-  # this namespace so every roster letter remains available.
+  # Leader then ⇧<key> throws the focused window to an app's workspace. Fixed
+  # actions stay out of this namespace so every roster letter remains available.
   isRealAssign = a: a.appId != null && a.workspace != null && a.appId != "com.mitchellh.ghostty";
   launchInvocation = a: ''${launchSh} "${a.name}"'' + lib.optionalString (a.workspace != null) " ${a.workspace}";
 
   # The workspace roster for aerospace.toml's persistent-workspaces (config
   # schema v2 stopped inferring it from the binding right-hand sides). The fixed
-  # digits are the ones hand-written into the toml's launch mode and
-  # wm-bindings.nix's throws; the rest is whatever workspace each roster app
+  # digits are the ones hand-written into the toml's launch mode (focus AND
+  # throw); the rest is whatever workspace each roster app
   # claims — Ghostty's T included, even though its window rules are bespoke.
   # Unconditional on the keymap: a keys.* of "none" removes the chords, not the
   # workspaces the window rules still sort apps onto.
@@ -91,11 +91,22 @@ let
   );
   persistentWorkspaces = lib.concatMapStringsSep ", " (w: ''"${w}"'') workspaceRoster;
 
-  mainMoves = lib.optionalString (k.nav != null) (
+  # App-workspace throws — leader, then ⇧+the app's roster letter. A LEADER
+  # action rather than the old main-mode <mod>⇧<letter> chord, so "go there"
+  # (leader + key) and "take this there" (leader + ⇧key) sit on the same key
+  # instead of on two unrelated modifiers. It also hands the whole
+  # <mod>⇧<letter> namespace back to the OS: those chords were claimed globally
+  # by AeroSpace, which is how windowNav = "ctrl-alt" used to eat zellij's
+  # ⌃⌥⇧c. Follows keys.leader now, not keys.windowNav — "none" means no throws
+  # (the palette still moves windows). Same shape as launchExtras: drop the
+  # indicator, act, return to main; homeDir baked literally, so no subTokens pass.
+  launchMoves = lib.optionalString (k.leader != null) (
     lib.concatMapStrings (
       a:
-      lib.optionalString (a.workspace != null)
-        "${k.nav.chord}-shift-${a.key} = 'move-node-to-workspace ${a.workspace}'\n"
+      lib.optionalString (a.workspace != null) (
+        "shift-${a.key} = ['exec-and-forget ${homeDir}/.config/sketchybar/plugins/launch_mode.sh off', "
+        + "'move-node-to-workspace ${a.workspace}', 'mode main']\n"
+      )
     ) apps
   );
 
@@ -139,12 +150,14 @@ let
   }) leaderExtras);
 
   # Keys already spoken for in launch mode. The letters are the dynamic roster
-  # (appKeys); the rest are the fixed actions written into aerospace.toml's
-  # [mode.launch.binding] (digits, arrows, resize, clipboard/emoji, reopen,
-  # settings, resort, cheatsheet, exit). A leaderExtras key colliding with any of
-  # them would silently shadow it, so an assertion below refuses the build.
-  reservedLaunchKeys = appKeys ++ [
+  # (appKeys), and ⇧+that letter is its workspace throw (launchMoves); the rest
+  # are the fixed actions written into aerospace.toml's [mode.launch.binding]
+  # (digits and ⇧digits, arrows, resize, clipboard/emoji, reopen, settings,
+  # resort, cheatsheet, exit). A leaderExtras key colliding with any of them
+  # would silently shadow it, so an assertion below refuses the build.
+  reservedLaunchKeys = appKeys ++ map (key: "shift-${key}") appKeys ++ [
     "esc" "slash" "1" "2" "3" "4"
+    "shift-1" "shift-2" "shift-3" "shift-4"
     "v" "e" "z" "comma" "backtick" "minus" "equal"
     "left" "down" "up" "right"
     "shift-left" "shift-down" "shift-up" "shift-right"
@@ -198,8 +211,8 @@ let
     .${barPos};
 
   aerospaceToml = builtins.replaceStrings
-    [ "@HOME@" "@BIN@" "@MAIN_STATIC@" "@SERVICE_STATIC@" "@MAIN_MOVES@" "@LEADER_ENTRY@" "@SERVICE_ENTRY@" "@LAUNCH_LETTERS@" "@WINDOW_RULES@" "@PERSISTENT_WS@" "@GAP_BUILTIN@" "@GAP_EXTERNAL@" "@GAP_OUTER_TOP@" "@GAP_OUTER_BOTTOM@" ]
-    [ homeDir binDir mainStatic serviceStatic mainMoves (subTokens leaderEntry) serviceEntry (launchLetters + launchExtras) windowRules persistentWorkspaces (gap 10) (gap 20) outerTop outerBottom ]
+    [ "@HOME@" "@BIN@" "@MAIN_STATIC@" "@SERVICE_STATIC@" "@LAUNCH_MOVES@" "@LEADER_ENTRY@" "@SERVICE_ENTRY@" "@LAUNCH_LETTERS@" "@WINDOW_RULES@" "@PERSISTENT_WS@" "@GAP_BUILTIN@" "@GAP_EXTERNAL@" "@GAP_OUTER_TOP@" "@GAP_OUTER_BOTTOM@" ]
+    [ homeDir binDir mainStatic serviceStatic launchMoves (subTokens leaderEntry) serviceEntry (launchLetters + launchExtras) windowRules persistentWorkspaces (gap 10) (gap 20) outerTop outerBottom ]
     (builtins.readFile ./aerospace.toml);
 
   resortScript = builtins.replaceStrings [ "@RESORT_CASES@" ] [ resortCases ] (
