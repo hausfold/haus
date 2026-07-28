@@ -878,38 +878,15 @@ in
           }
         '';
 
-        # Helix nebelung theme
-        ".config/helix/themes/nebelung.toml".text = ''
-          inherits = "catppuccin_${nbFlavor}"
-
-          [palette]
-          rosewater = "${nebelungPalette.rosewater}"
-          flamingo = "${nebelungPalette.flamingo}"
-          pink = "${nebelungPalette.pink}"
-          mauve = "${nebelungPalette.mauve}"
-          red = "${nebelungPalette.red}"
-          maroon = "${nebelungPalette.maroon}"
-          peach = "${nebelungPalette.peach}"
-          yellow = "${nebelungPalette.yellow}"
-          green = "${nebelungPalette.green}"
-          teal = "${nebelungPalette.teal}"
-          sky = "${nebelungPalette.sky}"
-          sapphire = "${nebelungPalette.sapphire}"
-          blue = "${nebelungPalette.blue}"
-          lavender = "${nebelungPalette.lavender}"
-          text = "${nebelungPalette.text}"
-          subtext1 = "${nebelungPalette.subtext1}"
-          subtext0 = "${nebelungPalette.subtext0}"
-          overlay2 = "${nebelungPalette.overlay2}"
-          overlay1 = "${nebelungPalette.overlay1}"
-          overlay0 = "${nebelungPalette.overlay0}"
-          surface2 = "${nebelungPalette.surface2}"
-          surface1 = "${nebelungPalette.surface1}"
-          surface0 = "${nebelungPalette.surface0}"
-          base = "${nebelungPalette.base}"
-          mantle = "${nebelungPalette.mantle}"
-          crust = "${nebelungPalette.crust}"
-        '';
+        # Helix nebelung theme, from the nebelung flake. This used to be a
+        # hand-written [palette] block inheriting helix's BUILT-IN
+        # catppuccin_<flavor>; nebelung now carries the real catppuccin/helix
+        # port, so the theme comes rendered like every other tool here and the
+        # syntax scopes track upstream instead of whatever helix ships.
+        # Kept under the `nebelung` name that programs.helix.settings.theme
+        # points at (the port also renders a no_italics/ sibling).
+        ".config/helix/themes/nebelung.toml".source =
+          "${nebelungRoot}/helix/themes/default/catppuccin_${nbFlavor}.toml";
 
         # ghostty (config lives in Application Support; theme lookup is XDG)
         # ghostty's `command` runs the zellij launcher by absolute path; render
