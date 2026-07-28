@@ -247,6 +247,16 @@ in
           ⌥+letter is unusable on those, which is the concrete reason this option
           exists.
 
+          Whatever you pick, AeroSpace claims those chords **globally**, so they
+          stop reaching whatever owned them inside a terminal. "ctrl-alt" is
+          where that has actually bitten: the workspace throws are `⌃⌥⇧` + an
+          app's roster letter, and hearth's zellij binds `Ctrl Alt Shift c` to
+          the resident in-place agent — so a roster with an app on `c` takes
+          that pane bind away, silently, because AeroSpace grabs it first. Give
+          the app a different letter, or rebind the pane. Nothing else on a
+          stock macOS collides: the only ⌃⌥ system hotkeys are input-source
+          switching (⌃⌥Space, off by default) and hyper-F13.
+
           "none" drops the modifier chords entirely: no focus/layout/move chords,
           no service mode. Combined with `leader = "none"` that's a rice where the
           tiler tiles and the keyboard is left alone — mouse-first. The cheatsheet
