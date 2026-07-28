@@ -255,6 +255,73 @@ in
           Only meaningful with nebelhaus.prowl.enable.
         '';
       };
+
+      # The seam for leader actions that AREN'T "launch an app". The app roster
+      # (nebelhaus.apps) already fronts a letter → open an app; this fronts a key
+      # → run a command (a script, an AppleScript, a `things:///` open). Rendered
+      # into AeroSpace's [mode.launch.binding] AND the pounce cheatsheet from this
+      # one list, so a binding and its caption can't drift — the same guarantee the
+      # roster gives. Kept a flat list rather than nested under an app entry on
+      # purpose: a leader action is not an attribute of any one app (the target may
+      # be no app at all), and launch-mode keys must be globally unique — an
+      # assertion in modules/prowl catches a key that collides with a roster letter
+      # or a built-in launch key.
+      leaderExtras = lib.mkOption {
+        type = lib.types.listOf (lib.types.submodule {
+          options = {
+            key = lib.mkOption {
+              type = lib.types.str;
+              example = "enter";
+              description = ''
+                The AeroSpace key name pressed after the leader (e.g. "enter",
+                "space", "period", or a letter). Must not collide with a roster
+                app's key or a built-in launch-mode key (the digits 1-4, the
+                arrows, `-`/`=`, `v`/`e`/`z`, `,`, `` ` ``, `/`, esc) — an
+                assertion in modules/prowl catches a clash rather than letting one
+                binding silently shadow another.
+              '';
+            };
+            command = lib.mkOption {
+              type = lib.types.str;
+              example = "osascript -e 'tell application \"Things3\" to show quick entry panel'";
+              description = ''
+                The shell command run when the leader is followed by `key`; launch
+                mode exits afterward. It's written verbatim into a small `/bin/sh`
+                script that AeroSpace execs, so ordinary shell rules apply — `$HOME`
+                resolves, and single quotes (an `osascript -e '…'`, say) are safe,
+                which they would not be inlined into AeroSpace's own config.
+              '';
+            };
+            caption = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              example = "Things Quick Entry";
+              description = ''
+                The Launch Mode cheatsheet caption for this action. null falls back
+                to the raw command, which is rarely what you want — set it.
+              '';
+            };
+          };
+        });
+        default = [ ];
+        example = lib.literalExpression ''
+          [
+            {
+              key = "enter";
+              command = "osascript -e 'tell application \"Things3\" to show quick entry panel'";
+              caption = "Things Quick Entry";
+            }
+          ]
+        '';
+        description = ''
+          Extra launch-mode (leader) bindings beyond the app roster: tap the leader,
+          then `key`, to run `command`. Use it for leader actions that aren't
+          "launch an app" — a script, an AppleScript, opening a URL.
+
+          Only meaningful with nebelhaus.prowl.enable and keys.leader != "none"
+          (with no leader there is no launch mode to bind into).
+        '';
+      };
     };
 
     # ---- the developer pack ----

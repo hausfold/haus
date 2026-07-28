@@ -90,11 +90,27 @@ EOF
   # actions (resize / clipboard / emoji / reopen-last-app / resort / exit)
   # appended. The whole page disappears when keys.leader = "none": there is no
   # launch mode to document, and a page teaching an unbound key is worse than none.
+  # A few AeroSpace key names read badly as a bare cheatsheet glyph ("enter"); map
+  # the common ones to their symbol. Anything unmapped (a letter, "period") shows
+  # as-is, which is already fine.
+  launchKeyGlyphs = {
+    enter = "↵";
+    space = "␣";
+    tab = "⇥";
+  };
+
   launchModeItems =
     (map (a: {
       key = a.key;
       action = if a.label != null then a.label else a.name;
     }) config.nebelhaus._apps)
+    # Non-app leader actions (nebelhaus.keys.leaderExtras) — same source list the
+    # AeroSpace [mode.launch.binding] renders from, so this page can't drift from
+    # what the keys actually do.
+    ++ (map (e: {
+      key = launchKeyGlyphs.${e.key} or e.key;
+      action = if e.caption != null then e.caption else e.command;
+    }) config.nebelhaus.keys.leaderExtras)
     ++ [
       {
         key = "1-4";
