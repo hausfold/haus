@@ -291,9 +291,11 @@ in
                 The AeroSpace key name pressed after the leader (e.g. "enter",
                 "space", "period", or a letter). Must not collide with a roster
                 app's key or a built-in launch-mode key (the digits 1-4, the
-                arrows, `-`/`=`, `v`/`e`/`z`, `,`, `` ` ``, `/`, esc) — an
-                assertion in modules/prowl catches a clash rather than letting one
-                binding silently shadow another.
+                arrows, `-`/`=`, `v`/`e`/`z`, `,`, `` ` ``, `/`, esc) — nor with
+                the workspace throws, which are ⇧ + any of those digits or a
+                roster letter ("shift-1", "shift-b", …). An assertion in
+                modules/prowl catches a clash rather than letting one binding
+                silently shadow another.
               '';
             };
             command = lib.mkOption {
