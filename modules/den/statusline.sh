@@ -102,6 +102,24 @@ cost=$(j '.cost.total_cost_usd')
 transcript=$(j '.transcript_path')
 COLS=${COLUMNS:-120}
 
+# Pane → transcript map, consumed by pounce's Links command (modules/pounce/
+# commands/links.sh). This render is the one process that knows BOTH which
+# zellij pane it lives in ($ZELLIJ_PANE_ID, inherited through Claude Code) and
+# which session transcript that pane is showing (stdin) — so it maintains the
+# join. Upsert keyed by pane id, write only on change: a pane id reused after a
+# session restart is corrected by that pane's next render, and a lost race
+# between two concurrent renders heals the same way. Tiny file; no pruning.
+if [ -n "${ZELLIJ_PANE_ID:-}" ] && [ -n "$transcript" ]; then
+  map="$CACHE_DIR/pane-transcripts.tsv"
+  if [ "$(awk -F'\t' -v id="$ZELLIJ_PANE_ID" '$1==id{v=$2} END{print v}' "$map" 2>/dev/null)" != "$transcript" ]; then
+    [ -d "$CACHE_DIR" ] || mkdir -p "$CACHE_DIR"
+    {
+      awk -F'\t' -v id="$ZELLIJ_PANE_ID" '$1!=id' "$map" 2>/dev/null
+      printf '%s\t%s\n' "$ZELLIJ_PANE_ID" "$transcript"
+    } >"$map.$$" && mv -f "$map.$$" "$map"
+  fi
+fi
+
 # Permission mode: NOT in the statusline stdin, but Claude Code appends a
 # {"type":"permission-mode","permissionMode":"…"} record to the transcript on
 # every mode change (and stamps user records too), and re-runs the statusline
