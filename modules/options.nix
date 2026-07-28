@@ -34,10 +34,10 @@ let
         example = "S";
         description = ''
           The AeroSpace workspace this app owns — its window auto-moves
-          here, it gets a SketchyBar pill, and ⌥⇧<key> throws a window to
-          it. null makes the app "launcher-only": the leader still opens
-          it in the current workspace, but it claims no workspace, pill,
-          or auto-assign rule (e.g. Passwords).
+          here, it gets a SketchyBar pill, and the leader then ⇧<key>
+          throws a window to it. null makes the app "launcher-only": the
+          leader still opens it in the current workspace, but it claims no
+          workspace, pill, or auto-assign rule (e.g. Passwords).
         '';
       };
       appId = lib.mkOption {
@@ -183,7 +183,8 @@ in
         example = "none";
         description = ''
           What enters the launcher/leader mode — tap it, then a letter opens an
-          app, a digit focuses a workspace, an arrow navigates, `-`/`=` resizes.
+          app, a digit focuses a workspace, ⇧+either throws the focused window
+          to that workspace, an arrow navigates, `-`/`=` resizes.
 
             - "caps" (default): Caps Lock. AeroSpace can't bind Caps Lock itself,
               so the rice remaps it to F18 with hidutil and binds that.
@@ -192,7 +193,9 @@ in
               unreachable, and nothing is remapped — the setting for a mouse-first
               rice, or for a Mac you are handing to someone else. What the leader
               fronted is still reachable: apps through the palette, window moves
-              through `windowNav`.
+              through service mode's join-with and the palette's own commands.
+              Workspace focus and the workspace throws go away with it — they
+              live only in launch mode.
 
           The remap is re-applied at every activation and does not survive a
           reboot, so moving off "caps" ends it — at the latest, at next boot.
@@ -239,8 +242,10 @@ in
           than a bind-per-action, because what people need to move is the
           modifier, not the letters. It drives focus (`<mod>` + hjkl), layouts
           (`<mod>` + `/` `,`), fullscreen, workspace back-and-forth, moving a
-          window to a workspace (`<mod>⇧` + 1-4 or an app's letter), and entering
-          service mode (`<mod>⇧;`).
+          workspace to the next monitor (`<mod>⇧⇥`), and entering service mode
+          (`<mod>⇧;`). Anything that names a workspace — focusing one, or
+          throwing the focused window there — hangs off `leader` instead, not
+          this option.
 
           "alt" (default) is ⌥. The alternatives are for **non-US keyboard
           layouts**, where ⌥+letter types accented characters — a rice that owns
@@ -248,17 +253,17 @@ in
           exists.
 
           Whatever you pick, AeroSpace claims those chords **globally**, so they
-          stop reaching whatever owned them inside a terminal. "ctrl-alt" is
-          where that has actually bitten: the workspace throws are `⌃⌥⇧` + an
-          app's roster letter, and hearth's zellij binds `Ctrl Alt Shift c` to
-          the resident in-place agent — so a roster with an app on `c` takes
-          that pane bind away, silently, because AeroSpace grabs it first. Give
-          the app a different letter, or rebind the pane. Nothing else on a
-          stock macOS collides: the only ⌃⌥ system hotkeys are input-source
-          switching (⌃⌥Space, off by default) and hyper-F13.
+          stop reaching whatever owned them inside a terminal. The surface is
+          small now that the workspace throws moved to the leader: only hjkl,
+          `/` `,`, `f`, `⇥`, `⇧⇥` and `⇧;`, none of which a roster letter can
+          land on. (Under "ctrl-alt" that used to bite — the throws were `⌃⌥⇧` +
+          an app's roster letter, so an app on `c` silently ate hearth's zellij
+          `Ctrl Alt Shift c` in-place-agent bind. That collision is gone.)
+          Nothing on a stock macOS collides either: the only ⌃⌥ system hotkeys
+          are input-source switching (⌃⌥Space, off by default) and hyper-F13.
 
-          "none" drops the modifier chords entirely: no focus/layout/move chords,
-          no service mode. Combined with `leader = "none"` that's a rice where the
+          "none" drops the modifier chords entirely: no focus/layout chords, no
+          service mode. Combined with `leader = "none"` that's a rice where the
           tiler tiles and the keyboard is left alone — mouse-first. The cheatsheet
           follows, so it never advertises a key that does nothing.
 

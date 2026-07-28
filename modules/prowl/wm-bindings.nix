@@ -23,9 +23,9 @@
 #   action  cheatsheet caption. Omit alongside keys for a toml-only binding.
 #   binds   attrset of aerospace chord → command. The command is a string, or a
 #           list of strings for a multi-command binding (e.g. ["join-with left"
-#           "mode main"]). Omit for a display-only row (e.g. the app-workspace
-#           throws, whose chords are generated from the roster). @HOME@/@BIN@
-#           tokens are substituted by modules/prowl at build time.
+#           "mode main"]). Omit for a display-only row (e.g. the palette, which
+#           the pounce daemon registers in-process). @HOME@/@BIN@ tokens are
+#           substituted by modules/prowl at build time.
 #
 # Each section: title (cheatsheet heading), optional mode ("main" default, or
 # "service" → rendered under [mode.service.binding]).
@@ -84,33 +84,14 @@ lib.optionals hasNav [
       }
     ];
   }
-  {
-    title = "Workspaces";
-    items = [
-      # Focusing workspaces 1-4 is a leader action now (tap the leader, then a
-      # digit — same as tapping it then a letter for an app). That binding
-      # lives in [mode.launch.binding] in aerospace.toml and on the Launch Mode
-      # cheatsheet page, so there's no main-mode focus chord here. Moving a
-      # window to one stays <mod>⇧1-4 below, mirroring the app-workspace throws.
-      {
-        keys = gs "1-4";
-        action = "Move to workspace 1-4";
-        binds = {
-          ${ms "1"} = "move-node-to-workspace 1";
-          ${ms "2"} = "move-node-to-workspace 2";
-          ${ms "3"} = "move-node-to-workspace 3";
-          ${ms "4"} = "move-node-to-workspace 4";
-        };
-      }
-      # <mod>⇧<letter> throws a window to an app's workspace — those chords are
-      # generated from nebelhaus._apps (@MAIN_MOVES@), so this row is
-      # display-only: it documents the pattern, it doesn't bind anything.
-      {
-        keys = gs "[Letter]";
-        action = "Move to app workspace";
-      }
-    ];
-  }
+  # No "Workspaces" section: BOTH halves of it are leader actions now. Focusing
+  # workspace 1-4 is the leader then a digit (same shape as leader then a letter
+  # for an app), and THROWING the focused window there is the leader then ⇧+the
+  # digit — or ⇧+an app's roster letter for its workspace. Those live in
+  # [mode.launch.binding] in aerospace.toml (the roster half generated from
+  # nebelhaus._apps) and on the Launch Mode cheatsheet page, so no main-mode
+  # chord here carries a workspace. The window chords that remain are the ones
+  # that act on the CURRENT workspace, above, plus service mode below.
   {
     title = "Service Mode [${gs ";"}]";
     mode = "service";

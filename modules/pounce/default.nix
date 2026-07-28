@@ -116,6 +116,19 @@ EOF
         key = "1-4";
         action = "Focus workspace 1-4";
       }
+      # The workspace THROWS. Both halves used to be main-mode <mod>⇧ chords;
+      # they're leader actions now, so "go there" and "take this there" differ
+      # by ⇧ on the same key. The letter row is a pattern, not a binding — the
+      # per-app chords are generated from the roster into [mode.launch.binding]
+      # (the rows above already name every letter).
+      {
+        key = "⇧ 1-4";
+        action = "Throw window to workspace 1-4";
+      }
+      {
+        key = "⇧ [Letter]";
+        action = "Throw window to that app's workspace";
+      }
       {
         key = "←↓↑→";
         action = "Move focus — enters navigate, arrows repeat (⎋ exits)";

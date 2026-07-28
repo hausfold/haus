@@ -321,7 +321,7 @@ if [ "$lane" = "Add to roster" ]; then
 
   # ── workspace or launcher-only ──────────────────────────────────────────
   ws_menu="$(printf '%s\t%s\t%s\n%s\t%s\t%s' \
-    "Own workspace" "Auto-move $appname to its own AeroSpace workspace + bar pill (⌥⇧$key throws to it)" "rectangle.split.3x1" \
+    "Own workspace" "Auto-move $appname to its own AeroSpace workspace + bar pill (leader ⇧$key throws to it)" "rectangle.split.3x1" \
     "Launcher-only" "Just the leader key — opens in the current workspace, no pill" "arrow.up.forward.app")"
   ws_sel="$(printf '%s\n' "$ws_menu" | pounce -p "$appname — workspace?" -i "rectangle.3.group")"
   [ -z "$ws_sel" ] && exit 0
