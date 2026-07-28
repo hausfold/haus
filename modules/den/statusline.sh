@@ -4,7 +4,8 @@
 # Row 1  : THIS session's git-status token as the leading glyph (⏏/N^/+A-D, or a
 #          muted ● when clean) + its own PR number (left of the name, colored by
 #          PR state, same as the children) + worktree name, then flush right:
-#          ctx% · cost · permission-mode icon (⏸ plan, ⏵⏵ auto/accept/bypass, ⊘
+#          rice-nag (⇡N — commits your pinned nebelhaus is behind, `haus update`)
+#          · ctx% · cost · permission-mode icon (⏸ plan, ⏵⏵ auto/accept/bypass, ⊘
 #          dontAsk) · model glyph (✦ Fable/Mythos) — read from the transcript tail.
 # Row 2+ : the worktrees THIS session spawned (its direct children via ⌘C /
 #          `claude --worktree`), across whatever repos they live in — each as
@@ -226,15 +227,47 @@ case "$mode" in
   bypassPermissions) mseg="${DEL}⏵⏵${R}";;     # red    — no gates at all
 esac
 
-# Tail group (ctx% · cost · mode icon · model) sits flush RIGHT, next to Claude
-# Code's own right-edge chips (/rc); RESERVE leaves them room. Narrow pane →
-# fall back to the old inline append. wc -m under a UTF-8 locale counts the wide
-# glyphs as characters (≈ columns), not bytes. The model glyph, when present
-# (Fable/Mythos only), is last — nearest /rc.
+# Stale-rice nag: "⇡6" = your pinned nebelhaus is 6 commits behind upstream, i.e.
+# what `haus update` would bring in. Nix has no "latest" — an input is whatever
+# flake.lock pinned — so this chip is the only place the drift is visible without
+# running a command. The count is computed DETACHED by the refresher (one cached
+# GitHub compare call, 30-min TTL); the render path just reads a 1-line file, so
+# this costs no network and no nix. Nothing renders when you're up to date.
+#
+# Yellow at first (haus's own `warn` colour), red once the PIN itself is older
+# than NAG_ALERT_DAYS — being a few commits behind for an afternoon is normal;
+# running a rice nobody has rebuilt in a fortnight is the thing worth seeing.
+# ⌘-click opens the GitHub compare of exactly the commits you haven't taken.
+NAG_ALERT_DAYS=14
+nagseg=""
+if [ -s "$CACHE_DIR/lock-nag.tsv" ]; then
+  IFS=$'\t' read -r nbehind nlockdate nagurl <"$CACHE_DIR/lock-nag.tsv"
+  case "${nbehind:-}" in ''|*[!0-9]*) nbehind=0;; esac
+  case "${nlockdate:-}" in ''|*[!0-9]*) nlockdate=0;; esac
+  if [ "$nbehind" -gt 0 ]; then
+    ncol=$(c 179)
+    [ "$nlockdate" -gt 0 ] &&
+      [ $(( ( $(date +%s) - nlockdate ) / 86400 )) -ge "$NAG_ALERT_DAYS" ] && ncol="$DEL"
+    if [ -n "${nagurl:-}" ]; then
+      nagseg=$(printf '\033]8;;%s\033\\%s⇡%s%s\033]8;;\033\\' "$nagurl" "$ncol" "$nbehind" "$R")
+    else
+      nagseg="${ncol}⇡${nbehind}${R}"
+    fi
+  fi
+fi
+
+# Tail group (rice-nag · ctx% · cost · mode icon · model) sits flush RIGHT, next
+# to Claude Code's own right-edge chips (/rc); RESERVE leaves them room. Narrow
+# pane → fall back to the old inline append. wc -m under a UTF-8 locale counts
+# the wide glyphs as characters (≈ columns), not bytes. The model glyph, when
+# present (Fable/Mythos only), is last — nearest /rc. The nag leads the group:
+# it's machine-global (same in every pane) while everything after it is
+# per-session, so it stays put instead of shuffling with ctx%/cost.
 vlen() { plain "$1" | LC_ALL=en_US.UTF-8 wc -m | tr -d ' '; }
 RESERVE=8
 tailseg=""
-[ -n "$ctx" ]  && tailseg="${DIM}${ctx}%${R}"
+[ -n "$nagseg" ] && tailseg="$nagseg"
+[ -n "$ctx" ]  && tailseg="${tailseg:+$tailseg }${DIM}${ctx}%${R}"
 [ -n "$cost" ] && [ "$cost" != "0" ] && tailseg="${tailseg:+$tailseg }${DIM}\$$(printf '%.2f' "$cost" 2>/dev/null)${R}"
 [ -n "$mseg" ] && tailseg="${tailseg:+$tailseg }$mseg"
 [ -n "$MODEL" ] && tailseg="${tailseg:+$tailseg }$MODEL"
