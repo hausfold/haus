@@ -102,8 +102,86 @@ heal() { # run "$@"; on the cache-corruption signature, wipe the caches and retr
   return "$rc"
 }
 
+# ---- the agent guard --------------------------------------------------------
+# An agent can drive this CLI — that's the point of the nebelhaus skill, and a
+# declarative machine is exactly the kind an agent may safely reconfigure: the
+# build gates the switch, and a bad switch rolls back atomically.
+#
+# One config shape breaks that promise. `system.defaults.universalaccess.*` is
+# TCC-protected: the write succeeds only if the app RESPONSIBLE for the rebuild
+# holds Full Disk Access. nix-darwin emits it unguarded into an activation
+# script running under `set -e`, two thirds of the way in — so without the grant
+# activation aborts there and skips everything after it, including every launchd
+# daemon and agent the rice installs. The machine comes back with no bar, no
+# tiling, no palette, and a symptom nowhere near its cause.
+#
+# The grant belongs to the RESPONSIBLE APP, which is why this tests the
+# capability rather than guessing from who's driving: a Claude Code pane running
+# inside a terminal that holds Full Disk Access inherits that grant and can
+# rebuild perfectly well, while the same agent under Claude.app — or a cloud
+# session, or a fresh terminal nobody has granted — cannot. Assuming "agent
+# means no access" would refuse rebuilds that were always going to work; testing
+# the read means we only ever refuse the combination that actually breaks, and
+# hand it back to a human who can run the very same command. Everything else an
+# agent asks for goes straight through.
+
+# Claude Code exports CLAUDECODE=1 into the shells it runs.
+under_agent() { [ -n "${CLAUDECODE:-}" ]; }
+
+# Full Disk Access, for whichever app is responsible for THIS process. It must
+# be a strict read of a protected file: the containing directory lists fine
+# without the grant, so an `ls`-shaped test reports success on a machine that
+# has no access at all.
+has_fda() {
+  head -c1 "$HOME/Library/Application Support/com.apple.TCC/TCC.db" >/dev/null 2>&1
+}
+
+# The TCC-protected keys this config actually sets, comma-separated (empty when
+# there are none). Only ever called on the guard's slow path, since it costs an
+# evaluation of the darwin system.
+universalaccess_keys() {
+  ( cd "$CONSUMER" && nix eval --raw \
+      ".#darwinConfigurations.$1.config.system.defaults.universalaccess" \
+      --apply 'a: builtins.concatStringsSep ", " (builtins.filter (n: a.${n} != null) (builtins.attrNames a))' \
+      2>/dev/null ) || true
+}
+
+guard_agent_rebuild() {
+  local keys
+  under_agent || return 0
+  [ -n "${HAUS_AGENT_REBUILD:-}" ] && return 0   # escape hatch: the human said go
+  has_fda && return 0                            # this pane can write the domain
+  keys="$(universalaccess_keys "$1")"
+  [ -n "$keys" ] || return 0
+
+  warn "refusing to rebuild from an agent session."
+  cat >&2 <<EOF
+
+  This config sets system.defaults.universalaccess:
+
+      $keys
+
+  macOS only lets an app holding Full Disk Access write that domain, and this
+  session doesn't have it. The failure would not be contained: nix-darwin runs
+  the write unguarded partway through activation, so it would abort there and
+  skip every background service the rice installs — the bar, the tiling, the
+  palette.
+
+  Nothing has been changed. Any edit already made is still on disk. Run the
+  rebuild yourself, from a terminal that holds Full Disk Access:
+
+      haus rebuild
+
+  For contrast or reduced motion, nebelhaus.accessibility.* reaches the useful
+  keys in that domain with a guarded write, and works from anywhere.
+  (Really meant it? HAUS_AGENT_REBUILD=1 haus rebuild.)
+EOF
+  exit 1
+}
+
 cmd_rebuild() {
   local host; host="$(host_name)"
+  guard_agent_rebuild "$host"
   say "building $host from $CONSUMER …"
   # Build first, switch second: a failed build never touches a running system.
   ( cd "$CONSUMER" && heal nix build ".#darwinConfigurations.$host.system" ) \
@@ -323,6 +401,32 @@ cmd_doctor() {
       ok "brew on PATH ($count casks installed)"
     fi
     info "casks live outside Nix generations — 'haus rollback' won't rewind them (that's by design)"
+  fi
+
+  # Agents — whether an AI agent can usefully and safely drive this machine.
+  # Three separate questions, all of which have bitten someone: does it have the
+  # knowledge (the skill), does the config repo orient it (a CLAUDE.md), and can
+  # a rebuild from an agent pane actually complete (Full Disk Access vs the
+  # universalaccess trap that `haus rebuild` guards).
+  echo
+  say "Agents"
+  local skilldir="$HOME/.claude/skills/nebelhaus"
+  if [ -f "$skilldir/SKILL.md" ]; then
+    ok "the nebelhaus skill is installed ($skilldir)"
+  else
+    info "no nebelhaus skill — set nebelhaus.claude.skill = true to let an agent change this machine"
+  fi
+  if [ -f "$CONSUMER/CLAUDE.md" ]; then
+    ok "$CONSUMER/CLAUDE.md orients an agent opened there"
+  elif [ -f "$skilldir/consumer-CLAUDE.md" ]; then
+    info "no CLAUDE.md in your config — start from the rice's: cp $skilldir/consumer-CLAUDE.md $CONSUMER/CLAUDE.md"
+  fi
+  # Reported for the app running THIS command — the grant is per-app, so the
+  # answer legitimately differs between your terminal and an agent's pane.
+  if has_fda; then
+    ok "this app has Full Disk Access (system.defaults.universalaccess.* can be written from here)"
+  else
+    info "this app has no Full Disk Access — system.defaults.universalaccess.* can't be written from here, and 'haus rebuild' will refuse rather than half-activate (nebelhaus.accessibility.* is the safe route)"
   fi
 
   # Secrets — the declaration (secretspec.toml) rebuilds with Nix, but the

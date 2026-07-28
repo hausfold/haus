@@ -90,6 +90,21 @@ secrets, and your private app list. All of it lives in
 layer *you* on top. [Making it
 yours](https://nebelhaus.com/guides/making-it-yours/) is the cookbook.
 
+## ask an agent to change it
+
+A declarative machine is the one kind an agent can safely reconfigure: `haus
+rebuild` builds before it switches, so a bad edit never reaches the running
+system, and `haus rollback` undoes an applied one atomically. What was missing
+was knowledge — left to guess, a model reaches for `brew install` and dotfiles
+the next rebuild overwrites, or invents an option that doesn't exist.
+
+So the rice ships it. `nebelhaus.claude.skill` (on by default) installs a Claude
+Code skill at `~/.claude/skills/nebelhaus` whose option reference is **generated
+from the revision you're pinned to** — it can only ever describe options you
+actually have, and `haus update` refreshes it with the rice. "Install Slack" or
+"make everything bigger" becomes an edit to your host file, applied and
+verifiable. `haus doctor` reports whether it's installed.
+
 ## more
 
 - [Modules](docs/modules.md) — stealing one room, `mkNebelhaus`, and the identity knobs

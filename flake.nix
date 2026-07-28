@@ -405,36 +405,6 @@
           pkgs = nixpkgs.legacyPackages.${system};
           isDarwin = nixpkgs.lib.hasSuffix "-darwin" system;
 
-          # `nix build .#options-json` — machine-readable metadata for every
-          # nebelhaus.* option: type, default, example, description, and the
-          # file that declares it. nebelhaus.com's options reference is
-          # RENDERED from this instead of hand-maintained, so the page cannot
-          # drift from the module system (as prose, it drifted for months).
-          #
-          # Evaluates ONLY the per-room options files — not a darwin system —
-          # so it needs no host, no username, and no macOS. That's what lets
-          # the docs repo's Linux CI run it, and it works only because those
-          # files are pure `{ lib, ... }` modules with no config/pkgs
-          # dependencies. Keep them that way.
-          optionsEval = pkgs.lib.evalModules {
-            specialArgs = { inherit (pkgs) lib; };
-            modules = [
-              ./modules/options.nix
-              ./modules/den/options.nix
-              ./modules/theme/options.nix
-              ./modules/hearth/options.nix
-              ./modules/prowl/options.nix
-              ./modules/sill/options.nix
-              ./modules/pounce/options.nix
-              ./modules/trill/options.nix
-              ./modules/perch/options.nix
-              ./modules/hush/options.nix
-              ./modules/secrets/options.nix
-              ./modules/snippets/options.nix
-            ];
-          };
-
-          selfPrefix = toString ./.;
         in
         {
           # `nix build .#wm-bindings-json` — the static tiling/workspace/service
@@ -473,21 +443,24 @@
               )
             );
 
-          options-json =
-            (pkgs.nixosOptionsDoc {
-              inherit (optionsEval) options;
-              warningsAreErrors = false;
-              # Store paths mean nothing to a reader; keep the repo-relative
-              # path so each rendered option can link to its source.
-              transformOptions =
-                opt:
-                opt
-                // {
-                  declarations = map (
-                    decl: nixpkgs.lib.removePrefix "/" (nixpkgs.lib.removePrefix selfPrefix (toString decl))
-                  ) opt.declarations;
-                };
-            }).optionsJSON;
+          # `nix build .#options-json` — machine-readable metadata for every
+          # nebelhaus.* option: type, default, example, description, and the
+          # file that declares it. nebelhaus.com's options reference is
+          # RENDERED from this instead of hand-maintained, so the page cannot
+          # drift from the module system (as prose, it drifted for months).
+          options-json = import ./modules/options-doc.nix { inherit pkgs; };
+
+          # `nix build .#claude-skill` — the Claude Code skill that teaches an
+          # agent to change THIS machine's config: the edit → `haus rebuild` →
+          # `haus rollback` loop, the boundaries, and an option reference
+          # rendered from the same metadata as above.
+          #
+          # A package rather than a checked-in file on purpose: built from the
+          # revision a machine has actually pinned, it can only ever describe
+          # the options that exist there. hearth installs it into
+          # ~/.claude/skills/nebelhaus (nebelhaus.claude.skill), so `haus update`
+          # updates the agent's knowledge along with the rice.
+          claude-skill = import ./modules/hearth/claude/skill.nix { inherit pkgs; };
         }
         // nixpkgs.lib.optionalAttrs isDarwin {
           pounce = pounce.packages.${system}.default;

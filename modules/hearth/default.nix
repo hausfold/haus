@@ -7,6 +7,8 @@
 # host's zsh initContent from ~/.secrets or similar.
 {
   config,
+  lib,
+  pkgs,
   username,
   hostname,
   ...
@@ -53,6 +55,120 @@ let
 
     Full guide: https://nebelhaus.com/guides/claude-agents/
 
+  '';
+
+  # ---- the nebelhaus skill: an agent that can change this machine safely -----
+  # A Mac whose config is declarative is the one kind of machine an agent can
+  # reconfigure without it being reckless: `haus rebuild` builds before it
+  # switches, so a broken edit never reaches the running system, and `haus
+  # rollback` undoes an applied one atomically. What was missing was the
+  # knowledge — a model left to guess reaches for `brew install` and dotfiles,
+  # both of which the next rebuild overwrites, or invents a `nebelhaus.*` option
+  # that doesn't exist.
+  #
+  # So the rice ships the knowledge with itself. The option reference inside the
+  # skill is RENDERED from this revision's module system (claude/skill.nix), and
+  # `this-machine.md` below is rendered from this host's own evaluated config —
+  # neither can drift, and `haus update` refreshes both along with the rice.
+  claudeSkill = import ./claude/skill.nix { inherit pkgs; };
+
+  onOff = b: if b then "on" else "off";
+
+  # `toString 1.0` is "1.000000", which reads like a precision the option
+  # doesn't have — and an agent copying it back into a host file writes noise.
+  trimZeros = s: if lib.hasSuffix "0" s then trimZeros (lib.removeSuffix "0" s) else s;
+  num = n: if lib.isFloat n then lib.removeSuffix "." (trimZeros (toString n)) else toString n;
+
+  # Whichever TCC-protected universalaccess keys the host set directly. Named
+  # here because it's the one thing that makes an AGENT's rebuild behave
+  # differently from the user's own (see haus rebuild's guard), so the skill
+  # should be able to see it without evaluating anything.
+  rawUniversalaccess = lib.attrNames (
+    lib.filterAttrs (_: v: v != null) config.system.defaults.universalaccess
+  );
+
+  roster = lib.sort (a: b: a.order < b.order) config.nebelhaus._apps;
+
+  thisMachine = ''
+    # This machine
+
+    Rendered from `${hostname}`'s own evaluated configuration when the rice was
+    built. Where this disagrees with something you remember, this file is right.
+
+    | | |
+    |---|---|
+    | hostname | `${hostname}` |
+    | user | `${username}` |
+    | host file | `~/.config/nix/hosts/${hostname}/default.nix` |
+    | config flake | `~/.config/nix` (unless `HAUS_CONSUMER` says otherwise) |
+    | rice version | `${lib.fileContents ../../VERSION}` |
+
+    Run `haus status` for the pinned revision and whether it's behind upstream.
+
+    ## Rooms
+
+    | room | what it is | state |
+    |---|---|---|
+    | prowl | window tiling | ${onOff config.nebelhaus.prowl.enable} |
+    | sill | the menu bar | ${onOff config.nebelhaus.sill.enable} |
+    | pounce | the command palette | ${onOff config.nebelhaus.pounce.enable} |
+    | hush | Focus / Do Not Disturb | ${onOff config.nebelhaus.hush.enable} |
+    | trill | the Messages client | ${onOff config.nebelhaus.trill.enable} |
+    | perch | the notch file shelf | ${onOff config.nebelhaus.perch.enable} |
+    | snippets | text expansion | ${onOff config.nebelhaus.snippets.enable} |
+    | developer | the dev toolbelt | ${onOff config.nebelhaus.developer.enable} |
+
+    A room that's off means its options do nothing until you turn it on — say so
+    rather than silently enabling a room to satisfy a small request.
+
+    ## Look
+
+    - theme: `${config.nebelhaus.theme.flavor}` flavor, `${config.nebelhaus.theme.accent}` accent, `${config.nebelhaus.theme.contrast}` contrast
+    - `nebelhaus.ui.scale` = `${num config.nebelhaus.ui.scale}`
+    - terminal font: ${config.nebelhaus.fonts.mono.name} at ${toString config.nebelhaus.fonts.mono.size}pt
+
+    ## Keys
+
+    - leader: `${config.nebelhaus.keys.leader}`
+    - palette: `${config.nebelhaus.keys.palette}`
+    - window navigation: `${config.nebelhaus.keys.windowNav}`
+
+    ## Apps on the roster
+
+    Leader key → app. Taken keys are taken; pick an unused one when adding.
+
+    ${
+      if roster == [ ] then
+        "*(none declared)*"
+      else
+        lib.concatMapStringsSep "\n" (
+          a:
+          "- `${a.key}` → ${a.name}"
+          + (if a.workspace == null then " *(launcher-only)*" else " (workspace `${a.workspace}`)")
+          + (if a.cask == null then "" else " · cask `${a.cask}`")
+        ) roster
+    }
+
+    ## Rebuild hazards on this host
+
+    ${
+      if rawUniversalaccess == [ ] then
+        "None. `haus rebuild` will run for you."
+      else
+        ''
+          ⚠ This host sets `system.defaults.universalaccess` directly (${lib.concatStringsSep ", " rawUniversalaccess}).
+
+          That domain is TCC-protected, nix-darwin writes it unguarded, and the
+          write needs Full Disk Access on whichever app your session runs under.
+          A failure there aborts activation partway and skips every background
+          service the rice installs.
+
+          So on this host `haus rebuild` checks first, and refuses if this
+          session can't write that domain. If it refuses: make the edit, then
+          ask the user to run `haus rebuild` in their own terminal. `haus doctor`
+          reports whether the grant is present here.
+        ''
+    }
   '';
 in
 {
@@ -868,6 +984,25 @@ in
         ".claude/CLAUDE.md" = lib.mkIf (claudeCfg.globalMd != "") {
           text = wtGuidance + claudeCfg.globalMd;
         };
+      }
+      // lib.optionalAttrs claudeCfg.skill {
+        # The nebelhaus skill (nebelhaus.claude.skill). Installed file-by-file
+        # rather than as one directory symlink so this-machine.md — rendered
+        # from THIS host, not from the rice — can sit inside the same skill
+        # alongside the store-built parts.
+        ".claude/skills/nebelhaus/SKILL.md".source = "${claudeSkill}/SKILL.md";
+        ".claude/skills/nebelhaus/references/options.md".source = "${claudeSkill}/references/options.md";
+        ".claude/skills/nebelhaus/references/recipes.md".source = "${claudeSkill}/references/recipes.md";
+        ".claude/skills/nebelhaus/references/this-machine.md".text = thisMachine;
+
+        # A starter CLAUDE.md for ~/.config/nix, parked in the skill rather than
+        # written into that repo: it's the user's own git repo, and a read-only
+        # store symlink inside it would be a thing they can't commit. `haus
+        # doctor` points at this path, and the skill tells the agent to offer the
+        # copy — so it lands as a real, editable file or not at all.
+        ".claude/skills/nebelhaus/consumer-CLAUDE.md".source = "${claudeSkill}/consumer-CLAUDE.md";
+      }
+      // {
 
         # opencode
         ".config/opencode/themes/nebelung.json".source = "${nebelungRoot}/opencode/nebelung.json";
