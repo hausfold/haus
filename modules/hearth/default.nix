@@ -172,6 +172,31 @@ let
   '';
 in
 {
+  # The nebelung ports this room wires itself, so the roster pass in
+  # modules/theme/ports.nix leaves them alone instead of dropping a second,
+  # blunter copy beside the integration below. Twelve are sourced from the
+  # rendered theme tree; starship, fzf and lazygit take the palette as Nix
+  # values instead (they want colours inline in a config this room already
+  # owns, not a file to point at) — either way the tool is handled here.
+  # An assertion in theme/ports.nix checks every name is still a real port.
+  nebelhaus.theme.ports.handled = [
+    "bat"
+    "delta"
+    "ghostty"
+    "glow"
+    "helix"
+    "lsd"
+    "obsidian"
+    "opencode"
+    "yazi"
+    "zellij"
+    "zen"
+    "zsh-syntax-highlighting"
+    "starship"
+    "fzf"
+    "lazygit"
+  ];
+
   home-manager.users.${username} =
     {
       config,

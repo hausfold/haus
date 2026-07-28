@@ -140,6 +140,13 @@
                   # the modules rather than here: extraSpecialArgs is built before
                   # any option is evaluated. modules/lib/nebelung.nix does it.
                   palettes = nebelung.palettes;
+                  # Per-port install metadata (nebelung's `ports` output): where
+                  # each rendered theme has to land and what makes it active.
+                  # `or { }` because an older nebelung lock predates the output —
+                  # the same graceful-degradation rule modules/lib/nebelung.nix
+                  # follows for palettes, so consuming this doesn't force a lock
+                  # bump on anyone still pinned behind it.
+                  ports = nebelung.ports or { };
                 };
               };
               home-manager.sharedModules = [

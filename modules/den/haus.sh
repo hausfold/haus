@@ -403,6 +403,26 @@ cmd_doctor() {
     info "casks live outside Nix generations — 'haus rollback' won't rewind them (that's by design)"
   fi
 
+  # Nebelung ports for roster apps. modules/theme/ports.nix drops each themeable
+  # roster app's theme file where that app looks for it and writes what it could
+  # NOT finish here — because a file on disk only makes a theme active for apps
+  # that read a fixed path. The ones needing a click are exactly what a health
+  # check is for: they look like "the theme didn't work" and are otherwise
+  # invisible. Absent file = the room is off (or predates this), so stay quiet.
+  local portsreport="$HOME/.config/nebelhaus/nebelung-ports.tsv"
+  if [ -s "$portsreport" ]; then
+    echo
+    say "Nebelung theme"
+    local status title detail
+    while IFS=$'\t' read -r status title detail; do
+      [ -n "$status" ] || continue
+      case "$status" in
+        done)          ok   "$title — themed ($detail)" ;;
+        step|manual)   info "$title — $detail" ;;
+      esac
+    done < "$portsreport"
+  fi
+
   # Agents — whether an AI agent can usefully and safely drive this machine.
   # Three separate questions, all of which have bitten someone: does it have the
   # knowledge (the skill), does the config repo orient it (a CLAUDE.md), and can
