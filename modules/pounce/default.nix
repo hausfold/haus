@@ -222,6 +222,22 @@ lib.mkIf config.nebelhaus.pounce.enable {
       EnvironmentVariables = {
         LANG = "en_US.UTF-8";
         HOME = "/Users/${username}";
+        # A launchd GUI agent's PATH is bare (/usr/bin:/bin:/usr/sbin:/sbin), and
+        # the daemon hands its own environment to every palette command it spawns
+        # — so a command calling `sketchybar`, `aerospace`, `jq` or `nix` by name
+        # dies with 127 while working fine in any shell. Give the agent the real
+        # search path. (The daemon script above resolves everything by absolute
+        # path, so this can't change how the daemon itself starts.)
+        PATH = lib.concatStringsSep ":" [
+          "/run/current-system/sw/bin"
+          "/etc/profiles/per-user/${username}/bin"
+          "/opt/homebrew/bin"
+          "/opt/homebrew/sbin"
+          "/usr/bin"
+          "/bin"
+          "/usr/sbin"
+          "/sbin"
+        ];
         # The daemon owns ⌘Space in-process and builds the launcher itself, so it
         # discovers commands from its OWN environment — the same dirs pounce-palette
         # uses. Built-ins + this rice's commands; ~/.config/pounce/commands is
