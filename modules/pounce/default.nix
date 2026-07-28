@@ -118,16 +118,17 @@ EOF
       }
       # The workspace THROWS. Both halves used to be main-mode <mod>⇧ chords;
       # they're leader actions now, so "go there" and "take this there" differ
-      # by ⇧ on the same key. The letter row is a pattern, not a binding — the
-      # per-app chords are generated from the roster into [mode.launch.binding]
-      # (the rows above already name every letter).
+      # by ⇧ on the same key — and both leave you ON that workspace, since the
+      # throw follows the window. The letter row is a pattern, not a binding —
+      # the per-app chords are generated from the roster into
+      # [mode.launch.binding] (the rows above already name every letter).
       {
         key = "⇧ 1-4";
-        action = "Throw window to workspace 1-4";
+        action = "Throw window to workspace 1-4 and follow it";
       }
       {
         key = "⇧ [Letter]";
-        action = "Throw window to that app's workspace";
+        action = "Throw window to that app's workspace and follow it";
       }
       {
         key = "←↓↑→";
@@ -397,9 +398,12 @@ lib.mkIf config.nebelhaus.pounce.enable {
           [
             { key = "${leaderGlyph} v ↵"; action = "Pastes straight into the app you left"; }
           ]
+          # The throw follows the window now, so the old two-step (main-mode
+          # ⇧chord to send, leader to catch up) is gone — one key does it, and
+          # the sequel is bouncing BACK to what you were doing.
           ++ lib.optional (k.nav != null) {
-            key = "${k.nav.glyph} ⇧ x → ${leaderGlyph} x";
-            action = "Throw window to app's workspace, follow it";
+            key = "${leaderGlyph} ⇧ x → ${k.nav.glyph} ⇥";
+            action = "Throw window to app's workspace, land with it, bounce back";
           }
           ++ [
             { key = "${leaderGlyph} → → →"; action = "Navigate: arrows move focus, ⇧+arrow moves the window (⎋ ends)"; }
