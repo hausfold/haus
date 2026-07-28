@@ -2,6 +2,20 @@
 # below are filled from nebelhaus._apps (the resolved app roster) and the resolved
 # home path at build time; don't deploy this file directly. Everything OUTSIDE
 # the tokens is the static, hand-tuned AeroSpace config.
+
+# Opt into AeroSpace's config schema v2. Its one behaviour change: the workspace
+# roster is no longer INFERRED from the right-hand sides of the keybindings
+# (upstream calls that inference error-prone and froze it at v1) — it's declared
+# below instead. Omitting this line means v1.
+config-version = 2
+
+# Every workspace the rice can reach, declared rather than inferred: the fixed
+# digits 1-4 plus each roster app's workspace (Ghostty's T included), generated
+# from nebelhaus._apps. Same members v1 inferred from the chords, so the set no
+# longer changes as a side effect of which bindings happen to exist — a
+# workspace stays on the roster even when a keymap ("none") binds nothing to it.
+persistent-workspaces = [@PERSISTENT_WS@]
+
 after-login-command = []
 
 after-startup-command = []
