@@ -73,6 +73,23 @@ reg_del() { # reg_del <wt_path> — drop the line for a worktree we've reaped
   mv "$tmp" "$WT_REGISTRY"
 }
 
+reg_prune() { # drop every row that can no longer resume anything, and its empty bucket dir
+  # reg_del only fires when WE reap a branch. A branch that vanishes any other way
+  # — merged and deleted on GitHub, `git branch -D` by hand, a main checkout moved
+  # or removed — leaves its row behind forever, and the rows outlive the repos:
+  # 54 of 56 rows here were dead. Harmless, but they're the fuel every path-resolution
+  # bug feeds on, so the sweep that already self-heals branches heals the registry too.
+  [ -f "$WT_REGISTRY" ] || return 0
+  local tmp="$WT_REGISTRY.$$" name main branch wt parent
+  while IFS=$'\t' read -r name main branch wt parent; do
+    [ -n "$branch" ] || continue
+    git -C "$main" show-ref -q --verify "refs/heads/$branch" 2>/dev/null || continue
+    printf '%s\t%s\t%s\t%s\t%s\n' "$name" "$main" "$branch" "$wt" "$parent"
+  done <"$WT_REGISTRY" >"$tmp"
+  mv "$tmp" "$WT_REGISTRY"
+  rmdir "$WT_BASE"/*/ 2>/dev/null || true # per-repo buckets left empty by the last reap
+}
+
 git_main() { # git_main <dir> — the MAIN checkout backing any worktree of a repo
   # Fail (empty, non-zero) when <dir> is gone or isn't a repo. Without this the
   # rev-parse fails, `dirname ""` yields ".", and every caller then resolves that
@@ -198,6 +215,7 @@ reap_sweep() {
       REAPED+="${branch#worktree-} ($(basename "$main"))"$'\n'
     fi
   done <<<"$(resume_rows)"
+  reg_prune
 }
 
 hook_field() { # hook_field <json> <key>… — first key present in the payload
