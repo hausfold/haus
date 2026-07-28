@@ -18,6 +18,14 @@ font-size = @FONT_SIZE@
 command = @HOME@/.config/zellij/launch.sh
 
 macos-titlebar-style = hidden
+# Kill the window drop-shadow. Under prowl (AeroSpace) windows tile edge-to-edge
+# and the terminal sits directly above sill's bar when it's docked to the bottom
+# — the macOS drop-shadow then bleeds down into the gap and darkens the bar's top
+# edge, making it read as recessed. AeroSpace can't disable shadows globally
+# (that needs the SIP-off yabai scripting addition), but ghostty can drop its
+# own, which is the window that actually neighbours the bar. Gaps + the nebelung
+# theme already separate tiles, so nothing's lost visually.
+macos-window-shadow = false
 # Option is sent into the terminal as Alt (so ⌥-chords reach zellij / the
 # shell), which leaves Cmd as ghostty's link-open modifier. That split is load-
 # bearing for clickable links: Opt+Click is zellij's (the link-handler plugin —
