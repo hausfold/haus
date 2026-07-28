@@ -24,6 +24,9 @@
 
     ./den
     ./theme
+    # Split out of ./theme rather than folded into it: it's gated on its own
+    # option and reads the app roster, not the wallpaper choice.
+    ./theme/ports.nix
     ./hearth
     ./prowl
     ./sill

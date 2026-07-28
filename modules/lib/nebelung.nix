@@ -39,11 +39,49 @@ let
   variant = lib.concatStringsSep "-" ([ "nebelung" ] ++ parts);
 
   capitalise = s: lib.toUpper (lib.substring 0 1 s) + lib.substring 1 (lib.stringLength s) s;
+
+  root = "${nebelung.themes}" + lib.optionalString (subdir != "") "/${subdir}";
+
+  # nebelung's ports.meta.json records each port's path for the DEFAULT (mocha)
+  # variant. Every other variant renders the same port under its own flavor name
+  # — catppuccin-latte.conf, "Catppuccin Latte.tmTheme", zen/themes/Latte/ — so
+  # a metadata path has to be re-spelled for the selected flavor before it means
+  # anything. This is the same substitution the hand-written wiring in
+  # modules/hearth does inline (`catppuccin-${nbFlavor}.conf`); doing it here
+  # means a port's path comes FROM nebelung instead of being retyped next to it.
+  resolveFlavor =
+    p:
+    builtins.replaceStrings [ "mocha" "Mocha" ] [ theme.flavor (capitalise theme.flavor) ] p;
 in
 {
   # "normal"/"mocha" is the EMPTY subdir, i.e. byte-for-byte the paths that were
   # here before any variant existed.
-  root = "${nebelung.themes}" + lib.optionalString (subdir != "") "/${subdir}";
+  inherit root;
+
+  # Per-port install metadata, narrowed to the ports whose TOOL runs on macOS
+  # (nebelung ships Linux-only ones too — foot, Xresources, zathura, tty) and
+  # with `path` resolved to both the selected flavor and an absolute location in
+  # the themes tree. `{ }` on an older nebelung lock that predates the output;
+  # every consumer below treats "no metadata" as "nothing to offer", never as an
+  # error, so being pinned behind it costs the report, not the build.
+  # The flavor lives in the human-facing strings too, not just the path: a port's
+  # `howto`, its `setting.value` and its `requires` commands all name the theme
+  # ("set theme = catppuccin-mocha", "fish_config theme choose catppuccin-mocha").
+  # Resolving the path but not those is the worst outcome — a correct file next
+  # to instructions that name a theme this machine doesn't have.
+  ports = lib.mapAttrs (
+    _: p:
+    p
+    // {
+      path = resolveFlavor p.path;
+      file = "${root}/${resolveFlavor p.path}";
+      howto = resolveFlavor p.howto;
+    }
+    // lib.optionalAttrs (p ? setting && p.setting ? value) {
+      setting = p.setting // { value = resolveFlavor p.setting.value; };
+    }
+    // lib.optionalAttrs (p ? requires) { requires = map resolveFlavor p.requires; }
+  ) (lib.filterAttrs (_: p: builtins.elem "darwin" p.platform) (nebelung.ports or { }));
 
   palette =
     nebelung.palettes.${variant} or (throw ''

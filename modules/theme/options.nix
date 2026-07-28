@@ -146,5 +146,52 @@
         bootstrap interview offers the choice on a fresh install).
       '';
     };
+
+    theme.ports.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Theme the apps in your roster (`nebelhaus.apps`) that Nebelung ships a
+        port for, without wiring each one by hand.
+
+        The rice already themes every tool it installs itself — the shell, the
+        terminal, the git stack, Zen, Obsidian. This covers the other direction:
+        an app YOU added to the roster that Nebelung happens to have a theme for.
+        Add `zed`, `warp` or `xcode` to `nebelhaus.apps` and its Nebelung theme
+        lands where that app looks for themes, in the flavor and contrast you
+        selected, following them on every rebuild. Matching is by roster id, so
+        the entry has to be named after the port (`zed`, not `zed-editor`).
+
+        Honest scope, and it is the whole point of the option: this drops the
+        theme FILE. Whether that alone makes the theme *active* is the app's
+        choice, not ours, and Nebelung records which is which per port. Ghostty
+        reads a config key we own, so it just works. Xcode, Warp, OBS and friends
+        offer no file interface for picking a theme — the file is put where they
+        look, and the one click that selects it stays yours. `haus doctor` lists
+        exactly which apps are waiting on that click, so the difference is
+        visible rather than something you discover months later.
+
+        Ports whose install is a merge into an existing config file, or that need
+        a compile step first, are reported but never written: silently
+        half-applying someone's config is worse than saying so.
+      '';
+    };
+
+    theme.ports.handled = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      internal = true;
+      description = ''
+        Nebelung port ids the rice already wires by hand, contributed by whichever
+        room does the wiring (hearth themes the shell toolbelt; theme and sill read
+        the palette directly). Rooms append to this the way they contribute Homebrew
+        entries, so the roster pass leaves them alone rather than dropping a second,
+        blunter copy of a theme a room has already integrated properly.
+
+        An assertion checks every id here is a real port, so a rename in nebelung
+        surfaces at eval rather than quietly re-enabling the roster pass for a tool
+        that is already handled.
+      '';
+    };
   };
 }
