@@ -1274,10 +1274,16 @@ fn run_bind_key(
     file_name: &str,
     required_arg: Option<&str>,
 ) -> Vec<KeyWithModifier> {
-    binds
+    // Collect EVERY bind running this command, then prefer the un-shifted one —
+    // the same rule the NewTab hint needs, for the same reason: `claude
+    // --worktree` is bound twice (Super c splits a new pane, Super Shift c
+    // replaces the focused one), and taking the first match would let bind order
+    // decide whether the bar reads `c` or `Shift c`. The hint block is the
+    // un-shifted launcher row, so Shift only wins if nothing else matched.
+    let matches: Vec<&KeyWithModifier> = binds
         .iter()
-        .find_map(|(key, actions)| {
-            actions.iter().find_map(|a| {
+        .filter(|(_, actions)| {
+            actions.iter().any(|a| {
                 let cmd = match a {
                     Action::Run { command, .. } => Some(command),
                     Action::NewTiledPane { command, .. }
@@ -1285,13 +1291,20 @@ fn run_bind_key(
                     | Action::NewInPlacePane { command, .. } => command.as_ref(),
                     _ => None,
                 };
-                cmd.filter(|c| {
+                cmd.is_some_and(|c| {
                     c.command.file_name().and_then(|n| n.to_str()) == Some(file_name)
                         && required_arg.map_or(true, |ra| c.args.iter().any(|arg| arg == ra))
                 })
-                .map(|_| vec![key.clone()])
             })
         })
+        .map(|(key, _)| key)
+        .collect();
+
+    matches
+        .iter()
+        .find(|k| !k.key_modifiers.contains(&KeyModifier::Shift))
+        .or_else(|| matches.first())
+        .map(|k| vec![(*k).clone()])
         .unwrap_or_default()
 }
 

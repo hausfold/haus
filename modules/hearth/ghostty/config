@@ -93,6 +93,11 @@ keybind = cmd+f=unbind
 # ghostty's copy-on-cmd+c, but our copy path is zellij selection → copy_command
 # (copy-clean.pl), not ghostty's raw-grid copy, so normal copying is unaffected.
 keybind = cmd+c=unbind
+# cmd+shift+c → zellij "Super Shift c" (the same claude --worktree agent, but
+# replacing the focused pane instead of splitting beside it). Ghostty binds
+# nothing here today, so this unbind is purely defensive: it guarantees the
+# chord keeps reaching zellij if a future ghostty release claims it.
+keybind = cmd+shift+c=unbind
 # ghostty binds ctrl+tab to its own next_tab/previous_tab by default, and
 # even unbound, macOS AppKit swallows ctrl+tab for focus navigation before
 # the terminal core sees it. So bind it to SEND the kitty-keyboard-protocol
