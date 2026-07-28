@@ -98,14 +98,17 @@ let
   # <mod>⇧<letter> namespace back to the OS: those chords were claimed globally
   # by AeroSpace, which is how windowNav = "ctrl-alt" used to eat zellij's
   # ⌃⌥⇧c. Follows keys.leader now, not keys.windowNav — "none" means no throws
-  # (the palette still moves windows). Same shape as launchExtras: drop the
+  # (the palette still moves windows). `--focus-follows-window` so the throw
+  # TAKES you there: you moved the window because you want to be with it, and
+  # the old behaviour left you on the workspace it just vacated, needing a
+  # second leader tap to catch up. Same shape as launchExtras: drop the
   # indicator, act, return to main; homeDir baked literally, so no subTokens pass.
   launchMoves = lib.optionalString (k.leader != null) (
     lib.concatMapStrings (
       a:
       lib.optionalString (a.workspace != null) (
         "shift-${a.key} = ['exec-and-forget ${homeDir}/.config/sketchybar/plugins/launch_mode.sh off', "
-        + "'move-node-to-workspace ${a.workspace}', 'mode main']\n"
+        + "'move-node-to-workspace --focus-follows-window ${a.workspace}', 'mode main']\n"
       )
     ) apps
   );

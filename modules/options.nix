@@ -184,7 +184,8 @@ in
         description = ''
           What enters the launcher/leader mode — tap it, then a letter opens an
           app, a digit focuses a workspace, ⇧+either throws the focused window
-          to that workspace, an arrow navigates, `-`/`=` resizes.
+          to that workspace and follows it there, an arrow navigates, `-`/`=`
+          resizes.
 
             - "caps" (default): Caps Lock. AeroSpace can't bind Caps Lock itself,
               so the rice remaps it to F18 with hidutil and binds that.
