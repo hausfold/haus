@@ -15,9 +15,8 @@
 # already Developer-ID signed, and a grant keyed to that stable identity + path
 # survives rebuilds. `ditto` preserves the signature + notarization staple.
 #
-# Off by default until perch's first release exists (nix/release.nix is a
-# bootstrap placeholder until then); flip nebelhaus.perch.enable = true once
-# `bench release perch` has cut a real v<date> tag.
+# On by default, like trill: nix/release.nix in the perch repo pins a real
+# notarized release, so `pkgs.perch` is a shipping app rather than a placeholder.
 {
   config,
   lib,
@@ -26,6 +25,25 @@
 }:
 
 lib.mkIf config.nebelhaus.perch.enable {
+  # ---- give the shelf the top edge back --------------------------------------
+  # The Dock arms a top-screen-edge trigger for the whole duration of ANY drag
+  # session — files included, not just windows despite the key's name — and
+  # entering that band throws you into Mission Control. That band is precisely
+  # where perch's notch catch zone lives, so overshooting the notch by a few
+  # points hands the drag to the Dock and the shelf never sees a draggingEntered.
+  # Perch cannot defend itself here: the Dock's edge monitor sits above every
+  # window level, and intercepting it would need a CGEventTap (Accessibility
+  # permission), which perch deliberately refuses to ask for.
+  #
+  # So the shelf only works if this is off. Not an opinion and therefore not
+  # mkDefault — same footing as _HIHideMenuBar tracking sill.enable in den: it's
+  # a function of running perch, and it comes back the moment perch is disabled.
+  # This is the "Drag windows to top of screen to enter Mission Control" toggle
+  # in System Settings ▸ Desktop & Dock; CustomUserPreferences because
+  # nix-darwin's typed dock block has no option for it. The Dock restart at the
+  # end of activation (den sets system.defaults.dock.*) picks it up.
+  system.defaults.CustomUserPreferences."com.apple.dock".enterMissionControlByTopWindowDrag = false;
+
   system.activationScripts.postActivation.text = ''
     # --- perch: install the notarized app at a fixed /Applications path -------
     perchStore="${pkgs.perch}/Applications/Perch.app"
