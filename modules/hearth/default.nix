@@ -1229,6 +1229,19 @@ in
       #     spinner; the status bar already carries the context that matters.
       #     (The built-in mode/`esc to interrupt` footer badge has no such knob
       #     in Claude Code — statusLine renders above it and can't replace it.)
+      #   footerLinksRegexes  — CC scans conversation output for these patterns
+      #     and renders a native, clickable badge in the footer for each hit. We
+      #     match GitHub `owner/repo#N` shorthand → the PR's github.com page, so
+      #     a family PR reference anywhere in the transcript is one click away.
+      #     This is the maintained clickable-PR path: CC 2.1.3+ STRIPS the OSC 8
+      #     hyperlinks the statusline (den/statusline.sh) emits for its "#N" PR
+      #     pills — colored but no longer ⌘-clickable (upstream regression,
+      #     anthropics/claude-code#21586). footerLinksRegexes needs no OSC 8, so
+      #     it survives that. Note it's a DIFFERENT surface (the footer, keyed
+      #     off conversation text) — it doesn't restore clickability to the
+      #     statusline pills themselves; those relight if/when CC stops filtering.
+      #     Pattern uses char classes ([0-9], not \d) on purpose: a backslash
+      #     would have to survive the nix'' → sh"" → jq"" escaping layers below.
       # Claude owns settings.json (it rewrites the file as plugins/statusline/
       # permission grants change), so we merge our keys in at activation and
       # never own it — every other key it holds must survive. jq is pinned from
@@ -1246,7 +1259,8 @@ in
             | .tui = \"fullscreen\"
             | .disableAgentView = true
             | .spinnerTipsEnabled = false
-            | .statusLine = {type: \"command\", command: \"/run/current-system/sw/bin/claude-statusline\", refreshInterval: 12}" \
+            | .statusLine = {type: \"command\", command: \"/run/current-system/sw/bin/claude-statusline\", refreshInterval: 12}
+            | .footerLinksRegexes = [{type: \"regex\", pattern: \"(?<owner>[A-Za-z0-9_.-]+)/(?<repo>[A-Za-z0-9_.-]+)#(?<pr>[0-9]+)\", url: \"https://github.com/{owner}/{repo}/pull/{pr}\", label: \"{repo}#{pr}\"}]" \
             "$base" > "$tmp"
           mv "$tmp" "$settings"
           rm -f "$tmp.base"
