@@ -79,6 +79,18 @@ let
   isRealAssign = a: a.appId != null && a.workspace != null && a.appId != "com.mitchellh.ghostty";
   launchInvocation = a: ''${launchSh} "${a.name}"'' + lib.optionalString (a.workspace != null) " ${a.workspace}";
 
+  # The workspace roster for aerospace.toml's persistent-workspaces (config
+  # schema v2 stopped inferring it from the binding right-hand sides). The fixed
+  # digits are the ones hand-written into the toml's launch mode and
+  # wm-bindings.nix's throws; the rest is whatever workspace each roster app
+  # claims — Ghostty's T included, even though its window rules are bespoke.
+  # Unconditional on the keymap: a keys.* of "none" removes the chords, not the
+  # workspaces the window rules still sort apps onto.
+  workspaceRoster = lib.sort (a: b: a < b) (
+    lib.unique ([ "1" "2" "3" "4" ] ++ lib.filter (w: w != null) (map (a: a.workspace) apps))
+  );
+  persistentWorkspaces = lib.concatMapStringsSep ", " (w: ''"${w}"'') workspaceRoster;
+
   mainMoves = lib.optionalString (k.nav != null) (
     lib.concatMapStrings (
       a:
@@ -186,8 +198,8 @@ let
     .${barPos};
 
   aerospaceToml = builtins.replaceStrings
-    [ "@HOME@" "@BIN@" "@MAIN_STATIC@" "@SERVICE_STATIC@" "@MAIN_MOVES@" "@LEADER_ENTRY@" "@SERVICE_ENTRY@" "@LAUNCH_LETTERS@" "@WINDOW_RULES@" "@GAP_BUILTIN@" "@GAP_EXTERNAL@" "@GAP_OUTER_TOP@" "@GAP_OUTER_BOTTOM@" ]
-    [ homeDir binDir mainStatic serviceStatic mainMoves (subTokens leaderEntry) serviceEntry (launchLetters + launchExtras) windowRules (gap 10) (gap 20) outerTop outerBottom ]
+    [ "@HOME@" "@BIN@" "@MAIN_STATIC@" "@SERVICE_STATIC@" "@MAIN_MOVES@" "@LEADER_ENTRY@" "@SERVICE_ENTRY@" "@LAUNCH_LETTERS@" "@WINDOW_RULES@" "@PERSISTENT_WS@" "@GAP_BUILTIN@" "@GAP_EXTERNAL@" "@GAP_OUTER_TOP@" "@GAP_OUTER_BOTTOM@" ]
+    [ homeDir binDir mainStatic serviceStatic mainMoves (subTokens leaderEntry) serviceEntry (launchLetters + launchExtras) windowRules persistentWorkspaces (gap 10) (gap 20) outerTop outerBottom ]
     (builtins.readFile ./aerospace.toml);
 
   resortScript = builtins.replaceStrings [ "@RESORT_CASES@" ] [ resortCases ] (
