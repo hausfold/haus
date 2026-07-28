@@ -164,9 +164,13 @@
       # Linux is in here for the pure-evaluation outputs only (options-json, the
       # theme-variants check) — that's what lets nebelhaus.com's Linux CI render the
       # options reference. Anything needing a darwin system is guarded per-output.
+      #
+      # Darwin is aarch64 only: nixpkgs 26.11 dropped x86_64-darwin (Apple's own
+      # Intel sunset), so instantiating a package set or a darwin system for it now
+      # throws at eval. The rice targets Apple Silicon anyway; the Intel eval that
+      # used to live here (example-intel) went with it.
       allSystems = [
         "aarch64-darwin"
-        "x86_64-darwin"
         "aarch64-linux"
         "x86_64-linux"
       ];
@@ -495,7 +499,7 @@
       # `nix run github:nebelhaus/nebelhaus#bootstrap` — raise the house on a
       # fresh Mac. Scaffolds a thin personal config at ~/.config/nix; it never
       # touches this repo. Same script as the curl|bash path (bootstrap.sh).
-      apps = nixpkgs.lib.genAttrs [ "aarch64-darwin" "x86_64-darwin" ] (system: {
+      apps = nixpkgs.lib.genAttrs [ "aarch64-darwin" ] (system: {
         bootstrap = {
           type = "app";
           program = "${
@@ -507,7 +511,7 @@
       });
 
       # `nix fmt` — nixfmt, the house style.
-      formatter = nixpkgs.lib.genAttrs [ "aarch64-darwin" "x86_64-darwin" ] (
+      formatter = nixpkgs.lib.genAttrs [ "aarch64-darwin" ] (
         system: nixpkgs.legacyPackages.${system}.nixfmt
       );
 
@@ -516,15 +520,6 @@
       darwinConfigurations.example = mkNebelhaus {
         username = "you";
         hostname = "example";
-      };
-
-      # The same example on Intel — exists so CI proves the whole house still
-      # *evaluates* for x86_64-darwin (building/running it stays untested until
-      # someone with an Intel Mac reports in).
-      darwinConfigurations.example-intel = mkNebelhaus {
-        username = "you";
-        hostname = "example";
-        system = "x86_64-darwin";
       };
     };
 }

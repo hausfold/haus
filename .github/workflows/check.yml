@@ -18,10 +18,9 @@ jobs:
       # Pure evaluation of the full darwin system — catches syntax errors, bad
       # option names, and broken module wiring before any consumer does. (Eval
       # is platform-independent; no macOS runner needed until we *build*.)
-      # Both platforms: the Intel eval guards against anything re-hardcoding
-      # aarch64 the way den once did.
+      # aarch64 only: nixpkgs 26.11 dropped x86_64-darwin, so there's no Intel
+      # example left to eval (see flake.nix `allSystems`).
       - run: nix eval .#darwinConfigurations.example.system.drvPath
-      - run: nix eval .#darwinConfigurations.example-intel.system.drvPath
       # The pure-lib checks (theme-variants, keymap) are declared for Linux too
       # precisely so they can run HERE — they pin the flavor/contrast → themes-subdir
       # table and the keys.* → chord/glyph table as golden files, both of which mirror
