@@ -116,21 +116,58 @@ source_name="$(field "$source_sel" 2)"
 # fields: type, app name, package id, bundle id. Selection prepends the action,
 # so those become fields 7–10 below.
 list=""
+query=""
+
+# A search that misses used to be a dead end: the results list only offers its
+# own rows, so the only way to try another word was Esc and start over. Every
+# query-driven list therefore carries this escape hatch as its last row (and, on
+# a miss, as its only one). `__again__` in the type slot means "ask me again".
+again_row() {
+  printf '%s\t%s\t%s\t\t%s\t__again__\t\t\t' \
+    "Search again" "$1" "magnifyingglass" "Search"
+}
 
 # ── Homebrew catalog ──────────────────────────────────────────────────────
 # One TSV line per package: type \t token \t appname(open -a target) \t desc.
 # Casks pull the app's real .app name from the cask's `app` artifact so the
 # roster's `name` (and appId lookup) match what macOS actually installs.
+#
+# Homebrew 6 keeps ONE offline catalog for casks *and* formulae:
+# api/internal/packages.<tag>.jws.json.payload — two concatenated JSON docs
+# (a header, then the data), casks and formulae each an object keyed by token.
+# The older split cask.jws.json / formula.jws.json is the fallback. Reading only
+# those is what used to hide every GUI app: brew fetches formula.jws.json on any
+# `brew update`, but cask.jws.json only when a cask command asks for it — so on
+# a formula-only machine this index came out complete-looking and cask-free, and
+# searching "discord" found nothing but CLI clients.
 build_brew_index() {
-  local tmp
+  local tmp payload
   tmp="$(mktemp)" || return 1
-  {
-    jq -r '.payload | fromjson | .[] | try ([ "cask", .token,
-        ((([.artifacts[]?.app? // empty] | flatten | .[0]) // .name[0] // .token) | sub("\\.app$"; "")),
-        (.desc // "") ] | @tsv) catch empty' "$BREW_API/cask.jws.json" 2>/dev/null
-    jq -r '.payload | fromjson | .[] | try ([ "formula", .name, "", (.desc // "") ] | @tsv) catch empty' \
-      "$BREW_API/formula.jws.json" 2>/dev/null
-  } >"$tmp"
+  payload="$(ls -t "$BREW_API"/internal/packages.*.jws.json.payload 2>/dev/null | head -1)"
+  if [ -n "$payload" ]; then
+    jq -rn '
+      inputs
+      | select(has("casks") or has("formulae"))
+      | ( (.casks // {}) | to_entries[]
+          | [ "cask", .key,
+              ((([ .value.raw_artifacts[]?
+                   | select(type == "array" and .[0] == ":app")
+                   | .[1] | if type == "array" then .[0] else . end ] | .[0])
+                // .value.names[0] // .key) | sub("\\.app$"; "")),
+              (.value.desc // "") ] | @tsv ),
+        ( (.formulae // {}) | to_entries[]
+          | [ "formula", .key, "", (.value.desc // "") ] | @tsv )
+    ' "$payload" >"$tmp" 2>/dev/null
+  fi
+  if [ ! -s "$tmp" ]; then
+    {
+      jq -r '.payload | fromjson | .[] | try ([ "cask", .token,
+          ((([.artifacts[]?.app? // empty] | flatten | .[0]) // .name[0] // .token) | sub("\\.app$"; "")),
+          (.desc // "") ] | @tsv) catch empty' "$BREW_API/cask.jws.json" 2>/dev/null
+      jq -r '.payload | fromjson | .[] | try ([ "formula", .name, "", (.desc // "") ] | @tsv) catch empty' \
+        "$BREW_API/formula.jws.json" 2>/dev/null
+    } >"$tmp"
+  fi
   if [ -s "$tmp" ]; then
     mv "$tmp" "$BREW_INDEX"
   else
@@ -139,150 +176,188 @@ build_brew_index() {
   fi
 }
 
-if [ "$source_name" = "Homebrew" ]; then
-  mkdir -p "$(dirname "$BREW_INDEX")"
-  if [ ! -s "$BREW_INDEX" ]; then
-    build_brew_index # first run: synchronous (one-time)
-  elif [ -n "$(find "$BREW_INDEX" -mtime +7 2>/dev/null)" ]; then
-    (build_brew_index >/dev/null 2>&1 &) # stale: refresh in background, use current now
+while :; do
+  list=""
+
+  if [ "$source_name" = "Homebrew" ]; then
+    mkdir -p "$(dirname "$BREW_INDEX")"
+    # A cask-free index is a stale one written before the fix above — rebuild it
+    # rather than showing another GUI-app-less catalog.
+    if [ ! -s "$BREW_INDEX" ] || ! grep -q '^cask	' "$BREW_INDEX"; then
+      build_brew_index # first run (or cask-free): synchronous, one-time
+    elif [ -n "$(find "$BREW_INDEX" -mtime +7 2>/dev/null)" ]; then
+      (build_brew_index >/dev/null 2>&1 &) # stale: refresh in background, use current now
+    fi
+
+    if [ ! -s "$BREW_INDEX" ]; then
+      notice "Run: brew update" "Homebrew catalog cache is empty — populate it, then retry"
+      exit 0
+    fi
+
+    list="$(awk -F'\t' '{
+      icon  = ($1 == "cask") ? "app.badge" : "terminal"
+      group = ($1 == "cask") ? "Apps · Homebrew cask" : "CLI · Homebrew formula"
+      printf "%s\t%s\t%s\t\t%s\t%s\t%s\t%s\t\n", $2, $4, icon, group, $1, $3, $2
+    }' "$BREW_INDEX")"
   fi
 
-  if [ ! -s "$BREW_INDEX" ]; then
-    notice "Run: brew update" "Homebrew catalog cache is empty — populate it, then retry"
-    exit 0
-  fi
+  # ── Mac App Store catalog ───────────────────────────────────────────────
+  if [ "$source_name" = "Mac App Store" ]; then
+    if ! command -v mas >/dev/null 2>&1; then
+      notice "mas is unavailable" "Rebuild nebelhaus to install its Mac App Store helper"
+      exit 0
+    fi
+    # --chain: Enter here starts a network search, so pounce holds the window
+    # with its loading skeleton instead of fading out and back in.
+    if [ -z "$query" ]; then
+      query_sel="$(printf '' | pounce --chain -p "Mac App Store — type a search, then Enter" -i "apple.logo")"
+      [ -z "$query_sel" ] && exit 0
+      query="$(field "$query_sel" 2)"
+      [ -z "$query" ] && continue
+    fi
 
-  list="$(awk -F'\t' '{
-    icon  = ($1 == "cask") ? "app.badge" : "terminal"
-    group = ($1 == "cask") ? "Apps · Homebrew cask" : "CLI · Homebrew formula"
-    printf "%s\t%s\t%s\t\t%s\t%s\t%s\t%s\t\n", $2, $4, icon, group, $1, $3, $2
-  }' "$BREW_INDEX")"
-fi
-
-# ── Mac App Store catalog ─────────────────────────────────────────────────
-if [ "$source_name" = "Mac App Store" ]; then
-  if ! command -v mas >/dev/null 2>&1; then
-    notice "mas is unavailable" "Rebuild nebelhaus to install its Mac App Store helper"
-    exit 0
-  fi
-  query_sel="$(printf '' | pounce -p "Mac App Store — type a search, then Enter" -i "apple.logo")"
-  [ -z "$query_sel" ] && exit 0
-  query="$(field "$query_sel" 2)"
-  [ -z "$query" ] && exit 0
-
-  mas_results="$(mktemp)" || exit 1
-  if ! mas search --json "$query" >"$mas_results" 2>/dev/null; then
+    mas_results="$(mktemp)" || exit 1
+    if ! mas search --json "$query" >"$mas_results" 2>/dev/null; then
+      rm -f "$mas_results"
+      notice "App Store search failed" "Check your connection, then try again"
+      exit 0
+    fi
+    # mas emits one JSON object per line. Keep Mac-compatible apps and carry both
+    # the numeric store id and bundle id into the selection payload. The order is
+    # the App Store's own relevance ranking — pounce shows a piped list in the
+    # order it was given, so don't re-sort it here.
+    list="$(jq -rs '
+      .[]
+      | select(any(.supportedDevices[]?; startswith("Mac")))
+      | [
+          .name,
+          ([.formattedPrice, .developerName, .primaryCategoryName] | map(select(. != null and . != "")) | join(" · ")),
+          "apple.logo",
+          "",
+          "Apps · Mac App Store",
+          "mas",
+          .name,
+          (.adamID | tostring),
+          (.bundleID // "")
+        ]
+      | @tsv
+    ' "$mas_results")"
     rm -f "$mas_results"
-    notice "App Store search failed" "Check your connection, then try again"
-    exit 0
+    if [ -z "$list" ]; then
+      list="$(again_row "No Mac app matched “$query” — try different words")"
+    else
+      list="$list
+$(again_row "Not what you wanted? Search the App Store again")"
+    fi
   fi
-  # mas emits one JSON object per line. Keep Mac-compatible apps and carry both
-  # the numeric store id and bundle id into the selection payload.
-  list="$(jq -rs '
-    .[]
-    | select(any(.supportedDevices[]?; startswith("Mac")))
-    | [
-        .name,
-        ([.formattedPrice, .developerName, .primaryCategoryName] | map(select(. != null and . != "")) | join(" · ")),
-        "apple.logo",
-        "",
-        "Apps · Mac App Store",
-        "mas",
-        .name,
-        (.adamID | tostring),
-        (.bundleID // "")
-      ]
-    | @tsv
-  ' "$mas_results")"
-  rm -f "$mas_results"
-  if [ -z "$list" ]; then
-    notice "No Mac apps found" "Try a broader App Store search"
-    exit 0
-  fi
-fi
 
-# ── pinned Nixpkgs catalog ────────────────────────────────────────────────
-if [ "$source_name" = "Nix packages" ]; then
-  query_sel="$(printf '' | pounce -p "Nixpkgs — type a search, then Enter" -i "snowflake")"
-  [ -z "$query_sel" ] && exit 0
-  query="$(field "$query_sel" 2)"
-  [ -z "$query" ] && exit 0
+  # ── pinned Nixpkgs catalog ──────────────────────────────────────────────
+  if [ "$source_name" = "Nix packages" ]; then
+    if [ -z "$query" ]; then
+      query_sel="$(printf '' | pounce --chain -p "Nixpkgs — type a search, then Enter" -i "snowflake")"
+      [ -z "$query_sel" ] && exit 0
+      query="$(field "$query_sel" 2)"
+      [ -z "$query" ] && continue
+    fi
 
-  # Follow root → nebelhaus → nixpkgs in the consumer lock, then search that
-  # exact revision. A direct root nixpkgs input is accepted as a fallback.
-  nixpkgs_ref="$(jq -r '
-    def node:
-      if type == "array" then .[-1] else . end;
-    . as $lock
-    | ($lock.nodes[$lock.root].inputs.nebelhaus? // "" | node) as $haus
-    | (
-        if $haus == "" then
-          ($lock.nodes[$lock.root].inputs.nixpkgs? // "" | node)
+    # Follow root → nebelhaus → nixpkgs in the consumer lock, then search that
+    # exact revision. A direct root nixpkgs input is accepted as a fallback.
+    nixpkgs_ref="$(jq -r '
+      def node:
+        if type == "array" then .[-1] else . end;
+      . as $lock
+      | ($lock.nodes[$lock.root].inputs.nebelhaus? // "" | node) as $haus
+      | (
+          if $haus == "" then
+            ($lock.nodes[$lock.root].inputs.nixpkgs? // "" | node)
+          else
+            ($lock.nodes[$haus].inputs.nixpkgs? // "" | node)
+          end
+        ) as $nixpkgs
+      | $lock.nodes[$nixpkgs].locked
+      | if .type == "github" then
+          "github:\(.owner)/\(.repo)/\(.rev)"
+        elif .type == "tarball" then
+          .url
         else
-          ($lock.nodes[$haus].inputs.nixpkgs? // "" | node)
+          empty
         end
-      ) as $nixpkgs
-    | $lock.nodes[$nixpkgs].locked
-    | if .type == "github" then
-        "github:\(.owner)/\(.repo)/\(.rev)"
-      elif .type == "tarball" then
-        .url
-      else
-        empty
-      end
-  ' "$FLAKE_DIR/flake.lock" 2>/dev/null)"
-  if [ -z "$nixpkgs_ref" ]; then
-    notice "Pinned Nixpkgs not found" "The flake lock has no searchable nixpkgs input"
-    exit 0
+    ' "$FLAKE_DIR/flake.lock" 2>/dev/null)"
+    if [ -z "$nixpkgs_ref" ]; then
+      notice "Pinned Nixpkgs not found" "The flake lock has no searchable nixpkgs input"
+      exit 0
+    fi
+
+    # Treat the typed text literally even though `nix search` accepts regexes.
+    query_regex="$(printf '%s' "$query" | sed 's/[][(){}.^$*+?|\\]/\\\\&/g')"
+    nix_results="$(mktemp)" || exit 1
+    nix_errors="$(mktemp)" || { rm -f "$nix_results"; exit 1; }
+    if ! nix search "$nixpkgs_ref" "$query_regex" --json >"$nix_results" 2>"$nix_errors"; then
+      detail="$(grep -m1 '^error:' "$nix_errors")"
+      detail="${detail:-$(tail -n 1 "$nix_errors")}"
+      rm -f "$nix_results" "$nix_errors"
+      notice "Nixpkgs search failed" "${detail:-Check your connection, then try again}"
+      exit 0
+    fi
+    rm -f "$nix_errors"
+    # Strip Nix's system-qualified search prefix; the generated module resolves
+    # the remaining attribute path against the host's already-overlaid `pkgs`.
+    list="$(jq -r '
+      to_entries[]
+      | (.key | sub("^(legacyPackages|packages)\\.[^.]+\\."; "")) as $attr
+      | [
+          $attr,
+          ([.value.pname, .value.version, .value.description] | map(select(. != null and . != "")) | join(" · ")),
+          "snowflake",
+          "",
+          "Packages · pinned Nixpkgs",
+          "nixpkgs",
+          $attr,
+          $attr,
+          ""
+        ]
+      | @tsv
+    ' "$nix_results")"
+    rm -f "$nix_results"
+    if [ -z "$list" ]; then
+      list="$(again_row "No Nix package matched “$query” — try different words")"
+    else
+      list="$list
+$(again_row "Not what you wanted? Search Nixpkgs again")"
+    fi
   fi
 
-  # Treat the typed text literally even though `nix search` accepts regexes.
-  query_regex="$(printf '%s' "$query" | sed 's/[][(){}.^$*+?|\\]/\\\\&/g')"
-  nix_results="$(mktemp)" || exit 1
-  nix_errors="$(mktemp)" || { rm -f "$nix_results"; exit 1; }
-  if ! nix search "$nixpkgs_ref" "$query_regex" --json >"$nix_results" 2>"$nix_errors"; then
-    detail="$(grep -m1 '^error:' "$nix_errors")"
-    detail="${detail:-$(tail -n 1 "$nix_errors")}"
-    rm -f "$nix_results" "$nix_errors"
-    notice "Nixpkgs search failed" "${detail:-Check your connection, then try again}"
-    exit 0
-  fi
-  rm -f "$nix_errors"
-  # Strip Nix's system-qualified search prefix; the generated module resolves
-  # the remaining attribute path against the host's already-overlaid `pkgs`.
-  list="$(jq -r '
-    to_entries[]
-    | (.key | sub("^(legacyPackages|packages)\\.[^.]+\\."; "")) as $attr
-    | [
-        $attr,
-        ([.value.pname, .value.version, .value.description] | map(select(. != null and . != "")) | join(" · ")),
-        "snowflake",
-        "",
-        "Packages · pinned Nixpkgs",
-        "nixpkgs",
-        $attr,
-        $attr,
-        ""
-      ]
-    | @tsv
-  ' "$nix_results")"
-  rm -f "$nix_results"
-  if [ -z "$list" ]; then
-    notice "No Nix packages found" "Try a broader package search"
-    exit 0
-  fi
-fi
+  # ── choose a result ─────────────────────────────────────────────────────
+  # --chain again: typing words that match no row and pressing Enter is how you
+  # re-search from here, and that too runs a search before the next pounce.
+  selected="$(printf '%s\n' "$list" | pounce --chain -p "Install App — search $source_name" -i "square.and.arrow.down.on.square")"
+  [ -z "$selected" ] && exit 0
 
-# ── choose a result ───────────────────────────────────────────────────────
-selected="$(printf '%s\n' "$list" | pounce -p "Install App — search $source_name" -i "square.and.arrow.down.on.square")"
-[ -z "$selected" ] && exit 0
+  type="$(field "$selected" 7)"
+  appname="$(field "$selected" 8)"
+  token="$(field "$selected" 9)"
+  app_id="$(field "$selected" 10)"
 
-type="$(field "$selected" 7)"
-appname="$(field "$selected" 8)"
-token="$(field "$selected" 9)"
-app_id="$(field "$selected" 10)"
-[ -z "$token" ] && exit 0
-[ -z "$appname" ] && appname="$token"
+  # The "Search again" row, or free text that matched no row (pounce hands it
+  # back with an empty payload): both mean "search for this instead".
+  if [ "$type" = "__again__" ]; then
+    query=""
+    continue
+  fi
+  if [ -z "$type" ]; then
+    typed="$(field "$selected" 2)"
+    if [ "$source_name" = "Homebrew" ]; then
+      query=""     # the whole catalog is already here; just clear the filter
+    else
+      query="$typed"
+    fi
+    continue
+  fi
+
+  [ -z "$token" ] && exit 0
+  [ -z "$appname" ] && appname="$token"
+  break
+done
 
 # ── choose the lane ───────────────────────────────────────────────────────
 if [ "$type" = "cask" ] || [ "$type" = "mas" ]; then
