@@ -294,7 +294,28 @@ lib.mkIf config.nebelhaus.pounce.enable {
   # All home-manager wiring in ONE block — a dynamic attr key (${username}) can't
   # be merged across multiple statements. Passed as a module FUNCTION so it gets
   # home-manager's extended `lib` (for lib.hm.dag) and the overlaid `pkgs`.
-  home-manager.users.${username} = { lib, pkgs, ... }: {
+  home-manager.users.${username} = { lib, pkgs, nebelung, ... }:
+  let
+    # theme.{flavor,contrast} resolved to the selected nebelung variant, the
+    # same way hearth/sill/theme do it.
+    nb = import ../lib/nebelung.nix {
+      inherit lib nebelung;
+      theme = config.nebelhaus.theme;
+    };
+    # Every rendered nebelung variant, dropped where pounce's runtime palette
+    # loader looks (~/.config/pounce/themes/<name>.json, read per open — see
+    # pounce's docs/reference.md). All of them, not just the selected one, so a
+    # hand-edited `"theme"` in config.json can try any variant without a
+    # rebuild. `or { }` on an older nebelung lock that predates the output;
+    # pounce falls back to its compiled-in default for a name with no file.
+    themeFiles = lib.mapAttrs' (
+      variant: palette:
+      lib.nameValuePair "pounce/themes/${variant}.json" {
+        text = builtins.toJSON palette;
+      }
+    ) (nebelung.palettes or { });
+  in
+  {
     home.packages = [
       pkgs.pounce
       # The generic command library, plus this rice's own commands layered on
@@ -308,9 +329,20 @@ lib.mkIf config.nebelhaus.pounce.enable {
     # single source of truth for that list (its pluginRuntimeDeps).
     ++ pkgs.pounce-commands.allPluginDeps;
 
+    # The rendered variant palettes (see themeFiles above). xdg.configFile
+    # rather than home.file only because the sibling home.file entries below
+    # use static attr-paths a dynamic `home.file = …` set can't merge with.
+    xdg.configFile = themeFiles;
+
     # Palette settings — pounce re-reads this on each open. Edit + rebuild.
     home.file.".config/pounce/config.json".text = builtins.toJSON {
       windowMode = "compact"; # "default" | "compact"
+      # The selected nebelung variant, following theme.{flavor,contrast}. The
+      # default variant's name ("nebelung") matches pounce's compiled-in
+      # palette, and an older pounce without runtime themes falls back to that
+      # same compiled-in default — so this key is safe against both an old
+      # pounce lock and an old nebelung lock (no themeFiles → fallback).
+      theme = nb.variant;
       # The palette hotkey, registered in-process by the daemon for a near-instant
       # open (no shell/client spawn). Which chord — and whether there is one at all
       # — is nebelhaus.keys.palette.

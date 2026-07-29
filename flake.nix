@@ -26,8 +26,9 @@
     };
 
     # The command palette. Its overlay puts `pounce` + `pounce-commands` in pkgs.
-    # pounce bakes the nebelung palette into its binary at build time; point it at
-    # the rice's own nebelung so the app can't drift from the rest of the theme.
+    # pounce compiles its DEFAULT nebelung palette in at build time (variants
+    # load at runtime from ~/.config/pounce/themes/); point it at the rice's own
+    # nebelung so that default can't drift from the rest of the theme.
     pounce = {
       url = "github:nebelhaus/pounce";
       inputs.nixpkgs.follows = "nixpkgs";

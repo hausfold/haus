@@ -32,10 +32,13 @@
 
         What follows it: every tool the rice injects colours into or points at a
         rendered theme — Ghostty, bat, delta, lsd, yazi, fzf, glow, starship,
-        lazygit, helix, zellij, opencode, the bar, Zen and Obsidian. These are
-        genuinely re-rendered for the flavor, not recoloured in place: whiskers
-        takes different branches for a light flavor (terminal ANSI 0/7/8/15 swap,
-        Zen switches its prefers-color-scheme block, delta sets `light = true`).
+        lazygit, helix, zellij, opencode, the bar, pounce, Zen and Obsidian.
+        These are genuinely re-rendered for the flavor, not recoloured in place:
+        whiskers takes different branches for a light flavor (terminal ANSI
+        0/7/8/15 swap, Zen switches its prefers-color-scheme block, delta sets
+        `light = true`). Pounce follows at runtime: the rice installs every
+        rendered variant into ~/.config/pounce/themes/ and points config.json's
+        "theme" at the selected one — no pounce rebuild involved.
 
         What does NOT follow it:
 
@@ -45,8 +48,6 @@
             leaves system appearance alone in both directions and you set it in
             System Settings ▸ Appearance. A latte rice on a dark macOS looks
             half-done, and that half is currently yours.
-          - pounce, which bakes the palette into its binary at build time, so its
-            colours follow the pounce build rather than this option.
           - the desktop wallpaper (nebelhaus.theme.wallpaper). The three hand-made
             looks have the dark palette baked in; only "bold" is generated, and it
             follows theme.accent rather than the flavor.
@@ -77,10 +78,9 @@
 
         Honest scope. This recolours what the rice injects colours into:
         Ghostty, bat, delta, lsd, yazi, zellij, glow, starship, lazygit, the
-        bar, Zen and Obsidian. It does NOT reach:
+        bar, pounce (at runtime, via ~/.config/pounce/themes/ — same mechanism
+        as `flavor`), Zen and Obsidian. It does NOT reach:
 
-          - pounce, which bakes the palette into its binary at build time, so
-            its colours follow the pounce build rather than this option;
           - macOS itself. For system-wide contrast see
             nebelhaus.accessibility.increaseContrast — a separate, FDA-gated
             setting. The two are complementary, and a genuinely high-contrast
