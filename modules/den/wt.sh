@@ -21,6 +21,13 @@
 #                     for cross-repo work (a workshop pane editing a sub-repo).
 #                     Registers it so its PR shows in the statusline; prints the
 #                     new checkout path, so: cd "$(wt child ~/code/…/rice)"
+#   wt park [label]   set the working tree aside NOW, as a wip: commit on this
+#                     branch — the on-demand form of what the remove hook does.
+#                     Use this instead of `git stash`: the stash stack is SHARED
+#                     by every worktree of a repo, so parallel agents pop each
+#                     other's entries; a wip commit lives on YOUR branch alone.
+#   wt unpark         undo the last wip: commit, putting those changes back in
+#                     the working tree, uncommitted (the `git stash pop` half).
 #   wt create         [hook] make a worktree for the current repo (JSON on stdin)
 #   wt remove         [hook] retire one WITHOUT losing work (JSON on stdin)
 #
@@ -341,6 +348,69 @@ cmd_child() { # wt child <repo-path> [name] — worktree of ANOTHER repo, as a c
   echo "$dir"   # ONLY the path on stdout, so callers can: cd "$(wt child …)"
 }
 
+wip_commit() { # wip_commit <checkout> <subject> — park the whole dirty tree as one commit
+  # Shared by the remove hook (automatic, on pane close) and `wt park` (on demand),
+  # so both produce the SAME thing: one `wip:` commit on the current branch holding
+  # every tracked edit and untracked file. gpgsign off — the hook is non-interactive
+  # and a signing prompt there would hang pane teardown; an agent calling `wt park`
+  # is just as unable to answer one.
+  git -C "$1" add -A >/dev/null 2>&1 || true
+  git -C "$1" -c commit.gpgsign=false commit -q -m "$2" >/dev/null 2>&1
+}
+
+cmd_park() { # wt park [label] — stash-free "set this aside": a wip: commit on THIS branch
+  # Why this exists at all: `git stash` looks per-worktree but ISN'T. The stash
+  # stack lives in the common .git dir, so every agent worktree of a repo — and the
+  # main checkout — share ONE stack. Two parallel panes stashing means either can
+  # pop the other's entry, and the loser's edits land in a tree that never asked for
+  # them (or vanish into a conflicted mess). A wip commit has no such stack: it sits
+  # on the branch only this pane has checked out, it survives a pane close, `wt`
+  # lists it as that worktree's last commit, and `wt unpark` puts it back.
+  local top branch dirty label msg n
+  top="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null)" || die "not in a git repo — nothing to park"
+  branch="$(git -C "$top" branch --show-current 2>/dev/null || true)"
+  # Detached HEAD is the one place this would recreate stash's failure mode: the
+  # commit is reachable from nothing, so the next checkout orphans it.
+  [ -n "$branch" ] || die "HEAD is detached — a parked commit here would be unreachable. Check out a branch first."
+  dirty="$(git -C "$top" status --porcelain 2>/dev/null || true)"
+  [ -n "$dirty" ] || { say "nothing to park — $branch is already clean."; return 0; }
+  label="${1:-}"
+  if [ -n "$label" ]; then msg="wip: $label (parked $(date '+%Y-%m-%d %H:%M'))"
+  else msg="wip: parked $(date '+%Y-%m-%d %H:%M')"; fi
+  wip_commit "$top" "$msg" || die "commit failed — nothing was parked; \`git -C $top status\` will say why."
+  n="$(printf '%s\n' "$dirty" | grep -c . || true)"
+  say "parked $n change(s) on $branch → $(git -C "$top" rev-parse --short HEAD)"
+  case "$branch" in
+    worktree-*) ;;
+    *) say "note: '$branch' isn't an agent branch — don't push this wip commit." ;;
+  esac
+  say "bring them back with: wt unpark"
+}
+
+cmd_unpark() { # wt unpark — the `git stash pop` half: undo the last wip: commit
+  local top branch subj
+  top="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null)" || die "not in a git repo — nothing to unpark"
+  branch="$(git -C "$top" branch --show-current 2>/dev/null || true)"
+  [ -n "$branch" ] || die "HEAD is detached — check out a branch first."
+  subj="$(git -C "$top" log -1 --format='%s' 2>/dev/null || true)"
+  case "$subj" in
+    wip:*) ;;
+    *) die "HEAD isn't a parked commit (it's \"$subj\") — nothing to unpark." ;;
+  esac
+  git -C "$top" rev-parse -q --verify 'HEAD^' >/dev/null 2>&1 \
+    || die "that wip commit is the branch's first commit — there's nothing to rewind onto."
+  # Refuse to rewrite anything already published. A parked commit that got pushed is
+  # visible in an open PR (and to `bench status`), so rewinding it locally turns
+  # "give me my files back" into a force-push — never do that behind the user's back.
+  if [ -n "$(git -C "$top" branch -r --contains HEAD 2>/dev/null)" ]; then
+    die "that wip commit is already pushed — unparking would rewrite published history. If you mean it: git reset --mixed HEAD^"
+  fi
+  # --mixed, not --hard: the files stay on disk exactly as parked and go back to
+  # being uncommitted (staged adds become untracked again), which is what pop does.
+  git -C "$top" reset -q --mixed 'HEAD^' || die "reset failed — the parked commit is untouched."
+  say "unparked \"$subj\" on $branch — those changes are back in the working tree, uncommitted."
+}
+
 cmd_remove() { # [WorktreeRemove hook] JSON on stdin — retire without losing work
   local json dir main branch
   json="$(cat)"
@@ -349,8 +419,8 @@ cmd_remove() { # [WorktreeRemove hook] JSON on stdin — retire without losing w
   branch="$(git -C "$dir" branch --show-current 2>/dev/null || true)"
   # A --force remove would silently discard UNCOMMITTED edits. Committed work
   # always survives on the branch; park the dirty remainder there too, as a WIP
-  # commit, so closing a pane can never cost you work. gpgsign off: this hook is
-  # non-interactive, and a signing prompt here would hang the whole teardown.
+  # commit (the same one `wt park` makes by hand), so closing a pane can never
+  # cost you work.
   #
   # ONE exception, and it matters: a branch whose PR has ALREADY merged, whose only
   # remaining changes are UNTRACKED files, is holding build scratch (a .cargo-home/,
@@ -365,10 +435,7 @@ cmd_remove() { # [WorktreeRemove hook] JSON on stdin — retire without losing w
   if [ -n "$porcelain" ]; then
     if printf '%s\n' "$porcelain" | grep -qv '^??' \
        || [ -z "$branch" ] || ! branch_landed "$main" "$branch"; then
-      git -C "$dir" add -A >/dev/null 2>&1 || true
-      git -C "$dir" -c commit.gpgsign=false \
-        commit -q -m "wip: auto-saved on pane close ($(date '+%Y-%m-%d %H:%M'))" \
-        >/dev/null 2>&1 || true
+      wip_commit "$dir" "wip: auto-saved on pane close ($(date '+%Y-%m-%d %H:%M'))" || true
     fi
   fi
   git -C "$main" worktree remove "$dir" 2>/dev/null \
@@ -576,9 +643,15 @@ case "${1:-}" in
 create) cmd_create ;;
 remove) cmd_remove ;;
 child) cmd_child "${2:-}" "${3:-}" ;;
+park) cmd_park "${2:-}" ;;
+unpark) cmd_unpark ;;
 resume) cmd_resume "${2:-}" ;;
 reap | gc) cmd_reap ;;
 list | ls) cmd_list ;;
-"" | -h | --help | help) [ "${1:-}" = "" ] && cmd_list || sed -n '2,28p' "$0" | sed '/^#!/d; s/^# \{0,1\}//' ;;
+# Help is the header block itself — printed by shape (every leading-# line after
+# the shebang), not by line number, so adding a command can't silently truncate it.
+"" | -h | --help | help)
+  [ "${1:-}" = "" ] && cmd_list \
+    || awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0" ;;
 *) cmd_resume "$1" ;; # bare token → treat as a worktree name to resume
 esac
