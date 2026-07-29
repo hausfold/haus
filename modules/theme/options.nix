@@ -32,22 +32,27 @@
 
         What follows it: every tool the rice injects colours into or points at a
         rendered theme — Ghostty, bat, delta, lsd, yazi, fzf, glow, starship,
-        lazygit, helix, zellij, opencode, the bar, pounce, Zen and Obsidian.
+        lazygit, helix, zellij, opencode, the bar, Zen and Obsidian.
         These are genuinely re-rendered for the flavor, not recoloured in place:
         whiskers takes different branches for a light flavor (terminal ANSI
         0/7/8/15 swap, Zen switches its prefers-color-scheme block, delta sets
-        `light = true`). Pounce follows at runtime: the rice installs every
-        rendered variant into ~/.config/pounce/themes/ and points config.json's
-        "theme" at the selected one — no pounce rebuild involved.
+        `light = true`).
 
         What does NOT follow it:
 
+          - pounce, by default. It's the one tool that can choose a palette per
+            open, so nebelhaus.pounce.followSystemAppearance (default true) hands
+            its polarity to macOS Light/Dark instead: the rice installs every
+            rendered variant into ~/.config/pounce/themes/ and writes the
+            dark/light PAIR at your `contrast`. Set that option false to pin
+            pounce to this flavor like everything else.
           - macOS's own Light/Dark appearance. Turning ON dark mode is one typed
             setting, but turning it OFF means DELETING a default rather than
             writing one, which nix-darwin has no way to express — so the rice
             leaves system appearance alone in both directions and you set it in
             System Settings ▸ Appearance. A latte rice on a dark macOS looks
-            half-done, and that half is currently yours.
+            half-done, and that half is currently yours — except in pounce, which
+            reads the appearance itself.
           - the desktop wallpaper (nebelhaus.theme.wallpaper). The three hand-made
             looks have the dark palette baked in; only "bold" is generated, and it
             follows theme.accent rather than the flavor.
@@ -78,8 +83,9 @@
 
         Honest scope. This recolours what the rice injects colours into:
         Ghostty, bat, delta, lsd, yazi, zellij, glow, starship, lazygit, the
-        bar, pounce (at runtime, via ~/.config/pounce/themes/ — same mechanism
-        as `flavor`), Zen and Obsidian. It does NOT reach:
+        bar, pounce (at runtime, via ~/.config/pounce/themes/ — and unlike
+        `flavor`, contrast reaches pounce on BOTH halves of its light/dark pair),
+        Zen and Obsidian. It does NOT reach:
 
           - macOS itself. For system-wide contrast see
             nebelhaus.accessibility.increaseContrast — a separate, FDA-gated

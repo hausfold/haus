@@ -302,6 +302,7 @@ lib.mkIf config.nebelhaus.pounce.enable {
       inherit lib nebelung;
       theme = config.nebelhaus.theme;
     };
+    followAppearance = config.nebelhaus.pounce.followSystemAppearance;
     # Every rendered nebelung variant, dropped where pounce's runtime palette
     # loader looks (~/.config/pounce/themes/<name>.json, read per open — see
     # pounce's docs/reference.md). All of them, not just the selected one, so a
@@ -342,7 +343,15 @@ lib.mkIf config.nebelhaus.pounce.enable {
       # palette, and an older pounce without runtime themes falls back to that
       # same compiled-in default — so this key is safe against both an old
       # pounce lock and an old nebelung lock (no themeFiles → fallback).
-      theme = nb.variant;
+      #
+      # With nebelhaus.pounce.followSystemAppearance (the default) we write the
+      # dark/light PAIR at this contrast instead, and pounce picks per open.
+      # An old pounce that doesn't know `themeLight` just reads `theme` and
+      # stays dark — the extra key is inert, never an error.
+      # Both keys are always written: equal values ARE the pinned case, in
+      # pounce's own resolution rule, so there's no conditional attrset here.
+      theme = if followAppearance then nb.darkVariant else nb.variant;
+      themeLight = if followAppearance then nb.lightVariant else nb.variant;
       # The palette hotkey, registered in-process by the daemon for a near-instant
       # open (no shell/client spawn). Which chord — and whether there is one at all
       # — is nebelhaus.keys.palette.
