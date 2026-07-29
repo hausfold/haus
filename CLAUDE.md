@@ -160,7 +160,9 @@ points back to when it feels several PRs together.
   caffeinate assertions; Sill's optional coffee pill is only its controller),
   **`wt.sh`** (Claude Code agent worktrees for *any* repo; the
   `WorktreeCreate`/`WorktreeRemove` hooks call it — `wt` lists, `wt <name>` resumes,
-  `wt reap` sweeps landed ones, `wt child <repo>` makes a cross-repo child worktree),
+  `wt reap` sweeps landed ones, `wt child <repo>` makes a cross-repo child worktree,
+  `wt park`/`wt unpark` set work aside as a `wip:` commit instead of `git stash`,
+  whose stack is shared by every worktree of a repo),
   **`zscratch.sh`** (above), and **`statusline.sh`** / `statusline-refresh.sh` (the
   agent HUD, reading `wt`'s registry). They're plain bash embedded via
   `builtins.readFile`, so a rebuild re-installs them on `PATH`. `haus` and the

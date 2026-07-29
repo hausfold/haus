@@ -53,6 +53,16 @@ let
     registers it under the spawning pane, so its PR shows as a child row where
     you're working.
 
+    **Setting work aside uses `wt park`, never `git stash`.** The stash stack
+    is NOT per-worktree — it lives in the shared `.git` dir, so every agent
+    worktree of a repo and the main checkout push and pop the SAME stack, and
+    parallel agents routinely pop each other's entries into a tree that never
+    asked for them. `wt park [label]` instead commits the whole dirty tree as
+    one `wip:` commit on the branch only this pane has checked out (the same
+    thing the remove hook does on pane close); `wt unpark` rewinds it, putting
+    those changes back uncommitted. It refuses to unpark a wip commit you've
+    already pushed, so it can never turn into a force-push.
+
     Full guide: https://nebelhaus.com/guides/claude-agents/
 
   '';
