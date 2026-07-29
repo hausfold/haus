@@ -12,7 +12,8 @@
 #   wt <name>         resume one: rebuild its checkout + reopen its Claude chat
 #   wt resume <name>  (the same thing, spelled out)
 #   wt reap           sweep every LANDED worktree NOW — parked ones, plus clean &
-#                     merged live checkouts (dirty/unmerged/your-own-pane are kept).
+#                     merged live checkouts that NO pane is sitting in (dirty,
+#                     unmerged, or occupied-by-any-open-pane ones are kept).
 #                     The idempotent backstop for when a pane ends WITHOUT firing
 #                     the remove hook (a manual pane close, a reboot, a crash) or
 #                     for `wt child` checkouts, which the hook never reaps.
@@ -185,6 +186,40 @@ reap_branch() { # reap_branch <main> <branch> -> 0 if the branch was deleted
   git -C "$main" branch -D "$b" >/dev/null 2>&1
 }
 
+OCCUPIED=""   # newline list of every cwd a live process is sitting in (see load_occupied)
+load_occupied() {
+  # "Landed and clean" does NOT mean "nobody is standing here". An agent whose PR
+  # merged usually still has its pane OPEN — idle, or mid-/ship — and a merged
+  # branch with everything committed looks exactly like an abandoned one. Removing
+  # its checkout yanks the cwd out from under a running session: the shell and
+  # Claude both keep running in a deleted directory, every subsequent tool call
+  # fails, and the agent reports its worktree was pulled out from under it.
+  # A zellij pane always has at least its login shell cwd'd into the worktree (and
+  # Claude as a child), so "some process's cwd is inside this tree" is the signal.
+  # One lsof dump for the whole sweep (~0.2s); prefix-matched per worktree below.
+  command -v lsof >/dev/null 2>&1 || return 1
+  OCCUPIED="$(lsof -w -d cwd -F n 2>/dev/null | sed -n 's/^n//p' | sort -u)"
+  [ -n "$OCCUPIED" ]
+}
+
+occupied() { # occupied <path> — 0 if any live process's cwd is at or under <path>
+  local p="$1" c
+  while IFS= read -r c; do
+    case "$c" in "$p" | "$p"/*) return 0 ;; esac
+  done <<<"$OCCUPIED"
+  return 1
+}
+
+wt_for_branch() { # wt_for_branch <main> <branch> — where git says the branch is checked out
+  # resume_rows can hand us a SYNTHESIZED path for a branch it only learned about
+  # from `git branch --list worktree-*` (an orphan worktree made by a raw
+  # `git worktree add`, or a `wt child` bucket keyed by owner-repo slug). That path
+  # usually doesn't exist, so the sweep files a very-much-live worktree as "parked"
+  # and reaps its branch under the running pane. git itself knows the truth.
+  git -C "$1" worktree list --porcelain 2>/dev/null |
+    awk -v b="refs/heads/$2" '/^worktree /{p=substr($0,10)} $0=="branch "b{print p; exit}'
+}
+
 # reap_sweep <parked|all> — the idempotent counterpart to the WorktreeRemove hook.
 # The hook only fires on Claude's own graceful worktree teardown; anything else
 # that ends a pane (a manual `zellij close-pane`, a reboot, a crash, ⌘C churn) or
@@ -193,19 +228,33 @@ reap_branch() { # reap_branch <main> <branch> -> 0 if the branch was deleted
 # "<name> (<repo>)" for what it dropped.
 #   parked  — reap ONLY branches whose checkout is already gone (zero risk); the
 #             self-heal that runs on every `wt` list.
-#   all     — also reap LIVE checkouts, but only when clean AND landed AND not the
-#             pane we're standing in; dirty/unmerged live work is always left.
+#   all     — also reap LIVE checkouts, but only when clean AND landed AND nobody
+#             is standing in them (our own pane, or ANY other open pane — see
+#             load_occupied); dirty/unmerged/occupied work is always left.
 reap_sweep() {
-  local mode="${1:-parked}" main branch wt selftop
+  local mode="${1:-parked}" main branch wt selftop real
   REAPED=""
+  SKIPPED_LIVE=""
   selftop="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || echo "$PWD")"
+  # No lsof (or nothing readable) means we cannot tell an open pane from an
+  # abandoned one — so don't guess: sweep parked worktrees only. A checkout left
+  # behind costs a later `wt reap`; one pulled out from under a live agent costs
+  # that session.
+  NO_LSOF=""
+  if [ "$mode" = "all" ] && ! load_occupied; then mode="parked"; NO_LSOF=1; fi
   while IFS=$'\t' read -r main branch wt; do
     [ -n "$branch" ] || continue
     git -C "$main" show-ref -q --verify "refs/heads/$branch" 2>/dev/null || continue
+    # Prefer the checkout git actually has for this branch over resume_rows' guess,
+    # so a real live worktree is never filed as parked (see wt_for_branch).
+    real="$(wt_for_branch "$main" "$branch")"
+    [ -n "$real" ] && wt="$real"
     if [ -e "$wt/.git" ]; then
       # A live checkout. Parked-only mode leaves every live checkout untouched.
       [ "$mode" = "all" ] || continue
       [ "$wt" = "$selftop" ] && continue                                   # never our own pane
+      # Another pane is still cwd'd in there — landed or not, it is IN USE.
+      occupied "$wt" && { SKIPPED_LIVE+="${branch#worktree-} ($(basename "$main"))"$'\n'; continue; }
       [ -z "$(git -C "$wt" status --porcelain 2>/dev/null)" ] || continue  # dirty → leave for a human
       branch_landed "$main" "$branch" || continue                          # unmerged live work → leave
       git -C "$main" worktree remove "$wt" 2>/dev/null || continue         # free the branch, then reap it
@@ -504,14 +553,22 @@ cmd_resume() { # cmd_resume <name|repo/name>
 }
 
 cmd_reap() { # wt reap — sweep every LANDED worktree across all repos, now
-  say "reaping landed worktrees (parked, plus clean & merged live checkouts) …"
+  say "reaping landed worktrees (parked, plus clean & merged UNOCCUPIED checkouts) …"
   reap_sweep all
+  [ -n "${NO_LSOF:-}" ] && say "no lsof — can't tell an open pane from an abandoned one; swept parked only."
   if [ -n "${REAPED:-}" ]; then
     printf '%s' "$REAPED" | while IFS= read -r r; do
       [ -n "$r" ] && printf '\033[38;5;103m  ✓ reaped %s\033[0m\n' "$r" >&2
     done
   else
-    say "nothing to reap — every worktree is unmerged, dirty, or your own pane."
+    say "nothing to reap — every worktree is unmerged, dirty, or has a pane open in it."
+  fi
+  # Name what was spared, so "reap did nothing" never reads as a bug. These are the
+  # ones a human closes: landed, but someone is still sitting in them.
+  if [ -n "${SKIPPED_LIVE:-}" ]; then
+    printf '%s' "$SKIPPED_LIVE" | while IFS= read -r r; do
+      [ -n "$r" ] && printf '\033[38;5;103m  ⏸ kept %s — a pane is open in it\033[0m\n' "$r" >&2
+    done
   fi
 }
 
