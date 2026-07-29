@@ -23,7 +23,7 @@
 
 # A launchd GUI agent's PATH is bare; resolve our tools (jq, brew, mas, nix,
 # git, osascript, pounce) explicitly — same set prowl bakes into AeroSpace.
-export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
+export PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/etc/profiles/per-user/$USER/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 FLAKE_DIR="${NEBELHAUS_FLAKE:-${HAUS_CONSUMER:-$HOME/.config/nix}}"
 HOST="${HAUS_HOST:-@hostname@}"
@@ -241,7 +241,8 @@ if [ "$source_name" = "Nix packages" ]; then
   nix_results="$(mktemp)" || exit 1
   nix_errors="$(mktemp)" || { rm -f "$nix_results"; exit 1; }
   if ! nix search "$nixpkgs_ref" "$query_regex" --json >"$nix_results" 2>"$nix_errors"; then
-    detail="$(tail -n 1 "$nix_errors")"
+    detail="$(grep -m1 '^error:' "$nix_errors")"
+    detail="${detail:-$(tail -n 1 "$nix_errors")}"
     rm -f "$nix_results" "$nix_errors"
     notice "Nixpkgs search failed" "${detail:-Check your connection, then try again}"
     exit 0
