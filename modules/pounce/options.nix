@@ -32,6 +32,26 @@
       '';
     };
 
+    pounce.followSystemAppearance = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Let the palette follow macOS Light/Dark Mode instead of pinning one
+        polarity: pounce gets the nebelung variant AND its latte counterpart at
+        your nebelhaus.theme.contrast, as its `theme`/`themeLight` pair, and
+        picks between them per open (no rebuild, no daemon restart).
+
+        Honest scope: this makes pounce the one themed tool that does NOT follow
+        nebelhaus.theme.flavor — a flavor pin is a *palette* choice, and asking
+        to follow the system says the polarity is macOS's call. The contrast
+        axis still applies to both halves. Everything else on the rice keeps
+        whatever flavor pins.
+
+        false pins pounce to the flavor like every other port, which is exactly
+        what it did before this option existed.
+      '';
+    };
+
     pounce.signingIdentity = lib.mkOption {
       type = lib.types.str;
       default = "";

@@ -32,11 +32,17 @@ let
   # nebelung/scripts/generate-palette.mjs's `variantDir` — the default variant is
   # plain "nebelung" and owns the themes-package root; every other one is
   # "nebelung-<parts>" and renders into "<parts>/" beneath it.
-  parts =
-    lib.optional (theme.flavor != "mocha") theme.flavor
-    ++ lib.optional (theme.contrast == "high") "high-contrast";
+  contrastParts = lib.optional (theme.contrast == "high") "high-contrast";
+  parts = lib.optional (theme.flavor != "mocha") theme.flavor ++ contrastParts;
   subdir = lib.concatStringsSep "-" parts;
   variant = lib.concatStringsSep "-" ([ "nebelung" ] ++ parts);
+
+  # The same rule with the flavor axis forced to each pole, for the consumers
+  # that can follow macOS Light/Dark instead of pinning one polarity (pounce's
+  # theme/themeLight pair). Contrast still tracks theme.contrast — only the
+  # flavor is taken out of the machine's hands.
+  darkVariant = lib.concatStringsSep "-" ([ "nebelung" ] ++ contrastParts);
+  lightVariant = lib.concatStringsSep "-" ([ "nebelung" "latte" ] ++ contrastParts);
 
   capitalise = s: lib.toUpper (lib.substring 0 1 s) + lib.substring 1 (lib.stringLength s) s;
 
@@ -93,5 +99,5 @@ in
 
   flavor = theme.flavor;
   title = capitalise theme.flavor;
-  inherit variant;
+  inherit variant darkVariant lightVariant;
 }
