@@ -1252,14 +1252,21 @@ in
         "ReadApplicationState"
         "ChangeApplicationState"
       ];
-      # tab-bar renders from TabUpdate/ModeUpdate (ReadApplicationState) and
-      # switches tabs on a mouse click via switch_tab_to (ChangeApplicationState).
-      # It's the top bar, so its prompt would render in a 1-line borderless pane
-      # you can't select — un-answerable (see the note above), which is exactly
-      # why it must be seeded rather than left to prompt on first run.
+      # tab-bar renders from TabUpdate/ModeUpdate/PaneUpdate (ReadApplicationState)
+      # and switches tabs on a mouse click via switch_tab_to
+      # (ChangeApplicationState). ReadCliPipes is for the agent-status paw beside
+      # a tab name: sill's agents-hook.sh broadcasts each agent pane's state over
+      # `zellij pipe`, and without this permission that pipe never reaches the
+      # plugin. NOTE it can't be treated as optional — zellij only auto-grants
+      # when EVERY requested permission is cached, so if this list falls behind
+      # the wasm's request_permission() the whole bar goes event-less, not just
+      # the paws. It's the top bar, so its prompt would render in a 1-line
+      # borderless pane you can't select — un-answerable (see the note above),
+      # which is exactly why it must be seeded rather than left to prompt.
       home.activation.zellijTabBarPermissions = seedZellijPluginPermissions "tab-bar.wasm" [
         "ReadApplicationState"
         "ChangeApplicationState"
+        "ReadCliPipes"
       ];
 
       # File-association hijack — opt-in (nebelhaus.hearth.hijackFileAssociations).
