@@ -28,8 +28,17 @@
 #     $ZELLIJ from a testing shell, hence `env -u ZELLIJ`.
 #   - list-clients prints pane ids as "terminal_88"; $ZELLIJ_PANE_ID inside the
 #     pane is bare "88" — strip the prefix to join against the map.
+#   - list-clients' RUNNING_COMMAND is the pane's *deepest foreground* process,
+#     NOT what you launched: a Claude Code pane routinely reports sourcekit-lsp,
+#     node, bash or rg. Never gate the transcript lookup on it matching
+#     "claude" — presence in the map is the only reliable "this is a Claude
+#     pane" signal, and a stale entry is covered by the fallback below.
 #   - dump-screen dumps the FOCUSED pane, which is exactly the one we want:
-#     the palette is an NSPanel, it never steals zellij focus.
+#     the palette is an NSPanel, it never steals zellij focus. Pass -p anyway so
+#     the dump can't drift to another pane between the two zellij calls.
+#   - dump-screen takes `--path FILE` (or prints to STDOUT); it has NO positional
+#     file argument — passing one makes zellij 0.44 exit with a usage error and
+#     leaves an empty dump, i.e. a silent "No links found".
 
 export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
 
@@ -56,28 +65,27 @@ if [ -z "$sess" ]; then
   exit 0
 fi
 
-# Focused pane: one attached client → one data row. $3 is the running command.
-client=$(env -u ZELLIJ zellij -s "$sess" action list-clients 2>/dev/null | awk 'NR==2')
-pane=$(awk '{print $2}' <<<"$client")
+# Focused pane: one attached client → one data row. $2 is the pane id.
+pane=$(env -u ZELLIJ zellij -s "$sess" action list-clients 2>/dev/null | awk 'NR==2{print $2}')
 pane=${pane#terminal_}
-running=$(awk '{print $3}' <<<"$client")
 
 transcript=""
-if [[ "$running" == *claude* ]] && [ -f "$MAP" ]; then
-  transcript=$(awk -F'\t' -v id="$pane" '$1==id{t=$2} END{print t}' "$MAP")
-fi
+[ -f "$MAP" ] && transcript=$(awk -F'\t' -v id="$pane" '$1==id{t=$2} END{print t}' "$MAP")
 
+urls=""
 if [ -n "$transcript" ] && [ -f "$transcript" ]; then
   # Transcript JSONL → every string in user/assistant records (covers message
   # text AND tool_result content nested inside user records). fromjson? keeps a
   # torn mid-write last line from aborting the whole stream.
   urls=$(jq -Rr 'fromjson? | select(.type=="user" or .type=="assistant") | .message.content | .. | strings' \
     "$transcript" 2>/dev/null | extract_urls)
-else
-  dump=$(mktemp -t pounce-links)
-  env -u ZELLIJ zellij -s "$sess" action dump-screen --full "$dump" 2>/dev/null
-  urls=$(extract_urls <"$dump")
-  rm -f "$dump"
+fi
+
+# Scrollback fallback: no map entry (not a Claude pane), a stale entry pointing
+# at a transcript that's since been removed, or a transcript that simply has no
+# URLs in it. Cheaper to just try than to prove which case we're in.
+if [ -z "$urls" ]; then
+  urls=$(env -u ZELLIJ zellij -s "$sess" action dump-screen --full ${pane:+-p "$pane"} 2>/dev/null | extract_urls)
 fi
 
 # Newest first, dedupe on first (= most recent) occurrence, drop noise, cap.
