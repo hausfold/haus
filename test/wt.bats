@@ -10,14 +10,24 @@
 # What this pins down, roughly in the order a worktree lives:
 #   create → park/unpark → list → resume → remove → reap → registry upkeep
 #
-# Tests marked `skip` document a KNOWN bug, with the symptom in the skip
-# message. They are written to pass once the bug is fixed — deleting the skip
-# line is the whole fix-verification step. Don't delete the test.
+# Nothing here is skipped — every contract the suite states holds. To see what a
+# given revision of the script breaks, point the suite at it:
+#
+#   git show <rev>:modules/den/wt.sh > /tmp/wt.sh
+#   WT_UNDER_TEST=/tmp/wt.sh bats test/wt.bats
+#
+# That is the intended way to demonstrate a bug: write the test, watch it fail
+# against the old copy, fix, watch it pass against both the new copy and the
+# whole suite. A test that passes against BOTH copies is not reproducing the bug
+# you think it is — two of these did exactly that on the first attempt.
 
 bats_require_minimum_version 1.5.0   # `run --separate-stderr`, used by the width test
 
 setup() {
-  WT="$BATS_TEST_DIRNAME/../modules/den/wt.sh"
+  # WT_UNDER_TEST lets you point the whole suite at another copy of the script —
+  # an older revision, a candidate rewrite — to see exactly which contracts it
+  # breaks. That is how the fixes below were shown to fix something.
+  WT="${WT_UNDER_TEST:-$BATS_TEST_DIRNAME/../modules/den/wt.sh}"
   # macOS puts BATS_TEST_TMPDIR under /var/folders, a symlink to /private/var.
   # git resolves paths (`rev-parse --path-format=absolute`) while our fixtures
   # would carry the unresolved form, so registry rows and git's own answers
@@ -296,16 +306,32 @@ fail() { printf '%s\n' "$*" >&2; return 1; }   # not a bats builtin
   echo "$output" | grep -Eq '^\s+alpha\s+gone\s+parked'
 }
 
-@test "list: a checkout on a DIFFERENT branch than it was created for" {
-  skip "BUG (branch/path desync): cmd_list trusts resume_rows' synthesized path \
-instead of asking git where the branch actually is (wt_for_branch), so a renamed \
-branch shows as 'parked' and its real checkout shows the wrong last commit"
-  local main dir; main="$(mkrepo alpha)"; dir="$(mkwt "$main" orig)"
-  git -C "$dir" checkout -qb worktree-renamed
-  commit_in "$dir" more.txt "after the rename"
+# An agent branch can be checked out somewhere `wt` never put it: a raw
+# `git worktree add`, or another agent's own worktree feature (codex keeps its
+# under ~/.codex/worktrees/). Such a branch is only ever discovered by the
+# orphan scan, which SYNTHESIZES a path from the bucket convention — a path that
+# does not exist. Trusting that guess files a very-much-live checkout as parked.
+# (A rename INSIDE the base is not this case: the disk glob re-reads each live
+# checkout's current branch, so it self-corrects.)
+mk_stray() { # mk_stray <main> <name> — a worktree-<name> checkout outside WT_BASE
+  local out="$TMP/elsewhere/$2"
+  mkdir -p "$TMP/elsewhere"
+  # wt discovers repos through the registry and the WT_BASE glob, so a repo whose
+  # ONLY worktree is a stray is invisible entirely — a different (and correct)
+  # behaviour. Anchor the repo with one ordinary worktree so the orphan scan runs
+  # and the stray is actually reached. That is also the real-world shape.
+  [ -n "$(awk -F'\t' -v m="$1" '$2==m' "$REG" 2>/dev/null)" ] || mkwt "$1" "${2}-anchor" >/dev/null
+  git -C "$1" worktree add -q -b "worktree-$2" "$out" >/dev/null 2>&1
+  commit_in "$out" stray.txt "work in an unregistered checkout"
+  printf '%s' "$out"
+}
+
+@test "list: a branch checked out OUTSIDE the worktree base still reads as live" {
+  local main out; main="$(mkrepo alpha)"; out="$(mk_stray "$main" manual)"
   wt_run list
   [ "$status" -eq 0 ]
-  echo "$output" | grep -Eq '^\s+alpha\s+renamed\s+live'
+  echo "$output" | grep -Eq '^\s+alpha\s+manual\s+live'
+  [ -e "$out/.git" ]
 }
 
 @test "list: stays one line per worktree in a narrow pane" {
@@ -367,16 +393,13 @@ branch shows as 'parked' and its real checkout shows the wrong last commit"
   [[ "$output" == *"no agent worktree named 'nope'"* ]]
 }
 
-@test "resume: a branch checked out under an unexpected path" {
-  skip "BUG (branch/path desync): cmd_resume rebuilds at resume_rows' synthesized \
-path without asking git where the branch already is, so this dies with 'already \
-used by worktree' instead of reporting it live"
-  local main dir; main="$(mkrepo alpha)"; dir="$(mkwt "$main" orig)"
-  git -C "$dir" checkout -qb worktree-renamed
-  commit_in "$dir" more.txt "after the rename"
-  wt_run resume renamed
+@test "resume: a branch checked out OUTSIDE the base is reported live, not re-added" {
+  local main out; main="$(mkrepo alpha)"; out="$(mk_stray "$main" manual)"
+  wt_run resume manual
   [ "$status" -eq 0 ]
-  [[ "$output" == *"still live at $dir"* ]]
+  # Trusting the synthesized path here means `git worktree add` on a branch that
+  # is already checked out — which fails outright, so the worktree is unreachable.
+  [[ "$output" == *"still live at $out"* ]]
 }
 
 # ── remove (WorktreeRemove hook) ─────────────────────────────────────────────
@@ -511,9 +534,6 @@ used by worktree' instead of reporting it live"
 }
 
 @test "reap: 'landed' means landed on the DEFAULT branch, not whatever main has checked out" {
-  skip "BUG (landed-base): branch_landed derives its base from \`symbolic-ref HEAD\` \
-of the main checkout, so a main checkout parked on a side branch that happens to \
-contain the worktree branch reaps it though it never reached main"
   local main dir; main="$(mkrepo alpha)"; dir="$(mkwt "$main" sidequest)"
   git -C "$main" checkout -qb detour
   git -C "$main" merge -q --no-edit worktree-sidequest   # landed on `detour`, NOT on main
@@ -605,9 +625,6 @@ contain the worktree branch reaps it though it never reached main"
 }
 
 @test "registry: parallel creates must not lose rows to a read-modify-write race" {
-  skip "BUG (registry race): reg_put reads the whole TSV, rewrites it and mv's it \
-into place, so two panes creating a worktree at the same moment silently drop one \
-row — the worktree still exists but goes invisible to the statusline"
   local main i; main="$(mkrepo alpha)"
   for i in 1 2 3 4 5 6 7 8; do hook_create "$main" "par$i" >/dev/null 2>&1 & done
   wait
