@@ -15,14 +15,62 @@
 # store path actually changes. No re-sign dance: the release .app is already
 # Developer-ID signed, and an FDA grant keyed to that stable identity + path
 # survives rebuilds. `ditto` preserves the signature + notarization staple.
+#
+# Theming rides trill's RUNTIME palettes (trill's DesignSystem/RicePalette.swift):
+# every rendered nebelung variant is dropped in ~/.config/trill/themes/, and
+# ~/.config/trill/config.json names the dark/light pair theme.{flavor,contrast}
+# selects. trill's own settings live in UserDefaults, which Nix has no business
+# writing — the config file exists exactly so this module can set a default the
+# app's Settings ▸ Theme can still override.
 {
   config,
   lib,
   pkgs,
+  username,
   ...
 }:
 
 lib.mkIf config.nebelhaus.trill.enable {
+  # All home-manager wiring in ONE block — a dynamic attr key (${username}) can't
+  # be merged across multiple statements. Passed as a module FUNCTION so it gets
+  # the overlaid `pkgs` and the `nebelung` input.
+  home-manager.users.${username} =
+    { nebelung, ... }:
+    let
+      # theme.{flavor,contrast} resolved to the selected nebelung variant, the
+      # same way hearth/sill/theme/pounce do it.
+      nb = import ../lib/nebelung.nix {
+        inherit lib nebelung;
+        theme = config.nebelhaus.theme;
+      };
+      followAppearance = config.nebelhaus.trill.followSystemAppearance;
+      # Every rendered variant, not just the selected one, so a palette picked in
+      # trill's Settings can be any of them without a rebuild — and because a
+      # file SHADOWS trill's compiled-in variant of the same name, this is also
+      # how a nebelung palette bump reaches an installed trill.app that hasn't
+      # been rebuilt. `or { }` on an older nebelung lock that predates the
+      # output: no files, and trill falls back to its compiled-in nebelung.
+      themeFiles = lib.mapAttrs' (
+        variant: palette:
+        lib.nameValuePair "trill/themes/${variant}.json" {
+          text = builtins.toJSON palette;
+        }
+      ) (nebelung.palettes or { });
+    in
+    {
+      xdg.configFile = themeFiles // {
+        # The default palette per polarity. trill's appearance preference
+        # (Follow macOS / Dark / Light) picks which one applies, so PINNING a
+        # flavor is expressed by writing the same variant to both keys — then
+        # whichever polarity the app resolves, the palette is the same. An older
+        # trill that predates runtime palettes ignores this file entirely.
+        "trill/config.json".text = builtins.toJSON {
+          themeDark = if followAppearance then nb.darkVariant else nb.variant;
+          themeLight = if followAppearance then nb.lightVariant else nb.variant;
+        };
+      };
+    };
+
   system.activationScripts.postActivation.text = ''
     # --- trill: install the notarized app at a fixed /Applications path -------
     trillStore="${pkgs.trill}/Applications/Trill.app"
