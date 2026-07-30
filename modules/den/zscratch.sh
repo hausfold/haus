@@ -60,7 +60,12 @@ plugin_file() { # NAME -> the on-disk wasm basename hearth installs
 }
 plugin_perms() { # NAME -> space-separated permission list
   case "$1" in
-    tab-bar)      echo "ReadApplicationState ChangeApplicationState" ;;
+    # ReadCliPipes: the agent-status paw arrives over `zellij pipe`. Not optional
+    # here — zellij auto-grants only when EVERY requested permission is cached, so
+    # a list that falls behind the wasm's request_permission() doesn't cost you the
+    # paws, it leaves the whole scratch bar event-less behind a prompt nobody can
+    # answer (a 1-line borderless pane).
+    tab-bar)      echo "ReadApplicationState ChangeApplicationState ReadCliPipes" ;;
     status-bar)   echo "ReadApplicationState" ;;
     link-handler) echo "ReadApplicationState ChangeApplicationState FullHdAccess RunCommands ReadSessionEnvironmentVariables" ;;
     tab-history)  echo "ReadApplicationState ChangeApplicationState" ;;

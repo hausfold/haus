@@ -1,8 +1,19 @@
-use crate::{line::tab_separator, LinePart};
+use crate::{line::tab_separator, AgentState, LinePart};
 use ansi_term::{ANSIString, ANSIStrings};
 use unicode_width::UnicodeWidthStr;
 use zellij_tile::prelude::*;
 use zellij_tile_utils::style;
+
+// nf-fa-paw (U+F1B0) — the exact glyph sill's `agents` menu-bar pill draws, so
+// the bar and the tab read as one signal rather than two conventions.
+//
+// It counts as ONE column here because nebelhaus.fonts.mono is a Nerd Font
+// *Mono* build (JetBrainsMono Nerd Font Mono by default), which forces every
+// patched glyph to single width — same assumption the `⌃⇥` reminder and the
+// `←`/`→` overflow pills in line.rs already ride on. In a non-Mono Nerd Font the
+// paw draws double-width and every tab's click target drifts one column right of
+// where it's painted.
+static AGENT_PAW: &str = "\u{f1b0}";
 
 fn cursors<'a>(
     focused_clients: &'a [ClientId],
@@ -26,6 +37,7 @@ pub fn render_tab(
     is_alternate_tab: bool,
     palette: Styling,
     separator: &str,
+    badge: Option<AgentState>,
 ) -> LinePart {
     let focused_clients = tab.other_focused_clients.as_slice();
     let separator_width = separator.width();
@@ -61,6 +73,40 @@ pub fn render_tab(
         .bold()
         .paint(format!(" {} ", text));
 
+    // Fork: the agent-status paw, painted independently of the tab name so its
+    // colour carries the state instead of the name's. Sits between the name and
+    // the pill's right edge, after the fullscreen/sync/bell glyphs tab_style
+    // appended into `text`.
+    let badge_section = badge.map(|state| {
+        // The same three colours sill's `agents` pill uses — peach "needs you",
+        // sky "working", green "done" — but read out of theme slots rather than
+        // hardcoded hexes, so a non-nebelung zellij theme still gets sane ones.
+        // Under nebelung these resolve to exactly sill's peach/sky/green.
+        let badge_color = match state {
+            AgentState::Waiting => palette.text_unselected.emphasis_0,
+            AgentState::Working => palette.text_unselected.emphasis_1,
+            AgentState::Idle => palette.exit_code_success.base,
+        };
+        // Contrast guard: nebelung paints the ACTIVE tab's pill in the very green
+        // it uses for "done", so an unguarded green paw would be invisible on the
+        // one tab you're sitting in. Fall back to the tab's own foreground there —
+        // you lose the colour code on that single tab, never the badge itself.
+        let badge_color = if badge_color == background_color {
+            foreground_color
+        } else {
+            badge_color
+        };
+        style!(badge_color, background_color)
+            .bold()
+            .paint(format!("{} ", AGENT_PAW))
+            .to_string()
+    });
+    // The paw plus its trailing space. One column for the glyph only holds in a
+    // Nerd Font Mono build — see AGENT_PAW.
+    if badge_section.is_some() {
+        tab_text_len += 2;
+    }
+
     let right_separator = style!(background_color, separator_fill_color).paint(separator);
     let tab_styled_text = if !focused_clients.is_empty() {
         let (cursor_section, extra_length) =
@@ -81,6 +127,16 @@ pub fn render_tab(
         s.push_str(&cursor_beginning);
         s.push_str(&cursor_section);
         s.push_str(&cursor_end);
+        if let Some(badge_section) = &badge_section {
+            s.push_str(badge_section);
+        }
+        s.push_str(&right_separator.to_string());
+        s
+    } else if let Some(badge_section) = &badge_section {
+        let mut s = String::new();
+        s.push_str(&left_separator.to_string());
+        s.push_str(&tab_styled_text.to_string());
+        s.push_str(badge_section);
         s.push_str(&right_separator.to_string());
         s
     } else {
@@ -100,6 +156,7 @@ pub fn tab_style(
     mut is_alternate_tab: bool,
     palette: Styling,
     capabilities: PluginCapabilities,
+    badge: Option<AgentState>,
 ) -> LinePart {
     let separator = tab_separator(capabilities);
 
@@ -120,7 +177,7 @@ pub fn tab_style(
         is_alternate_tab = false;
     }
 
-    render_tab(tabname, tab, is_alternate_tab, palette, separator)
+    render_tab(tabname, tab, is_alternate_tab, palette, separator, badge)
 }
 
 pub(crate) fn get_tab_to_focus(
