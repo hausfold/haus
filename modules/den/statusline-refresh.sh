@@ -42,12 +42,12 @@ NAG_TTL=1800    # seconds; flake pins move on a human cadence, not a 15s one
 mtime() { # mtime <file> — modification time in epoch seconds, 0 when unknown
   # `stat -f %m` is BSD/macOS, which is where this runs. On GNU coreutils -f means
   # --file-system and %m is the MOUNT POINT, so it prints "/" and exits 0 — the
-  # `|| echo 0` never fires and the caller's $(( now - / )) is an arithmetic error,
-  # i.e. a non-zero under `set -e`. Try both, then insist on digits: the suite runs
-  # this script on Linux CI, and a whole class of "works here, dies there" lives in
-  # exactly this one substitution.
+  # fallback cannot be selected by exit status alone. Accept the BSD result only
+  # when it is numeric, then try GNU stat; finally insist on digits so the caller's
+  # arithmetic remains safe under `set -e`.
   local m
-  m=$(stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0)
+  m=$(stat -f %m "$1" 2>/dev/null || true)
+  case "$m" in '' | *[!0-9]*) m=$(stat -c %Y "$1" 2>/dev/null || echo 0) ;; esac
   case "$m" in '' | *[!0-9]*) m=0 ;; esac
   printf '%s' "$m"
 }
