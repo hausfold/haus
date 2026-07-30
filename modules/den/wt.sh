@@ -63,12 +63,34 @@ fit() { # fit <string> <maxlen> — trim to width, appending … when it overflo
   if [ "${#s}" -gt "$n" ]; then printf '%s…' "${s:0:n-1}"; else printf '%s' "$s"; fi
 }
 
+reg_lock() { # serialize the registry's read-modify-write across parallel panes
+  # Every mutator below is read-whole-file → rewrite → mv. The mv is atomic, but
+  # the read-then-write is not: two panes spawning a worktree in the same instant
+  # both read the OLD file and the second one's mv drops the first one's row. The
+  # worktree still exists and still works — it just goes invisible to `wt` and to
+  # the statusline, which is precisely the "orphan worktree" we kept finding.
+  # mkdir is the atomic primitive available everywhere; `flock` is not on macOS.
+  local lock="$WT_REGISTRY.lock" i=0
+  mkdir -p "$WT_BASE"
+  while ! mkdir "$lock" 2>/dev/null; do
+    # Nothing here holds the lock for more than a few milliseconds (no network,
+    # no git), so 5s means the holder was killed mid-write — a pane close or a
+    # reboot. Break it rather than wedge every future `wt` invocation forever.
+    [ "$i" -ge 50 ] && { rm -rf "$lock"; continue; }
+    i=$((i + 1)); sleep 0.1
+  done
+  # set -e means an unexpected failure mid-rewrite would skip reg_unlock; release
+  # on exit too, so a crash costs at most this one invocation.
+  trap 'rm -rf "$WT_REGISTRY.lock"' EXIT
+}
+reg_unlock() { rm -rf "$WT_REGISTRY.lock"; trap - EXIT; }
+
 reg_put() { # reg_put <name> <main> <branch> <wt_path> [parent] — upsert, keyed on wt_path
   # The optional 5th field is the cwd the worktree was spawned FROM (its parent
   # pane) — recorded at create so the statusline can show a session only the
   # worktrees IT spawned. When omitted (e.g. resume, which doesn't know the
   # original spawner), the existing parent is preserved, never blanked.
-  mkdir -p "$WT_BASE"
+  reg_lock
   local parent="${5:-}"
   local tmp="$WT_REGISTRY.$$"
   if [ -f "$WT_REGISTRY" ]; then
@@ -79,13 +101,16 @@ reg_put() { # reg_put <name> <main> <branch> <wt_path> [parent] — upsert, keye
   fi
   printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$parent" >>"$tmp"
   mv "$tmp" "$WT_REGISTRY"
+  reg_unlock
 }
 
 reg_del() { # reg_del <wt_path> — drop the line for a worktree we've reaped
   [ -f "$WT_REGISTRY" ] || return 0
+  reg_lock
   local tmp="$WT_REGISTRY.$$"
   awk -F'\t' -v p="$1" '$4 != p' "$WT_REGISTRY" >"$tmp"
   mv "$tmp" "$WT_REGISTRY"
+  reg_unlock
 }
 
 reg_prune() { # drop every row that can no longer resume anything, and its empty bucket dir
@@ -95,6 +120,7 @@ reg_prune() { # drop every row that can no longer resume anything, and its empty
   # 54 of 56 rows here were dead. Harmless, but they're the fuel every path-resolution
   # bug feeds on, so the sweep that already self-heals branches heals the registry too.
   [ -f "$WT_REGISTRY" ] || return 0
+  reg_lock
   local tmp="$WT_REGISTRY.$$" name main branch wt parent
   while IFS=$'\t' read -r name main branch wt parent; do
     [ -n "$branch" ] || continue
@@ -102,6 +128,7 @@ reg_prune() { # drop every row that can no longer resume anything, and its empty
     printf '%s\t%s\t%s\t%s\t%s\n' "$name" "$main" "$branch" "$wt" "$parent"
   done <"$WT_REGISTRY" >"$tmp"
   mv "$tmp" "$WT_REGISTRY"
+  reg_unlock
   rmdir "$WT_BASE"/*/ 2>/dev/null || true # per-repo buckets left empty by the last reap
 }
 
@@ -167,11 +194,27 @@ _gh() { # gh with a hard timeout so a stalled network can't hang pane teardown
   if command -v timeout >/dev/null 2>&1; then timeout 6 gh "$@"; else gh "$@"; fi
 }
 
+default_branch() { # default_branch <main> — the branch a PR here would land on
+  # NOT `symbolic-ref HEAD`: that is whatever the main checkout happens to have
+  # checked out RIGHT NOW. Land a side branch there that happens to contain an
+  # agent branch and the agent branch reads as "merged" though it never reached
+  # main — and gets reaped, taking the only copy of that work with it.
+  local d
+  d="$(git -C "$1" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)" \
+    && [ -n "$d" ] && { printf '%s' "${d#origin/}"; return 0; }
+  for d in main master trunk; do
+    git -C "$1" show-ref -q --verify "refs/heads/$d" 2>/dev/null && { printf '%s' "$d"; return 0; }
+  done
+  # No conventional default and no origin/HEAD (a fresh repo, an odd remote):
+  # fall back to HEAD, which is the old behaviour and the best guess left.
+  git -C "$1" symbolic-ref --short HEAD 2>/dev/null || printf 'main'
+}
+
 branch_landed() { # branch_landed <main> <branch> -> 0 if it has ALREADY landed; read-only
   local main="$1" b="$2" base slug state head tip
   # Ancestry-merged (fast-forward / merge-commit / rebase that kept the commits):
-  # offline, always-safe. This is the same test `git branch -d` gates on.
-  base="$(git -C "$main" symbolic-ref --short HEAD 2>/dev/null || echo main)"
+  # offline, always-safe.
+  base="$(default_branch "$main")"
   git -C "$main" merge-base --is-ancestor "$b" "$base" 2>/dev/null && return 0
   # Squash / rebase-collapse: the branch tip isn't an ancestor of the base, yet
   # the work may have LANDED under a new commit. The branch's merged PR is the
@@ -192,11 +235,16 @@ branch_landed() { # branch_landed <main> <branch> -> 0 if it has ALREADY landed;
 
 reap_branch() { # reap_branch <main> <branch> -> 0 if the branch was deleted
   local main="$1" b="$2"
-  # Offline ancestry-merge: -d refuses anything not fully in the base, so it is
-  # always safe and needs no network.
-  git -C "$main" branch -d "$b" >/dev/null 2>&1 && return 0
-  # Otherwise force-delete only when branch_landed confirms a squash/rebase merge.
+  # branch_landed is the ONLY gate, and it is asked first. `git branch -d` used to
+  # be the offline fast path, but -d measures against the main checkout's HEAD —
+  # so it happily deletes a branch merged only into whatever side branch that
+  # checkout is parked on. branch_landed measures against the repo's DEFAULT
+  # branch (and the branch's merged PR for squash merges), which is the question
+  # we actually mean. Having confirmed it landed, -d/-D is just the mechanism:
+  # -d first so git's own safety net still gets a say, -D for the squash case it
+  # cannot see.
   branch_landed "$main" "$b" || return 1
+  git -C "$main" branch -d "$b" >/dev/null 2>&1 && return 0
   git -C "$main" branch -D "$b" >/dev/null 2>&1
 }
 
@@ -224,14 +272,23 @@ occupied() { # occupied <path> — 0 if any live process's cwd is at or under <p
   return 1
 }
 
-wt_for_branch() { # wt_for_branch <main> <branch> — where git says the branch is checked out
-  # resume_rows can hand us a SYNTHESIZED path for a branch it only learned about
-  # from `git branch --list worktree-*` (an orphan worktree made by a raw
-  # `git worktree add`, or a `wt child` bucket keyed by owner-repo slug). That path
-  # usually doesn't exist, so the sweep files a very-much-live worktree as "parked"
-  # and reaps its branch under the running pane. git itself knows the truth.
-  git -C "$1" worktree list --porcelain 2>/dev/null |
-    awk -v b="refs/heads/$2" '/^worktree /{p=substr($0,10)} $0=="branch "b{print p; exit}'
+checkout_map() { # main checkouts on STDIN → "main<TAB>branch<TAB>path" for every checked-out branch
+  # git is the AUTHORITY on where a branch lives; the registry only records where
+  # we PUT it. They diverge constantly — a branch renamed inside a worktree, a
+  # `wt child` bucket keyed by owner-repo slug, an orphan worktree made by a raw
+  # `git worktree add` — and every path that trusted the registry over git then
+  # filed a very-much-live worktree as "parked": the listing lied, `wt <name>`
+  # died with "already used by worktree", and the sweep lined the branch up for
+  # reaping under a running pane. One porcelain dump per REPO (not per branch),
+  # so resume_rows can correct every row it emits for the cost of one git call.
+  # Paths arrive on stdin, not as arguments, so a checkout under a directory with
+  # a space in it survives (word-splitting a newline list would not).
+  local m
+  while IFS= read -r m; do
+    [ -n "$m" ] || continue
+    git -C "$m" worktree list --porcelain 2>/dev/null |
+      awk -v m="$m" '/^worktree /{p=substr($0,10)} /^branch refs\/heads\//{print m"\t"substr($0,19)"\t"p}'
+  done
 }
 
 # reap_sweep <parked|all> — the idempotent counterpart to the WorktreeRemove hook.
@@ -246,7 +303,7 @@ wt_for_branch() { # wt_for_branch <main> <branch> — where git says the branch 
 #             is standing in them (our own pane, or ANY other open pane — see
 #             load_occupied); dirty/unmerged/occupied work is always left.
 reap_sweep() {
-  local mode="${1:-parked}" main branch wt selftop real
+  local mode="${1:-parked}" main branch wt selftop
   REAPED=""
   SKIPPED_LIVE=""
   selftop="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || echo "$PWD")"
@@ -259,10 +316,8 @@ reap_sweep() {
   while IFS=$'\t' read -r main branch wt; do
     [ -n "$branch" ] || continue
     git -C "$main" show-ref -q --verify "refs/heads/$branch" 2>/dev/null || continue
-    # Prefer the checkout git actually has for this branch over resume_rows' guess,
-    # so a real live worktree is never filed as parked (see wt_for_branch).
-    real="$(wt_for_branch "$main" "$branch")"
-    [ -n "$real" ] && wt="$real"
+    # $wt is already git's answer where git has one — resume_rows corrects every
+    # row it emits (see checkout_map), so a live worktree can't be filed as parked.
     if [ -e "$wt/.git" ]; then
       # A live checkout. Parked-only mode leaves every live checkout untouched.
       [ "$mode" = "all" ] || continue
@@ -463,7 +518,7 @@ cmd_remove() { # [WorktreeRemove hook] JSON on stdin — retire without losing w
 # worktree"), and orphan worktree-* branches from any main we can reach via the
 # first two. First hit per (main,branch) wins, so a real path beats a rebuilt one.
 resume_rows() {
-  local rows="" raw="" real="" d m b mdir ob
+  local rows="" raw="" real="" d m b mdir ob mains actual
   [ -f "$WT_REGISTRY" ] && rows+="$(awk -F'\t' 'NF>=4 {print $2"\t"$3"\t"$4}' "$WT_REGISTRY")"$'\n'
   for d in "$WT_BASE"/*/*; do
     [ -e "$d/.git" ] || continue
@@ -480,13 +535,30 @@ resume_rows() {
     m="$(git_main "$mdir" 2>/dev/null)" || continue
     [ -n "$m" ] && [ -d "$m/.git" ] && real+="$m"$'\n'
   done <<<"$raw"
+  mains="$(printf '%s' "$real" | awk 'NF && !s[$0]++')"
   while IFS= read -r mdir; do
     [ -n "$mdir" ] || continue
     for ob in $(git -C "$mdir" branch --list 'worktree-*' --format='%(refname:short)' 2>/dev/null); do
       rows+="$mdir"$'\t'"$ob"$'\t'"$WT_BASE/$(basename "$mdir")/${ob#worktree-}"$'\n'
     done
-  done <<<"$(printf '%s' "$real" | awk 'NF && !s[$0]++')"
-  printf '%s' "$rows" | awk -F'\t' 'NF>=3 && !seen[$1 FS $2]++'
+  done <<<"$mains"
+  # Correct every row's path against git before anyone reads it. The path a row
+  # arrives with is a GUESS — the registry's record of where we put the checkout,
+  # or (for an orphan branch) a name synthesized from the bucket convention.
+  # checkout_map is the truth, so a branch that moved, or a checkout that was
+  # never ours, is reported where it actually is. Rows git has no checkout for
+  # keep their guess: that is exactly the "parked" case, and cmd_resume rebuilds
+  # there. Every consumer — list, resume, reap — inherits this for free, which is
+  # the point: correcting it at one call site (as the sweep used to) left the
+  # listing and resume trusting the guess.
+  actual="$(printf '%s\n' "$mains" | checkout_map)"
+  # The map arrives as awk's FIRST FILE, not via -v: a -v assignment cannot carry
+  # a value containing newlines (awk aborts with "newline in string"), and this
+  # map is one line per checkout.
+  printf '%s' "$rows" | awk -F'\t' 'NF>=3 && !seen[$1 FS $2]++' |
+    awk -F'\t' 'NR==FNR { if (NF >= 3) A[$1 SUBSEP $2] = $3; next }
+                { k = $1 SUBSEP $2; print $1 "\t" $2 "\t" (k in A ? A[k] : $3) }' \
+        <(printf '%s\n' "$actual") -
 }
 
 cmd_list() {
