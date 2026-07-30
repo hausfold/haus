@@ -9,11 +9,11 @@
 // intent   : more-space | default | larger-text | largest-text
 //
 // Why this exists: display scaling is the ONLY working "make everything bigger"
-// lever on macOS 26 — the accessibility text-size knobs either live in a locked
-// preference domain or write a value no app re-reads (see the workshop's
-// notes/macos-settings-matrix.md). It is public CoreGraphics, so the rice ships
-// ~150 lines of Swift instead of taking a Homebrew dependency on displayplacer
-// (which isn't in nixpkgs anyway).
+// lever on macOS 26 — its text-size setting writes a value no running app
+// re-reads, while the working accessibility scalars affect contrast or motion,
+// not system-wide size (see the workshop's notes/macos-settings-matrix.md). It is
+// public CoreGraphics, so the rice ships ~150 lines of Swift instead of taking a
+// Homebrew dependency on displayplacer (which isn't in nixpkgs anyway).
 //
 // The one interesting part is picking the mode. A 14" MacBook Pro panel reports
 // 132 modes; the five System Settings actually offers are the HiDPI modes whose
