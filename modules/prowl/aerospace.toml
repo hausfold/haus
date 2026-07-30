@@ -119,8 +119,15 @@ shift-4 = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off
 # quit app; press again to walk back); , = macOS System Settings (mirrors the
 # ⌘, "preferences" convention); ` = re-sort every window to its workspace.
 # (Palette is on cmd+space now, so the old space->palette leader is gone.)
-v = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @BIN@/pounce --clipboard', 'mode main']
-e = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @BIN@/pounce --emoji', 'mode main']
+#
+# v and e go through `pounce run mode:<name>` — pounce's one dispatch grammar,
+# the same string that keys nebelhaus.pounce.items and the same closure a pounce
+# hotkey fires. So the leader row and an item binding are now literally the same
+# address, and the flags they used to call (`pounce --clipboard`) are gone from
+# pounce entirely. It's also a shorter-lived client: RUN acknowledges and exits
+# instead of holding a socket open for as long as the picker is on screen.
+v = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @BIN@/pounce run mode:clipboard', 'mode main']
+e = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @BIN@/pounce run mode:emoji', 'mode main']
 z = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/aerospace/reopen-last-app.sh', 'mode main']
 comma = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget open -b com.apple.systempreferences', 'mode main']
 backtick = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/aerospace/resort-windows.sh', 'mode main']
