@@ -30,6 +30,106 @@ let
     inherit lib;
     keys = config.nebelhaus.keys;
   };
+
+  # Rice-owned discovery shelf for Install App. This is deliberately not a
+  # host option: it is the distro's editorial shortlist, while a host only owns
+  # the apps it actually chooses. Keep the backing source invisible in the UI;
+  # all current picks are Homebrew casks so they stay declarative and avoid the
+  # Mac App Store's interactive install path.
+  popularApps = [
+    {
+      cask = "zen";
+      name = "Zen";
+      description = "A calmer Firefox-based web browser";
+      appId = "app.zen-browser.zen";
+    }
+    {
+      cask = "legcord";
+      name = "Legcord";
+      description = "Privacy-minded Discord client";
+      appId = "app.legcord.Legcord";
+    }
+    {
+      cask = "obsidian";
+      name = "Obsidian";
+      description = "Local-first notes and knowledge base";
+      appId = "md.obsidian";
+    }
+    {
+      cask = "iina";
+      name = "IINA";
+      description = "Modern open-source media player";
+      appId = "com.colliderli.iina";
+    }
+    {
+      cask = "slack";
+      name = "Slack";
+      description = "Team chat and collaboration";
+      appId = "com.tinyspeck.slackmacgap";
+    }
+    {
+      cask = "firefox";
+      name = "Firefox";
+      description = "Private, independent web browser";
+      appId = "org.mozilla.firefox";
+    }
+    {
+      cask = "google-chrome";
+      name = "Google Chrome";
+      description = "Google's web browser";
+      appId = "com.google.Chrome";
+    }
+    {
+      cask = "1password";
+      name = "1Password";
+      description = "Password manager and secure wallet";
+      appId = "com.1password.1password";
+    }
+    {
+      cask = "discord";
+      name = "Discord";
+      description = "Voice, video, and community chat";
+      appId = "com.hnc.Discord";
+    }
+    {
+      cask = "signal";
+      name = "Signal";
+      description = "Private messaging and calls";
+      appId = "org.whispersystems.signal-desktop";
+    }
+    {
+      cask = "spotify";
+      name = "Spotify";
+      description = "Music and podcast player";
+      appId = "com.spotify.client";
+    }
+    {
+      cask = "visual-studio-code";
+      name = "Visual Studio Code";
+      description = "Code editor from Microsoft";
+      appId = "com.microsoft.VSCode";
+    }
+    {
+      cask = "vlc";
+      name = "VLC";
+      description = "Video and audio player";
+      appId = "org.videolan.vlc";
+    }
+  ];
+
+  popularAppsCatalog = pkgs.writeText "nebelhaus-popular-apps.tsv" (
+    lib.concatMapStringsSep "\n" (
+      app:
+      lib.concatStringsSep "\t" [
+        app.cask
+        app.name
+        app.description
+        app.appId
+      ]
+    ) popularApps
+    + "\n"
+  );
+
   # Short form, for inline use in a cheatsheet row ("⇪ v ↵"). Only read where
   # k.leader is known non-null.
   leaderGlyph = if k.leader != null then k.leader.glyph else "";
@@ -77,6 +177,7 @@ let
     substituteInPlace $out/add-app.sh --replace-fail '@hostname@' '${hostname}'
     chmod 555 $out/*.sh
     install -m555 ${appIconMap} $out/app-icon-map
+    install -m444 ${popularAppsCatalog} $out/popular-apps.tsv
     ${lib.optionalString (!config.nebelhaus.hush.enable) "rm $out/hush.sh"}
   '';
 

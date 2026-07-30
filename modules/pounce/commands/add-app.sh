@@ -33,6 +33,7 @@ BREW_INDEX="$HOME/.cache/nebelhaus/brew-index.tsv"
 BREW_API="$HOME/Library/Caches/Homebrew/api"
 FLOAT_TERM="$HOME/.config/zellij/float-term.sh"
 APP_ICON_MAP="$(dirname "$0")/app-icon-map"
+POPULAR_APPS="$(dirname "$0")/popular-apps.tsv"
 
 field() { printf '%s' "$1" | cut -f"$2"; }
 notice() {
@@ -104,10 +105,14 @@ write_install_module() {
 }
 
 # ── source ────────────────────────────────────────────────────────────────
-source_menu="$(printf '%s\t%s\t%s\n%s\t%s\t%s\n%s\t%s\t%s' \
-  "Homebrew" "Apps (casks) and command-line tools (formulae)" "mug" \
-  "Mac App Store" "Search Apple's catalog; installs visibly with mas" "apple.logo" \
-  "Nix packages" "Packages from this flake's pinned Nixpkgs revision" "snowflake")"
+# Popular is a rice-curated shelf, not another package-manager label. The
+# backing casks stay private payload so this first step describes intent rather
+# than exposing where an app happens to come from.
+source_menu="$(printf '%s\t%s\t%s\t\t%s\n%s\t%s\t%s\t\t%s\n%s\t%s\t%s\t\t%s\n%s\t%s\t%s\t\t%s' \
+  "Popular apps" "A curated shelf of useful Mac apps" "star" "Popular" \
+  "Homebrew" "Apps (casks) and command-line tools (formulae)" "mug" "Browse by source" \
+  "Mac App Store" "Search Apple's catalog; installs visibly with mas" "apple.logo" "Browse by source" \
+  "Nix packages" "Packages from this flake's pinned Nixpkgs revision" "snowflake" "Browse by source")"
 source_sel="$(printf '%s\n' "$source_menu" | pounce -p "Install App — from where?" -i "square.and.arrow.down.on.square")"
 [ -z "$source_sel" ] && exit 0
 source_name="$(field "$source_sel" 2)"
@@ -125,6 +130,33 @@ query=""
 again_row() {
   printf '%s\t%s\t%s\t\t%s\t__again__\t\t\t' \
     "Search again" "$1" "magnifyingglass" "Search"
+}
+
+app_is_installed() {
+  local token="$1" appname="$2" app_id="$3" path
+
+  # This catches casks regardless of where their artifacts live, including
+  # command-only or nested app installs. INSTALLED_CASKS is collected once for
+  # the whole shelf; spawning Homebrew once per row makes opening it feel slow.
+  if printf '%s\n' "$INSTALLED_CASKS" | grep -Fqx "$token"; then
+    return 0
+  fi
+
+  # Also hide a matching app installed by hand, Setapp, or the App Store. The
+  # direct paths are instant; Spotlight covers nested application bundles.
+  for path in "/Applications/$appname.app" "$HOME/Applications/$appname.app"; do
+    [ -d "$path" ] && return 0
+  done
+  if [ -n "$app_id" ] && command -v mdfind >/dev/null 2>&1; then
+    {
+      mdfind -onlyin /Applications "kMDItemCFBundleIdentifier == '$app_id'" 2>/dev/null
+      [ -d "$HOME/Applications" ] \
+        && mdfind -onlyin "$HOME/Applications" "kMDItemCFBundleIdentifier == '$app_id'" 2>/dev/null
+    } | grep -q .
+    [ "${PIPESTATUS[1]}" -eq 0 ] && return 0
+  fi
+
+  return 1
 }
 
 # ── Homebrew catalog ──────────────────────────────────────────────────────
@@ -178,6 +210,26 @@ build_brew_index() {
 
 while :; do
   list=""
+
+  if [ "$source_name" = "Popular apps" ]; then
+    INSTALLED_CASKS=""
+    if command -v brew >/dev/null 2>&1; then
+      INSTALLED_CASKS="$(brew list --cask 2>/dev/null || true)"
+    fi
+    while IFS=$'\t' read -r popular_token popular_name popular_desc popular_app_id; do
+      [ -n "$popular_token" ] || continue
+      app_is_installed "$popular_token" "$popular_name" "$popular_app_id" && continue
+      printf -v popular_row '%s\t%s\t%s\t\t\tcask\t%s\t%s\t%s\n' \
+        "$popular_name" "$popular_desc" "app.badge" \
+        "$popular_name" "$popular_token" "$popular_app_id"
+      list="$list$popular_row"
+    done <"$POPULAR_APPS"
+
+    if [ -z "$list" ]; then
+      notice "You have all the popular picks" "Nothing from the curated shelf is missing" "checkmark.circle"
+      exit 0
+    fi
+  fi
 
   if [ "$source_name" = "Homebrew" ]; then
     mkdir -p "$(dirname "$BREW_INDEX")"
@@ -330,7 +382,11 @@ $(again_row "Not what you wanted? Search Nixpkgs again")"
   # ── choose a result ─────────────────────────────────────────────────────
   # --chain again: typing words that match no row and pressing Enter is how you
   # re-search from here, and that too runs a search before the next pounce.
-  selected="$(printf '%s\n' "$list" | pounce --chain -p "Install App — search $source_name" -i "square.and.arrow.down.on.square")"
+  if [ "$source_name" = "Popular apps" ]; then
+    selected="$(printf '%s\n' "$list" | pounce -p "Install App — popular" -i "star")"
+  else
+    selected="$(printf '%s\n' "$list" | pounce --chain -p "Install App — search $source_name" -i "square.and.arrow.down.on.square")"
+  fi
   [ -z "$selected" ] && exit 0
 
   type="$(field "$selected" 7)"
