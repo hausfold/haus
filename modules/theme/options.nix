@@ -40,19 +40,20 @@
 
         What does NOT follow it:
 
-          - pounce, by default. It's the one tool that can choose a palette per
-            open, so nebelhaus.pounce.followSystemAppearance (default true) hands
-            its polarity to macOS Light/Dark instead: the rice installs every
-            rendered variant into ~/.config/pounce/themes/ and writes the
-            dark/light PAIR at your `contrast`. Set that option false to pin
-            pounce to this flavor like everything else.
+          - pounce and trill, by default. Both read their palette at runtime and
+            can pick per polarity, so nebelhaus.pounce.followSystemAppearance
+            and nebelhaus.trill.followSystemAppearance (default true) hand that
+            choice to macOS Light/Dark instead: the rice installs every rendered
+            variant into ~/.config/{pounce,trill}/themes/ and writes the
+            dark/light PAIR at your `contrast`. Set either option false to pin
+            that app to this flavor like everything else.
           - macOS's own Light/Dark appearance. Turning ON dark mode is one typed
             setting, but turning it OFF means DELETING a default rather than
             writing one, which nix-darwin has no way to express — so the rice
             leaves system appearance alone in both directions and you set it in
             System Settings ▸ Appearance. A latte rice on a dark macOS looks
-            half-done, and that half is currently yours — except in pounce, which
-            reads the appearance itself.
+            half-done, and that half is currently yours — except in pounce and
+            trill, which read the appearance themselves.
           - the desktop wallpaper (nebelhaus.theme.wallpaper). The three hand-made
             looks have the dark palette baked in; only "bold" is generated, and it
             follows theme.accent rather than the flavor.
@@ -83,9 +84,9 @@
 
         Honest scope. This recolours what the rice injects colours into:
         Ghostty, bat, delta, lsd, yazi, zellij, glow, starship, lazygit, the
-        bar, pounce (at runtime, via ~/.config/pounce/themes/ — and unlike
-        `flavor`, contrast reaches pounce on BOTH halves of its light/dark pair),
-        Zen and Obsidian. It does NOT reach:
+        bar, pounce and trill (at runtime, via ~/.config/{pounce,trill}/themes/ —
+        and unlike `flavor`, contrast reaches both on BOTH halves of their
+        light/dark pair), Zen and Obsidian. It does NOT reach:
 
           - macOS itself. For system-wide contrast see
             nebelhaus.accessibility.increaseContrast — a separate, FDA-gated
