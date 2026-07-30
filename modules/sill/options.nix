@@ -57,6 +57,57 @@
       '';
     };
 
+    tour.steps = lib.mkOption {
+      type = lib.types.nullOr (
+        lib.types.nonEmptyListOf (
+          lib.types.submodule {
+            options = {
+              hint = lib.mkOption {
+                type = lib.types.str;
+                example = "Press ⌘Space, type calendar, then hit ↵";
+                description = "The instruction shown in the tour pill for this step.";
+              };
+
+              detect = lib.mkOption {
+                type = lib.types.enum [
+                  "launch"
+                  "workspace"
+                  "navigate"
+                  "resize"
+                  "palette"
+                ];
+                example = "palette";
+                description = ''
+                  The existing rice signal that completes this step: entering launch,
+                  navigate or resize mode; changing workspace; or running the Haus Tour
+                  command from Pounce (`palette`). The tour observes outcomes, never
+                  keystrokes. Clicking the pill still skips a step that cannot be
+                  detected in the current setup.
+                '';
+              };
+            };
+          }
+        )
+      );
+      default = null;
+      example = [
+        {
+          hint = "Press ⌘Space, type tour, then hit ↵";
+          detect = "palette";
+        }
+      ];
+      description = ''
+        A community-authored tour, in order. null keeps the built-in four-move
+        nebelhaus tour unchanged; supplying a list replaces it, so a shared rice can
+        teach its own workflow without shipping scripts or reaching outside the
+        `nebelhaus.*` option surface.
+
+        Detection reuses signals the rice already emits. `launch`, `workspace`,
+        `navigate` and `resize` need prowl; `palette` needs Pounce and its palette
+        binding. The module warns when a chosen detector's room is disabled.
+      '';
+    };
+
     # Per-pill on/off for the whole right side of the bar. One bool per item in a
     # submodule (not attrsOf) so unknown keys are rejected and each item carries
     # its own default: the core pills default true, the extras default false. The

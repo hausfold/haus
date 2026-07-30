@@ -12,7 +12,7 @@
 # machine pays one stat per mode change and nothing else. We verify the
 # RESULTING state (mode entered, workspace changed), never the keystroke.
 #
-# Steps are strictly sequential:
+# With nebelhaus.tour.steps = null, the built-in steps are strictly sequential:
 #   1a  tap the leader (launch mode armed)    <- launch_mode.sh on
 #   1b  press a letter (an app launches)      <- aerospace-notify.sh (workspace
 #                                                changed). The named key is
@@ -29,9 +29,14 @@
 #   4   palette hotkey, type tour             <- the pounce "Haus Tour" command
 #                                                (skipped when pounce is off)
 #
+# Setting nebelhaus.tour.steps replaces that lap with community-authored
+# { hint, detect } rows. tour_config.sh contains those rows as shell-safe case
+# functions; the state becomes c1, c2, ... and the same event funnel advances
+# them. No executable code crosses the data-only rice boundary.
+#
 # The leader and palette GLYPHS come from tour_config.sh, generated from
-# nebelhaus.keys.* — the prompts have to name the key this machine actually has,
-# or the tutor teaches a chord that does nothing.
+# nebelhaus.keys.* — the built-in prompts have to name the key this machine
+# actually has, or the tutor teaches a chord that does nothing.
 #
 # Left-click skips the current step (dormant: starts), right-click dismisses
 # for good. Entry points: the dormant "new here?" hint on a fresh machine,
@@ -52,7 +57,7 @@
 export PATH="/run/current-system/sw/bin:/opt/homebrew/bin:/usr/bin:/bin:$PATH"
 
 STATE_DIR="$HOME/.local/state/nebelhaus"
-STATE="$STATE_DIR/tour"        # current step: 1a | 1b | 2 | 3 | 4
+STATE="$STATE_DIR/tour"        # built-in: 1a|1b|2|3|4; custom: c1|c2|...
 DONE="$STATE_DIR/tour-done"    # present == completed or dismissed
 MUTED="$STATE_DIR/tour-muted"  # right-side pills hidden while a tour runs
 LOCK="/tmp/sketchybar_tour.lock"
@@ -60,17 +65,25 @@ LOCK="/tmp/sketchybar_tour.lock"
 source "$HOME/.config/sketchybar/colors.sh"
 source "$HOME/.config/sketchybar/workspaces.sh"
 
-# GENERATED gates + glyphs (modules/sill/default.nix): TOUR_HAS_PALETTE=0 when
-# pounce is off, which drops step 4 and makes it a three-step tour. TOUR_LEADER /
-# TOUR_LEADER_NAME / TOUR_PALETTE name the keys this machine is actually bound to
-# (nebelhaus.keys.*). Defaults here are the house keymap, so a stale
-# tour_config.sh degrades to the old hardcoded prompts rather than blank ones.
+# GENERATED gates, authored steps + glyphs (modules/sill/default.nix).
+# TOUR_CUSTOM=1 replaces the built-in lap. Otherwise TOUR_HAS_PALETTE=0 when
+# pounce is off, which drops step 4 and makes it a three-step tour. Defaults here
+# preserve the old tour when tour_config.sh is stale or absent.
+TOUR_CUSTOM=0
+TOUR_CUSTOM_COUNT=0
 TOUR_HAS_PALETTE=1
 TOUR_LEADER="⇪"
 TOUR_LEADER_NAME="Caps Lock"
 TOUR_PALETTE="⌘ Space"
+tour_custom_hint() { return 1; }
+tour_custom_detect() { return 1; }
 [ -f "$HOME/.config/sketchybar/tour_config.sh" ] && source "$HOME/.config/sketchybar/tour_config.sh"
-TOTAL=3; [ "$TOUR_HAS_PALETTE" = 1 ] && TOTAL=4
+if [ "$TOUR_CUSTOM" = 1 ]; then
+    TOTAL=$TOUR_CUSTOM_COUNT
+else
+    TOTAL=3
+    [ "$TOUR_HAS_PALETTE" = 1 ] && TOTAL=4
+fi
 
 # fa-paw (U+F1B0) as raw UTF-8 bytes — /bin/bash is 3.2, whose printf has no
 # \u/\U; \xHH works (same trick as launch_mode.sh).
@@ -113,14 +126,44 @@ acquire_lock() {
 
 step() { cat "$STATE" 2>/dev/null; }
 
+# Changing from the built-in lap to authored steps (or shortening an authored
+# list) can leave yesterday's state file naming a step the new tour does not
+# have. Treat that as a fresh dormant tour rather than rendering a blank or,
+# worse, resuming a built-in instruction the rice no longer declares.
+state_is_valid() {
+    local current index
+    current=$(step)
+    if [ "$TOUR_CUSTOM" = 1 ]; then
+        case "$current" in
+            c*)
+                index=${current#c}
+                [[ "$index" =~ ^[0-9]+$ ]] \
+                    && [ "$index" -ge 1 ] \
+                    && [ "$index" -le "$TOUR_CUSTOM_COUNT" ]
+                ;;
+            *) return 1 ;;
+        esac
+    else
+        case "$current" in 1a|1b|2|3|4) return 0 ;; *) return 1 ;; esac
+    fi
+}
+
 render() {
-    local lbl
+    local current index lbl
+    current=$(step)
+    case "$current" in
+        c*)
+            index=${current#c}
+            lbl="$index/$TOTAL · $(tour_custom_hint "$index")"
+            ;;
+    esac
     case "$(step)" in
         1a) lbl="1/$TOTAL · tap $TOUR_LEADER ($TOUR_LEADER_NAME)" ;;
         1b) lbl="1/$TOTAL · now press $(launch_key) — the letters are in the bar" ;;
         2)  lbl="2/$TOTAL · tap $TOUR_LEADER, then an arrow — ⎋ ends" ;;
         3)  lbl="3/$TOTAL · tap $TOUR_LEADER, then - or = — ⎋ ends" ;;
         4)  lbl="4/$TOTAL · press $TOUR_PALETTE, type tour, hit ↵" ;;
+        c*) ;;
         *)  return ;;
     esac
     sketchybar --set tour drawing=on \
@@ -201,7 +244,11 @@ flash() { # flash <bg-color> <seconds> <label>
 }
 
 finish() {
-    flash "$MAUVE" 4 "the house is yours $PAW — ⇪ / opens the cheatsheet"
+    if [ "$TOUR_CUSTOM" = 1 ]; then
+        flash "$MAUVE" 4 "the house is yours $PAW"
+    else
+        flash "$MAUVE" 4 "the house is yours $PAW — ⇪ / opens the cheatsheet"
+    fi
     touch "$DONE"; rm -f "$STATE"
     buddy_close
     unmute
@@ -211,12 +258,23 @@ finish() {
 # Move past the current step. $1 = a "nice" line to flash; empty (a click-skip)
 # flashes nothing — no praise for a move that didn't happen.
 advance() {
-    case "$(step)" in
+    local current index
+    current=$(step)
+    case "$current" in
         1a|1b) [ -n "$1" ] && flash "$GREEN" 2 "$1"; echo 2 > "$STATE"; buddy_open ;;
         2)     [ -n "$1" ] && flash "$GREEN" 2 "$1"; echo 3 > "$STATE"; buddy_open ;;
         3)     [ -n "$1" ] && flash "$GREEN" 2 "$1"
                if [ "$TOUR_HAS_PALETTE" = 1 ]; then echo 4 > "$STATE"; else finish; return; fi ;;
         4)     finish; return ;;
+        c*)
+            index=${current#c}
+            if [ "$index" -lt "$TOUR_CUSTOM_COUNT" ]; then
+                echo "c$((index + 1))" > "$STATE"
+            else
+                finish
+                return
+            fi
+            ;;
         *)     return ;;
     esac
     render
@@ -231,7 +289,7 @@ start() {
     fi
     mkdir -p "$STATE_DIR"
     rm -f "$DONE"
-    echo 1a > "$STATE"
+    if [ "$TOUR_CUSTOM" = 1 ]; then echo c1 > "$STATE"; else echo 1a > "$STATE"; fi
     mute
     render
 }
@@ -243,7 +301,8 @@ case "$1" in
         # repaint whatever the last session left — a mid-tour step (re-muting
         # the freshly-added pills), done (hidden), or the dormant hint.
         acquire_lock
-        if [ -f "$STATE" ]; then mute; render
+        if [ -f "$STATE" ] && state_is_valid; then mute; render
+        elif [ -f "$STATE" ]; then rm -f "$STATE"; buddy_close; unmute; dormant
         elif [ -f "$DONE" ]; then hide
         else dormant; fi
         ;;
@@ -263,19 +322,28 @@ case "$1" in
         # The live-detection funnel. Callers guard with [ -f $STATE ] — except
         # `palette`, which is also the tour's re-entry point (⌘Space → tour).
         case "$2" in
-            launch)    acquire_lock; [ "$(step)" = 1a ] && { echo 1b > "$STATE"; render; } ;;
-            workspace) acquire_lock; [ "$(step)" = 1b ] && advance "nice — that's the launcher" ;;
-            navigate)  acquire_lock; [ "$(step)" = 2 ] && advance "nice — ⇧+arrow drags the window along" ;;
-            resize)    acquire_lock; [ "$(step)" = 3 ] && advance "nice — it repeats till ⎋" ;;
+            launch|workspace|navigate|resize|palette) ;;
+            *) echo "usage: $0 event launch|workspace|navigate|resize|palette" >&2; exit 1 ;;
+        esac
+        acquire_lock
+        current=$(step)
+        if [[ "$current" == c* ]]; then
+            index=${current#c}
+            [ "$(tour_custom_detect "$index")" = "$2" ] && advance ""
+            exit 0
+        fi
+        case "$2" in
+            launch)    [ "$(step)" = 1a ] && { echo 1b > "$STATE"; render; } ;;
+            workspace) [ "$(step)" = 1b ] && advance "nice — that's the launcher" ;;
+            navigate)  [ "$(step)" = 2 ] && advance "nice — ⇧+arrow drags the window along" ;;
+            resize)    [ "$(step)" = 3 ] && advance "nice — it repeats till ⎋" ;;
             palette)
-                acquire_lock
                 case "$(step)" in
                     4)  advance "" ;;   # advancing past 4 IS the finale
                     "") start ;;        # no tour running — (re)start one
                     *)  render ;;       # mid-tour: just repaint
                 esac
                 ;;
-            *) echo "usage: $0 event launch|workspace|navigate|resize|palette" >&2; exit 1 ;;
         esac
         ;;
     *) echo "usage: $0 init|start|click|skip|dismiss|reset|status|event <name>" >&2; exit 1 ;;
