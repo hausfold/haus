@@ -15,6 +15,17 @@ use zellij_tile_utils::style;
 // where it's painted.
 static AGENT_PAW: &str = "\u{f1b0}";
 
+// The badge is a FILLED rectangle — the state colour is the background and the
+// paw is punched out of it in near-black — not a coloured glyph on the tab's own
+// fill. A one-cell glyph tinted peach is a few lit pixels you have to go looking
+// for; a solid block is the thing you catch from across the room, which is the
+// entire job of this badge.
+//
+// Same construction as line.rs's layout_indicator_pill (the yellow GRID
+// rectangle): hand-painted flat block, no powerline caps, so the two right-hand
+// signals in this bar read as one family.
+static AGENT_BADGE_WIDTH: usize = 3; // " {paw} "
+
 fn cursors<'a>(
     focused_clients: &'a [ClientId],
     multiplayer_colors: MultiplayerColors,
@@ -73,38 +84,43 @@ pub fn render_tab(
         .bold()
         .paint(format!(" {} ", text));
 
-    // Fork: the agent-status paw, painted independently of the tab name so its
-    // colour carries the state instead of the name's. Sits between the name and
-    // the pill's right edge, after the fullscreen/sync/bell glyphs tab_style
-    // appended into `text`.
+    // Fork: the agent-status badge — a filled rectangle in the agent's state
+    // colour, riding between the tab name and the pill's right edge (after the
+    // fullscreen/sync/bell glyphs tab_style appended into `text`).
     let badge_section = badge.map(|state| {
         // The same three colours sill's `agents` pill uses — peach "needs you",
         // sky "working", green "done" — but read out of theme slots rather than
         // hardcoded hexes, so a non-nebelung zellij theme still gets sane ones.
         // Under nebelung these resolve to exactly sill's peach/sky/green.
-        let badge_color = match state {
+        let state_color = match state {
             AgentState::Waiting => palette.text_unselected.emphasis_0,
             AgentState::Working => palette.text_unselected.emphasis_1,
             AgentState::Idle => palette.exit_code_success.base,
         };
-        // Contrast guard: nebelung paints the ACTIVE tab's pill in the very green
-        // it uses for "done", so an unguarded green paw would be invisible on the
-        // one tab you're sitting in. Fall back to the tab's own foreground there —
-        // you lose the colour code on that single tab, never the badge itself.
-        let badge_color = if badge_color == background_color {
-            foreground_color
+        // Contrast guard, and the reason it can't just be dropped now that the
+        // badge is a filled block: nebelung paints the ACTIVE tab's pill in the
+        // very green that means "done", so a green rectangle on the tab you're
+        // sitting in would melt into it. Invert there — paw in the state colour
+        // on the tab's own dark fill — which keeps BOTH the colour code and a
+        // visible badge, unlike the flat foreground fallback this replaces.
+        // Near-black from the theme rather than the tab's own foreground: that
+        // one turns pink while a bell is flashing, which has nothing to do with
+        // the agent. Same dark layout_indicator_pill punches its GRID text out in.
+        let dark = palette.text_unselected.background;
+        let (badge_fg, badge_bg) = if state_color == background_color {
+            (state_color, dark)
         } else {
-            badge_color
+            (dark, state_color)
         };
-        style!(badge_color, background_color)
+        style!(badge_fg, badge_bg)
             .bold()
-            .paint(format!("{} ", AGENT_PAW))
+            .paint(format!(" {} ", AGENT_PAW))
             .to_string()
     });
-    // The paw plus its trailing space. One column for the glyph only holds in a
-    // Nerd Font Mono build — see AGENT_PAW.
+    // The rectangle is the paw plus a column of fill either side. One column for
+    // the glyph itself only holds in a Nerd Font Mono build — see AGENT_PAW.
     if badge_section.is_some() {
-        tab_text_len += 2;
+        tab_text_len += AGENT_BADGE_WIDTH;
     }
 
     let right_separator = style!(background_color, separator_fill_color).paint(separator);
