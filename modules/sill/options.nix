@@ -78,6 +78,7 @@
           calendar = "Your next timed event, with a click-popup of the next five. Pulls in `ical-buddy` automatically and reads Calendar, so macOS prompts for Calendar access on first run.";
           caffeinate = "A coffee pill that prevents idle system sleep for 1/2/4/8 hours, a custom whole-hour duration, or indefinitely. The display may still turn off; closing a MacBook lid still sleeps it. Uses macOS's built-in `caffeinate`, so there is no extra package.";
           agents = "A paw pill tracking your `claude --worktree` agent panes — amber when one is blocked on you, click for the per-agent list; left-click a row to jump to that pane, ⌥/right-click for a live `zellij subscribe` peek. Fed by Claude Code hooks (point them at ~/.config/sketchybar/plugins/agents-hook.sh); dormant until they fire.";
+          claudeUsage = "A gauge pill showing how much of your Claude Code usage you've spent — `<5-hour>·<weekly>` as percentages, coloured by whichever window is closest to biting (green under 50, red at 90). Click for both windows with their reset times. The numbers ride Claude Code's own statusline feed, so nothing is polled and no token is read; the pill stays hidden until a Claude session first reports, and greys out if none has in half an hour.";
           elgato = "Toggles an Elgato Key Light on the local network.";
           harvest = "A Harvest time-tracking pill; needs a ~/.config/sketchybar/harvest_secrets.sh you provide.";
         };
@@ -100,7 +101,8 @@
           Which SketchyBar pills to draw, one bool each. The core pills —
           `clock`, `weather`, `media`, `battery`, `wifi` — default true; the extras
           — the readouts `cpu`, `memory`, `volume`, `calendar`, `caffeinate`
-          and the personal `agents`, `elgato`, `harvest` — default false. Set
+          and the personal `agents`, `claudeUsage`, `elgato`, `harvest` —
+          default false. Set
           only what you want to change:
 
             nebelhaus.sill.items = {

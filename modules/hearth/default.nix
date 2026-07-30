@@ -1373,6 +1373,10 @@ in
       #     the sister worktrees in flight across every repo — the agent-worktree
       #     HUD the built-in bar can't give. refreshInterval keeps the sister
       #     list current while the main session sits idle watching other panes.
+      #     It is also the ONLY feed behind sill's `claudeUsage` pill — Claude
+      #     Code hands the statusline its rate-limit percentages and nothing
+      #     else on this machine sees them — so unsetting this key freezes that
+      #     pill (it greys itself out after 30 minutes rather than lying).
       #   spinnerTipsEnabled = false  — drop the rotating "Tip:" line under the
       #     spinner; the status bar already carries the context that matters.
       #     (The built-in mode/`esc to interrupt` footer badge has no such knob

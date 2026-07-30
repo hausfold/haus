@@ -187,6 +187,10 @@ in
       # the cross-repo + `gh` enumeration is done detached by the companion
       # `claude-statusline-refresh` and cached (stale-while-revalidate), so the bar
       # never blocks. Reads `wt`'s registry — same agent-worktree flow, same home.
+      # It doubles as the writer for sill's `claudeUsage` pill: Claude Code hands
+      # every render the account's 5-hour + weekly rate-limit percentages, so the
+      # render path stashes them to ~/.cache/claude-statusline/usage.tsv — the
+      # cheapest possible source, with no keychain read and nothing polling.
       (writeShellScriptBin "claude-statusline" (builtins.readFile ./statusline.sh))
       (writeShellScriptBin "claude-statusline-refresh" (builtins.readFile ./statusline-refresh.sh))
     ];

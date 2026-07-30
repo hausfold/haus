@@ -120,6 +120,38 @@ if [ -n "${ZELLIJ_PANE_ID:-}" ] && [ -n "$transcript" ]; then
   fi
 fi
 
+# Usage limits → the sill `claudeUsage` pill (modules/sill/sketchybar/plugins/
+# claude_usage.sh). Claude Code hands every render the account-wide 5-hour and
+# weekly rate-limit percentages, so this is by far the cheapest place to harvest
+# them: no keychain read, no /api/oauth/usage call, no polling daemon on a timer.
+#
+# Account-global numbers arriving through a per-SESSION channel is fine here —
+# unlike the model-reactive theme we tried and reverted (PRs #47/#51), where
+# last-writer-wins lied in a mixed-model fleet, every pane reports the SAME
+# percentages, so whichever writes last is right.
+#
+# Always rewrite the stash (the reader greys the pill out from that timestamp),
+# but only nudge the bar when a percentage actually moved: renders fire on every
+# assistant message while these numbers crawl by whole points.
+lim5=$(j '.rate_limits.five_hour.used_percentage')
+if [ -n "$lim5" ]; then
+  limw=$(j '.rate_limits.seven_day.used_percentage')
+  usage="$CACHE_DIR/usage.tsv"
+  # Truncate rather than round: 99.6% must not render as a scary 100%.
+  now5=${lim5%%.*}; noww=${limw%%.*}
+  rst5=$(j '.rate_limits.five_hour.resets_at'); rstw=$(j '.rate_limits.seven_day.resets_at')
+  was=$(cut -f1,2 "$usage" 2>/dev/null)
+  [ -d "$CACHE_DIR" ] || mkdir -p "$CACHE_DIR"
+  printf '%s\t%s\t%s\t%s\t%s\n' \
+    "${now5:-0}" "${noww:-0}" "${rst5:-0}" "${rstw:-0}" "$(date +%s)" \
+    >"$usage.$$" && mv -f "$usage.$$" "$usage"
+  pill="$HOME/.config/sketchybar/plugins/claude_usage.sh"
+  if [ "$was" != "$(printf '%s\t%s' "${now5:-0}" "${noww:-0}")" ] && [ -x "$pill" ]; then
+    # Detached: a render must never block on sketchybar's socket.
+    (SENDER=refresh NAME=claude_usage "$pill" >/dev/null 2>&1 &)
+  fi
+fi
+
 # Permission mode: NOT in the statusline stdin, but Claude Code appends a
 # {"type":"permission-mode","permissionMode":"…"} record to the transcript on
 # every mode change (and stamps user records too), and re-runs the statusline
