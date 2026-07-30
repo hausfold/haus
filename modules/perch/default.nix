@@ -17,14 +17,90 @@
 #
 # On by default, like trill: nix/release.nix in the perch repo pins a real
 # notarized release, so `pkgs.perch` is a shipping app rather than a placeholder.
+#
+# Theming rides perch's RUNTIME palettes (perch's UI/Theme/RicePalette.swift):
+# every rendered nebelung variant is dropped in ~/.config/perch/themes/, and
+# ~/.config/perch/config.json names the dark/light pair theme.{flavor,contrast}
+# selects. Same file shapes as trill, so the two modules stay diffable — the one
+# difference is that perch has no theme picker of its own, so this file is the
+# whole story for its colors.
 {
   config,
   lib,
   pkgs,
+  username,
   ...
 }:
 
 lib.mkIf config.nebelhaus.perch.enable {
+  # All home-manager wiring in ONE block — a dynamic attr key (${username}) can't
+  # be merged across multiple statements. Passed as a module FUNCTION so it gets
+  # the overlaid `pkgs`, the `nebelung` input, and home-manager's extended lib
+  # (`lib.hm.dag` — the outer nix-darwin `lib` has no `hm`).
+  home-manager.users.${username} =
+    {
+      lib,
+      nebelung,
+      pkgs,
+      ...
+    }:
+    let
+      # theme.{flavor,contrast} resolved to the selected nebelung variant, the
+      # same way hearth/sill/theme/pounce/trill do it.
+      nb = import ../lib/nebelung.nix {
+        inherit lib nebelung;
+        theme = config.nebelhaus.theme;
+      };
+      followAppearance = config.nebelhaus.perch.followSystemAppearance;
+
+      # The palette per polarity. Perch picks between them by the macOS
+      # appearance, so PINNING a flavor is expressed by writing the same variant
+      # to both keys. An older perch that predates theming ignores this file.
+      configJSON = pkgs.writeText "perch-config.json" (
+        builtins.toJSON {
+          themeDark = if followAppearance then nb.darkVariant else nb.variant;
+          themeLight = if followAppearance then nb.lightVariant else nb.variant;
+        }
+      );
+
+      # Every rendered variant, not just the selected one — a file SHADOWS
+      # perch's compiled-in variant of the same name, so this is how a nebelung
+      # palette bump reaches an installed Perch.app that hasn't been rebuilt.
+      # Perch reads seven of the twenty-three roles and ignores the rest, so the
+      # files go out verbatim. `or { }` on an older nebelung lock that predates
+      # the output: no files, and perch falls back to its compiled-in nebelung.
+      themeDrop = pkgs.runCommand "perch-theme" { } ''
+        mkdir -p $out/themes
+        cp ${configJSON} $out/config.json
+        ${lib.concatStringsSep "\n" (
+          lib.mapAttrsToList (
+            variant: palette:
+            "cp ${pkgs.writeText "perch-${variant}.json" (builtins.toJSON palette)} $out/themes/${variant}.json"
+          ) (nebelung.palettes or { })
+        )}
+      '';
+    in
+    {
+      # REAL FILES, not the xdg.configFile symlinks every other room here uses:
+      # perch is app-sandboxed and reaches ~/.config/perch through a read-only
+      # home-relative temporary exception. The sandbox resolves a symlink before
+      # it checks the path, so a link into /nix/store reads as a store access and
+      # is denied — the shelf would silently sit on compiled-in nebelung and the
+      # rice's theme would never show. A few KB of copies keeps perch's sandbox
+      # exception at exactly one directory, which is the point of the exception.
+      home.activation.perchTheme = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        run /bin/mkdir -p "$HOME/.config/perch/themes"
+        run /usr/bin/install -m 0644 ${themeDrop}/config.json "$HOME/.config/perch/config.json"
+        # Replace the drop wholesale so a variant nebelung stopped rendering
+        # doesn't linger as a stale palette a config.json could still name.
+        run /bin/rm -f "$HOME"/.config/perch/themes/*.json
+        for palette in ${themeDrop}/themes/*.json; do
+          [ -e "$palette" ] || continue
+          run /usr/bin/install -m 0644 "$palette" "$HOME/.config/perch/themes/"
+        done
+      '';
+    };
+
   # ---- give the shelf the top edge back --------------------------------------
   # The Dock arms a top-screen-edge trigger for the whole duration of ANY drag
   # session — files included, not just windows despite the key's name — and
