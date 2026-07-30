@@ -119,8 +119,11 @@
         inert until you unlock with Ctrl-g, so a stray keystroke can't jump you
         into a submode. The `Super`-prefixed launchers (claude / pane / tab /
         yazi-peek / fullscreen) are bound in `shared` and keep working while
-        locked; the bar's bottom-right quick-hint block only shows in Locked
-        mode. Set false to start in Normal mode (zellij's own default).
+        locked, as do `Alt [` / `Alt ]` (cycle swap layouts) — the rest of
+        zellij's `Alt` row stays inert while locked, since those keys are
+        readline/vim word motions the pane's app wants. The bar's bottom-right
+        quick-hint block only shows in Locked mode. Set false to start in Normal
+        mode (zellij's own default).
       '';
     };
 
