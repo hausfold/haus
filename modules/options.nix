@@ -128,7 +128,7 @@ in
     # the Dock, and the tiling gaps. It does NOT resize the menu bar (see the
     # note on ui.scale) and it cannot resize third-party apps; macOS has no
     # system-wide UI scale, so the OS-level lever is display resolution
-    # (nebelhaus.displays, not built yet).
+    # (`nebelhaus.displays`).
     ui.scale = lib.mkOption {
       type = lib.types.numbers.between 0.5 3.0;
       default = 1.0;

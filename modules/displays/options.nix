@@ -26,10 +26,10 @@
 
       Why this option exists at all: display scaling is the only lever macOS 26
       gives us for "make EVERYTHING bigger", system-wide, including apps the rice
-      knows nothing about. The accessibility text-size settings that look like the
-      obvious answer either live in a preference domain that refuses writes from a
-      rebuild, or write a value no running app re-reads — measured, not assumed
-      (the workshop's notes/macos-settings-matrix.md records the sweep). So
+      knows nothing about. macOS's own text-size setting writes a value no running
+      app re-reads, while the accessibility scalars that do work affect contrast
+      or motion rather than system-wide size — measured, not assumed (the
+      workshop's notes/macos-settings-matrix.md records the sweep). So
       `nebelhaus.ui.scale` and `nebelhaus.fonts` make the *rice* bigger, and this
       makes the *Mac* bigger.
     '';
@@ -65,6 +65,11 @@
             survives a reboot; re-applying an already-current mode is a no-op, so
             a rebuild doesn't flash your screen. null (the default) leaves the
             display alone.
+
+            When more than one selector names the same attached panel, the more
+            specific setting wins: UUID over internal over main. This lets a
+            host-specific display setting refine a broad preset such as
+            large-print without depending on activation order.
 
             Honest scope: this is a real, system-wide size change — every app gets
             bigger, not just the rice's own tools — and the cost is desk space,

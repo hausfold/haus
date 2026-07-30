@@ -2,11 +2,10 @@
 #
 # `nebelhaus.ui.scale` and `nebelhaus.fonts` make the RICE bigger: the terminal,
 # the bar, the Dock, the gaps. They can't touch Mail, Safari, or an app nobody
-# here has heard of. macOS's own text-size settings can, in theory — but the sweep
-# in the workshop's notes/macos-settings-matrix.md found every one of them either
-# locked to a preference domain that refuses writes during activation, or writing a
-# value that lands in the plist and is never re-read (System Settings then renders
-# a desynced view of its own rows, which is worse than not shipping the option).
+# here has heard of. macOS's own text-size setting writes a value that running
+# apps never re-read (System Settings then renders a desynced view of its own
+# rows, which is worse than not shipping the option). The accessibility scalars
+# that do work are FDA-gated and affect contrast or motion, not system-wide size.
 #
 # Display scaling is what's left, and it works: public CoreGraphics, no Homebrew
 # dependency, effective for every app on the machine because it changes what a
@@ -49,6 +48,18 @@ let
   isUUID = name: builtins.match "[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}" name != null;
   validSelector = name: name == "internal" || name == "main" || isUUID name;
   badSelectors = lib.filter (name: !validSelector name) (lib.attrNames displays);
+
+  activationName = selector: "nebelhausDisplay-${lib.replaceStrings [ ":" ] [ "-" ] selector}";
+
+  # Broad selectors run before specific ones. `large-print` sets `main`, while a
+  # host may add `internal` or a UUID for the panel it actually owns; without DAG
+  # edges both entries can resolve to the same display and whichever happens to
+  # run last wins. UUID is the most specific selector, then internal, then main.
+  predecessors =
+    selector:
+    [ "writeBoundary" ]
+    ++ lib.optional (selector != "main" && configured ? main) (activationName "main")
+    ++ lib.optional (isUUID selector && configured ? internal) (activationName "internal");
 in
 {
   assertions = [
@@ -71,11 +82,20 @@ in
     {
       home.activation = lib.mapAttrs' (
         selector: display:
-        lib.nameValuePair "nebelhausDisplay-${lib.replaceStrings [ ":" ] [ "-" ] selector}" (
-          lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        lib.nameValuePair (activationName selector) (
+          lib.hm.dag.entryAfter (predecessors selector) ''
             # Exit 2 means "that display isn't attached", which is not a problem
             # worth failing a rebuild over; hausdisp has already said so on stderr.
-            run ${hausdisp}/bin/hausdisp apply ${lib.escapeShellArg selector} ${lib.escapeShellArg display.uiScale} || run true
+            # Every other failure is real and must fail activation rather than
+            # leave the display unchanged while the rebuild reports success.
+            if run ${hausdisp}/bin/hausdisp apply ${lib.escapeShellArg selector} ${lib.escapeShellArg display.uiScale}; then
+              :
+            else
+              hausdisp_status=$?
+              if [ "$hausdisp_status" -ne 2 ]; then
+                exit "$hausdisp_status"
+              fi
+            fi
           ''
         )
       ) configured;
