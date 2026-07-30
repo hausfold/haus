@@ -267,7 +267,7 @@ pub fn tab_line(
     let mut prefix_len = get_current_title_len(&prefix);
 
     // Right-side widgets: the Ctrl+Tab reminder, then the swap-layout indicator
-    // (Alt <[]> keys + the active layout pill). Same order the old zjstatus
+    // (opt [] keys + the active layout pill). Same order the old zjstatus
     // `format_right` used.
     let mut reminder = Some(ctrl_tab_reminder(palette, false));
     let build_swap_indicator = |with_keys: bool| {
@@ -312,7 +312,7 @@ pub fn tab_line(
     // in and out as you resize is worse than one that gets terser:
     //
     //   1. `ctrl+tab` → `⌃⇥`                    (the reminder, keys only)
-    //   2. `Alt <[]> GRID` → `GRID`             (keep the state, drop the hint)
+    //   2. `opt [] GRID` → `GRID`               (keep the state, drop the hint)
     //   3. the reminder goes                    (a shortcut you know or don't)
     //   4. the layout pill goes
     //   5. the username prefix goes             (last resort)
@@ -479,6 +479,23 @@ fn layout_indicator_pill(text: &str, is_dirty: bool, palette: Styling) -> LinePa
     }
 }
 
+// Fork: zellij's cross-platform modifier names → the label actually printed on
+// this Mac's keyboard, lowercased. The key is `opt`, not `Alt`, and a bar should
+// read like the keyboard in front of you rather than like the config file.
+//
+// Only Alt reaches this bar today — swap_layout_status is the single caller of
+// style_key_with_modifier — but all four are mapped so a rebind can't leave the
+// pill reading half keyboard, half config.
+fn modifier_keycap(modifier: &KeyModifier) -> String {
+    match modifier {
+        KeyModifier::Ctrl => "ctrl",
+        KeyModifier::Alt => "opt",
+        KeyModifier::Shift => "shift",
+        KeyModifier::Super => "cmd",
+    }
+    .to_string()
+}
+
 pub fn style_key_with_modifier(keyvec: &[KeyWithModifier], color_index: Option<usize>) -> LinePart {
     if keyvec.is_empty() {
         return LinePart::default();
@@ -489,7 +506,7 @@ pub fn style_key_with_modifier(keyvec: &[KeyWithModifier], color_index: Option<u
     let no_common_modifier = common_modifiers.is_empty();
     let modifier_str = common_modifiers
         .iter()
-        .map(|m| m.to_string())
+        .map(modifier_keycap)
         .collect::<Vec<_>>()
         .join("-");
 
@@ -533,14 +550,19 @@ pub fn style_key_with_modifier(keyvec: &[KeyWithModifier], color_index: Option<u
         }
     } else {
         let key_string_without_modifier = format!("{}", key.join(key_separator));
-        let key_string_text = format!(" {} <{}> ", modifier_str, key_string_without_modifier);
+        // Fork: no `<…>` around the keys. Upstream needs the brackets because its
+        // status bar packs a dozen hints into one dense row and they're the only
+        // thing separating key from label; this bar renders exactly one hint
+        // (` opt [] ` in front of the layout pill), where they're just noise —
+        // and dropping them buys 2 columns back for the tabs.
+        let key_string_text = format!(" {} {} ", modifier_str, key_string_without_modifier);
         let text = if let Some(color_index) = color_index {
             Text::new(&key_string_text)
                 .color_range(color_index, ..modifier_str.width() + 1)
                 .color_range(
                     color_index,
-                    modifier_str.width() + 3
-                        ..modifier_str.width() + 3 + key_string_without_modifier.width(),
+                    modifier_str.width() + 2
+                        ..modifier_str.width() + 2 + key_string_without_modifier.width(),
                 )
                 .opaque()
         } else {
