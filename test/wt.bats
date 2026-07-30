@@ -603,6 +603,53 @@ mk_stray() { # mk_stray <main> <name> — a worktree-<name> checkout outside WT_
   [[ "$output" == *"spawned from a session in $dir"* ]]
 }
 
+# ── spawn ────────────────────────────────────────────────────────────────────
+
+@test "spawn: names the worktree and parents it to the repo, not to a pane" {
+  local b dir; b="$(mkrepo beta)"
+  # No cd: the palette runs under launchd, from wherever it happens to be.
+  run bash -c "bash '$WT' spawn '$b' fix-the-notch 2>/dev/null"
+  [ "$status" -eq 0 ]
+  dir="$output"
+  [ "$dir" = "$CLAUDE_WT_BASE/beta/fix-the-notch" ]
+  [ "$(git -C "$dir" branch --show-current)" = worktree-fix-the-notch ]
+  # Parent is the repo's own main checkout — a pane sitting there lists it.
+  [ "$(awk -F'\t' -v p="$dir" '$4==p{print $5}' "$REG")" = "$b" ]
+}
+
+@test "spawn: a taken name takes the next free suffix instead of dying" {
+  local b first second; b="$(mkrepo beta)"
+  first="$(bash "$WT" spawn "$b" dupe 2>/dev/null)"
+  run bash -c "bash '$WT' spawn '$b' dupe 2>/dev/null"
+  [ "$status" -eq 0 ]
+  second="$output"
+  [ "$first" = "$CLAUDE_WT_BASE/beta/dupe" ]
+  [ "$second" = "$CLAUDE_WT_BASE/beta/dupe-2" ]
+  [ "$(git -C "$second" branch --show-current)" = worktree-dupe-2 ]
+}
+
+@test "spawn: a free path with a taken BRANCH still skips to a free name" {
+  local b; b="$(mkrepo beta)"
+  git -C "$b" branch worktree-held
+  run bash -c "bash '$WT' spawn '$b' held 2>/dev/null"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$CLAUDE_WT_BASE/beta/held-2" ]
+}
+
+@test "spawn: refuses a missing path, a non-repo, and a missing name" {
+  local b; b="$(mkrepo beta)"
+  run bash "$WT" spawn "$TMP/nope" x
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"no such directory"* ]]
+  mkdir -p "$TMP/plain"
+  run bash "$WT" spawn "$TMP/plain" x
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"isn't inside a git repo"* ]]
+  run bash "$WT" spawn "$b"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"usage: wt spawn"* ]]
+}
+
 # ── dangling checkouts (husks) ───────────────────────────────────────────────
 #
 # `git worktree remove` deletes the repo's admin dir (.git/worktrees/<id>) BEFORE

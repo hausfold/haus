@@ -27,6 +27,11 @@
 #                     for cross-repo work (a workshop pane editing a sub-repo).
 #                     Registers it so its PR shows in the statusline; prints the
 #                     new checkout path, so: cd "$(wt child ~/code/…/rice)"
+#   wt spawn <repo> <name>
+#                     make a NAMED worktree for a spawner with no pane of its own
+#                     (the pounce "Spawn Agent" command). Same registration as
+#                     `child`, but parented to the repo itself, and a taken name
+#                     takes the next free suffix rather than dying.
 #   wt park [label]   set the working tree aside NOW, as a wip: commit on this
 #                     branch — the on-demand form of what the remove hook does.
 #                     Use this instead of `git stash`: the stash stack is SHARED
@@ -453,6 +458,40 @@ cmd_child() { # wt child <repo-path> [name] — worktree of ANOTHER repo, as a c
   echo "$dir"   # ONLY the path on stdout, so callers can: cd "$(wt child …)"
 }
 
+cmd_spawn() { # wt spawn <repo-path> <name> — a worktree for a spawner that has no pane
+  # `create` and `child` both assume a pane: they record the spawning cwd as the
+  # parent, which is how the statusline files a worktree under the session that
+  # made it. The palette has no pane — its command runs under launchd — and the
+  # session it launches is a TOP-LEVEL one, not anybody's child. So this records
+  # the repo's OWN main checkout as the parent: a pane sitting in that repo lists
+  # it, which is where a human looks for it, instead of leaving it parentless
+  # (which the statusline can only surface as an orphan ◇ in the $HOME pane).
+  #
+  # The other difference is that a taken name is not fatal. `child` dies and tells
+  # you to pass another one; a palette has nobody to tell, so a dead end there is
+  # just a command that silently did nothing. Take the first free -2/-3 suffix.
+  local target="${1:-}" want="${2:-}"
+  [ -n "$target" ] && [ -n "$want" ] || die "usage: wt spawn <repo-path> <name>"
+  [ -d "$target" ] || die "no such directory: $target"
+  local tmain
+  tmain="$(git_main "$target")" || die "'$target' isn't inside a git repo"
+  [ -d "$tmain/.git" ] || die "'$target' resolves to $tmain, which isn't a main checkout"
+  local bucket dir name n=1
+  bucket="$(basename "$tmain")"
+  name="$want"
+  while [ -e "$WT_BASE/$bucket/$name" ] \
+    || git -C "$tmain" show-ref -q --verify "refs/heads/worktree-$name" 2>/dev/null; do
+    n=$((n + 1))
+    [ "$n" -gt 99 ] && die "no free name near '$want' in $bucket"
+    name="$want-$n"
+  done
+  dir="$WT_BASE/$bucket/$name"
+  git -C "$tmain" worktree add -b "worktree-$name" "$dir" HEAD >&2
+  reg_put "$name" "$tmain" "worktree-$name" "$dir" "$tmain" || true
+  say "created $bucket worktree '$name' → $dir"
+  echo "$dir"   # ONLY the path on stdout, so callers can: cd "$(wt spawn …)"
+}
+
 wip_commit() { # wip_commit <checkout> <subject> — park the whole dirty tree as one commit
   # Shared by the remove hook (automatic, on pane close) and `wt park` (on demand),
   # so both produce the SAME thing: one `wip:` commit on the current branch holding
@@ -836,6 +875,7 @@ case "${1:-}" in
 create) cmd_create ;;
 remove) cmd_remove ;;
 child) cmd_child "${2:-}" "${3:-}" ;;
+spawn) cmd_spawn "${2:-}" "${3:-}" ;;
 park) cmd_park "${2:-}" ;;
 unpark) cmd_unpark ;;
 resume) cmd_resume "${2:-}" ;;
