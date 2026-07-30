@@ -8,7 +8,13 @@
 # closing a pane safe and reversible:
 #
 #   wt                list every parked/live agent worktree, across ALL repos
-#                     (self-heals first: reaps parked branches whose PR has merged)
+#                     (self-heals first: reaps parked branches whose PR has merged).
+#                     The state column is git's answer, not the disk's:
+#                       live   — git resolves the checkout; a pane may be in it
+#                       parked — no checkout on disk; the branch IS the work
+#                       stray  — a directory is there but git has disowned it (a
+#                                `worktree remove` that died between unregistering
+#                                and deleting). `wt <name>` heals one.
 #   wt <name>         resume one: rebuild its checkout + reopen its Claude chat
 #   wt resume <name>  (the same thing, spelled out)
 #   wt reap           sweep every LANDED worktree NOW — parked ones, plus clean &
@@ -142,6 +148,29 @@ git_main() { # git_main <dir> — the MAIN checkout backing any worktree of a re
   common="$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
   [ -n "$common" ] || return 1
   dirname "$common"
+}
+
+checkout_state() { # checkout_state <wt_path> — live | stray | parked
+  # The liveness test USED to be `[ -e "$wt/.git" ]`, and that is not the same
+  # question. `git worktree remove` deletes the repo's admin dir
+  # (.git/worktrees/<id>) BEFORE it deletes the working tree, so a removal that
+  # fails part-way — an ignored node_modules it cannot unlink, a file another
+  # process holds — leaves a directory whose .git file references a gitdir that
+  # is gone. `-e` calls that live; every git command run inside it exits 128 with
+  # "fatal: not a git repository: (null)".
+  #
+  # Consequences of believing `-e`, all seen on this machine: `wt` listed the
+  # husk as `live` forever; `wt <name>` said "still live at …" and refused to
+  # rebuild it, so the branch was unreachable; the sweep treated it as an
+  # occupied checkout and never swept it; and the statusline refresher — which
+  # runs under `set -e` — died on it, freezing the whole bar at hours-old data.
+  #
+  #   live   — git resolves it: a real checkout, possibly with a pane in it
+  #   stray  — a .git is there but git disowns it: a husk, contents preserved
+  #   parked — nothing on disk; the branch is the work, `wt <name>` rebuilds it
+  [ -e "$1/.git" ] || { echo parked; return; }
+  if git -C "$1" --no-optional-locks rev-parse --git-dir >/dev/null 2>&1
+  then echo live; else echo stray; fi
 }
 
 wt_projdir() { # wt_projdir <abs-cwd> — Claude Code's transcript dir for that cwd
@@ -303,9 +332,10 @@ checkout_map() { # main checkouts on STDIN → "main<TAB>branch<TAB>path" for ev
 #             is standing in them (our own pane, or ANY other open pane — see
 #             load_occupied); dirty/unmerged/occupied work is always left.
 reap_sweep() {
-  local mode="${1:-parked}" main branch wt selftop
+  local mode="${1:-parked}" main branch wt selftop state
   REAPED=""
   SKIPPED_LIVE=""
+  STRAYS=""
   selftop="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || echo "$PWD")"
   # No lsof (or nothing readable) means we cannot tell an open pane from an
   # abandoned one — so don't guess: sweep parked worktrees only. A checkout left
@@ -318,7 +348,20 @@ reap_sweep() {
     git -C "$main" show-ref -q --verify "refs/heads/$branch" 2>/dev/null || continue
     # $wt is already git's answer where git has one — resume_rows corrects every
     # row it emits (see checkout_map), so a live worktree can't be filed as parked.
-    if [ -e "$wt/.git" ]; then
+    state="$(checkout_state "$wt")"
+    # A husk (checkout_state stray) is the one thing the sweep must NOT touch. Its
+    # directory can hold the very edits it was killed mid-save — untracked files
+    # and unstaged changes that live in no commit — and git can no longer read the
+    # checkout to tell us whether it does. Reaping the branch would leave that
+    # directory orphaned and unnamed by anything, so the branch stays and the husk
+    # is REPORTED instead: `wt <name>` heals it (moves the husk aside, rebuilds).
+    # Same invariant as everywhere else here — the failure direction is "a branch
+    # lingers", never "work disappears".
+    if [ "$state" = stray ]; then
+      STRAYS+="${branch#worktree-} ($(basename "$main")) → $wt"$'\n'
+      continue
+    fi
+    if [ "$state" = live ]; then
       # A live checkout. Parked-only mode leaves every live checkout untouched.
       [ "$mode" = "all" ] || continue
       [ "$wt" = "$selftop" ] && continue                                   # never our own pane
@@ -492,16 +535,54 @@ cmd_remove() { # [WorktreeRemove hook] JSON on stdin — retire without losing w
   # up). So when — and only when — the branch is landed AND every dirty entry is
   # untracked, skip the WIP and let the force-remove drop the scratch, so it reaps
   # cleanly. Tracked edits, or an unmerged branch, are real work → always preserved.
-  local porcelain
+  # preserved=1 means nothing on disk is irreplaceable any more: either the tree was
+  # clean, or the WIP commit above captured it, or it was landed-plus-untracked
+  # scratch we chose to drop. It gates the husk cleanup below, and nothing else.
+  local porcelain preserved=1
   porcelain="$(git -C "$dir" status --porcelain 2>/dev/null || true)"
   if [ -n "$porcelain" ]; then
     if printf '%s\n' "$porcelain" | grep -qv '^??' \
        || [ -z "$branch" ] || ! branch_landed "$main" "$branch"; then
-      wip_commit "$dir" "wip: auto-saved on pane close ($(date '+%Y-%m-%d %H:%M'))" || true
+      wip_commit "$dir" "wip: auto-saved on pane close ($(date '+%Y-%m-%d %H:%M'))" || preserved=0
     fi
   fi
   git -C "$main" worktree remove "$dir" 2>/dev/null \
-    || git -C "$main" worktree remove --force "$dir"
+    || git -C "$main" worktree remove --force "$dir" 2>/dev/null || true
+  # Finish what git started. `git worktree remove` deletes the admin dir BEFORE it
+  # deletes the working tree, so when the recursive delete fails part-way — most
+  # often an ignored build dir it cannot unlink — git leaves a directory whose .git
+  # references a gitdir that is gone: a husk (checkout_state). Nothing recovers on
+  # its own; it sat in $WT_BASE reading `live` forever, and it killed the
+  # statusline refresher outright. So when the removal left one behind AND the
+  # work is preserved, delete the residue ourselves.
+  #
+  # If the WIP commit failed, that residue is the ONLY copy of those edits —
+  # leave it and say so. `wt` lists it as `stray`, `wt reap` spares it, and
+  # `wt <name>` moves it aside rather than deleting it. A husk that lingers is a
+  # nuisance; a husk deleted with the work still in it is the thing wt exists to
+  # never do.
+  case "$([ -e "$dir" ] && checkout_state "$dir" || echo gone)" in
+  stray)
+    if [ "$preserved" = 1 ]; then
+      # Best-effort: whatever defeated git's delete can defeat ours too (a
+      # permission on a directory we don't own). Never fatal — a husk we can't
+      # finish off is a nuisance `wt` now names and `wt <name>` heals, while a
+      # hook that dies here leaves the branch unreaped and the registry stale.
+      rm -rf "$dir" 2>/dev/null || true
+      if [ -e "$dir" ]; then
+        say "git left a partly-removed checkout at $dir and we couldn't finish it either — \`wt\` lists it as stray"
+      fi
+    else
+      say "couldn't save this worktree's edits AND git couldn't remove it — left at $dir"
+    fi
+    ;;
+  live)
+    # Even --force refused, and git never got as far as unregistering. The branch
+    # is still checked out here, so don't reap it out from under the checkout.
+    say "git wouldn't remove $dir — the worktree is still registered; try: wt reap"
+    return 0
+    ;;
+  esac
   # The branch is how unmerged work survives; only reap it once merged. Ancestry
   # merges reap offline (branch -d); squash/rebase merges are recognized via the
   # branch's merged PR, guarded so post-merge work is never dropped (reap_branch).
@@ -568,6 +649,13 @@ cmd_list() {
   # listing.
   reap_sweep parked || true
   [ -n "${REAPED:-}" ] && say "swept $(printf '%s' "$REAPED" | grep -c .) merged worktree(s)"
+  # Husks can't be swept (reap_sweep leaves them deliberately), so the listing is
+  # where they surface — otherwise a half-removed checkout is a `stray` row with
+  # no hint of what to do about it.
+  if [ -n "${STRAYS:-}" ]; then
+    say "$(printf '%s' "$STRAYS" | grep -c .) dangling checkout(s) — git lost the link; \`wt <name>\` moves each aside and rebuilds:"
+    printf '%s' "$STRAYS" | while IFS= read -r s; do [ -n "$s" ] && say "  $s"; done
+  fi
   say "agent worktrees you can resume (wt <name>, or <repo>/<name>)"
 
   # Gather every row FIRST, so columns can be sized to their real content and the
@@ -583,7 +671,7 @@ cmd_list() {
     git -C "$main" show-ref -q --verify "refs/heads/$branch" 2>/dev/null || continue
     r_repo+=("$(basename "$main")")
     r_nm+=("${branch#worktree-}")
-    if [ -e "$wt/.git" ]; then r_state+=("live"); else r_state+=("parked"); fi
+    r_state+=("$(checkout_state "$wt")")
     if [ -d "$(wt_projdir "$wt")" ]; then r_chat+=("yes")
     elif [ "$(chat_home "$wt")" != "$wt" ]; then r_chat+=("par")   # inherited from its wt-child parent
     else r_chat+=("·"); fi
@@ -666,14 +754,33 @@ cmd_resume() { # cmd_resume <name|repo/name>
   [ "$matches" -gt 1 ] && die "'$rname' exists in more than one repo — qualify it: wt <repo>/$rname"
 
   IFS=$'\t' read -r main branch wt <<<"$sel"
-  if [ -e "$wt/.git" ]; then
+  case "$(checkout_state "$wt")" in
+  live)
     say "'$branch' is still live at $wt"
-  else
+    ;;
+  stray)
+    # A husk: the directory is there, git disowns it (checkout_state). It is in the
+    # way — `git worktree add` refuses a non-empty directory — and it may hold real
+    # uncommitted work, so it is MOVED, never deleted. The rebuilt checkout beside
+    # it has the branch's committed state; whatever was only in the husk is one
+    # `diff -ru` away, and the path is printed so it can't be lost silently.
+    local husk
+    husk="$wt.stray-$(date +%Y%m%d-%H%M%S)"
+    mv "$wt" "$husk" || die "couldn't move the dangling checkout aside: $wt"
+    say "dangling checkout moved to $husk (nothing deleted — it may hold uncommitted work)"
     say "rebuilding checkout for $branch → $wt"
     mkdir -p "$(dirname "$wt")"
     git -C "$main" worktree add "$wt" "$branch" >&2
     reg_put "${branch#worktree-}" "$main" "$branch" "$wt" || true
-  fi
+    say "compare what the husk had: diff -ru $husk $wt"
+    ;;
+  *)
+    say "rebuilding checkout for $branch → $wt"
+    mkdir -p "$(dirname "$wt")"
+    git -C "$main" worktree add "$wt" "$branch" >&2
+    reg_put "${branch#worktree-}" "$main" "$branch" "$wt" || true
+    ;;
+  esac
   # A spawned worktree (`wt child`, nested) has no chat of its own — resume the parent
   # session that spawned it (see chat_home). The checkout above is still rebuilt so the
   # branch's files are on disk; we just cd to where the transcript lives to reopen it.
@@ -714,6 +821,13 @@ cmd_reap() { # wt reap — sweep every LANDED worktree across all repos, now
   if [ -n "${SKIPPED_LIVE:-}" ]; then
     printf '%s' "$SKIPPED_LIVE" | while IFS= read -r r; do
       [ -n "$r" ] && printf '\033[38;5;103m  ⏸ kept %s — a pane is open in it\033[0m\n' "$r" >&2
+    done
+  fi
+  # Husks are spared on purpose (see reap_sweep) — say so, with the one command
+  # that resolves them, or "reap did nothing" hides a checkout that needs a human.
+  if [ -n "${STRAYS:-}" ]; then
+    printf '%s' "$STRAYS" | while IFS= read -r r; do
+      [ -n "$r" ] && printf '\033[38;5;173m  ◇ kept %s — dangling; `wt <name>` moves it aside and rebuilds\033[0m\n' "$r" >&2
     done
   fi
 }

@@ -603,6 +603,119 @@ mk_stray() { # mk_stray <main> <name> — a worktree-<name> checkout outside WT_
   [[ "$output" == *"spawned from a session in $dir"* ]]
 }
 
+# ── dangling checkouts (husks) ───────────────────────────────────────────────
+#
+# `git worktree remove` deletes the repo's admin dir (.git/worktrees/<id>) BEFORE
+# it deletes the working tree. When that second half fails — an ignored build dir
+# it cannot unlink, a file another process holds — what's left is a directory
+# whose .git file points at a gitdir that no longer exists. `[ -e "$wt/.git" ]`
+# says "live"; every git command run inside says "fatal: not a git repository".
+#
+# husk() reproduces exactly that end state, which is all any caller can observe.
+
+husk() { # husk <main> <checkout> — leave <checkout> on disk, unregistered
+  local id; id="$(basename "$2")"
+  rm -rf "$1/.git/worktrees/$id"
+}
+
+@test "husk: a checkout git has disowned lists as 'stray', not 'live'" {
+  local main dir; main="$(mkrepo alpha)"; dir="$(mkwt "$main" ghosted)"
+  husk "$main" "$dir"
+  wt_run
+  [ "$status" -eq 0 ]
+  [[ "$output" == *ghosted* ]]
+  # The whole point: the old `-e .git` test called this live, so the row lied and
+  # `wt ghosted` refused to rebuild it — the branch was unreachable through wt.
+  [[ "$output" != *"ghosted"*"live"* ]]
+  [[ "$output" == *stray* ]]
+}
+
+@test "husk: the listing says what to do about it, and the sweep spares the branch" {
+  local main dir; main="$(mkrepo alpha)"; dir="$(mkwt "$main" ghosted)"
+  # Landed AND merged-by-PR: every reason the sweep has to reap, so the only thing
+  # keeping the branch alive is the husk rule itself.
+  git -C "$main" merge -q --no-ff -m merge worktree-ghosted
+  husk "$main" "$dir"
+  FAKE_GH_MERGED=1 FAKE_GH_OID="$(git -C "$main" rev-parse worktree-ghosted)" wt_run reap
+  [ "$status" -eq 0 ]
+  [[ "$output" == *dangling* ]]
+  git -C "$main" show-ref -q --verify refs/heads/worktree-ghosted \
+    || fail "the branch was reaped while its checkout was a husk — the husk's uncommitted files are now referenced by nothing"
+  [ -d "$dir" ] || fail "the husk directory was deleted"
+}
+
+@test "husk: resume moves it aside — never deletes it — and rebuilds the checkout" {
+  local main dir; main="$(mkrepo alpha)"; dir="$(mkwt "$main" ghosted)"
+  # An edit that exists ONLY here: not committed, not on the branch. This is the
+  # thing a husk can be holding, and the reason it is moved rather than removed.
+  echo "only-copy" >"$dir/unsaved.txt"
+  husk "$main" "$dir"
+  wt_run resume ghosted
+  [ "$status" -eq 0 ]
+  # Rebuilt, and git can read it again.
+  git -C "$dir" rev-parse --git-dir >/dev/null 2>&1 \
+    || fail "resume left the husk in place instead of rebuilding the checkout"
+  [ "$(git -C "$dir" branch --show-current)" = worktree-ghosted ]
+  # And the old contents survive beside it, named in the output.
+  local moved; moved="$(echo "$dir".stray-*)"
+  [ -f "$moved/unsaved.txt" ] || fail "the husk's only copy of unsaved.txt is gone"
+  [[ "$output" == *"$moved"* ]]
+}
+
+# A git whose `worktree remove` fails the way the real one does when the delete
+# breaks down half-way: admin dir gone, working tree still standing, non-zero
+# exit. Everything else passes straight through to the real git. Scoped to the
+# one test that needs it — PATH is shim-first, and wt appends its rescue path
+# precisely so a shim wins.
+git_husk_shim() { # git_husk_shim — echoes a dir to put at the front of PATH
+  local shim="$TMP/gitshim"
+  mkdir -p "$shim"
+  cat >"$shim/git" <<EOF
+#!/usr/bin/env bash
+if [ "\$3" = worktree ] && [ "\$4" = remove ]; then
+  for a in "\$@"; do last="\$a"; done
+  rm -rf "\$2/.git/worktrees/\$(basename "\$last")"
+  exit 1
+fi
+exec $(command -v git) "\$@"
+EOF
+  chmod +x "$shim/git"
+  printf '%s' "$shim"
+}
+
+@test "husk: the remove hook finishes the deletion git abandoned" {
+  local main dir shim; main="$(mkrepo alpha)"; dir="$(mkwt "$main" messy)"
+  echo "edit" >>"$dir/work.txt"          # dirty, so the wip-commit path runs too
+  shim="$(git_husk_shim)"
+  PATH="$shim:$PATH" hook_remove "$dir"
+  # The uncommitted edit went to a wip commit as always, so nothing on disk was
+  # irreplaceable — and only then is the hook allowed to finish what git started.
+  [ ! -e "$dir" ] || fail "the hook left a husk at $dir; it would read 'live' forever and freeze the statusline"
+  git -C "$main" show-ref -q --verify refs/heads/worktree-messy \
+    || fail "the branch was dropped along with the residue"
+  [[ "$(git -C "$main" log -1 --format=%s worktree-messy)" == wip:* ]] \
+    || fail "the dirty tree wasn't parked before the checkout was deleted"
+}
+
+@test "husk: residue nothing can delete is reported, not died on" {
+  [ "$(id -u)" != 0 ] || skip "root ignores the directory permissions this test uses"
+  local main dir; main="$(mkrepo alpha)"; dir="$(mkwt "$main" stubborn)"
+  # An IGNORED directory that cannot be unlinked (no write permission on its
+  # parent) defeats git's delete — and ours. The contract is that the hook still
+  # exits cleanly, keeps the branch, and names what it left behind.
+  mkdir -p "$dir/scratch"
+  echo build >"$dir/scratch/out.o"
+  echo scratch/ >"$dir/.gitignore"
+  git -C "$dir" add -A
+  git -C "$dir" -c commit.gpgsign=false commit -qm ignore
+  chmod 555 "$dir/scratch"
+  run hook_remove "$dir"
+  chmod 755 "$dir/scratch" 2>/dev/null || true
+  [ "$status" -eq 0 ] || fail "the remove hook died on a checkout it couldn't delete"
+  git -C "$main" show-ref -q --verify refs/heads/worktree-stubborn \
+    || fail "the branch was dropped even though the checkout survived"
+}
+
 # ── registry upkeep ──────────────────────────────────────────────────────────
 
 @test "registry: rows whose branch has vanished are pruned on the next listing" {
