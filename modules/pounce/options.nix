@@ -52,6 +52,98 @@
       '';
     };
 
+    pounce.items = lib.mkOption {
+      default = { };
+      example = {
+        "cmd:emoji" = {
+          alias = "emo";
+          hotkey = "opt+e";
+        };
+        "cmd:brew-services".listed = false;
+        "app:/Applications/Ghostty.app".hotkey = "opt+t";
+        "mode:clipboard".hotkey = "cmd+shift+v";
+      };
+      description = ''
+        Per-item palette settings, keyed by the item's own address. One entry is
+        one row of the palette: hide it, give it a search shorthand, give it a key.
+
+          "cmd:<id>"                       a command, by script name without .sh
+          "app:/Applications/Foo.app"      an application, by path
+          "mode:<name>"                    a built-in window — launcher, clipboard,
+                                           emoji, screenshots, camera, filesearch
+
+        Those keys are pounce's own address space (the same strings its frecency
+        store and `pounce run` use), so a key written here is also what you'd type
+        to invoke the thing from a script or another tool's binding.
+
+        Hotkeys can be a single chord ("opt+e") or a LEADER SEQUENCE — steps
+        separated by spaces, modifiers by "+", the notation Emacs and VS Code use:
+
+          hotkey = "opt+space e";          # ⌥Space, then E
+          hotkey = [ "cmd+k" "cmd+c" ];    # the same thing, step by step
+
+        Sequences are worth knowing about on a tiling rice: they open a namespace
+        that structurally can't collide with the ⌥/⌘ chords prowl already claims,
+        and they need no Accessibility grant (pounce grabs the second step as an
+        ordinary global hotkey for a couple of seconds rather than tapping events).
+
+        Two things this checks at build time, because both fail SILENTLY at
+        runtime: a key that names no real item shape (a "mode:" typo binds
+        nothing at all), and a chord already claimed by nebelhaus.keys.palette or
+        nebelhaus.keys.leader (whoever registers first wins, and it isn't always
+        the same one). What it can't check is whether `cmd:<id>` names a command
+        that exists — command scripts are discovered at runtime, so pounce warns
+        about that itself when the daemon starts, and `pounce doctor` lists any
+        binding that failed to arm.
+      '';
+      type = lib.types.attrsOf (
+        lib.types.submodule {
+          options = {
+            listed = lib.mkOption {
+              type = lib.types.bool;
+              default = true;
+              description = ''
+                Whether the item appears in the palette's list.
+
+                Named `listed` rather than `enable` because that is precisely what
+                it does: false removes the ROW, and a `hotkey` on the same item
+                keeps working. It's how you hide a command you only ever want to
+                reach by key — or clear the launcher of tools someone else on this
+                Mac has no use for, which is the closest thing to a "pack" the
+                surface has today. (It writes pounce's own `enabled` key.)
+              '';
+            };
+
+            alias = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              example = "emo";
+              description = ''
+                A search shorthand, matched at a bonus over the item's real name —
+                so "emo" can find the Emoji Picker without renaming it.
+              '';
+            };
+
+            hotkey = lib.mkOption {
+              type = lib.types.nullOr (lib.types.either lib.types.str (lib.types.listOf lib.types.str));
+              default = null;
+              example = "opt+space e";
+              description = ''
+                A global chord, or a leader sequence, that invokes this item
+                directly without opening the palette first. Modifier names follow
+                pounce's spelling: cmd/command/super/meta · opt/option/alt ·
+                ctrl/control · shift.
+
+                Whether the KEY name is one pounce can bind is not checked here
+                (that vocabulary lives in the app); a chord it can't register is
+                reported by `pounce doctor` rather than silently dropped.
+              '';
+            };
+          };
+        }
+      );
+    };
+
     pounce.signingIdentity = lib.mkOption {
       type = lib.types.str;
       default = "";
