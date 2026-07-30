@@ -195,6 +195,25 @@ keybinds {
         }
     }
 
+    // Alt [ / Alt ] — cycle swap layouts (grid → spiral → columns) while
+    // LOCKED too. Upstream binds these in `shared_except "locked"`, so the
+    // layout cycle died the moment you locked — yet the tab-bar advertises it
+    // top-right, which made the bar look like it was lying. It wasn't: the
+    // fork derives that hint from the CURRENT mode's keybinds
+    // (tab-bar/src/line.rs, swap_layout_status), so while locked the `Alt <[]>`
+    // keys silently dropped off and only the GRID pill remained. Binding them
+    // here brings both the action and its hint back, in every mode.
+    //
+    // These two are safe to steal from the pane's app in a way the rest of the
+    // Alt row is NOT: Alt h/j/k/l and Alt arrows are readline/vim word-motion
+    // keys, so they stay locked-mode-inert on purpose. Re-picking a layout is a
+    // workspace-level act, like Super p / Super t — the same reason those live
+    // in `shared`.
+    locked {
+        bind "Alt [" { PreviousSwapLayout; }
+        bind "Alt ]" { NextSwapLayout; }
+    }
+
     // Tab-mode n (Ctrl-t n) — zellij's native "new tab", the one tab-creating
     // path that isn't one of our binds/scripts. Route it through home.kdl like
     // Super t so even this tab is born "~" (custom.kdl) instead of "Tab #N";
