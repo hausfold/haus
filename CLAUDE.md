@@ -163,6 +163,8 @@ points back to when it feels several PRs together.
   **`wt.sh`** (Claude Code agent worktrees for *any* repo; the
   `WorktreeCreate`/`WorktreeRemove` hooks call it — `wt` lists, `wt <name>` resumes,
   `wt reap` sweeps landed ones, `wt child <repo>` makes a cross-repo child worktree,
+  `wt spawn <repo> <name>` makes a *named* one for a caller with no pane of its own
+  — the "Spawn Agent" palette command — parented to the repo instead of to a session,
   `wt park`/`wt unpark` set work aside as a `wip:` commit instead of `git stash`,
   whose stack is shared by every worktree of a repo),
   **`zscratch.sh`** (above), and **`statusline.sh`** / `statusline-refresh.sh` (the
