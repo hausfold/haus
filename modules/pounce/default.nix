@@ -333,6 +333,7 @@ let
 
   itemBindings = lib.mapAttrsToList (key: item: {
     itemKey = key;
+    caption = item.caption;
     steps = map normalizeStep (stepStrings item.hotkey);
   }) (lib.filterAttrs (_: item: item.hotkey != null) items);
 
@@ -398,6 +399,83 @@ let
       + lib.concatMapStringsSep ", " (o: o.itemKey) shadowed
     )
   ) (lib.filter (b: b.steps != [ ]) itemBindings);
+
+  # ---- the cheatsheet page for those bindings ---------------------------------
+  #
+  # Rendered from `itemBindings` — the SAME list the assertions above read, which is
+  # the whole point. Every other key on this rice already comes from one table with
+  # its caption (that was #108's lesson: the modifier was the last thing still typed
+  # twice, once as a chord and once as a caption, in a document whose only job is
+  # that those can't drift). An item hotkey is a working key that appears on no
+  # page unless this exists.
+  modGlyphs = {
+    cmd = "⌘";
+    opt = "⌥";
+    ctrl = "⌃";
+    shift = "⇧";
+  };
+  keyGlyphs = {
+    space = "␣";
+    tab = "⇥";
+    enter = "↵";
+    return = "↵";
+    escape = "⎋";
+    delete = "⌫";
+    left = "←";
+    right = "→";
+    up = "↑";
+    down = "↓";
+  };
+  # One step's glyphs are CONCATENATED and steps are separated by a space, so
+  # "⌘⇧V" (one chord) can't be misread as "⌥␣ V" (press, then press) — a
+  # distinction this page exists to teach.
+  stepGlyph =
+    step:
+    lib.concatMapStrings (m: modGlyphs.${m} or m) step.mods
+    # Parens matter: `x.${k} or f y` parses as `(x.${k} or f) y`.
+    + (keyGlyphs.${step.key} or (lib.toUpper step.key));
+
+  # The default caption. `mode:` names are display text mirrored from pounce, so a
+  # wrong one is visible rather than silent; `cmd:` is a guess (the command's real
+  # name lives in a `# pounce: name` header the rice can't read at eval), which is
+  # why `items.<key>.caption` exists.
+  modeCaptions = {
+    launcher = "The palette itself";
+    clipboard = "Clipboard history";
+    emoji = "Emoji picker";
+    screenshots = "Screenshot browser";
+    camera = "Camera preview";
+    filesearch = "File search";
+  };
+  humanize =
+    id:
+    let
+      words = lib.splitString "-" id;
+    in
+    lib.concatStringsSep " " (
+      lib.imap0 (
+        i: w: if i == 0 then lib.toUpper (lib.substring 0 1 w) + lib.substring 1 (-1) w else w
+      ) words
+    );
+  derivedCaption =
+    itemKey:
+    if lib.hasPrefix "mode:" itemKey then
+      modeCaptions.${lib.removePrefix "mode:" itemKey} or itemKey
+    else if lib.hasPrefix "app:" itemKey then
+      lib.removeSuffix ".app" (baseNameOf itemKey)
+    else
+      humanize (lib.removePrefix "cmd:" itemKey);
+
+  itemKeyPages = lib.optionals (itemBindings != [ ]) [
+    {
+      title = "Item Keys";
+      page = "Tips";
+      items = map (b: {
+        key = lib.concatMapStringsSep " " stepGlyph b.steps;
+        action = if b.caption != null then b.caption else derivedCaption b.itemKey;
+      }) itemBindings;
+    }
+  ];
 in
 lib.mkIf config.nebelhaus.pounce.enable {
   assertions = [
@@ -633,6 +711,9 @@ lib.mkIf config.nebelhaus.pounce.enable {
             ];
           }
         ]
+        # Your own per-item keys (nebelhaus.pounce.items), from the same list the
+        # collision assertions read. Absent when nothing is bound.
+        ++ itemKeyPages
         ++ [
           # ── Tips page (⇥ flips to it) — workflows and the stuff that's hard to
           # remember. Keep every entry TRUE to the configs it describes: keys from

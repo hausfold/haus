@@ -124,6 +124,25 @@
               '';
             };
 
+            caption = lib.mkOption {
+              type = lib.types.nullOr lib.types.str;
+              default = null;
+              example = "Clipboard history";
+              description = ''
+                How this item reads on the cheatsheet page that lists your item
+                hotkeys (⌘Space then ⇥, or the leader's `/`). Only used when the
+                item has a `hotkey` — a row without a key has nothing to teach.
+
+                Defaults to a name derived from the key, which is right often
+                enough to leave alone: `mode:clipboard` becomes "Clipboard
+                history", `app:/Applications/Ghostty.app` becomes "Ghostty", and
+                `cmd:brew-services` becomes "Brew services". Set this when the
+                derived name isn't what the palette actually calls the row — the
+                rice can't read a command's own `# pounce: name` header at
+                evaluation time, so that one is a guess.
+              '';
+            };
+
             hotkey = lib.mkOption {
               type = lib.types.nullOr (lib.types.either lib.types.str (lib.types.listOf lib.types.str));
               default = null;
