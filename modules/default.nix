@@ -11,6 +11,7 @@
     # keeps only what no single room owns: the shared app roster.
     ./options.nix
     ./den/options.nix
+    ./displays/options.nix
     ./theme/options.nix
     ./hearth/options.nix
     ./prowl/options.nix
@@ -23,6 +24,7 @@
     ./snippets/options.nix
 
     ./den
+    ./displays
     ./theme
     # Split out of ./theme rather than folded into it: it's gated on its own
     # option and reads the app roster, not the wallpaper choice.

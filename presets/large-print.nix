@@ -25,16 +25,33 @@
 #                         palette can't reach. FDA-gated (see the option), so it
 #                         sharpens the result where it applies and is silently
 #                         skipped where it doesn't — never load-bearing.
+#   displays.main          the screen's scaled resolution, one step from the panel's
+#                         default toward larger text. This is the only line here
+#                         that reaches apps the rice has never heard of, because it
+#                         changes what a point *means* rather than what a config
+#                         file says — so for someone who actually needs large print
+#                         it does more than the other three combined.
+#
+#                         `main` rather than `internal` on purpose: on a laptop
+#                         they are the same panel, but on a Mac mini or a
+#                         clamshelled MacBook `internal` matches nothing (skipped
+#                         with a note) — so keying on the built-in panel would make
+#                         this preset quietly do nothing on the desk setup most
+#                         likely to need it. Name a specific monitor by UUID in your
+#                         host file for per-display control; `hausdisp list` prints
+#                         the UUIDs of whatever is attached.
 #
 # What it does NOT move, stated here because a large-print rice that quietly
 # under-delivers is worse than one that says where it stops:
 #
-#   - System-wide text size. macOS has no working declarative lever for it — the
-#     `universalaccess` FontSizeCategory key stores a value and posts no change
-#     notification, so apps never re-read it (notes/macos-settings-matrix.md).
-#     The real lever is display resolution, i.e. nebelhaus.displays, not built yet.
-#     Until then: System Settings ▸ Displays ▸ "Larger Text".
-#   - Third-party apps. Nothing outside the rice follows any of this.
+#   - The macOS text-size setting, which is a different thing from the above and
+#     still has no working declarative lever: the `universalaccess`
+#     FontSizeCategory key stores a value and posts no change notification, so
+#     apps never re-read it (notes/macos-settings-matrix.md). Display scaling is
+#     the lever that works, and it moves everything at once rather than only the
+#     handful of Apple apps that adopted Dynamic Type.
+#   - Third-party apps' own font settings. Nothing outside the rice follows
+#     ui.scale — they follow the display, which is why the line above matters.
 #   - The menu bar (sill) and the palette (pounce). Both are sized by geometry
 #     tuned to the macOS menu-bar band and to their own layouts; a multiplier
 #     breaks the alignment rather than enlarging it. They need their own sizing
@@ -56,5 +73,7 @@
     theme.contrast = "high";
 
     accessibility.increaseContrast = true;
+
+    displays.main.uiScale = "larger-text";
   };
 }

@@ -15,6 +15,7 @@
 [
   ./options.nix
   ./den/options.nix
+  ./displays/options.nix
   ./theme/options.nix
   ./hearth/options.nix
   ./prowl/options.nix

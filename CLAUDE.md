@@ -43,6 +43,8 @@ modules/
   lib/gui-wait.nix        # withGUIWait: cold-boot-safe GUI agent launch wrapper
   den/                    # system: macOS defaults, Homebrew framework, core CLI, GC
                           #   + on-PATH CLIs: haus / awake / wt / zscratch / statusline
+  displays/               # nebelhaus.displays: scaled resolution by intent + the
+                          #   hausdisp helper (Swift, xcrun-compiled like pounce's)
   theme/                  # desktop wallpaper + accent-derived bold wordmark
   hearth/                 # shell: zsh, starship, git, yazi, zellij, ghostty + theming
     claude/               # the nebelhaus Claude Code skill (nebelhaus.claude.skill):
