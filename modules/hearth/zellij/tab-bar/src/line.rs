@@ -213,11 +213,20 @@ fn tab_line_prefix(
     }]
 }
 
-// Fork: the dim "Ctrl+Tab" reminder the old zjstatus `format_right` carried —
+// Fork: the dim "ctrl+tab" reminder the old zjstatus `format_right` carried —
 // the built-in bar has no slot for it, which is the whole reason zjstatus was
 // adopted. Rendered ourselves so we can drop the third-party dependency.
-fn ctrl_tab_reminder(palette: Styling) -> LinePart {
-    let text = " Ctrl+Tab ".to_string();
+//
+// Lowercase on purpose: it's a whispered reminder, not a label competing with
+// the tab names. `short` is the first rung of the responsive ladder in
+// tab_line() — the glyph pair `⌃⇥` (4 cols with padding vs 10), same ambiguous-
+// width class as the `←` / `→` this bar already renders.
+fn ctrl_tab_reminder(palette: Styling, short: bool) -> LinePart {
+    let text = if short {
+        " ⌃⇥ ".to_string()
+    } else {
+        " ctrl+tab ".to_string()
+    };
     let fg = palette.ribbon_unselected.background; // dim grey, like the old overlay0
     let bg = palette.text_unselected.background;
     LinePart {
@@ -260,19 +269,23 @@ pub fn tab_line(
     // Right-side widgets: the Ctrl+Tab reminder, then the swap-layout indicator
     // (Alt <[]> keys + the active layout pill). Same order the old zjstatus
     // `format_right` used.
-    let mut reminder = Some(ctrl_tab_reminder(palette));
-    let mut swap_layout_indicator = if hide_swap_layout_indicator {
-        None
-    } else {
-        tab_info.and_then(|tab_info| {
-            swap_layout_status(
-                &tab_info.active_swap_layout_name,
-                tab_info.is_swap_layout_dirty,
-                mode_info,
-                palette,
-            )
-        })
+    let mut reminder = Some(ctrl_tab_reminder(palette, false));
+    let build_swap_indicator = |with_keys: bool| {
+        if hide_swap_layout_indicator {
+            None
+        } else {
+            tab_info.and_then(|tab_info| {
+                swap_layout_status(
+                    &tab_info.active_swap_layout_name,
+                    tab_info.is_swap_layout_dirty,
+                    mode_info,
+                    palette,
+                    with_keys,
+                )
+            })
+        }
     };
+    let mut swap_layout_indicator = build_swap_indicator(true);
 
     // How much horizontal space the tabs really want: the active tab (never
     // dropped) plus, when tabs spill off either edge, room for the `← +N` /
@@ -293,19 +306,37 @@ pub fn tab_line(
     };
     let desired_tab_len = active_tab.len + left_pill_len + right_pill_len;
 
-    // Reserve space for the right side, shedding it by priority when the pane is
-    // too thin. The Ctrl+Tab reminder goes FIRST — it's the least essential slot,
-    // a hint for a shortcut you either know or you don't — then the swap-layout
-    // indicator, then (last resort) the username prefix. The active tab and its
+    // Reserve space for the right side, shedding it a rung at a time when the
+    // pane is too thin. Both widgets SHRINK before either disappears — a
+    // narrowed hint still tells you the feature exists, and a widget that pops
+    // in and out as you resize is worse than one that gets terser:
+    //
+    //   1. `ctrl+tab` → `⌃⇥`                    (the reminder, keys only)
+    //   2. `Alt <[]> GRID` → `GRID`             (keep the state, drop the hint)
+    //   3. the reminder goes                    (a shortcut you know or don't)
+    //   4. the layout pill goes
+    //   5. the username prefix goes             (last resort)
+    //
+    // The reminder always yields before the swap-layout widget at the same rung:
+    // the pill carries live STATE (which layout you're in, and whether you've
+    // hand-modified it), the reminder is a static nudge. The active tab and its
     // scroll arrows are NEVER sacrificed to a widget, so you always know where
     // you are and that there are more tabs off-screen.
+    let mut reminder_short = false;
+    let mut swap_keyless = false;
     loop {
         let right_len = reminder.as_ref().map(|p| p.len).unwrap_or(0)
             + swap_layout_indicator.as_ref().map(|p| p.len).unwrap_or(0);
         if prefix_len + desired_tab_len + right_len <= cols {
             break;
         }
-        if reminder.is_some() {
+        if !reminder_short && reminder.is_some() {
+            reminder_short = true;
+            reminder = Some(ctrl_tab_reminder(palette, true));
+        } else if !swap_keyless && swap_layout_indicator.is_some() {
+            swap_keyless = true;
+            swap_layout_indicator = build_swap_indicator(false);
+        } else if reminder.is_some() {
             reminder = None;
         } else if swap_layout_indicator.is_some() {
             swap_layout_indicator = None;
@@ -396,15 +427,25 @@ fn swap_layout_status(
     is_swap_layout_dirty: bool,
     mode_info: &ModeInfo,
     palette: Styling,
+    with_keys: bool,
 ) -> Option<LinePart> {
     match swap_layout_name {
         Some(swap_layout_name) => {
-            let mode_keybinds = mode_info.get_mode_keybinds();
-            let prev_next_keys = action_key_group(
-                &mode_keybinds,
-                &[&[Action::PreviousSwapLayout], &[Action::NextSwapLayout]],
-            );
-            let mut text = style_key_with_modifier(&prev_next_keys, Some(0));
+            // The keys come from the CURRENT mode's keybinds, so the hint is
+            // self-truthing: in a mode where the layout can't be cycled it
+            // renders empty and only the pill shows. (Until nebelhaus#143 that
+            // was every Locked-mode session.) `with_keys = false` is the
+            // responsive shrink — see the ladder in tab_line().
+            let mut text = if with_keys {
+                let mode_keybinds = mode_info.get_mode_keybinds();
+                let prev_next_keys = action_key_group(
+                    &mode_keybinds,
+                    &[&[Action::PreviousSwapLayout], &[Action::NextSwapLayout]],
+                );
+                style_key_with_modifier(&prev_next_keys, Some(0))
+            } else {
+                LinePart::default()
+            };
             text.append(&layout_indicator_pill(
                 &swap_layout_name.to_uppercase(),
                 is_swap_layout_dirty,
