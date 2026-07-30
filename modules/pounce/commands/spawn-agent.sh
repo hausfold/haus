@@ -111,16 +111,40 @@ prompt="$(printf '%s' "$prompt" | tr '\n\r\t' '   ' | sed 's/  */ /g; s/^ //; s/
 [ -z "$prompt" ] && exit 0
 
 # ── name the worktree after the task ──────────────────────────────────────
-# The naming win: a branch called `fix-notch-clipping` instead of Claude's
-# generated `luminous-twirling-codd`. First few words, slugged; `wt spawn` takes
-# the next free suffix if that name is already in use.
-slug="$(printf '%s' "$prompt" \
-  | tr '[:upper:]' '[:lower:]' \
-  | sed 's/[^a-z0-9]/-/g; s/--*/-/g; s/^-//; s/-$//')"
+# The naming win: a branch called `bar-pill-flickers` instead of Claude's
+# generated `luminous-twirling-codd`. `wt spawn` takes the next free suffix if
+# that name is already in use.
+#
+# The FIRST few words are not the name — "can you look into why the bar pill
+# flickers" would name itself `can-you-look-into`, which says nothing. Dropping
+# the words that carry no identity and keeping the next four, in order, is what
+# turns a prefix into a name.
+#
+# Deliberately not asking a model for one. `claude -p --model haiku` gives a
+# better name (`bar-pill-flicker-fix`), but it measured 9.4s cold even with
+# slash-commands and MCP disabled — nine seconds of frozen palette between Enter
+# and the pane, every single spawn, to improve a string you can rename later.
+STOPWORDS=" a about all also an and any are as at be been being but by can could did do does doing done for from get give go going had has have how i if in into is it its just let make me my need needs no not now of on once only or our out over please put should so some still such take than that the their them then there these they this those to too try up us use want was way we were what when where which while who why will with would you your "
+
+slug=""
+kept=0
+for word in $(printf '%s' "$prompt" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9' ' '); do
+  [ "${#word}" -ge 2 ] || continue
+  case "$STOPWORDS" in *" $word "*) continue ;; esac
+  slug="${slug:+$slug-}$word"
+  kept=$((kept + 1))
+  [ "$kept" -ge 4 ] && break
+done
+# Every word was a stopword ("can you have a look at this") — a name made of the
+# raw words beats no name at all.
+if [ -z "$slug" ]; then
+  slug="$(printf '%s' "$prompt" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9' '-' \
+    | sed 's/--*/-/g; s/^-//; s/-$//')"
+fi
 # Trim to whole words, and only when it actually overflowed — cutting
-# unconditionally would turn a two-word prompt into one word.
-if [ "${#slug}" -gt 32 ]; then
-  slug="$(printf '%s' "$slug" | cut -c1-32 | sed 's/-[^-]*$//; s/-$//')"
+# unconditionally would turn a two-word name into one word.
+if [ "${#slug}" -gt 40 ]; then
+  slug="$(printf '%s' "$slug" | cut -c1-40 | sed 's/-[^-]*$//; s/-$//')"
 fi
 [ -n "$slug" ] || slug="agent"
 
