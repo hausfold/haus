@@ -225,11 +225,14 @@ PLUGINS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     clean)      ACTION="clean"; shift ;;
-    --config)   CONFIG_SRC="${2:?}"; shift 2 ;;
-    --layout)   LAYOUT_SRC="${2:?}"; shift 2 ;;
-    --theme)    THEME_SRC="${2:?}"; shift 2 ;;
-    --plugin)   PLUGINS+=("${2:?}"); shift 2 ;;
-    --name)     NAME="${2:?}"; shift 2 ;;
+    # Spell out what's missing: a bare ${2:?} makes bash print its own
+    # "line 229: 2: parameter null or not set", which names neither the flag
+    # you typed nor what it wanted.
+    --config)   CONFIG_SRC="${2:?--config needs a config.kdl (source or rendered)}"; shift 2 ;;
+    --layout)   LAYOUT_SRC="${2:?--layout needs a layout .kdl}"; shift 2 ;;
+    --theme)    THEME_SRC="${2:?--theme needs a theme .kdl}"; shift 2 ;;
+    --plugin)   PLUGINS+=("${2:?--plugin needs NAME=path/to/plugin.wasm}"); shift 2 ;;
+    --name)     NAME="${2:?--name needs a session name}"; shift 2 ;;
     --locked)   LOCKED=1; DEFAULT_MODE="locked"; shift ;;
     --print)    PRINT=1; shift ;;
     -h|--help)  sed -n '2,33p' "$0" | sed 's/^#\{0,1\} \{0,1\}//'; exit 0 ;;
