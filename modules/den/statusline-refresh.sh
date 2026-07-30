@@ -22,7 +22,13 @@
 # behind upstream, on its own much longer TTL. Same reason it lives here — it
 # needs the network, and the network must never be in the render path.
 set -euo pipefail
-PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/etc/profiles/per-user/$(id -un 2>/dev/null)/bin:/opt/homebrew/bin:/usr/bin:/bin:${PATH:-}"
+# APPENDED, never prepended — same call `wt` makes, for the same two reasons: this
+# is a rescue for the case where we're spawned with a bare PATH, not an override of
+# the caller's environment; and prepending it made the script untestable, because
+# test/statusline-refresh.bats drives it with a shim `gh` that a real /usr/bin/gh
+# would win against every time. Guard the ':' — an empty inherited PATH would
+# otherwise leave a leading one, which means "the current directory".
+PATH="${PATH:+$PATH:}/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/etc/profiles/per-user/$(id -un 2>/dev/null)/bin:/opt/homebrew/bin:/usr/bin:/bin"
 
 WT_BASE="${CLAUDE_WT_BASE:-$HOME/.cache/claude-worktrees}"
 WT_REGISTRY="$WT_BASE/registry.tsv"
@@ -33,11 +39,24 @@ CONSUMER="${HAUS_CONSUMER:-$HOME/.config/nix}"   # same knob `haus` uses
 NAG="$CACHE_DIR/lock-nag.tsv"
 NAG_TTL=1800    # seconds; flake pins move on a human cadence, not a 15s one
 
+mtime() { # mtime <file> — modification time in epoch seconds, 0 when unknown
+  # `stat -f %m` is BSD/macOS, which is where this runs. On GNU coreutils -f means
+  # --file-system and %m is the MOUNT POINT, so it prints "/" and exits 0 — the
+  # `|| echo 0` never fires and the caller's $(( now - / )) is an arithmetic error,
+  # i.e. a non-zero under `set -e`. Try both, then insist on digits: the suite runs
+  # this script on Linux CI, and a whole class of "works here, dies there" lives in
+  # exactly this one substitution.
+  local m
+  m=$(stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0)
+  case "$m" in '' | *[!0-9]*) m=0 ;; esac
+  printf '%s' "$m"
+}
+
 mkdir -p "$CACHE_DIR"
 # Single-refresher election: mkdir is atomic. Stale lock (>60s) is reclaimed.
 if ! mkdir "$LOCK" 2>/dev/null; then
   if [ -d "$LOCK" ]; then
-    age=$(( $(date +%s) - $(stat -f %m "$LOCK" 2>/dev/null || echo 0) ))
+    age=$(( $(date +%s) - $(mtime "$LOCK") ))
     [ "$age" -lt 60 ] && exit 0
     rmdir "$LOCK" 2>/dev/null || true
     mkdir "$LOCK" 2>/dev/null || exit 0
@@ -67,7 +86,7 @@ trap 'rmdir "$LOCK" 2>/dev/null || true' EXIT
 # means we've never got an answer. Either way the statusline renders nothing.
 nag_fresh=0
 if [ -f "$NAG" ]; then
-  age=$(( $(date +%s) - $(stat -f %m "$NAG" 2>/dev/null || echo 0) ))
+  age=$(( $(date +%s) - $(mtime "$NAG") ))
   [ "$age" -lt "$NAG_TTL" ] && nag_fresh=1
 fi
 if [ "$nag_fresh" = 0 ] && [ -f "$CONSUMER/flake.lock" ]; then
@@ -124,7 +143,7 @@ pr_json_for_repo() { # $1=main ; echoes cached JSON of that repo's PRs
   slug=$(repo_slug "$main") || { echo '[]'; return; }
   cache="$CACHE_DIR/pr-$(echo "$slug" | tr '/' '_').json"
   if [ -f "$cache" ]; then
-    age=$(( $(date +%s) - $(stat -f %m "$cache" 2>/dev/null || echo 0) ))
+    age=$(( $(date +%s) - $(mtime "$cache") ))
     [ "$age" -lt 120 ] && { cat "$cache"; return; }
   fi
   if gh pr list -R "$slug" --state all --limit 100 \
@@ -137,9 +156,24 @@ pr_json_for_repo() { # $1=main ; echoes cached JSON of that repo's PRs
 }
 
 pr_state_for_branch() { # $1=main $2=branch -> "#N open|merged|closed" or ""
+  # `|| true`: a truncated cache (a gh run killed mid-write) makes jq exit 5, and
+  # under `set -o pipefail` that status would propagate out of the `pr=$(…)`
+  # substitution below and, with `set -e`, abort the whole pass. No PR state is a
+  # blank cell; it is never a reason to stop refreshing the panel.
   pr_json_for_repo "$1" | jq -r --arg b "$2" '
     map(select(.headRefName == $b)) | (.[0] // empty)
-    | "#\(.number) \(.state|ascii_downcase)"' 2>/dev/null
+    | "#\(.number) \(.state|ascii_downcase)"' 2>/dev/null || true
+}
+
+# checkout_readable <path> — 0 only if git can still resolve this checkout.
+# `[ -e "$path/.git" ]` is NOT that test. `git worktree remove` deletes the
+# repo's admin dir (.git/worktrees/<id>) BEFORE it deletes the working tree, so a
+# removal that fails part-way — an ignored node_modules it cannot unlink, a busy
+# file — leaves a directory whose .git file points at a gitdir that is gone.
+# Every git command run there exits 128 with "not a git repository: (null)".
+checkout_readable() {
+  [ -e "$1/.git" ] || return 1
+  git -C "$1" --no-optional-locks rev-parse --git-dir >/dev/null 2>&1
 }
 
 # --- worklist: registry rows UNION live on-disk worktrees, deduped ------------
@@ -153,10 +187,17 @@ pr_state_for_branch() { # $1=main $2=branch -> "#N open|merged|closed" or ""
 # wins over the parent-less on-disk row for the same worktree.
 worklist() {
   [ -f "$WT_REGISTRY" ] && awk -F'\t' 'NF>=4 {print $1"\t"$2"\t"$3"\t"$4"\t"$5}' "$WT_REGISTRY"
-  local d m b
+  local d m b common
   for d in "$WT_BASE"/*/*; do
     [ -e "$d/.git" ] || continue
-    m=$(dirname "$(git -C "$d" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)") || continue
+    # Resolve in two steps and require a non-empty answer: `dirname ""` is "." and
+    # exits 0, so folding the rev-parse into the substitution turned an unreadable
+    # checkout into a main of "." — which every later git -C then resolved against
+    # the REFRESHER's own cwd, inventing rows for whatever repo it happened to run
+    # in. (Same trap `wt`'s git_main exists to close.)
+    common=$(git -C "$d" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || continue
+    [ -n "$common" ] || continue
+    m=$(dirname "$common")
     [ -d "$m/.git" ] || continue                 # real main checkout, not a nested worktree
     b=$(git -C "$d" --no-optional-locks branch --show-current 2>/dev/null) || continue
     [ -n "$b" ] || continue
@@ -164,21 +205,47 @@ worklist() {
   done
 }
 
-: >"$PANEL.tmp"
-
-worklist | awk -F'\t' '!seen[$4]++' | while IFS=$'\t' read -r name main branch wtpath parent; do
-  [ -n "${branch:-}" ] || continue
-  git -C "$main" show-ref -q --verify "refs/heads/$branch" 2>/dev/null || continue
+# panel_row <name> <main> <branch> <wtpath> <parent> — one panel line on stdout,
+# or nothing when the worktree isn't in flight.
+#
+# A FUNCTION, not an inline loop body, purely so it can be called as
+# `panel_row … || true`: that suspends `set -e` for the whole body, so an
+# unanticipated non-zero — a git that dies on a checkout in a state we haven't
+# met yet — costs this row and only this row. It used to cost the entire refresh
+# (see the working-tree block below), and nothing surfaced the loss.
+panel_row() {
+  local name="$1" main="$2" branch="$3" wtpath="$4" parent="$5"
+  local slug def ahead files ins del pr
+  [ -n "${branch:-}" ] || return 0
+  git -C "$main" show-ref -q --verify "refs/heads/$branch" 2>/dev/null || return 0
   slug=$(repo_slug "$main" || basename "$main")
   def=$(git_default "$main")
   ahead=$(git -C "$main" rev-list --count "$def..$branch" 2>/dev/null || echo 0)
+  case "$ahead" in ''|*[!0-9]*) ahead=0 ;; esac
 
+  # Working-tree delta, best-effort. A checkout that git cannot read (a dangling
+  # husk — see checkout_readable) contributes no delta, but its BRANCH is still a
+  # real row: it can carry commits and a PR, and those come from the main
+  # checkout, not from here.
+  #
+  # Every git call in this loop is non-fatal by construction. This whole pipeline
+  # runs under `set -euo pipefail`, so before this guard existed ONE unreadable
+  # checkout exited 128, killed the subshell, failed the pipeline, and aborted the
+  # script before its `mv "$PANEL.tmp" "$PANEL"` — freezing panel.tsv at its last
+  # good content. The bar then showed hours-dead worktrees and no new ones, with
+  # no error anywhere: the refresher is detached, so nobody ever sees its exit.
+  # That is the failure mode to protect; a row must never cost the whole pass.
   files=0 ins=0 del=0
-  if [ -e "$wtpath/.git" ]; then
-    files=$(git -C "$wtpath" --no-optional-locks status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+  if checkout_readable "$wtpath"; then
+    files=$(git -C "$wtpath" --no-optional-locks status --porcelain 2>/dev/null | wc -l | tr -d ' ') || files=0
+    case "$files" in ''|*[!0-9]*) files=0 ;; esac
     if [ "$files" -gt 0 ]; then
+      # `|| true`: when every change is UNTRACKED, `diff HEAD --shortstat` prints
+      # nothing, awk never runs its block, and `read` hits EOF and returns 1 —
+      # which `set -e` turned into the same silent whole-pass abort as above. A
+      # brand-new file in any worktree was enough to freeze the entire panel.
       read -r ins del < <(git -C "$wtpath" --no-optional-locks diff HEAD --shortstat 2>/dev/null \
-        | awk '{i=0;d=0;for(k=1;k<=NF;k++){if($k~/insertion/)i=$(k-1);if($k~/deletion/)d=$(k-1)}print i" "d}')
+        | awk '{i=0;d=0;for(k=1;k<=NF;k++){if($k~/insertion/)i=$(k-1);if($k~/deletion/)d=$(k-1)}print i" "d}') || true
       ins=${ins:-0}; del=${del:-0}
     fi
   fi
@@ -186,13 +253,19 @@ worklist | awk -F'\t' '!seen[$4]++' | while IFS=$'\t' read -r name main branch w
   pr=$(pr_state_for_branch "$main" "$branch")
 
   # in-flight only: unmerged commits, uncommitted edits, or a PR
-  [ "$ahead" -gt 0 ] || [ "$files" -gt 0 ] || [ -n "$pr" ] || continue
+  [ "$ahead" -gt 0 ] || [ "$files" -gt 0 ] || [ -n "$pr" ] || return 0
 
   # prstate defaults to "-" (never empty): tab is IFS-whitespace, so an empty
   # MIDDLE field would collapse under `read` and shift later columns left. parent
   # is the trailing field, so an empty one (old 4-col registry rows) is safe.
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "$slug" "${branch#worktree-}" "$ahead" "$files" "$ins" "$del" "${pr:--}" "$parent" >>"$PANEL.tmp"
+    "$slug" "${branch#worktree-}" "$ahead" "$files" "$ins" "$del" "${pr:--}" "$parent"
+}
+
+: >"$PANEL.tmp"
+
+worklist | awk -F'\t' '!seen[$4]++' | while IFS=$'\t' read -r name main branch wtpath parent; do
+  panel_row "$name" "$main" "$branch" "$wtpath" "$parent" >>"$PANEL.tmp" || true
 done
 
 mv "$PANEL.tmp" "$PANEL"

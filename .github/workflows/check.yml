@@ -45,7 +45,10 @@ jobs:
           sudo apt-get update && sudo apt-get install -y shellcheck bats
           # bootstrap.sh reaches every new installer via nebelhaus.com/init.sh;
           # haus.sh + awake.sh + wt.sh ship onto every machine as end-user CLIs.
-          shellcheck --severity=warning bootstrap.sh modules/den/haus.sh modules/den/awake.sh modules/den/wt.sh test/awake.sh
+          # statusline-refresh.sh is linted for a different reason: it runs
+          # DETACHED with its output discarded, so a non-zero anywhere in it is
+          # completely invisible — the bar just quietly stops updating.
+          shellcheck --severity=warning bootstrap.sh modules/den/haus.sh modules/den/awake.sh modules/den/wt.sh modules/den/statusline-refresh.sh test/awake.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
       # `wt` is the one CLI here whose failure mode is LOSING WORK — it force-removes
@@ -55,3 +58,10 @@ jobs:
       # redirected), so it needs nothing here but git + bats.
       - name: wt worktree-lifecycle tests
         run: bats test/wt.bats
+      # The refresher is `wt`'s reader, and it fails in the one way nobody sees:
+      # it runs detached under `set -e`, so any non-zero leaves the LAST panel.tsv
+      # in place and the bar keeps showing worktrees that were reaped hours ago —
+      # no error, no empty bar, just a confidently stale one. Same hermetic shape
+      # as wt.bats (throwaway repos, shim gh, redirected cache).
+      - name: statusline refresher tests
+        run: bats test/statusline-refresh.bats
