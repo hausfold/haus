@@ -37,7 +37,14 @@
 set -euo pipefail
 
 # Hooks run with a bare PATH; make sure git resolves (and claude, for resume).
-PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/etc/profiles/per-user/$(id -un 2>/dev/null)/bin:/usr/bin:/bin:${PATH:-}"
+# APPENDED, never prepended: this is a rescue for the bare-PATH hook case, not an
+# override of the caller's environment. Prepending it made the script untestable —
+# test/wt.bats drives it with shim `gh`/`lsof` on PATH, and the real ones under
+# /run/current-system/sw/bin won every time.
+_wt_rescue="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/etc/profiles/per-user/$(id -un 2>/dev/null)/bin:/usr/bin:/bin"
+# Guard the ':' — an empty inherited PATH would otherwise yield a leading one, which
+# means "the current directory" and would let a repo drop a fake `git` in our lap.
+PATH="${PATH:+$PATH:}$_wt_rescue"
 
 WT_BASE="${CLAUDE_WT_BASE:-$HOME/.cache/claude-worktrees}"
 # The registry is `wt`'s source of truth for parked worktrees: one tab-separated

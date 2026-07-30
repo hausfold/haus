@@ -42,9 +42,16 @@ jobs:
       # regression here reaches every new installer.
       - name: shellcheck
         run: |
-          sudo apt-get update && sudo apt-get install -y shellcheck
+          sudo apt-get update && sudo apt-get install -y shellcheck bats
           # bootstrap.sh reaches every new installer via nebelhaus.com/init.sh;
-          # haus.sh + awake.sh ship onto every machine as end-user CLIs.
-          shellcheck --severity=warning bootstrap.sh modules/den/haus.sh modules/den/awake.sh test/awake.sh
+          # haus.sh + awake.sh + wt.sh ship onto every machine as end-user CLIs.
+          shellcheck --severity=warning bootstrap.sh modules/den/haus.sh modules/den/awake.sh modules/den/wt.sh test/awake.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
+      # `wt` is the one CLI here whose failure mode is LOSING WORK — it force-removes
+      # checkouts and deletes branches, and every path it takes is decided by git
+      # state that is tedious to reproduce by hand. The suite is fully hermetic
+      # (throwaway repos under $BATS_TEST_TMPDIR, shim gh/lsof, CLAUDE_WT_BASE
+      # redirected), so it needs nothing here but git + bats.
+      - name: wt worktree-lifecycle tests
+        run: bats test/wt.bats
