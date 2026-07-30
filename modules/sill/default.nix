@@ -347,28 +347,31 @@ let
   # last it would land nearest the center, which a MacBook notch covers. It is
   # still sourced by sketchybarrc AFTER the other right-side items so `init`
   # sees them all — mid-tour it hides them (tour.sh mute) to make room.
-  # Empty when the tour isn't wired (tour disabled, or no prowl to teach —
-  # steps 1-3 are all leader moves). `init` repaints whatever state the last
-  # session left: mid-tour step, done (hidden), or the dormant hint.
-  tourWired = config.nebelhaus.tour.enable && config.nebelhaus.prowl.enable;
-  tourItemSh =
-    ''
-      #!/bin/bash
-      # GENERATED from nebelhaus.tour.enable by modules/sill/default.nix — do not edit.
-    ''
-    + lib.optionalString tourWired ''
-      sketchybar --add item tour right \
-          --set tour \
-              drawing=off \
-              icon.padding_left=10 \
-              icon.padding_right=4 \
-              label.padding_right=10 \
-              label.font="Hack Nerd Font:Bold:13.0" \
-              background.color=$MANTLE \
-              click_script="$HOME/.config/sketchybar/plugins/tour.sh click"
-      sketchybar --move tour after clock
-      "$HOME/.config/sketchybar/plugins/tour.sh" init
-    '';
+  # Empty when the tour isn't wired. The built-in tour needs prowl because its
+  # first three moves teach the leader; a custom tour can consist entirely of
+  # other existing signals (for example Pounce), so it needs only Sill itself.
+  # `init` repaints whatever state the last session left: mid-tour step, done
+  # (hidden), or the dormant hint.
+  customTourSteps = config.nebelhaus.tour.steps;
+  customTour = customTourSteps != null;
+  tourWired = config.nebelhaus.tour.enable && (customTour || config.nebelhaus.prowl.enable);
+  tourItemSh = ''
+    #!/bin/bash
+    # GENERATED from nebelhaus.tour.* by modules/sill/default.nix — do not edit.
+  ''
+  + lib.optionalString tourWired ''
+    sketchybar --add item tour right \
+        --set tour \
+            drawing=off \
+            icon.padding_left=10 \
+            icon.padding_right=4 \
+            label.padding_right=10 \
+            label.font="Hack Nerd Font:Bold:13.0" \
+            background.color=$MANTLE \
+            click_script="$HOME/.config/sketchybar/plugins/tour.sh click"
+    sketchybar --move tour after clock
+    "$HOME/.config/sketchybar/plugins/tour.sh" init
+  '';
   # The resolved keymap (../lib/keys.nix). The tour's prompts must name the keys
   # THIS machine is bound to — a tutor telling you to tap Caps Lock on a rice where
   # keys.leader = "alt-space" teaches a chord that does nothing.
@@ -377,21 +380,69 @@ let
     keys = config.nebelhaus.keys;
   };
 
+  customStepCases =
+    field:
+    lib.concatStringsSep "\n" (
+      lib.imap0 (
+        index: step: "      ${toString (index + 1)}) printf '%s\\n' ${lib.escapeShellArg step.${field}} ;;"
+      ) (if customTour then customTourSteps else [ ])
+    );
+
   tourConfigSh = ''
-    #!/bin/bash
-    # GENERATED from nebelhaus.pounce.enable + nebelhaus.keys.* by
-    # modules/sill/default.nix — do not edit. TOUR_HAS_PALETTE decides whether the
-    # tour has a step 4 (the palette step needs pounce); the glyphs name the
-    # leader and palette chords this rice actually binds.
-    TOUR_HAS_PALETTE=${
-      if config.nebelhaus.pounce.enable && k.palette != null then "1" else "0"
-    }
-    TOUR_LEADER=${lib.escapeShellArg (if k.leader != null then k.leader.glyph else "⇪")}
-    TOUR_LEADER_NAME=${lib.escapeShellArg (if k.leader != null then k.leader.name else "Caps Lock")}
-    TOUR_PALETTE=${lib.escapeShellArg (if k.palette != null then k.palette.glyph else "⌘ Space")}
+        #!/bin/bash
+        # GENERATED from nebelhaus.tour.steps + pounce.enable + keys.* by
+        # modules/sill/default.nix — do not edit. TOUR_CUSTOM switches from the
+        # built-in four-move lap to the authored list below. TOUR_HAS_PALETTE decides
+        # whether the built-in lap has a step 4 (it needs pounce); the glyphs name the
+        # leader and palette chords this rice actually binds.
+        TOUR_CUSTOM=${if customTour then "1" else "0"}
+        TOUR_CUSTOM_COUNT=${toString (if customTour then builtins.length customTourSteps else 0)}
+        TOUR_HAS_PALETTE=${if config.nebelhaus.pounce.enable && k.palette != null then "1" else "0"}
+        TOUR_LEADER=${lib.escapeShellArg (if k.leader != null then k.leader.glyph else "⇪")}
+        TOUR_LEADER_NAME=${lib.escapeShellArg (if k.leader != null then k.leader.name else "Caps Lock")}
+        TOUR_PALETTE=${lib.escapeShellArg (if k.palette != null then k.palette.glyph else "⌘ Space")}
+
+        tour_custom_hint() {
+          case "$1" in
+    ${customStepCases "hint"}
+            *) return 1 ;;
+          esac
+        }
+
+        tour_custom_detect() {
+          case "$1" in
+    ${customStepCases "detect"}
+            *) return 1 ;;
+          esac
+        }
   '';
 in
 lib.mkIf config.nebelhaus.sill.enable {
+  warnings =
+    lib.optional
+      (
+        customTour
+        && !config.nebelhaus.prowl.enable
+        && lib.any (
+          step:
+          builtins.elem step.detect [
+            "launch"
+            "workspace"
+            "navigate"
+            "resize"
+          ]
+        ) customTourSteps
+      )
+      "nebelhaus.tour.steps uses a prowl detector while nebelhaus.prowl.enable is false; that step can only be skipped."
+    ++
+      lib.optional
+        (
+          customTour
+          && (!config.nebelhaus.pounce.enable || k.palette == null)
+          && lib.any (step: step.detect == "palette") customTourSteps
+        )
+        "nebelhaus.tour.steps uses the palette detector while Pounce or its palette binding is disabled; that step can only be skipped.";
+
   # SketchyBar (brew) + its tap. sketchybar-app-font renders the workspace pill
   # glyphs (an icon ligature font: `:ghostty:` → that app's logo).
   homebrew.taps = [ "FelixKratz/formulae" ];
