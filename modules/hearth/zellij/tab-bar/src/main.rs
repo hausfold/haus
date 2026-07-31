@@ -17,9 +17,9 @@ use crate::tab::tab_style;
 // third-party zjstatus top bar while keeping upstream's active-anchored tab
 // scroll viewport (the thing zjstatus lacked).
 //
-// Fork addition: an agent-status paw beside the name of any tab holding a
+// Fork addition: an agent count badge beside the name of any tab holding a
 // `claude --worktree` pane (see AgentState + the pipe handler below), so eight
-// tabs of agents no longer have to be cycled to find the one that's blocked.
+// tabs of agents no longer have to be cycled to find the ones that need you.
 
 #[derive(Debug, Default)]
 pub struct LinePart {
@@ -50,6 +50,16 @@ pub enum AgentState {
     Working,
     /// Blocked on you — a permission prompt or an input nudge (Notification).
     Waiting,
+}
+
+/// The small summary rendered on one tab: an exact pane count plus the colour
+/// of the most urgent agent. Keeping both is important: a tab with three
+/// workers should say "3", while a single waiting agent should still win the
+/// colour code users scan for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AgentBadge {
+    pub count: usize,
+    pub state: AgentState,
 }
 
 impl AgentState {
@@ -92,10 +102,10 @@ struct State {
     /// id (all a hook can know about itself); only zellij knows which tab that
     /// pane currently lives in — and panes get moved between tabs.
     pane_tab: BTreeMap<u32, usize>,
-    /// The rendered product of the two maps above: tab position → the most
-    /// urgent agent state in it. Cached so a noisy PaneUpdate that doesn't move
-    /// a badge doesn't repaint the bar.
-    tab_badges: BTreeMap<usize, AgentState>,
+    /// The rendered product of the two maps above: tab position → count and
+    /// most-urgent state. Cached so a noisy PaneUpdate that doesn't move a
+    /// badge doesn't repaint the bar.
+    tab_badges: BTreeMap<usize, AgentBadge>,
 }
 
 static ARROW_SEPARATOR: &str = "";
@@ -103,18 +113,22 @@ static ARROW_SEPARATOR: &str = "";
 register_plugin!(State);
 
 impl State {
-    /// Recompute tab → most-urgent-agent from (agent states × pane→tab), and
-    /// report whether what the bar draws actually changed.
+    /// Recompute tab → count + most-urgent-agent from (agent states × pane→tab),
+    /// and report whether what the bar draws actually changed.
     ///
     /// The return value is the point: PaneUpdate fires on every pane title
     /// change, and an agent pane retitles constantly, so without this the bar
     /// would repaint on a stream of events that move no badge.
     fn refresh_tab_badges(&mut self) -> bool {
-        let mut badges: BTreeMap<usize, AgentState> = BTreeMap::new();
+        let mut badges: BTreeMap<usize, AgentBadge> = BTreeMap::new();
         for (pane_id, state) in &self.agents {
             if let Some(tab_position) = self.pane_tab.get(pane_id) {
-                let slot = badges.entry(*tab_position).or_insert(*state);
-                *slot = (*slot).max(*state);
+                let badge = badges.entry(*tab_position).or_insert(AgentBadge {
+                    count: 0,
+                    state: *state,
+                });
+                badge.count += 1;
+                badge.state = badge.state.max(*state);
             }
         }
         let changed = badges != self.tab_badges;

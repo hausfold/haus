@@ -1,31 +1,18 @@
-use crate::{line::tab_separator, AgentState, LinePart};
+use crate::{line::tab_separator, AgentBadge, AgentState, LinePart};
 use ansi_term::{ANSIString, ANSIStrings};
 use unicode_width::UnicodeWidthStr;
 use zellij_tile::prelude::*;
 use zellij_tile_utils::style;
 
-// nf-fa-paw (U+F1B0) — the exact glyph sill's `agents` menu-bar pill draws, so
-// the bar and the tab read as one signal rather than two conventions.
-//
-// It counts as ONE column here because nebelhaus.fonts.mono is a Nerd Font
-// *Mono* build (JetBrainsMono Nerd Font Mono by default), which forces every
-// patched glyph to single width — same assumption the `⌃⇥` reminder and the
-// `←`/`→` overflow pills in line.rs already ride on. In a non-Mono Nerd Font the
-// paw draws double-width and every tab's click target drifts one column right of
-// where it's painted.
-static AGENT_PAW: &str = "\u{f1b0}";
-
 // The badge is a FILLED rectangle — the state colour is the background and the
-// paw is punched out of it in near-black — not a coloured glyph on the tab's own
-// fill. A one-cell glyph tinted peach is a few lit pixels you have to go looking
-// for; a solid block is the thing you catch from across the room, which is the
-// entire job of this badge.
+// exact number of agent panes is punched out of it in near-black — not a coloured
+// glyph on the tab's own fill. A one-cell glyph tinted peach is a few lit pixels
+// you have to go looking for; a solid block is the thing you catch from across the
+// room, which is the entire job of this badge.
 //
 // Same construction as line.rs's layout_indicator_pill (the yellow GRID
 // rectangle): hand-painted flat block, no powerline caps, so the two right-hand
 // signals in this bar read as one family.
-static AGENT_BADGE_WIDTH: usize = 3; // " {paw} "
-
 fn cursors<'a>(
     focused_clients: &'a [ClientId],
     multiplayer_colors: MultiplayerColors,
@@ -48,7 +35,7 @@ pub fn render_tab(
     is_alternate_tab: bool,
     palette: Styling,
     separator: &str,
-    badge: Option<AgentState>,
+    badge: Option<AgentBadge>,
 ) -> LinePart {
     let focused_clients = tab.other_focused_clients.as_slice();
     let separator_width = separator.width();
@@ -84,15 +71,16 @@ pub fn render_tab(
         .bold()
         .paint(format!(" {} ", text));
 
-    // Fork: the agent-status badge — a filled rectangle in the agent's state
-    // colour, riding between the tab name and the pill's right edge (after the
-    // fullscreen/sync/bell glyphs tab_style appended into `text`).
-    let badge_section = badge.map(|state| {
+    // Fork: the agent-status badge — a filled rectangle in the most urgent
+    // agent's state colour, with the exact number of agent panes inside. It rides
+    // between the tab name and the pill's right edge (after the fullscreen/sync/
+    // bell glyphs tab_style appended into `text`).
+    let badge_section = badge.map(|badge| {
         // The same three colours sill's `agents` pill uses — peach "needs you",
         // sky "working", green "done" — but read out of theme slots rather than
         // hardcoded hexes, so a non-nebelung zellij theme still gets sane ones.
         // Under nebelung these resolve to exactly sill's peach/sky/green.
-        let state_color = match state {
+        let state_color = match badge.state {
             AgentState::Waiting => palette.text_unselected.emphasis_0,
             AgentState::Working => palette.text_unselected.emphasis_1,
             AgentState::Idle => palette.exit_code_success.base,
@@ -114,13 +102,18 @@ pub fn render_tab(
         };
         style!(badge_fg, badge_bg)
             .bold()
-            .paint(format!(" {} ", AGENT_PAW))
+            // One trailing cell is the only explicit padding: terminal cells
+            // cannot safely render fractional-width spacing, and the digits'
+            // natural side bearings already keep the left edge from feeling
+            // cramped. This keeps a one-agent badge to two columns.
+            .paint(format!("{} ", badge.count))
             .to_string()
     });
-    // The rectangle is the paw plus a column of fill either side. One column for
-    // the glyph itself only holds in a Nerd Font Mono build — see AGENT_PAW.
-    if badge_section.is_some() {
-        tab_text_len += AGENT_BADGE_WIDTH;
+    // The count can grow past one digit. It gets only one trailing padding cell;
+    // accurate length is what keeps the clickable tab targets aligned with their
+    // painted pills.
+    if let Some(badge) = badge {
+        tab_text_len += badge.count.to_string().width() + 1;
     }
 
     let right_separator = style!(background_color, separator_fill_color).paint(separator);
@@ -172,7 +165,7 @@ pub fn tab_style(
     mut is_alternate_tab: bool,
     palette: Styling,
     capabilities: PluginCapabilities,
-    badge: Option<AgentState>,
+    badge: Option<AgentBadge>,
 ) -> LinePart {
     let separator = tab_separator(capabilities);
 
