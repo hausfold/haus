@@ -67,12 +67,13 @@
         "latest"
         "claude"
         "codex"
+        "opencode"
       ];
       default = "latest";
       example = "claude";
       description = ''
         Which AI provider to display in the main pill: `latest` (default, automatically
-        shows whichever provider reported most recently), `claude`, or `codex`.
+        shows whichever provider reported most recently), `claude`, `codex`, or `opencode`.
         Clicking the pill always displays the full dropdown with all reporting providers.
       '';
     };
@@ -167,7 +168,7 @@
           calendar = "Your next timed event, with a click-popup of the next five. Pulls in `ical-buddy` automatically and reads Calendar, so macOS prompts for Calendar access on first run.";
           caffeinate = "A coffee pill that prevents idle system sleep for 1/2/4/8 hours, a custom whole-hour duration, or indefinitely. The display may still turn off; closing a MacBook lid still sleeps it. Uses macOS's built-in `caffeinate`, so there is no extra package.";
           agents = "A paw pill tracking your `claude --worktree` agent panes — amber when one is blocked on you, click for the per-agent list; left-click a row to jump to that pane, ⌥/right-click for a live `zellij subscribe` peek. Fed by Claude Code hooks (point them at ~/.config/sketchybar/plugins/agents-hook.sh); dormant until they fire.";
-          aiUsage = "A gauge pill showing how much of your AI plan usage (Claude Code or Codex) you've spent — session percentage in the pill, coloured by whichever window is closest to biting (green under 50, red at 90; weekly status overrides pill color). Click for both windows with their reset times. The numbers ride statusline feeds, so nothing is polled and no token is read; the pill stays hidden until a session first reports, and greys out if none has in half an hour.";
+          aiUsage = "A gauge pill showing AI usage (Claude Code/Codex subscription rate limits as %, or Opencode API token cost as daily $). Automatically shows whichever provider reported most recently. Click for expanded session/weekly limits and daily/monthly API costs with model breakdowns.";
           claudeUsage = "Deprecated alias for `aiUsage`.";
           elgato = "Toggles an Elgato Key Light on the local network.";
           harvest = "A Harvest time-tracking pill; needs a ~/.config/sketchybar/harvest_secrets.sh you provide.";

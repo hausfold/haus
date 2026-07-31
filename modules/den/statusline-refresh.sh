@@ -269,3 +269,26 @@ worklist | awk -F'\t' '!seen[$4]++' | while IFS=$'\t' read -r name main branch w
 done
 
 mv "$PANEL.tmp" "$PANEL"
+
+# --- Opencode usage feed: query local sqlite db for daily/monthly API token cost ---
+OPENCODE_DB="$HOME/.local/share/opencode/opencode-stable.db"
+if [ -f "$OPENCODE_DB" ] && command -v sqlite3 >/dev/null 2>&1; then
+  oc_today=$(sqlite3 "$OPENCODE_DB" "SELECT printf('%.2f', COALESCE(SUM(cost), 0)) FROM session WHERE time_updated >= strftime('%s', 'now', 'start of day') * 1000;" 2>/dev/null || echo "0.00")
+  oc_mtd=$(sqlite3 "$OPENCODE_DB" "SELECT printf('%.2f', COALESCE(SUM(cost), 0)) FROM session WHERE time_updated >= strftime('%s', 'now', 'start of month') * 1000;" 2>/dev/null || echo "0.00")
+  oc_latest=$(sqlite3 "$OPENCODE_DB" "SELECT model, time_updated FROM session ORDER BY time_updated DESC LIMIT 1;" 2>/dev/null || echo "")
+
+  if [ -n "$oc_latest" ]; then
+    oc_raw_model=$(echo "$oc_latest" | cut -d'|' -f1)
+    oc_ms_stamp=$(echo "$oc_latest" | cut -d'|' -f2)
+    oc_sec_stamp=$(( oc_ms_stamp / 1000 ))
+    oc_model_id=$(echo "$oc_raw_model" | jq -r '.id // "opencode"' 2>/dev/null || echo "opencode")
+    oc_prov_id=$(echo "$oc_raw_model" | jq -r '.providerID // "google"' 2>/dev/null || echo "google")
+  else
+    oc_sec_stamp=$(date +%s)
+    oc_model_id="opencode"
+    oc_prov_id="google"
+  fi
+
+  printf "%s\t%s\t0\t0\t%s\topencode\t%s\t%s\n" "$oc_today" "$oc_mtd" "$oc_sec_stamp" "$oc_model_id" "$oc_prov_id" > "$CACHE_DIR/usage-opencode.tsv.tmp"
+  mv "$CACHE_DIR/usage-opencode.tsv.tmp" "$CACHE_DIR/usage-opencode.tsv"
+fi
