@@ -120,7 +120,7 @@ let
     claudeUsage = ''
       sketchybar --add item claude_usage right \
           --set claude_usage \
-              update_freq=60 \
+              update_freq=15 \
               drawing=off \
               icon.padding_left=10 \
               icon.padding_right=4 \

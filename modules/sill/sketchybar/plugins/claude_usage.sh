@@ -15,15 +15,18 @@ export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/etc/profiles/per-user
 source "$HOME/.config/sketchybar/colors.sh"
 
 CACHE_DIR="${CLAUDE_STATUSLINE_CACHE:-$HOME/.cache/claude-statusline}"
-STALE=1800                       # 30 min with no render → say "last known", don't lie
+STALE=300                        # 5 min with no render → mark stale
 now=$(date +%s)
 
-# Collect all provider files (usage-*.tsv or usage.tsv)
+# Collect provider files: prefer usage-*.tsv over usage.tsv to avoid duplicates
 files=()
 if [ -d "$CACHE_DIR" ]; then
-  for f in "$CACHE_DIR"/usage-*.tsv "$CACHE_DIR"/usage.tsv; do
+  for f in "$CACHE_DIR"/usage-*.tsv; do
     [ -s "$f" ] && files+=("$f")
   done
+  if [ ${#files[@]} -eq 0 ] && [ -s "$CACHE_DIR/usage.tsv" ]; then
+    files+=("$CACHE_DIR/usage.tsv")
+  fi
 fi
 
 [ ${#files[@]} -gt 0 ] || exit 0
@@ -72,8 +75,9 @@ stale=0; [ "$latest_stamp" -gt 0 ] && [ "$age" -gt "$STALE" ] && stale=1
 [ "$stale" = 1 ] && COL=$OVERLAY1
 
 case "$main_provider" in
-  codex|openai) ICON="󱚦" ;;
-  *)            ICON="󰏫" ;;
+  codex|openai) ICON=":openai:"; IFONT="sketchybar-app-font:Regular:16.0" ;;
+  claude)       ICON=":claude:"; IFONT="sketchybar-app-font:Regular:16.0" ;;
+  *)            ICON="󰏫";       IFONT="Hack Nerd Font:Bold:14.0" ;;
 esac
 
 # ── click: show expanded info for all reporting providers ─────────────────────
@@ -90,14 +94,15 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
     f_stale=0; [ "$stamp" -gt 0 ] && [ "$f_age" -gt "$STALE" ] && f_stale=1
 
     case "$prov" in
-      codex|openai) p_icon="󱚦"; p_name="Codex" ;;
-      *)            p_icon="󰏫"; p_name="Claude" ;;
+      codex|openai) p_icon=":openai:"; p_font="sketchybar-app-font:Regular:16.0"; p_name="Codex" ;;
+      claude)       p_icon=":claude:"; p_font="sketchybar-app-font:Regular:16.0"; p_name="Claude" ;;
+      *)            p_icon="󰏫";       p_font="Hack Nerd Font:Bold:13.0";       p_name="$prov" ;;
     esac
 
     # Provider header row
     sketchybar --add item "claude_usage.popup.$i" popup.claude_usage 2>/dev/null \
       --set "claude_usage.popup.$i" \
-        icon="$p_icon" icon.color="$PINK" icon.font="Hack Nerd Font:Bold:13.0" \
+        icon="$p_icon" icon.color="$PINK" icon.font="$p_font" \
         icon.padding_left=10 icon.padding_right=6 \
         label="$p_name" label.color="$TEXT" label.font="Hack Nerd Font:Bold:13.0" \
         background.drawing=off \
@@ -138,5 +143,5 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
 fi
 
 # ── update: main pill icon + session percentage + worst-case colour ──────────
-sketchybar --set claude_usage drawing=on icon="$ICON" icon.color="$COL" \
+sketchybar --set claude_usage drawing=on icon="$ICON" icon.font="$IFONT" icon.color="$COL" \
   label="${main_p5}%" label.color="$COL"
