@@ -60,6 +60,7 @@ STATE_DIR="$HOME/.local/state/nebelhaus"
 STATE="$STATE_DIR/tour"        # built-in: 1a|1b|2|3|4; custom: c1|c2|...
 DONE="$STATE_DIR/tour-done"    # present == completed or dismissed
 MUTED="$STATE_DIR/tour-muted"  # right-side pills hidden while a tour runs
+FINISHING="$STATE_DIR/tour-finishing" # present only while the completion flash is visible
 LOCK="/tmp/sketchybar_tour.lock"
 
 source "$HOME/.config/sketchybar/colors.sh"
@@ -244,11 +245,15 @@ flash() { # flash <bg-color> <seconds> <label>
 }
 
 finish() {
+    # Mark the four-second completion flash separately from normal progress so
+    # a click on “the house is yours” dismisses it instead of starting a new lap.
+    touch "$FINISHING"
     if [ "$TOUR_CUSTOM" = 1 ]; then
         flash "$MAUVE" 4 "the house is yours $PAW"
     else
         flash "$MAUVE" 4 "the house is yours $PAW — ⇪ / opens the cheatsheet"
     fi
+    rm -f "$FINISHING"
     touch "$DONE"; rm -f "$STATE"
     buddy_close
     unmute
@@ -288,7 +293,7 @@ start() {
         exit 1
     fi
     mkdir -p "$STATE_DIR"
-    rm -f "$DONE"
+    rm -f "$DONE" "$FINISHING"
     if [ "$TOUR_CUSTOM" = 1 ]; then echo c1 > "$STATE"; else echo 1a > "$STATE"; fi
     mute
     render
@@ -301,19 +306,32 @@ case "$1" in
         # repaint whatever the last session left — a mid-tour step (re-muting
         # the freshly-added pills), done (hidden), or the dormant hint.
         acquire_lock
-        if [ -f "$STATE" ] && state_is_valid; then mute; render
+        if [ -f "$FINISHING" ]; then
+            # A restart can interrupt the visual completion beat. Completion
+            # already happened, so settle it as done instead of reviving a
+            # stale final step that still intercepts clicks.
+            rm -f "$FINISHING" "$STATE"; touch "$DONE"; buddy_close; unmute; hide
+        elif [ -f "$STATE" ] && state_is_valid; then mute; render
         elif [ -f "$STATE" ]; then rm -f "$STATE"; buddy_close; unmute; dormant
         elif [ -f "$DONE" ]; then hide
         else dormant; fi
         ;;
     start)   acquire_lock; start ;;
-    reset)   acquire_lock; rm -f "$STATE" "$DONE"; buddy_close; unmute; dormant ;;
+    reset)   acquire_lock; rm -f "$STATE" "$DONE" "$FINISHING"; buddy_close; unmute; dormant ;;
     skip)    acquire_lock; advance "" ;;
-    dismiss) acquire_lock; touch "$DONE"; rm -f "$STATE"; buddy_close; unmute; hide ;;
+    dismiss) acquire_lock; touch "$DONE"; rm -f "$STATE" "$FINISHING"; buddy_close; unmute; hide ;;
     click)
         # $BUTTON is exported by sketchybar for click_scripts.
+        # finish() deliberately holds LOCK during its visible flash, so handle
+        # this outside the lock: the completion pill must disappear immediately
+        # rather than queue a click that starts another tour when the flash ends.
+        if [ -f "$FINISHING" ]; then
+            touch "$DONE"; rm -f "$STATE" "$FINISHING"; buddy_close; unmute; hide
+            exit 0
+        fi
         acquire_lock
-        if [ "${BUTTON:-left}" = "right" ]; then touch "$DONE"; rm -f "$STATE"; buddy_close; unmute; hide
+        if [ "${BUTTON:-left}" = "right" ]; then touch "$DONE"; rm -f "$STATE" "$FINISHING"; buddy_close; unmute; hide
+        elif [ -f "$DONE" ]; then hide
         elif [ -f "$STATE" ]; then advance ""
         else start; fi
         ;;
