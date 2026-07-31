@@ -43,8 +43,13 @@ lib.mkIf cfg.enable {
     { lib, ... }:
     {
       home.file = {
-        # show_icon parity with the old setup (no menu-bar glyph).
-        ".config/espanso/config/default.yml".text = "show_icon: false\n";
+        # show_icon parity with the old setup; disable Espanso's ⌥Space hotkeys
+        # (search_shortcut & toggle_key) so Pounce leader keys (like ⌥Space L) work.
+        ".config/espanso/config/default.yml".text = ''
+          show_icon: false
+          search_shortcut: OFF
+          toggle_key: OFF
+        '';
         ".config/espanso/match/default.yml".text = matchesYaml;
       };
 
