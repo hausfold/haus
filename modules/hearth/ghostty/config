@@ -98,6 +98,8 @@ keybind = cmd+c=unbind
 # nothing here today, so this unbind is purely defensive: it guarantees the
 # chord keeps reaching zellij if a future ghostty release claims it.
 keybind = cmd+shift+c=unbind
+# cmd+l → zellij "Super l": open Pounce Links command for the focused pane.
+keybind = cmd+l=unbind
 # cmd+r → zellij "Super r": gracefully quit/reopen Ghostty, then rebuild the
 # zellij session through a fresh server while preserving tabs/panes and resuming
 # live Claude conversations. Keep this explicit so Ghostty cannot steal it.

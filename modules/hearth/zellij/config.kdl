@@ -116,6 +116,17 @@ keybinds {
         //            ghostty/config unbinds cmd+shift+p (its command palette).
         bind "Super Shift p" { Run "sh" "-c" "ZJ_STAY=1 exec \"$SHELL\""; }
 
+        // Super l — Links: open Pounce Links command for the focused pane's
+        //            transcript/scrollback.
+        bind "Super l" {
+            Run "pounce" "run" "cmd:links" {
+                floating true
+                close_on_exit true
+                name "links"
+                x "100%"; y "100%"; width "1%"; height "1%"
+            }
+        }
+
         // Super f — toggle the focused pane fullscreen. Zoom one pane to fill
         //            the tab, hit it again to drop back into the tiled layout.
         //            Needs ghostty/config's `cmd+f=unbind` to reach zellij —
