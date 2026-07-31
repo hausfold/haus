@@ -98,6 +98,10 @@ keybind = cmd+c=unbind
 # nothing here today, so this unbind is purely defensive: it guarantees the
 # chord keeps reaching zellij if a future ghostty release claims it.
 keybind = cmd+shift+c=unbind
+# cmd+r → zellij "Super r": gracefully quit/reopen Ghostty, then rebuild the
+# zellij session through a fresh server while preserving tabs/panes and resuming
+# live Claude conversations. Keep this explicit so Ghostty cannot steal it.
+keybind = cmd+r=unbind
 # cmd+d / cmd+shift+d → nothing at all, deliberately. Ghostty's defaults here
 # are new_split:right and new_split:down — GHOSTTY splits, invisible to zellij:
 # they nest a second terminal surface INSIDE the one zellij is driving, so the

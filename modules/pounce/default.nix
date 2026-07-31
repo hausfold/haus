@@ -177,7 +177,9 @@ let
     substituteInPlace $out/add-app.sh --replace-fail '@hostname@' '${hostname}'
     chmod 555 $out/*.sh
     install -m555 ${appIconMap} $out/app-icon-map
-    install -m444 ${popularAppsCatalog} $out/popular-apps.tsv
+    # Pounce discovers every top-level file as a command. Keep picker payloads
+    # nested so the catalog cannot appear in the launcher and be run as Bash.
+    install -Dm444 ${popularAppsCatalog} $out/data/popular-apps.tsv
     ${lib.optionalString (!config.nebelhaus.hush.enable) "rm $out/hush.sh"}
   '';
 
