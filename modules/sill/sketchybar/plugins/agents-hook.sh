@@ -7,10 +7,10 @@
 # settings.json: UserPromptSubmit→working, Notification→waiting, Stop→idle,
 # SessionEnd→remove.)
 #
-# The two readers, both drawing the same paw in the same three colours:
+# The two readers, drawing agent state in the same three colours:
 #   • sill's `agents` menu-bar pill — reads the /tmp state files below
 #     (modules/sill/default.nix → agents.sh).
-#   • hearth's zellij tab-bar plugin — paints a paw beside the tab NAME of
+#   • hearth's zellij tab-bar plugin — paints an agent count badge beside the tab NAME of
 #     whichever tab holds the pane (modules/hearth/zellij/tab-bar). It can't read
 #     the state files (a plugin is WASI-sandboxed), so it gets a `zellij pipe`
 #     broadcast instead. It lives here rather than in hearth because only a hook
