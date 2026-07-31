@@ -117,10 +117,10 @@ let
     # invokes claude_usage.sh directly when one moves. update_freq is the
     # while-visible backstop that rolls a window over to 0% at its reset even
     # with no Claude pane open. Starts hidden until the first render reports.
-    claudeUsage = ''
-      sketchybar --add item claude_usage right \
-          --set claude_usage \
-              update_freq=60 \
+    aiUsage = ''
+      sketchybar --add item ai_usage right \
+          --set ai_usage \
+              update_freq=15 \
               drawing=off \
               icon.padding_left=10 \
               icon.padding_right=4 \
@@ -131,9 +131,9 @@ let
               popup.background.border_color=$SURFACE0 \
               popup.background.color=$MANTLE \
               popup.horizontal=off \
-              script="$HOME/.config/sketchybar/plugins/claude_usage.sh" \
-              click_script="$HOME/.config/sketchybar/plugins/claude_usage.sh" \
-          --subscribe claude_usage mouse.clicked system_woke
+              script="$HOME/.config/sketchybar/plugins/ai_usage.sh" \
+              click_script="$HOME/.config/sketchybar/plugins/ai_usage.sh" \
+          --subscribe ai_usage mouse.clicked system_woke
     '';
     # System readouts. Each pill's colour comes from the --set here (the palette
     # vars are live via colors.sh, sourced by sketchybarrc before this file); the
@@ -272,7 +272,7 @@ let
   # this fixed left-to-right order — only the ones sill.items switches on are drawn.
   extraOrder = [
     "agents"
-    "claudeUsage"
+    "aiUsage"
     "cpu"
     "memory"
     "volume"
@@ -281,7 +281,12 @@ let
     "elgato"
     "harvest"
   ];
-  enabledExtras = lib.filter (name: config.nebelhaus.sill.items.${name}) extraOrder;
+  enabledExtras = lib.filter (name:
+    if name == "aiUsage" then
+      config.nebelhaus.sill.items.aiUsage || config.nebelhaus.sill.items.claudeUsage
+    else
+      config.nebelhaus.sill.items.${name}
+  ) extraOrder;
 
   # The always-on core pills; a false in sill.items hides one.
   coreItems = [
@@ -538,6 +543,21 @@ lib.mkIf config.nebelhaus.sill.enable {
         ".config/sketchybar/position.sh".text = positionSh;
         ".config/sketchybar/tour_item.sh".text = tourItemSh;
         ".config/sketchybar/tour_config.sh".text = tourConfigSh;
+        ".config/sketchybar/battery_config.sh".text = ''
+          #!/bin/bash
+          # GENERATED from nebelhaus.sill.battery.* by modules/sill/default.nix — do not edit.
+          SILL_BATTERY_HIDE_OVER="${if config.nebelhaus.sill.battery.hideOver != null then toString config.nebelhaus.sill.battery.hideOver else ""}"
+        '';
+        ".config/sketchybar/clock_config.sh".text = ''
+          #!/bin/bash
+          # GENERATED from nebelhaus.sill.clock.* by modules/sill/default.nix — do not edit.
+          SILL_CLOCK_MODE="${config.nebelhaus.sill.clock.mode}"
+        '';
+        ".config/sketchybar/ai_usage_config.sh".text = ''
+          #!/bin/bash
+          # GENERATED from nebelhaus.sill.aiUsage.* by modules/sill/default.nix — do not edit.
+          SILL_AI_USAGE_PROVIDER="${config.nebelhaus.sill.aiUsage.provider}"
+        '';
         ".config/sketchybar/sketchybarrc".source = ./sketchybar/sketchybarrc;
         # The far-left logo pill's image: the nebelhaus ears (the two cat-ear
         # shapes of the org mark, extracted from web/logos/nebelhaus-mark and
