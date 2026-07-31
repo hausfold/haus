@@ -22,6 +22,20 @@ let
   devCfg = config.nebelhaus.developer;
   fontsCfg = config.nebelhaus.fonts; # terminal font family/size (den installs the package)
 
+  # `zreload` prepares a restart layout from inside zellij, then hands the
+  # destructive half to a launchd-owned process. Keeping the package at module
+  # scope lets both the user's PATH and that external agent run the exact same
+  # implementation.
+  zellijReload = pkgs.writeShellApplication {
+    name = "zreload";
+    runtimeInputs = [
+      pkgs.jq
+      pkgs.perl
+      pkgs.zellij
+    ];
+    text = builtins.readFile ./zellij/reload.sh;
+  };
+
   # Rice-owned preamble for ~/.claude/CLAUDE.md. The rice ships `wt` (den) on
   # PATH to every machine, and Claude Code agent worktrees live OUTSIDE the repo
   # tree (~/.cache/claude-worktrees/…), so a worktree agent's CLAUDE.md walk never
@@ -206,6 +220,34 @@ in
     "fzf"
     "lazygit"
   ];
+
+  # The reload finisher must outlive both zellij and Ghostty. zreload writes the
+  # complete recovery layout first, then kickstarts this otherwise-idle agent;
+  # the agent gracefully quits Ghostty, deletes zellij's old server, and opens a
+  # new Ghostty process whose launcher consumes that layout on startup.
+  launchd.user.agents.zellij-reload = {
+    serviceConfig = {
+      Label = "org.nebelhaus.zellij-reload";
+      ProgramArguments = [
+        "${zellijReload}/bin/zreload"
+        "_finish"
+      ];
+      ProcessType = "Interactive";
+      StandardOutPath = "/tmp/zellij-reload.out.log";
+      StandardErrorPath = "/tmp/zellij-reload.err.log";
+      EnvironmentVariables = {
+        HOME = "/Users/${username}";
+        PATH = lib.concatStringsSep ":" [
+          "/run/current-system/sw/bin"
+          "/etc/profiles/per-user/${username}/bin"
+          "/usr/bin"
+          "/bin"
+          "/usr/sbin"
+          "/sbin"
+        ];
+      };
+    };
+  };
 
   home-manager.users.${username} =
     {
@@ -404,6 +446,7 @@ in
           # hearth.hijackFileAssociations drives.
           iina
           duti
+          zellijReload
         ]
         ++ lib.optionals devCfg.toolbelt.enable [
           chafa # fast terminal image previewer / layout engine
@@ -454,6 +497,9 @@ in
           # a terminal `mdcat file.md` renders markdown identically to the yazi
           # right-pane preview (Nebelung glamour port, tables and all).
           mdcat = ''glow -s "${glowStyle}"'';
+          # Pin the command just like the zellij keybind. This avoids a stale
+          # system-profile binary during local rice development.
+          zreload = "${zellijReload}/bin/zreload";
         };
 
         history = {
@@ -1093,10 +1139,11 @@ in
         # copy_command / Run / layout), so render @HOME@ → the user's home.
         ".config/zellij/config.kdl".text =
           builtins.replaceStrings
-            [ "@HOME@" "@DEFAULT_MODE@" ]
+            [ "@HOME@" "@DEFAULT_MODE@" "@ZRELOAD@" ]
             [
               config.home.homeDirectory
               (if hearthCfg.zellijStartLocked then "locked" else "normal")
+              "${zellijReload}/bin/zreload"
             ]
             (builtins.readFile ./zellij/config.kdl);
         ".config/zellij/themes/nebelung.kdl".source = "${nebelungRoot}/zellij/themes/nebelung.kdl";

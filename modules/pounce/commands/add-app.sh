@@ -33,7 +33,7 @@ BREW_INDEX="$HOME/.cache/nebelhaus/brew-index.tsv"
 BREW_API="$HOME/Library/Caches/Homebrew/api"
 FLOAT_TERM="$HOME/.config/zellij/float-term.sh"
 APP_ICON_MAP="$(dirname "$0")/app-icon-map"
-POPULAR_APPS="$(dirname "$0")/popular-apps.tsv"
+POPULAR_APPS="$(dirname "$0")/data/popular-apps.tsv"
 
 field() { printf '%s' "$1" | cut -f"$2"; }
 notice() {
@@ -383,7 +383,7 @@ $(again_row "Not what you wanted? Search Nixpkgs again")"
   # --chain again: typing words that match no row and pressing Enter is how you
   # re-search from here, and that too runs a search before the next pounce.
   if [ "$source_name" = "Popular apps" ]; then
-    selected="$(printf '%s\n' "$list" | pounce -p "Install App — popular" -i "star")"
+    selected="$(printf '%s' "$list" | pounce -p "Install App — popular" -i "star")"
   else
     selected="$(printf '%s\n' "$list" | pounce --chain -p "Install App — search $source_name" -i "square.and.arrow.down.on.square")"
   fi
