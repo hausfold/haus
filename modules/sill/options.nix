@@ -62,6 +62,21 @@
       '';
     };
 
+    sill.aiUsage.provider = lib.mkOption {
+      type = lib.types.enum [
+        "latest"
+        "claude"
+        "codex"
+      ];
+      default = "latest";
+      example = "claude";
+      description = ''
+        Which AI provider to display in the main pill: `latest` (default, automatically
+        shows whichever provider reported most recently), `claude`, or `codex`.
+        Clicking the pill always displays the full dropdown with all reporting providers.
+      '';
+    };
+
     tour.enable = lib.mkOption {
       type = lib.types.bool;
       default = true;

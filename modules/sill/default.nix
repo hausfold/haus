@@ -553,6 +553,11 @@ lib.mkIf config.nebelhaus.sill.enable {
           # GENERATED from nebelhaus.sill.clock.* by modules/sill/default.nix — do not edit.
           SILL_CLOCK_MODE="${config.nebelhaus.sill.clock.mode}"
         '';
+        ".config/sketchybar/ai_usage_config.sh".text = ''
+          #!/bin/bash
+          # GENERATED from nebelhaus.sill.aiUsage.* by modules/sill/default.nix — do not edit.
+          SILL_AI_USAGE_PROVIDER="${config.nebelhaus.sill.aiUsage.provider}"
+        '';
         ".config/sketchybar/sketchybarrc".source = ./sketchybar/sketchybarrc;
         # The far-left logo pill's image: the nebelhaus ears (the two cat-ear
         # shapes of the org mark, extracted from web/logos/nebelhaus-mark and

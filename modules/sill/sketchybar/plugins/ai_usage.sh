@@ -31,7 +31,10 @@ fi
 
 [ ${#files[@]} -gt 0 ] || exit 0
 
-# Determine active/latest provider for the main pill
+[ -f "$HOME/.config/sketchybar/ai_usage_config.sh" ] && source "$HOME/.config/sketchybar/ai_usage_config.sh"
+PREFERRED="${SILL_AI_USAGE_PROVIDER:-latest}"
+
+# Determine active/preferred provider for the main pill
 latest_stamp=-1
 main_p5=0
 main_pw=0
@@ -43,7 +46,13 @@ for f in "${files[@]}"; do
   p5=${p5:-0}; pw=${pw:-0}; r5=${r5:-0}; rw=${rw:-0}; stamp=${stamp:-0}; prov=${prov:-claude}
   [ "$r5" -gt 0 ] && [ "$now" -ge "$r5" ] && p5=0
   [ "$rw" -gt 0 ] && [ "$now" -ge "$rw" ] && pw=0
-  if [ "$stamp" -gt "$latest_stamp" ]; then
+  if [ "$PREFERRED" != "latest" ] && [ "$prov" = "$PREFERRED" ]; then
+    main_p5=$p5
+    main_pw=$pw
+    main_provider=$prov
+    latest_stamp=$stamp
+    break
+  elif [ "$stamp" -gt "$latest_stamp" ]; then
     latest_stamp=$stamp
     main_p5=$p5
     main_pw=$pw
