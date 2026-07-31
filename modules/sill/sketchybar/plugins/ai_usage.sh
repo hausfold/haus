@@ -79,26 +79,20 @@ for f in "${files[@]}"; do
   fi
 done
 
-# Evaluate worst percentage across subscription providers for status color
-worst_all=0
-for f in "${files[@]}"; do
-  val5=0; valw=0; r5=0; rw=0; stamp=0; prov="claude"
-  IFS=$'\t' read -r val5 valw r5 rw stamp prov < "$f" || true
-  val5=${val5:-0}; valw=${valw:-0}; r5=${r5:-0}; rw=${rw:-0}; stamp=${stamp:-0}
-  if [ "$prov" != "opencode" ] && ! [[ "$val5" =~ \. ]]; then
-    [ "$r5" -gt 0 ] && [ "$now" -ge "$r5" ] && val5=0
-    [ "$rw" -gt 0 ] && [ "$now" -ge "$rw" ] && valw=0
-    [ "$val5" -gt "$worst_all" ] 2>/dev/null && worst_all=$val5
-    [ "$valw" -gt "$worst_all" ] 2>/dev/null && worst_all=$valw
+main_pct=0
+if [ "$is_cost" = 0 ]; then
+  main_pct=${main_val5:-0}
+  if [ "${main_valw:-0}" -gt "$main_pct" ] 2>/dev/null; then
+    main_pct=$main_valw
   fi
-done
+fi
 
 if [ "$is_cost" = 1 ]; then
   COL=$GREEN
 else
-  if   [ "$worst_all" -ge 90 ]; then COL=$RED
-  elif [ "$worst_all" -ge 75 ]; then COL=$PEACH
-  elif [ "$worst_all" -ge 50 ]; then COL=$YELLOW
+  if   [ "$main_pct" -ge 90 ]; then COL=$RED
+  elif [ "$main_pct" -ge 75 ]; then COL=$PEACH
+  elif [ "$main_pct" -ge 50 ]; then COL=$YELLOW
   else                            COL=$GREEN
   fi
 fi
@@ -124,7 +118,7 @@ esac
 if [ "$is_cost" = 1 ]; then
   MAIN_LABEL="\$$main_val5"
 else
-  MAIN_LABEL="${main_val5}%"
+  MAIN_LABEL="${main_pct}%"
 fi
 
 # ── click: show expanded info for all reporting providers ─────────────────────
