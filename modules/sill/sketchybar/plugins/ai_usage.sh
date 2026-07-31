@@ -1,5 +1,5 @@
 #!/bin/bash
-# claude_usage.sh — the reader half of the `claudeUsage` pill (opt-in via
+# ai_usage.sh — the reader half of the `aiUsage` pill (opt-in via
 # nebelhaus.sill.items). Puts rate-limit gauges for AI providers (Claude Code,
 # Codex, etc.) in the menu bar — 5-hour session window and 7-day weekly window.
 #
@@ -82,7 +82,7 @@ esac
 
 # ── click: show expanded info for all reporting providers ─────────────────────
 if [ "${SENDER:-}" = "mouse.clicked" ]; then
-  sketchybar --remove '/claude_usage.popup\..*/' 2>/dev/null
+  sketchybar --remove '/ai_usage.popup\..*/' 2>/dev/null
   i=0
   for f in "${files[@]}"; do
     p5=0; pw=0; r5=0; rw=0; stamp=0; prov="claude"
@@ -100,13 +100,13 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
     esac
 
     # Provider header row
-    sketchybar --add item "claude_usage.popup.$i" popup.claude_usage 2>/dev/null \
-      --set "claude_usage.popup.$i" \
+    sketchybar --add item "ai_usage.popup.$i" popup.ai_usage 2>/dev/null \
+      --set "ai_usage.popup.$i" \
         icon="$p_icon" icon.color="$PINK" icon.font="$p_font" \
         icon.padding_left=10 icon.padding_right=6 \
         label="$p_name" label.color="$TEXT" label.font="Hack Nerd Font:Bold:13.0" \
         background.drawing=off \
-        click_script="sketchybar --set claude_usage popup.drawing=off"
+        click_script="sketchybar --set ai_usage popup.drawing=off"
     i=$((i + 1))
 
     # Usage rows helper
@@ -116,32 +116,32 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
         if [ $(($3 - now)) -lt 86400 ]; then when="resets $(date -r "$3" '+%H:%M')"
         else                                  when="resets $(date -r "$3" '+%a %H:%M')"; fi
       fi
-      sketchybar --add item "claude_usage.popup.$i" popup.claude_usage 2>/dev/null \
-        --set "claude_usage.popup.$i" \
+      sketchybar --add item "ai_usage.popup.$i" popup.ai_usage 2>/dev/null \
+        --set "ai_usage.popup.$i" \
           icon="" icon.padding_left=0 icon.padding_right=0 \
           label="$1  $2%${when:+  ·  $when}" label.color="$SUBTEXT0" \
           label.font="Hack Nerd Font:Regular:13.0" label.padding_left=22 label.padding_right=10 \
           background.drawing=off \
-          click_script="sketchybar --set claude_usage popup.drawing=off"
+          click_script="sketchybar --set ai_usage popup.drawing=off"
       i=$((i + 1))
     }
     row "session" "$p5" "$r5"
     row "weekly " "$pw" "$rw"
     if [ "$f_stale" = 1 ]; then
-      sketchybar --add item "claude_usage.popup.$i" popup.claude_usage 2>/dev/null \
-        --set "claude_usage.popup.$i" \
+      sketchybar --add item "ai_usage.popup.$i" popup.ai_usage 2>/dev/null \
+        --set "ai_usage.popup.$i" \
           icon="" icon.padding_left=0 icon.padding_right=0 \
           label="as of $((f_age / 60))m ago" label.color="$OVERLAY1" \
           label.font="Hack Nerd Font:Italic:12.0" label.padding_left=22 label.padding_right=10 \
           background.drawing=off \
-          click_script="sketchybar --set claude_usage popup.drawing=off"
+          click_script="sketchybar --set ai_usage popup.drawing=off"
       i=$((i + 1))
     fi
   done
-  sketchybar --set claude_usage popup.drawing=toggle
+  sketchybar --set ai_usage popup.drawing=toggle
   exit 0
 fi
 
 # ── update: main pill icon + session percentage + worst-case colour ──────────
-sketchybar --set claude_usage drawing=on icon="$ICON" icon.font="$IFONT" icon.color="$COL" \
+sketchybar --set ai_usage drawing=on icon="$ICON" icon.font="$IFONT" icon.color="$COL" \
   label="${main_p5}%" label.color="$COL"

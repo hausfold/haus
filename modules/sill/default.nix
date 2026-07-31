@@ -117,9 +117,9 @@ let
     # invokes claude_usage.sh directly when one moves. update_freq is the
     # while-visible backstop that rolls a window over to 0% at its reset even
     # with no Claude pane open. Starts hidden until the first render reports.
-    claudeUsage = ''
-      sketchybar --add item claude_usage right \
-          --set claude_usage \
+    aiUsage = ''
+      sketchybar --add item ai_usage right \
+          --set ai_usage \
               update_freq=15 \
               drawing=off \
               icon.padding_left=10 \
@@ -131,9 +131,9 @@ let
               popup.background.border_color=$SURFACE0 \
               popup.background.color=$MANTLE \
               popup.horizontal=off \
-              script="$HOME/.config/sketchybar/plugins/claude_usage.sh" \
-              click_script="$HOME/.config/sketchybar/plugins/claude_usage.sh" \
-          --subscribe claude_usage mouse.clicked system_woke
+              script="$HOME/.config/sketchybar/plugins/ai_usage.sh" \
+              click_script="$HOME/.config/sketchybar/plugins/ai_usage.sh" \
+          --subscribe ai_usage mouse.clicked system_woke
     '';
     # System readouts. Each pill's colour comes from the --set here (the palette
     # vars are live via colors.sh, sourced by sketchybarrc before this file); the
@@ -272,7 +272,7 @@ let
   # this fixed left-to-right order — only the ones sill.items switches on are drawn.
   extraOrder = [
     "agents"
-    "claudeUsage"
+    "aiUsage"
     "cpu"
     "memory"
     "volume"
@@ -281,7 +281,12 @@ let
     "elgato"
     "harvest"
   ];
-  enabledExtras = lib.filter (name: config.nebelhaus.sill.items.${name}) extraOrder;
+  enabledExtras = lib.filter (name:
+    if name == "aiUsage" then
+      config.nebelhaus.sill.items.aiUsage || config.nebelhaus.sill.items.claudeUsage
+    else
+      config.nebelhaus.sill.items.${name}
+  ) extraOrder;
 
   # The always-on core pills; a false in sill.items hides one.
   coreItems = [

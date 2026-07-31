@@ -165,10 +165,10 @@ if [ -n "$lim5" ]; then
   printf '%s\t%s\t%s\t%s\t%s\tclaude\n' \
     "${now5:-0}" "${noww:-0}" "${rst5:-0}" "${rstw:-0}" "$(date +%s)" \
     >"$usage.$$" && mv "$usage.$$" "$usage_claude" && cp "$usage_claude" "$usage"
-  pill="$HOME/.config/sketchybar/plugins/claude_usage.sh"
+  pill="$HOME/.config/sketchybar/plugins/ai_usage.sh"
   if [ "$was" != "$(printf '%s\t%s' "${now5:-0}" "${noww:-0}")" ] && [ -x "$pill" ]; then
     # Detached: a render must never block on sketchybar's socket.
-    (SENDER=refresh NAME=claude_usage "$pill" >/dev/null 2>&1 &)
+    (SENDER=refresh NAME=ai_usage "$pill" >/dev/null 2>&1 &)
   fi
 fi
 
