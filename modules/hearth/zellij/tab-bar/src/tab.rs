@@ -102,18 +102,16 @@ pub fn render_tab(
         };
         style!(badge_fg, badge_bg)
             .bold()
-            // One trailing cell is the only explicit padding: terminal cells
-            // cannot safely render fractional-width spacing, and the digits'
-            // natural side bearings already keep the left edge from feeling
-            // cramped. This keeps a one-agent badge to two columns.
-            .paint(format!("{} ", badge.count))
+            // Symmetric padding: one leading space and one trailing space center
+            // the count inside the badge's colored block.
+            .paint(format!(" {} ", badge.count))
             .to_string()
     });
-    // The count can grow past one digit. It gets only one trailing padding cell;
-    // accurate length is what keeps the clickable tab targets aligned with their
-    // painted pills.
+    // The count can grow past one digit. It gets symmetric padding (1 cell on
+    // each side); accurate length is what keeps the clickable tab targets aligned
+    // with their painted pills.
     if let Some(badge) = badge {
-        tab_text_len += badge.count.to_string().width() + 1;
+        tab_text_len += badge.count.to_string().width() + 2;
     }
 
     let right_separator = style!(background_color, separator_fill_color).paint(separator);
