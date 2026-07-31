@@ -858,15 +858,16 @@ fn should_show_focus_and_resize_shortcuts(tab_info: Option<&TabInfo>) -> bool {
 fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usize) -> LinePart {
     let binds = &help.get_mode_keybinds();
     // Fork: the bottom-right quick hints are condensed to a single flat block —
-    // ` Super + <c,p,t,y,f> ` — the launchers plus fullscreen (c = claude
-    // --worktree, p = new pane, t = new tab, y = yazi peek, f = fullscreen
-    // toggle): keys only, no word-labels and no powerline ribbons. What each
-    // key does lives in the web docs / cheatsheet (nebelhaus.com), not spelled
-    // out on the bar. Keys are still resolved from the live binds (via
+    // ` Super + <c,p,t,y,l,f> ` — the launchers plus fullscreen (c = claude
+    // --worktree, p = new pane, t = new tab, y = yazi peek, l = pounce links,
+    // f = fullscreen toggle): keys only, no word-labels and no powerline ribbons.
+    // What each key does lives in the web docs / cheatsheet (nebelhaus.com), not
+    // spelled out on the bar. Keys are still resolved from the live binds (via
     // run_bind_key / action_key), so a rebind re-letters the block; only the
     // labels and the Floating/Focus/Resize hints were dropped versus upstream.
     let claude_key = run_bind_key(binds, "claude", Some("--worktree"));
     let peek_key = run_bind_key(binds, "peek.sh", None);
+    let links_key = run_bind_key(binds, "pounce", Some("cmd:links"));
 
     // Fullscreen: the single-action ToggleFocusFullscreen bind (Super f).
     // action_key demands an exact-length action match, so only a bind whose
@@ -918,9 +919,9 @@ fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usi
         .map(|k| vec![k.clone()])
         .unwrap_or_default();
 
-    // Order on the bar: c, p, t, y, f.
+    // Order on the bar: c, p, t, y, l, f.
     let ordered: Vec<Vec<KeyWithModifier>> =
-        vec![claude_key, pane_key, tab_key, peek_key, fullscreen_key];
+        vec![claude_key, pane_key, tab_key, peek_key, links_key, fullscreen_key];
     let common_modifiers = get_common_modifiers(ordered.iter().flatten().collect());
 
     // One display char per launcher, common modifier stripped so only `c`/`p`/…
