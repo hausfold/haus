@@ -213,3 +213,9 @@ run = 'layout floating'
 [[on-window-detected]]
 if.app-id = 'com.apple.FaceTime'
 run = 'layout floating'
+
+# Flick's status-item windows (Settings, Inbox) are user-summoned utility
+# windows, not tiled documents — same treatment as FaceTime.
+[[on-window-detected]]
+if.app-id = 'com.nebelhaus.flick'
+run = 'layout floating'
