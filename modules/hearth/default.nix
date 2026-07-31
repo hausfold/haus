@@ -20,6 +20,7 @@ let
   claudeCfg = config.nebelhaus.claude;
   accent = config.nebelhaus.theme.accent; # a Catppuccin accent name, e.g. "mauve"
   devCfg = config.nebelhaus.developer;
+  agentDefault = config.nebelhaus.agents.default;
   fontsCfg = config.nebelhaus.fonts; # terminal font family/size (den installs the package)
 
   # `zreload` prepares a restart layout from inside zellij, then hands the
@@ -434,6 +435,7 @@ in
         HOMEBREW_NO_ENV_HINTS = "1";
         EDITOR = hearthCfg.editor;
         VISUAL = hearthCfg.editor;
+        NEBELHAUS_AGENT_DEFAULT = agentDefault;
       };
 
       # A lean terminal/dev toolbelt, gated by the developer pack. Personal

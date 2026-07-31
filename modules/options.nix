@@ -428,5 +428,27 @@ in
         '';
       };
     };
+
+    agents.default = lib.mkOption {
+      type = lib.types.enum [
+        "claude"
+        "codex"
+        "opencode"
+      ];
+      default = "claude";
+      example = "codex";
+      description = ''
+        The coding agent started by Pounce's **Spawn Agent** commands and used
+        to reopen worktrees that have no client recorded yet. Each spawned
+        worktree records its chosen client, so changing this affects new work
+        but never resumes an existing Codex or OpenCode task in Claude.
+
+        `claude` is Claude Code (and remains the only client whose native
+        `--worktree` hook powers the ⌘C terminal binding). `codex` reopens its
+        cwd-filtered `codex resume` picker; `opencode` continues its latest
+        session for that cwd. All three use the same `wt` branch/parking/reap
+        lifecycle.
+      '';
+    };
   };
 }
