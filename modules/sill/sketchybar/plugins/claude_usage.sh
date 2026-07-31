@@ -7,7 +7,7 @@
 # The numbers are NOT scraped and NOT fetched: Claude Code hands its statusline
 # `.rate_limits.{five_hour,seven_day}.{used_percentage,resets_at}` on every
 # render, and modules/den/statusline.sh stashes them as one TSV line:
-#     <5h %>\t<7d %>\t<5h resets epoch>\t<7d resets epoch>\t<written epoch>
+#     <5h %>\t<7d %>\t<5h resets epoch>\t<7d resets epoch>\t<written epoch>\t<provider>
 # So there is no OAuth token to read out of the keychain, no /api/oauth/usage
 # call, and nothing polling on a timer — the pill costs one `cut` per tick.
 #
@@ -24,16 +24,22 @@ export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/etc/profiles/per-user
 source "$HOME/.config/sketchybar/colors.sh"
 
 STASH="${CLAUDE_STATUSLINE_CACHE:-$HOME/.cache/claude-statusline}/usage.tsv"
-GAUGE=$(printf '\xEF\x83\xA4')   # nf-fa-tachometer (U+F0E4)
 STALE=1800                       # 30 min with no render → say "last known", don't lie
 
-# No Claude session has ever rendered here → nothing true to show, stay invisible.
+# No AI session has ever rendered here → nothing true to show, stay invisible.
 # (The item is created with drawing=off and only ever turned on below, so this is
 # also the boot state: the pill appears the first time a pane reports.)
 [ -s "$STASH" ] || exit 0
-IFS=$'\t' read -r p5 pw r5 rw stamp < "$STASH"
+provider="claude"
+IFS=$'\t' read -r p5 pw r5 rw stamp provider < "$STASH"
 p5=${p5:-0}; pw=${pw:-0}; r5=${r5:-0}; rw=${rw:-0}; stamp=${stamp:-0}
+provider=${provider:-claude}
 now=$(date +%s)
+
+case "$provider" in
+  codex|openai) ICON="󱚦" ;;
+  *)            ICON="󰏫" ;;
+esac
 
 # A window past its reset is empty again no matter what the last render said, so
 # fold it to 0% here. That's what lets the pill stay honest for hours with no
@@ -86,6 +92,6 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
   exit 0
 fi
 
-# ── update: one pill, both windows, worst-case colour ─────────────────────────
-sketchybar --set claude_usage drawing=on icon="$GAUGE" icon.color="$COL" \
-  label="${p5}·${pw}" label.color="$COL"
+# ── update: one pill, session percentage, worst-case colour ───────────────────
+sketchybar --set claude_usage drawing=on icon="$ICON" icon.color="$COL" \
+  label="${p5}%" label.color="$COL"

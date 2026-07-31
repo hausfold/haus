@@ -1,13 +1,27 @@
 #!/bin/zsh
 
-# Get current date and time
-DATE=$(date '+%a %b %d')
-TIME=$(date '+%I:%M %p')
+[ -f "$HOME/.config/sketchybar/clock_config.sh" ] && source "$HOME/.config/sketchybar/clock_config.sh"
 
-# Nerd Font calendar icon (nf-fa-calendar)
-ICON=$(printf "\uf073")
+MODE="${SILL_CLOCK_MODE:-full}"
 
-# Update the bar item
-/opt/homebrew/bin/sketchybar --set $NAME \
-    icon="$ICON" \
-    label="$DATE  $TIME"
+if [ "$MODE" = "compact" ]; then
+    DAY=$(date '+%a')
+    DATE=$(date '+%d/%m' | sed 's/^0//; s/\/0/\//')
+    TIME=$(date '+%l:%M' | tr -d ' ')
+    /opt/homebrew/bin/sketchybar --set $NAME \
+        icon="" \
+        icon.padding_left=0 \
+        icon.padding_right=0 \
+        label="${DAY} ${DATE} ${TIME}"
+else
+    DATE=$(date '+%a %b %d')
+    TIME=$(date '+%I:%M %p')
+    ICON=$(printf "\uf073")
+
+    # Update the bar item
+    /opt/homebrew/bin/sketchybar --set $NAME \
+        icon="$ICON" \
+        icon.padding_left=8 \
+        icon.padding_right=4 \
+        label="$DATE  $TIME"
+fi

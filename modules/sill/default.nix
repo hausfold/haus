@@ -538,6 +538,16 @@ lib.mkIf config.nebelhaus.sill.enable {
         ".config/sketchybar/position.sh".text = positionSh;
         ".config/sketchybar/tour_item.sh".text = tourItemSh;
         ".config/sketchybar/tour_config.sh".text = tourConfigSh;
+        ".config/sketchybar/battery_config.sh".text = ''
+          #!/bin/bash
+          # GENERATED from nebelhaus.sill.battery.* by modules/sill/default.nix — do not edit.
+          SILL_BATTERY_HIDE_OVER="${if config.nebelhaus.sill.battery.hideOver != null then toString config.nebelhaus.sill.battery.hideOver else ""}"
+        '';
+        ".config/sketchybar/clock_config.sh".text = ''
+          #!/bin/bash
+          # GENERATED from nebelhaus.sill.clock.* by modules/sill/default.nix — do not edit.
+          SILL_CLOCK_MODE="${config.nebelhaus.sill.clock.mode}"
+        '';
         ".config/sketchybar/sketchybarrc".source = ./sketchybar/sketchybarrc;
         # The far-left logo pill's image: the nebelhaus ears (the two cat-ear
         # shapes of the org mark, extracted from web/logos/nebelhaus-mark and

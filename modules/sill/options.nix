@@ -39,6 +39,29 @@
       '';
     };
 
+    sill.battery.hideOver = lib.mkOption {
+      type = lib.types.nullOr lib.types.int;
+      default = null;
+      example = 80;
+      description = ''
+        Hide the battery pill when charge percentage is above this threshold
+        (e.g., set to 80 to show the battery pill only when charge is at or below 80%).
+      '';
+    };
+
+    sill.clock.mode = lib.mkOption {
+      type = lib.types.enum [
+        "full"
+        "compact"
+      ];
+      default = "full";
+      example = "compact";
+      description = ''
+        The display mode for the clock pill: `full` (default, e.g. "Fri Jul 31  09:41 AM" with calendar icon)
+        or `compact` (e.g. "Fri 31/7 9:41" without icon and trimmed spacing).
+      '';
+    };
+
     tour.enable = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -129,7 +152,7 @@
           calendar = "Your next timed event, with a click-popup of the next five. Pulls in `ical-buddy` automatically and reads Calendar, so macOS prompts for Calendar access on first run.";
           caffeinate = "A coffee pill that prevents idle system sleep for 1/2/4/8 hours, a custom whole-hour duration, or indefinitely. The display may still turn off; closing a MacBook lid still sleeps it. Uses macOS's built-in `caffeinate`, so there is no extra package.";
           agents = "A paw pill tracking your `claude --worktree` agent panes — amber when one is blocked on you, click for the per-agent list; left-click a row to jump to that pane, ⌥/right-click for a live `zellij subscribe` peek. Fed by Claude Code hooks (point them at ~/.config/sketchybar/plugins/agents-hook.sh); dormant until they fire.";
-          claudeUsage = "A gauge pill showing how much of your Claude Code usage you've spent — `<5-hour>·<weekly>` as percentages, coloured by whichever window is closest to biting (green under 50, red at 90). Click for both windows with their reset times. The numbers ride Claude Code's own statusline feed, so nothing is polled and no token is read; the pill stays hidden until a Claude session first reports, and greys out if none has in half an hour.";
+          claudeUsage = "A gauge pill showing how much of your AI plan usage (Claude Code or Codex) you've spent — session percentage in the pill, coloured by whichever window is closest to biting (green under 50, red at 90; weekly status overrides pill color). Click for both windows with their reset times. The numbers ride statusline feeds, so nothing is polled and no token is read; the pill stays hidden until a session first reports, and greys out if none has in half an hour.";
           elgato = "Toggles an Elgato Key Light on the local network.";
           harvest = "A Harvest time-tracking pill; needs a ~/.config/sketchybar/harvest_secrets.sh you provide.";
         };

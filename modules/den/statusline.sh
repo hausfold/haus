@@ -161,7 +161,7 @@ if [ -n "$lim5" ]; then
   rst5=$(j '.rate_limits.five_hour.resets_at'); rstw=$(j '.rate_limits.seven_day.resets_at')
   was=$(cut -f1,2 "$usage" 2>/dev/null)
   [ -d "$CACHE_DIR" ] || mkdir -p "$CACHE_DIR"
-  printf '%s\t%s\t%s\t%s\t%s\n' \
+  printf '%s\t%s\t%s\t%s\t%s\tclaude\n' \
     "${now5:-0}" "${noww:-0}" "${rst5:-0}" "${rstw:-0}" "$(date +%s)" \
     >"$usage.$$" && mv -f "$usage.$$" "$usage"
   pill="$HOME/.config/sketchybar/plugins/claude_usage.sh"
