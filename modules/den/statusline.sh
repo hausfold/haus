@@ -156,6 +156,7 @@ lim5=$(j '.rate_limits.five_hour.used_percentage')
 if [ -n "$lim5" ]; then
   limw=$(j '.rate_limits.seven_day.used_percentage')
   usage="$CACHE_DIR/usage.tsv"
+  usage_claude="$CACHE_DIR/usage-claude.tsv"
   # Truncate rather than round: 99.6% must not render as a scary 100%.
   now5=${lim5%%.*}; noww=${limw%%.*}
   rst5=$(j '.rate_limits.five_hour.resets_at'); rstw=$(j '.rate_limits.seven_day.resets_at')
@@ -163,7 +164,7 @@ if [ -n "$lim5" ]; then
   [ -d "$CACHE_DIR" ] || mkdir -p "$CACHE_DIR"
   printf '%s\t%s\t%s\t%s\t%s\tclaude\n' \
     "${now5:-0}" "${noww:-0}" "${rst5:-0}" "${rstw:-0}" "$(date +%s)" \
-    >"$usage.$$" && mv -f "$usage.$$" "$usage"
+    >"$usage.$$" && mv "$usage.$$" "$usage_claude" && cp "$usage_claude" "$usage"
   pill="$HOME/.config/sketchybar/plugins/claude_usage.sh"
   if [ "$was" != "$(printf '%s\t%s' "${now5:-0}" "${noww:-0}")" ] && [ -x "$pill" ]; then
     # Detached: a render must never block on sketchybar's socket.
