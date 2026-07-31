@@ -1,12 +1,13 @@
 #!/bin/bash
 # pounce: name = Spawn Agent
-# pounce: description = Start a Claude Code session on a named worktree of any repo
+# pounce: description = Start your default coding agent on a named worktree of any repo
 # pounce: icon = sparkles
 # pounce: submenu = true
 #
-# The palette front door to `claude --worktree`. Pick a repo, type what you want
-# done, and this creates a worktree named after the task and drops a Claude Code
-# session into it, in the `main` zellij session's tab for that repo.
+# The palette front door to a named agent worktree. Pick a repo, type what you
+# want done, and this creates a worktree named after the task and drops the
+# configured default (Claude Code, Codex, or OpenCode) into it, in the `main`
+# zellij session's tab for that repo.
 #
 # Why it exists: the same thing by hand is caps→t to a terminal, find the repo's
 # tab, cd, ⌘C for an agent pane, then type the prompt — and the worktree ends up
@@ -15,7 +16,7 @@
 # Naming it from the prompt is the whole point; the palette is just the shortest
 # path to doing it.
 #
-# The worktree is made by `wt spawn`, NOT by `claude --worktree`: a palette
+# The worktree is made by `wt spawn`, NOT by a client-native worktree command: a palette
 # command has no pane, so it must not be recorded as anybody's child session (see
 # wt.sh's cmd_spawn). Claude is then started in that checkout like any other
 # directory — no hook fires, nothing else to keep in sync.
@@ -26,7 +27,7 @@
 # repo `wt` already knows, so a repo outside those roots that you have agent'd
 # before stays reachable.
 
-# A launchd GUI agent's PATH is bare; resolve our tools (wt, zellij, claude, git,
+# A launchd GUI agent's PATH is bare; resolve our tools (wt, zellij, git,
 # open, osascript, pounce) explicitly — the same prelude add-app.sh uses.
 export PATH="/etc/profiles/per-user/$USER/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
 
@@ -40,7 +41,7 @@ notice() {
     | pounce -p "Spawn Agent" -i "sparkles" >/dev/null
 }
 
-for tool in wt zellij claude; do
+for tool in wt zellij; do
   command -v "$tool" >/dev/null 2>&1 && continue
   notice "$tool is unavailable" "Rebuild nebelhaus, then try again"
   exit 1
@@ -87,6 +88,9 @@ if [ -z "$list" ]; then
   notice "No repositories found" "Set NEBELHAUS_REPO_ROOTS, or clone something under ~/code"
   exit 0
 fi
+
+agent="$(wt agent default 2>/dev/null)"
+[ -n "$agent" ] || agent="claude"
 
 repo_sel="$(printf '%s\n' "$list" | pounce -p "Spawn Agent — which repo?" -i "sparkles")"
 [ -z "$repo_sel" ] && exit 0
@@ -167,7 +171,7 @@ if ! zellij list-sessions 2>/dev/null | grep -q "$SESSION"; then
   exit 1
 fi
 
-dir="$(wt spawn "$repo" "$slug" 2>/dev/null)"
+dir="$(wt spawn "$repo" "$slug" "$agent" 2>/dev/null)"
 if [ -z "$dir" ] || [ ! -d "$dir" ]; then
   notice "Could not create the worktree" "Check that $repo_name has a commit to branch from"
   exit 1
@@ -180,11 +184,14 @@ name="$(basename "$dir")"
 # zellij would otherwise title a new tab after its cwd or its running command,
 # and `luminous-twirling-codd` or `claude` is not a tab you can find later.
 osascript -e 'tell application "Ghostty" to activate' >/dev/null 2>&1
+agent_args=(agent start "$agent")
+[ -n "${NEBELHAUS_AGENT_IMAGE:-}" ] && agent_args+=(--image "$NEBELHAUS_AGENT_IMAGE")
+agent_args+=(-- "$prompt")
 if zellij -s "$SESSION" action query-tab-names 2>/dev/null | grep -qxF "$repo_name"; then
   zellij -s "$SESSION" action go-to-tab-name "$repo_name" >/dev/null 2>&1
-  spawned=$(zellij -s "$SESSION" action new-pane --cwd "$dir" --name "$name" -- claude "$prompt")
+  spawned=$(zellij -s "$SESSION" action new-pane --cwd "$dir" --name "$name" -- wt "${agent_args[@]}")
 else
-  spawned=$(zellij -s "$SESSION" action new-tab --name "$repo_name" --cwd "$dir" -- claude "$prompt")
+  spawned=$(zellij -s "$SESSION" action new-tab --name "$repo_name" --cwd "$dir" -- wt "${agent_args[@]}")
 fi
 
 if [ -z "$spawned" ]; then

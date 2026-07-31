@@ -139,10 +139,10 @@ fail() { printf '%s\n' "$*" >&2; return 1; }   # not a bats builtin
   [ "$(git -C "$output" branch --show-current)" = worktree-doc ]
 }
 
-@test "create: records main, branch, path and the spawning parent in the registry" {
+@test "create: records main, branch, path, parent, and its Claude client in the registry" {
   local main dir; main="$(mkrepo alpha)"; dir="$(hook_create "$main" sparkle)"
   run cat "$REG"
-  [ "$output" = "$(printf 'sparkle\t%s\tworktree-sparkle\t%s\t%s' "$main" "$dir" "$main")" ]
+  [ "$output" = "$(printf 'sparkle\t%s\tworktree-sparkle\t%s\t%s\tclaude' "$main" "$dir" "$main")" ]
 }
 
 @test "create: a name whose branch already exists fails instead of half-creating" {
@@ -634,6 +634,38 @@ mk_stray() { # mk_stray <main> <name> — a worktree-<name> checkout outside WT_
   run bash -c "bash '$WT' spawn '$b' held 2>/dev/null"
   [ "$status" -eq 0 ]
   [ "$output" = "$CLAUDE_WT_BASE/beta/held-2" ]
+}
+
+@test "spawn: records its client, independently of the future default" {
+  local b dir; b="$(mkrepo beta)"
+  dir="$(bash "$WT" spawn "$b" codex-task codex 2>/dev/null)"
+  [ "$(awk -F'\t' -v p="$dir" '$4==p{print $6}' "$REG")" = codex ]
+  NEBELHAUS_AGENT_DEFAULT=opencode run bash "$WT" resume codex-task
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"codex resume"* ]]
+  [[ "$output" != *"opencode --continue"* ]]
+}
+
+@test "resume: pre-client registry rows remain Claude worktrees" {
+  local main dir; main="$(mkrepo alpha)"; dir="$CLAUDE_WT_BASE/alpha/legacy"
+  git -C "$main" branch worktree-legacy
+  mkdir -p "$(dirname "$REG")"
+  printf 'legacy\t%s\tworktree-legacy\t%s\t%s\n' "$main" "$dir" "$main" >"$REG"
+  NEBELHAUS_AGENT_DEFAULT=codex run bash "$WT" resume legacy
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"claude --resume"* ]]
+}
+
+@test "agent start: Codex receives a captured screenshot as an initial image" {
+  cat >"$BIN/codex" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$@"
+EOF
+  chmod +x "$BIN/codex"
+  local image="$TMP/shot.png"; : >"$image"
+  run bash "$WT" agent start codex --image "$image" -- "inspect this"
+  [ "$status" -eq 0 ]
+  [ "$output" = "$(printf '%s\n%s\n%s' -i "$image" "inspect this")" ]
 }
 
 @test "spawn: refuses a missing path, a non-repo, and a missing name" {

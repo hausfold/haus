@@ -642,6 +642,10 @@ lib.mkIf config.nebelhaus.pounce.enable {
         # pounce-palette on ⌘Space — see modules/prowl/aerospace.toml.)
         POUNCE_BUILTIN_DIR = builtinCommandsDir;
         POUNCE_EXTRA_COMMAND_DIRS = "${riceCommands}";
+        # The Spawn Agent commands run underneath this launchd environment, not
+        # an interactive shell. Keep the selected client explicit here so a
+        # palette spawn and a later `wt <name>` agree on its default.
+        NEBELHAUS_AGENT_DEFAULT = config.nebelhaus.agents.default;
         # Where the ssh plugin (and any command that respects the hook) opens a
         # terminal: a new tab in the `main` zellij session instead of stock
         # Terminal. See modules/hearth/zellij/pounce-terminal.sh.

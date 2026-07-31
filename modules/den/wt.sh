@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# wt — manage Claude Code agent worktrees, for ANY git repo.
+# wt — manage coding-agent worktrees, for ANY git repo.
 #
 # `claude --worktree` (the Super-c / ⌘C zellij bind) fires Claude Code's
 # WorktreeCreate/WorktreeRemove hooks; this script is what they call. It keeps
@@ -15,7 +15,7 @@
 #                       stray  — a directory is there but git has disowned it (a
 #                                `worktree remove` that died between unregistering
 #                                and deleting). `wt <name>` heals one.
-#   wt <name>         resume one: rebuild its checkout + reopen its Claude chat
+#   wt <name>         resume one: rebuild its checkout + reopen its agent chat
 #   wt resume <name>  (the same thing, spelled out)
 #   wt reap           sweep every LANDED worktree NOW — parked ones, plus clean &
 #                     merged live checkouts that NO pane is sitting in (dirty,
@@ -65,6 +65,65 @@ WT_BASE="${CLAUDE_WT_BASE:-$HOME/.cache/claude-worktrees}"
 # worktrees are pruned; unmerged ones linger exactly as long as their branch.
 WT_REGISTRY="$WT_BASE/registry.tsv"
 
+# The one client-specific seam in wt.  Every worktree records one of these ids
+# in registry field 6, so changing the default later never makes a parked Codex
+# branch reopen in Claude (or vice versa).  Clients intentionally own their
+# transcript stores: only Claude exposes a cheap cwd → transcript-directory
+# test; Codex and OpenCode reopen their cwd-filtered session pickers instead.
+agent_known() { case "$1" in claude | codex | opencode) return 0 ;; *) return 1 ;; esac; }
+agent_default() {
+  local a="${NEBELHAUS_AGENT_DEFAULT:-claude}"
+  agent_known "$a" || a="claude"
+  printf '%s' "$a"
+}
+agent_for_worktree() { # agent_for_worktree <wt-path> — old registry rows mean Claude
+  local a="" found=""
+  if [ -f "$WT_REGISTRY" ]; then
+    found="$(awk -F'\t' -v p="$1" '$4==p{print 1; exit}' "$WT_REGISTRY" 2>/dev/null)"
+    a="$(awk -F'\t' -v p="$1" '$4==p{print $6; exit}' "$WT_REGISTRY" 2>/dev/null)"
+  fi
+  agent_known "$a" || { [ -n "$found" ] && a="claude" || a="$(agent_default)"; }
+  printf '%s' "$a"
+}
+agent_has_chat() { # agent_has_chat <agent> <cwd> — only answer yes when knowable
+  case "$1" in
+    claude) [ -d "$(wt_projdir "$2")" ] ;;
+    *) return 1 ;;
+  esac
+}
+agent_start() { # agent_start <agent> [--image <png>] -- <prompt>; execs the client
+  local a="${1:-}" image="" prompt=""
+  shift || true
+  case "${1:-}" in --image) image="${2:-}"; shift 2 ;; esac
+  [ "${1:-}" = "--" ] && shift
+  prompt="${1:-}"
+  agent_known "$a" || die "unknown agent '$a' (expected claude, codex, or opencode)"
+  command -v "$a" >/dev/null 2>&1 || die "$a is unavailable — install it, then try again"
+  # Codex has a documented local-image flag.  The other interactive clients do
+  # not, so name the durable captured file in their first turn instead of
+  # pretending an unsupported flag attached it.
+  if [ -n "$image" ] && [ -f "$image" ] && [ "$a" != codex ]; then
+    prompt="$prompt
+
+A screenshot for this task is at $image. Inspect it before drawing conclusions."
+  fi
+  case "$a" in
+    claude) exec claude "$prompt" ;;
+    codex)  if [ -n "$image" ] && [ -f "$image" ]; then exec codex -i "$image" "$prompt"; else exec codex "$prompt"; fi ;;
+    opencode) exec opencode --prompt "$prompt" ;;
+  esac
+}
+agent_resume() { # agent_resume <agent>; execs that client's cwd-filtered resume UI
+  local a="${1:-}"
+  agent_known "$a" || die "unknown agent '$a' (expected claude, codex, or opencode)"
+  command -v "$a" >/dev/null 2>&1 || die "$a is unavailable — install it, then try again"
+  case "$a" in
+    claude) exec claude --resume ;;
+    codex) exec codex resume ;;
+    opencode) exec opencode --continue ;;
+  esac
+}
+
 say() { printf '\033[38;5;103m🌫  %s\033[0m\n' "$*" >&2; }
 die() { printf '\033[38;5;167m✗  %s\033[0m\n' "$*" >&2; exit 1; }
 
@@ -96,21 +155,23 @@ reg_lock() { # serialize the registry's read-modify-write across parallel panes
 }
 reg_unlock() { rm -rf "$WT_REGISTRY.lock"; trap - EXIT; }
 
-reg_put() { # reg_put <name> <main> <branch> <wt_path> [parent] — upsert, keyed on wt_path
+reg_put() { # reg_put <name> <main> <branch> <wt_path> [parent] [agent] — upsert, keyed on wt_path
   # The optional 5th field is the cwd the worktree was spawned FROM (its parent
   # pane) — recorded at create so the statusline can show a session only the
   # worktrees IT spawned. When omitted (e.g. resume, which doesn't know the
   # original spawner), the existing parent is preserved, never blanked.
   reg_lock
-  local parent="${5:-}"
+  local parent="${5:-}" agent="${6:-}"
   local tmp="$WT_REGISTRY.$$"
   if [ -f "$WT_REGISTRY" ]; then
     [ -z "$parent" ] && parent="$(awk -F'\t' -v p="$4" '$4==p{print $5; exit}' "$WT_REGISTRY")"
+    [ -z "$agent" ] && agent="$(awk -F'\t' -v p="$4" '$4==p{print $6; exit}' "$WT_REGISTRY")"
     awk -F'\t' -v p="$4" '$4 != p' "$WT_REGISTRY" >"$tmp"
   else
     : >"$tmp"
   fi
-  printf '%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$parent" >>"$tmp"
+  agent_known "$agent" || agent="$(agent_default)"
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "$4" "$parent" "$agent" >>"$tmp"
   mv "$tmp" "$WT_REGISTRY"
   reg_unlock
 }
@@ -132,11 +193,12 @@ reg_prune() { # drop every row that can no longer resume anything, and its empty
   # bug feeds on, so the sweep that already self-heals branches heals the registry too.
   [ -f "$WT_REGISTRY" ] || return 0
   reg_lock
-  local tmp="$WT_REGISTRY.$$" name main branch wt parent
-  while IFS=$'\t' read -r name main branch wt parent; do
+  local tmp="$WT_REGISTRY.$$" name main branch wt parent agent
+  while IFS=$'\t' read -r name main branch wt parent agent; do
     [ -n "$branch" ] || continue
     git -C "$main" show-ref -q --verify "refs/heads/$branch" 2>/dev/null || continue
-    printf '%s\t%s\t%s\t%s\t%s\n' "$name" "$main" "$branch" "$wt" "$parent"
+    agent_known "$agent" || agent="claude" # backwards-compatible old registry rows
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$main" "$branch" "$wt" "$parent" "$agent"
   done <"$WT_REGISTRY" >"$tmp"
   mv "$tmp" "$WT_REGISTRY"
   reg_unlock
@@ -183,20 +245,17 @@ wt_projdir() { # wt_projdir <abs-cwd> — Claude Code's transcript dir for that 
   printf '%s/.claude/projects/%s' "$HOME" "$(printf '%s' "$1" | sed 's/[/.]/-/g')"
 }
 
-chat_home() { # chat_home <wt_path> — echo the cwd whose Claude chat this worktree resumes
-  # Claude keys a transcript to the cwd it ran in — and EVERY local client (the CLI, the
-  # desktop app) mirrors it to the same ~/.claude/projects/<cwd>/ store, so this is
-  # client-agnostic. A spawned worktree (`wt child`, or a nested worktree) never hosts its
-  # OWN chat: the conversation lives in the pane that spawned it — the 5th registry field.
-  # So when this worktree has no transcript of its own but the parent does, the chat you
-  # want is the parent's, not an empty picker here. Falls back to the worktree's own cwd.
-  local w="$1" row main parent
-  [ -d "$(wt_projdir "$w")" ] && { printf '%s' "$w"; return; }
+chat_home() { # chat_home <agent> <wt_path> — echo the cwd whose client picker should open
+  # Spawned worktrees never host an independent chat: their conversation lives in
+  # the pane that made them. Claude lets us prove that with its project directory;
+  # Codex and OpenCode keep private session indexes, so their cwd-filtered resume
+  # UI is the authority and a genuine child simply inherits its parent's cwd.
+  local agent="$1" w="$2" row main parent
+  agent_has_chat "$agent" "$w" && { printf '%s' "$w"; return; }
   [ -f "$WT_REGISTRY" ] || { printf '%s' "$w"; return; }
   row="$(awk -F'\t' -v p="$w" '$4==p{print; exit}' "$WT_REGISTRY" 2>/dev/null)"
   main="$(printf '%s' "$row" | cut -f2)"
   parent="$(printf '%s' "$row" | cut -f5)"
-  [ -n "$parent" ] && [ -d "$(wt_projdir "$parent")" ] || { printf '%s' "$w"; return; }
   # Inherit the parent's chat only when the parent is a DIFFERENT context than this
   # worktree's own repo — a genuine spawned child. Two signatures:
   #   1. parent is itself an agent worktree (under WT_BASE) — a nested spawn.
@@ -204,13 +263,19 @@ chat_home() { # chat_home <wt_path> — echo the cwd whose Claude chat this work
   #      that spawned this sub-repo worktree). The chat is one session in that pane's pile.
   # A plain same-repo worktree's parent is its OWN main checkout, whose transcripts are the
   # user's unrelated on-main work — never hijack resume to that, so it falls through.
-  case "$parent" in "$WT_BASE"/*) printf '%s' "$parent"; return ;; esac
+  case "$parent" in
+    "$WT_BASE"/*)
+      { [ "$agent" != claude ] || agent_has_chat "$agent" "$parent"; } && { printf '%s' "$parent"; return; }
+      ;;
+  esac
   # Cross-repo? Compare the two checkouts' git-common-dirs — both resolved by git, so
   # symlink-consistent (a raw string compare vs the stored path breaks on /var → /private).
   local pcommon mcommon
   pcommon="$(git -C "$parent" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || pcommon=""
   mcommon="$(git -C "$main" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || mcommon=""
-  [ -n "$pcommon" ] && [ "$pcommon" != "$mcommon" ] && { printf '%s' "$parent"; return; }
+  [ -n "$pcommon" ] && [ "$pcommon" != "$mcommon" ] \
+    && { [ "$agent" != claude ] || agent_has_chat "$agent" "$parent"; } \
+    && { printf '%s' "$parent"; return; }
   printf '%s' "$w"
 }
 
@@ -411,7 +476,9 @@ cmd_create() { # [WorktreeCreate hook] JSON on stdin; ONLY the new path on stdou
   # checkout is removed, and even for repos it has never otherwise heard of.
   # `$base` (the spawning pane's cwd) is stored as the parent so the statusline
   # can list a session only the worktrees it spawned.
-  reg_put "$name" "$(git_main "$base")" "worktree-$name" "$dir" "$base" || true
+  # This hook is Claude Code's native --worktree hook, so its client is known
+  # even when the system-wide palette default is Codex or OpenCode.
+  reg_put "$name" "$(git_main "$base")" "worktree-$name" "$dir" "$base" claude || true
   echo "$dir"
 }
 
@@ -425,7 +492,7 @@ cmd_child() { # wt child <repo-path> [name] — worktree of ANOTHER repo, as a c
   local target="${1:-}" name="${2:-}"
   [ -n "$target" ] || die "usage: wt child <repo-path> [name]"
   [ -d "$target" ] || die "no such directory: $target"
-  local tmain
+  local tmain agent
   tmain="$(git_main "$target")" || die "'$target' isn't inside a git repo"
   [ -d "$tmain/.git" ] || die "'$target' resolves to $tmain, which isn't a main checkout"
   # Default the child's name to THIS pane's worktree name, so a sub-worktree
@@ -453,12 +520,13 @@ cmd_child() { # wt child <repo-path> [name] — worktree of ANOTHER repo, as a c
   # Register with THIS pane's cwd ($PWD) as parent — the same field cmd_create
   # stores — so the statusline lists the child under the session that spawned it,
   # and the refresher queries the CHILD repo's GitHub for its PR state.
-  reg_put "$name" "$tmain" "worktree-$name" "$dir" "$PWD" || true
+  agent="$(agent_for_worktree "$PWD")"
+  reg_put "$name" "$tmain" "worktree-$name" "$dir" "$PWD" "$agent" || true
   say "created $(basename "$tmain") worktree '$name' → $dir"
   echo "$dir"   # ONLY the path on stdout, so callers can: cd "$(wt child …)"
 }
 
-cmd_spawn() { # wt spawn <repo-path> <name> — a worktree for a spawner that has no pane
+cmd_spawn() { # wt spawn <repo-path> <name> [agent] — a worktree for a spawner with no pane
   # `create` and `child` both assume a pane: they record the spawning cwd as the
   # parent, which is how the statusline files a worktree under the session that
   # made it. The palette has no pane — its command runs under launchd — and the
@@ -470,8 +538,9 @@ cmd_spawn() { # wt spawn <repo-path> <name> — a worktree for a spawner that ha
   # The other difference is that a taken name is not fatal. `child` dies and tells
   # you to pass another one; a palette has nobody to tell, so a dead end there is
   # just a command that silently did nothing. Take the first free -2/-3 suffix.
-  local target="${1:-}" want="${2:-}"
+  local target="${1:-}" want="${2:-}" agent="${3:-$(agent_default)}"
   [ -n "$target" ] && [ -n "$want" ] || die "usage: wt spawn <repo-path> <name>"
+  agent_known "$agent" || die "unknown agent '$agent' (expected claude, codex, or opencode)"
   [ -d "$target" ] || die "no such directory: $target"
   local tmain
   tmain="$(git_main "$target")" || die "'$target' isn't inside a git repo"
@@ -487,7 +556,7 @@ cmd_spawn() { # wt spawn <repo-path> <name> — a worktree for a spawner that ha
   done
   dir="$WT_BASE/$bucket/$name"
   git -C "$tmain" worktree add -b "worktree-$name" "$dir" HEAD >&2
-  reg_put "$name" "$tmain" "worktree-$name" "$dir" "$tmain" || true
+  reg_put "$name" "$tmain" "worktree-$name" "$dir" "$tmain" "$agent" || true
   say "created $bucket worktree '$name' → $dir"
   echo "$dir"   # ONLY the path on stdout, so callers can: cd "$(wt spawn …)"
 }
@@ -703,17 +772,16 @@ cmd_list() {
   # ~110 columns total — which wrapped into a mess in a narrow pane. Now repo/name
   # size to content (capped), and the commit fills the remaining width, so the
   # listing stays on one line per worktree however narrow the pane.
-  local main branch wt
-  local -a r_repo=() r_nm=() r_state=() r_chat=() r_last=()
+  local main branch wt agent
+  local -a r_repo=() r_nm=() r_state=() r_agent=() r_last=()
   while IFS=$'\t' read -r main branch wt; do
     [ -n "$branch" ] || continue
     git -C "$main" show-ref -q --verify "refs/heads/$branch" 2>/dev/null || continue
     r_repo+=("$(basename "$main")")
     r_nm+=("${branch#worktree-}")
     r_state+=("$(checkout_state "$wt")")
-    if [ -d "$(wt_projdir "$wt")" ]; then r_chat+=("yes")
-    elif [ "$(chat_home "$wt")" != "$wt" ]; then r_chat+=("par")   # inherited from its wt-child parent
-    else r_chat+=("·"); fi
+    agent="$(agent_for_worktree "$wt")"
+    r_agent+=("$agent")
     r_last+=("$(git -C "$main" log -1 --format='%cr — %s' "$branch" 2>/dev/null)")
   done <<<"$(resume_rows)"
 
@@ -737,7 +805,7 @@ cmd_list() {
   local cols="${COLUMNS:-}"
   [ -n "$cols" ] || cols="$(tput cols 2>/dev/null || echo 80)"
 
-  # Drop the (narrow, low-signal) chat column first when space is tight, then let
+  # Drop the client column first when space is tight, then let
   # the commit take whatever's left. 2 = indent, +1 per inter-column gap.
   local show_chat=1 used lastw
   used=$(( 2 + rw + 1 + nw + 1 + sw + 1 + cw + 1 ))
@@ -760,10 +828,10 @@ cmd_list() {
   local hdr row
   if [ "$show_chat" = 1 ]; then
     hdr="  %-${rw}s %-${nw}s %-${sw}s %-${cw}s %s\n"
-    printf "$hdr" "repo" "name" "state" "chat" "last commit"
+    printf "$hdr" "repo" "name" "state" "agent" "last commit"
     for i in "${!r_repo[@]}"; do
       printf "$hdr" "$(fit "${r_repo[$i]}" "$rw")" "$(fit "${r_nm[$i]}" "$nw")" \
-        "${r_state[$i]}" "${r_chat[$i]}" "$(fit "${r_last[$i]}" "$lastw")"
+        "${r_state[$i]}" "${r_agent[$i]}" "$(fit "${r_last[$i]}" "$lastw")"
     done
   else
     hdr="  %-${rw}s %-${nw}s %-${sw}s %s\n"
@@ -778,7 +846,7 @@ cmd_list() {
 cmd_resume() { # cmd_resume <name|repo/name>
   local want="${1:-}"
   [ -n "$want" ] || { cmd_list; return 0; }
-  local rrepo="" rname="$want" sel="" matches=0 main branch wt
+  local rrepo="" rname="$want" sel="" matches=0 main branch wt agent
   case "$want" in */*) rrepo="${want%%/*}"; rname="${want##*/}" ;; esac
   while IFS=$'\t' read -r main branch wt; do
     [ -n "$branch" ] || continue
@@ -793,6 +861,10 @@ cmd_resume() { # cmd_resume <name|repo/name>
   [ "$matches" -gt 1 ] && die "'$rname' exists in more than one repo — qualify it: wt <repo>/$rname"
 
   IFS=$'\t' read -r main branch wt <<<"$sel"
+  # Resolve this before a parked checkout is re-registered: a five-column
+  # registry row predates the client field and is therefore Claude forever,
+  # even if the machine's current default has since changed.
+  agent="$(agent_for_worktree "$wt")"
   case "$(checkout_state "$wt")" in
   live)
     say "'$branch' is still live at $wt"
@@ -810,20 +882,20 @@ cmd_resume() { # cmd_resume <name|repo/name>
     say "rebuilding checkout for $branch → $wt"
     mkdir -p "$(dirname "$wt")"
     git -C "$main" worktree add "$wt" "$branch" >&2
-    reg_put "${branch#worktree-}" "$main" "$branch" "$wt" || true
+    reg_put "${branch#worktree-}" "$main" "$branch" "$wt" "" "$agent" || true
     say "compare what the husk had: diff -ru $husk $wt"
     ;;
   *)
     say "rebuilding checkout for $branch → $wt"
     mkdir -p "$(dirname "$wt")"
     git -C "$main" worktree add "$wt" "$branch" >&2
-    reg_put "${branch#worktree-}" "$main" "$branch" "$wt" || true
+    reg_put "${branch#worktree-}" "$main" "$branch" "$wt" "" "$agent" || true
     ;;
   esac
   # A spawned worktree (`wt child`, nested) has no chat of its own — resume the parent
   # session that spawned it (see chat_home). The checkout above is still rebuilt so the
   # branch's files are on disk; we just cd to where the transcript lives to reopen it.
-  local chat; chat="$(chat_home "$wt")"
+  local chat; chat="$(chat_home "$agent" "$wt")"
   if [ "$chat" != "$wt" ]; then
     say "no chat in this worktree — it was spawned from a session in $chat"
     # When that parent is a shared checkout (a workshop pane that spawned several children),
@@ -835,12 +907,16 @@ cmd_resume() { # cmd_resume <name|repo/name>
     # on $branch; the child checkout with the files is rebuilt at $wt above).
     [ -d "$chat" ] || mkdir -p "$chat"
   fi
-  if [ -t 1 ] && command -v claude >/dev/null 2>&1; then
-    say "reopening the chat …"
-    cd "$chat" && exec claude --resume
+  if [ -t 1 ] && command -v "$agent" >/dev/null 2>&1; then
+    say "reopening the $agent chat …"
+    cd "$chat" && agent_resume "$agent"
   else
-    say "checkout ready. Reopen the chat with:"
-    printf '    cd %q && claude --resume\n' "$chat"
+    say "checkout ready. Reopen the $agent chat with:"
+    case "$agent" in
+      claude) printf '    cd %q && claude --resume\n' "$chat" ;;
+      codex) printf '    cd %q && codex resume\n' "$chat" ;;
+      opencode) printf '    cd %q && opencode --continue\n' "$chat" ;;
+    esac
   fi
 }
 
@@ -871,11 +947,21 @@ cmd_reap() { # wt reap — sweep every LANDED worktree across all repos, now
   fi
 }
 
+cmd_agent() { # wt agent <default|start|resume> … — the public client-table seam
+  case "${1:-}" in
+    default) agent_default ;;
+    start) shift; agent_start "$@" ;;
+    resume) shift; agent_resume "${1:-}" ;;
+    *) die "usage: wt agent <default|start|resume>" ;;
+  esac
+}
+
 case "${1:-}" in
 create) cmd_create ;;
 remove) cmd_remove ;;
 child) cmd_child "${2:-}" "${3:-}" ;;
-spawn) cmd_spawn "${2:-}" "${3:-}" ;;
+spawn) cmd_spawn "${2:-}" "${3:-}" "${4:-}" ;;
+agent) shift; cmd_agent "$@" ;;
 park) cmd_park "${2:-}" ;;
 unpark) cmd_unpark ;;
 resume) cmd_resume "${2:-}" ;;
