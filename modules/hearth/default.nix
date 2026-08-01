@@ -21,6 +21,26 @@ let
   accent = config.nebelhaus.theme.accent; # a Catppuccin accent name, e.g. "mauve"
   devCfg = config.nebelhaus.developer;
   agentDefault = config.nebelhaus.agents.default;
+
+  # One client id → one package. Nothing else in the rice may name these
+  # derivations: a host that wants a patched build overlays `claude-code` (or
+  # `codex`, or `opencode`) so this reference picks the patched one up. Adding
+  # a second derivation of the same client beside this one puts two `bin/claude`
+  # in one profile, which is a collision, not an override.
+  agentPackages = {
+    claude = pkgs.claude-code;
+    codex = pkgs.codex;
+    opencode = pkgs.opencode;
+  };
+  agentClients = config.nebelhaus.agents.clients;
+  # nixpkgs ships all three for aarch64-darwin only. That is the whole rice's
+  # platform since 26.11 dropped x86_64-darwin, so this never fires today — but
+  # it is the difference between a named refusal and an install that silently
+  # does nothing, which is exactly the dead-pane failure this option exists to
+  # end. (The `lib.meta.availableOn` guard it replaces did skip silently.)
+  unavailableClients = lib.filter (
+    c: !lib.meta.availableOn pkgs.stdenv.hostPlatform agentPackages.${c}
+  ) agentClients;
   fontsCfg = config.nebelhaus.fonts; # terminal font family/size (den installs the package)
 
   # `zreload` prepares a restart layout from inside zellij, then hands the
@@ -197,6 +217,32 @@ let
   '';
 in
 {
+  assertions = [
+    {
+      assertion = lib.elem agentDefault agentClients || agentClients == [ ];
+      message =
+        "nebelhaus.agents.default = \"${agentDefault}\" is not in nebelhaus.agents.clients "
+        + "(${lib.concatStringsSep ", " agentClients}). Pounce's Spawn Agent would create the "
+        + "worktree, open the pane, and only then find no ${agentDefault} on PATH — leaving a "
+        + "dead pane and a worktree to reap. Add it to agents.clients, or point agents.default "
+        + "at one you install.";
+    }
+    {
+      assertion = agentClients == [ ] || devCfg.agents.enable;
+      message =
+        "nebelhaus.agents.clients is set (${lib.concatStringsSep ", " agentClients}) but "
+        + "nebelhaus.developer.agents.enable is off, so there is no `wt` to make a worktree, "
+        + "park it, or resume it. Turn the tooling on, or empty agents.clients.";
+    }
+    {
+      assertion = unavailableClients == [ ];
+      message =
+        "nebelhaus.agents.clients names ${lib.concatStringsSep ", " unavailableClients}, which "
+        + "nixpkgs does not build for ${pkgs.stdenv.hostPlatform.system}. Installing nothing "
+        + "would only move the failure into the agent pane; drop it from agents.clients.";
+    }
+  ];
+
   # The nebelung ports this room wires itself, so the roster pass in
   # modules/theme/ports.nix leaves them alone instead of dropping a second,
   # blunter copy beside the integration below. Twelve are sourced from the
@@ -463,12 +509,11 @@ in
           bun
           fnm # node version manager (used by the initContent below)
         ]
-        # opencode has no x86_64-darwin build, so guard on the package's own
-        # platform list rather than hardcoding an arch — it self-heals the day
-        # upstream adds Intel, and keeps the example-intel eval green meanwhile.
-        ++ lib.optional (
-          devCfg.agents.enable && lib.meta.availableOn pkgs.stdenv.hostPlatform pkgs.opencode
-        ) pkgs.opencode;
+        # The coding-agent clients, one package per `agents.clients` entry.
+        # Unlisted means uninstalled, and `agents.default` is asserted to be a
+        # member — so the client the palette is about to spawn is on PATH by
+        # construction, rather than discovered missing inside the pane.
+        ++ map (c: agentPackages.${c}) agentClients;
 
       programs.zsh = {
         enable = true;

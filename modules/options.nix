@@ -3,6 +3,16 @@
 { lib, config, ... }:
 
 let
+  # Every coding-agent client the rice knows how to install, spawn and resume.
+  # ONE list, referenced by both agents.clients and agents.default, so the two
+  # can never drift apart — and it must stay in step with `agent_known()` in
+  # modules/den/wt.sh, which is the same set on the shell side.
+  agentClients = [
+    "claude"
+    "codex"
+    "opencode"
+  ];
+
   appType = lib.types.submodule {
     options = {
       enable = lib.mkOption {
@@ -405,12 +415,13 @@ in
         default = config.nebelhaus.developer.enable;
         defaultText = lib.literalExpression "config.nebelhaus.developer.enable";
         description = ''
-          Coding-agent tooling: `wt` (Claude Code agent worktrees), `zscratch`,
-          the agent-worktree statusline, opencode, and the Claude Code settings
-          and hooks hearth writes.
+          Coding-agent *tooling*: `wt` (agent worktrees), `zscratch`, the
+          agent-worktree statusline, and the Claude Code settings and hooks
+          hearth writes. Which clients get installed is `agents.clients`.
 
           Off is right for any machine not running coding agents — it's a large
-          surface a non-developer never sees.
+          surface a non-developer never sees. It also empties `agents.clients`,
+          since a client with no `wt` to park it is not the deal on offer.
         '';
       };
 
@@ -429,12 +440,41 @@ in
       };
     };
 
-    agents.default = lib.mkOption {
-      type = lib.types.enum [
+    agents.clients = lib.mkOption {
+      type = lib.types.listOf (lib.types.enum agentClients);
+      default = lib.optionals config.nebelhaus.developer.agents.enable [
         "claude"
-        "codex"
         "opencode"
       ];
+      defaultText = lib.literalExpression ''[ "claude" "opencode" ] when developer.agents.enable is true, else [ ]'';
+      example = [
+        "claude"
+        "codex"
+      ];
+      description = ''
+        Which coding-agent clients to install. `claude` is Claude Code (whose
+        `--worktree` hook powers the ⌘C terminal binding, so it is in the
+        default set), `codex` is OpenAI Codex, `opencode` is OpenCode.
+
+        A list rather than one bool per client, matching `developer.languages`
+        — a fourth client later doesn't change this option's shape.
+
+        This is the option that makes `agents.default` honest. Naming a client
+        you have not installed used to fail *at spawn time*, inside the pane,
+        after the worktree already existed: a flash of
+        `codex is unavailable`, and litter to reap. `agents.default` must now
+        be a member of this list, so the same mistake fails the rebuild
+        instead, with both values named.
+
+        Override the package for a client the usual Nix way — an overlay on
+        `claude-code`, `codex` or `opencode` — rather than dropping the client
+        here and installing your own copy alongside; two derivations shipping
+        the same `bin/` name collide in one profile.
+      '';
+    };
+
+    agents.default = lib.mkOption {
+      type = lib.types.enum agentClients;
       default = "claude";
       example = "codex";
       description = ''
@@ -442,6 +482,8 @@ in
         to reopen worktrees that have no client recorded yet. Each spawned
         worktree records its chosen client, so changing this affects new work
         but never resumes an existing Codex or OpenCode task in Claude.
+
+        Must be one of `agents.clients` — see there.
 
         `claude` is Claude Code (and remains the only client whose native
         `--worktree` hook powers the ⌘C terminal binding). `codex` reopens its

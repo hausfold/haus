@@ -92,6 +92,18 @@ fi
 agent="$(wt agent default 2>/dev/null)"
 [ -n "$agent" ] || agent="claude"
 
+# Belt to the assertion's braces. `nebelhaus.agents.clients` makes the default
+# client present at BUILD time, but this script runs long after that — the
+# client can still be missing on a machine driving `wt` without the rice, or
+# with a hand-managed install that moved. Checking here, before anything is
+# created, is the difference between a toast and the old failure: `wt spawn`
+# succeeds, the pane opens, and only `wt agent start` inside it finds nothing —
+# leaving a dead pane and a worktree nobody asked for.
+if ! command -v "$agent" >/dev/null 2>&1; then
+  notice "$agent is not installed" "Add it to nebelhaus.agents.clients, or change agents.default"
+  exit 1
+fi
+
 repo_sel="$(printf '%s\n' "$list" | pounce -p "Spawn Agent — which repo?" -i "sparkles")"
 [ -z "$repo_sel" ] && exit 0
 repo_name="$(field "$repo_sel" 2)"
