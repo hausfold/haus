@@ -3,15 +3,11 @@
 { lib, config, ... }:
 
 let
-  # Every coding-agent client the rice knows how to install, spawn and resume.
-  # ONE list, referenced by both agents.clients and agents.default, so the two
-  # can never drift apart — and it must stay in step with `agent_known()` in
-  # modules/den/wt.sh, which is the same set on the shell side.
-  agentClients = [
-    "claude"
-    "codex"
-    "opencode"
-  ];
+  # Every coding-agent client the rice knows how to install, spawn and resume —
+  # read by agents.clients, agents.default, and sill's aiUsage.provider, so none
+  # of the three can drift apart. modules/lib/agents.nix says why it lives there
+  # rather than here, and names the one copy that can't be folded in.
+  agentClients = import ./lib/agents.nix;
 
   appType = lib.types.submodule {
     options = {
