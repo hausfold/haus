@@ -98,6 +98,21 @@ names() { cut -f2 "$PANEL" 2>/dev/null | sort | tr '\n' ' '; }
 
 fail() { printf '%s\n' "$*" >&2; return 1; }
 
+# `stat -f` is BSD/macOS, where this ships — but CI runs the suite on Linux,
+# where GNU coreutils reads -f as --file-system and happily prints the MOUNT
+# POINT with exit 0. So neither exit status nor emptiness can pick the fallback:
+# take the BSD answer only when it is all digits, then try GNU. (The refresher
+# itself carries the same two-step in its own `mtime`.)
+statnum() { # statnum <bsd-fmt> <gnu-fmt> <file> — a numeric stat field, or 0
+  local v
+  v=$(stat -f "$1" "$3" 2>/dev/null || true)
+  case "$v" in '' | *[!0-9]*) v=$(stat -c "$2" "$3" 2>/dev/null || echo 0) ;; esac
+  case "$v" in '' | *[!0-9]*) v=0 ;; esac
+  printf '%s' "$v"
+}
+fmode() { statnum %Lp %a "$1"; }   # permission bits, e.g. 600
+fmtime() { statnum %m %Y "$1"; }   # mtime in epoch seconds
+
 # ── the panel it is supposed to write ────────────────────────────────────────
 
 @test "writes a row per in-flight worktree: slug, name, ahead, parent" {
@@ -383,7 +398,7 @@ USAGE_BOTH='{"rate_limit":{"primary_window":{"used_percent":12,"limit_window_sec
   [ "$(jq -r .tokens.id_token "$HOME/.codex/auth.json")" = ID-NEW ]
   [ "$(jq -r .tokens.account_id "$HOME/.codex/auth.json")" = acct-1 ] \
     || fail "rewriting the tokens dropped a field it does not own"
-  [ "$(stat -f %Lp "$HOME/.codex/auth.json")" = 600 ] || fail "auth.json left world-readable"
+  [ "$(fmode "$HOME/.codex/auth.json")" = 600 ] || fail "auth.json left world-readable"
   [ "$(cat "$HOME/.codex/auth.json.bak")" = "$before" ] || fail ".bak is not the pre-refresh login"
   grep -q 'Bearer AT-NEW' "$CURL_LOG" || fail "polled with the token it had just replaced"
 }
@@ -417,7 +432,7 @@ USAGE_BOTH='{"rate_limit":{"primary_window":{"used_percent":12,"limit_window_sec
   FAKE_USAGE_RC=7 FAKE_USAGE='' refresh
   [ "$status" -eq 0 ]
   [ "$(cxrow 5)" = 5 ] || fail "an empty answer overwrote the last known numbers"
-  [ "$(( $(date +%s) - $(stat -f %m "$CLAUDE_STATUSLINE_CACHE/usage-codex.tsv") ))" -lt 60 ] \
+  [ "$(( $(date +%s) - $(fmtime "$CLAUDE_STATUSLINE_CACHE/usage-codex.tsv") ))" -lt 60 ] \
     || fail "the retry was not backed off — this re-curls on every render"
 }
 
