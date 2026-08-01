@@ -289,3 +289,145 @@ fail() { printf '%s\n' "$*" >&2; return 1; }
   [ "$(wc -l <"$PANEL" | tr -d ' ')" = 1 ] || fail "the same worktree was listed twice"
   [ "$(col sparkle 8)" = "$TMP/some/spawning/pane" ]
 }
+
+# ── the Codex usage feed ─────────────────────────────────────────────────────
+# This one is unlike its neighbours: Claude and Opencode leave usage on disk, so
+# their feeds are pure reads, but Codex's only source is the account itself over
+# the network — and reaching it means holding an OAuth token whose refresh
+# ROTATES it server-side. Everything below exists because of the same asymmetry:
+# a wrong percentage is a cosmetic bug, while a lost token is `codex login` from
+# a terminal to fix a bar pill. Hence the fixtures for a refresh that half-fails.
+#
+# `curl` is shimmed exactly like `gh` is, and both endpoints are $CODEX_API /
+# $CODEX_OAUTH knobs, so nothing here can reach the real chatgpt.com.
+
+mkjwt() { # mkjwt <exp> — an UNSIGNED token; the script reads claims, never verifies
+  local p
+  p=$(printf '{"exp":%s,"client_id":"app_TEST"}' "$1" | base64 | tr -d '=\n' | tr '/+' '_-')
+  printf 'eyJhbGciOiJub25lIn0.%s.sig' "$p"
+}
+
+mkauth() { # mkauth <exp> — a ~/.codex/auth.json whose access token expires then
+  mkdir -p "$HOME/.codex"
+  cat >"$HOME/.codex/auth.json" <<EOF
+{"auth_mode":"chatgpt","OPENAI_API_KEY":null,
+ "tokens":{"id_token":"ID.OLD","access_token":"$(mkjwt "$1")","refresh_token":"RT-OLD","account_id":"acct-1"},
+ "last_refresh":"2026-07-23T09:42:54.708131Z"}
+EOF
+  chmod 600 "$HOME/.codex/auth.json"
+}
+
+mkcurl() { # shim curl: log every call, answer from FAKE_OAUTH / FAKE_USAGE
+  cat >"$BIN/curl" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$CURL_LOG"
+for a in "$@"; do
+  case "$a" in
+    *oauth*) printf '%s' "${FAKE_OAUTH:-}"; exit "${FAKE_OAUTH_RC:-0}" ;;
+    *usage*) printf '%s' "${FAKE_USAGE:-}"; exit "${FAKE_USAGE_RC:-0}" ;;
+  esac
+done
+exit 1
+EOF
+  chmod +x "$BIN/curl"
+  export CURL_LOG="$TMP/curl.log"
+  export CODEX_API="http://127.0.0.1:0/usage" CODEX_OAUTH="http://127.0.0.1:0/oauth"
+  : >"$CURL_LOG"
+}
+
+cxrow() { # cxrow <n> — one field of the codex usage row
+  awk -F'\t' -v c="$1" '{print $c}' "$CLAUDE_STATUSLINE_CACHE/usage-codex.tsv" 2>/dev/null
+}
+
+# Plus answers with ONE window — the weekly one, in the `primary` slot.
+USAGE_PLUS='{"plan_type":"plus","rate_limit":{"primary_window":{"used_percent":37.4,"limit_window_seconds":604800,"reset_at":1786178866},"secondary_window":null}}'
+# Other plans answer with both, 5-hourly first.
+USAGE_BOTH='{"rate_limit":{"primary_window":{"used_percent":12,"limit_window_seconds":18000,"reset_at":1785600000},"secondary_window":{"used_percent":88,"limit_window_seconds":604800,"reset_at":1786178866}}}'
+
+@test "codex: windows are matched by duration, not by position" {
+  # The bug this forbids: reading primary→session, secondary→weekly. On Plus that
+  # files a WEEKLY number in the 5-hour column, and the pill colours off it.
+  mkcurl; mkauth "$(( $(date +%s) + 86400 ))"
+  FAKE_USAGE="$USAGE_PLUS" refresh
+  [ "$status" -eq 0 ]
+  [ "$(cxrow 1)" = 0 ] || fail "invented a session figure from a 7-day window"
+  [ "$(cxrow 2)" = 37 ] || fail "weekly percent wrong (want 37, the floor of 37.4)"
+  [ "$(cxrow 4)" = 1786178866 ]
+  [ "$(cxrow 6)" = codex ]
+
+  rm -f "$CLAUDE_STATUSLINE_CACHE/usage-codex.tsv"
+  FAKE_USAGE="$USAGE_BOTH" refresh
+  [ "$(cxrow 1)" = 12 ] && [ "$(cxrow 2)" = 88 ] || fail "two windows landed in the wrong columns"
+}
+
+@test "codex: a healthy token is never refreshed, and a fresh row is not re-fetched" {
+  mkcurl; mkauth "$(( $(date +%s) + 86400 ))"
+  FAKE_USAGE="$USAGE_PLUS" refresh
+  grep -q oauth "$CURL_LOG" && fail "rotated a token that had a day left"
+  : >"$CURL_LOG"
+  FAKE_USAGE="$USAGE_PLUS" refresh                      # inside CODEX_TTL
+  grep -q usage "$CURL_LOG" && fail "spent an API call inside the TTL"
+  return 0
+}
+
+@test "codex: an expiring token is refreshed and the rotation is persisted" {
+  mkcurl; mkauth "$(( $(date +%s) - 10 ))"
+  local before; before="$(cat "$HOME/.codex/auth.json")"
+  FAKE_OAUTH='{"access_token":"AT-NEW","refresh_token":"RT-NEW","id_token":"ID-NEW"}' \
+    FAKE_USAGE="$USAGE_PLUS" refresh
+  [ "$status" -eq 0 ]
+  grep -q RT-OLD "$CURL_LOG" || fail "the exchange did not send the stored refresh token"
+  [ "$(jq -r .tokens.access_token "$HOME/.codex/auth.json")" = AT-NEW ]
+  [ "$(jq -r .tokens.refresh_token "$HOME/.codex/auth.json")" = RT-NEW ] \
+    || fail "the rotated refresh token was not written back — the login is now lost"
+  [ "$(jq -r .tokens.id_token "$HOME/.codex/auth.json")" = ID-NEW ]
+  [ "$(jq -r .tokens.account_id "$HOME/.codex/auth.json")" = acct-1 ] \
+    || fail "rewriting the tokens dropped a field it does not own"
+  [ "$(stat -f %Lp "$HOME/.codex/auth.json")" = 600 ] || fail "auth.json left world-readable"
+  [ "$(cat "$HOME/.codex/auth.json.bak")" = "$before" ] || fail ".bak is not the pre-refresh login"
+  grep -q 'Bearer AT-NEW' "$CURL_LOG" || fail "polled with the token it had just replaced"
+}
+
+@test "codex: a response without a new refresh token keeps the old one" {
+  # Rotation is the server's choice, not ours. Reading `.refresh_token // empty`
+  # into the file unconditionally would blank the only credential that matters.
+  mkcurl; mkauth "$(( $(date +%s) - 10 ))"
+  FAKE_OAUTH='{"access_token":"AT-2"}' FAKE_USAGE="$USAGE_PLUS" refresh
+  [ "$(jq -r .tokens.refresh_token "$HOME/.codex/auth.json")" = RT-OLD ] \
+    || fail "the refresh token was clobbered by an absent field"
+  [ "$(jq -r .tokens.id_token "$HOME/.codex/auth.json")" = ID.OLD ]
+}
+
+@test "codex: a failed exchange leaves auth.json byte for byte" {
+  mkcurl; mkauth "$(( $(date +%s) - 10 ))"
+  local before; before="$(cat "$HOME/.codex/auth.json")"
+  FAKE_OAUTH_RC=22 FAKE_OAUTH='' FAKE_USAGE="$USAGE_PLUS" refresh
+  [ "$status" -eq 0 ] || fail "a dead auth endpoint took the whole refresher down"
+  [ "$(cat "$HOME/.codex/auth.json")" = "$before" ] || fail "a failed refresh still rewrote the login"
+}
+
+@test "codex: an unanswered poll keeps the last row and its own stamp" {
+  # Touch, don't write. The pill dates rows from the stamp INSIDE the file, so
+  # overwriting it with fresh-but-empty numbers would make the bar lie; touching
+  # only backs the retry off a TTL while it keeps saying "as of Nm ago".
+  mkcurl; mkauth "$(( $(date +%s) + 86400 ))"
+  mkdir -p "$CLAUDE_STATUSLINE_CACHE"   # the refresher makes it; this row predates it
+  printf '1\t2\t3\t4\t5\tcodex\n' >"$CLAUDE_STATUSLINE_CACHE/usage-codex.tsv"
+  touch -t 202601010000 "$CLAUDE_STATUSLINE_CACHE/usage-codex.tsv"
+  FAKE_USAGE_RC=7 FAKE_USAGE='' refresh
+  [ "$status" -eq 0 ]
+  [ "$(cxrow 5)" = 5 ] || fail "an empty answer overwrote the last known numbers"
+  [ "$(( $(date +%s) - $(stat -f %m "$CLAUDE_STATUSLINE_CACHE/usage-codex.tsv") ))" -lt 60 ] \
+    || fail "the retry was not backed off — this re-curls on every render"
+}
+
+@test "codex: no auth.json means no outbound call at all" {
+  # The whole opt-in. A machine that never logged into Codex must not talk to
+  # OpenAI because a bar pill exists.
+  mkcurl
+  rm -f "$HOME/.codex/auth.json"
+  refresh
+  [ "$status" -eq 0 ]
+  grep -qE 'usage|oauth' "$CURL_LOG" && fail "called out with no Codex login on the machine"
+  [ ! -f "$CLAUDE_STATUSLINE_CACHE/usage-codex.tsv" ]
+}
