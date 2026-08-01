@@ -899,12 +899,24 @@ cmd_list() {
     [ "${#r_agent[$i]}" -gt "$cw" ] && cw=${#r_agent[$i]}
   done
   [ "$rw" -gt 16 ] && rw=16
-  [ "$nw" -gt 28 ] && nw=28
 
   # Terminal width: COLUMNS isn't exported into a script, so fall back to tput,
   # then to 80 when there's no tty (piped / redirected).
   local cols="${COLUMNS:-}"
   [ -n "$cols" ] || cols="$(tput cols 2>/dev/null || echo 80)"
+
+  # `name` is the widest-varying column and a pathological one must not swallow
+  # the row — but that cap has to be a function of the PANE, not a constant. It
+  # used to be a flat 28, applied before `cols` was even known, so a 29-char
+  # worktree name (`help-me-test-notifications-in`) clipped to `…` in a 130-column
+  # pane with 40 columns still unspent, and the truncated name is exactly the
+  # argument you then have to type at `wt <name>`. Cap it instead at whatever is
+  # left once every other column and a legible `last commit` slice are paid for,
+  # and never tighter than the old 28 — the truly-tight case is still handled
+  # below, where names shrink to buy the commit its 12 columns.
+  local nw_cap=$(( cols - (2 + rw + 1 + 1 + sw + 1 + cw + 1) - 24 ))
+  [ "$nw_cap" -lt 28 ] && nw_cap=28
+  [ "$nw" -gt "$nw_cap" ] && nw=$nw_cap
 
   # Drop the client column first when space is tight, then let
   # the commit take whatever's left. 2 = indent, +1 per inter-column gap.
