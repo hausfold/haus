@@ -185,6 +185,20 @@ reg_del() { # reg_del <wt_path> — drop the line for a worktree we've reaped
   reg_unlock
 }
 
+branch_alive() { # branch_alive <main> <branch> [checkout] -> 0 if that branch still means something
+  # Normally "does refs/heads/<branch> exist" — a branch that was merged and deleted,
+  # or hand-nuked, can't resume anything and its rows should go.
+  git -C "$1" show-ref -q --verify "refs/heads/$2" 2>/dev/null && return 0
+  # EXCEPT a worktree spawned in a repo with no commits yet (see add_worktree): its
+  # branch is UNBORN, so it is checked out with no ref behind it until the first
+  # commit lands. By ref alone such a session reads as dead the moment it starts —
+  # invisible in `wt`, dropped from the registry by the prune below, and therefore
+  # orphaned in the statusline. A checkout that is sitting on the branch right now
+  # is proof enough that it's alive.
+  [ -n "${3:-}" ] && [ -d "$3" ] \
+    && [ "$(git -C "$3" branch --show-current 2>/dev/null)" = "$2" ]
+}
+
 reg_prune() { # drop every row that can no longer resume anything, and its empty bucket dir
   # reg_del only fires when WE reap a branch. A branch that vanishes any other way
   # — merged and deleted on GitHub, `git branch -D` by hand, a main checkout moved
@@ -196,7 +210,7 @@ reg_prune() { # drop every row that can no longer resume anything, and its empty
   local tmp="$WT_REGISTRY.$$" name main branch wt parent agent
   while IFS=$'\t' read -r name main branch wt parent agent; do
     [ -n "$branch" ] || continue
-    git -C "$main" show-ref -q --verify "refs/heads/$branch" 2>/dev/null || continue
+    branch_alive "$main" "$branch" "$wt" || continue
     agent_known "$agent" || agent="claude" # backwards-compatible old registry rows
     printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$name" "$main" "$branch" "$wt" "$parent" "$agent"
   done <"$WT_REGISTRY" >"$tmp"
@@ -465,13 +479,30 @@ else:
 ' "$@" <<<"$json"
 }
 
+add_worktree() { # add_worktree <repo-dir> <name> <dir> — the `worktree add` every spawn path shares
+  # A repo whose HEAD is still unborn — freshly `git init`ed, not one commit in it
+  # yet — has nothing to branch FROM, so the plain form below dies with "fatal:
+  # invalid reference: HEAD". That reached the user as a pane that refused to open
+  # a session at all, the first time they pointed Super c at a brand-new repo.
+  # Nothing is wrong with such a repo; it just has no history, so start the branch
+  # without one: --orphan hands the worktree the same unborn-branch state the main
+  # checkout is in, the agent's first commit becomes that branch's root, and the
+  # still-unborn default branch can fast-forward onto it afterwards.
+  local repo="$1" name="$2" dir="$3"
+  if git -C "$repo" rev-parse -q --verify HEAD >/dev/null 2>&1; then
+    git -C "$repo" worktree add -b "worktree-$name" "$dir" HEAD >&2
+  else
+    git -C "$repo" worktree add --orphan -b "worktree-$name" "$dir" >&2
+  fi
+}
+
 cmd_create() { # [WorktreeCreate hook] JSON on stdin; ONLY the new path on stdout
   local json name base dir
   json="$(cat)"
   name="$(hook_field "$json" name worktree_name)"
   base="$(hook_field "$json" base_path cwd)"
   dir="$WT_BASE/$(basename "$base")/$name"
-  git -C "$base" worktree add -b "worktree-$name" "$dir" HEAD >&2
+  add_worktree "$base" "$name" "$dir"
   # Record it so `wt` can rebuild + reopen this worktree later — even after the
   # checkout is removed, and even for repos it has never otherwise heard of.
   # `$base` (the spawning pane's cwd) is stored as the parent so the statusline
@@ -516,7 +547,7 @@ cmd_child() { # wt child <repo-path> [name] — worktree of ANOTHER repo, as a c
   [ -e "$dir" ] && die "a worktree already exists at $dir — pass another name: wt child $target <name>"
   git -C "$tmain" show-ref -q --verify "refs/heads/worktree-$name" 2>/dev/null \
     && die "branch worktree-$name already exists in $(basename "$tmain") — pass another name: wt child $target <name>"
-  git -C "$tmain" worktree add -b "worktree-$name" "$dir" HEAD >&2
+  add_worktree "$tmain" "$name" "$dir"
   # Register with THIS pane's cwd ($PWD) as parent — the same field cmd_create
   # stores — so the statusline lists the child under the session that spawned it,
   # and the refresher queries the CHILD repo's GitHub for its PR state.
@@ -555,7 +586,7 @@ cmd_spawn() { # wt spawn <repo-path> <name> [agent] — a worktree for a spawner
     name="$want-$n"
   done
   dir="$WT_BASE/$bucket/$name"
-  git -C "$tmain" worktree add -b "worktree-$name" "$dir" HEAD >&2
+  add_worktree "$tmain" "$name" "$dir"
   reg_put "$name" "$tmain" "worktree-$name" "$dir" "$tmain" "$agent" || true
   say "created $bucket worktree '$name' → $dir"
   echo "$dir"   # ONLY the path on stdout, so callers can: cd "$(wt spawn …)"
@@ -772,17 +803,20 @@ cmd_list() {
   # ~110 columns total — which wrapped into a mess in a narrow pane. Now repo/name
   # size to content (capped), and the commit fills the remaining width, so the
   # listing stays on one line per worktree however narrow the pane.
-  local main branch wt agent
+  local main branch wt agent last
   local -a r_repo=() r_nm=() r_state=() r_agent=() r_last=()
   while IFS=$'\t' read -r main branch wt; do
     [ -n "$branch" ] || continue
-    git -C "$main" show-ref -q --verify "refs/heads/$branch" 2>/dev/null || continue
+    branch_alive "$main" "$branch" "$wt" || continue
     r_repo+=("$(basename "$main")")
     r_nm+=("${branch#worktree-}")
     r_state+=("$(checkout_state "$wt")")
     agent="$(agent_for_worktree "$wt")"
     r_agent+=("$agent")
-    r_last+=("$(git -C "$main" log -1 --format='%cr — %s' "$branch" 2>/dev/null)")
+    # Empty for an unborn branch (a session started in a repo with no commits yet) —
+    # say so rather than printing a blank cell that reads like a broken row.
+    last="$(git -C "$main" log -1 --format='%cr — %s' "$branch" 2>/dev/null || true)"
+    r_last+=("${last:-no commits yet}")
   done <<<"$(resume_rows)"
 
   if [ "${#r_repo[@]}" -eq 0 ]; then
@@ -850,7 +884,7 @@ cmd_resume() { # cmd_resume <name|repo/name>
   case "$want" in */*) rrepo="${want%%/*}"; rname="${want##*/}" ;; esac
   while IFS=$'\t' read -r main branch wt; do
     [ -n "$branch" ] || continue
-    git -C "$main" show-ref -q --verify "refs/heads/$branch" 2>/dev/null || continue
+    branch_alive "$main" "$branch" "$wt" || continue
     [ "${branch#worktree-}" = "$rname" ] || continue
     [ -z "$rrepo" ] || [ "$(basename "$main")" = "$rrepo" ] || continue
     sel="$main"$'\t'"$branch"$'\t'"$wt"
