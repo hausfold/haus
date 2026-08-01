@@ -292,3 +292,134 @@ if [ -f "$OPENCODE_DB" ] && command -v sqlite3 >/dev/null 2>&1; then
   printf "%s\t%s\t0\t0\t%s\topencode\t%s\t%s\n" "$oc_today" "$oc_mtd" "$oc_sec_stamp" "$oc_model_id" "$oc_prov_id" > "$CACHE_DIR/usage-opencode.tsv.tmp"
   mv "$CACHE_DIR/usage-opencode.tsv.tmp" "$CACHE_DIR/usage-opencode.tsv"
 fi
+
+# --- Codex (ChatGPT) usage feed: ask the account, not the client ---------------
+# Claude and Opencode both leave their usage on disk, so their feeds above are
+# pure reads. Codex does not: the desktop app keeps threads server-side and
+# writes NO rate-limit data anywhere local (not ~/.codex, not its Chromium
+# profile, not the login keychain) — only the CLI and the VS Code extension ever
+# wrote it, inside their rollout-*.jsonl. So a pill fed from disk shows real
+# numbers only while you use the terminal client, and silently freezes the day
+# you switch to the GUI. This asks OpenAI directly instead, which is also the
+# only source that counts GUI usage: the limits are per ACCOUNT, so it doesn't
+# matter which client burned them.
+#
+#   GET chatgpt.com/backend-api/wham/usage   (bearer = ~/.codex/auth.json)
+# That path is deliberate: /backend-api/{me,codex/usage,codex/rate_limits} all
+# answer a plain curl with a Cloudflare interstitial (HTTP 403 + HTML), and only
+# wham/ is reachable without a browser. Being undocumented, it's treated as
+# best-effort throughout — any unexpected shape leaves the last row alone.
+CODEX_AUTH="$HOME/.codex/auth.json"
+CODEX_TSV="$CACHE_DIR/usage-codex.tsv"
+CODEX_TTL=${CODEX_TTL:-120}    # seconds; percentages move on a per-request cadence
+CODEX_SKEW=${CODEX_SKEW:-900}  # refresh the token this long before it actually expires
+CODEX_API=${CODEX_API:-https://chatgpt.com/backend-api/wham/usage}
+CODEX_OAUTH=${CODEX_OAUTH:-https://auth.openai.com/oauth/token}
+
+codex_fresh=0
+if [ -f "$CODEX_TSV" ]; then
+  age=$(( $(date +%s) - $(mtime "$CODEX_TSV") ))
+  [ "$age" -lt "$CODEX_TTL" ] && codex_fresh=1
+fi
+
+# auth.json is the whole opt-in: no Codex login on this machine, no calls out.
+if [ "$codex_fresh" = 0 ] && [ -f "$CODEX_AUTH" ] && command -v jq >/dev/null 2>&1; then
+  now=$(date +%s)
+  cx_at=$(jq -r '.tokens.access_token // empty' "$CODEX_AUTH" 2>/dev/null || true)
+  cx_rt=$(jq -r '.tokens.refresh_token // empty' "$CODEX_AUTH" 2>/dev/null || true)
+  cx_acc=$(jq -r '.tokens.account_id // empty' "$CODEX_AUTH" 2>/dev/null || true)
+
+  jwt_claim() { # jwt_claim <jwt> <field> — read our OWN token's payload
+    # No signature check on purpose: the only questions asked here are "when does
+    # this expire" and "which OAuth client issued it", both of which we hand
+    # straight back to the issuer. base64url → base64, and the padding must be
+    # restored by hand — `base64 --decode` silently truncates the last bytes of
+    # an unpadded string rather than failing, which would have made exp unreadable.
+    local p=${1#*.}; p=${p%%.*}
+    case $(( ${#p} % 4 )) in 2) p="$p==" ;; 3) p="$p=" ;; esac
+    printf '%s' "$p" | tr '_-' '/+' | base64 --decode 2>/dev/null \
+      | jq -r ".$2 // empty" 2>/dev/null || true
+  }
+
+  cx_exp=$(jwt_claim "$cx_at" exp)
+  case "${cx_exp:-}" in '' | *[!0-9]*) cx_exp=0 ;; esac
+  cx_client=$(jwt_claim "$cx_at" client_id)
+
+  # ── token refresh ───────────────────────────────────────────────────────────
+  # These access tokens live ~10 days and NOTHING on a GUI-only machine renews
+  # them: the desktop app never touches auth.json (its mtime sits at the day you
+  # logged in), and `codex login` needs a CLI that isn't installed. Left alone
+  # the pill would work until the token lapsed and then grey out for good, so
+  # the refresh happens here or not at all.
+  #
+  # The write-back is the delicate part: a successful exchange can rotate the
+  # refresh token server-side, so losing the response means losing the login —
+  # `codex login` again, from a terminal, to fix a bar pill. Hence tmp+rename
+  # (never a truncating redirect onto the real file), a .bak of the last good
+  # copy, 0600 set BEFORE the rename, and the old refresh token carried forward
+  # whenever the response omits a new one. Any failure leaves auth.json byte
+  # for byte as it was and simply skips this pass.
+  if [ -n "$cx_rt" ] && [ -n "$cx_client" ] && [ "$cx_exp" -lt "$(( now + CODEX_SKEW ))" ]; then
+    cx_body=$(jq -nc --arg rt "$cx_rt" --arg cid "$cx_client" \
+      '{client_id:$cid,grant_type:"refresh_token",refresh_token:$rt,scope:"openid profile email"}')
+    cx_resp=$(curl -fsS --max-time 15 -H 'content-type: application/json' \
+      -d "$cx_body" "$CODEX_OAUTH" 2>/dev/null || true)
+    cx_new=$(printf '%s' "$cx_resp" | jq -r '.access_token // empty' 2>/dev/null || true)
+    if [ -n "$cx_new" ]; then
+      cx_new_rt=$(printf '%s' "$cx_resp" | jq -r '.refresh_token // empty' 2>/dev/null || true)
+      cx_new_id=$(printf '%s' "$cx_resp" | jq -r '.id_token // empty' 2>/dev/null || true)
+      cp -p "$CODEX_AUTH" "$CODEX_AUTH.bak" 2>/dev/null || true
+      if jq --arg at "$cx_new" --arg rt "${cx_new_rt:-$cx_rt}" --arg it "$cx_new_id" \
+            --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '.tokens.access_token = $at
+             | .tokens.refresh_token = $rt
+             | (if $it == "" then . else .tokens.id_token = $it end)
+             | .last_refresh = $ts' \
+            "$CODEX_AUTH" >"$CODEX_AUTH.tmp" 2>/dev/null \
+         && [ -s "$CODEX_AUTH.tmp" ] \
+         && chmod 600 "$CODEX_AUTH.tmp" \
+         && mv "$CODEX_AUTH.tmp" "$CODEX_AUTH"; then
+        cx_at=$cx_new
+      else
+        # The token rotated but we couldn't persist it — .bak still holds the
+        # login, so say so loudly rather than silently burning the refresh token
+        # on every pass from here on.
+        rm -f "$CODEX_AUTH.tmp"
+        printf 'statusline-refresh: codex token refreshed but %s was not writable\n' \
+          "$CODEX_AUTH" >&2
+      fi
+    fi
+  fi
+
+  cx_row=""
+  if [ -n "$cx_at" ]; then
+    cx_json=$(curl -fsS --max-time 10 \
+      -H "authorization: Bearer $cx_at" \
+      -H "chatgpt-account-id: $cx_acc" \
+      "$CODEX_API" 2>/dev/null || true)
+    # Windows are matched by DURATION, not by position: `primary` is the 5-hour
+    # window on some plans and the weekly one on others (Plus returns only the
+    # weekly, with secondary null), and the pill's two columns are session/weekly.
+    cx_row=$(printf '%s' "$cx_json" | jq -r --argjson now "$now" '
+      def pct: (.used_percent // 0) | floor;
+      def at:  ((.reset_at // (if .reset_after_seconds then $now + .reset_after_seconds else 0 end)) | floor);
+      [.rate_limit.primary_window, .rate_limit.secondary_window]
+      | map(select(type == "object"))
+      | ((map(select((.limit_window_seconds // 0) < 86400)) | first)  // null) as $s
+      | ((map(select((.limit_window_seconds // 0) >= 86400)) | first) // null) as $w
+      | [ (if $s then ($s | pct) else 0 end), (if $w then ($w | pct) else 0 end),
+          (if $s then ($s | at)  else 0 end), (if $w then ($w | at)  else 0 end) ]
+      | @tsv' 2>/dev/null || true)
+  fi
+
+  if [ -n "$cx_row" ]; then
+    printf '%s\t%s\tcodex\n' "$cx_row" "$now" >"$CODEX_TSV.tmp"
+    mv "$CODEX_TSV.tmp" "$CODEX_TSV"
+  else
+    # Offline, revoked, or the endpoint moved. Touch, don't write: the pill dates
+    # its rows from the stamp INSIDE the file, so this backs the retry off a full
+    # TTL while the bar keeps telling the truth ("as of Nm ago") about the age of
+    # the numbers it's showing.
+    [ -f "$CODEX_TSV" ] && touch "$CODEX_TSV"
+  fi
+fi
