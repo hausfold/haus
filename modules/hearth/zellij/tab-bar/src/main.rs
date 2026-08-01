@@ -17,9 +17,10 @@ use crate::tab::tab_style;
 // third-party zjstatus top bar while keeping upstream's active-anchored tab
 // scroll viewport (the thing zjstatus lacked).
 //
-// Fork addition: an agent count badge beside the name of any tab holding a
-// `claude --worktree` pane (see AgentState + the pipe handler below), so eight
-// tabs of agents no longer have to be cycled to find the ones that need you.
+// Fork addition: an agent count badge beside the name of any tab holding an
+// agent-worktree pane — Claude Code, Codex or Opencode alike (see AgentState and
+// the pipe handler below), so eight tabs of agents no longer have to be cycled
+// to find the ones that need you.
 
 #[derive(Debug, Default)]
 pub struct LinePart {
@@ -36,8 +37,10 @@ impl LinePart {
 }
 
 /// One agent pane's self-reported state, piped in by sill's agents-hook.sh from
-/// Claude Code's own hooks (UserPromptSubmit → working, Notification → waiting,
-/// Stop → idle). Authoritative: the agent tells us, we never screen-scrape.
+/// whichever client owns the pane — Claude Code's hooks (UserPromptSubmit →
+/// working, Notification → waiting, Stop → idle), Opencode's plugin
+/// (chat.message / permission.ask / session.idle), or anything else wired to the
+/// same four words. Authoritative: the agent tells us, we never screen-scrape.
 ///
 /// The `Ord` derive is load-bearing — the variants are declared in URGENCY
 /// order, so a tab holding several agents can just `max()` them and show the one
@@ -83,8 +86,11 @@ impl AgentState {
 ///
 ///     state=working|waiting|idle|remove  pane=<zellij pane id>  agent=<name>
 ///
-/// Unknown keys are ignored so the protocol can grow without a wasm rebuild;
-/// `agent=` is parsed by nobody yet and reserved for exactly that.
+/// Unknown keys are ignored so the protocol can grow without a wasm rebuild.
+/// `agent=` carries the reporting client (claude|codex|opencode|…) and is real,
+/// not a placeholder — sill's popup draws each row's client mark from the copy it
+/// writes to disk. This badge deliberately doesn't: a tab-bar cell is worth one
+/// glyph and a count, and "how many agents, how urgent" beats "which client".
 static AGENT_STATUS_PIPE: &str = "nebelhaus-agent-status";
 
 #[derive(Default, Debug)]

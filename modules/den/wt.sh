@@ -15,6 +15,10 @@
 #                       stray  — a directory is there but git has disowned it (a
 #                                `worktree remove` that died between unregistering
 #                                and deleting). `wt <name>` heals one.
+#   wt new [name]     make a worktree of THIS repo and open the default agent in
+#                     it — the client-agnostic ⌘C. Claude Code does this itself
+#                     with `--worktree`; Codex and OpenCode have no such flag, so
+#                     hearth binds Super c here when the default isn't Claude.
 #   wt <name>         resume one: rebuild its checkout + reopen its agent chat
 #   wt resume <name>  (the same thing, spelled out)
 #   wt reap           sweep every LANDED worktree NOW — parked ones, plus clean &
@@ -117,6 +121,13 @@ A screenshot for this task is at $image. Inspect it before drawing conclusions."
     opencode) exec opencode --prompt "$prompt" ;;
   esac
 }
+agent_open() { # agent_open <agent>; execs the client with NO prompt (a fresh session)
+  local a="${1:-}"
+  agent_known "$a" || die "unknown agent '$a' (expected claude, codex, or opencode)"
+  command -v "$a" >/dev/null 2>&1 || die "$a is unavailable — install it, then try again"
+  exec "$a"   # all three open an interactive session when given no arguments
+}
+
 agent_resume() { # agent_resume <agent>; execs that client's cwd-filtered resume UI
   local a="${1:-}"
   agent_known "$a" || die "unknown agent '$a' (expected claude, codex, or opencode)"
@@ -561,6 +572,53 @@ cmd_child() { # wt child <repo-path> [name] — worktree of ANOTHER repo, as a c
   echo "$dir"   # ONLY the path on stdout, so callers can: cd "$(wt child …)"
 }
 
+cmd_new() { # wt new [name] [agent] — worktree of THIS repo, then open the agent in it
+  # The client-agnostic ⌘C. Claude Code has a native `--worktree` flag that fires
+  # the create hook above; Codex and OpenCode have nothing like it, so a rice
+  # whose default agent is one of those had a headline keybind that launched a
+  # client the machine may not even have installed. hearth binds Super c here
+  # instead whenever the default isn't Claude — same worktree, same registry, same
+  # parking and reaping, just driven from the outside.
+  #
+  # Unlike `spawn` (no pane, so it parents to the repo), this runs IN the pane you
+  # pressed the key in: $PWD is the parent, exactly as cmd_create records it, so
+  # the statusline files the new worktree under the session that opened it.
+  local want="${1:-}" agent="${2:-$(agent_default)}"
+  agent_known "$agent" || die "unknown agent '$agent' (expected claude, codex, or opencode)"
+  local tmain
+  tmain="$(git_main "$PWD")" || die "not inside a git repo — cd to one first"
+  [ -d "$tmain/.git" ] || die "'$PWD' resolves to $tmain, which isn't a main checkout"
+
+  # An unnamed spawn gets a throwaway two-word name, in the spirit of the ones
+  # Claude generates: it only has to be recognisable in `wt` and on a branch for
+  # as long as the work lives. `wt spawn` (the palette) is where names come from
+  # the TASK — this is the "just give me a pane" path, so don't ask for one.
+  local adj=(amber brisk calm dusky eager fleet glassy hushed inky jade keen
+    lucid misty noble opal quiet rusty slate tidal umber vivid)
+  local noun=(alder beacon cinder delta ember fjord grove harbor inlet juniper
+    kelp lantern meadow nimbus orchid pebble quarry ridge summit thicket)
+  local name="$want"
+  if [ -z "$name" ]; then
+    name="${adj[$((RANDOM % ${#adj[@]}))]}-${noun[$((RANDOM % ${#noun[@]}))]}"
+  fi
+  local bucket dir n=1 base="$name"
+  bucket="$(basename "$tmain")"
+  while [ -e "$WT_BASE/$bucket/$name" ] \
+    || git -C "$tmain" show-ref -q --verify "refs/heads/worktree-$name" 2>/dev/null; do
+    n=$((n + 1))
+    [ "$n" -gt 99 ] && die "no free name near '$base' in $bucket"
+    name="$base-$n"
+  done
+  dir="$WT_BASE/$bucket/$name"
+  add_worktree "$tmain" "$name" "$dir"
+  reg_put "$name" "$tmain" "worktree-$name" "$dir" "$PWD" "$agent" || true
+  say "created $bucket worktree '$name' → $dir"
+  # exec, not a child: this IS the pane's process, so closing the client closes
+  # the pane (and, under hearth's binds, fires the same close path Claude's does).
+  cd "$dir" || die "could not enter $dir"
+  agent_open "$agent"
+}
+
 cmd_spawn() { # wt spawn <repo-path> <name> [agent] — a worktree for a spawner with no pane
   # `create` and `child` both assume a pane: they record the spawning cwd as the
   # parent, which is how the statusline files a worktree under the session that
@@ -1001,6 +1059,7 @@ cmd_agent() { # wt agent <default|start|resume> … — the public client-table 
 
 case "${1:-}" in
 create) cmd_create ;;
+new) cmd_new "${2:-}" "${3:-}" ;;
 remove) cmd_remove ;;
 child) cmd_child "${2:-}" "${3:-}" ;;
 spawn) cmd_spawn "${2:-}" "${3:-}" "${4:-}" ;;

@@ -156,7 +156,7 @@ points back to when it feels several PRs together.
   *server*, which recompiles plugin wasm from disk (a running server caches it
   in memory for its lifetime).
 - **The den CLIs** (`modules/den`, each on `PATH` via `writeShellScriptBin`, source
-  beside `default.nix`): the rice ships five dev/user CLIs — **`haus.sh`** (the
+  beside `default.nix`): the rice ships six dev/user CLIs — **`haus.sh`** (the
   end-user machine driver: rebuild/update/rollback/doctor/status — knows nothing of
   the family repos), **`awake.sh`** (launchd-owned timed/indefinite macOS
   caffeinate assertions; Sill's optional coffee pill is only its controller),

@@ -411,9 +411,11 @@ in
         default = config.nebelhaus.developer.enable;
         defaultText = lib.literalExpression "config.nebelhaus.developer.enable";
         description = ''
-          Coding-agent *tooling*: `wt` (agent worktrees), `zscratch`, the
-          agent-worktree statusline, and the Claude Code settings and hooks
-          hearth writes. Which clients get installed is `agents.clients`.
+          Coding-agent *tooling*: `wt` (agent worktrees), `agent-state` (the
+          pane-status writer behind the `agents` bar pill and the zellij tab
+          badge), `zscratch`, the agent-worktree statusline, and the client
+          config hearth writes (Claude Code's settings.json keys, opencode's
+          agent-state plugin). Which clients get installed is `agents.clients`.
 
           Off is right for any machine not running coding agents — it's a large
           surface a non-developer never sees. It also empties `agents.clients`,
@@ -448,9 +450,10 @@ in
         "codex"
       ];
       description = ''
-        Which coding-agent clients to install. `claude` is Claude Code (whose
-        `--worktree` hook powers the ⌘C terminal binding, so it is in the
-        default set), `codex` is OpenAI Codex, `opencode` is OpenCode.
+        Which coding-agent clients to install. `claude` is Claude Code, `codex`
+        is OpenAI Codex, `opencode` is OpenCode. The ⌘C terminal binding starts
+        whichever one `agents.default` names — Claude Code through its own
+        `--worktree` hook, the others through `wt new`.
 
         A list rather than one bool per client, matching `developer.languages`
         — a fourth client later doesn't change this option's shape.
@@ -474,18 +477,23 @@ in
       default = "claude";
       example = "codex";
       description = ''
-        The coding agent started by Pounce's **Spawn Agent** commands and used
-        to reopen worktrees that have no client recorded yet. Each spawned
-        worktree records its chosen client, so changing this affects new work
-        but never resumes an existing Codex or OpenCode task in Claude.
+        The coding agent started by Pounce's **Spawn Agent** commands, by the
+        ⌘C / Super-c zellij binds and the `c` shell alias, and used to reopen
+        worktrees with no client recorded yet. Each spawned worktree records its
+        own client, so changing this affects new work but never reopens an
+        existing Codex or OpenCode task in Claude.
 
         Must be one of `agents.clients` — see there.
 
-        `claude` is Claude Code (and remains the only client whose native
-        `--worktree` hook powers the ⌘C terminal binding). `codex` reopens its
-        cwd-filtered `codex resume` picker; `opencode` continues its latest
-        session for that cwd. All three use the same `wt` branch/parking/reap
-        lifecycle.
+        Only `claude` can make its own worktree (its native `--worktree` flag,
+        which fires the `wt` create hook); for `codex` and `opencode` ⌘C runs
+        `wt new` instead, producing the same checkout, branch and registry entry
+        from the outside. Resuming follows the client too: `codex` reopens its
+        cwd-filtered `codex resume` picker, `opencode` continues its latest
+        session for that cwd. All three share one `wt` branch/parking/reap
+        lifecycle, and all three can light up the `agents` bar pill and the
+        zellij tab-bar badge — opencode's wiring is written for you, the other
+        two are hooks you point at `agent-state` (see `nebelhaus.sill.plugins`).
       '';
     };
   };

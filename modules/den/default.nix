@@ -193,6 +193,19 @@ in
       # cheapest possible source, with no keychain read and nothing polling.
       (writeShellScriptBin "claude-statusline" (builtins.readFile ./statusline.sh))
       (writeShellScriptBin "claude-statusline-refresh" (builtins.readFile ./statusline-refresh.sh))
+
+      # `agent-state` — the one writer of agent-pane state, feeding sill's `agents`
+      # paw and hearth's zellij tab-bar badge. BYTE-FOR-BYTE the script sill also
+      # installs as ~/.config/sketchybar/plugins/agents-hook.sh (read from there,
+      # so the two can never drift); this copy exists only to give it a stable
+      # name on PATH. Claude Code's hooks point at the sketchybar path because the
+      # user's own settings.json wires them, but the Codex and Opencode wirings
+      # hearth writes are client config files with no business knowing where a bar
+      # keeps its plugins — they call
+      # `agent-state <working|waiting|idle|remove> <client>` instead.
+      (writeShellScriptBin "agent-state" (
+        builtins.readFile ../sill/sketchybar/plugins/agents-hook.sh
+      ))
     ];
 
   # The job is intentionally always present, even when the opt-in Sill pill is

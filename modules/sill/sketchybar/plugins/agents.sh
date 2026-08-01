@@ -1,12 +1,16 @@
 #!/bin/bash
 # agents.sh — the reader half of the `agents` bar item (opt-in via
-# nebelhaus.sill.plugins). Surfaces the state of your `claude --worktree` agent
-# panes in the menu bar so you never have to cycle zellij tabs hunting for the
-# one that's blocked on you.
+# nebelhaus.sill.plugins). Surfaces the state of your agent worktree panes in the
+# menu bar so you never have to cycle zellij tabs hunting for the one that's
+# blocked on you. Client-agnostic: Claude Code, Codex and Opencode panes all
+# land here, and each popup row is marked with the client sitting in it.
 #
-# State is written by agents-hook.sh from Claude's own hooks (authoritative — no
-# screen-scraping), one file per pane under /tmp/nebelhaus-agents/*.state, each:
-#     <state>\t<session>\t<pane-id>\t<label>\t<epoch>
+# State is written by agents-hook.sh from each client's own lifecycle hooks
+# (authoritative — no screen-scraping), one file per pane under
+# /tmp/nebelhaus-agents/*.state, each:
+#     <state>\t<session>\t<pane-id>\t<label>\t<epoch>\t<client>
+# <client> is the newest field: a file written before it existed reads as empty,
+# which provider_style draws as the generic mark rather than lying about a client.
 #
 # Four entry paths:
 #   • agent_update / system_woke / periodic  → recount, repaint icon+label
@@ -14,13 +18,17 @@
 #   • `agents.sh row <sess> <pane>`          → popup-row click: go-to (left) or
 #                                              peek (⌥/right), per $BUTTON/$MODIFIER
 set -u
-# Work whether we're run by the bar (rich env) or invoked from a bare env (a
-# Claude hook, or a popup click needing zellij/aerospace): guarantee the nix
+# Work whether we're run by the bar (rich env) or invoked from a bare env (an
+# agent's hook, or a popup click needing zellij/aerospace): guarantee the nix
 # profile + Homebrew on PATH, and $USER (sketchybar-msg resolves its socket via
 # it). Set USER before PATH since PATH interpolates it.
 export USER="${USER:-$(id -un)}"
 export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:$PATH"
 source "$HOME/.config/sketchybar/colors.sh"
+# provider_style() — the same client icon table the aiUsage pill draws from, so
+# a Codex pane wears the same mark in both pills.
+# shellcheck source=./ai-provider.sh
+source "$HOME/.config/sketchybar/plugins/ai-provider.sh"
 
 DIR=/tmp/nebelhaus-agents
 PLUGINS="$HOME/.config/sketchybar/plugins"
@@ -77,11 +85,15 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
   i=0
   for f in "$DIR"/*.state; do
     [ -e "$f" ] || continue
-    IFS=$'\t' read -r st sess pane label epoch < "$f"
+    IFS=$'\t' read -r st sess pane label epoch client < "$f"
     state_style "$st"
+    # The row's icon is the CLIENT (claude/codex/opencode), painted in the STATE
+    # colour — two facts in the space the paw used to spend on one. The pill
+    # itself keeps the paw: it stands for "agents", not for any one client.
+    provider_style "${client:-}" "" 13.0
     sketchybar --add item "agents.popup.$i" popup.agents 2>/dev/null \
       --set "agents.popup.$i" \
-        icon="$PAW" icon.color="$COL" icon.font="Hack Nerd Font:Bold:13.0" \
+        icon="$P_ICON" icon.color="$COL" icon.font="$P_FONT" \
         label="$label · $TAG" label.color="$TEXT" \
         label.font="Hack Nerd Font:Regular:13.0" \
         background.drawing=off \
