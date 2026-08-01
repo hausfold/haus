@@ -70,6 +70,10 @@ WT_REGISTRY="$WT_BASE/registry.tsv"
 # branch reopen in Claude (or vice versa).  Clients intentionally own their
 # transcript stores: only Claude exposes a cheap cwd → transcript-directory
 # test; Codex and OpenCode reopen their cwd-filtered session pickers instead.
+#
+# This list is the shell-side copy of modules/lib/agents.nix, which every Nix
+# consumer imports.  It cannot import it back — `wt` is a standalone script that
+# runs with no Nix at all — so a fourth client means editing both.
 agent_known() { case "$1" in claude | codex | opencode) return 0 ;; *) return 1 ;; esac; }
 agent_default() {
   local a="${NEBELHAUS_AGENT_DEFAULT:-claude}"
