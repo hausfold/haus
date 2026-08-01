@@ -71,8 +71,47 @@ if [ "${1:-}" = "row" ]; then
   exit 0
 fi
 
-# Backstop cleanup: a crashed agent never fires SessionEnd, so reap state files
-# untouched for >12h. Live agents re-stamp their epoch on every hook.
+# ── drop rows whose pane is gone ─────────────────────────────────────────────
+# The state files are self-reported, so a client that never says goodbye leaves
+# its last row on the bar forever. Claude Code has SessionEnd and Opencode has
+# dispose; CODEX HAS NEITHER — its hook events end at Stop — so without this a
+# finished Codex pane would sit there as a green paw until the 12h sweep below.
+#
+# zellij knows, and answers from outside a session (the bar is not in one):
+# `action list-panes` prints one `terminal_<id>` per line, the exact key these
+# filenames carry. Two answers are actionable and everything else is left
+# alone — a transient zellij failure must never wipe live agents:
+#   • a real list (has the PANE_ID header) → drop the panes not in it
+#   • "Session 'x' not found"              → drop every row of that session
+# One call per session with rows, on a 10s while-visible tick. Cheap.
+prune_dead_panes() {
+  [ -d "$DIR" ] || return 0
+  command -v zellij >/dev/null 2>&1 || return 0
+  local f base sess pane panes
+  for sess in $(
+    for f in "$DIR"/*.state; do
+      [ -e "$f" ] || continue
+      base="${f##*/}"; printf '%s\n' "${base%%__*}"
+    done | sort -u
+  ); do
+    panes="$(zellij --session "$sess" action list-panes 2>&1)"
+    case "$panes" in
+      *PANE_ID*) ;;                       # a real list — fall through and diff it
+      *"not found"*) rm -f "$DIR/${sess}__"*.state; continue ;;
+      *) continue ;;                      # anything else: leave the rows alone
+    esac
+    for f in "$DIR/${sess}__"*.state; do
+      [ -e "$f" ] || continue
+      base="${f##*/}"; pane="${base##*__}"; pane="${pane%.state}"
+      printf '%s\n' "$panes" | grep -q "^${pane}[[:space:]]" || rm -f "$f"
+    done
+  done
+}
+prune_dead_panes
+
+# Backstop cleanup for what that can't see (a whole zellij server gone, a client
+# that wrote a row from a pane id zellij never knew): reap state files untouched
+# for >12h. Live agents re-stamp their epoch on every hook.
 [ -d "$DIR" ] && find "$DIR" -name '*.state' -mmin +720 -delete 2>/dev/null
 
 # Iterate the glob with a -e guard rather than an array: macOS bash 3.2 under

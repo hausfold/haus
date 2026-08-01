@@ -1546,5 +1546,52 @@ in
         ' "$HOME/.claude/settings.json"
       ''
       );
+
+      # Codex — the same agent-pane status wiring, in Codex's own hook file, so a
+      # Codex pane lights the `agents` paw and the zellij tab badge exactly like a
+      # Claude or Opencode one. Three of its ten events carry the states we draw:
+      #
+      #   UserPromptSubmit  → working
+      #   PermissionRequest → waiting    ← the urgent one; the pill goes amber
+      #   Stop              → idle
+      #
+      # There is deliberately no fourth: Codex has no session-END event (its list
+      # stops at Stop), so nothing can report `remove`. agents.sh closes that by
+      # asking zellij which panes still exist and dropping the rows of those that
+      # don't — which also cleans up after any client that dies without saying
+      # goodbye. Schema verified against codex-cli 0.145.0 by running a real turn
+      # with `--dangerously-bypass-hook-trust` and watching the hooks fire: it is
+      # Claude-shaped (PascalCase event → matcher groups → `{type, command}`
+      # handlers), the command runs under `$SHELL -lc` with the session's cwd, and
+      # it inherits $ZELLIJ_PANE_ID / $ZELLIJ_SESSION_NAME — which is the whole
+      # addressing scheme.
+      #
+      # First launch after this lands, Codex will ask you to REVIEW the hooks
+      # ("Hooks need review") and won't run them until you trust them. That gate
+      # is Codex's, it is a good one, and the rice does not try to defeat it —
+      # `--dangerously-bypass-hook-trust` exists but appears nowhere here.
+      #
+      # Merged with jq rather than owned outright: hooks.json is a user-editable
+      # file and may hold hooks of your own, which must survive a rebuild.
+      # Only written when Codex is actually installed (`agents.clients`).
+      home.activation.codexAgentHooks =
+        lib.mkIf (devCfg.agents.enable && lib.elem "codex" agentClients)
+          (
+            lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+              run sh -c '
+                hooks="$0"
+                bin="$1"
+                mkdir -p "''${hooks%/*}"
+                tmp="$hooks.hm-seed"
+                if [ -s "$hooks" ]; then base="$hooks"; else base="$tmp.base"; printf "{}" > "$base"; fi
+                ${pkgs.jq}/bin/jq --arg bin "$bin" ".hooks.UserPromptSubmit = [{hooks:[{type:\"command\",command:(\$bin + \" working codex\")}]}]
+                  | .hooks.PermissionRequest = [{hooks:[{type:\"command\",command:(\$bin + \" waiting codex\")}]}]
+                  | .hooks.Stop = [{hooks:[{type:\"command\",command:(\$bin + \" idle codex\")}]}]" \
+                  "$base" > "$tmp"
+                mv "$tmp" "$hooks"
+                rm -f "$tmp.base"
+              ' "$HOME/.codex/hooks.json" "/run/current-system/sw/bin/agent-state"
+            ''
+          );
     };
 }
