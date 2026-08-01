@@ -14,8 +14,12 @@
 #   • OpenCode     — ~/.config/opencode/plugin/nebelhaus-agent-state.js (written
 #                    by hearth), which maps chat.message/permission.ask/
 #                    session.idle/dispose onto the same four words.
-#   • Codex        — ~/.codex/hooks.json (seeded by hearth when codex is
-#                    installed): UserPromptSubmit/Stop/SessionEnd.
+#   • Codex        — ~/.codex/hooks.json (seeded by hearth when codex is in
+#                    agents.clients): UserPromptSubmit→working,
+#                    PermissionRequest→waiting, Stop→idle. Codex has NO
+#                    session-end event, so nothing ever reports `remove` for one
+#                    of its panes — agents.sh drops rows whose zellij pane is
+#                    gone instead, which covers every client that dies quietly.
 #
 # The two readers, drawing agent state in the same three colours:
 #   • sill's `agents` menu-bar pill — reads the /tmp state files below

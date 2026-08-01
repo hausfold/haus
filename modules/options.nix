@@ -491,9 +491,10 @@ in
         from the outside. Resuming follows the client too: `codex` reopens its
         cwd-filtered `codex resume` picker, `opencode` continues its latest
         session for that cwd. All three share one `wt` branch/parking/reap
-        lifecycle, and all three can light up the `agents` bar pill and the
-        zellij tab-bar badge — opencode's wiring is written for you, the other
-        two are hooks you point at `agent-state` (see `nebelhaus.sill.plugins`).
+        lifecycle, and all three light up the `agents` bar pill and the zellij
+        tab-bar badge — the opencode plugin and the codex hooks are written for
+        you; only Claude Code's stay yours to wire, because Claude owns its own
+        settings.json (see `nebelhaus.sill.plugins`).
       '';
     };
   };
