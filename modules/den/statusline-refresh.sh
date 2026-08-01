@@ -21,7 +21,19 @@
 # It also writes lock-nag.tsv (see below): how far this machine's pinned rice is
 # behind upstream, on its own much longer TTL. Same reason it lives here — it
 # needs the network, and the network must never be in the render path.
+#
+#   --usage-only   skip the panel + the lock nag; refresh ONLY the Codex and
+#                  Opencode usage feeds at the bottom, then poke sill's pill.
+#                  This is how the aiUsage pill stays alive on a machine driving
+#                  Codex or Opencode rather than Claude: those two feeds are
+#                  PULLED (an API call, a sqlite read) instead of pushed by the
+#                  client, so with no Claude statusline rendering anywhere,
+#                  nothing would ever run them and the pill would grey itself out
+#                  within half an hour. The panel — and the `gh` traffic it costs
+#                  — is deliberately excluded: only a statusline reads panel.tsv.
 set -euo pipefail
+usage_only=0
+[ "${1:-}" = "--usage-only" ] && usage_only=1
 # APPENDED, never prepended — same call `wt` makes, for the same two reasons: this
 # is a rescue for the case where we're spawned with a bare PATH, not an override of
 # the caller's environment; and prepending it made the script untestable, because
@@ -84,8 +96,8 @@ trap 'rmdir "$LOCK" 2>/dev/null || true' EXIT
 #                   link straight to the commits you haven't taken
 # An EMPTY file means "definitively up to date" (chip hidden); a MISSING file
 # means we've never got an answer. Either way the statusline renders nothing.
-nag_fresh=0
-if [ -f "$NAG" ]; then
+nag_fresh=$usage_only    # --usage-only: treat the nag as fresh, i.e. skip it
+if [ "$nag_fresh" = 0 ] && [ -f "$NAG" ]; then
   age=$(( $(date +%s) - $(mtime "$NAG") ))
   [ "$age" -lt "$NAG_TTL" ] && nag_fresh=1
 fi
@@ -262,15 +274,18 @@ panel_row() {
     "$slug" "${branch#worktree-}" "$ahead" "$files" "$ins" "$del" "${pr:--}" "$parent"
 }
 
-: >"$PANEL.tmp"
+if [ "$usage_only" = 0 ]; then
+  : >"$PANEL.tmp"
 
-worklist | awk -F'\t' '!seen[$4]++' | while IFS=$'\t' read -r name main branch wtpath parent; do
-  panel_row "$name" "$main" "$branch" "$wtpath" "$parent" >>"$PANEL.tmp" || true
-done
+  worklist | awk -F'\t' '!seen[$4]++' | while IFS=$'\t' read -r name main branch wtpath parent; do
+    panel_row "$name" "$main" "$branch" "$wtpath" "$parent" >>"$PANEL.tmp" || true
+  done
 
-mv "$PANEL.tmp" "$PANEL"
+  mv "$PANEL.tmp" "$PANEL"
+fi
 
 # --- Opencode usage feed: query local sqlite db for daily/monthly API token cost ---
+fed=0    # did either pulled feed write a row this pass → poke the pill at the end
 OPENCODE_DB="$HOME/.local/share/opencode/opencode-stable.db"
 if [ -f "$OPENCODE_DB" ] && command -v sqlite3 >/dev/null 2>&1; then
   oc_today=$(sqlite3 "$OPENCODE_DB" "SELECT printf('%.2f', COALESCE(SUM(cost), 0)) FROM session WHERE time_updated >= strftime('%s', 'now', 'start of day') * 1000;" 2>/dev/null || echo "0.00")
@@ -291,6 +306,7 @@ if [ -f "$OPENCODE_DB" ] && command -v sqlite3 >/dev/null 2>&1; then
 
   printf "%s\t%s\t0\t0\t%s\topencode\t%s\t%s\n" "$oc_today" "$oc_mtd" "$oc_sec_stamp" "$oc_model_id" "$oc_prov_id" > "$CACHE_DIR/usage-opencode.tsv.tmp"
   mv "$CACHE_DIR/usage-opencode.tsv.tmp" "$CACHE_DIR/usage-opencode.tsv"
+  fed=1
 fi
 
 # --- Codex (ChatGPT) usage feed: ask the account, not the client ---------------
@@ -415,6 +431,7 @@ if [ "$codex_fresh" = 0 ] && [ -f "$CODEX_AUTH" ] && command -v jq >/dev/null 2>
   if [ -n "$cx_row" ]; then
     printf '%s\t%s\tcodex\n' "$cx_row" "$now" >"$CODEX_TSV.tmp"
     mv "$CODEX_TSV.tmp" "$CODEX_TSV"
+    fed=1
   else
     # Offline, revoked, or the endpoint moved. Touch, don't write: the pill dates
     # its rows from the stamp INSIDE the file, so this backs the retry off a full
@@ -422,4 +439,15 @@ if [ "$codex_fresh" = 0 ] && [ -f "$CODEX_AUTH" ] && command -v jq >/dev/null 2>
     # the numbers it's showing.
     [ -f "$CODEX_TSV" ] && touch "$CODEX_TSV"
   fi
+fi
+
+# --- repaint the bar now that a pulled feed moved ------------------------------
+# Same push the render path does for Claude's own row (statusline.sh): run the
+# reader directly rather than trusting an update_freq. It matters most for the
+# FIRST row a machine ever writes — until one exists the pill is drawing=off, and
+# a hidden sketchybar item's own timer never ticks, so nothing else would ever
+# reveal it. `|| true` because a bar that isn't running is not an error here.
+if [ "$fed" = 1 ]; then
+  pill="$HOME/.config/sketchybar/plugins/ai_usage.sh"
+  [ -x "$pill" ] && (SENDER=refresh NAME=ai_usage "$pill" >/dev/null 2>&1 &) || true
 fi

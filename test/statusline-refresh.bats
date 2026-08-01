@@ -436,6 +436,26 @@ USAGE_BOTH='{"rate_limit":{"primary_window":{"used_percent":12,"limit_window_sec
     || fail "the retry was not backed off — this re-curls on every render"
 }
 
+@test "usage-only: refreshes the pulled feeds and leaves the panel untouched" {
+  # The mode sill's aiUsage pill runs on a machine with no Claude session to kick
+  # the refresher. It must do the two pulled feeds and NOTHING else: no panel
+  # rewrite, and — the part that matters for a pill ticking every few minutes —
+  # not one `gh` call.
+  local main dir; main="$(mkrepo alpha)"; dir="$(mkwt "$main" sparkle)"
+  refresh                                   # a full pass, to leave a real panel
+  [ "$status" -eq 0 ]
+  [ -n "$(row_for x sparkle)" ]
+  local before; before="$(cat "$PANEL")"
+  : >"$FAKE_GH_LOG"
+
+  mkcurl; mkauth "$(( $(date +%s) + 86400 ))"
+  FAKE_USAGE="$USAGE_BOTH" run bash "$REFRESH" --usage-only
+  [ "$status" -eq 0 ]
+  [ "$(cxrow 1)" = 12 ]
+  [ "$(cat "$PANEL")" = "$before" ]
+  [ ! -s "$FAKE_GH_LOG" ] || fail "usage-only spent a gh call on the panel"
+}
+
 @test "codex: no auth.json means no outbound call at all" {
   # The whole opt-in. A machine that never logged into Codex must not talk to
   # OpenAI because a bar pill exists.

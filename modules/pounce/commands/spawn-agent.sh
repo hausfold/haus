@@ -91,7 +91,6 @@ fi
 
 agent="$(wt agent default 2>/dev/null)"
 [ -n "$agent" ] || agent="claude"
-
 # Belt to the assertion's braces. `nebelhaus.agents.clients` makes the default
 # client present at BUILD time, but this script runs long after that — the
 # client can still be missing on a machine driving `wt` without the rice, or

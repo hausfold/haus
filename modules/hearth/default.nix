@@ -22,6 +22,13 @@ let
   devCfg = config.nebelhaus.developer;
   agentDefault = config.nebelhaus.agents.default;
 
+  # How the zellij binds and the `c` alias spell "start an agent". Only Claude
+  # Code can make its own worktree (`--worktree`, which fires the `wt`
+  # WorktreeCreate hook); for the others `wt new` does it from the outside, so
+  # Super c behaves the same whichever client the machine defaults to. Rendered
+  # into config.kdl's @AGENT_NEW@ (@AGENT_HERE@ is just agentDefault).
+  agentNewRun = if agentDefault == "claude" then ''"claude" "--worktree"'' else ''"wt" "new"'';
+
   # One client id → one package. Nothing else in the rice may name these
   # derivations: a host that wants a patched build overlays `claude-code` (or
   # `codex`, or `opencode`) so this reference picks the patched one up. Adding
@@ -534,7 +541,9 @@ in
         # installed would leave a shell that greets you with "command not found".
         shellAliases =
           lib.optionalAttrs devCfg.git.enable (gitShellAliases // { lg = "lazygit"; })
-          // lib.optionalAttrs devCfg.agents.enable { c = "claude"; }
+          # `c` is "the agent", not "claude" — it follows nebelhaus.agents.default
+          # so a Codex or Opencode machine doesn't alias a client it never installs.
+          // lib.optionalAttrs devCfg.agents.enable { c = agentDefault; }
           // lib.optionalAttrs devCfg.toolbelt.enable {
             cat = "bat --style=header,grid --tabs=2";
             ls = "lsd";
@@ -1141,6 +1150,21 @@ in
             "theme": "nebelung"
           }
         '';
+      }
+      // lib.optionalAttrs devCfg.agents.enable {
+        # Opencode's half of the agent-pane status the bar and the zellij tab-bar
+        # draw. Claude Code's equivalent is four hooks in ~/.claude/settings.json,
+        # which the USER wires (Claude owns that file and rewrites it, so the rice
+        # never has); opencode instead auto-loads every file under this directory,
+        # so the rice can own the whole wiring and a fresh machine gets working
+        # paws for opencode panes with nothing to configure.
+        # @AGENT_STATE@ → den's `agent-state` by absolute path: a plugin runs
+        # inside opencode's server process, which is given no PATH guarantees.
+        ".config/opencode/plugin/nebelhaus-agent-state.js".text =
+          builtins.replaceStrings [ "@AGENT_STATE@" ] [ "/run/current-system/sw/bin/agent-state" ]
+            (builtins.readFile ./opencode/agent-state.js);
+      }
+      // {
 
         # Helix nebelung theme, from the nebelung flake. This used to be a
         # hand-written [palette] block inheriting helix's BUILT-IN
@@ -1186,11 +1210,13 @@ in
         # copy_command / Run / layout), so render @HOME@ → the user's home.
         ".config/zellij/config.kdl".text =
           builtins.replaceStrings
-            [ "@HOME@" "@DEFAULT_MODE@" "@ZRELOAD@" ]
+            [ "@HOME@" "@DEFAULT_MODE@" "@ZRELOAD@" "@AGENT_NEW@" "@AGENT_HERE@" ]
             [
               config.home.homeDirectory
               (if hearthCfg.zellijStartLocked then "locked" else "normal")
               "${zellijReload}/bin/zreload"
+              agentNewRun
+              ''"${agentDefault}"''
             ]
             (builtins.readFile ./zellij/config.kdl);
         ".config/zellij/themes/nebelung.kdl".source = "${nebelungRoot}/zellij/themes/nebelung.kdl";

@@ -668,6 +668,71 @@ EOF
   [ "$output" = "$(printf '%s\n%s\n%s' -i "$image" "inspect this")" ]
 }
 
+# ── new (the client-agnostic ⌘C) ─────────────────────────────────────────────
+#
+# `wt new` is what Super c runs when the default client isn't Claude Code — the
+# only client that can make its own worktree. It must land the SAME checkout,
+# branch and registry row the create hook does, parented to the pane's cwd, and
+# then hand the pane over to the client. A shim client stands in for that exec.
+
+shim_agent() { # shim_agent <name> — a client that prints how it was invoked
+  cat >"$BIN/$1" <<EOF
+#!/usr/bin/env bash
+printf 'ran %s %s\n' "$1" "\$*"
+EOF
+  chmod +x "$BIN/$1"
+}
+
+@test "new: worktree of THIS repo, parented to the pane, then opens the client" {
+  local b dir; b="$(mkrepo beta)"
+  shim_agent opencode
+  cd "$b"
+  run bash "$WT" new notch-fix opencode
+  [ "$status" -eq 0 ]
+  dir="$CLAUDE_WT_BASE/beta/notch-fix"
+  [ -e "$dir/.git" ]
+  [ "$(git -C "$dir" branch --show-current)" = worktree-notch-fix ]
+  # Parent is the PANE's cwd (as the create hook records it), not the repo, and
+  # the row keeps the client so a later `wt notch-fix` reopens opencode.
+  [ "$(awk -F'\t' -v p="$dir" '$4==p{print $5}' "$REG")" = "$b" ]
+  [ "$(awk -F'\t' -v p="$dir" '$4==p{print $6}' "$REG")" = opencode ]
+  [[ "$output" == *"ran opencode"* ]]
+}
+
+@test "new: an unnamed spawn names itself, and a taken name takes a suffix" {
+  local b first second; b="$(mkrepo beta)"
+  shim_agent claude
+  cd "$b"
+  run bash "$WT" new
+  [ "$status" -eq 0 ]
+  first="$(awk -F'\t' 'NR==1{print $1}' "$REG")"
+  [ -n "$first" ]
+  run bash "$WT" new "$first"          # ask for the taken one on purpose
+  [ "$status" -eq 0 ]
+  second="$(awk -F'\t' -v n="$first" '$1!=n{print $1}' "$REG")"
+  [ "$second" = "$first-2" ]
+}
+
+@test "new: outside a repo it refuses rather than leaving a stray worktree" {
+  shim_agent claude
+  mkdir -p "$TMP/plain"
+  cd "$TMP/plain"
+  run bash "$WT" new
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"not inside a git repo"* ]]
+  [ "$(reg_rows)" -eq 0 ]
+}
+
+@test "new: an uninstalled client is named, and the checkout survives to resume" {
+  local b; b="$(mkrepo beta)"
+  cd "$b"
+  # No shim for codex on PATH: it's the client that is missing, not the worktree.
+  run bash "$WT" new stranded codex
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"codex is unavailable"* ]]
+  [ -e "$CLAUDE_WT_BASE/beta/stranded/.git" ]
+}
+
 @test "spawn: refuses a missing path, a non-repo, and a missing name" {
   local b; b="$(mkrepo beta)"
   run bash "$WT" spawn "$TMP/nope" x

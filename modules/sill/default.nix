@@ -86,8 +86,9 @@ let
   # They reference $SURFACE0 (from colors.sh) and $HOME, both live when
   # sketchybarrc sources this file.
   optionalPluginBlocks = {
-    # Agent-pane status. The refresh is push, not poll: agents-hook.sh invokes
-    # agents.sh directly on every Claude state change, so the pill updates even
+    # Agent-pane status, for whichever client the pane runs (Claude Code, Codex,
+    # Opencode). The refresh is push, not poll: agents-hook.sh invokes
+    # agents.sh directly on every agent state change, so the pill updates even
     # while hidden (a drawing=off item's own update_freq never ticks, and custom
     # --trigger events are delivered inconsistently across --reload — neither can
     # revive a hidden pill). update_freq is only a while-visible backstop to reap
@@ -111,12 +112,17 @@ let
               click_script="$HOME/.config/sketchybar/plugins/agents.sh" \
           --subscribe agents mouse.clicked system_woke
     '';
-    # Claude Code's own rate-limit gauges (5-hour session + 7-day weekly). Same
-    # push shape as `agents`, different writer: modules/den/statusline.sh stashes
-    # the percentages Claude Code already hands every statusline render, then
-    # invokes claude_usage.sh directly when one moves. update_freq is the
-    # while-visible backstop that rolls a window over to 0% at its reset even
-    # with no Claude pane open. Starts hidden until the first render reports.
+    # AI rate-limit gauges (5-hour session + 7-day weekly) and API spend, one row
+    # per reporting client. Two feed shapes, both ending in
+    # ~/.cache/claude-statusline/usage-*.tsv:
+    #   • pushed — modules/den/statusline.sh stashes the percentages Claude Code
+    #     hands every statusline render, then invokes ai_usage.sh when one moves.
+    #   • pulled — Codex (an account API call) and Opencode (a sqlite read) have
+    #     no client-side writer, so claude-statusline-refresh --usage-only fetches
+    #     them. The plugin kicks that itself on a TTL, which is what keeps this
+    #     pill honest on a machine that never opens Claude at all.
+    # update_freq is the while-visible backstop that rolls a window over to 0% at
+    # its reset. Starts hidden until the first row lands.
     aiUsage = ''
       sketchybar --add item ai_usage right \
           --set ai_usage \
@@ -134,6 +140,11 @@ let
               script="$HOME/.config/sketchybar/plugins/ai_usage.sh" \
               click_script="$HOME/.config/sketchybar/plugins/ai_usage.sh" \
           --subscribe ai_usage mouse.clicked system_woke
+      # One kick at bar start, backgrounded. The item is drawing=off until a first
+      # row exists and a hidden item's update_freq never ticks — so on a machine
+      # driving Codex or Opencode this is what pulls the first row and reveals the
+      # pill at all. After that the plugin's own TTL keeps the feeds warm.
+      ("$HOME/.config/sketchybar/plugins/ai_usage.sh" >/dev/null 2>&1 &)
     '';
     # System readouts. Each pill's colour comes from the --set here (the palette
     # vars are live via colors.sh, sourced by sketchybarrc before this file); the
