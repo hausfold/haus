@@ -825,11 +825,16 @@ cmd_list() {
   fi
 
   # Column widths: header labels set the floor, content grows them up to a cap so
-  # one pathological name can't swallow the row. state/chat hold fixed values.
-  local i rw=4 nw=4 sw=6 cw=4
+  # one pathological name can't swallow the row. state holds fixed values; the
+  # client column grows to its widest id (`opencode` is 8) — leaving it at the
+  # old chat column's 4 made every non-empty cell overflow its field, shoving
+  # `last commit` right by a ragged amount AND under-counting `used`, so the
+  # commit was trimmed to more room than the pane actually had.
+  local i rw=4 nw=4 sw=6 cw=5
   for i in "${!r_repo[@]}"; do
     [ "${#r_repo[$i]}" -gt "$rw" ] && rw=${#r_repo[$i]}
     [ "${#r_nm[$i]}"   -gt "$nw" ] && nw=${#r_nm[$i]}
+    [ "${#r_agent[$i]}" -gt "$cw" ] && cw=${#r_agent[$i]}
   done
   [ "$rw" -gt 16 ] && rw=16
   [ "$nw" -gt 28 ] && nw=28
