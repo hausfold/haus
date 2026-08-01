@@ -160,15 +160,24 @@ points back to when it feels several PRs together.
   end-user machine driver: rebuild/update/rollback/doctor/status — knows nothing of
   the family repos), **`awake.sh`** (launchd-owned timed/indefinite macOS
   caffeinate assertions; Sill's optional coffee pill is only its controller),
-  **`wt.sh`** (Claude Code agent worktrees for *any* repo; the
-  `WorktreeCreate`/`WorktreeRemove` hooks call it — `wt` lists, `wt <name>` resumes,
+  **`wt.sh`** (agent worktrees for *any* repo and any of the three clients —
+  Claude Code, Codex, OpenCode; Claude Code's `WorktreeCreate`/`WorktreeRemove`
+  hooks call it, and `wt new` is that same thing driven from the outside for the
+  clients with no such flag — `wt` lists, `wt <name>` resumes,
   `wt reap` sweeps landed ones, `wt child <repo>` makes a cross-repo child worktree,
   `wt spawn <repo> <name>` makes a *named* one for a caller with no pane of its own
   — the "Spawn Agent" palette command — parented to the repo instead of to a session,
   `wt park`/`wt unpark` set work aside as a `wip:` commit instead of `git stash`,
   whose stack is shared by every worktree of a repo),
-  **`zscratch.sh`** (above), and **`statusline.sh`** / `statusline-refresh.sh` (the
-  agent HUD, reading `wt`'s registry). They're plain bash embedded via
+  **`zscratch.sh`** (above), **`statusline.sh`** / `statusline-refresh.sh` (the
+  agent HUD, reading `wt`'s registry), and **`agent-state`** — the one writer of
+  agent-pane state behind sill's paw pill and the zellij tab badge. That last one
+  has no source file of its own here: den `readFile`s
+  `modules/sill/sketchybar/plugins/agents-hook.sh`, the same script sill installs
+  into the bar's plugin dir, so the PATH copy and the bar copy can never drift.
+  Every client's hooks call it (`agent-state <working|waiting|idle|remove>
+  <client>`) — which is why the wirings hearth writes for opencode and codex never
+  need to know where a bar keeps its plugins. They're plain bash embedded via
   `builtins.readFile`, so a rebuild re-installs them on `PATH`. `haus` and the
   workshop's `bench` are named apart on purpose so they never shadow each other —
   `haus` = your machine, `bench` = the family repos, `wt`/`zscratch` = dev tools the
