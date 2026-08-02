@@ -466,3 +466,160 @@ USAGE_BOTH='{"rate_limit":{"primary_window":{"used_percent":12,"limit_window_sec
   grep -qE 'usage|oauth' "$CURL_LOG" && fail "called out with no Codex login on the machine"
   [ ! -f "$CLAUDE_STATUSLINE_CACHE/usage-codex.tsv" ]
 }
+
+# ── the lifetime token counter ───────────────────────────────────────────────
+# The score in the aiUsage dropdown. Its whole design is an index that lets a
+# pass skip transcripts it has already read, so the tests that matter are about
+# what the index remembers, what it drops, and where the day boundary falls —
+# not about the arithmetic, which is one line.
+
+mkmsg() { # mkmsg <ts> <in> <out> <cacheWrite> <cacheRead> — one assistant record
+  printf '{"type":"assistant","timestamp":"%s","message":{"usage":{"input_tokens":%s,"cache_creation_input_tokens":%s,"cache_read_input_tokens":%s,"output_tokens":%s}}}\n' \
+    "$1" "$2" "$4" "$5" "$3"
+}
+
+mktranscript() { # mktranscript <name> [ts in out cw cr]... — a transcript file
+  local f="$HOME/.claude/projects/proj/$1.jsonl"; shift
+  mkdir -p "$(dirname "$f")"
+  : >"$f"
+  while [ "$#" -ge 5 ]; do
+    mkmsg "$1" "$2" "$3" "$4" "$5" >>"$f"
+    shift 5
+  done
+  printf '%s' "$f"
+}
+
+utc() { # utc <offset seconds from now> — the transcript timestamp format
+  local at=$(( $(date +%s) + $1 ))
+  date -u -r "$at" '+%Y-%m-%dT%H:%M:%S.000Z' 2>/dev/null \
+    || date -u -d "@$at" '+%Y-%m-%dT%H:%M:%S.000Z'
+}
+
+tok() { # tok <n> — one field of tokens-claude.tsv (1 day, 2 week, 3 month, 4 all)
+  awk -F'\t' -v c="$1" '{print $c}' "$CLAUDE_STATUSLINE_CACHE/tokens-claude.tsv" 2>/dev/null
+}
+
+thaw() { # let the next pass past the TTL without waiting a quarter of an hour
+  rm -f "$CLAUDE_STATUSLINE_CACHE/tokens-claude.tsv"
+}
+
+@test "tokens: all four counters are summed, across every transcript" {
+  # Cache READS are the bulk of the number and the reason it is fun. A version
+  # that counted only input+output would look plausible and be off by 100x.
+  mktranscript a "$(utc -60)" 1 2 4 8 >/dev/null
+  mktranscript b "$(utc -60)" 100 200 400 800 >/dev/null
+  refresh
+  [ "$status" -eq 0 ]
+  [ "$(tok 4)" = 1515 ]
+}
+
+@test "tokens: a transcript whose size has not moved is never re-read" {
+  # The entire point of the index. Proven by rewriting a file's CONTENT while
+  # holding its size: a pass that re-read it would see the new number.
+  local f; f="$(mktranscript a "$(utc -60)" 1 2 4 8)"
+  refresh
+  [ "$(tok 4)" = 15 ]
+
+  local size; size=$(wc -c <"$f")
+  mkmsg "$(utc -60)" 9 9 9 9 >"$f"
+  [ "$(wc -c <"$f")" -eq "$size" ] || skip "fixture sizes drifted; nothing to prove"
+  thaw; refresh
+  [ "$(tok 4)" = 15 ] || fail "re-read a transcript that had not grown"
+}
+
+@test "tokens: a transcript that grew is re-read whole, not double-counted" {
+  local f; f="$(mktranscript a "$(utc -60)" 1 2 4 8)"
+  refresh
+  [ "$(tok 4)" = 15 ]
+  mkmsg "$(utc -60)" 10 20 30 40 >>"$f"
+  thaw; refresh
+  [ "$(tok 4)" = 115 ]
+}
+
+@test "tokens: a deleted transcript takes its tokens with it" {
+  # Totals are re-summed from the index every pass rather than accumulated, so
+  # `claude` clearing out old projects walks the score back instead of leaving
+  # it stranded at a number nothing on disk supports.
+  mktranscript a "$(utc -60)" 1 2 4 8 >/dev/null
+  local b; b="$(mktranscript b "$(utc -60)" 100 200 400 800)"
+  refresh
+  [ "$(tok 4)" = 1515 ]
+  rm -f "$b"
+  thaw; refresh
+  [ "$(tok 4)" = 15 ]
+}
+
+@test "tokens: today counts today, and yesterday keeps out of it" {
+  # Today is bounded by LOCAL midnight even though the timestamps are UTC — the
+  # cutoff is converted once and compared as a string.
+  mktranscript old "$(utc -172800)" 1 2 4 8 >/dev/null
+  mktranscript new "$(utc 0)" 100 200 400 800 >/dev/null
+  refresh
+  [ "$(tok 4)" = 1515 ]
+  [ "$(tok 1)" = 1500 ]
+}
+
+@test "tokens: day, week and month each catch only what belongs to them" {
+  # 40 days back is outside every period on any calendar; now is inside all three.
+  mktranscript old "$(utc -3456000)" 1 2 4 8 >/dev/null
+  mktranscript new "$(utc 0)" 100 200 400 800 >/dev/null
+  refresh
+  [ "$(tok 1)" = 1500 ]
+  [ "$(tok 2)" = 1500 ]
+  [ "$(tok 3)" = 1500 ]
+  [ "$(tok 4)" = 1515 ]
+}
+
+@test "tokens: an idle transcript drops out of every period it has outlived" {
+  # The carry-forward hazard. An unchanged file contributes its remembered
+  # buckets for free, which is only correct while the periods they were banked
+  # in are still running.
+  mktranscript a "$(utc 0)" 100 200 400 800 >/dev/null
+  refresh
+  [ "$(tok 1)" = 1500 ]
+  [ "$(tok 2)" = 1500 ]
+  [ "$(tok 3)" = 1500 ]
+
+  # Re-date the index entry into the last century, exactly as the first pass of a
+  # new day — and week, and month — sees it.
+  local idx="$CLAUDE_STATUSLINE_CACHE/tokens-claude.index"
+  awk -F'\t' -v OFS='\t' '{ $4 = "1999-01-01"; print }' "$idx" >"$idx.aged"
+  mv "$idx.aged" "$idx"
+  thaw; refresh
+  [ "$(tok 1)" = 0 ] || fail "yesterday's tokens are still on today's scoreboard"
+  [ "$(tok 2)" = 0 ] || fail "last century is somehow still this week"
+  [ "$(tok 3)" = 0 ] || fail "last century is somehow still this month"
+  [ "$(tok 4)" = 1500 ]
+}
+
+@test "tokens: an index from an older rice is discarded, not read one column over" {
+  # The columns have grown once already. A short row must send its transcript
+  # back for a re-read rather than have its size land in the day bucket.
+  mktranscript a "$(utc 0)" 100 200 400 800 >/dev/null
+  refresh
+  [ "$(tok 4)" = 1500 ]
+
+  local idx="$CLAUDE_STATUSLINE_CACHE/tokens-claude.index"
+  cut -f1-5 "$idx" >"$idx.old"          # the shape this file had one rice ago
+  mv "$idx.old" "$idx"
+  thaw; refresh
+  [ "$(tok 4)" = 1500 ] || fail "misread a short index row instead of rescanning"
+  [ "$(tok 1)" = 1500 ]
+}
+
+@test "tokens: inside the TTL the score is left alone" {
+  mktranscript a "$(utc -60)" 1 2 4 8 >/dev/null
+  refresh
+  [ "$(tok 4)" = 15 ]
+  mktranscript b "$(utc -60)" 100 200 400 800 >/dev/null
+  refresh                                   # no thaw: still fresh
+  [ "$(tok 4)" = 15 ]
+}
+
+@test "tokens: no transcripts on the machine means no score file at all" {
+  # A machine that has never run Claude Code gets no row in the dropdown, rather
+  # than a proud zero.
+  refresh
+  [ "$status" -eq 0 ]
+  [ ! -f "$CLAUDE_STATUSLINE_CACHE/tokens-claude.tsv" ]
+}
