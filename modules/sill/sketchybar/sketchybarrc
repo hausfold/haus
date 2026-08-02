@@ -356,11 +356,15 @@ done
 fi
 
 # Media
+# updates=on for the same reason as battery: media.sh sets drawing=off when
+# nothing is playing, and a when_shown item that hid itself never gets its
+# media_change event delivered again.
 if ! sill_hidden media; then
 sketchybar --add item media right \
     --set media \
         icon= \
         icon.color=$PINK \
+        updates=on \
         background.color=$SURFACE0 \
         background.padding_left=8 \
         background.padding_right=8 \
@@ -371,12 +375,19 @@ sketchybar --add item media right \
 fi
 
 # Battery
+# updates=on is load-bearing: battery.sh hides the pill itself (drawing=off) when
+# charge is above nebelhaus.sill.battery.hideOver. Under the default
+# updates=when_shown a hidden item stops running its script entirely — no
+# update_freq tick, no subscribed event — so the pill could never notice the
+# charge had dropped back under the threshold and would stay gone until a
+# `sketchybar --reload`. Same reason as bar_position below.
 if ! sill_hidden battery; then
 sketchybar --add item battery right \
     --set battery \
         icon.color=$GREEN \
-        background.color=$SURFACE0 \
         update_freq=30 \
+        updates=on \
+        background.color=$SURFACE0 \
         script="$HOME/.config/sketchybar/plugins/battery.sh" \
         click_script="open -a 'System Settings' 'x-apple.systempreferences:com.apple.preference.battery'" \
     --subscribe battery system_woke power_source_change
