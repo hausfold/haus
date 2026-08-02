@@ -22,10 +22,47 @@ let
 
   apps = config.nebelhaus._apps;
 
+  # ---- type sizes: ui.scale, up to the menu bar's own ceiling -----------------
+  #
+  # The bar is the one rice surface that CANNOT grow proportionally, and the
+  # reason is macOS's, not ours. sketchybarrc pins the bar at 36pt with 28pt
+  # pills because the native menu bar auto-reveals on hover even while hidden and
+  # is only 32pt tall on a notched display; den forces that reveal opaque
+  # (SLSMenuBarUseBlurredAppearance) so it covers us exactly, which only works
+  # while the pills stay inside the band. Measured on a notched MacBook: safe-area
+  # inset 32pt, NSStatusBar thickness 22pt, menu-bar font 13pt — all system-fixed,
+  # none of them a preference. macOS has no menu-bar-size setting at all; the only
+  # lever is the display's scaled resolution (nebelhaus.displays), which changes
+  # what a point MEANS rather than how many of them the bar gets.
+  #
+  # So the bar height and pill height do not scale — the TYPE INSIDE them does,
+  # up to the largest that still sits in a 28pt pill, and then it stops. 1.25 puts
+  # the tallest glyph (the 17pt icon font) at 21pt, keeping ~3.5pt of clearance
+  # top and bottom. Past that a rice just gets the ceiling, silently: a bar that
+  # quietly stops growing is better than one whose pills clip against a band it
+  # doesn't control.
+  barScaleCeiling = 1.25;
+  barScale = lib.min barScaleCeiling (lib.max 0.8 config.nebelhaus.ui.scale);
+  # Point sizes are rounded to a whole point and rendered with the `.0` sketchybar
+  # writes everywhere, so a generated size is indistinguishable from a tuned one.
+  fs = base: "${toString (builtins.floor (base * barScale + 0.5))}.0";
+  # The named sizes, by role. Sourced as $FS_* by sketchybarrc and the plugins;
+  # interpolated directly into the item blocks generated below, which are Nix
+  # strings and have no shell to read a variable from.
+  fsIcon = fs 17; # bar icons, workspace letters, the leader arrow
+  fsLabel = fs 14; # the default pill label
+  fsSmall = fs 13; # tighter labels (harvest, tour, popup rows)
+  fsTiny = fs 12; # the popup's italic note
+  fsAppIcon = fs 16; # sketchybar-app-font glyphs (workspace app logos)
+
   bashArray = xs: lib.concatMapStringsSep " " (x: ''"${x}"'') xs;
   appWorkspaces = lib.filter (w: w != null) (map (a: a.workspace) apps);
   iconFont =
-    icon: if lib.hasPrefix ":" icon then "sketchybar-app-font:Regular:16.0" else "Hack Nerd Font:Bold:17.0";
+    icon:
+    if lib.hasPrefix ":" icon then
+      "sketchybar-app-font:Regular:${fsAppIcon}"
+    else
+      "Hack Nerd Font:Bold:${fsIcon}";
   wsIconCases = lib.concatMapStrings (
     a:
     lib.optionalString (
@@ -58,7 +95,7 @@ let
     # letter in the bar's Nerd Font; app-workspaces override to their logo glyph.
     ws_icon() {
       ICON="$1"
-      IFONT="Hack Nerd Font:Bold:17.0"
+      IFONT="Hack Nerd Font:Bold:${fsIcon}"
       case "$1" in
     ${wsIconCases}  esac
     }
@@ -102,7 +139,7 @@ let
               icon.padding_left=10 \
               icon.padding_right=4 \
               label.padding_right=10 \
-              label.font="Hack Nerd Font:Bold:14.0" \
+              label.font="Hack Nerd Font:Bold:${fsLabel}" \
               popup.background.border_width=2 \
               popup.background.corner_radius=10 \
               popup.background.border_color=$SURFACE0 \
@@ -131,7 +168,7 @@ let
               icon.padding_left=10 \
               icon.padding_right=4 \
               label.padding_right=10 \
-              label.font="Hack Nerd Font:Bold:14.0" \
+              label.font="Hack Nerd Font:Bold:${fsLabel}" \
               popup.background.border_width=2 \
               popup.background.corner_radius=10 \
               popup.background.border_color=$SURFACE0 \
@@ -219,7 +256,7 @@ let
               icon.padding_left=10 \
               icon.padding_right=10 \
               label.padding_right=10 \
-              label.font="Hack Nerd Font:Bold:13.0" \
+              label.font="Hack Nerd Font:Bold:${fsSmall}" \
               background.color=$SURFACE0 \
               popup.background.border_width=2 \
               popup.background.corner_radius=10 \
@@ -382,7 +419,7 @@ let
             icon.padding_left=10 \
             icon.padding_right=4 \
             label.padding_right=10 \
-            label.font="Hack Nerd Font:Bold:13.0" \
+            label.font="Hack Nerd Font:Bold:${fsSmall}" \
             background.color=$MANTLE \
             click_script="$HOME/.config/sketchybar/plugins/tour.sh click"
     sketchybar --move tour after clock
@@ -534,6 +571,28 @@ lib.mkIf config.nebelhaus.sill.enable {
       # single-sourced from the nebelung input — sketchybarrc and every plugin
       # `source` this instead of hardcoding Catppuccin hexes. Var names are the
       # UPPER-cased palette keys (BASE, SURFACE0, MAUVE, …).
+      # Type sizes, resolved from nebelhaus.ui.scale against the menu bar's own
+      # ceiling (see barScale at the top of this file). Sourced by sketchybarrc
+      # and by the plugins that set a font, exactly like colors.sh — so the bar's
+      # sizes are single-sourced the same way its colours are, and neither the rc
+      # nor a plugin carries a tuned number of its own.
+      sizesSh = ''
+        #!/bin/bash
+        # GENERATED from nebelhaus.ui.scale by modules/sill/default.nix — do not
+        # edit by hand.
+        #
+        # The bar's HEIGHT never scales: 36pt of bar with 28pt pills is what keeps
+        # the pills inside the 32pt menu-bar band the hidden bar's hover-reveal
+        # covers. Only the type inside the pills follows ui.scale, and only up to
+        # the largest that still fits one. See the comment on barScale.
+        SILL_SCALE="${toString barScale}"
+        FS_ICON="${fsIcon}"
+        FS_LABEL="${fsLabel}"
+        FS_SMALL="${fsSmall}"
+        FS_TINY="${fsTiny}"
+        FS_APP_ICON="${fsAppIcon}"
+      '';
+
       colorsSh = ''
         #!/bin/bash
         # GENERATED from the `nebelung` flake input (nebelungPalette). Do not edit
@@ -548,6 +607,7 @@ lib.mkIf config.nebelhaus.sill.enable {
     {
       home.file = {
         ".config/sketchybar/colors.sh".text = colorsSh;
+        ".config/sketchybar/sizes.sh".text = sizesSh;
         ".config/sketchybar/workspaces.sh".text = workspacesSh;
         ".config/sketchybar/optional_items.sh".text = optionalItemsSh;
         ".config/sketchybar/hidden_items.sh".text = hiddenItemsSh;

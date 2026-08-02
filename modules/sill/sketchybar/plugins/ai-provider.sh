@@ -14,14 +14,18 @@
 #     second argument is simply empty and the generic mark is right.
 #
 #   provider_style <provider> [model-or-provider-id] [nerd-font-size]
+#
+# The size is the caller's, because the same table is drawn at pill size in the
+# bar and one step down in a popup row. Callers pass $FS_LABEL / $FS_SMALL
+# (sizes.sh) rather than a number, so both follow nebelhaus.ui.scale.
 #     → sets P_ICON, P_FONT, P_NAME
 #
 # The sketchybar-app-font glyphs (:claude:, :openai:) are monochrome and take
 # icon.color like any other, so the caller stays free to paint them by state.
 
 provider_style() {
-  local prov="${1:-}" model="${2:-}" size="${3:-14.0}"
-  local appfont="sketchybar-app-font:Regular:16.0"
+  local prov="${1:-}" model="${2:-}" size="${3:-${FS_LABEL:-14.0}}"
+  local appfont="sketchybar-app-font:Regular:${FS_APP_ICON:-16.0}"
   local nerd="Hack Nerd Font:Bold:$size"
   case "$prov" in
     claude)
