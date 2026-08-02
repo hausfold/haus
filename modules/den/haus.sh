@@ -4,7 +4,7 @@
 # PATH). It drives your OWN machine only — it knows nothing about the workshop
 # family repos or agent worktrees (that's the workshop's developer CLI, `bench`).
 #
-#   haus rebuild        build + switch this machine from your config (the usual day)
+#   haus rebuild        build + switch this machine from your config  (-v for raw output) (the usual day)
 #   haus update         pull the latest rice + nebelhaus apps, then rebuild
 #   haus rollback [N]    go back a generation (or to generation N)
 #   haus generations     list the generations you can roll back to
@@ -35,11 +35,132 @@ info() { printf '  \033[38;5;103mⓘ\033[0m %s\n' "$*"; }
 
 SYSPROFILES=/nix/var/nix/profiles
 
+# ---- the rebuild front end --------------------------------------------------
+# A rebuild's own tools narrate ~100 lines, and ~95 of them are identical every
+# single time: nix-darwin's activate script alone echoes 62 (18 of which are one
+# `reloading service <x>` per launchd job), and home-manager adds ~39 more. None
+# of it is ours to delete — it comes out of upstream's scripts — but it IS ours
+# to fold. So the phases whose output we hide are the phases we log, and the
+# summary is rendered from that log.
+#
+# The rule, so nothing important can go missing: we only hide what we WRITE
+# DOWN, we hide nothing on failure, and anything that isn't a human watching a
+# terminal (an agent pane, CI, a pipe) gets the raw stream instead.
+HAUS_LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/nebelhaus"
+HAUS_LOG="$HAUS_LOG_DIR/rebuild.log"
+
+# Verbose = raw, unsummarised, exactly what the old haus printed. Deliberately
+# NOT "quiet output plus filtering": a filter that drops a line you didn't
+# expect is how a warning disappears, so verbose is a passthrough, full stop.
+VERBOSE="${HAUS_VERBOSE:-}"
+[ -t 1 ] || VERBOSE=1
+
+phase_start() { [ -n "$VERBOSE" ] || printf '  \033[38;5;103m·\033[0m %-9s ' "$1"; }
+phase_ok()    { printf '\r  \033[38;5;108m✓\033[0m %-9s %6s  \033[38;5;103m%s\033[0m\n' "$1" "$2" "${3:-}"; }
+phase_bad()   { printf '\r  \033[38;5;167m✗\033[0m %-9s %6s\n' "$1" "$2"; }
+secs()        { printf '%d.%01ds' $(( $1 / 10 )) $(( $1 % 10 )); }
+# Deciseconds, from bash's own clock. NOT `date +%s%N`: that's a GNU extension,
+# and BSD date prints a literal "N" — which only shows up as broken arithmetic
+# on the one platform this script is FOR. The character class covers locales
+# where $EPOCHREALTIME's separator is a comma.
+now_ds() {
+  local t="${EPOCHREALTIME:-}"
+  [ -n "$t" ] || { echo $(( SECONDS * 10 )); return; }
+  t="${t//[.,]/}"
+  echo $(( 10#${t:0:11} ))
+}
+
+# Run one phase. Quiet mode appends everything to the log and shows a single
+# line; verbose mode streams. On failure BOTH modes show the tail of what the
+# phase actually said, plus where the whole thing was written.
+# One log per rebuild, previous one kept. Fresh each time so "the log" always
+# means this rebuild, and so the byte offsets run_phase slices by stay cheap.
+log_open() {
+  mkdir -p "$HAUS_LOG_DIR"
+  [ -f "$HAUS_LOG" ] && mv -f "$HAUS_LOG" "$HAUS_LOG.prev" 2>/dev/null
+  printf '=== %s · %s ===\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >"$HAUS_LOG"
+}
+
+HAUS_PHASE_SLICE=""   # this phase's own log slice, for the summary line
+run_phase() {
+  local label="$1"; shift
+  local t0 rc=0 off=0
+  mkdir -p "$HAUS_LOG_DIR"
+  : >>"$HAUS_LOG"
+  off="$(wc -c <"$HAUS_LOG" | tr -d ' ')"
+  t0="$(now_ds)"
+  phase_start "$label"
+  if [ -n "$VERBOSE" ]; then
+    "$@" 2>&1 | tee -a "$HAUS_LOG"
+    rc="${PIPESTATUS[0]}"
+  else
+    "$@" >>"$HAUS_LOG" 2>&1 || rc=$?
+  fi
+  HAUS_PHASE_ELAPSED="$(secs $(( $(now_ds) - t0 )) )"
+  HAUS_PHASE_SLICE="$(tail -c "+$((off + 1))" "$HAUS_LOG")"
+  if [ "$rc" -ne 0 ]; then
+    phase_bad "$label" "$HAUS_PHASE_ELAPSED"
+    [ -n "$VERBOSE" ] || printf '%s\n' "$HAUS_PHASE_SLICE" | tail -n 25 | sed 's/^/      /'
+    warn "full log: $HAUS_LOG"
+  fi
+  return "$rc"
+}
+
+# What actually happened during activation, from the lines we just hid.
+activation_summary() {
+  local services brewline=""
+  services="$(printf '%s\n' "$HAUS_PHASE_SLICE" | grep -cE '^(reloading|creating) (user )?service ' || true)"
+  if printf '%s\n' "$HAUS_PHASE_SLICE" | grep -qE '^(Installing|Upgrading|Uninstalling) '; then
+    brewline=" · homebrew changed"
+  elif printf '%s\n' "$HAUS_PHASE_SLICE" | grep -q 'Homebrew bundle'; then
+    brewline=" · homebrew ok"
+  fi
+  printf '%s service%s%s' "$services" "$([ "$services" = 1 ] || echo s)" "$brewline"
+}
+
+# ---- doing two things at once -----------------------------------------------
+# A rebuild is two independent pipelines that we ran back to back for no reason:
+# nix (evaluate, substitute, build) and Homebrew (update taps, download casks).
+# They share no state — different caches, different stores — so the brew half
+# belongs alongside the build, not after it.
+#
+# The one ordering that IS load-bearing: activation runs `brew bundle` itself,
+# and two brew processes fight over the same lock, so every brew job must be
+# joined BEFORE we activate. Hence one registry and one `bg_wait` at the gate.
+BG_PIDS=()
+bg() { ( "$@" ) >>"$HAUS_LOG" 2>&1 & BG_PIDS+=("$!"); }
+bg_wait() {
+  local pid rc=0
+  for pid in ${BG_PIDS[@]+"${BG_PIDS[@]}"}; do wait "$pid" || rc=1; done
+  BG_PIDS=()
+  return "$rc"
+}
+
+# Download (don't install) whatever activation is about to upgrade, while the
+# nix build runs. `brew fetch` only fills brew's download cache — it touches no
+# installed app — so this keeps haus's promise that a FAILED BUILD CHANGES
+# NOTHING, while moving the part that actually takes minutes (a 200 MB Chrome
+# or Zen update) off the critical path. Worst case on a failed build: a cached
+# download nobody asked for yet.
+#
+# Gated on the running system's activate script, because a host with
+# `nebelhaus.homebrew.upgrade = false` will never install what we'd fetch:
+# nix-darwin passes `--no-upgrade` to `brew bundle` exactly then.
+brew_prefetch() {
+  command -v brew >/dev/null 2>&1 || return 0
+  grep -q 'brew bundle .*--no-upgrade' /run/current-system/activate 2>/dev/null && return 0
+  local outdated
+  outdated="$(brew outdated --cask --quiet 2>/dev/null || true)"
+  [ -n "$outdated" ] || return 0
+  # shellcheck disable=SC2086
+  brew fetch --cask $outdated || true
+}
+
 usage() {
   cat <<'EOF'
 haus — the everyday CLI for a nebelhaus machine.
 
-  haus rebuild        build + switch this machine from your config
+  haus rebuild        build + switch this machine from your config  (-v for raw output)
   haus update         pull the latest rice + nebelhaus apps, then rebuild
   haus rollback [N]   go back a generation (or to generation N)
   haus generations    list the generations you can roll back to
@@ -179,14 +300,56 @@ EOF
   exit 1
 }
 
+# Evaluate only — the .drv, not the build. Split from the build so the build's
+# stderr can stay a terminal (see cmd_rebuild), and so evaluation's warnings are
+# said once, into the log, instead of on your screen: nixpkgs' nixosOptionsDoc
+# trips a `builtins.derivation … without a proper context` warning on every eval
+# of any config that installs the agent skill, and it is not ours to fix.
+resolve_drv() { ( cd "$CONSUMER" && nix eval --raw ".#darwinConfigurations.$1.system.drvPath" >"$2" ); }
+
+closure_diff() { nix store diff-closures "$1" "$2" >"$3" 2>/dev/null || true; }
+
+# The pre-haus-activate route, kept whole for the one rebuild that needs it.
+legacy_switch() { ( cd "$CONSUMER" && sudo /run/current-system/sw/bin/darwin-rebuild switch --flake ".#$1" ); }
+
 cmd_rebuild() {
-  local host; host="$(host_name)"
+  local host drv sys old gen_before drvfile outfile difffile bt0
+  host="$(host_name)"
   guard_agent_rebuild "$host"
-  say "building $host from $CONSUMER …"
-  # Build first, switch second: a failed build never touches a running system.
-  ( cd "$CONSUMER" && heal nix build ".#darwinConfigurations.$host.system" ) \
+
+  old="$(cd /run/current-system 2>/dev/null && pwd -P || true)"
+  gen_before="$(current_gen || echo '?')"
+  drvfile="$(mktemp)"; outfile="$(mktemp)"; difffile="$(mktemp)"
+  log_open "rebuild $host from $CONSUMER"
+
+  say "$host · rebuild"
+  [ -n "$VERBOSE" ] || echo
+
+  run_phase resolve heal resolve_drv "$host" "$drvfile" \
+    || die "evaluation failed — nothing was changed."
+  drv="$(cat "$drvfile")"; rm -f "$drvfile"
+  phase_ok resolve "$HAUS_PHASE_ELAPSED"
+
+  # Homebrew's half of the rebuild, alongside nix's rather than after it. Joined
+  # at bg_wait below, before anything activates.
+  bg "${BREW_JOB:-brew_prefetch}"
+
+  # Build. Deliberately neither hidden nor logged: nix draws its progress bar
+  # only when stderr is a terminal, and a rebuild with gigabytes to fetch should
+  # be able to say so. We only hide what we write down — this is the one phase
+  # that narrates itself, so it keeps the terminal.
+  bt0="$(now_ds)"
+  ( cd "$CONSUMER" && nix build --print-out-paths --out-link "$CONSUMER/result" "$drv^*" ) >"$outfile" \
     || die "build failed — nothing was changed."
-  say "switching …"
+  sys="$(cat "$outfile")"; rm -f "$outfile"
+  phase_ok build "$(secs $(( $(now_ds) - bt0 )) )"
+
+  # The one thing a rebuild never used to tell you: what actually changed.
+  # Backgrounded so it costs nothing — it reads the OLD system, which is still
+  # current until the activation below swaps it.
+  [ -n "$old" ] && bg closure_diff "$old" "$sys" "$difffile"
+  bg_wait || warn "a background job failed — see $HAUS_LOG (continuing)"
+
   # Activate exactly what we just built. The old route here was
   # `darwin-rebuild switch --flake`, which BUILDS again as root — a second
   # evaluation against root's separate caches, costing ~3 s after a host edit
@@ -198,14 +361,41 @@ cmd_rebuild() {
   # Both paths go through a stable /run/current-system path, never ./result or
   # a store path: collar's passwordless-sudo rule matches the literal path,
   # because sudo no longer follows the command symlink.
+  #
+  # Quiet mode redirects this phase's stdout+stderr, which is safe for the one
+  # thing that must never be swallowed here: sudo writes its password prompt to
+  # /dev/tty, not to either stream (and where there's no tty, VERBOSE is already
+  # on). A Touch ID prompt is a GUI dialog, so it's unaffected either way.
   if [ -x /run/current-system/sw/bin/haus-activate ]; then
-    sudo /run/current-system/sw/bin/haus-activate "$CONSUMER/result"
+    run_phase activate sudo /run/current-system/sw/bin/haus-activate "$CONSUMER/result"
   else
     # The running system predates haus-activate — take the old, slower route
     # once; the switch it performs is what installs the fast one.
-    ( cd "$CONSUMER" && heal sudo /run/current-system/sw/bin/darwin-rebuild switch --flake ".#$host" )
+    run_phase activate heal legacy_switch "$host"
+  fi || die "activation failed partway — generation $gen_before is still on disk (haus rollback), and the log above says where it stopped."
+  phase_ok activate "$HAUS_PHASE_ELAPSED" "$(activation_summary)"
+
+  # Generation + closure diff: the two lines that are actually about YOUR
+  # machine rather than about the tools that rebuilt it.
+  if [ -n "$VERBOSE" ]; then
+    say "the house stands."
+  else
+    local gen_after changed n
+    gen_after="$(current_gen || echo '?')"
+    printf '  \033[38;5;108m✓\033[0m %-9s %6s  \033[38;5;103m%s\033[0m\n' generation '' \
+      "$([ "$gen_before" = "$gen_after" ] && echo "$gen_after (unchanged)" || echo "$gen_before → $gen_after")"
+    n="$(wc -l <"$difffile" 2>/dev/null | tr -d ' ')"; n="${n:-0}"
+    echo
+    if [ "$n" = "0" ]; then
+      info "nothing changed in the closure"
+    else
+      changed="$(sed 's/^ *//' "$difffile" | head -3 | paste -sd', ' -)"
+      [ "$n" -gt 3 ] && changed="$changed, +$((n - 3)) more"
+      info "$changed"
+    fi
+    say "the house stands."
   fi
-  say "the house stands."
+  rm -f "$difffile"
 }
 
 # Family apps (trill, pounce…) ship as CI-published casks/formulae in
@@ -219,7 +409,6 @@ refresh_family_apps() {
   command -v brew >/dev/null 2>&1 || return 0
   local tap; tap="$(brew --repository 2>/dev/null)/Library/Taps/nebelhaus/homebrew-tap"
   [ -d "$tap" ] || return 0
-  say "refreshing nebelhaus apps (trill, pounce …) …"
   brew update --quiet >/dev/null 2>&1 || warn "brew update failed — family apps may be stale"
   local kind dir f name
   for kind in Casks Formula; do
@@ -238,8 +427,23 @@ refresh_family_apps() {
   done
 }
 
+# The changelog fetch and the family-app refresh, so cmd_update can start them
+# and walk away. Both are network-bound and neither gates the build.
+fetch_changelog() { # <owner> <repo> <old> <new> <outfile>
+  curl -fsSL --max-time 5 \
+    -H 'accept: application/vnd.github+json' \
+    "https://api.github.com/repos/$1/$2/compare/$3...$4" 2>/dev/null \
+    | jq -r '.commits[]?.commit.message | split("\n")[0]' 2>/dev/null | head -15 >"$5" || true
+}
+
+# The whole brew half of an update, as ONE job — family apps first, then a
+# prefetch of whatever else activation will upgrade. One job and not two
+# because brew takes a global lock: two of these in parallel would serialise
+# anyway, badly, on a lock timeout rather than on the work.
+update_brew_job() { refresh_family_apps; brew_prefetch; }
+
 cmd_update() {
-  local old new owner repo subjects
+  local old new owner repo logfile
   old="$(jq -r '.nodes.nebelhaus.locked.rev // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
   say "pulling the latest nebelhaus rice …"
   ( cd "$CONSUMER" && heal nix flake update nebelhaus )
@@ -247,21 +451,26 @@ cmd_update() {
   if [ -n "$old" ] && [ "$old" = "$new" ]; then
     say "already at the latest rice (${new:0:12}) — rebuilding anyway."
   elif [ -n "$old" ] && [ -n "$new" ]; then
-    # Show what's about to land. Best-effort via the GitHub compare API —
-    # offline, rate-limited, or non-GitHub upstreams just skip the list.
+    # What's about to land. Best-effort via the GitHub compare API — offline,
+    # rate-limited, or non-GitHub upstreams just skip the list. Fetched in the
+    # background: it's a 5-second timeout on a network you may not have, and
+    # nothing downstream waits on it.
     owner="$(jq -r '.nodes.nebelhaus.original.owner // "nebelhaus"' "$CONSUMER/flake.lock")"
     repo="$(jq -r '.nodes.nebelhaus.original.repo // "nebelhaus"' "$CONSUMER/flake.lock")"
-    subjects="$(curl -fsSL --max-time 5 \
-      -H 'accept: application/vnd.github+json' \
-      "https://api.github.com/repos/$owner/$repo/compare/$old...$new" 2>/dev/null \
-      | jq -r '.commits[]?.commit.message | split("\n")[0]' 2>/dev/null | head -15 || true)"
-    if [ -n "$subjects" ]; then
-      say "new in the rice (${old:0:7} → ${new:0:7}):"
-      printf '%s\n' "$subjects" | sed 's/^/  · /'
-    fi
+    logfile="$(mktemp)"
+    bg fetch_changelog "$owner" "$repo" "$old" "$new" "$logfile"
   fi
-  refresh_family_apps
+  # The rebuild's own bg_wait joins this before anything activates.
+  BREW_JOB=update_brew_job
   cmd_rebuild
+  if [ -n "${logfile:-}" ]; then
+    if [ -s "$logfile" ]; then
+      echo
+      say "new in the rice (${old:0:7} → ${new:0:7}):"
+      sed 's/^/  · /' "$logfile"
+    fi
+    rm -f "$logfile"
+  fi
 }
 
 cmd_rollback() {
@@ -556,6 +765,16 @@ cmd_tour() {
     *)     die "unknown tour subcommand '$1' — try: haus tour [start|reset]" ;;
   esac
 }
+
+# -v anywhere turns the summary back into the raw stream (same as HAUS_VERBOSE=1).
+HAUS_ARGS=()
+for a in "$@"; do
+  case "$a" in
+    -v|--verbose) VERBOSE=1 ;;
+    *)            HAUS_ARGS+=("$a") ;;
+  esac
+done
+set -- ${HAUS_ARGS[@]+"${HAUS_ARGS[@]}"}
 
 case "${1:-status}" in
   rebuild)     cmd_rebuild ;;
