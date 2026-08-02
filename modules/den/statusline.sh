@@ -5,8 +5,8 @@
 #          muted ● when clean) + its own PR number (left of the name, colored by
 #          PR state, same as the children) + worktree name, then flush right:
 #          rice-nag (⇡N — commits your pinned nebelhaus is behind, `haus update`)
-#          · ctx% · cost · permission-mode icon (⏸ plan, ⏵⏵ auto/accept/bypass, ⊘
-#          dontAsk) · model glyph (✦ Fable/Mythos) — read from the transcript tail.
+#          · ctx% · cost · permission-mode icon (blank auto, ⏵ default, ⏵⏵ accept,
+#          ⏵⏵⏵ bypass, ⏸ plan, ⊘ dontAsk) · model tier chip (O5 / S5 / H45 / F5).
 # Row 2+ : the worktrees THIS session spawned (its direct children via ⌘C /
 #          `claude --worktree`), across whatever repos they live in — each as
 #          repo, PR number (left of the name, colored by PR state), name, and
@@ -172,31 +172,76 @@ if [ -n "$lim5" ]; then
   fi
 fi
 
-# Permission mode: NOT in the statusline stdin, but Claude Code appends a
-# {"type":"permission-mode","permissionMode":"…"} record to the transcript on
-# every mode change (and stamps user records too), and re-runs the statusline
-# when the mode flips — so the last occurrence in the transcript tail IS the
-# live mode, no hook or stash file needed. 64KB of tail keeps this O(1).
+# Permission mode. Read from the transcript tail because there is NO other
+# source: it is absent from the statusline stdin payload (see the schema at
+# code.claude.com/docs/en/statusline — cwd/model/cost/context_window/fast_mode/
+# effort/vim/pr/worktree, no permission mode), and NO hook event fires on a mode
+# flip either (ConfigChange is settings-FILE changes only; PreToolUse & friends
+# carry `permission_mode` but only fire inside a turn).
+#
+# THE LIMITATION, because it looks like a bug otherwise: Claude Code writes the
+# {"type":"permission-mode","permissionMode":"…"} record at TURN BOUNDARIES, not
+# on every flip. Cycling shift+tab between turns writes nothing — so the icon
+# shows the mode as of your LAST SUBMITTED TURN and will sit still while you
+# cycle. (Verified: a session that shift+tab'd into plan mode and back logged 10
+# consecutive "auto" records ~35KB apart, one per turn, and no "plan" at all.)
+# Claude Code does re-run this script on a mode change; the input is what's
+# stale, so no amount of re-running fixes it. That's fine for what this chip is
+# actually for — catching a mode that CHANGED UNDER YOU (switching to a model
+# with no auto mode drops you to `default`), which persists across turns and so
+# lights up on the very next one. Don't "fix" it by adding a hook; there isn't
+# one. 64KB of tail keeps this O(1); `permissionMode` is stamped on user records
+# too, so the window almost always holds one.
 mode=""
 [ -n "$transcript" ] && [ -f "$transcript" ] &&
   mode=$(tail -c 65536 "$transcript" 2>/dev/null |
     grep -o '"permissionMode": *"[a-zA-Z]*"' | tail -1 | grep -o '[a-zA-Z]*"$')
 mode=${mode%\"}
 
-# Model tier indicator: a ✦ ONLY when the session runs a Mythos-class model
-# (fable/mythos in model.id), nothing otherwise — a pure "special model" flag,
-# blank at the baseline like the mode icon. ANSI magenta — slot 5, not a fixed
-# 256 index — so it renders through the terminal theme (nebelung maps it to pink
-# #f2c4e5). It rides the RIGHT-edge tail group (ctx% · cost · mode), NOT the
-# row-1 bullet: model is per-SESSION (each ⌘C pane is its own session; --model /
-# mid-session /model switches), a per-pane constant that pairs naturally with
-# the other per-pane chips — and it frees the bullet to carry the worktree's git
-# status. Per-pane by design: any global surface (a rewritten custom-theme file)
-# would lie in a mixed-model fleet. Tried, reverted.
+# Model tier chip: a 2–3 char family+version tag for EVERY model — O5, S5, H45,
+# F5 — not the old ✦-only-for-Fable flag. The flag was blank at the baseline like
+# the mode icon, which was exactly wrong here: the common way to lose auto mode
+# is switching to a model that has none, and a blank chip couldn't tell you a
+# switch had happened. The mode icon says WHAT changed; this says WHY.
+#
+# Letter carries the meaning, never colour alone — dim for the everyday tiers,
+# magenta for Fable/Mythos so the special model still announces itself. Magenta
+# is ANSI slot 5, not a fixed 256 index, so it renders through the terminal theme
+# (nebelung maps it to pink #f2c4e5).
+#
+# The version is the digit run right after the family, plus one more `-N` group
+# if present: opus-5 → O5, haiku-4-5-20251001 → H45 (the date suffix is not a
+# third group, so it's dropped). A `[1m]` context-variant suffix is ignored — the
+# ctx% chip beside it already shows how much room is left. An id that puts the
+# version BEFORE the family (old claude-3-5-sonnet-… form) yields the bare
+# letter, which is still more than the old flag gave.
+#
+# Rides the RIGHT-edge tail group (ctx% · cost · mode), NOT the row-1 bullet:
+# model is per-SESSION (each ⌘C pane is its own session; --model / mid-session
+# /model switches), a per-pane constant that pairs naturally with the other
+# per-pane chips — and it frees the bullet to carry the worktree's git status.
+# Per-pane by design: any global surface (a rewritten custom-theme file) would
+# lie in a mixed-model fleet. Tried, reverted.
 MODEL=""
-case "$(j '.model.id')" in
-  *fable*|*mythos*) MODEL=$'\033[35m'"✦${R}";;
+model_id="$(j '.model.id')"
+case "$model_id" in
+  *fable*)  mletter=F; mcolor=$'\033[35m';;
+  *mythos*) mletter=M; mcolor=$'\033[35m';;
+  *opus*)   mletter=O; mcolor="$DIM";;
+  *sonnet*) mletter=S; mcolor="$DIM";;
+  *haiku*)  mletter=H; mcolor="$DIM";;
+  *)        mletter="";  mcolor="$DIM";;
 esac
+if [ -n "$mletter" ]; then
+  mver=""
+  # {1,2} + the trailing non-digit/end anchor is what stops a DATE suffix being
+  # read as a version: `claude-3-5-sonnet-20241022` has no 1–2 digit run after
+  # the family that ends cleanly, so it matches nothing and the chip stays "S".
+  # Without the anchor it rendered "S20241022" and blew the tail-group budget.
+  [[ "$model_id" =~ (fable|mythos|opus|sonnet|haiku)-([0-9]{1,2})(-([0-9]{1,2}))?([^0-9]|$) ]] &&
+    mver="${BASH_REMATCH[2]}${BASH_REMATCH[4]}"
+  MODEL="${mcolor}${mletter}${mver}${R}"
+fi
 
 g() { git -C "$cwd" --no-optional-locks "$@" 2>/dev/null; }
 branch=$(g branch --show-current)
@@ -284,17 +329,32 @@ if [ -f "$PANEL" ]; then
   [ -n "$prcluster" ] && row1="$prcluster $row1"
 fi
 
-# Mode icon: Claude Code's own glyph language (⏸ plan, ⏵⏵ armed), our palette.
-# default/unknown stays blank — quiet is the baseline, the icon marks the
-# armed/special modes. Pairs with the rice's de-footered claude build (the
-# stock "⏵⏵ auto mode on (shift+tab to cycle)" row is patched out).
+# Mode icon: Claude Code's own glyph language (⏸ plan, ⏵ armed), our palette.
+# AUTO is the blank one — it's the rice's `permissions.defaultMode` (hearth sets
+# it) and where you live, so no news is good news and the slot stays quiet all
+# day. Everything else is a positive mark, and each is told apart by GLYPH COUNT,
+# not colour: one ⏵ gated, two armed, three ungated. Colour only reinforces.
+# `default` used to render blank too, which made "you silently fell out of auto"
+# and "everything is normal" the same picture — the whole reason this chip
+# exists. It now shows a dim ⏵.
+#
+# Blank still doubles as unknown (no transcript / no stamp in the 64KB window).
+# That's the cost of auto-is-blank and it's the right trade: a mis-read reads as
+# the mode you're in 95% of the time, rather than crying wolf.
+#
+# Worth knowing: this line is the ONLY mode signal in the pane. The stock
+# "⏵⏵ auto mode on (shift+tab to cycle)" footer row is patched out — NOT by this
+# rice, which ships stock `pkgs.claude-code` (hearth/default.nix), but by a host
+# that overlays a patched build (mbp does, via declutter-claude-footer.py). A
+# host running the unpatched client keeps both.
 mseg=""
 case "$mode" in
-  auto)              mseg="$(c 179)⏵⏵${R}";;   # yellow — asks via classifier
+  auto|"")           mseg="";;                 # blank  — the baseline, and unknown
+  default)           mseg="${DIM}⏵${R}";;      # dim    — gated, asks every tool
   acceptEdits)       mseg="${ADD}⏵⏵${R}";;     # green  — edits sail through
   plan)              mseg="${AHEAD}⏸${R}";;    # blue   — paused to plan
   dontAsk)           mseg="${DEL}⊘${R}";;      # red    — deny-if-not-allowed
-  bypassPermissions) mseg="${DEL}⏵⏵${R}";;     # red    — no gates at all
+  bypassPermissions) mseg="${DEL}⏵⏵⏵${R}";;    # red    — no gates at all
 esac
 
 # Stale-rice nag: "⇡6" = your pinned nebelhaus is 6 commits behind upstream, i.e.
@@ -329,8 +389,8 @@ fi
 # Tail group (rice-nag · ctx% · cost · mode icon · model) sits flush RIGHT, next
 # to Claude Code's own right-edge chips (/rc); RESERVE leaves them room. Narrow
 # pane → fall back to the old inline append. wc -m under a UTF-8 locale counts
-# the wide glyphs as characters (≈ columns), not bytes. The model glyph, when
-# present (Fable/Mythos only), is last — nearest /rc. The nag leads the group:
+# the wide glyphs as characters (≈ columns), not bytes. The model chip is last —
+# nearest /rc — and unlike the others it's always present. The nag leads the group:
 # it's machine-global (same in every pane) while everything after it is
 # per-session, so it stays put instead of shuffling with ctx%/cost.
 vlen() { plain "$1" | LC_ALL=en_US.UTF-8 wc -m | tr -d ' '; }
