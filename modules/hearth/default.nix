@@ -295,6 +295,21 @@ in
     }
   ];
 
+  # The two things hearth installs that aren't shell config: a video player and
+  # the tool the file-association hijack drives. In the roster because that's
+  # where everything this machine HAS lives — visible in `this-machine.md`,
+  # overridable by app id from a host, and (see the note by home.packages) able
+  # to collide loudly with a cask of the same name instead of silently.
+  nebelhaus.roster = {
+    iina = {
+      name = lib.mkDefault "IINA";
+      package = lib.mkDefault pkgs.iina;
+    };
+    duti = {
+      package = lib.mkDefault pkgs.duti;
+    };
+  };
+
   # The nebelung ports this room wires itself, so the roster pass in
   # modules/theme/ports.nix leaves them alone instead of dropping a second,
   # blunter copy beside the integration below. Twelve are sourced from the
@@ -542,10 +557,14 @@ in
       home.packages =
         with pkgs;
         [
-          # Not developer tools: iina plays video, duti is what
-          # hearth.hijackFileAssociations drives.
-          iina
-          duti
+          # iina and duti are roster entries (below, at the darwin level) rather
+          # than bare packages — the room that installs an app declares it, and
+          # for iina that's load-bearing: keying it under the id `iina` means a
+          # later `homebrew.casks = [ "iina" ]` merges onto the SAME entry and
+          # trips the one-source-per-entry assertion, instead of quietly putting
+          # a second IINA in /Applications the way it did for months.
+          # zellijReload stays here: it's an internal wrapper script, not
+          # something anyone installed.
           zellijReload
         ]
         ++ lib.optionals devCfg.toolbelt.enable [
@@ -1433,6 +1452,33 @@ in
         "ChangeApplicationState"
         "ReadCliPipes"
       ];
+
+      # Keep nix-installed .app bundles findable by LaunchServices.
+      #
+      # A GUI app from nixpkgs (iina is the one the rice itself ships) is linked
+      # into ~/Applications/Home Manager Apps as a SYMLINK, and LaunchServices
+      # resolves that to the /nix/store path when it registers the bundle — so
+      # every record it keeps is pinned to a store hash. Bump the package and the
+      # hash changes: the "Open With" entry, the default-handler binding, and
+      # `open -b <bundle-id>` all still name a path that garbage collection is
+      # about to remove, and the app quietly stops being the handler for its own
+      # file types. (Masked for anyone who ALSO has the app from a cask — the
+      # /Applications copy keeps answering for the shared bundle id, which is how
+      # a machine can carry two copies of one app and never notice.)
+      #
+      # Re-registering on every activation is the fix, because activation is
+      # exactly when the store path changes. `-f` forces a refresh of records
+      # that already exist, `-r` walks the directory; both are cheap on a handful
+      # of symlinks, and neither touches which app is the DEFAULT for a type —
+      # that binding is by bundle id and is the user's to set (duti, or Finder's
+      # Get Info), so this only makes sure the id keeps resolving.
+      home.activation.nixAppsLaunchServices = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        nixApps="$HOME/Applications/Home Manager Apps"
+        if [ -d "$nixApps" ]; then
+          $DRY_RUN_CMD /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister \
+            -f -r "$nixApps" 2>/dev/null || true
+        fi
+      '';
 
       # File-association hijack — opt-in (nebelhaus.hearth.hijackFileAssociations).
       # Off by default: silently making EditorOpen.app the handler for a dozen
