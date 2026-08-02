@@ -26,12 +26,31 @@ source "$HOME/.config/sketchybar/plugins/ai-provider.sh"
 CACHE_DIR="${CLAUDE_STATUSLINE_CACHE:-$HOME/.cache/claude-statusline}"
 ITEM_NAME="${NAME:-ai_usage}"
 
-si() { # si <n> — 7.61B, 176.81M, 4.20K, 512. Token counts run to ten digits and
-  # a menu-bar dropdown has no room for them, so they arrive short or not at all.
-  awk -v n="${1:-0}" 'BEGIN {
+tokens_label() { # tokens_label <d> <w> <m> <all> — "4.2M d · 31.4M w · 7.61B total"
+  # Three significant figures with the trailing zeros filed off, so the column
+  # stays the same handful of characters whether it reads 950K or 7.61B and never
+  # pads a number with digits it hasn't earned. Empty periods are dropped rather
+  # than printed as 0 — the line just gets shorter, which is its own signal that
+  # today (or this month) hasn't started yet. Nothing at all is printed when the
+  # all-time total is zero; that provider gets no row.
+  awk -v d="${1:-0}" -v w="${2:-0}" -v m="${3:-0}" -v a="${4:-0}" 'BEGIN {
     split("K M B T", u, " ")
-    for (i = 4; i >= 1; i--) { d = 1000 ^ i; if (n >= d) { printf "%.2f%s", n / d, u[i]; exit } }
-    printf "%d", n
+    if (a + 0 <= 0) exit
+    n = split("d w m total", tag, " ")
+    v[1] = d; v[2] = w; v[3] = m; v[4] = a
+    for (i = 1; i <= n; i++) {
+      if (v[i] + 0 <= 0) continue
+      out = out (out == "" ? "" : "  ·  ") si(v[i]) " " tag[i]
+    }
+    print out
+  }
+  function si(x,   j, s, scale, unit) {
+    scale = 1; unit = ""
+    for (j = 4; j >= 1; j--) if (x >= 1000 ^ j) { scale = 1000 ^ j; unit = u[j]; break }
+    x = x / scale
+    s = (x >= 100) ? sprintf("%.0f", x) : (x >= 10 ? sprintf("%.1f", x) : sprintf("%.2f", x))
+    if (s ~ /\./) { sub(/0+$/, "", s); sub(/\.$/, "", s) }
+    return s unit
   }'
 }
 STALE=300                        # 5 min with no render → mark stale
@@ -212,9 +231,14 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
     # providers whose token feed exists get the row (see statusline-refresh.sh).
     tok_file="$CACHE_DIR/tokens-$prov.tsv"
     if [ -s "$tok_file" ]; then
-      tok_today=0; tok_all=0
-      IFS=$'\t' read -r tok_today tok_all _ < "$tok_file" || true
-      row "tokens " "$(si "${tok_today:-0}") today  ·  $(si "${tok_all:-0}") all time"
+      t_d=""; t_w=""; t_m=""; t_all=""; t_at=""
+      IFS=$'\t' read -r t_d t_w t_m t_all t_at < "$tok_file" || true
+      # All five columns or none: a file left by an older rice has a different
+      # shape, and reading it anyway would file the week's tokens under the day.
+      if [ -n "$t_at" ]; then
+        tok_label=$(tokens_label "$t_d" "$t_w" "$t_m" "$t_all")
+        [ -n "$tok_label" ] && row "tokens " "$tok_label"
+      fi
     fi
 
     if [ "$f_stale" = 1 ]; then

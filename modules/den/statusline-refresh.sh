@@ -308,20 +308,28 @@ if [ -f "$OPENCODE_DB" ] && command -v sqlite3 >/dev/null 2>&1; then
   mv "$CACHE_DIR/usage-opencode.tsv.tmp" "$CACHE_DIR/usage-opencode.tsv"
   fed=1
 
-  # Opencode's token score for the same dropdown row Claude gets at the bottom of
-  # this file — and it costs two more SUMs over a table already open, because
-  # opencode banks the counters per session instead of leaving them in a
-  # transcript. Same day-boundary caveat as the cost query right above: the sums
-  # are per-SESSION totals bucketed by when the session was last touched, so a
-  # session that spans midnight lands whole on the later day.
+  # Opencode's token score, the same day/week/month/all-time row Claude gets at
+  # the bottom of this file — and it is one more query over a table already open,
+  # because opencode banks the counters per session instead of leaving them in a
+  # transcript. `date(now, -6 days, weekday 1)` is the Monday of the current week
+  # including when today IS Monday, which the tempting `weekday 1, -7 days` gets
+  # wrong by a week.
+  #
+  # Two caveats inherited from the cost query right above, kept rather than fixed
+  # so the two rows can never disagree: sqlite's day boundaries are UTC, and the
+  # sums are per-SESSION totals filed by when the session was last touched, so a
+  # session spanning midnight lands whole on the later day.
   oc_tok_cols='tokens_input + tokens_output + tokens_reasoning + tokens_cache_read + tokens_cache_write'
-  oc_tok_all=$(sqlite3 "$OPENCODE_DB" \
-    "SELECT COALESCE(SUM($oc_tok_cols), 0) FROM session;" 2>/dev/null || echo 0)
-  oc_tok_today=$(sqlite3 "$OPENCODE_DB" \
-    "SELECT COALESCE(SUM($oc_tok_cols), 0) FROM session WHERE time_updated >= strftime('%s', 'now', 'start of day') * 1000;" 2>/dev/null || echo 0)
-  printf '%s\t%s\t%s\n' "${oc_tok_today:-0}" "${oc_tok_all:-0}" "$(date +%s)" \
-    >"$CACHE_DIR/tokens-opencode.tsv.tmp" \
-    && mv "$CACHE_DIR/tokens-opencode.tsv.tmp" "$CACHE_DIR/tokens-opencode.tsv"
+  oc_tok_row=$(sqlite3 -separator "$(printf '\t')" "$OPENCODE_DB" "
+    SELECT COALESCE(SUM(CASE WHEN time_updated >= strftime('%s', 'now', 'start of day') * 1000 THEN $oc_tok_cols END), 0),
+           COALESCE(SUM(CASE WHEN time_updated >= strftime('%s', date('now', '-6 days', 'weekday 1')) * 1000 THEN $oc_tok_cols END), 0),
+           COALESCE(SUM(CASE WHEN time_updated >= strftime('%s', 'now', 'start of month') * 1000 THEN $oc_tok_cols END), 0),
+           COALESCE(SUM($oc_tok_cols), 0)
+    FROM session;" 2>/dev/null || true)
+  if [ -n "$oc_tok_row" ]; then
+    printf '%s\t%s\n' "$oc_tok_row" "$(date +%s)" >"$CACHE_DIR/tokens-opencode.tsv.tmp" \
+      && mv "$CACHE_DIR/tokens-opencode.tsv.tmp" "$CACHE_DIR/tokens-opencode.tsv"
+  fi
 fi
 
 # --- Codex (ChatGPT) usage feed: ask the account, not the client ---------------
@@ -497,8 +505,15 @@ fi
 # messages it inherited, so a heavily forked day counts some of them twice. Fine
 # for a score. Don't grow this into cost accounting.
 #
-#   tokens-claude.index:  path <TAB> size <TAB> tokens <TAB> day <TAB> dayTokens
-#   tokens-claude.tsv:    today <TAB> allTime <TAB> written
+# Four buckets, because one number never moves and one number is not a game:
+# today, this week, this month, all time. They are computed independently, NOT
+# nested — a week that started before the 1st puts tokens in `week` that are not
+# in `month`, and pretending otherwise would quietly lose them.
+#
+#   tokens-claude.index:  path <TAB> size <TAB> all <TAB> day <TAB> d <TAB> w <TAB> m
+#   tokens-claude.tsv:    d <TAB> w <TAB> m <TAB> all <TAB> written
+# Both are read back with a strict field count, so a cache written by an older
+# rice is discarded rather than misread one column over.
 TOKENS_TTL=${TOKENS_TTL:-900}
 PROJECTS_DIR="${CLAUDE_PROJECTS_DIR:-$HOME/.claude/projects}"
 TOK_TSV="$CACHE_DIR/tokens-claude.tsv"
@@ -514,19 +529,39 @@ if [ "$tok_fresh" = 0 ] && [ -d "$PROJECTS_DIR" ]; then
   tok_now=$(date +%s)
   tok_day=$(date '+%Y-%m-%d')
 
-  # Local midnight as a UTC ISO-8601 string, because that is the form the
-  # timestamps in a transcript are in and ISO-8601 UTC sorts lexicographically —
-  # so "was this message today" becomes a string compare in awk, with no date
-  # parsing and no gawk-only mktime. Midnight itself comes from subtracting the
-  # wall clock off `now`, because `date -v` is BSD and `date -d` is GNU and the
-  # index has to be computed on both. The final conversion has no such dodge, but
-  # there the wrong flag genuinely FAILS (GNU's -r wants a filename), so exit
-  # status can pick the winner.
-  read -r tok_h tok_m tok_s <<<"$(date '+%H %M %S')"
+  # The three bucket edges, each as a UTC ISO-8601 string, because that is the
+  # form the timestamps in a transcript are in and ISO-8601 UTC sorts
+  # lexicographically — so "was this message this week" becomes a string compare
+  # in awk, with no date parsing and no gawk-only mktime. Midnight comes from
+  # subtracting the wall clock off `now`, and the week and month edges from
+  # subtracting whole days off THAT, because `date -v` is BSD and `date -d` is
+  # GNU and the index has to be computed on both. `%u` (1=Monday) and `%d` are
+  # POSIX, so the arithmetic is the portable part. Across a DST change the edge
+  # lands an hour either side of midnight; a scoreboard can live with that.
+  read -r tok_h tok_m tok_s tok_dow tok_dom <<<"$(date '+%H %M %S %u %d')"
   tok_midnight=$(( tok_now - (10#$tok_h * 3600 + 10#$tok_m * 60 + 10#$tok_s) ))
-  tok_cutoff=$(date -u -r "$tok_midnight" '+%Y-%m-%dT%H:%M:%S' 2>/dev/null \
-    || date -u -d "@$tok_midnight" '+%Y-%m-%dT%H:%M:%S' 2>/dev/null \
-    || printf '9999')   # unreadable clock → nothing counts as today, rather than everything
+  tok_weekstart=$(( tok_midnight - (10#$tok_dow - 1) * 86400 ))
+  tok_monthstart=$(( tok_midnight - (10#$tok_dom - 1) * 86400 ))
+
+  at_utc() { # at_utc <epoch> <fmt> — BSD -r, else GNU -d. Unlike `stat -f` below,
+    # the wrong flag genuinely FAILS here (GNU's -r wants a filename), so exit
+    # status can pick the winner. The 9999 fallback is deliberate: an unreadable
+    # clock should leave every bucket empty, not file all of history under today.
+    date -u -r "$1" "$2" 2>/dev/null || date -u -d "@$1" "$2" 2>/dev/null || printf '9999'
+  }
+  at_local() { # at_local <epoch> <fmt> — the same, in the zone the day names use
+    date -r "$1" "$2" 2>/dev/null || date -d "@$1" "$2" 2>/dev/null || printf '9999'
+  }
+  tok_cut_d=$(at_utc "$tok_midnight" '+%Y-%m-%dT%H:%M:%S')
+  tok_cut_w=$(at_utc "$tok_weekstart" '+%Y-%m-%dT%H:%M:%S')
+  tok_cut_m=$(at_utc "$tok_monthstart" '+%Y-%m-%dT%H:%M:%S')
+  # The week edge as a LOCAL date too, because that is what an index row is
+  # stamped with: it is how a carried bucket knows it is still in this week. Not
+  # at_utc — east of Greenwich, local midnight is the previous day in UTC, and
+  # the week would roll over a day early.
+  tok_weekday=$(at_local "$tok_weekstart" '+%Y-%m-%d')
+  case "$tok_weekday" in 9999) tok_weekday=$tok_day ;; esac
+  tok_month=${tok_day%-*}
 
   # `stat -f` is BSD; on GNU that flag means --file-system and does NOT fail on
   # an unknown directive (same trap as mtime() above), so only a numeric answer
@@ -544,56 +579,75 @@ if [ "$tok_fresh" = 0 ] && [ -d "$PROJECTS_DIR" ]; then
 
   # Join the last index against the sizes just measured, and split the tree in
   # two: files at the size we remember carry their totals straight through, the
-  # rest are named for a re-read. A carried today-bucket only survives if it was
-  # banked under today's date — a session that fell quiet before midnight must
-  # not still be scoring this morning.
+  # rest are named for a re-read.
+  #
+  # A carried BUCKET only survives while the period it was banked in is still
+  # running — day by exact date, week by "not before this week's Monday", month
+  # by year-month. All three are checked independently, because a week that began
+  # in the previous month is real and its tokens belong in `week` but not in
+  # `month`. Get this wrong and a session that fell quiet before midnight goes on
+  # scoring tomorrow morning.
   : >"$TOK_IDX.keep"
   : >"$TOK_IDX.scan"
   # Which file a record came from is decided by FILENAME, not the NR==FNR idiom:
   # on the first pass a machine ever runs the index is EMPTY, and with an empty
   # first file NR==FNR stays true straight through the second one — every size
-  # row would be read as an index row and nothing would ever be scanned.
-  awk -F'\t' -v OFS='\t' -v DAY="$tok_day" -v IDX="$TOK_IDX" \
-      -v KEEP="$TOK_IDX.keep" -v SCAN="$TOK_IDX.scan" '
-    FILENAME == IDX { size[$1] = $2; tok[$1] = $3; day[$1] = $4; dtok[$1] = $5; next }
+  # row would be read as an index row and nothing would ever be scanned. NF is
+  # checked for the same class of reason: an index left by an older rice has
+  # fewer columns, and reading it anyway would file its numbers one bucket over.
+  awk -F'\t' -v OFS='\t' -v IDX="$TOK_IDX" -v KEEP="$TOK_IDX.keep" -v SCAN="$TOK_IDX.scan" \
+      -v DAY="$tok_day" -v WEEK="$tok_weekday" -v MONTH="$tok_month" '
+    FILENAME == IDX {
+      if (NF == 7) { size[$1] = $2; all[$1] = $3; day[$1] = $4; d[$1] = $5; w[$1] = $6; m[$1] = $7 }
+      next
+    }
     {
       p = $2
       if (p in size && size[p] == $1) {
-        row = p OFS $1 OFS tok[p] OFS DAY OFS (day[p] == DAY ? dtok[p] : 0)
+        row = p OFS $1 OFS all[p] OFS DAY \
+          OFS (day[p] == DAY ? d[p] : 0) \
+          OFS (day[p] >= WEEK ? w[p] : 0) \
+          OFS (substr(day[p], 1, 7) == MONTH ? m[p] : 0)
         print row > KEEP
       } else print p > SCAN
     }' "$TOK_IDX" "$TOK_IDX.sizes"
 
   # Everything that needs reading, read in ONE awk: sum the four counters per
-  # line, and bucket the line into today as well when its timestamp is at or past
-  # the cutoff. Keyed by FILENAME so one pass totals the whole batch. `xargs -0`
-  # so a path with a space in it survives the trip; the FNR==1 seed is what stops
-  # a transcript with no usage records at all (an aborted session) from being
-  # missing from the index and therefore re-read forever.
+  # line, then drop the line into whichever of the three periods its timestamp
+  # reaches. Three independent compares, not a nested if — see above for why the
+  # week is not always inside the month. Keyed by FILENAME so one pass totals the
+  # whole batch. `xargs -0` so a path with a space in it survives the trip; the
+  # FNR==1 seed is what stops a transcript with no usage records at all (an
+  # aborted session) from being missing from the index and re-read forever.
   if [ -s "$TOK_IDX.scan" ]; then
-    tr '\n' '\0' <"$TOK_IDX.scan" | xargs -0 awk -v CUTOFF="$tok_cutoff" '
+    tr '\n' '\0' <"$TOK_IDX.scan" \
+      | xargs -0 awk -v CUT_D="$tok_cut_d" -v CUT_W="$tok_cut_w" -v CUT_M="$tok_cut_m" '
       function num(key,   L) {
         L = length(key)
         if (match($0, "\"" key "\":[0-9]+")) return substr($0, RSTART + L + 3, RLENGTH - L - 3) + 0
         return 0
       }
-      FNR == 1 { tok[FILENAME] += 0 }
+      FNR == 1 { all[FILENAME] += 0 }
       /"output_tokens":/ {
         t = num("input_tokens") + num("output_tokens") \
           + num("cache_creation_input_tokens") + num("cache_read_input_tokens")
-        tok[FILENAME] += t
-        if (match($0, /"timestamp":"[0-9-]+T[0-9:.]+Z"/) &&
-            substr($0, RSTART + 13, RLENGTH - 14) >= "" CUTOFF) today[FILENAME] += t
+        all[FILENAME] += t
+        if (!match($0, /"timestamp":"[0-9-]+T[0-9:.]+Z"/)) next
+        ts = substr($0, RSTART + 13, RLENGTH - 14)
+        if (ts >= "" CUT_D) d[FILENAME] += t
+        if (ts >= "" CUT_W) w[FILENAME] += t
+        if (ts >= "" CUT_M) m[FILENAME] += t
       }
-      END { for (f in tok) printf "%s\t%.0f\t%.0f\n", f, tok[f], today[f] + 0 }' \
-      >"$TOK_IDX.scanned" 2>/dev/null || true
+      END {
+        for (f in all) printf "%s\t%.0f\t%.0f\t%.0f\t%.0f\n", f, all[f], d[f] + 0, w[f] + 0, m[f] + 0
+      }' >"$TOK_IDX.scanned" 2>/dev/null || true
 
     # Bank the size the plan MEASURED, not the file's size now: a session that
     # appended while we were reading it has to look changed on the next pass, or
     # the bytes we raced past are lost for good.
     awk -F'\t' -v OFS='\t' -v DAY="$tok_day" -v SIZES="$TOK_IDX.sizes" '
       FILENAME == SIZES { size[$2] = $1; next }
-      { print $1, ($1 in size ? size[$1] : 0), $2, DAY, $3 }' \
+      { print $1, ($1 in size ? size[$1] : 0), $2, DAY, $3, $4, $5 }' \
       "$TOK_IDX.sizes" "$TOK_IDX.scanned" >>"$TOK_IDX.keep"
   fi
 
@@ -603,7 +657,7 @@ if [ "$tok_fresh" = 0 ] && [ -d "$PROJECTS_DIR" ]; then
   # Re-summed from the index every pass rather than accumulated, so a deleted
   # transcript takes its tokens with it and no drift can ever build up.
   awk -F'\t' -v NOW="$tok_now" '
-    { all += $3; today += $5 }
-    END { printf "%.0f\t%.0f\t%s\n", today + 0, all + 0, NOW }' "$TOK_IDX" >"$TOK_TSV.tmp" \
-    && mv "$TOK_TSV.tmp" "$TOK_TSV"
+    { all += $3; d += $5; w += $6; m += $7 }
+    END { printf "%.0f\t%.0f\t%.0f\t%.0f\t%s\n", d + 0, w + 0, m + 0, all + 0, NOW }' \
+    "$TOK_IDX" >"$TOK_TSV.tmp" && mv "$TOK_TSV.tmp" "$TOK_TSV"
 fi

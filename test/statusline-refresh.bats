@@ -495,7 +495,7 @@ utc() { # utc <offset seconds from now> — the transcript timestamp format
     || date -u -d "@$at" '+%Y-%m-%dT%H:%M:%S.000Z'
 }
 
-tok() { # tok <n> — one field of tokens-claude.tsv (1 today, 2 all time)
+tok() { # tok <n> — one field of tokens-claude.tsv (1 day, 2 week, 3 month, 4 all)
   awk -F'\t' -v c="$1" '{print $c}' "$CLAUDE_STATUSLINE_CACHE/tokens-claude.tsv" 2>/dev/null
 }
 
@@ -510,7 +510,7 @@ thaw() { # let the next pass past the TTL without waiting a quarter of an hour
   mktranscript b "$(utc -60)" 100 200 400 800 >/dev/null
   refresh
   [ "$status" -eq 0 ]
-  [ "$(tok 2)" = 1515 ]
+  [ "$(tok 4)" = 1515 ]
 }
 
 @test "tokens: a transcript whose size has not moved is never re-read" {
@@ -518,22 +518,22 @@ thaw() { # let the next pass past the TTL without waiting a quarter of an hour
   # holding its size: a pass that re-read it would see the new number.
   local f; f="$(mktranscript a "$(utc -60)" 1 2 4 8)"
   refresh
-  [ "$(tok 2)" = 15 ]
+  [ "$(tok 4)" = 15 ]
 
   local size; size=$(wc -c <"$f")
   mkmsg "$(utc -60)" 9 9 9 9 >"$f"
   [ "$(wc -c <"$f")" -eq "$size" ] || skip "fixture sizes drifted; nothing to prove"
   thaw; refresh
-  [ "$(tok 2)" = 15 ] || fail "re-read a transcript that had not grown"
+  [ "$(tok 4)" = 15 ] || fail "re-read a transcript that had not grown"
 }
 
 @test "tokens: a transcript that grew is re-read whole, not double-counted" {
   local f; f="$(mktranscript a "$(utc -60)" 1 2 4 8)"
   refresh
-  [ "$(tok 2)" = 15 ]
+  [ "$(tok 4)" = 15 ]
   mkmsg "$(utc -60)" 10 20 30 40 >>"$f"
   thaw; refresh
-  [ "$(tok 2)" = 115 ]
+  [ "$(tok 4)" = 115 ]
 }
 
 @test "tokens: a deleted transcript takes its tokens with it" {
@@ -543,10 +543,10 @@ thaw() { # let the next pass past the TTL without waiting a quarter of an hour
   mktranscript a "$(utc -60)" 1 2 4 8 >/dev/null
   local b; b="$(mktranscript b "$(utc -60)" 100 200 400 800)"
   refresh
-  [ "$(tok 2)" = 1515 ]
+  [ "$(tok 4)" = 1515 ]
   rm -f "$b"
   thaw; refresh
-  [ "$(tok 2)" = 15 ]
+  [ "$(tok 4)" = 15 ]
 }
 
 @test "tokens: today counts today, and yesterday keeps out of it" {
@@ -555,34 +555,65 @@ thaw() { # let the next pass past the TTL without waiting a quarter of an hour
   mktranscript old "$(utc -172800)" 1 2 4 8 >/dev/null
   mktranscript new "$(utc 0)" 100 200 400 800 >/dev/null
   refresh
-  [ "$(tok 2)" = 1515 ]
+  [ "$(tok 4)" = 1515 ]
   [ "$(tok 1)" = 1500 ]
 }
 
-@test "tokens: an idle transcript stops scoring today once the day turns over" {
-  # The carry-forward hazard. An unchanged file contributes its remembered
-  # today-bucket for free, which is only correct while the date it was banked
-  # under is still today.
-  mktranscript a "$(utc -60)" 100 200 400 800 >/dev/null
+@test "tokens: day, week and month each catch only what belongs to them" {
+  # 40 days back is outside every period on any calendar; now is inside all three.
+  mktranscript old "$(utc -3456000)" 1 2 4 8 >/dev/null
+  mktranscript new "$(utc 0)" 100 200 400 800 >/dev/null
   refresh
   [ "$(tok 1)" = 1500 ]
+  [ "$(tok 2)" = 1500 ]
+  [ "$(tok 3)" = 1500 ]
+  [ "$(tok 4)" = 1515 ]
+}
 
-  # Re-date the index entry to yesterday, exactly as tomorrow's first pass sees it
+@test "tokens: an idle transcript drops out of every period it has outlived" {
+  # The carry-forward hazard. An unchanged file contributes its remembered
+  # buckets for free, which is only correct while the periods they were banked
+  # in are still running.
+  mktranscript a "$(utc 0)" 100 200 400 800 >/dev/null
+  refresh
+  [ "$(tok 1)" = 1500 ]
+  [ "$(tok 2)" = 1500 ]
+  [ "$(tok 3)" = 1500 ]
+
+  # Re-date the index entry into the last century, exactly as the first pass of a
+  # new day — and week, and month — sees it.
   local idx="$CLAUDE_STATUSLINE_CACHE/tokens-claude.index"
   awk -F'\t' -v OFS='\t' '{ $4 = "1999-01-01"; print }' "$idx" >"$idx.aged"
   mv "$idx.aged" "$idx"
   thaw; refresh
   [ "$(tok 1)" = 0 ] || fail "yesterday's tokens are still on today's scoreboard"
-  [ "$(tok 2)" = 1500 ]
+  [ "$(tok 2)" = 0 ] || fail "last century is somehow still this week"
+  [ "$(tok 3)" = 0 ] || fail "last century is somehow still this month"
+  [ "$(tok 4)" = 1500 ]
+}
+
+@test "tokens: an index from an older rice is discarded, not read one column over" {
+  # The columns have grown once already. A short row must send its transcript
+  # back for a re-read rather than have its size land in the day bucket.
+  mktranscript a "$(utc 0)" 100 200 400 800 >/dev/null
+  refresh
+  [ "$(tok 4)" = 1500 ]
+
+  local idx="$CLAUDE_STATUSLINE_CACHE/tokens-claude.index"
+  cut -f1-5 "$idx" >"$idx.old"          # the shape this file had one rice ago
+  mv "$idx.old" "$idx"
+  thaw; refresh
+  [ "$(tok 4)" = 1500 ] || fail "misread a short index row instead of rescanning"
+  [ "$(tok 1)" = 1500 ]
 }
 
 @test "tokens: inside the TTL the score is left alone" {
   mktranscript a "$(utc -60)" 1 2 4 8 >/dev/null
   refresh
-  [ "$(tok 2)" = 15 ]
+  [ "$(tok 4)" = 15 ]
   mktranscript b "$(utc -60)" 100 200 400 800 >/dev/null
   refresh                                   # no thaw: still fresh
-  [ "$(tok 2)" = 15 ]
+  [ "$(tok 4)" = 15 ]
 }
 
 @test "tokens: no transcripts on the machine means no score file at all" {
