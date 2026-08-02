@@ -43,6 +43,16 @@ this repo as an input, plus one host file for the personal bits. You never edit
 this repo to use it; your machine stays yours, the rice stays upstream, and `nix
 flake update nebelhaus` pulls new fog whenever you like.
 
+Beside that host file it writes **`hosts/<host>/options.nix`** — every
+`nebelhaus.*` option there is, at its default, with its description, its type and
+a docs link, **all commented out**. You find out an option exists by reading your
+own config: uncomment the lines you want, delete the ones you never touched. It's
+rendered from this repo's module system at the revision you pinned, so it can't
+list an option your rice doesn't have; `haus options` refreshes it after an
+update. (Commented rather than spelled out on purpose — the rice's defaults are
+`mkDefault`s, so a host file stating them all would silently override any preset
+it imports.)
+
 It won't switch a config that isn't yours — personalize the generated host file
 first, then rebuild.
 
@@ -56,6 +66,7 @@ haus rebuild        # build + switch this machine
 haus update         # pull the latest rice, then rebuild
 haus rollback       # go back a generation (haus generations lists them)
 haus status         # current generation + how old your pinned rice is
+haus options        # refresh the annotated catalogue of every nebelhaus.* option
 haus doctor         # check Nix, the CLT, the GUI agents, and Homebrew cask drift
 haus tour           # a guided lap of the four moves, right in the bar
 ```

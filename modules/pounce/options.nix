@@ -53,7 +53,8 @@
     pounce.scale = lib.mkOption {
       type = lib.types.numbers.between 0.8 2.0;
       default = lib.min 2.0 (lib.max 0.8 config.nebelhaus.ui.scale);
-      defaultText = lib.literalExpression "nebelhaus.ui.scale, held inside pounce's 0.8-2.0";
+      # Prose, so literalMD — see nebelhaus.developer.languages in modules/options.nix.
+      defaultText = lib.literalMD "nebelhaus.ui.scale, held inside pounce's 0.8-2.0";
       example = 1.4;
       description = ''
         How big the palette is drawn. Multiplies every size in pounce's UI — the

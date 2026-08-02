@@ -190,6 +190,24 @@ in
       # passwordless-sudo rule to match it. See the script's header.
       (writeShellScriptBin "haus-activate" (builtins.readFile ./haus-activate.sh))
 
+      # The annotated host file — every nebelhaus.* option at its default, with
+      # its description and a docs link, all commented out — installed at
+      # share/nebelhaus/host-options.nix. `haus options` copies it beside your
+      # host file; nothing reads it at runtime.
+      #
+      # Shipped in the system profile rather than fetched on demand so `haus
+      # options` describes the revision this machine is PINNED to, the same
+      # reason the Claude skill is built rather than committed. It also makes
+      # the command instant and offline — a fresh Mac's copy comes from
+      # bootstrap's `nix build .#host-template`, which is the only path that
+      # has no system to read it out of yet.
+      #
+      # It needs the pathsToLink line below to actually appear: system-path is a
+      # buildEnv that links a FIXED list of subdirectories, and share/nebelhaus
+      # isn't on it — the package built, went into the closure, and left nothing
+      # at /run/current-system/sw/share/nebelhaus.
+      (import ../host-template.nix { inherit pkgs; })
+
       # `awake 3h` / `awake indefinitely` — a durable controller around macOS's
       # built-in caffeinate. Its assertion is launchd-owned below, so callers can
       # exit (or SketchyBar can reload) without accidentally allowing idle sleep.
@@ -261,6 +279,14 @@ in
       # `agent-state <working|waiting|idle|remove> <client>` instead.
       (writeShellScriptBin "agent-state" (builtins.readFile ../sill/sketchybar/plugins/agents-hook.sh))
     ];
+
+  # system-path links a fixed set of subdirectories out of everything in
+  # environment.systemPackages — /bin, /share/man, /share/zsh and a handful more.
+  # Anything else a package installs is in the closure but reachable at no path,
+  # which is exactly what happened to the host template above: it built, it was
+  # a dependency of the system, and /run/current-system/sw/share/nebelhaus did
+  # not exist. `haus options` reads it from there, so the directory has to be linked.
+  environment.pathsToLink = [ "/share/nebelhaus" ];
 
   # The job is intentionally always present, even when the opt-in Sill pill is
   # hidden: `awake` is a rice-level capability usable from any shell. RunAtLoad
