@@ -5,7 +5,7 @@ use zellij_tile::prelude::*;
 use zellij_tile_utils::style;
 
 // The badge is a FILLED rectangle — the state colour is the background and the
-// exact number of agent panes is punched out of it in near-black — not a coloured
+// number of agent panes is punched out of it in near-black — not a coloured
 // glyph on the tab's own fill. A one-cell glyph tinted peach is a few lit pixels
 // you have to go looking for; a solid block is the thing you catch from across the
 // room, which is the entire job of this badge.
@@ -13,6 +13,23 @@ use zellij_tile_utils::style;
 // Same construction as line.rs's layout_indicator_pill (the yellow GRID
 // rectangle): hand-painted flat block, no powerline caps, so the two right-hand
 // signals in this bar read as one family.
+
+/// Blend `color` toward `toward` (0.0 = unchanged, 1.0 = fully `toward`).
+///
+/// Only RGB blends: an EightBit entry is an index into a table this plugin can't
+/// see, so a 256-colour terminal keeps the full-strength colour rather than being
+/// handed a wrong one. Muting is a nicety; every caller below stays correct
+/// without it.
+fn blend(color: PaletteColor, toward: PaletteColor, t: f32) -> PaletteColor {
+    match (color, toward) {
+        (PaletteColor::Rgb((r, g, b)), PaletteColor::Rgb((tr, tg, tb))) => {
+            let mix = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * t).round() as u8;
+            PaletteColor::Rgb((mix(r, tr), mix(g, tg), mix(b, tb)))
+        },
+        _ => color,
+    }
+}
+
 fn cursors<'a>(
     focused_clients: &'a [ClientId],
     multiplayer_colors: MultiplayerColors,
@@ -71,8 +88,8 @@ pub fn render_tab(
         .bold()
         .paint(format!(" {} ", text));
 
-    // Fork: the agent-status badge — a filled rectangle in the most urgent
-    // agent's state colour, with the exact number of agent panes inside. It rides
+    // Fork: the agent-status badge — a chip in the most urgent agent's state
+    // colour, carrying the pane count once there's more than one. It rides
     // between the tab name and the pill's right edge (after the fullscreen/sync/
     // bell glyphs tab_style appended into `text`).
     let badge_section = badge.map(|badge| {
@@ -85,35 +102,71 @@ pub fn render_tab(
             AgentState::Working => palette.text_unselected.emphasis_1,
             AgentState::Idle => palette.exit_code_success.base,
         };
-        // Contrast guard, and the reason it can't just be dropped now that the
-        // badge is a filled block: nebelung paints the ACTIVE tab's pill in the
-        // very green that means "done", so a green rectangle on the tab you're
-        // sitting in would melt into it. Invert there — paw in the state colour
-        // on the tab's own dark fill — which keeps BOTH the colour code and a
-        // visible badge, unlike the flat foreground fallback this replaces.
         // Near-black from the theme rather than the tab's own foreground: that
         // one turns pink while a bell is flashing, which has nothing to do with
         // the agent. Same dark layout_indicator_pill punches its GRID text out in.
         let dark = palette.text_unselected.background;
-        let (badge_fg, badge_bg) = if state_color == background_color {
-            (state_color, dark)
+
+        // Muted on tabs you're not sitting in — EXCEPT "waiting", which is the
+        // one state whose whole job is to shout from a tab you're not looking at.
+        // Dimming is a blend toward the BAR's near-black, not toward the tab's own
+        // grey: same hue, just turned down, so an idle chip still reads as green
+        // instead of washing into the pill it sits on.
+        let mut fill = if !tab.active && badge.state != AgentState::Waiting {
+            blend(state_color, dark, 0.35)
         } else {
-            (dark, state_color)
+            state_color
         };
-        style!(badge_fg, badge_bg)
-            .bold()
-            // One trailing cell is the only explicit padding: terminal cells
-            // cannot safely render fractional-width spacing, and the digits'
-            // natural side bearings already keep the left edge from feeling
-            // cramped. This keeps a one-agent badge to two columns.
-            .paint(format!("{} ", badge.count))
-            .to_string()
+        let mut ink = dark;
+        // Contrast guard: nebelung paints the ACTIVE tab's pill in the very green
+        // that means "done", so an un-dimmed green chip on the tab you're sitting
+        // in would melt into it. Darken the chip and punch the digit out in the
+        // pill's own colour — which keeps the colour code AND the chip, and reads
+        // as the same "turned down" move as the mute above.
+        if fill == background_color {
+            let darkened = blend(state_color, dark, 0.45);
+            if darkened == background_color {
+                // Nothing to blend (EightBit theme) — fall back to inverting:
+                // chip in the bar's near-black, digit in the state colour.
+                fill = dark;
+                ink = state_color;
+            } else {
+                fill = darkened;
+                ink = background_color;
+            }
+        }
+
+        // Terminal cells can't render fractional-width padding, so the chip is
+        // bracketed by HALF blocks instead: ▐ and ▌ paint half a cell of chip and
+        // half a cell of the tab's own fill, which centres the digit inside the
+        // colour and insets the chip from both the tab name and the pill's edge.
+        // Ghostty draws U+2588..259F itself, pixel-exact, so the halves butt
+        // seamlessly against the full-background digit cell between them.
+        //
+        // At exactly one agent the digit is dropped entirely: "1" is the common
+        // case and carries no information the chip's presence doesn't already, so
+        // the badge collapses to a bare one-cell mark. A number appears only when
+        // there's actually something to count.
+        let left = style!(fill, background_color).paint("▐").to_string();
+        let right = style!(fill, background_color).paint("▌").to_string();
+        let digits = if badge.count > 1 {
+            style!(ink, fill)
+                .bold()
+                .paint(badge.count.to_string())
+                .to_string()
+        } else {
+            String::new()
+        };
+        format!("{}{}{}", left, digits, right)
     });
-    // The count can grow past one digit. It gets only one trailing padding cell;
-    // accurate length is what keeps the clickable tab targets aligned with their
+    // Two cells for the half-block brackets, plus the digits when they're drawn.
+    // Accurate length is what keeps the clickable tab targets aligned with their
     // painted pills.
     if let Some(badge) = badge {
-        tab_text_len += badge.count.to_string().width() + 1;
+        tab_text_len += 2;
+        if badge.count > 1 {
+            tab_text_len += badge.count.to_string().width();
+        }
     }
 
     let right_separator = style!(background_color, separator_fill_color).paint(separator);

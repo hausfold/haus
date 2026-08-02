@@ -58,7 +58,9 @@ pub enum AgentState {
 /// The small summary rendered on one tab: an exact pane count plus the colour
 /// of the most urgent agent. Keeping both is important: a tab with three
 /// workers should say "3", while a single waiting agent should still win the
-/// colour code users scan for.
+/// colour code users scan for. (The renderer only PRINTS the count past one —
+/// see tab.rs — but it's carried here either way, because "is this 1 or 4"
+/// is exactly the question the chip's presence can't answer.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AgentBadge {
     pub count: usize,
