@@ -9,8 +9,8 @@
 # belongs to the keyboard rather than to a window manager — expressible at all.
 #
 # The launcher (which app lives on which workspace, its leader key + window
-# rules) is data-driven: keyed nebelhaus.apps entries are the composable source
-# of truth, resolved by ../apps into nebelhaus._apps / ._launchers. This module
+# rules) is data-driven: keyed nebelhaus.roster entries are the composable source
+# of truth, resolved by ../roster into nebelhaus._roster / ._launchers. This module
 # renders those lists into aerospace.toml (+ the wake-time resort script);
 # SketchyBar and pounce read the same resolved options so nothing drifts.
 {
@@ -32,12 +32,12 @@ let
   binDir = "/etc/profiles/per-user/${username}/bin";
   launchSh = "${homeDir}/.config/aerospace/launch.sh";
 
-  # Resolved by ../apps (which also owns the uniqueness assertion and the
+  # Resolved by ../roster (which also owns the uniqueness assertion and the
   # installs). `apps` is the whole roster — what the WINDOW rules and workspaces
   # are built from, since an app can own a workspace without claiming a leader
   # key. `launchers` is the keyboard half, and the only one allowed to render a
   # binding: a null key in [mode.launch.binding] would be the literal string.
-  apps = config.nebelhaus._apps;
+  apps = config.nebelhaus._roster;
   launchers = config.nebelhaus._launchers;
   appKeys = map (app: app.key) launchers;
 
@@ -224,12 +224,15 @@ lib.mkMerge [
   (lib.mkIf config.nebelhaus.prowl.enable {
     # A fresh host gets a useful terminal + browser. These are field-level
     # defaults, so keyed entries compose with them and can override by app id.
-    nebelhaus.apps = {
+    nebelhaus.roster = {
+      # `name` and `cask` are den's (it's den that installs the terminal) — this
+      # adds only the tiling half, so the two modules never define one field
+      # twice. That split is the pattern: whoever INSTALLS an app owns its
+      # source fields, whoever gives it a KEY owns the launcher fields.
       ghostty = {
         enable = lib.mkDefault true;
         order = lib.mkDefault 10;
         key = lib.mkDefault "t";
-        name = lib.mkDefault "Ghostty";
         workspace = lib.mkDefault "T";
         appId = lib.mkDefault "com.mitchellh.ghostty";
         barIcon = lib.mkDefault ":ghostty:";
@@ -276,11 +279,15 @@ lib.mkMerge [
           + lib.concatStringsSep ", " (lib.unique (extraCollisions ++ extraDuplicates));
       }
     ];
-  # AeroSpace itself (cask) + its tap; merged into den's homebrew config. Roster
-  # apps that name a cask are ../apps's job now — they install whether or not
-  # the tiler is on.
+  # AeroSpace itself, as a roster entry like everything else — no leader key,
+  # because you don't launch your window manager, it's just running. Its tap
+  # stays a raw homebrew.taps line: a tap isn't an app, and the roster models
+  # what a machine HAS, not where Homebrew looks for it.
   homebrew.taps = [ "nikitabobko/tap" ];
-  homebrew.casks = [ "aerospace" ];
+  nebelhaus.roster.aerospace = {
+    name = lib.mkDefault "AeroSpace";
+    cask = lib.mkDefault "aerospace";
+  };
 
   # Caps Lock → F18, feeding AeroSpace's `launch` leader mode: AeroSpace can't
   # bind Caps Lock itself. Decimal values are the hidutil HID usage codes (caps

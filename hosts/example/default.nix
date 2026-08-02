@@ -9,7 +9,7 @@
 #
 # This is a plain nix-darwin module — anything nix-darwin or home-manager
 # accepts goes here, and it merges with what the rice modules already declare.
-# `pkgs` is here for nebelhaus.apps entries that install from Nixpkgs.
+# `pkgs` is here for nebelhaus.roster entries that install from Nixpkgs.
 { username, pkgs, ... }:
 
 {
@@ -63,7 +63,7 @@
   # Caps-Lock launcher (and a `workspace` gives it a tiling workspace + a bar
   # pill); an entry with neither is simply installed. So the app you reach for
   # by keyboard and the font you never think about live in the same place.
-  # nebelhaus.apps = {
+  # nebelhaus.roster = {
   #   slack = {
   #     key = "s";                              # Caps Lock, then s
   #     name = "Slack";                         # as `open -a` spells it

@@ -3,7 +3,7 @@
 # hearth themes the tools the rice INSTALLS: it knows those tools intimately, owns
 # their config files, and wires each rendered theme by hand. That covers the shell,
 # the terminal, the git stack, Zen, Obsidian. It cannot cover an app YOU added to
-# `nebelhaus.apps`, because the rice has never heard of it.
+# `nebelhaus.roster`, because the rice has never heard of it.
 #
 # This room closes that gap from the other side. nebelung publishes, per port,
 # where its rendered theme has to land and what makes it active (its `ports`
@@ -79,7 +79,7 @@
         chosen = lib.mapAttrs (id: _: ports.${id}) (
           lib.filterAttrs (
             id: app: app.enable && ports ? ${id} && !(builtins.elem id handled)
-          ) osConfig.nebelhaus.apps
+          ) osConfig.nebelhaus.roster
         );
 
         # A port this module can place unattended: a straight file copy into a

@@ -161,12 +161,29 @@ let
           and every machine afterwards can install them.
         '';
       };
+      installedBy = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "nebelhaus.trill";
+        description = ''
+          The nebelhaus module that puts this app on disk, when none of the
+          four sources above describes it: trill, pounce and perch copy a
+          notarized bundle into /Applications from their own activation
+          step, which is neither a cask nor a package you can list.
+
+          Set BY the rice, not by you. It exists so the roster can still
+          answer "who installed this?" for those apps — without it, a host
+          adding a leader key for Trill had to KNOW the rice already ships
+          it, leave every source field null, and leave a comment explaining
+          the hole. This is that comment, as data.
+        '';
+      };
     };
   };
 in
 {
   options.nebelhaus = {
-    apps = lib.mkOption {
+    roster = lib.mkOption {
       type = lib.types.attrsOf appType;
       default = { };
       example = lib.literalExpression ''
@@ -211,9 +228,9 @@ in
       '';
     };
 
-    # Normalized by modules/apps. Kept internal so every room consumes the same
+    # Normalized by modules/roster. Kept internal so every room consumes the same
     # ordered list while the public API stays keyed and composable.
-    _apps = lib.mkOption {
+    _roster = lib.mkOption {
       type = lib.types.listOf appType;
       internal = true;
       readOnly = true;
@@ -410,7 +427,7 @@ in
       };
 
       # The seam for leader actions that AREN'T "launch an app". The app roster
-      # (nebelhaus.apps) already fronts a letter → open an app; this fronts a key
+      # (nebelhaus.roster) already fronts a letter → open an app; this fronts a key
       # → run a command (a script, an AppleScript, a `things:///` open). Rendered
       # into AeroSpace's [mode.launch.binding] AND the pounce cheatsheet from this
       # one list, so a binding and its caption can't drift — the same guarantee the

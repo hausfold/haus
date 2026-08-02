@@ -3,7 +3,7 @@
 # stealing the lock file.
 #
 # The workspace pills are data-driven: WORKSPACES / LAUNCHER_KEYS / ws_icon are
-# generated from nebelhaus._apps (the resolved shared app roster) so the bar can't
+# generated from nebelhaus._roster (the resolved shared app roster) so the bar can't
 # drift from AeroSpace's launcher. Every right-side pill is individually
 # toggleable via nebelhaus.sill.items (one bool per pill): the core
 # clock/weather/media/battery/wifi default on, the extras cpu/memory/volume/
@@ -22,7 +22,7 @@ let
 
   # The whole roster drives the pills (a workspace is what earns one); only the
   # keyed subset drives the leader picker.
-  apps = config.nebelhaus._apps;
+  apps = config.nebelhaus._roster;
   launchers = config.nebelhaus._launchers;
 
   bashArray = xs: lib.concatMapStringsSep " " (x: ''"${x}"'') xs;
@@ -47,7 +47,7 @@ let
   # bash 3.2 (macOS /bin/bash) has no associative arrays, hence the case in a fn.
   workspacesSh = ''
     #!/bin/bash
-    # GENERATED from nebelhaus._apps by modules/sill/default.nix — do not edit.
+    # GENERATED from nebelhaus._roster by modules/sill/default.nix — do not edit.
     WORKSPACES=(${bashArray ([ "1" "2" "3" "4" ] ++ appWorkspaces)})
     # Leader picker bubbles: the digits 1-4 (focus a numbered workspace) plus one
     # per app key (jump to its workspace) — mirrors [mode.launch.binding].
@@ -465,11 +465,19 @@ lib.mkIf config.nebelhaus.sill.enable {
   # SketchyBar (brew) + its tap. sketchybar-app-font renders the workspace pill
   # glyphs (an icon ligature font: `:ghostty:` → that app's logo).
   homebrew.taps = [ "FelixKratz/formulae" ];
-  # ical-buddy backs the opt-in `calendar` pill (plugins/calendar.sh shells out to
-  # it); pulled in only when that plugin is enabled so a default bar stays lean.
-  homebrew.brews =
-    [ "FelixKratz/formulae/sketchybar" ]
-    ++ lib.optional config.nebelhaus.sill.items.calendar "ical-buddy";
+  # Roster entries, not raw brews — a formula with no .app is still something the
+  # machine has, and keeping it in the one list is what lets `haus` and the agent
+  # skill answer "what's installed here?" completely. ical-buddy backs the opt-in
+  # `calendar` pill (plugins/calendar.sh shells out to it); pulled in only when
+  # that plugin is enabled so a default bar stays lean. If a host ALSO declares
+  # ical-buddy, the two definitions merge on the shared id rather than
+  # double-installing — which is the difference between a keyed roster and a list.
+  nebelhaus.roster = {
+    sketchybar.brew = lib.mkDefault "FelixKratz/formulae/sketchybar";
+  }
+  // lib.optionalAttrs config.nebelhaus.sill.items.calendar {
+    ical-buddy.brew = lib.mkDefault "ical-buddy";
+  };
   # sketchybar-app-font draws the workspace-pill logos. Hack Nerd Font draws
   # EVERYTHING ELSE in the bar — sketchybarrc names "Hack Nerd Font" for every
   # icon and label — and nothing installed it: den ships JetBrains Mono, this

@@ -15,7 +15,7 @@ for `homebrew.casks` — one entry gives the app its launcher key, its workspace
 its bar pill AND installs it.
 
 ```nix
-nebelhaus.apps.slack = {
+nebelhaus.roster.slack = {
   name = "Slack";      # the .app name, for launching
   cask = "slack";      # Homebrew cask — omit if the app is already installed
   key = "s";           # leader → s launches it
@@ -23,7 +23,7 @@ nebelhaus.apps.slack = {
 };
 ```
 
-Pick a `key` that isn't already taken — read the existing `nebelhaus.apps.*` in
+Pick a `key` that isn't already taken — read the existing `nebelhaus.roster.*` in
 the host file first. If the app is already on the machine, leave the source
 fields unset; the entry is then just metadata.
 
@@ -32,7 +32,7 @@ entry claims no leader letter, no cheatsheet row and no pill — it is simply
 installed. That is what keeps this one list instead of two:
 
 ```nix
-nebelhaus.apps = {
+nebelhaus.roster = {
   framer     = { name = "Framer"; cask = "framer"; };   # app, no hotkey
   ical-buddy = { brew = "ical-buddy"; };                # a formula, no .app
   orbstack   = { name = "OrbStack"; package = pkgs.orbstack; };
@@ -50,13 +50,13 @@ only ever be half-automatic — `mas` cannot sign in, and cannot make a first-ti
 purchase — so buy a paid app once in App Store.app; free ones it fetches itself.
 
 ```nix
-nebelhaus.apps.xcode = { name = "Xcode"; appStoreId = 497799835; };
+nebelhaus.roster.xcode = { name = "Xcode"; appStoreId = 497799835; };
 ```
 
 ## "Uninstall it" / "I don't use that any more"
 
 ```nix
-nebelhaus.apps.slack.enable = false;
+nebelhaus.roster.slack.enable = false;
 ```
 
 That un-declares it: the launcher key, the pill and the cask entry go away. **The
@@ -134,7 +134,7 @@ nebelhaus.sill.items.weather = false;
 
 ## "Bind a key to run this"
 
-To launch an app, use `nebelhaus.apps` (above). For anything else — a script, a
+To launch an app, use `nebelhaus.roster` (above). For anything else — a script, a
 URL, an AppleScript — use a leader extra:
 
 ```nix
@@ -198,7 +198,7 @@ The host file is an ordinary nix-darwin module, so raw settings work:
 
 ```nix
 system.defaults.dock.autohide = true;
-homebrew.casks = [ "some-cask" ];   # but for an APP, use nebelhaus.apps
+homebrew.casks = [ "some-cask" ];   # but for an APP, use nebelhaus.roster
 ```
 
 Do that only when no `nebelhaus.*` option covers the request, and say that you

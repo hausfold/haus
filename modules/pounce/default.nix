@@ -203,7 +203,7 @@ let
   };
 
   launchModeItems =
-    # _launchers, not _apps: an install-only roster entry has no leader key, so
+    # _launchers, not _roster: an install-only roster entry has no leader key, so
     # there is no row to teach.
     (map (a: {
       key = a.key;
@@ -583,6 +583,14 @@ let
   ];
 in
 lib.mkIf config.nebelhaus.pounce.enable {
+  # The palette runs from a nix-store bundle rather than a cask, so no source
+  # field describes it; `installedBy` keeps it visible in the machine's one list
+  # instead of being the app that mysteriously isn't declared anywhere.
+  nebelhaus.roster.pounce = {
+    name = lib.mkDefault "Pounce";
+    installedBy = lib.mkDefault "nebelhaus.pounce";
+  };
+
   assertions = [
     {
       assertion = keyProblems == [ ];

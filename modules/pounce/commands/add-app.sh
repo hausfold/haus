@@ -12,7 +12,7 @@
 #   • Nix packages   — searches the flake's pinned nixpkgs revision.
 #
 # Every selection becomes an ordinary Nix module under hosts/<host>/packages/,
-# and always the SAME shape: one `nebelhaus.apps` entry naming its source
+# and always the SAME shape: one `nebelhaus.roster` entry naming its source
 # (cask / brew / package / appStoreId). mkNebelhaus auto-imports those files, so
 # this command writes exactly what a person writes by hand.
 #
@@ -53,13 +53,13 @@ file_slug() {
     | sed 's/[^a-z0-9._-]/-/g; s/--*/-/g; s/^-//; s/-$//'
 }
 
-# ONE module shape, for every source and both lanes: a `nebelhaus.apps` entry.
+# ONE module shape, for every source and both lanes: a `nebelhaus.roster` entry.
 # Which FIELDS it sets is what the entry means — a `key` puts it on the leader,
 # a `workspace` gives it a pill, neither makes it a plain install — so a cask, a
 # formula, a Nixpkgs package and an App Store app all land in the same roster
 # instead of half here and half in `homebrew.casks`. (Before the roster grew the
 # brew/package/appStoreId fields this had to emit two different module shapes,
-# which is exactly the split-brain the rice's modules/apps removed.)
+# which is exactly the split-brain the rice's modules/roster removed.)
 write_app_module() {
   local target="$1" resolved_app_id="${2:-$app_id}"
   local id_value id_lit key_lit name_lit app_id_lit icon_lit label_lit workspace_lit token_lit
@@ -81,7 +81,7 @@ write_app_module() {
       printf '%s\n' '{ lib, ... }:'
     fi
     printf '%s\n' '{'
-    printf '  nebelhaus.apps.%s = {\n' "$id_lit"
+    printf '  nebelhaus.roster.%s = {\n' "$id_lit"
     printf '    enable = lib.mkDefault true;\n'
     printf '    order = lib.mkDefault 1000;\n'
     if [ "$lane" = "Add to roster" ]; then

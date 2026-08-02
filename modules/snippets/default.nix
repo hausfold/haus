@@ -33,9 +33,13 @@ let
   espanso = "/Applications/Espanso.app/Contents/MacOS/espanso";
 in
 lib.mkIf cfg.enable {
-  # The signed app, not pkgs.espanso. Merges with the casks the other rooms
-  # declare (nix-darwin concatenates homebrew.casks across modules).
-  homebrew.casks = [ "espanso" ];
+  # The signed app, not pkgs.espanso (see the header). A roster entry rather than
+  # a bare cask, so it lands in the machine's one list — no key, because you
+  # never launch espanso, you type at it.
+  nebelhaus.roster.espanso = {
+    name = lib.mkDefault "Espanso";
+    cask = lib.mkDefault "espanso";
+  };
 
   # A module function so the inner `lib` is home-manager's (carries `lib.hm`);
   # the outer `lib` above is plain nixpkgs lib and has no `.hm`.

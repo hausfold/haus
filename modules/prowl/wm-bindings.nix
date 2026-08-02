@@ -1,6 +1,6 @@
 # The static AeroSpace bindings — the tiling/workspace/service chords that are
 # the SAME on every install (the per-app launcher chords live in the roster,
-# nebelhaus._apps). Declared ONCE here, then rendered two ways:
+# nebelhaus._roster). Declared ONCE here, then rendered two ways:
 #
 #   modules/prowl/default.nix   → the `binds` become aerospace.toml lines
 #                                 (@MAIN_STATIC@ / @SERVICE_STATIC@ tokens).
@@ -89,7 +89,7 @@ lib.optionals hasNav [
   # for an app), and THROWING the focused window there is the leader then ⇧+the
   # digit — or ⇧+an app's roster letter for its workspace. Those live in
   # [mode.launch.binding] in aerospace.toml (the roster half generated from
-  # nebelhaus._apps) and on the Launch Mode cheatsheet page, so no main-mode
+  # nebelhaus._roster) and on the Launch Mode cheatsheet page, so no main-mode
   # chord here carries a workspace. The window chords that remain are the ones
   # that act on the CURRENT workspace, above, plus service mode below.
   {

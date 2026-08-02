@@ -144,8 +144,9 @@ let
   # to press). The install-only half keeps its attr id, since with no key and
   # often no `name` that id is the only handle an edit can grab.
   launcherRoster = lib.sort (a: b: a.order < b.order) config.nebelhaus._launchers;
-  # Where an entry comes from, in one clause. Four sources now, so "· cask x"
-  # alone would quietly describe a brew/nixpkgs/App Store entry as unmanaged.
+  # Where an entry comes from, in one clause — the question a comment in the host
+  # file used to answer badly. Four sources plus `installedBy` for the rice's own
+  # bundles; "· cask x" alone would quietly describe everything else as unmanaged.
   sourceOf =
     a:
     if a.cask != null then
@@ -156,11 +157,13 @@ let
       " · nixpkgs (${a.scope} scope)"
     else if a.appStoreId != null then
       " · App Store `${toString a.appStoreId}`"
+    else if a.installedBy != null then
+      " · installed by `${a.installedBy}`"
     else
       "";
   installOnlyRoster = lib.sort (a: b: a.id < b.id) (
     lib.mapAttrsToList (id: app: { inherit id app; }) (
-      lib.filterAttrs (_: app: app.enable && app.key == null) config.nebelhaus.apps
+      lib.filterAttrs (_: app: app.enable && app.key == null) config.nebelhaus.roster
     )
   );
 
@@ -226,9 +229,10 @@ let
 
     ## Also declared, without a leader key
 
-    Same `nebelhaus.apps` roster, no keyboard binding — apps reached another
-    way, plus the fonts and command-line tools that live in the one list too.
-    Adding a `key` to any of these is what puts it on the launcher.
+    Same `nebelhaus.roster`, no keyboard binding — apps reached another way,
+    the rice's own (installed by a module rather than a package manager), and
+    the fonts and command-line tools that live in the one list too. Adding a
+    `key` to any of these is what puts it on the launcher.
 
     ${
       if installOnlyRoster == [ ] then
