@@ -5,6 +5,11 @@
 # colours stay single-sourced. Exports BASE, SURFACE0, MAUVE, … as 0xAARRGGBB.
 source "$HOME/.config/sketchybar/colors.sh"
 
+# Type sizes (FS_ICON, FS_LABEL, …) — GENERATED from nebelhaus.ui.scale, capped at
+# the largest type that still fits a 28pt pill. The bar's HEIGHT is not in there
+# on purpose: it belongs to the macOS menu-bar band, not to ui.scale (see below).
+source "$HOME/.config/sketchybar/sizes.sh"
+
 # Workspace roster (WORKSPACES, LAUNCHER_KEYS, ws_icon) — GENERATED from
 # nebelhaus._apps by modules/sill/default.nix so the bar's pills stay in
 # lockstep with AeroSpace's launcher.
@@ -28,6 +33,11 @@ source "$HOME/.config/sketchybar/position.sh"
 # only works if our 28pt pills stay within the 32pt band. At height=36 the
 # centered pills span y=4..32, tucked exactly under the revealed bar; height=40
 # pushed them to y=6..34, so 2px poked out below Tahoe's translucent bar.
+#
+# This is also why nebelhaus.ui.scale does NOT reach these two numbers, only the
+# $FS_* type sizes inside them: the band is macOS's, fixed, and has no setting
+# behind it — the only way to make the whole bar bigger is to change what a point
+# means, i.e. the display's scaled resolution (nebelhaus.displays).
 sketchybar --bar \
     height=36 \
     blur_radius=30 \
@@ -44,11 +54,11 @@ sketchybar --bar \
 # Default item settings
 sketchybar --default \
     updates=when_shown \
-    icon.font="Hack Nerd Font:Bold:17.0" \
+    icon.font="Hack Nerd Font:Bold:$FS_ICON" \
     icon.color=$TEXT \
     icon.padding_left=8 \
     icon.padding_right=4 \
-    label.font="Hack Nerd Font:Bold:14.0" \
+    label.font="Hack Nerd Font:Bold:$FS_LABEL" \
     label.color=$TEXT \
     label.padding_left=4 \
     label.padding_right=8 \
@@ -220,7 +230,7 @@ sketchybar --add item front_app left \
         icon.drawing=off \
         background.color=$LAVENDER \
         label.color=$BASE \
-        label.font="Hack Nerd Font:Bold:14.0" \
+        label.font="Hack Nerd Font:Bold:$FS_LABEL" \
         label.padding_left=8 \
         label.padding_right=8 \
         script="$HOME/.config/sketchybar/plugins/front_app.sh" \
@@ -295,8 +305,8 @@ WEATHER_POPUP_ITEM=(
     background.padding_right=0
     background.color=0x00000000
     background.drawing=off
-    icon.font="Hack Nerd Font:Bold:16.0"
-    label.font="Hack Nerd Font:Regular:14.0"
+    icon.font="Hack Nerd Font:Bold:$FS_APP_ICON"
+    label.font="Hack Nerd Font:Regular:$FS_LABEL"
 )
 
 # Weather popup - Location & Condition

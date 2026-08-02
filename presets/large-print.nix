@@ -14,8 +14,11 @@
 #
 # What it moves, and it is worth knowing exactly:
 #
-#   ui.scale = 1.4        terminal font 19 → 27 pt, Dock icons 48 → 67, and prowl's
-#                         window gaps, all at once. Pin any single one afterwards
+#   ui.scale = 1.4        terminal font 19 → 27 pt, the whole command palette
+#                         (rows, text, icons, and the panels behind it), the menu
+#                         bar's type (17 → 21 pt icons, 14 → 18 pt labels — capped,
+#                         see below), Dock icons 48 → 67, and prowl's window gaps,
+#                         all at once. Pin any single one afterwards
 #                         (nebelhaus.fonts.mono.size = 24) and it wins — scale sets
 #                         defaults, not values.
 #   theme.contrast         body text goes from 11.3:1 to 19.9:1 against the
@@ -52,10 +55,20 @@
 #     handful of Apple apps that adopted Dynamic Type.
 #   - Third-party apps' own font settings. Nothing outside the rice follows
 #     ui.scale — they follow the display, which is why the line above matters.
-#   - The menu bar (sill) and the palette (pounce). Both are sized by geometry
-#     tuned to the macOS menu-bar band and to their own layouts; a multiplier
-#     breaks the alignment rather than enlarging it. They need their own sizing
-#     pass — the honest version of "ui.scale doesn't reach here yet".
+#   - The menu bar's HEIGHT. Its type grows (above), but the bar itself can't:
+#     36pt of bar with 28pt pills is what keeps them inside the 32pt band macOS's
+#     own hover-reveal covers, and that band is macOS's — fixed, with no setting
+#     behind it (measured: safe-area inset 32pt, NSStatusBar thickness 22pt,
+#     menu-bar font 13pt, none of them writable). So the bar's type follows
+#     ui.scale to 1.25x and then stops, and at 1.4 this preset is already at that
+#     ceiling. The lever that DOES make the whole bar bigger is displays.main
+#     below — it changes what a point means, which is the only thing the band
+#     responds to.
+#     (The palette used to be listed here too. It isn't any more: pounce grew a
+#     `scale` of its own, and ui.scale drives it — so on a large-print Mac the
+#     thing you launch everything with is now among the things that got bigger,
+#     which for someone who doesn't open a terminal is most of the desktop they
+#     actually touch.)
 #   - A more legible FONT FAMILY. Not an omission by choice: a data-only rice
 #     can't set nebelhaus.fonts.mono.package, because that option takes a package
 #     and reaching `pkgs` is exactly what data-only forbids. So this preset makes

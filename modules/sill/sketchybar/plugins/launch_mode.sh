@@ -25,6 +25,7 @@ SNAP="/tmp/sketchybar_launch_apple.json"  # present == currently armed
 LOCK="/tmp/sketchybar_launch.lock"
 
 source "$HOME/.config/sketchybar/colors.sh"
+source "$HOME/.config/sketchybar/sizes.sh"
 # LAUNCHERS (leader key -> workspace map) is GENERATED from nebelhaus._apps
 # into workspaces.sh — the same data-driven roster as the workspace pills, so the
 # picker can't drift from the app roster. (bash 3.2 has no assoc arrays, hence a
@@ -82,7 +83,7 @@ do_arm() {
     # Lead glyph (separate call: the byte-glyph + spaced font name need quoting).
     # Hide the ears image so the arrow glyph shows alone (the image otherwise
     # draws on top of it); do_disarm turns it back on from the snapshot.
-    sketchybar --set apple.logo icon="$ARROW" icon.font="Hack Nerd Font:Bold:17.0" \
+    sketchybar --set apple.logo icon="$ARROW" icon.font="Hack Nerd Font:Bold:$FS_ICON" \
                icon.color=$BASE background.color=$MAUVE background.image.drawing=off
 
     # Move open/active hints to the left, original relative order preserved.

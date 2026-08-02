@@ -131,10 +131,11 @@ in
     #
     # Honest scope, and it is narrower than "everything": this scales the things
     # nebelhaus itself controls and macOS lets it control — the terminal font,
-    # the Dock, and the tiling gaps. It does NOT resize the menu bar (see the
-    # note on ui.scale) and it cannot resize third-party apps; macOS has no
-    # system-wide UI scale, so the OS-level lever is display resolution
-    # (`nebelhaus.displays`).
+    # the command palette, the Dock, the bar's type, and the tiling gaps. The one
+    # thing it cannot do proportionally is the menu bar's HEIGHT, which belongs to
+    # macOS's own band (see the note on ui.scale); nor can it resize third-party
+    # apps, since macOS has no system-wide UI scale — the OS-level lever there is
+    # display resolution (`nebelhaus.displays`).
     ui.scale = lib.mkOption {
       type = lib.types.numbers.between 0.5 3.0;
       default = 1.0;
@@ -152,17 +153,32 @@ in
         What it currently moves:
 
           - the terminal font size (nebelhaus.fonts.mono.size)
+          - the command palette, whole (nebelhaus.pounce.scale) — its rows,
+            text and icons, and the emoji / clipboard / screenshots / camera /
+            Find Files / cheatsheet panels behind it
+          - the type in Sill's menu bar — pill labels, icons and popup rows —
+            up to a ceiling; see below
           - the Dock icon size (system.defaults.dock.tilesize)
           - prowl's window gaps
 
-        What it deliberately does NOT move:
+        Where it stops, and why it isn't a gap waiting to be filled:
 
-          - Sill's menu bar. Its height is tuned to sit inside the macOS
-            menu-bar band so the hover-reveal covers it exactly; scaling that
-            linearly breaks the alignment rather than making it bigger. The bar
-            needs its own sizing pass, not a multiplier.
+          - Sill's bar HEIGHT. The bar is 36pt with 28pt pills so the pills sit
+            inside the 32pt menu-bar band that macOS's own hover-reveal covers;
+            taller pills poke out below it. That band is macOS's, fixed, and has
+            no setting behind it — measured, not assumed. So the bar's type
+            follows this option up to the largest that still fits a pill
+            (1.25x) and then stops, silently: past that a rice simply gets the
+            ceiling. The only way to make the whole bar bigger is to change what
+            a point MEANS — the display's scaled resolution, below.
           - anything outside nebelhaus. macOS has no system-wide UI scale, so
             third-party apps follow only a display-resolution change.
+
+        Worth knowing if you set both: this and
+        `nebelhaus.displays.<name>.uiScale` MULTIPLY. A larger-text display mode
+        leaves a smaller desktop in points, and this asks for bigger points
+        inside it — so 1.4 on an already-scaled display is a bigger jump than
+        1.4 on the panel's default.
       '';
     };
 

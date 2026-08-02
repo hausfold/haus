@@ -15,6 +15,7 @@ set -u
 export USER="${USER:-$(id -un)}"
 export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:$PATH"
 source "$HOME/.config/sketchybar/colors.sh"
+source "$HOME/.config/sketchybar/sizes.sh"
 # provider_style() — the shared icon/font/name table, so the agents pill draws
 # the same mark for a client that this pill draws for its usage.
 # shellcheck source=./ai-provider.sh
@@ -122,7 +123,7 @@ age=$((now - latest_stamp))
 stale=0; [ "$latest_stamp" -gt 0 ] && [ "$age" -gt "$STALE" ] && stale=1
 [ "$stale" = 1 ] && COL=$OVERLAY1
 
-provider_style "$main_provider" "${main_provider_id:-$main_model}" 14.0
+provider_style "$main_provider" "${main_provider_id:-$main_model}" "$FS_LABEL"
 ICON="$P_ICON"; IFONT="$P_FONT"
 
 if [ "$is_cost" = 1 ]; then
@@ -150,7 +151,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
     f_age=$((now - stamp))
     f_stale=0; [ "$stamp" -gt 0 ] && [ "$f_age" -gt "$STALE" ] && f_stale=1
 
-    provider_style "$prov" "${prov_id:-$model}" 13.0
+    provider_style "$prov" "${prov_id:-$model}" "$FS_SMALL"
     p_icon="$P_ICON"; p_font="$P_FONT"; p_name="$P_NAME"
 
     # Provider header row
@@ -158,7 +159,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
       --set "${ITEM_NAME}.popup.$i" \
         icon="$p_icon" icon.color="$PINK" icon.font="$p_font" \
         icon.padding_left=10 icon.padding_right=6 \
-        label="$p_name" label.color="$TEXT" label.font="Hack Nerd Font:Bold:13.0" \
+        label="$p_name" label.color="$TEXT" label.font="Hack Nerd Font:Bold:$FS_SMALL" \
         background.drawing=off \
         click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off"
     i=$((i + 1))
@@ -169,7 +170,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
         --set "${ITEM_NAME}.popup.$i" \
           icon="" icon.padding_left=0 icon.padding_right=0 \
           label="$1  $2" label.color="$SUBTEXT0" \
-          label.font="Hack Nerd Font:Regular:13.0" label.padding_left=22 label.padding_right=10 \
+          label.font="Hack Nerd Font:Regular:$FS_SMALL" label.padding_left=22 label.padding_right=10 \
           background.drawing=off \
           click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off"
       i=$((i + 1))
@@ -199,7 +200,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
         --set "${ITEM_NAME}.popup.$i" \
           icon="" icon.padding_left=0 icon.padding_right=0 \
           label="as of $((f_age / 60))m ago" label.color="$OVERLAY1" \
-          label.font="Hack Nerd Font:Italic:12.0" label.padding_left=22 label.padding_right=10 \
+          label.font="Hack Nerd Font:Italic:$FS_TINY" label.padding_left=22 label.padding_right=10 \
           background.drawing=off \
           click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off"
       i=$((i + 1))

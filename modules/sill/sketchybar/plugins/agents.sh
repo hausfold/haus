@@ -25,6 +25,7 @@ set -u
 export USER="${USER:-$(id -un)}"
 export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:$PATH"
 source "$HOME/.config/sketchybar/colors.sh"
+source "$HOME/.config/sketchybar/sizes.sh"
 # provider_style() — the same client icon table the aiUsage pill draws from, so
 # a Codex pane wears the same mark in both pills.
 # shellcheck source=./ai-provider.sh
@@ -129,12 +130,12 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
     # The row's icon is the CLIENT (claude/codex/opencode), painted in the STATE
     # colour — two facts in the space the paw used to spend on one. The pill
     # itself keeps the paw: it stands for "agents", not for any one client.
-    provider_style "${client:-}" "" 13.0
+    provider_style "${client:-}" "" "$FS_SMALL"
     sketchybar --add item "agents.popup.$i" popup.agents 2>/dev/null \
       --set "agents.popup.$i" \
         icon="$P_ICON" icon.color="$COL" icon.font="$P_FONT" \
         label="$label · $TAG" label.color="$TEXT" \
-        label.font="Hack Nerd Font:Regular:13.0" \
+        label.font="Hack Nerd Font:Regular:$FS_SMALL" \
         background.drawing=off \
         click_script="$PLUGINS/agents.sh row $sess $pane"
     i=$((i + 1))

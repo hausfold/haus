@@ -22,10 +22,27 @@ let
 
   apps = config.nebelhaus._apps;
 
+  # ---- type sizes: ui.scale, up to the menu bar's own ceiling -----------------
+  # Resolved in ../lib/bar.nix, not here, because PROWL reads the same resolution
+  # to decide how much room to leave beside the bar — the bar's type and the gap
+  # next to it have to move together, and a rule mirrored in two rooms is exactly
+  # what modules/lib exists to prevent. See that file for why there's a ceiling at
+  # all (short version: the bar's height belongs to the macOS menu-bar band, which
+  # was measured to have no setting behind it).
+  bar = import ../lib/bar.nix {
+    inherit lib;
+    scale = config.nebelhaus.ui.scale;
+  };
+  inherit (bar) sizes;
+
   bashArray = xs: lib.concatMapStringsSep " " (x: ''"${x}"'') xs;
   appWorkspaces = lib.filter (w: w != null) (map (a: a.workspace) apps);
   iconFont =
-    icon: if lib.hasPrefix ":" icon then "sketchybar-app-font:Regular:16.0" else "Hack Nerd Font:Bold:17.0";
+    icon:
+    if lib.hasPrefix ":" icon then
+      "sketchybar-app-font:Regular:${sizes.appIcon}"
+    else
+      "Hack Nerd Font:Bold:${sizes.icon}";
   wsIconCases = lib.concatMapStrings (
     a:
     lib.optionalString (
@@ -58,7 +75,7 @@ let
     # letter in the bar's Nerd Font; app-workspaces override to their logo glyph.
     ws_icon() {
       ICON="$1"
-      IFONT="Hack Nerd Font:Bold:17.0"
+      IFONT="Hack Nerd Font:Bold:${sizes.icon}"
       case "$1" in
     ${wsIconCases}  esac
     }
@@ -102,7 +119,7 @@ let
               icon.padding_left=10 \
               icon.padding_right=4 \
               label.padding_right=10 \
-              label.font="Hack Nerd Font:Bold:14.0" \
+              label.font="Hack Nerd Font:Bold:${sizes.label}" \
               popup.background.border_width=2 \
               popup.background.corner_radius=10 \
               popup.background.border_color=$SURFACE0 \
@@ -131,7 +148,7 @@ let
               icon.padding_left=10 \
               icon.padding_right=4 \
               label.padding_right=10 \
-              label.font="Hack Nerd Font:Bold:14.0" \
+              label.font="Hack Nerd Font:Bold:${sizes.label}" \
               popup.background.border_width=2 \
               popup.background.corner_radius=10 \
               popup.background.border_color=$SURFACE0 \
@@ -219,7 +236,7 @@ let
               icon.padding_left=10 \
               icon.padding_right=10 \
               label.padding_right=10 \
-              label.font="Hack Nerd Font:Bold:13.0" \
+              label.font="Hack Nerd Font:Bold:${sizes.small}" \
               background.color=$SURFACE0 \
               popup.background.border_width=2 \
               popup.background.corner_radius=10 \
@@ -382,7 +399,7 @@ let
             icon.padding_left=10 \
             icon.padding_right=4 \
             label.padding_right=10 \
-            label.font="Hack Nerd Font:Bold:13.0" \
+            label.font="Hack Nerd Font:Bold:${sizes.small}" \
             background.color=$MANTLE \
             click_script="$HOME/.config/sketchybar/plugins/tour.sh click"
     sketchybar --move tour after clock
@@ -529,6 +546,28 @@ lib.mkIf config.nebelhaus.sill.enable {
           inherit lib nebelung;
           theme = osConfig.nebelhaus.theme;
         }).palette;
+      # Type sizes, resolved from nebelhaus.ui.scale against the menu bar's own
+      # ceiling (see ../lib/bar.nix). Sourced by sketchybarrc and by the plugins
+      # that set a font, exactly like colors.sh — so the bar's sizes are
+      # single-sourced the same way its colours are, and neither the rc nor a
+      # plugin carries a tuned number of its own.
+      sizesSh = ''
+        #!/bin/bash
+        # GENERATED from nebelhaus.ui.scale by modules/sill/default.nix — do not
+        # edit by hand.
+        #
+        # The bar's HEIGHT never scales: 36pt of bar with 28pt pills is what keeps
+        # the pills inside the 32pt menu-bar band the hidden bar's hover-reveal
+        # covers. Only the type inside the pills follows ui.scale, and only up to
+        # the largest that still fits one. See modules/lib/bar.nix.
+        SILL_SCALE="${toString bar.typeScale}"
+        FS_ICON="${sizes.icon}"
+        FS_LABEL="${sizes.label}"
+        FS_SMALL="${sizes.small}"
+        FS_TINY="${sizes.tiny}"
+        FS_APP_ICON="${sizes.appIcon}"
+      '';
+
       # The Nebelung palette (name -> "#rrggbb") rendered as sketchybar's
       # 0xAARRGGBB colour literals, fully opaque. Generated so the palette stays
       # single-sourced from the nebelung input — sketchybarrc and every plugin
@@ -548,6 +587,7 @@ lib.mkIf config.nebelhaus.sill.enable {
     {
       home.file = {
         ".config/sketchybar/colors.sh".text = colorsSh;
+        ".config/sketchybar/sizes.sh".text = sizesSh;
         ".config/sketchybar/workspaces.sh".text = workspacesSh;
         ".config/sketchybar/optional_items.sh".text = optionalItemsSh;
         ".config/sketchybar/hidden_items.sh".text = hiddenItemsSh;
