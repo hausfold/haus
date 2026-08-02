@@ -73,6 +73,11 @@ def slug: ascii_downcase | gsub("[^a-z0-9]"; "");
 
 def room: .key | split(".")[1];
 
+# Room blurbs are markdown, because the docs page renders them as-is. A Nix
+# comment can't click a link, so `[your host file](/internals/flakes/#…)` becomes
+# `your host file` — the sentence survives, the URL noise doesn't.
+def demarkdown: gsub("\\[(?<t>[^\\]]*)\\]\\([^)]*\\)"; .t);
+
 # A default that teaches nothing about the option's shape. For those — and only
 # those — the example is worth the extra lines, because `nebelhaus.apps = { }`
 # on its own tells you nothing about what goes inside.
@@ -127,10 +132,7 @@ def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
         # 59 = 78 columns minus the "  # ═══ nebelhaus." + " " that precedes it.
         | "\n  # ═══ nebelhaus.\($r) " + ("═" * (if (59 - ($r | length)) > 3 then (59 - ($r | length)) else 3 end)) + "\n"
         + (if ($meta.blurb // "") != ""
-           then (($meta.blurb | wrap(74) | join("\n")) | commented("  ") | join("\n")) + "\n"
-           else "" end)
-        + (if ($meta.docs // "") != ""
-           then "  # https://nebelhaus.com\($meta.docs)\n"
+           then (($meta.blurb | demarkdown | wrap(74) | join("\n")) | commented("  ") | join("\n")) + "\n"
            else "" end)
         + "\n"
 

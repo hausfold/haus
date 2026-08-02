@@ -21,12 +21,16 @@
 # sensible the day it lands, and picks up its blurb whenever someone writes one.
 # `order` values are spaced by ten so a room can be slotted between two others
 # without renumbering the file.
+#
+# Blurbs are MARKDOWN — the docs page renders them as-is, and host-template.jq
+# flattens `[text](link)` down to `text` on its way into a Nix comment. Written
+# the other way round (plain text plus a separate link field) the page would
+# have lost sentences it already had, for a link the comment can't click anyway.
 {
   # ---- who you are ----------------------------------------------------------
   git = {
     order = 10;
-    blurb = "Your commit identity — set your own. It stays in your host file.";
-    docs = "/internals/flakes/#your-config-is-a-thin-consumer";
+    blurb = "Your commit identity — set your own. It stays in [your host file](/internals/flakes/#your-config-is-a-thin-consumer).";
   };
   apps = {
     order = 20;
