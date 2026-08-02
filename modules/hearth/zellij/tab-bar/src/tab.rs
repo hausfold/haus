@@ -5,7 +5,7 @@ use zellij_tile::prelude::*;
 use zellij_tile_utils::style;
 
 // The badge is a FILLED rectangle — the state colour is the background and the
-// exact number of agent panes is punched out of it in near-black — not a coloured
+// number of agent panes is punched out of it in near-black — not a coloured
 // glyph on the tab's own fill. A one-cell glyph tinted peach is a few lit pixels
 // you have to go looking for; a solid block is the thing you catch from across the
 // room, which is the entire job of this badge.
@@ -13,6 +13,63 @@ use zellij_tile_utils::style;
 // Same construction as line.rs's layout_indicator_pill (the yellow GRID
 // rectangle): hand-painted flat block, no powerline caps, so the two right-hand
 // signals in this bar read as one family.
+
+/// Blend `color` toward `toward` (0.0 = unchanged, 1.0 = fully `toward`).
+///
+/// Only RGB blends: an EightBit entry is an index into a table this plugin can't
+/// see, so a 256-colour terminal keeps the full-strength colour rather than being
+/// handed a wrong one. Muting is a nicety; every caller below stays correct
+/// without it.
+fn blend(color: PaletteColor, toward: PaletteColor, t: f32) -> PaletteColor {
+    match (color, toward) {
+        (PaletteColor::Rgb((r, g, b)), PaletteColor::Rgb((tr, tg, tb))) => {
+            let mix = |a: u8, b: u8| (a as f32 + (b as f32 - a as f32) * t).round() as u8;
+            PaletteColor::Rgb((mix(r, tr), mix(g, tg), mix(b, tb)))
+        },
+        _ => color,
+    }
+}
+
+/// The raw SGR for a styled, independently-coloured underline: `style` is the
+/// bare underline parameter (`4`, or a `4:n` sub-parameter form), followed by
+/// SGR 58, which sets the underline colour separately from the foreground.
+///
+/// Hand-emitted because ansi_term models neither. Nothing here turns the
+/// underline back OFF — the reset ansi_term writes after every string it paints
+/// does that, so the SGR has to be emitted immediately before a painted run and
+/// can never leak past it.
+fn underline_sgr(style: &str, color: PaletteColor) -> String {
+    let color = match color {
+        PaletteColor::Rgb((r, g, b)) => format!("58;2;{};{};{}", r, g, b),
+        PaletteColor::EightBit(c) => format!("58;5;{}", c),
+    };
+    format!("\u{1b}[{}m\u{1b}[{}m", style, color)
+}
+
+/// An agent count as superscript digits.
+///
+/// A raised digit is the one way a terminal can render a smaller number, and it
+/// only works because nothing is filled behind it: on a solid block a
+/// superscript floats at cap height with a third of the chip empty under it.
+/// Beside an underlined name it reads as what it is — a footnote on the label.
+///
+/// JetBrains Mono (this rice's terminal font) covers all ten, though they live
+/// in three different blocks: ¹²³ are Latin-1 leftovers, the rest are U+2070's.
+/// All are East-Asian-Ambiguous, i.e. one cell wide the way this bar's `←`/`→`
+/// already are.
+fn superscript_digits(count: usize) -> String {
+    const SUPERSCRIPTS: [char; 10] = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
+    count
+        .to_string()
+        .chars()
+        .map(|c| {
+            c.to_digit(10)
+                .map(|d| SUPERSCRIPTS[d as usize])
+                .unwrap_or(c)
+        })
+        .collect()
+}
+
 fn cursors<'a>(
     focused_clients: &'a [ClientId],
     multiplayer_colors: MultiplayerColors,
@@ -45,13 +102,39 @@ pub fn render_tab(
     } else {
         palette.ribbon_unselected.background
     };
-    let background_color = if tab.active {
+    let mut background_color = if tab.active {
         palette.ribbon_selected.background
     } else if is_alternate_tab {
         alternate_tab_color
     } else {
         palette.ribbon_unselected.background
     };
+
+    // The same three colours sill's `agents` pill uses — peach "needs you", sky
+    // "working", green "done" — read out of theme slots rather than hardcoded
+    // hexes, so a non-nebelung zellij theme still gets sane ones. Under nebelung
+    // these resolve to exactly sill's peach/sky/green.
+    let state_color = badge.map(|badge| match badge.state {
+        AgentState::Waiting => palette.text_unselected.emphasis_0,
+        AgentState::Working => palette.text_unselected.emphasis_1,
+        AgentState::Idle => palette.exit_code_success.base,
+    });
+    // Near-black from the theme rather than the tab's own foreground: that one
+    // turns pink while a bell is flashing, which has nothing to do with the agent.
+    // Same dark layout_indicator_pill punches its GRID text out in.
+    let dark = palette.text_unselected.background;
+
+    // THE WASH. A tab with an agent blocked on you takes over its whole pill —
+    // not a chip bolted to the edge of one. This is the only state that gets it:
+    // the point of a hierarchy is that the loud thing is loud *because* the quiet
+    // things stayed quiet, and working/idle say their piece with the underline
+    // below. The active tab is exempt — its pill colour already means "you are
+    // here", and you don't need to be told to look at the tab you're looking at.
+    if let (Some(badge), Some(state_color)) = (badge, state_color) {
+        if badge.state == AgentState::Waiting && !tab.active {
+            background_color = blend(background_color, state_color, 0.6);
+        }
+    }
     let foreground_color = if tab.is_flashing_bell {
         if tab.active {
             palette.ribbon_selected.emphasis_3
@@ -67,54 +150,101 @@ pub fn render_tab(
     let separator_fill_color = palette.text_unselected.background;
     let left_separator = style!(separator_fill_color, background_color).paint(separator);
     let mut tab_text_len = text.width() + (separator_width * 2) + 2; // +2 for padding
-    let tab_styled_text = style!(foreground_color, background_color)
-        .bold()
-        .paint(format!(" {} ", text));
 
-    // Fork: the agent-status badge — a filled rectangle in the most urgent
-    // agent's state colour, with the exact number of agent panes inside. It rides
-    // between the tab name and the pill's right edge (after the fullscreen/sync/
-    // bell glyphs tab_style appended into `text`).
-    let badge_section = badge.map(|badge| {
-        // The same three colours sill's `agents` pill uses — peach "needs you",
-        // sky "working", green "done" — but read out of theme slots rather than
-        // hardcoded hexes, so a non-nebelung zellij theme still gets sane ones.
-        // Under nebelung these resolve to exactly sill's peach/sky/green.
-        let state_color = match badge.state {
-            AgentState::Waiting => palette.text_unselected.emphasis_0,
-            AgentState::Working => palette.text_unselected.emphasis_1,
-            AgentState::Idle => palette.exit_code_success.base,
-        };
-        // Contrast guard, and the reason it can't just be dropped now that the
-        // badge is a filled block: nebelung paints the ACTIVE tab's pill in the
-        // very green that means "done", so a green rectangle on the tab you're
-        // sitting in would melt into it. Invert there — paw in the state colour
-        // on the tab's own dark fill — which keeps BOTH the colour code and a
-        // visible badge, unlike the flat foreground fallback this replaces.
-        // Near-black from the theme rather than the tab's own foreground: that
-        // one turns pink while a bell is flashing, which has nothing to do with
-        // the agent. Same dark layout_indicator_pill punches its GRID text out in.
-        let dark = palette.text_unselected.background;
-        let (badge_fg, badge_bg) = if state_color == background_color {
-            (state_color, dark)
-        } else {
-            (dark, state_color)
-        };
-        style!(badge_fg, badge_bg)
-            .bold()
-            // One trailing cell is the only explicit padding: terminal cells
-            // cannot safely render fractional-width spacing, and the digits'
-            // natural side bearings already keep the left edge from feeling
-            // cramped. This keeps a one-agent badge to two columns.
-            .paint(format!("{} ", badge.count))
-            .to_string()
-    });
-    // The count can grow past one digit. It gets only one trailing padding cell;
-    // accurate length is what keeps the clickable tab targets aligned with their
-    // painted pills.
-    if let Some(badge) = badge {
-        tab_text_len += badge.count.to_string().width() + 1;
+    // Fork: the agent-status signal. It is NOT a chip — a chip is a foreign
+    // object bolted to the tab, and with no digit in it (the one-agent case, i.e.
+    // most tabs) it reads as a floating sliver rather than a badge. Instead the
+    // tab's own typography carries it:
+    //
+    //   · a styled, independently-coloured UNDERLINE beneath the tab name —
+    //     the state, on every tab, costing zero columns and nothing that floats
+    //   · the WASH above — the pill itself, for the one state that needs you
+    //   · a SUPERSCRIPT count in the pad cell, only once there's >1 to count
+    //
+    // Underline colour and shape both encode the state, which is deliberate
+    // redundancy: at 19pt a two-pixel rule's hue is easy to lose, but curly vs
+    // straight vs dotted survives being small, being dim, and being colour-blind.
+    let (underline, superscript) = match (badge, state_color) {
+        (Some(badge), Some(state_color)) => {
+            // Three rules of the same weight but different rhythm: dashes read as
+            // marching ants and get the state that wants you, solid is steady
+            // work in progress, dotted is the quietest rule a terminal can draw
+            // and belongs to "finished, nothing to do". zellij's SGR parser
+            // handles 4:2/4:3/4:4/4:5 and ghostty draws all of them.
+            //
+            // NOT undercurl (4:3), tempting as the spell-checker "something here
+            // is wrong" reading is: ghostty draws the wave partly BELOW the cell
+            // box. Inside a normal pane that's invisible (the row beneath shares
+            // the background), but this bar is ONE row — the wave hangs off the
+            // bottom of the pill onto the bar, and worse, onto pixels the pane
+            // below owns and will repaint over. Double (4:2) puts its second rule
+            // in the same overhanging position. Everything here is single-height.
+            let ul_style = match badge.state {
+                AgentState::Waiting => "4:5", // dashed
+                AgentState::Working => "4",   // solid
+                AgentState::Idle => "4:4",    // dotted
+            };
+            // On a washed pill the state colour is already the BACKGROUND, so a
+            // rule in that same colour would be invisible: draw it near-black
+            // instead, which is also what the tab's own text is. On the active tab
+            // the pill is the theme's green "you are here", so darken the rule to
+            // keep it legible against a light fill. Everywhere else the rule IS
+            // the only colour the tab carries, so it stays full strength.
+            let ul_color = if tab.active {
+                blend(state_color, dark, 0.35)
+            } else if badge.state == AgentState::Waiting {
+                dark
+            } else {
+                state_color
+            };
+            let superscript = if badge.count > 1 {
+                Some((superscript_digits(badge.count), ul_color))
+            } else {
+                None
+            };
+            (Some(underline_sgr(ul_style, ul_color)), superscript)
+        },
+        _ => (None, None),
+    };
+    if let Some((digits, _)) = &superscript {
+        tab_text_len += digits.width();
     }
+
+    // The pill is painted in three pieces rather than one so the underline can
+    // sit under the NAME alone — a rule running out under the padding would read
+    // as a border on the pill instead of as a mark on the label.
+    let tab_styled_text = {
+        let pad = |s: &str| {
+            style!(foreground_color, background_color)
+                .bold()
+                .paint(s.to_string())
+                .to_string()
+        };
+        let mut s = String::new();
+        s.push_str(&pad(" "));
+        // ansi_term knows nothing about underlines, so the SGR is emitted by hand
+        // ahead of the painted name; the reset ansi_term already writes after its
+        // own text is what turns the underline back off.
+        if let Some(underline) = &underline {
+            s.push_str(underline);
+        }
+        s.push_str(
+            &style!(foreground_color, background_color)
+                .bold()
+                .paint(text.clone())
+                .to_string(),
+        );
+        if let Some((digits, color)) = &superscript {
+            s.push_str(
+                &style!(*color, background_color)
+                    .bold()
+                    .paint(digits.clone())
+                    .to_string(),
+            );
+        }
+        s.push_str(&pad(" "));
+        s
+    };
 
     let right_separator = style!(background_color, separator_fill_color).paint(separator);
     let tab_styled_text = if !focused_clients.is_empty() {
@@ -132,24 +262,17 @@ pub fn render_tab(
             .paint("]")
             .to_string();
         s.push_str(&left_separator.to_string());
-        s.push_str(&tab_styled_text.to_string());
+        s.push_str(&tab_styled_text);
         s.push_str(&cursor_beginning);
         s.push_str(&cursor_section);
         s.push_str(&cursor_end);
-        if let Some(badge_section) = &badge_section {
-            s.push_str(badge_section);
-        }
-        s.push_str(&right_separator.to_string());
-        s
-    } else if let Some(badge_section) = &badge_section {
-        let mut s = String::new();
-        s.push_str(&left_separator.to_string());
-        s.push_str(&tab_styled_text.to_string());
-        s.push_str(badge_section);
         s.push_str(&right_separator.to_string());
         s
     } else {
-        ANSIStrings(&[left_separator, tab_styled_text, right_separator]).to_string()
+        format!(
+            "{}{}{}",
+            left_separator, tab_styled_text, right_separator
+        )
     };
 
     LinePart {
