@@ -20,6 +20,7 @@
   ./hearth/options.nix
   ./prowl/options.nix
   ./sill/options.nix
+  ./collar/options.nix
   ./pounce/options.nix
   ./trill/options.nix
   ./perch/options.nix

@@ -32,8 +32,7 @@ let
   # Naming a family the rice was never given a package for is silent tofu:
   # Ghostty just falls back and the powerline/icon glyphs vanish. Cheap to spot.
   fontFamilyUnprovided =
-    fontsCfg.mono.package == null
-    && fontsCfg.mono.name != options.nebelhaus.fonts.mono.name.default;
+    fontsCfg.mono.package == null && fontsCfg.mono.name != options.nebelhaus.fonts.mono.name.default;
 in
 {
   system.primaryUser = username;
@@ -57,33 +56,34 @@ in
   # work, so blocking them would be wrong. We just make the failure legible in
   # advance. Drop this once upstream guards the writes.
   #   https://github.com/nix-darwin/nix-darwin/issues/1049
-  warnings = lib.optional fontFamilyUnprovided ''
-    nebelhaus: fonts.mono.name is "${fontsCfg.mono.name}" but fonts.mono.package is null.
+  warnings =
+    lib.optional fontFamilyUnprovided ''
+      nebelhaus: fonts.mono.name is "${fontsCfg.mono.name}" but fonts.mono.package is null.
 
-    The rice only installs the font it's given, so unless that family is already
-    on the machine Ghostty will fall back silently — and the fallback won't be a
-    Nerd Font, so starship's prompt, lsd's icons and yazi previews render as
-    tofu. Set nebelhaus.fonts.mono.package to the matching package
-    (e.g. pkgs.nerd-fonts.fira-code).
-  ''
-  ++ lib.optional (universalaccessSet != [ ]) ''
-    nebelhaus: system.defaults.universalaccess is set (${lib.concatStringsSep ", " universalaccessSet}).
+      The rice only installs the font it's given, so unless that family is already
+      on the machine Ghostty will fall back silently — and the fallback won't be a
+      Nerd Font, so starship's prompt, lsd's icons and yazi previews render as
+      tofu. Set nebelhaus.fonts.mono.package to the matching package
+      (e.g. pkgs.nerd-fonts.fira-code).
+    ''
+    ++ lib.optional (universalaccessSet != [ ]) ''
+      nebelhaus: system.defaults.universalaccess is set (${lib.concatStringsSep ", " universalaccessSet}).
 
-    That domain is TCC-protected. It writes only if the app you run the rebuild
-    FROM holds Full Disk Access (System Settings ▸ Privacy & Security ▸ Full
-    Disk Access) — on macOS 26 a stale grant often needs removing and re-adding
-    with the (+) button, then restarting the terminal.
+      That domain is TCC-protected. It writes only if the app you run the rebuild
+      FROM holds Full Disk Access (System Settings ▸ Privacy & Security ▸ Full
+      Disk Access) — on macOS 26 a stale grant often needs removing and re-adding
+      with the (+) button, then restarting the terminal.
 
-    Without that grant the write exits 1, and because nix-darwin emits it
-    unguarded into an activation script running under `set -e`, activation
-    ABORTS there and skips the rest — including every launchd service the rice
-    installs (awake, aerospace, hush-watcher, pounce, sketchybar). If a rebuild
-    ever half-completes, this is the first thing to check.
+      Without that grant the write exits 1, and because nix-darwin emits it
+      unguarded into an activation script running under `set -e`, activation
+      ABORTS there and skips the rest — including every launchd service the rice
+      installs (awake, aerospace, hush-watcher, pounce, sketchybar). If a rebuild
+      ever half-completes, this is the first thing to check.
 
-    nebelhaus.accessibility.* reaches the two useful keys in this domain
-    (increaseContrast, differentiateWithoutColor) WITHOUT that hazard — it
-    guards the write, so a missing grant costs you the setting and nothing else.
-  '';
+      nebelhaus.accessibility.* reaches the two useful keys in this domain
+      (increaseContrast, differentiateWithoutColor) WITHOUT that hazard — it
+      guards the write, so a missing grant costs you the setting and nothing else.
+    '';
 
   # ---- nebelhaus.accessibility → com.apple.universalaccess -------------------
   # Writes the two keys in that domain measured to write AND take effect on
@@ -133,6 +133,15 @@ in
       # (The workshop's developer CLI is `bench` — a different name on purpose,
       # so the two never shadow each other.)
       (writeShellScriptBin "haus" (builtins.readFile ./haus.sh))
+
+      # `haus-activate <system>` — the privileged half of a rebuild, split out
+      # so the config is evaluated ONCE. `darwin-rebuild switch --flake` builds
+      # again as root, against root's own eval + lazy-trees caches, which is a
+      # duplicate of the build `haus` (and `bench try`) just did as you. Ships
+      # unconditionally beside `haus` because `haus rebuild` calls it, and it
+      # must sit at a stable /run/current-system path for collar's
+      # passwordless-sudo rule to match it. See the script's header.
+      (writeShellScriptBin "haus-activate" (builtins.readFile ./haus-activate.sh))
 
       # `awake 3h` / `awake indefinitely` — a durable controller around macOS's
       # built-in caffeinate. Its assertion is launchd-owned below, so callers can
@@ -203,9 +212,7 @@ in
       # hearth writes are client config files with no business knowing where a bar
       # keeps its plugins — they call
       # `agent-state <working|waiting|idle|remove> <client>` instead.
-      (writeShellScriptBin "agent-state" (
-        builtins.readFile ../sill/sketchybar/plugins/agents-hook.sh
-      ))
+      (writeShellScriptBin "agent-state" (builtins.readFile ../sill/sketchybar/plugins/agents-hook.sh))
     ];
 
   # The job is intentionally always present, even when the opt-in Sill pill is
