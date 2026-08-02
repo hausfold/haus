@@ -158,13 +158,13 @@
       type = lib.types.bool;
       default = true;
       description = ''
-        Theme the apps in your roster (`nebelhaus.apps`) that Nebelung ships a
+        Theme the apps in your roster (`nebelhaus.roster`) that Nebelung ships a
         port for, without wiring each one by hand.
 
         The rice already themes every tool it installs itself — the shell, the
         terminal, the git stack, Zen, Obsidian. This covers the other direction:
         an app YOU added to the roster that Nebelung happens to have a theme for.
-        Add `zed`, `warp` or `xcode` to `nebelhaus.apps` and its Nebelung theme
+        Add `zed`, `warp` or `xcode` to `nebelhaus.roster` and its Nebelung theme
         lands where that app looks for themes, in the flavor and contrast you
         selected, following them on every rebuild. Matching is by roster id, so
         the entry has to be named after the port (`zed`, not `zed-editor`).

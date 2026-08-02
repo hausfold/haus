@@ -9,7 +9,8 @@
 #
 # This is a plain nix-darwin module — anything nix-darwin or home-manager
 # accepts goes here, and it merges with what the rice modules already declare.
-{ username, ... }:
+# `pkgs` is here for nebelhaus.roster entries that install from Nixpkgs.
+{ username, pkgs, ... }:
 
 {
   # ---- your identity ----
@@ -58,13 +59,31 @@
   #   "Library/Mobile Documents/iCloud~md~obsidian/Documents/notes"
   # ];
 
-  # Your apps — merged with the casks the modules install (ghostty, aerospace).
-  homebrew.casks = [
-    # "google-chrome"
-    # "obsidian"
-    # "slack"
-    # "zen"
-  ];
+  # Your apps — ONE list, whatever the source. An entry with a `key` joins the
+  # Caps-Lock launcher (and a `workspace` gives it a tiling workspace + a bar
+  # pill); an entry with neither is simply installed. So the app you reach for
+  # by keyboard and the font you never think about live in the same place.
+  # nebelhaus.roster = {
+  #   slack = {
+  #     key = "s";                              # Caps Lock, then s
+  #     name = "Slack";                         # as `open -a` spells it
+  #     workspace = "S";                        # owns this workspace + a pill
+  #     appId = "com.tinyspeck.slackmacgap";    # osascript -e 'id of app "Slack"'
+  #     barIcon = ":slack:";
+  #     cask = "slack";                         # declaring it installs it
+  #   };
+  #
+  #   # No key, no workspace: installed and left alone.
+  #   google-chrome = { name = "Google Chrome"; cask = "google-chrome"; };
+  #   ical-buddy = { brew = "ical-buddy"; };            # a formula, not an app
+  #   orbstack = { name = "OrbStack"; package = pkgs.orbstack; };
+  #   ripgrep = { package = pkgs.ripgrep; scope = "system"; };  # machine-wide
+  #   xcode = { name = "Xcode"; appStoreId = 497799835; };      # see appStore.install
+  # };
+  #
+  # The plain lists still work and still merge, for the rare thing that isn't
+  # an app at all:
+  #   homebrew.casks = [ "some-cask" ];
 
   # The shell/terminal layer ships in the `hearth` module (zsh, starship, git,
   # yazi, zellij, ghostty — all Nebelung-themed). To add YOUR personal bits on

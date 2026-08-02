@@ -32,9 +32,13 @@
     order = 10;
     blurb = "Your commit identity — set your own. It stays in [your host file](/internals/flakes/#your-config-is-a-thin-consumer).";
   };
-  apps = {
+  roster = {
     order = 20;
-    blurb = "The shared app roster: one entry per app, driving the launcher key, its workspace, the bar pill, the cheatsheet, and optionally its Homebrew cask.";
+    blurb = "One list of everything this machine has — apps, fonts, command-line tools. Each entry drives its launcher key, workspace, bar pill and cheatsheet row, and installs it from whichever source it names: a Homebrew cask or formula, a Nixpkgs package, or the Mac App Store.";
+  };
+  appStore = {
+    order = 21;
+    blurb = "Whether a rebuild may install the roster's `appStoreId` entries. Off by default: it reaches the network and acts on your Apple Account, and it can never be complete — `mas` cannot sign in, and cannot buy a paid app.";
   };
 
   # ---- how it looks ---------------------------------------------------------

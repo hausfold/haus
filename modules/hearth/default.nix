@@ -139,7 +139,33 @@ let
     lib.filterAttrs (_: v: v != null) config.system.defaults.universalaccess
   );
 
-  roster = lib.sort (a: b: a.order < b.order) config.nebelhaus._apps;
+  # Two halves of the same roster: what has a leader key (the table an agent
+  # reads before picking a free letter) and what doesn't (installed, but nothing
+  # to press). The install-only half keeps its attr id, since with no key and
+  # often no `name` that id is the only handle an edit can grab.
+  launcherRoster = lib.sort (a: b: a.order < b.order) config.nebelhaus._launchers;
+  # Where an entry comes from, in one clause — the question a comment in the host
+  # file used to answer badly. Four sources plus `installedBy` for the rice's own
+  # bundles; "· cask x" alone would quietly describe everything else as unmanaged.
+  sourceOf =
+    a:
+    if a.cask != null then
+      " · cask `${a.cask}`"
+    else if a.brew != null then
+      " · brew `${a.brew}`"
+    else if a.package != null then
+      " · nixpkgs (${a.scope} scope)"
+    else if a.appStoreId != null then
+      " · App Store `${toString a.appStoreId}`"
+    else if a.installedBy != null then
+      " · installed by `${a.installedBy}`"
+    else
+      "";
+  installOnlyRoster = lib.sort (a: b: a.id < b.id) (
+    lib.mapAttrsToList (id: app: { inherit id app; }) (
+      lib.filterAttrs (_: app: app.enable && app.key == null) config.nebelhaus.roster
+    )
+  );
 
   thisMachine = ''
     # This machine
@@ -190,15 +216,34 @@ let
     Leader key → app. Taken keys are taken; pick an unused one when adding.
 
     ${
-      if roster == [ ] then
+      if launcherRoster == [ ] then
         "*(none declared)*"
       else
         lib.concatMapStringsSep "\n" (
           a:
           "- `${a.key}` → ${a.name}"
           + (if a.workspace == null then " *(launcher-only)*" else " (workspace `${a.workspace}`)")
-          + (if a.cask == null then "" else " · cask `${a.cask}`")
-        ) roster
+          + sourceOf a
+        ) launcherRoster
+    }
+
+    ## Also declared, without a leader key
+
+    Same `nebelhaus.roster`, no keyboard binding — apps reached another way,
+    the rice's own (installed by a module rather than a package manager), and
+    the fonts and command-line tools that live in the one list too. Adding a
+    `key` to any of these is what puts it on the launcher.
+
+    ${
+      if installOnlyRoster == [ ] then
+        "*(none)*"
+      else
+        lib.concatMapStringsSep "\n" (
+          e:
+          "- `${e.id}`"
+          + (if e.app.name == null then "" else " → ${e.app.name}")
+          + (if sourceOf e.app == "" then " · not installed by the rice" else sourceOf e.app)
+        ) installOnlyRoster
     }
 
     ## Rebuild hazards on this host
@@ -249,6 +294,21 @@ in
         + "would only move the failure into the agent pane; drop it from agents.clients.";
     }
   ];
+
+  # The two things hearth installs that aren't shell config: a video player and
+  # the tool the file-association hijack drives. In the roster because that's
+  # where everything this machine HAS lives — visible in `this-machine.md`,
+  # overridable by app id from a host, and (see the note by home.packages) able
+  # to collide loudly with a cask of the same name instead of silently.
+  nebelhaus.roster = {
+    iina = {
+      name = lib.mkDefault "IINA";
+      package = lib.mkDefault pkgs.iina;
+    };
+    duti = {
+      package = lib.mkDefault pkgs.duti;
+    };
+  };
 
   # The nebelung ports this room wires itself, so the roster pass in
   # modules/theme/ports.nix leaves them alone instead of dropping a second,
@@ -497,10 +557,14 @@ in
       home.packages =
         with pkgs;
         [
-          # Not developer tools: iina plays video, duti is what
-          # hearth.hijackFileAssociations drives.
-          iina
-          duti
+          # iina and duti are roster entries (below, at the darwin level) rather
+          # than bare packages — the room that installs an app declares it, and
+          # for iina that's load-bearing: keying it under the id `iina` means a
+          # later `homebrew.casks = [ "iina" ]` merges onto the SAME entry and
+          # trips the one-source-per-entry assertion, instead of quietly putting
+          # a second IINA in /Applications the way it did for months.
+          # zellijReload stays here: it's an internal wrapper script, not
+          # something anyone installed.
           zellijReload
         ]
         ++ lib.optionals devCfg.toolbelt.enable [
@@ -1388,6 +1452,33 @@ in
         "ChangeApplicationState"
         "ReadCliPipes"
       ];
+
+      # Keep nix-installed .app bundles findable by LaunchServices.
+      #
+      # A GUI app from nixpkgs (iina is the one the rice itself ships) is linked
+      # into ~/Applications/Home Manager Apps as a SYMLINK, and LaunchServices
+      # resolves that to the /nix/store path when it registers the bundle — so
+      # every record it keeps is pinned to a store hash. Bump the package and the
+      # hash changes: the "Open With" entry, the default-handler binding, and
+      # `open -b <bundle-id>` all still name a path that garbage collection is
+      # about to remove, and the app quietly stops being the handler for its own
+      # file types. (Masked for anyone who ALSO has the app from a cask — the
+      # /Applications copy keeps answering for the shared bundle id, which is how
+      # a machine can carry two copies of one app and never notice.)
+      #
+      # Re-registering on every activation is the fix, because activation is
+      # exactly when the store path changes. `-f` forces a refresh of records
+      # that already exist, `-r` walks the directory; both are cheap on a handful
+      # of symlinks, and neither touches which app is the DEFAULT for a type —
+      # that binding is by bundle id and is the user's to set (duti, or Finder's
+      # Get Info), so this only makes sure the id keeps resolving.
+      home.activation.nixAppsLaunchServices = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        nixApps="$HOME/Applications/Home Manager Apps"
+        if [ -d "$nixApps" ]; then
+          $DRY_RUN_CMD /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister \
+            -f -r "$nixApps" 2>/dev/null || true
+        fi
+      '';
 
       # File-association hijack — opt-in (nebelhaus.hearth.hijackFileAssociations).
       # Off by default: silently making EditorOpen.app the handler for a dozen

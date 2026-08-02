@@ -33,6 +33,14 @@
 }:
 
 lib.mkIf config.nebelhaus.perch.enable {
+  # Same story as trill: the bundle is copied to a fixed /Applications path by
+  # this module's activation step (see the header on why the path must be
+  # fixed), so `installedBy` is the only honest source field.
+  nebelhaus.roster.perch = {
+    name = lib.mkDefault "Perch";
+    installedBy = lib.mkDefault "nebelhaus.perch";
+  };
+
   # All home-manager wiring in ONE block — a dynamic attr key (${username}) can't
   # be merged across multiple statements. Passed as a module FUNCTION so it gets
   # the overlaid `pkgs`, the `nebelung` input, and home-manager's extended lib

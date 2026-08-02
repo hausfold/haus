@@ -22,17 +22,30 @@ let
         description = "Roster order; lower values appear first. Ties are sorted by app id.";
       };
       key = lib.mkOption {
-        type = lib.types.str;
+        type = lib.types.nullOr lib.types.str;
+        default = null;
         example = "s";
         description = ''
           The leader letter for this app: tap Caps Lock then this key to
           launch/focus it. Must be unique across the roster.
+
+          null (the default) means the entry is INSTALL-ONLY: it still
+          brings its cask/formula/package, but claims no leader key, no
+          cheatsheet row, and no launch-mode bubble. That is what lets one
+          roster hold both the apps you reach for by keyboard and the ones
+          you just want on the machine (and fonts, and CLI tools).
         '';
       };
       name = lib.mkOption {
-        type = lib.types.str;
+        type = lib.types.nullOr lib.types.str;
+        default = null;
         example = "Slack";
-        description = "macOS application name, as passed to `open -a`.";
+        description = ''
+          macOS application name, as passed to `open -a`. Required when
+          `key` is set (the launcher has nothing to open otherwise);
+          null is right for an install-only entry — a font, a CLI tool, or
+          an app you launch some other way.
+        '';
       };
       workspace = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
@@ -74,6 +87,11 @@ let
         example = "Slack";
         description = "Cheatsheet caption for the leader key. null uses name.";
       };
+      # ---- where it comes from -------------------------------------------
+      # Four sources, one per package manager, all optional. Set the one that
+      # applies and declaring the app is what installs it; set none and the
+      # entry is pure metadata for something already on the machine (Safari,
+      # Music, an app you drag in by hand).
       cask = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
@@ -84,16 +102,93 @@ let
           "already present / installed some other way" (e.g. Safari, Music).
         '';
       };
+      brew = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "ical-buddy";
+        description = ''
+          Homebrew FORMULA that installs this entry, appended to
+          homebrew.brews. For the command-line half of the roster — a tool
+          with no .app bundle, which usually means `key`, `name` and
+          `workspace` are all null.
+        '';
+      };
+      package = lib.mkOption {
+        type = lib.types.nullOr lib.types.package;
+        default = null;
+        example = lib.literalExpression "pkgs.orbstack";
+        description = ''
+          Nixpkgs package that installs this entry. Where it lands is
+          `scope`'s call.
+        '';
+      };
+      scope = lib.mkOption {
+        type = lib.types.enum [
+          "user"
+          "system"
+        ];
+        default = "user";
+        description = ''
+          Which profile `package` installs into.
+
+          - "user" (default): home-manager's `home.packages`. Right for
+            anything you run as yourself — apps, editors, CLI tools.
+          - "system": nix-darwin's `environment.systemPackages`. Installed
+            once for the whole machine, so it's on PATH for root, for
+            non-login shells, and for launchd jobs — which is what a tool
+            invoked by a daemon, a `sudo` workflow, or an activation script
+            actually needs. (It is about REACH, not about the package
+            needing elevated privileges to install: `darwin-rebuild` runs
+            under sudo either way.)
+
+          Ignored when `package` is null — Homebrew has no such split.
+        '';
+      };
+      appStoreId = lib.mkOption {
+        type = lib.types.nullOr lib.types.int;
+        default = null;
+        example = 497799835;
+        description = ''
+          Mac App Store numeric app id (the digits in its store URL), so an
+          App Store app is declared in the same roster as everything else
+          rather than in a comment.
+
+          Recording it is always safe; INSTALLING from it is opt-in via
+          `nebelhaus.appStore.install`, because the App Store is the one
+          source that can't be fully automated: `mas` has no sign-in
+          command, and it cannot buy a paid app for the first time. Free
+          apps it can fetch; paid ones you purchase once in App Store.app
+          and every machine afterwards can install them.
+        '';
+      };
+      installedBy = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "nebelhaus.trill";
+        description = ''
+          The nebelhaus module that puts this app on disk, when none of the
+          four sources above describes it: trill, pounce and perch copy a
+          notarized bundle into /Applications from their own activation
+          step, which is neither a cask nor a package you can list.
+
+          Set BY the rice, not by you. It exists so the roster can still
+          answer "who installed this?" for those apps — without it, a host
+          adding a leader key for Trill had to KNOW the rice already ships
+          it, leave every source field null, and leave a comment explaining
+          the hole. This is that comment, as data.
+        '';
+      };
     };
   };
 in
 {
   options.nebelhaus = {
-    apps = lib.mkOption {
+    roster = lib.mkOption {
       type = lib.types.attrsOf appType;
       default = { };
       example = lib.literalExpression ''
         {
+          # Launcher app: leader s, owns workspace S, installs itself.
           slack = {
             key = "s";
             name = "Slack";
@@ -102,12 +197,29 @@ in
             barIcon = ":slack:";
             cask = "slack";
           };
+
+          # Install-only: no key, so no leader binding and no pill.
+          framer = { cask = "framer"; };
+          orbstack = { package = pkgs.orbstack; };
+          biome = { package = pkgs.biome; scope = "system"; };
+          ical-buddy = { brew = "ical-buddy"; };
+          xcode = { name = "Xcode"; appStoreId = 497799835; };
         }
       '';
       description = ''
-        The shared app roster, keyed by a stable app id. This is the canonical,
-        composable source for AeroSpace launcher keys and workspaces,
-        SketchyBar pills, the pounce cheatsheet, and optional Homebrew casks.
+        The one list of things this machine has, keyed by a stable id. It is
+        the canonical, composable source for AeroSpace launcher keys and
+        workspaces, SketchyBar pills, the pounce cheatsheet, Nebelung theme
+        ports — and for the install itself, from any of four sources
+        (`cask`, `brew`, `package`, `appStoreId`).
+
+        Every field except the id is optional, and WHICH fields you set is
+        what the entry means. Set `key` and it joins the launcher; set
+        `workspace` and it claims one, with a pill; set none of those and
+        it's install-only — which is how a font or a command-line tool
+        lives in the same list as Slack instead of in a second one beside
+        it. The rice's own `homebrew.casks` / `home.packages` still work and
+        still merge; you just shouldn't need them for an app.
 
         Attribute-set entries merge across Nix modules, so a host, an imported
         file, and pounce's "Install App" command can each contribute one app
@@ -116,13 +228,49 @@ in
       '';
     };
 
-    # Normalized by modules/prowl. Kept internal so every room consumes the same
+    # Normalized by modules/roster. Kept internal so every room consumes the same
     # ordered list while the public API stays keyed and composable.
-    _apps = lib.mkOption {
+    _roster = lib.mkOption {
       type = lib.types.listOf appType;
       internal = true;
       readOnly = true;
       description = "Resolved, enabled app roster used internally by nebelhaus modules.";
+    };
+
+    # The launcher subset: entries that claim a leader key. Its own list rather
+    # than a `key != null` filter repeated in prowl, sill and pounce — every one
+    # of those renders `a.key` into a string, so a missed filter isn't a wrong
+    # binding, it's the literal word "null" in a keymap.
+    _launchers = lib.mkOption {
+      type = lib.types.listOf appType;
+      internal = true;
+      readOnly = true;
+      description = "Resolved roster entries that have a leader key, in roster order.";
+    };
+
+    appStore = {
+      install = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Install roster entries that set `appStoreId` from the Mac App
+          Store during activation, skipping any already installed.
+
+          Off by default: this reaches the network and acts on your Apple
+          ID, which shouldn't happen as a side effect of turning on a
+          window manager. It also can't be complete — `mas` cannot sign in
+          (do that once in App Store.app) and cannot make a first-time
+          PURCHASE, so a paid app you don't already own is reported and
+          skipped rather than installed.
+
+          Deliberately NOT nix-darwin's `homebrew.masApps`: that runs
+          `mas install` through `brew bundle` as your user, and since
+          macOS 13 the App Store install path requires root — so it stops
+          for a password prompt that a rebuild has no terminal to show,
+          and the rebuild hangs. The activation step this option enables
+          is already running as root, so it neither prompts nor wedges.
+        '';
+      };
     };
 
     # ---- ui: one scale, fanned out ----
@@ -295,7 +443,7 @@ in
       };
 
       # The seam for leader actions that AREN'T "launch an app". The app roster
-      # (nebelhaus.apps) already fronts a letter → open an app; this fronts a key
+      # (nebelhaus.roster) already fronts a letter → open an app; this fronts a key
       # → run a command (a script, an AppleScript, a `things:///` open). Rendered
       # into AeroSpace's [mode.launch.binding] AND the pounce cheatsheet from this
       # one list, so a binding and its caption can't drift — the same guarantee the

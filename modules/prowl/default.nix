@@ -9,10 +9,10 @@
 # belongs to the keyboard rather than to a window manager — expressible at all.
 #
 # The launcher (which app lives on which workspace, its leader key + window
-# rules) is data-driven: keyed nebelhaus.apps entries are the composable source
-# of truth, normalized here into nebelhaus._apps. This module renders that list
-# into aerospace.toml (+ the wake-time resort script); SketchyBar and pounce read
-# the same resolved option so nothing drifts.
+# rules) is data-driven: keyed nebelhaus.roster entries are the composable source
+# of truth, resolved by ../roster into nebelhaus._roster / ._launchers. This module
+# renders those lists into aerospace.toml (+ the wake-time resort script);
+# SketchyBar and pounce read the same resolved options so nothing drifts.
 {
   config,
   lib,
@@ -32,17 +32,14 @@ let
   binDir = "/etc/profiles/per-user/${username}/bin";
   launchSh = "${homeDir}/.config/aerospace/launch.sh";
 
-  namedEntries = lib.mapAttrsToList (id: app: { inherit id app; }) (
-    lib.filterAttrs (_: app: app.enable) config.nebelhaus.apps
-  );
-  orderedNamedEntries = lib.sort (
-    a: b: a.app.order < b.app.order || (a.app.order == b.app.order && a.id < b.id)
-  ) namedEntries;
-  apps = map (entry: entry.app) orderedNamedEntries;
-  appKeys = map (app: app.key) apps;
-  duplicateKeys = lib.unique (
-    lib.filter (key: lib.count (candidate: candidate == key) appKeys > 1) appKeys
-  );
+  # Resolved by ../roster (which also owns the uniqueness assertion and the
+  # installs). `apps` is the whole roster — what the WINDOW rules and workspaces
+  # are built from, since an app can own a workspace without claiming a leader
+  # key. `launchers` is the keyboard half, and the only one allowed to render a
+  # binding: a null key in [mode.launch.binding] would be the literal string.
+  apps = config.nebelhaus._roster;
+  launchers = config.nebelhaus._launchers;
+  appKeys = map (app: app.key) launchers;
 
   # The resolved keymap: chords + the glyphs that document them, from one table.
   k = import ../lib/keys.nix {
@@ -110,7 +107,7 @@ let
         "shift-${a.key} = ['exec-and-forget ${homeDir}/.config/sketchybar/plugins/launch_mode.sh off', "
         + "'move-node-to-workspace --focus-follows-window ${a.workspace}', 'mode main']\n"
       )
-    ) apps
+    ) launchers
   );
 
   # Mode-entry chords. Structural plumbing rather than tiling commands, so they
@@ -127,7 +124,7 @@ let
 
   launchLetters = lib.concatMapStrings (
     a: "${a.key} = ['exec-and-forget ${launchInvocation a}', 'mode main']\n"
-  ) apps;
+  ) launchers;
 
   # Non-app leader actions (nebelhaus.keys.leaderExtras): a leader key that runs a
   # command instead of launching a roster app. Each command goes into its OWN
@@ -248,24 +245,20 @@ let
     builtins.readFile ./scripts/resort-windows.sh
   );
 
-  # Any roster app with a cask installs itself — declaring the app also brings it.
-  rosterCasks = lib.filter (c: c != null) (map (a: a.cask) apps);
 in
 lib.mkMerge [
-  {
-    # One ordered view for prowl, sill, and pounce.
-    nebelhaus._apps = apps;
-  }
-
   (lib.mkIf config.nebelhaus.prowl.enable {
     # A fresh host gets a useful terminal + browser. These are field-level
     # defaults, so keyed entries compose with them and can override by app id.
-    nebelhaus.apps = {
+    nebelhaus.roster = {
+      # `name` and `cask` are den's (it's den that installs the terminal) — this
+      # adds only the tiling half, so the two modules never define one field
+      # twice. That split is the pattern: whoever INSTALLS an app owns its
+      # source fields, whoever gives it a KEY owns the launcher fields.
       ghostty = {
         enable = lib.mkDefault true;
         order = lib.mkDefault 10;
         key = lib.mkDefault "t";
-        name = lib.mkDefault "Ghostty";
         workspace = lib.mkDefault "T";
         appId = lib.mkDefault "com.mitchellh.ghostty";
         barIcon = lib.mkDefault ":ghostty:";
@@ -295,10 +288,6 @@ lib.mkMerge [
 
     assertions = [
       {
-        assertion = duplicateKeys == [ ];
-        message = "nebelhaus app leader keys must be unique; duplicated: ${lib.concatStringsSep ", " duplicateKeys}";
-      }
-      {
         # Cross-room: keys.leader is prowl's chord and keys.palette is pounce's
         # in-process hotkey, so nothing would have caught them claiming the same
         # one — and the failure is silent, whoever registers first wins.
@@ -316,10 +305,15 @@ lib.mkMerge [
           + lib.concatStringsSep ", " (lib.unique (extraCollisions ++ extraDuplicates));
       }
     ];
-  # AeroSpace itself (cask) + its tap. Roster apps that name a cask ride along.
-  # Merged into den's homebrew config.
+  # AeroSpace itself, as a roster entry like everything else — no leader key,
+  # because you don't launch your window manager, it's just running. Its tap
+  # stays a raw homebrew.taps line: a tap isn't an app, and the roster models
+  # what a machine HAS, not where Homebrew looks for it.
   homebrew.taps = [ "nikitabobko/tap" ];
-  homebrew.casks = [ "aerospace" ] ++ rosterCasks;
+  nebelhaus.roster.aerospace = {
+    name = lib.mkDefault "AeroSpace";
+    cask = lib.mkDefault "aerospace";
+  };
 
   # Caps Lock → F18, feeding AeroSpace's `launch` leader mode: AeroSpace can't
   # bind Caps Lock itself. Decimal values are the hidutil HID usage codes (caps

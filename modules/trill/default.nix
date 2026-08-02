@@ -31,6 +31,16 @@
 }:
 
 lib.mkIf config.nebelhaus.trill.enable {
+  # Trill is on this machine because THIS module dittos its notarized bundle to
+  # /Applications below — not a cask, not a package in a profile. Declaring the
+  # roster entry here is what spares a host from knowing that: it adds a key and
+  # a workspace, and never has to explain why every source field is null.
+  nebelhaus.roster.trill = {
+    name = lib.mkDefault "Trill";
+    appId = lib.mkDefault "com.nebelhaus.trill";
+    installedBy = lib.mkDefault "nebelhaus.trill";
+  };
+
   # All home-manager wiring in ONE block — a dynamic attr key (${username}) can't
   # be merged across multiple statements. Passed as a module FUNCTION so it gets
   # the overlaid `pkgs` and the `nebelung` input.

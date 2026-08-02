@@ -321,11 +321,20 @@ in
       inherit (config.nebelhaus.homebrew) autoUpdate upgrade cleanup;
     };
 
-    # A minimal, opinionated starter set. Edit freely in your host file —
-    # `homebrew.casks = [ ... ];` merges with whatever the modules declare.
-    casks = [
-      "ghostty" # the terminal the rice is themed for
-    ];
+    # No casks here on purpose. den's own (ghostty) is a roster entry below,
+    # like every other app on the machine — a host adding a leader key for the
+    # terminal shouldn't have to know whether the rice already installed it. A
+    # raw `homebrew.casks = [ ... ]` still merges in from anywhere, for the rare
+    # cask that isn't an app at all.
+  };
+
+  # The terminal the rice is themed for. mkDefault so a host can point the entry
+  # at a different build — or null the cask and install ghostty its own way — by
+  # app id, without touching this file. prowl adds the leader key and workspace
+  # when tiling is on; with prowl off this is just an install.
+  nebelhaus.roster.ghostty = {
+    name = lib.mkDefault "Ghostty";
+    cask = lib.mkDefault "ghostty";
   };
 
   # ---- Fonts ----------------------------------------------------------------

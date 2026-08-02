@@ -107,7 +107,7 @@ rollback will actually undo it.
 
 ## The Homebrew trap
 
-Removing an app from `nebelhaus.apps` (or `homebrew.casks`) stops nebelhaus from
+Removing an app from `nebelhaus.roster` (or `homebrew.casks`) stops nebelhaus from
 *managing* it — it does **not** uninstall it. The app stays on disk. Tell the
 user the extra step: `brew uninstall --zap <cask>`.
 
