@@ -10,6 +10,7 @@
 #   haus generations     list the generations you can roll back to
 #   haus status          current generation + how old your pinned rice is
 #   haus edit            open your host config (identity, apps) in $EDITOR
+#   haus options         refresh hosts/<host>/options.nix — every nebelhaus.* option, annotated
 #   haus doctor          check the machine's health (Nix, CLT, the GUI agents)
 #   haus btm             check BTM daemon-gating (macOS 26 Tahoe+; no-op before)
 #   haus tour            take the guided haus tour (it lives in the bar)
@@ -166,6 +167,8 @@ haus — the everyday CLI for a nebelhaus machine.
   haus generations    list the generations you can roll back to
   haus status         current generation + how old your pinned rice is
   haus edit           open your host config in $EDITOR
+  haus options        refresh the annotated catalogue of every nebelhaus.* option
+                      (--force replaces your copy instead of writing options.nix.new)
   haus doctor         check the machine's health (Nix, CLT, the GUI agents)
   haus btm            check BTM daemon-gating (macOS 26 Tahoe+; no-op before)
   haus tour           take the guided haus tour (haus tour reset re-arms it)
@@ -546,6 +549,57 @@ cmd_edit() {
   exec "${EDITOR:-hx}" "$f"
 }
 
+# ---- haus options -----------------------------------------------------------
+# Refresh hosts/<host>/options.nix — the annotated catalogue of every
+# nebelhaus.* option at its default, all commented out. The bootstrap writes it
+# once at install; this is how it gets refreshed when `haus update` moves the
+# pin and the rice grows options that weren't in your copy.
+#
+# Read from the SYSTEM PROFILE, not built on demand: den ships it (see
+# den/default.nix), so what you get is exactly the option surface this machine
+# is pinned to. Nothing here evaluates or fetches anything.
+#
+# It never silently overwrites. Once you've uncommented lines in your copy that
+# file is yours, so a re-run writes options.nix.new beside it and shows the
+# diff — you merge what you want. --force is the "I never edited it" shortcut.
+HOST_TEMPLATE="${HAUS_HOST_TEMPLATE:-/run/current-system/sw/share/nebelhaus/host-options.nix}"
+
+cmd_options() {
+  local force="" host dir dest
+  [ "${1:-}" = "--force" ] && force=1
+
+  [ -f "$HOST_TEMPLATE" ] \
+    || die "no option template at $HOST_TEMPLATE — this machine's rice predates it; run 'haus update' first."
+
+  host="$(host_name)"
+  dir="$CONSUMER/hosts/$host"
+  dest="$dir/options.nix"
+  [ -d "$dir" ] || die "no host directory at $dir"
+
+  if [ ! -e "$dest" ] || [ -n "$force" ]; then
+    cp -f "$HOST_TEMPLATE" "$dest"
+    chmod u+w "$dest"   # it comes out of the store read-only
+    say "wrote $dest ($(grep -c '^  # nebelhaus\.' "$dest") options, all commented out)"
+  elif cmp -s "$HOST_TEMPLATE" "$dest"; then
+    say "$dest is already current."
+    return 0
+  else
+    cp -f "$HOST_TEMPLATE" "$dest.new"
+    chmod u+w "$dest.new"
+    say "your options.nix differs from this rice's — wrote $dest.new instead."
+    diff -u "$dest" "$dest.new" | sed -n '1,40p' | sed 's/^/  /' || true
+    info "merge what you want, then: rm $dest.new   (or: haus options --force to replace)"
+  fi
+
+  # The catalogue only does anything if the host file imports it. Say so rather
+  # than editing default.nix behind their back — that file is hand-written.
+  if ! grep -q '\./options\.nix' "$dir/default.nix" 2>/dev/null; then
+    printf '\n'
+    warn "$dir/default.nix doesn't import it yet. Add this line inside the { … } block:"
+    printf '\n      imports = [ ./options.nix ];\n\n'
+  fi
+}
+
 cmd_doctor() {
   local uid; uid="$(id -u)"
   say "nebelhaus doctor"
@@ -783,9 +837,10 @@ case "${1:-status}" in
   generations) cmd_generations ;;
   status)      cmd_status ;;
   edit)        cmd_edit ;;
+  options)     cmd_options "${2:-}" ;;
   doctor)      cmd_doctor ;;
   btm)         cmd_btm ;;
   tour)        cmd_tour "${2:-}" ;;
   -h|--help|help) usage ;;
-  *)           die "unknown command '$1' — try: rebuild update rollback generations status edit doctor btm tour" ;;
+  *)           die "unknown command '$1' — try: rebuild update rollback generations status edit options doctor btm tour" ;;
 esac

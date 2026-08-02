@@ -80,13 +80,14 @@ lib.mkIf cfg.enable {
       home.file.".local/bin/hush".source = "${engine}/hush";
 
       # Bind symbolic hotkey 175 declaratively. -dict-add merges a single key
-      # into AppleSymbolicHotKeys — it can never clobber your other hotkeys —
-      # and activateSettings makes it live without logout. Idempotent, so
-      # re-asserting every activation is free and self-healing.
+      # into AppleSymbolicHotKeys — it can never clobber your other hotkeys.
+      # Idempotent, so re-asserting every activation is free and self-healing.
+      # The `activateSettings -u` that makes it live without a logout used to sit
+      # right here; den now runs one at the very end of activation (mkAfter, and
+      # home-manager runs inside postActivation), which covers this write too.
       home.activation.hushHotkey = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
         run /usr/bin/defaults write com.apple.symbolichotkeys AppleSymbolicHotKeys \
           -dict-add 175 '${hotkeyXml}'
-        run /System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings -u || true
       '';
     };
 }

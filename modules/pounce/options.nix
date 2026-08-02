@@ -3,7 +3,7 @@
 # Cross-cutting options (the app roster) stay in modules/options.nix.
 #
 # pounce's options — the ⌘Space palette daemon and its window switcher.
-{ lib, ... }:
+{ lib, config, ... }:
 
 {
   options.nebelhaus = {
@@ -29,6 +29,53 @@
         the grant the event tap can't install and stock ⌘Tab keeps working, so
         this default is safe on a fresh, not-yet-granted install. false leaves
         ⌘Tab native even when the grant is there.
+      '';
+    };
+
+    pounce.windowMode = lib.mkOption {
+      type = lib.types.enum [
+        "default"
+        "compact"
+      ];
+      default = "compact";
+      description = ''
+        The palette's proportions. `compact` is narrower with tighter rows and
+        keeps its list hidden until you type — the rice's tuned look, and what it
+        shipped before this option existed. `default` is pounce's roomier layout,
+        which shows the top results the moment it opens.
+
+        This is shape, not size: how BIG the palette is drawn is
+        nebelhaus.pounce.scale. The two compose — a compact palette at scale 1.4
+        is still the compact layout, just readable from further away.
+      '';
+    };
+
+    pounce.scale = lib.mkOption {
+      type = lib.types.numbers.between 0.8 2.0;
+      default = lib.min 2.0 (lib.max 0.8 config.nebelhaus.ui.scale);
+      # Prose, so literalMD — see nebelhaus.developer.languages in modules/options.nix.
+      defaultText = lib.literalMD "nebelhaus.ui.scale, held inside pounce's 0.8-2.0";
+      example = 1.4;
+      description = ''
+        How big the palette is drawn. Multiplies every size in pounce's UI — the
+        launcher's rows, header, icons and action bar, and the panels behind it:
+        the emoji grid, clipboard history, recent screenshots, camera peek, Find
+        Files, the cheatsheet and the window switcher.
+
+        Follows nebelhaus.ui.scale by default, so you rarely set this directly.
+        It exists as its own option for the case where the palette wants a
+        different size from the rest of the rice — the launcher is read at arm's
+        length for a second, not lived in like the terminal.
+
+        pounce's own range is narrower than ui.scale's, so a rice at
+        `ui.scale = 2.5` gets a palette at 2.0 rather than an evaluation error.
+
+        Two things adapt on their own, which is why one number is enough: the
+        launcher shows fewer rows when the scaled rows stop fitting on screen, and
+        every panel's width is held inside the visible frame. That matters most
+        alongside `nebelhaus.displays.<name>.uiScale` — a larger-text display mode
+        and a larger palette multiply, and the palette is the one that would
+        otherwise run off the edge.
       '';
     };
 

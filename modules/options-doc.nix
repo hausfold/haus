@@ -7,10 +7,17 @@
 # works only because those files are pure `{ lib, ... }` modules with no
 # config/pkgs dependencies. Keep them that way.
 #
-# Two consumers build on this: the flake's `options-json` output (which the docs
-# site renders) and the Claude skill's option reference (hearth/claude/skill.nix,
-# which every machine installs). One evaluation, one normalisation, so the two
-# can't disagree about what an option is.
+# Three consumers build on this: the flake's `options-json` output (which the
+# docs site renders), the Claude skill's option reference (hearth/claude/skill.nix,
+# which every machine installs), and the annotated host template a fresh install
+# is scaffolded with (host-template.nix). One evaluation, one normalisation, so
+# they can't disagree about what an option is.
+#
+# The output carries a SECOND file beside `options.json`: `groups.json`, the
+# per-room reading order and blurbs from options-groups.nix. Those can't be
+# derived from the module system (it has no notion of "identity first, policy
+# last"), and shipping them in the same derivation means a renderer that already
+# fetches this one needs nothing else to lay a page out.
 {
   pkgs,
   lib ? pkgs.lib,
@@ -70,14 +77,28 @@ let
   visible = optionsEval.options // {
     nebelhaus = lib.filterAttrs (name: _: !(lib.hasPrefix "_" name)) optionsEval.options.nebelhaus;
   };
+  optionsJSON =
+    (pkgs.nixosOptionsDoc {
+      options = visible;
+      warningsAreErrors = false;
+      transformOptions =
+        opt:
+        opt
+        // {
+          declarations = map relative opt.declarations;
+        };
+    }).optionsJSON;
 in
-(pkgs.nixosOptionsDoc {
-  options = visible;
-  warningsAreErrors = false;
-  transformOptions =
-    opt:
-    opt
-    // {
-      declarations = map relative opt.declarations;
-    };
-}).optionsJSON
+# Copied rather than symlinked so `groups.json` lands in the SAME directory as
+# `options.json` — every consumer already knows that path, and a renderer that
+# has one file has the other without a second store path to plumb through.
+pkgs.runCommand "nebelhaus-options-json"
+  {
+    groupsJSON = builtins.toJSON (import ./options-groups.nix);
+    passAsFile = [ "groupsJSON" ];
+  }
+  ''
+    cp -r ${optionsJSON} "$out"
+    chmod -R u+w "$out"
+    cp "$groupsJSONPath" "$out/share/doc/nixos/groups.json"
+  ''

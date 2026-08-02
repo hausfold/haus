@@ -7,6 +7,8 @@
 #     <5h %>\t<7d %>\t<5h resets epoch>\t<7d resets epoch>\t<written epoch>\t<provider>
 # Cost TSV lines (e.g. usage-opencode.tsv):
 #     <today $>\t<mtd $>\t0\t0\t<written epoch>\topencode\t<model>\t<provider_id>
+# Token TSV lines (tokens-<provider>.tsv, optional, dropdown only):
+#     <today tokens>\t<all-time tokens>\t<written epoch>
 #
 # Two entry paths:
 #   • periodic / system_woke / refresh  → repaint main pill icon+label
@@ -15,6 +17,7 @@ set -u
 export USER="${USER:-$(id -un)}"
 export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:$PATH"
 source "$HOME/.config/sketchybar/colors.sh"
+source "$HOME/.config/sketchybar/sizes.sh"
 # provider_style() — the shared icon/font/name table, so the agents pill draws
 # the same mark for a client that this pill draws for its usage.
 # shellcheck source=./ai-provider.sh
@@ -22,6 +25,95 @@ source "$HOME/.config/sketchybar/plugins/ai-provider.sh"
 
 CACHE_DIR="${CLAUDE_STATUSLINE_CACHE:-$HOME/.cache/claude-statusline}"
 ITEM_NAME="${NAME:-ai_usage}"
+
+tokens_label() { # tokens_label <d> <w> <m> <all> — the token score, TWO periods
+  # per line, printed as one line per output line:
+  #
+  #    220M d  ·  2.02B w
+  #    590M m  ·  7.65B total
+  #
+  # Four periods on one line runs the dropdown off the side of a laptop screen,
+  # so they wrap into a 2×2 block. Cells are padded to a common width — number
+  # right-aligned, period left — which in the bar's monospace font is what makes
+  # the second line sit under the first instead of beside it.
+  #
+  # Numbers are three significant figures with the trailing zeros filed off, so a
+  # cell stays the same handful of characters whether it reads 950K or 7.65B and
+  # never pads a number with digits it hasn't earned. Empty periods are dropped
+  # rather than printed as 0 — the block just gets smaller, which is its own
+  # signal that today (or this month) hasn't started yet. Nothing at all is
+  # printed when the all-time total is zero; that provider gets no row.
+  awk -v d="${1:-0}" -v w="${2:-0}" -v m="${3:-0}" -v a="${4:-0}" 'BEGIN {
+    split("K M B T", u, " ")
+    if (a + 0 <= 0) exit
+    n = split("d w m total", tag, " ")
+    v[1] = d; v[2] = w; v[3] = m; v[4] = a
+    for (i = 1; i <= n; i++) {
+      if (v[i] + 0 <= 0) continue
+      k++
+      num[k] = si(v[i]); per[k] = tag[i]
+    }
+    # Widths are per COLUMN, and the period is padded only where something has to
+    # line up after it — the left column of a line that has a right column. Pad
+    # every period to the widest and "220M d" grows five dead spaces to keep pace
+    # with "7.65B total", which is not alignment, just a hole.
+    for (i = 1; i <= k; i++) {
+      c = (i % 2) ? 1 : 2
+      if (length(num[i]) > nw[c]) nw[c] = length(num[i])
+      if (c == 1 && i < k && length(per[i]) > pw) pw = length(per[i])
+    }
+    for (i = 1; i <= k; i++) {
+      c = (i % 2) ? 1 : 2
+      cell = sprintf("%*s %-*s", nw[c], num[i], (c == 1 ? pw : 0), per[i])
+      line = (c == 1) ? cell : line "  ·  " cell
+      if (c == 2 || i == k) { sub(/ +$/, "", line); print line }
+    }
+  }
+  function si(x,   j, s, scale, unit) {
+    scale = 1; unit = ""
+    for (j = 4; j >= 1; j--) if (x >= 1000 ^ j) { scale = 1000 ^ j; unit = u[j]; break }
+    x = x / scale
+    s = (x >= 100) ? sprintf("%.0f", x) : (x >= 10 ? sprintf("%.1f", x) : sprintf("%.2f", x))
+    if (s ~ /\./) { sub(/0+$/, "", s); sub(/\.$/, "", s) }
+    return s unit
+  }'
+}
+
+read_tokens() { # read_tokens <file> — T_D/T_W/T_M/T_ALL, false if there's no row
+  T_D=0; T_W=0; T_M=0; T_ALL=0
+  [ -s "$1" ] || return 1
+  local at=""
+  IFS=$'\t' read -r T_D T_W T_M T_ALL at <"$1" || true
+  # All five columns or none: a file left by an older rice has a different shape,
+  # and reading it anyway would file the week's tokens under the day.
+  [ -n "$at" ] || return 1
+  T_D=${T_D:-0}; T_W=${T_W:-0}; T_M=${T_M:-0}; T_ALL=${T_ALL:-0}
+}
+
+# Continuation rows are indented with PADDING, never with spaces in the label:
+# sketchybar sizes an item from its label with the leading whitespace trimmed and
+# then draws the untrimmed string, so a leading run of spaces buys nothing but a
+# label clipped by exactly the width of its own indent. (A no-break space is
+# trimmed just the same — that was the obvious fix and it does not work.)
+#
+# So the indent is a pixel count, which means it has to be DERIVED, not written
+# down: the row's usual 22, plus the nine columns of `tokens ` and the two spaces
+# after it, at Hack's 0.602em advance in whatever size ui.scale settled on. At
+# the default FS_SMALL=13 that is 92, which is what measuring it by hand gave.
+TOKEN_INDENT=$(awk -v s="${FS_SMALL:-13}" 'BEGIN { printf "%.0f", 22 + 9 * s * 0.602 }')
+
+token_block() { # token_block <d> <w> <m> <all> — the score, labelled then indented
+  local blk line first=1
+  blk=$(tokens_label "$1" "$2" "$3" "$4")
+  [ -n "$blk" ] || return 0
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    # Only the first line carries the `tokens` label; the rest sit under it.
+    if [ "$first" = 1 ]; then row "tokens " "$line"; first=0
+    else                      row "" "$line" "$TOKEN_INDENT"
+    fi
+  done <<<"$blk"
+}
 STALE=300                        # 5 min with no render → mark stale
 FEED_TTL=180                     # how often we re-pull the Codex/Opencode feeds
 now=$(date +%s)
@@ -122,7 +214,7 @@ age=$((now - latest_stamp))
 stale=0; [ "$latest_stamp" -gt 0 ] && [ "$age" -gt "$STALE" ] && stale=1
 [ "$stale" = 1 ] && COL=$OVERLAY1
 
-provider_style "$main_provider" "${main_provider_id:-$main_model}" 14.0
+provider_style "$main_provider" "${main_provider_id:-$main_model}" "$FS_LABEL"
 ICON="$P_ICON"; IFONT="$P_FONT"
 
 if [ "$is_cost" = 1 ]; then
@@ -150,7 +242,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
     f_age=$((now - stamp))
     f_stale=0; [ "$stamp" -gt 0 ] && [ "$f_age" -gt "$STALE" ] && f_stale=1
 
-    provider_style "$prov" "${prov_id:-$model}" 13.0
+    provider_style "$prov" "${prov_id:-$model}" "$FS_SMALL"
     p_icon="$P_ICON"; p_font="$P_FONT"; p_name="$P_NAME"
 
     # Provider header row
@@ -158,18 +250,20 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
       --set "${ITEM_NAME}.popup.$i" \
         icon="$p_icon" icon.color="$PINK" icon.font="$p_font" \
         icon.padding_left=10 icon.padding_right=6 \
-        label="$p_name" label.color="$TEXT" label.font="Hack Nerd Font:Bold:13.0" \
+        label="$p_name" label.color="$TEXT" label.font="Hack Nerd Font:Bold:$FS_SMALL" \
         background.drawing=off \
         click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off"
     i=$((i + 1))
 
     # Usage rows helper
-    row() { # row <label> <val_str>
+    row() { # row <label> <val_str> [label.padding_left] — an empty label draws the
+      # value alone, with no gap in front of it to be clipped (see TOKEN_INDENT)
       sketchybar --add item "${ITEM_NAME}.popup.$i" popup.${ITEM_NAME} 2>/dev/null \
         --set "${ITEM_NAME}.popup.$i" \
           icon="" icon.padding_left=0 icon.padding_right=0 \
-          label="$1  $2" label.color="$SUBTEXT0" \
-          label.font="Hack Nerd Font:Regular:13.0" label.padding_left=22 label.padding_right=10 \
+          label="${1:+$1  }$2" label.color="$SUBTEXT0" \
+          label.font="Hack Nerd Font:Regular:$FS_SMALL" \
+          label.padding_left="${3:-22}" label.padding_right=10 \
           background.drawing=off \
           click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off"
       i=$((i + 1))
@@ -194,17 +288,50 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
       row "weekly " "${valw}%${when_w:+  ·  $when_w}"
     fi
 
+    # Tokens: the score row. Every number above is a fraction of something you
+    # are allowed; this is the raw count of tokens actually moved, which no
+    # client shows anywhere and which nothing here throttles or warns on. Only
+    # providers whose token feed exists get the row (see statusline-refresh.sh).
+    if read_tokens "$CACHE_DIR/tokens-$prov.tsv"; then
+      token_block "$T_D" "$T_W" "$T_M" "$T_ALL"
+    fi
+
     if [ "$f_stale" = 1 ]; then
       sketchybar --add item "${ITEM_NAME}.popup.$i" popup.${ITEM_NAME} 2>/dev/null \
         --set "${ITEM_NAME}.popup.$i" \
           icon="" icon.padding_left=0 icon.padding_right=0 \
           label="as of $((f_age / 60))m ago" label.color="$OVERLAY1" \
-          label.font="Hack Nerd Font:Italic:12.0" label.padding_left=22 label.padding_right=10 \
+          label.font="Hack Nerd Font:Italic:$FS_TINY" label.padding_left=22 label.padding_right=10 \
           background.drawing=off \
           click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off"
       i=$((i + 1))
     fi
   done
+
+  # ── grand total ─────────────────────────────────────────────────────────────
+  # Every token feed on the machine added up, because the interesting number when
+  # you drive three clients is what YOU spent, not what any one of them did. Only
+  # drawn when more than one provider reports: with a single feed this row would
+  # be the row above it, restated.
+  g_d=0; g_w=0; g_m=0; g_all=0; g_n=0
+  for tf in "$CACHE_DIR"/tokens-*.tsv; do
+    read_tokens "$tf" || continue
+    g_d=$(( g_d + T_D )); g_w=$(( g_w + T_W ))
+    g_m=$(( g_m + T_M )); g_all=$(( g_all + T_ALL ))
+    g_n=$(( g_n + 1 ))
+  done
+  if [ "$g_n" -gt 1 ] && [ "$g_all" -gt 0 ]; then
+    sketchybar --add item "${ITEM_NAME}.popup.$i" popup.${ITEM_NAME} 2>/dev/null \
+      --set "${ITEM_NAME}.popup.$i" \
+        icon="∑" icon.color="$PINK" icon.font="Hack Nerd Font:Bold:14.0" \
+        icon.padding_left=10 icon.padding_right=6 \
+        label="Everything" label.color="$TEXT" label.font="Hack Nerd Font:Bold:13.0" \
+        background.drawing=off \
+        click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off"
+    i=$((i + 1))
+    token_block "$g_d" "$g_w" "$g_m" "$g_all"
+  fi
+
   sketchybar --set ${ITEM_NAME} popup.drawing=toggle
   exit 0
 fi

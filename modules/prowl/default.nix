@@ -184,6 +184,27 @@ let
   # (40) — whichever edge sill's bar sits on (nebelhaus.sill.position).
   gap = base: toString (builtins.floor (base * config.nebelhaus.ui.scale + 0.5));
 
+  # The bar's own resolution, shared with sill (../lib/bar.nix). prowl needs it
+  # for `bar.room`: a scaled bar draws BIGGER TYPE IN THE SAME 28pt PILL, because
+  # the pill's height belongs to the macOS menu-bar band rather than to us — so
+  # everything the type gains, it gains inside a box that didn't move, and the bar
+  # reads as full rather than as bigger. A full bar sitting flush against a tiled
+  # window stops looking like chrome and starts looking like the top of the
+  # window. `room` hands that growth back as space on the bar's edge — the
+  # separation the pill couldn't take vertically. 0 at ui.scale = 1.0, 10pt at the
+  # bar's ceiling.
+  #
+  # It rides the SAME barPos switch as the reservation below, so it lands above a
+  # bottom bar and below a top one without a second table to keep in sync.
+  bar = import ../lib/bar.nix {
+    inherit lib;
+    scale = config.nebelhaus.ui.scale;
+  };
+  # A gap plus the bar's breathing room, for the edge the bar is on. Written as
+  # one function so the two can't be added in one branch and forgotten in another.
+  barGap =
+    base: toString (builtins.floor (base * config.nebelhaus.ui.scale + 0.5) + bar.room);
+
   # The bar-room reservation follows the bar. A built-in display's TOP is under
   # the notch/menu-bar strip macOS already excludes, so a top bar needs no extra
   # reservation there; the external, and a built-in's bottom, have no such strip,
@@ -195,18 +216,23 @@ let
   # `auto`, leaving a small overlap at the built-in's bottom in that one case.)
   barPos = if config.nebelhaus.sill.enable then config.nebelhaus.sill.position else "top";
   monLine = builtin: external: ''[{ monitor."Built-in Retina Display" = ${builtin} }, ${external}]'';
+  # `barGap` marks every edge a bar can sit on, `gap` every edge it can't. On the
+  # built-in with a top bar that means barGap 10 rather than gap 10: the notch
+  # strip already excludes the bar's height there, so the reservation stays at its
+  # tuned 10 — but the pills still end right where the windows begin, which is the
+  # one place the breathing room matters MOST rather than least.
   outerTop =
     {
-      top = monLine (gap 10) (gap 40);
+      top = monLine (barGap 10) (barGap 40);
       bottom = monLine (gap 10) (gap 20);
-      auto = monLine (gap 10) (gap 20);
+      auto = monLine (barGap 10) (gap 20);
     }
     .${barPos};
   outerBottom =
     {
       top = monLine (gap 10) (gap 20);
-      bottom = monLine (gap 40) (gap 40);
-      auto = monLine (gap 10) (gap 40);
+      bottom = monLine (barGap 40) (barGap 40);
+      auto = monLine (gap 10) (barGap 40);
     }
     .${barPos};
 
