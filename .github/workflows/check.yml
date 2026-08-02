@@ -28,6 +28,24 @@ jobs:
       # silent. Without this line they were declared and never executed. The
       # darwin-only `presets` check is guarded, so this builds just those two.
       - run: nix flake check
+      # The annotated host template (hosts/<host>/options.nix) ships every
+      # option's DEFAULT as a line you can uncomment. host-template.nix's own
+      # build already proves the file parses both as-shipped and uncommented;
+      # this proves the uncommented values are LEGAL for their options — a
+      # `defaultText` that has drifted from the real default (wrong type, a
+      # stale enum member) parses fine and only fails on the machine of whoever
+      # uncomments that one line, months later. `…` placeholders are the
+      # deliberately-not-pasteable ones and are excluded, exactly as the
+      # derivation's own check does.
+      - name: every default in the host template is settable
+        run: |
+          tmpl=$(nix build --no-link --print-out-paths .#host-template)
+          host=$(mktemp -d)
+          printf '{ ... }:\n\n{\n  imports = [ ./options.nix ];\n}\n' > "$host/default.nix"
+          sed -E 's/^  # (nebelhaus\.)/  \1/' "$tmpl/share/nebelhaus/host-options.nix" \
+            | grep -v '= …;$' > "$host/options.nix"
+          nix eval --impure --apply 'x: x.system.drvPath' --expr \
+            "(builtins.getFlake \"path:$PWD\").mkNebelhaus { username = \"ada\"; hostname = \"lovelace\"; host = $host; }"
 
   shellcheck:
     name: shell scripts

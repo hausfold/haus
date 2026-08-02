@@ -469,6 +469,15 @@
           # ~/.claude/skills/nebelhaus (nebelhaus.claude.skill), so `haus update`
           # updates the agent's knowledge along with the rice.
           claude-skill = import ./modules/hearth/claude/skill.nix { inherit pkgs; };
+
+          # `nix build .#host-template` — the annotated host file a fresh
+          # install is scaffolded with: every nebelhaus.* option at its default,
+          # described, docs-linked, and commented out (see host-template.nix for
+          # why commented). Two consumers, both needing it built from a SPECIFIC
+          # revision rather than committed: bootstrap.sh, on a Mac that has no
+          # nebelhaus yet, and `haus options` on one that does — den installs it
+          # into the system profile so that second path costs nothing.
+          host-template = import ./modules/host-template.nix { inherit pkgs; };
         }
         // nixpkgs.lib.optionalAttrs isDarwin {
           pounce = pounce.packages.${system}.default;

@@ -75,7 +75,8 @@
       size = lib.mkOption {
         type = lib.types.ints.positive;
         default = builtins.floor (19 * config.nebelhaus.ui.scale + 0.5);
-        defaultText = lib.literalExpression "19, scaled by nebelhaus.ui.scale";
+        # Prose, so literalMD — see nebelhaus.developer.languages in modules/options.nix.
+        defaultText = lib.literalMD "19, scaled by nebelhaus.ui.scale";
         example = 24;
         description = ''
           Terminal font size in points. The single most useful knob for a

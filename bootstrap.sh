@@ -475,12 +475,36 @@ settings_lines="$(settings_overrides)"
 settings_block=""
 [ -n "$settings_lines" ] && settings_block=$'\n'"  # ---- macOS settings kept as yours (read at install) ----"$'\n'"$settings_lines"
 
+# ---- the annotated option catalogue ---------------------------------------
+# hosts/<host>/options.nix: every nebelhaus.* option at its default, described,
+# docs-linked, and commented out. It's how you find out an option exists without
+# leaving your editor — read it, uncomment what you want, delete the rest.
+#
+# Rendered from the rice's own module system (`nix build .#host-template`), so
+# it lists the options that exist at the revision you're about to pin, not
+# upstream's latest. That's a real flake fetch, so it's best-effort: a machine
+# that's offline, or pinning a rice older than the output, gets a config that
+# works exactly as before and a pointer to `haus options`.
+say "Rendering the option catalogue (every nebelhaus.* option, annotated)"
+IMPORTS_LINE=""
+if tmpl="$(nix build --no-link --print-out-paths \
+             "${NEBELHAUS_FLAKE:-github:nebelhaus/nebelhaus}#host-template" 2>/dev/null)" \
+   && [ -f "$tmpl/share/nebelhaus/host-options.nix" ]; then
+  cp -f "$tmpl/share/nebelhaus/host-options.nix" "$DEST/hosts/$HOSTNAME/options.nix"
+  chmod u+w "$DEST/hosts/$HOSTNAME/options.nix"   # it comes out of the store read-only
+  IMPORTS_LINE="  imports = [ ./options.nix ]; # every nebelhaus.* option, annotated — read it
+"
+else
+  warn "couldn't render the option catalogue (offline?) — run 'haus options' after your first rebuild."
+fi
+
 cat >"$DEST/hosts/$HOSTNAME/default.nix" <<EOF
 # $HOSTNAME — your machine. The personal layer on top of the nebelhaus rice:
 # identity, apps, secrets. A plain nix-darwin module; everything else is the rice.
 { ... }:
 
 {
+$IMPORTS_LINE
   # ---- identity ----
   nebelhaus.git.name = "$GIT_NAME";
   nebelhaus.git.email = "$GIT_EMAIL";
@@ -520,6 +544,19 @@ $(say "Your config is written. Review it, then raise the house:")
   and \`haus doctor\` confirms everything came up.
 EOF
 
+[ -f "$DEST/hosts/$HOSTNAME/options.nix" ] && cat <<EOF
+
+$(say "Two files are yours to edit:")
+
+    hosts/$HOSTNAME/default.nix   who you are, and your apps — short on purpose
+    hosts/$HOSTNAME/options.nix   EVERY nebelhaus.* option, at its default,
+                                  described, docs-linked, and commented out
+
+  Read the second one to learn what exists; uncomment a line to change it, and
+  delete every line you never touched. \`haus options\` refreshes it after an
+  update. Everything in it is inert until you uncomment something.
+EOF
+
 cat <<EOF
 
 $(say "Before you switch — what nebelhaus can and can't undo:")
@@ -542,6 +579,9 @@ EOF
 if [ -n "$DRY_RUN" ]; then
   echo; say "[dry-run] generated $DEST/hosts/$HOSTNAME/default.nix:"
   sed 's/^/    /' "$DEST/hosts/$HOSTNAME/default.nix"
+  # Not dumped — it's ~1000 lines. The count is the useful signal: it proves the
+  # render ran and how much of the surface it covered.
+  [ -f "$DEST/hosts/$HOSTNAME/options.nix" ] && say "[dry-run] generated $DEST/hosts/$HOSTNAME/options.nix: $(grep -c '^  # nebelhaus\.' "$DEST/hosts/$HOSTNAME/options.nix") options"
 fi
 
 # ---- optional: raise it right now ------------------------------------------

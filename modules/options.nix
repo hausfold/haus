@@ -442,7 +442,13 @@ in
       languages = lib.mkOption {
         type = lib.types.listOf (lib.types.enum [ "node" ]);
         default = lib.optionals config.nebelhaus.developer.enable [ "node" ];
-        defaultText = lib.literalExpression ''[ "node" ] when developer.enable is true, else [ ]'';
+        # literalMD, not literalExpression: this SENTENCE describes the default,
+        # it isn't Nix you could paste anywhere. The distinction is load-bearing
+        # now — host-template.jq copies a literalExpression straight into the
+        # generated host file as the option's value, and would have emitted
+        # `nebelhaus.developer.languages = [ "node" ] when developer.enable …;`,
+        # a syntax error the moment someone uncommented it. Prose ⇒ literalMD.
+        defaultText = lib.literalMD ''[ "node" ] when developer.enable is true, else [ ]'';
         example = [ ];
         description = ''
           Language runtimes to install. Currently only "node" (bun + fnm, with
@@ -460,7 +466,8 @@ in
         "claude"
         "opencode"
       ];
-      defaultText = lib.literalExpression ''[ "claude" "opencode" ] when developer.agents.enable is true, else [ ]'';
+      # Prose, so literalMD — see developer.languages above for why that matters.
+      defaultText = lib.literalMD ''[ "claude" "opencode" ] when developer.agents.enable is true, else [ ]'';
       example = [
         "claude"
         "codex"
