@@ -101,19 +101,54 @@ in
   # So we emit the same command shape ourselves, guarded: on refusal, say why
   # and carry on. Degrading to "the setting didn't apply" is the correct
   # failure; a half-activated Mac is not.
-  system.activationScripts.postActivation.text = lib.optionalString (a11ySet != { }) ''
-    nebelhausAccessibility() {
-      if launchctl asuser "$(id -u -- ${username})" sudo --user=${username} -- \
-           defaults write com.apple.universalaccess "$1" -bool "$2" 2>/dev/null; then
-        echo "accessibility: $1 = $2" >&2
-      else
-        echo "warning: accessibility: could not set $1 — com.apple.universalaccess needs Full Disk Access on the app running this rebuild. Setting skipped; nothing else was affected." >&2
+  system.activationScripts.postActivation.text = lib.mkMerge [
+    (lib.optionalString (a11ySet != { }) ''
+      nebelhausAccessibility() {
+        if launchctl asuser "$(id -u -- ${username})" sudo --user=${username} -- \
+             defaults write com.apple.universalaccess "$1" -bool "$2" 2>/dev/null; then
+          echo "accessibility: $1 = $2" >&2
+        else
+          echo "warning: accessibility: could not set $1 — com.apple.universalaccess needs Full Disk Access on the app running this rebuild. Setting skipped; nothing else was affected." >&2
+        fi
+      }
+      ${lib.concatStringsSep "\n" (
+        lib.mapAttrsToList (k: v: "nebelhausAccessibility ${k} ${lib.boolToString v}") a11ySet
+      )}
+    '')
+
+    # ---- make the preferences we just wrote LIVE, without a logout ----------
+    # nix-darwin writes every system.defaults key with `defaults write` and then
+    # restarts the Dock — and stops there. So Dock/Finder keys land, but
+    # everything the WindowServer, HIToolbox or the input stack caches sits in
+    # the plist until the next login: key repeat, the trackpad trio,
+    # _HIHideMenuBar and SLSMenuBarUseBlurredAppearance (both of which sill
+    # depends on). Changing the rice and being told "log out to see it" is the
+    # single most confusing thing a rebuild can do.
+    #
+    # activateSettings is the private binary System Settings itself calls to
+    # broadcast a preference change. Upstream has declined to run it for years
+    # (nix-darwin#658, #967, #1475), so the rice does it. It must run AS THE
+    # USER — activation is root, and root's preference domain is not the one we
+    # just wrote — hence the same launchctl-asuser shape as the block above.
+    #
+    # mkAfter, so it is the LAST thing in postActivation: after nix-darwin's own
+    # defaults writes, after home-manager's activation (which is itself emitted
+    # into postActivation, and is where hush's DND hotkey and pounce's Spotlight
+    # write land), and after the accessibility block above. One call covers all
+    # of them, which is why none of those sites run their own any more.
+    #
+    # Unconditional and unguarded by an option: it is ~0.2s, idempotent, exits 0,
+    # and there is no coherent machine that wants its declared preferences left
+    # unapplied. `|| true` because a future macOS may move or drop the binary —
+    # losing the refresh is a papercut, aborting activation is not.
+    (lib.mkAfter ''
+      activateSettings=/System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings
+      if [ -x "$activateSettings" ]; then
+        launchctl asuser "$(id -u -- ${username})" sudo --user=${username} -- \
+          "$activateSettings" -u || true
       fi
-    }
-    ${lib.concatStringsSep "\n" (
-      lib.mapAttrsToList (k: v: "nebelhausAccessibility ${k} ${lib.boolToString v}") a11ySet
-    )}
-  '';
+    '')
+  ];
 
   programs.zsh.enable = true;
 

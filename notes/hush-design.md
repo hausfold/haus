@@ -40,9 +40,10 @@ out to be a wrapper around a Shortcuts shortcut. The realistic mechanisms:
 
 1. **Declare the hotkey.** nix-darwin writes AppleSymbolicHotKeys entry
    **175** = an obscure chord no human types (e.g. ⌃⌥⇧⌘-F19-region
-   keycode), enabled. An activation step runs
+   keycode), enabled. den's end-of-activation
    `/System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings -u`
-   so it applies without logout. This is the "declarative Focus which
+   (run once for every preference the rice writes, hush's included)
+   makes it apply without logout. This is the "declarative Focus which
    Apple buries in Settings" promise made literal — the binding IS nix
    config.
 2. **pounce presses it.** A small pounce feature (lives in the pounce
