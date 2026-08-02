@@ -10,8 +10,9 @@ what exists and what values are allowed.
 
 ## "Install Slack" / "get me Figma"
 
-Add an entry to the app roster rather than running `brew install` — one entry
-gives the app its launcher key, its workspace, its bar pill and its cask.
+Add an entry to the app roster rather than running `brew install` or reaching
+for `homebrew.casks` — one entry gives the app its launcher key, its workspace,
+its bar pill AND installs it.
 
 ```nix
 nebelhaus.apps.slack = {
@@ -23,8 +24,34 @@ nebelhaus.apps.slack = {
 ```
 
 Pick a `key` that isn't already taken — read the existing `nebelhaus.apps.*` in
-the host file first. If the app is already on the machine (or came from the App
-Store), leave `cask` unset.
+the host file first. If the app is already on the machine, leave the source
+fields unset; the entry is then just metadata.
+
+**Everything installable goes here, not only launcher apps.** Omit `key` and the
+entry claims no leader letter, no cheatsheet row and no pill — it is simply
+installed. That is what keeps this one list instead of two:
+
+```nix
+nebelhaus.apps = {
+  framer     = { name = "Framer"; cask = "framer"; };   # app, no hotkey
+  ical-buddy = { brew = "ical-buddy"; };                # a formula, no .app
+  orbstack   = { name = "OrbStack"; package = pkgs.orbstack; };
+  ripgrep    = { package = pkgs.ripgrep; scope = "system"; };
+};
+```
+
+`scope` only applies to `package`: `"user"` (default) is home-manager's
+`home.packages`; `"system"` is `environment.systemPackages`, which is what a
+tool needs to be on PATH for root, launchd jobs and non-login shells.
+
+App Store apps take `appStoreId` (the digits in the store URL). Recording it is
+free; `nebelhaus.appStore.install = true` makes a rebuild fetch it. That can
+only ever be half-automatic — `mas` cannot sign in, and cannot make a first-time
+purchase — so buy a paid app once in App Store.app; free ones it fetches itself.
+
+```nix
+nebelhaus.apps.xcode = { name = "Xcode"; appStoreId = 497799835; };
+```
 
 ## "Uninstall it" / "I don't use that any more"
 
@@ -171,7 +198,7 @@ The host file is an ordinary nix-darwin module, so raw settings work:
 
 ```nix
 system.defaults.dock.autohide = true;
-homebrew.casks = [ "some-app" ];
+homebrew.casks = [ "some-cask" ];   # but for an APP, use nebelhaus.apps
 ```
 
 Do that only when no `nebelhaus.*` option covers the request, and say that you

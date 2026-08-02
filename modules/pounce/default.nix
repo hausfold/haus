@@ -203,10 +203,12 @@ let
   };
 
   launchModeItems =
+    # _launchers, not _apps: an install-only roster entry has no leader key, so
+    # there is no row to teach.
     (map (a: {
       key = a.key;
       action = if a.label != null then a.label else a.name;
-    }) config.nebelhaus._apps)
+    }) config.nebelhaus._launchers)
     # Non-app leader actions (nebelhaus.keys.leaderExtras) — same source list the
     # AeroSpace [mode.launch.binding] renders from, so this page can't drift from
     # what the keys actually do.

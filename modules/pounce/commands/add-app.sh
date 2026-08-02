@@ -11,11 +11,16 @@
 #                       or Touch ID prompt can never wedge a rebuild.
 #   • Nix packages   — searches the flake's pinned nixpkgs revision.
 #
-# Declarative selections become ordinary Nix modules under
-# hosts/<host>/packages/. mkNebelhaus auto-imports those files, so this command
-# uses the same nebelhaus.apps, Homebrew, and system-package options a person
-# writes by hand. Mac App Store installation itself is necessarily imperative;
-# an optional roster entry is still a native Nix module.
+# Every selection becomes an ordinary Nix module under hosts/<host>/packages/,
+# and always the SAME shape: one `nebelhaus.apps` entry naming its source
+# (cask / brew / package / appStoreId). mkNebelhaus auto-imports those files, so
+# this command writes exactly what a person writes by hand.
+#
+# Mac App Store INSTALLATION stays imperative — `mas get` needs root (macOS 13+)
+# and can't purchase a paid app or sign in at all, so it runs here, visibly,
+# where a Touch ID/password prompt has a terminal to appear in. The declaration
+# is still a native roster entry; a machine that opts into
+# nebelhaus.appStore.install can then fetch it unattended.
 #
 # The flake lives at ~/.config/nix by convention (override with
 # $NEBELHAUS_FLAKE or $HAUS_CONSUMER). The host is baked in by mkNebelhaus and
@@ -48,58 +53,65 @@ file_slug() {
     | sed 's/[^a-z0-9._-]/-/g; s/--*/-/g; s/^-//; s/-$//'
 }
 
-write_roster_module() {
+# ONE module shape, for every source and both lanes: a `nebelhaus.apps` entry.
+# Which FIELDS it sets is what the entry means — a `key` puts it on the leader,
+# a `workspace` gives it a pill, neither makes it a plain install — so a cask, a
+# formula, a Nixpkgs package and an App Store app all land in the same roster
+# instead of half here and half in `homebrew.casks`. (Before the roster grew the
+# brew/package/appStoreId fields this had to emit two different module shapes,
+# which is exactly the split-brain the rice's modules/apps removed.)
+write_app_module() {
   local target="$1" resolved_app_id="${2:-$app_id}"
-  local id_value id_lit key_lit name_lit cask_lit app_id_lit icon_lit label_lit workspace_lit
+  local id_value id_lit key_lit name_lit app_id_lit icon_lit label_lit workspace_lit token_lit
   if [ "$type" = "mas" ]; then id_value="mas-$token"; else id_value="$token"; fi
   id_lit="$(nix_string "$id_value")"
+  token_lit="$(nix_string "$token")"
   key_lit="$(nix_string "$key")"
   name_lit="$(nix_string "$appname")"
   label_lit="$(nix_string "$appname")"
-  if [ "$type" = "cask" ]; then cask_lit="$(nix_string "$token")"; else cask_lit="null"; fi
   if [ -n "$resolved_app_id" ]; then app_id_lit="$(nix_string "$resolved_app_id")"; else app_id_lit="null"; fi
   if [ -n "$bar_icon" ]; then icon_lit="$(nix_string "$bar_icon")"; else icon_lit="null"; fi
   if [ -n "$workspace" ]; then workspace_lit="$(nix_string "$workspace")"; else workspace_lit="null"; fi
 
   {
     printf '%s\n' '# Added by pounce "Install App". Safe to edit or remove.'
-    printf '%s\n' '{ lib, ... }:'
+    if [ "$type" = "nixpkgs" ]; then
+      printf '%s\n' '{ lib, pkgs, ... }:'
+    else
+      printf '%s\n' '{ lib, ... }:'
+    fi
     printf '%s\n' '{'
     printf '  nebelhaus.apps.%s = {\n' "$id_lit"
     printf '    enable = lib.mkDefault true;\n'
     printf '    order = lib.mkDefault 1000;\n'
-    printf '    key = lib.mkDefault %s;\n' "$key_lit"
-    printf '    name = lib.mkDefault %s;\n' "$name_lit"
-    printf '    workspace = lib.mkDefault %s;\n' "$workspace_lit"
-    printf '    appId = lib.mkDefault %s;\n' "$app_id_lit"
-    printf '    barIcon = lib.mkDefault %s;\n' "$icon_lit"
-    printf '    label = lib.mkDefault %s;\n' "$label_lit"
-    printf '    cask = lib.mkDefault %s;\n' "$cask_lit"
-    printf '%s\n' '  };'
-    printf '%s\n' '}'
-  } >"$target"
-}
-
-write_install_module() {
-  local target="$1" token_lit
-  token_lit="$(nix_string "$token")"
-  {
-    printf '%s\n' '# Added by pounce "Install App". Safe to edit or remove.'
-    if [ "$type" = "nixpkgs" ]; then
-      printf '%s\n' '{ lib, pkgs, ... }:'
-      printf '%s\n' '{'
-      printf '%s\n' '  environment.systemPackages = ['
-      printf '    (lib.attrByPath (lib.splitString "." %s)\n' "$token_lit"
-      printf '      (throw ("pounce Install App: Nixpkgs package " + %s + " does not exist")) pkgs)\n' "$token_lit"
-      printf '%s\n' '  ];'
-    else
-      printf '%s\n' '{'
-      if [ "$type" = "cask" ]; then
-        printf '  homebrew.casks = [ %s ];\n' "$token_lit"
-      else
-        printf '  homebrew.brews = [ %s ];\n' "$token_lit"
-      fi
+    if [ "$lane" = "Add to roster" ]; then
+      printf '    key = lib.mkDefault %s;\n' "$key_lit"
+      printf '    name = lib.mkDefault %s;\n' "$name_lit"
+      printf '    workspace = lib.mkDefault %s;\n' "$workspace_lit"
+      printf '    appId = lib.mkDefault %s;\n' "$app_id_lit"
+      printf '    barIcon = lib.mkDefault %s;\n' "$icon_lit"
+      printf '    label = lib.mkDefault %s;\n' "$label_lit"
+    elif [ "$type" = "cask" ] || [ "$type" = "mas" ]; then
+      # No leader key, but it IS a Mac app — record what `open -a` calls it.
+      printf '    name = lib.mkDefault %s;\n' "$name_lit"
     fi
+    case "$type" in
+      cask) printf '    cask = lib.mkDefault %s;\n' "$token_lit" ;;
+      brew) printf '    brew = lib.mkDefault %s;\n' "$token_lit" ;;
+      mas) printf '    appStoreId = lib.mkDefault %s;\n' "$token" ;;
+      nixpkgs)
+        # Resolved from a dotted attr path so `python3Packages.foo` works, and
+        # so a package that vanishes from nixpkgs fails by NAME rather than as
+        # an "attribute missing" trace pointing into this generated file.
+        # scope = "system" keeps pounce's long-standing behaviour: the old
+        # install module wrote environment.systemPackages, which is also what
+        # puts a GUI app in /Applications/Nix Apps.
+        printf '    scope = lib.mkDefault "system";\n'
+        printf '    package = lib.mkDefault (lib.attrByPath (lib.splitString "." %s)\n' "$token_lit"
+        printf '      (throw ("pounce Install App: Nixpkgs package " + %s + " does not exist")) pkgs);\n' "$token_lit"
+        ;;
+    esac
+    printf '%s\n' '  };'
     printf '%s\n' '}'
   } >"$target"
 }
@@ -476,32 +488,29 @@ if [ "$lane" = "Add to roster" ]; then
 fi
 
 # ── write one native Nix module ───────────────────────────────────────────
-target=""
-target_rel=""
-if [ "$lane" = "Add to roster" ] || [ "$type" != "mas" ]; then
-  slug="$(file_slug "$token")"
-  [ -n "$slug" ] || slug="package"
-  if [ "$lane" = "Add to roster" ]; then
-    if [ "$type" = "mas" ]; then target_name="app-mas-$slug.nix"; else target_name="app-$slug.nix"; fi
-  else
-    target_name="$type-$slug.nix"
-  fi
-  target_rel="hosts/$HOST/packages/$target_name"
-  target="$FLAKE_DIR/$target_rel"
-
-  if [ -e "$target" ]; then
-    notice "Already declared" "$target_rel already manages $token — edit or remove that Nix module first" "checkmark.circle"
-    exit 0
-  fi
-
-  mkdir -p "$PACKAGES_DIR"
-  if [ "$lane" = "Add to roster" ]; then
-    write_roster_module "$target.tmp"
-  else
-    write_install_module "$target.tmp"
-  fi
-  mv "$target.tmp" "$target"
+# Every path declares now, App Store installs included: `mas` still has to run
+# imperatively (see below), but the ENTRY is a roster line like any other, so
+# the app stops being invisible to the config just because Apple's installer
+# can't be driven from Nix. File names are per-source so two sources shipping
+# the same token can coexist.
+slug="$(file_slug "$token")"
+[ -n "$slug" ] || slug="package"
+if [ "$lane" = "Add to roster" ]; then
+  if [ "$type" = "mas" ]; then target_name="app-mas-$slug.nix"; else target_name="app-$slug.nix"; fi
+else
+  target_name="$type-$slug.nix"
 fi
+target_rel="hosts/$HOST/packages/$target_name"
+target="$FLAKE_DIR/$target_rel"
+
+if [ -e "$target" ]; then
+  notice "Already declared" "$target_rel already manages $token — edit or remove that Nix module first" "checkmark.circle"
+  exit 0
+fi
+
+mkdir -p "$PACKAGES_DIR"
+write_app_module "$target.tmp"
+mv "$target.tmp" "$target"
 
 # ── install/rebuild in a floating terminal, rollback on failure ───────────
 REBUILD_TMP="/tmp/nebelhaus-install-run.sh"
@@ -523,11 +532,15 @@ cd "$FLAKE_DIR" || exit 1
 
 if [ "$TYPE" = "mas" ]; then
   echo "Getting $APPNAME from the Mac App Store…"
+  echo "(App Store installs need root since macOS 13 — mas asks for your"
+  echo " password or Touch ID here, which is why this runs in a terminal.)"
   echo
   if ! mas get "$TOKEN"; then
     echo
     echo "✗ The App Store could not install $APPNAME."
-    echo "  Opening its App Store page so you can finish there…"
+    echo "  Paid apps can't be bought from the command line, and mas has no"
+    echo "  sign-in — both are finished in App Store.app, once."
+    echo "  Opening its App Store page so you can do that there…"
     mas open "$TOKEN" 2>/dev/null || true
     [ -n "$TARGET" ] && rm -f "$TARGET" "$TARGET.tmp"
     [ -n "$TARGET_REL" ] && git add -A -- "$TARGET_REL" 2>/dev/null || true
@@ -538,20 +551,10 @@ if [ "$TYPE" = "mas" ]; then
     exit 1
   fi
 
-  if [ "$LANE" = "Just install" ]; then
-    echo
-    echo "✓ $APPNAME is installed."
-    echo
-    echo "Press any key to close…"
-    read -n 1 -s
-    rm -f "$0"
-    exit 0
-  fi
   echo
 fi
 
-# Flakes only read git-tracked files. The MAS install-only path above has no
-# declaration and deliberately never touches the Git index.
+# Flakes only read git-tracked files.
 git add -- "$TARGET_REL"
 
 if [ "$LANE" = "Add to roster" ]; then

@@ -20,7 +20,10 @@ let
   withGUIWait = import ../lib/gui-wait.nix;
   userPath = "/run/current-system/sw/bin:/etc/profiles/per-user/${username}/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin";
 
+  # The whole roster drives the pills (a workspace is what earns one); only the
+  # keyed subset drives the leader picker.
   apps = config.nebelhaus._apps;
+  launchers = config.nebelhaus._launchers;
 
   bashArray = xs: lib.concatMapStringsSep " " (x: ''"${x}"'') xs;
   appWorkspaces = lib.filter (w: w != null) (map (a: a.workspace) apps);
@@ -37,7 +40,7 @@ let
   # to its workspace; a null workspace renders as "<key>:" (always closed/grey).
   launchersStr = lib.concatStringsSep " " (
     [ "1:1" "2:2" "3:3" "4:4" ]
-    ++ map (a: "${a.key}:${lib.optionalString (a.workspace != null) a.workspace}") apps
+    ++ map (a: "${a.key}:${lib.optionalString (a.workspace != null) a.workspace}") launchers
   );
 
   # Sourced by sketchybarrc: the workspace roster + a per-workspace icon lookup.
@@ -48,7 +51,7 @@ let
     WORKSPACES=(${bashArray ([ "1" "2" "3" "4" ] ++ appWorkspaces)})
     # Leader picker bubbles: the digits 1-4 (focus a numbered workspace) plus one
     # per app key (jump to its workspace) — mirrors [mode.launch.binding].
-    LAUNCHER_KEYS=(${bashArray ([ "1" "2" "3" "4" ] ++ map (a: a.key) apps)})
+    LAUNCHER_KEYS=(${bashArray ([ "1" "2" "3" "4" ] ++ map (a: a.key) launchers)})
     # Leader hotkey -> assigned workspace, parsed by launch_mode.sh (bash 3.2 has
     # no associative arrays, so a plain space-separated "<key>:<ws>" string). An
     # empty <ws> means no assigned space (always shown closed/grey).

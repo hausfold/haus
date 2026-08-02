@@ -24,6 +24,10 @@
     ./secrets/options.nix
     ./snippets/options.nix
 
+    # The app roster: resolves nebelhaus.apps into the internal lists the rooms
+    # below read, and installs whatever each entry names. Ungated on purpose —
+    # an entry that only wants to BE installed shouldn't need the tiler on.
+    ./apps
     ./den
     ./displays
     ./theme

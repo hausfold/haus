@@ -248,8 +248,10 @@ in
       inherit (config.nebelhaus.homebrew) autoUpdate upgrade cleanup;
     };
 
-    # A minimal, opinionated starter set. Edit freely in your host file —
-    # `homebrew.casks = [ ... ];` merges with whatever the modules declare.
+    # A minimal, opinionated starter set. A host adds its own apps through
+    # `nebelhaus.apps` (../apps hands each entry's cask to this list); a raw
+    # `homebrew.casks = [ ... ];` still merges in, for the rare cask that
+    # isn't an app at all.
     casks = [
       "ghostty" # the terminal the rice is themed for
     ];

@@ -10,9 +10,9 @@
 #
 # The launcher (which app lives on which workspace, its leader key + window
 # rules) is data-driven: keyed nebelhaus.apps entries are the composable source
-# of truth, normalized here into nebelhaus._apps. This module renders that list
-# into aerospace.toml (+ the wake-time resort script); SketchyBar and pounce read
-# the same resolved option so nothing drifts.
+# of truth, resolved by ../apps into nebelhaus._apps / ._launchers. This module
+# renders those lists into aerospace.toml (+ the wake-time resort script);
+# SketchyBar and pounce read the same resolved options so nothing drifts.
 {
   config,
   lib,
@@ -32,17 +32,14 @@ let
   binDir = "/etc/profiles/per-user/${username}/bin";
   launchSh = "${homeDir}/.config/aerospace/launch.sh";
 
-  namedEntries = lib.mapAttrsToList (id: app: { inherit id app; }) (
-    lib.filterAttrs (_: app: app.enable) config.nebelhaus.apps
-  );
-  orderedNamedEntries = lib.sort (
-    a: b: a.app.order < b.app.order || (a.app.order == b.app.order && a.id < b.id)
-  ) namedEntries;
-  apps = map (entry: entry.app) orderedNamedEntries;
-  appKeys = map (app: app.key) apps;
-  duplicateKeys = lib.unique (
-    lib.filter (key: lib.count (candidate: candidate == key) appKeys > 1) appKeys
-  );
+  # Resolved by ../apps (which also owns the uniqueness assertion and the
+  # installs). `apps` is the whole roster — what the WINDOW rules and workspaces
+  # are built from, since an app can own a workspace without claiming a leader
+  # key. `launchers` is the keyboard half, and the only one allowed to render a
+  # binding: a null key in [mode.launch.binding] would be the literal string.
+  apps = config.nebelhaus._apps;
+  launchers = config.nebelhaus._launchers;
+  appKeys = map (app: app.key) launchers;
 
   # The resolved keymap: chords + the glyphs that document them, from one table.
   k = import ../lib/keys.nix {
@@ -110,7 +107,7 @@ let
         "shift-${a.key} = ['exec-and-forget ${homeDir}/.config/sketchybar/plugins/launch_mode.sh off', "
         + "'move-node-to-workspace --focus-follows-window ${a.workspace}', 'mode main']\n"
       )
-    ) apps
+    ) launchers
   );
 
   # Mode-entry chords. Structural plumbing rather than tiling commands, so they
@@ -127,7 +124,7 @@ let
 
   launchLetters = lib.concatMapStrings (
     a: "${a.key} = ['exec-and-forget ${launchInvocation a}', 'mode main']\n"
-  ) apps;
+  ) launchers;
 
   # Non-app leader actions (nebelhaus.keys.leaderExtras): a leader key that runs a
   # command instead of launching a roster app. Each command goes into its OWN
@@ -222,15 +219,8 @@ let
     builtins.readFile ./scripts/resort-windows.sh
   );
 
-  # Any roster app with a cask installs itself — declaring the app also brings it.
-  rosterCasks = lib.filter (c: c != null) (map (a: a.cask) apps);
 in
 lib.mkMerge [
-  {
-    # One ordered view for prowl, sill, and pounce.
-    nebelhaus._apps = apps;
-  }
-
   (lib.mkIf config.nebelhaus.prowl.enable {
     # A fresh host gets a useful terminal + browser. These are field-level
     # defaults, so keyed entries compose with them and can override by app id.
@@ -269,10 +259,6 @@ lib.mkMerge [
 
     assertions = [
       {
-        assertion = duplicateKeys == [ ];
-        message = "nebelhaus app leader keys must be unique; duplicated: ${lib.concatStringsSep ", " duplicateKeys}";
-      }
-      {
         # Cross-room: keys.leader is prowl's chord and keys.palette is pounce's
         # in-process hotkey, so nothing would have caught them claiming the same
         # one — and the failure is silent, whoever registers first wins.
@@ -290,10 +276,11 @@ lib.mkMerge [
           + lib.concatStringsSep ", " (lib.unique (extraCollisions ++ extraDuplicates));
       }
     ];
-  # AeroSpace itself (cask) + its tap. Roster apps that name a cask ride along.
-  # Merged into den's homebrew config.
+  # AeroSpace itself (cask) + its tap; merged into den's homebrew config. Roster
+  # apps that name a cask are ../apps's job now — they install whether or not
+  # the tiler is on.
   homebrew.taps = [ "nikitabobko/tap" ];
-  homebrew.casks = [ "aerospace" ] ++ rosterCasks;
+  homebrew.casks = [ "aerospace" ];
 
   # Caps Lock → F18, feeding AeroSpace's `launch` leader mode: AeroSpace can't
   # bind Caps Lock itself. Decimal values are the hidutil HID usage codes (caps

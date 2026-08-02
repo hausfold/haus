@@ -139,7 +139,30 @@ let
     lib.filterAttrs (_: v: v != null) config.system.defaults.universalaccess
   );
 
-  roster = lib.sort (a: b: a.order < b.order) config.nebelhaus._apps;
+  # Two halves of the same roster: what has a leader key (the table an agent
+  # reads before picking a free letter) and what doesn't (installed, but nothing
+  # to press). The install-only half keeps its attr id, since with no key and
+  # often no `name` that id is the only handle an edit can grab.
+  launcherRoster = lib.sort (a: b: a.order < b.order) config.nebelhaus._launchers;
+  # Where an entry comes from, in one clause. Four sources now, so "· cask x"
+  # alone would quietly describe a brew/nixpkgs/App Store entry as unmanaged.
+  sourceOf =
+    a:
+    if a.cask != null then
+      " · cask `${a.cask}`"
+    else if a.brew != null then
+      " · brew `${a.brew}`"
+    else if a.package != null then
+      " · nixpkgs (${a.scope} scope)"
+    else if a.appStoreId != null then
+      " · App Store `${toString a.appStoreId}`"
+    else
+      "";
+  installOnlyRoster = lib.sort (a: b: a.id < b.id) (
+    lib.mapAttrsToList (id: app: { inherit id app; }) (
+      lib.filterAttrs (_: app: app.enable && app.key == null) config.nebelhaus.apps
+    )
+  );
 
   thisMachine = ''
     # This machine
@@ -190,15 +213,33 @@ let
     Leader key → app. Taken keys are taken; pick an unused one when adding.
 
     ${
-      if roster == [ ] then
+      if launcherRoster == [ ] then
         "*(none declared)*"
       else
         lib.concatMapStringsSep "\n" (
           a:
           "- `${a.key}` → ${a.name}"
           + (if a.workspace == null then " *(launcher-only)*" else " (workspace `${a.workspace}`)")
-          + (if a.cask == null then "" else " · cask `${a.cask}`")
-        ) roster
+          + sourceOf a
+        ) launcherRoster
+    }
+
+    ## Also declared, without a leader key
+
+    Same `nebelhaus.apps` roster, no keyboard binding — apps reached another
+    way, plus the fonts and command-line tools that live in the one list too.
+    Adding a `key` to any of these is what puts it on the launcher.
+
+    ${
+      if installOnlyRoster == [ ] then
+        "*(none)*"
+      else
+        lib.concatMapStringsSep "\n" (
+          e:
+          "- `${e.id}`"
+          + (if e.app.name == null then "" else " → ${e.app.name}")
+          + (if sourceOf e.app == "" then " · not installed by the rice" else sourceOf e.app)
+        ) installOnlyRoster
     }
 
     ## Rebuild hazards on this host
