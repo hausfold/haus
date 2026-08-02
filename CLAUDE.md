@@ -52,7 +52,7 @@ modules/
                           #   rendered per-revision — see skill.nix for why it's a package
   prowl/                  # AeroSpace tiling
   sill/                   # SketchyBar
-  collar/                 # Touch ID sudo
+  collar/                 # auth policy: Touch ID sudo + passwordless activation
   pounce/                 # the palette daemon (launchd + self-signing)
   trill/                  # the trill Messages client, installed via the trill flake input
   hush/                   # Focus/DND one-switch: declarative hotkey 175 + Slack + hooks
@@ -156,9 +156,17 @@ points back to when it feels several PRs together.
   *server*, which recompiles plugin wasm from disk (a running server caches it
   in memory for its lifetime).
 - **The den CLIs** (`modules/den`, each on `PATH` via `writeShellScriptBin`, source
-  beside `default.nix`): the rice ships six dev/user CLIs — **`haus.sh`** (the
+  beside `default.nix`): the rice ships seven dev/user CLIs — **`haus.sh`** (the
   end-user machine driver: rebuild/update/rollback/doctor/status — knows nothing of
-  the family repos), **`awake.sh`** (launchd-owned timed/indefinite macOS
+  the family repos), **`haus-activate.sh`** (the privileged half of a rebuild:
+  `haus` and `bench` build as YOU, then hand the built store path to
+  `sudo haus-activate <system>`, which sets the system profile and runs that
+  system's own `darwin-rebuild activate`. It exists so root never evaluates the
+  config a SECOND time — `darwin-rebuild switch --flake` builds again, against
+  root's separate caches under `/var/root/.cache/nix`, costing ~3 s after a host
+  edit and ~15 s whenever a flake input moved. Its stable
+  `/run/current-system/sw/bin` path is load-bearing: collar's NOPASSWD rule must
+  name a literal path), **`awake.sh`** (launchd-owned timed/indefinite macOS
   caffeinate assertions; Sill's optional coffee pill is only its controller),
   **`wt.sh`** (agent worktrees for *any* repo and any of the three clients —
   Claude Code, Codex, OpenCode; Claude Code's `WorktreeCreate`/`WorktreeRemove`

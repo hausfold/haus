@@ -187,9 +187,24 @@ cmd_rebuild() {
   ( cd "$CONSUMER" && heal nix build ".#darwinConfigurations.$host.system" ) \
     || die "build failed — nothing was changed."
   say "switching …"
-  # Stable /run/current-system path (not ./result): collar's passwordless-sudo
-  # rule matches that literal path — sudo no longer follows the command symlink.
-  ( cd "$CONSUMER" && heal sudo /run/current-system/sw/bin/darwin-rebuild switch --flake ".#$host" )
+  # Activate exactly what we just built. The old route here was
+  # `darwin-rebuild switch --flake`, which BUILDS again as root — a second
+  # evaluation against root's separate caches, costing ~3 s after a host edit
+  # and ~15 s whenever a flake input moved (root re-unpacks nixpkgs into its
+  # own lazy-trees cache). `haus-activate` does only the privileged half; see
+  # modules/den/haus-activate.sh. No `heal`: nothing here evaluates or fetches,
+  # so the corrupt-fetch-cache signature can't arise past the build above.
+  #
+  # Both paths go through a stable /run/current-system path, never ./result or
+  # a store path: collar's passwordless-sudo rule matches the literal path,
+  # because sudo no longer follows the command symlink.
+  if [ -x /run/current-system/sw/bin/haus-activate ]; then
+    sudo /run/current-system/sw/bin/haus-activate "$CONSUMER/result"
+  else
+    # The running system predates haus-activate — take the old, slower route
+    # once; the switch it performs is what installs the fast one.
+    ( cd "$CONSUMER" && heal sudo /run/current-system/sw/bin/darwin-rebuild switch --flake ".#$host" )
+  fi
   say "the house stands."
 }
 

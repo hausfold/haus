@@ -73,7 +73,7 @@ The house is built from composable nix-darwin modules. Take the whole thing, or
 - 🐈 **prowl** — opinionated [AeroSpace](https://github.com/nikitabobko/AeroSpace) tiling, launched via launchd (survives cold boot), Caps→F18 leader, wake-time window re-sort
 - 🪟 **sill** — a [SketchyBar](https://github.com/FelixKratz/SketchyBar) setup perched on the top edge, with stray-agent eviction
 - 🔥 **hearth** — the terminal — zsh, a Nebelung-tinted starship prompt, git, helix, and a themed toolbelt (bat, delta, lazygit, lsd, yazi, zoxide, fzf), plus the ghostty / zellij / yazi dotfiles
-- 🔖 **collar** — identity & auth — Touch ID for sudo (with `reattach`, so it works inside tmux/zellij)
+- 🔖 **collar** — identity & auth — Touch ID for sudo (with `reattach`, so it works inside tmux/zellij), and passwordless activation so a rebuild never stops for a fingerprint you already gave (`nebelhaus.collar.passwordlessRebuild`)
 - 🗝️ **secrets** — declarative secrets via [secretspec](https://secretspec.dev) — projects commit *which* secrets they need, never values; values live in the provider you pick per host
 - 🐾 **pounce** — the [Pounce](https://github.com/nebelhaus/pounce) palette, wired in as a self-signing daemon that holds its Accessibility grant across rebuilds, and ⌘Space freed for it
 - 🐦 **trill** — the [Trill](https://github.com/nebelhaus/trill) Messages client, installed through Nix and copied to a fixed `/Applications/Trill.app`
