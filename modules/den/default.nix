@@ -116,6 +116,18 @@ in
       )}
     '')
 
+    # ---- restart Finder ------------------------------------------------------
+    # The refresh below broadcasts a preference change, but Finder reads
+    # com.apple.finder once, at LAUNCH — the sort order, the view style and the
+    # POSIX-path title are baked into the running process. nix-darwin restarts
+    # the Dock after writing user defaults and stops there, so without this a
+    # rebuild that changed a Finder key looks like it did nothing until the next
+    # login. launchd relaunches Finder immediately; the cost is that open Finder
+    # windows close, exactly like the Dock restart nix-darwin already does.
+    ''
+      killall -qu ${username} Finder || true
+    ''
+
     # ---- make the preferences we just wrote LIVE, without a logout ----------
     # nix-darwin writes every system.defaults key with `defaults write` and then
     # restarts the Dock — and stops there. So Dock/Finder keys land, but
@@ -342,18 +354,86 @@ in
       mru-spaces = lib.mkDefault false;
       orientation = lib.mkDefault "bottom";
     };
+    # The rice's Finder is aimed at someone who thinks in paths: everything
+    # visible, sorted the way a Linux file manager sorts, navigable from the
+    # keyboard, and never guessing where you meant to look.
     finder = {
       AppleShowAllExtensions = lib.mkDefault true;
       AppleShowAllFiles = lib.mkDefault true;
       FXPreferredViewStyle = lib.mkDefault "Nlsv"; # list view
       ShowPathbar = lib.mkDefault true;
       ShowStatusBar = lib.mkDefault true;
+
+      # Directories before files, the way Nautilus/Dolphin/`ls --group-directories-first`
+      # do it. Apple interleaves them, so a project root buries its dirs among
+      # dotfiles and READMEs.
+      _FXSortFoldersFirst = lib.mkDefault true;
+      _FXSortFoldersFirstOnDesktop = lib.mkDefault true;
+
+      # The window title becomes the full POSIX path, so a tiled Finder window
+      # says where it is — and ⌘-clicking the title still walks the ancestry.
+      _FXShowPosixPathInTitle = lib.mkDefault true;
+
+      # ⌘F searches the folder you're standing in. Apple's default ("This Mac")
+      # turns every search into a whole-disk Spotlight crawl you then have to
+      # narrow by hand.
+      FXDefaultSearchScope = lib.mkDefault "SCcf";
+
+      # ⌘N opens $HOME, not "Recents" — a flat list with no path, no hierarchy
+      # and no way to go up. (nix-darwin maps this name to PfHm for you.)
+      NewWindowTarget = lib.mkDefault "Home";
+
+      # Renaming notes.txt → notes.md is a normal edit, not a modal-worthy
+      # event; extensions are always visible above, so nothing is hidden.
+      FXEnableExtensionChangeWarning = lib.mkDefault false;
+
+      # ⌘Q quits Finder like any other app. It relaunches the instant you open a
+      # folder, and the desktop comes back with it — but if you keep icons on
+      # the desktop and want them always drawn, set this false in your host.
+      QuitMenuItem = lib.mkDefault true;
+
+      # Column view sizes columns to the names actually in them.
+      _FXEnableColumnAutoSizing = lib.mkDefault true;
+
+      # The desktop is wallpaper (theme draws the wordmark on it), not a mount
+      # table — volumes stay one click away in the sidebar, where you can also
+      # eject them.
+      ShowExternalHardDrivesOnDesktop = lib.mkDefault false;
+      ShowHardDrivesOnDesktop = lib.mkDefault false;
+      ShowMountedServersOnDesktop = lib.mkDefault false;
+      ShowRemovableMediaOnDesktop = lib.mkDefault false;
     };
     NSGlobalDomain = {
       ApplePressAndHoldEnabled = lib.mkDefault false; # key repeat, not the accent picker
       KeyRepeat = lib.mkDefault 2;
       InitialKeyRepeat = lib.mkDefault 15;
       AppleShowAllExtensions = lib.mkDefault true;
+
+      # ---- the half of Finder that lives in NSGlobalDomain -------------------
+      # Tab reaches every control in a dialog, not just text fields and lists —
+      # the prerequisite for answering a save/replace sheet without the mouse.
+      # 2 is the Sonoma-and-later encoding of "all controls"; 3 is the old one.
+      AppleKeyboardUIMode = lib.mkDefault 2;
+
+      # Save/Open panels open EXPANDED: a real file browser with the sidebar and
+      # ⌘⇧G path entry, instead of the one-line popup that only offers Recents.
+      NSNavPanelExpandedStateForSaveMode = lib.mkDefault true;
+      NSNavPanelExpandedStateForSaveMode2 = lib.mkDefault true;
+
+      # New documents default to this disk. iCloud Drive is a choice, not the
+      # place an untitled file should land because you didn't look.
+      NSDocumentSaveNewDocumentsToCloud = lib.mkDefault false;
+
+      # Spring-loading: hold a dragged file over a folder and it opens, so a
+      # drag can cross a whole tree. Apple's ~0.5 s delay is long enough that
+      # most people never find out it exists.
+      "com.apple.springing.enabled" = lib.mkDefault true;
+      "com.apple.springing.delay" = lib.mkDefault 0.15;
+
+      # Small sidebar rows fit noticeably more places in a tiled window. Hosts
+      # that scaled the UI up asked for bigger chrome, so leave them Apple's.
+      NSTableViewDefaultSizeMode = lib.mkDefault (if config.nebelhaus.ui.scale > 1.0 then 3 else 1);
+
       # Hide the stock menu bar only when Sill draws its own; otherwise keep it.
       # Rice-controlled (not mkDefault): it tracks sill.enable, not user taste.
       _HIHideMenuBar = config.nebelhaus.sill.enable;
@@ -365,6 +445,30 @@ in
     };
     CustomUserPreferences = {
       "com.apple.commerce".AutoUpdate = lib.mkDefault true;
+
+      # No .DS_Store on network shares or USB sticks. It's invisible here and
+      # litter everywhere else — in a colleague's file listing, in a zip you
+      # send, in `git status` on a share. (Local disks still get one; that's
+      # where Finder keeps per-folder view state, which we want.)
+      "com.apple.desktopservices" = {
+        DSDontWriteNetworkStores = lib.mkDefault true;
+        DSDontWriteUSBStores = lib.mkDefault true;
+      };
+
+      # Two Finder keys nix-darwin has no typed option for.
+      "com.apple.finder" = {
+        # Emptying the trash IS the confirmation; the items are still on disk
+        # until it finishes.
+        WarnOnEmptyTrash = lib.mkDefault false;
+        # ⌘I opens with the panes you actually read already unfolded. One
+        # mkDefault on the whole dict — the module system only discharges
+        # override properties down to the domain's keys, not inside them.
+        FXInfoPanesExpanded = lib.mkDefault {
+          General = true;
+          OpenWith = true;
+          Privileges = true;
+        };
+      };
       # Companion to _HIHideMenuBar above (and same rationale: a function of Sill,
       # not user taste). The hidden menu bar still auto-reveals on hover; Tahoe's
       # Liquid Glass made that reveal translucent, so Sill's pills bled through it.
