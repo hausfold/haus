@@ -307,6 +307,21 @@ if [ -f "$OPENCODE_DB" ] && command -v sqlite3 >/dev/null 2>&1; then
   printf "%s\t%s\t0\t0\t%s\topencode\t%s\t%s\n" "$oc_today" "$oc_mtd" "$oc_sec_stamp" "$oc_model_id" "$oc_prov_id" > "$CACHE_DIR/usage-opencode.tsv.tmp"
   mv "$CACHE_DIR/usage-opencode.tsv.tmp" "$CACHE_DIR/usage-opencode.tsv"
   fed=1
+
+  # Opencode's token score for the same dropdown row Claude gets at the bottom of
+  # this file — and it costs two more SUMs over a table already open, because
+  # opencode banks the counters per session instead of leaving them in a
+  # transcript. Same day-boundary caveat as the cost query right above: the sums
+  # are per-SESSION totals bucketed by when the session was last touched, so a
+  # session that spans midnight lands whole on the later day.
+  oc_tok_cols='tokens_input + tokens_output + tokens_reasoning + tokens_cache_read + tokens_cache_write'
+  oc_tok_all=$(sqlite3 "$OPENCODE_DB" \
+    "SELECT COALESCE(SUM($oc_tok_cols), 0) FROM session;" 2>/dev/null || echo 0)
+  oc_tok_today=$(sqlite3 "$OPENCODE_DB" \
+    "SELECT COALESCE(SUM($oc_tok_cols), 0) FROM session WHERE time_updated >= strftime('%s', 'now', 'start of day') * 1000;" 2>/dev/null || echo 0)
+  printf '%s\t%s\t%s\n' "${oc_tok_today:-0}" "${oc_tok_all:-0}" "$(date +%s)" \
+    >"$CACHE_DIR/tokens-opencode.tsv.tmp" \
+    && mv "$CACHE_DIR/tokens-opencode.tsv.tmp" "$CACHE_DIR/tokens-opencode.tsv"
 fi
 
 # --- Codex (ChatGPT) usage feed: ask the account, not the client ---------------
@@ -450,4 +465,145 @@ fi
 if [ "$fed" = 1 ]; then
   pill="$HOME/.config/sketchybar/plugins/ai_usage.sh"
   [ -x "$pill" ] && (SENDER=refresh NAME=ai_usage "$pill" >/dev/null 2>&1 &) || true
+fi
+
+# --- lifetime token counter: the aiUsage dropdown's "tokens" rows --------------
+# A SCORE, not a limit. The percentages above tell you when to stop; this is the
+# number no client shows anywhere — how many tokens you have ever actually moved.
+# "Tokens" here is all four counters added up (input + output + cache write +
+# cache read), so it is dominated by cache reads and is gleefully enormous. That
+# is the point; it is a counter to watch tick, and it is deliberately NOT wired
+# into the pill's own label, which stays the one number you can act on.
+#
+# Claude Code's transcripts are the only place the raw figures exist — one
+# `usage` object per assistant record, nothing aggregated. Reading all of them
+# end to end costs ~17s per ~800MB, which is fine once and absurd every quarter
+# hour, so an INDEX carries the answer between passes: one row per transcript
+# holding the size it had when we last read it. jsonl is append-only, so a file
+# whose size is unchanged contributes its remembered total for free, and only the
+# handful of transcripts that grew are re-read. Steady state is one batched stat
+# over the tree plus a few MB of today's sessions.
+#
+# Re-reading a grown file WHOLE, rather than seeking to the old size and reading
+# the tail, is deliberate: the saving is a fraction of a second (a day's active
+# transcripts are tens of MB) and the offset version has to reason about a
+# partial trailing line left by a write that raced the stat. Not worth it for a
+# leaderboard.
+#
+# Runs LAST, after the pill has already been repainted, so the one cold pass a
+# machine ever does cannot delay the numbers someone is actually watching.
+#
+# NOT a bill: nothing here dedups, and a resumed or forked session re-lists the
+# messages it inherited, so a heavily forked day counts some of them twice. Fine
+# for a score. Don't grow this into cost accounting.
+#
+#   tokens-claude.index:  path <TAB> size <TAB> tokens <TAB> day <TAB> dayTokens
+#   tokens-claude.tsv:    today <TAB> allTime <TAB> written
+TOKENS_TTL=${TOKENS_TTL:-900}
+PROJECTS_DIR="${CLAUDE_PROJECTS_DIR:-$HOME/.claude/projects}"
+TOK_TSV="$CACHE_DIR/tokens-claude.tsv"
+TOK_IDX="$CACHE_DIR/tokens-claude.index"
+
+tok_fresh=0
+if [ -f "$TOK_TSV" ]; then
+  age=$(( $(date +%s) - $(mtime "$TOK_TSV") ))
+  [ "$age" -lt "$TOKENS_TTL" ] && tok_fresh=1
+fi
+
+if [ "$tok_fresh" = 0 ] && [ -d "$PROJECTS_DIR" ]; then
+  tok_now=$(date +%s)
+  tok_day=$(date '+%Y-%m-%d')
+
+  # Local midnight as a UTC ISO-8601 string, because that is the form the
+  # timestamps in a transcript are in and ISO-8601 UTC sorts lexicographically —
+  # so "was this message today" becomes a string compare in awk, with no date
+  # parsing and no gawk-only mktime. Midnight itself comes from subtracting the
+  # wall clock off `now`, because `date -v` is BSD and `date -d` is GNU and the
+  # index has to be computed on both. The final conversion has no such dodge, but
+  # there the wrong flag genuinely FAILS (GNU's -r wants a filename), so exit
+  # status can pick the winner.
+  read -r tok_h tok_m tok_s <<<"$(date '+%H %M %S')"
+  tok_midnight=$(( tok_now - (10#$tok_h * 3600 + 10#$tok_m * 60 + 10#$tok_s) ))
+  tok_cutoff=$(date -u -r "$tok_midnight" '+%Y-%m-%dT%H:%M:%S' 2>/dev/null \
+    || date -u -d "@$tok_midnight" '+%Y-%m-%dT%H:%M:%S' 2>/dev/null \
+    || printf '9999')   # unreadable clock → nothing counts as today, rather than everything
+
+  # `stat -f` is BSD; on GNU that flag means --file-system and does NOT fail on
+  # an unknown directive (same trap as mtime() above), so only a numeric answer
+  # proves which one we are holding. The separator is a REAL tab, written $'\t':
+  # GNU stat expands escapes in its format and BSD stat does not, so a literal
+  # backslash-t reaches awk unsplit on exactly the platform this runs on.
+  tok_flag=-f tok_fmt=$'%z\t%N'
+  case "$(stat -f '%z' "$0" 2>/dev/null || true)" in
+    '' | *[!0-9]*) tok_flag=-c tok_fmt=$'%s\t%n' ;;
+  esac
+
+  [ -f "$TOK_IDX" ] || : >"$TOK_IDX"
+  find "$PROJECTS_DIR" -type f -name '*.jsonl' -print0 2>/dev/null \
+    | xargs -0 stat "$tok_flag" "$tok_fmt" >"$TOK_IDX.sizes" 2>/dev/null || true
+
+  # Join the last index against the sizes just measured, and split the tree in
+  # two: files at the size we remember carry their totals straight through, the
+  # rest are named for a re-read. A carried today-bucket only survives if it was
+  # banked under today's date — a session that fell quiet before midnight must
+  # not still be scoring this morning.
+  : >"$TOK_IDX.keep"
+  : >"$TOK_IDX.scan"
+  # Which file a record came from is decided by FILENAME, not the NR==FNR idiom:
+  # on the first pass a machine ever runs the index is EMPTY, and with an empty
+  # first file NR==FNR stays true straight through the second one — every size
+  # row would be read as an index row and nothing would ever be scanned.
+  awk -F'\t' -v OFS='\t' -v DAY="$tok_day" -v IDX="$TOK_IDX" \
+      -v KEEP="$TOK_IDX.keep" -v SCAN="$TOK_IDX.scan" '
+    FILENAME == IDX { size[$1] = $2; tok[$1] = $3; day[$1] = $4; dtok[$1] = $5; next }
+    {
+      p = $2
+      if (p in size && size[p] == $1) {
+        row = p OFS $1 OFS tok[p] OFS DAY OFS (day[p] == DAY ? dtok[p] : 0)
+        print row > KEEP
+      } else print p > SCAN
+    }' "$TOK_IDX" "$TOK_IDX.sizes"
+
+  # Everything that needs reading, read in ONE awk: sum the four counters per
+  # line, and bucket the line into today as well when its timestamp is at or past
+  # the cutoff. Keyed by FILENAME so one pass totals the whole batch. `xargs -0`
+  # so a path with a space in it survives the trip; the FNR==1 seed is what stops
+  # a transcript with no usage records at all (an aborted session) from being
+  # missing from the index and therefore re-read forever.
+  if [ -s "$TOK_IDX.scan" ]; then
+    tr '\n' '\0' <"$TOK_IDX.scan" | xargs -0 awk -v CUTOFF="$tok_cutoff" '
+      function num(key,   L) {
+        L = length(key)
+        if (match($0, "\"" key "\":[0-9]+")) return substr($0, RSTART + L + 3, RLENGTH - L - 3) + 0
+        return 0
+      }
+      FNR == 1 { tok[FILENAME] += 0 }
+      /"output_tokens":/ {
+        t = num("input_tokens") + num("output_tokens") \
+          + num("cache_creation_input_tokens") + num("cache_read_input_tokens")
+        tok[FILENAME] += t
+        if (match($0, /"timestamp":"[0-9-]+T[0-9:.]+Z"/) &&
+            substr($0, RSTART + 13, RLENGTH - 14) >= "" CUTOFF) today[FILENAME] += t
+      }
+      END { for (f in tok) printf "%s\t%.0f\t%.0f\n", f, tok[f], today[f] + 0 }' \
+      >"$TOK_IDX.scanned" 2>/dev/null || true
+
+    # Bank the size the plan MEASURED, not the file's size now: a session that
+    # appended while we were reading it has to look changed on the next pass, or
+    # the bytes we raced past are lost for good.
+    awk -F'\t' -v OFS='\t' -v DAY="$tok_day" -v SIZES="$TOK_IDX.sizes" '
+      FILENAME == SIZES { size[$2] = $1; next }
+      { print $1, ($1 in size ? size[$1] : 0), $2, DAY, $3 }' \
+      "$TOK_IDX.sizes" "$TOK_IDX.scanned" >>"$TOK_IDX.keep"
+  fi
+
+  mv "$TOK_IDX.keep" "$TOK_IDX"
+  rm -f "$TOK_IDX.sizes" "$TOK_IDX.scan" "$TOK_IDX.scanned"
+
+  # Re-summed from the index every pass rather than accumulated, so a deleted
+  # transcript takes its tokens with it and no drift can ever build up.
+  awk -F'\t' -v NOW="$tok_now" '
+    { all += $3; today += $5 }
+    END { printf "%.0f\t%.0f\t%s\n", today + 0, all + 0, NOW }' "$TOK_IDX" >"$TOK_TSV.tmp" \
+    && mv "$TOK_TSV.tmp" "$TOK_TSV"
 fi

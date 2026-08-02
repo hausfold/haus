@@ -7,6 +7,8 @@
 #     <5h %>\t<7d %>\t<5h resets epoch>\t<7d resets epoch>\t<written epoch>\t<provider>
 # Cost TSV lines (e.g. usage-opencode.tsv):
 #     <today $>\t<mtd $>\t0\t0\t<written epoch>\topencode\t<model>\t<provider_id>
+# Token TSV lines (tokens-<provider>.tsv, optional, dropdown only):
+#     <today tokens>\t<all-time tokens>\t<written epoch>
 #
 # Two entry paths:
 #   • periodic / system_woke / refresh  → repaint main pill icon+label
@@ -23,6 +25,15 @@ source "$HOME/.config/sketchybar/plugins/ai-provider.sh"
 
 CACHE_DIR="${CLAUDE_STATUSLINE_CACHE:-$HOME/.cache/claude-statusline}"
 ITEM_NAME="${NAME:-ai_usage}"
+
+si() { # si <n> — 7.61B, 176.81M, 4.20K, 512. Token counts run to ten digits and
+  # a menu-bar dropdown has no room for them, so they arrive short or not at all.
+  awk -v n="${1:-0}" 'BEGIN {
+    split("K M B T", u, " ")
+    for (i = 4; i >= 1; i--) { d = 1000 ^ i; if (n >= d) { printf "%.2f%s", n / d, u[i]; exit } }
+    printf "%d", n
+  }'
+}
 STALE=300                        # 5 min with no render → mark stale
 FEED_TTL=180                     # how often we re-pull the Codex/Opencode feeds
 now=$(date +%s)
@@ -193,6 +204,17 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
         else                                  when_w="resets $(date -r "$rw" '+%a %H:%M')"; fi
       fi
       row "weekly " "${valw}%${when_w:+  ·  $when_w}"
+    fi
+
+    # Tokens: the score row. Every number above is a fraction of something you
+    # are allowed; this is the raw count of tokens actually moved, which no
+    # client shows anywhere and which nothing here throttles or warns on. Only
+    # providers whose token feed exists get the row (see statusline-refresh.sh).
+    tok_file="$CACHE_DIR/tokens-$prov.tsv"
+    if [ -s "$tok_file" ]; then
+      tok_today=0; tok_all=0
+      IFS=$'\t' read -r tok_today tok_all _ < "$tok_file" || true
+      row "tokens " "$(si "${tok_today:-0}") today  ·  $(si "${tok_all:-0}") all time"
     fi
 
     if [ "$f_stale" = 1 ]; then
