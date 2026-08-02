@@ -86,6 +86,19 @@ nix_default() {
   fi
 }
 
+# nix_float DOMAIN KEY FALLBACK — nix_default for a real. macOS stores these as
+# reals but `defaults read` prints a whole one as "1", which `types.float` in
+# nix-darwin rejects — so re-add the ".0" it dropped.
+nix_float() {
+  local raw
+  raw="$(/usr/bin/defaults read "$1" "$2" 2>/dev/null)" || { echo "$3"; return; }
+  case "$raw" in
+    '' | *[!0-9.]*) echo "$3" ;;
+    *.*) echo "$raw" ;;
+    *) echo "$raw.0" ;;
+  esac
+}
+
 # emit one host-file line, only when the value is non-empty (unset + no fallback).
 emit() { [ -n "$2" ] && printf '  system.defaults.%s = %s;\n' "$1" "$2"; }
 
@@ -106,6 +119,12 @@ settings_overrides() {
     emit NSGlobalDomain.KeyRepeat                "$(nix_default -g KeyRepeat int)"
     emit NSGlobalDomain.InitialKeyRepeat         "$(nix_default -g InitialKeyRepeat int)"
     emit NSGlobalDomain.ApplePressAndHoldEnabled "$(nix_default -g ApplePressAndHoldEnabled bool true)"
+    # Full keyboard access. The nix option is an enum (0/2/3), so anything else
+    # macOS may have stored falls back to Apple's 0 rather than failing eval.
+    local kbdui
+    kbdui="$(nix_default -g AppleKeyboardUIMode int 0)"
+    case "$kbdui" in 0 | 2 | 3) ;; *) kbdui=0 ;; esac
+    emit NSGlobalDomain.AppleKeyboardUIMode "$kbdui"
   fi
   if [ -n "$KEEP_FINDER" ]; then
     local ext
@@ -116,6 +135,38 @@ settings_overrides() {
     emit finder.FXPreferredViewStyle "$(nix_default com.apple.finder FXPreferredViewStyle str '"icnv"')"
     emit finder.ShowPathbar          "$(nix_default com.apple.finder ShowPathbar bool false)"
     emit finder.ShowStatusBar        "$(nix_default com.apple.finder ShowStatusBar bool false)"
+    emit finder._FXSortFoldersFirst            "$(nix_default com.apple.finder _FXSortFoldersFirst bool false)"
+    emit finder._FXSortFoldersFirstOnDesktop   "$(nix_default com.apple.finder _FXSortFoldersFirstOnDesktop bool false)"
+    emit finder._FXShowPosixPathInTitle        "$(nix_default com.apple.finder _FXShowPosixPathInTitle bool false)"
+    emit finder._FXEnableColumnAutoSizing      "$(nix_default com.apple.finder _FXEnableColumnAutoSizing bool true)"
+    emit finder.FXDefaultSearchScope           "$(nix_default com.apple.finder FXDefaultSearchScope str '"SCev"')"
+    emit finder.FXEnableExtensionChangeWarning "$(nix_default com.apple.finder FXEnableExtensionChangeWarning bool true)"
+    emit finder.QuitMenuItem                   "$(nix_default com.apple.finder QuitMenuItem bool false)"
+    emit finder.ShowHardDrivesOnDesktop         "$(nix_default com.apple.finder ShowHardDrivesOnDesktop bool false)"
+    emit finder.ShowExternalHardDrivesOnDesktop "$(nix_default com.apple.finder ShowExternalHardDrivesOnDesktop bool true)"
+    emit finder.ShowMountedServersOnDesktop     "$(nix_default com.apple.finder ShowMountedServersOnDesktop bool false)"
+    emit finder.ShowRemovableMediaOnDesktop     "$(nix_default com.apple.finder ShowRemovableMediaOnDesktop bool true)"
+    # NewWindowTarget is the one key whose nix option takes a friendly name
+    # while macOS stores a four-letter code, so map it back. Unset means
+    # Apple's "Recents".
+    local nwt
+    case "$(dflt com.apple.finder NewWindowTarget)" in
+      PfCm) nwt='"Computer"'    ;; PfVo) nwt='"OS volume"' ;;
+      PfHm) nwt='"Home"'        ;; PfDe) nwt='"Desktop"'   ;;
+      PfDo) nwt='"Documents"'   ;; PfID) nwt='"iCloud Drive"' ;;
+      PfLo) nwt=                ;; # "Other" needs NewWindowTargetPath too — leave both to the rice
+      *)    nwt='"Recents"'     ;;
+    esac
+    emit finder.NewWindowTarget "$nwt"
+    # The Finder-shaped half of NSGlobalDomain (see modules/den). Not captured:
+    # the .DS_Store and empty-trash keys the rice sets through
+    # CustomUserPreferences — those are litter/nag policy, not how Finder looks.
+    emit NSGlobalDomain.NSTableViewDefaultSizeMode          "$(nix_default -g NSTableViewDefaultSizeMode int 3)"
+    emit NSGlobalDomain.NSNavPanelExpandedStateForSaveMode  "$(nix_default -g NSNavPanelExpandedStateForSaveMode bool false)"
+    emit NSGlobalDomain.NSNavPanelExpandedStateForSaveMode2 "$(nix_default -g NSNavPanelExpandedStateForSaveMode2 bool false)"
+    emit NSGlobalDomain.NSDocumentSaveNewDocumentsToCloud   "$(nix_default -g NSDocumentSaveNewDocumentsToCloud bool true)"
+    emit 'NSGlobalDomain."com.apple.springing.enabled"'     "$(nix_default -g com.apple.springing.enabled bool false)"
+    emit 'NSGlobalDomain."com.apple.springing.delay"'       "$(nix_float -g com.apple.springing.delay 0.5)"
   fi
 }
 
