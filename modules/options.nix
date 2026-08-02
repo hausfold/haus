@@ -131,10 +131,10 @@ in
     #
     # Honest scope, and it is narrower than "everything": this scales the things
     # nebelhaus itself controls and macOS lets it control — the terminal font,
-    # the Dock, and the tiling gaps. It does NOT resize the menu bar (see the
-    # note on ui.scale) and it cannot resize third-party apps; macOS has no
-    # system-wide UI scale, so the OS-level lever is display resolution
-    # (`nebelhaus.displays`).
+    # the command palette, the Dock, and the tiling gaps. It does NOT resize the
+    # menu bar (see the note on ui.scale) and it cannot resize third-party apps;
+    # macOS has no system-wide UI scale, so the OS-level lever is display
+    # resolution (`nebelhaus.displays`).
     ui.scale = lib.mkOption {
       type = lib.types.numbers.between 0.5 3.0;
       default = 1.0;
@@ -152,6 +152,9 @@ in
         What it currently moves:
 
           - the terminal font size (nebelhaus.fonts.mono.size)
+          - the command palette, whole (nebelhaus.pounce.scale) — its rows,
+            text and icons, and the emoji / clipboard / screenshots / camera /
+            Find Files / cheatsheet panels behind it
           - the Dock icon size (system.defaults.dock.tilesize)
           - prowl's window gaps
 

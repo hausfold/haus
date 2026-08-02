@@ -732,7 +732,14 @@ lib.mkIf config.nebelhaus.pounce.enable {
       # Palette settings — pounce re-reads this on each open. Edit + rebuild.
       home.file.".config/pounce/config.json".text = builtins.toJSON (
         {
-          windowMode = "compact"; # "default" | "compact"
+          # Shape and size, kept apart on purpose: windowMode picks the layout's
+          # proportions, scale picks how big it's drawn. scale follows
+          # nebelhaus.ui.scale, so the palette grows with the terminal and the
+          # Dock rather than staying the one thing that didn't.
+          # An older pounce that predates `scale` ignores the key rather than
+          # failing on it — same lenient parse as `themeLight`.
+          windowMode = config.nebelhaus.pounce.windowMode;
+          scale = config.nebelhaus.pounce.scale;
           # The selected nebelung variant, following theme.{flavor,contrast}. The
           # default variant's name ("nebelung") matches pounce's compiled-in
           # palette, and an older pounce without runtime themes falls back to that
