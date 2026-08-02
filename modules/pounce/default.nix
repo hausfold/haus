@@ -953,8 +953,9 @@ lib.mkIf config.nebelhaus.pounce.enable {
       # Free ⌘Space for the palette by disabling Spotlight's "Show Spotlight
       # search" shortcut (symbolic hotkey 64). Integer-typed values are REQUIRED —
       # a string fragment leaves the binding half-alive and it races the daemon's
-      # Carbon ⌘Space registration. Full effect on next login; activateSettings -u
-      # applies what it can now.
+      # Carbon ⌘Space registration. Full effect on next login; den's
+      # end-of-activation activateSettings -u applies what it can now (it runs
+      # after home-manager, so this write is covered without a call of its own).
       #
       # ONLY when the palette actually claims ⌘Space. This used to run
       # unconditionally, so a machine whose palette lived elsewhere — or had no
@@ -965,7 +966,6 @@ lib.mkIf config.nebelhaus.pounce.enable {
             lib.hm.dag.entryAfter [ "writeBoundary" ] ''
               $DRY_RUN_CMD /usr/bin/defaults write com.apple.symbolichotkeys AppleSymbolicHotKeys \
                 -dict-add 64 '<dict><key>enabled</key><integer>0</integer><key>value</key><dict><key>type</key><string>standard</string><key>parameters</key><array><integer>32</integer><integer>49</integer><integer>1048576</integer></array></dict></dict>'
-              $DRY_RUN_CMD /System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings -u || true
             ''
           );
 

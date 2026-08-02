@@ -32,8 +32,7 @@ let
   # Naming a family the rice was never given a package for is silent tofu:
   # Ghostty just falls back and the powerline/icon glyphs vanish. Cheap to spot.
   fontFamilyUnprovided =
-    fontsCfg.mono.package == null
-    && fontsCfg.mono.name != options.nebelhaus.fonts.mono.name.default;
+    fontsCfg.mono.package == null && fontsCfg.mono.name != options.nebelhaus.fonts.mono.name.default;
 in
 {
   system.primaryUser = username;
@@ -57,33 +56,34 @@ in
   # work, so blocking them would be wrong. We just make the failure legible in
   # advance. Drop this once upstream guards the writes.
   #   https://github.com/nix-darwin/nix-darwin/issues/1049
-  warnings = lib.optional fontFamilyUnprovided ''
-    nebelhaus: fonts.mono.name is "${fontsCfg.mono.name}" but fonts.mono.package is null.
+  warnings =
+    lib.optional fontFamilyUnprovided ''
+      nebelhaus: fonts.mono.name is "${fontsCfg.mono.name}" but fonts.mono.package is null.
 
-    The rice only installs the font it's given, so unless that family is already
-    on the machine Ghostty will fall back silently — and the fallback won't be a
-    Nerd Font, so starship's prompt, lsd's icons and yazi previews render as
-    tofu. Set nebelhaus.fonts.mono.package to the matching package
-    (e.g. pkgs.nerd-fonts.fira-code).
-  ''
-  ++ lib.optional (universalaccessSet != [ ]) ''
-    nebelhaus: system.defaults.universalaccess is set (${lib.concatStringsSep ", " universalaccessSet}).
+      The rice only installs the font it's given, so unless that family is already
+      on the machine Ghostty will fall back silently — and the fallback won't be a
+      Nerd Font, so starship's prompt, lsd's icons and yazi previews render as
+      tofu. Set nebelhaus.fonts.mono.package to the matching package
+      (e.g. pkgs.nerd-fonts.fira-code).
+    ''
+    ++ lib.optional (universalaccessSet != [ ]) ''
+      nebelhaus: system.defaults.universalaccess is set (${lib.concatStringsSep ", " universalaccessSet}).
 
-    That domain is TCC-protected. It writes only if the app you run the rebuild
-    FROM holds Full Disk Access (System Settings ▸ Privacy & Security ▸ Full
-    Disk Access) — on macOS 26 a stale grant often needs removing and re-adding
-    with the (+) button, then restarting the terminal.
+      That domain is TCC-protected. It writes only if the app you run the rebuild
+      FROM holds Full Disk Access (System Settings ▸ Privacy & Security ▸ Full
+      Disk Access) — on macOS 26 a stale grant often needs removing and re-adding
+      with the (+) button, then restarting the terminal.
 
-    Without that grant the write exits 1, and because nix-darwin emits it
-    unguarded into an activation script running under `set -e`, activation
-    ABORTS there and skips the rest — including every launchd service the rice
-    installs (awake, aerospace, hush-watcher, pounce, sketchybar). If a rebuild
-    ever half-completes, this is the first thing to check.
+      Without that grant the write exits 1, and because nix-darwin emits it
+      unguarded into an activation script running under `set -e`, activation
+      ABORTS there and skips the rest — including every launchd service the rice
+      installs (awake, aerospace, hush-watcher, pounce, sketchybar). If a rebuild
+      ever half-completes, this is the first thing to check.
 
-    nebelhaus.accessibility.* reaches the two useful keys in this domain
-    (increaseContrast, differentiateWithoutColor) WITHOUT that hazard — it
-    guards the write, so a missing grant costs you the setting and nothing else.
-  '';
+      nebelhaus.accessibility.* reaches the two useful keys in this domain
+      (increaseContrast, differentiateWithoutColor) WITHOUT that hazard — it
+      guards the write, so a missing grant costs you the setting and nothing else.
+    '';
 
   # ---- nebelhaus.accessibility → com.apple.universalaccess -------------------
   # Writes the two keys in that domain measured to write AND take effect on
@@ -101,19 +101,54 @@ in
   # So we emit the same command shape ourselves, guarded: on refusal, say why
   # and carry on. Degrading to "the setting didn't apply" is the correct
   # failure; a half-activated Mac is not.
-  system.activationScripts.postActivation.text = lib.optionalString (a11ySet != { }) ''
-    nebelhausAccessibility() {
-      if launchctl asuser "$(id -u -- ${username})" sudo --user=${username} -- \
-           defaults write com.apple.universalaccess "$1" -bool "$2" 2>/dev/null; then
-        echo "accessibility: $1 = $2" >&2
-      else
-        echo "warning: accessibility: could not set $1 — com.apple.universalaccess needs Full Disk Access on the app running this rebuild. Setting skipped; nothing else was affected." >&2
+  system.activationScripts.postActivation.text = lib.mkMerge [
+    (lib.optionalString (a11ySet != { }) ''
+      nebelhausAccessibility() {
+        if launchctl asuser "$(id -u -- ${username})" sudo --user=${username} -- \
+             defaults write com.apple.universalaccess "$1" -bool "$2" 2>/dev/null; then
+          echo "accessibility: $1 = $2" >&2
+        else
+          echo "warning: accessibility: could not set $1 — com.apple.universalaccess needs Full Disk Access on the app running this rebuild. Setting skipped; nothing else was affected." >&2
+        fi
+      }
+      ${lib.concatStringsSep "\n" (
+        lib.mapAttrsToList (k: v: "nebelhausAccessibility ${k} ${lib.boolToString v}") a11ySet
+      )}
+    '')
+
+    # ---- make the preferences we just wrote LIVE, without a logout ----------
+    # nix-darwin writes every system.defaults key with `defaults write` and then
+    # restarts the Dock — and stops there. So Dock/Finder keys land, but
+    # everything the WindowServer, HIToolbox or the input stack caches sits in
+    # the plist until the next login: key repeat, the trackpad trio,
+    # _HIHideMenuBar and SLSMenuBarUseBlurredAppearance (both of which sill
+    # depends on). Changing the rice and being told "log out to see it" is the
+    # single most confusing thing a rebuild can do.
+    #
+    # activateSettings is the private binary System Settings itself calls to
+    # broadcast a preference change. Upstream has declined to run it for years
+    # (nix-darwin#658, #967, #1475), so the rice does it. It must run AS THE
+    # USER — activation is root, and root's preference domain is not the one we
+    # just wrote — hence the same launchctl-asuser shape as the block above.
+    #
+    # mkAfter, so it is the LAST thing in postActivation: after nix-darwin's own
+    # defaults writes, after home-manager's activation (which is itself emitted
+    # into postActivation, and is where hush's DND hotkey and pounce's Spotlight
+    # write land), and after the accessibility block above. One call covers all
+    # of them, which is why none of those sites run their own any more.
+    #
+    # Unconditional and unguarded by an option: it is ~0.2s, idempotent, exits 0,
+    # and there is no coherent machine that wants its declared preferences left
+    # unapplied. `|| true` because a future macOS may move or drop the binary —
+    # losing the refresh is a papercut, aborting activation is not.
+    (lib.mkAfter ''
+      activateSettings=/System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings
+      if [ -x "$activateSettings" ]; then
+        launchctl asuser "$(id -u -- ${username})" sudo --user=${username} -- \
+          "$activateSettings" -u || true
       fi
-    }
-    ${lib.concatStringsSep "\n" (
-      lib.mapAttrsToList (k: v: "nebelhausAccessibility ${k} ${lib.boolToString v}") a11ySet
-    )}
-  '';
+    '')
+  ];
 
   programs.zsh.enable = true;
 
@@ -203,9 +238,7 @@ in
       # hearth writes are client config files with no business knowing where a bar
       # keeps its plugins — they call
       # `agent-state <working|waiting|idle|remove> <client>` instead.
-      (writeShellScriptBin "agent-state" (
-        builtins.readFile ../sill/sketchybar/plugins/agents-hook.sh
-      ))
+      (writeShellScriptBin "agent-state" (builtins.readFile ../sill/sketchybar/plugins/agents-hook.sh))
     ];
 
   # The job is intentionally always present, even when the opt-in Sill pill is
