@@ -48,15 +48,19 @@ let
       "Hack Nerd Font:Bold:${sizes.icon}";
   wsIconCases = lib.concatMapStrings (
     a:
-    lib.optionalString (
-      a.workspace != null && a.barIcon != null
-    ) "    ${a.workspace}) ICON=${lib.escapeShellArg a.barIcon} ; IFONT=${lib.escapeShellArg (iconFont a.barIcon)} ;;\n"
+    lib.optionalString (a.workspace != null && a.barIcon != null)
+      "    ${a.workspace}) ICON=${lib.escapeShellArg a.barIcon} ; IFONT=${lib.escapeShellArg (iconFont a.barIcon)} ;;\n"
   ) apps;
   # Leader-key -> workspace map for launch_mode.sh, same colon-joined shape it
   # used to hardcode. Digits 1-4 focus the numbered workspaces; each app key maps
   # to its workspace; a null workspace renders as "<key>:" (always closed/grey).
   launchersStr = lib.concatStringsSep " " (
-    [ "1:1" "2:2" "3:3" "4:4" ]
+    [
+      "1:1"
+      "2:2"
+      "3:3"
+      "4:4"
+    ]
     ++ map (a: "${a.key}:${lib.optionalString (a.workspace != null) a.workspace}") launchers
   );
 
@@ -65,10 +69,30 @@ let
   workspacesSh = ''
     #!/bin/bash
     # GENERATED from nebelhaus._roster by modules/sill/default.nix — do not edit.
-    WORKSPACES=(${bashArray ([ "1" "2" "3" "4" ] ++ appWorkspaces)})
+    WORKSPACES=(${
+      bashArray (
+        [
+          "1"
+          "2"
+          "3"
+          "4"
+        ]
+        ++ appWorkspaces
+      )
+    })
     # Leader picker bubbles: the digits 1-4 (focus a numbered workspace) plus one
     # per app key (jump to its workspace) — mirrors [mode.launch.binding].
-    LAUNCHER_KEYS=(${bashArray ([ "1" "2" "3" "4" ] ++ map (a: a.key) launchers)})
+    LAUNCHER_KEYS=(${
+      bashArray (
+        [
+          "1"
+          "2"
+          "3"
+          "4"
+        ]
+        ++ map (a: a.key) launchers
+      )
+    })
     # Leader hotkey -> assigned workspace, parsed by launch_mode.sh (bash 3.2 has
     # no associative arrays, so a plain space-separated "<key>:<ws>" string). An
     # empty <ws> means no assigned space (always shown closed/grey).
@@ -85,7 +109,7 @@ let
   '';
 
   # The hush pill — generic (no personal hardware/service), so unlike the
-  # sill.plugins items below it rides nebelhaus.hush.enable, not an opt-in
+  # sill.items extras below it rides nebelhaus.hush.enable, not an opt-in
   # list. hush_change is fired by the hush engine after its own toggles and by
   # the hush-watcher agent (modules/hush) when the Focus DB changes; the
   # update_freq poll is only a backstop for missed events.
@@ -312,7 +336,8 @@ let
     "elgato"
     "harvest"
   ];
-  enabledExtras = lib.filter (name:
+  enabledExtras = lib.filter (
+    name:
     if name == "aiUsage" then
       config.nebelhaus.sill.items.aiUsage || config.nebelhaus.sill.items.claudeUsage
     else
@@ -329,14 +354,13 @@ let
   ];
   hiddenCore = lib.filter (name: !config.nebelhaus.sill.items.${name}) coreItems;
 
-  optionalItemsSh =
-    ''
-      #!/bin/bash
-      # GENERATED from nebelhaus.hush.enable + nebelhaus.sill.items by
-      # modules/sill/default.nix — do not edit.
-    ''
-    + lib.optionalString config.nebelhaus.hush.enable hushBlock
-    + lib.concatMapStrings (name: optionalPluginBlocks.${name}) enabledExtras;
+  optionalItemsSh = ''
+    #!/bin/bash
+    # GENERATED from nebelhaus.hush.enable + nebelhaus.sill.items by
+    # modules/sill/default.nix — do not edit.
+  ''
+  + lib.optionalString config.nebelhaus.hush.enable hushBlock
+  + lib.concatMapStrings (name: optionalPluginBlocks.${name}) enabledExtras;
 
   # Which core pills the user turned off (a false in nebelhaus.sill.items). Sourced
   # by sketchybarrc BEFORE the core `--add`s so each can guard on sill_hidden and
@@ -608,12 +632,24 @@ lib.mkIf config.nebelhaus.sill.enable {
         ".config/sketchybar/battery_config.sh".text = ''
           #!/bin/bash
           # GENERATED from nebelhaus.sill.battery.* by modules/sill/default.nix — do not edit.
-          SILL_BATTERY_HIDE_OVER="${if config.nebelhaus.sill.battery.hideOver != null then toString config.nebelhaus.sill.battery.hideOver else ""}"
+          SILL_BATTERY_HIDE_OVER="${
+            if config.nebelhaus.sill.battery.hideOver != null then
+              toString config.nebelhaus.sill.battery.hideOver
+            else
+              ""
+          }"
         '';
         ".config/sketchybar/clock_config.sh".text = ''
           #!/bin/bash
           # GENERATED from nebelhaus.sill.clock.* by modules/sill/default.nix — do not edit.
           SILL_CLOCK_MODE="${config.nebelhaus.sill.clock.mode}"
+        '';
+        # Empty by default: plugins/elgato.sh then discovers the light over
+        # mDNS rather than the rice shipping somebody's device hostname.
+        ".config/sketchybar/elgato_config.sh".text = ''
+          #!/bin/bash
+          # GENERATED from nebelhaus.sill.elgato.* by modules/sill/default.nix — do not edit.
+          SILL_ELGATO_HOST="${config.nebelhaus.sill.elgato.host}"
         '';
         ".config/sketchybar/ai_usage_config.sh".text = ''
           #!/bin/bash
