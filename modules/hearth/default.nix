@@ -1411,8 +1411,9 @@ in
         # load_plugins; grants seeded below.
         ".config/zellij/plugins/tab-history.wasm".source = zellijPlugins.tab-history;
         # Our status-bar fork (see zellij/status-bar/): the bottom-right quick
-        # hints are condensed to one flat "Super + <a,p,t,y,f>" block (agent,
-        # pane, tab, yazi-peek, fullscreen — keys only, no labels/ribbons).
+        # hints are condensed to one flat "⌘ + <a,f,l,p,t,y,⏎>" block (agent,
+        # find, pounce-links, pane, tab, yazi-peek, fullscreen — keys only, no
+        # labels/ribbons, listed alphabetically by the key that shows).
         ".config/zellij/plugins/status-bar.wasm".source = zellijPlugins.status-bar;
         # Our tab-bar fork (see zellij/tab-bar/): the top bar, replacing the
         # third-party zjstatus that used to sit here. Same active-anchored tab

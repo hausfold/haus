@@ -67,7 +67,8 @@ impl KeyShortcut {
             .map(|m| match m {
                 KeyModifier::Ctrl => "^C",
                 KeyModifier::Alt => "^A",
-                KeyModifier::Super => "^Su",
+                // Fork: the Mac glyph, never "^Su" — see `modifier_label`.
+                KeyModifier::Super => "⌘",
                 KeyModifier::Shift => "^Sh",
             })
             .collect::<Vec<_>>()
