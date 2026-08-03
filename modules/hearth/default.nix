@@ -302,12 +302,16 @@ in
   # motion report when the CELL under the pointer changes. Selecting a long
   # scrollback meant jittering the mouse to manufacture events.
   #
-  # The patch makes that step a RATE, derived from how many lines were already
-  # highlighted when the drag crossed the edge: grab three lines and keep going
-  # and it crawls (slower than upstream, on purpose — a short drag means
-  # precise work); sweep the pane first and it moves. Locked in per departure
-  # so the speed holds steady while you do, re-derived when you come back in
-  # and leave again.
+  # The patch makes that step a RATE, derived from what FRACTION of the pane was
+  # already highlighted when the drag crossed the edge: grab three lines and keep
+  # going and it crawls (slower than upstream, on purpose — a short drag means
+  # precise work); sweep the whole pane first and it moves. A fraction rather
+  # than a line count so the same gesture means the same speed in a 25-row
+  # zoomed-in pane and an 80-row one. Quadratic rather than linear because
+  # perceived speed tracks the log of actual speed, so a linear ramp spends its
+  # travel on differences you can't feel and crowds the precise range everyone
+  # aims for into the first few rows. Locked in per departure so the speed holds
+  # steady while you hold, re-derived when you come back in and leave again.
   #
   # The obvious input — how far PAST the edge the cursor is — is close to
   # useless: terminals clamp a drag that leaves the window to the edge cell

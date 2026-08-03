@@ -1,8 +1,8 @@
 diff --git a/zellij-server/src/panes/terminal_pane.rs b/zellij-server/src/panes/terminal_pane.rs
-index 477185a..dd2e1cb 100644
+index 477185a..994f8ce 100644
 --- a/zellij-server/src/panes/terminal_pane.rs
 +++ b/zellij-server/src/panes/terminal_pane.rs
-@@ -36,6 +36,38 @@ use crate::ui::pane_boundaries_frame::{FrameParams, PaneFrame};
+@@ -36,6 +36,47 @@ use crate::ui::pane_boundaries_frame::{FrameParams, PaneFrame};
  
  pub const SELECTION_SCROLL_INTERVAL_MS: u64 = 10;
  
@@ -13,11 +13,8 @@ index 477185a..dd2e1cb 100644
 +/// Floor — a drag that left the pane almost immediately. Deliberately slower
 +/// than one line per tick: a short drag means precise work.
 +const SELECTION_SCROLL_MIN_RATE: usize = 350;
-+/// Ceiling — a drag that swept most of the pane before leaving it.
++/// Ceiling — a drag that swept the whole pane before leaving it.
 +const SELECTION_SCROLL_MAX_RATE: usize = 8000;
-+/// Lines of highlight at which the rate saturates. Beyond this a taller pane
-+/// (or a bigger font) can't keep buying speed.
-+const SELECTION_SCROLL_FULL_SPEED_LINES: usize = 40;
 +
 +/// Autoscroll rate, in milli-lines per tick, from how much was already
 +/// highlighted when the drag crossed the pane edge.
@@ -30,18 +27,30 @@ index 477185a..dd2e1cb 100644
 +/// statement of intent — grabbed three lines and kept going, or swept the whole
 +/// screen first.
 +///
++/// Measured as a FRACTION of the pane, not a line count: "I swept the whole
++/// thing" means the same thing in a 25-row pane and an 80-row one, so the same
++/// gesture has to mean the same speed at any font size or split.
++///
++/// Quadratic rather than linear, because the useful resolution is all at the
++/// slow end. Perceived speed goes roughly with the log of actual speed, so a
++/// linear ramp spends most of its travel on differences you can't feel while
++/// crowding the precise range everyone actually aims for into the first few
++/// rows. Squaring keeps the bottom half of the gesture inside the first ~quarter
++/// of the range and puts the fast end where it's asked for explicitly.
++///
 +/// Locked in once per departure so the speed is stable while you hold, and
 +/// re-derived when the cursor comes back inside and leaves again.
-+fn selection_scroll_rate(lines_highlighted: usize) -> usize {
-+    let lines = lines_highlighted.clamp(1, SELECTION_SCROLL_FULL_SPEED_LINES);
++fn selection_scroll_rate(lines_highlighted: usize, pane_height: usize) -> usize {
++    let full_sweep = pane_height.saturating_sub(1).max(1);
++    let highlighted = lines_highlighted.min(full_sweep);
 +    let span = SELECTION_SCROLL_MAX_RATE - SELECTION_SCROLL_MIN_RATE;
-+    SELECTION_SCROLL_MIN_RATE + (span * (lines - 1)) / (SELECTION_SCROLL_FULL_SPEED_LINES - 1)
++    SELECTION_SCROLL_MIN_RATE + (span * highlighted * highlighted) / (full_sweep * full_sweep)
 +}
 +
  // Some keys in different formats but are used in the code
  const LEFT_ARROW: &[u8] = &[27, 91, 68];
  const RIGHT_ARROW: &[u8] = &[27, 91, 67];
-@@ -134,6 +166,13 @@ pub struct TerminalPane {
+@@ -134,6 +175,13 @@ pub struct TerminalPane {
      pub style: Style,
      vte_parser: vte::Parser,
      selection_scrolled_at: time::Instant,
@@ -55,7 +64,7 @@ index 477185a..dd2e1cb 100644
      content_offset: Offset,
      pane_title: String,
      pane_name: String,
-@@ -657,26 +696,60 @@ impl Pane for TerminalPane {
+@@ -657,26 +705,60 @@ impl Pane for TerminalPane {
      }
  
      fn update_selection(&mut self, to: &Position, _client_id: ClientId) {
@@ -107,7 +116,7 @@ index 477185a..dd2e1cb 100644
 +                } else {
 +                    (max_row as usize).saturating_sub(anchor)
 +                };
-+                let rate = selection_scroll_rate(lines_highlighted);
++                let rate = selection_scroll_rate(lines_highlighted, self.grid.height);
 +                self.selection_scroll_rate = Some(rate);
 +                rate
 +            },
@@ -131,7 +140,7 @@ index 477185a..dd2e1cb 100644
      }
  
      fn end_selection(&mut self, end: &Position, _client_id: ClientId) {
-@@ -1124,6 +1197,8 @@ impl TerminalPane {
+@@ -1124,6 +1206,8 @@ impl TerminalPane {
              active_at: Instant::now(),
              style,
              selection_scrolled_at: time::Instant::now(),
