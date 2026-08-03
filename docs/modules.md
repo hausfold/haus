@@ -33,8 +33,10 @@ pounce, hush, secrets. Pull just what you want into your own flake:
 }
 ```
 
-**theme, trill, and perch aren't standalone modules** — they ride along with the
-full `mkNebelhaus` house.
+**theme, trill, perch, snippets and apps aren't standalone modules** — they ride
+along with the full `mkNebelhaus` house. (apps needs the roster resolver next to
+it to install anything, which is the same reason the roster isn't exported
+either.)
 
 ## Or take the whole house
 

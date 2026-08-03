@@ -40,6 +40,10 @@
     order = 21;
     blurb = "Whether a rebuild may install the roster's `appStoreId` entries. Off by default: it reaches the network and acts on your Apple Account, and it can never be complete — `mas` cannot sign in, and cannot buy a paid app.";
   };
+  apps = {
+    order = 22;
+    blurb = "The apps the rice picks for you, and the file types they claim — the ones a finished machine has rather than the ones a room needs to work. Each is one switch you can turn off; what it installs is a roster entry like any other, so you can retune or replace it by app id.";
+  };
 
   # ---- how it looks ---------------------------------------------------------
   theme = {

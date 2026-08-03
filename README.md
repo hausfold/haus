@@ -91,6 +91,7 @@ The house is built from composable nix-darwin modules. Take the whole thing, or
 - 🪺 **perch** — the [Perch](https://github.com/nebelhaus/perch) notch file shelf, same deal (`nebelhaus.perch.enable`)
 - 🤫 **hush** — a one-switch Focus/DND: a declarative global hotkey, plus optional Slack status and shell hooks
 - 🎨 **theme** — the desktop wallpaper and an accent-derived bold wordmark
+- 📼 **apps** — the picks a finished machine gets rather than the ones a room needs: [IINA](https://iina.io) as the video player, and the video types it takes over from QuickTime. One switch each (`nebelhaus.apps.*`), installed as roster entries you can retune
 
 ## identity is the only thing that's yours
 
