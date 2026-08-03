@@ -24,7 +24,11 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
         "$AWAKE" off >/dev/null 2>&1 || true
         sketchybar --set caffeinate popup.drawing=off
     else
-        sketchybar --set caffeinate popup.drawing=toggle
+        # Through sillpop, so the menu closes on the next click anywhere else
+        # (sketchybar only ever sees clicks on its own items). Falls back to the
+        # click-the-pill-again toggle if the binary isn't there.
+        /run/current-system/sw/bin/sillpop toggle caffeinate 2>/dev/null ||
+            sketchybar --set caffeinate popup.drawing=toggle
     fi
 fi
 

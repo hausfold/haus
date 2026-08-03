@@ -54,7 +54,8 @@ modules/
                           #   hand-written SKILL.md + recipes, plus an option reference
                           #   rendered per-revision — see skill.nix for why it's a package
   prowl/                  # AeroSpace tiling
-  sill/                   # SketchyBar
+  sill/                   # SketchyBar + sillpop (Swift, xcrun-compiled): the pill
+                          #   dropdowns' click-outside dismissal
   collar/                 # auth policy: Touch ID sudo + passwordless activation
   pounce/                 # the palette daemon (launchd + self-signing)
   trill/                  # the trill Messages client, installed via the trill flake input
@@ -137,6 +138,19 @@ points back to when it feels several PRs together.
   activation that `lsregister`s the bundle — binding a type LaunchServices hasn't seen
   yet is a silent `-50`. An app a room NEEDS (AeroSpace, SketchyBar, espanso) still
   belongs to that room.
+- **A pill with a dropdown opens it with `sillpop toggle <item>`, never
+  `popup.drawing=toggle`.** SketchyBar hears clicks on its own items and nothing
+  else, so a popup it opened can only be closed by clicking that pill a second
+  time — every other dropdown on the Mac closes on a click anywhere. `sillpop`
+  (`modules/sill/sillpop.swift`, built by `sillpop.nix`) is the missing half: it
+  toggles the popup, and while one is up it watches for a global mouse-down
+  (AppKit — Accessibility-gated for KEY events only, so no TCC prompt) and closes
+  the popup on the first click outside the bar and outside the popup's own rows.
+  One process, alive only while a dropdown is. In nix, use the `popToggle` helper
+  in `modules/sill/default.nix`; in a plugin script, the literal
+  `/run/current-system/sw/bin/sillpop toggle <item> || sketchybar --set <item>
+  popup.drawing=toggle`. Opening one dropdown closes any other, which is also why
+  there's never more than one watcher.
 - **Theme**: `nebelhaus.theme.{flavor,contrast}` are the single source of truth, and
   **`modules/lib/nebelung.nix` is the only place that resolves them.** It returns the
   themes-package `root` to source rendered files from, the `palette` (name → hex),

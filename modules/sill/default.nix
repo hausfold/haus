@@ -20,6 +20,18 @@ let
   withGUIWait = import ../lib/gui-wait.nix;
   userPath = "/run/current-system/sw/bin:/etc/profiles/per-user/${username}/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin";
 
+  sillpop = pkgs.callPackage ./sillpop.nix { };
+  # Every pill that opens a dropdown calls this instead of setting
+  # `popup.drawing=toggle` itself, which is what makes the dropdown close on a
+  # click anywhere else (sketchybar alone can only ever see clicks on its own
+  # items — see sillpop.swift). The literal store-independent path is what the
+  # click_scripts embed, same as `awake` below; the `||` fallback keeps a pill
+  # working in the window between an old bar reloading and the new profile
+  # landing, and on a machine where the build was skipped.
+  popToggle =
+    item:
+    "/run/current-system/sw/bin/sillpop toggle ${item} 2>/dev/null || sketchybar --set ${item} popup.drawing=toggle";
+
   # The whole roster drives the pills (a workspace is what earns one); only the
   # keyed subset drives the leader picker.
   apps = config.nebelhaus._roster;
@@ -227,6 +239,8 @@ let
     # Next timed event + a click-popup of the next five. calendar.sh fills the
     # popup children (calendar.event.1..5) added below; the toggle uses the literal
     # item name so no $NAME has to survive add-time expansion.
+    # Opening goes through sillpop (see popToggle above) so the dropdown closes on
+    # the next click anywhere else, not only on a second click of the pill.
     calendar = ''
       sketchybar --add item calendar right \
           --set calendar \
@@ -239,7 +253,7 @@ let
               popup.background.border_color=$SURFACE0 \
               popup.background.color=$MANTLE \
               script="$HOME/.config/sketchybar/plugins/calendar.sh" \
-              click_script="sketchybar --set calendar popup.drawing=toggle" \
+              click_script="${popToggle "calendar"}" \
           --subscribe calendar mouse.clicked system_woke
       for i in 1 2 3 4 5; do
           sketchybar --add item calendar.event.$i popup.calendar \
@@ -529,6 +543,12 @@ lib.mkIf config.nebelhaus.sill.enable {
     pkgs.sketchybar-app-font
     pkgs.nerd-fonts.hack
   ];
+
+  # The dropdown dismisser the pills' click_scripts call by its
+  # /run/current-system/sw/bin path. On PATH as well because it's the one honest
+  # way to open a bar popup by hand (`sillpop toggle calendar`) — a raw
+  # `popup.drawing=on` leaves a dropdown nothing will close.
+  environment.systemPackages = [ sillpop ];
 
   launchd.user.agents.sketchybar = {
     serviceConfig = {

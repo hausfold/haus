@@ -281,6 +281,10 @@ fi
 
 # Weather
 # Left-click: toggle popup | Right-click: open Weather app
+# The popup opens through `sillpop` so it closes again on the first click
+# anywhere else — sketchybar itself only ever hears clicks on its own items, so a
+# plain popup.drawing=toggle can only be undone by clicking the pill a second
+# time. The `||` falls back to that older behaviour if sillpop isn't installed.
 if ! sill_hidden weather; then
 sketchybar --add item weather right \
     --set weather \
@@ -293,7 +297,7 @@ sketchybar --add item weather right \
         popup.background.border_color=$SURFACE0 \
         popup.background.color=$MANTLE \
         script="$HOME/.config/sketchybar/plugins/weather.sh" \
-        click_script="if [ \"\$BUTTON\" = \"right\" ]; then open -a Weather; else sketchybar --set \$NAME popup.drawing=toggle; fi" \
+        click_script="if [ \"\$BUTTON\" = \"right\" ]; then open -a Weather; else /run/current-system/sw/bin/sillpop toggle \$NAME 2>/dev/null || sketchybar --set \$NAME popup.drawing=toggle; fi" \
     --subscribe weather system_woke mouse.clicked
 
 # Weather popup styling helper
