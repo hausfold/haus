@@ -81,8 +81,12 @@ The associations are the ordinary user default (what Finder's Get Info ▸ Chang
 All writes), so a rebuild with `claimFileTypes = false` stops re-applying them
 but does not put the old handler back — the user picks one once, in Finder.
 
-Audio, `.gif`, playlists and `.ts` are never touched. To give a *different*
-player the same treatment, turn this off and add your own roster entry.
+Only the everyday extensions are claimed (mp4, m4v, mov, mpg, mpeg, mkv, webm,
+avi, wmv, flv, 3gp, ogv, vob). Audio, `.gif`, playlists and the transport-stream
+trio `.ts`/`.mts`/`.m2ts` are never touched — the last three belong to the
+editor hijack, and letting IINA claim them too made macOS ask which app should
+win on every rebuild. To give a *different* player the same treatment, turn this
+off and add your own roster entry.
 
 ## "Everything is too small"
 

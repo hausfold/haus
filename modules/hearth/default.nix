@@ -1538,6 +1538,16 @@ in
             # types (html/htm/xhtml — browsers own public.html and won't yield,
             # and you want those in a browser anyway) and image types (handled by
             # the zellij link-handler's image preview).
+            #
+            # The rice owns each of these EXCLUSIVELY, and that is a rule, not a
+            # coincidence: modules/apps keeps `ts`, `mts` and `m2ts` out of
+            # IINA's video list precisely so nothing here is contested. Two
+            # rice-owned apps claiming one type never settles — both claims
+            # re-run on every activation and macOS stops to ask the user which
+            # app wins, every rebuild, forever. So before adding an extension,
+            # check it against `iinaVideoExts` in modules/apps/default.nix — by
+            # UTI, not by spelling, since one UTI can carry several extensions
+            # (claiming `mts` drags `.m2ts` along; AVCHD gives them one).
             editorExts = [
               "json" "jsonc" "txt" "md" "mdx" "markdown" "rst" "adoc" "org"
               "ts" "tsx" "mts" "cts" "js" "jsx" "mjs" "cjs"

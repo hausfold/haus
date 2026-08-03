@@ -33,28 +33,40 @@ let
   # an extension whose UTI some installed app declares, so a type IINA doesn't
   # claim would be a silent no-op here rather than an error.
   #
-  # Trimmed from that list on purpose:
+  # Kept deliberately SHORT — what a normal machine double-clicks, not
+  # everything IINA can decode. Every entry here is a standing claim re-asserted
+  # on EVERY activation, so an entry that argues with another app's claim isn't
+  # a one-time paper cut: it's a modal dialog every single rebuild (that is
+  # exactly what mts/m2ts did — see below). An obscure format left off still
+  # plays in IINA via Open With; it just doesn't get to own the double-click.
+  #
+  # Trimmed from IINA's own list on purpose:
   #   - audio (mp3, flac, m4a, wav, aac, opus, …), `gif`, playlists (m3u/pls)
   #     and IINA's own plugin types — "open videos in IINA" shouldn't quietly
   #     take the music library, or the gif the zellij previewer shows inline.
-  #   - `ts`: TypeScript far more often than an MPEG transport stream, and
-  #     hearth's hijackFileAssociations claims it for the editor. mts/m2ts do
-  #     still bind.
+  #   - `ts`, `mts`, `m2ts`: transport streams by name, TypeScript by practice.
+  #     hearth's hijackFileAssociations claims all three for the editor (`.mts`
+  #     is an ESM TypeScript module). `mts` used to sit in BOTH lists, and since
+  #     `.mts` and `.m2ts` resolve to ONE shared AVCHD UTI, every activation
+  #     re-ran both claims against that single type and macOS stopped to ask
+  #     which app won — every rebuild, forever. One owner per type; the editor
+  #     keeps this one.
+  #   - dead, pro or DRM'd containers (qt, divx, asf, f4v, f4p, 3g2, ogm, rm,
+  #     rmvb, mxf, dv) and the purely-dynamic UTIs nothing else on the machine
+  #     declares (mk3d, xvid, amv) — nobody double-clicks these, and the dynamic
+  #     three only ever bound because IINA was their sole declarer.
   #   - `dat`, `swf`, `yuv`, `wv`, `mcf`, `mks`: junk drawer, WavPack audio, or
   #     Matroska subtitles — nothing you double-click expecting a player.
   #
-  # Three of them (mk3d, xvid, amv) answer with a benign -50 — their extension
-  # resolves to a purely dynamic UTI nothing binds — and land on IINA anyway,
-  # because IINA is the only app declaring them. The activation swallows it, the
-  # same way hearth's editor hijack does.
   # Grouped by family and left hand-wrapped, like hearth's editorExts: nixfmt
-  # would put each of the 29 on its own line and bury the shape.
+  # would put each on its own line and bury the shape.
+  #
+  # Adding one back? Check it against hearth's `editorExts` FIRST — and against
+  # the UTI, not just the spelling, since one UTI can carry several extensions.
   iinaVideoExts = [
-    "mp4" "m4v" "mov" "qt" "mpg" "mpeg"
-    "mkv" "mk3d" "webm" "avi" "divx" "xvid"
-    "wmv" "asf" "flv" "f4v" "f4p"
-    "3gp" "3g2" "ogv" "ogm" "mts" "m2ts"
-    "rm" "rmvb" "vob" "amv" "mxf" "dv"
+    "mp4" "m4v" "mov" "mpg" "mpeg"
+    "mkv" "webm" "avi" "wmv" "flv"
+    "3gp" "ogv" "vob"
   ];
 
   lsregister = "/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister";
