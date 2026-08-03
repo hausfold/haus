@@ -1701,6 +1701,22 @@ in
       # permission grants change), so we merge our keys in at activation and
       # never own it — every other key it holds must survive. jq is pinned from
       # the store because activation runs with a bare PATH.
+      #
+      # The two WorktreeCreate/WorktreeRemove hooks are set here, and that is a
+      # change from how they used to live: hand-written, once, and hoped for.
+      # The risk was never a rebuild clobbering them — this merge only touches
+      # the keys it names — it was the sentence above. Claude REWRITES this file
+      # on its own schedule, and a hand-edited hook it doesn't know about can go
+      # with it; you would find out at pane-close, by losing a worktree's
+      # parking. Declaring them makes them self-healing: every rebuild
+      # re-asserts them, so the worst case is one `haus rebuild` rather than
+      # silent data loss.
+      #
+      # Set as whole arrays, not merged into: these two events are rice plumbing
+      # pointing at a rice-controlled /run/current-system path, and there is no
+      # sensible second handler for "make me a worktree". Every OTHER hook event
+      # in the file is untouched — including the four agent-state hooks, which
+      # stay yours (see modules/sill/options.nix).
       # Claude Code settings/hooks/statusline are agent tooling; a machine that
       # runs no agents should not have its ~/.claude/settings.json rewritten.
       home.activation.claudeCodeSettings = lib.mkIf devCfg.agents.enable (
@@ -1710,7 +1726,9 @@ in
           mkdir -p "''${settings%/*}"
           tmp="$settings.hm-seed"
           if [ -s "$settings" ]; then base="$settings"; else base="$tmp.base"; printf "{}" > "$base"; fi
-          ${pkgs.jq}/bin/jq ".permissions.defaultMode = \"auto\"
+          ${pkgs.jq}/bin/jq ".hooks.WorktreeCreate = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook create\"}]}]
+            | .hooks.WorktreeRemove = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook remove\"}]}]
+            | .permissions.defaultMode = \"auto\"
             | .tui = \"fullscreen\"
             | .disableAgentView = true
             | .spinnerTipsEnabled = false
