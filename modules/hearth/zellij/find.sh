@@ -62,6 +62,11 @@
 # Gotchas encoded here:
 #   - Commands spawned from a zellij bind inherit a thin PATH; resolve
 #     zellij/jq/rg/fzf/bat off an explicit one (same prelude as links.sh).
+#     That PATH sees ONLY the nix profiles, so every one of those has to be a
+#     real installed binary — a shell alias or a bare store path that happens to
+#     work in an interactive shell is invisible here. `rg` shipped missing
+#     exactly this way once (modules/den declares it in the toolbelt now); the
+#     preflight in cmd_ui is what stops that from ever looking like "no hits".
 #   - `zellij action` from a detached process must not see an inherited
 #     $ZELLIJ from the pane that spawned it — `env -u ZELLIJ` + explicit -s.
 #   - list-clients prints pane ids as "terminal_88"; $ZELLIJ_PANE_ID inside a
@@ -322,6 +327,27 @@ cmd_ui() {
     session=$(cat "$dir/session" 2>/dev/null)
 
     trap 'rm -rf "$dir"' EXIT
+
+    # A missing tool here is otherwise INVISIBLE: fzf runs its reload bind in a
+    # subshell whose stderr goes nowhere, so no `rg` means an overlay that opens,
+    # accepts typing, and simply never matches anything — indistinguishable from
+    # "your search has no hits". Say so instead, and hold the pane open (it's
+    # --close-on-exit, so an unheld message would flash past).
+    # A plain string, not an array: the shebang is /bin/bash, which on macOS is
+    # still 3.2, where `${#arr[@]}` on an EMPTY array trips `set -u`.
+    local missing="" tool
+    for tool in rg fzf bat; do
+        command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
+    done
+    if [ -n "$missing" ]; then
+        printf '\n  find is missing:%s\n\n' "$missing"
+        printf '  These resolve off this script'\''s own PATH, not your shell'\''s,\n'
+        printf '  so a shell alias will not do. Install via the rice:\n'
+        printf '    nebelhaus.developer.toolbelt.enable = true;  (then haus rebuild)\n\n'
+        printf '  press any key to close '
+        { read -r -n 1 -s </dev/tty; } 2>/dev/null || sleep 10
+        exit 0
+    fi
 
     # Ctrl-s toggles scope by EXITING fzf and reopening it, not by fzf's
     # `become`: become execs over the fzf process, which inherits this shell's

@@ -255,6 +255,11 @@ in
       glow
       jq
       lsd
+      # ripgrep isn't just a nicer grep here: hearth's ⌘F overlay
+      # (modules/hearth/zellij/find.sh) shells out to `rg` on every keystroke,
+      # off an explicit thin PATH that only sees these profiles. Without it the
+      # overlay opens and stays empty forever, with no error anywhere.
+      ripgrep
       tree
       ttyd
       fastfetch
