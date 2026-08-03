@@ -54,6 +54,29 @@ let
   ) agentClients;
   fontsCfg = config.nebelhaus.fonts; # terminal font family/size (den installs the package)
 
+  # Our four zellij plugin forks, built FROM SOURCE at rebuild time. They're
+  # wasm32-wasip1 binaries, so they come out of the wasi32 cross set — the same
+  # way nixpkgs builds its own zellijPlugins (each ./zellij/<name>/default.nix
+  # carries the lld/wasm-ld pin that needs).
+  #
+  # This used to be four hand-vendored `.wasm` blobs under ./zellij/plugins/,
+  # copied in by each plugin's build.sh. That made "edit the Rust, forget to
+  # re-run build.sh" a silent failure: the module installed the stale blob, the
+  # rebuild succeeded, and the bar just kept rendering the old code. It bit us
+  # twice (#195 for status-bar, #202 for tab-bar, which shipped 2 days of
+  # rebuilds without #177's typography). Nix tracking the source removes the
+  # step there was to forget.
+  zellijPlugins =
+    let
+      build = name: pkgs.pkgsCross.wasi32.callPackage (./zellij + "/${name}") { };
+    in
+    lib.genAttrs [
+      "tab-bar"
+      "status-bar"
+      "link-handler"
+      "tab-history"
+    ] (name: "${build name}/bin/zellij-${name}.wasm");
+
   # `zreload` prepares a restart layout from inside zellij, then hands the
   # destructive half to a launchd-owned process. Keeping the package at module
   # scope lets both the user's PATH and that external agent run the exact same
@@ -1374,24 +1397,30 @@ in
           in
           assert pinned != zellijLayout;
           pinned;
-        ".config/zellij/plugins/link-handler.wasm".source = ./zellij/plugins/zellij_link_handler.wasm;
+        # The four plugin forks, each built from ./zellij/<name>/src by the
+        # zellijPlugins derivations in the let above — never a checked-in blob,
+        # so a source edit can't be shipped half-applied. The install paths stay
+        # exactly these four names: config.kdl / custom.kdl reference them by
+        # path, and so does the permission-cache seed below (keyed on the
+        # expanded ~/.config/zellij/plugins/<name>.wasm), so renaming one here
+        # silently un-grants the plugin.
+        ".config/zellij/plugins/link-handler.wasm".source = zellijPlugins.link-handler;
         # tab-history (see zellij/tab-history/): background plugin that makes
         # Ctrl(+Shift)+Tab walk tabs in most-recently-used order (browser-style
         # back/forward) instead of by position. Loaded via config.kdl's
-        # load_plugins; grants seeded below. Wasm vendored by its build.sh.
-        ".config/zellij/plugins/tab-history.wasm".source = ./zellij/plugins/zellij_tab_history.wasm;
+        # load_plugins; grants seeded below.
+        ".config/zellij/plugins/tab-history.wasm".source = zellijPlugins.tab-history;
         # Our status-bar fork (see zellij/status-bar/): the bottom-right quick
-        # hints are condensed to one flat "Super + <c,p,t,y,f>" block (claude,
+        # hints are condensed to one flat "Super + <a,p,t,y,f>" block (agent,
         # pane, tab, yazi-peek, fullscreen — keys only, no labels/ribbons).
-        # Wasm vendored by its build.sh.
-        ".config/zellij/plugins/status-bar.wasm".source = ./zellij/plugins/zellij_status_bar.wasm;
+        ".config/zellij/plugins/status-bar.wasm".source = zellijPlugins.status-bar;
         # Our tab-bar fork (see zellij/tab-bar/): the top bar, replacing the
         # third-party zjstatus that used to sit here. Same active-anchored tab
         # scroll viewport as upstream zellij:tab-bar (so tabs stay readable on a
         # thin pane instead of clipping under the right-hand widgets, which is
         # what zjstatus did), themed to nebelung, with a username pill + a
-        # Ctrl+Tab / swap-layout right side. Wasm vendored by its build.sh.
-        ".config/zellij/plugins/tab-bar.wasm".source = ./zellij/plugins/zellij_tab_bar.wasm;
+        # Ctrl+Tab / swap-layout right side.
+        ".config/zellij/plugins/tab-bar.wasm".source = zellijPlugins.tab-bar;
         ".config/zellij/launch.sh" = {
           source = ./zellij/launch.sh;
           executable = true;
