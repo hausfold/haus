@@ -94,4 +94,4 @@ freshly-built plugin `.wasm`) is even lighter: `zscratch` — a dev CLI shipped 
 this repo's `modules/den` — boots your candidate in a throwaway session in its
 own Ghostty window, so you feel the change without a rebuild or losing your
 working session's tabs. `bench try switch` does the real activation once, at the
-end. See [`CLAUDE.md`](../CLAUDE.md) for the full flag set.
+end. See [`AGENTS.md`](../AGENTS.md) for the full flag set.

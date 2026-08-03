@@ -128,4 +128,5 @@ user the extra step: `brew uninstall --zap <cask>`.
 | `references/options.md` | Every `nebelhaus.*` option on this machine's revision — generated, authoritative. Grep it. |
 | `references/recipes.md` | Worked examples for the common asks (install an app, change the theme, resize the UI…). |
 | `references/this-machine.md` | This host: name, paths, which rooms are enabled. |
-| `consumer-CLAUDE.md` | A starter `CLAUDE.md` for `~/.config/nix`. If that repo has no `CLAUDE.md`, offer to copy this one in — it orients any agent that opens a session there. |
+| `consumer-AGENTS.md` | A starter `AGENTS.md` for `~/.config/nix` — the rules themselves, read by Codex, OpenCode, Cursor, Copilot and anything else that speaks agents.md. |
+| `consumer-CLAUDE.md` | Its `@AGENTS.md` pointer, for the one client that reads only `CLAUDE.md`. If that repo has neither file, offer to copy **both** in — copying one alone orients only some of the clients that might open a session there. |
