@@ -145,6 +145,40 @@ fmtime() { statnum %m %Y "$1"; }   # mtime in epoch seconds
   [ "$(col sparkle 7)" = "#7 merged" ]
 }
 
+@test "a merged PR whose branch kept committing reads as merged+K, not merged" {
+  # The bar's ⏏ ("done, wt reaps it") is driven by this cell. When a session keeps
+  # committing after its PR merged, those commits have no PR and no remote branch
+  # — a plain `merged` here is what made the pane look finished while un-shipped
+  # work sat in it.
+  local main dir oid; main="$(mkrepo alpha)"; dir="$(mkwt "$main" sparkle)"
+  oid="$(git -C "$dir" rev-parse HEAD)"
+  echo more >"$dir/post.txt"
+  git -C "$dir" add -A
+  git -C "$dir" -c commit.gpgsign=false commit -qm "after the merge"
+  FAKE_PRS="[{\"number\":7,\"state\":\"MERGED\",\"headRefName\":\"worktree-sparkle\",\"headRefOid\":\"$oid\"}]" refresh
+  [ "$status" -eq 0 ]
+  [ "$(col sparkle 7)" = "#7 merged+1" ]
+}
+
+@test "post-merge commits that ALSO landed leave the state a plain merged" {
+  local main dir oid; main="$(mkrepo alpha)"; dir="$(mkwt "$main" sparkle)"
+  oid="$(git -C "$dir" rev-parse HEAD)"
+  echo more >"$dir/post.txt"
+  git -C "$dir" add -A
+  git -C "$dir" -c commit.gpgsign=false commit -qm "after the merge"
+  git -C "$main" merge -q --no-edit worktree-sparkle    # …and that landed too
+  FAKE_PRS="[{\"number\":7,\"state\":\"MERGED\",\"headRefName\":\"worktree-sparkle\",\"headRefOid\":\"$oid\"}]" refresh
+  [ "$status" -eq 0 ]
+  [ "$(col sparkle 7)" = "#7 merged" ]
+}
+
+@test "a merged PR still at the branch tip stays a plain merged" {
+  local main dir; main="$(mkrepo alpha)"; dir="$(mkwt "$main" sparkle)"
+  FAKE_PRS="[{\"number\":7,\"state\":\"MERGED\",\"headRefName\":\"worktree-sparkle\",\"headRefOid\":\"$(git -C "$dir" rev-parse HEAD)\"}]" refresh
+  [ "$status" -eq 0 ]
+  [ "$(col sparkle 7)" = "#7 merged" ]
+}
+
 @test "uncommitted work is counted, and untracked-only counts too" {
   local main dir; main="$(mkrepo alpha)"
   dir="$(mkwt "$main" sparkle)"

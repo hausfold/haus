@@ -49,15 +49,30 @@ setup() {
   export PATH="$BIN:$PATH"
 
   # ── shim: gh ───────────────────────────────────────────────────────────────
-  # wt asks exactly one question of gh: "is there a MERGED PR for this branch,
-  # and what SHA did it merge?" (branch_landed). FAKE_GH_MERGED=1 answers yes
-  # with FAKE_GH_OID; unset answers "no merged PR" by printing nothing, which is
-  # also how a real gh behaves offline.
+  # wt asks gh four things, and the shim answers by shape:
+  #   --head <branch>  the precise "did THIS branch's PR merge, at what SHA?"
+  #                    (pr_merge_info, the gate branch_landed reaps on).
+  #                    FAKE_GH_MERGED=1 → yes, with FAKE_GH_OID/FAKE_GH_PR.
+  #   no --head        the repo-wide merged-PR map (merged_map — one call per
+  #                    repo, feeds the +N annotations). Answers for the single
+  #                    branch FAKE_GH_BRANCH, which is all any test needs.
+  #   --state open     "is a PR already open?" (wt reship) → FAKE_GH_OPEN_URL
+  #   pr create        opens one → FAKE_GH_PR_URL
+  # Printing nothing is a real gh's answer when offline or unauthenticated.
   cat >"$BIN/gh" <<'EOF'
 #!/usr/bin/env bash
 printf 'gh %s\n' "$*" >>"${FAKE_GH_LOG:-/dev/null}"
-[ "${FAKE_GH_MERGED:-0}" = 1 ] || exit 0
-printf 'MERGED %s\n' "${FAKE_GH_OID:-}"
+case "$1 $2" in
+  "pr create") printf '%s\n' "${FAKE_GH_PR_URL:-https://github.com/acme/alpha/pull/9}"; exit 0 ;;
+esac
+case " $* " in
+  *" --state open "*) printf '%s' "${FAKE_GH_OPEN_URL:-}"; exit 0 ;;
+  *" --head "*)
+    [ "${FAKE_GH_MERGED:-0}" = 1 ] || exit 0
+    printf 'MERGED %s %s\n' "${FAKE_GH_OID:-}" "${FAKE_GH_PR:-7}"; exit 0 ;;
+esac
+[ "${FAKE_GH_MERGED:-0}" = 1 ] && [ -n "${FAKE_GH_BRANCH:-}" ] || exit 0
+printf '%s\t%s\t%s\n' "$FAKE_GH_BRANCH" "${FAKE_GH_OID:-}" "${FAKE_GH_PR:-7}"
 EOF
 
   # ── shim: lsof ─────────────────────────────────────────────────────────────
@@ -533,6 +548,54 @@ mk_stray() { # mk_stray <main> <name> — a worktree-<name> checkout outside WT_
   git -C "$main" show-ref -q --verify refs/heads/worktree-ahead
 }
 
+# ── the branch that outran its merged PR ─────────────────────────────────────
+# The sweep has always KEPT these (the test above), which is right — and said
+# nothing about them, which is how they went unnoticed: the PR reads merged
+# everywhere you look, so a worktree sitting on un-shipped commits is
+# indistinguishable from one still in flight. These three pin the naming.
+
+@test "reap: names the branch whose PR merged but whose tip moved on" {
+  local main dir; main="$(mkrepo alpha)"; dir="$(mkwt "$main" outran)"
+  export FAKE_GH_MERGED=1 FAKE_GH_OID="$(git -C "$dir" rev-parse HEAD)" FAKE_GH_PR=12
+  export FAKE_GH_BRANCH=worktree-outran
+  commit_in "$dir" post.txt "work done after the PR merged"
+  cd "$TMP"; wt_run reap
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"kept outran (alpha) — merged PR #12, 1 commit(s) since"* ]] \
+    || fail "reap kept the branch but never said why: $output"
+  [[ "$output" == *"wt reship outran"* ]] || fail "reap named no way out of it"
+}
+
+@test "list: a branch that outran its merged PR is marked +N" {
+  local main dir; main="$(mkrepo alpha)"; dir="$(mkwt "$main" outran)"
+  export FAKE_GH_MERGED=1 FAKE_GH_OID="$(git -C "$dir" rev-parse HEAD)" FAKE_GH_PR=12
+  export FAKE_GH_BRANCH=worktree-outran
+  commit_in "$dir" post.txt "one"
+  commit_in "$dir" post2.txt "two"
+  cd "$TMP"; wt_run
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"live+2"* ]] || fail "the state column hid the un-shipped commits: $output"
+  [[ "$output" == *"wt reship"* ]] || fail "the +N marker was printed with no legend"
+}
+
+@test "list: a branch whose post-merge commits ALSO landed is not marked" {
+  local main dir; main="$(mkrepo alpha)"; dir="$(mkwt "$main" landed)"
+  export FAKE_GH_MERGED=1 FAKE_GH_OID="$(git -C "$dir" rev-parse HEAD)" FAKE_GH_PR=12
+  export FAKE_GH_BRANCH=worktree-landed
+  commit_in "$dir" post.txt "more"
+  git -C "$main" merge -q --no-edit worktree-landed     # …and that landed too
+  cd "$TMP"; wt_run
+  [[ "$output" != *"+1"* ]] || fail "a branch fully in main was flagged as un-shipped: $output"
+}
+
+@test "list: an ordinary in-flight branch keeps a bare state column" {
+  local main; main="$(mkrepo alpha)"; mkwt "$main" plain >/dev/null
+  cd "$TMP"; wt_run
+  [[ "$output" == *"live"* ]]
+  [[ "$output" != *"live+"* ]] || fail "a branch with no merged PR was marked as outrunning one"
+  [[ "$output" != *"reship"* ]] || fail "the legend printed on a listing that earned no marker"
+}
+
 @test "reap: 'landed' means landed on the DEFAULT branch, not whatever main has checked out" {
   local main dir; main="$(mkrepo alpha)"; dir="$(mkwt "$main" sidequest)"
   git -C "$main" checkout -qb detour
@@ -549,6 +612,64 @@ mk_stray() { # mk_stray <main> <name> — a worktree-<name> checkout outside WT_
   wt_run reap
   [ "$status" -eq 0 ]
   [[ "$output" == *"nothing to reap"* ]]
+}
+
+# ── reship ───────────────────────────────────────────────────────────────────
+# The way OUT of the state above. A real remote is needed here (the other tests
+# only ever parse origin's URL), so these point origin at a bare repo on disk.
+
+no_pr_created() { # 0 when gh was never asked to open a PR (the log may not exist at all)
+  ! grep -q "pr create" "$FAKE_GH_LOG" 2>/dev/null
+}
+
+mkremote() { # mkremote <main> — give a repo a bare origin it can actually push to
+  local bare="$TMP/remotes/$(basename "$1").git"
+  mkdir -p "$(dirname "$bare")"
+  git init -q --bare -b main "$bare"
+  git -C "$1" remote set-url origin "$bare"
+  printf '%s' "$bare"
+}
+
+@test "reship: pushes the branch and opens the follow-up PR" {
+  local main dir bare; main="$(mkrepo alpha)"; dir="$(mkwt "$main" outran)"
+  bare="$(mkremote "$main")"
+  export FAKE_GH_MERGED=1 FAKE_GH_OID="$(git -C "$dir" rev-parse HEAD)" FAKE_GH_PR=12
+  export FAKE_GH_BRANCH=worktree-outran
+  commit_in "$dir" post.txt "work done after the PR merged"
+  cd "$TMP"; wt_run reship outran
+  [ "$status" -eq 0 ]
+  git -C "$bare" show-ref -q --verify refs/heads/worktree-outran \
+    || fail "the branch was never pushed, so the follow-up PR would be empty"
+  grep -q "pr create" "$FAKE_GH_LOG" || fail "no PR was opened: $output"
+  [[ "$output" == *"follow-up PR open"* ]]
+}
+
+@test "reship: an already-open PR takes the push and no second PR" {
+  local main dir bare; main="$(mkrepo alpha)"; dir="$(mkwt "$main" inflight)"
+  bare="$(mkremote "$main")"
+  export FAKE_GH_OPEN_URL="https://github.com/acme/alpha/pull/3"
+  cd "$TMP"; wt_run reship inflight
+  [ "$status" -eq 0 ]
+  git -C "$bare" show-ref -q --verify refs/heads/worktree-inflight
+  no_pr_created || fail "a second PR was opened over an open one"
+  [[ "$output" == *"already covers this branch"* ]]
+}
+
+@test "reship: a branch with nothing past main refuses rather than opening an empty PR" {
+  local main; main="$(mkrepo alpha)"
+  hook_create "$main" empty >/dev/null      # a worktree, no commits of its own
+  mkremote "$main" >/dev/null
+  cd "$TMP"; wt_run reship empty
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"nothing the main branch doesn't already have"* ]]
+  no_pr_created || fail "an empty PR was opened"
+}
+
+@test "reship: an unknown name dies pointing at the listing" {
+  mkrepo alpha >/dev/null
+  cd "$TMP"; wt_run reship nosuch
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"no agent worktree named 'nosuch'"* ]]
 }
 
 # ── child ────────────────────────────────────────────────────────────────────

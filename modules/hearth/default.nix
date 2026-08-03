@@ -105,6 +105,13 @@ let
     those changes back uncommitted. It refuses to unpark a wip commit you've
     already pushed, so it can never turn into a force-push.
 
+    **A session that keeps committing after its PR merged needs `wt reship`.**
+    GitHub deletes the head branch on merge, so those later commits have no
+    remote and no PR — and `wt` deliberately won't reap that branch. `wt` marks
+    it `+N` in the state column (`live+3`), the bar shows an orange `N^` instead
+    of the ⏏ it used to, and `wt reship [name]` pushes the branch and opens the
+    follow-up PR.
+
     Full guide: https://nebelhaus.com/guides/claude-agents/
 
   '';

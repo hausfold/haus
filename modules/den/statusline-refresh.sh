@@ -13,7 +13,9 @@
 #     name    = worktree name (branch minus worktree- prefix)
 #     ahead   = commits on the branch not in its default branch
 #     files/ins/del = uncommitted working-tree delta (live checkouts only)
-#     prstate = "#7 open" | "#7 merged" | "#7 closed" | "-"  ("-" = none; see below)
+#     prstate = "#7 open" | "#7 merged" | "#7 closed" | "#7 merged+3" | "-"
+#               ("-" = none; see below. merged+K = the PR merged and K commits
+#                landed on the branch SINCE — un-shipped work no PR covers.)
 #     parent  = the cwd this worktree was spawned FROM (registry col 5). The
 #               statusline shows a session only the rows whose parent == its cwd.
 #   Only IN-FLIGHT rows are written (ahead>0, or dirty, or has a PR).
@@ -159,7 +161,7 @@ pr_json_for_repo() { # $1=main ; echoes cached JSON of that repo's PRs
     [ "$age" -lt 120 ] && { cat "$cache"; return; }
   fi
   if gh pr list -R "$slug" --state all --limit 100 \
-        --json number,state,headRefName >"$cache.tmp" 2>/dev/null; then
+        --json number,state,headRefName,headRefOid >"$cache.tmp" 2>/dev/null; then
     mv "$cache.tmp" "$cache"
   else
     rm -f "$cache.tmp"; [ -f "$cache" ] || echo '[]' >"$cache"
@@ -167,14 +169,36 @@ pr_json_for_repo() { # $1=main ; echoes cached JSON of that repo's PRs
   cat "$cache"
 }
 
-pr_state_for_branch() { # $1=main $2=branch -> "#N open|merged|closed" or ""
+pr_state_for_branch() { # $1=main $2=branch -> "#N open|merged|closed|merged+K" or ""
   # `|| true`: a truncated cache (a gh run killed mid-write) makes jq exit 5, and
   # under `set -o pipefail` that status would propagate out of the `pr=$(…)`
   # substitution below and, with `set -e`, abort the whole pass. No PR state is a
   # blank cell; it is never a reason to stop refreshing the panel.
-  pr_json_for_repo "$1" | jq -r --arg b "$2" '
+  local main="$1" b="$2" raw num state oid tip k
+  raw=$(pr_json_for_repo "$main" | jq -r --arg b "$b" '
     map(select(.headRefName == $b)) | (.[0] // empty)
-    | "#\(.number) \(.state|ascii_downcase)"' 2>/dev/null || true
+    | "\(.number) \(.state|ascii_downcase) \(.headRefOid // "")"' 2>/dev/null || true)
+  [ -n "$raw" ] || return 0
+  read -r num state oid <<<"$raw"
+  # merged+K — the PR merged, then the branch kept committing. Those K commits are
+  # on a branch whose remote counterpart GitHub deleted at merge: no PR covers
+  # them and nothing is pushed. Rendering that as a plain `merged` is what put an
+  # ⏏ on panes that were sitting on un-shipped work, so it gets its own state.
+  # An older cache (or a gh that didn't return the SHA) has no oid — then it is
+  # exactly the old `merged`, which is the honest answer with nothing to compare.
+  # …unless the tip is already IN the default branch: then those later commits
+  # landed too (a second PR, a direct merge), the branch is done, and ⏏ is right.
+  if [ "$state" = merged ] && [ -n "${oid:-}" ] && [ "$oid" != null ] \
+     && ! git -C "$main" merge-base --is-ancestor "$b" "$(git_default "$main")" 2>/dev/null; then
+    tip=$(git -C "$main" rev-parse "$b" 2>/dev/null || true)
+    if [ -n "$tip" ] && [ "$tip" != "$oid" ]; then
+      k=$(git -C "$main" rev-list --count "$oid..$b" 2>/dev/null || echo 0)
+      case "$k" in '' | *[!0-9]*) k=0 ;; esac
+      [ "$k" -gt 0 ] || k=1     # the merged SHA isn't reachable here (rebase/amend)
+      state="merged+$k"
+    fi
+  fi
+  printf '#%s %s' "$num" "$state"
 }
 
 # checkout_readable <path> — 0 only if git can still resolve this checkout.
