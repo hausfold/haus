@@ -23,6 +23,13 @@ unset ZELLIJ ZELLIJ_SESSION_NAME ZELLIJ_PANE_ID
 # else, so a plain `yy` session keeps the default Enter.
 export PEEK=1
 
+# --stay: peek.sh forwards its own Super-Shift-y flag here so the Enter-on-dir
+# tab inherits the same intent. Without it, a tab spawned from a stayed peek
+# would land in the worktree and then have hearth's zshrc hop it straight out
+# to the main checkout at shell birth — undoing the one thing --stay is for.
+STAY=0
+[ "${1:-}" = "--stay" ] && STAY=1
+
 CWDFILE="$HOME/.cache/peek.cwd"
 
 # spawn_tab DIR — open a new zellij tab cwd'd at DIR in the session that
@@ -48,8 +55,24 @@ spawn_tab() {
         esc="${dir//\\/\\\\}"; esc="${esc//\"/\\\"}"
         # Reused/overwritten each pick — no per-invocation temp to race cleanup.
         gen="${TMPDIR:-/tmp}/zellij-peek-tab-$USER.kdl"
-        awk -v cwd="$esc" '
-            /^    tab name="~" \{$/ && !done { print "    tab cwd=\"" cwd "\" {"; done=1; next }
+        # Two substitutions into a clone of the live layout: the tab-level cwd
+        # (always), and — under --stay only — the template's bare `pane` swapped
+        # for the ZJ_STAY=1 login shell, the same incantation Super Shift p
+        # runs. Both target the `tab name="~" { pane }` template custom.kdl
+        # flags as pattern-matched; we edit our COPY, never that file.
+        awk -v cwd="$esc" -v stay="$STAY" '
+            /^    tab name="~" \{$/ && !done { print "    tab cwd=\"" cwd "\" {"; done=1; at_pane=1; next }
+            # Only the line IMMEDIATELY after the template tab is a candidate,
+            # so the identical `pane` lines in the swap layouts below are safe.
+            at_pane {
+                at_pane=0
+                if (stay == "1" && $0 == "        pane") {
+                    print "        pane command=\"sh\" {"
+                    print "            args \"-c\" \"ZJ_STAY=1 exec \\\"$SHELL\\\"\""
+                    print "        }"
+                    next
+                }
+            }
             { print }
         ' "$layout_src" > "$gen"
         grep -q '^    tab cwd=' "$gen" || gen=""

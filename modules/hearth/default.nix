@@ -745,10 +745,13 @@ in
               # interactive shell has no business starting there: hop to the repo
               # the worktree belongs to (the parent of the shared .git).
               # $CLAUDECODE spares the agent's own subshells, and $ZJ_STAY spares
-              # the deliberate "stay here" spawns (Super Shift p, and the peek
-              # Enter-on-dir tab) — those must stay in the worktree. Both fire
-              # once at shell birth, so unset ZJ_STAY afterward to keep it out of
-              # child processes and later cd's.
+              # the deliberate "stay here" spawns — Super Shift p, and the
+              # Enter-on-dir tab of a Super-Shift-y (--stay) peek, which bakes
+              # ZJ_STAY=1 into the layout it generates. Those must stay in the
+              # worktree; the Super-y peek's Enter tab is NOT spared, because
+              # that peek was rooted at the main checkout to begin with. Both
+              # fire once at shell birth, so unset ZJ_STAY afterward to keep it
+              # out of child processes and later cd's.
               if [[ -z "$CLAUDECODE" && -z "$ZJ_STAY" && "$PWD" == "$HOME/.cache/claude-worktrees/"* ]]; then
                 _wt_main="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
                 [[ -n "$_wt_main" ]] && cd "''${_wt_main:h}"
@@ -1377,6 +1380,9 @@ in
           source = ./zellij/image-preview.sh;
           executable = true;
         };
+        # Both peek binds run this one script: Super y hops out of an agent
+        # worktree to the repo's main checkout, Super Shift y passes --stay and
+        # doesn't. See config.kdl's pair of binds.
         ".config/zellij/peek.sh" = {
           source = ./zellij/peek.sh;
           executable = true;
@@ -1421,10 +1427,6 @@ in
           text = builtins.replaceStrings [ "@hostname@" ] [ hostname ] (
             builtins.readFile ./zellij/nix-config-open.sh
           );
-          executable = true;
-        };
-        ".config/zellij/yazi-shell.sh" = {
-          source = ./zellij/yazi-shell.sh;
           executable = true;
         };
         ".config/zellij/copy-clean.pl" = {

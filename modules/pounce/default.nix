@@ -869,7 +869,7 @@ lib.mkIf config.nebelhaus.pounce.enable {
               }
               {
                 key = "⌘ y / ⌘ ⇧ y";
-                action = "Yazi: peek files / jump to a shell";
+                action = "Peek files (repo / stay in worktree)";
               }
             ];
           }
