@@ -18,6 +18,9 @@
 #
 # The status token is a single mutually-exclusive slot:
 #     ⏏  (orange)   branch is merged/landed → `wt` reaps it on pane close
+#     N^ (orange)   the PR merged and N commits landed on the branch SINCE: work
+#                   no PR covers and nothing pushed (GitHub deleted the remote
+#                   branch at merge). `wt reship` opens the follow-up.
 #     N^ (blue)     N commits on the branch, not yet merged
 #     +A -D         uncommitted line changes (green/red), when no commits yet
 #     (empty)       nothing differs from main → show nothing (no "clean")
@@ -44,13 +47,25 @@ R=$'\033[0m'
 
 # render_status <ahead> <files> <ins> <del> <prstate> <purge>
 # Emits the single status token. purge=1 => branch would be reaped (row-1 only).
-# prstate only feeds the merged→⏏ check; the PR number itself is rendered by
-# render_pr as its own segment, left of the worktree name.
+# prstate feeds the merged→⏏ and merged+K→K^ checks; the PR number itself is
+# rendered by render_pr as its own segment, left of the worktree name.
 render_status() {
   local ahead=${1:-0} files=${2:-0} ins=${3:-0} del=${4:-0} pr="$5" purge=${6:-0}
-  local st="" state="${pr##* }"
+  local st="" state="${pr##* }" relanded=""
+  # merged+K (see the refresher): the PR merged, then K more commits landed on the
+  # branch. ⏏ — "nothing left here, wt reaps it on pane close" — is a LIE about
+  # that pane: those K commits have no PR, no remote branch (GitHub deleted it at
+  # merge), and `wt` correctly refuses to reap them. The bar said done while the
+  # work sat there, which is how un-shipped commits went unnoticed. Show the count
+  # instead, in the same orange: it is the same "this branch needs you" hue.
+  case "$state" in merged+*) relanded="${state#merged+}" ;; esac
+  # purge outranks it: purge=1 means the tip really IS an ancestor of the default
+  # branch — those K commits landed too, by some later merge, so ⏏ is the truth.
   local done=0; { [ "$purge" = 1 ] || [ "$state" = merged ]; } && done=1
-  if [ "$done" = 1 ]; then
+  [ "$purge" = 1 ] && relanded=""
+  if [ -n "$relanded" ]; then
+    st="${PURGE}${relanded}^${R}"
+  elif [ "$done" = 1 ]; then
     st="${PURGE}⏏${R}"
   elif [ "$ahead" -gt 0 ] 2>/dev/null; then
     st="${AHEAD}${ahead}^${R}"
@@ -74,7 +89,10 @@ render_status() {
 render_pr() {
   local pr="$1" url="${2:-}" state="${1##* }" col="$DIM" num="${1%% *}"
   [ -n "$pr" ] || return 0
-  case "$state" in open) col="$PR_OPEN";; merged) col="$PR_MERGED";; closed) col="$PR_CLOSED";; esac
+  # merged* covers merged+K too — the PR itself really did merge, so the pill keeps
+  # the merged color; it's the STATUS token beside it that says work has piled up
+  # since (render_status). Without the glob a merged+K pill fell through to $DIM.
+  case "$state" in open) col="$PR_OPEN";; merged*) col="$PR_MERGED";; closed) col="$PR_CLOSED";; esac
   if [ -n "$url" ]; then
     # OSC 8: ESC ]8;;URL ST  <text>  ESC ]8;; ST   (ST = ESC \, real bytes here —
     # the child-row printf uses %s so these bytes pass through un-reinterpreted).
@@ -321,7 +339,7 @@ if [ -f "$PANEL" ]; then
     [ "$cparent" = "$cwd" ] || continue          # only PRs this session spawned
     [ -n "$cpr" ] && [ "$cpr" != "-" ] || continue
     cnum="${cpr%% *}"; cnum="${cnum#\#}"          # bare number, no '#'
-    case "${cpr##* }" in open) ccol="$PR_OPEN";; merged) ccol="$PR_MERGED";; closed) ccol="$PR_CLOSED";; *) ccol="$DIM";; esac
+    case "${cpr##* }" in open) ccol="$PR_OPEN";; merged*) ccol="$PR_MERGED";; closed) ccol="$PR_CLOSED";; *) ccol="$DIM";; esac
     clink=$(printf '\033]8;;https://github.com/%s/pull/%s\033\\%s%s%s\033]8;;\033\\' \
               "$cslug" "$cnum" "$ccol" "$cnum" "$R")
     prcluster="${prcluster:+$prcluster }$clink"

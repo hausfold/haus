@@ -176,7 +176,9 @@ points back to when it feels several PRs together.
   `wt spawn <repo> <name>` makes a *named* one for a caller with no pane of its own
   — the "Spawn Agent" palette command — parented to the repo instead of to a session,
   `wt park`/`wt unpark` set work aside as a `wip:` commit instead of `git stash`,
-  whose stack is shared by every worktree of a repo),
+  whose stack is shared by every worktree of a repo, `wt reship` pushes + opens the
+  follow-up PR for a branch that kept committing after its PR merged — the `+N`
+  state marker in the listing and the orange `N^` in the bar are the same fact),
   **`zscratch.sh`** (above), **`statusline.sh`** / `statusline-refresh.sh` (the
   agent HUD, reading `wt`'s registry), and **`agent-state`** — the one writer of
   agent-pane state behind sill's paw pill and the zellij tab badge. That last one

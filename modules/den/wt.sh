@@ -15,6 +15,9 @@
 #                       stray  — a directory is there but git has disowned it (a
 #                                `worktree remove` that died between unregistering
 #                                and deleting). `wt <name>` heals one.
+#                     A `+N` suffix (live+3) means the branch's PR ALREADY merged
+#                     and N commits have landed on it SINCE — un-shipped work that
+#                     no PR covers any more. `wt reship <name>` opens the follow-up.
 #   wt new [name]     make a worktree of THIS repo and open the default agent in
 #                     it — the client-agnostic ⌘C. Claude Code does this itself
 #                     with `--worktree`; Codex and OpenCode have no such flag, so
@@ -43,6 +46,8 @@
 #                     other's entries; a wip commit lives on YOUR branch alone.
 #   wt unpark         undo the last wip: commit, putting those changes back in
 #                     the working tree, uncommitted (the `git stash pop` half).
+#   wt reship [name]  the branch kept committing after its PR merged: push it and
+#                     open the follow-up PR. Defaults to the branch you're in.
 #   wt create         [hook] make a worktree for the current repo (JSON on stdin)
 #   wt remove         [hook] retire one WITHOUT losing work (JSON on stdin)
 #
@@ -338,8 +343,62 @@ default_branch() { # default_branch <main> — the branch a PR here would land o
   git -C "$1" symbolic-ref --short HEAD 2>/dev/null || printf 'main'
 }
 
+WT_CACHE="$WT_BASE/.cache"    # dot-prefixed: the `$WT_BASE/*/*` globs never see it
+WT_CACHE_TTL=120              # seconds; `wt reap` sets 0 — see cmd_reap
+mtime() { # mtime <file> — modification time in epoch seconds, 0 when unknown
+  # `stat -f %m` is BSD/macOS, where this ships; on GNU coreutils -f means
+  # --file-system and %m prints the MOUNT POINT with exit 0, so the fallback
+  # cannot be chosen by exit status alone — insist on digits at each step.
+  local m
+  m=$(stat -f %m "$1" 2>/dev/null || true)
+  case "$m" in '' | *[!0-9]*) m=$(stat -c %Y "$1" 2>/dev/null || echo 0) ;; esac
+  case "$m" in '' | *[!0-9]*) m=0 ;; esac
+  printf '%s' "$m"
+}
+
+cached_gh() { # cached_gh <key> <gh args…> — that query's stdout, cached on disk for WT_CACHE_TTL
+  # ON DISK, not in a shell variable: every caller reads these through a command
+  # substitution, and a subshell's memo dies with the subshell — an in-process
+  # cache silently degraded to one gh call PER ROW (0.5s each, on the listing you
+  # run most). A file also spans invocations, so the second `wt` in a minute is
+  # free. Failure writes an empty file when there is nothing cached, so an offline
+  # run asks once and not once per row; a good cache is never clobbered by it.
+  local key="$1" f age; shift
+  f="$WT_CACHE/$key"
+  if [ -f "$f" ] && [ "$WT_CACHE_TTL" -gt 0 ]; then
+    age=$(( $(date +%s) - $(mtime "$f") ))
+    [ "$age" -lt "$WT_CACHE_TTL" ] && { cat "$f"; return 0; }
+  fi
+  command -v gh >/dev/null 2>&1 || return 0
+  mkdir -p "$WT_CACHE" 2>/dev/null || true
+  if _gh "$@" >"$f.$$" 2>/dev/null; then
+    mv -f "$f.$$" "$f"
+  else
+    rm -f "$f.$$"
+    [ -f "$f" ] || : >"$f" 2>/dev/null || true
+  fi
+  cat "$f" 2>/dev/null || true
+}
+
+cache_key() { # cache_key <parts…> — one filesystem-safe name
+  printf '%s' "$*" | tr -c 'A-Za-z0-9._-' '_'
+}
+
+pr_merge_info() { # pr_merge_info <main> <branch> — the branch's merged PR as "<STATE> <oid> <number>", or ""
+  # The precise per-branch question: this branch's merged PR, the SHA it merged,
+  # and its number. Asked by branch_landed — which decides whether a branch DIES,
+  # so it gets the exact query rather than the repo-wide map below — and by
+  # `wt reship`.
+  local main="$1" b="$2" slug
+  slug="$(repo_slug "$main")" || return 0
+  cached_gh "$(cache_key "head-$slug-$b")" \
+    pr list -R "$slug" --head "$b" --state merged --limit 1 \
+    --json number,state,headRefOid \
+    --jq '.[0] // empty | "\(.state) \(.headRefOid) \(.number)"'
+}
+
 branch_landed() { # branch_landed <main> <branch> -> 0 if it has ALREADY landed; read-only
-  local main="$1" b="$2" base slug state head tip
+  local main="$1" b="$2" base state head tip
   # Ancestry-merged (fast-forward / merge-commit / rebase that kept the commits):
   # offline, always-safe.
   base="$(default_branch "$main")"
@@ -351,14 +410,54 @@ branch_landed() { # branch_landed <main> <branch> -> 0 if it has ALREADY landed;
   # merged (headRefOid) — a tip that moved on (post-merge commits, or an auto-WIP
   # commit) means there's un-landed work here, so it is NOT landed. No gh, offline,
   # or no merged PR => not landed, exactly as before.
-  command -v gh >/dev/null 2>&1 || return 1
-  slug="$(repo_slug "$main")" || return 1
-  read -r state head < <(_gh pr list -R "$slug" --head "$b" --state merged \
-      --limit 1 --json state,headRefOid \
-      --jq '.[0] // empty | "\(.state) \(.headRefOid)"' 2>/dev/null) || return 1
-  [ "$state" = "MERGED" ] || return 1
+  read -r state head _ <<<"$(pr_merge_info "$main" "$b")" || true
+  [ "${state:-}" = "MERGED" ] || return 1
   tip="$(git -C "$main" rev-parse "$b" 2>/dev/null)" || return 1
-  [ -n "$head" ] && [ "$head" = "$tip" ]
+  [ -n "${head:-}" ] && [ "$head" = "$tip" ]
+}
+
+merged_map() { # merged_map <main> — "<head-branch><TAB><oid><TAB><number>" for the repo's merged PRs
+  # ONE query per REPO, not per branch. The listing asks this of every row, and a
+  # per-branch query costs ~0.5s each — `wt` would go from 0.3s to seconds in a
+  # fog of eight worktrees, which is exactly when you most want a fast listing.
+  # branch_landed keeps its own precise per-branch query: it decides whether a
+  # branch DIES, so it must not inherit this one's horizon (a merged PR older than
+  # the last 100 is missing here, which costs an annotation — a wrong "landed"
+  # would cost the work).
+  local main="$1" slug
+  slug="$(repo_slug "$main")" || return 0
+  cached_gh "$(cache_key "merged-$slug")" \
+    pr list -R "$slug" --state merged --limit 100 \
+    --json number,headRefName,headRefOid \
+    --jq '.[] | "\(.headRefName)\t\(.headRefOid)\t\(.number)"'
+}
+
+post_merge_ahead() { # post_merge_ahead <main> <branch> — "<n> <pr-number>" when the PR merged but the branch moved on
+  # The exact case branch_landed refuses to reap, named so every surface can SAY
+  # it: the PR merged, then the session kept committing. Those commits are on a
+  # branch whose remote counterpart GitHub deleted at merge — no PR covers them,
+  # nothing is pushed, and until now the only symptom was a worktree that quietly
+  # declined to be reaped. Empty output = not this case (no PR, unmerged, or the
+  # tip is still exactly what merged).
+  local main="$1" b="$2" row head num tip n
+  # Landed by ancestry beats everything: if the tip is already IN the default
+  # branch, those later commits landed too (a second PR, a direct merge) and there
+  # is nothing to ship. Local, cheap, and asked first so the marker can never
+  # contradict the sweep that would reap this branch.
+  git -C "$main" merge-base --is-ancestor "$b" "$(default_branch "$main")" 2>/dev/null && return 0
+  row="$(merged_map "$main" | awk -F'\t' -v b="$b" '$1==b {print $2"\t"$3; exit}')"
+  [ -n "$row" ] || return 0
+  IFS=$'\t' read -r head num <<<"$row" || true
+  tip="$(git -C "$main" rev-parse "$b" 2>/dev/null)" || return 0
+  [ -n "${head:-}" ] && [ "$head" != "$tip" ] || return 0
+  # Count what's past the merge. The merged SHA is normally an ancestor of the tip
+  # (we committed on top of it), so this is exact; when it isn't reachable at all —
+  # the branch was rebased or amended after the merge — say "1", because "at least
+  # one commit here is not what landed" is the part that's certainly true.
+  n="$(git -C "$main" rev-list --count "$head..$b" 2>/dev/null || echo 0)"
+  case "$n" in '' | *[!0-9]*) n=0 ;; esac
+  [ "$n" -gt 0 ] || n=1
+  printf '%s %s' "$n" "${num:-}"
 }
 
 reap_branch() { # reap_branch <main> <branch> -> 0 if the branch was deleted
@@ -419,6 +518,18 @@ checkout_map() { # main checkouts on STDIN → "main<TAB>branch<TAB>path" for ev
   done
 }
 
+RELANDED=""   # newline list of "<name> (<repo>) — merged PR #N, K commit(s) since"
+note_relanded() { # note_relanded <main> <branch> — record a branch the sweep kept BECAUSE it moved past its merge
+  # "nothing to reap" must never be the only thing said about a branch that is
+  # sitting on un-shipped commits. Cheap: post_merge_ahead reads the repo-wide
+  # merged map, one cached query for the whole sweep however many branches it walks.
+  local pm pm_n pm_num
+  pm="$(post_merge_ahead "$1" "$2")" || true
+  [ -n "$pm" ] || return 0
+  read -r pm_n pm_num <<<"$pm" || true
+  RELANDED+="${2#worktree-} ($(basename "$1")) — merged PR${pm_num:+ #$pm_num}, $pm_n commit(s) since"$'\n'
+}
+
 # reap_sweep <parked|all> — the idempotent counterpart to the WorktreeRemove hook.
 # The hook only fires on Claude's own graceful worktree teardown; anything else
 # that ends a pane (a manual `zellij close-pane`, a reboot, a crash, ⌘C churn) or
@@ -435,6 +546,7 @@ reap_sweep() {
   REAPED=""
   SKIPPED_LIVE=""
   STRAYS=""
+  RELANDED=""
   selftop="$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || echo "$PWD")"
   # No lsof (or nothing readable) means we cannot tell an open pane from an
   # abandoned one — so don't guess: sweep parked worktrees only. A checkout left
@@ -467,12 +579,17 @@ reap_sweep() {
       # Another pane is still cwd'd in there — landed or not, it is IN USE.
       occupied "$wt" && { SKIPPED_LIVE+="${branch#worktree-} ($(basename "$main"))"$'\n'; continue; }
       [ -z "$(git -C "$wt" status --porcelain 2>/dev/null)" ] || continue  # dirty → leave for a human
-      branch_landed "$main" "$branch" || continue                          # unmerged live work → leave
+      if ! branch_landed "$main" "$branch"; then                           # unmerged live work → leave
+        note_relanded "$main" "$branch"                                    # …but say WHY when its PR already merged
+        continue
+      fi
       git -C "$main" worktree remove "$wt" 2>/dev/null || continue         # free the branch, then reap it
     fi
     if reap_branch "$main" "$branch"; then
       reg_del "$wt"
       REAPED+="${branch#worktree-} ($(basename "$main"))"$'\n'
+    else
+      note_relanded "$main" "$branch"
     fi
   done <<<"$(resume_rows)"
   reg_prune
@@ -865,14 +982,22 @@ cmd_list() {
   # ~110 columns total — which wrapped into a mess in a narrow pane. Now repo/name
   # size to content (capped), and the commit fills the remaining width, so the
   # listing stays on one line per worktree however narrow the pane.
-  local main branch wt agent last
+  local main branch wt agent last pm state relanded=0
   local -a r_repo=() r_nm=() r_state=() r_agent=() r_last=()
   while IFS=$'\t' read -r main branch wt; do
     [ -n "$branch" ] || continue
     branch_alive "$main" "$branch" "$wt" || continue
     r_repo+=("$(basename "$main")")
     r_nm+=("${branch#worktree-}")
-    r_state+=("$(checkout_state "$wt")")
+    # The state cell is the CHECKOUT's state — plus, when it applies, the one fact
+    # that is invisible everywhere else: this branch's PR already merged and it has
+    # committed since. Without the marker such a row is indistinguishable from an
+    # ordinary in-flight branch, which is exactly how un-shipped commits go
+    # unnoticed until someone cleans up by hand.
+    state="$(checkout_state "$wt")"
+    pm="$(post_merge_ahead "$main" "$branch")" || true
+    if [ -n "$pm" ]; then state="$state+${pm%% *}"; relanded=1; fi
+    r_state+=("$state")
     agent="$(agent_for_worktree "$wt")"
     r_agent+=("$agent")
     # Empty for an unborn branch (a session started in a repo with no commits yet) —
@@ -896,6 +1021,9 @@ cmd_list() {
   for i in "${!r_repo[@]}"; do
     [ "${#r_repo[$i]}" -gt "$rw" ] && rw=${#r_repo[$i]}
     [ "${#r_nm[$i]}"   -gt "$nw" ] && nw=${#r_nm[$i]}
+    # state was a fixed 6 ("parked" is the longest of live/parked/stray) — the +N
+    # marker makes it content-sized, or a marked row shoves `agent` off its column.
+    [ "${#r_state[$i]}" -gt "$sw" ] && sw=${#r_state[$i]}
     [ "${#r_agent[$i]}" -gt "$cw" ] && cw=${#r_agent[$i]}
   done
   [ "$rw" -gt 16 ] && rw=16
@@ -954,6 +1082,10 @@ cmd_list() {
         "${r_state[$i]}" "$(fit "${r_last[$i]}" "$lastw")"
     done
   fi
+  # Only ever printed when a row earned it, so the listing stays a table on a
+  # normal day — and the day it isn't normal, the fix is one command away.
+  [ "$relanded" = 1 ] && say "+N = commits landed AFTER that branch's PR merged — no PR covers them: wt reship <name>"
+  return 0
 }
 
 cmd_resume() { # cmd_resume <name|repo/name>
@@ -1034,6 +1166,10 @@ cmd_resume() { # cmd_resume <name|repo/name>
 }
 
 cmd_reap() { # wt reap — sweep every LANDED worktree across all repos, now
+  # Ask GitHub fresh. The 120s cache exists so the LISTING — run constantly, and
+  # only annotating — stays instant; `wt reap` is the deliberate sweep, usually
+  # run seconds after merging the PR it is meant to notice.
+  WT_CACHE_TTL=0
   say "reaping landed worktrees (parked, plus clean & merged UNOCCUPIED checkouts) …"
   reap_sweep all
   [ -n "${NO_LSOF:-}" ] && say "no lsof — can't tell an open pane from an abandoned one; swept parked only."
@@ -1051,6 +1187,15 @@ cmd_reap() { # wt reap — sweep every LANDED worktree across all repos, now
       [ -n "$r" ] && printf '\033[38;5;103m  ⏸ kept %s — a pane is open in it\033[0m\n' "$r" >&2
     done
   fi
+  # The kept-for-a-reason case that used to be silent: its PR merged, so every
+  # other surface reads "done", and the sweep declines it as unmerged work —
+  # correctly, but indistinguishably from a branch still in flight. Name it, and
+  # name the command that clears it.
+  if [ -n "${RELANDED:-}" ]; then
+    printf '%s' "$RELANDED" | while IFS= read -r r; do
+      [ -n "$r" ] && printf '\033[38;5;173m  ⏏ kept %s; open the follow-up: wt reship %s\033[0m\n' "$r" "${r%% *}" >&2
+    done
+  fi
   # Husks are spared on purpose (see reap_sweep) — say so, with the one command
   # that resolves them, or "reap did nothing" hides a checkout that needs a human.
   if [ -n "${STRAYS:-}" ]; then
@@ -1058,6 +1203,65 @@ cmd_reap() { # wt reap — sweep every LANDED worktree across all repos, now
       [ -n "$r" ] && printf '\033[38;5;173m  ◇ kept %s — dangling; `wt <name>` moves it aside and rebuilds\033[0m\n' "$r" >&2
     done
   fi
+}
+
+cmd_reship() { # wt reship [name] — push a branch that outran its merged PR, and open the follow-up
+  # The other half of the ⏏/+N story. After a squash merge GitHub deletes the head
+  # branch, so the commits a session makes afterwards have no remote and no PR —
+  # `git push` alone re-creates the branch but leaves the work unreviewed and
+  # invisible. This does both, from the MAIN checkout, so it works whether the
+  # worktree is live, parked, or long gone.
+  local want="${1:-}" main branch slug base pm pm_n pm_num url open_pr title body
+  if [ -n "$want" ]; then
+    local rrepo="" rname="$want" sel="" matches=0 wt
+    case "$want" in */*) rrepo="${want%%/*}"; rname="${want##*/}" ;; esac
+    while IFS=$'\t' read -r main branch wt; do
+      [ -n "$branch" ] || continue
+      branch_alive "$main" "$branch" "$wt" || continue
+      [ "${branch#worktree-}" = "$rname" ] || continue
+      [ -z "$rrepo" ] || [ "$(basename "$main")" = "$rrepo" ] || continue
+      sel="$main"$'\t'"$branch"
+      matches=$((matches + 1))
+    done <<<"$(resume_rows)"
+    [ "$matches" = "0" ] && die "no agent worktree named '$want' — run: wt"
+    [ "$matches" -gt 1 ] && die "'$rname' exists in more than one repo — qualify it: wt reship <repo>/$rname"
+    IFS=$'\t' read -r main branch <<<"$sel"
+  else
+    main="$(git_main "$PWD")" || die "not in a git repo — name a worktree instead: wt reship <name>"
+    branch="$(git -C "$PWD" branch --show-current 2>/dev/null || true)"
+    [ -n "$branch" ] || die "HEAD is detached — check out a branch first."
+  fi
+  command -v gh >/dev/null 2>&1 || die "gh is unavailable — install it, or push and open the PR by hand."
+  slug="$(repo_slug "$main")" || die "$(basename "$main") has no origin remote — nothing to push to."
+  base="$(default_branch "$main")"
+
+  # Nothing to ship is the answer whenever the branch adds nothing to the base;
+  # that is true both for a fully-landed branch and for one that never diverged.
+  [ "$(git -C "$main" rev-list --count "$base..$branch" 2>/dev/null || echo 0)" -gt 0 ] \
+    || die "'$branch' has nothing the $base branch doesn't already have."
+
+  say "pushing $branch → origin ($slug)"
+  git -C "$main" push -u origin "$branch" >&2 || die "push failed — resolve it, then re-run: wt reship"
+
+  # An OPEN PR already covers these commits; the push above is the whole job.
+  open_pr="$(gh pr list -R "$slug" --head "$branch" --state open --limit 1 --json url --jq '.[0].url // empty' 2>/dev/null || true)"
+  if [ -n "$open_pr" ]; then
+    say "an open PR already covers this branch — pushed to it: $open_pr"
+    return 0
+  fi
+
+  pm="$(post_merge_ahead "$main" "$branch")" || true
+  read -r pm_n pm_num <<<"${pm:-}" || true
+  title="$(git -C "$main" log -1 --format='%s' "$branch" 2>/dev/null || echo "follow-up on $branch")"
+  # A body wt can honestly write: what this PR carries and what it follows. The
+  # What/Why/Verify/Watch-out a human (or the agent that wrote the code) owes the
+  # reviewer is prompted for, not faked.
+  body="$(printf 'Commits on \`%s\` that landed after %s merged:\n\n%s\n\n_Opened by `wt reship` — add What / Why / Verify / Watch-out._\n' \
+    "$branch" "${pm_num:+PR #$pm_num}" \
+    "$(git -C "$main" log --format='- %s' "$base..$branch" 2>/dev/null | head -20)")"
+  url="$(gh pr create -R "$slug" --head "$branch" --base "$base" --title "$title" --body "$body" 2>&1)" \
+    || die "gh pr create failed: $url"
+  say "follow-up PR open${pm_n:+ for the $pm_n commit(s) past the merge}: $(printf '%s' "$url" | tail -1)"
 }
 
 cmd_agent() { # wt agent <default|start|resume> … — the public client-table seam
@@ -1078,6 +1282,7 @@ spawn) cmd_spawn "${2:-}" "${3:-}" "${4:-}" ;;
 agent) shift; cmd_agent "$@" ;;
 park) cmd_park "${2:-}" ;;
 unpark) cmd_unpark ;;
+reship) cmd_reship "${2:-}" ;;
 resume) cmd_resume "${2:-}" ;;
 reap | gc) cmd_reap ;;
 list | ls) cmd_list ;;

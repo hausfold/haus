@@ -255,8 +255,9 @@ in
 
       # `claude-statusline` — the agent-worktree HUD for Claude Code's status bar
       # (hearth's claudeCodeSettings points the `statusLine` key here). Row 1 is
-      # THIS session's worktree name + one status token (⏏ purge / N^ commits /
-      # +A -D uncommitted); rows below list sister `wt` worktrees in flight across
+      # THIS session's worktree name + one status token (⏏ purge / N^ commits —
+      # blue when unmerged, orange when they landed AFTER the PR merged and no PR
+      # covers them / +A -D uncommitted); rows below list sister `wt` worktrees across
       # ALL repos, with GitHub PR state. Cheap local git runs in the render path;
       # the cross-repo + `gh` enumeration is done detached by the companion
       # `claude-statusline-refresh` and cached (stale-while-revalidate), so the bar
