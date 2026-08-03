@@ -14,6 +14,7 @@
 # to prevent. Add a room's options.nix here and both surfaces pick it up.
 [
   ./options.nix
+  ./apps/options.nix
   ./den/options.nix
   ./displays/options.nix
   ./theme/options.nix

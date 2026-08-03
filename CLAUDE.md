@@ -12,7 +12,7 @@ elsewhere.
 
 | Want to change… | Repo |
 |---|---|
-| the rice: macOS defaults, tiling (prowl), bar (sill), shell (hearth), security (collar), secrets plumbing (secrets), pounce wiring (pounce), Messages install (trill), Focus/DND (hush), wallpaper/accent (theme) | `~/code/workshop/nebelhaus` ← **you are here** |
+| the rice: macOS defaults, tiling (prowl), bar (sill), shell (hearth), security (collar), secrets plumbing (secrets), pounce wiring (pounce), Messages install (trill), Focus/DND (hush), wallpaper/accent (theme), the apps every machine gets + what opens which file type (apps) | `~/code/workshop/nebelhaus` ← **you are here** |
 | the pounce palette app or its command scripts | `~/code/workshop/pounce` |
 | colors / the theme palette | `~/code/workshop/nebelung` |
 | one machine's personal apps / identity / secrets | `~/.config/nix` (or that machine's own config) |
@@ -35,12 +35,15 @@ flake.nix                 # mkNebelhaus builder + darwinModules outputs + exampl
 modules/
   default.nix             # imports all rooms
   options.nix             # all host-set knobs: git.*, theme.{accent,wallpaper}, hearth.*,
-                          #   claude.globalMd, apps.* (the shared roster), prowl.*, sill.*, pounce.*,
-                          #   hush.*, trill.enable, tour.enable, homebrew.*, secrets.provider
+                          #   claude.globalMd, roster (the shared app list), prowl.*, sill.*,
+                          #   pounce.*, hush.*, trill.enable, tour.enable, homebrew.*, secrets.provider
   options-modules.nix     # the per-room options.nix list — shared by both renderers below
   options-doc.nix         # nixosOptionsDoc over them → the metadata the docs site
                           #   (.#options-json) and the agent skill are both RENDERED from
   lib/gui-wait.nix        # withGUIWait: cold-boot-safe GUI agent launch wrapper
+  apps/                   # the EDITORIAL picks: apps the rice chooses for a finished
+                          #   machine (IINA today) + the file types they claim. Roster
+                          #   entries, so a cask of the same app still collides loudly
   den/                    # system: macOS defaults, Homebrew framework, core CLI, GC
                           #   + on-PATH CLIs: haus / awake / wt / zscratch / statusline
   displays/               # nebelhaus.displays: scaled resolution by intent + the
@@ -127,6 +130,13 @@ points back to when it feels several PRs together.
 
 - **New SketchyBar plugin**: add `modules/sill/sketchybar/plugins/<name>.sh`, wire it
   into `modules/sill/sketchybar/sketchybarrc`. Follow an existing plugin.
+- **A new default app pick** (an app the rice thinks a finished machine has, not one a
+  room needs to do its job): it goes in `modules/apps` — one
+  `nebelhaus.apps.<thing>.enable` knob in its `options.nix`, one roster entry (never a
+  bare `home.packages` line), and if it should own file types, `duti` pins in the same
+  activation that `lsregister`s the bundle — binding a type LaunchServices hasn't seen
+  yet is a silent `-50`. An app a room NEEDS (AeroSpace, SketchyBar, espanso) still
+  belongs to that room.
 - **Theme**: `nebelhaus.theme.{flavor,contrast}` are the single source of truth, and
   **`modules/lib/nebelung.nix` is the only place that resolves them.** It returns the
   themes-package `root` to source rendered files from, the `palette` (name → hex),

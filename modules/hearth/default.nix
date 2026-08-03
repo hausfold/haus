@@ -49,33 +49,6 @@ let
     c: !lib.meta.availableOn pkgs.stdenv.hostPlatform agentPackages.${c}
   ) agentClients;
   fontsCfg = config.nebelhaus.fonts; # terminal font family/size (den installs the package)
-  videoCfg = hearthCfg.videoPlayer;
-
-  # The extensions IINA declares as VIDEO, read off its own Info.plist
-  # (CFBundleDocumentTypes, IINA 1.4.4) rather than guessed: duti can only bind
-  # an extension whose UTI some installed app declares, so a type IINA doesn't
-  # claim would be a silent no-op here rather than an error.
-  #
-  # Trimmed from that list on purpose:
-  #   - audio (mp3, flac, m4a, wav, aac, opus, …), `gif`, playlists (m3u/pls)
-  #     and IINA's own plugin types — "open videos in IINA" shouldn't quietly
-  #     take the music library, or the gif the zellij previewer shows inline.
-  #   - `ts`: TypeScript far more often than an MPEG transport stream, and
-  #     hijackFileAssociations claims it for the editor. mts/m2ts still bind.
-  #   - `dat`, `swf`, `yuv`, `wv`, `mcf`, `mks`: junk drawer, WavPack audio, or
-  #     Matroska subtitles — nothing you double-click expecting a player.
-  #
-  # Three of them (mk3d, xvid, amv) answer with a benign -50 — their extension
-  # resolves to a purely dynamic UTI nothing binds — and land on IINA anyway,
-  # because IINA is the only app declaring them. The activation swallows it, the
-  # same way the editor hijack below does.
-  iinaVideoExts = [
-    "mp4" "m4v" "mov" "qt" "mpg" "mpeg"
-    "mkv" "mk3d" "webm" "avi" "divx" "xvid"
-    "wmv" "asf" "flv" "f4v" "f4p"
-    "3gp" "3g2" "ogv" "ogm" "mts" "m2ts"
-    "rm" "rmvb" "vob" "amv" "mxf" "dv"
-  ];
 
   # `zreload` prepares a restart layout from inside zellij, then hands the
   # destructive half to a launchd-owned process. Keeping the package at module
@@ -361,29 +334,20 @@ in
     })
   ];
 
-  # The two things hearth installs that aren't shell config: a video player and
-  # the tool the file-association hijack drives. In the roster because that's
-  # where everything this machine HAS lives — visible in `this-machine.md`,
+  # The one thing hearth installs that isn't shell config: the tool the
+  # file-association hijack drives. In the roster because that's where
+  # everything this machine HAS lives — visible in `this-machine.md`,
   # overridable by app id from a host, and (see the note by home.packages) able
   # to collide loudly with a cask of the same name instead of silently.
   #
-  # The player is opt-in (nebelhaus.hearth.videoPlayer.enable): a ~100 MB app
-  # bundle isn't something a shell room should fetch onto every host that wanted
-  # a themed prompt. `duti` stays unconditional — a 200 KB CLI that two features
-  # here drive (the editor hijack, and the IINA associations further down).
-  nebelhaus.roster = lib.mkMerge [
-    {
-      duti = {
-        package = lib.mkDefault pkgs.duti;
-      };
-    }
-    (lib.mkIf videoCfg.enable {
-      iina = {
-        name = lib.mkDefault "IINA";
-        package = lib.mkDefault pkgs.iina;
-      };
-    })
-  ];
+  # IINA used to sit here too, purely because this room's hijack code was next
+  # door. It's an editorial pick, not shell config, so it lives in modules/apps
+  # now — the room whose whole job is the apps the rice chooses for you.
+  nebelhaus.roster = {
+    duti = {
+      package = lib.mkDefault pkgs.duti;
+    };
+  };
 
   # The nebelung ports this room wires itself, so the roster pass in
   # modules/theme/ports.nix leaves them alone instead of dropping a second,
@@ -632,13 +596,11 @@ in
       home.packages =
         with pkgs;
         [
-          # duti (and iina, when hearth.videoPlayer is on) are roster entries
-          # (below, at the darwin level) rather than bare packages — the room
-          # that installs an app declares it, and for iina that's load-bearing:
-          # keying it under the id `iina` means a
-          # later `homebrew.casks = [ "iina" ]` merges onto the SAME entry and
-          # trips the one-source-per-entry assertion, instead of quietly putting
-          # a second IINA in /Applications the way it did for months.
+          # duti is a roster entry (below, at the darwin level) rather than a
+          # bare package — the room that installs an app declares it, and the
+          # roster is what makes a second copy from a cask a build warning
+          # instead of the silent duplicate IINA was for months (modules/apps
+          # owns that pick now; modules/roster tells the story).
           # zellijReload stays here: it's an internal wrapper script, not
           # something anyone installed.
           zellijReload
@@ -1531,7 +1493,7 @@ in
 
       # Keep nix-installed .app bundles findable by LaunchServices.
       #
-      # A GUI app from nixpkgs (IINA, when hearth.videoPlayer is on) is linked
+      # A GUI app from nixpkgs (IINA, which modules/apps ships) is linked
       # into ~/Applications/Home Manager Apps as a SYMLINK, and LaunchServices
       # resolves that to the /nix/store path when it registers the bundle — so
       # every record it keeps is pinned to a store hash. Bump the package and the
@@ -1555,37 +1517,6 @@ in
             -f -r "$nixApps" 2>/dev/null || true
         fi
       '';
-
-      # Video files → IINA (nebelhaus.hearth.videoPlayer.claimFileTypes).
-      #
-      # Ordered AFTER nixAppsLaunchServices, which is what puts the freshly
-      # linked bundle — and therefore com.colliderli.iina, and the UTIs for the
-      # extensions IINA declares — in front of LaunchServices. Binding a handler
-      # before that registration is a guaranteed, silent -50.
-      #
-      # Re-run every activation rather than once: IINA's store path moves on
-      # every bump, and a rebuild is exactly when a binding pinned to the old
-      # copy would otherwise start opening files in nothing. duti is idempotent,
-      # and only ever sets the USER default — nothing here is hard to undo
-      # (Finder ▸ Get Info ▸ Change All, or flip claimFileTypes off and pick
-      # another handler once).
-      home.activation.iinaFileTypes = lib.mkIf (videoCfg.enable && videoCfg.claimFileTypes) (
-        lib.hm.dag.entryAfter [ "nixAppsLaunchServices" ] (
-          let
-            iinaPins = lib.concatStringsSep "\n" (
-              map (
-                ext:
-                ''  $DRY_RUN_CMD "${pkgs.duti}/bin/duti" -s com.colliderli.iina "${ext}" all 2>/dev/null || true''
-              ) iinaVideoExts
-            );
-          in
-          ''
-            if [ -x "${pkgs.duti}/bin/duti" ]; then
-            ${iinaPins}
-            fi
-          ''
-        )
-      );
 
       # File-association hijack — opt-in (nebelhaus.hearth.hijackFileAssociations).
       # Off by default: silently making EditorOpen.app the handler for a dozen
