@@ -59,6 +59,13 @@
   #   "Library/Mobile Documents/iCloud~md~obsidian/Documents/notes"
   # ];
 
+  # The rice's own app picks. IINA ships as the video player and takes over the
+  # video types QuickTime, TV and your browser would otherwise get (audio, gifs
+  # and playlists are left alone). Turn either half off if you'd rather bring
+  # your own player, or keep it and leave your associations untouched:
+  # nebelhaus.apps.videoPlayer.enable = false;
+  # nebelhaus.apps.videoPlayer.claimFileTypes = false;
+
   # Your apps — ONE list, whatever the source. An entry with a `key` joins the
   # Caps-Lock launcher (and a `workspace` gives it a tiling workspace + a bar
   # pill); an entry with neither is simply installed. So the app you reach for

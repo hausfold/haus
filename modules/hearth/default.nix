@@ -334,16 +334,16 @@ in
     })
   ];
 
-  # The two things hearth installs that aren't shell config: a video player and
-  # the tool the file-association hijack drives. In the roster because that's
-  # where everything this machine HAS lives — visible in `this-machine.md`,
+  # The one thing hearth installs that isn't shell config: the tool the
+  # file-association hijack drives. In the roster because that's where
+  # everything this machine HAS lives — visible in `this-machine.md`,
   # overridable by app id from a host, and (see the note by home.packages) able
   # to collide loudly with a cask of the same name instead of silently.
+  #
+  # IINA used to sit here too, purely because this room's hijack code was next
+  # door. It's an editorial pick, not shell config, so it lives in modules/apps
+  # now — the room whose whole job is the apps the rice chooses for you.
   nebelhaus.roster = {
-    iina = {
-      name = lib.mkDefault "IINA";
-      package = lib.mkDefault pkgs.iina;
-    };
     duti = {
       package = lib.mkDefault pkgs.duti;
     };
@@ -596,12 +596,11 @@ in
       home.packages =
         with pkgs;
         [
-          # iina and duti are roster entries (below, at the darwin level) rather
-          # than bare packages — the room that installs an app declares it, and
-          # for iina that's load-bearing: keying it under the id `iina` means a
-          # later `homebrew.casks = [ "iina" ]` merges onto the SAME entry and
-          # trips the one-source-per-entry assertion, instead of quietly putting
-          # a second IINA in /Applications the way it did for months.
+          # duti is a roster entry (below, at the darwin level) rather than a
+          # bare package — the room that installs an app declares it, and the
+          # roster is what makes a second copy from a cask a build warning
+          # instead of the silent duplicate IINA was for months (modules/apps
+          # owns that pick now; modules/roster tells the story).
           # zellijReload stays here: it's an internal wrapper script, not
           # something anyone installed.
           zellijReload
@@ -1494,7 +1493,7 @@ in
 
       # Keep nix-installed .app bundles findable by LaunchServices.
       #
-      # A GUI app from nixpkgs (iina is the one the rice itself ships) is linked
+      # A GUI app from nixpkgs (IINA, which modules/apps ships) is linked
       # into ~/Applications/Home Manager Apps as a SYMLINK, and LaunchServices
       # resolves that to the /nix/store path when it registers the bundle — so
       # every record it keeps is pinned to a store hash. Bump the package and the

@@ -67,6 +67,23 @@ app itself stays on disk** — nebelhaus never deletes apps behind your back
 brew uninstall --zap slack
 ```
 
+## "Videos open in the wrong app" / "I don't want IINA"
+
+The rice ships IINA as the video player and hands it the video types macOS gives
+QuickTime, TV and your browser. Both halves are switches:
+
+```nix
+nebelhaus.apps.videoPlayer.enable = false;          # don't install it at all
+nebelhaus.apps.videoPlayer.claimFileTypes = false;  # install it, touch no associations
+```
+
+The associations are the ordinary user default (what Finder's Get Info ▸ Change
+All writes), so a rebuild with `claimFileTypes = false` stops re-applying them
+but does not put the old handler back — the user picks one once, in Finder.
+
+Audio, `.gif`, playlists and `.ts` are never touched. To give a *different*
+player the same treatment, turn this off and add your own roster entry.
+
 ## "Everything is too small"
 
 One number moves the whole interface:
