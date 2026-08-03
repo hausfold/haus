@@ -281,6 +281,11 @@ fi
 
 # Weather
 # Left-click: toggle popup | Right-click: open Weather app
+# popup.align=right because this pill sits on the RIGHT half of the bar: the
+# default (`left`) pins the popup's left edge to the pill and grows the rows
+# rightward, off the screen edge. Right-pinning opens it leftward instead. The
+# apple.logo menu above is a left-side item and keeps the default. Same rule for
+# the nix-generated right-side dropdowns — see `popupAlign` in ../default.nix.
 # The popup toggles as it always did, then hands itself to `sillpop` in the
 # background so it also closes on the first click anywhere else — sketchybar
 # itself only ever hears clicks on its own items, so a plain popup.drawing=toggle
@@ -297,6 +302,7 @@ sketchybar --add item weather right \
         popup.background.corner_radius=10 \
         popup.background.border_color=$SURFACE0 \
         popup.background.color=$MANTLE \
+        popup.align=right \
         script="$HOME/.config/sketchybar/plugins/weather.sh" \
         click_script="if [ \"\$BUTTON\" = \"right\" ]; then open -a Weather; else sketchybar --set \$NAME popup.drawing=toggle; /run/current-system/sw/bin/sillpop arm \$NAME 2>/dev/null & fi" \
     --subscribe weather system_woke mouse.clicked

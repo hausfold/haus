@@ -34,6 +34,15 @@ let
     item:
     "sketchybar --set ${item} popup.drawing=toggle; /run/current-system/sw/bin/sillpop arm ${item} 2>/dev/null &";
 
+  # Every dropdown on a RIGHT-side pill carries this. SketchyBar's popup.align
+  # defaults to `left`, i.e. the popup's left edge is pinned to the pill's left
+  # edge and the rows grow rightward — fine under the apple menu at the far left,
+  # but on the right half of the bar a wide row (an agent's repo/branch, a usage
+  # gauge) runs straight off the screen edge. `right` pins the popup's RIGHT edge
+  # to the pill instead, so it opens leftward, into the bar. Left-side items
+  # (apple.logo) deliberately keep the default.
+  popupAlign = "popup.align=right";
+
   # The whole roster drives the pills (a workspace is what earns one); only the
   # keyed subset drives the leader picker.
   apps = config.nebelhaus._roster;
@@ -165,6 +174,7 @@ let
               popup.background.corner_radius=10 \
               popup.background.border_color=$SURFACE0 \
               popup.background.color=$MANTLE \
+              ${popupAlign} \
               popup.horizontal=off \
               script="$HOME/.config/sketchybar/plugins/agents.sh" \
               click_script="$HOME/.config/sketchybar/plugins/agents.sh" \
@@ -194,6 +204,7 @@ let
               popup.background.corner_radius=10 \
               popup.background.border_color=$SURFACE0 \
               popup.background.color=$MANTLE \
+              ${popupAlign} \
               popup.horizontal=off \
               script="$HOME/.config/sketchybar/plugins/ai_usage.sh" \
               click_script="$HOME/.config/sketchybar/plugins/ai_usage.sh" \
@@ -254,6 +265,7 @@ let
               popup.background.corner_radius=10 \
               popup.background.border_color=$SURFACE0 \
               popup.background.color=$MANTLE \
+              ${popupAlign} \
               script="$HOME/.config/sketchybar/plugins/calendar.sh" \
               click_script="${popToggle "calendar"}" \
           --subscribe calendar mouse.clicked system_woke
@@ -285,6 +297,7 @@ let
               popup.background.corner_radius=10 \
               popup.background.border_color=$SURFACE0 \
               popup.background.color=$MANTLE \
+              ${popupAlign} \
               script="$HOME/.config/sketchybar/plugins/caffeinate.sh" \
           --subscribe caffeinate mouse.clicked caffeinate_change system_woke
 
