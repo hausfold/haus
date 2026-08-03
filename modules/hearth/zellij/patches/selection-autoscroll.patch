@@ -1,0 +1,142 @@
+diff --git a/zellij-server/src/panes/terminal_pane.rs b/zellij-server/src/panes/terminal_pane.rs
+index 477185a..dd2e1cb 100644
+--- a/zellij-server/src/panes/terminal_pane.rs
++++ b/zellij-server/src/panes/terminal_pane.rs
+@@ -36,6 +36,38 @@ use crate::ui::pane_boundaries_frame::{FrameParams, PaneFrame};
+ 
+ pub const SELECTION_SCROLL_INTERVAL_MS: u64 = 10;
+ 
++// Autoscroll speed while a drag-selection is held past a pane edge.
++//
++// Rates are milli-lines per tick, so the slow end can be a FRACTION of a line:
++// 1000 is one line per tick, which is what this used to do unconditionally.
++/// Floor — a drag that left the pane almost immediately. Deliberately slower
++/// than one line per tick: a short drag means precise work.
++const SELECTION_SCROLL_MIN_RATE: usize = 350;
++/// Ceiling — a drag that swept most of the pane before leaving it.
++const SELECTION_SCROLL_MAX_RATE: usize = 8000;
++/// Lines of highlight at which the rate saturates. Beyond this a taller pane
++/// (or a bigger font) can't keep buying speed.
++const SELECTION_SCROLL_FULL_SPEED_LINES: usize = 40;
++
++/// Autoscroll rate, in milli-lines per tick, from how much was already
++/// highlighted when the drag crossed the pane edge.
++///
++/// The "how far past the edge is the cursor" signal that would be the obvious
++/// input here is nearly useless: terminals CLAMP a drag that leaves the window
++/// to the edge cell (ghostty does it in `src/renderer/size.zig`), so above a
++/// fullscreen pane there is exactly one row of travel to measure. Height of the
++/// selection at the moment it left the pane has real range and is already a
++/// statement of intent — grabbed three lines and kept going, or swept the whole
++/// screen first.
++///
++/// Locked in once per departure so the speed is stable while you hold, and
++/// re-derived when the cursor comes back inside and leaves again.
++fn selection_scroll_rate(lines_highlighted: usize) -> usize {
++    let lines = lines_highlighted.clamp(1, SELECTION_SCROLL_FULL_SPEED_LINES);
++    let span = SELECTION_SCROLL_MAX_RATE - SELECTION_SCROLL_MIN_RATE;
++    SELECTION_SCROLL_MIN_RATE + (span * (lines - 1)) / (SELECTION_SCROLL_FULL_SPEED_LINES - 1)
++}
++
+ // Some keys in different formats but are used in the code
+ const LEFT_ARROW: &[u8] = &[27, 91, 68];
+ const RIGHT_ARROW: &[u8] = &[27, 91, 67];
+@@ -134,6 +166,13 @@ pub struct TerminalPane {
+     pub style: Style,
+     vte_parser: vte::Parser,
+     selection_scrolled_at: time::Instant,
++    /// Autoscroll rate in milli-lines per tick, locked in when the drag last
++    /// left the pane and cleared when it comes back inside. `None` means the
++    /// cursor is not currently past an edge.
++    selection_scroll_rate: Option<usize>,
++    /// Sub-line remainder carried between ticks, so rates below one line per
++    /// tick still scroll (just less often).
++    selection_scroll_debt: usize,
+     content_offset: Offset,
+     pane_title: String,
+     pane_name: String,
+@@ -657,26 +696,60 @@ impl Pane for TerminalPane {
+     }
+ 
+     fn update_selection(&mut self, to: &Position, _client_id: ClientId) {
+-        let should_scroll = self.selection_scrolled_at.elapsed()
+-            >= time::Duration::from_millis(SELECTION_SCROLL_INTERVAL_MS);
+-        let cursor_at_the_bottom = to.line.0 < 0 && should_scroll;
+-        let cursor_at_the_top = to.line.0 as usize >= self.grid.height && should_scroll;
+-        let cursor_in_the_middle = to.line.0 >= 0 && (to.line.0 as usize) < self.grid.height;
++        let cursor_above_pane = to.line.0 < 0;
++        let cursor_below_pane = to.line.0 >= 0 && (to.line.0 as usize) >= self.grid.height;
+ 
+-        // TODO: check how far up/down mouse is relative to pane, to increase scroll lines?
+-        if cursor_at_the_bottom {
+-            self.grid.scroll_up_one_line();
+-            self.selection_scrolled_at = time::Instant::now();
+-            self.set_should_render(true);
+-        } else if cursor_at_the_top {
+-            self.grid.scroll_down_one_line();
+-            self.selection_scrolled_at = time::Instant::now();
+-            self.set_should_render(true);
+-        } else if cursor_in_the_middle {
++        if !cursor_above_pane && !cursor_below_pane {
++            // Back inside the pane: end the departure, so the next one re-derives
++            // its speed from wherever the selection has got to by then.
++            self.selection_scroll_rate = None;
++            self.selection_scroll_debt = 0;
+             // here we'll only render if the selection was updated, and that'll be handled by the
+             // grid
+             self.grid.update_selection(to);
++            return;
++        }
++
++        if self.selection_scrolled_at.elapsed()
++            < time::Duration::from_millis(SELECTION_SCROLL_INTERVAL_MS)
++        {
++            return;
++        }
++
++        let rate = match self.selection_scroll_rate {
++            Some(rate) => rate,
++            None => {
++                // The selection anchor, in pane rows. Read exactly once per
++                // departure: scroll_up_one_line/scroll_down_one_line shift the
++                // selection to follow the viewport, so this creeps as we scroll.
++                let max_row = self.grid.height.saturating_sub(1) as isize;
++                let anchor = self.grid.selection.start.line.0.clamp(0, max_row) as usize;
++                let lines_highlighted = if cursor_above_pane {
++                    anchor
++                } else {
++                    (max_row as usize).saturating_sub(anchor)
++                };
++                let rate = selection_scroll_rate(lines_highlighted);
++                self.selection_scroll_rate = Some(rate);
++                rate
++            },
++        };
++
++        self.selection_scrolled_at = time::Instant::now();
++        self.selection_scroll_debt += rate;
++        let lines = self.selection_scroll_debt / 1000;
++        if lines == 0 {
++            // Slower than a line per tick — carry the remainder and wait.
++            return;
+         }
++        self.selection_scroll_debt %= 1000;
++
++        if cursor_above_pane {
++            self.grid.move_viewport_up(lines);
++        } else {
++            self.grid.move_viewport_down(lines);
++        }
++        self.set_should_render(true);
+     }
+ 
+     fn end_selection(&mut self, end: &Position, _client_id: ClientId) {
+@@ -1124,6 +1197,8 @@ impl TerminalPane {
+             active_at: Instant::now(),
+             style,
+             selection_scrolled_at: time::Instant::now(),
++            selection_scroll_rate: None,
++            selection_scroll_debt: 0,
+             pane_title: initial_pane_title,
+             pane_name: pane_name.clone(),
+             prev_pane_name: pane_name,

@@ -295,6 +295,41 @@ in
     }
   ];
 
+  # Drag-to-select autoscroll. Upstream zellij scrolls exactly ONE line per
+  # inbound mouse-motion event and has no repeat timer anywhere (server or
+  # client), so parking the cursor past a pane edge scrolls at whatever rate
+  # your hand's micro-movement happens to produce — the terminal only emits a
+  # motion report when the CELL under the pointer changes. Selecting a long
+  # scrollback meant jittering the mouse to manufacture events.
+  #
+  # The patch makes that step a RATE, derived from how many lines were already
+  # highlighted when the drag crossed the edge: grab three lines and keep going
+  # and it crawls (slower than upstream, on purpose — a short drag means
+  # precise work); sweep the pane first and it moves. Locked in per departure
+  # so the speed holds steady while you do, re-derived when you come back in
+  # and leave again.
+  #
+  # The obvious input — how far PAST the edge the cursor is — is close to
+  # useless: terminals clamp a drag that leaves the window to the edge cell
+  # (ghostty: src/renderer/size.zig, `@max(0, …)` / `@min(…, rows - 1)`), so
+  # above a fullscreen pane there's exactly one row of travel to measure.
+  #
+  # Still event-driven, with no repeat timer: the rate is per motion event, not
+  # per wall-clock tick, so absolute speed still rides on how fast the terminal
+  # reports motion. Adding a timer means a thread in screen.rs re-posting mouse
+  # events, which is a much bigger change than this one.
+  #
+  # Patched at zellij-unwrapped, not zellij: the latter is a thin wrapper
+  # derivation with no source of its own. It rebuilds from source on every
+  # nixpkgs bump that moves zellij or its deps.
+  nixpkgs.overlays = [
+    (_final: prev: {
+      zellij-unwrapped = prev.zellij-unwrapped.overrideAttrs (old: {
+        patches = (old.patches or [ ]) ++ [ ./zellij/patches/selection-autoscroll.patch ];
+      });
+    })
+  ];
+
   # The two things hearth installs that aren't shell config: a video player and
   # the tool the file-association hijack drives. In the roster because that's
   # where everything this machine HAS lives — visible in `this-machine.md`,

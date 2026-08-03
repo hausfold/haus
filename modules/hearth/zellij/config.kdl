@@ -13,7 +13,6 @@ serialize_pane_viewport true
 copy_command "@HOME@/.config/zellij/copy-clean.pl"
 show_release_notes false
 show_startup_tips false
-mouse_scroll_resize false
 // Nebelung (Catppuccin with the blue muted out) — the theme block lives in
 // ~/.config/zellij/themes/nebelung.kdl, dropped there by home-manager from the
 // nebelung flake. Keep this name in sync with that block's name. The zellij port
