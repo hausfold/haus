@@ -28,15 +28,22 @@
 # What null costs you is ONLY auto-assignment. The leader key opens the app, the
 # workspace exists, its pill is drawn, the cheatsheet lists it — the window just
 # opens where you are instead of being moved. To close the gap once the app is
-# installed, in your own host file (which is imported after this and wins):
+# installed, in your own host file:
 #
 #   nebelhaus.roster.obsidian.appId = "…";   # osascript -e 'id of app "Obsidian"'
 #
-# The same override is how you resolve a KEY collision. If a letter here is one
-# your own roster already uses, the build fails loudly (roster keys must be
-# unique) — which is the right outcome, and the fix is one line:
+# That one is a plain assignment because this pack never sets `appId`, and a host
+# definition beats an option's default. It does NOT generalize: import order
+# carries no priority in the module system, so setting a field this file DOES set
+# is a conflict rather than an override, and wants `lib.mkForce`. Which is also
+# how you resolve a KEY collision — if a letter here is one your own roster
+# already uses, the build fails loudly (roster keys must be unique), which is the
+# right outcome, and the fix is one line:
 #
-#   nebelhaus.roster.zotero.key = "y";       # or null, to reach it from ⌘Space
+#   nebelhaus.roster.zotero.key = lib.mkForce "y";   # or null, for ⌘Space only
+#
+# See bite 2 in packs/README.md for the case where the consumer already owns one
+# of these apps outright.
 #
 # ---- and one real limit of the format ---------------------------------------
 #

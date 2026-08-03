@@ -25,8 +25,11 @@ darwinConfigurations.myhost = nebelhaus.mkNebelhaus {
 };
 ```
 
-Your host file is imported last and wins, so any single field is yours to
-override without forking the pack.
+Any single field is yours to override without forking the pack — but "override"
+means `lib.mkForce`, not "the host is imported last". Import order carries no
+priority in the module system: a host that sets a field the pack also sets
+*conflicts* with it rather than winning. See bite 2 below, which is what that
+looks like the first time.
 
 ## What's here
 
@@ -60,7 +63,7 @@ Self-test before publishing — the same check CI runs:
 nebelhaus.lib.checkRice ./my-pack.nix
 ```
 
-## Three things that bite, in order of how much time they cost
+## Four things that bite, in order of how much time they cost
 
 **1. `key` collides, and there are two ways it can.** Against another roster
 entry — including one from the consumer's own host or another pack — and against
@@ -82,7 +85,38 @@ occasional clash and say in your README that the fix is one line:
 `nebelhaus.roster.<id>.key = "y";` — or `null`, which keeps the app installed and
 reachable from ⌘Space while claiming no letter at all.
 
-**2. `appId` is the one field a pack usually can't fill in.** It's the bundle id
+**2. The consumer already has the app — and that fails differently than a key
+clash.** Bite 1 is two entries fighting over a *letter*. This is one entry:
+`roster.obsidian` declared by both the pack and the host, which is the likelier
+case, because a pack is worth publishing precisely when its apps are popular.
+There's no assertion to reach — the module system stops first, per field:
+
+```
+error: The option `nebelhaus.roster.obsidian.key' has conflicting definition values:
+- In `…/hosts/mbp': "n"
+- In `…/packs/writing.nix': "o"
+Use `lib.mkForce value` or `lib.mkDefault value` to change the priority…
+```
+
+Take that suggestion literally — in the **host**, which unlike a pack is an
+ordinary module and can call `lib`. Force only the fields you disagree with:
+
+```nix
+{ lib, ... }:                                    # add lib to your host's args
+{
+  nebelhaus.roster.obsidian.key = lib.mkForce "n";
+}
+```
+
+The rest of the pack's entry survives intact — Obsidian keeps the pack's
+workspace, pill and `appId`, and just answers to your letter. One `mkForce` per
+disputed field, not per entry.
+
+What a pack author can do about it: keep entries minimal. Every optional field
+you set is a field a consumer may have to force, so leave `workspace`,
+`barIcon` and `appId` null unless the pack genuinely needs them.
+
+**3. `appId` is the one field a pack usually can't fill in.** It's the bundle id
 AeroSpace matches on to herd a window to its workspace, it isn't in Homebrew's
 cask metadata, and a guessed one produces a rule that silently never matches.
 Leave it null and say so: null costs *only* auto-assignment — the leader key,
@@ -90,7 +124,7 @@ the workspace, the pill and the cheatsheet row all still work. The consumer
 closes it once the app is installed, with
 `osascript -e 'id of app "Obsidian"'`.
 
-**3. A pack cannot install from Nixpkgs.** `roster.*.package` is typed as a
+**4. A pack cannot install from Nixpkgs.** `roster.*.package` is typed as a
 package, and reaching `pkgs` is exactly what data-only forbids — the same limit
 the rice hit on `fonts.mono.package`. Homebrew (`cask`, `brew`) and the App Store
 (`appStoreId`) are fully expressible; a pack of Nixpkgs tools is not, today.
