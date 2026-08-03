@@ -18,6 +18,26 @@
         "type": "github"
       }
     },
+    "holt": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1785791115,
+        "narHash": "sha256-PBB3KXRRu4Tim3UkOvQzD4D8p3e8hJuv5QrcaoiuoAo=",
+        "owner": "nebelhaus",
+        "repo": "holt",
+        "rev": "0bf96a67ea9bc4a15b71093bdaac878b4850d50f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nebelhaus",
+        "repo": "holt",
+        "type": "github"
+      }
+    },
     "home-manager": {
       "inputs": {
         "nixpkgs": [
@@ -206,6 +226,7 @@
     "root": {
       "inputs": {
         "catppuccin": "catppuccin",
+        "holt": "holt",
         "home-manager": "home-manager",
         "nebelung": "nebelung",
         "nix-darwin": "nix-darwin",

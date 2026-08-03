@@ -275,6 +275,16 @@ in
       # host's settings.json) point at this. Self-contained — no repo/flake/bench.
       (writeShellScriptBin "wt" (builtins.readFile ./wt.sh))
 
+      # holt — the same tool as a standalone Go binary, and `wt`'s successor.
+      # BOTH ship, deliberately: they read and write the SAME registry.tsv, so
+      # with both on PATH the cutover is repointing callers one at a time and
+      # the rollback is repointing them back — no migration in either
+      # direction. `wt` is frozen (bugfixes only) and goes away once the Claude
+      # Code worktree hooks have been repointed by hand and a few panes have
+      # opened and closed on holt without incident. Those hooks live in
+      # ~/.claude/settings.json, which the rice deliberately never writes.
+      holt
+
       # `zscratch` — feel-test a candidate zellij config / layout / plugin.wasm in
       # a throwaway session in its OWN Ghostty window, WITHOUT a rebuild. Renders
       # your edit over a copy of the live ~/.config/zellij into a temp config-dir

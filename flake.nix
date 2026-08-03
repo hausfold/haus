@@ -54,6 +54,16 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # The agent-worktree substrate — `wt` extracted as a standalone Go binary.
+    # Its overlay puts `holt` in pkgs; den ships it on PATH beside the frozen
+    # `wt`, so the two coexist for as long as the cutover needs them to. holt
+    # reads the SAME registry.tsv `wt` writes, so switching either direction
+    # loses nothing.
+    holt = {
+      url = "github:nebelhaus/holt";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     nix-index-database = {
       url = "github:nix-community/nix-index-database";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -71,6 +81,7 @@
       pounce,
       trill,
       perch,
+      holt,
       nix-index-database,
     }:
     let
@@ -120,6 +131,7 @@
                 pounce.overlays.default
                 trill.overlays.default
                 perch.overlays.default
+                holt.overlays.default
               ];
             }
             home-manager.darwinModules.home-manager
