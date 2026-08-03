@@ -6,15 +6,21 @@
 #
 # Two subcommands:
 #
-#   geom [--pct N | --w PX --h PX]
+#   geom [--pct N | --w PX --h PX | --match-frontmost]
 #       Print "X Y W H": a window of the requested size, centered on the
 #       VISIBLE frame (menubar/dock excluded) of whichever display the cursor
 #       is on right now. Multi-monitor aware; coords are Ghostty/AppKit
 #       top-left origin. --pct sizes the window to N% of the visible frame.
+#       --match-frontmost instead returns the frame of the window that is on
+#       top RIGHT NOW — the one whose keystroke summoned us — so the popup
+#       covers its summoner exactly instead of landing at some fraction of the
+#       screen (this is what Super-y peek wants). Falls back to a centered 80%
+#       if that frame can't be read.
 #       Callers that manage their own window (peek's warm-path teleport and its
 #       --macos-hidden cold spawn) consume this for the centering MATH only.
 #
-#   spawn --title T [--pct N | --w PX --h PX] [--cols N --rows N] [--pin]
+#   spawn --title T [--pct N | --w PX --h PX | --match-frontmost]
+#         [--cols N --rows N] [--pin]
 #         --command CMD [-- EXTRA ghostty args…]
 #       Spawn a fresh Ghostty INSTANCE running CMD, centered at that geometry,
 #       and print its pid. macOS forces this exact shape:
@@ -35,6 +41,40 @@ set -u
 # explicit rather than trust the inherited environment.
 export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/usr/bin:/bin:$PATH"
 
+# ── frame of the window that's on top right now ─────────────────────────────
+# Emits "X Y W H" for the frontmost window of the frontmost application — the
+# window whose keystroke summoned us — in the SAME top-left-origin coord system
+# geom() emits and spawn()'s AppleScript consumes, so the two are drop-in
+# interchangeable. Silent (empty) on any failure — no frontmost app, a process
+# with no windows, a nonsense frame — which is the caller's cue to fall back to
+# centered geometry rather than place a window at 0×0.
+frontmost_frame() {
+  local out x y w h
+  out=$(osascript 2>/dev/null <<'APPLESCRIPT'
+tell application "System Events"
+  set fronts to (every application process whose frontmost is true)
+  if (count of fronts) is 0 then return ""
+  tell item 1 of fronts
+    if (count of windows) is 0 then return ""
+    set {px, py} to position of window 1
+    set {pw, ph} to size of window 1
+    set out to ((px as integer) as text) & " " & ((py as integer) as text)
+    set out to out & " " & ((pw as integer) as text)
+    set out to out & " " & ((ph as integer) as text)
+    return out
+  end tell
+end tell
+APPLESCRIPT
+)
+  read -r x y w h <<< "${out:-}"
+  # Sanity gate: a real terminal window, not a menubar extra or a zero-size
+  # stub. Only w/h are checked — x/y are legitimately negative on a display
+  # sitting left of / above the primary one.
+  case "${w:-x}${h:-x}" in *[!0-9]*) return 0 ;; esac
+  [ "$w" -ge 200 ] && [ "$h" -ge 200 ] && echo "$x $y $w $h"
+  return 0
+}
+
 # ── centered geometry on the cursor's screen ────────────────────────────────
 # Emits "X Y W H" for a WIN_W×WIN_H window centered on the visible frame of the
 # display under the cursor. Pass either an explicit pixel size or a percentage.
@@ -45,9 +85,22 @@ geom() {
       --pct) mode="pct"; arg="$2"; shift 2 ;;
       --w)   mode="px";  W_PX="$2"; shift 2 ;;
       --h)             H_PX="$2"; shift 2 ;;
+      --match-frontmost) mode="match"; shift ;;
       *) shift ;;
     esac
   done
+
+  # Cover-the-summoner mode short-circuits the centering math entirely; if the
+  # frame comes back unreadable, degrade to the old centered default.
+  if [ "$mode" = "match" ]; then
+    local matched
+    matched=$(frontmost_frame)
+    if [ -n "$matched" ]; then
+      echo "$matched"
+      return 0
+    fi
+    mode="pct"; arg="80"
+  fi
 
   # Frame of the cursor's screen in Ghostty's top-origin coord system. `frame`
   # would include the menu bar / dock; `visibleFrame` excludes them so a
@@ -92,9 +145,36 @@ geom() {
   echo "$(( sx + (sw - win_w) / 2 )) $(( sy + (sh - win_h) / 2 )) $win_w $win_h"
 }
 
+# ── drive a window to an exact frame over AX ─────────────────────────────────
+# set_frame PID X Y W H [TRIES] — poll until AX exposes the process's window,
+# then plant it at the requested frame. Size is set, then position, then size
+# AGAIN: AppKit clamps a resize that would run past a screen edge, so a window
+# moved after being sized can come out short. The second set, now that the
+# origin is right, is what makes "cover it perfectly" actually perfect.
+set_frame() {
+  local pid="$1" x="$2" y="$3" w="$4" h="$5" tries="${6:-100}"
+  osascript >/dev/null 2>&1 <<APPLESCRIPT
+tell application "System Events"
+  tell (first process whose unix id is $pid)
+    repeat $tries times
+      try
+        if (count windows) > 0 then
+          set size of window 1 to {$w, $h}
+          set position of window 1 to {$x, $y}
+          set size of window 1 to {$w, $h}
+          exit repeat
+        end if
+      end try
+      delay 0.02
+    end repeat
+  end tell
+end tell
+APPLESCRIPT
+}
+
 # ── spawn a fresh centered instance ─────────────────────────────────────────
 spawn() {
-  local title="" command="" pin=0 cols="" rows=""
+  local title="" command="" pin=0 cols="" rows="" match=0
   local -a size_args=() extra=()
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -106,6 +186,7 @@ spawn() {
       --pct)     size_args=(--pct "$2"); shift 2 ;;
       --w)       size_args+=(--w "$2"); shift 2 ;;
       --h)       size_args+=(--h "$2"); shift 2 ;;
+      --match-frontmost) size_args=(--match-frontmost); match=1; shift ;;
       --)        shift; extra=("$@"); break ;;
       *) shift ;;
     esac
@@ -141,24 +222,7 @@ spawn() {
   done
 
   # Set the real frame the moment AX exposes the window (CLI flags don't stick).
-  if [ -n "$new_pid" ]; then
-    osascript >/dev/null 2>&1 <<APPLESCRIPT
-tell application "System Events"
-  tell (first process whose unix id is $new_pid)
-    repeat 100 times
-      try
-        if (count windows) > 0 then
-          set size of window 1 to {$win_w, $win_h}
-          set position of window 1 to {$pos_x, $pos_y}
-          exit repeat
-        end if
-      end try
-      delay 0.02
-    end repeat
-  end tell
-end tell
-APPLESCRIPT
-  fi
+  [ -n "$new_pid" ] && set_frame "$new_pid" "$pos_x" "$pos_y" "$win_w" "$win_h"
 
   # Aerospace cleanup: pull the window back to the source workspace (if asked)
   # and force-float it. Runs after positioning so we don't fight our own AS.
@@ -173,6 +237,16 @@ APPLESCRIPT
     fi
     sleep 0.03
   done
+
+  # Flipping a window to floating makes aerospace restore its REMEMBERED
+  # floating frame, which would undo the placement above. Harmless when we only
+  # wanted "roughly centered", fatal when the whole point is covering the
+  # summoning window pixel-for-pixel — so in --match-frontmost mode, let
+  # aerospace have its say and then plant the frame again, last word ours.
+  if [ "$match" = 1 ] && [ -n "$new_pid" ]; then
+    sleep 0.05
+    set_frame "$new_pid" "$pos_x" "$pos_y" "$win_w" "$win_h" 1
+  fi
 
   echo "$new_pid"
 }

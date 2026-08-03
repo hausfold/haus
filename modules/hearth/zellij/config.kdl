@@ -162,12 +162,17 @@ keybinds {
         // yazi as a floating overlay — appears on top of the tiled claude panes,
         // dismissed with q, leaving the tiled layout untouched.
         //
-        // Super y  — Peek: file browser rooted at the focused pane's cwd (its
-        //            repo). Live markdown/code preview; Enter on a FILE pages it
-        //            fullscreen, Enter on a DIRECTORY opens a new zellij tab
-        //            cwd'd there (the old Super-Shift-t picker, now folded in —
-        //            l/→ still descends to browse). See peek-run.sh + the
-        //            peek-open yazi plugin.
+        // Super y  — Peek: file browser rooted at the focused pane's cwd — but
+        //            next to a claude --worktree pane it opens at the repo's
+        //            MAIN checkout instead, the same hop Super p does (the
+        //            agent's throwaway dir is no place to go browsing). The
+        //            panel covers the summoning terminal window exactly, so it
+        //            reads as that window switching modes. Live markdown/code
+        //            preview; Enter on a FILE pages it fullscreen, Enter on a
+        //            DIRECTORY opens a new zellij tab cwd'd there (the old
+        //            Super-Shift-t picker, now folded in — l/→ still descends
+        //            to browse). See peek.sh / peek-run.sh + the peek-open yazi
+        //            plugin.
         bind "Super y" {
             Run "@HOME@/.config/zellij/peek.sh" {
                 floating true
@@ -175,13 +180,16 @@ keybinds {
                 x "100%"; y "100%"; width "1%"; height "1%"
             }
         }
-        // Super Shift y — Jump: browse, quit, and the float becomes a shell in
-        //            the directory you landed on. Scratch terminal on demand.
+        // Super Shift y — Peek that STAYS in the focused pane's cwd, hop and all
+        //            suppressed: the no-hop sibling of Super y, for when you DO
+        //            want to browse an agent's worktree checkout. Exactly the
+        //            Super p / Super Shift p relationship, one letter over.
+        //            Reaches zellij because ghostty/config unbinds cmd+shift+y.
         bind "Super Shift y" {
-            Run "@HOME@/.config/zellij/yazi-shell.sh" {
+            Run "@HOME@/.config/zellij/peek.sh" "--stay" {
                 floating true
-                name "shell"
-                x "5%"; y "5%"; width "90%"; height "90%"
+                close_on_exit true
+                x "100%"; y "100%"; width "1%"; height "1%"
             }
         }
         // Super t — New tab at $HOME, wherever the focused pane lives: the
