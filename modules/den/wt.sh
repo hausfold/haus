@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # wt — manage coding-agent worktrees, for ANY git repo.
 #
-# `claude --worktree` (the Super-c / ⌘C zellij bind) fires Claude Code's
+# `claude --worktree` (the Super-a / ⌘A zellij bind) fires Claude Code's
 # WorktreeCreate/WorktreeRemove hooks; this script is what they call. It keeps
 # agent checkouts under ~/.cache/claude-worktrees/<repo>/<name> (out of the repo
 # so trees stay clean) on branch worktree-<name>, and — crucially — makes
@@ -19,9 +19,9 @@
 #                     and N commits have landed on it SINCE — un-shipped work that
 #                     no PR covers any more. `wt reship <name>` opens the follow-up.
 #   wt new [name]     make a worktree of THIS repo and open the default agent in
-#                     it — the client-agnostic ⌘C. Claude Code does this itself
+#                     it — the client-agnostic ⌘A. Claude Code does this itself
 #                     with `--worktree`; Codex and OpenCode have no such flag, so
-#                     hearth binds Super c here when the default isn't Claude.
+#                     hearth binds Super a here when the default isn't Claude.
 #   wt <name>         resume one: rebuild its checkout + reopen its agent chat
 #   wt resume <name>  (the same thing, spelled out)
 #   wt reap           sweep every LANDED worktree NOW — parked ones, plus clean &
@@ -532,7 +532,7 @@ note_relanded() { # note_relanded <main> <branch> — record a branch the sweep 
 
 # reap_sweep <parked|all> — the idempotent counterpart to the WorktreeRemove hook.
 # The hook only fires on Claude's own graceful worktree teardown; anything else
-# that ends a pane (a manual `zellij close-pane`, a reboot, a crash, ⌘C churn) or
+# that ends a pane (a manual `zellij close-pane`, a reboot, a crash, ⌘A churn) or
 # a `wt child` cross-repo checkout bypasses it, so merged worktrees pile up. This
 # sweep reaps them independent of pane lifecycle. Sets REAPED to a newline list of
 # "<name> (<repo>)" for what it dropped.
@@ -615,7 +615,7 @@ add_worktree() { # add_worktree <repo-dir> <name> <dir> — the `worktree add` e
   # A repo whose HEAD is still unborn — freshly `git init`ed, not one commit in it
   # yet — has nothing to branch FROM, so the plain form below dies with "fatal:
   # invalid reference: HEAD". That reached the user as a pane that refused to open
-  # a session at all, the first time they pointed Super c at a brand-new repo.
+  # a session at all, the first time they pointed Super a at a brand-new repo.
   # Nothing is wrong with such a repo; it just has no history, so start the branch
   # without one: --orphan hands the worktree the same unborn-branch state the main
   # checkout is in, the agent's first commit becomes that branch's root, and the
@@ -690,10 +690,10 @@ cmd_child() { # wt child <repo-path> [name] — worktree of ANOTHER repo, as a c
 }
 
 cmd_new() { # wt new [name] [agent] — worktree of THIS repo, then open the agent in it
-  # The client-agnostic ⌘C. Claude Code has a native `--worktree` flag that fires
+  # The client-agnostic ⌘A. Claude Code has a native `--worktree` flag that fires
   # the create hook above; Codex and OpenCode have nothing like it, so a rice
   # whose default agent is one of those had a headline keybind that launched a
-  # client the machine may not even have installed. hearth binds Super c here
+  # client the machine may not even have installed. hearth binds Super a here
   # instead whenever the default isn't Claude — same worktree, same registry, same
   # parking and reaping, just driven from the outside.
   #

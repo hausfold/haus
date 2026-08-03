@@ -7,7 +7,7 @@
 #          rice-nag (⇡N — commits your pinned nebelhaus is behind, `haus update`)
 #          · ctx% · cost · permission-mode icon (blank auto, ⏵ default, ⏵⏵ accept,
 #          ⏵⏵⏵ bypass, ⏸ plan, ⊘ dontAsk) · model tier chip (O5 / S5 / H45 / F5).
-# Row 2+ : the worktrees THIS session spawned (its direct children via ⌘C /
+# Row 2+ : the worktrees THIS session spawned (its direct children via ⌘A /
 #          `claude --worktree`), across whatever repos they live in — each as
 #          repo, PR number (left of the name, colored by PR state), name, and
 #          the same status token as row 1.
@@ -235,7 +235,7 @@ mode=${mode%\"}
 # letter, which is still more than the old flag gave.
 #
 # Rides the RIGHT-edge tail group (ctx% · cost · mode), NOT the row-1 bullet:
-# model is per-SESSION (each ⌘C pane is its own session; --model / mid-session
+# model is per-SESSION (each ⌘A pane is its own session; --model / mid-session
 # /model switches), a per-pane constant that pairs naturally with the other
 # per-pane chips — and it frees the bullet to carry the worktree's git status.
 # Per-pane by design: any global surface (a rewritten custom-theme file) would

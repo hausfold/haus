@@ -96,18 +96,29 @@ keybind = cmd+f=unbind
 keybind = cmd+shift+f=unbind
 # cmd+enter → zellij "Super Enter" (toggle the focused pane fullscreen), which
 # is where pane zoom moved when ⌘F went back to meaning find. Ghostty binds
-# nothing here today; unbind it defensively, same as cmd+shift+c, so a future
+# nothing here today; unbind it defensively, same as cmd+shift+a, so a future
 # release can't claim the chord out from under the multiplexer.
 keybind = cmd+enter=unbind
-# cmd+c → zellij "Super c" (spawn a claude --worktree agent). Unbinding drops
-# ghostty's copy-on-cmd+c, but our copy path is zellij selection → copy_command
-# (copy-clean.pl), not ghostty's raw-grid copy, so normal copying is unaffected.
-keybind = cmd+c=unbind
-# cmd+shift+c → zellij "Super Shift c" (the same claude --worktree agent, but
-# replacing the focused pane instead of splitting beside it). Ghostty binds
-# nothing here today, so this unbind is purely defensive: it guarantees the
-# chord keeps reaching zellij if a future ghostty release claims it.
-keybind = cmd+shift+c=unbind
+# cmd+a → zellij "Super a" (spawn an isolated AGENT in its own worktree).
+# Ghostty binds cmd+a to select_all by default — unbind it so the chord reaches
+# zellij. (The agent lived on ⌘C until it was rebound to ⌘A for "agent", which
+# also let ⌘C go back to meaning copy — see the cmd+c line below.)
+keybind = cmd+a=unbind
+# cmd+shift+a → zellij "Super Shift a" (the same isolated agent, but replacing
+# the focused pane instead of splitting beside it). Ghostty binds nothing here
+# today, so this unbind is purely defensive: it guarantees the chord keeps
+# reaching zellij if a future ghostty release claims it.
+keybind = cmd+shift+a=unbind
+# cmd+c → ghostty's own copy, deliberately. This chord (and cmd+shift+c) used to
+# be unbound so they'd reach zellij as the agent-spawn binds; those moved to
+# ⌘A / ⇧⌘A ("a" for agent), which frees ⌘C to mean here what it means in every
+# other app on the machine. Bound explicitly rather than left to ghostty's
+# default, so the intent sits on the page beside the unbinds and no future
+# default change can take it away. The everyday copy path is still zellij's own
+# — a mouse selection is piped through copy_command (copy-clean.pl) on release;
+# ⌘C is the ghostty-level fallback, for a ghostty-level (⇧-drag) selection.
+# cmd+shift+c is simply released back to ghostty, which binds nothing to it.
+keybind = cmd+c=copy_to_clipboard
 # cmd+l → zellij "Super l": open Pounce Links command for the focused pane.
 keybind = cmd+l=unbind
 # cmd+r → zellij "Super r": gracefully quit/reopen Ghostty, then rebuild the

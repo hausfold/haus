@@ -65,13 +65,18 @@ load_plugins {
 
 keybinds {
     shared {
-        // Super c — spawn an ISOLATED agent in its own checkout, so parallel
+        // Super a — spawn an ISOLATED agent in its own checkout, so parallel
         // agents never move this checkout's branch out from under each other.
         // Merge/inspect their branches from the main checkout; `bench status`
-        // lists them. Cmd c reaches zellij as Super c because ghostty/config
-        // unbinds cmd+c; the status-bar fork renders the "Super + c" hint next
-        // to pane/tab in the bottom-right (it resolves the key from whichever
-        // spelling below is live).
+        // lists them. Cmd a reaches zellij as Super a because ghostty/config
+        // unbinds cmd+a (its select_all); the status-bar fork renders the
+        // "Super + a" hint next to pane/tab in the bottom-right (it resolves the
+        // key from whichever spelling below is live).
+        //
+        // "a" for AGENT, not "c" for Claude: this whole family used to live on
+        // ⌘C, from back when Claude Code was the only client it could start. It
+        // now starts whichever client nebelhaus.agents.default names, and ⌘C is
+        // back to being copy in ghostty (see hearth's ghostty/config).
         //
         // @AGENT_NEW@ is rendered by hearth from nebelhaus.agents.default:
         //   claude   → `claude --worktree`, its NATIVE flag, which fires the
@@ -86,28 +91,28 @@ keybinds {
         // permissions.defaultMode = "auto" in ~/.claude/settings.json (the
         // claudeCodePermissionMode activation), so agents run unattended with
         // background safety checks rather than the old blanket bypass.
-        bind "Super c" { Run @AGENT_NEW@; }
-        // Super Shift c — the same isolated agent, but IN PLACE of the focused
+        bind "Super a" { Run @AGENT_NEW@; }
+        // Super Shift a — the same isolated agent, but IN PLACE of the focused
         // pane instead of splitting beside it: for when the tab is already as
         // subdivided as you want it and this pane's job is done. Zellij
         // *suppresses* the replaced pane rather than killing it (same mechanism
         // as opening scrollback in an editor), so nothing is lost — when the
         // agent exits, close_on_exit drops its pane and the original shell
         // comes back exactly where it was, scrollback intact. cwd is inherited
-        // from the pane being replaced, same as Super c. Reaches zellij with no
-        // ghostty change needed (ghostty binds nothing to cmd+shift+c), but
+        // from the pane being replaced, same as Super a. Reaches zellij with no
+        // ghostty change needed (ghostty binds nothing to cmd+shift+a), but
         // ghostty/config unbinds it anyway so a future default can't steal it.
-        bind "Super Shift c" {
+        bind "Super Shift a" {
             Run @AGENT_NEW@ {
                 in_place true
                 close_on_exit true
             }
         }
-        // Ctrl Alt Shift c — the resident agent: works IN this checkout, on
+        // Ctrl Alt Shift a — the resident agent: works IN this checkout, on
         // whatever branch you're looking at. At most one per tab, by
         // convention — it's the only agent allowed to touch the real tree.
         // @AGENT_HERE@ is nebelhaus.agents.default's client, plain.
-        bind "Ctrl Alt Shift c" { Run @AGENT_HERE@; }
+        bind "Ctrl Alt Shift a" { Run @AGENT_HERE@; }
         // Super p — New pane, inheriting the focused pane's cwd — except next
         //            to a claude --worktree pane: hearth's zshrc notices a
         //            fresh shell starting inside ~/.cache/claude-worktrees and

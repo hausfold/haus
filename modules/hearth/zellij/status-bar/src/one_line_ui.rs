@@ -80,7 +80,7 @@ pub fn one_line_ui(
     .map(|mode_key_indicators| append(&mode_key_indicators, &mut max_len))
     .and_then(|_| match help.mode {
         // Unlocked (Normal): the full mode ribbon on the left already spells
-        // out every submode, so the bottom-right `Super + <c,p,t,y,f>` launcher
+        // out every submode, so the bottom-right `Super + <a,p,t,y,f>` launcher
         // block is just clutter here — leave the right side empty. The hints
         // still render in Locked, where the ribbon collapses to the lone
         // unlock key and the reminder earns its space.
@@ -858,15 +858,15 @@ fn should_show_focus_and_resize_shortcuts(tab_info: Option<&TabInfo>) -> bool {
 fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usize) -> LinePart {
     let binds = &help.get_mode_keybinds();
     // Fork: the bottom-right quick hints are condensed to a single flat block —
-    // ` Super + <c,p,t,y,l,f,Enter> ` — the launchers plus find and fullscreen
-    // (c = a new agent worktree, p = new pane, t = new tab, y = yazi peek,
+    // ` Super + <a,p,t,y,l,f,Enter> ` — the launchers plus find and fullscreen
+    // (a = a new agent worktree, p = new pane, t = new tab, y = yazi peek,
     // l = pounce links, f = find, Enter = fullscreen toggle): keys only, no
     // word-labels and no powerline ribbons.
     // What each key does lives in the web docs / cheatsheet (nebelhaus.com), not
     // spelled out on the bar. Keys are still resolved from the live binds (via
     // run_bind_key / action_key), so a rebind re-letters the block; only the
     // labels and the Floating/Focus/Resize hints were dropped versus upstream.
-    // The `c` launcher is "start an agent", not "start Claude": hearth renders
+    // The `a` launcher is "start an agent", not "start Claude": hearth renders
     // that bind from nebelhaus.agents.default, so it is `claude --worktree` on a
     // Claude machine and `wt new` on a Codex/Opencode one. Try each spelling and
     // take the first that resolves — matching only the Claude one used to blank
@@ -1284,7 +1284,7 @@ fn add_shortcut_with_inline_key(
 // Fork: find the key bound to a `Run` command, so the bottom-right hints can
 // surface our custom launchers (claude --worktree, yazi peek) next to New Pane
 // / New Tab. Matches on the command basename (+ an optional required arg) so a
-// rebind (e.g. Super c / Super y) still resolves.
+// rebind (e.g. Super a / Super y) still resolves.
 //
 // Gotcha: a `bind { Run "…"; }` does NOT reach a plugin as `Action::Run`.
 // zellij rewrites a Run keybind into the pane it opens before handing the
@@ -1299,7 +1299,7 @@ fn run_bind_key(
 ) -> Vec<KeyWithModifier> {
     // Collect EVERY bind running this command, then prefer the un-shifted one —
     // the same rule the NewTab hint needs, for the same reason: `claude
-    // --worktree` is bound twice (Super c splits a new pane, Super Shift c
+    // --worktree` is bound twice (Super a splits a new pane, Super Shift a
     // replaces the focused one), and taking the first match would let bind order
     // decide whether the bar reads `c` or `Shift c`. The hint block is the
     // un-shifted launcher row, so Shift only wins if nothing else matched.
