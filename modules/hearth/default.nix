@@ -25,7 +25,7 @@ let
   # How the zellij binds and the `c` alias spell "start an agent". Only Claude
   # Code can make its own worktree (`--worktree`, which fires the `wt`
   # WorktreeCreate hook); for the others `wt new` does it from the outside, so
-  # Super c behaves the same whichever client the machine defaults to. Rendered
+  # Super a behaves the same whichever client the machine defaults to. Rendered
   # into config.kdl's @AGENT_NEW@ (@AGENT_HERE@ is just agentDefault).
   agentNewRun = if agentDefault == "claude" then ''"claude" "--worktree"'' else ''"wt" "new"'';
 
@@ -75,7 +75,7 @@ let
     # Agent worktrees & the `wt` tool
 
     `wt` (shipped by this rice, on PATH) manages Claude Code **agent worktrees**
-    for any git repo. `Super c` (⌘C) spawns each agent into its own isolated
+    for any git repo. `Super a` (⌘A) spawns each agent into its own isolated
     checkout on a `worktree-<name>` branch, so parallel agents never fight over a
     single checkout. Closing a pane never loses work — uncommitted edits are
     parked as a `wip:` commit and only already-merged branches are reaped. Resume

@@ -10,7 +10,7 @@
 # zellij session's tab for that repo.
 #
 # Why it exists: the same thing by hand is caps→t to a terminal, find the repo's
-# tab, cd, ⌘C for an agent pane, then type the prompt — and the worktree ends up
+# tab, cd, ⌘A for an agent pane, then type the prompt — and the worktree ends up
 # with whatever name Claude generated (`luminous-twirling-codd`), which is the
 # name you then have to recognise in `wt`, in the statusline, and on the branch.
 # Naming it from the prompt is the whole point; the palette is just the shortest

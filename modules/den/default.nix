@@ -237,7 +237,7 @@ in
     ]
     ++ lib.optionals devCfg.agents.enable [
       # `wt` — manages Claude Code agent worktrees: closing a `claude --worktree`
-      # pane (hearth's Super-c bind) never loses uncommitted work, and every
+      # pane (hearth's Super-a bind) never loses uncommitted work, and every
       # session stays resumable. Ships here because the rice already provides the
       # worktree keybinds; the WorktreeCreate/WorktreeRemove hooks (wired in your
       # host's settings.json) point at this. Self-contained — no repo/flake/bench.
