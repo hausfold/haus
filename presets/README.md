@@ -33,8 +33,26 @@ darwinConfigurations.myhost = nebelhaus.mkNebelhaus {
 };
 ```
 
-Your host file still wins — it's imported after, so any option you set there
-overrides the preset. Compose several by listing them; later ones win.
+Your host file can override anything a preset sets, but "imported after" is not
+the mechanism — import order carries no priority in the module system. An option
+the preset leaves alone is yours to set outright; an option it *does* set is a
+conflict until you say `lib.mkForce`:
+
+```nix
+{ lib, ... }:                                   # add lib to your host's args
+{
+  nebelhaus.ui.scale = lib.mkForce 1.0;         # large-print sets this
+  nebelhaus.git.email = "you@example.com";      # no preset sets this — plain
+}
+```
+
+Composing several presets follows the same rule, so it works exactly as far as
+they stay out of each other's way. `everyday` + `large-print` compose because
+they answer different questions; `everyday` + `minimal` do not — they both
+answer "is pounce on this machine", and the build stops with a conflict on
+`nebelhaus.pounce.enable` rather than quietly taking the last one. That's the
+intended behaviour: two presets disagreeing about the machine is a question only
+you can settle.
 
 ## What's here
 
