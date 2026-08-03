@@ -225,7 +225,22 @@ fi
 
 # ── click: show expanded info for all reporting providers ─────────────────────
 if [ "${SENDER:-}" = "mouse.clicked" ]; then
+  # Closing is just hiding: a click while the popup is UP must not rebuild the
+  # rows first. This pill draws ~16 of them, and the old code spent one
+  # sketchybar invocation per row — each one a re-layout of a popup the user can
+  # see — so closing it flashed through a shrink/regrow before finally toggling
+  # off. Query the current state and take the cheap path out; the rows are
+  # rebuilt on the way back IN, where the popup is hidden and nothing shows.
+  if [ "$(sketchybar --query "$ITEM_NAME" 2>/dev/null | jq -r '.popup.drawing')" = "on" ]; then
+    sketchybar --set "$ITEM_NAME" popup.drawing=off
+    exit 0
+  fi
+
   sketchybar --remove "/${ITEM_NAME}\.popup\..*/" 2>/dev/null
+  # Every row below is accumulated into ARGS and handed to ONE sketchybar call at
+  # the end, so the popup appears fully formed in a single repaint instead of
+  # growing a row at a time.
+  ARGS=()
   i=0
   for f in "${files[@]}"; do
     val5=0; valw=0; r5=0; rw=0; stamp=0; prov="claude"; model=""; prov_id=""
@@ -246,26 +261,26 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
     p_icon="$P_ICON"; p_font="$P_FONT"; p_name="$P_NAME"
 
     # Provider header row
-    sketchybar --add item "${ITEM_NAME}.popup.$i" popup.${ITEM_NAME} 2>/dev/null \
-      --set "${ITEM_NAME}.popup.$i" \
-        icon="$p_icon" icon.color="$PINK" icon.font="$p_font" \
-        icon.padding_left=10 icon.padding_right=6 \
-        label="$p_name" label.color="$TEXT" label.font="Hack Nerd Font:Bold:$FS_SMALL" \
-        background.drawing=off \
-        click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off"
+    ARGS+=(--add item "${ITEM_NAME}.popup.$i" "popup.${ITEM_NAME}"
+      --set "${ITEM_NAME}.popup.$i"
+        icon="$p_icon" icon.color="$PINK" icon.font="$p_font"
+        icon.padding_left=10 icon.padding_right=6
+        label="$p_name" label.color="$TEXT" label.font="Hack Nerd Font:Bold:$FS_SMALL"
+        background.drawing=off
+        click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off")
     i=$((i + 1))
 
     # Usage rows helper
     row() { # row <label> <val_str> [label.padding_left] — an empty label draws the
       # value alone, with no gap in front of it to be clipped (see TOKEN_INDENT)
-      sketchybar --add item "${ITEM_NAME}.popup.$i" popup.${ITEM_NAME} 2>/dev/null \
-        --set "${ITEM_NAME}.popup.$i" \
-          icon="" icon.padding_left=0 icon.padding_right=0 \
-          label="${1:+$1  }$2" label.color="$SUBTEXT0" \
-          label.font="Hack Nerd Font:Regular:$FS_SMALL" \
-          label.padding_left="${3:-22}" label.padding_right=10 \
-          background.drawing=off \
-          click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off"
+      ARGS+=(--add item "${ITEM_NAME}.popup.$i" "popup.${ITEM_NAME}"
+        --set "${ITEM_NAME}.popup.$i"
+          icon="" icon.padding_left=0 icon.padding_right=0
+          label="${1:+$1  }$2" label.color="$SUBTEXT0"
+          label.font="Hack Nerd Font:Regular:$FS_SMALL"
+          label.padding_left="${3:-22}" label.padding_right=10
+          background.drawing=off
+          click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off")
       i=$((i + 1))
     }
 
@@ -297,13 +312,13 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
     fi
 
     if [ "$f_stale" = 1 ]; then
-      sketchybar --add item "${ITEM_NAME}.popup.$i" popup.${ITEM_NAME} 2>/dev/null \
-        --set "${ITEM_NAME}.popup.$i" \
-          icon="" icon.padding_left=0 icon.padding_right=0 \
-          label="as of $((f_age / 60))m ago" label.color="$OVERLAY1" \
-          label.font="Hack Nerd Font:Italic:$FS_TINY" label.padding_left=22 label.padding_right=10 \
-          background.drawing=off \
-          click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off"
+      ARGS+=(--add item "${ITEM_NAME}.popup.$i" "popup.${ITEM_NAME}"
+        --set "${ITEM_NAME}.popup.$i"
+          icon="" icon.padding_left=0 icon.padding_right=0
+          label="as of $((f_age / 60))m ago" label.color="$OVERLAY1"
+          label.font="Hack Nerd Font:Italic:$FS_TINY" label.padding_left=22 label.padding_right=10
+          background.drawing=off
+          click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off")
       i=$((i + 1))
     fi
   done
@@ -321,18 +336,22 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
     g_n=$(( g_n + 1 ))
   done
   if [ "$g_n" -gt 1 ] && [ "$g_all" -gt 0 ]; then
-    sketchybar --add item "${ITEM_NAME}.popup.$i" popup.${ITEM_NAME} 2>/dev/null \
-      --set "${ITEM_NAME}.popup.$i" \
-        icon="∑" icon.color="$PINK" icon.font="Hack Nerd Font:Bold:14.0" \
-        icon.padding_left=10 icon.padding_right=6 \
-        label="Everything" label.color="$TEXT" label.font="Hack Nerd Font:Bold:13.0" \
-        background.drawing=off \
-        click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off"
+    ARGS+=(--add item "${ITEM_NAME}.popup.$i" "popup.${ITEM_NAME}"
+      --set "${ITEM_NAME}.popup.$i"
+        icon="∑" icon.color="$PINK" icon.font="Hack Nerd Font:Bold:14.0"
+        icon.padding_left=10 icon.padding_right=6
+        label="Everything" label.color="$TEXT" label.font="Hack Nerd Font:Bold:13.0"
+        background.drawing=off
+        click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off")
     i=$((i + 1))
     token_block "$g_d" "$g_w" "$g_m" "$g_all"
   fi
 
-  sketchybar --set ${ITEM_NAME} popup.drawing=toggle
+  # One message: every row, then reveal. Not `toggle` — the state was already
+  # settled above, and toggling off a popup whose rows we just rebuilt is exactly
+  # the double-open the flash came from if a stray click arrives mid-build.
+  [ ${#ARGS[@]} -gt 0 ] && sketchybar "${ARGS[@]}" 2>/dev/null
+  sketchybar --set "$ITEM_NAME" popup.drawing=on
   exit 0
 fi
 
