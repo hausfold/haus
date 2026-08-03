@@ -1,5 +1,5 @@
 #!/bin/bash
-# find.sh — ⌘F / ⌘/ (this pane) and ⌘⇧/ (every pane): full-text search across
+# find.sh — ⌘F (this pane) and ⌘⇧F (every pane): full-text search across
 # the zellij session, in a floating overlay, live as you type.
 #
 # WHY THIS ISN'T JUST `SwitchToMode "EnterSearch"`
@@ -13,7 +13,7 @@
 # and it's a better one anyway: complete, not truncated at scroll_buffer_size,
 # and it still holds what was inside collapsed tool output.
 #
-# zellij also has no cross-pane search of any kind, so ⌘⇧/ has nothing native
+# zellij also has no cross-pane search of any kind, so ⌘⇧F has nothing native
 # to sit on regardless.
 #
 # So: one overlay, both keys, both pane kinds. Native search stays reachable on

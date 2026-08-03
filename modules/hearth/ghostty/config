@@ -90,17 +90,10 @@ keybind = cmd+shift+t=unbind
 # unbind is what lets ⌘F mean here what it means in every other app on the
 # machine. (Pane fullscreen used to live on this chord; it moved to cmd+enter.)
 keybind = cmd+f=unbind
-# cmd+/ and cmd+shift+/ → zellij "Super /" and "Super Shift /": the same find
-# overlay, entered at pane and session scope respectively. `/` is the terminal's
-# own search key (less, vim, man, fzf), which is why it gets to be the alias.
-#
-# ⚠ cmd+shift+/ IS ⌘? — the shortcut AppKit installs on the Help menu of every
-# Mac app. Ghostty's own keybind should win over a menu key equivalent, and this
-# unbind only settles Ghostty's side of it. If a future macOS takes the chord
-# back, nothing is actually lost: Ctrl-s toggles scope from inside the overlay,
-# so ⌘/ still reaches every-pane search in two keystrokes.
-keybind = cmd+slash=unbind
-keybind = cmd+shift+slash=unbind
+# cmd+shift+f → zellij "Super Shift f": the same find overlay, opened across
+# every pane in the session instead of just the focused one. Ghostty binds
+# nothing here today; unbind it defensively so the chord keeps reaching zellij.
+keybind = cmd+shift+f=unbind
 # cmd+enter → zellij "Super Enter" (toggle the focused pane fullscreen), which
 # is where pane zoom moved when ⌘F went back to meaning find. Ghostty binds
 # nothing here today; unbind it defensively, same as cmd+shift+c, so a future

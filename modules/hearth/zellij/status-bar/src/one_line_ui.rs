@@ -873,15 +873,14 @@ fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usi
     // the whole hint block's first key the moment the default changed.
     let agent_key = [("claude", Some("--worktree")), ("wt", Some("new"))]
         .into_iter()
-        .map(|(cmd, arg)| run_bind_key(binds, cmd, arg, None))
+        .map(|(cmd, arg)| run_bind_key(binds, cmd, arg))
         .find(|keys| !keys.is_empty())
         .unwrap_or_default();
-    let peek_key = run_bind_key(binds, "peek.sh", None, None);
-    let links_key = run_bind_key(binds, "pounce", Some("cmd:links"), None);
-    // Find: bound three times (Super f, Super /, Super Shift /), so the hint key
-    // is pinned to `f` explicitly — the letter is the mnemonic, the slash is
-    // only an alias, and "unshifted wins" alone cannot choose between them.
-    let find_key = run_bind_key(binds, "find.sh", None, Some(BareKey::Char('f')));
+    let peek_key = run_bind_key(binds, "peek.sh", None);
+    let links_key = run_bind_key(binds, "pounce", Some("cmd:links"));
+    // Find: bound twice (Super f = this pane, Super Shift f = every pane), so
+    // run_bind_key's own "unshifted wins" rule already lands the hint on `f`.
+    let find_key = run_bind_key(binds, "find.sh", None);
 
     // Fullscreen: the single-action ToggleFocusFullscreen bind (Super Enter —
     // it moved off Super f when ⌘F went back to meaning find). Resolved from
@@ -1297,7 +1296,6 @@ fn run_bind_key(
     binds: &[(KeyWithModifier, Vec<Action>)],
     file_name: &str,
     required_arg: Option<&str>,
-    prefer: Option<BareKey>,
 ) -> Vec<KeyWithModifier> {
     // Collect EVERY bind running this command, then prefer the un-shifted one —
     // the same rule the NewTab hint needs, for the same reason: `claude
@@ -1325,21 +1323,9 @@ fn run_bind_key(
         .map(|(key, _)| key)
         .collect();
 
-    // `prefer` pins WHICH unshifted key wins when one command is bound to
-    // several. find.sh is bound to Super f, Super / and Super Shift / — all
-    // three legitimate — and get_mode_keybinds() gives no order we can lean on,
-    // so without this the block would flip between `f` and `/` from one server
-    // to the next. Same class of bug as the NewTab hint's `t` vs `Shift t`.
     matches
         .iter()
-        .find(|k| {
-            prefer.is_some_and(|p| k.bare_key == p) && !k.key_modifiers.contains(&KeyModifier::Shift)
-        })
-        .or_else(|| {
-            matches
-                .iter()
-                .find(|k| !k.key_modifiers.contains(&KeyModifier::Shift))
-        })
+        .find(|k| !k.key_modifiers.contains(&KeyModifier::Shift))
         .or_else(|| matches.first())
         .map(|k| vec![(*k).clone()])
         .unwrap_or_default()

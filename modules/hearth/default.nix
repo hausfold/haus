@@ -1396,7 +1396,7 @@ in
           source = ./zellij/new-tab-here.sh;
           executable = true;
         };
-        # ⌘F / ⌘/ / ⌘⇧/: full-text search over every pane in the session —
+        # ⌘F / ⌘⇧F: full-text search over every pane in the session —
         # agent panes through their Claude transcript (the alt-screen has no
         # scrollback to search), everything else through dump-screen. See the
         # script header for why this isn't zellij's native search.
