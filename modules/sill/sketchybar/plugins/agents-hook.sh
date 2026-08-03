@@ -31,7 +31,16 @@
 #     broadcast instead. It lives here rather than in hearth because only a hook
 #     inside the agent's own pane knows the state and the pane id.
 #
-#   usage: agents-hook.sh <working|waiting|idle|remove> [claude|codex|opencode]
+# A THIRD reader, of a SECOND file this writes:
+#   • hearth's ⌘F find overlay (modules/hearth/zellij/find.sh) — reads the
+#     optional `.session` sibling below to learn WHICH conversation a client's
+#     pane is showing, so it can search that conversation's stored history
+#     instead of the pane's scrollback (an alt-screen TUI has none, so scrollback
+#     is one screenful). Claude Code needs nothing here: claude-statusline
+#     already writes a richer pane → transcript PATH join. This is for the
+#     clients that have no statusline of their own to carry it.
+#
+#   usage: agents-hook.sh <working|waiting|idle|remove> [claude|codex|opencode] [session-id]
 set -u
 DIR=/tmp/nebelhaus-agents
 # An agent hook can arrive with a bare PATH, and the zellij broadcast below needs
@@ -62,11 +71,23 @@ fi
 sess="${ZELLIJ_SESSION_NAME:-nosession}"
 pane="terminal_${ZELLIJ_PANE_ID}"
 f="$DIR/${sess}__${pane}.state"
+# The client's own conversation id, when it passes one. Kept in a SIBLING file
+# rather than as a seventh column of `.state`: sill's pill and the tab-bar
+# broadcast both parse that line, and neither has any use for a session id — a
+# new column would be churn in two readers to serve a third. Same name, same
+# lifecycle, so `remove` cleans up both and nothing needs to learn a new path.
+sf="$DIR/${sess}__${pane}.session"
 mkdir -p "$DIR"
 
 if [ "$st" = remove ]; then
-  rm -f "$f"
+  rm -f "$f" "$sf"
 else
+  # Write-on-change only, and never blank an id we already hold: `chat.message`
+  # is the one hook that carries the session id, so the other three states
+  # (waiting/idle) arrive with argument 3 empty and must not erase it.
+  if [ -n "${3:-}" ] && [ "$(cat "$sf" 2>/dev/null)" != "$3" ]; then
+    printf '%s\n' "$3" >"$sf.$$" && mv -f "$sf.$$" "$sf"
+  fi
   # Label the agent by its checkout (worktree/repo basename) — far more useful in
   # the popup than the shared "main" session name every agent pane reports.
   # $CLAUDE_PROJECT_DIR is Claude's; every other client runs its hooks in the

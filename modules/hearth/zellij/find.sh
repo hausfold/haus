@@ -21,12 +21,19 @@
 # highlighting, which the overlay deliberately does not try to replace.
 #
 # WHERE THE TEXT COMES FROM, per pane
-#   agent pane → its Claude Code transcript, via claude-statusline's pane →
+#   Claude pane   → its Claude Code transcript, via claude-statusline's pane →
 #     transcript map (modules/den/statusline.sh writes pane-transcripts.tsv on
 #     every render — it's the one process that knows both $ZELLIJ_PANE_ID and
 #     the transcript path). Same join the Links picker uses.
+#   Opencode pane → that conversation's rows in opencode's SQLite history, via
+#     the `.session` file agent-state writes (its plugin runs inside the
+#     opencode server process, so it inherits $ZELLIJ_PANE_ID the same way),
+#     falling back to a match on the session's recorded directory. See
+#     opencode_session / render_opencode.
 #   any other pane → `zellij action dump-screen --full -p <id>`, the pane's
-#     whole scrollback.
+#     whole scrollback. That includes CODEX panes: it reports pane state through
+#     agent-state like the others, but passes no conversation id and this repo
+#     knows no on-disk history path for it, so there is nothing to join to.
 #
 # THE FOCUS DANCE (the non-obvious part)
 #
@@ -79,6 +86,17 @@ MAP="$CACHE_DIR/pane-transcripts.tsv"
 # Rendered transcripts are cached by (size, mtime) so a repeat search on a
 # multi-megabyte conversation is instant instead of another full jq pass.
 RENDER_CACHE="$HOME/.cache/nebelhaus/find/transcripts"
+# Opencode's history db. The filename moved between releases (`opencode.db` →
+# `opencode-stable.db`), so take whichever exists rather than pinning one and
+# silently degrading every opencode pane to scrollback after an upgrade.
+# Empty when opencode isn't installed, or when sqlite3 isn't around to read it.
+OPENCODE_DB=""
+if command -v sqlite3 >/dev/null 2>&1; then
+    for _db in "$HOME/.local/share/opencode/opencode-stable.db" \
+        "$HOME/.local/share/opencode/opencode.db"; do
+        [ -f "$_db" ] && OPENCODE_DB="$_db" && break
+    done
+fi
 # How long to wait for zellij focus to snap back off the launcher float.
 FOCUS_TICKS=40 # ×0.05s
 
@@ -146,14 +164,14 @@ build_corpus() {
 
     zj action list-panes --all --json 2>/dev/null |
         jq -r '.[] | select(.is_plugin == false)
-               | [(.id|tostring), (.tab_name // ""), (.title // "")] | @tsv' \
+               | [(.id|tostring), (.tab_name // ""), (.title // ""), (.pane_cwd // "")] | @tsv' \
             >"$dir/panes.raw" 2>/dev/null
 
     [ -s "$dir/panes.raw" ] || return 0
 
     : >"$dir/panes.tsv"
-    local id tab title transcript kind label
-    while IFS=$'\t' read -r id tab title; do
+    local id tab title cwd transcript ocsid kind label
+    while IFS=$'\t' read -r id tab title cwd; do
         [ -n "$id" ] || continue
         # Our own two panes are not worth searching. The launcher is usually
         # gone by now and the overlay doesn't exist yet, but a Ctrl-s rebuild or
@@ -165,8 +183,11 @@ build_corpus() {
             transcript=$(awk -F'\t' -v i="$id" '$1==i{t=$2} END{print t}' "$MAP")
 
         if [ -n "$transcript" ] && [ -f "$transcript" ]; then
-            kind="agent"
+            kind="claude"
             render_transcript "$transcript" "$dir/src/$id.txt" &
+        elif ocsid=$(opencode_session "$id" "$cwd") && [ -n "$ocsid" ]; then
+            kind="opencode"
+            render_opencode "$ocsid" "$dir/src/$id.txt" &
         else
             kind="shell"
             zj action dump-screen --full -p "$id" >"$dir/src/$id.txt" 2>/dev/null &
@@ -176,6 +197,82 @@ build_corpus() {
         printf '%s\t%s\t%s\n' "$id" "$label" "$kind" >>"$dir/panes.tsv"
     done <"$dir/panes.raw"
     wait
+}
+
+# Which opencode conversation, if any, is this pane showing?
+#
+# Two routes, most-precise first:
+#   1. The `.session` file agent-state writes (modules/sill/sketchybar/plugins/
+#      agents-hook.sh). The opencode plugin runs inside the opencode server
+#      process, which is a child of the pane, so it inherits $ZELLIJ_PANE_ID and
+#      can report the id `chat.message` hands it. Exact, and correct even with
+#      two opencode panes on the same checkout.
+#   2. Failing that, the newest non-archived session whose recorded `directory`
+#      IS this pane's cwd. Covers the pane that was already open before any of
+#      this shipped, and the one that hasn't sent a first message yet — both of
+#      which have no `.session` file and would otherwise fall to scrollback.
+#      Ambiguous if two opencode panes share a checkout; newest wins, which is
+#      the better half of a bad guess.
+#
+# Empty output (and non-zero) means "not an opencode pane", which is also what a
+# machine with no opencode at all returns on the very first test.
+opencode_session() {
+    local id="$1" cwd="$2" sf sid
+    [ -n "$OPENCODE_DB" ] || return 1
+
+    sf="/tmp/nebelhaus-agents/${SESSION}__terminal_${id}.session"
+    if [ -f "$sf" ]; then
+        sid=$(cat "$sf" 2>/dev/null)
+        [ -n "$sid" ] && printf '%s' "$sid" && return 0
+    fi
+
+    [ -n "$cwd" ] || return 1
+    sid=$(sqlite3 "$OPENCODE_DB" \
+        "SELECT id FROM session
+          WHERE directory = '$(printf '%s' "$cwd" | sed "s/'/''/g")'
+            AND time_archived IS NULL
+          ORDER BY time_updated DESC LIMIT 1;" 2>/dev/null)
+    [ -n "$sid" ] && printf '%s' "$sid" && return 0
+    return 1
+}
+
+# One opencode conversation → readable lines, newest last.
+#
+# The text lives in a JSON `data` blob per row, whose shape is opencode's
+# business and changes between versions (there are two generations of it in the
+# schema right now — the v1 `part` table and the newer `session_message`). So
+# don't parse the shape: walk it with `json_tree` and take every string leaf,
+# minus the key names that are ids and type tags. That's the same call the
+# Claude renderer makes, for the same reason, and it means an opencode release
+# that reshapes a part still searches fine.
+#
+# No cache here, unlike render_transcript: the query is indexed on session_id
+# and returns one conversation, where the Claude side re-reads a whole
+# append-only file that can run to tens of megabytes.
+#
+# `sqlite3 "$db" "..."` with no read-only flag matches statusline-refresh.sh,
+# which has been reading this same db on a timer for a while — worth staying
+# identical to the call that's known to work here rather than being cleverer
+# unverified. It's a WAL db; concurrent reads while opencode writes are fine.
+render_opencode() {
+    local sid="$1" out="$2" tables sql t
+    : >"$out"
+    tables=$(sqlite3 "$OPENCODE_DB" \
+        "SELECT name FROM sqlite_master WHERE type='table';" 2>/dev/null) || return 0
+
+    # Ids and discriminators, never prose. json_tree gives array indices as
+    # integer keys, which are not in this list and so pass through.
+    local skip="'type','id','messageID','sessionID','callID','partID','tool','status','state','mime','filename','path','url','source','providerID','modelID','agent','role','snapshot','time'"
+
+    for t in part session_message; do
+        grep -qx "$t" <<<"$tables" || continue
+        sql="SELECT tr.value FROM $t r, json_tree(r.data) tr
+              WHERE r.session_id = '$(printf '%s' "$sid" | sed "s/'/''/g")'
+                AND tr.type = 'text'
+                AND (tr.key IS NULL OR tr.key NOT IN ($skip))
+              ORDER BY r.time_created, r.id;"
+        sqlite3 "$OPENCODE_DB" "$sql" 2>/dev/null >>"$out"
+    done
 }
 
 # Transcript JSONL → readable lines. Every string inside a user/assistant
