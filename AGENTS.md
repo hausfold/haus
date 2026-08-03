@@ -198,6 +198,12 @@ points back to when it feels several PRs together.
   do it once, already knowing it works. A brand-new session name = a new zellij
   *server*, which recompiles plugin wasm from disk (a running server caches it
   in memory for its lifetime).
+- **The four zellij plugin forks** (`modules/hearth/zellij/{tab-bar,status-bar,
+  link-handler,tab-history}`) are Rust → wasm32-wasip1, and hearth builds them
+  **from source** on every rebuild (`zellijPlugins`, via `pkgsCross.wasi32`) —
+  there is no checked-in `.wasm` to re-vendor, so editing `src/` is the whole
+  job. Each dir's `build.sh` is only the dev shortcut: it prints a candidate
+  `.wasm` path to feed `zscratch --plugin <name>="$(./build.sh)"`.
 - **The den CLIs** (`modules/den`, each on `PATH` via `writeShellScriptBin`, source
   beside `default.nix`): the rice ships seven dev/user CLIs — **`haus.sh`** (the
   end-user machine driver: rebuild/update/rollback/doctor/status — knows nothing of
