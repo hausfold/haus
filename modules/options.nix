@@ -453,44 +453,46 @@ in
       # assertion in modules/prowl catches a key that collides with a roster letter
       # or a built-in launch key.
       leaderExtras = lib.mkOption {
-        type = lib.types.listOf (lib.types.submodule {
-          options = {
-            key = lib.mkOption {
-              type = lib.types.str;
-              example = "enter";
-              description = ''
-                The AeroSpace key name pressed after the leader (e.g. "enter",
-                "space", "period", or a letter). Must not collide with a roster
-                app's key or a built-in launch-mode key (the digits 1-4, the
-                arrows, `-`/`=`, `v`/`e`/`z`, `,`, `` ` ``, `/`, esc) — nor with
-                the workspace throws, which are ⇧ + any of those digits or a
-                roster letter ("shift-1", "shift-b", …). An assertion in
-                modules/prowl catches a clash rather than letting one binding
-                silently shadow another.
-              '';
+        type = lib.types.listOf (
+          lib.types.submodule {
+            options = {
+              key = lib.mkOption {
+                type = lib.types.str;
+                example = "enter";
+                description = ''
+                  The AeroSpace key name pressed after the leader (e.g. "enter",
+                  "space", "period", or a letter). Must not collide with a roster
+                  app's key or a built-in launch-mode key (the digits 1-4, the
+                  arrows, `-`/`=`, `v`/`e`/`z`, `,`, `` ` ``, `/`, esc) — nor with
+                  the workspace throws, which are ⇧ + any of those digits or a
+                  roster letter ("shift-1", "shift-b", …). An assertion in
+                  modules/prowl catches a clash rather than letting one binding
+                  silently shadow another.
+                '';
+              };
+              command = lib.mkOption {
+                type = lib.types.str;
+                example = "osascript -e 'tell application \"Things3\" to show quick entry panel'";
+                description = ''
+                  The shell command run when the leader is followed by `key`; launch
+                  mode exits afterward. It's written verbatim into a small `/bin/sh`
+                  script that AeroSpace execs, so ordinary shell rules apply — `$HOME`
+                  resolves, and single quotes (an `osascript -e '…'`, say) are safe,
+                  which they would not be inlined into AeroSpace's own config.
+                '';
+              };
+              caption = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = null;
+                example = "Things Quick Entry";
+                description = ''
+                  The Launch Mode cheatsheet caption for this action. null falls back
+                  to the raw command, which is rarely what you want — set it.
+                '';
+              };
             };
-            command = lib.mkOption {
-              type = lib.types.str;
-              example = "osascript -e 'tell application \"Things3\" to show quick entry panel'";
-              description = ''
-                The shell command run when the leader is followed by `key`; launch
-                mode exits afterward. It's written verbatim into a small `/bin/sh`
-                script that AeroSpace execs, so ordinary shell rules apply — `$HOME`
-                resolves, and single quotes (an `osascript -e '…'`, say) are safe,
-                which they would not be inlined into AeroSpace's own config.
-              '';
-            };
-            caption = lib.mkOption {
-              type = lib.types.nullOr lib.types.str;
-              default = null;
-              example = "Things Quick Entry";
-              description = ''
-                The Launch Mode cheatsheet caption for this action. null falls back
-                to the raw command, which is rarely what you want — set it.
-              '';
-            };
-          };
-        });
+          }
+        );
         default = [ ];
         example = lib.literalExpression ''
           [
@@ -665,7 +667,7 @@ in
         lifecycle, and all three light up the `agents` bar pill and the zellij
         tab-bar badge — the opencode plugin and the codex hooks are written for
         you; only Claude Code's stay yours to wire, because Claude owns its own
-        settings.json (see `nebelhaus.sill.plugins`).
+        settings.json (see `nebelhaus.sill.items.agents`).
       '';
     };
   };

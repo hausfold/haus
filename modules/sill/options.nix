@@ -86,6 +86,24 @@ in
       '';
     };
 
+    sill.elgato.host = lib.mkOption {
+      type = lib.types.str;
+      default = "";
+      example = "elgato-key-light-mini-57a3.local";
+      description = ''
+        Which Elgato Key Light the `elgato` pill toggles — a hostname or IP,
+        optionally with a `:port` (the light's HTTP API is on 9123).
+
+        Empty (the default) means discover it: the pill browses mDNS for
+        `_elg._tcp`, caches what it found in
+        `~/.local/state/nebelhaus/elgato-host`, and re-browses at most once a
+        minute whenever the light stops answering — so a light that took a new
+        DHCP address comes back on its own, without a rebuild. Pin this when
+        you have more than one light, when the light has a static lease, or
+        when mDNS is unreliable on your network.
+      '';
+    };
+
     tour.enable = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -178,14 +196,16 @@ in
           agents = "A paw pill tracking your agent-worktree panes — amber when one is blocked on you, click for the per-agent list, each row marked with the client sitting in it; left-click a row to jump to that pane, ⌥/right-click for a live `zellij subscribe` peek. Fed by each client's own lifecycle hooks, which all call `agent-state` (also installed as ~/.config/sketchybar/plugins/agents-hook.sh): Opencode's plugin and Codex's ~/.codex/hooks.json are written for you (Codex asks you to trust its hooks the first time it sees them), while Claude Code's four hooks stay yours to point at it in ~/.claude/settings.json — Claude owns that file and rewrites it, so the rice never touches your hooks. A row whose zellij pane is gone drops off by itself, which is what stands in for the session-end event Codex doesn't have. Dormant until a client fires.";
           aiUsage = "A gauge pill showing AI usage (Claude Code/Codex subscription rate limits as %, or Opencode API token cost as daily $). Automatically shows whichever provider reported most recently. Click for expanded session/weekly limits and daily/monthly API costs with model breakdowns. Claude and Opencode are read off disk; Codex has no local usage data, so its row is polled from your ChatGPT account with the OAuth token in ~/.codex/auth.json (refreshed and rewritten in place) — no Codex login on the machine, no call is made. Claude's row is pushed by its statusline; the Codex and Opencode rows are pulled by the pill itself on a 3-minute TTL, so they stay current on a machine that never opens Claude at all. Claude and Opencode also get a `tokens` block in the dropdown — raw tokens moved today, this week, this month and all time (cache reads and all), two periods to a line so a full set reads as a 2×2, purely for the fun of watching the number climb. A period with nothing in it is left out rather than printed as a zero, so the block simply gets smaller, and a closing `∑ Everything` adds every provider up when more than one is reporting. It is a score, not a limit: nothing acts on it, and it never reaches the pill's own label. Claude's is summed from your transcripts on a 15-minute TTL behind an index, so only sessions that grew since the last pass are re-read; Codex has no row because it keeps no local history to count.";
           claudeUsage = "Deprecated alias for `aiUsage`.";
-          elgato = "Toggles an Elgato Key Light on the local network.";
+          elgato = "Toggles an Elgato Key Light on the local network. The light is found over mDNS (or pinned with `nebelhaus.sill.elgato.host`), and the pill draws dim when it can't be reached at all — a light that dropped off the wifi is not the same thing as a light that's switched off.";
           harvest = "A Harvest time-tracking pill; needs a ~/.config/sketchybar/harvest_secrets.sh you provide.";
         };
-        mkItem = default: desc: lib.mkOption {
-          type = lib.types.bool;
-          inherit default;
-          description = desc;
-        };
+        mkItem =
+          default: desc:
+          lib.mkOption {
+            type = lib.types.bool;
+            inherit default;
+            description = desc;
+          };
       in
       lib.mkOption {
         type = lib.types.submodule {

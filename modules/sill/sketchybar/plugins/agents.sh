@@ -1,6 +1,6 @@
 #!/bin/bash
 # agents.sh — the reader half of the `agents` bar item (opt-in via
-# nebelhaus.sill.plugins). Surfaces the state of your agent worktree panes in the
+# nebelhaus.sill.items.agents). Surfaces the state of your agent worktree panes in the
 # menu bar so you never have to cycle zellij tabs hunting for the one that's
 # blocked on you. Client-agnostic: Claude Code, Codex and Opencode panes all
 # land here, and each popup row is marked with the client sitting in it.
