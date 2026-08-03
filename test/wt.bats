@@ -847,7 +847,18 @@ EOF
 @test "new: an uninstalled client is named, and the checkout survives to resume" {
   local b; b="$(mkrepo beta)"
   cd "$b"
-  # No shim for codex on PATH: it's the client that is missing, not the worktree.
+  # "codex is not installed" cannot be SIMULATED against this script. wt appends
+  # a bare-PATH rescue (`/etc/profiles/per-user/$USER/bin` among others) so the
+  # hooks work when Claude Code invokes it with no PATH at all — which means
+  # narrowing the caller's PATH cannot hide a client the rescue re-adds. On a box
+  # with a real codex this test was therefore failing SILENTLY: it passes in CI,
+  # where no codex exists, and has never held locally.
+  #
+  # Skipping with a reason beats a red line nobody reads. holt has no rescue path
+  # (it resolves git and gh itself), so its copy of this test narrows PATH and
+  # genuinely holds — see incubator/holt/test/holt.bats. Found while porting.
+  command -v codex >/dev/null 2>&1 &&
+    skip "a real codex is on PATH and wt's bare-PATH rescue re-adds it — 'uninstalled' is not simulable here"
   run bash "$WT" new stranded codex
   [ "$status" -ne 0 ]
   [[ "$output" == *"codex is unavailable"* ]]

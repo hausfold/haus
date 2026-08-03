@@ -221,7 +221,13 @@ points back to when it feels several PRs together.
   `wt park`/`wt unpark` set work aside as a `wip:` commit instead of `git stash`,
   whose stack is shared by every worktree of a repo, `wt reship` pushes + opens the
   follow-up PR for a branch that kept committing after its PR merged — the `+N`
-  state marker in the listing and the orange `N^` in the bar are the same fact),
+  state marker in the listing and the orange `N^` in the bar are the same fact;
+  **`wt` is FROZEN as of 2026-08-03 — bugfixes only, no new features**, because
+  it is being replaced by [holt](https://github.com/nebelhaus/workshop/tree/main/incubator/holt),
+  the same tool as a standalone Go binary, which already passes all 77 of the
+  tests below. A behaviour change belongs in holt; a bug you fix here must be
+  ported there in the same session, or the two diverge and the cutover gets
+  harder every week),
   **`zscratch.sh`** (above), **`statusline.sh`** / `statusline-refresh.sh` (the
   agent HUD, reading `wt`'s registry), and **`agent-state`** — the one writer of
   agent-pane state behind sill's paw pill and the zellij tab badge. That last one
