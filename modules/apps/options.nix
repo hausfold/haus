@@ -35,18 +35,27 @@
         type = lib.types.bool;
         default = true;
         description = ''
-          Make IINA the default handler for every video extension it declares
-          — mp4, m4v, mov, mkv, webm, avi, wmv, flv, mpg, 3gp, ogv, mts/m2ts,
-          vob, rm, … — so double-clicking a video opens IINA instead of
-          QuickTime Player, TV or a browser. Ignored unless the player is
-          installed.
+          Make IINA the default handler for the everyday video extensions —
+          mp4, m4v, mov, mpg, mpeg, mkv, webm, avi, wmv, flv, 3gp, ogv, vob —
+          so double-clicking a video opens IINA instead of QuickTime Player, TV
+          or a browser. Ignored unless the player is installed.
+
+          A short list on purpose: it covers what you actually double-click,
+          not everything IINA can decode. Dead, professional and DRM'd
+          containers (qt, divx, asf, f4v, 3g2, ogm, rm, rmvb, mxf, dv, …) are
+          left alone — they still play via Open With, they just don't get the
+          default, and every extension the rice claims is a binding it
+          re-asserts on every rebuild.
 
           Video only. Audio (mp3, flac, m4a, wav, …), `.gif` and playlists
           keep whatever owns them today, since "open videos in IINA" rarely
-          means "and my music library too". `.ts` is deliberately excluded as
-          well: it is TypeScript far more often than an MPEG transport stream,
-          and `nebelhaus.hearth.hijackFileAssociations` claims it for the
-          editor.
+          means "and my music library too". The transport-stream extensions
+          `.ts`, `.mts` and `.m2ts` are excluded too: on a developer's machine
+          they are TypeScript far more often than video, and
+          `nebelhaus.hearth.hijackFileAssociations` claims them for the editor.
+          Claiming them here as well made macOS stop and ask which app should
+          win on every single rebuild, because `.mts` and `.m2ts` share one
+          UTI.
 
           This sets the USER default (via `duti`) — the same record Finder's
           Get Info ▸ Change All writes, so it is undoable by hand. Set false to
