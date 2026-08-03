@@ -858,9 +858,10 @@ fn should_show_focus_and_resize_shortcuts(tab_info: Option<&TabInfo>) -> bool {
 fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usize) -> LinePart {
     let binds = &help.get_mode_keybinds();
     // Fork: the bottom-right quick hints are condensed to a single flat block —
-    // ` Super + <c,p,t,y,l,f> ` — the launchers plus fullscreen (c = a new agent
-    // worktree, p = new pane, t = new tab, y = yazi peek, l = pounce links,
-    // f = fullscreen toggle): keys only, no word-labels and no powerline ribbons.
+    // ` Super + <c,p,t,y,l,f,Enter> ` — the launchers plus find and fullscreen
+    // (c = a new agent worktree, p = new pane, t = new tab, y = yazi peek,
+    // l = pounce links, f = find, Enter = fullscreen toggle): keys only, no
+    // word-labels and no powerline ribbons.
     // What each key does lives in the web docs / cheatsheet (nebelhaus.com), not
     // spelled out on the bar. Keys are still resolved from the live binds (via
     // run_bind_key / action_key), so a rebind re-letters the block; only the
@@ -872,13 +873,19 @@ fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usi
     // the whole hint block's first key the moment the default changed.
     let agent_key = [("claude", Some("--worktree")), ("wt", Some("new"))]
         .into_iter()
-        .map(|(cmd, arg)| run_bind_key(binds, cmd, arg))
+        .map(|(cmd, arg)| run_bind_key(binds, cmd, arg, None))
         .find(|keys| !keys.is_empty())
         .unwrap_or_default();
-    let peek_key = run_bind_key(binds, "peek.sh", None);
-    let links_key = run_bind_key(binds, "pounce", Some("cmd:links"));
+    let peek_key = run_bind_key(binds, "peek.sh", None, None);
+    let links_key = run_bind_key(binds, "pounce", Some("cmd:links"), None);
+    // Find: bound three times (Super f, Super /, Super Shift /), so the hint key
+    // is pinned to `f` explicitly — the letter is the mnemonic, the slash is
+    // only an alias, and "unshifted wins" alone cannot choose between them.
+    let find_key = run_bind_key(binds, "find.sh", None, Some(BareKey::Char('f')));
 
-    // Fullscreen: the single-action ToggleFocusFullscreen bind (Super f).
+    // Fullscreen: the single-action ToggleFocusFullscreen bind (Super Enter —
+    // it moved off Super f when ⌘F went back to meaning find). Resolved from
+    // the live binds, so this hint re-letters itself and needed no change.
     // action_key demands an exact-length action match, so only a bind whose
     // whole action list is this one element matches — a multi-action bind that
     // merely starts with ToggleFocusFullscreen wouldn't.
@@ -928,9 +935,16 @@ fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usi
         .map(|k| vec![k.clone()])
         .unwrap_or_default();
 
-    // Order on the bar: c, p, t, y, l, f.
-    let ordered: Vec<Vec<KeyWithModifier>> =
-        vec![agent_key, pane_key, tab_key, peek_key, links_key, fullscreen_key];
+    // Order on the bar: c, p, t, y, l, f, Enter.
+    let ordered: Vec<Vec<KeyWithModifier>> = vec![
+        agent_key,
+        pane_key,
+        tab_key,
+        peek_key,
+        links_key,
+        find_key,
+        fullscreen_key,
+    ];
     let common_modifiers = get_common_modifiers(ordered.iter().flatten().collect());
 
     // One display char per launcher, common modifier stripped so only `c`/`p`/…
@@ -1283,6 +1297,7 @@ fn run_bind_key(
     binds: &[(KeyWithModifier, Vec<Action>)],
     file_name: &str,
     required_arg: Option<&str>,
+    prefer: Option<BareKey>,
 ) -> Vec<KeyWithModifier> {
     // Collect EVERY bind running this command, then prefer the un-shifted one —
     // the same rule the NewTab hint needs, for the same reason: `claude
@@ -1310,9 +1325,21 @@ fn run_bind_key(
         .map(|(key, _)| key)
         .collect();
 
+    // `prefer` pins WHICH unshifted key wins when one command is bound to
+    // several. find.sh is bound to Super f, Super / and Super Shift / — all
+    // three legitimate — and get_mode_keybinds() gives no order we can lean on,
+    // so without this the block would flip between `f` and `/` from one server
+    // to the next. Same class of bug as the NewTab hint's `t` vs `Shift t`.
     matches
         .iter()
-        .find(|k| !k.key_modifiers.contains(&KeyModifier::Shift))
+        .find(|k| {
+            prefer.is_some_and(|p| k.bare_key == p) && !k.key_modifiers.contains(&KeyModifier::Shift)
+        })
+        .or_else(|| {
+            matches
+                .iter()
+                .find(|k| !k.key_modifiers.contains(&KeyModifier::Shift))
+        })
         .or_else(|| matches.first())
         .map(|k| vec![(*k).clone()])
         .unwrap_or_default()
