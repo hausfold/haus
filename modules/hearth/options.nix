@@ -138,10 +138,11 @@
         Contents of Claude Code's global memory file, written to
         ~/.claude/CLAUDE.md (hearth wires it into home-manager). This is your
         personal, cross-project operating context. When set, the rice prepends
-        one short section of its own — the `wt child` worktree rule, since the
-        rice ships `wt` and that rule is what keeps it working — then your text.
-        Leave it empty to manage ~/.claude/CLAUDE.md fully by hand (nothing is
-        written, so the rice never clobbers a by-hand file).
+        two short sections of its own — a note that the file is generated and
+        where to actually edit it, and the `holt` worktree etiquette, since the
+        rice ships `holt` and that rule is what keeps it working — then your
+        text. Leave it empty to manage ~/.claude/CLAUDE.md fully by hand
+        (nothing is written, so the rice never clobbers a by-hand file).
       '';
     };
 
