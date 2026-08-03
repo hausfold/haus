@@ -352,6 +352,10 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
   # the double-open the flash came from if a stray click arrives mid-build.
   [ ${#ARGS[@]} -gt 0 ] && sketchybar "${ARGS[@]}" 2>/dev/null
   sketchybar --set "$ITEM_NAME" popup.drawing=on
+  # Then hand it to sillpop so it also closes on the first click anywhere else —
+  # the dismissal sketchybar can't do, since it only hears clicks on its own
+  # items. Backgrounded and after the reveal, so opening costs what it did above.
+  /run/current-system/sw/bin/sillpop arm "$ITEM_NAME" 2>/dev/null &
   exit 0
 fi
 

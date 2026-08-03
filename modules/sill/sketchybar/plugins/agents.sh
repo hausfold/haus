@@ -144,7 +144,11 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
     sketchybar --add item agents.popup.0 popup.agents 2>/dev/null \
       --set agents.popup.0 icon.drawing=off label="no active agents" label.color="$SUBTEXT0"
   fi
+  # The toggle first and alone, so opening costs what it always did; then sillpop
+  # guards it in the background so it also closes on a click anywhere else — the
+  # dismissal sketchybar can't do, since it only hears clicks on its own items.
   sketchybar --set agents popup.drawing=toggle
+  /run/current-system/sw/bin/sillpop arm agents 2>/dev/null &
   exit 0
 fi
 
