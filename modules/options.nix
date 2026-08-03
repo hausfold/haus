@@ -563,9 +563,10 @@ in
         default = config.nebelhaus.developer.enable;
         defaultText = lib.literalExpression "config.nebelhaus.developer.enable";
         description = ''
-          The terminal toolbelt: bat, fzf, fd, yazi, zoxide, lsd, glow, jq,
-          tree, chafa, ttyd and fastfetch — the themed replacements for cat,
-          find, ls and friends that the rice's shell is built around.
+          The terminal toolbelt: bat, fzf, fd, ripgrep, yazi, zoxide, lsd,
+          glow, jq, tree, chafa, ttyd and fastfetch — the themed replacements
+          for cat, find, grep, ls and friends that the rice's shell is built
+          around.
 
           Off leaves a plain shell. The prompt (starship) and the colour scheme
           stay: these are the *tools*, not the appearance.
