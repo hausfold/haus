@@ -134,12 +134,53 @@ keybinds {
             }
         }
 
-        // Super f — toggle the focused pane fullscreen. Zoom one pane to fill
-        //            the tab, hit it again to drop back into the tiled layout.
-        //            Needs ghostty/config's `cmd+f=unbind` to reach zellij —
-        //            otherwise cmd+f pops ghostty's native-macOS window
-        //            fullscreen.
-        bind "Super f" { ToggleFocusFullscreen; }
+        // Super Enter — toggle the focused pane fullscreen. Zoom one pane to
+        //            fill the tab, hit it again to drop back into the tiled
+        //            layout. This used to live on Super f; it moved so that
+        //            ⌘F could go back to meaning *find* like it does in every
+        //            other app on the machine. ⌘⏎ is the zoom key in every
+        //            tiling WM worth the name (and prowl's own ⌥F is
+        //            untouched), so the muscle memory already exists.
+        bind "Super Enter" { ToggleFocusFullscreen; }
+
+        // Super f       — Find in this pane.
+        // Super Shift f — Find across every pane in the session.
+        //
+        // Both open the SAME overlay; the shifted key just enters at session
+        // scope, and Ctrl-s toggles scope from inside without a rebuild. The
+        // find/find-all pair reads exactly like trill's (⌘F in-thread, ⇧⌘F
+        // global), which is the shape this machine already teaches.
+        //
+        // Why not `SwitchToMode "EnterSearch"`: hearth renders Claude Code in
+        // the alt-screen (`tui = "fullscreen"`), and the alt-screen has no
+        // scrollback — so zellij's native search inside an agent pane can only
+        // ever see the one screenful on display. find.sh reads those panes'
+        // TRANSCRIPTS instead (the same statusline-maintained pane → transcript
+        // map the Links bind uses) and falls back to `dump-screen --full` for
+        // everything else. The full reasoning is in find.sh's header.
+        //
+        // Launched as a throwaway 1% corner float that detaches the real work
+        // and exits immediately: a bind can only Run something, running it
+        // takes focus, and `list-clients` reports only the floating pane when
+        // one is focused (zellij#4067) — so the pane you meant has to be read
+        // back AFTER this launcher has closed. Same shape as the Links bind,
+        // where pounce's NSPanel gets that for free.
+        bind "Super f" {
+            Run "@HOME@/.config/zellij/find.sh" "launch" "pane" {
+                floating true
+                close_on_exit true
+                name "find-launch"
+                x "100%"; y "100%"; width "1%"; height "1%"
+            }
+        }
+        bind "Super Shift f" {
+            Run "@HOME@/.config/zellij/find.sh" "launch" "session" {
+                floating true
+                close_on_exit true
+                name "find-launch"
+                x "100%"; y "100%"; width "1%"; height "1%"
+            }
+        }
 
         // Super r — reload this zellij session through a fresh server so a
         //            rebuild's config, layout and plugin wasm take effect. The
@@ -257,6 +298,32 @@ keybinds {
     locked {
         bind "Alt [" { PreviousSwapLayout; }
         bind "Alt ]" { NextSwapLayout; }
+    }
+
+    // ── zellij's NATIVE search, kept and fixed ─────────────────────────────
+    // The ⌘F overlay does not replace this. Native search is the only thing
+    // that highlights matches IN PLACE and walks them with n/N in the real
+    // pane, which is genuinely nicer for a shell pane you're already reading —
+    // it just can't see an alt-screen agent pane, which is why the overlay
+    // exists alongside it rather than instead of it.
+    //
+    // Two fixes on top of upstream:
+    //   1. `/` enters search from scroll mode, next to upstream's `s`. Nothing
+    //      in a terminal means "search" more than `/` (less, vim, man, fzf).
+    //   2. Every exit lands on @BASE_MODE@ — this host's default_mode — not
+    //      unconditionally on Normal. Upstream's search binds all drop you into
+    //      Normal, so on a locked host a single Esc out of a search left the
+    //      submode leaders live with nothing on screen saying so. The bar's
+    //      mode colour flipped green and that was your only warning.
+    scroll {
+        bind "/" { SwitchToMode "EnterSearch"; SearchInput 0; }
+        bind "Ctrl c" "Esc" { ScrollToBottom; SwitchToMode "@BASE_MODE@"; }
+    }
+    entersearch {
+        bind "Ctrl c" "Esc" { SearchInput 27; SwitchToMode "@BASE_MODE@"; }
+    }
+    search {
+        bind "Ctrl c" "Esc" { ScrollToBottom; SwitchToMode "@BASE_MODE@"; }
     }
 
     // Tab-mode n (Ctrl-t n) — zellij's native "new tab", the one tab-creating

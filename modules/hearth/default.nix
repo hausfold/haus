@@ -1322,10 +1322,15 @@ in
         # copy_command / Run / layout), so render @HOME@ → the user's home.
         ".config/zellij/config.kdl".text =
           builtins.replaceStrings
-            [ "@HOME@" "@DEFAULT_MODE@" "@ZRELOAD@" "@AGENT_NEW@" "@AGENT_HERE@" ]
+            [ "@HOME@" "@DEFAULT_MODE@" "@BASE_MODE@" "@ZRELOAD@" "@AGENT_NEW@" "@AGENT_HERE@" ]
             [
               config.home.homeDirectory
               (if hearthCfg.zellijStartLocked then "locked" else "normal")
+              # The same choice, capitalised: SwitchToMode takes a Mode name, not
+              # default_mode's lowercase spelling. The scroll/search binds exit
+              # through it, because upstream's all exit to Normal — which on a
+              # locked host silently leaves every submode leader hot afterwards.
+              (if hearthCfg.zellijStartLocked then "Locked" else "Normal")
               "${zellijReload}/bin/zreload"
               agentNewRun
               ''"${agentDefault}"''
@@ -1395,6 +1400,14 @@ in
         # the active layout + injects a tab-level cwd). See config.kdl's bind.
         ".config/zellij/new-tab-here.sh" = {
           source = ./zellij/new-tab-here.sh;
+          executable = true;
+        };
+        # ⌘F / ⌘⇧F: full-text search over every pane in the session —
+        # agent panes through their Claude transcript (the alt-screen has no
+        # scrollback to search), everything else through dump-screen. See the
+        # script header for why this isn't zellij's native search.
+        ".config/zellij/find.sh" = {
+          source = ./zellij/find.sh;
           executable = true;
         };
         # The one floating-Ghostty helper (geom + spawn); peek.sh, the Rebuild

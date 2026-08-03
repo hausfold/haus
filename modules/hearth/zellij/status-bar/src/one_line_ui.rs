@@ -858,9 +858,10 @@ fn should_show_focus_and_resize_shortcuts(tab_info: Option<&TabInfo>) -> bool {
 fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usize) -> LinePart {
     let binds = &help.get_mode_keybinds();
     // Fork: the bottom-right quick hints are condensed to a single flat block —
-    // ` Super + <c,p,t,y,l,f> ` — the launchers plus fullscreen (c = a new agent
-    // worktree, p = new pane, t = new tab, y = yazi peek, l = pounce links,
-    // f = fullscreen toggle): keys only, no word-labels and no powerline ribbons.
+    // ` Super + <c,p,t,y,l,f,Enter> ` — the launchers plus find and fullscreen
+    // (c = a new agent worktree, p = new pane, t = new tab, y = yazi peek,
+    // l = pounce links, f = find, Enter = fullscreen toggle): keys only, no
+    // word-labels and no powerline ribbons.
     // What each key does lives in the web docs / cheatsheet (nebelhaus.com), not
     // spelled out on the bar. Keys are still resolved from the live binds (via
     // run_bind_key / action_key), so a rebind re-letters the block; only the
@@ -877,8 +878,13 @@ fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usi
         .unwrap_or_default();
     let peek_key = run_bind_key(binds, "peek.sh", None);
     let links_key = run_bind_key(binds, "pounce", Some("cmd:links"));
+    // Find: bound twice (Super f = this pane, Super Shift f = every pane), so
+    // run_bind_key's own "unshifted wins" rule already lands the hint on `f`.
+    let find_key = run_bind_key(binds, "find.sh", None);
 
-    // Fullscreen: the single-action ToggleFocusFullscreen bind (Super f).
+    // Fullscreen: the single-action ToggleFocusFullscreen bind (Super Enter —
+    // it moved off Super f when ⌘F went back to meaning find). Resolved from
+    // the live binds, so this hint re-letters itself and needed no change.
     // action_key demands an exact-length action match, so only a bind whose
     // whole action list is this one element matches — a multi-action bind that
     // merely starts with ToggleFocusFullscreen wouldn't.
@@ -928,9 +934,16 @@ fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usi
         .map(|k| vec![k.clone()])
         .unwrap_or_default();
 
-    // Order on the bar: c, p, t, y, l, f.
-    let ordered: Vec<Vec<KeyWithModifier>> =
-        vec![agent_key, pane_key, tab_key, peek_key, links_key, fullscreen_key];
+    // Order on the bar: c, p, t, y, l, f, Enter.
+    let ordered: Vec<Vec<KeyWithModifier>> = vec![
+        agent_key,
+        pane_key,
+        tab_key,
+        peek_key,
+        links_key,
+        find_key,
+        fullscreen_key,
+    ];
     let common_modifiers = get_common_modifiers(ordered.iter().flatten().collect());
 
     // One display char per launcher, common modifier stripped so only `c`/`p`/…
