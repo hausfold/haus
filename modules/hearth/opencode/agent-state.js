@@ -27,12 +27,27 @@
 export const NebelhausAgentState = async ({ directory }) => {
   const BIN = "@AGENT_STATE@"
 
+  // The conversation this pane is showing. `chat.message` is the only hook that
+  // carries it (`input.sessionID`, verified against the plugin Hooks interface),
+  // so latch it on the first turn and pass it on every later report — the states
+  // that fire without it (waiting/idle) would otherwise have nothing to send,
+  // and agent-state refuses to blank an id it already holds.
+  //
+  // This is what lets hearth's ⌘F find overlay search an Opencode pane's whole
+  // conversation instead of its scrollback. The TUI is alt-screen, so scrollback
+  // is a single screenful; the history lives in opencode's SQLite db, keyed by
+  // exactly this id. Claude Code gets the same reach from claude-statusline's
+  // pane → transcript map — this is Opencode's equivalent, and the only piece it
+  // was missing, because the plugin already runs inside the opencode server
+  // process and so inherits $ZELLIJ_PANE_ID.
+  let sessionID = ""
+
   // Fire and forget. The bar is a nicety; a missing binary, a busy disk, or no
   // zellij at all must never surface as a failed hook in someone's chat.
   const report = (state, wait = false) => {
     try {
       const opts = {
-        cmd: [BIN, state, "opencode"],
+        cmd: [BIN, state, "opencode", sessionID],
         cwd: directory,
         stdout: "ignore",
         stderr: "ignore",
@@ -48,7 +63,10 @@ export const NebelhausAgentState = async ({ directory }) => {
   }
 
   return {
-    "chat.message": async () => report("working"),
+    "chat.message": async (input) => {
+      if (input?.sessionID) sessionID = input.sessionID
+      report("working")
+    },
     "permission.ask": async () => report("waiting"),
     event: async ({ event }) => {
       if (event?.type === "session.idle") report("idle")
