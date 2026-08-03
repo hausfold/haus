@@ -80,7 +80,7 @@ pub fn one_line_ui(
     .map(|mode_key_indicators| append(&mode_key_indicators, &mut max_len))
     .and_then(|_| match help.mode {
         // Unlocked (Normal): the full mode ribbon on the left already spells
-        // out every submode, so the bottom-right `Super + <a,p,t,y,f>` launcher
+        // out every submode, so the bottom-right `⌘ + <a,f,l,p,t,y,⏎>` launcher
         // block is just clutter here — leave the right side empty. The hints
         // still render in Locked, where the ribbon collapses to the lone
         // unlock key and the reminder earns its space.
@@ -761,20 +761,42 @@ fn common_modifiers_in_all_modes(
     Some(common_modifiers.into_iter().collect())
 }
 
-// Fork: how a common modifier renders in the bottom-left prefix. Normally
-// lowercase ("ctrl +") — house style, and it reads calmer than upstream's
-// "Ctrl". When `compact` is set (a shrink step chosen by the caller once the
-// list won't otherwise fit), Ctrl collapses to the classic caret "^", buying
-// back three columns to keep more of the key list on screen before any key
-// gets dropped.
+// Fork: how a modifier renders anywhere on the bar. Super is always the Mac
+// glyph ⌘ — this is a macOS rice, the keycaps say ⌘, and it costs 1 column
+// where the word "Super" costs 5 (which is also why the bottom-right block now
+// keeps its prefix on panes too thin for the word). The rest stay lowercase
+// ("ctrl +") — house style, and it reads calmer than upstream's "Ctrl". When
+// `compact` is set (a shrink step chosen by the caller once the list won't
+// otherwise fit), Ctrl collapses to the classic caret "^", buying back three
+// columns to keep more of the key list on screen before any key gets dropped.
 fn modifier_label(m: &KeyModifier, compact: bool) -> String {
-    if compact {
-        match m {
-            KeyModifier::Ctrl => return "^".to_string(),
-            _ => {},
-        }
+    match m {
+        KeyModifier::Super => return "⌘".to_string(),
+        KeyModifier::Ctrl if compact => return "^".to_string(),
+        _ => {},
     }
     m.to_string().to_lowercase()
+}
+
+// Fork: how a bare key renders inside the hint block. Zellij spells Enter
+// "ENTER" (five columns, shouting); the keycap glyph ⏎ says the same thing in
+// one and sits level with the single letters it's listed beside.
+fn key_label(key: &KeyWithModifier) -> String {
+    let bare = match key.bare_key {
+        BareKey::Enter => "⏎".to_string(),
+        other => other.to_string(),
+    };
+    if key.key_modifiers.is_empty() {
+        bare
+    } else {
+        let modifiers = key
+            .key_modifiers
+            .iter()
+            .map(|m| modifier_label(m, false))
+            .collect::<Vec<_>>()
+            .join(" ");
+        format!("{} {}", modifiers, bare)
+    }
 }
 
 fn render_common_modifiers(
@@ -858,9 +880,9 @@ fn should_show_focus_and_resize_shortcuts(tab_info: Option<&TabInfo>) -> bool {
 fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usize) -> LinePart {
     let binds = &help.get_mode_keybinds();
     // Fork: the bottom-right quick hints are condensed to a single flat block —
-    // ` Super + <a,p,t,y,l,f,Enter> ` — the launchers plus find and fullscreen
+    // ` ⌘ + <a,f,l,p,t,y,⏎> ` — the launchers plus find and fullscreen
     // (a = a new agent worktree, p = new pane, t = new tab, y = yazi peek,
-    // l = pounce links, f = find, Enter = fullscreen toggle): keys only, no
+    // l = pounce links, f = find, ⏎ = fullscreen toggle): keys only, no
     // word-labels and no powerline ribbons.
     // What each key does lives in the web docs / cheatsheet (nebelhaus.com), not
     // spelled out on the bar. Keys are still resolved from the live binds (via
@@ -934,7 +956,9 @@ fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usi
         .map(|k| vec![k.clone()])
         .unwrap_or_default();
 
-    // Order on the bar: c, p, t, y, l, f, Enter.
+    // Collection order is by feature; the block is *displayed* alphabetically
+    // (sorted below) — the letters are what the eye scans, so a stable a,f,l,…
+    // beats an order only the source file knows.
     let ordered: Vec<Vec<KeyWithModifier>> = vec![
         agent_key,
         pane_key,
@@ -946,16 +970,16 @@ fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usi
     ];
     let common_modifiers = get_common_modifiers(ordered.iter().flatten().collect());
 
-    // One display char per launcher, common modifier stripped so only `c`/`p`/…
+    // One display char per launcher, common modifier stripped so only `a`/`p`/…
     // shows inside the bracket group.
-    let key_chars: Vec<String> = ordered
+    let mut key_chars: Vec<String> = ordered
         .iter()
         .filter_map(|k| {
             k.first().map(|k| {
                 if common_modifiers.is_empty() {
-                    k.to_string()
+                    key_label(k)
                 } else {
-                    k.strip_common_modifiers(&common_modifiers).to_string()
+                    key_label(&k.strip_common_modifiers(&common_modifiers))
                 }
             })
         })
@@ -964,18 +988,23 @@ fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usi
     if key_chars.is_empty() {
         return LinePart::default();
     }
+    // Alphabetical, case-insensitively, on what actually shows: a rebind that
+    // re-letters a hint slots it where the reader would look for it instead of
+    // wherever its feature happens to sit in the list above. Glyph keys (⏎) are
+    // above ASCII in codepoint order, so they land at the end on their own.
+    key_chars.sort_by_key(|k| k.to_lowercase());
     let joined = key_chars.join(",");
 
-    // ` <mods> + <c,p,t,y,f> ` as one opaque, non-ribbon block; the bracket
+    // ` <mods> + <a,f,l,p,t,y,⏎> ` as one opaque, non-ribbon block; the bracket
     // group is painted in the emphasis colour (index 0). On a pane too thin for
-    // the modifier prefix, fall back to a bare ` <c,p,t,y,f> `.
+    // the modifier prefix, fall back to a bare ` <a,f,l,p,t,y,⏎> `.
     let render_block = |with_modifier: bool| -> LinePart {
         let prefix = if with_modifier && !common_modifiers.is_empty() {
             format!(
                 " {} + ",
                 common_modifiers
                     .iter()
-                    .map(|m| m.to_string())
+                    .map(|m| modifier_label(m, false))
                     .collect::<Vec<_>>()
                     .join("-")
             )

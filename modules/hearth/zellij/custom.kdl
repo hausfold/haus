@@ -25,8 +25,9 @@
 // outgrow the pane it windows them with `‹N` / `N›` overflow counts
 // (mouse-scroll over the bar pages them), never dropping to bare keys and
 // never vanishing outright. The bottom-right quick hints are a single flat
-// "Super + <c,p,t,y,f>" block (the launchers + fullscreen — claude / pane /
-// tab / yazi-peek / fullscreen, keys only, no word-labels). That block only
+// "⌘ + <a,f,l,p,t,y,⏎>" block (the launchers + find + fullscreen — agent /
+// find / pounce-links / pane / tab / yazi-peek / fullscreen, keys only, no
+// word-labels, ordered alphabetically by key). That block only
 // shows in Locked mode; once unlocked (Normal) the left ribbon already lists
 // every submode, so the right side is left empty.
 //

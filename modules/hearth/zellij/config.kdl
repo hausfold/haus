@@ -244,7 +244,7 @@ keybinds {
         //            this opens home.kdl (custom.kdl with the content tab pinned
         //            cwd=$HOME, rendered next to it by hearth). It's this NewTab
         //            action the status-bar fork surfaces as the `t` in the
-        //            "Super + <c,p,t,y>" hint block.
+        //            "⌘ + <a,f,l,p,t,y,⏎>" hint block.
         bind "Super t" { NewTab { layout "@HOME@/.config/zellij/layouts/home.kdl"; }; }
         // Super Shift t — New tab cwd'd at the FOCUSED pane's directory (the
         //            "open a tab right here" sibling of Super t's "…at home").
