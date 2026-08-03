@@ -41,7 +41,7 @@ notice() {
     | pounce -p "Spawn Agent" -i "sparkles" >/dev/null
 }
 
-for tool in wt zellij; do
+for tool in holt zellij; do
   command -v "$tool" >/dev/null 2>&1 && continue
   notice "$tool is unavailable" "Rebuild nebelhaus, then try again"
   exit 1
@@ -89,11 +89,11 @@ if [ -z "$list" ]; then
   exit 0
 fi
 
-agent="$(wt agent default 2>/dev/null)"
+agent="$(holt agent default 2>/dev/null)"
 [ -n "$agent" ] || agent="claude"
 # Belt to the assertion's braces. `nebelhaus.agents.clients` makes the default
 # client present at BUILD time, but this script runs long after that — the
-# client can still be missing on a machine driving `wt` without the rice, or
+# client can still be missing on a machine driving `holt` without the rice, or
 # with a hand-managed install that moved. Checking here, before anything is
 # created, is the difference between a toast and the old failure: `wt spawn`
 # succeeds, the pane opens, and only `wt agent start` inside it finds nothing —
@@ -182,7 +182,7 @@ if ! zellij list-sessions 2>/dev/null | grep -q "$SESSION"; then
   exit 1
 fi
 
-dir="$(wt spawn "$repo" "$slug" "$agent" 2>/dev/null)"
+dir="$(holt spawn "$repo" "$slug" "$agent" 2>/dev/null)"
 if [ -z "$dir" ] || [ ! -d "$dir" ]; then
   notice "Could not create the worktree" "Check that $repo_name has a commit to branch from"
   exit 1
@@ -200,9 +200,9 @@ agent_args=(agent start "$agent")
 agent_args+=(-- "$prompt")
 if zellij -s "$SESSION" action query-tab-names 2>/dev/null | grep -qxF "$repo_name"; then
   zellij -s "$SESSION" action go-to-tab-name "$repo_name" >/dev/null 2>&1
-  spawned=$(zellij -s "$SESSION" action new-pane --cwd "$dir" --name "$name" -- wt "${agent_args[@]}")
+  spawned=$(zellij -s "$SESSION" action new-pane --cwd "$dir" --name "$name" -- holt "${agent_args[@]}")
 else
-  spawned=$(zellij -s "$SESSION" action new-tab --name "$repo_name" --cwd "$dir" -- wt "${agent_args[@]}")
+  spawned=$(zellij -s "$SESSION" action new-tab --name "$repo_name" --cwd "$dir" -- holt "${agent_args[@]}")
 fi
 
 if [ -z "$spawned" ]; then

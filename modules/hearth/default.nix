@@ -23,11 +23,15 @@ let
   agentDefault = config.nebelhaus.agents.default;
 
   # How the zellij binds and the `c` alias spell "start an agent". Only Claude
-  # Code can make its own worktree (`--worktree`, which fires the `wt`
-  # WorktreeCreate hook); for the others `wt new` does it from the outside, so
-  # Super a behaves the same whichever client the machine defaults to. Rendered
-  # into config.kdl's @AGENT_NEW@ (@AGENT_HERE@ is just agentDefault).
-  agentNewRun = if agentDefault == "claude" then ''"claude" "--worktree"'' else ''"wt" "new"'';
+  # Code can make its own worktree (`--worktree`, which fires the WorktreeCreate
+  # hook); for the others `holt new` does it from the outside, so Super a
+  # behaves the same whichever client the machine defaults to. Rendered into
+  # config.kdl's @AGENT_NEW@ (@AGENT_HERE@ is just agentDefault).
+  #
+  # `holt`, not `wt`: they make the identical checkout, branch and registry row,
+  # and the frozen `wt` stays on PATH, so this is a repoint rather than a
+  # migration — `haus rollback` puts the old spelling back with nothing to undo.
+  agentNewRun = if agentDefault == "claude" then ''"claude" "--worktree"'' else ''"holt" "new"'';
 
   # One client id → one package. Nothing else in the rice may name these
   # derivations: a host that wants a patched build overlays `claude-code` (or
@@ -72,45 +76,48 @@ let
   # every agent needs travels HERE, in the global, WITH the tool — not just in the
   # workshop repo end users don't have. Prepended to the host's own globalMd.
   wtGuidance = ''
-    # Agent worktrees & the `wt` tool
+    # Agent worktrees & the `holt` tool
 
-    `wt` (shipped by this rice, on PATH) manages Claude Code **agent worktrees**
-    for any git repo. `Super a` (⌘A) spawns each agent into its own isolated
-    checkout on a `worktree-<name>` branch, so parallel agents never fight over a
-    single checkout. Closing a pane never loses work — uncommitted edits are
-    parked as a `wip:` commit and only already-merged branches are reaped. Resume
-    a parked session with `wt` (lists every worktree across all repos) or
-    `wt <name>`; sweep landed ones on demand with `wt reap`.
+    `holt` (shipped by this rice, on PATH) manages **agent worktrees** for any
+    git repo. `Super a` (⌘A) spawns each agent into its own isolated checkout on
+    a `worktree-<name>` branch, so parallel agents never fight over a single
+    checkout. Closing a pane never loses work — uncommitted edits are parked as
+    a `wip:` commit and only already-merged branches are reaped. Resume a parked
+    session with `holt` (lists every worktree across all repos) or
+    `holt <name>`; sweep landed ones on demand with `holt reap`.
 
-    **Cross-repo work uses `wt child`, never a raw `git worktree add`.** To work
-    on a DIFFERENT repo than the pane you're in (e.g. a parent pane editing a
-    sub-repo), create the worktree with:
+    `wt` is the same tool's predecessor — a bash script, now **frozen** — and it
+    is still on PATH reading the same registry, so an old habit or an old
+    command in a script still works. Prefer `holt`; it is what the rice calls.
 
-        cd "$(wt child /path/to/other/repo)"
+    **Cross-repo work uses `holt child`, never a raw `git worktree add`.** To
+    work on a DIFFERENT repo than the pane you're in (e.g. a parent pane editing
+    a sub-repo), create the worktree with:
 
-    A raw `git worktree add` never touches `wt`'s registry, so the Claude Code
-    statusline HUD never learns to query that repo's GitHub — the worktree and
-    its PR go **invisible in the bar** (they only surface, unattributed with a
-    `◇`, in the `~` home pane). `wt child` does the same worktree add but
-    registers it under the spawning pane, so its PR shows as a child row where
-    you're working.
+        cd "$(holt child /path/to/other/repo)"
 
-    **Setting work aside uses `wt park`, never `git stash`.** The stash stack
+    A raw `git worktree add` never touches the registry, so the statusline HUD
+    never learns to query that repo's GitHub — the worktree and its PR go
+    **invisible in the bar** (they only surface, unattributed with a `◇`, in the
+    `~` home pane). `holt child` does the same worktree add but registers it
+    under the spawning pane, so its PR shows as a child row where you're working.
+
+    **Setting work aside uses `holt park`, never `git stash`.** The stash stack
     is NOT per-worktree — it lives in the shared `.git` dir, so every agent
     worktree of a repo and the main checkout push and pop the SAME stack, and
     parallel agents routinely pop each other's entries into a tree that never
-    asked for them. `wt park [label]` instead commits the whole dirty tree as
+    asked for them. `holt park [label]` instead commits the whole dirty tree as
     one `wip:` commit on the branch only this pane has checked out (the same
-    thing the remove hook does on pane close); `wt unpark` rewinds it, putting
+    thing the remove hook does on pane close); `holt unpark` rewinds it, putting
     those changes back uncommitted. It refuses to unpark a wip commit you've
     already pushed, so it can never turn into a force-push.
 
-    **A session that keeps committing after its PR merged needs `wt reship`.**
+    **A session that keeps committing after its PR merged needs `holt reship`.**
     GitHub deletes the head branch on merge, so those later commits have no
-    remote and no PR — and `wt` deliberately won't reap that branch. `wt` marks
-    it `+N` in the state column (`live+3`), the bar shows an orange `N^` instead
-    of the ⏏ it used to, and `wt reship [name]` pushes the branch and opens the
-    follow-up PR.
+    remote and no PR — and `holt` deliberately won't reap that branch. `holt`
+    marks it `+N` in the state column (`live+3`), the bar shows an orange `N^`
+    instead of the ⏏ it used to, and `holt reship [name]` pushes the branch and
+    opens the follow-up PR.
 
     Full guide: https://nebelhaus.com/guides/claude-agents/
 
