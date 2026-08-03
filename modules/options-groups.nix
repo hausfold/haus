@@ -86,6 +86,14 @@
     order = 110;
     blurb = "The keys the rice owns — the leader, the palette, the window-chord modifier — and anything extra you hang off the leader.";
   };
+  hotCorners = {
+    order = 112;
+    blurb = "What each corner of the screen does when the pointer reaches it. Every corner is unset by default, so the rice never overwrites one you set yourself.";
+  };
+  screenshots = {
+    order = 114;
+    blurb = "Where ⇧⌘4 puts its files, in what format, and whether it draws a window shadow or a preview thumbnail. Unset by default, so macOS's own choices stand.";
+  };
 
   # ---- the rooms ------------------------------------------------------------
   prowl = {

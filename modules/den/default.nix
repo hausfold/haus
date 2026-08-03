@@ -15,6 +15,8 @@ let
   # pill is only a view/controller; the wake lock survives bar/shell restarts.
   awake = pkgs.writeShellScriptBin "awake" (builtins.readFile ./awake.sh);
 
+  homeDir = "/Users/${username}";
+
   # Whichever system.defaults.universalaccess.* keys the host actually set (they
   # all default to null upstream, so this is exactly the opt-ins).
   universalaccessSet = lib.attrNames (
@@ -29,6 +31,36 @@ let
 
   devCfg = config.nebelhaus.developer;
   fontsCfg = config.nebelhaus.fonts;
+
+  # ---- hot corners ----------------------------------------------------------
+  # The option names an action; com.apple.dock stores an integer. hot-corners.nix
+  # is the one table both the enum and this lookup come from, so they cannot
+  # disagree — see its header.
+  hotCornerValue = lib.listToAttrs (
+    map (a: lib.nameValuePair a.name a.value) (import ./hot-corners.nix)
+  );
+  # nebelhaus.hotCorners.<camelCase> → the wvous infix macOS uses.
+  hotCornerKeys = {
+    topLeft = "tl";
+    topRight = "tr";
+    bottomLeft = "bl";
+    bottomRight = "br";
+  };
+  hotCornersSet = lib.filterAttrs (n: _: config.nebelhaus.hotCorners.${n} != null) hotCornerKeys;
+
+  # ---- screenshots ----------------------------------------------------------
+  shotsCfg = config.nebelhaus.screenshots;
+  # macOS stores `location` verbatim and expands nothing, so a "~/Pictures/…"
+  # written literally into the plist is a path that does not exist — and
+  # screencapture's response to a missing directory is to quietly use the
+  # Desktop, which reads as "the option did nothing".
+  shotsLocation =
+    if shotsCfg.location == null then
+      null
+    else if lib.hasPrefix "~/" shotsCfg.location then
+      "${homeDir}/${lib.removePrefix "~/" shotsCfg.location}"
+    else
+      shotsCfg.location;
   # Naming a family the rice was never given a package for is silent tofu:
   # Ghostty just falls back and the powerline/icon glyphs vanish. Cheap to spot.
   fontFamilyUnprovided =
@@ -389,7 +421,20 @@ in
       show-recents = lib.mkDefault false;
       mru-spaces = lib.mkDefault false;
       orientation = lib.mkDefault "bottom";
-    };
+    }
+    # ---- hot corners -------------------------------------------------------
+    # Emitted ONLY for the corners the host actually named. Not mkDefault and
+    # not a rice opinion: nebelhaus ships every corner at null, so this block is
+    # empty on a stock rice and the corners you set in System Settings years ago
+    # survive a rebuild untouched. Naming one is the whole opt-in.
+    #
+    # Lands in the same com.apple.dock domain the block above writes, which
+    # means it inherits nix-darwin's Dock restart for free — that restart fires
+    # whenever ANY typed dock option is set, and the rice always sets autohide.
+    # So a corner is live the moment activation finishes, no logout.
+    // lib.mapAttrs' (
+      n: k: lib.nameValuePair "wvous-${k}-corner" hotCornerValue.${config.nebelhaus.hotCorners.${n}}
+    ) hotCornersSet;
     # The rice's Finder is aimed at someone who thinks in paths: everything
     # visible, sorted the way a Linux file manager sorts, navigable from the
     # keyboard, and never guessing where you meant to look.
@@ -479,6 +524,24 @@ in
       TrackpadRightClick = lib.mkDefault true;
       TrackpadThreeFingerDrag = lib.mkDefault true;
     };
+    # ---- nebelhaus.screenshots → com.apple.screencapture ---------------------
+    # The gentlest domain on the Mac: no TCC grant, no restart (screencapture
+    # re-reads its preferences on every capture), every key typed upstream. So
+    # unlike Finder or the menu bar there is nothing for the rice to own here —
+    # the values simply pass through, null for null.
+    #
+    # Two renames on the way, both so the option states an intent rather than a
+    # plist key: `format` because upstream's `type` says nothing about images,
+    # and `shadow` because `disable-shadow` is a double negative — `shadow =
+    # false` is the thing people actually want and `disable-shadow = true` is
+    # how it has to be spelled.
+    screencapture = {
+      location = shotsLocation;
+      type = shotsCfg.format;
+      disable-shadow = if shotsCfg.shadow == null then null else !shotsCfg.shadow;
+      show-thumbnail = shotsCfg.thumbnail;
+      include-date = shotsCfg.includeDate;
+    };
     CustomUserPreferences = {
       "com.apple.commerce".AutoUpdate = lib.mkDefault true;
 
@@ -490,6 +553,16 @@ in
         DSDontWriteNetworkStores = lib.mkDefault true;
         DSDontWriteUSBStores = lib.mkDefault true;
       };
+
+      # Clear the modifier on every corner the rice claims. macOS keeps "hold ⌘
+      # for this corner" in a SEPARATE key (wvous-*-modifier, a Carbon modifier
+      # mask; 0 means none), and nix-darwin types the corner but not the
+      # modifier — so without this a corner set by the rice inherits whatever
+      # modifier the machine already had. The failure is silent and reads as the
+      # option not working: the corner is correct, you just aren't holding the
+      # key nobody mentioned. Corners left at null are untouched here too, so
+      # this never erases a modifier the rice didn't ask to own.
+      "com.apple.dock" = lib.mapAttrs' (_: k: lib.nameValuePair "wvous-${k}-modifier" 0) hotCornersSet;
 
       # Two Finder keys nix-darwin has no typed option for.
       "com.apple.finder" = {
@@ -547,5 +620,30 @@ in
   system.stateVersion = 5;
 
   # Minimal home base so feature modules can layer `home.file` / packages on top.
-  home-manager.users.${username}.home.stateVersion = "24.11";
+  # A FUNCTION, not a plain attrset, purely so `lib` here is home-manager's
+  # extended lib — `lib.hm.dag` doesn't exist on the darwin lib den is evaluated
+  # with, and the failure is an eval error deep inside the submodule.
+  home-manager.users.${username} =
+    { lib, ... }:
+    {
+      home.stateVersion = "24.11";
+
+      # The screenshot folder has to EXIST before it means anything:
+      # screencapture does not create a missing directory, it falls back to the
+      # Desktop without a word — so `location` pointing at a folder you haven't
+      # made yet is indistinguishable from the option being ignored. One mkdir
+      # closes that.
+      #
+      # In home-manager's activation rather than the system's because the folder
+      # belongs to the user (a root-created ~/Pictures/Screenshots would be
+      # unwritable by the process taking the screenshot). Idempotent, so it
+      # costs nothing on the rebuilds where it already exists; it never removes
+      # or touches a folder after you change `location` away from it, since
+      # deleting a directory full of screenshots is not a rebuild's business.
+      home.activation = lib.mkIf (shotsLocation != null) {
+        nebelhausScreenshotDir = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+          run mkdir -p ${lib.escapeShellArg shotsLocation}
+        '';
+      };
+    };
 }
