@@ -149,19 +149,37 @@ let
     };
   }) leaderExtras);
 
-  # Keys already spoken for in launch mode. The letters are the dynamic roster
-  # (appKeys), and ⇧+that letter is its workspace throw (launchMoves); the rest
-  # are the fixed actions written into aerospace.toml's [mode.launch.binding]
-  # (digits and ⇧digits, arrows, resize, clipboard/emoji, reopen, settings,
-  # resort, cheatsheet, exit). A leaderExtras key colliding with any of them
-  # would silently shadow it, so an assertion below refuses the build.
-  reservedLaunchKeys = appKeys ++ map (key: "shift-${key}") appKeys ++ [
+  # The FIXED half of launch mode: the actions written into aerospace.toml's
+  # [mode.launch.binding] by hand rather than generated from the roster (digits
+  # and ⇧digits, arrows, resize, clipboard/emoji, reopen, settings, resort,
+  # cheatsheet, exit). Split out of reservedLaunchKeys because TWO different
+  # things can collide with it and only one of them was ever checked.
+  builtinLaunchKeys = [
     "esc" "slash" "1" "2" "3" "4"
     "shift-1" "shift-2" "shift-3" "shift-4"
     "v" "e" "z" "comma" "backtick" "minus" "equal"
     "left" "down" "up" "right"
     "shift-left" "shift-down" "shift-up" "shift-right"
   ];
+
+  # Keys already spoken for in launch mode, from leaderExtras' point of view:
+  # the fixed actions above PLUS the dynamic roster letters (appKeys), whose
+  # ⇧+letter is that app's workspace throw (launchMoves).
+  reservedLaunchKeys = appKeys ++ map (key: "shift-${key}") appKeys ++ builtinLaunchKeys;
+
+  # ...and the other direction, which had no check at all: a ROSTER app claiming
+  # a letter one of the fixed actions already owns. `roster` asserts its keys are
+  # unique among themselves, but it knows nothing about window management, so
+  # nothing ever compared them to launch mode's built-ins. The result is two
+  # bindings for the same key in one TOML table — AeroSpace keeps whichever it
+  # parses last and the other vanishes with no error, which on "z" means quietly
+  # losing reopen-last-app.
+  #
+  # Reachable by hand, but it's a SHARED RICE that makes it likely: an app pack
+  # is written without knowing the leader vocabulary, and "z" is the obvious
+  # letter for Zotero. Found exactly that way, writing packs/writing.nix.
+  rosterBuiltinCollisions = lib.unique (lib.filter (key: lib.elem key builtinLaunchKeys) appKeys);
+
   extraKeys = map (e: e.key) leaderExtras;
   extraCollisions = lib.unique (lib.filter (key: lib.elem key reservedLaunchKeys) extraKeys);
   extraDuplicates = lib.unique (
@@ -303,6 +321,20 @@ lib.mkMerge [
           "nebelhaus.keys.leaderExtras keys must be unique and must not reuse a roster app's "
           + "key or a built-in launch-mode key; conflicting: "
           + lib.concatStringsSep ", " (lib.unique (extraCollisions ++ extraDuplicates));
+      }
+      {
+        # The mirror of the assertion above, and the one that was missing. Same
+        # failure — two bindings for one key in [mode.launch.binding], AeroSpace
+        # silently keeps one — reached from the roster side instead.
+        assertion = rosterBuiltinCollisions == [ ];
+        message =
+          "nebelhaus.roster leader keys must not reuse a built-in launch-mode key; conflicting: "
+          + lib.concatStringsSep ", " rosterBuiltinCollisions
+          + ". Those letters are leader actions the rice already binds (v clipboard, e emoji, "
+          + "z reopen-last-app, , settings, ` resort, - / = resize, digits and arrows for "
+          + "workspaces). Pick another letter for the app, or set its key to null and reach it "
+          + "from the palette. If the entry came from a shared rice or app pack, override just "
+          + "the key in your host file: nebelhaus.roster.<id>.key = \"…\";";
       }
     ];
   # AeroSpace itself, as a roster entry like everything else — no leader key,

@@ -6,6 +6,47 @@
 # accessibility keys that actually apply on macOS 26.
 { lib, config, ... }:
 
+let
+  hotCornerActions = import ./hot-corners.nix;
+  hotCornerNames = map (a: a.name) hotCornerActions;
+  # The value list in the description comes from the same table the enum does,
+  # so a new action is one edit and the docs can't describe a value the option
+  # rejects. Padded to the longest name so the labels line up in the reference
+  # page's <pre> block, the same shape displays.uiScale uses.
+  hotCornerWidth = lib.foldl' (m: a: lib.max m (lib.stringLength a.name)) 0 hotCornerActions;
+  hotCornerList = lib.concatMapStrings (
+    a: "  ${lib.fixedWidthString hotCornerWidth " " a.name}  ${a.label}\n"
+  ) hotCornerActions;
+
+  mkHotCorner = corner: lib.mkOption {
+    type = lib.types.nullOr (lib.types.enum hotCornerNames);
+    default = null;
+    example = "mission-control";
+    description = ''
+      What happens when the pointer reaches the ${corner} corner of the main
+      display.
+
+      ```
+      ${hotCornerList}```
+
+      null (the default) writes nothing at all, which is not the same as
+      "disabled": corners are a setting people have usually already made by
+      hand, and a rice that names one it doesn't care about would silently
+      erase it. Use `"disabled"` to explicitly claim a corner and make it inert.
+
+      Setting a corner also clears its MODIFIER key. macOS stores "hold ⌘ for
+      this corner" separately (`wvous-*-modifier`), and a leftover modifier from
+      an earlier setup makes a corner the rice just declared look broken —
+      nothing happens, because you weren't holding the key nobody told you
+      about. Corners the rice leaves at null keep whatever modifier they have.
+
+      Worth knowing if you also run tiling: `mission-control` and `desktop` are
+      macOS's own window and Space management, which prowl replaces. They still
+      work, they just show you a view of the windows prowl is arranging.
+    '';
+  };
+in
+
 {
   options.nebelhaus = {
     # ---- accessibility ----
@@ -142,6 +183,105 @@
         description = ''
           Upgrade outdated Homebrew packages on every rebuild. Off by default
           for the same reproducibility reason as autoUpdate.
+        '';
+      };
+    };
+
+    # ---- hot corners ----
+    # Four screen corners, each an action, by name rather than by the integer
+    # macOS actually stores. Every value defaults to null (leave alone) because
+    # the corners are one of the few macOS settings almost everyone has already
+    # touched — see mkHotCorner's description for why that isn't "disabled".
+    hotCorners = {
+      topLeft = mkHotCorner "top-left";
+      topRight = mkHotCorner "top-right";
+      bottomLeft = mkHotCorner "bottom-left";
+      bottomRight = mkHotCorner "bottom-right";
+    };
+
+    # ---- screenshots ----
+    # com.apple.screencapture, which is one of the friendliest domains on the
+    # Mac: writable without any TCC grant, needs no restart (screencapture reads
+    # its preferences per capture), and every key here is typed by nix-darwin.
+    # Same null-means-leave-alone rule as the corners above.
+    screenshots = {
+      location = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "~/Pictures/Screenshots";
+        description = ''
+          Where ⇧⌘3 / ⇧⌘4 / ⇧⌘5 write their files. null (the default) leaves
+          macOS's own choice alone, which is the Desktop.
+
+          Absolute, or starting with `~/` — the rice expands the `~` for you and
+          CREATES the directory during activation. Both halves matter: macOS
+          stores this string verbatim and expands nothing, and if the path does
+          not exist screencapture silently falls back to the Desktop, so a
+          typo'd or not-yet-created folder looks exactly like the setting having
+          been ignored.
+        '';
+      };
+      format = lib.mkOption {
+        type = lib.types.nullOr (
+          lib.types.enum [
+            "png"
+            "jpg"
+            "pdf"
+            "tiff"
+            "heic"
+            "gif"
+          ]
+        );
+        default = null;
+        example = "png";
+        description = ''
+          The image format new screenshots are saved in. null (the default)
+          leaves macOS's own choice alone, which is png.
+
+          png is lossless and the right default for UI and text — a jpg
+          screenshot of a terminal has visible ringing around every glyph. jpg
+          is worth choosing only when you screenshot photographs often enough
+          for the file sizes to matter.
+        '';
+      };
+      shadow = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        example = false;
+        description = ''
+          Whether a window capture (⇧⌘4 then Space) keeps macOS's big soft drop
+          shadow. null (the default) leaves macOS's own choice alone, which is
+          to include it.
+
+          false is the setting to want if screenshots go into documentation: the
+          shadow is transparent padding, so it adds a wide invisible margin that
+          every layout then has to fight. Holding ⌥ while you click suppresses
+          it for one capture either way.
+        '';
+      };
+      thumbnail = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        example = false;
+        description = ''
+          Whether the floating preview thumbnail appears in the bottom-right
+          corner after a capture. null (the default) leaves macOS's own choice
+          alone, which is to show it.
+
+          false writes the file immediately instead of after the ~5s the
+          thumbnail waits around — the setting to want if you screenshot in
+          quick succession, or if you script anything that reads the file. The
+          cost is losing the markup/drag affordance the thumbnail offers.
+        '';
+      };
+      includeDate = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        example = true;
+        description = ''
+          Whether filenames carry the date and time ("Screenshot 2026-08-03 at
+          13.37.20.png") or just a counter ("Screenshot 1.png"). null (the
+          default) leaves macOS's own choice alone, which is to include it.
         '';
       };
     };

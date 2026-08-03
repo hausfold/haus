@@ -169,6 +169,17 @@
         # so it stacks onto any of the above rather than replacing one.
         large-print = ./presets/large-print.nix;
       };
+      # Packs are presets that touch ONE option family: `nebelhaus.roster`. Same
+      # data-only rule, same import path, same check — a separate name only
+      # because "what kind of machine is this" and "what's on it" are different
+      # questions, and keeping them apart is what lets a pack compose with any
+      # preset and with any other pack. See packs/README.md.
+      packFiles = {
+        writing = ./packs/writing.nix;
+      };
+      # What checkRice and `nix flake check` treat identically. The distinction
+      # above is for the reader; there is only one format underneath.
+      riceFiles = presetFiles // packFiles;
       # Linux is in here for the pure-evaluation outputs only (options-json, the
       # theme-variants check) — that's what lets nebelhaus.com's Linux CI render the
       # options reference. Anything needing a darwin system is guarded per-output.
@@ -212,6 +223,17 @@
       # a community rice either — better to learn that here than after
       # publishing a format. See presets/README.md.
       presets = presetFiles;
+
+      # `nebelhaus.packs.writing` — the same format aimed at one family. A pack
+      # only sets `nebelhaus.roster.*`: the apps on a machine, not the kind of
+      # machine it is. Separate output from `presets` so composing reads as what
+      # it is — a rice, plus what's installed on it:
+      #
+      #   extraModules = [ nebelhaus.presets.everyday nebelhaus.packs.writing ];
+      #
+      # This is the roadmap's Phase 0 "publish one shareable app pack": the piece
+      # that needed no new mechanism, only a file someone can point at.
+      packs = packFiles;
 
       lib = {
         # `nebelhaus.lib.checkRice ./my-rice.nix` — true, or throws naming the
@@ -258,12 +280,19 @@
       # `theme-variants` is the second check and runs on EVERY system, Linux
       # included: it's pure lib, the same property that lets options-json build on
       # Linux CI. `presets` stays darwin-only — it evaluates a real system.
+      #
+      # PACKS go through this check too (riceFiles = presets ++ packs), and the
+      # evaluate-a-real-system half is what earns its keep there: a pack's whole
+      # content is roster entries, and a roster entry is exactly the kind of thing
+      # that type-checks and then fails an assertion — a leader key another entry
+      # or a built-in launch action already owns. Data-only would not have caught
+      # that; evaluating does.
       checks = nixpkgs.lib.genAttrs allSystems (
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          names = builtins.attrNames presetFiles;
-          dataOnly = builtins.all (n: self.lib.checkRice presetFiles.${n}) names;
+          names = builtins.attrNames riceFiles;
+          dataOnly = builtins.all (n: self.lib.checkRice riceFiles.${n}) names;
           evaluated = map (
             n:
             "${n} ${
@@ -272,7 +301,7 @@
                   inherit system;
                   username = "you";
                   hostname = "example";
-                  extraModules = [ presetFiles.${n} ];
+                  extraModules = [ riceFiles.${n} ];
                 }).system.drvPath
             }"
           ) names;
