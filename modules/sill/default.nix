@@ -21,16 +21,18 @@ let
   userPath = "/run/current-system/sw/bin:/etc/profiles/per-user/${username}/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin";
 
   sillpop = pkgs.callPackage ./sillpop.nix { };
-  # Every pill that opens a dropdown calls this instead of setting
-  # `popup.drawing=toggle` itself, which is what makes the dropdown close on a
-  # click anywhere else (sketchybar alone can only ever see clicks on its own
-  # items — see sillpop.swift). The literal store-independent path is what the
-  # click_scripts embed, same as `awake` below; the `||` fallback keeps a pill
-  # working in the window between an old bar reloading and the new profile
-  # landing, and on a machine where the build was skipped.
+  # What a pill with a dropdown uses instead of a bare `popup.drawing=toggle`, so
+  # the dropdown also closes on a click anywhere else — sketchybar alone only ever
+  # sees clicks on its own items (see sillpop.swift).
+  #
+  # The toggle stays FIRST and unchanged, so opening a dropdown costs exactly what
+  # it always did; the guard is armed after it, backgrounded, and nothing waits on
+  # it. That ordering is the whole latency story — armed inline, it added ~200 ms
+  # to every open. `&` also means no fallback is needed: if the binary is missing
+  # the popup has already opened, and only the dismissal is lost.
   popToggle =
     item:
-    "/run/current-system/sw/bin/sillpop toggle ${item} 2>/dev/null || sketchybar --set ${item} popup.drawing=toggle";
+    "sketchybar --set ${item} popup.drawing=toggle; /run/current-system/sw/bin/sillpop arm ${item} 2>/dev/null &";
 
   # The whole roster drives the pills (a workspace is what earns one); only the
   # keyed subset drives the leader picker.
