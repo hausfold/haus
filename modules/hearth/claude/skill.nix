@@ -14,7 +14,7 @@
 # HERE, not the ones on upstream main — which is the whole point: an agent that
 # reads latest-main docs will offer a user options their pin doesn't have.
 #
-# The hand-written half (SKILL.md, recipes, the consumer CLAUDE.md) is the part
+# The hand-written half (SKILL.md, recipes, the consumer starter pair) is the part
 # that DOESN'T drift: the edit → rebuild → rollback loop, the boundaries, the
 # traps. Keep it that way — if you find yourself listing option names in prose
 # here, that belongs in the generated half.
@@ -43,6 +43,13 @@ pkgs.runCommand "nebelhaus-claude-skill-${version}"
 
     substitute ${./SKILL.md} "$out/SKILL.md" --subst-var-by riceVersion ${lib.escapeShellArg version}
     cp ${./recipes.md}          "$out/references/recipes.md"
+
+    # The starter pair for a consumer repo: the rules in AGENTS.md, which every
+    # client reads, plus the CLAUDE.md that is nothing but an @AGENTS.md import
+    # (Claude Code reads only that name). Both are copied so a user who takes
+    # them lands with the same one-body-many-pointers shape the family repos
+    # use — a lone CLAUDE.md would be invisible to a Codex or OpenCode pane.
+    cp ${./consumer-AGENTS.md}  "$out/consumer-AGENTS.md"
     cp ${./consumer-CLAUDE.md}  "$out/consumer-CLAUDE.md"
 
     jq -r -f ${./options-md.jq} \

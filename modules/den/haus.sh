@@ -703,9 +703,14 @@ cmd_doctor() {
 
   # Agents — whether an AI agent can usefully and safely drive this machine.
   # Three separate questions, all of which have bitten someone: does it have the
-  # knowledge (the skill), does the config repo orient it (a CLAUDE.md), and can
+  # knowledge (the skill), does the config repo orient it (an AGENTS.md), and can
   # a rebuild from an agent pane actually complete (Full Disk Access vs the
   # universalaccess trap that `haus rebuild` guards).
+  #
+  # AGENTS.md is the file that matters: Codex, OpenCode, Cursor, Copilot and
+  # anything else that speaks agents.md read it, while Claude Code reads only
+  # CLAUDE.md. So a repo with just a CLAUDE.md orients exactly one client — worth
+  # saying out loud, since the agent keybind can spawn any of the three.
   echo
   say "Agents"
   local skilldir="$HOME/.claude/skills/nebelhaus"
@@ -714,10 +719,14 @@ cmd_doctor() {
   else
     info "no nebelhaus skill — set nebelhaus.claude.skill = true to let an agent change this machine"
   fi
-  if [ -f "$CONSUMER/CLAUDE.md" ]; then
-    ok "$CONSUMER/CLAUDE.md orients an agent opened there"
-  elif [ -f "$skilldir/consumer-CLAUDE.md" ]; then
-    info "no CLAUDE.md in your config — start from the rice's: cp $skilldir/consumer-CLAUDE.md $CONSUMER/CLAUDE.md"
+  if [ -f "$CONSUMER/AGENTS.md" ] && [ -f "$CONSUMER/CLAUDE.md" ]; then
+    ok "$CONSUMER/AGENTS.md orients any agent opened there (+ CLAUDE.md imports it)"
+  elif [ -f "$CONSUMER/AGENTS.md" ]; then
+    info "$CONSUMER/AGENTS.md orients most agents, but Claude Code reads only CLAUDE.md — add one holding '@AGENTS.md'"
+  elif [ -f "$CONSUMER/CLAUDE.md" ]; then
+    info "$CONSUMER/CLAUDE.md orients Claude Code only — Codex and OpenCode read AGENTS.md; move the rules there and leave '@AGENTS.md' behind"
+  elif [ -f "$skilldir/consumer-AGENTS.md" ]; then
+    info "nothing orients an agent opened in your config — start from the rice's pair: cp $skilldir/consumer-AGENTS.md $CONSUMER/AGENTS.md && cp $skilldir/consumer-CLAUDE.md $CONSUMER/CLAUDE.md"
   fi
   # Reported for the app running THIS command — the grant is per-app, so the
   # answer legitimately differs between your terminal and an agent's pane.

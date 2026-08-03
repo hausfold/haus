@@ -1,36 +1,20 @@
 # CLAUDE.md
 
-This repo is a **nebelhaus consumer** — one Mac's configuration in text. The
-rice itself (every module, every default) comes from the pinned `nebelhaus`
-flake input; what lives here is only what's personal to this machine.
+@AGENTS.md
 
-```
-flake.nix                        pins the rice — change with `haus update`, not by hand
-flake.lock                       the pinned revision — never hand-edited
-hosts/<hostname>/default.nix     THE file you edit
-```
+<!--
+Everything above this line is imported from AGENTS.md — the one set of
+instructions for this config repo, shared by every agent. Put rules THERE, not
+here, or Codex/OpenCode/Copilot silently run without them.
 
-## Working here
+Claude Code reads only CLAUDE.md, which is the whole reason this file exists.
+Only Claude-specific wiring belongs below.
+-->
 
-- **Edit only the host file.** Set `nebelhaus.*` options there. It's an ordinary
-  nix-darwin module, so raw `system.defaults.*` / `homebrew.*` also work — but
-  prefer a `nebelhaus.*` option when one exists.
-- **Apply with `haus rebuild`.** It builds first and switches only on success, so
-  a broken config never reaches the running system.
-- **Undo with `haus rollback`.** Atomic, instant, and it rewinds everything Nix
-  manages — but *not* macOS system settings the rebuild wrote, and *not* Homebrew
-  casks.
-- **Don't invent option names.** The authoritative list for the revision this
-  machine is pinned to is `~/.claude/skills/nebelhaus/references/options.md`.
-- **Ask before touching identity or secrets** — git identity, signing keys,
-  `nebelhaus.secrets.*`.
+## Claude-specific wiring (nothing project-level here)
 
-## Where the detail lives
-
-The `nebelhaus` skill at `~/.claude/skills/nebelhaus/` carries the full option
-reference, worked recipes, and this machine's current state. Read it before
-making changes; it is generated from this machine's pinned rice, so it can't
-drift from what's actually settable here.
-
-`haus doctor` checks the machine's health. <https://nebelhaus.com> has the
-guides — it documents the *latest* rice, which may be ahead of this pin.
+| Thing | Where | Notes |
+|---|---|---|
+| Instructions | `AGENTS.md`, imported above | Claude Code reads only `CLAUDE.md`, so this file exists purely to import it. |
+| The nebelhaus skill | `~/.claude/skills/nebelhaus/` | Installed by `nebelhaus.claude.skill`, generated from the rice revision this machine has pinned — so it describes the options that exist *here*. |
+| Global memory | `~/.claude/CLAUDE.md` | Written by `nebelhaus.claude.globalMd` if the host sets it; left alone if not. |

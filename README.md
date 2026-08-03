@@ -122,7 +122,7 @@ verifiable. `haus doctor` reports whether it's installed.
 - [Modules](docs/modules.md) — stealing one room, `mkNebelhaus`, and the identity knobs
 - [Adding apps](https://nebelhaus.com/guides/adding-apps/) · [Window management](https://nebelhaus.com/guides/window-management/) · [Moving to a new Mac](https://nebelhaus.com/guides/new-mac/) · [Keeping in sync](https://nebelhaus.com/guides/staying-in-sync/)
 - [Coding agents](https://nebelhaus.com/guides/claude-agents/) — `wt`, the worktree tool this rice puts on your PATH, for Claude Code, Codex or OpenCode
-- [`CLAUDE.md`](./CLAUDE.md) — hacking on the house, including `zscratch`
+- [`AGENTS.md`](./AGENTS.md) — hacking on the house, including `zscratch`
 
 ## the family
 

@@ -1,0 +1,24 @@
+# Project-scoped Codex config for the nebelhaus rice.
+#
+# Instructions: AGENTS.md at the repo root — Codex reads it natively, no wiring.
+# Flows: none repo-local yet; when there are, .agents/skills/ is what Codex
+# scans. Both are shared with every other client; see .agents/README.md.
+#
+# This file only carries the one thing AGENTS.md can't express: the session hook
+# that installs Nix in a cloud container.
+#
+# Note this is Codex config for people HACKING on the rice. The agent-state
+# hooks the rice writes into a user's ~/.codex/hooks.json are a different thing
+# entirely — a product feature, see modules/hearth.
+
+hooks = ".codex/hooks.json"
+
+[features]
+codex_hooks = true
+
+# Two caveats, both upstream, both harmless if they bite:
+#   * repo-local hooks have historically not fired in every interactive session
+#     (openai/codex#17532) — if `/hooks` doesn't list this one, add
+#     `hooks = "<abs path>/.codex/hooks.json"` to your own ~/.codex/config.toml;
+#   * some builds want an absolute path here. Either way the fallback is the
+#     same as for any harness with no hooks at all: run ./.agents/setup.sh once.

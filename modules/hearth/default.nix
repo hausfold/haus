@@ -1245,11 +1245,19 @@ in
         ".claude/skills/nebelhaus/references/recipes.md".source = "${claudeSkill}/references/recipes.md";
         ".claude/skills/nebelhaus/references/this-machine.md".text = thisMachine;
 
-        # A starter CLAUDE.md for ~/.config/nix, parked in the skill rather than
-        # written into that repo: it's the user's own git repo, and a read-only
-        # store symlink inside it would be a thing they can't commit. `haus
-        # doctor` points at this path, and the skill tells the agent to offer the
-        # copy — so it lands as a real, editable file or not at all.
+        # The starter instruction pair for ~/.config/nix, parked in the skill
+        # rather than written into that repo: it's the user's own git repo, and a
+        # read-only store symlink inside it would be a thing they can't commit.
+        # `haus doctor` points at these paths, and the skill tells the agent to
+        # offer the copy — so they land as real, editable files or not at all.
+        #
+        # Two files, because that's the shape every repo in the family now uses:
+        # AGENTS.md carries the rules (Codex, OpenCode, Cursor, Copilot and
+        # anything else that speaks agents.md read it natively), and CLAUDE.md is
+        # a bare @AGENTS.md import for the one client that reads only that name.
+        # Copying just the CLAUDE.md would leave a Codex or OpenCode pane in that
+        # repo with no instructions at all.
+        ".claude/skills/nebelhaus/consumer-AGENTS.md".source = "${claudeSkill}/consumer-AGENTS.md";
         ".claude/skills/nebelhaus/consumer-CLAUDE.md".source = "${claudeSkill}/consumer-CLAUDE.md";
       }
       // {
