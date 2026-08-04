@@ -1,5 +1,5 @@
 # The whole house. Import this for the full rice, or import individual rooms
-# (den / prowl / sill / collar / pounce / trill / perch / hush / secrets) from
+# (den / prowl / sill / collar / pounce / perch / hush / secrets) from
 # `darwinModules` in the flake.
 {
   imports = [
@@ -19,7 +19,6 @@
     ./sill/options.nix
     ./collar/options.nix
     ./pounce/options.nix
-    ./trill/options.nix
     ./perch/options.nix
     ./hush/options.nix
     ./secrets/options.nix
@@ -48,7 +47,6 @@
     ./sill
     ./collar
     ./pounce
-    ./trill
     ./perch
     ./hush
     ./secrets

@@ -15,15 +15,14 @@
 # already Developer-ID signed, and a grant keyed to that stable identity + path
 # survives rebuilds. `ditto` preserves the signature + notarization staple.
 #
-# On by default, like trill: nix/release.nix in the perch repo pins a real
-# notarized release, so `pkgs.perch` is a shipping app rather than a placeholder.
+# On by default: nix/release.nix in the perch repo pins a real notarized
+# release, so `pkgs.perch` is a shipping app rather than a placeholder.
 #
 # Theming rides perch's RUNTIME palettes (perch's UI/Theme/RicePalette.swift):
 # every rendered nebelung variant is dropped in ~/.config/perch/themes/, and
 # ~/.config/perch/config.json names the dark/light pair theme.{flavor,contrast}
-# selects. Same file shapes as trill, so the two modules stay diffable — the one
-# difference is that perch has no theme picker of its own, so this file is the
-# whole story for its colors.
+# selects. perch has no theme picker of its own, so this file is the whole
+# story for its colors.
 {
   config,
   lib,
@@ -33,9 +32,9 @@
 }:
 
 lib.mkIf config.nebelhaus.perch.enable {
-  # Same story as trill: the bundle is copied to a fixed /Applications path by
-  # this module's activation step (see the header on why the path must be
-  # fixed), so `installedBy` is the only honest source field.
+  # The bundle is copied to a fixed /Applications path by this module's
+  # activation step (see the header on why the path must be fixed), so
+  # `installedBy` is the only honest source field.
   nebelhaus.roster.perch = {
     name = lib.mkDefault "Perch";
     installedBy = lib.mkDefault "nebelhaus.perch";
@@ -54,7 +53,7 @@ lib.mkIf config.nebelhaus.perch.enable {
     }:
     let
       # theme.{flavor,contrast} resolved to the selected nebelung variant, the
-      # same way hearth/sill/theme/pounce/trill do it.
+      # same way hearth/sill/theme/pounce do it.
       nb = import ../lib/nebelung.nix {
         inherit lib nebelung;
         theme = config.nebelhaus.theme;

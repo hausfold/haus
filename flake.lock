@@ -209,20 +209,6 @@
         "perch"
       ]
     },
-    "prebuilt_2": {
-      "flake": false,
-      "locked": {
-        "path": "./nix/dev-app",
-        "type": "path"
-      },
-      "original": {
-        "path": "./nix/dev-app",
-        "type": "path"
-      },
-      "parent": [
-        "trill"
-      ]
-    },
     "root": {
       "inputs": {
         "catppuccin": "catppuccin",
@@ -233,29 +219,7 @@
         "nix-index-database": "nix-index-database",
         "nixpkgs": "nixpkgs_2",
         "perch": "perch",
-        "pounce": "pounce",
-        "trill": "trill"
-      }
-    },
-    "trill": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ],
-        "prebuilt": "prebuilt_2"
-      },
-      "locked": {
-        "lastModified": 1785834855,
-        "narHash": "sha256-omsQbMOp4ci9w/L1Np4YCk5ihScsX1E9uHVec941j1w=",
-        "owner": "nebelhaus",
-        "repo": "trill",
-        "rev": "88a4ddda69e1789e3c8230b7c1f5d25f8549416f",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nebelhaus",
-        "repo": "trill",
-        "type": "github"
+        "pounce": "pounce"
       }
     }
   },

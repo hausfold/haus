@@ -164,16 +164,16 @@ let
       installedBy = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
-        example = "nebelhaus.trill";
+        example = "nebelhaus.perch";
         description = ''
           The nebelhaus module that puts this app on disk, when none of the
-          four sources above describes it: trill, pounce and perch copy a
+          four sources above describes it: pounce and perch copy a
           notarized bundle into /Applications from their own activation
           step, which is neither a cask nor a package you can list.
 
           Set BY the rice, not by you. It exists so the roster can still
           answer "who installed this?" for those apps — without it, a host
-          adding a leader key for Trill had to KNOW the rice already ships
+          adding a leader key for Perch had to KNOW the rice already ships
           it, leave every source field null, and leave a comment explaining
           the hole. This is that comment, as data.
         '';

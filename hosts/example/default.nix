@@ -66,12 +66,6 @@
   # nebelhaus.apps.videoPlayer.enable = false;
   # nebelhaus.apps.videoPlayer.claimFileTypes = false;
 
-  # Trill, the family's Messages client, is opt-in: it reads and sends, but the
-  # rest is out of reach of Messages.app's automation surface and it isn't
-  # actively developed, so it isn't part of a default machine. Uncomment and it
-  # installs and themes exactly like the other rooms:
-  # nebelhaus.trill.enable = true;
-
   # Your apps — ONE list, whatever the source. An entry with a `key` joins the
   # Caps-Lock launcher (and a `workspace` gives it a tiling workspace + a bar
   # pill); an entry with neither is simply installed. So the app you reach for

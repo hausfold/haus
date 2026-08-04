@@ -40,11 +40,11 @@
 
         What does NOT follow it:
 
-          - pounce and trill, by default. Both read their palette at runtime and
+          - pounce and perch, by default. Both read their palette at runtime and
             can pick per polarity, so nebelhaus.pounce.followSystemAppearance
-            and nebelhaus.trill.followSystemAppearance (default true) hand that
+            and nebelhaus.perch.followSystemAppearance (default true) hand that
             choice to macOS Light/Dark instead: the rice installs every rendered
-            variant into ~/.config/{pounce,trill}/themes/ and writes the
+            variant into ~/.config/{pounce,perch}/themes/ and writes the
             dark/light PAIR at your `contrast`. Set either option false to pin
             that app to this flavor like everything else.
           - macOS's own Light/Dark appearance. Turning ON dark mode is one typed
@@ -53,7 +53,7 @@
             leaves system appearance alone in both directions and you set it in
             System Settings ▸ Appearance. A latte rice on a dark macOS looks
             half-done, and that half is currently yours — except in pounce and
-            trill, which read the appearance themselves.
+            perch, which read the appearance themselves.
           - the desktop wallpaper (nebelhaus.theme.wallpaper). The three hand-made
             looks have the dark palette baked in; only "bold" is generated, and it
             follows theme.accent rather than the flavor.
@@ -84,7 +84,7 @@
 
         Honest scope. This recolours what the rice injects colours into:
         Ghostty, bat, delta, lsd, yazi, zellij, glow, starship, lazygit, the
-        bar, pounce and trill (at runtime, via ~/.config/{pounce,trill}/themes/ —
+        bar, pounce and perch (at runtime, via ~/.config/{pounce,perch}/themes/ —
         and unlike `flavor`, contrast reaches both on BOTH halves of their
         light/dark pair), Zen and Obsidian. It does NOT reach:
 

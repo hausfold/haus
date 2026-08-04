@@ -401,7 +401,7 @@ cmd_rebuild() {
   rm -f "$difffile"
 }
 
-# Family apps (trill, pounce…) ship as CI-published casks/formulae in
+# Family apps (pounce, perch…) ship as CI-published casks/formulae in
 # nebelhaus/tap, released on their OWN cadence — a rice flake bump never carries
 # them. Worse, activation's `brew bundle` leans on Homebrew's auto-update, which
 # is THROTTLED: a rebuild can run against a stale tap clone and never see a fresh

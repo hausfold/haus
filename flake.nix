@@ -35,20 +35,11 @@
       inputs.nebelung.follows = "nebelung";
     };
 
-    # The Messages client. Its overlay puts `trill` in pkgs; modules/trill places
-    # the app at a fixed /Applications path. The flake wraps trill's CI-built,
-    # notarized release ZIP (macOS 26 blocks a from-source Nix build — see the
-    # trill repo), so this input tracks trill *releases*, not its main branch.
-    trill = {
-      url = "github:nebelhaus/trill";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     # The notch file shelf. Its overlay puts `perch` in pkgs; modules/perch
-    # places the app at a fixed /Applications path. Like trill, the flake wraps
-    # perch's CI-built, notarized release ZIP (macOS 26 blocks a from-source Nix
-    # build — see the perch repo), so this input tracks perch *releases*, not its
-    # main branch (exactly like trill).
+    # places the app at a fixed /Applications path. The flake wraps perch's
+    # CI-built, notarized release ZIP (macOS 26 blocks a from-source Nix build —
+    # see the perch repo), so this input tracks perch *releases*, not its main
+    # branch.
     perch = {
       url = "github:nebelhaus/perch";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -79,7 +70,6 @@
       catppuccin,
       nebelung,
       pounce,
-      trill,
       perch,
       holt,
       nix-index-database,
@@ -129,7 +119,6 @@
             {
               nixpkgs.overlays = [
                 pounce.overlays.default
-                trill.overlays.default
                 perch.overlays.default
                 holt.overlays.default
               ];
@@ -463,10 +452,6 @@
                       # WEB rather than an app's own config: the stamped Stylus
                       # bundle only exists once the extension is declared.
                       nebelhaus.zen.extensions.stylus = { };
-                      # Also not in the default rice since 2026-08-04 — trill is
-                      # opt-in now. Enabled here anyway: the module is still
-                      # supported, so its theming stays under test.
-                      nebelhaus.trill.enable = true;
                     }
                   ];
                 }).config;
@@ -506,7 +491,6 @@
               pounce = file "/Users/you/.config/pounce/themes/nebelung.json";
               sill = file ".config/sketchybar/colors.sh";
               starship = file "/Users/you/.config/starship.toml";
-              trill = file "/Users/you/.config/trill/themes/nebelung.json";
               zellij = file ".config/zellij/themes/nebelung.kdl";
             };
           # Three full evaluations, bound once rather than per row — the rows are
@@ -531,7 +515,7 @@
             }";
           accentTable = builtins.concatStringsSep "\n" (map accentRow (builtins.attrNames accentA));
           # Alphabetical because the rows are `attrNames` — self-sorting, so a new
-          # surface can't be added in a spot that hides it. Seven move, eleven hold.
+          # surface can't be added in a spot that hides it. Seven move, ten hold.
           expectedAccentTable = ''
             bat pinned
             fzf moves
@@ -545,7 +529,6 @@
             sill pinned
             starship pinned
             stylus moves
-            trill pinned
             wallpaper-bold moves
             yazi moves
             zed-roster-port moves
@@ -663,7 +646,6 @@
         }
         // nixpkgs.lib.optionalAttrs isDarwin {
           pounce = pounce.packages.${system}.default;
-          trill = trill.packages.${system}.default;
           perch = perch.packages.${system}.default;
         }
       );
