@@ -120,6 +120,20 @@ render_pr() {
 # "non-backslash" — URLs never contain '\', and the ST terminator's '\' stops it.)
 plain() { printf '%s' "$1" | sed 's/\x1b]8;;[^\\]*\x1b\\//g; s/\x1b\[[0-9;]*m//g'; }
 
+mtime() { # mtime <file> — modification time in epoch seconds, 0 when unknown
+  # The same helper the refresher carries, and for the same reason: `stat -f %m`
+  # is BSD/macOS, which is where this runs — but the test suite runs on a GNU
+  # box in CI, where -f means --file-system and %m is the MOUNT POINT, so it
+  # prints "/" and exits 0. The fallback cannot be selected by exit status
+  # alone. Accept the BSD result only when it is numeric, then try GNU stat,
+  # then insist on digits so the caller's arithmetic can't blow up.
+  local m
+  m=$(stat -f %m "$1" 2>/dev/null || true)
+  case "$m" in '' | *[!0-9]*) m=$(stat -c %Y "$1" 2>/dev/null || echo 0) ;; esac
+  case "$m" in '' | *[!0-9]*) m=0 ;; esac
+  printf '%s' "$m"
+}
+
 in=$(cat)
 j() { printf '%s' "$in" | jq -r "$1 // empty"; }
 cwd=$(j '.workspace.current_dir // .cwd'); [ -z "$cwd" ] && cwd="$PWD"
@@ -513,7 +527,7 @@ emit "$row1"
 # --- refresh the (shared) panel cache if stale, detached --------------------
 stale=1
 if [ -f "$PANEL" ]; then
-  age=$(( $(date +%s) - $(stat -f %m "$PANEL" 2>/dev/null || echo 0) ))
+  age=$(( $(date +%s) - $(mtime "$PANEL") ))
   [ "$age" -lt "$TTL" ] && stale=0
 fi
 [ "$stale" = 1 ] && [ -x "$REFRESHER" ] && { nohup "$REFRESHER" >/dev/null 2>&1 & disown 2>/dev/null || true; }
