@@ -195,16 +195,17 @@ points back to when it feels several PRs together.
     `modules/theme/options.nix`, one row in the `theme-variants` golden table, and a
     `nix flake update nebelung`. Nothing else — that's the point of the factoring.
 - **Iterating on a zellij edit** (config.kdl / a layout / a freshly-built
-  plugin `.wasm`): don't `bench try switch` + restart `main` just to feel a
-  keybind or colour — that nukes every tab. Use **`zscratch`** (`modules/den`):
-  it renders your candidate over a copy of the live `~/.config/zellij` into a
-  temp `--config-dir` and boots a throwaway session in its own Ghostty window,
-  so the working multiplexer is untouched. `zscratch --config FILE` /
-  `--layout FILE` / `--theme FILE` / `--plugin tab-bar=WASM`; `zscratch clean`
-  reaps it. The final real activation still needs `bench try switch` — but you
-  do it once, already knowing it works. A brand-new session name = a new zellij
-  *server*, which recompiles plugin wasm from disk (a running server caches it
-  in memory for its lifetime).
+  plugin `.wasm` / a candidate binary): don't `bench try switch` + restart
+  `main` just to feel a keybind or colour — that nukes every tab. Use
+  **`zscratch`** (`modules/den`): it renders your candidate over a copy of the
+  live `~/.config/zellij` into a temp `--config-dir` and boots a throwaway
+  session in its own Ghostty window, so the working multiplexer is untouched.
+  `zscratch --config FILE` / `--layout FILE` / `--theme FILE` / `--plugin
+  tab-bar=WASM` / `--bin /path/to/zellij`; `zscratch clean` reaps it. The final
+  real activation still needs `bench try switch` — but you do it once, already
+  knowing it works. A brand-new session name = a new zellij *server*, which
+  recompiles plugin wasm from disk (a running server caches it in memory for its
+  lifetime).
 - **The four zellij plugin forks** (`modules/hearth/zellij/{tab-bar,status-bar,
   link-handler,tab-history}`) are Rust → wasm32-wasip1, and hearth builds them
   **from source** on every rebuild (`zellijPlugins`, via `pkgsCross.wasi32`) —

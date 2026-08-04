@@ -2,7 +2,7 @@ diff --git a/zellij-server/src/panes/terminal_pane.rs b/zellij-server/src/panes/
 index 477185a..0a3c59a 100644
 --- a/zellij-server/src/panes/terminal_pane.rs
 +++ b/zellij-server/src/panes/terminal_pane.rs
-@@ -36,6 +36,63 @@ use crate::ui::pane_boundaries_frame::{FrameParams, PaneFrame};
+@@ -36,6 +36,72 @@ use crate::ui::pane_boundaries_frame::{FrameParams, PaneFrame};
  
  pub const SELECTION_SCROLL_INTERVAL_MS: u64 = 10;
  
@@ -24,9 +24,18 @@ index 477185a..0a3c59a 100644
 +/// tick delayed by a busy server (or a departure that sat idle while the timer
 +/// was disarmed) would cash in as one enormous jump.
 +const SELECTION_SCROLL_MAX_ELAPSED_MS: u128 = 100;
++/// How close to a pane edge a held drag starts scrolling without leaving the
++/// pane. Keeping this inside the pane matters for a fullscreen Ghostty window:
++/// crossing its boundary has no useful extra mouse range to report.
++const SELECTION_SCROLL_EDGE_MARGIN: isize = 3;
++/// A drag has to sweep this many rows before the in-pane edge margin can arm.
++/// Starting near an edge is common for a short, precise selection; it must not
++/// immediately turn into autoscroll.
++const SELECTION_SCROLL_INPANE_MIN_LINES: isize = 3;
 +
 +/// Autoscroll rate, in milli-lines per second, from how much was already
-+/// highlighted when the drag crossed the pane edge.
++/// highlighted when the drag crossed the pane edge (or armed the in-pane edge
++/// margin).
 +///
 +/// The "how far past the edge is the cursor" signal that would be the obvious
 +/// input here is nearly useless: terminals CLAMP a drag that leaves the window
@@ -66,7 +75,7 @@ index 477185a..0a3c59a 100644
  // Some keys in different formats but are used in the code
  const LEFT_ARROW: &[u8] = &[27, 91, 68];
  const RIGHT_ARROW: &[u8] = &[27, 91, 67];
-@@ -134,6 +191,13 @@ pub struct TerminalPane {
+@@ -134,6 +200,13 @@ pub struct TerminalPane {
      pub style: Style,
      vte_parser: vte::Parser,
      selection_scrolled_at: time::Instant,
@@ -80,7 +89,7 @@ index 477185a..0a3c59a 100644
      content_offset: Offset,
      pane_title: String,
      pane_name: String,
-@@ -657,26 +721,63 @@ impl Pane for TerminalPane {
+@@ -657,26 +730,87 @@ impl Pane for TerminalPane {
      }
  
      fn update_selection(&mut self, to: &Position, _client_id: ClientId) {
@@ -89,8 +98,25 @@ index 477185a..0a3c59a 100644
 -        let cursor_at_the_bottom = to.line.0 < 0 && should_scroll;
 -        let cursor_at_the_top = to.line.0 as usize >= self.grid.height && should_scroll;
 -        let cursor_in_the_middle = to.line.0 >= 0 && (to.line.0 as usize) < self.grid.height;
-+        let cursor_above_pane = to.line.0 < 0;
-+        let cursor_below_pane = to.line.0 >= 0 && (to.line.0 as usize) >= self.grid.height;
++        let row = to.line.0;
++        let height = self.grid.height as isize;
++        let anchor = self.grid.selection.start.line.0;
++        let swept_rows = (anchor - row).abs();
++        let in_pane_trigger_armed = swept_rows >= SELECTION_SCROLL_INPANE_MIN_LINES;
++
++        // Past an edge always scrolls. Once a drag has swept enough rows to
++        // establish direction and intent, the last three real pane rows do as
++        // well — so selecting a long scrollback need not leave Ghostty's
++        // window. The timer in screen.rs already re-posts a held drag, so a
++        // parked pointer in this margin keeps moving exactly like one past it.
++        let cursor_above_pane = row < 0
++            || (in_pane_trigger_armed
++                && row < anchor
++                && row < SELECTION_SCROLL_EDGE_MARGIN);
++        let cursor_below_pane = (row >= 0 && row >= height)
++            || (in_pane_trigger_armed
++                && row > anchor
++                && row >= height - SELECTION_SCROLL_EDGE_MARGIN);
  
 -        // TODO: check how far up/down mouse is relative to pane, to increase scroll lines?
 -        if cursor_at_the_bottom {
@@ -112,6 +138,13 @@ index 477185a..0a3c59a 100644
              self.grid.update_selection(to);
 +            return;
          }
++
++        if row >= 0 && row < height {
++            // Unlike a pointer outside the pane, this one still has a real
++            // row. Keep the end of the selection under it as the viewport
++            // moves; viewport scrolling itself extends the selection.
++            self.grid.update_selection(to);
++        }
 +
 +        let elapsed = self.selection_scrolled_at.elapsed();
 +        if elapsed < time::Duration::from_millis(SELECTION_SCROLL_INTERVAL_MS) {
@@ -159,7 +192,7 @@ index 477185a..0a3c59a 100644
      }
  
      fn end_selection(&mut self, end: &Position, _client_id: ClientId) {
-@@ -1124,6 +1225,8 @@ impl TerminalPane {
+@@ -1124,6 +1258,8 @@ impl TerminalPane {
              active_at: Instant::now(),
              style,
              selection_scrolled_at: time::Instant::now(),
@@ -176,7 +209,7 @@ index 35107c0..5c0a026 100644
  use std::path::PathBuf;
  use std::rc::Rc;
  use std::str;
-+use std::sync::atomic::{AtomicBool, Ordering};
++use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 +use std::sync::{Arc, Mutex};
 +use std::thread;
  use std::time::{Duration, Instant};
@@ -197,7 +230,7 @@ index 35107c0..5c0a026 100644
  use log::{debug, warn};
  use zellij_utils::data::{
      CommandOrPlugin, Direction, EventType, FloatingPaneCoordinates, GetFocusedPaneInfoResponse,
-@@ -1458,6 +1472,14 @@ pub(crate) struct Screen {
+@@ -1458,6 +1472,17 @@ pub(crate) struct Screen {
      /// Resolved styling to apply when `host_terminal_theme_mode == Light`.
      /// `None` disables auto-switch. Refreshed on each reconfigure.
      host_theme_light_styling: Option<Styling>,
@@ -209,19 +242,23 @@ index 35107c0..5c0a026 100644
 +    /// Whether the autoscroll tick thread is alive. Clearing it is how the
 +    /// thread is asked to stop.
 +    selection_autoscroll_running: Arc<AtomicBool>,
++    /// Each fresh timer arm gets a generation. An older thread must never clear
++    /// the running flag after a quick release/reselect has started its successor.
++    selection_autoscroll_generation: Arc<AtomicU64>,
  }
  
  /// A pending forward waiting to be dispatched once the current in-flight
-@@ -1611,6 +1633,8 @@ impl Screen {
+@@ -1611,6 +1636,9 @@ impl Screen {
              host_terminal_theme_mode: None,
              host_theme_dark_styling: None,
              host_theme_light_styling: None,
 +            selection_autoscroll: Arc::new(Mutex::new(None)),
 +            selection_autoscroll_running: Arc::new(AtomicBool::new(false)),
++            selection_autoscroll_generation: Arc::new(AtomicU64::new(0)),
          }
      }
  
-@@ -4823,6 +4847,101 @@ impl Screen {
+@@ -4823,6 +4851,116 @@ impl Screen {
              }
          }
      }
@@ -239,7 +276,7 @@ index 35107c0..5c0a026 100644
 +        if dragging && selecting {
 +            self.arm_selection_autoscroll(*event, client_id);
 +        } else {
-+            self.disarm_selection_autoscroll();
++            self.disarm_selection_autoscroll(client_id);
 +        }
 +    }
 +
@@ -262,6 +299,8 @@ index 35107c0..5c0a026 100644
 +            return;
 +        }
 +        let running = self.selection_autoscroll_running.clone();
++        let generation = self.selection_autoscroll_generation.clone();
++        let generation_token = generation.fetch_add(1, Ordering::SeqCst) + 1;
 +        let held = self.selection_autoscroll.clone();
 +        let senders = self.bus.senders.clone();
 +        let spawned = thread::Builder::new()
@@ -269,9 +308,13 @@ index 35107c0..5c0a026 100644
 +            .spawn(move || {
 +                let mut previous: Option<(MouseEvent, ClientId)> = None;
 +                let mut ticks_held_still = 0usize;
-+                while running.load(Ordering::SeqCst) {
++                while running.load(Ordering::SeqCst)
++                    && generation.load(Ordering::SeqCst) == generation_token
++                {
 +                    thread::sleep(Duration::from_millis(SELECTION_AUTOSCROLL_TICK_MS));
-+                    if !running.load(Ordering::SeqCst) {
++                    if !running.load(Ordering::SeqCst)
++                        || generation.load(Ordering::SeqCst) != generation_token
++                    {
 +                        break;
 +                    }
 +                    let current = match held.lock() {
@@ -301,21 +344,30 @@ index 35107c0..5c0a026 100644
 +                        break;
 +                    }
 +                }
-+                running.store(false, Ordering::SeqCst);
++                // `disarm` invalidates the token before it clears `running`.
++                // If a new drag has armed another thread in the meantime, this
++                // older one must not turn that new thread off.
++                if generation.load(Ordering::SeqCst) == generation_token {
++                    running.store(false, Ordering::SeqCst);
++                }
 +            });
 +        if spawned.is_err() {
 +            log::error!("Failed to spawn the selection autoscroll thread");
++            self.selection_autoscroll_generation.fetch_add(1, Ordering::SeqCst);
 +            self.selection_autoscroll_running.store(false, Ordering::SeqCst);
 +        }
 +    }
 +
-+    fn disarm_selection_autoscroll(&mut self) {
++    fn disarm_selection_autoscroll(&mut self, client_id: ClientId) {
 +        if let Ok(mut held) = self.selection_autoscroll.lock() {
-+            if held.is_none() {
++            if held.map(|(_, held_client_id)| held_client_id) != Some(client_id) {
 +                return;
 +            }
 +            *held = None;
 +        }
++        // Bump before clearing the flag: a quick reselect may have started a
++        // successor by the time this worker wakes up.
++        self.selection_autoscroll_generation.fetch_add(1, Ordering::SeqCst);
 +        self.selection_autoscroll_running
 +            .store(false, Ordering::SeqCst);
 +    }
@@ -323,7 +375,7 @@ index 35107c0..5c0a026 100644
      pub fn handle_mouse_event(&mut self, event: MouseEvent, client_id: ClientId) {
          let is_bare_motion = event.event_type == MouseEventType::Motion
              && !event.left
-@@ -4839,6 +4958,9 @@ impl Screen {
+@@ -4839,6 +4977,9 @@ impl Screen {
              .and_then(|tab| tab.handle_mouse_event(&event, client_id))
          {
              Ok(mouse_effect) => {
