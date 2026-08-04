@@ -124,10 +124,30 @@ the workspace, the pill and the cheatsheet row all still work. The consumer
 closes it once the app is installed, with
 `osascript -e 'id of app "Obsidian"'`.
 
-**4. A pack cannot install from Nixpkgs.** `roster.*.package` is typed as a
-package, and reaching `pkgs` is exactly what data-only forbids — the same limit
-the rice hit on `fonts.mono.package`. Homebrew (`cask`, `brew`) and the App Store
-(`appStoreId`) are fully expressible; a pack of Nixpkgs tools is not, today.
+**4. Install from Nixpkgs by NAMING the package, not evaluating it.** All four
+sources are expressible: Homebrew (`cask`, `brew`), the App Store (`appStoreId`)
+and Nixpkgs — the last one through `packageName`, an attribute path into nixpkgs
+written as a string:
+
+```nix
+{
+  nebelhaus.roster.ripgrep.packageName = "ripgrep";              # pkgs.ripgrep
+  nebelhaus.roster.black.packageName = "python3Packages.black";  # dotted paths work
+}
+```
+
+`roster.*.package` — the derivation-typed one — is still out of reach from a
+data-only file, and always will be: it needs `pkgs`, which a pack has no way to
+be handed. `packageName` is the same source said in data. Set one or the other,
+never both; the build refuses the pair rather than picking a winner. The rice
+takes the same shape wherever it takes a package (`fonts.mono.packageName` is
+the other one today), and `nix flake check`'s `data-only-surface` fails if a
+package-typed option is ever added without its named sibling.
+
+What naming a package does NOT do is widen what a rice can run. The resolver
+walks `pkgs` by attribute path — no `import`, no eval of a string as code — so
+reading a rice still tells you everything it can do. It installs software you
+haven't vetted, exactly like `cask` already did.
 
 ## Publishing one
 

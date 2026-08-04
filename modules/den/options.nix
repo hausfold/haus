@@ -143,6 +143,28 @@ in
           Set this whenever you change `name`, or the family simply won't exist
           on the machine and Ghostty will silently fall back — the rice warns if
           it spots that combination.
+
+          A shared rice can't set this one — it needs `pkgs`, and a data-only
+          rice has no arguments. Use `packageName` there.
+        '';
+      };
+      packageName = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "nerd-fonts.fira-code";
+        description = ''
+          The same thing as `package`, NAMED rather than evaluated: an
+          attribute path into nixpkgs, so "nerd-fonts.fira-code" means
+          `pkgs.nerd-fonts.fira-code`.
+
+          This exists so a data-only rice (presets/README.md) can change the
+          font FAMILY and not just its size — reaching `pkgs` is precisely what
+          that format forbids, which made `fonts.mono.package` unreachable to
+          every shared rice. A name is data; a package is code.
+
+          Set one or the other, never both. A name that resolves to nothing, or
+          to a set of packages rather than a package, fails at eval with the
+          spelling to try instead.
         '';
       };
     };
