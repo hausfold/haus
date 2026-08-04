@@ -25,8 +25,10 @@ let
   # How the zellij binds and the `c` alias spell "start an agent". Only Claude
   # Code can make its own worktree (`--worktree`, which fires the WorktreeCreate
   # hook); for the others `holt new` does it from the outside, so Super a
-  # behaves the same whichever client the machine defaults to. Rendered into
-  # config.kdl's @AGENT_NEW@ (@AGENT_HERE@ is just agentDefault).
+  # behaves the same whichever client the machine defaults to. Holt reads the
+  # persisted default rendered below, rather than the Zellij server's
+  # launch-time environment. Rendered into config.kdl's @AGENT_NEW@
+  # (@AGENT_HERE@ is just agentDefault).
   #
   # `holt`, not `wt`: they make the identical checkout, branch and registry row,
   # and the frozen `wt` stays on PATH, so this is a repoint rather than a
@@ -1331,6 +1333,15 @@ in
         '';
       }
       // lib.optionalAttrs devCfg.agents.enable {
+        # Holt's durable machine default. The zellij server and launchd daemons
+        # can outlive the environment that started them, so `holt new` resolves
+        # this generated file instead of inheriting a stale client selection.
+        # A standalone Holt install can own the same file by hand.
+        ".config/holt/config.toml".text = ''
+          # Generated from nebelhaus.agents.default — edit that option, not here.
+          agent = "${agentDefault}"
+        '';
+
         # Opencode's half of the agent-pane status the bar and the zellij tab-bar
         # draw. Claude Code's equivalent is four hooks in ~/.claude/settings.json,
         # which the USER wires (Claude owns that file and rewrites it, so the rice

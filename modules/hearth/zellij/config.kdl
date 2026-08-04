@@ -81,8 +81,11 @@ keybinds {
         // @AGENT_NEW@ is rendered by hearth from nebelhaus.agents.default:
         //   claude   → `claude --worktree`, its NATIVE flag, which fires the
         //              `wt` WorktreeCreate hook in ~/.claude/settings.json.
-        //   codex,   → `wt new`: no client-side equivalent exists, so wt makes
-        //   opencode   the same worktree from the outside and opens the client
+        //   codex,   → `holt new`: no client-side equivalent exists, so Holt
+        //   opencode   makes the same worktree from the outside and opens the
+        //              configured client. Holt reads its persisted config, not
+        //              Zellij's launch-time environment, so it keeps following
+        //              nebelhaus.agents.default after a rebuild.
         //              in it. Same path, branch, registry, parking and reaping.
         // Either way the checkout is ~/.cache/claude-worktrees/<repo>/<name> on
         // branch worktree-<name>, branched from this checkout's local HEAD.
