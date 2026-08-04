@@ -20,9 +20,16 @@
         Replace the stock ⌘Tab app switcher with pounce's MRU *window* switcher:
         tap ⌘⇥ to toggle to the last window (across workspaces), hold ⌘ and keep
         tapping ⇥ to walk older ones, type while holding to fuzzy-filter
-        (frecency-ranked). Rows carry the window's AeroSpace workspace, and
-        focusing goes through `aerospace focus --window-id` so a window parked
-        on another workspace surfaces correctly.
+        (frecency-ranked). Rows are gathered by AeroSpace workspace under a
+        header each, and focusing goes through `aerospace focus --window-id` so
+        a window parked on another workspace surfaces correctly.
+
+        Because prowl is tiling here, a bare tap deliberately looks past the
+        workspace you're on and takes the most recent window on a different
+        one — with two panes tiled side by side the most recent window is one
+        you're already looking at, so landing there wouldn't be a switch.
+        Moving between visible tiles stays windowNav's focus keys; the skipped
+        siblings are still the rows just below you in the list.
 
         Needs the daemon to hold an Accessibility grant — in practice, set
         nebelhaus.pounce.signingIdentity so the grant survives rebuilds. Without
