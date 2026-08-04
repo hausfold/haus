@@ -129,8 +129,17 @@ in
             options = {
               hint = lib.mkOption {
                 type = lib.types.str;
-                example = "Press ⌘Space, type calendar, then hit ↵";
-                description = "The instruction shown in the tour pill for this step.";
+                example = "Press {palette}, type calendar, then hit ↵";
+                description = ''
+                  The instruction shown in the tour pill for this step.
+
+                  Name keys with the placeholders `{palette}`, `{leader}` and
+                  `{leaderName}` rather than typing a chord: they expand to what
+                  THIS machine resolved, so a tour written once still teaches the
+                  right keys on a rice that moved `keys.palette` or `keys.leader`.
+                  A hardcoded "⌘Space" is wrong on that machine and the author
+                  never sees it — the consumer does.
+                '';
               };
 
               detect = lib.mkOption {
@@ -157,7 +166,7 @@ in
       default = null;
       example = [
         {
-          hint = "Press ⌘Space, type tour, then hit ↵";
+          hint = "Press {palette}, type tour, then hit ↵";
           detect = "palette";
         }
       ];
@@ -170,6 +179,11 @@ in
         Detection reuses signals the rice already emits. `launch`, `workspace`,
         `navigate` and `resize` need prowl; `palette` needs Pounce and its palette
         binding. The module warns when a chosen detector's room is disabled.
+
+        Authoring a tour is also the ONLY way to have one without prowl: the
+        built-in lap is three leader moves plus the palette, so `tour.enable` on a
+        rice with `prowl.enable = false` draws nothing at all. `presets/everyday.nix`
+        is the worked example — one step, the launcher.
       '';
     };
 

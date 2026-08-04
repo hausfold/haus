@@ -149,13 +149,27 @@ state_is_valid() {
     fi
 }
 
+# An authored hint is a literal string in someone else's rice, so it cannot name
+# the keys THIS machine resolved — the rice importing it may have moved
+# `keys.palette` or `keys.leader`. The built-in lap interpolates them; a shared
+# tour gets the same thing through placeholders, expanded here from the very
+# values tour_config.sh already carries. Without this, the only way to author
+# "press ⌘ Space" is to hardcode a chord that a consumer may not have bound.
+expand_keys() {
+    local s=$1
+    s=${s//\{palette\}/$TOUR_PALETTE}
+    s=${s//\{leader\}/$TOUR_LEADER}
+    s=${s//\{leaderName\}/$TOUR_LEADER_NAME}
+    printf '%s' "$s"
+}
+
 render() {
     local current index lbl
     current=$(step)
     case "$current" in
         c*)
             index=${current#c}
-            lbl="$index/$TOTAL · $(tour_custom_hint "$index")"
+            lbl="$index/$TOTAL · $(expand_keys "$(tour_custom_hint "$index")")"
             ;;
     esac
     case "$(step)" in

@@ -429,8 +429,9 @@ run mkdir -p "$DEST/hosts/$HOSTNAME"
 mkdir -p "$DEST/hosts/$HOSTNAME"   # for real even in dry-run, so we can write into it
 
 # A named preset is imported as an ordinary extra module — exactly how someone
-# would import a rice they found online. Your host file is applied AFTER it, so
-# anything you set there still wins.
+# would import a rice they found online. Import order carries no priority, so an
+# option the preset SETS is a conflict until the host says `lib.mkForce`; an
+# option it leaves alone the host sets outright (presets/README.md).
 PRESET_LINE=""
 [ -n "$PRESET_NAME" ] && PRESET_LINE="
         extraModules = [ nebelhaus.presets.$PRESET_NAME ];"

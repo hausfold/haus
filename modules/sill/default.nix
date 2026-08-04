@@ -469,6 +469,24 @@ let
     keys = config.nebelhaus.keys;
   };
 
+  # Placeholders an authored hint may use; tour.sh expands them at render time
+  # from the same values the built-in lap interpolates (see `expand_keys`).
+  knownPlaceholders = [
+    "palette"
+    "leader"
+    "leaderName"
+  ];
+  badPlaceholders = lib.unique (
+    lib.filter (name: !(builtins.elem name knownPlaceholders)) (
+      lib.concatMap (
+        step:
+        map (m: builtins.elemAt m 0) (
+          lib.filter builtins.isList (builtins.split "\\{([A-Za-z]+)\\}" step.hint)
+        )
+      ) (if customTour then customTourSteps else [ ])
+    )
+  );
+
   customStepCases =
     field:
     lib.concatStringsSep "\n" (
@@ -530,7 +548,17 @@ lib.mkIf config.nebelhaus.sill.enable {
           && (!config.nebelhaus.pounce.enable || k.palette == null)
           && lib.any (step: step.detect == "palette") customTourSteps
         )
-        "nebelhaus.tour.steps uses the palette detector while Pounce or its palette binding is disabled; that step can only be skipped.";
+        "nebelhaus.tour.steps uses the palette detector while Pounce or its palette binding is disabled; that step can only be skipped."
+    ++
+      # A misspelled placeholder renders literally — `{palete}` sits in the bar
+      # of whoever IMPORTED the rice, and the author, whose own hints they never
+      # re-read, is the last person to find out. Same asymmetry as a pack's
+      # leader key: check the thing the author can't see.
+      lib.optional (customTour && badPlaceholders != [ ]) (
+        "nebelhaus.tour.steps names unknown placeholders: "
+        + lib.concatStringsSep ", " badPlaceholders
+        + ". Known: {palette}, {leader}, {leaderName}; anything else renders as typed."
+      );
 
   # SketchyBar (brew) + its tap. sketchybar-app-font renders the workspace pill
   # glyphs (an icon ligature font: `:ghostty:` → that app's logo).

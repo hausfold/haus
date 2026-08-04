@@ -69,14 +69,23 @@
 #     thing you launch everything with is now among the things that got bigger,
 #     which for someone who doesn't open a terminal is most of the desktop they
 #     actually touch.)
-#   - A more legible FONT FAMILY. Not an omission by choice: a data-only rice
-#     can't set nebelhaus.fonts.mono.package, because that option takes a package
-#     and reaching `pkgs` is exactly what data-only forbids. So this preset makes
-#     the existing font bigger and leaves the family alone. That limit is a finding
-#     about the option surface, recorded in the roadmap rather than worked around.
+#   - A more legible FONT FAMILY — but this one is a CHOICE now, not a limit.
+#     It used to be the limit: `fonts.mono.package` takes a package, and reaching
+#     `pkgs` is exactly what a data-only rice forbids, so the family was
+#     unreachable from a preset. `fonts.mono.packageName` (#215) closed that, and
+#     this preset still leaves the family alone because a typeface is taste and a
+#     legibility LAYER shouldn't decide yours. See the two lines below if it is.
 #
-# Light mode is one line away if it reads better for you — some people find dark
-# text on light easier at size, some the reverse:
+# Two things this preset deliberately doesn't decide, both one line away.
+#
+# A more legible typeface — Atkynson Mono is Atkinson Hyperlegible's monospaced
+# sibling, drawn by the Braille Institute for exactly this problem:
+#
+#   nebelhaus.fonts.mono.packageName = "nerd-fonts.atkynson-mono";
+#   nebelhaus.fonts.mono.name        = "AtkynsonMono Nerd Font";
+#
+# And light mode, if it reads better for you — some people find dark text on
+# light easier at size, some the reverse:
 #
 #   nebelhaus.theme.flavor = "latte";
 {
