@@ -828,9 +828,13 @@ lib.mkIf config.nebelhaus.pounce.enable {
                 key = "↵ / ⎋";
                 action = "Commit / cancel without releasing ⌘";
               }
+              # No ⌥⇥ row any more: workspace back-and-forth is retired, and this
+              # switcher is what replaced it. Its rows carry the window's
+              # workspace and focusing goes through `aerospace focus
+              # --window-id`, so it crosses workspaces on its own.
               {
-                key = "⌥ ⇥";
-                action = "Its workspace-level sibling: last workspace";
+                key = "⌘ ⇥ → other space";
+                action = "Rows show their workspace; landing follows you there";
               }
             ];
           }

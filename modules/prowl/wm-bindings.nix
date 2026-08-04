@@ -72,11 +72,14 @@ lib.optionals hasNav [
         action = "Fullscreen toggle";
         binds.${m "f"} = "fullscreen";
       }
-      {
-        keys = g "⇥";
-        action = "Back and forth";
-        binds.${m "tab"} = "workspace-back-and-forth";
-      }
+      # No <mod>⇥ row: workspace back-and-forth is retired. pounce's ⌘⇥ switcher
+      # is already cross-workspace (rows carry the window's workspace, and
+      # focusing goes through `aerospace focus --window-id`), so "get me back to
+      # where I was" is ONE switcher instead of two that disagree — and
+      # back-and-forth's single previous-workspace pointer was the thing that
+      # kept landing you on a workspace you'd just emptied. <mod>⇥ is left
+      # deliberately UNBOUND rather than refilled: what it should become is a
+      # question for whatever a few days without it turn out to miss.
       {
         keys = gs "⇥";
         action = "Move workspace to next monitor";

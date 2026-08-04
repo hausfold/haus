@@ -68,8 +68,10 @@ outer.right = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTER
 # modules/prowl/wm-bindings.nix, the SAME table that renders the pounce
 # cheatsheet, so a binding and its caption can't drift. The modifier every one of
 # them hangs off is nebelhaus.keys.windowNav (⌥ by default): focus <mod>hjkl,
-# layouts <mod>/ <mod>,, fullscreen <mod>f, back-and-forth <mod>⇥,
-# move-workspace <mod>⇧⇥, palette per keys.palette. Resizing is a leader action
+# layouts <mod>/ <mod>,, fullscreen <mod>f,
+# move-workspace <mod>⇧⇥, palette per keys.palette. <mod>⇥ is deliberately
+# unbound — workspace back-and-forth is retired in favour of pounce's
+# cross-workspace ⌘⇥ switcher. Resizing is a leader action
 # (tap the leader, then -/=), and so is everything that names a WORKSPACE:
 # the leader then a digit/letter focuses it, the leader then ⇧+that same key
 # throws the focused window there — see [mode.launch.binding] below, next to
