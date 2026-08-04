@@ -164,12 +164,20 @@ keybinds {
         // map the Links bind uses) and falls back to `dump-screen --full` for
         // everything else. The full reasoning is in find.sh's header.
         //
-        // Launched as a throwaway 1% corner float that detaches the real work
-        // and exits immediately: a bind can only Run something, running it
-        // takes focus, and `list-clients` reports only the floating pane when
-        // one is focused (zellij#4067) — so the pane you meant has to be read
-        // back AFTER this launcher has closed. Same shape as the Links bind,
-        // where pounce's NSPanel gets that for free.
+        // Launched as a throwaway 1% corner float, which reads back the pane
+        // you meant and then opens the real overlay as a SECOND pane: a bind
+        // can only Run something, running it takes focus, and `list-clients`
+        // reports only the floating pane when one is focused (zellij#4067), so
+        // the target has to come from `list-panes` instead. Nothing may be
+        // detached from the launcher — zellij tears down a close_on_exit pane's
+        // whole process group — so the overlay has to be a pane of its own
+        // (find.sh's header has the full autopsy). Same shape as the Links
+        // bind, where pounce's NSPanel gets that for free.
+        //
+        // That overlay is a BORDERLESS, full-window float: zellij frames every
+        // floating pane regardless of `pane_frames false` above, and that frame
+        // — green, PIN hint, titled "find" — used to sit around fzf's own
+        // border, which said "find" a second time.
         bind "Super f" {
             Run "@HOME@/.config/zellij/find.sh" "launch" "pane" {
                 floating true
