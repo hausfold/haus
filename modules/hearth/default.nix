@@ -360,26 +360,31 @@ in
   # motion report when the CELL under the pointer changes. Selecting a long
   # scrollback meant jittering the mouse to manufacture events.
   #
-  # The patch makes that step a RATE, derived from what FRACTION of the pane was
-  # already highlighted when the drag crossed the edge: grab three lines and keep
-  # going and it crawls (slower than upstream, on purpose — a short drag means
-  # precise work); sweep the whole pane first and it moves. A fraction rather
-  # than a line count so the same gesture means the same speed in a 25-row
-  # zoomed-in pane and an 80-row one. Quadratic rather than linear because
-  # perceived speed tracks the log of actual speed, so a linear ramp spends its
-  # travel on differences you can't feel and crowds the precise range everyone
-  # aims for into the first few rows. Locked in per departure so the speed holds
-  # steady while you hold, re-derived when you come back in and leave again.
+  # Two halves. A repeat timer in screen.rs re-posts the held drag position
+  # every 16ms while the pointer sits past an edge, so a parked cursor scrolls
+  # at all — that is the half that removes the jittering. And the speed of that
+  # scroll is a RATE IN LINES PER SECOND, derived from what FRACTION of the pane
+  # was already highlighted when the drag crossed the edge: grab three lines and
+  # keep going and it crawls at ~13 lines/s, sweep the whole pane first and it
+  # runs at 150. A fraction rather than a line count so the same gesture means
+  # the same speed in a 25-row zoomed-in pane and an 80-row one. Locked in per
+  # departure so the speed holds steady while you hold, re-derived when you come
+  # back in and leave again.
+  #
+  # Because the debt accumulator bills elapsed wall-clock time rather than
+  # counting events, a jittered mouse and a parked one move at the same speed —
+  # the thing the first cut of this couldn't do.
   #
   # The obvious input — how far PAST the edge the cursor is — is close to
   # useless: terminals clamp a drag that leaves the window to the edge cell
   # (ghostty: src/renderer/size.zig, `@max(0, …)` / `@min(…, rows - 1)`), so
   # above a fullscreen pane there's exactly one row of travel to measure.
   #
-  # Still event-driven, with no repeat timer: the rate is per motion event, not
-  # per wall-clock tick, so absolute speed still rides on how fast the terminal
-  # reports motion. Adding a timer means a thread in screen.rs re-posting mouse
-  # events, which is a much bigger change than this one.
+  # The curve is the mean of the linear and squared terms, not the square. The
+  # first cut squared it, which measured out (on a 28-row pane, instrumented)
+  # as: break-even against upstream's flat one-line-per-event at 29% of the
+  # pane, and every gesture below that bunched into 0.39–0.70 lines per event —
+  # one flat crawl, indistinguishable, which is exactly what it felt like.
   #
   # Patched at zellij-unwrapped, not zellij: the latter is a thin wrapper
   # derivation with no source of its own. It rebuilds from source on every
