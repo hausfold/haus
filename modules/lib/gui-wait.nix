@@ -1,4 +1,8 @@
-# withGUIWait: wrap a GUI agent's launch so it survives cold boot.
+# The GUI-session wait every launchd GUI agent starts with, in two forms:
+#
+#   .script  — the bash snippet on its own, for agents that do their own work
+#              before exec'ing (pounce copies + re-signs its bundle first).
+#   .wrap    — wrap a plain executable:  .wrap "/Applications/Foo.app/…/Foo"
 #
 # Two problems this solves, both from launching GUI agents via launchd on
 # Determinate Nix:
@@ -11,21 +15,41 @@
 #      the Aqua-session limit alone isn't enough (e.g. AeroSpace's Carbon hotkey
 #      registration silently no-ops if the event manager isn't up yet).
 #
-# Usage:  ProgramArguments = withGUIWait "/Applications/AeroSpace.app/Contents/MacOS/AeroSpace";
-target: [
-  "/bin/bash"
-  "-c"
-  ''
-    until /usr/bin/pgrep -x Dock >/dev/null 2>&1; do sleep 1; done
-    until /usr/bin/pgrep -x Finder >/dev/null 2>&1; do sleep 1; done
-    until /usr/bin/pgrep -x SystemUIServer >/dev/null 2>&1; do sleep 1; done
-    deadline=$(( $(date +%s) + 60 ))
+# EVERY wait here is bounded by ONE shared 60 s deadline. That bound is the
+# whole point: the loops answer "is the session up *yet*", and an unbounded
+# `until pgrep -x Finder` can't tell "not booted yet" from "you pressed ⌘Q in
+# Finder" (Finder is quittable — den sets QuitMenuItem). With no bound, a
+# KeepAlive restart while Finder is closed parks the agent in the loop forever:
+# pounce stops answering its hotkey until the next reboot, with a live pid and
+# nothing in the log. Past the deadline we launch anyway — a GUI agent starting
+# slightly too early degrades (a hotkey to re-register); one that never starts
+# is just gone.
+let
+  script = ''
+    deadline=$(( $(/bin/date +%s) + 60 ))
+    for proc in Dock Finder SystemUIServer; do
+      until /usr/bin/pgrep -x "$proc" >/dev/null 2>&1; do
+        [ "$(/bin/date +%s)" -ge "$deadline" ] && break
+        sleep 1
+      done
+    done
     until /usr/bin/osascript -e 'tell application "System Events" to count processes' >/dev/null 2>&1; do
-      [ "$(date +%s)" -gt "$deadline" ] && break
+      [ "$(/bin/date +%s)" -ge "$deadline" ] && break
       sleep 1
     done
-    sleep 5
-    exec "$0"
-  ''
-  target
-]
+  '';
+in
+{
+  inherit script;
+
+  wrap = target: [
+    "/bin/bash"
+    "-c"
+    ''
+      ${script}
+      sleep 5
+      exec "$0"
+    ''
+    target
+  ];
+}

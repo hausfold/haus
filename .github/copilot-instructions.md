@@ -22,8 +22,9 @@ The short version:
   needs the matching guide updated there, or it silently drifts.
 - **Verify by evaluating:** `nix eval
   .#darwinConfigurations.example.system.drvPath`. `nixfmt` formats `.nix`.
-- Two traps worth knowing at review time: the **launchd GUI race** (`withGUIWait`
-  in `modules/lib/gui-wait.nix` is load-bearing — don't simplify it away), and
+- Two traps worth knowing at review time: the **launchd GUI race**
+  (`modules/lib/gui-wait.nix` is load-bearing — don't simplify it away, and don't
+  drop its 60 s deadline: unbounded, it wedges the agent forever), and
   **pounce self-signing** in `modules/pounce`, which is what keeps a TCC grant
   alive across rebuilds. `AGENTS.md` has the rest.
 

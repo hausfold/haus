@@ -22,7 +22,7 @@
 }:
 
 let
-  withGUIWait = import ../lib/gui-wait.nix;
+  withGUIWait = (import ../lib/gui-wait.nix).wrap;
   userPath = "/run/current-system/sw/bin:/etc/profiles/per-user/${username}/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin";
 
   # Absolute paths baked into the generated configs. AeroSpace's exec-and-forget

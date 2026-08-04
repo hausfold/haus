@@ -483,10 +483,13 @@ in
       # event; extensions are always visible above, so nothing is hidden.
       FXEnableExtensionChangeWarning = lib.mkDefault false;
 
-      # ⌘Q quits Finder like any other app. It relaunches the instant you open a
-      # folder, and the desktop comes back with it — but if you keep icons on
-      # the desktop and want them always drawn, set this false in your host.
-      QuitMenuItem = lib.mkDefault true;
+      # macOS's default: no ⌘Q in Finder. We used to turn it on — Finder does
+      # relaunch the instant you open a folder — but the rice's GUI agents key
+      # off Finder as the "is the Aqua session up" signal, so a hand-quit Finder
+      # is a session state nothing else produces, and it only ever surfaced as
+      # something else being broken (pounce's hotkey going dead). Not worth a
+      # menu item nobody asked for. Set true in your host if you want it back.
+      QuitMenuItem = lib.mkDefault false;
 
       # Column view sizes columns to the names actually in them.
       _FXEnableColumnAutoSizing = lib.mkDefault true;

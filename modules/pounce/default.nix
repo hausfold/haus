@@ -288,11 +288,9 @@ let
   # Wait for the GUI session (→ the /nix volume + an unlocked login keychain)
   # before touching the store path or codesign. Exec'ing via /bin/bash (boot
   # volume) also sidesteps the cold-boot exit-78 race for store-path executables.
-  guiWait = ''
-    until /usr/bin/pgrep -x Dock >/dev/null 2>&1; do sleep 1; done
-    until /usr/bin/pgrep -x Finder >/dev/null 2>&1; do sleep 1; done
-    until /usr/bin/pgrep -x SystemUIServer >/dev/null 2>&1; do sleep 1; done
-  '';
+  # Shared with prowl/sill, and bounded — see ../lib/gui-wait.nix for why the
+  # bound matters (an unbounded wait for Finder wedges the daemon after ⌘Q).
+  guiWait = (import ../lib/gui-wait.nix).script;
 
   # Unsigned: just run the daemon from the store. Signed: copy + re-sign first.
   daemonScript =
