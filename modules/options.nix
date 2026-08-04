@@ -120,6 +120,29 @@ let
         description = ''
           Nixpkgs package that installs this entry. Where it lands is
           `scope`'s call.
+
+          A shared rice or app pack can't set this one — it needs `pkgs`, and a
+          data-only rice has no arguments. Use `packageName` there.
+        '';
+      };
+      packageName = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "orbstack";
+        description = ''
+          The same source as `package`, NAMED rather than evaluated: an
+          attribute path into nixpkgs, so "orbstack" means `pkgs.orbstack` and
+          "python3Packages.black" means what it says. `scope` applies to it
+          identically.
+
+          This is the source a shared app pack can use (packs/README.md).
+          Without it a pack could install from Homebrew and the App Store but
+          never from Nixpkgs, because reaching `pkgs` is exactly what the
+          data-only format forbids — the one gap in the four sources.
+
+          Set this or `package`, never both; and it counts as a source like any
+          other, so pairing it with `cask` is the same mistake as pairing
+          `cask` with `brew`.
         '';
       };
       scope = lib.mkOption {

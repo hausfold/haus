@@ -45,14 +45,19 @@
 # See bite 2 in packs/README.md for the case where the consumer already owns one
 # of these apps outright.
 #
-# ---- and one real limit of the format ---------------------------------------
+# ---- all four sources, including the one that used to be missing -------------
 #
-# A pack can install from Homebrew (`cask`, `brew`) and the App Store
-# (`appStoreId`) but NOT from Nixpkgs, because `roster.*.package` is typed as a
-# package and reaching `pkgs` is exactly what data-only forbids. Same limit the
-# rice already hit on `fonts.mono.package`. It doesn't bite here — all four of
-# these are casks — but a pack of Nixpkgs tools is not expressible today, and
-# that's worth knowing before you plan one.
+# A pack can install from Homebrew (`cask`, `brew`), the App Store
+# (`appStoreId`) and Nixpkgs — that last one by NAMING the package instead of
+# evaluating it:
+#
+#   ripgrep = { packageName = "ripgrep"; };   # pkgs.ripgrep, with no `pkgs` here
+#
+# `roster.*.package` itself stays out of reach and always will: it takes a
+# derivation, and a data-only file has no arguments to get one from. That gap
+# was real while this pack was written — all four apps below are casks, which is
+# the right source for these four anyway — and `packageName` is what a pack of
+# Nixpkgs command-line tools would be written with today.
 {
   nebelhaus.roster = {
     # The notes app, and the one that earns a workspace: it's the thing you leave

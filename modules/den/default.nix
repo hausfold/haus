@@ -61,10 +61,27 @@ let
       "${homeDir}/${lib.removePrefix "~/" shotsCfg.location}"
     else
       shotsCfg.location;
+  # The font package, from whichever of the two ways it was given. `package` is
+  # the precise one; `packageName` is the same thing named as a string, which is
+  # the only one a data-only rice can express — see modules/lib/pkg-by-name.nix.
+  monoPackage =
+    if fontsCfg.mono.package != null then
+      fontsCfg.mono.package
+    else if fontsCfg.mono.packageName != null then
+      import ../lib/pkg-by-name.nix {
+        inherit lib pkgs;
+        option = "nebelhaus.fonts.mono.packageName";
+        name = fontsCfg.mono.packageName;
+      }
+    else
+      pkgs.nerd-fonts.jetbrains-mono;
+
   # Naming a family the rice was never given a package for is silent tofu:
   # Ghostty just falls back and the powerline/icon glyphs vanish. Cheap to spot.
   fontFamilyUnprovided =
-    fontsCfg.mono.package == null && fontsCfg.mono.name != options.nebelhaus.fonts.mono.name.default;
+    fontsCfg.mono.package == null
+    && fontsCfg.mono.packageName == null
+    && fontsCfg.mono.name != options.nebelhaus.fonts.mono.name.default;
 in
 {
   system.primaryUser = username;
@@ -90,13 +107,15 @@ in
   #   https://github.com/nix-darwin/nix-darwin/issues/1049
   warnings =
     lib.optional fontFamilyUnprovided ''
-      nebelhaus: fonts.mono.name is "${fontsCfg.mono.name}" but fonts.mono.package is null.
+      nebelhaus: fonts.mono.name is "${fontsCfg.mono.name}" but neither
+      fonts.mono.package nor fonts.mono.packageName is set.
 
       The rice only installs the font it's given, so unless that family is already
       on the machine Ghostty will fall back silently — and the fallback won't be a
       Nerd Font, so starship's prompt, lsd's icons and yazi previews render as
-      tofu. Set nebelhaus.fonts.mono.package to the matching package
-      (e.g. pkgs.nerd-fonts.fira-code).
+      tofu. Name the matching package: fonts.mono.packageName =
+      "nerd-fonts.fira-code" (or fonts.mono.package = pkgs.nerd-fonts.fira-code,
+      outside a data-only rice).
     ''
     ++ lib.optional (universalaccessSet != [ ]) ''
       nebelhaus: system.defaults.universalaccess is set (${lib.concatStringsSep ", " universalaccessSet}).
@@ -116,6 +135,21 @@ in
       (increaseContrast, differentiateWithoutColor) WITHOUT that hazard — it
       guards the write, so a missing grant costs you the setting and nothing else.
     '';
+
+  # Two ways to say the same thing, and no way to rank them: `package` is a
+  # derivation, `packageName` a string that resolves to one, and if they differ
+  # whichever the resolver happened to prefer would install silently. Refuse
+  # instead — the fix is deleting a line, which is the cheapest kind of error.
+  assertions = [
+    {
+      assertion = !(fontsCfg.mono.package != null && fontsCfg.mono.packageName != null);
+      message = ''
+        nebelhaus: fonts.mono.package and fonts.mono.packageName are both set.
+        They are the same setting written two ways — `package` for a module that
+        has `pkgs`, `packageName` for a data-only rice that doesn't. Keep one.
+      '';
+    }
+  ];
 
   # ---- nebelhaus.accessibility → com.apple.universalaccess -------------------
   # Writes the two keys in that domain measured to write AND take effect on
@@ -392,9 +426,7 @@ in
   # stock font renders as tofu. hearth points Ghostty at whatever this resolves
   # to. `fonts.packages` is a list option, so this merges with the fonts sill
   # installs (sketchybar-app-font + Hack, which its bar config names).
-  fonts.packages = [
-    (if fontsCfg.mono.package != null then fontsCfg.mono.package else pkgs.nerd-fonts.jetbrains-mono)
-  ];
+  fonts.packages = [ monoPackage ];
 
   # Homebrew's tap-trust check is flaky under sudo-driven activation (the
   # per-user trust store gets bypassed), so third-party taps fail with "Refusing

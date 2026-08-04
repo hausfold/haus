@@ -8,8 +8,8 @@
 #      in `order`) and `nebelhaus._launchers` (the subset with a leader key).
 #      prowl renders the keymap from those, sill the pills, pounce the
 #      cheatsheet; one resolution, so the three can't disagree.
-#   2. INSTALL — hand each entry's `cask` / `brew` / `package` / `appStoreId` to
-#      the right package manager.
+#   2. INSTALL — hand each entry's `cask` / `brew` / `package` (or the named
+#      `packageName`) / `appStoreId` to the right package manager.
 #
 # Why installing lives HERE and not in prowl, where it started: a roster entry
 # that only wants to exist on disk — a font, a CLI tool, an app you never launch
@@ -39,10 +39,39 @@ let
   namedEntries = lib.mapAttrsToList (id: app: { inherit id app; }) (
     lib.filterAttrs (_: app: app.enable) config.nebelhaus.roster
   );
-  orderedNamedEntries = lib.sort (
+  rawEntries = lib.sort (
     a: b: a.app.order < b.app.order || (a.app.order == b.app.order && a.id < b.id)
   ) namedEntries;
+
+  # `package` and `packageName` are ONE source written two ways: a derivation,
+  # for a module that has `pkgs`; an attribute path into nixpkgs, for a
+  # data-only rice or app pack that by definition doesn't
+  # (modules/lib/pkg-by-name.nix says why that matters). Resolving the name into
+  # the field right here, before anything reads the roster, is what keeps the
+  # pack-authored half from being a second code path — every check below, and
+  # every downstream room, sees `package` and never learns which way it arrived.
+  orderedNamedEntries = map (
+    entry:
+    entry
+    // {
+      app =
+        entry.app
+        // lib.optionalAttrs (entry.app.package == null && entry.app.packageName != null) {
+          package = import ../lib/pkg-by-name.nix {
+            inherit lib pkgs;
+            option = "nebelhaus.roster.${entry.id}.packageName";
+            name = entry.app.packageName;
+          };
+        };
+    }
+  ) rawEntries;
   apps = map (entry: entry.app) orderedNamedEntries;
+
+  # The one check that has to read the RAW entries: both fields set is two
+  # answers to one question, and after resolution they'd look like agreement.
+  bothPackageFields = map (e: e.id) (
+    lib.filter (e: e.app.package != null && e.app.packageName != null) rawEntries
+  );
 
   launchers = lib.filter (a: a.key != null) apps;
   launcherKeys = map (a: a.key) launchers;
@@ -77,6 +106,7 @@ let
 
   rosterCasks = lib.filter (c: c != null) (map (a: a.cask) apps);
   rosterBrews = lib.filter (b: b != null) (map (a: a.brew) apps);
+
   packagesFor = scope: map (a: a.package) (lib.filter (a: a.package != null && a.scope == scope) apps);
 
   # ---- installed twice, silently ------------------------------------------
@@ -167,15 +197,27 @@ in
       assertion = multiSourceEntries == [ ];
       message =
         "nebelhaus.roster entries name more than one install source (cask / brew / "
-        + "package / appStoreId); pick one per entry: "
+        + "package / packageName / appStoreId); pick one per entry: "
         + lib.concatStringsSep ", " multiSourceEntries;
+    }
+    {
+      # Not caught by the multi-source check above, which sees the resolved
+      # entry — by then these two have collapsed into one field and agree by
+      # construction. They are the same source written two ways, so if they
+      # disagree, one of them silently loses.
+      assertion = bothPackageFields == [ ];
+      message =
+        "nebelhaus.roster entries set both `package` and `packageName`. They are one "
+        + "source written two ways — a derivation for a module that has `pkgs`, a "
+        + "nixpkgs attribute path for a data-only rice that doesn't. Keep one, on: "
+        + lib.concatStringsSep ", " bothPackageFields;
     }
   ];
 
   warnings =
     lib.optional (emptyEntries != [ ]) (
       "nebelhaus.roster entries declare nothing to install and nothing to launch (no key, "
-      + "workspace, cask, brew, package, appStoreId or installedBy), so they have no effect: "
+      + "workspace, cask, brew, package/packageName, appStoreId or installedBy), so they have no effect: "
       + lib.concatStringsSep ", " emptyEntries
     )
     ++ lib.optional (duplicateSources != [ ]) (

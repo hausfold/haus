@@ -5,9 +5,17 @@ set whose only top-level key is `nebelhaus`.
 
 That's the whole rule, and it's deliberately mechanical, because it's the
 difference between "import this stranger's config" and "run this stranger's
-code". A data-only rice takes no `pkgs`, no `lib`, no `config`. It cannot add a
-package, write an activation script, or touch anything outside the rice's own
+code". A data-only rice takes no `pkgs`, no `lib`, no `config`. It cannot write
+an activation script, define a package, or touch anything outside the rice's own
 option surface. You can read one in a minute and know the worst it can do.
+
+It *can* ask for a package by name — `roster.<name>.packageName = "ripgrep"`,
+`fonts.mono.packageName = "nerd-fonts.fira-code"` — which the rice resolves as
+an attribute path into nixpkgs. That's still data: the resolver looks the
+attribute up and nothing else, no string ever becomes code. The line it draws is
+"a rice you can read", not "a rice that installs nothing you haven't vetted" —
+`cask` could always fetch arbitrary software, and naming a nixpkgs attribute is
+the same trust, not a new one.
 
 `nebelhaus.lib.checkRice` enforces exactly that, and `nix flake check` runs it
 over every preset here:

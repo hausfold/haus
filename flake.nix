@@ -307,6 +307,50 @@
             }"
           ) names;
 
+          # ---- data-only-surface ----------------------------------------------
+          # A community rice is DATA: an attrset, no arguments, so `checkRice` can
+          # read it and so can a person (presets/README.md). Which means the option
+          # surface itself carries a rule nothing was enforcing — an option typed
+          # `package` is INVISIBLE to that format, because setting one needs the
+          # single thing a data file cannot have, `pkgs`.
+          #
+          # That limit was found twice, weeks apart, from two unrelated families:
+          # `fonts.mono.package` (a shared rice could make the terminal font bigger
+          # but not change its family) and `roster.*.package` (an app pack could
+          # install from Homebrew and the App Store but never from Nixpkgs). Both
+          # are answered by naming the package instead. The third one will be added
+          # by someone who has never read this comment, and it fails in the worst
+          # way available: not an error, just an option the audience it was written
+          # for silently cannot use.
+          #
+          # So the rule is mechanical now — every package-typed leaf must have a
+          # string sibling of the same name + "Name". It reads the same evaluated
+          # option tree the docs are rendered from, so it sees exactly the public
+          # surface, and it's pure lib, so it runs on Linux CI with the rest.
+          surfaceLeaves =
+            nixpkgs.lib.optionAttrSetToDocList
+              (nixpkgs.lib.evalModules {
+                specialArgs.lib = nixpkgs.lib;
+                modules = import ./modules/options-modules.nix;
+              }).options;
+          leafType = builtins.listToAttrs (
+            map (o: nixpkgs.lib.nameValuePair o.name o.type) surfaceLeaves
+          );
+          # "package", "null or package", "list of package" — the whole family,
+          # plus derivations and store paths, which are unreachable for the same
+          # reason. `path` is deliberately NOT here: a rice may ship a script
+          # beside itself and refer to it as ./thing, which stays data.
+          packageTyped = builtins.filter (
+            o:
+            nixpkgs.lib.hasPrefix "nebelhaus." o.name
+            && builtins.match ".*(package|derivation|store path).*" o.type != null
+          ) surfaceLeaves;
+          unnamedPackageOptions = map (o: "${o.name} : ${o.type}") (
+            builtins.filter (
+              o: builtins.match ".*string.*" (leafType."${o.name}Name" or "") == null
+            ) packageTyped
+          );
+
           # ---- theme-variants -------------------------------------------------
           # modules/lib/nebelung.nix turns nebelhaus.theme.{flavor,contrast} into a
           # subdirectory of the nebelung themes package and a palette-variant name.
@@ -537,6 +581,24 @@
           '';
         in
         {
+          data-only-surface = pkgs.runCommand "nebelhaus-data-only-surface-ok" { } ''
+            ${nixpkgs.lib.optionalString (unnamedPackageOptions != [ ]) ''
+              cat >&2 <<'OFFENDERS'
+              These options take a package, so a data-only rice or app pack cannot
+              set them — reaching `pkgs` is exactly what that format forbids:
+
+              ${builtins.concatStringsSep "\n" unnamedPackageOptions}
+
+              Give each one a string sibling named <option>Name, resolved through
+              modules/lib/pkg-by-name.nix (see nebelhaus.roster.<name>.packageName
+              for the shape). Keep the package-typed option too — it stays the
+              precise way to say it from a module that has `pkgs`.
+              OFFENDERS
+              exit 1''
+            }
+            touch $out
+          '';
+
           keymap = pkgs.runCommand "nebelhaus-keymap-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedKeymapTable} \
                     ${pkgs.writeText "actual" (keymapTable + "\n")}
