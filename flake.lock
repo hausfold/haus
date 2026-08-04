@@ -245,11 +245,11 @@
         "prebuilt": "prebuilt_2"
       },
       "locked": {
-        "lastModified": 1785833839,
-        "narHash": "sha256-0claCF6IZpOLK1SXgzofgCPAdsByEV4Lnrwfkb4yYeM=",
+        "lastModified": 1785834855,
+        "narHash": "sha256-omsQbMOp4ci9w/L1Np4YCk5ihScsX1E9uHVec941j1w=",
         "owner": "nebelhaus",
         "repo": "trill",
-        "rev": "7cde5bb9cbc5a9ff72586085177b32d264ae1314",
+        "rev": "88a4ddda69e1789e3c8230b7c1f5d25f8549416f",
         "type": "github"
       },
       "original": {
