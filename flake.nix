@@ -181,6 +181,110 @@
       # What checkRice and `nix flake check` treat identically. The distinction
       # above is for the reader; there is only one format underneath.
       riceFiles = presetFiles // packFiles;
+
+      # The public helpers, hoisted out of the `lib` output so `packs` below can
+      # use them — a pack is a file PLUS the seam that imports it, and the seam
+      # is what gives it its priority.
+      riceLib = rec {
+        # `nebelhaus.lib.checkRice ./my-rice.nix` — true, or throws naming the
+        # stray key. Exposed so a third party can self-test before publishing
+        # rather than learning the rule from a rejected PR.
+        checkRice =
+          path:
+          let
+            m = import path;
+            isData = builtins.isAttrs m;
+            stray = if isData then builtins.filter (k: k != "nebelhaus") (builtins.attrNames m) else [ ];
+          in
+          if !isData then
+            throw (
+              "checkRice: ${toString path} is a function, so it is not a data-only rice. "
+              + "A data-only rice takes no arguments — no pkgs, no lib, no config — and evaluates "
+              + "to { nebelhaus = { … }; }. A rice that genuinely needs pkgs is a power module: "
+              + "an ordinary nix-darwin module, with the trust that implies."
+            )
+          else if stray != [ ] then
+            throw (
+              "checkRice: ${toString path} sets ${builtins.concatStringsSep ", " stray} outside "
+              + "`nebelhaus`. A data-only rice may set nothing else — that boundary is the whole "
+              + "reason one can be read and trusted at a glance."
+            )
+          else
+            true;
+
+        # `nebelhaus.lib.checkPack ./my-pack.nix` — checkRice, one level in. A
+        # pack is a rice narrowed to `nebelhaus.roster`, and that narrowing used
+        # to be a comment at the top of packs/writing.nix. It has to be a rule
+        # now, because `pack` below only carries `roster` through: anything else
+        # a pack file set would be silently dropped, which is the failure shape
+        # this repo keeps promising itself it will stop shipping.
+        checkPack =
+          path:
+          let
+            outside = builtins.filter (k: k != "roster") (
+              builtins.attrNames ((import path).nebelhaus or { })
+            );
+          in
+          assert checkRice path;
+          if outside != [ ] then
+            throw (
+              "checkPack: ${toString path} sets nebelhaus.${builtins.concatStringsSep ", nebelhaus." outside} "
+              + "— a pack may only set `nebelhaus.roster`. A file that answers what KIND of machine this "
+              + "is, rather than what's on it, is a preset: pass it through `presets`/extraModules "
+              + "directly instead."
+            )
+          else
+            true;
+
+        # `nebelhaus.lib.pack ./their-pack.nix` — the import seam for a pack,
+        # and the reason a consumer's own host wins instead of colliding with it.
+        #
+        # Import order carries NO priority in the module system: a host and a
+        # pack that both name `roster.obsidian.key` conflict, and the consumer
+        # meets a raw nix trace rather than anything this project wrote. Since a
+        # pack is data-only it cannot lower its own priority either — writing
+        # `lib.mkDefault` would make the file a function, which checkRice
+        # refuses. So the priority is applied HERE, to the pack, on the way in.
+        #
+        # Per LEAF, and that detail is the whole trick. `mkDefault` on the whole
+        # `nebelhaus.roster` attrset is the tempting one-liner and it is wrong in
+        # the worst available way: `roster` is where the option boundary sits, so
+        # the priority would attach to the entire definition and one
+        # normal-priority field in the host would outrank the pack's WHOLE
+        # roster — measured at three of four apps silently not installed
+        # (workshop's notes/probes/pack-priority.nix). Below the option leaf you
+        # set a priority; at or above it you replace a value.
+        #
+        # What this buys, and what it costs:
+        #   - a host that names one of the pack's apps wins that field, silently,
+        #     and keeps the rest of the pack's entry (workspace, pill, cask);
+        #   - two packs that name one app still CONFLICT loudly, which is the
+        #     right asymmetry — the consumer can't be expected to know what a
+        #     pack contains, while two pack authors are equals;
+        #   - a pack can no longer insist on a value. That's the trade, and it's
+        #     the right way round for a format strangers publish into.
+        #
+        # Consume a third-party pack through this, not as a bare path:
+        #   extraModules = [ (nebelhaus.lib.pack ./writer-pack.nix) ];
+        # A bare path still works and still conflicts — same file, different
+        # behaviour, which is why `packs.<name>` is pre-wrapped below.
+        pack =
+          path:
+          assert checkPack path;
+          {
+            nebelhaus.roster = builtins.mapAttrs (
+              _: entry: builtins.mapAttrs (_: value: nixpkgs.lib.mkDefault value) entry
+            ) ((import path).nebelhaus.roster or { });
+          };
+      };
+
+      # A pack as it actually ships: wrapped. `riceFiles` is what the format
+      # RULES are checked against (they're rules about files); `riceModules` is
+      # what a consumer imports, and what the evaluate-a-real-system half of
+      # `nix flake check` has to use, or the check would prove a shape nobody
+      # gets.
+      packModules = builtins.mapAttrs (_: riceLib.pack) packFiles;
+      riceModules = presetFiles // packModules;
       # Linux is in here for the pure-evaluation outputs only (options-json, the
       # theme-variants check) — that's what lets nebelhaus.com's Linux CI render the
       # options reference. Anything needing a darwin system is guarded per-output.
@@ -234,35 +338,20 @@
       #
       # This is the roadmap's Phase 0 "publish one shareable app pack": the piece
       # that needed no new mechanism, only a file someone can point at.
-      packs = packFiles;
+      #
+      # Each one is PRE-WRAPPED by `lib.pack`, so it arrives at a lower priority
+      # than the consumer's own host and their `roster.obsidian.key` wins instead
+      # of colliding with the pack's. That is a property of the seam, not of the
+      # file — see `lib.pack`. The unwrapped files stay reachable as `packFiles`
+      # for tooling that wants the path (`checkRice`, `checkPack`, a diff).
+      packs = packModules;
 
-      lib = {
-        # `nebelhaus.lib.checkRice ./my-rice.nix` — true, or throws naming the
-        # stray key. Exposed so a third party can self-test before publishing
-        # rather than learning the rule from a rejected PR.
-        checkRice =
-          path:
-          let
-            m = import path;
-            isData = builtins.isAttrs m;
-            stray = if isData then builtins.filter (k: k != "nebelhaus") (builtins.attrNames m) else [ ];
-          in
-          if !isData then
-            throw (
-              "checkRice: ${toString path} is a function, so it is not a data-only rice. "
-              + "A data-only rice takes no arguments — no pkgs, no lib, no config — and evaluates "
-              + "to { nebelhaus = { … }; }. A rice that genuinely needs pkgs is a power module: "
-              + "an ordinary nix-darwin module, with the trust that implies."
-            )
-          else if stray != [ ] then
-            throw (
-              "checkRice: ${toString path} sets ${builtins.concatStringsSep ", " stray} outside "
-              + "`nebelhaus`. A data-only rice may set nothing else — that boundary is the whole "
-              + "reason one can be read and trusted at a glance."
-            )
-          else
-            true;
-      };
+      # The pack FILES, unwrapped: `nebelhaus.lib.checkRice nebelhaus.packFiles.writing`.
+      # `packs.<name>` used to be these paths; it is a module now, and a path is
+      # still the right thing to hand a checker.
+      inherit packFiles;
+
+      lib = riceLib;
 
       # `nix flake check` — the presets are the community format, so the rule
       # that defines that format has to be enforced, not merely documented.
@@ -302,7 +391,7 @@
                   inherit system;
                   username = "you";
                   hostname = "example";
-                  extraModules = [ riceFiles.${n} ];
+                  extraModules = [ riceModules.${n} ];
                 }).system.drvPath
             }"
           ) names;
@@ -350,6 +439,77 @@
               o: builtins.match ".*string.*" (leafType."${o.name}Name" or "") == null
             ) packageTyped
           );
+
+          # ---- packs ----------------------------------------------------------
+          # Two rules about packs that are both invisible until a STRANGER hits
+          # them, which is exactly when nobody is around to explain:
+          #
+          #   1. a pack sets nothing outside `nebelhaus.roster` (checkPack) —
+          #      because `lib.pack` carries only roster through, so anything else
+          #      would be silently dropped;
+          #   2. the wrapped pack loses to the consumer's host, PER FIELD, and
+          #      keeps everything the host didn't mention.
+          #
+          # Rule 2 is here because the tempting implementation of `lib.pack` —
+          # `mkDefault` on the whole roster attrset instead of on each leaf —
+          # passes every other check in this repo while dropping three of
+          # writing's four apps, with no error. So the composition is evaluated:
+          # the pack as it ships, plus a host that redefines the first keyed
+          # entry's `key`, and then all three properties are read back off the
+          # result. Pure lib (the option surface only, like options-json), so it
+          # runs on Linux CI too.
+          #
+          # This is also the first check that composes TWO rices. The presets
+          # check evaluates each one alone, which is how limit 3 in the roadmap
+          # went unnoticed until a real host met a real pack.
+          packCompose =
+            name:
+            let
+              entries = (import packFiles.${name}).nebelhaus.roster;
+              keyed = builtins.filter (id: (entries.${id}.key or null) != null) (
+                builtins.attrNames entries
+              );
+              id = builtins.head keyed;
+              # The consumer who wants the app but claims no letter for it —
+              # today's `mkForce` case, and the one a pack author can't foresee.
+              host.nebelhaus.roster.${id}.key = null;
+              resolved =
+                (nixpkgs.lib.evalModules {
+                  specialArgs.lib = nixpkgs.lib;
+                  modules = import ./modules/options-modules.nix ++ [
+                    packModules.${name}
+                    host
+                  ];
+                }).config.nebelhaus.roster;
+              # Every field the pack set on that entry, other than the one the
+              # host overrode, has to survive with the pack's value.
+              lost = builtins.filter (
+                f: f != "key" && resolved.${id}.${f} != entries.${id}.${f}
+              ) (builtins.attrNames entries.${id});
+            in
+            if keyed == [ ] then
+              [ ]
+            else
+              nixpkgs.lib.optional (builtins.attrNames resolved != builtins.attrNames entries) (
+                "${name}: composing the pack with a host that names ONE of its apps left "
+                + "${toString (builtins.length (builtins.attrNames resolved))} of "
+                + "${toString (builtins.length (builtins.attrNames entries))} entries — the priority in "
+                + "lib.pack is being applied at or above the `roster` option instead of per leaf, which "
+                + "replaces the pack's whole definition rather than deprioritising it."
+              )
+              ++ nixpkgs.lib.optional (resolved.${id}.key != null) (
+                "${name}: the host's `roster.${id}.key` did not win — lib.pack is not lowering the "
+                + "pack's priority at all, so a consumer meets a module-system conflict instead."
+              )
+              ++ nixpkgs.lib.optional (lost != [ ]) (
+                "${name}: the host overrode `roster.${id}.key` and the pack's "
+                + "${builtins.concatStringsSep ", " lost} went with it — an override of one field must "
+                + "not take the rest of the entry."
+              );
+          packSurfaceOk = builtins.all (n: self.lib.checkPack packFiles.${n}) (
+            builtins.attrNames packFiles
+          );
+          packFailures = builtins.concatMap packCompose (builtins.attrNames packFiles);
 
           # ---- theme-variants -------------------------------------------------
           # modules/lib/nebelung.nix turns nebelhaus.theme.{flavor,contrast} into a
@@ -594,6 +754,19 @@
               for the shape). Keep the package-typed option too — it stays the
               precise way to say it from a module that has `pkgs`.
               OFFENDERS
+              exit 1''
+            }
+            touch $out
+          '';
+
+          packs = pkgs.runCommand "nebelhaus-packs-ok" { } ''
+            ${nixpkgs.lib.optionalString (!packSurfaceOk)
+              "echo 'a pack sets something outside nebelhaus.roster' >&2; exit 1"
+            }
+            ${nixpkgs.lib.optionalString (packFailures != [ ]) ''
+              cat >&2 <<'FAILURES'
+              ${builtins.concatStringsSep "\n\n" packFailures}
+              FAILURES
               exit 1''
             }
             touch $out

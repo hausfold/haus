@@ -32,18 +32,20 @@
 #
 #   nebelhaus.roster.obsidian.appId = "…";   # osascript -e 'id of app "Obsidian"'
 #
-# That one is a plain assignment because this pack never sets `appId`, and a host
-# definition beats an option's default. It does NOT generalize: import order
-# carries no priority in the module system, so setting a field this file DOES set
-# is a conflict rather than an override, and wants `lib.mkForce`. Which is also
-# how you resolve a KEY collision — if a letter here is one your own roster
-# already uses, the build fails loudly (roster keys must be unique), which is the
-# right outcome, and the fix is one line:
+# A plain assignment — and it stays plain for the fields this file DOES set, too.
+# `packs.writing` reaches you through `nebelhaus.lib.pack`, which lowers every
+# field here to `mkDefault` on the way in, so your host outranks it per field
+# while the rest of the entry survives. Import order still carries no priority in
+# the module system; the SEAM does. This same file imported as a bare path gets
+# none of that and conflicts the old way.
 #
-#   nebelhaus.roster.zotero.key = lib.mkForce "y";   # or null, for ⌘Space only
+# So a letter of yours that clashes with one below is one line, no `mkForce`:
 #
-# See bite 2 in packs/README.md for the case where the consumer already owns one
-# of these apps outright.
+#   nebelhaus.roster.zotero.key = "y";   # or null, for ⌘Space only
+#
+# See bite 2 in packs/README.md for the whole rule, including the two cases that
+# still stop the build: two PACKS naming one app, and two roster entries in the
+# same layer claiming one letter.
 #
 # ---- all four sources, including the one that used to be missing -------------
 #

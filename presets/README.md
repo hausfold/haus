@@ -62,6 +62,12 @@ answer "is pounce on this machine", and the build stops with a conflict on
 intended behaviour: two presets disagreeing about the machine is a question only
 you can settle.
 
+**Packs are the deliberate exception.** A [pack](../packs/README.md) reaches you
+through `nebelhaus.lib.pack`, which lowers every field it sets to `mkDefault`, so
+your host beats it with a plain assignment and no `mkForce`. A preset isn't
+wrapped that way: it answers what kind of machine this is, which is a claim worth
+colliding over, while a pack only proposes what's on it.
+
 ## What's here
 
 | preset | for |
