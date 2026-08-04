@@ -7,6 +7,9 @@
 #          rice-nag (⇡N — commits your pinned nebelhaus is behind, `haus update`)
 #          · ctx% · cost · permission-mode icon (blank auto, ⏵ default, ⏵⏵ accept,
 #          ⏵⏵⏵ bypass, ⏸ plan, ⊘ dontAsk) · model tier chip (O5 / S5 / H45 / F5).
+# Tint   : on Fable/Mythos only, every row gets a dark magenta background painted
+#          edge-to-edge, so the special model is legible from across a wall of
+#          panes without reading anything. Per-pane, hence safe — see TINT_FABLE.
 # Row 2+ : the worktrees THIS session spawned (its direct children via ⌘A /
 #          `claude --worktree`), across whatever repos they live in — each as
 #          repo, PR number (left of the name, colored by PR state), name, and
@@ -43,7 +46,18 @@ c() { printf '\033[38;5;%sm' "$1"; }
 DOT=$(c 108); DIM=$(c 244); GRAY=$(c 103); NAME=$'\033[1m'
 AHEAD=$(c 75); ADD=$(c 71); DEL=$(c 167); PURGE=$(c 173)
 PR_OPEN=$(c 71); PR_MERGED=$(c 139); PR_CLOSED=$(c 167)
-R=$'\033[0m'
+R0=$'\033[0m'   # true reset — ends a line, drops any row tint
+R="$R0"         # in-row reset; re-armed to keep the tint when one is set (below)
+
+# Row tint for Fable/Mythos: a 24-bit background painted edge-to-edge behind
+# every row, so the whole block reads as "this pane is on the special model" at
+# a glance across a wall of panes. #33252e is the terminal background (nebelung
+# ghostty: 202020) lifted toward the theme's magenta (#f2c4e5) — about as light
+# as the selection highlight (393939), so it sits under the existing 256-colour
+# foregrounds without fighting them. Truecolor, not a 256 index, purely because
+# the cube has nothing this dark AND this desaturated (53 is #5f005f — a poster);
+# every terminal this rice targets does 24-bit. Tune it here, it's the one knob.
+TINT_FABLE=$'\033[48;2;51;37;46m'
 
 # render_status <ahead> <files> <ins> <del> <prstate> <purge>
 # Emits the single status token. purge=1 => branch would be reaped (row-1 only).
@@ -247,16 +261,33 @@ mode=${mode%\"}
 # per-pane chips — and it frees the bullet to carry the worktree's git status.
 # Per-pane by design: any global surface (a rewritten custom-theme file) would
 # lie in a mixed-model fleet. Tried, reverted.
+#
+# Fable/Mythos ALSO tints the whole block's background (see TINT_FABLE). That is
+# a second, redundant channel for the same fact, not a replacement: the F/M
+# letter still carries it, so a tint that a terminal drops costs nothing. It's
+# the one signal that survives not reading the bar — you see which pane is on
+# the expensive model from across the screen. Read the "tried and reverted"
+# warning below before assuming this is the same mistake: it isn't. That was a
+# GLOBAL surface (a rewritten theme file) driven by a per-session fact, so the
+# last pane to render decided the colour for every pane. This paints only the
+# rows THIS render emits, so a mixed-model fleet shows a mixed set of panes —
+# which is the entire point of it.
 MODEL=""
 model_id="$(j '.model.id')"
+BG=""
 case "$model_id" in
-  *fable*)  mletter=F; mcolor=$'\033[35m';;
-  *mythos*) mletter=M; mcolor=$'\033[35m';;
+  *fable*)  mletter=F; mcolor=$'\033[35m'; BG="$TINT_FABLE";;
+  *mythos*) mletter=M; mcolor=$'\033[35m'; BG="$TINT_FABLE";;
   *opus*)   mletter=O; mcolor="$DIM";;
   *sonnet*) mletter=S; mcolor="$DIM";;
   *haiku*)  mletter=H; mcolor="$DIM";;
   *)        mletter="";  mcolor="$DIM";;
 esac
+# Every segment ends in $R, and a bare reset would punch a hole in the tint at
+# each one. Re-arm the background right after the reset so $R means "back to row
+# context" rather than "back to nothing"; $R0 stays the real reset, used once at
+# end of line so the tint can't bleed into whatever the terminal draws next.
+[ -n "$BG" ] && R="${R0}${BG}"
 if [ -n "$mletter" ]; then
   mver=""
   # {1,2} + the trailing non-digit/end anchor is what stops a DATE suffix being
@@ -445,6 +476,24 @@ fi
 # per-session, so it stays put instead of shuffling with ctx%/cost.
 vlen() { plain "$1" | LC_ALL=en_US.UTF-8 wc -m | tr -d ' '; }
 RESERVE=8
+
+# emit <row> — print one row, tinted edge-to-edge when $BG is armed.
+#
+# A background only shows where a character is, so an untinted row has to be
+# padded out to the block's width or the tint is a ragged blob the shape of the
+# text. The width is COLS - RESERVE, the same budget row 1's tail group already
+# flushes to, so all rows end on one clean edge and Claude Code's own right-edge
+# chips keep their untinted gutter.
+#
+# %s, not %b: rows carry OSC 8 links whose ST is a literal backslash that %b
+# would eat. The padding sits BEFORE $R0, so the string never ends in
+# whitespace — nothing downstream can trim the tint off the end of the line.
+emit() {
+  if [ -z "$BG" ]; then printf '%s\n' "$1"; return; fi
+  local pad=$(( COLS - RESERVE - $(vlen "$1") ))
+  [ "$pad" -lt 0 ] && pad=0
+  printf '%s%s%*s%s\n' "$BG" "$1" "$pad" '' "$R0"
+}
 tailseg=""
 [ -n "$nagseg" ] && tailseg="$nagseg"
 [ -n "$ctx" ]  && tailseg="${tailseg:+$tailseg }${DIM}${ctx}%${R}"
@@ -459,7 +508,7 @@ if [ -n "$tailseg" ]; then
     row1="$row1   $tailseg"
   fi
 fi
-printf '%s\n' "$row1"   # %s: row 1 may carry OSC 8 links whose ST '\' %b would eat
+emit "$row1"
 
 # --- refresh the (shared) panel cache if stale, detached --------------------
 stale=1
@@ -504,10 +553,8 @@ while IFS=$'\t' read -r pslug pname pahead pfiles pins pdel ppr pparent; do
   # Orphans get an orange ◇ (vs the children's gray ○) — a "no parent, adopt or
   # reap me" flag, only ever seen in the $HOME pane.
   bullet="${GRAY}○${R}"; [ "$orphan" = 1 ] && bullet="${PURGE}◇${R}"
-  # %s (not %b): prseg's OSC 8 bytes include a literal ST backslash that %b would
-  # eat; every color code here is already a materialized ESC byte, so %s is exact.
-  printf '%s\n' "  ${bullet} ${DIM}${repo}${R} ${prseg:+$prseg }${disp}${pst:+  $pst}"
+  emit "  ${bullet} ${DIM}${repo}${R} ${prseg:+$prseg }${disp}${pst:+  $pst}"
   shown=$((shown+1))
 done <"$PANEL"
-[ "$extra" -gt 0 ] && printf '%b\n' "  ${DIM}+${extra} more${R}"
+[ "$extra" -gt 0 ] && emit "  ${DIM}+${extra} more${R}"
 exit 0

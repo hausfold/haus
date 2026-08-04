@@ -83,3 +83,10 @@ jobs:
       # as wt.bats (throwaway repos, shim gh, redirected cache).
       - name: statusline refresher tests
         run: bats test/statusline-refresh.bats
+      # The render path's counterpart suite. Its subject is the Fable/Mythos row
+      # tint, whose correctness is a WIDTH invariant across rows that carry both
+      # SGR and OSC 8 — so it breaks silently whenever a segment is added, and
+      # the breakage reads as a terminal quirk rather than a bug. Same hermetic
+      # shape again; needs only git + jq + bats.
+      - name: statusline render tests
+        run: bats test/statusline.bats
