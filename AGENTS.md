@@ -51,7 +51,8 @@ modules/
   options-modules.nix     # the per-room options.nix list — shared by both renderers below
   options-doc.nix         # nixosOptionsDoc over them → the metadata the docs site
                           #   (.#options-json) and the agent skill are both RENDERED from
-  lib/gui-wait.nix        # withGUIWait: cold-boot-safe GUI agent launch wrapper
+  lib/gui-wait.nix        # cold-boot-safe GUI agent launch: .wrap (an executable) +
+                          #   .script (the bounded wait alone, for pounce)
   apps/                   # the EDITORIAL picks: apps the rice chooses for a finished
                           #   machine (IINA today) + the file types they claim. Roster
                           #   entries, so a cask of the same app still collides loudly
@@ -116,9 +117,15 @@ points back to when it feels several PRs together.
 
 - **launchd GUI race**: GUI agents (AeroSpace, SketchyBar, pounce) launched at cold
   boot before the Aqua session is ready park with exit 78 (EX_CONFIG) and wedge.
-  `withGUIWait` (`modules/lib/gui-wait.nix`) polls for Dock/Finder/SystemUIServer and
-  runs from `/bin/bash` (boot volume, not the /nix APFS volume that isn't mounted yet).
-  Don't "simplify" it away. Recover a wedged agent: `launchctl bootout` then `bootstrap`.
+  `modules/lib/gui-wait.nix` polls for Dock/Finder/SystemUIServer and runs from
+  `/bin/bash` (boot volume, not the /nix APFS volume that isn't mounted yet). It
+  exports `.wrap` (wrap an executable — prowl, sill) and `.script` (the snippet alone
+  — pounce, which re-signs before exec'ing). Don't "simplify" it away, and **keep the
+  60 s deadline**: the polls answer "is the session up *yet*", and unbounded they
+  can't tell a cold boot from a GUI process that is simply absent, so a KeepAlive
+  restart parks the agent forever with a live pid and nothing in the log. (That is
+  why `den` leaves Finder's `QuitMenuItem` off.) Recover a wedged agent: `launchctl
+  bootout` then `bootstrap`.
 - **pounce self-signing** (`modules/pounce`): macOS keys an Accessibility (TCC) grant
   to a code-signing identity, but a store build is adhoc-signed (cdhash changes every
   rebuild). When `nebelhaus.pounce.signingIdentity` is set, the daemon wrapper copies

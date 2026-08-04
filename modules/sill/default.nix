@@ -17,7 +17,7 @@
 }:
 
 let
-  withGUIWait = import ../lib/gui-wait.nix;
+  withGUIWait = (import ../lib/gui-wait.nix).wrap;
   userPath = "/run/current-system/sw/bin:/etc/profiles/per-user/${username}/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin";
 
   sillpop = pkgs.callPackage ./sillpop.nix { };
