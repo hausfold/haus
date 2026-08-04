@@ -35,24 +35,30 @@
 #     agent-state like the others, but passes no conversation id and this repo
 #     knows no on-disk history path for it, so there is nothing to join to.
 #
-# THE FOCUS DANCE (the non-obvious part)
+# WHICH PANE DID THE USER MEAN (the non-obvious part)
 #
 # A zellij keybind can only `Run` something, and running it opens a PANE, which
-# takes focus — so by the time this script starts, "the focused pane" is this
-# script's own launcher and the pane the user actually meant is unreachable.
-# `list-clients` reports only the floating pane when one is focused
-# (zellij-org/zellij#4067), so there is nothing to read underneath it either.
+# takes focus — so by the time this script starts, the *client's* focused pane
+# is this script's own launcher float. `list-clients` reports only that float
+# (zellij-org/zellij#4067), so it can't name the pane underneath.
 #
-# The Links bind dodges this by accident: it Runs `pounce`, an NSPanel that
-# never touches zellij focus, from a throwaway 1% float that has already closed
-# by the time the command runs. We do the same on purpose, explicitly:
+# `list-panes --json` can: it reports THIS TAB's panes with their own is_focused
+# flag, and the focused tiled pane keeps that flag while a floating pane is up.
+# So the launcher just reads it, synchronously, and never has to wait for focus
+# to come back:
 #
-#   `launch`  runs in the 1% corner float. It detaches `open` and exits
-#             immediately, so the float closes and focus snaps back.
-#   `open`    (detached, no pane) polls list-clients until the focused pane is
-#             something OTHER than the launcher we were spawned from, and that
-#             is the target. Then it builds the corpus and opens the overlay.
-#   `ui`      runs inside the overlay pane: fzf, driven by rg on every keystroke.
+#   `launch`  runs in the 1% corner float: read the focused tiled pane, then
+#             open the overlay pane and exit (which closes the float).
+#   `ui`      runs inside the overlay pane: build the corpus, then fzf, driven
+#             by rg on every keystroke.
+#
+# NOTHING MAY BE DETACHED FROM THE LAUNCHER. This used to `nohup` a stage-2
+# helper and exit immediately, which never ran at all: when a `close_on_exit`
+# pane's command exits, zellij tears down its whole process group, and nohup
+# only blocks SIGHUP. The helper was killed before its first line — ⌘F opened a
+# 1% float for a few milliseconds and then, visibly, nothing. Anything that must
+# outlive the launcher has to be a zellij PANE (as the overlay is), not a
+# background child of it.
 #
 # The corpus is ALWAYS every pane, even for pane scope — scope is just which
 # subdirectory rg is pointed at. That makes the in-overlay scope toggle
@@ -67,14 +73,15 @@
 #     work in an interactive shell is invisible here. `rg` shipped missing
 #     exactly this way once (modules/den declares it in the toolbelt now); the
 #     preflight in cmd_ui is what stops that from ever looking like "no hits".
-#   - `zellij action` from a detached process must not see an inherited
-#     $ZELLIJ from the pane that spawned it — `env -u ZELLIJ` + explicit -s.
-#   - list-clients prints pane ids as "terminal_88"; $ZELLIJ_PANE_ID inside a
-#     pane is bare "88". Strip the prefix before joining against anything.
-#   - list-clients' RUNNING_COMMAND is the pane's DEEPEST FOREGROUND process,
-#     not what you launched — a Claude pane routinely reports node, rg or
-#     sourcekit-lsp. Never gate the transcript lookup on it; presence in the
-#     map is the only reliable "this is an agent pane" signal.
+#   - `zellij action` run from inside a pane must not see that pane's inherited
+#     $ZELLIJ — `env -u ZELLIJ` + an explicit `-s <session>`, or the action is
+#     routed at the pane rather than the session we resolved.
+#   - list-panes ids are bare integers; list-clients prints them as
+#     "terminal_88". Strip the prefix before joining against anything.
+#   - A pane's RUNNING_COMMAND is its DEEPEST FOREGROUND process, not what you
+#     launched — a Claude pane routinely reports node, rg or sourcekit-lsp.
+#     Never gate the transcript lookup on it; presence in the map is the only
+#     reliable "this is an agent pane" signal.
 #   - dump-screen takes `--path FILE` or prints to stdout; it has NO positional
 #     file argument (passing one makes zellij 0.44 exit with a usage error and
 #     leave an empty dump, i.e. a silent "no results").
@@ -85,7 +92,15 @@ set -u
 # and a detached process spawned off a zellij bind is not guaranteed to have it.
 export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/${USER:-$(id -un)}/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-SELF="$HOME/.config/zellij/find.sh"
+# The overlay pane re-enters this same script, so it needs an absolute path to
+# it. Derive it from $0 rather than hardcoding the installed location, so a
+# worktree copy can be exercised end to end (launcher float → overlay pane)
+# without a rebuild; the installed path is the fallback.
+case "$0" in
+    /*) SELF="$0" ;;
+    *) SELF="$(cd "$(dirname "$0")" 2>/dev/null && pwd)/$(basename "$0")" ;;
+esac
+[ -x "$SELF" ] || SELF="$HOME/.config/zellij/find.sh"
 CACHE_DIR="${CLAUDE_STATUSLINE_CACHE:-$HOME/.cache/claude-statusline}"
 MAP="$CACHE_DIR/pane-transcripts.tsv"
 # Rendered transcripts are cached by (size, mtime) so a repeat search on a
@@ -102,52 +117,38 @@ if command -v sqlite3 >/dev/null 2>&1; then
         [ -f "$_db" ] && OPENCODE_DB="$_db" && break
     done
 fi
-# How long to wait for zellij focus to snap back off the launcher float.
-FOCUS_TICKS=40 # ×0.05s
-
 zj() { env -u ZELLIJ zellij -s "$SESSION" "$@"; }
 
 # ── stage 1: the 1% launcher float ──────────────────────────────────────────
-# Nothing happens here. Detach and die, so the float closes and the user's real
-# pane gets focus back before `open` looks for it.
+# Runs inside the throwaway float the keybind opens. Resolves the pane the user
+# was actually on, opens the overlay pane, and exits — which closes the float
+# and hands focus to the overlay.
+#
+# Everything here is synchronous ON PURPOSE: see the "nothing may be detached"
+# note in the header.
 cmd_launch() {
     local scope="${1:-pane}"
-    nohup "$SELF" open "$scope" "${ZELLIJ_PANE_ID:-}" "${ZELLIJ_SESSION_NAME:-}" \
-        >/dev/null 2>&1 &
-    exit 0
-}
-
-# ── stage 2: detached — resolve the target pane, build the corpus, open the UI ─
-cmd_open() {
-    local scope="$1" launcher="$2"
-    SESSION="$3"
+    SESSION="${ZELLIJ_SESSION_NAME:-}"
     [ -n "$SESSION" ] ||
         SESSION=$(env -u ZELLIJ zellij list-sessions -n 2>/dev/null |
             grep -v EXITED | head -1 | awk '{print $1}')
     [ -n "$SESSION" ] || exit 0
 
-    launcher=${launcher#terminal_}
-
-    # Wait for focus to come off the launcher. Bounded: if the float somehow
-    # outlives us we still search *something* rather than hanging on a keypress.
-    local target="" i pane
-    for ((i = 0; i < FOCUS_TICKS; i++)); do
-        pane=$(zj action list-clients 2>/dev/null | awk 'NR==2{print $2}')
-        pane=${pane#terminal_}
-        if [ -n "$pane" ] && [ "$pane" != "$launcher" ]; then
-            target="$pane"
-            break
-        fi
-        sleep 0.05
-    done
+    # The pane the user meant = this tab's focused TILED pane. `list-panes`
+    # (without --all, so: this tab) keeps reporting it as focused even while
+    # this launcher float sits on top of it, which is precisely the read
+    # `list-clients` cannot give — that one only ever names the float
+    # (zellij-org/zellij#4067). No polling, no waiting for focus to snap back.
+    local target
+    target=$(zj action list-panes --json 2>/dev/null |
+        jq -r 'first(.[] | select(.is_focused and (.is_floating | not)
+                                  and (.is_plugin | not)) | .id) // empty' 2>/dev/null)
 
     local dir
     dir=$(mktemp -d -t zellij-find) || exit 0
     mkdir -p "$dir/src"
     printf '%s\n' "$target" >"$dir/target"
     printf '%s\n' "$SESSION" >"$dir/session"
-
-    build_corpus "$dir"
 
     # Scope falls back to session when we never pinned a target pane — an empty
     # "this pane" search would just look broken.
@@ -325,6 +326,7 @@ cmd_ui() {
     local target session
     target=$(cat "$dir/target" 2>/dev/null)
     session=$(cat "$dir/session" 2>/dev/null)
+    SESSION="$session" # what zj() routes at, for build_corpus below
 
     trap 'rm -rf "$dir"' EXIT
 
@@ -348,6 +350,14 @@ cmd_ui() {
         { read -r -n 1 -s </dev/tty; } 2>/dev/null || sleep 10
         exit 0
     fi
+
+    # The corpus is built HERE, in the overlay pane, not by the launcher: the
+    # launcher's process group dies with its float, and dumping a session's
+    # worth of panes is exactly the kind of work that would get killed halfway.
+    # It also means the overlay is on screen while it happens, so a multi-second
+    # index reads as "working" instead of as a keypress that did nothing.
+    printf '\n  indexing panes…\n'
+    build_corpus "$dir"
 
     # Ctrl-s toggles scope by EXITING fzf and reopening it, not by fzf's
     # `become`: become execs over the fzf process, which inherits this shell's
@@ -452,7 +462,6 @@ cmd_preview() {
 
 case "${1:-}" in
     launch) shift; cmd_launch "$@" ;;
-    open) shift; cmd_open "$@" ;;
     ui) shift; cmd_ui "$@" ;;
     _rg) shift; cmd_rg "$@" ;;
     _preview) shift; cmd_preview "$@" ;;
