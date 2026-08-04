@@ -17,6 +17,8 @@
 #   zscratch --plugin  NAME=WASM   swap a plugin's wasm (NAME ∈ tab-bar,
 #                                  status-bar, link-handler, tab-history);
 #                                  repeatable
+#   zscratch --bin     PATH        run this zellij binary instead of the
+#                                  installed one (for binary-level patches)
 #   zscratch --locked              start the scratch session in locked mode
 #   zscratch --name    N           scratch session/dir name (default: scratch)
 #   zscratch --print               render the scratch dir, print its path, DON'T launch
@@ -139,7 +141,12 @@ scratch_dir() { echo "${TMPDIR:-/tmp}/zellij-scratch-$1"; }
 cmd_clean() {
   local dir; dir="$(scratch_dir "$NAME")"
   say "killing session '$NAME' and removing $dir"
-  zellij delete-session --force "$NAME" >/dev/null 2>&1 || true
+  # Cleanup must still reap the temp dir if the rice (and thus zellij) is no
+  # longer installed. `delete-session` is best-effort; removing the scratch
+  # files and their permission grants is the part only this command can do.
+  if command -v zellij >/dev/null; then
+    zellij delete-session --force "$NAME" >/dev/null 2>&1 || true
+  fi
   rm -rf "$dir"
   unseed_scratch_perms
 }
@@ -195,26 +202,28 @@ cmd_run() {
     say "swapped $name → $wasm"
   done
 
-  if [ "$PRINT" = 1 ]; then
-    say "rendered scratch config → $dir  (session '$NAME', not launched)"
-    echo "$dir"
-    return 0
-  fi
-
   # A tiny launcher so the window survives the session ending, and so we get a
   # guaranteed-fresh server (delete any stale same-named session first → new
   # server → recompiled wasm). open -na spawns a clean env, but unset the ZELLIJ
   # vars defensively so a nested launch can never be refused.
+  local quoted_bin; printf -v quoted_bin '%q' "$ZELLIJ_BIN"
   cat > "$dir/run.sh" <<RUN
 #!/bin/zsh
 export PATH="/etc/profiles/per-user/\$USER/bin:/run/current-system/sw/bin:\$PATH"
 unset ZELLIJ ZELLIJ_SESSION_NAME ZELLIJ_PANE_ID
-zellij delete-session --force "$NAME" >/dev/null 2>&1
-zellij --config "$dir/config.kdl" --config-dir "$dir" -s "$NAME"
+$quoted_bin delete-session --force "$NAME" >/dev/null 2>&1
+$quoted_bin --config "$dir/config.kdl" --config-dir "$dir" -s "$NAME"
 print -P '%F{244}── scratch session ended — close this window (⌘W) ──%f'
 exec /bin/zsh -l
 RUN
   chmod +x "$dir/run.sh"
+
+  if [ "$PRINT" = 1 ]; then
+    say "rendered scratch config → $dir  (session '$NAME', not launched)"
+    say "  launch it with: $dir/run.sh"
+    echo "$dir"
+    return 0
+  fi
 
   say "launching scratch session '$NAME' in a new window …"
   say "  config-dir: $dir"
@@ -223,7 +232,7 @@ RUN
 }
 
 # ---- arg parsing ------------------------------------------------------------
-NAME="scratch"; CONFIG_SRC=""; LAYOUT_SRC=""; THEME_SRC=""
+NAME="scratch"; CONFIG_SRC=""; LAYOUT_SRC=""; THEME_SRC=""; BIN_SRC=""
 DEFAULT_MODE="normal"; LOCKED=0; PRINT=0; ACTION="run"
 PLUGINS=()
 
@@ -237,6 +246,7 @@ while [ $# -gt 0 ]; do
     --layout)   LAYOUT_SRC="${2:?--layout needs a layout .kdl}"; shift 2 ;;
     --theme)    THEME_SRC="${2:?--theme needs a theme .kdl}"; shift 2 ;;
     --plugin)   PLUGINS+=("${2:?--plugin needs NAME=path/to/plugin.wasm}"); shift 2 ;;
+    --bin)      BIN_SRC="${2:?--bin needs an executable zellij path}"; shift 2 ;;
     --name)     NAME="${2:?--name needs a session name}"; shift 2 ;;
     --locked)   LOCKED=1; DEFAULT_MODE="locked"; shift ;;
     --print)    PRINT=1; shift ;;
@@ -251,5 +261,17 @@ done
 
 case "$ACTION" in
   clean) cmd_clean ;;
-  run)   cmd_run ;;
+  run)
+    # Resolve before Ghostty starts: it launches with a clean environment, so
+    # a candidate outside the profile must be named explicitly in run.sh.
+    # `--bin` is deliberately a path, rather than a PATH override, to keep a
+    # scratch test reproducible.
+    if [ -n "$BIN_SRC" ]; then
+      [ -x "$BIN_SRC" ] || die "--bin is not executable: $BIN_SRC"
+      ZELLIJ_BIN="$(cd "$(dirname "$BIN_SRC")" && pwd -P)/$(basename "$BIN_SRC")"
+    else
+      ZELLIJ_BIN="$(command -v zellij)" || die "zellij is not on PATH — activate the rice first"
+    fi
+    cmd_run
+    ;;
 esac

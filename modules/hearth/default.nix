@@ -361,15 +361,18 @@ in
   # scrollback meant jittering the mouse to manufacture events.
   #
   # Two halves. A repeat timer in screen.rs re-posts the held drag position
-  # every 16ms while the pointer sits past an edge, so a parked cursor scrolls
-  # at all — that is the half that removes the jittering. And the speed of that
+  # every 16ms while the pointer sits past an edge — or in the three-row
+  # in-pane edge margin after a three-row sweep — so a parked cursor scrolls at
+  # all. That is the half that removes the jittering. And the speed of that
   # scroll is a RATE IN LINES PER SECOND, derived from what FRACTION of the pane
   # was already highlighted when the drag crossed the edge: grab three lines and
   # keep going and it crawls at ~13 lines/s, sweep the whole pane first and it
   # runs at 150. A fraction rather than a line count so the same gesture means
   # the same speed in a 25-row zoomed-in pane and an 80-row one. Locked in per
   # departure so the speed holds steady while you hold, re-derived when you come
-  # back in and leave again.
+  # back in and leave again. The in-pane margin makes that same hold gesture
+  # work without taking the pointer out of a fullscreen Ghostty window, while
+  # the sweep threshold keeps short selections near an edge precise.
   #
   # Because the debt accumulator bills elapsed wall-clock time rather than
   # counting events, a jittered mouse and a parked one move at the same speed —
