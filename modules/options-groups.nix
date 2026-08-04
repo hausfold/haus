@@ -110,7 +110,7 @@
   };
   trill = {
     order = 150;
-    blurb = "The Messages client.";
+    blurb = "The Messages client. Opt-in — not part of a default machine.";
   };
   perch = {
     order = 160;
