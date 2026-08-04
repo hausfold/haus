@@ -51,13 +51,21 @@ R="$R0"         # in-row reset; re-armed to keep the tint when one is set (below
 
 # Row tint for Fable/Mythos: a 24-bit background painted edge-to-edge behind
 # every row, so the whole block reads as "this pane is on the special model" at
-# a glance across a wall of panes. #33252e is the terminal background (nebelung
-# ghostty: 202020) lifted toward the theme's magenta (#f2c4e5) — about as light
-# as the selection highlight (393939), so it sits under the existing 256-colour
-# foregrounds without fighting them. Truecolor, not a 256 index, purely because
-# the cube has nothing this dark AND this desaturated (53 is #5f005f — a poster);
-# every terminal this rice targets does 24-bit. Tune it here, it's the one knob.
-TINT_FABLE=$'\033[48;2;51;37;46m'
+# a glance across a wall of panes. #382713 is the terminal background (nebelung
+# ghostty: 202020) warmed toward amber — dark enough that the dimmest foreground
+# in the bar (the 244 gray of ctx%/cost) keeps a 3.6:1 contrast ratio, which is
+# what it has against the bare background anyway; a brighter amber costs real
+# legibility fast, because yellows carry far more luminance per unit of colour
+# than the plum this started as. Truecolor rather than a 256 index because the
+# cube has nothing simultaneously this dark and this saturated; every terminal
+# this rice targets does 24-bit. Tune it here, it's the one knob.
+#
+# It does collide semantically with the bar's own warm slots — orange (173) is
+# "this branch needs you" on ⏏/N^, yellow (179) is the stale-rice nag. Those
+# stay legible (5:1 and 6.8:1), but they pop a little less against a warm band
+# than they did against a cool one. Accepted: the tint is a per-pane constant
+# you stop seeing, while those two are events you're looking for.
+TINT_FABLE=$'\033[48;2;56;39;19m'
 
 # render_status <ahead> <files> <ins> <del> <prstate> <purge>
 # Emits the single status token. purge=1 => branch would be reaped (row-1 only).

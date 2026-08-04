@@ -28,7 +28,7 @@ fail() { printf '%s\n' "$*" >&2; return 1; }   # not a bats builtin
 
 ESC=$'\033'
 RESET="${ESC}[0m"
-TINT="${ESC}[48;2;51;37;46m"
+TINT="${ESC}[48;2;56;39;19m"
 
 setup() {
   SL="${STATUSLINE_UNDER_TEST:-$BATS_TEST_DIRNAME/../modules/den/statusline.sh}"
