@@ -412,8 +412,8 @@ in
           The modifier vocabulary for prowl's window chords — one setting rather
           than a bind-per-action, because what people need to move is the
           modifier, not the letters. It drives focus (`<mod>` + hjkl), layouts
-          (`<mod>` + `/` `,`), fullscreen, workspace back-and-forth, moving a
-          workspace to the next monitor (`<mod>⇧⇥`), and entering service mode
+          (`<mod>` + `/` `,`), fullscreen, moving a workspace to the next
+          monitor (`<mod>⇧⇥`), and entering service mode
           (`<mod>⇧;`). Anything that names a workspace — focusing one, or
           throwing the focused window there — hangs off `leader` instead, not
           this option.
@@ -426,9 +426,11 @@ in
           Whatever you pick, AeroSpace claims those chords **globally**, so they
           stop reaching whatever owned them inside a terminal. The surface is
           small now that the workspace throws moved to the leader: only hjkl,
-          `/` `,`, `f`, `⇥`, `⇧⇥` and `⇧;`, none of which a roster letter can
-          land on. (Under "ctrl-alt" that used to bite — the throws were `⌃⌥⇧` +
-          an app's roster letter, so an app on `a` silently ate hearth's zellij
+          `/` `,`, `f`, `⇧⇥` and `⇧;`, none of which a roster letter can land
+          on — and `<mod>⇥` is free again, since workspace back-and-forth
+          retired in favour of pounce's cross-workspace ⌘⇥ switcher. (Under
+          "ctrl-alt" that used to bite — the throws were `⌃⌥⇧` + an app's roster
+          letter, so an app on `a` silently ate hearth's zellij
           `Ctrl Alt Shift a` in-place-agent bind. That collision is gone.)
           Nothing on a stock macOS collides either: the only ⌃⌥ system hotkeys
           are input-source switching (⌃⌥Space, off by default) and hyper-F13.

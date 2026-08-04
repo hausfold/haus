@@ -1,13 +1,11 @@
 #!/bin/bash
 # empty_workspace.sh — when a ⌘Q empties the focused workspace, pull back to the
-# most recent non-empty workspace ("gravity"), and keep the now-empty workspace
-# out of AeroSpace's alt+tab (workspace-back-and-forth) target.
+# most recent non-empty workspace ("gravity").
 #
-# Why this lives in a SketchyBar plugin and not the alt+tab keybinding:
-#   alt+tab stays the native, instant `workspace-back-and-forth` — no wrapper,
-#   no added latency. All the smarts run here, off macOS's front_app_switched
-#   event, which fires on a ⌘Q (and on every workspace switch, which is how we
-#   cheaply keep a focused-workspace history without touching aerospace.toml).
+# Why this lives in a SketchyBar plugin and not a keybinding: it runs off macOS's
+# front_app_switched event, which fires on a ⌘Q (and on every workspace switch,
+# which is how we cheaply keep a focused-workspace history without touching
+# aerospace.toml).
 #
 # Detecting a quit (vs. a plain app-switch or visiting an already-empty space):
 #   each event records the frontmost app's PID; on the next event, if that PID
@@ -15,14 +13,23 @@
 #   Frontmost is read via lsappinfo (≈8ms) rather than osascript/System Events
 #   (≈110ms) — this runs on every event, so the cheap path matters.
 #
-# Keeping the empty workspace out of alt+tab:
-#   AeroSpace's back-and-forth toggles current <-> the ONE previously-focused
-#   workspace, and there's no command to edit that pointer — but *visiting* a
-#   workspace sets it. So rather than a single hop to the gravity target D
-#   (which would leave the empty workspace as the back target), we hop
-#   `workspace P; workspace D`, landing on D with the back target = P, the next
-#   real workspace. Set SET_PREV=0 to use a single hop (no brief flicker through
-#   P, but alt+tab may then return to the empty space).
+#   A dead PID alone is NOT enough. Gravity must fire only for a workspace you
+#   EMPTIED, never for one you deliberately navigated to that happens to be
+#   empty — and once you're standing on it those look identical. The tell is the
+#   focused workspace itself: a ⌘Q never moves you, so a real quit always has
+#   focused == the workspace focused at the previous event. The leader's launch
+#   path changes it — prowl/scripts/launch.sh switches to the app's workspace
+#   BEFORE `open -a`, so you sit on an empty space for the second the app takes
+#   to start, and gravity used to yank you off it mid-launch. You landed on a
+#   workspace you never asked for while macOS made the launching app frontmost:
+#   the bar showed the right app name beside the wrong workspace. That desync is
+#   what the quit-in-place guard below closes.
+#
+# There is no back-and-forth re-pointing here any more. <mod>⇥
+# (workspace-back-and-forth) is retired — pounce's ⌘⇥ switcher is
+# cross-workspace, so nothing can be stranded behind a single previous-workspace
+# pointer the way it could before. Gravity is a single hop again, with no
+# flicker through an intermediate workspace to fix that pointer up.
 #
 # Wired as a non-drawing item subscribed to front_app_switched in sketchybarrc.
 
@@ -34,7 +41,6 @@ STATE=/tmp/sketchybar_empty_ws.state    # "<pid>|<name>" of last frontmost app
 HIST=/tmp/sketchybar_empty_ws.hist      # focused-workspace history, most recent LAST
 TOKEN=/tmp/sketchybar_empty_ws.token    # latest-event nonce; guards the fork
 LOG=/tmp/sketchybar_empty_ws.log
-SET_PREV=1                              # re-point back-and-forth via a P→D double hop
 DEBUG=0
 
 log() { [ "$DEBUG" = 1 ] && echo "$(date '+%H:%M:%S') $*" >> "$LOG"; }
@@ -51,20 +57,28 @@ prev_name=${prev#*|}
 printf '%s|%s' "$cur_pid" "$cur_name" > "$STATE"
 
 # Record focused-workspace history (dedup consecutive, keep last 12). This is
-# how we later pick the gravity target D and the back target P.
+# how we later pick the gravity target D — and, read BEFORE the append, where
+# the previous event left us, which is the quit-in-place guard further down.
 focused=$($AEROSPACE list-workspaces --focused 2>/dev/null)
-if [ -n "$focused" ] && [ "$focused" != "$(tail -1 "$HIST" 2>/dev/null)" ]; then
+prev_focused=$(tail -1 "$HIST" 2>/dev/null)
+if [ -n "$focused" ] && [ "$focused" != "$prev_focused" ]; then
     echo "$focused" >> "$HIST"
     tail -12 "$HIST" > "$HIST.t" 2>/dev/null && mv "$HIST.t" "$HIST"
 fi
 
-log "event: prev=$prev cur=$cur_pid|$cur_name focused=$focused"
+log "event: prev=$prev cur=$cur_pid|$cur_name focused=$focused prev_focused=$prev_focused"
 
 # Only a QUIT is interesting: previous frontmost recorded and now dead.
 [ -n "$prev_pid" ] || { log "  no prev → skip"; exit 0; }
 if kill -0 "$prev_pid" 2>/dev/null; then log "  prev alive → switch, skip"; exit 0; fi
 case "$prev_name" in Pounce|pounce*) log "  prev is palette → skip"; exit 0 ;; esac
 case "$cur_name"  in Pounce|pounce*) log "  cur is palette → skip";  exit 0 ;; esac
+
+# ...and only a quit IN PLACE. If the focused workspace moved since the last
+# event, you navigated here (a leader launch, a ⌘⇥ landing, a manual hop) and
+# whatever died elsewhere is none of gravity's business. An empty workspace you
+# chose is not one you emptied.
+[ "$focused" = "$prev_focused" ] || { log "  moved '$prev_focused' → '$focused', not a quit in place → skip"; exit 0; }
 
 log "  QUIT detected (prev '$prev_name' dead) → fork"
 
@@ -87,10 +101,7 @@ echo "$nonce" > "$TOKEN"
 
     # Candidates = non-empty workspaces (excluding the one we're leaving),
     # ordered most-relevant first: recent history, then any other populated
-    # workspace. D (gravity target) is the most recent — where you came from.
-    # P (the new back-and-forth target) is the next one; falling back to a live
-    # non-empty workspace when history has no second option is exactly what
-    # keeps the just-emptied space out of alt+tab.
+    # workspace. The target is the most recent — where you came from.
     ordered=()
     add() {
         local w=$1 c
@@ -102,20 +113,14 @@ echo "$nonce" > "$TOKEN"
     }
     while IFS= read -r ws; do add "$ws"; done < <(tail -r "$HIST" 2>/dev/null)
     for ws in $nonempty; do add "$ws"; done
-    D=${ordered[0]}; P=${ordered[1]}
+    D=${ordered[0]}
 
-    if [ -z "$D" ]; then
-        log "  [fork] no non-empty target → back-and-forth"
-        exec "$AEROSPACE" workspace-back-and-forth
-    fi
+    # Nothing populated anywhere — every workspace is empty, so there's nowhere
+    # better to be. Stay put rather than hop for the sake of hopping.
+    [ -n "$D" ] || { log "  [fork] no non-empty target → stay"; exit 0; }
 
-    if [ "$SET_PREV" = 1 ] && [ -n "$P" ]; then
-        log "  [fork] gravity → $D (back target ← $P)"
-        "$AEROSPACE" workspace "$P"; exec "$AEROSPACE" workspace "$D"
-    else
-        log "  [fork] gravity → $D"
-        exec "$AEROSPACE" workspace "$D"
-    fi
+    log "  [fork] gravity → $D"
+    exec "$AEROSPACE" workspace "$D"
 ) &
 
 exit 0
