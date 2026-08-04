@@ -417,6 +417,127 @@
             none/none/none leader=- palette=- nav=- conflicts=0
             alt-space/alt-space/cmd-alt leader=alt-space ⌥␣ caps=no palette=alt-space ⌥ Space spotlight=no nav=cmd-alt ⌘⌥ conflicts=1
           '';
+          # ---- accent-reach ---------------------------------------------------
+          # nebelhaus.theme.accent does NOT recolour everything, and the option
+          # says so — it moves the handful of tools the rice injects an accent
+          # hex into, and leaves the single-file dotfiles on their built-in
+          # colour. Both halves of that sentence are a promise, and both fail
+          # SILENTLY: drop the accent wire from lazygit in a hearth refactor and
+          # nothing errors, the accent just quietly stops arriving; wire it into
+          # ghostty by accident and a documented boundary moves without anyone
+          # deciding to move it. So the reach is pinned as a golden table.
+          #
+          # Each surface is fingerprinted under three accents. "moves" means all
+          # three fingerprints differ (three, not two, so a fingerprint that
+          # merely happens to differ once can't pass); "pinned" means all three
+          # are byte-identical. Anything in between is PARTIAL and fails loudly,
+          # because it means the accent reaches a surface for some accents only.
+          #
+          # zed is here as the ROSTER-PORT case (modules/theme/ports.nix): the
+          # accent-matrix ports spell the choice `<accent>` in their path, and
+          # resolving that is what keeps them installable. It's the one row whose
+          # fingerprint is a FILENAME rather than a file's contents — the port
+          # renames its theme file per accent, which is exactly the behaviour to
+          # pin, since the app's own `theme` key then points at the old name.
+          accentSurfaces =
+            accent:
+            let
+              cfg =
+                (mkNebelhaus {
+                  inherit system;
+                  username = "you";
+                  hostname = "example";
+                  extraModules = [
+                    {
+                      nebelhaus.theme.accent = accent;
+                      # `bold` is the one wallpaper generated from the accent hex;
+                      # the three hand-made ones are shipped PNGs by design.
+                      nebelhaus.theme.wallpaper = "bold";
+                      # Not in the default rice — added here so the roster-port
+                      # accent path has a subject at all.
+                      nebelhaus.roster.zed = {
+                        name = "Zed";
+                        cask = "zed";
+                      };
+                    }
+                  ];
+                }).config;
+              hm = cfg.home-manager.users.you;
+              file =
+                target:
+                let
+                  entry = hm.home.file.${target};
+                in
+                if entry.text != null then entry.text else toString entry.source;
+              targetsUnder =
+                prefix:
+                nixpkgs.lib.concatStringsSep "," (
+                  builtins.filter (nixpkgs.lib.hasPrefix prefix) (builtins.attrNames hm.home.file)
+                );
+            in
+            builtins.mapAttrs (_: builtins.unsafeDiscardStringContext) {
+              # --- the accent is supposed to arrive here ---
+              fzf = hm.home.sessionVariables.FZF_DEFAULT_OPTS;
+              lazygit = file "Library/Application Support/lazygit/config.yml";
+              yazi = file ".config/yazi/theme.toml";
+              zen = hm.home.activation.zenNebelung.data;
+              wallpaper-bold = hm.home.activation.nebelhausWallpaper.data;
+              zed-roster-port = targetsUnder ".config/zed/themes/";
+              # --- and is supposed to leave these alone ---
+              bat = file "/Users/you/.config/bat/themes/Catppuccin Mocha.tmTheme";
+              ghostty = file "Library/Application Support/com.mitchellh.ghostty/config";
+              helix = file ".config/helix/themes/nebelung.toml";
+              lsd = file ".config/lsd/colors.yaml";
+              opencode = file ".config/opencode/themes/nebelung.json";
+              perch = hm.home.activation.perchTheme.data;
+              pounce = file "/Users/you/.config/pounce/themes/nebelung.json";
+              sill = file ".config/sketchybar/colors.sh";
+              starship = file "/Users/you/.config/starship.toml";
+              trill = file "/Users/you/.config/trill/themes/nebelung.json";
+              zellij = file ".config/zellij/themes/nebelung.kdl";
+            };
+          # Three full evaluations, bound once rather than per row — the rows are
+          # cheap, the systems are not.
+          accentA = accentSurfaces "mauve";
+          accentB = accentSurfaces "green";
+          accentC = accentSurfaces "sapphire";
+          accentRow =
+            name:
+            let
+              a = accentA.${name};
+              b = accentB.${name};
+              c = accentC.${name};
+            in
+            "${name} ${
+              if a != b && b != c && a != c then
+                "moves"
+              else if a == b && b == c then
+                "pinned"
+              else
+                "PARTIAL"
+            }";
+          accentTable = builtins.concatStringsSep "\n" (map accentRow (builtins.attrNames accentA));
+          # Alphabetical because the rows are `attrNames` — self-sorting, so a new
+          # surface can't be added in a spot that hides it. Six move, eleven hold.
+          expectedAccentTable = ''
+            bat pinned
+            fzf moves
+            ghostty pinned
+            helix pinned
+            lazygit moves
+            lsd pinned
+            opencode pinned
+            perch pinned
+            pounce pinned
+            sill pinned
+            starship pinned
+            trill pinned
+            wallpaper-bold moves
+            yazi moves
+            zed-roster-port moves
+            zellij pinned
+            zen moves
+          '';
         in
         {
           keymap = pkgs.runCommand "nebelhaus-keymap-ok" { } ''
@@ -435,6 +556,12 @@
           '';
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-darwin" system) {
+          accent-reach = pkgs.runCommand "nebelhaus-accent-reach-ok" { } ''
+            diff -u ${pkgs.writeText "expected" expectedAccentTable}                     ${pkgs.writeText "actual" (accentTable + "
+")}
+            touch $out
+          '';
+
           presets = pkgs.runCommand "nebelhaus-presets-ok" { } ''
             ${nixpkgs.lib.optionalString (!dataOnly) "echo 'a preset is not data-only' >&2; exit 1"}
             cat > $out <<'PRESETS'
