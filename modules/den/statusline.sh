@@ -190,28 +190,35 @@ if [ -n "$lim5" ]; then
   fi
 fi
 
-# Permission mode. Read from the transcript tail because there is NO other
-# source: it is absent from the statusline stdin payload (see the schema at
-# code.claude.com/docs/en/statusline — cwd/model/cost/context_window/fast_mode/
-# effort/vim/pr/worktree, no permission mode), and NO hook event fires on a mode
-# flip either (ConfigChange is settings-FILE changes only; PreToolUse & friends
-# carry `permission_mode` but only fire inside a turn).
+# Permission mode, from stdin when the payload carries it, else the transcript.
 #
-# THE LIMITATION, because it looks like a bug otherwise: Claude Code writes the
-# {"type":"permission-mode","permissionMode":"…"} record at TURN BOUNDARIES, not
-# on every flip. Cycling shift+tab between turns writes nothing — so the icon
-# shows the mode as of your LAST SUBMITTED TURN and will sit still while you
-# cycle. (Verified: a session that shift+tab'd into plan mode and back logged 10
-# consecutive "auto" records ~35KB apart, one per turn, and no "plan" at all.)
-# Claude Code does re-run this script on a mode change; the input is what's
-# stale, so no amount of re-running fixes it. That's fine for what this chip is
-# actually for — catching a mode that CHANGED UNDER YOU (switching to a model
-# with no auto mode drops you to `default`), which persists across turns and so
-# lights up on the very next one. Don't "fix" it by adding a hook; there isn't
-# one. 64KB of tail keeps this O(1); `permissionMode` is stamped on user records
-# too, so the window almost always holds one.
-mode=""
-[ -n "$transcript" ] && [ -f "$transcript" ] &&
+# `.permission_mode` is NOT in stock Claude Code's statusline payload (see the
+# schema at code.claude.com/docs/en/statusline — cwd/model/cost/context_window/
+# fast_mode/effort/vim/pr/worktree, no mode), and no hook fires on a flip either
+# (ConfigChange is settings-FILE changes only; PreToolUse & friends carry
+# `permission_mode` but only fire inside a turn). A host CAN add it: the payload
+# builder already receives the live mode as a parameter, so a byte-length-
+# preserving patch of the bun-embedded JS emits it — which is what this machine
+# does (hosts/mbp/statusline-permission-mode.py in the nix config, alongside the
+# footer-collapsing patch that makes this chip the only mode signal in the pane).
+# On a patched build the chip tracks shift+tab live, because Claude Code already
+# re-runs this script on every flip: the mode is a dependency of the effect that
+# fires the statusline command, inside a 300ms debounce.
+#
+# THE FALLBACK'S LIMITATION, because it looks like a bug otherwise: Claude Code
+# writes the {"type":"permission-mode","permissionMode":"…"} record at TURN
+# BOUNDARIES, not on every flip. Cycling shift+tab between turns writes nothing —
+# so on a stock build the icon shows the mode as of your LAST SUBMITTED TURN and
+# sits still while you cycle. (Verified: a session that shift+tab'd into plan
+# mode and back logged 10 consecutive "auto" records ~35KB apart, one per turn,
+# and no "plan" at all.) Even then it does the job this chip exists for —
+# catching a mode that CHANGED UNDER YOU (switching to a model with no auto mode
+# drops you to `default`), which persists across turns and lights up on the very
+# next one. Don't "fix" the fallback with a hook; there isn't one. 64KB of tail
+# keeps it O(1); `permissionMode` is stamped on user records too, so the window
+# almost always holds one.
+mode=$(j '.permission_mode')
+[ -z "$mode" ] && [ -n "$transcript" ] && [ -f "$transcript" ] &&
   mode=$(tail -c 65536 "$transcript" 2>/dev/null |
     grep -o '"permissionMode": *"[a-zA-Z]*"' | tail -1 | grep -o '[a-zA-Z]*"$')
 mode=${mode%\"}
@@ -283,13 +290,27 @@ if [ "$is_wt" = 1 ] && [ "${files:-0}" -eq 0 ] && g merge-base --is-ancestor HEA
   purge=1
 fi
 
-# Row 1's own PR: the detached refresher already cached this branch's PR state in
-# the panel, so read our own row (gh-free in the render path) and render it just
-# like the children — a "#N" pill left of the name, colored by PR state. It also
-# lights the ⏏: purge catches an ancestor-merged branch locally, but a
-# squash/rebase merge lands the work under a NEW commit that's never an ancestor,
-# so the panel's merged state is the only signal for those.
-own_pr=""
+# Row 1's own PR, from two sources that cover different halves of a PR's life.
+#
+# The panel (cached by the detached refresher) is primary: it is the only source
+# that knows a PR MERGED or CLOSED, which is what lights the ⏏ and the post-merge
+# N^. purge catches an ancestor-merged branch locally, but a squash/rebase merge
+# lands the work under a NEW commit that's never an ancestor, so for those the
+# panel's merged state is the only signal there is.
+#
+# stdin `.pr` is Claude Code's own tracking of the current branch's PR — it polls
+# `gh pr view` itself and re-runs this script when the result changes (prStatus
+# rides the same effect the mode chip does). It is immediate where the panel has
+# a 15s TTL and a detached refresh behind it, and its url is the REAL one rather
+# than one reconstructed from a parsed remote — so it is right on GitHub
+# Enterprise and on any remote our slug parse would mangle. What it will never
+# report is a merged or closed PR: Claude Code drops the field for those.
+#
+# So: panel first (it can say merged), stdin to fill the gap it leaves — a PR
+# opened seconds ago, or a cold/stale refresher — and stdin's url preferred
+# whenever the two agree on the number.
+own_pr=""; slug=""
+cc_prnum=$(j '.pr.number'); cc_prurl=$(j '.pr.url')
 if [ "$is_wt" = 1 ] && [ -f "$PANEL" ]; then
   # Match our own panel row by (slug, name). slug is the remote-derived owner/name
   # (same parse the refresher uses) — NOT the local dir name, which can differ
@@ -302,6 +323,8 @@ if [ "$is_wt" = 1 ] && [ -f "$PANEL" ]; then
     [ "$own_pr" = "-" ] && own_pr=""
   fi
 fi
+# Only "open" is expressible from stdin — see above, that's the only state it has.
+[ "$is_wt" = 1 ] && [ -z "$own_pr" ] && [ -n "$cc_prnum" ] && own_pr="#$cc_prnum open"
 
 # --- ROW 1 : status-as-bullet + PR pill + name (no repo name, no "clean") -------
 # The git-status token IS the leading glyph: ⏏ landed / N^ ahead / +A -D dirty,
@@ -312,12 +335,21 @@ fi
 # left of the name, same as the children.
 st=$(render_status "$ahead" "$files" "$ins" "$del" "$own_pr" "$purge")
 lead="$st"; [ -z "$lead" ] && lead="${DOT}●${R}"
-# Hyperlink the own pill to its PR (OSC 8), same as the sister/child rows — the
-# url is rebuilt from the slug + number already in hand (no extra gh call). This
+# Hyperlink the own pill to its PR (OSC 8), same as the sister/child rows — this
 # is what makes a worktree pane's OWN "#N" ⌘-clickable; before, only the sister
 # cluster and row-2 children got urls, so an in-worktree pane's own pill was dead.
+# Take Claude Code's url when it's talking about the same PR (real url, any host);
+# otherwise rebuild it from the slug + number already in hand (no extra gh call),
+# which is also the only option once the PR merges and stdin stops reporting it.
 prnum="${own_pr%% *}"          # "#104"
-ownurl=""; [ -n "$own_pr" ] && ownurl="https://github.com/${slug}/pull/${prnum#\#}"
+ownurl=""
+if [ -n "$own_pr" ]; then
+  if [ -n "$cc_prurl" ] && [ "$cc_prnum" = "${prnum#\#}" ]; then
+    ownurl="$cc_prurl"
+  elif [ -n "$slug" ]; then
+    ownurl="https://github.com/${slug}/pull/${prnum#\#}"
+  fi
+fi
 prseg=$(render_pr "$own_pr" "$ownurl")   # "#N" left of the name, mirroring the children
 if [ "$is_wt" = 1 ]; then
   row1="${lead} ${prseg:+$prseg }${NAME}${wt_name}${R}"
