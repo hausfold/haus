@@ -472,6 +472,26 @@ cmd_ui() {
     # Nothing here relies on FZF_DEFAULT_OPTS either, for that same reason:
     # home-manager's fzf colours live in the shell environment this pane never
     # had. Every colour that matters is passed explicitly.
+    # 60/40, in the LIST's favour — not the even split it looks like it wants.
+    #
+    # The two halves are not doing the same job. The preview is read one line at
+    # a time, so what it needs is enough column to be prose (~60 chars is a book);
+    # past that, extra width is spent on the ragged right of a paragraph. The
+    # list is SCANNED, and a scan fails in a specific way: 26 hits from the same
+    # shell pane all render `Shell cwd was reset to /Users/julienmartel/.cache/cl…`
+    # because the cut lands just BEFORE the part that tells them apart. Width
+    # there buys distinguishability, which is the whole job of that column, and
+    # it went further once the pane/line-number columns came off the row.
+    #
+    # No `<SIZE(ALTERNATIVE_LAYOUT)` clause here, and don't add one hoping to
+    # stack the preview under the list on a narrow window: fzf compares that
+    # threshold against the terminal's HEIGHT even when the preview is on the
+    # `right`. Measured — at 145x14, `<13` keeps it beside and `<100` moves it
+    # below, i.e. it tracked the 14, not the 145. So the clause says "stack when
+    # SHORT", which is precisely backwards (stacking is what a short terminal
+    # can least afford), and there is no width-keyed form to say the real thing.
+    local preview_win='right,40%,border-left'
+
     local out query key sel id line
     local fzf_color='fg:-1,bg:-1,fg+:-1,bg+:8,gutter:-1,border:8,label:5'
     fzf_color="$fzf_color,preview-border:8,prompt:5,pointer:5,query:-1"
@@ -492,7 +512,7 @@ cmd_ui() {
             --query="${query:-}" \
             --delimiter='\t' --with-nth=3 \
             --preview="$SELF _preview $dir {1} {2} 2>/dev/null" \
-            --preview-window='right,55%,border-left' \
+            --preview-window="$preview_win" \
             --bind="change:reload:$SELF _rg $dir $scope {q} 2>/dev/null" \
             --bind="start:reload:$SELF _rg $dir $scope {q} 2>/dev/null" \
             --footer="⏎ focus · ^y copy · ^s $other · esc" --footer-border=none \
