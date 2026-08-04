@@ -25,11 +25,15 @@ darwinConfigurations.myhost = nebelhaus.mkNebelhaus {
 };
 ```
 
-Any single field is yours to override without forking the pack — but "override"
-means `lib.mkForce`, not "the host is imported last". Import order carries no
-priority in the module system: a host that sets a field the pack also sets
-*conflicts* with it rather than winning. See bite 2 below, which is what that
-looks like the first time.
+Any single field is yours to override without forking the pack, and — unlike a
+preset — plainly: **your host outranks a pack.** Set `roster.obsidian.key` in
+your own host file and it wins, no `lib.mkForce`, while the rest of the pack's
+entry (its workspace, its pill, the cask that installs it) stays. That is not
+"the host is imported last", which is not a thing — import order carries no
+priority in the module system. It's the *seam*: `nebelhaus.packs.<name>` hands
+you the pack through `nebelhaus.lib.pack`, which lowers every field it defines
+to `lib.mkDefault` on the way in. See bite 2, including what happens if you
+import a pack file directly and skip that seam.
 
 ## What's here
 
@@ -57,11 +61,17 @@ list and the install instruction. The whole file:
 }
 ```
 
-Self-test before publishing — the same check CI runs:
+Self-test before publishing — the same checks CI runs:
 
 ```nix
-nebelhaus.lib.checkRice ./my-pack.nix
+nebelhaus.lib.checkRice ./my-pack.nix   # data-only: only a `nebelhaus` key
+nebelhaus.lib.checkPack ./my-pack.nix   # pack-shaped: only `nebelhaus.roster`
 ```
+
+`checkPack` is the narrower of the two and exists because `lib.pack` carries
+only `roster` through: a `theme.accent` line in a pack file would be dropped
+without a word, so it's refused instead. If your file wants to say what kind of
+machine this is as well as what's on it, that's a preset — ship it as one.
 
 ## Four things that bite, in order of how much time they cost
 
@@ -85,36 +95,49 @@ occasional clash and say in your README that the fix is one line:
 `nebelhaus.roster.<id>.key = "y";` — or `null`, which keeps the app installed and
 reachable from ⌘Space while claiming no letter at all.
 
-**2. The consumer already has the app — and that fails differently than a key
-clash.** Bite 1 is two entries fighting over a *letter*. This is one entry:
-`roster.obsidian` declared by both the pack and the host, which is the likelier
-case, because a pack is worth publishing precisely when its apps are popular.
-There's no assertion to reach — the module system stops first, per field:
-
-```
-error: The option `nebelhaus.roster.obsidian.key' has conflicting definition values:
-- In `…/hosts/mbp': "n"
-- In `…/packs/writing.nix': "o"
-Use `lib.mkForce value` or `lib.mkDefault value` to change the priority…
-```
-
-Take that suggestion literally — in the **host**, which unlike a pack is an
-ordinary module and can call `lib`. Force only the fields you disagree with:
+**2. The consumer already has the app — your host just wins, and that is worth
+understanding rather than enjoying.** Bite 1 is two entries fighting over a
+*letter*. This is one entry: `roster.obsidian` declared by both the pack and the
+host, which is the likelier case, because a pack is worth publishing precisely
+when its apps are popular.
 
 ```nix
-{ lib, ... }:                                    # add lib to your host's args
+# your host file — no lib, no mkForce, nothing special
 {
-  nebelhaus.roster.obsidian.key = lib.mkForce "n";
+  nebelhaus.roster.obsidian.key = "n";
 }
 ```
 
-The rest of the pack's entry survives intact — Obsidian keeps the pack's
-workspace, pill and `appId`, and just answers to your letter. One `mkForce` per
-disputed field, not per entry.
+Obsidian answers to your letter and keeps the pack's workspace, pill and cask.
+One field, one winner; the rest of the entry is untouched.
+
+**How, and the one place it doesn't apply.** A pack is data-only, so it cannot
+lower its own priority — writing `lib.mkDefault` would make the file a function,
+which `checkRice` refuses. The priority is applied by the seam that imports it,
+`nebelhaus.lib.pack`, which puts every field at `mkDefault`. `packs.<name>` is
+pre-wrapped. **A pack file imported as a bare path is not**, and still conflicts
+the old way:
+
+```nix
+extraModules = [
+  ./vendored/writer-pack.nix                    # ← conflicts with your host
+  (nebelhaus.lib.pack ./vendored/writer-pack.nix)  # ← your host wins
+];
+```
+
+Same file, different behaviour, so vendor packs through `lib.pack` — that is
+what the wrapper is for.
+
+**Two packs that name the same app still stop the build**, and should: the
+consumer can't be expected to know what's inside a pack, but two pack authors
+are equals and nobody else can settle it. Naming that app in your own host
+settles it — a plain assignment outranks both packs at once.
 
 What a pack author can do about it: keep entries minimal. Every optional field
-you set is a field a consumer may have to force, so leave `workspace`,
-`barIcon` and `appId` null unless the pack genuinely needs them.
+you set is one a consumer silently overrides, so leave `workspace`, `barIcon`
+and `appId` null unless the pack genuinely needs them. And note the trade this
+makes for you: **you are not told when a consumer disagrees with you.** A pack
+suggests; the machine's owner decides.
 
 **3. `appId` is the one field a pack usually can't fill in.** It's the bundle id
 AeroSpace matches on to herd a window to its workspace, it isn't in Homebrew's
@@ -155,3 +178,8 @@ A pack is one file with no dependencies, so it needs no flake of its own: put it
 in a gist or a repo and let people fetch it, or expose it from a flake as
 `packs.<name>` the way this repo does. Nothing here is privileged — `packs/` goes
 through the identical import path a stranger's file would.
+
+Tell people to import it through `nebelhaus.lib.pack ./your-pack.nix` (or expose
+it already-wrapped, as `packs.<name>`), and say so in your README. It is the
+difference between "install this and your own settings still win" and "install
+this and your build might stop on a field you never mentioned".
