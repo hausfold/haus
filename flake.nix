@@ -463,6 +463,10 @@
                       # WEB rather than an app's own config: the stamped Stylus
                       # bundle only exists once the extension is declared.
                       nebelhaus.zen.extensions.stylus = { };
+                      # Also not in the default rice since 2026-08-04 — trill is
+                      # opt-in now. Enabled here anyway: the module is still
+                      # supported, so its theming stays under test.
+                      nebelhaus.trill.enable = true;
                     }
                   ];
                 }).config;

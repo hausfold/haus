@@ -87,7 +87,7 @@ The house is built from composable nix-darwin modules. Take the whole thing, or
 - 🔖 **collar** — identity & auth — Touch ID for sudo (with `reattach`, so it works inside tmux/zellij), and passwordless activation so a rebuild never stops for a fingerprint you already gave (`nebelhaus.collar.passwordlessRebuild`)
 - 🗝️ **secrets** — declarative secrets via [secretspec](https://secretspec.dev) — projects commit *which* secrets they need, never values; values live in the provider you pick per host
 - 🐾 **pounce** — the [Pounce](https://github.com/nebelhaus/pounce) palette, wired in as a self-signing daemon that holds its Accessibility grant across rebuilds, and ⌘Space freed for it
-- 🐦 **trill** — the [Trill](https://github.com/nebelhaus/trill) Messages client, installed through Nix and copied to a fixed `/Applications/Trill.app`
+- 🐦 **trill** — the [Trill](https://github.com/nebelhaus/trill) Messages client, installed through Nix and copied to a fixed `/Applications/Trill.app`. **Opt-in** (`nebelhaus.trill.enable = true`) — trill isn't actively developed, so it isn't part of a default machine
 - 🪺 **perch** — the [Perch](https://github.com/nebelhaus/perch) notch file shelf, same deal (`nebelhaus.perch.enable`)
 - 🤫 **hush** — a one-switch Focus/DND: a declarative global hotkey, plus optional Slack status and shell hooks
 - 🎨 **theme** — the desktop wallpaper and an accent-derived bold wordmark

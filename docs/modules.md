@@ -60,9 +60,15 @@ darwinConfigurations.mymac = inputs.nebelhaus.mkNebelhaus {
   home-manager block; key material and any smartcard/YubiKey setup live outside
   Nix (gpg-agent + pinentry-mac).
 
-- **trill / perch** — `nebelhaus.trill.enable` and `nebelhaus.perch.enable`
-  install through Nix via their flake inputs and copy to fixed
-  `/Applications/Trill.app` and `/Applications/Perch.app` paths.
+- **perch** — `nebelhaus.perch.enable` installs through Nix via its flake
+  input and copies to a fixed `/Applications/Perch.app` path.
+
+- **trill** — same mechanism (`nebelhaus.trill.enable`, fixed
+  `/Applications/Trill.app`), but **opt-in since 2026-08-04**: trill isn't
+  actively developed, so it isn't part of a default machine. Disabling doesn't
+  remove an already-installed bundle — see the option's own description for the
+  two lines that clean it up, and why the install marker matters even if you
+  keep the app.
 
 - **hush** — `nebelhaus.hush.*` for the Focus/DND hotkey, Slack status, and
   shell hooks.
