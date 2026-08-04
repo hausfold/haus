@@ -134,6 +134,14 @@
         colour and don't follow this option. The base palette stays the same
         Nebelung grey either way — only the accent hue changes.
 
+        Zen means Zen's own UI, not the web. The rice places the Nebelung
+        userChrome/userContent pair, and userContent only styles `about:` pages
+        — github.com and youtube.com are themed by the Stylus extension, whose
+        Catppuccin-derived styles carry their OWN `accentColor` var (default
+        mauve) inside the extension's storage. No file the rice writes can reach
+        it, so a Stylus-themed web stays on whatever accent you imported until
+        you re-import or re-pick it there.
+
         Both halves of that are pinned by the `accent-reach` flake check, which
         fingerprints every surface under three accents and fails if one starts
         or stops following the accent without anyone deciding it should.
