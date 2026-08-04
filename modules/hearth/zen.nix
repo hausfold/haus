@@ -25,12 +25,14 @@
 # select var, defaulting to mauve.
 #
 # So the accent could not reach the web, silently, no matter how many times you
-# rebuilt. What CAN be done is stamp that var in the bundle before you import
-# it: nebelung ships one accent-blind JSON, and a rebuild rewrites it to the
-# accent you actually chose. Importing is still a click — Stylus has no file
-# interface, which is exactly why nebelung classes this port `manual` — but the
-# file you import is now correct, and the rice tells you when it changed
-# instead of leaving you to notice a mauve YouTube months later.
+# rebuilt. What CAN be done is stamp those vars in the bundle before you import
+# it: nebelung ships the full matrix and leaves the choosing to the consumer, so
+# a rebuild rewrites the accent AND the flavor to the ones you actually picked,
+# out of the bundle rendered for your contrast. Importing is still a click —
+# Stylus has no file interface, which is exactly why nebelung classes this port
+# `manual` — but the file you import is now correct on all three axes, and the
+# rice tells you when it changed instead of leaving you to notice a mauve
+# YouTube months later.
 {
   config,
   lib,
@@ -71,32 +73,55 @@ in
       ...
     }:
     let
+      nb = import ../lib/nebelung.nix {
+        inherit lib nebelung;
+        theme = osConfig.nebelhaus.theme;
+      };
       accent = osConfig.nebelhaus.theme.accent;
+      flavor = osConfig.nebelhaus.theme.flavor;
 
-      # nebelung renders the Stylus bundle ONCE, at the package root — there is
-      # no copy under high-contrast/ or latte/ the way every file-based port
-      # has. So this follows theme.accent but NOT theme.flavor or
-      # theme.contrast; a latte machine still imports mocha-derived styles.
-      # Reading the root rather than modules/lib/nebelung.nix's variant root is
-      # deliberate and load-bearing: the variant path simply doesn't exist here.
-      bundle = "${nebelung.themes}/stylus/nebelung-stylus.json";
+      # The variant root, like every other port — nebelung renders one bundle
+      # per CONTRAST now, and the flavor dirs symlink at their contrast twin,
+      # so `<variant>/stylus/` resolves whichever variant you're on (nebelung#22).
+      # It used to read the package root because that was the only copy there
+      # was, which is what made contrast unable to reach the web at all.
+      bundle = "${nb.root}/stylus/nebelung-stylus.json";
 
-      # Every style keeps its full accent matrix, so stamping is choosing, not
-      # recolouring: set the var each style already offers. Guarded twice —
-      # entries with no accentColor at all (the bundle carries a `settings`
-      # object beside the 134 styles) and accents a style doesn't list are
-      # passed through untouched rather than given a value that resolves to
-      # nothing.
+      # Both remaining axes are per-style SELECT VARS living in Stylus's own
+      # storage — the bundle ships the full matrix and the consumer picks — so
+      # stamping is choosing, not recolouring: set the var each style already
+      # offers.
+      #
+      #   accentColor              theme.accent
+      #   lightFlavor/darkFlavor   theme.flavor, BOTH set to the same value
+      #
+      # Both flavor vars deliberately get the same answer. A style picks between
+      # them by the browser's colour scheme, and the rice has already decided
+      # which one this machine is — a latte rice that still went dark whenever
+      # the browser did would be following the browser, not theme.flavor.
+      #
+      # Guarded per var: entries with no vars at all (the bundle carries a
+      # `settings` object beside the 134 styles) and values a style doesn't list
+      # are passed through untouched rather than given something that resolves
+      # to nothing.
       stylusBundle =
-        pkgs.runCommand "nebelung-stylus-${accent}.json" { nativeBuildInputs = [ pkgs.jq ]; }
+        # Named for the variant AND the accent, because the announcement below
+        # compares store paths: every axis that changes what you'd import has to
+        # change this name, or the nudge silently stops firing.
+        pkgs.runCommand "${nb.variant}-stylus-${accent}.json"
+          { nativeBuildInputs = [ pkgs.jq ]; }
           ''
-            jq -c --arg accent ${lib.escapeShellArg accent} '
-              map(
-                if (.usercssData.vars.accentColor.options // [] | map(.name) | index($accent))
-                then .usercssData.vars.accentColor.value = $accent
+            jq -c \
+              --arg accent ${lib.escapeShellArg accent} \
+              --arg flavor ${lib.escapeShellArg flavor} '
+              def choose($var; $want):
+                if (.usercssData.vars[$var].options // [] | map(.name) | index($want))
+                then .usercssData.vars[$var].value = $want
                 else .
-                end
-              )
+                end;
+              map(choose("accentColor"; $accent)
+                  | choose("lightFlavor"; $flavor)
+                  | choose("darkFlavor"; $flavor))
             ' ${bundle} > "$out"
           '';
     in
@@ -120,22 +145,22 @@ in
           };
         }
         # Placed under a FIXED name so the Stylus import dialog always points at
-        # the same path, while the symlink underneath moves with the accent —
-        # which is what the announcement below compares.
+        # the same path, while the symlink underneath moves with the accent, the
+        # flavor and the contrast — which is what the announcement below compares.
         // lib.optionalAttrs stylusWanted {
           ".config/nebelhaus/nebelung-stylus.json".source = stylusBundle;
         };
 
       # A one-time instruction, announced only when there's genuinely something
-      # new to import — the stamped bundle's store path changes exactly when the
-      # accent or the palette does, so the last path we announced is the whole
-      # state this needs. Printing it every rebuild is how a real instruction
-      # turns into wallpaper.
+      # new to import — the stamped bundle's store path changes exactly when one
+      # of the three axes or the palette does, so the last path we announced is
+      # the whole state this needs. Printing it every rebuild is how a real
+      # instruction turns into wallpaper.
       home.activation.stylusNebelung = lib.mkIf stylusWanted (
         lib.hm.dag.entryAfter [ "writeBoundary" ] ''
           stylusStamp="$HOME/.local/state/nebelhaus/stylus-announced"
           if [ "$(cat "$stylusStamp" 2>/dev/null || true)" != "${stylusBundle}" ]; then
-            echo "→ Stylus (Zen): your userstyles are a ${accent} import behind."
+            echo "→ Stylus (Zen): your userstyles are one import behind (${nb.variant}, ${accent})."
             echo "   Stylus ▸ Manage ▸ Import:  $HOME/.config/nebelhaus/nebelung-stylus.json"
             $DRY_RUN_CMD mkdir -p "$(dirname "$stylusStamp")"
             printf '%s\n' "${stylusBundle}" | $DRY_RUN_CMD tee "$stylusStamp" >/dev/null
