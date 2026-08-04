@@ -459,6 +459,10 @@
                         name = "Zed";
                         cask = "zed";
                       };
+                      # Same reason, and the one surface here that reaches the
+                      # WEB rather than an app's own config: the stamped Stylus
+                      # bundle only exists once the extension is declared.
+                      nebelhaus.zen.extensions.stylus = { };
                     }
                   ];
                 }).config;
@@ -483,6 +487,11 @@
               zen = hm.home.activation.zenNebelung.data;
               wallpaper-bold = hm.home.activation.nebelhausWallpaper.data;
               zed-roster-port = targetsUnder ".config/zed/themes/";
+              # The WEB, via Stylus — the one surface here that isn't an app's
+              # own config. A path rather than contents on purpose: the bundle
+              # is 3 MB and its derivation is named for the accent, so the path
+              # IS the fingerprint and nothing has to be realised to compare it.
+              stylus = file ".config/nebelhaus/nebelung-stylus.json";
               # --- and is supposed to leave these alone ---
               bat = file "/Users/you/.config/bat/themes/Catppuccin Mocha.tmTheme";
               ghostty = file "Library/Application Support/com.mitchellh.ghostty/config";
@@ -518,7 +527,7 @@
             }";
           accentTable = builtins.concatStringsSep "\n" (map accentRow (builtins.attrNames accentA));
           # Alphabetical because the rows are `attrNames` — self-sorting, so a new
-          # surface can't be added in a spot that hides it. Six move, eleven hold.
+          # surface can't be added in a spot that hides it. Seven move, eleven hold.
           expectedAccentTable = ''
             bat pinned
             fzf moves
@@ -531,6 +540,7 @@
             pounce pinned
             sill pinned
             starship pinned
+            stylus moves
             trill pinned
             wallpaper-bold moves
             yazi moves

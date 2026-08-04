@@ -40,6 +40,10 @@
     # option and reads the app roster, not the wallpaper choice.
     ./theme/ports.nix
     ./hearth
+    # Split out of ./hearth for the same reason ./theme/ports.nix is split out
+    # of ./theme: it's gated on its own option, and what's INSTALLED in the
+    # browser is a different job from theming the browser's chrome.
+    ./hearth/zen.nix
     ./prowl
     ./sill
     ./collar
