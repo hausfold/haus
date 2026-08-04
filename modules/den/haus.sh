@@ -726,7 +726,13 @@ cmd_doctor() {
   elif [ -f "$CONSUMER/CLAUDE.md" ]; then
     info "$CONSUMER/CLAUDE.md orients Claude Code only — Codex and OpenCode read AGENTS.md; move the rules there and leave '@AGENTS.md' behind"
   elif [ -f "$skilldir/consumer-AGENTS.md" ]; then
-    info "nothing orients an agent opened in your config — start from the rice's pair: cp $skilldir/consumer-AGENTS.md $CONSUMER/AGENTS.md && cp $skilldir/consumer-CLAUDE.md $CONSUMER/CLAUDE.md"
+    # `install -m 644`, never `cp`: the starter pair are symlinks into the Nix
+    # store, whose files are r--r--r--. A plain `cp` preserves that mode, so the
+    # user lands on an AGENTS.md their editor refuses to save — on the one file
+    # the whole point of copying is to then edit.
+    info "nothing orients an agent opened in your config — start from the rice's pair: install -m 644 $skilldir/consumer-AGENTS.md $CONSUMER/AGENTS.md && install -m 644 $skilldir/consumer-CLAUDE.md $CONSUMER/CLAUDE.md"
+  else
+    info "nothing orients an agent opened in your config, and the starter pair isn't here to copy — set nebelhaus.claude.skill = true, rebuild, then re-run 'haus doctor'"
   fi
   # Reported for the app running THIS command — the grant is per-app, so the
   # answer legitimately differs between your terminal and an agent's pane.
