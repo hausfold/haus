@@ -676,7 +676,7 @@ in
       default = "claude";
       example = "codex";
       description = ''
-        The coding agent started by Pounce's **Spawn Agent** commands, by the
+        The coding agent started by Pounce's **Spawn Agent** command, by the
         ⌘A / Super-a zellij binds and the `c` shell alias, and used to reopen
         worktrees with no client recorded yet. Each spawned worktree records its
         own client, so changing this affects new work but never reopens an
