@@ -67,7 +67,7 @@
 #
 # Gotchas encoded here:
 #   - Commands spawned from a zellij bind inherit a thin PATH; resolve
-#     zellij/jq/rg/fzf/bat off an explicit one (same prelude as links.sh).
+#     zellij/jq/rg/fzf off an explicit one (same prelude as links.sh).
 #     That PATH sees ONLY the nix profiles, so every one of those has to be a
 #     real installed binary — a shell alias or a bare store path that happens to
 #     work in an interactive shell is invisible here. `rg` shipped missing
@@ -392,8 +392,10 @@ cmd_ui() {
     # --close-on-exit, so an unheld message would flash past).
     # A plain string, not an array: the shebang is /bin/bash, which on macOS is
     # still 3.2, where `${#arr[@]}` on an EMPTY array trips `set -u`.
+    # bat is deliberately NOT in this list any more — cmd_preview renders the
+    # context window with awk now, so rg and fzf are the whole dependency set.
     local missing="" tool
-    for tool in rg fzf bat; do
+    for tool in rg fzf; do
         command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
     done
     if [ -n "$missing" ]; then
@@ -443,12 +445,14 @@ cmd_ui() {
     #     width and the last hints were simply never readable. The same keys
     #     live in --footer, which is drawn against the bottom of the overlay and
     #     is short enough to survive a narrow window.
-    #   - `2>/dev/null` on BOTH helper binds. rg and bat are Rust, and Rust
-    #     ignores SIGPIPE — so when fzf tears down an in-flight reload/preview
-    #     (every keystroke does), the child hits EPIPE and aborts with a
-    #     "fatal runtime error: assertion failed: output.write(...)" on stderr.
-    #     fzf doesn't own stderr, so that lands on the PANE, over the overlay.
-    #     Seen for real on the ^s toggle, where the message survived the redraw.
+    #   - `2>/dev/null` on BOTH helper binds. rg is Rust, and Rust ignores
+    #     SIGPIPE — so when fzf tears down an in-flight reload (every keystroke
+    #     does), it hits EPIPE and aborts with a "fatal runtime error: assertion
+    #     failed: output.write(...)" on stderr. fzf doesn't own stderr, so that
+    #     lands on the PANE, over the overlay. Seen for real on the ^s toggle,
+    #     where the message survived the redraw. The preview bind is awk now and
+    #     dies quietly, but it keeps the redirect — the next tool put behind it
+    #     shouldn't have to rediscover this.
     #   - `--gutter=' '`. fzf ≥0.53 paints a ▌ rail down the left of EVERY row,
     #     which read as a second pointer under the real one. It is a CHARACTER
     #     option, not a colour one — `--color=gutter:…` only restyles it, so
@@ -605,19 +609,42 @@ cmd_rg() {
         head -2000
 }
 
+# The context window around a hit, with the hit line the ONLY one at full
+# strength and everything around it dimmed.
+#
+# That inversion is why bat isn't here any more. bat can mark a line exactly one
+# way — `--highlight-line` paints a background BAR across it — which is the loud
+# half of the pair: a slab of colour on the line you're reading, and the twelve
+# lines of context beside it rendered exactly as bright. Reading position should
+# come from the context RECEDING, not from the answer being boxed. bat has no
+# "dim everything except" mode, and its number gutter indexed a rendered
+# transcript anyway — offsets into nothing you could open.
+#
+# So: SGR 2 (dim) on the context, nothing at all on the hit line. Dim is a
+# relative attribute, not a colour, so it fades whatever the terminal's
+# foreground already is and follows a nebelung flavour change for free — the
+# same reason the pane column in cmd_rg uses it. Cheaper than bat, too, and it
+# drops the last user of it from this script.
+#
+# No wrapping, deliberately: every corpus line is exactly one row, so the hit
+# always lands mid-window at a predictable spot instead of being pushed off the
+# bottom by a long paragraph above it. (bat didn't wrap here either — fzf hands
+# the preview command a pipe, so bat's `--wrap=auto` resolved to no width and
+# truncated. This keeps that, on purpose rather than by accident.)
 cmd_preview() {
     local dir="$1" id="${2:-}" lineno="${3:-}"
     local file="$dir/src/$id.txt"
     [ -f "$file" ] && [ -n "$lineno" ] || exit 0
     local from=$((lineno - 12))
     [ "$from" -lt 1 ] && from=1
-    # --style=plain: the numbers bat used to draw are offsets into a rendered
-    # transcript, not into anything you could open, so they were a gutter of
-    # noise. The highlighted row is the position marker.
-    bat --color=always --style=plain --paging=never \
-        --highlight-line "$lineno" --line-range "$from:$((lineno + 12))" \
-        "$file" 2>/dev/null ||
-        sed -n "$from,$((lineno + 12))p" "$file"
+
+    # %c/27 rather than a \033 literal: BWK awk (macOS) is the floor here.
+    awk -v from="$from" -v to="$((lineno + 12))" -v hit="$lineno" '
+        NR < from { next }
+        NR > to { exit }
+        { gsub(/\t/, "    ")
+          if (NR == hit) print; else printf "%c[2m%s%c[0m\n", 27, $0, 27 }
+    ' "$file"
 }
 
 case "${1:-}" in
