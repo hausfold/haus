@@ -101,8 +101,8 @@
 #     --borderless`). fzf rejects an unknown option and exits at once, and the
 #     pane is --close-on-exit, so on an older pin ⌘F flashes a pane and does
 #     nothing — the same silent shape the cmd_ui preflight exists to prevent,
-#     which only checks that the three binaries EXIST. Bump the floor here when
-#     you reach for a newer flag.
+#     which only checks that the binaries EXIST, never which flags they take.
+#     Bump the floor here when you reach for a newer flag.
 
 set -u
 
@@ -393,7 +393,10 @@ cmd_ui() {
     # A plain string, not an array: the shebang is /bin/bash, which on macOS is
     # still 3.2, where `${#arr[@]}` on an EMPTY array trips `set -u`.
     # bat is deliberately NOT in this list any more — cmd_preview renders the
-    # context window with awk now, so rg and fzf are the whole dependency set.
+    # context window with awk now. This list is the tools whose ABSENCE would be
+    # invisible rather than loud, which is why it isn't every binary the script
+    # touches: awk, jq, zellij and sqlite3 also resolve off the PATH above, but
+    # awk is in every base system and the other three fail where you can see it.
     local missing="" tool
     for tool in rg fzf; do
         command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
@@ -658,11 +661,21 @@ cmd_preview() {
     local from=$((lineno - 12))
     [ "$from" -lt 1 ] && from=1
 
+    # Escapes are stripped from the corpus FIRST, and that is load-bearing, not
+    # tidiness. The corpus is not guaranteed plain: render_transcript pulls
+    # string leaves out of tool_result content, and a Bash tool result routinely
+    # carries colour — including its own \033[0m. Wrapping such a line in
+    # `\033[2m … \033[0m` dims only up to the FIRST embedded reset, after which
+    # the rest of that context line renders at full strength: exactly the signal
+    # this design reserves for the hit line, on a row that isn't it. bat's
+    # background bar couldn't be broken this way; a relative attribute can.
+    #
     # %c/27 rather than a \033 literal: BWK awk (macOS) is the floor here.
     awk -v from="$from" -v to="$((lineno + 12))" -v hit="$lineno" '
+        BEGIN { esc = sprintf("%c", 27) "\\[[0-9;]*m" }
         NR < from { next }
         NR > to { exit }
-        { gsub(/\t/, "    ")
+        { gsub(esc, ""); gsub(/\t/, "    ")
           if (NR == hit) print; else printf "%c[2m%s%c[0m\n", 27, $0, 27 }
     ' "$file"
 }
