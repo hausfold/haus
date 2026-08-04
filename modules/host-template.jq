@@ -8,13 +8,21 @@
 # No doc site round-trip to find out what exists.
 #
 # WHY EVERY LINE IS COMMENTED OUT — the one place this DIFFERS from AeroSpace,
-# and it is load-bearing. The rice's own defaults are `lib.mkDefault`s, and a
-# host file is applied AFTER any preset it imports (`extraModules =
-# [ nebelhaus.presets.large-print ]`). So a host file that spelled out every
-# option at its default would silently beat every preset — `large-print` would
-# import cleanly and change nothing, with no error to explain why. Commented
-# out, the same file is inert until you uncomment a line, which is exactly the
-# "delete what you didn't change" ergonomics without the override trap.
+# and it is load-bearing. A file that spelled out every option at its default
+# would cost you both of the things a host file is for:
+#
+#   - It would COLLIDE with every preset. Import order carries no priority in
+#     the module system (presets/README.md), so a stated default and a preset's
+#     value are two definitions at the same priority, and the build stops with
+#     a conflict per field. `extraModules = [ nebelhaus.presets.large-print ]`
+#     would fail on `nebelhaus.ui.scale` — an option you never meant to set.
+#   - It would FREEZE the defaults it states. The rice's own defaults are
+#     `lib.mkDefault`s, so a plain restatement wins over them permanently: a
+#     later rice that retunes that default can never reach you, and nothing
+#     says so.
+#
+# Commented out, the same file is inert until you uncomment a line, which is
+# exactly the "delete what you didn't change" ergonomics without either cost.
 #
 # Two renderings of the same JSON exist beside this one and are deliberately
 # different: nebelhaus.com's page (workshop's gen-options.mjs, for reading
@@ -111,11 +119,16 @@ def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
 + "# touched and you are left with a minimal host config that says only what you\n"
 + "# meant. Apply with `haus rebuild`; undo with `haus rollback`.\n"
 + "#\n"
-+ "# WHY COMMENTED OUT rather than spelled out like AeroSpace's default config:\n"
-+ "# the rice's defaults are `lib.mkDefault`s, and your host file is applied after\n"
-+ "# any preset it imports. A file that stated every default explicitly would\n"
-+ "# silently override every preset — `extraModules = [ nebelhaus.presets.large-print ]`\n"
-+ "# would import cleanly and change nothing, with no error to explain why.\n"
++ "# WHY COMMENTED OUT rather than spelled out like AeroSpace's default config: a\n"
++ "# file that stated every default explicitly would collide with every preset and\n"
++ "# freeze every default. Import order carries no priority here, so a stated\n"
++ "# default and a preset's value are a CONFLICT, not an override — uncomment\n"
++ "# `ui.scale` and `extraModules = [ nebelhaus.presets.large-print ]` stops the\n"
++ "# build. And a plain value outranks the rice's own `lib.mkDefault`s for good, so\n"
++ "# a later rice that retunes that default could never reach you.\n"
++ "#\n"
++ "# If you DO mean to override something a preset sets, say so: take `lib` in the\n"
++ "# args below and write `lib.mkForce <value>`.\n"
 + "#\n"
 + "# Your identity, apps and secrets live NEXT DOOR in default.nix, which imports\n"
 + "# this file. Both are yours to edit; only this one is safe to regenerate.\n"

@@ -79,9 +79,9 @@ extraModules = [ nebelhaus.presets.everyday nebelhaus.presets.large-print ];
 ```
 
 That the two compose instead of one having to restate the other is the point.
-A layer preset is a shape the format supports for free — later ones win, and a
-preset that only sets what it's about doesn't collide with one that sets
-something else.
+A layer preset is a shape the format supports for free, and *only* because of
+the rule above: nothing arbitrates an overlap, so a preset that sets just what
+it's about is the one kind that always stacks.
 
 `everyday` is the one worth reading if you're designing your own — it's the
 first preset that could not be expressed at all before `nebelhaus.developer`
