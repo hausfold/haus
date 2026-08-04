@@ -307,21 +307,20 @@ in
       lazygit
     ]
     ++ lib.optionals devCfg.agents.enable [
-      # `wt` — manages Claude Code agent worktrees: closing a `claude --worktree`
-      # pane (hearth's Super-a bind) never loses uncommitted work, and every
-      # session stays resumable. Ships here because the rice already provides the
-      # worktree keybinds; the WorktreeCreate/WorktreeRemove hooks (wired in your
-      # host's settings.json) point at this. Self-contained — no repo/flake/bench.
+      # `wt` — the shell predecessor of holt, now FROZEN (bugfixes only). It
+      # stays on PATH because it reads and writes the SAME registry.tsv holt
+      # does, so an old habit or an old line in a script still works, and the
+      # rollback for any caller is repointing it back. Don't add new callers.
       (writeShellScriptBin "wt" (builtins.readFile ./wt.sh))
 
-      # holt — the same tool as a standalone Go binary, and `wt`'s successor.
-      # BOTH ship, deliberately: they read and write the SAME registry.tsv, so
-      # with both on PATH the cutover is repointing callers one at a time and
-      # the rollback is repointing them back — no migration in either
-      # direction. `wt` is frozen (bugfixes only) and goes away once the Claude
-      # Code worktree hooks have been repointed by hand and a few panes have
-      # opened and closed on holt without incident. Those hooks live in
-      # ~/.claude/settings.json, which the rice deliberately never writes.
+      # holt — the live path, and its own product now (nebelhaus/holt, taken as
+      # a flake input). Every caller the rice owns is already on it: hearth's
+      # ⌘A runs `holt new`, pounce's Spawn Agent goes through `holt spawn`, and
+      # the Claude Code WorktreeCreate/WorktreeRemove hooks — which hearth
+      # DECLARES into ~/.claude/settings.json and re-asserts on every rebuild
+      # (see modules/hearth, home.activation.claudeCodeSettings) — point at
+      # `holt hook create` / `holt hook remove`. `wt` outlives them only as the
+      # rollback.
       holt
 
       # `zscratch` — feel-test a candidate zellij config / layout / plugin.wasm in
