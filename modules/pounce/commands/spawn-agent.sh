@@ -16,26 +16,59 @@
 # Naming it from the prompt is the whole point; the palette is just the shortest
 # path to doing it.
 #
-# The worktree is made by `wt spawn`, NOT by a client-native worktree command: a palette
-# command has no pane, so it must not be recorded as anybody's child session (see
-# wt.sh's cmd_spawn). Claude is then started in that checkout like any other
-# directory — no hook fires, nothing else to keep in sync.
+# The worktree is made by `holt spawn`, NOT by a client-native worktree command: a
+# palette command has no pane, so it must not be recorded as anybody's child
+# session (see holt's Spawn). Claude is then started in that checkout like any
+# other directory — no hook fires, nothing else to keep in sync.
 #
 # Repos come from $NEBELHAUS_REPO_ROOTS (colon-separated, default ~/code and the
 # usual siblings), scanned one and two levels deep for a main checkout — two so a
 # workshop-style parent dir full of repos resolves to its children — plus every
-# repo `wt` already knows, so a repo outside those roots that you have agent'd
+# repo `holt` already knows, so a repo outside those roots that you have agent'd
 # before stays reachable.
+#
+# ── the prompt step's four Returns ────────────────────────────────────────────
+#
+#   ↵    spawn on what you typed
+#   ⇧↵   newline — the task is often a list, not a sentence
+#   ⌘↵   capture a screenshot first, then spawn (this used to be a whole second
+#        palette entry, "Spawn Agent with Screenshot")
+#   ⌥↵   your drafts
+#
+# ⌘↵ replaces the separate screenshot command. That command's own comment gave
+# the right reason it had to be separate: an "Attach screenshot" ROW in the
+# free-text picker is fuzzy-matched, so a task merely CONTAINING the word
+# "screenshot" selected it on Return. An action-bar binding is not a row and
+# cannot be matched — so the two entries collapse into one, and you write the
+# task first and point at the thing second, which is the more natural order.
+#
+# Drafts are ⌥↵ for exactly the same reason, and not rows in this step.
+#
+# Why drafts exist at all: the palette dismisses on any click into another app,
+# and this is the one step in the whole rice that asks you to type a paragraph.
+# Losing it to a stray click is unrecoverable — the text existed nowhere else.
+# `--draft` files it on every dismissal; ⌥↵ hands it back through `--query`, in
+# the box, editable, rather than just re-running it.
 
-# A launchd GUI agent's PATH is bare; resolve our tools (wt, zellij, git,
+# A launchd GUI agent's PATH is bare; resolve our tools (holt, zellij, git,
 # open, osascript, pounce) explicitly — the same prelude add-app.sh uses.
 export PATH="/etc/profiles/per-user/$USER/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 ROOTS="${NEBELHAUS_REPO_ROOTS:-$HOME/code:$HOME/src:$HOME/Developer:$HOME/Projects}"
 WT_REGISTRY="${CLAUDE_WT_BASE:-$HOME/.cache/claude-worktrees}/registry.tsv"
 SESSION="${NEBELHAUS_ZELLIJ_SESSION:-main}"
+# One drafts store for the command, not one per repo: you often start typing
+# before you have decided which repo it belongs to.
+DRAFT_KEY="spawn-agent"
+SHOTS="$HOME/.cache/nebelhaus-agent-screenshots"
 
 field() { printf '%s' "$1" | cut -f"$2"; }
+# A free-text commit is "<action>\t<text>" where the TEXT may now contain
+# newlines (⇧↵) — so the action is field 1 of the FIRST line, and the payload is
+# everything after that first tab, newlines and all. `field 2` would keep working
+# by accident here and break the moment a prompt's later line contained a tab.
+action_of() { printf '%s' "$1" | /usr/bin/head -n1 | cut -f1; }
+payload_of() { printf '%s' "$1" | /usr/bin/sed $'1s/^[^\t]*\t//'; }
 notice() {
   printf '%s\t%s\t%s\n' "$1" "$2" "${3:-exclamationmark.triangle}" \
     | pounce -p "Spawn Agent" -i "sparkles" >/dev/null
@@ -112,17 +145,96 @@ repo="$(field "$repo_sel" 7)"
 [ -n "$repo" ] && [ -d "$repo/.git" ] || exit 0
 
 # ── what should it do ─────────────────────────────────────────────────────
-# --chain: Enter here starts a git worktree add and a session spawn, so pounce
-# holds the window with its loading skeleton instead of fading out and back in.
-prompt_sel="$(printf '' | pounce --chain -p "What should the agent do in $repo_name?" -i "sparkles")"
-[ -z "$prompt_sel" ] && exit 0
-prompt="$(field "$prompt_sel" 2)"
+#
+# --chain enter,opt: BOTH of those Returns are answered by another `pounce`
+# (the spawn's own loading window, or the drafts list), so the window holds its
+# skeleton instead of fading out and back in. ⌘↵ is deliberately NOT chained:
+# its next act is `screencapture -i`, which needs the palette off the screen —
+# a crosshair over a loading spinner is not a UI.
+#
+# --draft: every dismissal that isn't a commit keeps the text. This is the whole
+# insurance policy against the click-away.
+ask() {
+  # $1: text the box opens with (a draft coming back for editing, or empty).
+  printf '' | pounce --chain enter,opt \
+    --draft "$DRAFT_KEY" \
+    --actions "Spawn|shift:New line|cmd:With a screenshot|opt:Drafts" \
+    --query "$1" \
+    -p "What should the agent do in $repo_name?" -i "sparkles"
+}
 
-# The palette's field is one line, and so is a TSV row — but a paste can still
-# carry newlines and tabs, which would split the prompt across fields and lose
-# everything after the first. Fold every run of whitespace into one space so a
-# pasted paragraph, a stack trace, or a diff arrives whole and on one line.
-prompt="$(printf '%s' "$prompt" | tr '\n\r\t' '   ' | sed 's/  */ /g; s/^ //; s/ $//')"
+# ── drafts ────────────────────────────────────────────────────────────────
+# Rows built from `pounce drafts … list`, which is one line per draft by
+# construction (previews are whitespace-folded there, not here) — so this stays
+# an honest `while read`. Field 6 carries the index back; `get` then hands over
+# the real multi-line text.
+draft_picker() {
+  local rows sel idx
+  rows="$(pounce drafts "$DRAFT_KEY" list 2>/dev/null | while IFS=$'\t' read -r i preview age; do
+    printf '%s\t%s\t%s\tUse|cmd:Delete|opt:Clear all\t\t%s\n' \
+      "$preview" "$age" "text.quote" "$i"
+  done)"
+  if [ -z "$rows" ]; then
+    notice "No drafts yet" "Text you type here is kept if you dismiss the box" "tray"
+    return 1
+  fi
+  sel="$(printf '%s\n' "$rows" | pounce -p "Drafts — $DRAFT_KEY" -i "tray.full")"
+  [ -z "$sel" ] && return 1
+  # A row commits as "<action>\t<the whole row>", so every column is shifted by
+  # one: field 1 is the action and the index written as the row's 6th field
+  # arrives as the 7th. Free text typed here matches no row and carries no
+  # index — treat that as a miss rather than acting on draft 0.
+  idx="$(field "$sel" 7)"
+  case "$idx" in ''|*[!0-9]*) return 1 ;; esac
+  case "$(field "$sel" 1)" in
+    cmd) pounce drafts "$DRAFT_KEY" rm "$idx" >/dev/null 2>&1; return 1 ;;
+    opt) pounce drafts "$DRAFT_KEY" clear >/dev/null 2>&1; return 1 ;;
+  esac
+  pounce drafts "$DRAFT_KEY" get "$idx"
+}
+
+# ⌥↵ leaves the box for the drafts list and comes back to it, so this loops
+# rather than falling through: deleting a draft, or clearing them all, has to
+# return you to what you were typing instead of ending the spawn.
+image=""
+seed=""
+while :; do
+  prompt_sel="$(ask "$seed")"
+  [ -z "$prompt_sel" ] && exit 0
+  action="$(action_of "$prompt_sel")"
+  prompt="$(payload_of "$prompt_sel")"
+
+  case "$action" in
+    opt)
+      # Leaving the box deliberately is a COMMIT, not a dismissal, so the daemon
+      # files nothing — keep it by hand or ⌥↵ would be the one way to lose a
+      # prompt now that every other exit preserves it.
+      printf '%s' "$prompt" | pounce drafts "$DRAFT_KEY" save >/dev/null 2>&1
+      if picked="$(draft_picker)"; then
+        seed="$picked"
+      else
+        seed="$prompt"
+      fi
+      continue
+      ;;
+    cmd)
+      # macOS's own interactive area capture — no second implementation of the
+      # crosshair to keep in sync with the OS. Cancelling it is not cancelling
+      # the spawn: you get the box back, text intact.
+      mkdir -p "$SHOTS"
+      image="$SHOTS/screenshot-$(date +%Y%m%d-%H%M%S).png"
+      if ! /usr/sbin/screencapture -i "$image" || [ ! -s "$image" ]; then
+        rm -f "$image"; image=""; seed="$prompt"; continue
+      fi
+      ;;
+  esac
+  break
+done
+
+# Only \r and stray leading/trailing space go; newlines and tabs are the user's
+# now that ⇧↵ can produce them, and `holt agent start` receives the prompt as a
+# single argv element, so a list survives as a list all the way into the client.
+prompt="$(printf '%s' "$prompt" | tr -d '\r' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
 [ -z "$prompt" ] && exit 0
 
 # ── name the worktree after the task ──────────────────────────────────────
@@ -196,7 +308,12 @@ name="$(basename "$dir")"
 # and `luminous-twirling-codd` or `claude` is not a tab you can find later.
 osascript -e 'tell application "Ghostty" to activate' >/dev/null 2>&1
 agent_args=(agent start "$agent")
-[ -n "${NEBELHAUS_AGENT_IMAGE:-}" ] && agent_args+=(--image "$NEBELHAUS_AGENT_IMAGE")
+# NEBELHAUS_AGENT_IMAGE is still honoured so an external caller can pre-attach a
+# file; ⌘↵ above is the in-palette way to the same argument.
+[ -n "${image:-}" ] || image="${NEBELHAUS_AGENT_IMAGE:-}"
+[ -n "$image" ] && agent_args+=(--image "$image")
+# The prompt is ONE argv element even when it spans lines — holt joins argv with
+# spaces, so splitting it here is what would flatten a list back into a sentence.
 agent_args+=(-- "$prompt")
 if zellij -s "$SESSION" action query-tab-names 2>/dev/null | grep -qxF "$repo_name"; then
   zellij -s "$SESSION" action go-to-tab-name "$repo_name" >/dev/null 2>&1
