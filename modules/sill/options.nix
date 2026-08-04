@@ -79,7 +79,7 @@ in
         ${lib.concatMapStringsSep ", " (c: "`${c}`") agentClients}.
         Clicking the pill always displays the full dropdown with all reporting providers.
 
-        Note this is about *usage readouts*, not about which client `wt` can
+        Note this is about *usage readouts*, not about which client `holt` can
         spawn: a provider reports here whenever it has data for your account —
         Codex notably does so from a ChatGPT login alone, with no CLI installed
         — so it is deliberately not tied to `nebelhaus.agents.clients`.

@@ -580,7 +580,7 @@ in
         default = config.nebelhaus.developer.enable;
         defaultText = lib.literalExpression "config.nebelhaus.developer.enable";
         description = ''
-          Coding-agent *tooling*: `wt` (agent worktrees), `agent-state` (the
+          Coding-agent *tooling*: `holt` (agent worktrees), `agent-state` (the
           pane-status writer behind the `agents` bar pill and the zellij tab
           badge), `zscratch`, the agent-worktree statusline, and the client
           config hearth writes (Claude Code's settings.json keys, opencode's
@@ -588,7 +588,7 @@ in
 
           Off is right for any machine not running coding agents — it's a large
           surface a non-developer never sees. It also empties `agents.clients`,
-          since a client with no `wt` to park it is not the deal on offer.
+          since a client with no `holt` to park it is not the deal on offer.
         '';
       };
 
@@ -629,7 +629,7 @@ in
         Which coding-agent clients to install. `claude` is Claude Code, `codex`
         is OpenAI Codex, `opencode` is OpenCode. The ⌘A terminal binding starts
         whichever one `agents.default` names — Claude Code through its own
-        `--worktree` hook, the others through `wt new`.
+        `--worktree` hook, the others through `holt new`.
 
         A list rather than one bool per client, matching `developer.languages`
         — a fourth client later doesn't change this option's shape.
@@ -662,11 +662,11 @@ in
         Must be one of `agents.clients` — see there.
 
         Only `claude` can make its own worktree (its native `--worktree` flag,
-        which fires the `wt` create hook); for `codex` and `opencode` ⌘A runs
-        `wt new` instead, producing the same checkout, branch and registry entry
-        from the outside. Resuming follows the client too: `codex` reopens its
-        cwd-filtered `codex resume` picker, `opencode` continues its latest
-        session for that cwd. All three share one `wt` branch/parking/reap
+        which fires `holt hook create`); for `codex` and `opencode` ⌘A runs
+        `holt new` instead, producing the same checkout, branch and registry
+        entry from the outside. Resuming follows the client too: `codex` reopens
+        its cwd-filtered `codex resume` picker, `opencode` continues its latest
+        session for that cwd. All three share one `holt` branch/parking/reap
         lifecycle, and all three light up the `agents` bar pill and the zellij
         tab-bar badge — the opencode plugin and the codex hooks are written for
         you; only Claude Code's stay yours to wire, because Claude owns its own
