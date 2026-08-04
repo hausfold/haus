@@ -247,11 +247,12 @@ in
         so those need only be named. Everything else needs `id` — see that
         option for where to find it.
 
-        Naming `stylus` here also turns on the accent-stamped userstyle bundle
-        (see nebelhaus.theme.accent): the Catppuccin-derived styles Stylus
-        imports carry their own accent variable, which no palette file can
-        reach, so the rice stamps the bundle with your accent and tells you
-        when there's a new one to import.
+        Naming `stylus` here also turns on the stamped userstyle bundle (see
+        nebelhaus.theme.accent): the Catppuccin-derived styles Stylus imports
+        carry their own accent and flavor variables, which no palette file can
+        reach, so the rice stamps the bundle from your theme — accent, flavor,
+        and the contrast it's rendered for — and tells you when there's a new
+        one to import.
       '';
     };
 
