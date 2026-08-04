@@ -121,11 +121,33 @@
         the tools nebelhaus injects colours into — lazygit, fzf, yazi, and the Zen
         browser — via the matching Nebelung per-accent ports.
 
+        Two more things follow it: the `bold` wallpaper (generated from the
+        accent hex — see nebelhaus.theme.wallpaper), and any roster app whose
+        Nebelung port ships a per-accent matrix (zed, gh-dash, mpv), placed by
+        nebelhaus.theme.ports. Those ports name the theme file after the accent,
+        so changing the accent renames the file the app's own `theme` key points
+        at — re-pick it in the app, or it falls back to stock.
+
         Honest scope: this moves the accent on those tools, NOT literally
         everything. Single-file dotfiles that bake the palette at their own
         theme slot (ghostty, starship, tmux, bat, zellij, …) keep their built-in
         colour and don't follow this option. The base palette stays the same
         Nebelung grey either way — only the accent hue changes.
+
+        Zen means Zen's own UI, and the web is a separate story. The rice places
+        the Nebelung userChrome/userContent pair, but userContent only styles
+        `about:` pages — github.com and youtube.com are themed by the Stylus
+        extension, whose Catppuccin-derived styles carry their OWN `accentColor`
+        var (default mauve) inside the extension's storage, where no stylesheet
+        can reach it. Declare `nebelhaus.zen.extensions.stylus` and the rice
+        stamps that var with this accent and tells you, once, when there's a new
+        bundle to import; the import itself stays a click, because Stylus has no
+        file interface. Until you make it, the web keeps the accent you last
+        imported.
+
+        Both halves of that are pinned by the `accent-reach` flake check, which
+        fingerprints every surface under three accents and fails if one starts
+        or stops following the accent without anyone deciding it should.
       '';
     };
 
