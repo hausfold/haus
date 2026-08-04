@@ -1,22 +1,31 @@
 diff --git a/zellij-server/src/panes/terminal_pane.rs b/zellij-server/src/panes/terminal_pane.rs
-index 477185a..994f8ce 100644
+index 477185a..0a3c59a 100644
 --- a/zellij-server/src/panes/terminal_pane.rs
 +++ b/zellij-server/src/panes/terminal_pane.rs
-@@ -36,6 +36,47 @@ use crate::ui::pane_boundaries_frame::{FrameParams, PaneFrame};
+@@ -36,6 +36,63 @@ use crate::ui::pane_boundaries_frame::{FrameParams, PaneFrame};
  
  pub const SELECTION_SCROLL_INTERVAL_MS: u64 = 10;
  
 +// Autoscroll speed while a drag-selection is held past a pane edge.
 +//
-+// Rates are milli-lines per tick, so the slow end can be a FRACTION of a line:
-+// 1000 is one line per tick, which is what this used to do unconditionally.
-+/// Floor — a drag that left the pane almost immediately. Deliberately slower
-+/// than one line per tick: a short drag means precise work.
-+const SELECTION_SCROLL_MIN_RATE: usize = 350;
-+/// Ceiling — a drag that swept the whole pane before leaving it.
-+const SELECTION_SCROLL_MAX_RATE: usize = 8000;
++// Rates are milli-lines per SECOND, not per mouse event: the repeat tick in
++// screen.rs re-posts the held position on a timer, and the debt below is
++// accumulated from elapsed wall-clock time, so the same gesture moves at the
++// same speed whether you park the cursor or jitter it. 1000 is one line per
++// second.
++/// Floor — a drag that left the pane almost immediately. Four lines a second:
++/// a short drag means precise work, and the timer means "slow" still moves
++/// without being nursed along.
++const SELECTION_SCROLL_MIN_RATE: usize = 4_000;
++/// Ceiling — a drag that swept the whole pane before leaving it. 150 lines a
++/// second, about five screenfuls of a 28-row pane.
++const SELECTION_SCROLL_MAX_RATE: usize = 150_000;
++/// Longest gap the debt accumulator will bill for in one go. Without this, a
++/// tick delayed by a busy server (or a departure that sat idle while the timer
++/// was disarmed) would cash in as one enormous jump.
++const SELECTION_SCROLL_MAX_ELAPSED_MS: u128 = 100;
 +
-+/// Autoscroll rate, in milli-lines per tick, from how much was already
++/// Autoscroll rate, in milli-lines per second, from how much was already
 +/// highlighted when the drag crossed the pane edge.
 +///
 +/// The "how far past the edge is the cursor" signal that would be the obvious
@@ -31,12 +40,17 @@ index 477185a..994f8ce 100644
 +/// thing" means the same thing in a 25-row pane and an 80-row one, so the same
 +/// gesture has to mean the same speed at any font size or split.
 +///
-+/// Quadratic rather than linear, because the useful resolution is all at the
-+/// slow end. Perceived speed goes roughly with the log of actual speed, so a
-+/// linear ramp spends most of its travel on differences you can't feel while
-+/// crowding the precise range everyone actually aims for into the first few
-+/// rows. Squaring keeps the bottom half of the gesture inside the first ~quarter
-+/// of the range and puts the fast end where it's asked for explicitly.
++/// Curved rather than linear, because the useful resolution is at the slow end:
++/// perceived speed goes roughly with the log of actual speed, so a linear ramp
++/// spends most of its travel on differences you can't feel. The first cut of
++/// this squared the fraction, which overshot — measured on a 28-row pane, the
++/// break-even against a flat one-line-per-event was 29% of the pane, so every
++/// everyday gesture (grab a few lines, keep going) sat in a band between 0.39
++/// and 0.70 lines per event that felt like one flat speed and read as "the
++/// patch isn't live". The mean of the linear and squared terms keeps the
++/// bottom-end resolution while getting the ramp moving inside the first few
++/// rows: a 3-row sweep of a 28-row pane is 13 lines/s, a quarter-sweep is 27, a
++/// half-sweep 59.
 +///
 +/// Locked in once per departure so the speed is stable while you hold, and
 +/// re-derived when the cursor comes back inside and leaves again.
@@ -44,27 +58,29 @@ index 477185a..994f8ce 100644
 +    let full_sweep = pane_height.saturating_sub(1).max(1);
 +    let highlighted = lines_highlighted.min(full_sweep);
 +    let span = SELECTION_SCROLL_MAX_RATE - SELECTION_SCROLL_MIN_RATE;
-+    SELECTION_SCROLL_MIN_RATE + (span * highlighted * highlighted) / (full_sweep * full_sweep)
++    // (f + f²) / 2, in integer terms: f = highlighted / full_sweep.
++    let curved = highlighted * full_sweep + highlighted * highlighted;
++    SELECTION_SCROLL_MIN_RATE + (span / 2) * curved / (full_sweep * full_sweep)
 +}
 +
  // Some keys in different formats but are used in the code
  const LEFT_ARROW: &[u8] = &[27, 91, 68];
  const RIGHT_ARROW: &[u8] = &[27, 91, 67];
-@@ -134,6 +175,13 @@ pub struct TerminalPane {
+@@ -134,6 +191,13 @@ pub struct TerminalPane {
      pub style: Style,
      vte_parser: vte::Parser,
      selection_scrolled_at: time::Instant,
-+    /// Autoscroll rate in milli-lines per tick, locked in when the drag last
++    /// Autoscroll rate in milli-lines per second, locked in when the drag last
 +    /// left the pane and cleared when it comes back inside. `None` means the
 +    /// cursor is not currently past an edge.
 +    selection_scroll_rate: Option<usize>,
-+    /// Sub-line remainder carried between ticks, so rates below one line per
-+    /// tick still scroll (just less often).
++    /// Sub-line remainder in milli-lines, carried between updates so rates below
++    /// one line per update still scroll (just less often).
 +    selection_scroll_debt: usize,
      content_offset: Offset,
      pane_title: String,
      pane_name: String,
-@@ -657,26 +705,60 @@ impl Pane for TerminalPane {
+@@ -657,26 +721,63 @@ impl Pane for TerminalPane {
      }
  
      fn update_selection(&mut self, to: &Position, _client_id: ClientId) {
@@ -95,11 +111,13 @@ index 477185a..994f8ce 100644
              // grid
              self.grid.update_selection(to);
 +            return;
-+        }
+         }
 +
-+        if self.selection_scrolled_at.elapsed()
-+            < time::Duration::from_millis(SELECTION_SCROLL_INTERVAL_MS)
-+        {
++        let elapsed = self.selection_scrolled_at.elapsed();
++        if elapsed < time::Duration::from_millis(SELECTION_SCROLL_INTERVAL_MS) {
++            // Not a rate limit any more, just a floor on how often this bothers
++            // to do the arithmetic: the debt below bills for elapsed time, so
++            // events dropped here are not lost speed, only deferred.
 +            return;
 +        }
 +
@@ -123,12 +141,13 @@ index 477185a..994f8ce 100644
 +        };
 +
 +        self.selection_scrolled_at = time::Instant::now();
-+        self.selection_scroll_debt += rate;
++        let billable_ms = elapsed.as_millis().min(SELECTION_SCROLL_MAX_ELAPSED_MS) as usize;
++        self.selection_scroll_debt += rate * billable_ms / 1000;
 +        let lines = self.selection_scroll_debt / 1000;
 +        if lines == 0 {
-+            // Slower than a line per tick — carry the remainder and wait.
++            // Less than a whole line owed yet — carry the remainder and wait.
 +            return;
-         }
++        }
 +        self.selection_scroll_debt %= 1000;
 +
 +        if cursor_above_pane {
@@ -140,7 +159,7 @@ index 477185a..994f8ce 100644
      }
  
      fn end_selection(&mut self, end: &Position, _client_id: ClientId) {
-@@ -1124,6 +1206,8 @@ impl TerminalPane {
+@@ -1124,6 +1225,8 @@ impl TerminalPane {
              active_at: Instant::now(),
              style,
              selection_scrolled_at: time::Instant::now(),
@@ -149,3 +168,168 @@ index 477185a..994f8ce 100644
              pane_title: initial_pane_title,
              pane_name: pane_name.clone(),
              prev_pane_name: pane_name,
+diff --git a/zellij-server/src/screen.rs b/zellij-server/src/screen.rs
+index 35107c0..5c0a026 100644
+--- a/zellij-server/src/screen.rs
++++ b/zellij-server/src/screen.rs
+@@ -34,10 +34,24 @@ use std::net::{IpAddr, Ipv4Addr};
+ use std::path::PathBuf;
+ use std::rc::Rc;
+ use std::str;
++use std::sync::atomic::{AtomicBool, Ordering};
++use std::sync::{Arc, Mutex};
++use std::thread;
+ use std::time::{Duration, Instant};
+ 
+ use crate::route::NotificationEnd;
+ 
++/// How often a held drag-selection's position is re-posted while the pointer
++/// sits past a pane edge. Roughly a frame at 60Hz: fast enough that the scroll
++/// looks continuous, slow enough that the rate arithmetic in
++/// `TerminalPane::update_selection` runs a few dozen times a second, not
++/// thousands.
++const SELECTION_AUTOSCROLL_TICK_MS: u64 = 16;
++/// How long a completely motionless drag keeps autoscrolling before the tick
++/// thread gives up — about 30 seconds. Only reached if the Release event never
++/// arrives at all; any mouse movement resets it.
++const SELECTION_AUTOSCROLL_MAX_STILL_TICKS: usize = 30_000 / SELECTION_AUTOSCROLL_TICK_MS as usize;
++
+ use log::{debug, warn};
+ use zellij_utils::data::{
+     CommandOrPlugin, Direction, EventType, FloatingPaneCoordinates, GetFocusedPaneInfoResponse,
+@@ -1458,6 +1472,14 @@ pub(crate) struct Screen {
+     /// Resolved styling to apply when `host_terminal_theme_mode == Light`.
+     /// `None` disables auto-switch. Refreshed on each reconfigure.
+     host_theme_light_styling: Option<Styling>,
++    /// The mouse position a held drag-selection is parked at, re-posted on a
++    /// timer so autoscroll past a pane edge doesn't need the mouse to keep
++    /// moving. `None` when no drag is in progress. See
++    /// `arm_selection_autoscroll`.
++    selection_autoscroll: Arc<Mutex<Option<(MouseEvent, ClientId)>>>,
++    /// Whether the autoscroll tick thread is alive. Clearing it is how the
++    /// thread is asked to stop.
++    selection_autoscroll_running: Arc<AtomicBool>,
+ }
+ 
+ /// A pending forward waiting to be dispatched once the current in-flight
+@@ -1611,6 +1633,8 @@ impl Screen {
+             host_terminal_theme_mode: None,
+             host_theme_dark_styling: None,
+             host_theme_light_styling: None,
++            selection_autoscroll: Arc::new(Mutex::new(None)),
++            selection_autoscroll_running: Arc::new(AtomicBool::new(false)),
+         }
+     }
+ 
+@@ -4823,6 +4847,101 @@ impl Screen {
+             }
+         }
+     }
++    /// Keep the drag-selection autoscroll timer in step with this event.
++    ///
++    /// A held left-drag arms the timer with the current position; anything else
++    /// disarms it. Re-posted ticks come back through here as ordinary motion
++    /// events and simply refresh the held position, so the arm is idempotent.
++    fn track_selection_autoscroll(&mut self, event: &MouseEvent, client_id: ClientId) {
++        let dragging = event.event_type == MouseEventType::Motion && event.left;
++        let selecting = self
++            .get_active_tab(client_id)
++            .map(|tab| tab.selecting_with_mouse_in_pane.is_some())
++            .unwrap_or(false);
++        if dragging && selecting {
++            self.arm_selection_autoscroll(*event, client_id);
++        } else {
++            self.disarm_selection_autoscroll();
++        }
++    }
++
++    /// Start (or refresh) the timer that re-posts a held drag position.
++    ///
++    /// Terminals only report a motion when the cell under the pointer changes,
++    /// so a cursor parked past a pane edge produces no events at all and the
++    /// autoscroll in `TerminalPane::update_selection` never runs — which is why
++    /// selecting a long scrollback used to mean jittering the mouse sideways to
++    /// keep it moving. One thread, shared by every client, re-posts the held
++    /// position on a fixed tick; `update_selection` bills the elapsed time, so
++    /// the speed is the same whether the pointer is parked or being wiggled.
++    fn arm_selection_autoscroll(&mut self, event: MouseEvent, client_id: ClientId) {
++        if let Ok(mut held) = self.selection_autoscroll.lock() {
++            *held = Some((event, client_id));
++        }
++        if self.selection_autoscroll_running.swap(true, Ordering::SeqCst) {
++            // A tick thread is already running and has just been handed the new
++            // position — nothing else to do.
++            return;
++        }
++        let running = self.selection_autoscroll_running.clone();
++        let held = self.selection_autoscroll.clone();
++        let senders = self.bus.senders.clone();
++        let spawned = thread::Builder::new()
++            .name("selection_autoscroll".to_string())
++            .spawn(move || {
++                let mut previous: Option<(MouseEvent, ClientId)> = None;
++                let mut ticks_held_still = 0usize;
++                while running.load(Ordering::SeqCst) {
++                    thread::sleep(Duration::from_millis(SELECTION_AUTOSCROLL_TICK_MS));
++                    if !running.load(Ordering::SeqCst) {
++                        break;
++                    }
++                    let current = match held.lock() {
++                        Ok(held) => *held,
++                        Err(_) => break,
++                    };
++                    let Some((event, client_id)) = current else {
++                        break;
++                    };
++                    // Safety valve: a Release that never arrives (a client that
++                    // dropped mid-drag) would otherwise leave this scrolling
++                    // forever. Moving the mouse resets the count, so a genuine
++                    // long hold is only ever cut off after this much dead still.
++                    if previous == current {
++                        ticks_held_still += 1;
++                        if ticks_held_still > SELECTION_AUTOSCROLL_MAX_STILL_TICKS {
++                            break;
++                        }
++                    } else {
++                        ticks_held_still = 0;
++                        previous = current;
++                    }
++                    if senders
++                        .send_to_screen(ScreenInstruction::MouseEvent(event, client_id, None))
++                        .is_err()
++                    {
++                        break;
++                    }
++                }
++                running.store(false, Ordering::SeqCst);
++            });
++        if spawned.is_err() {
++            log::error!("Failed to spawn the selection autoscroll thread");
++            self.selection_autoscroll_running.store(false, Ordering::SeqCst);
++        }
++    }
++
++    fn disarm_selection_autoscroll(&mut self) {
++        if let Ok(mut held) = self.selection_autoscroll.lock() {
++            if held.is_none() {
++                return;
++            }
++            *held = None;
++        }
++        self.selection_autoscroll_running
++            .store(false, Ordering::SeqCst);
++    }
++
+     pub fn handle_mouse_event(&mut self, event: MouseEvent, client_id: ClientId) {
+         let is_bare_motion = event.event_type == MouseEventType::Motion
+             && !event.left
+@@ -4839,6 +4958,9 @@ impl Screen {
+             .and_then(|tab| tab.handle_mouse_event(&event, client_id))
+         {
+             Ok(mouse_effect) => {
++                // After the tab has handled it, so a Press that started a
++                // selection arms and a Release that ended one disarms.
++                self.track_selection_autoscroll(&event, client_id);
+                 let mut should_render = false;
+                 if let Some(pane_id) = mouse_effect.group_toggle {
+                     if self.advanced_mouse_actions {
