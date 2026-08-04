@@ -812,7 +812,7 @@ lib.mkIf config.nebelhaus.pounce.enable {
             items = [
               {
                 key = "⌘ ⇥";
-                action = "Toggle to the last window — release to land";
+                action = "Toggle to the last window you can't see — release to land";
               }
               {
                 key = "⌘ ⇥ ⇥ …";
@@ -827,12 +827,17 @@ lib.mkIf config.nebelhaus.pounce.enable {
                 action = "Commit / cancel without releasing ⌘";
               }
               # No ⌥⇥ row any more: workspace back-and-forth is retired, and this
-              # switcher is what replaced it. Its rows carry the window's
-              # workspace and focusing goes through `aerospace focus
-              # --window-id`, so it crosses workspaces on its own.
+              # switcher is what replaced it. Its rows are gathered by workspace
+              # and focusing goes through `aerospace focus --window-id`, so it
+              # crosses workspaces on its own — and a bare tap takes the most
+              # recent window on a DIFFERENT workspace, which is what makes it
+              # land where you came from rather than on the pane next door.
+              # Deliberately no "move between visible tiles" row here: that's
+              # windowNav's focus keys, whose modifier is configurable, and the
+              # generated prowl page already prints them with the real token.
               {
                 key = "⌘ ⇥ → other space";
-                action = "Rows show their workspace; landing follows you there";
+                action = "Rows group by workspace; landing follows you there";
               }
             ];
           }
