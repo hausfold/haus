@@ -250,7 +250,6 @@ let
     | sill | the menu bar | ${onOff config.nebelhaus.sill.enable} |
     | pounce | the command palette | ${onOff config.nebelhaus.pounce.enable} |
     | hush | Focus / Do Not Disturb | ${onOff config.nebelhaus.hush.enable} |
-    | trill | the Messages client | ${onOff config.nebelhaus.trill.enable} |
     | perch | the notch file shelf | ${onOff config.nebelhaus.perch.enable} |
     | snippets | text expansion | ${onOff config.nebelhaus.snippets.enable} |
     | developer | the dev toolbelt | ${onOff config.nebelhaus.developer.enable} |

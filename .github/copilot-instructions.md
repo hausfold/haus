@@ -14,7 +14,7 @@ The short version:
   a signing cert — is a `nebelhaus.*` option the host sets. A literal name or
   email in this repo is a bug, not a convenience.
 - **This repo owns the rice and nothing else.** Colors live in `nebelung`, the
-  palette app in `pounce`, the Messages client in `trill`, one machine's config
+  palette app in `pounce`, the notch file shelf in `perch`, one machine's config
   in that machine's own repo. A change that would "work here" but belongs
   elsewhere is still wrong.
 - **Docs live downstream:** user-facing guides are the Astro site in the

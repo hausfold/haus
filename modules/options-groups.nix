@@ -108,10 +108,6 @@
     order = 140;
     blurb = "The ⌘Space command palette.";
   };
-  trill = {
-    order = 150;
-    blurb = "The Messages client. Opt-in — not part of a default machine.";
-  };
   perch = {
     order = 160;
     blurb = "The notch file shelf.";

@@ -20,10 +20,10 @@
 # it. prowl keeps exactly what is prowl's: aerospace.toml.
 #
 # The rice's OWN apps are entries too — den declares ghostty's cask here, prowl
-# aerospace's, sill sketchybar's, trill/pounce/perch their bundles. That's what
+# aerospace's, sill sketchybar's, pounce/perch their bundles. That's what
 # makes this list complete rather than "the apps the host happened to add", and
 # it's what removes the trap it replaces: a host used to have to KNOW that the
-# rice already installs Ghostty and Trill, and write `cask = null` plus a comment
+# rice already installs Ghostty and Perch, and write `cask = null` plus a comment
 # saying so. Now the field is already filled in by whoever installs it, the host
 # just adds a key, and `installedBy` answers "who put this here" in the data
 # instead of in a comment.

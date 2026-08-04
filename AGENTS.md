@@ -22,7 +22,7 @@ elsewhere.
 
 | Want to change… | Repo |
 |---|---|
-| the rice: macOS defaults, tiling (prowl), bar (sill), shell (hearth), security (collar), secrets plumbing (secrets), pounce wiring (pounce), Messages install (trill), Focus/DND (hush), wallpaper/accent (theme), the apps every machine gets + what opens which file type (apps) | `~/code/workshop/nebelhaus` ← **you are here** |
+| the rice: macOS defaults, tiling (prowl), bar (sill), shell (hearth), security (collar), secrets plumbing (secrets), pounce wiring (pounce), notch shelf install (perch), Focus/DND (hush), wallpaper/accent (theme), the apps every machine gets + what opens which file type (apps) | `~/code/workshop/nebelhaus` ← **you are here** |
 | the pounce palette app or its command scripts | `~/code/workshop/pounce` |
 | colors / the theme palette | `~/code/workshop/nebelung` |
 | one machine's personal apps / identity / secrets | `~/.config/nix` (or that machine's own config) |
@@ -47,7 +47,7 @@ modules/
   default.nix             # imports all rooms
   options.nix             # all host-set knobs: git.*, theme.{accent,wallpaper}, hearth.*,
                           #   claude.globalMd, roster (the shared app list), prowl.*, sill.*,
-                          #   pounce.*, hush.*, trill.enable, tour.enable, homebrew.*, secrets.provider
+                          #   pounce.*, hush.*, perch.*, tour.enable, homebrew.*, secrets.provider
   options-modules.nix     # the per-room options.nix list — shared by both renderers below
   options-doc.nix         # nixosOptionsDoc over them → the metadata the docs site
                           #   (.#options-json) and the agent skill are both RENDERED from
@@ -71,7 +71,7 @@ modules/
                           #   dropdowns' click-outside dismissal
   collar/                 # auth policy: Touch ID sudo + passwordless activation
   pounce/                 # the palette daemon (launchd + self-signing)
-  trill/                  # the trill Messages client, installed via the trill flake input
+  perch/                  # the perch notch file shelf, installed via the perch flake input
   hush/                   # Focus/DND one-switch: declarative hotkey 175 + Slack + hooks
   secrets/                # secretspec: declarative secrets, provider chosen per host
 hosts/example/            # the template a consumer copies

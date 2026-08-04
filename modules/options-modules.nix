@@ -23,7 +23,6 @@
   ./sill/options.nix
   ./collar/options.nix
   ./pounce/options.nix
-  ./trill/options.nix
   ./perch/options.nix
   ./hush/options.nix
   ./secrets/options.nix

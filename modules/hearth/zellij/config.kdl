@@ -153,8 +153,8 @@ keybinds {
         //
         // Both open the SAME overlay; the shifted key just enters at session
         // scope, and Ctrl-s toggles scope from inside without a rebuild. The
-        // find/find-all pair reads exactly like trill's (⌘F in-thread, ⇧⌘F
-        // global), which is the shape this machine already teaches.
+        // find/find-all pair reads like every Mac app's (⌘F here, ⇧⌘F wider),
+        // which is the shape this machine already teaches.
         //
         // Why not `SwitchToMode "EnterSearch"`: hearth renders Claude Code in
         // the alt-screen (`tui = "fullscreen"`), and the alt-screen has no
