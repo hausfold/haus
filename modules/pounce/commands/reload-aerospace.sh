@@ -2,6 +2,7 @@
 # pounce: name = Reload AeroSpace
 # pounce: description = Reload AeroSpace configuration
 # pounce: icon = rectangle.3.group
+# pounce: cheat = aerospace
 # Reload AeroSpace configuration.
 #
 # Same bare-PATH trap as reload-bar.sh: the pounce daemon is a launchd GUI agent

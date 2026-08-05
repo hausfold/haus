@@ -2,6 +2,7 @@
 # pounce: name = Haus Tour
 # pounce: description = A guided lap of the four moves
 # pounce: icon = pawprint
+# pounce: cheat = tour
 #
 # Running this IS step 4 of the haus tour ("press ⌘Space, type tour, hit ↵") —
 # the palette proves itself by finishing its own tutorial. With no tour

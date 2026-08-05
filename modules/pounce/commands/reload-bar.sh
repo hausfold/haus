@@ -2,6 +2,7 @@
 # pounce: name = Reload SketchyBar
 # pounce: description = Reload bar configuration
 # pounce: icon = arrow.clockwise
+# pounce: cheat = bar
 # Reload SketchyBar configuration.
 #
 # A launchd GUI agent's PATH is bare (/usr/bin:/bin:/usr/sbin:/sbin) and the
