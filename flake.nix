@@ -272,6 +272,16 @@
           path:
           assert checkPack path;
           {
+            # The wrapper builds a NEW attrset, so the module system no longer
+            # knows where these definitions came from and reports the one
+            # collision this seam deliberately keeps — two packs naming one app —
+            # as `<unknown-file>` twice: loud, and anonymous, with nothing to say
+            # WHICH two packs disagreed. Measured in workshop's
+            # notes/probes/preset-composition.nix, along with the fact that a
+            # bare path names both files perfectly well. Any wrapper applied to
+            # someone else's module owes it a `_file`.
+            _file = toString path;
+
             nebelhaus.roster = builtins.mapAttrs (
               _: entry: builtins.mapAttrs (_: value: nixpkgs.lib.mkDefault value) entry
             ) ((import path).nebelhaus.roster or { });
@@ -441,14 +451,17 @@
           );
 
           # ---- packs ----------------------------------------------------------
-          # Two rules about packs that are both invisible until a STRANGER hits
+          # Three rules about packs that are all invisible until a STRANGER hits
           # them, which is exactly when nobody is around to explain:
           #
           #   1. a pack sets nothing outside `nebelhaus.roster` (checkPack) —
           #      because `lib.pack` carries only roster through, so anything else
           #      would be silently dropped;
           #   2. the wrapped pack loses to the consumer's host, PER FIELD, and
-          #      keeps everything the host didn't mention.
+          #      keeps everything the host didn't mention;
+          #   3. the wrapped pack still knows its own filename, so the collision
+          #      this seam deliberately keeps (two packs, one app) names the two
+          #      files rather than `<unknown-file>` twice.
           #
           # Rule 2 is here because the tempting implementation of `lib.pack` —
           # `mkDefault` on the whole roster attrset instead of on each leaf —
@@ -509,7 +522,18 @@
           packSurfaceOk = builtins.all (n: self.lib.checkPack packFiles.${n}) (
             builtins.attrNames packFiles
           );
-          packFailures = builtins.concatMap packCompose (builtins.attrNames packFiles);
+          # Rule 3. `_file` is what the module system quotes in a conflict, and
+          # it is the first thing a wrapper drops — the failure is invisible
+          # until two packs actually collide, on someone else's machine.
+          packFileAttrFailures = builtins.concatMap (
+            n:
+            nixpkgs.lib.optional ((packModules.${n}._file or null) != toString packFiles.${n}) (
+              "${n}: lib.pack returned a module with no `_file`, so a collision between this pack and "
+              + "another one reports `<unknown-file>` and names neither."
+            )
+          ) (builtins.attrNames packFiles);
+          packFailures =
+            builtins.concatMap packCompose (builtins.attrNames packFiles) ++ packFileAttrFailures;
 
           # ---- theme-variants -------------------------------------------------
           # modules/lib/nebelung.nix turns nebelhaus.theme.{flavor,contrast} into a
