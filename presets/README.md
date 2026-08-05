@@ -43,8 +43,10 @@ darwinConfigurations.myhost = nebelhaus.mkNebelhaus {
 
 Your host file can override anything a preset sets, but "imported after" is not
 the mechanism — import order carries no priority in the module system. An option
-the preset leaves alone is yours to set outright; an option it *does* set is a
-conflict until you say `lib.mkForce`:
+the preset leaves alone is yours to set outright; an option it sets to a
+*different* value is a conflict until you say `lib.mkForce`. (Setting one to the
+value it already holds is not a conflict — identical definitions merge, so
+restating something a preset already decided costs nothing but the line.)
 
 ```nix
 { lib, ... }:                                   # add lib to your host's args
@@ -54,13 +56,20 @@ conflict until you say `lib.mkForce`:
 }
 ```
 
-Composing several presets follows the same rule, so it works exactly as far as
-they stay out of each other's way. `everyday` + `large-print` compose because
-they answer different questions; `everyday` + `minimal` do not — they both
-answer "is pounce on this machine", and the build stops with a conflict on
-`nebelhaus.pounce.enable` rather than quietly taking the last one. That's the
-intended behaviour: two presets disagreeing about the machine is a question only
-you can settle.
+Composing several presets follows the same rule, and the rule is **two presets
+compose unless they disagree** — sharing an option is fine, holding different
+opinions about it is not. `everyday` + `large-print` compose because they answer
+different questions. `everyday` + `minimal` do not: they share five options and
+disagree about four of them (they both want prowl off, so that one merges), and
+the build stops naming the option and both files rather than quietly taking the
+last one. That's the intended behaviour — two presets disagreeing about the
+machine is a question only you can settle.
+
+**One thing that is quiet, and worth knowing before you compose two rices you
+didn't write:** an option holding a *list or a set* — `tour.steps`, `roster` —
+never conflicts. Those definitions are combined, with no error and no warning, so
+two rices that each author a first-run tour give you a tour with both, in an
+order neither of them chose.
 
 **Packs are the deliberate exception.** A [pack](../packs/README.md) reaches you
 through `nebelhaus.lib.pack`, which lowers every field it sets to `mkDefault`, so
@@ -86,8 +95,8 @@ extraModules = [ nebelhaus.presets.everyday nebelhaus.presets.large-print ];
 
 That the two compose instead of one having to restate the other is the point.
 A layer preset is a shape the format supports for free, and *only* because of
-the rule above: nothing arbitrates an overlap, so a preset that sets just what
-it's about is the one kind that always stacks.
+the rule above: nothing arbitrates a disagreement, so a preset that sets just
+what it's about is the one kind that always stacks.
 
 `everyday` is the one worth reading if you're designing your own — it's the
 first preset that could not be expressed at all before `nebelhaus.developer`
