@@ -285,6 +285,70 @@ let
     }) (lib.filter (it: it ? keys) section.items);
   }) (import ../prowl/wm-bindings.nix { inherit lib k; });
 
+  # The Terminal cards, from the SAME table hearth asserts zellij/config.kdl
+  # against (../hearth/term-bindings.nix). So every terminal chord on this
+  # cheatsheet is a chord that is really bound, and every bound chord is on it —
+  # hearth's assertion fails the build otherwise. The Tips page used to teach
+  # these by hand, and spent months saying ⌘C started an agent; it had been ⌘A
+  # since the bind stopped being Claude-only.
+  termPages =
+    (import ../hearth/term-bindings.nix {
+      inherit lib;
+      agentDefault = config.nebelhaus.agents.default;
+      agentsEnabled = config.nebelhaus.agents.clients != [ ];
+    }).pages;
+
+  # The rice's palette commands, read from the `# pounce: name/description`
+  # headers of ./commands — the same files riceCommands installs, so renaming a
+  # command renames its row and deleting one deletes it. hush.sh is dropped from
+  # that derivation on a host without hush, so drop its row with it.
+  #
+  # The RICE's commands only. pounce's own built-ins (Force Quit, Find Files, …)
+  # live in a derivation, and reading their headers here would be IFD on every
+  # eval — the palette lists those itself the moment you open it.
+  commandField =
+    file: field:
+    let
+      hits = lib.concatMap (
+        line:
+        let
+          m = builtins.match "# pounce: ${field} = (.*)" line;
+        in
+        lib.optionals (m != null) m
+      ) (lib.splitString "\n" (builtins.readFile (./commands + "/${file}")));
+    in
+    if hits == [ ] then null else lib.head hits;
+
+  # key = what you TYPE, not the full name: the palette fuzzy-matches, so the
+  # shortest thing that gets you there is the row, and a full name ("Report
+  # Nebelhaus Issue") in a monospace key box would eat the column the caption
+  # needs. The name's first word by default; a command whose first word is the
+  # generic half of the pair ("Toggle Hush", the two "Reload …"s) declares the
+  # useful word itself with a `# pounce: cheat = …` header. pounce ignores
+  # header fields it doesn't know, so that line costs the command nothing.
+  riceCommandRows =
+    map
+      (file: {
+        key =
+          let
+            cheat = commandField file "cheat";
+          in
+          if cheat != null then
+            cheat
+          else
+            lib.toLower (lib.head (lib.splitString " " (commandField file "name")));
+        action = commandField file "description";
+      })
+      (
+        lib.filter (f: f != "hush.sh" || config.nebelhaus.hush.enable) (
+          lib.naturalSort (
+            lib.attrNames (
+              lib.filterAttrs (n: t: t == "regular" && lib.hasSuffix ".sh" n) (builtins.readDir ./commands)
+            )
+          )
+        )
+      );
+
   # Wait for the GUI session (→ the /nix volume + an unlocked login keychain)
   # before touching the store path or codesign. Exec'ing via /bin/bash (boot
   # volume) also sidesteps the cold-boot exit-78 race for store-path executables.
@@ -802,6 +866,9 @@ lib.mkIf config.nebelhaus.pounce.enable {
           }
         ]
         ++ wmPages
+        # The terminal's keys (Keys page) and its mouse gestures (Tips), from
+        # hearth's table — see termPages in the let-block.
+        ++ termPages
         # The whole page is conditional — a cheatsheet teaching keys that do
         # nothing would be worse than no page. Keys must stay true to the
         # `windows` block written into config.json above.
@@ -845,67 +912,48 @@ lib.mkIf config.nebelhaus.pounce.enable {
         # Your own per-item keys (nebelhaus.pounce.items), from the same list the
         # collision assertions read. Absent when nothing is bound.
         ++ itemKeyPages
+        # ── Tips page (⇥ flips to it) — workflows and the stuff that's hard to
+        # remember. NO plain key rows are hand-typed here any more: the terminal's
+        # come from hearth's table (termPages above) and the window manager's from
+        # prowl's, because the two cards that WERE hand-typed — "Terminal · Zellij"
+        # and "Claude Agents" — are exactly the two that went stale, teaching ⌘C
+        # for agents and a folder picker that had long since folded into Peek.
+        # What's left below is workflow: the things a key list can't say.
+        #
+        # The agent worktree loop. `holt` is shipped BY the rice (a flake input on
+        # PATH), unlike the family's `bench`, which the old card taught to every
+        # install that had never seen the workshop — so these rows are true on any
+        # machine running this rice. Off when no agent client is installed, same
+        # gate as the ⌘A card on the Keys page.
+        ++ lib.optionals (config.nebelhaus.agents.clients != [ ]) [
+          {
+            title = "Agent Worktrees";
+            page = "Tips";
+            items = [
+              {
+                key = "holt";
+                action = "List every agent worktree, live or parked";
+              }
+              {
+                key = "holt <name>";
+                action = "Rebuild a parked one and resume its session";
+              }
+              {
+                key = "holt park";
+                action = "Set this tree aside as a wip: commit (not git stash)";
+              }
+              {
+                key = "holt reship";
+                action = "PR merged but you kept committing? Ship the rest";
+              }
+              {
+                key = "holt reap";
+                action = "Delete the worktrees whose branches landed";
+              }
+            ];
+          }
+        ]
         ++ [
-          # ── Tips page (⇥ flips to it) — workflows and the stuff that's hard to
-          # remember. Keep every entry TRUE to the configs it describes: keys from
-          # hearth/zellij/config.kdl + prowl/aerospace.toml, palette queries from
-          # the `# pounce: name` headers in ./commands.
-          {
-            title = "Terminal · Zellij";
-            page = "Tips";
-            items = [
-              {
-                key = "⌃ ⇥";
-                action = "Cycle tabs, in any mode";
-              }
-              {
-                key = "⌥ Click path";
-                action = "Open a repo-named tab cwd'd there";
-              }
-              {
-                key = "Click image";
-                action = "Near-fullscreen chafa preview";
-              }
-              {
-                key = "⌘ p / ⌘ t";
-                action = "New pane (same cwd) / new tab (~)";
-              }
-              {
-                key = "⌘ ⇧ t";
-                action = "New tab via folder picker";
-              }
-              {
-                key = "⌘ y / ⌘ ⇧ y";
-                action = "Peek files (repo / stay in worktree)";
-              }
-            ];
-          }
-          {
-            title = "Claude Agents";
-            page = "Tips";
-            items = [
-              {
-                key = "⌘ c";
-                action = "Agent in an isolated worktree branch";
-              }
-              {
-                key = "⌃ ⌥ ⇧ c";
-                action = "Agent in this checkout (one per tab)";
-              }
-              {
-                key = "bench status";
-                action = "Agent branches, dirty repos, stale locks";
-              }
-              {
-                key = "bench try";
-                action = "Build against local checkouts (no push)";
-              }
-              {
-                key = "bench ship";
-                action = "Push the chain, bumping locks per hop";
-              }
-            ];
-          }
           # Every row here is a LEADER workflow, so the page only exists when there is
           # a leader — and the glyph is k.leader's, not a hardcoded ⇪.
           {
@@ -945,31 +993,15 @@ lib.mkIf config.nebelhaus.pounce.enable {
               ]
             );
           }
+          # Generated from the `# pounce: name/description` headers of the rice's
+          # own ./commands (riceCommandRows in the let-block) — type any part of
+          # the name, the palette fuzzy-matches it. Hand-typed queries lived here
+          # before, which is how the card kept a "force" row for a command the
+          # rice doesn't own and lost every command added since.
           {
-            title = "Palette Recipes [${if k.palette != null then k.palette.glyph else "haus"}]";
+            title = "Palette Commands [${if k.palette != null then k.palette.glyph else "haus"}]";
             page = "Tips";
-            items = [
-              {
-                key = "rebuild";
-                action = "Rebuild + switch this Mac";
-              }
-              {
-                key = "nix";
-                action = "Open the nix config in your editor";
-              }
-              {
-                key = "reload";
-                action = "Reload SketchyBar / AeroSpace";
-              }
-              {
-                key = "force";
-                action = "Force-quit an app";
-              }
-              {
-                key = "tour";
-                action = "The guided haus tour (the four moves)";
-              }
-            ];
+            items = riceCommandRows;
           }
         ]
       );

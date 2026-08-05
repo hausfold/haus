@@ -56,6 +56,38 @@ let
   ) agentClients;
   fontsCfg = config.nebelhaus.fonts; # terminal font family/size (den installs the package)
 
+  # ---- the terminal's hotkeys, and the proof they're documented --------------
+  #
+  # ./term-bindings.nix is the one table of zellij chords + captions; pounce
+  # renders the Terminal cards on the cheatsheet from it. The kdl stays
+  # hand-written (its bind bodies carry Run options and the reasoning behind
+  # each), so the two are kept honest here instead: every chord config.kdl binds
+  # must be taught or explicitly listed as mode-internal, and every chord the
+  # table teaches must actually be bound. Either half failing is the drift that
+  # left the cheatsheet teaching ⌘C for agents long after they moved to ⌘A.
+  termBindings = import ./term-bindings.nix {
+    inherit lib agentDefault;
+    agentsEnabled = agentClients != [ ];
+  };
+  # Chords bound in config.kdl. Only the quoted words BEFORE the block open — a
+  # bind body can carry its own strings (`bind "Super t" { NewTab { layout "…" } }`)
+  # and those are not chords.
+  kdlChords = lib.concatMap (
+    line:
+    let
+      m = builtins.match "[[:space:]]*bind ([^{]*)\\{.*" line;
+      quoted = lib.splitString "\"" (builtins.head m);
+    in
+    if m == null then
+      [ ]
+    else
+      map (p: p.v) (lib.filter (p: lib.mod p.i 2 == 1) (lib.imap0 (i: v: { inherit i v; }) quoted))
+  ) (lib.splitString "\n" (builtins.readFile ./zellij/config.kdl));
+  untaughtChords = lib.subtractLists (termBindings.chords ++ termBindings.modeOnly) (
+    lib.unique kdlChords
+  );
+  unboundChords = lib.subtractLists kdlChords termBindings.chords;
+
   # Our four zellij plugin forks, built FROM SOURCE at rebuild time. They're
   # wasm32-wasip1 binaries, so they come out of the wasi32 cross set — the same
   # way nixpkgs builds its own zellijPlugins (each ./zellij/<name>/default.nix
@@ -345,6 +377,24 @@ in
         "nebelhaus.agents.clients is set (${lib.concatStringsSep ", " agentClients}) but "
         + "nebelhaus.developer.agents.enable is off, so there is no `wt` to make a worktree, "
         + "park it, or resume it. Turn the tooling on, or empty agents.clients.";
+    }
+    {
+      assertion = untaughtChords == [ ] && unboundChords == [ ];
+      message =
+        "modules/hearth/term-bindings.nix and zellij/config.kdl disagree: "
+        + lib.concatStringsSep "; " (
+          lib.optional (untaughtChords != [ ]) (
+            "config.kdl binds ${lib.concatMapStringsSep ", " (c: "\"${c}\"") untaughtChords} "
+            + "but nothing teaches it — add a row (or list it in `modeOnly` if it only exists "
+            + "inside a submode)"
+          )
+          ++ lib.optional (unboundChords != [ ]) (
+            "the cheatsheet teaches ${lib.concatMapStringsSep ", " (c: "\"${c}\"") unboundChords} "
+            + "but config.kdl binds nothing to it"
+          )
+        )
+        + ". The cheatsheet is the one document whose only job is to be true about the keys, "
+        + "so a chord and its caption move together or not at all.";
     }
     {
       assertion = unavailableClients == [ ];
