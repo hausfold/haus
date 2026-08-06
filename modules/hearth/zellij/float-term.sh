@@ -33,7 +33,9 @@
 #       Aerospace's "every runtime ghostty floats" rule (prowl/aerospace.toml)
 #       keeps it from tiling; --pin also yanks it back onto the workspace you
 #       spawned from and force-floats it, in case any on-window-detected rule
-#       grabbed it first.
+#       grabbed it first. Finally it CLAIMS FOCUS (see raise below) — these
+#       windows are summoned, and one that opens behind its summoner is a
+#       message nobody reads.
 
 set -u
 # open/osascript live in /usr/bin; aerospace in the nix/brew profiles. Callers
@@ -172,6 +174,33 @@ end tell
 APPLESCRIPT
 }
 
+# ── bring the new window to the front ───────────────────────────────────────
+# raise PID WID — claim focus for the window we just spawned, retrying briefly.
+#
+# A summoned popup that lands BEHIND its summoner is worse than no popup: the
+# rebuild / Install App terminal is where a failure gets REPORTED, and one that
+# opens unfocused reports it to nobody (found exactly that way — an install
+# whose rebuild failed on a leader-key collision, discovered minutes later).
+# `open -na` does activate the new instance, but the focus is routinely handed
+# straight back: a pounce command runs while the picker window is still tearing
+# down, and macOS restores whatever was frontmost before it. So claim focus
+# explicitly once the window exists, and re-claim it over the next fraction of a
+# second in case that teardown lands after us. `aerospace focus` is the rice's
+# own path (what sill's agents plugin uses); System Events is the fallback for a
+# machine where aerospace isn't running.
+raise() {
+  local pid="$1" wid="$2" i
+  for i in 1 2 3; do
+    if [ -n "$wid" ]; then
+      aerospace focus --window-id "$wid" >/dev/null 2>&1
+      [ "$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)" = "$wid" ] && return 0
+    fi
+    [ -n "$pid" ] && osascript >/dev/null 2>&1 \
+      -e "tell application \"System Events\" to set frontmost of (first process whose unix id is $pid) to true"
+    sleep 0.1
+  done
+}
+
 # ── spawn a fresh centered instance ─────────────────────────────────────────
 spawn() {
   local title="" command="" pin=0 cols="" rows="" match=0
@@ -226,8 +255,8 @@ spawn() {
 
   # Aerospace cleanup: pull the window back to the source workspace (if asked)
   # and force-float it. Runs after positioning so we don't fight our own AS.
+  local wid=""
   for i in $(seq 1 30); do
-    local wid
     wid=$(aerospace list-windows --all --format '%{window-id}|%{app-name}|%{window-title}' 2>/dev/null \
           | awk -F'|' -v t="$title" '$2 == "Ghostty" && $3 == t {print $1; exit}')
     if [ -n "$wid" ]; then
@@ -247,6 +276,10 @@ spawn() {
     sleep 0.05
     set_frame "$new_pid" "$pos_x" "$pos_y" "$win_w" "$win_h" 1
   fi
+
+  # Last word: the window is placed, floated and pinned — now make sure it's the
+  # one you're typing into.
+  raise "$new_pid" "$wid"
 
   echo "$new_pid"
 }
