@@ -2,7 +2,7 @@
 # wasm32-wasip1 binaries, and the wasi32 cross set is how nixpkgs itself
 # builds its zellijPlugins (see pkgs/by-name/ze/zellij/plugins/rust). The
 # explicit lld/wasm-ld pin is lifted from there too ("needed until
-# nixpkgs#463720 is resolved"). Same pattern as ../link-handler.
+# nixpkgs#463720 is resolved"). Same pattern as the other plugin forks here.
 { lib, rustPlatform, lld }:
 
 rustPlatform.buildRustPackage {

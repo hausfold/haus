@@ -27,7 +27,7 @@
 // bound to `MessagePlugin`, which delivers "back" / "forward" to `pipe()`. Its
 // ReadApplicationState + ChangeApplicationState grants are pre-seeded into
 // zellij's permission cache by hearth — a background plugin has no pane to show
-// the interactive grant prompt in (same story as link-handler).
+// the interactive grant prompt in.
 
 use std::collections::BTreeMap;
 use zellij_tile::prelude::*;

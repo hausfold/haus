@@ -35,10 +35,10 @@ CWDFILE="$HOME/.cache/peek.cwd"
 # spawn_tab DIR — open a new zellij tab cwd'd at DIR in the session that
 # summoned peek. We're a bare ghostty instance with no $ZELLIJ, so target the
 # server explicitly with `zellij -s <session> action`. Name the tab after its
-# git root (or dir basename), same as the link-handler. `new-tab --cwd` is
+# git root (or dir basename), same as new-tab-here.sh. `new-tab --cwd` is
 # silently ignored under a custom default_tab_template, so clone the active
 # layout and inject a tab-level cwd (the only form zellij honors) — the same
-# trick the link-handler uses.
+# trick new-tab-here.sh uses.
 spawn_tab() {
     local dir="$1" session name root layout_src esc gen
     session="$PEEK_SESSION"

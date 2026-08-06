@@ -15,8 +15,7 @@
 #   zscratch --layout  FILE        overlay a candidate layout (→ layouts/custom.kdl)
 #   zscratch --theme   FILE        overlay a candidate theme  (→ themes/nebelung.kdl)
 #   zscratch --plugin  NAME=WASM   swap a plugin's wasm (NAME ∈ tab-bar,
-#                                  status-bar, link-handler, tab-history);
-#                                  repeatable
+#                                  status-bar, tab-history); repeatable
 #   zscratch --bin     PATH        run this zellij binary instead of the
 #                                  installed one (for binary-level patches)
 #   zscratch --locked              start the scratch session in locked mode
@@ -55,7 +54,6 @@ plugin_file() { # NAME -> the on-disk wasm basename hearth installs
   case "$1" in
     tab-bar)      echo "tab-bar.wasm" ;;
     status-bar)   echo "status-bar.wasm" ;;
-    link-handler) echo "link-handler.wasm" ;;
     tab-history)  echo "tab-history.wasm" ;;
     *) return 1 ;;
   esac
@@ -69,7 +67,6 @@ plugin_perms() { # NAME -> space-separated permission list
     # answer (a 1-line borderless pane).
     tab-bar)      echo "ReadApplicationState ChangeApplicationState ReadCliPipes" ;;
     status-bar)   echo "ReadApplicationState" ;;
-    link-handler) echo "ReadApplicationState ChangeApplicationState FullHdAccess RunCommands ReadSessionEnvironmentVariables" ;;
     tab-history)  echo "ReadApplicationState ChangeApplicationState" ;;
     *) return 1 ;;
   esac
@@ -193,7 +190,7 @@ cmd_run() {
   for spec in "${PLUGINS[@]:-}"; do
     [ -n "$spec" ] || continue
     name="${spec%%=*}"; wasm="${spec#*=}"
-    plugin_file "$name" >/dev/null || die "unknown plugin '$name' (want: tab-bar|status-bar|link-handler|tab-history)"
+    plugin_file "$name" >/dev/null || die "unknown plugin '$name' (want: tab-bar|status-bar|tab-history)"
     [ -f "$wasm" ] || die "no such wasm: $wasm"
     cp "$wasm" "$dir/plugins/$(plugin_file "$name")"
     repoint_plugin "$dir" "$name"

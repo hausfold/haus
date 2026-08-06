@@ -8,8 +8,8 @@
 # `zellij action new-tab --cwd` is silently ignored under our custom
 # default_tab_template, so clone the active layout (custom.kdl) and inject a
 # tab-level cwd — the only form zellij honors. Same trick as peek-run.sh's
-# spawn_tab and the link-handler. The tab is named after its git root (or the
-# dir basename), matching the auto-rename the shell does on cd.
+# spawn_tab. The tab is named after its git root (or the dir basename),
+# matching the auto-rename the shell does on cd.
 #
 # Note: if the focused pane sits in an agent worktree (~/.cache/claude-worktrees),
 # the tab is aimed at the repo's MAIN checkout — cwd and name both. The new

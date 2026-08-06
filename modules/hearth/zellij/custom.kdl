@@ -64,9 +64,8 @@ layout {
     // the tab after its repo (hearth's chpwd hook).
     // ⚠ This exact line is pattern-matched by everything that clones this
     // layout to inject a tab cwd: new-tab-here.sh, peek-run.sh's spawn_tab,
-    // link-handler (compiled into the wasm — rebuild it!), and default.nix's
-    // home.kdl render (its assert trips if the shapes drift). Change one,
-    // change all.
+    // and default.nix's home.kdl render (its assert trips if the shapes
+    // drift). Change one, change all.
     tab name="~" {
         pane
     }

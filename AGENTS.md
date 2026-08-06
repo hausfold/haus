@@ -206,8 +206,8 @@ points back to when it feels several PRs together.
   knowing it works. A brand-new session name = a new zellij *server*, which
   recompiles plugin wasm from disk (a running server caches it in memory for its
   lifetime).
-- **The four zellij plugin forks** (`modules/hearth/zellij/{tab-bar,status-bar,
-  link-handler,tab-history}`) are Rust → wasm32-wasip1, and hearth builds them
+- **The three zellij plugin forks** (`modules/hearth/zellij/{tab-bar,status-bar,
+  tab-history}`) are Rust → wasm32-wasip1, and hearth builds them
   **from source** on every rebuild (`zellijPlugins`, via `pkgsCross.wasi32`) —
   there is no checked-in `.wasm` to re-vendor, so editing `src/` is the whole
   job. Each dir's `build.sh` is only the dev shortcut: it prints a candidate

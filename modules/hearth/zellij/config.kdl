@@ -21,45 +21,33 @@ show_startup_tips false
 // re-rendered light or dark.
 theme "nebelung"
 
-// ── Clickable links come in two layers, split across two modifiers ──────────
-// Opt+Click  → the link-handler plugin (loaded below). It regex-scans the
-//   VISIBLE text of a pane, so it owns the two things only it can do: turn a
-//   PATH into a new tab cwd'd there, and linkify a SCHEMELESS domain
-//   (`github.com/org/repo`, `nebelhaus.com`) that ghostty's URL matcher skips.
-//   It also opens plain `https://` URLs it can see.
-// Cmd+Click  → ghostty's own link opener (ghostty/config, `link-url` default).
-//   It opens visible URLs AND — the reason this block exists — OSC 8
-//   hyperlinks: links where the visible text is a word and the URL is hidden
-//   in the escape sequence (Claude Code /tui's session/PR links are all like
-//   this). The plugin fundamentally CAN'T open those — zellij 0.44's plugin
-//   API hands a plugin only the matched *visible* string, never the hidden
-//   URI (verified against zellij-tile 0.44.3; see the link-handler header).
+// ── Clickable links: Cmd+Click, ghostty's own opener ─────────────────────────
+// Cmd+Click → ghostty's own link opener (ghostty/config, `link-url` default).
+//   It opens visible `https://` URLs AND — the reason this block exists — OSC
+//   8 hyperlinks: links where the visible text is a word and the URL is
+//   hidden in the escape sequence (Claude Code /tui's session/PR links are
+//   all like this).
 //
-// osc8_hyperlinks is what makes the Cmd+Click half work: it tells zellij to
+// osc8_hyperlinks is what makes the OSC 8 half work: it tells zellij to
 // FORWARD inner apps' OSC 8 sequences out to ghostty. Default is false, i.e.
 // zellij swallows them — which is exactly why embedded links used to open on
 // neither click. With it true, ghostty sees them and Cmd+Click resolves them.
-// Rule of thumb: Opt+Click = "open this path/link I can read"; Cmd+Click =
-// "open any web link", including embedded ones with no visible URL.
+//
+// There used to be a second layer here — Opt+Click via a `link-handler`
+// plugin fork, regex-scanning visible text for paths/schemeless domains. It
+// was flaky in practice and redundant with this one, so it's gone; Cmd+Click
+// is now the only click-to-open modifier. Declaring load_plugins below still
+// REPLACES the default config's list (which auto-loads "zellij:link"), so
+// this empty-of-link-plugins block also disables that built-in.
 osc8_hyperlinks true
 
-// Option+Click a path in any pane → new tab cwd'd there, named after the repo
-// (hover shows the underline/italic hint). link-handler is our fork of
-// zellij's built-in `link` plugin — same path detection, but the click opens
-// a new tab cwd'd at the path instead of $EDITOR. Declaring load_plugins here
-// REPLACES the default config's list (which auto-loads "zellij:link"), so
-// this one line both disables the built-in and loads the fork. The wasm is
-// built by nix from zellij/link-handler/ and dropped here by home-manager;
-// its permissions are pre-seeded into zellij's cache (see hearth) because a
-// background plugin has no pane to show the grant prompt in.
 load_plugins {
-    "file:~/.config/zellij/plugins/link-handler.wasm"
     // tab-history — Ctrl(+Shift)+Tab walk tabs in most-recently-used order
     // (browser-style back/forward) instead of by position. Loaded here as a
     // background plugin so it records focus history from session start; the
     // Ctrl Tab / Ctrl Shift Tab binds below MessagePlugin "back"/"forward" to
-    // it. Its grants are pre-seeded into zellij's permission cache by hearth,
-    // same as link-handler. See zellij/tab-history/src/main.rs.
+    // it. Its grants are pre-seeded into zellij's permission cache by hearth.
+    // See zellij/tab-history/src/main.rs.
     "file:~/.config/zellij/plugins/tab-history.wasm"
 }
 
@@ -263,9 +251,9 @@ keybinds {
         //            which inherits the focused pane's cwd as $PWD, then clones
         //            the active layout with a tab-level cwd injected (a bare
         //            `new-tab --cwd` is ignored under the custom
-        //            default_tab_template — the same layout trick peek-run.sh and
-        //            the link-handler use). Reaches zellij because ghostty/config
-        //            unbinds cmd+shift+t.
+        //            default_tab_template — the same layout trick peek-run.sh
+        //            uses). Reaches zellij because ghostty/config unbinds
+        //            cmd+shift+t.
         bind "Super Shift t" {
             Run "@HOME@/.config/zellij/new-tab-here.sh" {
                 floating true

@@ -107,7 +107,6 @@ let
     lib.genAttrs [
       "tab-bar"
       "status-bar"
-      "link-handler"
       "tab-history"
     ] (name: "${build name}/bin/zellij-${name}.wasm");
 
@@ -1508,14 +1507,13 @@ in
           in
           assert pinned != zellijLayout;
           pinned;
-        # The four plugin forks, each built from ./zellij/<name>/src by the
+        # The three plugin forks, each built from ./zellij/<name>/src by the
         # zellijPlugins derivations in the let above — never a checked-in blob,
         # so a source edit can't be shipped half-applied. The install paths stay
-        # exactly these four names: config.kdl / custom.kdl reference them by
+        # exactly these three names: config.kdl / custom.kdl reference them by
         # path, and so does the permission-cache seed below (keyed on the
         # expanded ~/.config/zellij/plugins/<name>.wasm), so renaming one here
         # silently un-grants the plugin.
-        ".config/zellij/plugins/link-handler.wasm".source = zellijPlugins.link-handler;
         # tab-history (see zellij/tab-history/): background plugin that makes
         # Ctrl(+Shift)+Tab walk tabs in most-recently-used order (browser-style
         # back/forward) instead of by position. Loaded via config.kdl's
@@ -1605,8 +1603,7 @@ in
       };
 
       # zellij grants plugin permissions through an interactive (y/n) prompt in
-      # the plugin's pane — but none of our forks can answer it: link-handler is
-      # a background plugin (load_plugins) with no pane, status-bar never calls
+      # the plugin's pane — but none of our forks can answer it: status-bar never calls
       # request_permission (built-ins don't need to, and we keep the fork diff
       # minimal), and tab-bar's "pane" is a 1-line borderless bar you can't
       # select — so its prompt renders in the bar but no keystroke ever reaches
@@ -1633,13 +1630,6 @@ in
       # (live processes don't — re-run them). `bench try switch` (or any
       # rebuild) re-runs this seed; the bounce is what makes an already-running
       # server honour it.
-      home.activation.zellijLinkHandlerPermissions = seedZellijPluginPermissions "link-handler.wasm" [
-        "ReadApplicationState"
-        "ChangeApplicationState"
-        "FullHdAccess"
-        "RunCommands"
-        "ReadSessionEnvironmentVariables"
-      ];
       # ModeUpdate/TabUpdate/PaneUpdate — everything the bar renders from —
       # are gated on ReadApplicationState (zellij's check_event_permission).
       home.activation.zellijStatusBarPermissions = seedZellijPluginPermissions "status-bar.wasm" [
@@ -1707,8 +1697,8 @@ in
             # Extensions EditorOpen.app claims as an Editor (see the "declare in
             # the app" note in the script). Deliberately EXCLUDES web-content
             # types (html/htm/xhtml — browsers own public.html and won't yield,
-            # and you want those in a browser anyway) and image types (handled by
-            # the zellij link-handler's image preview).
+            # and you want those in a browser anyway) and image types (previewed
+            # instead via yazi peek's image-preview.sh opener).
             #
             # The rice owns each of these EXCLUSIVELY, and that is a rule, not a
             # coincidence: modules/apps keeps `ts`, `mts` and `m2ts` out of
