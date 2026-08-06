@@ -601,6 +601,9 @@ let
     right = "→";
     up = "↑";
     down = "↓";
+    fn = "fn";
+    function = "fn";
+    globe = "🌐";
   };
   # One step's glyphs are CONCATENATED and steps are separated by a space, so
   # "⌘⇧V" (one chord) can't be misread as "⌥␣ V" (press, then press) — a
@@ -661,6 +664,14 @@ lib.mkIf config.nebelhaus.pounce.enable {
     name = lib.mkDefault "Pounce";
     installedBy = lib.mkDefault "nebelhaus.pounce";
   };
+
+  # A bare laptop Fn/Globe tap opens Pounce's emoji grid. Pounce handles this
+  # modifier-only key through the same Accessibility-gated session event tap as
+  # its window switcher: granted machines replace the stock Globe action, while
+  # an ungranted/stopped daemon leaves macOS's native action untouched. mkDefault
+  # keeps the opinion easy to undo with
+  #   nebelhaus.pounce.items."mode:emoji".hotkey = null;
+  nebelhaus.pounce.items."mode:emoji".hotkey = lib.mkDefault "fn";
 
   assertions = [
     {
