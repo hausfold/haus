@@ -54,11 +54,11 @@ sketchybar --bar \
 # Default item settings
 sketchybar --default \
     updates=when_shown \
-    icon.font="Hack Nerd Font:Bold:$FS_ICON" \
+    icon.font="${BAR_FONT}:Bold:$FS_ICON" \
     icon.color=$TEXT \
     icon.padding_left=8 \
     icon.padding_right=4 \
-    label.font="Hack Nerd Font:Bold:$FS_LABEL" \
+    label.font="${BAR_FONT}:Bold:$FS_LABEL" \
     label.color=$TEXT \
     label.padding_left=4 \
     label.padding_right=8 \
@@ -230,7 +230,7 @@ sketchybar --add item front_app left \
         icon.drawing=off \
         background.color=$LAVENDER \
         label.color=$BASE \
-        label.font="Hack Nerd Font:Bold:$FS_LABEL" \
+        label.font="${BAR_FONT}:Bold:$FS_LABEL" \
         label.padding_left=8 \
         label.padding_right=8 \
         script="$HOME/.config/sketchybar/plugins/front_app.sh" \
@@ -316,8 +316,8 @@ WEATHER_POPUP_ITEM=(
     background.padding_right=0
     background.color=0x00000000
     background.drawing=off
-    icon.font="Hack Nerd Font:Bold:$FS_APP_ICON"
-    label.font="Hack Nerd Font:Regular:$FS_LABEL"
+    icon.font="${BAR_FONT}:Bold:$FS_APP_ICON"
+    label.font="${BAR_FONT}:Regular:$FS_LABEL"
 )
 
 # Weather popup - Location & Condition

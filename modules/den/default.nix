@@ -423,8 +423,10 @@ in
   # Font is the default because a Nerd Font is load-bearing here: starship's
   # powerline prompt, lsd's icons, and yazi all draw with patched glyphs that a
   # stock font renders as tofu. hearth points Ghostty at whatever this resolves
-  # to. `fonts.packages` is a list option, so this merges with the fonts sill
-  # installs (sketchybar-app-font + Hack, which its bar config names).
+  # to — and so does SILL, since the bar stopped naming a family of its own, so
+  # this package is now the one the menu bar draws in too. `fonts.packages` is a
+  # list option, so it merges with the one font sill still installs for itself:
+  # sketchybar-app-font, for the workspace logos.
   fonts.packages = [ monoPackage ];
 
   # Homebrew's tap-trust check is flaky under sudo-driven activation (the

@@ -135,7 +135,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
       --set "agents.popup.$i" \
         icon="$P_ICON" icon.color="$COL" icon.font="$P_FONT" \
         label="$label · $TAG" label.color="$TEXT" \
-        label.font="Hack Nerd Font:Regular:$FS_SMALL" \
+        label.font="${BAR_FONT}:Regular:$FS_SMALL" \
         background.drawing=off \
         click_script="$PLUGINS/agents.sh row $sess $pane"
     i=$((i + 1))

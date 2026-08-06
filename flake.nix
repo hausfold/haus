@@ -1186,6 +1186,121 @@
             file .config/sketchybar/workspaces.sh ceiling
             file Library/Application Support/com.mitchellh.ghostty/config moves
           '';
+
+          # ---- font-reach -----------------------------------------------------
+          # The third "this option reaches exactly these things" table, and the
+          # one with a story: `nebelhaus.fonts.mono.name` used to reach ONE
+          # surface. The bar named "Hack Nerd Font" in its rc, four plugins and
+          # six generated blocks, so a rice that changed the family got a machine
+          # with two of them — and nothing said so, because a font option's reach
+          # is invisible until you change it and look at the result.
+          #
+          # Two families rather than accent-reach's three: there is no ceiling
+          # here and no partial-arrival case that a third value would catch. The
+          # rows that matter most are the PINNED one — the workspace-logo glyphs
+          # are sketchybar-app-font, sill's own, and must not follow the rice —
+          # and the two halves of that sentence coming from the same generated
+          # file.
+          fontAt =
+            name:
+            let
+              cfg =
+                (mkNebelhaus {
+                  inherit system;
+                  username = "you";
+                  hostname = "example";
+                  extraModules = [
+                    {
+                      nebelhaus.fonts.mono.name = name;
+                      # Named, not evaluated: a family with no package warns, and
+                      # a check that evaluates a warning is measuring the warning.
+                      nebelhaus.fonts.mono.packageName = "nerd-fonts.fira-code";
+                    }
+                  ];
+                }).config;
+              hm = cfg.home-manager.users.you;
+              text =
+                target:
+                let
+                  entry = hm.home.file.${target};
+                in
+                builtins.unsafeDiscardStringContext (
+                  if entry.text != null then entry.text else toString entry.source
+                );
+              capture =
+                target: pat:
+                let
+                  hits = builtins.filter (m: m != null) (
+                    map (builtins.match pat) (nixpkgs.lib.splitString "\n" (text target))
+                  );
+                in
+                if hits == [ ] then
+                  throw "font-reach: nothing in ${target} matches ${pat} — that row has no subject"
+                else
+                  builtins.concatStringsSep "/" (builtins.head hits);
+            in
+            {
+              files = builtins.mapAttrs (target: _: text target) hm.home.file;
+              names = {
+                "gen ghostty font-family" =
+                  capture "Library/Application Support/com.mitchellh.ghostty/config" ".*font-family = (.*)";
+                "gen sill BAR_FONT" = capture ".config/sketchybar/sizes.sh" ".*BAR_FONT=\"(.*)\".*";
+                "gen sill workspace letter" = capture ".config/sketchybar/workspaces.sh" ".*IFONT=\"([^:]+):Bold.*";
+                "gen sill workspace logo" =
+                  capture ".config/sketchybar/workspaces.sh" ".*IFONT=(sketchybar-app-font):Regular.*";
+              };
+            };
+          # The generated half of the bar can only be measured by evaluating it.
+          # The STATIC half — the rc and the plugins, copied to the machine and
+          # read at runtime — is where the two-fonts bug actually lived, and no
+          # amount of evaluating two rices can see it: those files are identical
+          # whatever family the rice names. So one more row, read straight off
+          # the source: how many lines still name a font family literally. It is
+          # 0, and the next hardcoded "Whatever Nerd Font:" makes it 1.
+          sillStaticHardcodedFonts =
+            let
+              dir = ./modules/sill/sketchybar;
+              plugins = builtins.attrNames (builtins.readDir (dir + "/plugins"));
+              files = [ (dir + "/sketchybarrc") ] ++ map (f: dir + "/plugins" + "/${f}") plugins;
+              lines = builtins.concatLists (
+                map (f: nixpkgs.lib.splitString "\n" (builtins.readFile f)) files
+              );
+            in
+            builtins.length (
+              builtins.filter (l: builtins.match ".*[A-Za-z] Nerd Font:.*" l != null) lines
+            );
+          fontA = fontAt "JetBrainsMono Nerd Font Mono";
+          fontB = fontAt "FiraCode Nerd Font";
+          fontFileRows = builtins.filter (r: r != null) (
+            map (
+              target:
+              let
+                a = fontA.files.${target} or "(absent)";
+                b = fontB.files.${target} or "(absent)";
+              in
+              if a == b then null else "file ${target} moves"
+            ) (builtins.attrNames (fontA.files // fontB.files))
+          );
+          fontNameRows = map (name: "${name} ${fontA.names.${name}} | ${fontB.names.${name}}") (
+            builtins.attrNames fontA.names
+          );
+          fontTable = builtins.concatStringsSep "\n" (
+            fontNameRows
+            ++ [ "static sill hardcoded-family-literals ${toString sillStaticHardcodedFonts}" ]
+            ++ fontFileRows
+          );
+          expectedFontTable = ''
+            gen ghostty font-family JetBrainsMono Nerd Font Mono | FiraCode Nerd Font
+            gen sill BAR_FONT JetBrainsMono Nerd Font Mono | FiraCode Nerd Font
+            gen sill workspace letter JetBrainsMono Nerd Font Mono | FiraCode Nerd Font
+            gen sill workspace logo sketchybar-app-font | sketchybar-app-font
+            static sill hardcoded-family-literals 0
+            file .claude/skills/nebelhaus/references/this-machine.md moves
+            file .config/sketchybar/sizes.sh moves
+            file .config/sketchybar/tour_item.sh moves
+            file .config/sketchybar/workspaces.sh moves
+            file Library/Application Support/com.mitchellh.ghostty/config moves
+          '';
         in
         {
           data-only-surface = pkgs.runCommand "nebelhaus-data-only-surface-ok" { } ''
@@ -1244,6 +1359,12 @@
           accent-reach = pkgs.runCommand "nebelhaus-accent-reach-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedAccentTable}                     ${pkgs.writeText "actual" (accentTable + "
 ")}
+            touch $out
+          '';
+
+          font-reach = pkgs.runCommand "nebelhaus-font-reach-ok" { } ''
+            diff -u ${pkgs.writeText "expected" expectedFontTable} \
+                    ${pkgs.writeText "actual" (fontTable + "\n")}
             touch $out
           '';
 

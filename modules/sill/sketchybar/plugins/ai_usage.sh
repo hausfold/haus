@@ -98,8 +98,13 @@ read_tokens() { # read_tokens <file> — T_D/T_W/T_M/T_ALL, false if there's no 
 #
 # So the indent is a pixel count, which means it has to be DERIVED, not written
 # down: the row's usual 22, plus the nine columns of `tokens ` and the two spaces
-# after it, at Hack's 0.602em advance in whatever size ui.scale settled on. At
-# the default FS_SMALL=13 that is 92, which is what measuring it by hand gave.
+# after it, at a MONOSPACE advance of ~0.602em in whatever size ui.scale settled
+# on. At the default FS_SMALL=13 that is 92, which is what measuring it by hand
+# gave (against Hack, when the bar had a font of its own; JetBrains Mono and
+# Fira Code are 0.6em, so the number survived the switch to
+# nebelhaus.fonts.mono.name). It is the one place in the bar that assumes a
+# fixed advance — name a proportional family there and this indent drifts,
+# which is an alignment wobble in one popup rather than a broken bar.
 TOKEN_INDENT=$(awk -v s="${FS_SMALL:-13}" 'BEGIN { printf "%.0f", 22 + 9 * s * 0.602 }')
 
 token_block() { # token_block <d> <w> <m> <all> — the score, labelled then indented
@@ -265,7 +270,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
       --set "${ITEM_NAME}.popup.$i"
         icon="$p_icon" icon.color="$PINK" icon.font="$p_font"
         icon.padding_left=10 icon.padding_right=6
-        label="$p_name" label.color="$TEXT" label.font="Hack Nerd Font:Bold:$FS_SMALL"
+        label="$p_name" label.color="$TEXT" label.font="${BAR_FONT}:Bold:$FS_SMALL"
         background.drawing=off
         click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off")
     i=$((i + 1))
@@ -277,7 +282,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
         --set "${ITEM_NAME}.popup.$i"
           icon="" icon.padding_left=0 icon.padding_right=0
           label="${1:+$1  }$2" label.color="$SUBTEXT0"
-          label.font="Hack Nerd Font:Regular:$FS_SMALL"
+          label.font="${BAR_FONT}:Regular:$FS_SMALL"
           label.padding_left="${3:-22}" label.padding_right=10
           background.drawing=off
           click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off")
@@ -316,7 +321,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
         --set "${ITEM_NAME}.popup.$i"
           icon="" icon.padding_left=0 icon.padding_right=0
           label="as of $((f_age / 60))m ago" label.color="$OVERLAY1"
-          label.font="Hack Nerd Font:Italic:$FS_TINY" label.padding_left=22 label.padding_right=10
+          label.font="${BAR_FONT}:Italic:$FS_TINY" label.padding_left=22 label.padding_right=10
           background.drawing=off
           click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off")
       i=$((i + 1))
@@ -338,9 +343,9 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
   if [ "$g_n" -gt 1 ] && [ "$g_all" -gt 0 ]; then
     ARGS+=(--add item "${ITEM_NAME}.popup.$i" "popup.${ITEM_NAME}"
       --set "${ITEM_NAME}.popup.$i"
-        icon="∑" icon.color="$PINK" icon.font="Hack Nerd Font:Bold:14.0"
+        icon="∑" icon.color="$PINK" icon.font="${BAR_FONT}:Bold:14.0"
         icon.padding_left=10 icon.padding_right=6
-        label="Everything" label.color="$TEXT" label.font="Hack Nerd Font:Bold:13.0"
+        label="Everything" label.color="$TEXT" label.font="${BAR_FONT}:Bold:13.0"
         background.drawing=off
         click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off")
     i=$((i + 1))

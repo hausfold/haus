@@ -83,7 +83,7 @@ do_arm() {
     # Lead glyph (separate call: the byte-glyph + spaced font name need quoting).
     # Hide the ears image so the arrow glyph shows alone (the image otherwise
     # draws on top of it); do_disarm turns it back on from the snapshot.
-    sketchybar --set apple.logo icon="$ARROW" icon.font="Hack Nerd Font:Bold:$FS_ICON" \
+    sketchybar --set apple.logo icon="$ARROW" icon.font="${BAR_FONT}:Bold:$FS_ICON" \
                icon.color=$BASE background.color=$MAUVE background.image.drawing=off
 
     # Move open/active hints to the left, original relative order preserved.
