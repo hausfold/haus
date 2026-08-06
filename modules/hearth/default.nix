@@ -111,20 +111,6 @@ let
       "tab-history"
     ] (name: "${build name}/bin/zellij-${name}.wasm");
 
-  # `zreload` prepares a restart layout from inside zellij, then hands the
-  # destructive half to a launchd-owned process. Keeping the package at module
-  # scope lets both the user's PATH and that external agent run the exact same
-  # implementation.
-  zellijReload = pkgs.writeShellApplication {
-    name = "zreload";
-    runtimeInputs = [
-      pkgs.jq
-      pkgs.perl
-      pkgs.zellij
-    ];
-    text = builtins.readFile ./zellij/reload.sh;
-  };
-
   # Rice-owned preamble for ~/.claude/CLAUDE.md. The rice ships `wt` (den) on
   # PATH to every machine, and Claude Code agent worktrees live OUTSIDE the repo
   # tree (~/.cache/claude-worktrees/…), so a worktree agent's CLAUDE.md walk never
@@ -513,34 +499,6 @@ in
     "lazygit"
   ];
 
-  # The reload finisher must outlive both zellij and Ghostty. zreload writes the
-  # complete recovery layout first, then kickstarts this otherwise-idle agent;
-  # the agent gracefully quits Ghostty, deletes zellij's old server, and opens a
-  # new Ghostty process whose launcher consumes that layout on startup.
-  launchd.user.agents.zellij-reload = {
-    serviceConfig = {
-      Label = "org.nebelhaus.zellij-reload";
-      ProgramArguments = [
-        "${zellijReload}/bin/zreload"
-        "_finish"
-      ];
-      ProcessType = "Interactive";
-      StandardOutPath = "/tmp/zellij-reload.out.log";
-      StandardErrorPath = "/tmp/zellij-reload.err.log";
-      EnvironmentVariables = {
-        HOME = "/Users/${username}";
-        PATH = lib.concatStringsSep ":" [
-          "/run/current-system/sw/bin"
-          "/etc/profiles/per-user/${username}/bin"
-          "/usr/bin"
-          "/bin"
-          "/usr/sbin"
-          "/sbin"
-        ];
-      };
-    };
-  };
-
   home-manager.users.${username} =
     {
       config,
@@ -695,6 +653,29 @@ in
           ]
           (builtins.readFile ./zellij/custom.kdl);
 
+      # The rendered config.kdl. Unlike every other dotfile here it is NOT handed
+      # to home.file — see the zellijLiveConfig activation below for why it has
+      # to reach ~/.config as a real file instead of a store symlink.
+      #
+      # config.kdl bakes absolute script paths (zellij doesn't expand $HOME in
+      # copy_command / Run / layout), so render @HOME@ → the user's home.
+      zellijConfigFile = pkgs.writeText "zellij-config.kdl" (
+        builtins.replaceStrings
+          [ "@HOME@" "@DEFAULT_MODE@" "@BASE_MODE@" "@AGENT_NEW@" "@AGENT_HERE@" ]
+          [
+            config.home.homeDirectory
+            (if hearthCfg.zellijStartLocked then "locked" else "normal")
+            # The same choice, capitalised: SwitchToMode takes a Mode name, not
+            # default_mode's lowercase spelling. The scroll/search binds exit
+            # through it, because upstream's all exit to Normal — which on a
+            # locked host silently leaves every submode leader hot afterwards.
+            (if hearthCfg.zellijStartLocked then "Locked" else "Normal")
+            agentNewRun
+            ''"${agentDefault}"''
+          ]
+          (builtins.readFile ./zellij/config.kdl)
+      );
+
       # Seeds a zellij plugin's grants into the permission cache (see the
       # home.activation entries near the end of this file for the why).
       seedZellijPluginPermissions =
@@ -734,17 +715,12 @@ in
       # host file, not the public rice.
       home.packages =
         with pkgs;
-        [
-          # duti is a roster entry (below, at the darwin level) rather than a
-          # bare package — the room that installs an app declares it, and the
-          # roster is what makes a second copy from a cask a build warning
-          # instead of the silent duplicate IINA was for months (modules/apps
-          # owns that pick now; modules/roster tells the story).
-          # zellijReload stays here: it's an internal wrapper script, not
-          # something anyone installed.
-          zellijReload
-        ]
-        ++ lib.optionals devCfg.toolbelt.enable [
+        # duti is a roster entry (below, at the darwin level) rather than a
+        # bare package — the room that installs an app declares it, and the
+        # roster is what makes a second copy from a cask a build warning
+        # instead of the silent duplicate IINA was for months (modules/apps
+        # owns that pick now; modules/roster tells the story).
+        lib.optionals devCfg.toolbelt.enable [
           chafa # fast terminal image previewer / layout engine
           glow # markdown renderer; yazi's glow previewer shells out to it
           fd # fast finder; used by yazi/zoxide navigation
@@ -794,9 +770,6 @@ in
           # a terminal `mdcat file.md` renders markdown identically to the yazi
           # right-pane preview (Nebelung glamour port, tables and all).
           mdcat = ''glow -s "${glowStyle}"'';
-          # Pin the command just like the zellij keybind. This avoids a stale
-          # system-profile binary during local rice development.
-          zreload = "${zellijReload}/bin/zreload";
         };
 
         history = {
@@ -1467,24 +1440,9 @@ in
           "${nebelungRoot}/bat/themes/${batTheme}.tmTheme";
 
         # zellij
-        # config.kdl bakes absolute script paths (zellij doesn't expand $HOME in
-        # copy_command / Run / layout), so render @HOME@ → the user's home.
-        ".config/zellij/config.kdl".text =
-          builtins.replaceStrings
-            [ "@HOME@" "@DEFAULT_MODE@" "@BASE_MODE@" "@ZRELOAD@" "@AGENT_NEW@" "@AGENT_HERE@" ]
-            [
-              config.home.homeDirectory
-              (if hearthCfg.zellijStartLocked then "locked" else "normal")
-              # The same choice, capitalised: SwitchToMode takes a Mode name, not
-              # default_mode's lowercase spelling. The scroll/search binds exit
-              # through it, because upstream's all exit to Normal — which on a
-              # locked host silently leaves every submode leader hot afterwards.
-              (if hearthCfg.zellijStartLocked then "Locked" else "Normal")
-              "${zellijReload}/bin/zreload"
-              agentNewRun
-              ''"${agentDefault}"''
-            ]
-            (builtins.readFile ./zellij/config.kdl);
+        # NOTE: config.kdl is deliberately absent from this block — it is
+        # installed as a real file by the zellijLiveConfig activation instead,
+        # so a rebuild hot-reloads into the running session. See there.
         ".config/zellij/themes/nebelung.kdl".source = "${nebelungRoot}/zellij/themes/nebelung.kdl";
         # Custom layout, rendered from the in-repo template (see zellijLayout
         # in the let above).
@@ -1603,6 +1561,62 @@ in
           executable = true;
         };
       };
+
+      # config.kdl is INSTALLED, not linked — the one dotfile in this module that
+      # isn't a store symlink, and the reason a rebuild no longer costs you your
+      # tabs.
+      #
+      # zellij watches the active config and applies most fields to the running
+      # server within a second: keybinds, theme, pane_frames, the lot. It decides
+      # "changed" by the file's mtime. Every /nix/store file carries mtime =
+      # epoch 1, so a home.file symlink defeats that completely — activation
+      # repoints the link at a NEW store path with the SAME 1970 timestamp, the
+      # watcher reads it as older than what it already parsed, and nothing
+      # happens. That single stat is the whole reason a rebuild used to mean
+      # `zellij delete-all-sessions` (and the reason zreload existed).
+      #
+      # Measured on 0.44.3 against a live session, four ways. Diagnosis:
+      # repointing the symlink at a file with a fresh mtime reloaded in ~1s;
+      # repointing between two files with identical epoch mtimes never fired at
+      # all; and `touch`ing one file — same path, same bytes, mtime the only
+      # thing that moved — reloaded in <1s. Then the shipped mechanism itself:
+      # four consecutive install+rename cycles against one live session all
+      # reloaded, in 1-2s each. That last one matters because rename gives the
+      # path a NEW INODE every time — the watcher is keyed on the path and
+      # re-arms, so this doesn't silently work once and then stop.
+      #
+      # `install` writes a fresh regular file with the current mtime, so every
+      # activation looks new. Mode 0444 keeps the read-only semantics the store
+      # symlink had, so zellij still can't persist runtime edits into a file nix
+      # owns; the write goes to a temp name and renames into place, because
+      # rename() needs write on the DIRECTORY, not on the 0444 file it replaces.
+      # entryAfter linkGeneration: home-manager removes the symlink it used to
+      # manage here during that step, so we must land after it, not before.
+      # Absolute /bin and /usr/bin paths throughout — activation runs with a bare
+      # PATH (same reason the plugin-permission seed above spells out
+      # /usr/bin/awk).
+      home.activation.zellijLiveConfig = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+        run /bin/mkdir -p "$HOME/.config/zellij"
+        zcfg="$HOME/.config/zellij/config.kdl"
+        # Rewrite only when it would change something: the path is still
+        # home-manager's symlink (the migration case, and the one a plain content
+        # compare would wrongly skip), or it's missing, or the bytes actually
+        # moved. Without this every no-op `haus rebuild` would hand the running
+        # server a pointless reload.
+        if [ -L "$zcfg" ] || [ ! -e "$zcfg" ] || ! /usr/bin/cmp -s ${zellijConfigFile} "$zcfg"; then
+          run /bin/rm -f "$zcfg.new"
+          run /usr/bin/install -m 0444 ${zellijConfigFile} "$zcfg.new"
+          run /bin/mv -f "$zcfg.new" "$zcfg"
+        fi
+        # Rollback safety. `home-manager.backupFileExtension = "backup"` (see
+        # flake.nix) means an older generation that still wants to LINK this path
+        # moves our real file to config.kdl.backup rather than refusing — good,
+        # but only once: check-link-targets aborts activation outright if that
+        # backup already exists, so a rollback → rebuild → rollback sequence would
+        # fail on the second one. Clear it here; the file is always regenerable
+        # from the store, so there is nothing to lose.
+        run /bin/rm -f "$zcfg.backup"
+      '';
 
       # zellij grants plugin permissions through an interactive (y/n) prompt in
       # the plugin's pane — but none of our forks can answer it: link-handler is

@@ -198,23 +198,14 @@ keybinds {
             }
         }
 
-        // Super r — reload this zellij session through a fresh server so a
-        //            rebuild's config, layout and plugin wasm take effect. The
-        //            helper dumps the current tabs/panes/cwds, proves every
-        //            command pane's identity, rewrites each Claude pane to
-        //            resume its exact conversation, then hands
-        //            the destructive half to a launchd-owned process outside
-        //            the terminal. That process quits/reopens Ghostty and the
-        //            fresh launch.sh recreates the session. The tiny off-screen
-        //            float is removed from the dumped layout.
-        bind "Super r" {
-            Run "@ZRELOAD@" {
-                floating true
-                close_on_exit true
-                name "zreload-helper"
-                x "100%"; y "100%"; width "1%"; height "1%"
-            }
-        }
+        // NOTE: there is no reload chord, and deliberately so. This file is
+        // installed into ~/.config as a real file with a live mtime (hearth's
+        // zellijLiveConfig activation), so zellij's own config watcher applies
+        // a rebuild's keybinds/theme/options to the running server within a
+        // second — no restart, no lost tabs. What a rebuild still can NOT
+        // hot-swap is plugin wasm and the zellij binary itself, both of which
+        // need a fresh server; `zscratch` gives you one in a throwaway window
+        // without touching this session.
 
         // yazi as a floating overlay — appears on top of the tiled claude panes,
         // dismissed with q, leaving the tiled layout untouched.

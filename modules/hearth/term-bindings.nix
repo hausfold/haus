@@ -125,10 +125,6 @@ rec {
           ];
           action = "Cycle swap layouts (grid → spiral → columns)";
         }
-        {
-          chords = [ "Super r" ];
-          action = "Reload zellij after a rebuild (panes survive)";
-        }
       ];
     }
     {

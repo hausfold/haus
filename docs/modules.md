@@ -88,9 +88,13 @@ side and ships a `bench` CLI for the cross-repo flow — most usefully `bench tr
 which builds your real machine against your **local, uncommitted** checkouts, so
 you never push to find out whether something works.
 
-Iterating on a **zellij** edit (a keybind in `config.kdl`, a theme colour, a
-freshly-built plugin `.wasm`) is even lighter: `zscratch` — a dev CLI shipped in
-this repo's `modules/den` — boots your candidate in a throwaway session in its
-own Ghostty window, so you feel the change without a rebuild or losing your
-working session's tabs. `bench try switch` does the real activation once, at the
-end. See [`AGENTS.md`](../AGENTS.md) for the full flag set.
+Iterating on a **zellij** edit splits in two. A `config.kdl` change (a keybind, a
+theme colour, an option) needs nothing special — `bench try switch`, and zellij's
+own config watcher applies it to the running server in about a second, tabs and
+panes intact, because hearth installs that file with a live mtime rather than as
+a store symlink. A plugin `.wasm`, a patched zellij binary, or a layout change to
+a tab that already exists can't hot-reload at all; for those there's `zscratch` —
+a dev CLI shipped in this repo's `modules/den` — which boots your candidate in a
+throwaway session in its own Ghostty window, so you feel the change without a
+rebuild or losing your working session's tabs. See [`AGENTS.md`](../AGENTS.md)
+for the full flag set and the mtime gotcha behind the split.
