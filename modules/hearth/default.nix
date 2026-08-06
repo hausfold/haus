@@ -399,27 +399,39 @@ in
   # scrollback meant jittering the mouse to manufacture events.
   #
   # Two halves. A repeat timer in screen.rs re-posts the held drag position
-  # every 16ms while the pointer sits past an edge — or in the three-row
-  # in-pane edge margin after a three-row sweep — so a parked cursor scrolls at
-  # all. That is the half that removes the jittering. And the speed of that
-  # scroll is a RATE IN LINES PER SECOND, derived from what FRACTION of the pane
-  # was already highlighted when the drag crossed the edge: grab three lines and
-  # keep going and it crawls at ~13 lines/s, sweep the whole pane first and it
-  # runs at 150. A fraction rather than a line count so the same gesture means
-  # the same speed in a 25-row zoomed-in pane and an 80-row one. Locked in per
-  # departure so the speed holds steady while you hold, re-derived when you come
-  # back in and leave again. The in-pane margin makes that same hold gesture
-  # work without taking the pointer out of a fullscreen Ghostty window, while
-  # the sweep threshold keeps short selections near an edge precise.
+  # every 16ms while the pointer sits inside the scroll zone, so a parked cursor
+  # scrolls at all. That is the half that removes the jittering. The other half
+  # is that the speed is a RATE IN LINES PER SECOND rather than a line per
+  # event: because the debt accumulator bills elapsed wall-clock time, a
+  # jittered mouse and a parked one move at exactly the same speed — the thing
+  # the first cut of this couldn't do.
   #
-  # Because the debt accumulator bills elapsed wall-clock time rather than
-  # counting events, a jittered mouse and a parked one move at the same speed —
-  # the thing the first cut of this couldn't do.
+  # The zone GROWS with the selection. Three rows swept arms the last three pane
+  # rows; by two thirds of a pane swept it covers everything but a three-row
+  # brake strip at the FAR edge. So a long selection scrolls with the pointer
+  # parked comfortably inside a fullscreen Ghostty window — no edge to reach —
+  # while a short selection near an edge stays precise. Pulling back to the
+  # brake strip is how you stop a long drag without releasing the button; it
+  # can't be "drag back towards where you started", because for a long selection
+  # the anchor has long since scrolled off the top.
   #
-  # The obvious input — how far PAST the edge the cursor is — is close to
-  # useless: terminals clamp a drag that leaves the window to the edge cell
-  # (ghostty: src/renderer/size.zig, `@max(0, …)` / `@min(…, rows - 1)`), so
-  # above a fullscreen pane there's exactly one row of travel to measure.
+  # Speed is then two signals. How much of the selection is ON SCREEN sets the
+  # ceiling — a fraction of the pane, not a line count, so the same gesture means
+  # the same speed in a 25-row zoomed-in pane and an 80-row one. How deep into
+  # the zone the pointer sits picks the rate under that ceiling, live: on a
+  # 37-row pane, ~5 lines/s a few rows in, ~48 mid-pane, 360 (about ten
+  # screenfuls) jammed against the edge. The pane is the speed dial.
+  #
+  # On-screen height, specifically, and not the total rows swept: scrolling is
+  # what grows the total, so feeding it back in as the speed is a loop with
+  # itself — every drag, however short, would run away to the ceiling in about
+  # half a second with no way down but releasing the button.
+  #
+  # Pointer depth only became usable once the zone reached inside the pane. Past
+  # the edge it is close to useless: terminals clamp a drag that leaves the
+  # window to the edge cell (ghostty: src/renderer/size.zig, `@max(0, …)` /
+  # `@min(…, rows - 1)`), so above a fullscreen pane there's exactly one row of
+  # travel to measure. Inside the pane there are thirty.
   #
   # The curve is the mean of the linear and squared terms, not the square. The
   # first cut squared it, which measured out (on a 28-row pane, instrumented)

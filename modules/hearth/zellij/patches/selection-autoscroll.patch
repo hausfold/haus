@@ -1,8 +1,8 @@
 diff --git a/zellij-server/src/panes/terminal_pane.rs b/zellij-server/src/panes/terminal_pane.rs
-index 477185a..4cb3ce6 100644
+index 477185a..832cb9f 100644
 --- a/zellij-server/src/panes/terminal_pane.rs
 +++ b/zellij-server/src/panes/terminal_pane.rs
-@@ -36,6 +36,118 @@ use crate::ui::pane_boundaries_frame::{FrameParams, PaneFrame};
+@@ -36,6 +36,134 @@ use crate::ui::pane_boundaries_frame::{FrameParams, PaneFrame};
  
  pub const SELECTION_SCROLL_INTERVAL_MS: u64 = 10;
  
@@ -36,7 +36,7 @@ index 477185a..4cb3ce6 100644
 +const SELECTION_SCROLL_INPANE_MIN_LINES: isize = 3;
 +/// Swept fraction of the pane, in percent, at which the scroll zone stops
 +/// growing and covers everything but the brake strip. Two thirds of a 37-row
-+/// pane is 24 rows: past that, a held drag scrolls from wherever the pointer
++/// pane is 23 rows: past that, a held drag scrolls from wherever the pointer
 +/// is, without going anywhere near the edge.
 +const SELECTION_SCROLL_FULL_ARM_PERCENT: isize = 66;
 +
@@ -58,13 +58,17 @@ index 477185a..4cb3ce6 100644
 +    let full_sweep = (pane_height - 1).max(1);
 +    let full_arm = (full_sweep * SELECTION_SCROLL_FULL_ARM_PERCENT / 100)
 +        .max(SELECTION_SCROLL_INPANE_MIN_LINES + 1);
-+    let widest = (pane_height - SELECTION_SCROLL_EDGE_MARGIN).max(SELECTION_SCROLL_EDGE_MARGIN);
++    // Clamped DOWN to at least one row, never up: a pane shorter than twice
++    // the margin would otherwise hand its whole height to the zone and be left
++    // with no brake strip at all.
++    let widest = (pane_height - SELECTION_SCROLL_EDGE_MARGIN).max(1);
++    let narrowest = SELECTION_SCROLL_EDGE_MARGIN.min(widest);
 +    if swept_rows >= full_arm {
 +        return widest;
 +    }
 +    let progress = (swept_rows - SELECTION_SCROLL_INPANE_MIN_LINES).max(0);
 +    let span = full_arm - SELECTION_SCROLL_INPANE_MIN_LINES;
-+    SELECTION_SCROLL_EDGE_MARGIN + (widest - SELECTION_SCROLL_EDGE_MARGIN) * progress / span.max(1)
++    narrowest + (widest - narrowest) * progress / span.max(1)
 +}
 +
 +/// `(f + f²) / 2 * span`, in integers, with `f = num / den` clamped to 1.
@@ -85,11 +89,18 @@ index 477185a..4cb3ce6 100644
 +/// Autoscroll rate in milli-lines per second, from two signals that answer
 +/// different questions.
 +///
-+/// `swept_rows` — how much is already highlighted — sets the CEILING: it is a
-+/// statement of intent (grabbed three lines and kept going, versus swept the
-+/// whole screen first), measured as a fraction of the pane so the same gesture
-+/// means the same speed at any font size or split. A short drag can't reach the
-+/// fast end of the ramp at all.
++/// `highlighted_rows` — how much of the selection is ON SCREEN right now — sets
++/// the CEILING, as a fraction of the pane so the same gesture means the same
++/// speed in a 25-row zoomed-in pane and an 80-row one. A drag that has only
++/// just started can't go fast at all; one filling the pane can.
++///
++/// It has to be the on-screen height rather than the total swept height
++/// (`swept_rows`, which keeps counting the rows that have scrolled off the
++/// top). Scrolling is what grows the total, so feeding the total back in as the
++/// speed would be a loop with itself: any drag, however short, would accelerate
++/// to the ceiling within about half a second of being held and stay there, and
++/// there would be no way down short of releasing the button. The on-screen
++/// height is bounded by the pane, so the pointer stays in charge.
 +///
 +/// `depth` — how far into the scroll zone the pointer is, in rows from the
 +/// zone's inner lip — picks the rate WITHIN that ceiling, live. This is the
@@ -100,8 +111,13 @@ index 477185a..4cb3ce6 100644
 +/// zone reaches deep INSIDE the pane for a long selection, that travel is real:
 +/// shove the pointer to the edge for ten screenfuls a second, ease it back
 +/// towards the middle to crawl.
++///
++/// Both terms rise together as the pointer goes deeper, so the pane doubles as
++/// a speed dial: on a 37-row pane a long selection runs at ~5 lines/s with the
++/// pointer a few rows into the zone, ~64 mid-pane, and the full 360 jammed
++/// against the edge.
 +fn selection_scroll_rate(
-+    swept_rows: usize,
++    highlighted_rows: usize,
 +    depth: usize,
 +    zone_depth: usize,
 +    pane_height: usize,
@@ -109,7 +125,7 @@ index 477185a..4cb3ce6 100644
 +    let span = SELECTION_SCROLL_MAX_RATE - SELECTION_SCROLL_MIN_RATE;
 +    let full_sweep = pane_height.saturating_sub(1);
 +    let ceiling =
-+        SELECTION_SCROLL_MIN_RATE + selection_scroll_curve(swept_rows, full_sweep, span);
++        SELECTION_SCROLL_MIN_RATE + selection_scroll_curve(highlighted_rows, full_sweep, span);
 +    SELECTION_SCROLL_MIN_RATE
 +        + selection_scroll_curve(
 +            depth,
@@ -121,7 +137,7 @@ index 477185a..4cb3ce6 100644
  // Some keys in different formats but are used in the code
  const LEFT_ARROW: &[u8] = &[27, 91, 68];
  const RIGHT_ARROW: &[u8] = &[27, 91, 67];
-@@ -134,6 +246,9 @@ pub struct TerminalPane {
+@@ -134,6 +262,9 @@ pub struct TerminalPane {
      pub style: Style,
      vte_parser: vte::Parser,
      selection_scrolled_at: time::Instant,
@@ -131,7 +147,7 @@ index 477185a..4cb3ce6 100644
      content_offset: Offset,
      pane_title: String,
      pane_name: String,
-@@ -657,26 +772,87 @@ impl Pane for TerminalPane {
+@@ -657,26 +788,91 @@ impl Pane for TerminalPane {
      }
  
      fn update_selection(&mut self, to: &Position, _client_id: ClientId) {
@@ -150,6 +166,10 @@ index 477185a..4cb3ce6 100644
 +        // once a selection is genuinely long.
 +        let anchor = self.grid.selection.start.line.0;
 +        let swept_rows = (anchor - row).abs();
++        // The same measurement clipped to the pane. Sets the speed ceiling,
++        // where the creeping total would feed back into itself; see
++        // `selection_scroll_rate`.
++        let highlighted_rows = (anchor.clamp(0, max_row) - row.clamp(0, max_row)).abs();
 +        let zone_depth = selection_scroll_zone_depth(swept_rows, height);
 +        let armed = swept_rows >= SELECTION_SCROLL_INPANE_MIN_LINES;
  
@@ -209,7 +229,7 @@ index 477185a..4cb3ce6 100644
 +            zone_depth - 1 - row.max(0)
 +        };
 +        let rate = selection_scroll_rate(
-+            swept_rows.max(0) as usize,
++            highlighted_rows.max(0) as usize,
 +            depth.max(0) as usize,
 +            zone_depth.max(1) as usize,
 +            self.grid.height,
@@ -234,7 +254,7 @@ index 477185a..4cb3ce6 100644
      }
  
      fn end_selection(&mut self, end: &Position, _client_id: ClientId) {
-@@ -1124,6 +1300,7 @@ impl TerminalPane {
+@@ -1124,6 +1320,7 @@ impl TerminalPane {
              active_at: Instant::now(),
              style,
              selection_scrolled_at: time::Instant::now(),
