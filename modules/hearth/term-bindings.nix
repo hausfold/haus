@@ -101,6 +101,10 @@ rec {
           action = "New pane — hop out of a worktree / stay in it";
         }
         {
+          chords = [ "Super w" ];
+          action = "Close this pane (the tab too, if it's the last)";
+        }
+        {
           chords = [
             "Super t"
             "Super Shift t"
