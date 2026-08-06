@@ -58,8 +58,10 @@
 #     ui.scale — they follow the display, which is why the line above matters.
 #   - The perch shelf, which IS the rice's and still doesn't follow: it sizes
 #     itself from the screen (a clamped fraction of the display's width),
-#     because it hangs off the notch. So a large-print Mac gets a normal-sized
-#     shelf, and displays.main below is the only lever that moves it.
+#     because it hangs off the notch. Neither lever here moves it — scaling the
+#     display shrinks its width in points by exactly the factor that makes a
+#     point bigger — so a large-print Mac gets a shelf the same physical size
+#     while everything around it grows.
 #   - The menu bar's HEIGHT. Its type grows (above), but the bar itself can't:
 #     36pt of bar with 28pt pills is what keeps them inside the 32pt band macOS's
 #     own hover-reveal covers, and that band is macOS's — fixed, with no setting

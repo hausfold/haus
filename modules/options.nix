@@ -352,11 +352,13 @@ in
             (1.25x) and then stops, silently: past that a rice simply gets the
             ceiling. The only way to make the whole bar bigger is to change what
             a point MEANS — the display's scaled resolution, below.
-          - perch, the notch shelf. It sizes itself from the SCREEN (a fraction
-            of the display's width, clamped), which is the right answer for a
-            thing anchored to the notch — but it means a large-print rice gets a
-            normal-sized shelf. The lever that moves it is the display's scaled
-            resolution, not this.
+          - perch, the notch shelf. It sizes itself from the SCREEN — a fraction
+            of the display's width, clamped — which is the right answer for a
+            thing hanging off the notch, and it means NEITHER lever moves it: a
+            scaled display shrinks the shelf's width in points by the same
+            factor that makes a point bigger, so it stays the same physical
+            size while everything around it grows. A large-print rice gets a
+            normal-sized shelf, and there is no option here that changes that.
           - anything outside nebelhaus. macOS has no system-wide UI scale, so
             third-party apps follow only a display-resolution change.
 
