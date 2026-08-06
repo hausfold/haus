@@ -1,8 +1,8 @@
 diff --git a/zellij-server/src/panes/terminal_pane.rs b/zellij-server/src/panes/terminal_pane.rs
-index 477185a..0a3c59a 100644
+index 477185a..832cb9f 100644
 --- a/zellij-server/src/panes/terminal_pane.rs
 +++ b/zellij-server/src/panes/terminal_pane.rs
-@@ -36,6 +36,72 @@ use crate::ui::pane_boundaries_frame::{FrameParams, PaneFrame};
+@@ -36,6 +36,134 @@ use crate::ui::pane_boundaries_frame::{FrameParams, PaneFrame};
  
  pub const SELECTION_SCROLL_INTERVAL_MS: u64 = 10;
  
@@ -13,83 +13,141 @@ index 477185a..0a3c59a 100644
 +// accumulated from elapsed wall-clock time, so the same gesture moves at the
 +// same speed whether you park the cursor or jitter it. 1000 is one line per
 +// second.
-+/// Floor — a drag that left the pane almost immediately. Four lines a second:
-+/// a short drag means precise work, and the timer means "slow" still moves
-+/// without being nursed along.
++/// Floor — the slow end of the ramp, at the inner lip of the scroll zone. Four
++/// lines a second: slow enough to place the end of a selection precisely, and
++/// the timer means "slow" still moves without being nursed along.
 +const SELECTION_SCROLL_MIN_RATE: usize = 4_000;
-+/// Ceiling — a drag that swept the whole pane before leaving it. 150 lines a
-+/// second, about five screenfuls of a 28-row pane.
-+const SELECTION_SCROLL_MAX_RATE: usize = 150_000;
++/// Ceiling — a long selection with the pointer jammed at the pane edge. 360
++/// lines a second, about ten screenfuls of a 37-row pane.
++const SELECTION_SCROLL_MAX_RATE: usize = 360_000;
 +/// Longest gap the debt accumulator will bill for in one go. Without this, a
 +/// tick delayed by a busy server (or a departure that sat idle while the timer
 +/// was disarmed) would cash in as one enormous jump.
 +const SELECTION_SCROLL_MAX_ELAPSED_MS: u128 = 100;
-+/// How close to a pane edge a held drag starts scrolling without leaving the
-+/// pane. Keeping this inside the pane matters for a fullscreen Ghostty window:
++/// The narrowest the scroll zone ever gets: how close to a pane edge a short
++/// drag has to be held to scroll without leaving the pane. Also the width of
++/// the brake strip at the opposite edge (see `selection_scroll_zone_depth`).
++/// Keeping a zone inside the pane matters for a fullscreen Ghostty window:
 +/// crossing its boundary has no useful extra mouse range to report.
 +const SELECTION_SCROLL_EDGE_MARGIN: isize = 3;
-+/// A drag has to sweep this many rows before the in-pane edge margin can arm.
++/// A drag has to sweep this many rows before the in-pane zone can arm at all.
 +/// Starting near an edge is common for a short, precise selection; it must not
 +/// immediately turn into autoscroll.
 +const SELECTION_SCROLL_INPANE_MIN_LINES: isize = 3;
++/// Swept fraction of the pane, in percent, at which the scroll zone stops
++/// growing and covers everything but the brake strip. Two thirds of a 37-row
++/// pane is 23 rows: past that, a held drag scrolls from wherever the pointer
++/// is, without going anywhere near the edge.
++const SELECTION_SCROLL_FULL_ARM_PERCENT: isize = 66;
 +
-+/// Autoscroll rate, in milli-lines per second, from how much was already
-+/// highlighted when the drag crossed the pane edge (or armed the in-pane edge
-+/// margin).
++/// How deep into the pane the autoscroll zone reaches, in rows from the edge,
++/// given how many rows the drag has swept so far.
 +///
-+/// The "how far past the edge is the cursor" signal that would be the obvious
-+/// input here is nearly useless: terminals CLAMP a drag that leaves the window
-+/// to the edge cell (ghostty does it in `src/renderer/size.zig`), so above a
-+/// fullscreen pane there is exactly one row of travel to measure. Height of the
-+/// selection at the moment it left the pane has real range and is already a
-+/// statement of intent — grabbed three lines and kept going, or swept the whole
-+/// screen first.
++/// The zone GROWS with the selection. A three-row drag has to be taken to the
++/// last three rows to scroll — precise work stays precise. Once the drag has
++/// swept two thirds of the pane it is unambiguously a long selection, and the
++/// zone covers everything but a brake strip at the far edge, so the scroll
++/// keeps running with the pointer parked comfortably inside the window.
 +///
-+/// Measured as a FRACTION of the pane, not a line count: "I swept the whole
-+/// thing" means the same thing in a 25-row pane and an 80-row one, so the same
-+/// gesture has to mean the same speed at any font size or split.
++/// The brake strip is what makes the wide zone livable: pulling the pointer
++/// back to the *opposite* edge is how a long drag stops scrolling without
++/// releasing the button. It can't be "drag back towards the anchor" once the
++/// anchor has scrolled off the top of the pane, which for a long selection it
++/// always has.
++fn selection_scroll_zone_depth(swept_rows: isize, pane_height: isize) -> isize {
++    let full_sweep = (pane_height - 1).max(1);
++    let full_arm = (full_sweep * SELECTION_SCROLL_FULL_ARM_PERCENT / 100)
++        .max(SELECTION_SCROLL_INPANE_MIN_LINES + 1);
++    // Clamped DOWN to at least one row, never up: a pane shorter than twice
++    // the margin would otherwise hand its whole height to the zone and be left
++    // with no brake strip at all.
++    let widest = (pane_height - SELECTION_SCROLL_EDGE_MARGIN).max(1);
++    let narrowest = SELECTION_SCROLL_EDGE_MARGIN.min(widest);
++    if swept_rows >= full_arm {
++        return widest;
++    }
++    let progress = (swept_rows - SELECTION_SCROLL_INPANE_MIN_LINES).max(0);
++    let span = full_arm - SELECTION_SCROLL_INPANE_MIN_LINES;
++    narrowest + (widest - narrowest) * progress / span.max(1)
++}
++
++/// `(f + f²) / 2 * span`, in integers, with `f = num / den` clamped to 1.
 +///
-+/// Curved rather than linear, because the useful resolution is at the slow end:
++/// Curved rather than linear because the useful resolution is at the slow end:
 +/// perceived speed goes roughly with the log of actual speed, so a linear ramp
-+/// spends most of its travel on differences you can't feel. The first cut of
-+/// this squared the fraction, which overshot — measured on a 28-row pane, the
-+/// break-even against a flat one-line-per-event was 29% of the pane, so every
-+/// everyday gesture (grab a few lines, keep going) sat in a band between 0.39
-+/// and 0.70 lines per event that felt like one flat speed and read as "the
-+/// patch isn't live". The mean of the linear and squared terms keeps the
-+/// bottom-end resolution while getting the ramp moving inside the first few
-+/// rows: a 3-row sweep of a 28-row pane is 13 lines/s, a quarter-sweep is 27, a
-+/// half-sweep 59.
++/// spends most of its travel on differences you can't feel. A plain square
++/// overshoots the other way — the first cut of this patch used one, and every
++/// everyday gesture sat in a band that read as one flat speed. The mean of the
++/// linear and squared terms keeps the bottom-end resolution while getting the
++/// ramp moving inside the first few rows.
++fn selection_scroll_curve(num: usize, den: usize, span: usize) -> usize {
++    let den = den.max(1);
++    let num = num.min(den);
++    (span / 2) * (num * den + num * num) / (den * den)
++}
++
++/// Autoscroll rate in milli-lines per second, from two signals that answer
++/// different questions.
 +///
-+/// Locked in once per departure so the speed is stable while you hold, and
-+/// re-derived when the cursor comes back inside and leaves again.
-+fn selection_scroll_rate(lines_highlighted: usize, pane_height: usize) -> usize {
-+    let full_sweep = pane_height.saturating_sub(1).max(1);
-+    let highlighted = lines_highlighted.min(full_sweep);
++/// `highlighted_rows` — how much of the selection is ON SCREEN right now — sets
++/// the CEILING, as a fraction of the pane so the same gesture means the same
++/// speed in a 25-row zoomed-in pane and an 80-row one. A drag that has only
++/// just started can't go fast at all; one filling the pane can.
++///
++/// It has to be the on-screen height rather than the total swept height
++/// (`swept_rows`, which keeps counting the rows that have scrolled off the
++/// top). Scrolling is what grows the total, so feeding the total back in as the
++/// speed would be a loop with itself: any drag, however short, would accelerate
++/// to the ceiling within about half a second of being held and stay there, and
++/// there would be no way down short of releasing the button. The on-screen
++/// height is bounded by the pane, so the pointer stays in charge.
++///
++/// `depth` — how far into the scroll zone the pointer is, in rows from the
++/// zone's inner lip — picks the rate WITHIN that ceiling, live. This is the
++/// signal the first version of the patch had to do without: it only ever fired
++/// past the pane edge, and terminals CLAMP a drag that leaves the window to the
++/// edge cell (ghostty does it in `src/renderer/size.zig`), so above a
++/// fullscreen pane there was exactly one row of travel to measure. Now that the
++/// zone reaches deep INSIDE the pane for a long selection, that travel is real:
++/// shove the pointer to the edge for ten screenfuls a second, ease it back
++/// towards the middle to crawl.
++///
++/// Both terms rise together as the pointer goes deeper, so the pane doubles as
++/// a speed dial: on a 37-row pane a long selection runs at ~5 lines/s with the
++/// pointer a few rows into the zone, ~64 mid-pane, and the full 360 jammed
++/// against the edge.
++fn selection_scroll_rate(
++    highlighted_rows: usize,
++    depth: usize,
++    zone_depth: usize,
++    pane_height: usize,
++) -> usize {
 +    let span = SELECTION_SCROLL_MAX_RATE - SELECTION_SCROLL_MIN_RATE;
-+    // (f + f²) / 2, in integer terms: f = highlighted / full_sweep.
-+    let curved = highlighted * full_sweep + highlighted * highlighted;
-+    SELECTION_SCROLL_MIN_RATE + (span / 2) * curved / (full_sweep * full_sweep)
++    let full_sweep = pane_height.saturating_sub(1);
++    let ceiling =
++        SELECTION_SCROLL_MIN_RATE + selection_scroll_curve(highlighted_rows, full_sweep, span);
++    SELECTION_SCROLL_MIN_RATE
++        + selection_scroll_curve(
++            depth,
++            zone_depth.saturating_sub(1),
++            ceiling - SELECTION_SCROLL_MIN_RATE,
++        )
 +}
 +
  // Some keys in different formats but are used in the code
  const LEFT_ARROW: &[u8] = &[27, 91, 68];
  const RIGHT_ARROW: &[u8] = &[27, 91, 67];
-@@ -134,6 +200,13 @@ pub struct TerminalPane {
+@@ -134,6 +262,9 @@ pub struct TerminalPane {
      pub style: Style,
      vte_parser: vte::Parser,
      selection_scrolled_at: time::Instant,
-+    /// Autoscroll rate in milli-lines per second, locked in when the drag last
-+    /// left the pane and cleared when it comes back inside. `None` means the
-+    /// cursor is not currently past an edge.
-+    selection_scroll_rate: Option<usize>,
 +    /// Sub-line remainder in milli-lines, carried between updates so rates below
 +    /// one line per update still scroll (just less often).
 +    selection_scroll_debt: usize,
      content_offset: Offset,
      pane_title: String,
      pane_name: String,
-@@ -657,26 +730,87 @@ impl Pane for TerminalPane {
+@@ -657,26 +788,91 @@ impl Pane for TerminalPane {
      }
  
      fn update_selection(&mut self, to: &Position, _client_id: ClientId) {
@@ -100,23 +158,20 @@ index 477185a..0a3c59a 100644
 -        let cursor_in_the_middle = to.line.0 >= 0 && (to.line.0 as usize) < self.grid.height;
 +        let row = to.line.0;
 +        let height = self.grid.height as isize;
++        let max_row = (height - 1).max(0);
++        // The selection anchor, in pane rows. It CREEPS as we scroll:
++        // move_viewport_up/down shift the selection to follow the viewport, so
++        // for a long drag it has usually gone negative — off the top of the
++        // pane — which is exactly what keeps the zone wide and the ceiling high
++        // once a selection is genuinely long.
 +        let anchor = self.grid.selection.start.line.0;
 +        let swept_rows = (anchor - row).abs();
-+        let in_pane_trigger_armed = swept_rows >= SELECTION_SCROLL_INPANE_MIN_LINES;
-+
-+        // Past an edge always scrolls. Once a drag has swept enough rows to
-+        // establish direction and intent, the last three real pane rows do as
-+        // well — so selecting a long scrollback need not leave Ghostty's
-+        // window. The timer in screen.rs already re-posts a held drag, so a
-+        // parked pointer in this margin keeps moving exactly like one past it.
-+        let cursor_above_pane = row < 0
-+            || (in_pane_trigger_armed
-+                && row < anchor
-+                && row < SELECTION_SCROLL_EDGE_MARGIN);
-+        let cursor_below_pane = (row >= 0 && row >= height)
-+            || (in_pane_trigger_armed
-+                && row > anchor
-+                && row >= height - SELECTION_SCROLL_EDGE_MARGIN);
++        // The same measurement clipped to the pane. Sets the speed ceiling,
++        // where the creeping total would feed back into itself; see
++        // `selection_scroll_rate`.
++        let highlighted_rows = (anchor.clamp(0, max_row) - row.clamp(0, max_row)).abs();
++        let zone_depth = selection_scroll_zone_depth(swept_rows, height);
++        let armed = swept_rows >= SELECTION_SCROLL_INPANE_MIN_LINES;
  
 -        // TODO: check how far up/down mouse is relative to pane, to increase scroll lines?
 -        if cursor_at_the_bottom {
@@ -128,23 +183,34 @@ index 477185a..0a3c59a 100644
 -            self.selection_scrolled_at = time::Instant::now();
 -            self.set_should_render(true);
 -        } else if cursor_in_the_middle {
++        // Past an edge always scrolls. Inside the pane, the zone is as deep as
++        // the selection is long (see `selection_scroll_zone_depth`) — three
++        // rows for a short drag, nearly the whole pane once you've swept two
++        // thirds of it, so selecting a long scrollback never has to leave
++        // Ghostty's window. The timer in screen.rs already re-posts a held
++        // drag, so a parked pointer in the zone keeps moving exactly like one
++        // past the edge.
++        let cursor_above_pane =
++            row < 0 || (armed && row < anchor && row < zone_depth);
++        let cursor_below_pane =
++            row >= height || (armed && row > anchor && row > max_row - zone_depth);
++
 +        if !cursor_above_pane && !cursor_below_pane {
-+            // Back inside the pane: end the departure, so the next one re-derives
-+            // its speed from wherever the selection has got to by then.
-+            self.selection_scroll_rate = None;
++            // Outside the zone — either mid-pane on a short drag, or in the
++            // brake strip at the far edge of a long one.
 +            self.selection_scroll_debt = 0;
              // here we'll only render if the selection was updated, and that'll be handled by the
              // grid
              self.grid.update_selection(to);
 +            return;
-         }
++        }
 +
 +        if row >= 0 && row < height {
 +            // Unlike a pointer outside the pane, this one still has a real
 +            // row. Keep the end of the selection under it as the viewport
 +            // moves; viewport scrolling itself extends the selection.
 +            self.grid.update_selection(to);
-+        }
+         }
 +
 +        let elapsed = self.selection_scrolled_at.elapsed();
 +        if elapsed < time::Duration::from_millis(SELECTION_SCROLL_INTERVAL_MS) {
@@ -154,24 +220,20 @@ index 477185a..0a3c59a 100644
 +            return;
 +        }
 +
-+        let rate = match self.selection_scroll_rate {
-+            Some(rate) => rate,
-+            None => {
-+                // The selection anchor, in pane rows. Read exactly once per
-+                // departure: scroll_up_one_line/scroll_down_one_line shift the
-+                // selection to follow the viewport, so this creeps as we scroll.
-+                let max_row = self.grid.height.saturating_sub(1) as isize;
-+                let anchor = self.grid.selection.start.line.0.clamp(0, max_row) as usize;
-+                let lines_highlighted = if cursor_above_pane {
-+                    anchor
-+                } else {
-+                    (max_row as usize).saturating_sub(anchor)
-+                };
-+                let rate = selection_scroll_rate(lines_highlighted, self.grid.height);
-+                self.selection_scroll_rate = Some(rate);
-+                rate
-+            },
++        // How far into the zone the pointer is, in rows from its inner lip. A
++        // pointer past the pane edge is clamped to the deepest row there is —
++        // the terminal has no more travel to report anyway.
++        let depth = if cursor_below_pane {
++            row.min(max_row) - (max_row - zone_depth + 1)
++        } else {
++            zone_depth - 1 - row.max(0)
 +        };
++        let rate = selection_scroll_rate(
++            highlighted_rows.max(0) as usize,
++            depth.max(0) as usize,
++            zone_depth.max(1) as usize,
++            self.grid.height,
++        );
 +
 +        self.selection_scrolled_at = time::Instant::now();
 +        let billable_ms = elapsed.as_millis().min(SELECTION_SCROLL_MAX_ELAPSED_MS) as usize;
@@ -192,17 +254,16 @@ index 477185a..0a3c59a 100644
      }
  
      fn end_selection(&mut self, end: &Position, _client_id: ClientId) {
-@@ -1124,6 +1258,8 @@ impl TerminalPane {
+@@ -1124,6 +1320,7 @@ impl TerminalPane {
              active_at: Instant::now(),
              style,
              selection_scrolled_at: time::Instant::now(),
-+            selection_scroll_rate: None,
 +            selection_scroll_debt: 0,
              pane_title: initial_pane_title,
              pane_name: pane_name.clone(),
              prev_pane_name: pane_name,
 diff --git a/zellij-server/src/screen.rs b/zellij-server/src/screen.rs
-index 35107c0..5c0a026 100644
+index 35107c0..652fd7a 100644
 --- a/zellij-server/src/screen.rs
 +++ b/zellij-server/src/screen.rs
 @@ -34,10 +34,24 @@ use std::net::{IpAddr, Ipv4Addr};

@@ -182,8 +182,8 @@ rec {
           action = "Zooms it fullscreen — ⌘ ⏎ without the reach";
         }
         {
-          key = "Drag past edge";
-          action = "Selection keeps autoscrolling";
+          key = "Drag a selection";
+          action = "Autoscrolls — near edge flies, far edge brakes";
         }
       ];
     }
