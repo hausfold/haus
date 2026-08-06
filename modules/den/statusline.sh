@@ -4,6 +4,9 @@
 # Row 1  : THIS session's git-status token as the leading glyph (⏏/N^/+A-D, or a
 #          muted ● when clean) + its own PR number (left of the name, colored by
 #          PR state, same as the children) + worktree name, then flush right:
+#          the child-PR cluster (bare clickable numbers for every worktree this
+#          session spawned — there so they survive the row-2+ list being capped
+#          or clipped in a short pane) ·
 #          rice-nag (⇡N — commits your pinned nebelhaus is behind, `haus update`)
 #          · ctx% · cost · permission-mode icon (blank auto, ⏵ default, ⏵⏵ accept,
 #          ⏵⏵⏵ bypass, ⏸ plan, ⊘ dontAsk) · model tier chip (O5 / S5 / H45 / F5).
@@ -394,10 +397,15 @@ else
 fi
 
 # PR-link cluster: bare PR numbers (no '#') for every worktree THIS session
-# spawned, space-separated and pinned to the far LEFT of row 1 — before the lead
-# glyph/name. Each is an OSC 8 hyperlink to its PR, colored by state. Row 1 is
-# the last line a growing input composer clips, so these links stay reachable
-# even when the per-worktree rows below scroll out of view.
+# spawned, space-separated. Each is an OSC 8 hyperlink to its PR, colored by
+# state. It rides the RIGHT-flushed tail group (leading it, so it sits just left
+# of ⇡nag/ctx%/cost/mode/model) rather than the far left of row 1, where it used
+# to push this pane's OWN lead glyph, PR pill and worktree name rightwards — the
+# identity of the pane you're looking at is what must never move. Leading the
+# group also means the cluster is the only thing that shifts as children come and
+# go: it's the widest-varying segment, so everything after it stays put relative
+# to the right edge. Row 1 is the last line a growing input composer clips, so
+# these links stay reachable even when the per-worktree rows below scroll away.
 prcluster=""
 if [ -f "$PANEL" ]; then
   while IFS=$'\t' read -r cslug cname _c3 _c4 _c5 _c6 cpr cparent; do
@@ -410,7 +418,6 @@ if [ -f "$PANEL" ]; then
               "$cslug" "$cnum" "$ccol" "$cnum" "$R")
     prcluster="${prcluster:+$prcluster }$clink"
   done <"$PANEL"
-  [ -n "$prcluster" ] && row1="$prcluster $row1"
 fi
 
 # Mode icon: Claude Code's own glyph language (⏸ plan, ⏵ armed), our palette.
@@ -470,13 +477,15 @@ if [ -s "$CACHE_DIR/lock-nag.tsv" ]; then
   fi
 fi
 
-# Tail group (rice-nag · ctx% · cost · mode icon · model) sits flush RIGHT, next
-# to Claude Code's own right-edge chips (/rc); RESERVE leaves them room. Narrow
-# pane → fall back to the old inline append. wc -m under a UTF-8 locale counts
-# the wide glyphs as characters (≈ columns), not bytes. The model chip is last —
-# nearest /rc — and unlike the others it's always present. The nag leads the group:
-# it's machine-global (same in every pane) while everything after it is
-# per-session, so it stays put instead of shuffling with ctx%/cost.
+# Tail group (child-PR cluster · rice-nag · ctx% · cost · mode icon · model) sits
+# flush RIGHT, next to Claude Code's own right-edge chips (/rc); RESERVE leaves
+# them room. Narrow pane → fall back to the old inline append. wc -m under a
+# UTF-8 locale counts the wide glyphs as characters (≈ columns), not bytes. The
+# model chip is last — nearest /rc — and unlike the others it's always present.
+# Order is by how much each segment MOVES: the PR cluster leads because it's the
+# widest-varying (children come and go), then the nag, which is machine-global
+# (same in every pane), then the per-session chips — so the things you read most
+# stay put instead of shuffling every time a child opens a PR.
 vlen() { plain "$1" | LC_ALL=en_US.UTF-8 wc -m | tr -d ' '; }
 RESERVE=8
 
@@ -503,6 +512,9 @@ tailseg=""
 [ -n "$cost" ] && [ "$cost" != "0" ] && tailseg="${tailseg:+$tailseg }${DIM}\$$(printf '%.2f' "$cost" 2>/dev/null)${R}"
 [ -n "$mseg" ] && tailseg="${tailseg:+$tailseg }$mseg"
 [ -n "$MODEL" ] && tailseg="${tailseg:+$tailseg }$MODEL"
+# The child-PR cluster leads the group, held off the chips by two spaces so a run
+# of bare numbers can't be misread as part of "⇡3 42% $1.23 O5".
+[ -n "$prcluster" ] && tailseg="$prcluster${tailseg:+  $tailseg}"
 if [ -n "$tailseg" ]; then
   pad=$(( COLS - RESERVE - $(vlen "$row1") - $(vlen "$tailseg") ))
   if [ "$pad" -ge 3 ]; then
