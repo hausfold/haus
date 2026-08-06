@@ -17,8 +17,9 @@
 #   ui.scale = 1.4        terminal font 19 → 27 pt, the whole command palette
 #                         (rows, text, icons, and the panels behind it), the menu
 #                         bar's type (17 → 21 pt icons, 14 → 18 pt labels — capped,
-#                         see below), Dock icons 48 → 67, and prowl's window gaps,
-#                         all at once. Pin any single one afterwards
+#                         see below), Dock icons 48 → 67, Finder's sidebar rows
+#                         (a threshold: above 1.0 you get Apple's large ones),
+#                         and prowl's window gaps, all at once. Pin any single one afterwards
 #                         (nebelhaus.fonts.mono.size = 24) and it wins — scale sets
 #                         defaults, not values.
 #   theme.contrast         body text goes from 11.3:1 to 19.9:1 against the
@@ -55,6 +56,10 @@
 #     handful of Apple apps that adopted Dynamic Type.
 #   - Third-party apps' own font settings. Nothing outside the rice follows
 #     ui.scale — they follow the display, which is why the line above matters.
+#   - The perch shelf, which IS the rice's and still doesn't follow: it sizes
+#     itself from the screen (a clamped fraction of the display's width),
+#     because it hangs off the notch. So a large-print Mac gets a normal-sized
+#     shelf, and displays.main below is the only lever that moves it.
 #   - The menu bar's HEIGHT. Its type grows (above), but the bar itself can't:
 #     36pt of bar with 28pt pills is what keeps them inside the 32pt band macOS's
 #     own hover-reveal covers, and that band is macOS's — fixed, with no setting

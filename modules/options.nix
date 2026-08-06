@@ -302,7 +302,9 @@ in
     #
     # Honest scope, and it is narrower than "everything": this scales the things
     # nebelhaus itself controls and macOS lets it control — the terminal font,
-    # the command palette, the Dock, the bar's type, and the tiling gaps. The one
+    # the command palette, the Dock, Finder's sidebar rows, the bar's type, and
+    # the tiling gaps (the full list, with what it does NOT reach, is in the
+    # option's own description below, and pinned by `scale-reach`). The one
     # thing it cannot do proportionally is the menu bar's HEIGHT, which belongs to
     # macOS's own band (see the note on ui.scale); nor can it resize third-party
     # apps, since macOS has no system-wide UI scale — the OS-level lever there is
@@ -330,7 +332,15 @@ in
           - the type in Sill's menu bar — pill labels, icons and popup rows —
             up to a ceiling; see below
           - the Dock icon size (system.defaults.dock.tilesize)
+          - Finder's sidebar rows (NSTableViewDefaultSizeMode) — a threshold
+            rather than a multiplier, and it is set at every scale: at or below
+            1.0 the rice picks SMALL rows (more fits in a tiled window), above
+            1.0 it picks Apple's large ones
           - prowl's window gaps
+
+        That list is pinned by `nix flake check`'s `scale-reach`, which
+        fingerprints every surface it names at four scales — so a wire dropped
+        in a refactor fails a check instead of quietly ceasing to arrive.
 
         Where it stops, and why it isn't a gap waiting to be filled:
 
@@ -342,6 +352,11 @@ in
             (1.25x) and then stops, silently: past that a rice simply gets the
             ceiling. The only way to make the whole bar bigger is to change what
             a point MEANS — the display's scaled resolution, below.
+          - perch, the notch shelf. It sizes itself from the SCREEN (a fraction
+            of the display's width, clamped), which is the right answer for a
+            thing anchored to the notch — but it means a large-print rice gets a
+            normal-sized shelf. The lever that moves it is the display's scaled
+            resolution, not this.
           - anything outside nebelhaus. macOS has no system-wide UI scale, so
             third-party apps follow only a display-resolution change.
 
