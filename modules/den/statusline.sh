@@ -172,25 +172,6 @@ if [ -n "${ZELLIJ_PANE_ID:-}" ] && [ -n "$transcript" ]; then
       printf '%s\t%s\n' "$ZELLIJ_PANE_ID" "$transcript"
     } >"$map.$$" && mv -f "$map.$$" "$map"
   fi
-
-  # zreload needs a collision-proof mapping across zellij server restarts.
-  # Pane ids are reused, so launch.sh gives each new server a generation token.
-  # Store one atomic file per pane instead of another shared TSV: concurrent
-  # statusline renders can never overwrite a sibling pane's identity.
-  generation="${NEBELHAUS_ZELLIJ_GENERATION:-}"
-  session="${ZELLIJ_SESSION_NAME:-}"
-  if [ -n "$generation" ] && [ -n "$session" ]; then
-    case "$generation/$session/$ZELLIJ_PANE_ID" in
-      *[!A-Za-z0-9_.\/-]*) ;;
-      *"/../"*|*"/.."|../*) ;;
-      *)
-        generation_dir="$CACHE_DIR/pane-transcripts-v2/$generation/$session"
-        [ -d "$generation_dir" ] || mkdir -p "$generation_dir"
-        printf '%s\n' "$transcript" >"$generation_dir/$ZELLIJ_PANE_ID.$$"
-        mv -f "$generation_dir/$ZELLIJ_PANE_ID.$$" "$generation_dir/$ZELLIJ_PANE_ID"
-        ;;
-    esac
-  fi
 fi
 
 # Usage limits → the sill `claudeUsage` pill (modules/sill/sketchybar/plugins/
