@@ -535,6 +535,247 @@
           packFailures =
             builtins.concatMap packCompose (builtins.attrNames packFiles) ++ packFileAttrFailures;
 
+          # ---- preset-composition ---------------------------------------------
+          # `packs` above pins how a pack meets a HOST. This pins how a rice meets
+          # another RICE, which is the thing a gallery is made of and the thing
+          # nothing here could see until it was measured.
+          #
+          # presets/README.md makes four checkable claims about that, and every one
+          # of them is a claim about a RELATIONSHIP between two files that both
+          # pass every other check in this repo on their own:
+          #
+          #   1. `everyday` + `large-print` compose — that pair is the documented
+          #      way to stack a layer onto a whole rice, and it is the example a
+          #      stranger copies first;
+          #   2. `everyday` + `minimal` do not — "they share five options and
+          #      disagree about four", a sentence with NUMBERS in it that nothing
+          #      was keeping true;
+          #   3. overlap is not collision: restating a value a preset already
+          #      holds merges, and only a disagreement stops the build (which is
+          #      why the pair above shares five and stops on four, not five);
+          #   4. a list- or set-valued option never conflicts at all — those
+          #      definitions are COMBINED, silently, which is the failure mode
+          #      with no error message and therefore the one worth pinning most.
+          #
+          # The table is generated from `presetFiles`, so a fifth preset can't be
+          # added without its four new pairs appearing here and someone having to
+          # state what they do. That is the point: the failure this catches is a
+          # preset growing one field and quietly breaking the pair the README
+          # tells people to use — no error anywhere, just a stranger's first
+          # `extraModules` line refusing to build.
+          #
+          # Pure lib over the option surface, like `packs` — seconds, no darwin
+          # system, runs on Linux CI.
+          presetNames = builtins.attrNames presetFiles;
+          presetData = n: import presetFiles.${n};
+
+          # The option paths a rice actually defines. Stops at anything that is
+          # not a plain attrset, so a list-valued option (everyday's tour.steps)
+          # is ONE path rather than a walk into its elements, and an already
+          # -prioritised value (`mkForce`, which carries `_type`) stays a leaf.
+          defPaths =
+            prefix: v:
+            if builtins.isAttrs v && !(v ? _type) then
+              nixpkgs.lib.concatMap (n: defPaths (prefix ++ [ n ]) v.${n}) (builtins.attrNames v)
+            else
+              [ prefix ];
+          pathsOf = data: defPaths [ ] data;
+          # Rows read better without the prefix every path shares.
+          showPath =
+            p: nixpkgs.lib.concatStringsSep "." (if builtins.head p == "nebelhaus" then builtins.tail p else p);
+
+          composedConfig =
+            mods:
+            (nixpkgs.lib.evalModules {
+              specialArgs.lib = nixpkgs.lib;
+              modules = import ./modules/options-modules.nix ++ mods;
+            }).config;
+          # Per path rather than one deepSeq of the whole config: the failures ARE
+          # the answer, and a single boolean would say "it broke" without saying
+          # which option the two rices disagreed about.
+          stopsOn =
+            mods: paths:
+            map showPath (
+              builtins.filter (
+                p:
+                !(builtins.tryEval (
+                  let
+                    v = nixpkgs.lib.getAttrFromPath p (composedConfig mods);
+                  in
+                  builtins.deepSeq v v
+                )).success
+              ) (nixpkgs.lib.unique paths)
+            );
+          verdict =
+            stopped:
+            if stopped == [ ] then "composes" else "stops on ${builtins.concatStringsSep ", " stopped}";
+
+          presetPairRow =
+            a: b:
+            let
+              da = presetData a;
+              db = presetData b;
+              paths = pathsOf da ++ pathsOf db;
+              shared = builtins.filter (p: builtins.elem p (pathsOf db)) (pathsOf da);
+              # `disagree` compares the two FILES; `stops on` asks the module
+              # system. They match today only because every option two presets
+              # currently share holds a single value. The first time two presets
+              # both set a list — `tour.steps` — a row will read `disagree 1` and
+              # stop on nothing, because those definitions merge instead of
+              # colliding. That divergence is the point of rule 4 above, not a
+              # bug in this table.
+              disagree = builtins.filter (
+                p: nixpkgs.lib.getAttrFromPath p da != nixpkgs.lib.getAttrFromPath p db
+              ) shared;
+            in
+            "[ ${a} ${b} ] overlap ${toString (builtins.length shared)}"
+            + " disagree ${toString (builtins.length disagree)}"
+            + " ${verdict (stopsOn [ da db ] paths)}";
+          presetPairRows = nixpkgs.lib.concatMap (
+            a: map (b: presetPairRow a b) (builtins.filter (b: a < b) presetNames)
+          ) presetNames;
+
+          # The consumer half. The option under test is DERIVED from `full` rather
+          # than named here, so this can never quietly stop testing a restatement
+          # because a preset dropped the field it was written against — and the
+          # row records which option it used. `firstOr` is what makes that safe to
+          # derive: a filter that comes back empty means the rice this row was
+          # written against changed shape, and the check should say so rather than
+          # die on `head: empty list`.
+          firstOr =
+            what: xs:
+            if xs == [ ] then
+              throw "preset-composition: no ${what}, so that row would test nothing — pick a new subject"
+            else
+              builtins.head xs;
+          hostSubject = firstOr "boolean option in presets/full.nix" (
+            builtins.filter (p: builtins.isBool (nixpkgs.lib.getAttrFromPath p (presetData "full"))) (
+              pathsOf (presetData "full")
+            )
+          );
+          hostHeld = nixpkgs.lib.getAttrFromPath hostSubject (presetData "full");
+          hostSays = v: nixpkgs.lib.setAttrByPath hostSubject v;
+          # The one option `everyday` and `minimal` both set to the same value —
+          # the single thing those two rices are NOT arguing about.
+          agreedSubject = firstOr "option everyday and minimal agree on" (
+            builtins.filter (
+              p:
+              builtins.elem p (pathsOf (presetData "minimal"))
+              &&
+                nixpkgs.lib.getAttrFromPath p (presetData "everyday")
+                == nixpkgs.lib.getAttrFromPath p (presetData "minimal")
+            ) (pathsOf (presetData "everyday"))
+          );
+          hostRows = [
+            "a host restating full's ${showPath hostSubject} ${
+              verdict (stopsOn [ (presetData "full") (hostSays hostHeld) ] [ hostSubject ])
+            }"
+            "a host contradicting full's ${showPath hostSubject} ${
+              verdict (
+                stopsOn
+                  [
+                    (presetData "full")
+                    (hostSays (!hostHeld))
+                  ]
+                  [ hostSubject ]
+              )
+            }"
+            "the same, with lib.mkForce ${
+              verdict (
+                stopsOn
+                  [
+                    (presetData "full")
+                    (hostSays (nixpkgs.lib.mkForce (!hostHeld)))
+                  ]
+                  [ hostSubject ]
+              )
+            }, host wins (${showPath hostSubject} = ${
+              nixpkgs.lib.boolToString (
+                nixpkgs.lib.getAttrFromPath hostSubject (composedConfig [
+                  (presetData "full")
+                  (hostSays (nixpkgs.lib.mkForce (!hostHeld)))
+                ])
+              )
+            })"
+            # rice#222 found that a plain host assignment settles a pack-vs-pack
+            # collision, because both packs sit at mkDefault and a normal
+            # definition outranks them. Between two PRESETS the same line is a
+            # THIRD normal definition and the build still stops — on one option
+            # more than before, because the host has now joined an argument the
+            # two presets weren't having. The escape hatch does not transfer, and
+            # this is the row that says so. The subject is the option those two
+            # presets AGREE on, derived rather than named, so the row can't
+            # degrade into "the host contradicted something already broken".
+            "[ everyday minimal ] plus a plain host contradicting the ${showPath agreedSubject} they agree on ${
+              verdict (
+                stopsOn [
+                  (presetData "everyday")
+                  (presetData "minimal")
+                  (nixpkgs.lib.setAttrByPath agreedSubject (
+                    !(nixpkgs.lib.getAttrFromPath agreedSubject (presetData "everyday"))
+                  ))
+                ] (pathsOf (presetData "everyday") ++ pathsOf (presetData "minimal"))
+              )
+            }"
+          ];
+
+          # And the quiet half: no error, no warning, two rices' definitions
+          # combined into a machine neither of them describes. `tour.steps` is
+          # §5.13's whole community-tour mechanism, so this is the one that would
+          # actually reach a stranger.
+          riceTour = hint: {
+            nebelhaus.tour.steps = [
+              {
+                inherit hint;
+                detect = "palette";
+              }
+            ];
+          };
+          riceApp = id: {
+            nebelhaus.roster.${id} = {
+              name = id;
+              cask = id;
+            };
+          };
+          mergeRows = [
+            "two rices, one tour step each: ${
+              builtins.concatStringsSep ", " (
+                map (s: s.hint)
+                  (composedConfig [
+                    (riceTour "A")
+                    (riceTour "B")
+                  ]).nebelhaus.tour.steps
+              )
+            } (merged, no error)"
+            "two rices, one app each: ${
+              builtins.concatStringsSep ", " (
+                builtins.attrNames
+                  (composedConfig [
+                    (riceApp "obsidian")
+                    (riceApp "zotero")
+                  ]).nebelhaus.roster
+              )
+            } (merged, no error)"
+          ];
+
+          presetCompositionTable = builtins.concatStringsSep "\n" (presetPairRows ++ hostRows ++ mergeRows);
+          # Pairs first, in `attrNames` order, so a new preset's rows can't be
+          # added somewhere that hides them.
+          expectedPresetCompositionTable = ''
+            [ everyday full ] overlap 5 disagree 2 stops on developer.enable, prowl.enable
+            [ everyday large-print ] overlap 0 disagree 0 composes
+            [ everyday minimal ] overlap 5 disagree 4 stops on developer.enable, pounce.enable, sill.enable, tour.enable
+            [ full large-print ] overlap 0 disagree 0 composes
+            [ full minimal ] overlap 5 disagree 4 stops on pounce.enable, prowl.enable, sill.enable, tour.enable
+            [ large-print minimal ] overlap 0 disagree 0 composes
+            a host restating full's developer.enable composes
+            a host contradicting full's developer.enable stops on developer.enable
+            the same, with lib.mkForce composes, host wins (developer.enable = false)
+            [ everyday minimal ] plus a plain host contradicting the prowl.enable they agree on stops on developer.enable, pounce.enable, prowl.enable, sill.enable, tour.enable
+            two rices, one tour step each: B, A (merged, no error)
+            two rices, one app each: obsidian, zotero (merged, no error)
+          '';
+
           # ---- theme-variants -------------------------------------------------
           # modules/lib/nebelung.nix turns nebelhaus.theme.{flavor,contrast} into a
           # subdirectory of the nebelung themes package and a palette-variant name.
@@ -793,6 +1034,12 @@
               FAILURES
               exit 1''
             }
+            touch $out
+          '';
+
+          preset-composition = pkgs.runCommand "nebelhaus-preset-composition-ok" { } ''
+            diff -u ${pkgs.writeText "expected" expectedPresetCompositionTable} \
+                    ${pkgs.writeText "actual" (presetCompositionTable + "\n")}
             touch $out
           '';
 
