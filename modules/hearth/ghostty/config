@@ -121,12 +121,13 @@ keybind = cmd+shift+a=unbind
 keybind = cmd+c=copy_to_clipboard
 # cmd+l → zellij "Super l": open Pounce Links command for the focused pane.
 keybind = cmd+l=unbind
-# cmd+r → nothing, still deliberately. It used to be released to zellij's
-# "Super r" session-reload chord; that chord is gone (a rebuild's config.kdl now
-# hot-reloads into the running server — see hearth's zellijLiveConfig), and
-# nothing needs the key. Left unbound rather than restored to a Ghostty default:
-# ⌘R in a terminal means "reload" to muscle memory, and Ghostty's own binding for
-# it would act on the surface zellij is driving.
+# cmd+r → still released to the program (`unbind` is passthrough, not `ignore`),
+# but nothing catches it any more. It used to reach zellij's "Super r"
+# session-reload chord; that chord is gone, because a rebuild's config.kdl now
+# hot-reloads into the running server (hearth's zellijLiveConfig). Kept as an
+# explicit unbind rather than handed back to Ghostty's default: ⌘R reads as
+# "reload" to muscle memory, and a Ghostty-level binding would act on the
+# surface zellij is driving. Same spelling and same reasoning as cmd+d below.
 keybind = cmd+r=unbind
 # cmd+d / cmd+shift+d → nothing at all, deliberately. Ghostty's defaults here
 # are new_split:right and new_split:down — GHOSTTY splits, invisible to zellij:

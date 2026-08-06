@@ -1575,11 +1575,15 @@ in
       # happens. That single stat is the whole reason a rebuild used to mean
       # `zellij delete-all-sessions` (and the reason zreload existed).
       #
-      # Measured on 0.44.3 against a live session, three ways: repointing the
-      # symlink at a file with a fresh mtime reloaded in ~1s; repointing between
-      # two files with identical epoch mtimes never fired at all; and `touch`ing
-      # one file — same path, same bytes, mtime the only thing that moved —
-      # reloaded in <1s.
+      # Measured on 0.44.3 against a live session, four ways. Diagnosis:
+      # repointing the symlink at a file with a fresh mtime reloaded in ~1s;
+      # repointing between two files with identical epoch mtimes never fired at
+      # all; and `touch`ing one file — same path, same bytes, mtime the only
+      # thing that moved — reloaded in <1s. Then the shipped mechanism itself:
+      # four consecutive install+rename cycles against one live session all
+      # reloaded, in 1-2s each. That last one matters because rename gives the
+      # path a NEW INODE every time — the watcher is keyed on the path and
+      # re-arms, so this doesn't silently work once and then stop.
       #
       # `install` writes a fresh regular file with the current mtime, so every
       # activation looks new. Mode 0444 keeps the read-only semantics the store
@@ -1588,15 +1592,30 @@ in
       # rename() needs write on the DIRECTORY, not on the 0444 file it replaces.
       # entryAfter linkGeneration: home-manager removes the symlink it used to
       # manage here during that step, so we must land after it, not before.
-      #
-      # Rollback is safe — `home-manager.backupFileExtension = "backup"` (see
-      # flake.nix) means an older generation that still wants to link this path
-      # moves our real file aside rather than refusing to activate.
+      # Absolute /bin and /usr/bin paths throughout — activation runs with a bare
+      # PATH (same reason the plugin-permission seed above spells out
+      # /usr/bin/awk).
       home.activation.zellijLiveConfig = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-        run mkdir -p "$HOME/.config/zellij"
-        run rm -f "$HOME/.config/zellij/config.kdl.new"
-        run install -m 0444 ${zellijConfigFile} "$HOME/.config/zellij/config.kdl.new"
-        run mv -f "$HOME/.config/zellij/config.kdl.new" "$HOME/.config/zellij/config.kdl"
+        run /bin/mkdir -p "$HOME/.config/zellij"
+        zcfg="$HOME/.config/zellij/config.kdl"
+        # Rewrite only when it would change something: the path is still
+        # home-manager's symlink (the migration case, and the one a plain content
+        # compare would wrongly skip), or it's missing, or the bytes actually
+        # moved. Without this every no-op `haus rebuild` would hand the running
+        # server a pointless reload.
+        if [ -L "$zcfg" ] || [ ! -e "$zcfg" ] || ! /usr/bin/cmp -s ${zellijConfigFile} "$zcfg"; then
+          run /bin/rm -f "$zcfg.new"
+          run /usr/bin/install -m 0444 ${zellijConfigFile} "$zcfg.new"
+          run /bin/mv -f "$zcfg.new" "$zcfg"
+        fi
+        # Rollback safety. `home-manager.backupFileExtension = "backup"` (see
+        # flake.nix) means an older generation that still wants to LINK this path
+        # moves our real file to config.kdl.backup rather than refusing — good,
+        # but only once: check-link-targets aborts activation outright if that
+        # backup already exists, so a rollback → rebuild → rollback sequence would
+        # fail on the second one. Clear it here; the file is always regenerable
+        # from the store, so there is nothing to lose.
+        run /bin/rm -f "$zcfg.backup"
       '';
 
       # zellij grants plugin permissions through an interactive (y/n) prompt in
