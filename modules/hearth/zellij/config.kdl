@@ -131,6 +131,31 @@ keybinds {
         //            ghostty/config unbinds cmd+shift+p (its command palette).
         bind "Super Shift p" { Run "sh" "-c" "ZJ_STAY=1 exec \"$SHELL\""; }
 
+        // Super w — Close the focused pane, without unlocking into pane mode
+        //            first. The missing counterpart to Super p: until now every
+        //            way out of a pane was either the running program's
+        //            business (^C, ^D) or a two-step trip through a submode, so
+        //            a pane wrapping an agent or a wedged process had no
+        //            one-chord exit at all.
+        //
+        //            CloseFocus descends on its own: on a tab's LAST pane it
+        //            closes the tab too, and on the session's last pane it ends
+        //            the session. That cascade is why there's no separate
+        //            close-tab bind — ⌘W already means "close this thing" at
+        //            whatever level "this thing" currently is. (A dedicated
+        //            Super Shift w → CloseTab, for killing a multi-pane tab in
+        //            one go, is the obvious next step if the cascade ever feels
+        //            like too much spamming.)
+        //
+        //            Reaches zellij because ghostty/config unbinds cmd+w —
+        //            which is the other half of this bind's value: ghostty's
+        //            default there is close_surface, and with
+        //            confirm-close-surface = false a stray ⌘W silently took the
+        //            whole window (and its zellij client) with it. ⇧⌘W is left
+        //            to ghostty as close_window on purpose, so "close the
+        //            actual window" keeps a key.
+        bind "Super w" { CloseFocus; }
+
         // Super l — Links: open Pounce Links command for the focused pane's
         //            transcript/scrollback.
         bind "Super l" {

@@ -129,6 +129,14 @@ keybind = cmd+l=unbind
 # "reload" to muscle memory, and a Ghostty-level binding would act on the
 # surface zellij is driving. Same spelling and same reasoning as cmd+d below.
 keybind = cmd+r=unbind
+# cmd+w → zellij "Super w": close the focused PANE. Ghostty's default here is
+# close_surface, and since confirm-close-surface = false above, that default made
+# ⌘W a silent one-key kill of the entire window — the zellij client with it —
+# from any pane, at any time. Handing the chord to the multiplexer both fixes
+# that and gives panes the one-chord exit they never had. cmd+shift+w is
+# deliberately NOT unbound: it stays ghostty's close_window, so the "close the
+# real window" action keeps a key of its own, one shift away from the pane one.
+keybind = cmd+w=unbind
 # cmd+d / cmd+shift+d → nothing at all, deliberately. Ghostty's defaults here
 # are new_split:right and new_split:down — GHOSTTY splits, invisible to zellij:
 # they nest a second terminal surface INSIDE the one zellij is driving, so the
