@@ -129,6 +129,21 @@ vis() {
     fail "the link's closing half did not survive the tint"
 }
 
+@test "the child-PR cluster rides the tail group, not the head of row 1" {
+  # It used to be pinned to the far LEFT, which pushed this pane's own lead glyph
+  # and worktree name rightwards by however many children happened to have PRs
+  # open. Row 1 must start with the pane's own identity and end with
+  # "<child PRs>  <chips>"; assert the ORDER on the stripped line, so a future
+  # segment added to the tail can't quietly put the cluster back in front.
+  run -0 render claude-opus-5
+  local bare; bare=$(printf '%s' "${lines[0]}" |
+    sed 's/\x1b]8;;[^\\]*\x1b\\//g; s/\x1b\[[0-9;]*m//g')
+  [[ "$bare" == "⏏ joyful-pond"* ]] ||
+    fail "row 1 no longer leads with its own status+name: $bare"
+  [[ "$bare" == *"41  42% \$1.23"* ]] ||
+    fail "the cluster is not sitting just left of the chips: $bare"
+}
+
 @test "an untinted row keeps its old ragged-right shape" {
   # The tint must be strictly additive: on any other model rows stay unpadded,
   # which is exactly what they were before emit() existed.
