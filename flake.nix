@@ -1004,6 +1004,188 @@
             zellij pinned
             zen moves
           '';
+
+          # ---- scale-reach ----------------------------------------------------
+          # The same treatment as accent-reach, for the other fan-out option —
+          # and it needed one word the accent vocabulary doesn't have.
+          #
+          # `nebelhaus.ui.scale` promises three different things, all of which
+          # fail silently:
+          #
+          #   1. it REACHES a specific set of surfaces (terminal type, the
+          #      palette, the bar's type, Dock tiles, prowl's gaps, Finder's
+          #      sidebar). Drop one of those wires in a refactor and nothing
+          #      errors — the surface just stops growing with the others, which
+          #      is invisible to anyone not running at a scale;
+          #   2. it does NOT reach everything else, and that boundary moves as
+          #      quietly as the first one;
+          #   3. two of the surfaces STOP. The bar's type rises to 1.25x and
+          #      holds, because 28pt pills have to stay inside a 32pt menu-bar
+          #      band that belongs to macOS (../lib/bar.nix), and pounce clamps
+          #      to its own 0.8-2.0 so `ui.scale = 2.5` yields a 2.0 palette
+          #      rather than an eval error.
+          #
+          # Point 3 is why this can't reuse accent-reach's moves/pinned/PARTIAL:
+          # a ceiling is neither, and reads as PARTIAL under that vocabulary
+          # while being the deliberate answer. So there are FOUR scales here —
+          # 1.0, 1.4 (large-print's), and two past every ceiling — and a
+          # `ceiling` verdict for a value that changes and then stops. A ceiling
+          # that regressed into a plain multiplier, or a multiplier that grew a
+          # ceiling, both fail.
+          #
+          # The numeric rows print the generated NUMBER rather than a verdict,
+          # because a golden table should print its own subject (the same lesson
+          # preset-composition learned): `19 27 48 57` is checkable by eye and a
+          # word like "moves" is not. The file rows are derived from the whole
+          # home-file set with the pinned ones dropped, so a surface that STARTS
+          # following the scale shows up as a new row rather than going unnoticed
+          # in a curated list.
+          scaleAt =
+            scale:
+            let
+              cfg =
+                (mkNebelhaus {
+                  inherit system;
+                  username = "you";
+                  hostname = "example";
+                  extraModules = [ { nebelhaus.ui.scale = scale; } ];
+                }).config;
+              hm = cfg.home-manager.users.you;
+              text =
+                target:
+                let
+                  entry = hm.home.file.${target};
+                in
+                builtins.unsafeDiscardStringContext (
+                  if entry.text != null then entry.text else toString entry.source
+                );
+              # The capture groups of the first line matching `pat`, joined with
+              # "/" — so the prowl rows can carry both monitors' gaps in one
+              # cell. Throws rather than emitting an empty cell if nothing
+              # matches: a row whose subject vanished would otherwise keep
+              # passing while measuring nothing.
+              capture =
+                target: pat:
+                let
+                  hits = builtins.filter (m: m != null) (
+                    map (builtins.match pat) (nixpkgs.lib.splitString "\n" (text target))
+                  );
+                in
+                if hits == [ ] then
+                  throw "scale-reach: nothing in ${target} matches ${pat} — that row has no subject"
+                else
+                  builtins.concatStringsSep "/" (builtins.head hits);
+              ghostty = "Library/Application Support/com.mitchellh.ghostty/config";
+              aerospace = ".config/aerospace/aerospace.toml";
+            in
+            {
+              files = builtins.mapAttrs (target: _: text target) hm.home.file;
+              numbers = {
+                # The ONE option in the whole surface whose unit is points —
+                # `ui.scale` and `pounce.scale` are multipliers, and the other
+                # numeric leaves are ids, counts and a percentage.
+                "opt fonts.mono.size" = toString cfg.nebelhaus.fonts.mono.size;
+                "opt pounce.scale" = toString cfg.nebelhaus.pounce.scale;
+                # Deliberately unset at 1.0: a Dock sized by hand is left alone
+                # unless the rice was actually asked to scale (den/default.nix).
+                "sys dock.tilesize" =
+                  if cfg.system.defaults.dock.tilesize == null then
+                    "unset"
+                  else
+                    toString cfg.system.defaults.dock.tilesize;
+                "sys finder.sidebar" = toString cfg.system.defaults.NSGlobalDomain.NSTableViewDefaultSizeMode;
+                "gen ghostty font-size" = capture ghostty ".*font-size = ([0-9]+).*";
+                "gen pounce scale" = capture ".config/pounce/config.json" ".*\"scale\":([0-9.]+).*";
+                # Bracket classes rather than backslashes: these are POSIX
+                # extended regexes, where an escaped brace is not a literal.
+                "gen prowl inner.horizontal" =
+                  capture aerospace ".*inner[.]horizontal = [[][{] monitor[.][^=]+= ([0-9]+) [}], ([0-9]+)[]].*";
+                # The bar's edge, which carries bar.room on top of the gap — the
+                # separation the pill couldn't take vertically once its type hit
+                # the ceiling.
+                "gen prowl outer.top" =
+                  capture aerospace ".*outer[.]top = [[][{] monitor[.][^=]+= ([0-9]+) [}], ([0-9]+)[]].*";
+                "gen sill FS_ICON" = capture ".config/sketchybar/sizes.sh" ".*FS_ICON=\"([0-9.]+)\".*";
+              };
+            };
+          # Four full evaluations, bound once — the rows are cheap, the systems
+          # are not. 2.5 and 3.0 are both past the bar's 1.25 and pounce's 2.0,
+          # which is what makes a ceiling distinguishable from a multiplier.
+          scaleRuns = map scaleAt [
+            1.0
+            1.4
+            2.5
+            3.0
+          ];
+          scaleVerdict =
+            values:
+            let
+              squashed = builtins.foldl' (
+                acc: v: if acc != [ ] && nixpkgs.lib.last acc == v then acc else acc ++ [ v ]
+              ) [ ] values;
+            in
+            if builtins.length squashed == 1 then
+              "pinned"
+            else if squashed == values && nixpkgs.lib.unique values == values then
+              "moves"
+            # Changed, then held: it moved on the FIRST step, no value ever comes
+            # back after being left, and the top two scales agree. The first-step
+            # clause matters — `a a b b` would otherwise read as a tidy ceiling
+            # while meaning the surface is dead across 1.0 -> 1.4, which is the
+            # only stretch anyone actually runs (large-print IS 1.4). Anything
+            # that is neither a clean multiplier nor a clean ceiling is PARTIAL
+            # and wants a human.
+            else if
+              squashed == nixpkgs.lib.unique values
+              && builtins.head values != builtins.elemAt values 1
+              && nixpkgs.lib.last values == builtins.elemAt values 2
+            then
+              "ceiling"
+            else
+              "PARTIAL";
+          scaleCell = run: target: run.files.${target} or "(absent)";
+          # The UNION of every run's targets, not the 1.0 run's — a file written
+          # only above 1.0 (`mkIf (ui.scale != 1.0)`, which is exactly how
+          # den writes the Dock tile) exists in no other run's attrNames, so
+          # taking the first run's would leave it out of the table entirely and
+          # this check would go green on the surface it was built to notice.
+          # Merging the attrsets keeps the names sorted; `scaleCell`'s fallback
+          # covers the ragged lookups in both directions.
+          scaleTargets = builtins.attrNames (builtins.foldl' (acc: run: acc // run.files) { } scaleRuns);
+          scaleFileRows = builtins.filter (r: r != null) (
+            map (
+              target:
+              let
+                verdict = scaleVerdict (map (run: scaleCell run target) scaleRuns);
+              in
+              if verdict == "pinned" then null else "file ${target} ${verdict}"
+            ) scaleTargets
+          );
+          scaleNumberRows = map (
+            name: "${name} ${builtins.concatStringsSep " " (map (run: run.numbers.${name}) scaleRuns)}"
+          ) (builtins.attrNames (builtins.head scaleRuns).numbers);
+          scaleTable = builtins.concatStringsSep "\n" (scaleNumberRows ++ scaleFileRows);
+          # Numbers first, then every home file that isn't byte-identical across
+          # all four scales. Both halves self-sort (`attrNames`), so nothing can
+          # be added in a spot that hides it.
+          expectedScaleTable = ''
+            gen ghostty font-size 19 27 48 57
+            gen pounce scale 1.0 1.4 2.0 2.0
+            gen prowl inner.horizontal 10/20 14/28 25/50 30/60
+            gen prowl outer.top 10/40 24/66 35/110 40/130
+            gen sill FS_ICON 17.0 21.0 21.0 21.0
+            opt fonts.mono.size 19 27 48 57
+            opt pounce.scale 1.000000 1.400000 2.000000 2.000000
+            sys dock.tilesize unset 67 120 144
+            sys finder.sidebar 1 3 3 3
+            file .claude/skills/nebelhaus/references/this-machine.md moves
+            file .config/aerospace/aerospace.toml moves
+            file .config/pounce/config.json ceiling
+            file .config/sketchybar/sizes.sh ceiling
+            file .config/sketchybar/tour_item.sh ceiling
+            file .config/sketchybar/workspaces.sh ceiling
+            file Library/Application Support/com.mitchellh.ghostty/config moves
+          '';
         in
         {
           data-only-surface = pkgs.runCommand "nebelhaus-data-only-surface-ok" { } ''
@@ -1062,6 +1244,12 @@
           accent-reach = pkgs.runCommand "nebelhaus-accent-reach-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedAccentTable}                     ${pkgs.writeText "actual" (accentTable + "
 ")}
+            touch $out
+          '';
+
+          scale-reach = pkgs.runCommand "nebelhaus-scale-reach-ok" { } ''
+            diff -u ${pkgs.writeText "expected" expectedScaleTable} \
+                    ${pkgs.writeText "actual" (scaleTable + "\n")}
             touch $out
           '';
 
