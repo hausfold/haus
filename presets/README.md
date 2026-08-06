@@ -71,6 +71,14 @@ never conflicts. Those definitions are combined, with no error and no warning, s
 two rices that each author a first-run tour give you a tour with both, in an
 order neither of them chose.
 
+Every claim in this section is pinned by `nix flake check`'s
+**`preset-composition`**, which composes all six pairs of the presets below —
+plus a host that agrees, one that disagrees, one that says `mkForce`, one that
+joins an argument two presets are already having, and two rices that each add a
+tour step and an app — and diffs the result against a golden table. The counts in the paragraph above are in that table. If editing one of
+these files breaks a pair the format advertises as stackable, that check is what
+tells you, rather than a stranger's first `extraModules` line.
+
 **Packs are the deliberate exception.** A [pack](../packs/README.md) reaches you
 through `nebelhaus.lib.pack`, which lowers every field it sets to `mkDefault`, so
 your host beats it with a plain assignment and no `mkForce`. A preset isn't

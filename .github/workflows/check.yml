@@ -21,12 +21,16 @@ jobs:
       # aarch64 only: nixpkgs 26.11 dropped x86_64-darwin, so there's no Intel
       # example left to eval (see flake.nix `allSystems`).
       - run: nix eval .#darwinConfigurations.example.system.drvPath
-      # The pure-lib checks (theme-variants, keymap) are declared for Linux too
-      # precisely so they can run HERE — they pin the flavor/contrast → themes-subdir
-      # table and the keys.* → chord/glyph table as golden files, both of which mirror
-      # a rule that lives in another repo or in a generated dotfile, where drift is
-      # silent. Without this line they were declared and never executed. The
-      # darwin-only `presets` check is guarded, so this builds just those two.
+      # The pure-lib checks are declared for Linux too precisely so they can run
+      # HERE — five of them now: theme-variants and keymap pin the
+      # flavor/contrast → themes-subdir and keys.* → chord/glyph tables,
+      # data-only-surface fails on a package-typed option a data-only rice
+      # cannot set, and packs / preset-composition pin what happens when two
+      # rices MEET (a pack against a host, every pair of the presets). All five
+      # mirror a rule that lives in another repo, in a generated dotfile, or in a
+      # README — where drift is silent. Without this line they were declared and
+      # never executed. The darwin-only checks (presets, accent-reach) need a
+      # real system, so they stay guarded and don't run here.
       - run: nix flake check
       # The annotated host template (hosts/<host>/options.nix) ships every
       # option's DEFAULT as a line you can uncomment. host-template.nix's own
