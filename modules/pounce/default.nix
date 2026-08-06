@@ -472,6 +472,13 @@ let
     "ctrl"
     "shift"
   ];
+  # Pounce accepts all three names for the one physical modifier-only key.
+  # Canonicalize them before collision checks so `fn` + `globe` cannot pass Nix
+  # evaluation and then fight over the same event tap at runtime.
+  keyAliases = {
+    function = "fn";
+    globe = "fn";
+  };
 
   # "cmd + shift + v" is ONE step; "opt+space e" is two. Whitespace separates
   # steps, so spacing around a "+" has to go first (pounce normalizes the same way).
@@ -490,7 +497,8 @@ let
     step:
     let
       parts = map (p: lib.toLower p) (lib.splitString "+" step);
-      key = lib.last parts;
+      rawKey = lib.last parts;
+      key = keyAliases.${rawKey} or rawKey;
       mods = map (m: modifierAliases.${m} or m) (lib.init parts);
     in
     {
