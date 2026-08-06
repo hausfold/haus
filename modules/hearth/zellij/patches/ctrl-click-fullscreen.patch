@@ -1,0 +1,51 @@
+--- a/zellij-server/src/tab/mouse_handler.rs
++++ b/zellij-server/src/tab/mouse_handler.rs
+@@ -169,6 +169,11 @@
+     FrameIntercepted {
+         pane_id: PaneId,
+     },
++    /// nebelhaus: ctrl+click inside a pane body toggles that pane fullscreen.
++    /// See `determine_mouse_action`.
++    ToggleFullscreen {
++        position: Position,
++    },
+     NoAction,
+ }
+ 
+@@ -792,6 +797,16 @@
+             },
+             MouseAction::FrameIntercepted { pane_id: _ } => {
+                 tab.set_force_render();
++                Ok(MouseEffect::state_changed())
++            },
++            // nebelhaus: focus first, so ctrl+clicking an UNfocused pane zooms
++            // the one under the pointer rather than the one that had focus.
++            // `state_changed` is what makes screen.rs re-render and re-report
++            // session state, which is exactly the bookkeeping the Super Enter
++            // path does after its own `toggle_active_pane_fullscreen`.
++            MouseAction::ToggleFullscreen { position } => {
++                Self::focus_pane_at(tab, &position, client_id).with_context(err_context)?;
++                tab.toggle_active_pane_fullscreen(client_id);
+                 Ok(MouseEffect::state_changed())
+             },
+             MouseAction::NoAction => Ok(MouseEffect::default()),
+@@ -1290,6 +1305,19 @@
+                         position: event.position,
+                     });
+                 }
++            } else {
++                // nebelhaus: ctrl+click anywhere in a pane's BODY zooms that
++                // pane, the same thing Super Enter does — but without leaving
++                // the pointer. Upstream reaches this branch with nothing to
++                // do: ctrl+left is claimed for frame drags (resize) and every
++                // body click falls through to the NoAction below, so this
++                // takes over a gesture that is currently inert rather than
++                // stealing one. Frame clicks are untouched above, and the
++                // click never reaches the running program either way, since
++                // this whole branch returns before the SendToTerminal arms.
++                return Ok(MouseAction::ToggleFullscreen {
++                    position: event.position,
++                });
+             }
+             return Ok(MouseAction::NoAction);
+         }

@@ -445,15 +445,39 @@ in
   # group_toggle/group_add/ungroup arms, mouse_handler.rs's hover arm). The
   # ctrl+wheel branch in mouse_handler.rs is gated on nothing at all.
   #
-  # Both patched at zellij-unwrapped, not zellij: the latter is a thin wrapper
-  # derivation with no source of its own. It rebuilds from source on every
-  # nixpkgs bump that moves zellij or its deps.
+  # The third patch adds ctrl+click-to-zoom: clicking anywhere in a pane's BODY
+  # with ctrl held toggles that pane fullscreen — the pointer-driven twin of
+  # Super Enter, for when the hand is already on the trackpad and reaching back
+  # to the keyboard is the slow part.
+  #
+  # It has to be a patch, and no config or plugin can substitute: zellij's
+  # keybind system is keyboard-only. Mouse buttons are not bindable in
+  # config.kdl at all (modifier+scroll isn't either — zellij-org/zellij#4838),
+  # and plugins get no mouse-input API, so a bind or a plugin would have
+  # nothing to hook.
+  #
+  # It is deliberately the smallest patch that can exist for this. Upstream
+  # already routes ctrl+left-press into its own branch of
+  # `determine_mouse_action` and, once it has ruled out a frame drag (the
+  # resize gesture), does NOTHING with it — every body click falls through to
+  # `MouseAction::NoAction`. So this fills an inert `else` rather than taking a
+  # gesture off anything: frame drags still resize, and the running program
+  # never saw the click either way, since that branch returns before any of the
+  # SendToTerminal arms. Three additive hunks — an enum variant, that `else`,
+  # and a match arm calling the same `toggle_active_pane_fullscreen` the
+  # keybind path calls — with no upstream line deleted, so a nixpkgs bump can
+  # only break it by rewriting mouse_handler.rs wholesale.
+  #
+  # All three patched at zellij-unwrapped, not zellij: the latter is a thin
+  # wrapper derivation with no source of its own. It rebuilds from source on
+  # every nixpkgs bump that moves zellij or its deps.
   nixpkgs.overlays = [
     (_final: prev: {
       zellij-unwrapped = prev.zellij-unwrapped.overrideAttrs (old: {
         patches = (old.patches or [ ]) ++ [
           ./zellij/patches/selection-autoscroll.patch
           ./zellij/patches/no-ctrl-scroll-resize.patch
+          ./zellij/patches/ctrl-click-fullscreen.patch
         ];
       });
     })

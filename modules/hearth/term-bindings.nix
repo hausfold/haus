@@ -178,6 +178,10 @@ rec {
           action = "Near-fullscreen chafa preview";
         }
         {
+          key = "⌃ Click pane";
+          action = "Zooms it fullscreen — ⌘ ⏎ without the reach";
+        }
+        {
           key = "Drag past edge";
           action = "Selection keeps autoscrolling";
         }

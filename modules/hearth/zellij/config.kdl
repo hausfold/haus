@@ -174,6 +174,14 @@ keybinds {
         //            other app on the machine. ⌘⏎ is the zoom key in every
         //            tiling WM worth the name (and prowl's own ⌥F is
         //            untouched), so the muscle memory already exists.
+        //
+        //            Ctrl+click inside any pane body does the same thing, for
+        //            when the hand is already on the trackpad. That one is NOT
+        //            bindable here — zellij's keybinds are keyboard-only and
+        //            plugins get no mouse API — so it lives in
+        //            ./patches/ctrl-click-fullscreen.patch. If it ever stops
+        //            working after a nixpkgs bump, that patch is where to look;
+        //            this bind is unaffected either way.
         bind "Super Enter" { ToggleFocusFullscreen; }
 
         // Super f       — Find in this pane.
