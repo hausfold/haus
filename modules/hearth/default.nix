@@ -441,13 +441,34 @@ in
   # pane, and every gesture below that bunched into 0.39–0.70 lines per event —
   # one flat crawl, indistinguishable, which is exactly what it felt like.
   #
-  # Patched at zellij-unwrapped, not zellij: the latter is a thin wrapper
+  # The second patch kills ctrl+scroll pane resize. Upstream turns one wheel
+  # notch with ctrl held into a resize of whatever pane the pointer happens to
+  # be over (`MouseAction::ResizeScrollUp/Down`, zellij-server tab/mouse_handler.rs)
+  # — an accidental gesture, not a chosen one, since ctrl is held for half the
+  # shortcuts a terminal app owns, and there is no undo for the layout it just
+  # reshaped. Ctrl+wheel now falls through to plain scroll; deliberate resizing
+  # is still the resize-mode keys and ctrl+drag on a pane frame.
+  #
+  # It has to be a patch. `mouse_scroll_resize false` — which lived in
+  # config.kdl from 2026-07-31 to 2026-08-03 — is not a zellij option and never
+  # was: it is absent from 0.44.3's source and binary, and zellij silently
+  # accepts unknown top-level keys (`zellij setup --check` reports "CONFIG FILE:
+  # Well defined" with it present), so it did nothing for the three days it was
+  # in the tree. `advanced_mouse_actions false` is a real option and is NOT the
+  # one either — it gates pane grouping and hover effects only (screen.rs's
+  # group_toggle/group_add/ungroup arms, mouse_handler.rs's hover arm). The
+  # ctrl+wheel branch in mouse_handler.rs is gated on nothing at all.
+  #
+  # Both patched at zellij-unwrapped, not zellij: the latter is a thin wrapper
   # derivation with no source of its own. It rebuilds from source on every
   # nixpkgs bump that moves zellij or its deps.
   nixpkgs.overlays = [
     (_final: prev: {
       zellij-unwrapped = prev.zellij-unwrapped.overrideAttrs (old: {
-        patches = (old.patches or [ ]) ++ [ ./zellij/patches/selection-autoscroll.patch ];
+        patches = (old.patches or [ ]) ++ [
+          ./zellij/patches/selection-autoscroll.patch
+          ./zellij/patches/no-ctrl-scroll-resize.patch
+        ];
       });
     })
   ];
