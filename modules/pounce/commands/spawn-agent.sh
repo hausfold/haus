@@ -35,6 +35,12 @@
 #        palette entry, "Spawn Agent with Screenshot")
 #   ⌥↵   your drafts
 #
+# ⌘↵ and ⌥↵ fire on an EMPTY box too, which is the point of both: opening your
+# drafts is what you do INSTEAD of typing, and a screenshot is often the subject
+# you are about to describe, so pointing at it first is the natural order. ⌘↵
+# with nothing typed captures and hands the box back with the shot attached;
+# only plain ↵ on an empty box means "never mind" and dismisses.
+#
 # ⌘↵ replaces the separate screenshot command. That command's own comment gave
 # the right reason it had to be separate: an "Attach screenshot" ROW in the
 # free-text picker is fuzzy-matched, so a task merely CONTAINING the word
@@ -200,7 +206,12 @@ image=""
 seed=""
 while :; do
   prompt_sel="$(ask "$seed")"
-  [ -z "$prompt_sel" ] && exit 0
+  # Dismissed. A screenshot captured on the way here belongs to a spawn that
+  # never happened — drop it rather than let the cache collect orphans.
+  if [ -z "$prompt_sel" ]; then
+    [ -n "$image" ] && rm -f "$image"
+    exit 0
+  fi
   action="$(action_of "$prompt_sel")"
   prompt="$(payload_of "$prompt_sel")"
 
@@ -222,9 +233,19 @@ while :; do
       # crosshair to keep in sync with the OS. Cancelling it is not cancelling
       # the spawn: you get the box back, text intact.
       mkdir -p "$SHOTS"
-      image="$SHOTS/screenshot-$(date +%Y%m%d-%H%M%S).png"
-      if ! /usr/sbin/screencapture -i "$image" || [ ! -s "$image" ]; then
-        rm -f "$image"; image=""; seed="$prompt"; continue
+      shot="$SHOTS/screenshot-$(date +%Y%m%d-%H%M%S).png"
+      if ! /usr/sbin/screencapture -i "$shot" || [ ! -s "$shot" ]; then
+        rm -f "$shot"; seed="$prompt"; continue
+      fi
+      # A second capture supersedes the first — only one image is ever attached,
+      # so the one it replaces has no way back and no reason to survive.
+      [ -n "$image" ] && rm -f "$image"
+      image="$shot"
+      # ⌘↵ on an EMPTY box is "point at the thing FIRST, then say what to do with
+      # it" — the natural order when the screenshot is the subject. Go back to
+      # the box holding the capture instead of spawning on an empty prompt.
+      if [ -z "$(printf '%s' "$prompt" | tr -d '[:space:]')" ]; then
+        seed="$prompt"; continue
       fi
       ;;
   esac
@@ -235,7 +256,10 @@ done
 # now that ⇧↵ can produce them, and `holt agent start` receives the prompt as a
 # single argv element, so a list survives as a list all the way into the client.
 prompt="$(printf '%s' "$prompt" | tr -d '\r' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
-[ -z "$prompt" ] && exit 0
+if [ -z "$prompt" ]; then
+  [ -n "$image" ] && rm -f "$image"
+  exit 0
+fi
 
 # ── name the worktree after the task ──────────────────────────────────────
 # The naming win: a branch called `bar-pill-flickers` instead of Claude's
