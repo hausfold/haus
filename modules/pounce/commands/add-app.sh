@@ -34,6 +34,7 @@ FLAKE_DIR="${NEBELHAUS_FLAKE:-${HAUS_CONSUMER:-$HOME/.config/nix}}"
 HOST="${HAUS_HOST:-@hostname@}"
 PACKAGES_DIR="$FLAKE_DIR/hosts/$HOST/packages"
 CHEATSHEET="$HOME/.config/pounce/cheatsheet.json"
+AEROSPACE_TOML="$HOME/.config/aerospace/aerospace.toml"
 BREW_INDEX="$HOME/.cache/nebelhaus/brew-index.tsv"
 BREW_API="$HOME/Library/Caches/Homebrew/api"
 FLOAT_TERM="$HOME/.config/zellij/float-term.sh"
@@ -51,6 +52,49 @@ file_slug() {
   printf '%s' "$1" \
     | tr '[:upper:]' '[:lower:]' \
     | sed 's/[^a-z0-9._-]/-/g; s/--*/-/g; s/^-//; s/-$//'
+}
+
+# ── which leader letters are already spoken for ───────────────────────────
+# EVERY key launch mode binds, not just the roster's. The generated
+# aerospace.toml's [mode.launch.binding] is the authority: roster launchers,
+# their ⇧throws, the fixed built-ins (v clipboard, e emoji, z reopen-last-app,
+# `,` settings, ` resort, - / = resize) and any nebelhaus.keys.leaderExtras all
+# land in that ONE table, which is exactly the set prowl asserts against.
+#
+# Reading only the cheatsheet's Launch Mode rows was the bug: the built-ins
+# render there as display glyphs ("v / e"), which never matched a bare-letter
+# comparison — so "v" looked free, got offered, and the roster entry then
+# collided with the clipboard binding at EVAL time (prowl's
+# rosterBuiltinCollisions assertion), failing the rebuild after the module was
+# already written.
+#
+# `shift-x` counts as taking `x`: picking that letter generates both a launcher
+# and a ⇧throw for it. The cheatsheet is still read as a second source so a
+# missing/unreadable toml can only ever under-offer, never mis-offer.
+launch_used_letters() {
+  {
+    awk '
+      /^\[mode\.launch\.binding\]/ { in_block = 1; next }
+      /^\[/                       { in_block = 0 }
+      in_block && index($0, "=") {
+        key = $0
+        sub(/=.*/, "", key)
+        gsub(/[[:space:]"'"'"']/, "", key)
+        if (substr(key, 1, 1) == "#") next
+        sub(/^shift-/, "", key)
+        if (key ~ /^[a-z]$/) print key
+      }
+    ' "$AEROSPACE_TOML" 2>/dev/null
+
+    # Split each cheatsheet key on non-letters and keep the single-letter
+    # tokens, so "v / e" yields v and e while a legend row like "⇧ [Letter]"
+    # yields the 6-letter word "letter" and is correctly ignored.
+    jq -r '.[] | select(.title | test("Launch Mode")) | .items[].key // empty' \
+      "$CHEATSHEET" 2>/dev/null \
+      | tr -c 'a-zA-Z' '\n' \
+      | tr '[:upper:]' '[:lower:]' \
+      | awk 'length($0) == 1'
+  } | sort -u
 }
 
 # ONE module shape, for every source and both lanes: a `nebelhaus.roster` entry.
@@ -445,9 +489,9 @@ bar_icon=""
 
 if [ "$lane" = "Add to roster" ]; then
   # ── pick a free leader letter ───────────────────────────────────────────
-  # The live cheatsheet already reflects hand-written and pounce-generated Nix
+  # The live config already reflects hand-written and pounce-generated Nix
   # entries alike, including a module created by an earlier invocation.
-  used="$(jq -r '.[] | select(.title | test("Launch Mode")) | .items[].key' "$CHEATSHEET" 2>/dev/null)"
+  used="$(launch_used_letters)"
   key_list=""
   for L in a b c d e f g h i j k l m n o p q r s t u v w x y z; do
     printf '%s\n' "$used" | grep -qx "$L" && continue
