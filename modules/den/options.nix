@@ -95,22 +95,32 @@ in
       };
 
     # ---- fonts ----
-    # Honest scope: this is the TERMINAL font — Ghostty's family and size, and
-    # the font package the rice installs for it. The bar (sill) deliberately
-    # keeps its own Hack Nerd Font at its own tuned sizes; unifying the two is a
-    # separate change, since the bar's pill geometry is built around them.
+    # Honest scope: this is the rice's type FAMILY — Ghostty's, and (since the
+    # bar stopped hardcoding one of its own) sill's. `size` is the terminal's
+    # alone: the bar's sizes come from ui.scale against the menu-bar band's
+    # ceiling, because its pill geometry is built around them (../lib/bar.nix).
     fonts.mono = {
       name = lib.mkOption {
         type = lib.types.str;
         default = "JetBrainsMono Nerd Font Mono";
         example = "Berkeley Mono";
         description = ''
-          The terminal font family, as Ghostty's `font-family` names it.
+          The rice's type family, as Ghostty's `font-family` names it.
+
+          It reaches the terminal AND the menu bar: every pill label and icon
+          sill draws is in this family, at sizes of its own (see
+          `nebelhaus.ui.scale`). The workspace-logo glyphs are the one exception
+          — those are sketchybar-app-font, which sill installs itself.
 
           This should be a NERD FONT patched build: starship's prompt, lsd's
-          icons, and yazi all draw with glyphs a stock font renders as tofu.
-          If you change this, set `package` too — the rice can only install a
-          font it's been given.
+          icons, yazi previews and half the bar's icons draw with glyphs a stock
+          font renders as tofu. If you change this, set `package` (or
+          `packageName`) too — the rice can only install a font it's been given,
+          and it warns when you name a family without one.
+
+          The name is taken verbatim, so a "… Nerd Font Mono" family is drawn in
+          the bar as well: the bar mixes icon glyphs into its labels, which is
+          the same reason the terminal wants a patched font.
         '';
       };
       size = lib.mkOption {

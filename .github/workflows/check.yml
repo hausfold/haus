@@ -30,8 +30,9 @@ jobs:
       # mirror a rule that lives in another repo, in a generated dotfile, or in a
       # README — where drift is silent. Without this line they were declared and
       # never executed. The darwin-only checks (presets, accent-reach,
-      # scale-reach) fingerprint a real evaluated system, so they stay guarded
-      # and don't run here — they fire on a Mac, by hand, or not at all.
+      # scale-reach, font-reach) fingerprint a real evaluated system, so they
+      # stay guarded and don't run here — they fire on a Mac, by hand, or not at
+      # all.
       - run: nix flake check
       # The annotated host template (hosts/<host>/options.nix) ships every
       # option's DEFAULT as a line you can uncomment. host-template.nix's own

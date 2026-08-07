@@ -61,6 +61,23 @@ let
   };
   inherit (bar) sizes;
 
+  # ---- the bar's type FAMILY, from the same option as the terminal's ----------
+  # Everything in the bar except the workspace logos is drawn in this. It used to
+  # be the literal "Hack Nerd Font", written into the rc, four plugins and six
+  # generated blocks — so a rice that changed nebelhaus.fonts.mono.name got a
+  # machine with two type families and no way to say otherwise, which is a
+  # promise the option never made and a limit nothing wrote down.
+  #
+  # It is the MONO family on purpose: the bar draws Nerd Font icon glyphs
+  # (nf-md-*) in the same runs as its labels, so it needs the same patched font
+  # the terminal does, and `fonts.mono` is where a rice names one (with the
+  # package, and the warning when the two disagree). Taken verbatim rather than
+  # transformed — a "Nerd Font Mono" family name is what the option holds, and
+  # deriving the propositional variant by trimming " Mono" would silently
+  # invent a family for anything not following Nerd Font's naming (Berkeley
+  # Mono → "Berkeley", which does not exist).
+  barFont = config.nebelhaus.fonts.mono.name;
+
   bashArray = xs: lib.concatMapStringsSep " " (x: ''"${x}"'') xs;
   appWorkspaces = lib.filter (w: w != null) (map (a: a.workspace) apps);
   iconFont =
@@ -68,7 +85,7 @@ let
     if lib.hasPrefix ":" icon then
       "sketchybar-app-font:Regular:${sizes.appIcon}"
     else
-      "Hack Nerd Font:Bold:${sizes.icon}";
+      "${barFont}:Bold:${sizes.icon}";
   wsIconCases = lib.concatMapStrings (
     a:
     lib.optionalString (a.workspace != null && a.barIcon != null)
@@ -125,7 +142,7 @@ let
     # letter in the bar's Nerd Font; app-workspaces override to their logo glyph.
     ws_icon() {
       ICON="$1"
-      IFONT="Hack Nerd Font:Bold:${sizes.icon}"
+      IFONT="${barFont}:Bold:${sizes.icon}"
       case "$1" in
     ${wsIconCases}  esac
     }
@@ -169,7 +186,7 @@ let
               icon.padding_left=10 \
               icon.padding_right=4 \
               label.padding_right=10 \
-              label.font="Hack Nerd Font:Bold:${sizes.label}" \
+              label.font="${barFont}:Bold:${sizes.label}" \
               popup.background.border_width=2 \
               popup.background.corner_radius=10 \
               popup.background.border_color=$SURFACE0 \
@@ -199,7 +216,7 @@ let
               icon.padding_left=10 \
               icon.padding_right=4 \
               label.padding_right=10 \
-              label.font="Hack Nerd Font:Bold:${sizes.label}" \
+              label.font="${barFont}:Bold:${sizes.label}" \
               popup.background.border_width=2 \
               popup.background.corner_radius=10 \
               popup.background.border_color=$SURFACE0 \
@@ -291,7 +308,7 @@ let
               icon.padding_left=10 \
               icon.padding_right=10 \
               label.padding_right=10 \
-              label.font="Hack Nerd Font:Bold:${sizes.small}" \
+              label.font="${barFont}:Bold:${sizes.small}" \
               background.color=$SURFACE0 \
               popup.background.border_width=2 \
               popup.background.corner_radius=10 \
@@ -455,7 +472,7 @@ let
             icon.padding_left=10 \
             icon.padding_right=4 \
             label.padding_right=10 \
-            label.font="Hack Nerd Font:Bold:${sizes.small}" \
+            label.font="${barFont}:Bold:${sizes.small}" \
             background.color=$MANTLE \
             click_script="$HOME/.config/sketchybar/plugins/tour.sh click"
     sketchybar --move tour after clock
@@ -576,16 +593,17 @@ lib.mkIf config.nebelhaus.sill.enable {
   // lib.optionalAttrs config.nebelhaus.sill.items.calendar {
     ical-buddy.brew = lib.mkDefault "ical-buddy";
   };
-  # sketchybar-app-font draws the workspace-pill logos. Hack Nerd Font draws
-  # EVERYTHING ELSE in the bar — sketchybarrc names "Hack Nerd Font" for every
-  # icon and label — and nothing installed it: den ships JetBrains Mono, this
-  # line shipped only the app font. A machine that happened to have Hack from
-  # an earlier hand-install looked fine, which is why it went unnoticed; a fresh
-  # one drew tofu across the whole bar. Declare what we name.
-  fonts.packages = [
-    pkgs.sketchybar-app-font
-    pkgs.nerd-fonts.hack
-  ];
+  # sketchybar-app-font draws the workspace-pill logos, and nothing else does —
+  # so this is the one font sill still installs for itself. Everything else in
+  # the bar is drawn in `barFont`, i.e. nebelhaus.fonts.mono.name, whose package
+  # den installs (and warns about when a rice names a family it wasn't given).
+  #
+  # The rule that keeps this honest is the one that put Hack here in the first
+  # place: DECLARE WHAT WE NAME. The bar used to name "Hack Nerd Font" while
+  # den shipped JetBrains Mono, so a fresh machine drew tofu across the whole
+  # bar and only a hand-installed Hack hid it. The fix then was to install the
+  # font we named; the fix now is to name the font we install.
+  fonts.packages = [ pkgs.sketchybar-app-font ];
 
   # The dropdown dismisser the pills' click_scripts call by its
   # /run/current-system/sw/bin path. On PATH as well because it's the one honest
@@ -659,6 +677,11 @@ lib.mkIf config.nebelhaus.sill.enable {
         # covers. Only the type inside the pills follows ui.scale, and only up to
         # the largest that still fits one. See modules/lib/bar.nix.
         SILL_SCALE="${toString bar.typeScale}"
+        # The family every pill draws in, from nebelhaus.fonts.mono.name — the
+        # same one Ghostty uses. Here rather than in the rc for the reason the
+        # sizes are: the rc and four plugins all name it, and a font written in
+        # five places is a font that ends up being two.
+        BAR_FONT="${barFont}"
         FS_ICON="${sizes.icon}"
         FS_LABEL="${sizes.label}"
         FS_SMALL="${sizes.small}"

@@ -23,10 +23,18 @@
 # The sketchybar-app-font glyphs (:claude:, :openai:) are monochrome and take
 # icon.color like any other, so the caller stays free to paint them by state.
 
+# This file is a LIBRARY (ai_usage.sh and agents.sh source it), and the family
+# it draws in lives in the generated sizes.sh with the FS_* sizes. Both current
+# callers source that first, but a third one wouldn't have to — and an unset
+# BAR_FONT is a font string starting with ":", which sketchybar takes without
+# complaint and draws as nothing. So source it here too; it only sets values.
+# shellcheck source=/dev/null
+[ -n "${BAR_FONT:-}" ] || source "$HOME/.config/sketchybar/sizes.sh"
+
 provider_style() {
   local prov="${1:-}" model="${2:-}" size="${3:-${FS_LABEL:-14.0}}"
   local appfont="sketchybar-app-font:Regular:${FS_APP_ICON:-16.0}"
-  local nerd="Hack Nerd Font:Bold:$size"
+  local nerd="${BAR_FONT}:Bold:$size"
   case "$prov" in
     claude)
       P_ICON=":claude:"; P_FONT="$appfont"; P_NAME="Claude"
