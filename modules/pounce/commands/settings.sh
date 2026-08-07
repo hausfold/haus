@@ -35,6 +35,8 @@ runner="$(mktemp "${TMPDIR:-/tmp}/nebelhaus-setting.XXXXXX")"
 } >"$runner"
 chmod 700 "$runner"
 xattr -d com.apple.quarantine "$runner" 2>/dev/null || true
+cleanup() { rm -f -- "$runner"; }
+trap cleanup EXIT
 
 exec "$HOME/.config/zellij/float-term.sh" spawn \
   --title quick-terminal-settings \
