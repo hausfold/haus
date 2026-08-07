@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # statusline-refresh.sh — the EXPENSIVE half of the nebelhaus statusline.
 #
-# Enumerates every in-flight agent worktree across ALL repos (via `wt`'s
+# Enumerates every in-flight agent worktree across ALL repos (via `holt`'s
 # registry) and, per repo, asks GitHub once for PR state. Writes a raw-field TSV
 # that statusline.sh renders with the SAME status-token logic as row 1. Run
 # DETACHED by statusline.sh when its cache goes stale (stale-while-revalidate) —
@@ -36,7 +36,7 @@
 set -euo pipefail
 usage_only=0
 [ "${1:-}" = "--usage-only" ] && usage_only=1
-# APPENDED, never prepended — same call `wt` makes, for the same two reasons: this
+# APPENDED, never prepended — same call `holt` makes, for the same two reasons: this
 # is a rescue for the case where we're spawned with a bare PATH, not an override of
 # the caller's environment; and prepending it made the script untestable, because
 # test/statusline-refresh.bats drives it with a shim `gh` that a real /usr/bin/gh
@@ -215,7 +215,7 @@ checkout_readable() {
 # --- worklist: registry rows UNION live on-disk worktrees, deduped ------------
 # The registry (authoritative, carries each worktree's parent) is the primary
 # source. But a worktree made with a raw `git worktree add` under $WT_BASE —
-# bypassing `wt child` — never lands in the registry, so it would be invisible in
+# bypassing `holt child` — never lands in the registry, so it would be invisible in
 # the bar. Fold every such live checkout in too, with an EMPTY parent (an
 # "orphan"): the statusline surfaces orphans ONLY in the $HOME pane, so a stray
 # cross-repo worktree is never fully hidden without spamming every session. Dedup
@@ -230,7 +230,7 @@ worklist() {
     # exits 0, so folding the rev-parse into the substitution turned an unreadable
     # checkout into a main of "." — which every later git -C then resolved against
     # the REFRESHER's own cwd, inventing rows for whatever repo it happened to run
-    # in. (Same trap `wt`'s git_main exists to close.)
+    # in. (Same trap holt's own git-common-dir resolution exists to close.)
     common=$(git -C "$d" rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || continue
     [ -n "$common" ] || continue
     m=$(dirname "$common")

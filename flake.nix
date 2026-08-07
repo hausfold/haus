@@ -45,11 +45,10 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # The agent-worktree substrate — `wt` extracted as a standalone Go binary.
-    # Its overlay puts `holt` in pkgs; den ships it on PATH beside the frozen
-    # `wt`, so the two coexist for as long as the cutover needs them to. holt
-    # reads the SAME registry.tsv `wt` writes, so switching either direction
-    # loses nothing.
+    # The agent-worktree substrate — a standalone Go binary, the rewrite of
+    # the rice's old bash `wt.sh` (now retired entirely). Its overlay puts
+    # `holt` in pkgs, and den ships it on PATH as the only worktree-lifecycle
+    # CLI the rice knows.
     holt = {
       url = "github:nebelhaus/holt";
       inputs.nixpkgs.follows = "nixpkgs";

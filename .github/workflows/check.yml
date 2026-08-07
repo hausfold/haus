@@ -68,25 +68,18 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck bats
           # bootstrap.sh reaches every new installer via nebelhaus.com/init.sh;
-          # haus.sh + awake.sh + wt.sh ship onto every machine as end-user CLIs.
+          # haus.sh + awake.sh ship onto every machine as end-user CLIs.
           # statusline-refresh.sh is linted for a different reason: it runs
           # DETACHED with its output discarded, so a non-zero anywhere in it is
           # completely invisible — the bar just quietly stops updating.
-          shellcheck --severity=warning bootstrap.sh modules/den/haus.sh modules/den/awake.sh modules/den/wt.sh modules/den/statusline-refresh.sh test/awake.sh
+          shellcheck --severity=warning bootstrap.sh modules/den/haus.sh modules/den/awake.sh modules/den/statusline-refresh.sh test/awake.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
-      # `wt` is the one CLI here whose failure mode is LOSING WORK — it force-removes
-      # checkouts and deletes branches, and every path it takes is decided by git
-      # state that is tedious to reproduce by hand. The suite is fully hermetic
-      # (throwaway repos under $BATS_TEST_TMPDIR, shim gh/lsof, CLAUDE_WT_BASE
-      # redirected), so it needs nothing here but git + bats.
-      - name: wt worktree-lifecycle tests
-        run: bats test/wt.bats
-      # The refresher is `wt`'s reader, and it fails in the one way nobody sees:
+      # The refresher is `holt`'s reader, and it fails in the one way nobody sees:
       # it runs detached under `set -e`, so any non-zero leaves the LAST panel.tsv
       # in place and the bar keeps showing worktrees that were reaped hours ago —
       # no error, no empty bar, just a confidently stale one. Same hermetic shape
-      # as wt.bats (throwaway repos, shim gh, redirected cache).
+      # as holt's own acceptance suite (throwaway repos, shim gh, redirected cache).
       - name: statusline refresher tests
         run: bats test/statusline-refresh.bats
       # The render path's counterpart suite. Its subject is the Fable/Mythos row

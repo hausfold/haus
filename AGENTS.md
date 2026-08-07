@@ -57,7 +57,7 @@ modules/
                           #   machine (IINA today) + the file types they claim. Roster
                           #   entries, so a cask of the same app still collides loudly
   den/                    # system: macOS defaults, Homebrew framework, core CLI, GC
-                          #   + on-PATH CLIs: haus / awake / wt / zscratch / statusline
+                          #   + on-PATH CLIs: haus / awake / zscratch / statusline
   displays/               # nebelhaus.displays: scaled resolution by intent + the
                           #   hausdisp helper (Swift, xcrun-compiled like pounce's)
   theme/                  # desktop wallpaper + accent-derived bold wordmark
@@ -225,7 +225,7 @@ points back to when it feels several PRs together.
   job. Each dir's `build.sh` is only the dev shortcut: it prints a candidate
   `.wasm` path to feed `zscratch --plugin <name>="$(./build.sh)"`.
 - **The den CLIs** (`modules/den`, each on `PATH` via `writeShellScriptBin`, source
-  beside `default.nix`): the rice ships seven dev/user CLIs — **`haus.sh`** (the
+  beside `default.nix`): the rice ships six dev/user CLIs — **`haus.sh`** (the
   end-user machine driver: rebuild/update/rollback/doctor/status — knows nothing of
   the family repos), **`haus-activate.sh`** (the privileged half of a rebuild:
   `haus` and `bench` build as YOU, then hand the built store path to
@@ -237,25 +237,8 @@ points back to when it feels several PRs together.
   `/run/current-system/sw/bin` path is load-bearing: collar's NOPASSWD rule must
   name a literal path), **`awake.sh`** (launchd-owned timed/indefinite macOS
   caffeinate assertions; Sill's optional coffee pill is only its controller),
-  **`wt.sh`** (agent worktrees for *any* repo and any of the three clients —
-  Claude Code, Codex, OpenCode; Claude Code's `WorktreeCreate`/`WorktreeRemove`
-  hooks call it, and `wt new` is that same thing driven from the outside for the
-  clients with no such flag — `wt` lists, `wt <name>` resumes,
-  `wt reap` sweeps landed ones, `wt child <repo>` makes a cross-repo child worktree,
-  `wt spawn <repo> <name>` makes a *named* one for a caller with no pane of its own
-  — the "Spawn Agent" palette command — parented to the repo instead of to a session,
-  `wt park`/`wt unpark` set work aside as a `wip:` commit instead of `git stash`,
-  whose stack is shared by every worktree of a repo, `wt reship` pushes + opens the
-  follow-up PR for a branch that kept committing after its PR merged — the `+N`
-  state marker in the listing and the orange `N^` in the bar are the same fact;
-  **`wt` is FROZEN as of 2026-08-03 — bugfixes only, no new features**, because
-  it is being replaced by [holt](https://github.com/nebelhaus/workshop/tree/main/incubator/holt),
-  the same tool as a standalone Go binary, which already passes all 77 of the
-  tests below. A behaviour change belongs in holt; a bug you fix here must be
-  ported there in the same session, or the two diverge and the cutover gets
-  harder every week),
   **`zscratch.sh`** (above), **`statusline.sh`** / `statusline-refresh.sh` (the
-  agent HUD, reading `wt`'s registry), and **`agent-state`** — the one writer of
+  agent HUD, reading `holt`'s registry), and **`agent-state`** — the one writer of
   agent-pane state behind sill's paw pill and the zellij tab badge. That last one
   has no source file of its own here: den `readFile`s
   `modules/sill/sketchybar/plugins/agents-hook.sh`, the same script sill installs
@@ -263,10 +246,17 @@ points back to when it feels several PRs together.
   Every client's hooks call it (`agent-state <working|waiting|idle|remove>
   <client>`) — which is why the wirings hearth writes for opencode and codex never
   need to know where a bar keeps its plugins. They're plain bash embedded via
-  `builtins.readFile`, so a rebuild re-installs them on `PATH`. `haus` and the
-  workshop's `bench` are named apart on purpose so they never shadow each other —
-  `haus` = your machine, `bench` = the family repos, `wt`/`zscratch` = dev tools the
-  rice puts on `PATH` regardless. (User-facing docs: the [wt guide](https://nebelhaus.com/guides/claude-agents/)
+  `builtins.readFile`, so a rebuild re-installs them on `PATH`. Agent worktrees
+  themselves are **`holt`** — [its own repo](https://github.com/nebelhaus/holt),
+  taken as a flake input rather than a den-sourced script, ejected from the
+  incubator 2026-08-03 with all 79 acceptance tests green. It replaces the old
+  bash `wt.sh`, which has been retired entirely — its registry format, hooks,
+  and every caller (Claude Code's `WorktreeCreate`/`WorktreeRemove`, pounce's
+  Spawn Agent, `bench status`) now point at `holt` alone; there is no fallback
+  to roll back to. `haus` and the workshop's `bench` are named apart on purpose
+  so they never shadow each other — `haus` = your machine, `bench` = the family
+  repos, `holt`/`zscratch` = dev tools the rice puts on `PATH` regardless.
+  (User-facing docs: the [agent worktree guide](https://nebelhaus.com/guides/claude-agents/)
   and [haus reference](https://nebelhaus.com/reference/haus/) on nebelhaus.com.)
 - **New pounce command**: generic ones live in the
   [pounce repo](https://github.com/nebelhaus/pounce) (`pkgs/pounce-commands/commands`);

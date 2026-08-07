@@ -12,7 +12,7 @@
 # Why it exists: the same thing by hand is caps→t to a terminal, find the repo's
 # tab, cd, ⌘A for an agent pane, then type the prompt — and the worktree ends up
 # with whatever name Claude generated (`luminous-twirling-codd`), which is the
-# name you then have to recognise in `wt`, in the statusline, and on the branch.
+# name you then have to recognise in `holt`, in the statusline, and on the branch.
 # Naming it from the prompt is the whole point; the palette is just the shortest
 # path to doing it.
 #
@@ -102,7 +102,7 @@ for root in "${roots[@]}"; do
   find "$root" -mindepth 1 -maxdepth 3 -type d -name .git -prune 2>/dev/null
 done | sed 's|/\.git$||' >>"$candidates"
 
-# Repos wt already knows (registry field 2 is each worktree's main checkout).
+# Repos holt already knows (registry field 2 is each worktree's main checkout).
 [ -f "$WT_REGISTRY" ] && cut -f2 "$WT_REGISTRY" 2>/dev/null >>"$candidates"
 
 list="$(
@@ -134,8 +134,8 @@ agent="$(holt agent default 2>/dev/null)"
 # client present at BUILD time, but this script runs long after that — the
 # client can still be missing on a machine driving `holt` without the rice, or
 # with a hand-managed install that moved. Checking here, before anything is
-# created, is the difference between a toast and the old failure: `wt spawn`
-# succeeds, the pane opens, and only `wt agent start` inside it finds nothing —
+# created, is the difference between a toast and the old failure: `holt spawn`
+# succeeds, the pane opens, and only `holt agent start` inside it finds nothing —
 # leaving a dead pane and a worktree nobody asked for.
 if ! command -v "$agent" >/dev/null 2>&1; then
   notice "$agent is not installed" "Add it to nebelhaus.agents.clients, or change agents.default"
@@ -263,7 +263,7 @@ fi
 
 # ── name the worktree after the task ──────────────────────────────────────
 # The naming win: a branch called `bar-pill-flickers` instead of Claude's
-# generated `luminous-twirling-codd`. `wt spawn` takes the next free suffix if
+# generated `luminous-twirling-codd`. `holt spawn` takes the next free suffix if
 # that name is already in use.
 #
 # The FIRST few words are not the name — "can you look into why the bar pill
