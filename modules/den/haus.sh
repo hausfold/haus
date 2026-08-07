@@ -11,6 +11,10 @@
 #   haus status          current generation + how old your pinned rice is
 #   haus edit            open your host config (identity, apps) in $EDITOR
 #   haus options         refresh hosts/<host>/options.nix — every nebelhaus.* option, annotated
+#   haus set             write + apply one nebelhaus.* option in the machine overlay
+#   haus get             read one option, or list the machine overlay
+#   haus unset           force a nullable option to null
+#   haus reset           remove one machine override and inherit config again
 #   haus plan            preview what 'haus rebuild' would change — read-only
 #   haus diff            declared config vs what macOS actually has right now — read-only
 #   haus capture         turn this Mac's current settings into config lines + a snapshot
@@ -173,6 +177,12 @@ haus — the everyday CLI for a nebelhaus machine.
   haus edit           open your host config in $EDITOR
   haus options        refresh the annotated catalogue of every nebelhaus.* option
                       (--force replaces your copy instead of writing options.nix.new)
+  haus set <path> <value>
+                      write hosts/<host>/settings/<path>.nix, type-check it, and
+                      rebuild (theme.accent and nebelhaus.theme.accent both work)
+  haus get [path]     print a declared value, or list values in the writable overlay
+  haus unset <path>   force a nullable option to null
+  haus reset <path>   remove the writable override and inherit the host/rice default
   haus plan           preview what 'haus rebuild' would change — settings, packages,
                       casks — without building anything into place
   haus diff           the config currently active on this machine vs what macOS
@@ -1008,6 +1018,190 @@ cmd_edit() {
   exec "${EDITOR:-hx}" "$f"
 }
 
+# ---- haus set / get / unset / reset ----------------------------------------
+# The machine-writable overlay is deliberately ordinary Nix: one tiny module
+# per option under hosts/<host>/settings/, auto-imported by mkNebelhaus beside
+# Pounce's packages/ modules. There is no second settings database to drift.
+#
+# These files use mkForce because this layer is the machine owner's explicit
+# answer and must be able to override a preset. `haus reset` removes that answer
+# entirely, revealing the host/preset/rice value underneath. `haus unset` is a
+# different operation: it explicitly writes null, and therefore only succeeds
+# for nullable options.
+settings_path() {
+  local raw="$1" path
+  [ -n "$raw" ] || die "an option path is required (for example: theme.accent)"
+  case "$raw" in
+    nebelhaus.*) path="$raw" ;;
+    *) path="nebelhaus.$raw" ;;
+  esac
+  [[ "$path" =~ ^nebelhaus(\.[A-Za-z_][A-Za-z0-9_-]*)+$ ]] \
+    || die "only nebelhaus.* option paths are writable (got '$raw')"
+  printf '%s\n' "$path"
+}
+
+settings_host_dir() {
+  printf '%s/hosts/%s/settings\n' "$CONSUMER" "$(host_name)"
+}
+
+settings_file() {
+  local path="$1"
+  printf '%s/%s.nix\n' "$(settings_host_dir)" "${path#nebelhaus.}"
+}
+
+settings_option_exists() {
+  local host="$1" path="$2"
+  ( cd "$CONSUMER" && nix eval --raw \
+      ".#darwinConfigurations.$host.options.$path.type.description" >/dev/null 2>&1 ) \
+    || die "'$path' is not a settable option on this machine's pinned rice"
+}
+
+settings_stage() {
+  local target="$1" rel
+  rel="${target#"$CONSUMER"/}"
+  if git -C "$CONSUMER" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    git -C "$CONSUMER" add -A -- "$rel"
+  fi
+}
+
+settings_eval_json() {
+  local host="$1" path="$2"
+  ( cd "$CONSUMER" && nix eval --json ".#darwinConfigurations.$host.config.$path" )
+}
+
+settings_print_json() {
+  jq -r 'if type == "string" then . else tojson end'
+}
+
+settings_literal() {
+  local raw="$1" parsed lines
+  # JSON covers booleans, numbers, null, lists and attrsets. A bare token is the
+  # ergonomic string form (`haus set theme.accent teal`). Quoted strings also
+  # work when a caller wants to distinguish "true" from the boolean true.
+  if parsed="$(printf '%s' "$raw" | jq -c '.' 2>/dev/null)"; then
+    lines="$(printf '%s\n' "$parsed" | wc -l | tr -d ' ')"
+  else
+    lines=0
+  fi
+  if [ "$lines" = 1 ]; then
+    printf 'builtins.fromJSON %s' "$(jq -Rn --arg value "$parsed" '$value')"
+  else
+    jq -Rn --arg value "$raw" '$value'
+  fi
+}
+
+settings_restore() {
+  local target="$1" backup="$2"
+  if [ -n "$backup" ]; then cp -p "$backup" "$target"; else rm -f "$target"; fi
+  settings_stage "$target"
+}
+
+settings_validate_or_restore() {
+  local host="$1" path="$2" target="$3" backup="$4" err
+  err="$(mktemp)"
+  if settings_eval_json "$host" "$path" >/dev/null 2>"$err"; then
+    rm -f "$err" "${backup:-}"
+    return 0
+  fi
+  settings_restore "$target" "$backup"
+  warn "the generated override did not type-check; restored the previous file."
+  tail -n 12 "$err" >&2
+  rm -f "$err" "${backup:-}"
+  die "'$path' rejected that value — no config change remains"
+}
+
+settings_apply() {
+  if [ -n "${HAUS_NO_REBUILD:-}" ]; then
+    info "not rebuilding (HAUS_NO_REBUILD is set)"
+  else
+    cmd_rebuild
+  fi
+}
+
+cmd_set() {
+  [ "$#" = 2 ] || die "usage: haus set <nebelhaus.path|relative.path> <value>"
+  local path host dir target backup="" tmp literal
+  path="$(settings_path "$1")"
+  host="$(host_name)"
+  settings_option_exists "$host" "$path"
+  dir="$(settings_host_dir)"
+  target="$(settings_file "$path")"
+
+  if [ -e "$target" ] && ! grep -q '^# Managed by haus set\.' "$target"; then
+    die "$target already exists and is not managed by haus; edit it by hand"
+  fi
+  mkdir -p "$dir"
+  if [ -e "$target" ]; then backup="$(mktemp)"; cp -p "$target" "$backup"; fi
+  literal="$(settings_literal "$2")"
+  tmp="$(mktemp "$dir/.haus-set.XXXXXX")"
+  {
+    printf '%s\n' '# Managed by haus set. Ordinary Nix: safe to inspect or edit.'
+    printf '# Remove this override with: haus reset %s\n' "${path#nebelhaus.}"
+    printf '%s\n\n' '{ lib, ... }:' '{'
+    printf '  %s = lib.mkForce (%s);\n' "$path" "$literal"
+    printf '%s\n' '}'
+  } >"$tmp"
+  mv "$tmp" "$target"
+  settings_stage "$target"
+  settings_validate_or_restore "$host" "$path" "$target" "$backup"
+  say "set ${path#nebelhaus.} = $(settings_eval_json "$host" "$path" 2>/dev/null | settings_print_json)"
+  info "$target (staged as ordinary Nix)"
+  settings_apply
+}
+
+cmd_get() {
+  local path host dir f json found=""
+  host="$(host_name)"
+  if [ -n "${1:-}" ]; then
+    path="$(settings_path "$1")"
+    settings_option_exists "$host" "$path"
+    settings_eval_json "$host" "$path" 2>/dev/null | settings_print_json
+    return
+  fi
+
+  dir="$(settings_host_dir)"
+  [ -d "$dir" ] || { info "no machine-writable settings; use: haus set <path> <value>"; return; }
+  for f in "$dir"/*.nix; do
+    [ -e "$f" ] || continue
+    grep -q '^# Managed by haus set\.' "$f" || continue
+    path="nebelhaus.$(basename "$f" .nix)"
+    json="$(settings_eval_json "$host" "$path" 2>/dev/null)" || continue
+    printf '%-38s %s\n' "${path#nebelhaus.}" "$(printf '%s' "$json" | settings_print_json)"
+    found=1
+  done
+  [ -n "$found" ] || info "no machine-writable settings; use: haus set <path> <value>"
+}
+
+cmd_unset() {
+  [ "$#" = 1 ] || die "usage: haus unset <nebelhaus.path|relative.path>"
+  # Validation after writing is intentional: the module system is the one
+  # authority on whether this option's type admits null.
+  cmd_set "$1" null
+}
+
+cmd_reset() {
+  [ "$#" = 1 ] || die "usage: haus reset <nebelhaus.path|relative.path>"
+  local path host target backup
+  path="$(settings_path "$1")"
+  host="$(host_name)"
+  settings_option_exists "$host" "$path"
+  target="$(settings_file "$path")"
+  if [ ! -e "$target" ]; then
+    say "${path#nebelhaus.} already inherits the host/rice value ($(settings_eval_json "$host" "$path" 2>/dev/null | settings_print_json))"
+    return
+  fi
+  grep -q '^# Managed by haus set\.' "$target" \
+    || die "$target is not managed by haus; refusing to remove it"
+  backup="$(mktemp)"
+  cp -p "$target" "$backup"
+  rm -f "$target"
+  settings_stage "$target"
+  settings_validate_or_restore "$host" "$path" "$target" "$backup"
+  rmdir "$(dirname "$target")" 2>/dev/null || true
+  say "reset ${path#nebelhaus.}; now inherits $(settings_eval_json "$host" "$path" 2>/dev/null | settings_print_json)"
+  settings_apply
+}
+
 # ---- haus options -----------------------------------------------------------
 # Refresh hosts/<host>/options.nix — the annotated catalogue of every
 # nebelhaus.* option at its default, all commented out. The bootstrap writes it
@@ -1312,6 +1506,10 @@ case "${1:-status}" in
   status)      cmd_status ;;
   edit)        cmd_edit ;;
   options)     cmd_options "${2:-}" ;;
+  set)         shift; cmd_set "$@" ;;
+  get)         cmd_get "${2:-}" ;;
+  unset)       shift; cmd_unset "$@" ;;
+  reset)       shift; cmd_reset "$@" ;;
   plan)        cmd_plan ;;
   diff)        cmd_diff ;;
   capture)     shift; cmd_capture "$@" ;;
@@ -1320,5 +1518,5 @@ case "${1:-status}" in
   btm)         cmd_btm ;;
   tour)        cmd_tour "${2:-}" ;;
   -h|--help|help) usage ;;
-  *)           die "unknown command '$1' — try: rebuild update rollback generations status edit options plan diff capture revert-settings doctor btm tour" ;;
+  *)           die "unknown command '$1' — try: rebuild update rollback generations status edit options set get unset reset plan diff capture revert-settings doctor btm tour" ;;
 esac

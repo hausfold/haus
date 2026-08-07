@@ -67,6 +67,10 @@ haus update          # pull the latest rice, then rebuild
 haus rollback        # go back a generation (haus generations lists them)
 haus status          # current generation + how old your pinned rice is
 haus options         # refresh the annotated catalogue of every nebelhaus.* option
+haus set theme.accent teal # write + apply one option in the machine overlay
+haus get theme.accent      # read the declared value (or omit the path to list overrides)
+haus unset lock.requirePassword # explicitly set a nullable option to null
+haus reset theme.accent    # remove the override and inherit the rice/preset again
 haus plan            # preview what the next rebuild would change — read-only
 haus diff            # declared config vs what macOS actually has right now
 haus capture         # turn this Mac's current settings into config lines + a snapshot
@@ -74,6 +78,12 @@ haus revert-settings # put back a 'haus capture' snapshot — undoes what haus r
 haus doctor          # check Nix, the CLT, the GUI agents, and Homebrew cask drift
 haus tour            # a guided lap of the four moves, right in the bar
 ```
+
+`haus set` writes one ordinary module per value under
+`hosts/<host>/settings/`, stages it so the flake can see it, type-checks it, then
+rebuilds. Only `nebelhaus.*` options cross this boundary; the short form above is
+expanded to `nebelhaus.theme.accent`. There is no separate settings database:
+the generated file is the config, and `haus reset` removes it.
 
 On a fresh machine the bar shows a small "new here?" paw — click it and **haus
 tour** walks you through the four moves (launch, navigate, resize, palette) live,

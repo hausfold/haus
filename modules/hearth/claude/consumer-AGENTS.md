@@ -7,7 +7,8 @@ flake input; what lives here is only what's personal to this machine.
 ```
 flake.nix                        pins the rice — change with `haus update`, not by hand
 flake.lock                       the pinned revision — never hand-edited
-hosts/<hostname>/default.nix     THE file you edit
+hosts/<hostname>/default.nix     THE file you edit by hand
+hosts/<hostname>/settings/*.nix  one ordinary module per `haus set` override
 ```
 
 This file is the one set of instructions, for every agent — Claude Code, Codex,
@@ -16,9 +17,13 @@ The `CLAUDE.md` beside it is that pointer and holds no rules of its own.
 
 ## Working here
 
-- **Edit only the host file.** Set `nebelhaus.*` options there. It's an ordinary
-  nix-darwin module, so raw `system.defaults.*` / `homebrew.*` also work — but
-  prefer a `nebelhaus.*` option when one exists.
+- **Edit only the host config.** Set `nebelhaus.*` options in `default.nix`.
+  It's an ordinary nix-darwin module, so raw `system.defaults.*` / `homebrew.*`
+  also work — but prefer a `nebelhaus.*` option when one exists.
+- **For one option, use `haus set <path> <value>`.** It writes and stages a
+  small module under `settings/`, type-checks it, then rebuilds. `haus get
+  [path]` reads it, `haus unset <path>` writes null for a nullable option, and
+  `haus reset <path>` removes the override. Only `nebelhaus.*` paths are allowed.
 - **Apply with `haus rebuild`.** It builds first and switches only on success, so
   a broken config never reaches the running system.
 - **Undo with `haus rollback`.** Atomic, instant, and it rewinds everything Nix

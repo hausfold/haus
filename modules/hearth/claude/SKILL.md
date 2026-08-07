@@ -59,6 +59,14 @@ step. The store is read-only by design.
 surface. If the user wants something the options cannot express, say that plainly —
 it is a change to the rice (a different repo, upstream), not to their machine.
 
+For a single value, prefer `haus set <path> <value>`: it writes an ordinary
+module under `hosts/<host>/settings/`, type-checks it, and rebuilds. `haus get
+[path]` reads the declared result, `haus unset <path>` writes null for a nullable
+option, and `haus reset <path>` removes the machine override so the host, preset,
+or rice value wins again. The commands only accept `nebelhaus.*` paths (the
+`nebelhaus.` prefix may be omitted). Edit the host file directly when the change
+is structural or needs several related definitions in one module.
+
 **Ask before touching identity or secrets.** `nebelhaus.git.*`, signing keys,
 anything under `nebelhaus.secrets.*`, and the pounce signing identity are the
 user's, not yours.
@@ -71,7 +79,8 @@ you did.
 
 ## After a successful rebuild
 
-`~/.config/nix` is a git repo — the user's machine in text. Offer to commit the
+`~/.config/nix` is a git repo — the user's machine in text. `haus set` stages its
+one generated module because flakes ignore untracked files. Offer to commit the
 change with a message naming what it does. Don't push unless asked.
 
 ## When `haus rebuild` refuses
