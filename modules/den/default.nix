@@ -37,6 +37,45 @@ let
   devCfg = config.nebelhaus.developer;
   fontsCfg = config.nebelhaus.fonts;
 
+  # ---- restart map (notes/macos-settings-matrix.md §4) ----------------------
+  # See modules/lib/restart-map.nix for what each value means and why. The
+  # typed domains here are unconditional because the rice writes every one of
+  # them via mkDefault on every rebuild (dock.autohide, the finder block,
+  # NSGlobalDomain's key-repeat pair, the trackpad trio, screencapture) —
+  # unlike CustomUserPreferences, whose top-level domains genuinely vary by
+  # which modules/host are loaded, so those are read out of config instead of
+  # hardcoded.
+  restartMap = import ../lib/restart-map.nix;
+  typedDomainsWritten = [
+    "com.apple.dock"
+    "com.apple.finder"
+    "NSGlobalDomain"
+    "com.apple.AppleMultitouchTrackpad"
+    "com.apple.screencapture"
+    "com.apple.universalaccess"
+  ];
+  customPrefDomainsWritten = lib.attrNames config.system.defaults.CustomUserPreferences;
+  domainsWritten = lib.unique (typedDomainsWritten ++ customPrefDomainsWritten);
+  undeclaredDomains = builtins.filter (d: !(restartMap ? ${d})) domainsWritten;
+
+  # Every restart action that names an actual process, deduplicated, minus
+  # Dock — nix-darwin already restarts Dock itself whenever the dock domain is
+  # set (which the rice always sets), so repeating it here would just bounce
+  # the Dock twice on every rebuild for no benefit. "activateSettings" /
+  # "none" / "logout" aren't process names, so they drop out here — the first
+  # is handled by the unconditional activateSettings call below, the other two
+  # need no restart at all (or none this rice can give).
+  restartProcesses = [
+    "Finder"
+    "ControlCenter"
+    "SystemUIServer"
+  ];
+  processesToRestart = lib.unique (
+    builtins.filter (p: builtins.elem p restartProcesses) (
+      map (d: restartMap.${d} or null) domainsWritten
+    )
+  );
+
   # ---- hot corners ----------------------------------------------------------
   # The option names an action; com.apple.dock stores an integer. hot-corners.nix
   # is the one table both the enum and this lookup come from, so they cannot
@@ -139,6 +178,17 @@ in
       nebelhaus.accessibility.* reaches the two useful keys in this domain
       (increaseContrast, differentiateWithoutColor) WITHOUT that hazard — it
       guards the write, so a missing grant costs you the setting and nothing else.
+    ''
+    ++ lib.optional (undeclaredDomains != [ ]) ''
+      nebelhaus: these plist domains are written but have no entry in
+      modules/lib/restart-map.nix: ${lib.concatStringsSep ", " undeclaredDomains}.
+
+      A domain with no declared restart silently waits for the user to log out
+      to take effect. In the rice's own modules this is a bug — add the domain
+      to restart-map.nix. If you got here from `haus capture <domain>` on your
+      own host file, this is just a heads-up: that domain isn't a plist this
+      rice ships a restart for, so if it doesn't take effect right away, log
+      out once and it will.
     '';
 
   # Two ways to say the same thing, and no way to rank them: `package` is a
@@ -187,17 +237,26 @@ in
       )}
     '')
 
-    # ---- restart Finder ------------------------------------------------------
-    # The refresh below broadcasts a preference change, but Finder reads
-    # com.apple.finder once, at LAUNCH — the sort order, the view style and the
-    # POSIX-path title are baked into the running process. nix-darwin restarts
-    # the Dock after writing user defaults and stops there, so without this a
-    # rebuild that changed a Finder key looks like it did nothing until the next
-    # login. launchd relaunches Finder immediately; the cost is that open Finder
-    # windows close, exactly like the Dock restart nix-darwin already does.
-    ''
-      killall -qu ${username} Finder || true
-    ''
+    # ---- restart map (notes/macos-settings-matrix.md §4) --------------------
+    # Every process below reads its plist domain once, at LAUNCH — the finder
+    # sort order, the view style and the POSIX-path title, the Control Center
+    # layout — are baked into the running process the moment it starts.
+    # nix-darwin restarts the Dock after writing user defaults and stops
+    # there, so without this a rebuild that changed, say, a Finder key looks
+    # like it did nothing until the next login. launchd relaunches each
+    # process immediately; the cost (same one nix-darwin's own Dock restart
+    # already pays) is that its open windows close.
+    #
+    # `processesToRestart` is generated from modules/lib/restart-map.nix
+    # against whatever plist domains this configuration actually writes —
+    # not hardcoded to Finder the way rice#181 first shipped this, so a
+    # future domain (Control Center, say) restarts correctly the day
+    # something starts writing into it, with no second fix needed here.
+    (lib.optionalString (processesToRestart != [ ]) ''
+      ${lib.concatMapStringsSep "\n" (
+        proc: "killall -qu ${username} ${proc} || true"
+      ) processesToRestart}
+    '')
 
     # ---- make the preferences we just wrote LIVE, without a logout ----------
     # nix-darwin writes every system.defaults key with `defaults write` and then
