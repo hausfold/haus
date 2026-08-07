@@ -18,33 +18,35 @@ let
     a: "  ${lib.fixedWidthString hotCornerWidth " " a.name}  ${a.label}\n"
   ) hotCornerActions;
 
-  mkHotCorner = corner: lib.mkOption {
-    type = lib.types.nullOr (lib.types.enum hotCornerNames);
-    default = null;
-    example = "mission-control";
-    description = ''
-      What happens when the pointer reaches the ${corner} corner of the main
-      display.
+  mkHotCorner =
+    corner:
+    lib.mkOption {
+      type = lib.types.nullOr (lib.types.enum hotCornerNames);
+      default = null;
+      example = "mission-control";
+      description = ''
+        What happens when the pointer reaches the ${corner} corner of the main
+        display.
 
-      ```
-      ${hotCornerList}```
+        ```
+        ${hotCornerList}```
 
-      null (the default) writes nothing at all, which is not the same as
-      "disabled": corners are a setting people have usually already made by
-      hand, and a rice that names one it doesn't care about would silently
-      erase it. Use `"disabled"` to explicitly claim a corner and make it inert.
+        null (the default) writes nothing at all, which is not the same as
+        "disabled": corners are a setting people have usually already made by
+        hand, and a rice that names one it doesn't care about would silently
+        erase it. Use `"disabled"` to explicitly claim a corner and make it inert.
 
-      Setting a corner also clears its MODIFIER key. macOS stores "hold ⌘ for
-      this corner" separately (`wvous-*-modifier`), and a leftover modifier from
-      an earlier setup makes a corner the rice just declared look broken —
-      nothing happens, because you weren't holding the key nobody told you
-      about. Corners the rice leaves at null keep whatever modifier they have.
+        Setting a corner also clears its MODIFIER key. macOS stores "hold ⌘ for
+        this corner" separately (`wvous-*-modifier`), and a leftover modifier from
+        an earlier setup makes a corner the rice just declared look broken —
+        nothing happens, because you weren't holding the key nobody told you
+        about. Corners the rice leaves at null keep whatever modifier they have.
 
-      Worth knowing if you also run tiling: `mission-control` and `desktop` are
-      macOS's own window and Space management, which prowl replaces. They still
-      work, they just show you a view of the windows prowl is arranging.
-    '';
-  };
+        Worth knowing if you also run tiling: `mission-control` and `desktop` are
+        macOS's own window and Space management, which prowl replaces. They still
+        work, they just show you a view of the windows prowl is arranging.
+      '';
+    };
 in
 
 {
@@ -59,26 +61,28 @@ in
     # Settings job until it's been measured the same way.
     accessibility =
       let
-        mkA11y = desc: lib.mkOption {
-          type = lib.types.nullOr lib.types.bool;
-          default = null;
-          example = true;
-          description = ''
-            ${desc}
+        mkA11y =
+          desc:
+          lib.mkOption {
+            type = lib.types.nullOr lib.types.bool;
+            default = null;
+            example = true;
+            description = ''
+              ${desc}
 
-            null (the default) leaves whatever you have alone — this is a
-            personal setting, so the rice never picks a value for you.
+              null (the default) leaves whatever you have alone — this is a
+              personal setting, so the rice never picks a value for you.
 
-            REACHABILITY: `com.apple.universalaccess` is TCC-protected. It writes
-            only when the app that runs the rebuild holds Full Disk Access
-            (System Settings ▸ Privacy & Security ▸ Full Disk Access; on macOS 26
-            a stale grant often needs removing and re-adding with (+)). Without
-            that grant the rice logs a warning and moves on — it does NOT fail
-            the rebuild. Worth knowing: an agent-driven `haus rebuild` runs under
-            a different app than your terminal, so it may skip this while your
-            own rebuild applies it.
-          '';
-        };
+              REACHABILITY: `com.apple.universalaccess` is TCC-protected. It writes
+              only when the app that runs the rebuild holds Full Disk Access
+              (System Settings ▸ Privacy & Security ▸ Full Disk Access; on macOS 26
+              a stale grant often needs removing and re-adding with (+)). Without
+              that grant the rice logs a warning and moves on — it does NOT fail
+              the rebuild. Worth knowing: an agent-driven `haus rebuild` runs under
+              a different app than your terminal, so it may skip this while your
+              own rebuild applies it.
+            '';
+          };
       in
       {
         increaseContrast = mkA11y ''
@@ -314,6 +318,226 @@ in
           Whether filenames carry the date and time ("Screenshot 2026-08-03 at
           13.37.20.png") or just a counter ("Screenshot 1.png"). null (the
           default) leaves macOS's own choice alone, which is to include it.
+        '';
+      };
+    };
+
+    # ---- lock ----
+    # §5.6's "Lock / login / screensaver" group, the LOCK half only. The login
+    # half (com.apple.loginwindow — guest account, the text under the password
+    # field, hiding Shut Down/Restart) is deliberately not here: loginwindow is
+    # read once at boot/login, killing the loginwindow process would force-quit
+    # the current session, and there is no live-reload path — exactly the
+    # "silent logout" trap this section exists to avoid. It waits until this
+    # group has somewhere honest to say "takes effect at next login" out loud,
+    # the way `nebelhaus.accessibility` says "needs Full Disk Access".
+    lock = {
+      requirePassword = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        example = true;
+        description = ''
+          Require a password to wake this Mac from sleep or the screen saver.
+          null (the default) leaves macOS's own choice alone.
+
+          The one setting in this group worth turning on for ANY shared or
+          portable machine — a family Mac, a laptop that leaves the house.
+        '';
+      };
+      requirePasswordDelay = lib.mkOption {
+        type = lib.types.nullOr lib.types.ints.unsigned;
+        default = null;
+        example = 5;
+        description = ''
+          Seconds to wait after sleep/screen-saver starts before
+          `requirePassword` actually locks the screen — macOS's "grace period".
+          null (the default) leaves macOS's own choice alone.
+
+          0 locks instantly. Has no effect while `requirePassword` is null or
+          false.
+        '';
+      };
+    };
+
+    # ---- menu bar & control center ----
+    # §5.6's "Menu bar & Control Center" group: the clock (com.apple.menuExtraClock)
+    # and which Control Center glyphs sit in the menu bar (com.apple.controlcenter).
+    # Both restart via a process kill (SystemUIServer / ControlCenter — see
+    # modules/lib/restart-map.nix), the same live-reload shape as Finder, not a
+    # TCC-gated or logout-only domain.
+    menuBar = {
+      clock = {
+        format = lib.mkOption {
+          type = lib.types.nullOr (
+            lib.types.enum [
+              "12h"
+              "24h"
+            ]
+          );
+          default = null;
+          example = "24h";
+          description = ''
+            12-hour or 24-hour menu bar clock. null (the default) leaves
+            macOS's own choice alone (region-dependent, usually 12h in the US).
+          '';
+        };
+        showSeconds = lib.mkOption {
+          type = lib.types.nullOr lib.types.bool;
+          default = null;
+          example = false;
+          description = ''
+            Show the clock to second precision instead of minutes. null (the
+            default) leaves macOS's own choice alone.
+          '';
+        };
+        showDate = lib.mkOption {
+          type = lib.types.nullOr (
+            lib.types.enum [
+              "when-space-allows"
+              "always"
+              "never"
+            ]
+          );
+          default = null;
+          example = "always";
+          description = ''
+            Whether the full date appears next to the time. null (the default)
+            leaves macOS's own choice alone ("when-space-allows").
+          '';
+        };
+        showDayOfWeek = lib.mkOption {
+          type = lib.types.nullOr lib.types.bool;
+          default = null;
+          example = true;
+          description = ''
+            Show the day of the week next to the clock. null (the default)
+            leaves macOS's own choice alone.
+          '';
+        };
+        analog = lib.mkOption {
+          type = lib.types.nullOr lib.types.bool;
+          default = null;
+          example = false;
+          description = ''
+            Draw an analog clock face instead of a digital readout. null (the
+            default) leaves macOS's own choice alone (digital).
+          '';
+        };
+      };
+      controlCenter = {
+        batteryPercentage = lib.mkOption {
+          type = lib.types.nullOr lib.types.bool;
+          default = null;
+          example = true;
+          description = ''
+            Show the battery percentage next to its menu bar icon. null (the
+            default) leaves macOS's own choice alone.
+          '';
+        };
+        sound = lib.mkOption {
+          type = lib.types.nullOr lib.types.bool;
+          default = null;
+          example = true;
+          description = "Whether the Sound control has a menu bar icon of its own. null (the default) leaves macOS's own choice alone.";
+        };
+        bluetooth = lib.mkOption {
+          type = lib.types.nullOr lib.types.bool;
+          default = null;
+          example = true;
+          description = "Whether the Bluetooth control has a menu bar icon of its own. null (the default) leaves macOS's own choice alone.";
+        };
+        airdrop = lib.mkOption {
+          type = lib.types.nullOr lib.types.bool;
+          default = null;
+          example = false;
+          description = "Whether the AirDrop control has a menu bar icon of its own. null (the default) leaves macOS's own choice alone.";
+        };
+        displayBrightness = lib.mkOption {
+          type = lib.types.nullOr lib.types.bool;
+          default = null;
+          example = true;
+          description = "Whether the Screen Brightness control has a menu bar icon of its own. null (the default) leaves macOS's own choice alone.";
+        };
+        focus = lib.mkOption {
+          type = lib.types.nullOr lib.types.bool;
+          default = null;
+          example = true;
+          description = "Whether the Focus control has a menu bar icon of its own. null (the default) leaves macOS's own choice alone.";
+        };
+        nowPlaying = lib.mkOption {
+          type = lib.types.nullOr lib.types.bool;
+          default = null;
+          example = false;
+          description = "Whether the Now Playing control has a menu bar icon of its own. null (the default) leaves macOS's own choice alone.";
+        };
+      };
+    };
+
+    # ---- security ----
+    # §5.6's "Security posture" group, the firewall half only. Guest user lives
+    # in the logout-only loginwindow domain (see `lock` above); remote login and
+    # AirDrop's OWN on/off (as opposed to its menu bar icon, above) aren't
+    # reachable through anything this rice currently wires.
+    #
+    # NOT a system.defaults domain and NOT in modules/lib/restart-map.nix on
+    # purpose: nix-darwin's networking.applicationFirewall runs
+    # `/usr/libexec/ApplicationFirewall/socketfilterfw` directly, in its own
+    # unconditional activation script, every rebuild — a live command, not a
+    # plist write waiting for something to reread it. No restart, no logout,
+    # no TCC grant.
+    security.firewall = {
+      enable = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        example = true;
+        description = ''
+          The built-in application firewall. null (the default) leaves
+          macOS's own choice alone (off, on a fresh install).
+
+          The "public Wi-Fi" setting: worth true for a laptop that leaves
+          home, closer to unnecessary for a desktop that never does.
+        '';
+      };
+      blockAllIncoming = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        example = false;
+        description = ''
+          Block ALL incoming connections, including ones apps ask for (AirDrop,
+          screen sharing, a dev server on your LAN). null (the default) leaves
+          macOS's own choice alone. Has no effect while `enable` is null or
+          false.
+        '';
+      };
+      allowSigned = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        example = true;
+        description = ''
+          Let built-in, Apple-signed software receive incoming connections
+          without asking. null (the default) leaves macOS's own choice alone.
+          Has no effect while `enable` is null or false.
+        '';
+      };
+      allowSignedApp = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        example = true;
+        description = ''
+          Let downloaded, signed third-party software receive incoming
+          connections without asking. null (the default) leaves macOS's own
+          choice alone. Has no effect while `enable` is null or false.
+        '';
+      };
+      stealthMode = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        example = true;
+        description = ''
+          Don't respond to network probes (ping, closed-port connection
+          attempts) at all, instead of replying "connection refused". null
+          (the default) leaves macOS's own choice alone. Has no effect while
+          `enable` is null or false.
         '';
       };
     };

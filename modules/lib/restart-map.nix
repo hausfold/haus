@@ -57,9 +57,23 @@
   "com.apple.commerce" = "none"; # App Store auto-update pref, read on demand
   "com.apple.desktopservices" = "Finder"; # .DS_Store behaviour; Finder reads it at launch same as its own domain
 
+  # ---- §5.6 behaviour groups (options-roadmap.md) ---------------------------
+  # nebelhaus.lock and nebelhaus.menuBar, added the same pass this comment was
+  # written. Neither restart action has been measured against NSWorkspace or an
+  # equivalent effective-state oracle the way dock/finder/universalaccess were —
+  # there is no cheap observable for "did the clock re-render" the way
+  # reduceMotion has one. Both rest on documented, widely-relied-on macOS
+  # behaviour (screensaver re-reads its own domain per invocation, same
+  # reasoning as screencapture; SystemUIServer/ControlCenter re-read their
+  # domains at launch, same as Finder) rather than a spike on this machine.
+  # Treat as "wired, not independently verified" until someone confirms by eye
+  # — see options-roadmap.md §5.6's status note.
+  "com.apple.screensaver" = "none"; # nebelhaus.lock — no persistent process to restart; read at next lock
+  "com.apple.menuExtraClock" = "SystemUIServer"; # nebelhaus.menuBar.clock
+  "com.apple.controlcenter" = "ControlCenter"; # nebelhaus.menuBar.controlCenter — first actual write into this domain; restartProcesses has carried "ControlCenter" unused since rice#249
+
   # ---- not written yet — declared ahead of use ------------------------------
-  # The day the rice (or a host) writes into either of these, the warning in
-  # den/default.nix already has a correct answer instead of another rice#181.
-  "com.apple.controlcenter" = "ControlCenter"; # matrix: killall ControlCenter, not done anywhere before this
-  "com.apple.WindowManager" = "logout"; # matrix: 12 typed keys, no live-reload path exists on macOS 26
+  # The day the rice (or a host) writes into this, the warning in den/default.nix
+  # already has a correct answer instead of another rice#181.
+  "com.apple.WindowManager" = "logout"; # matrix: 12 typed keys, no live-reload path exists on macOS 26 — no nebelhaus.* option is backed by this domain yet, on purpose (§5.6: a group that silently needs a logout is worse than no group)
 }
