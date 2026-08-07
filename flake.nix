@@ -85,27 +85,29 @@
           extraModules ? [ ],
         }:
         let
-          # Pounce "Install App" writes one small, ordinary Nix module per
-          # package here. Auto-importing the directory keeps the command
-          # machine-writable without inventing a parallel JSON option, while
-          # each file still composes through the exact public options a person
-          # would write by hand.
-          hostPackagesDir = if builtins.typeOf host == "path" then host + "/packages" else null;
-          hostPackageModules =
-            if hostPackagesDir != null && builtins.pathExists hostPackagesDir then
-              map (name: hostPackagesDir + "/${name}") (
+          # Machine-written config stays ordinary Nix. Pounce "Install App"
+          # writes one module per package; `haus set` does the same for settings.
+          # Both directories are auto-imported, so there is no parallel JSON
+          # store and every generated value still travels through the public
+          # option a person would write by hand.
+          hostModuleDir = name: if builtins.typeOf host == "path" then host + "/${name}" else null;
+          modulesIn =
+            dir:
+            if dir != null && builtins.pathExists dir then
+              map (name: dir + "/${name}") (
                 builtins.filter (
                   name:
                   name != "default.nix"
                   && nixpkgs.lib.hasSuffix ".nix" name
-                  && builtins.elem (builtins.readDir hostPackagesDir).${name} [
+                  && builtins.elem (builtins.readDir dir).${name} [
                     "regular"
                     "symlink"
                   ]
-                ) (builtins.attrNames (builtins.readDir hostPackagesDir))
+                ) (builtins.attrNames (builtins.readDir dir))
               )
             else
               [ ];
+          hostWrittenModules = modulesIn (hostModuleDir "packages") ++ modulesIn (hostModuleDir "settings");
         in
         nix-darwin.lib.darwinSystem {
           inherit system;
@@ -158,7 +160,7 @@
             self.darwinModules.default
             host
           ]
-          ++ hostPackageModules
+          ++ hostWrittenModules
           ++ extraModules;
         };
       presetFiles = {
