@@ -118,8 +118,9 @@
         The accent colour, by Catppuccin name (the Nebelung palette is a
         grey-tinted Catppuccin, so the fourteen names are the same in both
         flavors — the hue you pick follows nebelhaus.theme.flavor). It recolours
-        the tools nebelhaus injects colours into — lazygit, fzf, yazi, and the Zen
-        browser — via the matching Nebelung per-accent ports.
+        the tools nebelhaus injects colours into — lazygit, fzf, yazi (including
+        glow-rendered Markdown headings), and the Zen browser — via the matching
+        Nebelung per-accent ports.
 
         perch follows it too, and is the one surface handed the NAME rather than
         a hex: the shelf resolves it against whichever half of its dark/light

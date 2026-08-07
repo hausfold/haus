@@ -930,6 +930,12 @@
                   entry = hm.home.file.${target};
                 in
                 if entry.text != null then entry.text else toString entry.source;
+              xdgFile =
+                target:
+                let
+                  entry = hm.xdg.configFile.${target};
+                in
+                if entry.text != null then entry.text else toString entry.source;
               targetsUnder =
                 prefix:
                 nixpkgs.lib.concatStringsSep "," (
@@ -939,6 +945,7 @@
             builtins.mapAttrs (_: builtins.unsafeDiscardStringContext) {
               # --- the accent is supposed to arrive here ---
               fzf = hm.home.sessionVariables.FZF_DEFAULT_OPTS;
+              glow = xdgFile "yazi/plugins/glow.yazi";
               lazygit = file "Library/Application Support/lazygit/config.yml";
               yazi = file ".config/yazi/theme.toml";
               zen = hm.home.activation.zenNebelung.data;
@@ -987,11 +994,12 @@
             }";
           accentTable = builtins.concatStringsSep "\n" (map accentRow (builtins.attrNames accentA));
           # Alphabetical because the rows are `attrNames` — self-sorting, so a new
-          # surface can't be added in a spot that hides it. Eight move, nine hold.
+          # surface can't be added in a spot that hides it. Nine move, nine hold.
           expectedAccentTable = ''
             bat pinned
             fzf moves
             ghostty pinned
+            glow moves
             helix pinned
             lazygit moves
             lsd pinned
