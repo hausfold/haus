@@ -15,6 +15,11 @@ let
   # pill is only a view/controller; the wake lock survives bar/shell restarts.
   awake = pkgs.writeShellScriptBin "awake" (builtins.readFile ./awake.sh);
 
+  # `hausax` — the NSWorkspace effective-accessibility-state oracle `haus
+  # diff`/`haus plan` shell out to. See hausax.swift for why a plist read isn't
+  # enough on macOS 26.
+  hausax = pkgs.callPackage ./package-hausax.nix { };
+
   homeDir = "/Users/${username}";
 
   # Whichever system.defaults.universalaccess.* keys the host actually set (they
@@ -255,6 +260,12 @@ in
       # must sit at a stable /run/current-system path for collar's
       # passwordless-sudo rule to match it. See the script's header.
       (writeShellScriptBin "haus-activate" (builtins.readFile ./haus-activate.sh))
+
+      # The oracle `haus diff`/`haus plan` use to tell a declared setting that
+      # actually took effect from one macOS silently ignored — see hausax.swift.
+      # Unconditional beside `haus`, for the same reason: both are the product,
+      # not the developer toolbelt.
+      hausax
 
       # The annotated host file — every nebelhaus.* option at its default, with
       # its description and a docs link, all commented out — installed at

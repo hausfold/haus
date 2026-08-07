@@ -62,13 +62,17 @@ That first switch puts **`haus`** on your PATH, so you never type the
 incantation again:
 
 ```sh
-haus rebuild        # build + switch this machine
-haus update         # pull the latest rice, then rebuild
-haus rollback       # go back a generation (haus generations lists them)
-haus status         # current generation + how old your pinned rice is
-haus options        # refresh the annotated catalogue of every nebelhaus.* option
-haus doctor         # check Nix, the CLT, the GUI agents, and Homebrew cask drift
-haus tour           # a guided lap of the four moves, right in the bar
+haus rebuild         # build + switch this machine
+haus update          # pull the latest rice, then rebuild
+haus rollback        # go back a generation (haus generations lists them)
+haus status          # current generation + how old your pinned rice is
+haus options         # refresh the annotated catalogue of every nebelhaus.* option
+haus plan            # preview what the next rebuild would change — read-only
+haus diff            # declared config vs what macOS actually has right now
+haus capture         # turn this Mac's current settings into config lines + a snapshot
+haus revert-settings # put back a 'haus capture' snapshot — undoes what haus rollback can't
+haus doctor          # check Nix, the CLT, the GUI agents, and Homebrew cask drift
+haus tour            # a guided lap of the four moves, right in the bar
 ```
 
 On a fresh machine the bar shows a small "new here?" paw — click it and **haus
