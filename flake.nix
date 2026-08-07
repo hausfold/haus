@@ -950,13 +950,17 @@
               # is 3 MB and its derivation is named for the accent, so the path
               # IS the fingerprint and nothing has to be realised to compare it.
               stylus = file ".config/nebelhaus/nebelung-stylus.json";
+              # perch takes the accent by catppuccin ROLE NAME rather than by
+              # hex — it resolves the name against whichever half of its
+              # dark/light pair macOS is showing — so the fingerprint that moves
+              # here is the name inside config.json, not a colour.
+              perch = hm.home.activation.perchTheme.data;
               # --- and is supposed to leave these alone ---
               bat = file "/Users/you/.config/bat/themes/Catppuccin Mocha.tmTheme";
               ghostty = file "Library/Application Support/com.mitchellh.ghostty/config";
               helix = file ".config/helix/themes/nebelung.toml";
               lsd = file ".config/lsd/colors.yaml";
               opencode = file ".config/opencode/themes/nebelung.json";
-              perch = hm.home.activation.perchTheme.data;
               pounce = file "/Users/you/.config/pounce/themes/nebelung.json";
               sill = file ".config/sketchybar/colors.sh";
               starship = file "/Users/you/.config/starship.toml";
@@ -984,7 +988,7 @@
             }";
           accentTable = builtins.concatStringsSep "\n" (map accentRow (builtins.attrNames accentA));
           # Alphabetical because the rows are `attrNames` — self-sorting, so a new
-          # surface can't be added in a spot that hides it. Seven move, ten hold.
+          # surface can't be added in a spot that hides it. Eight move, nine hold.
           expectedAccentTable = ''
             bat pinned
             fzf moves
@@ -993,7 +997,7 @@
             lazygit moves
             lsd pinned
             opencode pinned
-            perch pinned
+            perch moves
             pounce pinned
             sill pinned
             starship pinned

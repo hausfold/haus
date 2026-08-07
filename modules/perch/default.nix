@@ -21,8 +21,8 @@
 # Theming rides perch's RUNTIME palettes (perch's UI/Theme/RicePalette.swift):
 # every rendered nebelung variant is dropped in ~/.config/perch/themes/, and
 # ~/.config/perch/config.json names the dark/light pair theme.{flavor,contrast}
-# selects. perch has no theme picker of its own, so this file is the whole
-# story for its colors.
+# selects, plus the theme.accent perch emphasises with. perch has no theme or
+# accent picker of its own, so this file is the whole story for its colors.
 {
   config,
   lib,
@@ -63,10 +63,16 @@ lib.mkIf config.nebelhaus.perch.enable {
       # The palette per polarity. Perch picks between them by the macOS
       # appearance, so PINNING a flavor is expressed by writing the same variant
       # to both keys. An older perch that predates theming ignores this file.
+      #
+      # `accent` is a catppuccin ROLE NAME, not a hex: perch resolves it against
+      # whichever half of the pair is in force, so one key is the right hue in
+      # both polarities and follows a flavor change on its own. A perch that
+      # predates the key ignores it and keeps accenting with its mark green.
       configJSON = pkgs.writeText "perch-config.json" (
         builtins.toJSON {
           themeDark = if followAppearance then nb.darkVariant else nb.variant;
           themeLight = if followAppearance then nb.lightVariant else nb.variant;
+          accent = config.nebelhaus.theme.accent;
         }
       );
 
