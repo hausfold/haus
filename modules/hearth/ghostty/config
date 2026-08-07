@@ -94,6 +94,7 @@ keybind = cmd+f=unbind
 # every pane in the session instead of just the focused one. Ghostty binds
 # nothing here today; unbind it defensively so the chord keeps reaching zellij.
 keybind = cmd+shift+f=unbind
+@GH_DASH_GHOSTTY_BIND@
 # cmd+enter → zellij "Super Enter" (toggle the focused pane fullscreen), which
 # is where pane zoom moved when ⌘F went back to meaning find. Ghostty binds
 # nothing here today; unbind it defensively, same as cmd+shift+a, so a future

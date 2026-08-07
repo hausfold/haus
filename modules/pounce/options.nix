@@ -143,12 +143,12 @@
 
         Two things this checks at build time, because both fail SILENTLY at
         runtime: a key that names no real item shape (a "mode:" typo binds
-        nothing at all), and a chord already claimed by nebelhaus.keys.palette or
-        nebelhaus.keys.leader (whoever registers first wins, and it isn't always
-        the same one). What it can't check is whether `cmd:<id>` names a command
-        that exists — command scripts are discovered at runtime, so pounce warns
-        about that itself when the daemon starts, and `pounce doctor` lists any
-        binding that failed to arm.
+        nothing at all), and a chord already claimed by nebelhaus.keys.palette,
+        nebelhaus.keys.leader, or a terminal binding (whoever registers first
+        wins, and it isn't always the same one). What it can't check is whether
+        `cmd:<id>` names a command that exists — command scripts are discovered
+        at runtime, so pounce warns about that itself when the daemon starts, and
+        `pounce doctor` lists any binding that failed to arm.
       '';
       type = lib.types.attrsOf (
         lib.types.submodule {

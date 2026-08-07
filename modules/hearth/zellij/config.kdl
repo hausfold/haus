@@ -231,6 +231,8 @@ keybinds {
             }
         }
 
+@GH_DASH_BIND@
+
         // NOTE: there is no reload chord, and deliberately so. This file is
         // installed into ~/.config as a real file with a live mtime (hearth's
         // zellijLiveConfig activation), so zellij's own config watcher applies

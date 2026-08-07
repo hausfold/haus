@@ -39,6 +39,10 @@
   agentDefault,
   # Whether any agent client is installed at all (nebelhaus.agents.clients).
   agentsEnabled,
+  # nebelhaus.hearth.ghDash.enable — the bind only exists when the dashboard
+  # itself is installed, so neither the cheatsheet nor Ghostty advertises a
+  # dead Cmd-G on machines that do not want it.
+  ghDashEnabled,
 }:
 
 let
@@ -152,7 +156,11 @@ rec {
           chords = [ "Super l" ];
           action = "Open a link from this pane's scrollback";
         }
-      ];
+      ]
+      ++ lib.optional ghDashEnabled {
+        chords = [ "Super g" ];
+        action = "GitHub dashboard, fullscreen overlay";
+      };
     }
     # The mouse half: real terminal behaviour, no chord to check, and workflow
     # rather than key reference — so it lives on Tips beside the other

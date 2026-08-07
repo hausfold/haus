@@ -17,6 +17,7 @@
 let
   gitCfg = config.nebelhaus.git;
   hearthCfg = config.nebelhaus.hearth;
+  ghDashCfg = hearthCfg.ghDash;
   claudeCfg = config.nebelhaus.claude;
   accent = config.nebelhaus.theme.accent; # a Catppuccin accent name, e.g. "mauve"
   devCfg = config.nebelhaus.developer;
@@ -64,7 +65,37 @@ let
   termBindings = import ./term-bindings.nix {
     inherit lib agentDefault;
     agentsEnabled = agentClients != [ ];
+    ghDashEnabled = ghDashCfg.enable;
   };
+  ghDashBind = lib.optionalString ghDashCfg.enable ''
+    // Super g — GitHub's review queue in a borderless, full-window
+    // floating pane. It has the same overlay shape as Super f: the
+    // tiled pane underneath is untouched, and quitting gh-dash drops
+    // straight back into it. A 1% launcher is necessary because KDL's
+    // Run action cannot request a borderless pane; gh-dash.sh opens the
+    // real overlay through `zellij action new-pane --borderless true`.
+    bind "Super g" {
+        Run "@HOME@/.config/zellij/gh-dash.sh" {
+            floating true
+            close_on_exit true
+            name "github-launch"
+            x "100%"; y "100%"; width "1%"; height "1%"
+        }
+    }
+  '';
+  zellijConfigTemplate = builtins.replaceStrings [ "@GH_DASH_BIND@" ] [ ghDashBind ] (
+    builtins.readFile ./zellij/config.kdl
+  );
+  ghDashGhosttyBind = lib.optionalString ghDashCfg.enable ''
+    # cmd+g → zellij "Super g": gh-dash as a clean fullscreen overlay.
+    # Ghostty owns this chord as search-next by default, so it must be released
+    # explicitly before the multiplexer can see it. This is Cmd-G, not Zellij's
+    # Ctrl-G lock toggle; those are distinct chords and coexist.
+    keybind = cmd+g=unbind
+  '';
+  ghosttyConfigTemplate = builtins.replaceStrings [ "@GH_DASH_GHOSTTY_BIND@" ] [ ghDashGhosttyBind ] (
+    builtins.readFile ./ghostty/config
+  );
   # Chords bound in config.kdl. Only the quoted words BEFORE the block open — a
   # bind body can carry its own strings (`bind "Super t" { NewTab { layout "…" } }`)
   # and those are not chords.
@@ -78,7 +109,7 @@ let
       [ ]
     else
       map (p: p.v) (lib.filter (p: lib.mod p.i 2 == 1) (lib.imap0 (i: v: { inherit i v; }) quoted))
-  ) (lib.splitString "\n" (builtins.readFile ./zellij/config.kdl));
+  ) (lib.splitString "\n" zellijConfigTemplate);
   untaughtChords = lib.subtractLists (termBindings.chords ++ termBindings.modeOnly) (
     lib.unique kdlChords
   );
@@ -525,6 +556,7 @@ in
     "starship"
     "fzf"
     "lazygit"
+    "gh-dash"
   ];
 
   home-manager.users.${username} =
@@ -667,6 +699,28 @@ in
       zenAccent = lib.toUpper (lib.substring 0 1 accent) + lib.substring 1 (lib.stringLength accent) accent;
       zenTheme = "${nebelungRoot}/zen/themes/${nb.title}/${zenAccent}";
       obsidianTheme = "${nebelungRoot}/obsidian/Nebelung";
+      ghDashTheme = "${nebelungRoot}/gh-dash/themes/${nbFlavor}/catppuccin-${nbFlavor}-${accent}.yml";
+
+      # gh-dash hardcodes both its stock logo and its cyan colour. Once Hearth
+      # owns the dashboard integration, the house mark belongs here too: patch
+      # the same-width glyph in place, then source its colour from the active
+      # Nebelung theme so flavor/accent/contrast changes follow automatically.
+      # --replace-fail makes an upstream redraw a loud build failure instead of
+      # silently putting the stock mark back.
+      ghDashPkg = pkgs.gh-dash.overrideAttrs (old: {
+        postPatch = (old.postPatch or "") + ''
+          substituteInPlace internal/tui/constants/constants.go \
+            --replace-fail '▜▔▚▐▔▌▚▔▐ ▌' '▐ ▌▐▔▌▐ ▌▚▔' \
+            --replace-fail '▟▁▞▐▔▌▁▚▐▔▌' '▐▔▌▐▔▌▙▁▟▁▚'
+          substituteInPlace internal/tui/components/tabs/tabs.go \
+            --replace-fail \
+              'Foreground(m.ctx.Theme.SecondaryText).Render(m.ctx.Version)' \
+              'Foreground(m.ctx.Theme.FaintText).Render(m.ctx.Version)' \
+            --replace-fail \
+              'Foreground(context.LogoColor)' \
+              'Foreground(m.ctx.Theme.SecondaryText)'
+        '';
+      });
 
       # The zellij custom layout, rendered from the in-repo template. Only two
       # tokens remain: the login name for the tab-bar's username pill, and
@@ -702,7 +756,7 @@ in
             agentNewRun
             ''"${agentDefault}"''
           ]
-          (builtins.readFile ./zellij/config.kdl)
+          zellijConfigTemplate
       );
 
       # Seeds a zellij plugin's grants into the permission cache (see the
@@ -1249,6 +1303,16 @@ in
 
       programs.zellij.enable = true;
 
+      # Optional because the sections themselves are personal, while the tool,
+      # theme and terminal surface are generic. Hosts compose their own queue in
+      # programs.gh-dash.settings; Hearth supplies the patched binary, Nebelung
+      # include, and Cmd-G overlay when the integration is enabled.
+      programs.gh-dash = lib.mkIf ghDashCfg.enable {
+        enable = true;
+        package = lib.mkDefault ghDashPkg;
+        settings.include = lib.mkBefore [ ghDashTheme ];
+      };
+
       # Catppuccin: `catppuccin.flavor` is the single source of truth — every
       # integration follows it. Raw dotfiles nix can't inject into (ghostty
       # config, zellij config.kdl) name the flavor manually; keep them in sync.
@@ -1272,6 +1336,7 @@ in
       catppuccin.lazygit.enable = false;
       catppuccin.lsd.enable = false;
       catppuccin.yazi.enable = false;
+      catppuccin.gh-dash.enable = false;
       catppuccin.zsh-syntax-highlighting.enable = false;
       catppuccin.zellij.enable = false; # managed as a raw dotfile below
 
@@ -1454,7 +1519,7 @@ in
               fontsCfg.mono.name
               (toString fontsCfg.mono.size)
             ]
-            (builtins.readFile ./ghostty/config);
+            ghosttyConfigTemplate;
         ".config/ghostty/themes/nebelung".source =
           "${nebelungRoot}/ghostty/themes/catppuccin-${nbFlavor}.conf";
 
@@ -1513,9 +1578,9 @@ in
         # load_plugins; grants seeded below.
         ".config/zellij/plugins/tab-history.wasm".source = zellijPlugins.tab-history;
         # Our status-bar fork (see zellij/status-bar/): the bottom-right quick
-        # hints are condensed to one flat "⌘ + <a,f,l,p,t,y,⏎>" block (agent,
-        # find, pounce-links, pane, tab, yazi-peek, fullscreen — keys only, no
-        # labels/ribbons, listed alphabetically by the key that shows).
+        # hints are condensed to one flat Super-key block (agent, find, optional
+        # gh-dash, pounce-links, pane, tab, yazi-peek, fullscreen — keys only,
+        # no labels/ribbons, listed alphabetically by the key that shows).
         ".config/zellij/plugins/status-bar.wasm".source = zellijPlugins.status-bar;
         # Our tab-bar fork (see zellij/tab-bar/): the top bar, replacing the
         # third-party zjstatus that used to sit here. Same active-anchored tab
@@ -1555,6 +1620,12 @@ in
         # script header for why this isn't zellij's native search.
         ".config/zellij/find.sh" = {
           source = ./zellij/find.sh;
+          executable = true;
+        };
+        # Cmd-G: the tiny launcher that asks zellij for the real full-window,
+        # borderless gh-dash pane. The bind is rendered only when ghDash is on.
+        ".config/zellij/gh-dash.sh" = {
+          source = ./zellij/gh-dash.sh;
           executable = true;
         };
         # The one floating-Ghostty helper (geom + spawn); peek.sh, the Rebuild
