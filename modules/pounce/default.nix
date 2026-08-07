@@ -291,12 +291,13 @@ let
   # hearth's assertion fails the build otherwise. The Tips page used to teach
   # these by hand, and spent months saying ⌘C started an agent; it had been ⌘A
   # since the bind stopped being Claude-only.
-  termPages =
-    (import ../hearth/term-bindings.nix {
-      inherit lib;
-      agentDefault = config.nebelhaus.agents.default;
-      agentsEnabled = config.nebelhaus.agents.clients != [ ];
-    }).pages;
+  termBindings = import ../hearth/term-bindings.nix {
+    inherit lib;
+    agentDefault = config.nebelhaus.agents.default;
+    agentsEnabled = config.nebelhaus.agents.clients != [ ];
+    ghDashEnabled = config.nebelhaus.hearth.ghDash.enable;
+  };
+  termPages = termBindings.pages;
 
   # The rice's palette commands, read from the `# pounce: name/description`
   # headers of ./commands — the same files riceCommands installs, so renaming a
@@ -514,9 +515,13 @@ let
     ) b.steps
   ) itemBindings;
 
-  # The rice's own chords, in the same normalized shape. keys.nix already asserts
-  # leader-vs-palette (nebelhaus#108); item hotkeys are the third claimant, and the
-  # failure mode is identical: whoever registers first wins, silently.
+  # The rice's own GLOBAL chords, in the same normalized shape. keys.nix already
+  # asserts leader-vs-palette (nebelhaus#108); item hotkeys are the third
+  # claimant, and the failure mode is identical: whoever registers first wins,
+  # silently. Terminal chords count too: Pounce registers item hotkeys globally,
+  # so a cmd+g item would swallow Zellij's Super-g before Ghostty ever saw it.
+  # termBindings is already feature-aware (gh-dash is absent when disabled), so
+  # the assertion reserves exactly the terminal surface this host actually has.
   riceChords =
     lib.optional (k.palette != null) {
       what = "nebelhaus.keys.palette";
@@ -527,7 +532,11 @@ let
       # The leader's AeroSpace chord ("f18" for Caps Lock, "alt-space") is already
       # modifier-dash-key, so "+" is all that differs.
       chord = (normalizeStep (lib.replaceStrings [ "-" ] [ "+" ] k.leader.chord)).chord;
-    };
+    }
+    ++ map (chord: {
+      what = "terminal binding ${chord}";
+      chord = (normalizeStep (lib.replaceStrings [ " " ] [ "+" ] chord)).chord;
+    }) termBindings.chords;
 
   # Only the FIRST step can clash with a rice chord: a later step is grabbed for
   # ~2s after the leader fires, and pounce disarms it again.

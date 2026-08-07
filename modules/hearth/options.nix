@@ -147,6 +147,17 @@ in
       '';
     };
 
+    hearth.ghDash.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      example = true;
+      description = ''
+        Whether to enable the themed gh-dash GitHub dashboard and its Cmd-G
+        fullscreen Zellij overlay. Hosts can compose their own queue through
+        home-manager's `programs.gh-dash.settings`.
+      '';
+    };
+
     zen.extensions = lib.mkOption {
       type = lib.types.attrsOf (
         lib.types.submodule (
