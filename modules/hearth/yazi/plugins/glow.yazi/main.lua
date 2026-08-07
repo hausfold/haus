@@ -12,8 +12,10 @@
 local M = {}
 
 function M:peek(job)
-	-- Fixed preview width (glow wraps to this instead of the pane width).
-	local preview_width = 55
+	-- Render for the actual preview rectangle. The old fixed 55-column width
+	-- only happened to fit one pane ratio and left stale wrapping behind as the
+	-- terminal or manager columns changed.
+	local preview_width = job.area.w
 
 	-- @glowStyle@ is substituted by hearth with the Nebelung glamour port's
 	-- store path. It must be passed with -s: glow ignores $GLAMOUR_STYLE in its

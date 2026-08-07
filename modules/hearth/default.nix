@@ -562,11 +562,12 @@ in
       # the catppuccin-themed `cat` alias — colours + line numbers.
       batPreviewer = ''piper -- bat --color=always --paging=never --style=numbers --tabs=2 --terminal-width=$w "$1"'';
 
-      # Nebelung glamour port (markdown styling for glow). glow ignores
+      # Nebelung glamour port (markdown styling for glow), selected from the
+      # same flavor + accent matrix as yazi itself. glow ignores
       # $GLAMOUR_STYLE in its default "auto" mode (glow 2.x), so the style must
       # be passed explicitly with `-s`: baked into the yazi previewer plugin
       # (@glowStyle@ placeholder) and the `glow -p` opener below.
-      glowStyle = "${nebelungRoot}/glow/catppuccin-${nbFlavor}.json";
+      glowStyle = "${nebelungRoot}/glow/themes/${nbFlavor}/catppuccin-${nbFlavor}-${accent}.json";
       glowPlugin = pkgs.runCommand "glow.yazi" { } ''
         cp -r ${./yazi/plugins/glow.yazi} $out
         chmod -R +w $out
@@ -1023,9 +1024,9 @@ in
         shellWrapperName = "yy";
         settings.mgr.show_hidden = true;
         settings.mgr.ratio = [
-          1
-          4
-          4
+          2
+          5
+          6
         ];
         # Default preview caps (600×900 px) leave kitty-protocol previews soft
         # on a retina display; size them for the near-fullscreen peek window.
@@ -1104,7 +1105,11 @@ in
         settings.opener = {
           read = [
             {
-              run = ''glow -s "${glowStyle}" -p "$@"'';
+              # glow otherwise reads its global width (80 columns by default),
+              # even though Enter has suspended yazi and given it the whole
+              # terminal. Resolve the live terminal width at open time so the
+              # fullscreen pager wraps where the visible window ends.
+              run = ''glow -s "${glowStyle}" -w "$(tput cols)" -p "$@"'';
               block = true;
               desc = "glow";
             }
