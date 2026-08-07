@@ -144,6 +144,37 @@ vis() {
     fail "the cluster is not sitting just left of the chips: $bare"
 }
 
+@test "child rows use their status token as the bullet" {
+  run -0 render claude-opus-5
+  local bare; bare=$(printf '%s' "${lines[1]}" |
+    sed 's/\x1b]8;;[^\\]*\x1b\\//g; s/\x1b\[[0-9;]*m//g')
+  [ "$bare" = "  2^ pounce #41 some-child" ] ||
+    fail "child status is not its leading bullet: $bare"
+  [[ "$bare" != *"○"* ]] || fail "the old circle bullet survived: $bare"
+}
+
+@test "active child rows stay above reapable rows before the row cap" {
+  : >"$CLAUDE_STATUSLINE_CACHE/panel.tsv"
+  for i in 1 2 3 4 5 6 7 8; do
+    printf 'nebelhaus/pounce\tmerged-%s\t1\t0\t0\t0\t#%s merged\t%s\n' \
+      "$i" "$i" "$REPO" >>"$CLAUDE_STATUSLINE_CACHE/panel.tsv"
+  done
+  printf 'nebelhaus/pounce\tactive\t1\t0\t0\t0\t#99 open\t%s\n' \
+    "$REPO" >>"$CLAUDE_STATUSLINE_CACHE/panel.tsv"
+
+  run -0 render claude-opus-5
+  local bare; bare=$(printf '%s\n' "${lines[@]}" |
+    sed 's/\x1b]8;;[^\\]*\x1b\\//g; s/\x1b\[[0-9;]*m//g')
+  [ "${lines[1]}" ] || fail "no first child row rendered"
+  local first_child; first_child=$(printf '%s' "${lines[1]}" |
+    sed 's/\x1b]8;;[^\\]*\x1b\\//g; s/\x1b\[[0-9;]*m//g')
+  [ "$first_child" = "  1^ pounce #99 active" ] ||
+    fail "the active child did not lead: $first_child"
+  [[ "$bare" != *"merged-8"* ]] ||
+    fail "the last reapable row displaced active work instead of falling under the cap"
+  [[ "$bare" == *"+1 more"* ]] || fail "the capped reapable row was not counted"
+}
+
 @test "an untinted row keeps its old ragged-right shape" {
   # The tint must be strictly additive: on any other model rows stay unpadded,
   # which is exactly what they were before emit() existed.

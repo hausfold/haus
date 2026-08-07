@@ -14,9 +14,10 @@
 #          edge-to-edge, so the special model is legible from across a wall of
 #          panes without reading anything. Per-pane, hence safe — see TINT_FABLE.
 # Row 2+ : the worktrees THIS session spawned (its direct children via ⌘A /
-#          `claude --worktree`), across whatever repos they live in — each as
-#          repo, PR number (left of the name, colored by PR state), name, and
-#          the same status token as row 1.
+#          `claude --worktree`), across whatever repos they live in — each with
+#          the same status-as-bullet as row 1, then repo, PR number (colored by
+#          PR state), and name. Active rows lead; reapable ⏏ rows come last so
+#          Claude Code clipping never hides work that still needs attention.
 #
 # Lineage: `holt hook create` records each worktree's parent (the cwd it was spawned
 # from) in its registry; the refresher carries that into panel.tsv, and a
@@ -46,7 +47,7 @@ MAX_ROWS=8      # cap child rows; extras collapse into a "+N more" line
 
 # 256-colour palette — muted, rice-consistent (cf. `holt`: 103 gray, 167 red).
 c() { printf '\033[38;5;%sm' "$1"; }
-DOT=$(c 108); DIM=$(c 244); GRAY=$(c 103); NAME=$'\033[1m'
+DOT=$(c 108); DIM=$(c 244); NAME=$'\033[1m'
 AHEAD=$(c 75); ADD=$(c 71); DEL=$(c 167); PURGE=$(c 173)
 PR_OPEN=$(c 71); PR_MERGED=$(c 139); PR_CLOSED=$(c 167)
 R0=$'\033[0m'   # true reset — ends a line, drops any row tint
@@ -536,15 +537,25 @@ fi
 # --- ROW 2+ : the worktrees THIS session spawned (panel parent == cwd), plus, in
 # the $HOME pane only, orphan worktrees (no recorded parent) so nothing hides ----
 [ -f "$PANEL" ] || exit 0
+# panel.tsv is stable in registry order. Preserve that order within each group,
+# but move the exact state render_status turns into ⏏ behind every active row
+# BEFORE applying MAX_ROWS. Otherwise eight landed children can consume the cap
+# and make a ninth, unmerged child disappear into "+N more".
+ordered_panel() {
+  awk -F'\t' '
+    $7 ~ / merged$/ { reapable = reapable $0 ORS; next }
+    { print }
+    END { printf "%s", reapable }
+  ' "$PANEL"
+}
 shown=0; extra=0
 while IFS=$'\t' read -r pslug pname pahead pfiles pins pdel ppr pparent; do
   [ -n "$pname" ] || continue
   [ "$ppr" = "-" ] && ppr=""                    # decode empty-prstate sentinel
-  orphan=0
   if [ "$pparent" = "$cwd" ]; then
     :                                           # a worktree I spawned
   elif [ "$is_home" = 1 ] && [ -z "$pparent" ]; then
-    orphan=1                                     # unattributed — surfaced only at $HOME
+    :                                           # unattributed — surfaced only at $HOME
   else
     continue
   fi
@@ -559,17 +570,15 @@ while IFS=$'\t' read -r pslug pname pahead pfiles pins pdel ppr pparent; do
   # width-aware truncation: only clip the name if the row would exceed COLS.
   # Size the PR segment from its VISIBLE text ("#40"), since the OSC 8 hyperlink
   # in prseg carries the URL as zero-width bytes that plain() can't strip.
-  stplain=$(plain "$pst"); stlen=${#stplain}
+  bullet="$pst"; [ -z "$bullet" ] && bullet="${DOT}●${R}"
+  bulletplain=$(plain "$bullet"); bulletlen=${#bulletplain}
   prlen=${#prnum}; [ "$prlen" -gt 0 ] && prlen=$((prlen+1))   # +1 for trailing space
-  budget=$(( COLS - 4 - ${#repo} - 1 - prlen - stlen - 4 ))
+  budget=$(( COLS - 4 - bulletlen - ${#repo} - prlen ))
   [ "$budget" -lt 8 ] && budget=8
   disp="$pname"
   [ ${#disp} -gt "$budget" ] && disp="${disp:0:budget-1}…"
-  # Orphans get an orange ◇ (vs the children's gray ○) — a "no parent, adopt or
-  # reap me" flag, only ever seen in the $HOME pane.
-  bullet="${GRAY}○${R}"; [ "$orphan" = 1 ] && bullet="${PURGE}◇${R}"
-  emit "  ${bullet} ${DIM}${repo}${R} ${prseg:+$prseg }${disp}${pst:+  $pst}"
+  emit "  ${bullet} ${DIM}${repo}${R} ${prseg:+$prseg }${disp}"
   shown=$((shown+1))
-done <"$PANEL"
+done < <(ordered_panel)
 [ "$extra" -gt 0 ] && emit "  ${DIM}+${extra} more${R}"
 exit 0
