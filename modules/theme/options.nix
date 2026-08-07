@@ -121,6 +121,12 @@
         the tools nebelhaus injects colours into — lazygit, fzf, yazi, and the Zen
         browser — via the matching Nebelung per-accent ports.
 
+        perch follows it too, and is the one surface handed the NAME rather than
+        a hex: the shelf resolves it against whichever half of its dark/light
+        pair macOS is showing, so the ember under the notch and a pinned tile
+        wear this accent in both polarities from one key. Left at perch's
+        default it accents with its own mark green.
+
         Two more things follow it: the `bold` wallpaper (generated from the
         accent hex — see nebelhaus.theme.wallpaper), and any roster app whose
         Nebelung port ships a per-accent matrix (zed, gh-dash, mpv), placed by
