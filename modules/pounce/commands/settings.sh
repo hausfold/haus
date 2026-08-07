@@ -23,13 +23,15 @@ case "${choice%%$'\t'*}" in
   *) exit 0 ;;
 esac
 
-runner="/tmp/nebelhaus-setting-${path//./-}.sh"
+runner="$(mktemp "${TMPDIR:-/tmp}/nebelhaus-setting.XXXXXX")"
 {
   printf '%s\n' '#!/bin/bash'
+  # $0 belongs to the generated runner, not this script.
+  # shellcheck disable=SC2016
+  printf '%s\n' 'trap '\''rm -f -- "$0"'\'' EXIT'
   printf 'export PATH=%q\n' "$PATH"
   printf 'haus set %q %q\n' "$path" "$value"
   printf '%s\n' 'echo' 'echo "Press any key to close…"' 'read -n 1 -s'
-  printf 'rm -f %q\n' "$runner"
 } >"$runner"
 chmod 700 "$runner"
 xattr -d com.apple.quarantine "$runner" 2>/dev/null || true
