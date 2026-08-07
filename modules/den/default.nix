@@ -53,6 +53,9 @@ let
     "com.apple.AppleMultitouchTrackpad"
     "com.apple.screencapture"
     "com.apple.universalaccess"
+    "com.apple.screensaver" # nebelhaus.lock
+    "com.apple.menuExtraClock" # nebelhaus.menuBar.clock
+    "com.apple.controlcenter" # nebelhaus.menuBar.controlCenter
   ];
   customPrefDomainsWritten = lib.attrNames config.system.defaults.CustomUserPreferences;
   domainsWritten = lib.unique (typedDomainsWritten ++ customPrefDomainsWritten);
@@ -91,6 +94,17 @@ let
     bottomRight = "br";
   };
   hotCornersSet = lib.filterAttrs (n: _: config.nebelhaus.hotCorners.${n} != null) hotCornerKeys;
+
+  # ---- lock / menu bar / security --------------------------------------------
+  lockCfg = config.nebelhaus.lock;
+  clockCfg = config.nebelhaus.menuBar.clock;
+  ccCfg = config.nebelhaus.menuBar.controlCenter;
+  firewallCfg = config.nebelhaus.security.firewall;
+  clockShowDateValue = {
+    "when-space-allows" = 0;
+    "always" = 1;
+    "never" = 2;
+  };
 
   # ---- screenshots ----------------------------------------------------------
   shotsCfg = config.nebelhaus.screenshots;
@@ -253,9 +267,7 @@ in
     # future domain (Control Center, say) restarts correctly the day
     # something starts writing into it, with no second fix needed here.
     (lib.optionalString (processesToRestart != [ ]) ''
-      ${lib.concatMapStringsSep "\n" (
-        proc: "killall -qu ${username} ${proc} || true"
-      ) processesToRestart}
+      ${lib.concatMapStringsSep "\n" (proc: "killall -qu ${username} ${proc} || true") processesToRestart}
     '')
 
     # ---- make the preferences we just wrote LIVE, without a logout ----------
@@ -657,6 +669,37 @@ in
       show-thumbnail = shotsCfg.thumbnail;
       include-date = shotsCfg.includeDate;
     };
+
+    # ---- nebelhaus.lock → com.apple.screensaver -------------------------------
+    # Two keys, both null by default like every group in §5.6. No persistent
+    # process reads this domain, so restart-map.nix says "none" — same shape as
+    # screencapture, unverified against an effective-state oracle this pass (no
+    # cheap NSWorkspace-style probe exists for "did the lock delay change").
+    screensaver = {
+      askForPassword = lockCfg.requirePassword;
+      askForPasswordDelay = lockCfg.requirePasswordDelay;
+    };
+
+    # ---- nebelhaus.menuBar.clock → com.apple.menuExtraClock -------------------
+    menuExtraClock = {
+      Show24Hour = if clockCfg.format == null then null else clockCfg.format == "24h";
+      ShowSeconds = clockCfg.showSeconds;
+      ShowDate = if clockCfg.showDate == null then null else clockShowDateValue.${clockCfg.showDate};
+      ShowDayOfWeek = clockCfg.showDayOfWeek;
+      IsAnalog = clockCfg.analog;
+    };
+
+    # ---- nebelhaus.menuBar.controlCenter → com.apple.controlcenter ------------
+    controlcenter = {
+      BatteryShowPercentage = ccCfg.batteryPercentage;
+      Sound = ccCfg.sound;
+      Bluetooth = ccCfg.bluetooth;
+      AirDrop = ccCfg.airdrop;
+      Display = ccCfg.displayBrightness;
+      FocusModes = ccCfg.focus;
+      NowPlaying = ccCfg.nowPlaying;
+    };
+
     CustomUserPreferences = {
       "com.apple.commerce".AutoUpdate = lib.mkDefault true;
 
@@ -702,6 +745,21 @@ in
       # option for it (and no freeform); `defaults write NSGlobalDomain …` == `-g`.
       NSGlobalDomain.SLSMenuBarUseBlurredAppearance = config.nebelhaus.sill.enable;
     };
+  };
+
+  # ---- nebelhaus.security.firewall → networking.applicationFirewall ---------
+  # NOT system.defaults: nix-darwin's own networking module runs
+  # `socketfilterfw` directly in its own activation script, unconditionally,
+  # every rebuild — a live imperative command, not a plist write waiting on
+  # something in modules/lib/restart-map.nix to reread it. No restart, no
+  # logout, no Full Disk Access. Same pass-through as screensaver/menuBar
+  # above: null stays null, upstream's own type already means "leave alone".
+  networking.applicationFirewall = {
+    enable = firewallCfg.enable;
+    blockAllIncoming = firewallCfg.blockAllIncoming;
+    allowSigned = firewallCfg.allowSigned;
+    allowSignedApp = firewallCfg.allowSignedApp;
+    enableStealthMode = firewallCfg.stealthMode;
   };
 
   # ---- Nix housekeeping -----------------------------------------------------
