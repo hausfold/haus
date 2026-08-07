@@ -11,10 +11,11 @@
 # hooks the rice writes into a user's ~/.codex/hooks.json are a different thing
 # entirely — a product feature, see modules/hearth.
 
-hooks = ".codex/hooks.json"
+[hooks]
+file = ".codex/hooks.json"
 
 [features]
-codex_hooks = true
+hooks = true
 
 # Two caveats, both upstream, both harmless if they bite:
 #   * repo-local hooks have historically not fired in every interactive session
