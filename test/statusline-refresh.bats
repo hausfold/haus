@@ -146,7 +146,7 @@ fmtime() { statnum %m %Y "$1"; }   # mtime in epoch seconds
 }
 
 @test "a merged PR whose branch kept committing reads as merged+K, not merged" {
-  # The bar's ⏏ ("done, wt reaps it") is driven by this cell. When a session keeps
+  # The bar's ⏏ ("done, holt reaps it") is driven by this cell. When a session keeps
   # committing after its PR merged, those commits have no PR and no remote branch
   # — a plain `merged` here is what made the pane look finished while un-shipped
   # work sat in it.
@@ -232,8 +232,8 @@ fmtime() { statnum %m %Y "$1"; }   # mtime in epoch seconds
   # A guard, not a repair: this one passes against the old script too. `dirname ""`
   # is "." and exits 0, so a failed rev-parse yields a main of ".", which every
   # later `git -C` resolves against the REFRESHER's own cwd — the exact trap that
-  # made `wt` list a repo literally named "." (hence its git_main). Only an
-  # unreachable ordering of failures kept it from biting here; the resolution is
+  # made the old bash `wt` list a repo literally named "." (hence its git_main).
+  # Only an unreachable ordering of failures kept it from biting here; the resolution is
   # now explicit, and this pins it so a later edit can't reopen it.
   local main gone; main="$(mkrepo alpha)"
   mkwt "$main" sparkle >/dev/null
@@ -312,7 +312,7 @@ fmtime() { statnum %m %Y "$1"; }   # mtime in epoch seconds
 
 # ── orphans: worktrees the registry never heard of ───────────────────────────
 
-@test "a worktree made outside wt still gets a row, with an empty parent" {
+@test "a worktree made outside holt still gets a row, with an empty parent" {
   # A raw `git worktree add` under the base skips the registry, so it has no
   # recorded parent. It is folded in anyway with parent empty — the statusline
   # surfaces those only in the $HOME pane, so a stray is never fully invisible.
@@ -325,7 +325,7 @@ fmtime() { statnum %m %Y "$1"; }   # mtime in epoch seconds
   git -C "$dir" -c commit.gpgsign=false commit -qm manual
   refresh
   [ "$status" -eq 0 ]
-  [ -n "$(row_for x manual)" ] || fail "a worktree wt never made is invisible in the bar"
+  [ -n "$(row_for x manual)" ] || fail "a worktree holt never made is invisible in the bar"
   [ -z "$(col manual 8)" ] || fail "an unregistered worktree claimed a parent"
 }
 

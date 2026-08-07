@@ -18,15 +18,15 @@
 #          repo, PR number (left of the name, colored by PR state), name, and
 #          the same status token as row 1.
 #
-# Lineage: `wt create` records each worktree's parent (the cwd it was spawned
+# Lineage: `holt hook create` records each worktree's parent (the cwd it was spawned
 # from) in its registry; the refresher carries that into panel.tsv, and a
 # session lists only the rows whose parent == its own cwd.
 #
 # The status token is a single mutually-exclusive slot:
-#     ⏏  (orange)   branch is merged/landed → `wt` reaps it on pane close
+#     ⏏  (orange)   branch is merged/landed → `holt` reaps it on pane close
 #     N^ (orange)   the PR merged and N commits landed on the branch SINCE: work
 #                   no PR covers and nothing pushed (GitHub deleted the remote
-#                   branch at merge). `wt reship` opens the follow-up.
+#                   branch at merge). `holt reship` opens the follow-up.
 #     N^ (blue)     N commits on the branch, not yet merged
 #     +A -D         uncommitted line changes (green/red), when no commits yet
 #     (empty)       nothing differs from main → show nothing (no "clean")
@@ -44,7 +44,7 @@ REFRESHER="$(command -v claude-statusline-refresh 2>/dev/null || echo "$HOME/.cl
 TTL=15          # seconds before the sister-repo panel is considered stale
 MAX_ROWS=8      # cap child rows; extras collapse into a "+N more" line
 
-# 256-colour palette — muted, rice-consistent (cf. `wt`: 103 gray, 167 red).
+# 256-colour palette — muted, rice-consistent (cf. `holt`: 103 gray, 167 red).
 c() { printf '\033[38;5;%sm' "$1"; }
 DOT=$(c 108); DIM=$(c 244); GRAY=$(c 103); NAME=$'\033[1m'
 AHEAD=$(c 75); ADD=$(c 71); DEL=$(c 167); PURGE=$(c 173)
@@ -78,9 +78,9 @@ render_status() {
   local ahead=${1:-0} files=${2:-0} ins=${3:-0} del=${4:-0} pr="$5" purge=${6:-0}
   local st="" state="${pr##* }" relanded=""
   # merged+K (see the refresher): the PR merged, then K more commits landed on the
-  # branch. ⏏ — "nothing left here, wt reaps it on pane close" — is a LIE about
+  # branch. ⏏ — "nothing left here, holt reaps it on pane close" — is a LIE about
   # that pane: those K commits have no PR, no remote branch (GitHub deleted it at
-  # merge), and `wt` correctly refuses to reap them. The bar said done while the
+  # merge), and `holt` correctly refuses to reap them. The bar said done while the
   # work sat there, which is how un-shipped commits went unnoticed. Show the count
   # instead, in the same orange: it is the same "this branch needs you" hue.
   case "$state" in merged+*) relanded="${state#merged+}" ;; esac
@@ -150,7 +150,7 @@ j() { printf '%s' "$in" | jq -r "$1 // empty"; }
 cwd=$(j '.workspace.current_dir // .cwd'); [ -z "$cwd" ] && cwd="$PWD"
 # The $HOME pane is the catch-all: it alone also surfaces "orphan" worktrees
 # (ones with no recorded parent — e.g. a raw `git worktree add` that skipped
-# `wt child`), so a stray worktree is never fully invisible, while every other
+# `holt child`), so a stray worktree is never fully invisible, while every other
 # session stays quiet and shows only the worktrees it actually spawned.
 is_home=0; [ "$cwd" = "$HOME" ] && is_home=1
 wt_name=$(j '.worktree.name // .workspace.git_worktree')

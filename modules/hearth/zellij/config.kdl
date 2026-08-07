@@ -80,7 +80,7 @@ keybinds {
         //
         // @AGENT_NEW@ is rendered by hearth from nebelhaus.agents.default:
         //   claude   → `claude --worktree`, its NATIVE flag, which fires the
-        //              `wt` WorktreeCreate hook in ~/.claude/settings.json.
+        //              `holt` WorktreeCreate hook in ~/.claude/settings.json.
         //   codex,   → `holt new`: no client-side equivalent exists, so Holt
         //   opencode   makes the same worktree from the outside and opens the
         //              configured client. Holt reads its persisted config, not

@@ -16,7 +16,7 @@ Only Claude-specific wiring belongs below.
 |---|---|---|
 | Project instructions | `AGENTS.md`, imported above | Claude Code reads only `CLAUDE.md`, so this file exists purely to import it. |
 | Session bootstrap | `.claude/settings.json` → `SessionStart` → `.agents/setup.sh` | Same script Codex and OpenCode call. Installs Nix in cloud containers, no-ops locally. |
-| Worktree hooks | `~/.claude/settings.json` (yours, not the repo's) → `wt create` / `wt remove` | Claude owns that file and rewrites it, so the rice never touches it — that's why `wt new` exists for the clients with no such flag. |
+| Worktree hooks | `~/.claude/settings.json` (yours, not the repo's) → `holt hook create` / `holt hook remove` | Claude owns that file and rewrites it, so the rice never touches it — that's why `holt new` exists for the clients with no such flag. |
 
 **Not to be confused with the rice's product surface.** This table is about
 *hacking on nebelhaus*. What nebelhaus **ships to a user's machine** —

@@ -307,20 +307,14 @@ in
       lazygit
     ]
     ++ lib.optionals devCfg.agents.enable [
-      # `wt` — the shell predecessor of holt, now FROZEN (bugfixes only). It
-      # stays on PATH because it reads and writes the SAME registry.tsv holt
-      # does, so an old habit or an old line in a script still works, and the
-      # rollback for any caller is repointing it back. Don't add new callers.
-      (writeShellScriptBin "wt" (builtins.readFile ./wt.sh))
-
-      # holt — the live path, and its own product now (nebelhaus/holt, taken as
-      # a flake input). Every caller the rice owns is already on it: hearth's
+      # holt — agent worktrees, its own product now (nebelhaus/holt, taken as
+      # a flake input). Every caller the rice owns is on it: hearth's
       # ⌘A runs `holt new`, pounce's Spawn Agent goes through `holt spawn`, and
       # the Claude Code WorktreeCreate/WorktreeRemove hooks — which hearth
       # DECLARES into ~/.claude/settings.json and re-asserts on every rebuild
       # (see modules/hearth, home.activation.claudeCodeSettings) — point at
-      # `holt hook create` / `holt hook remove`. `wt` outlives them only as the
-      # rollback.
+      # `holt hook create` / `holt hook remove`. Its bash predecessor `wt.sh`
+      # has been retired entirely; there is no fallback to roll back to.
       holt
 
       # `zscratch` — feel-test a candidate zellij config / layout / plugin.wasm in
@@ -330,18 +324,18 @@ in
       # recompiled wasm), so the working `main` session's tabs stay untouched.
       # Moves the iterate-loop off `bench try switch` + restart; you rebuild once,
       # at the end, already knowing it works. Lives here (not hearth) because it's
-      # a dev CLI on PATH like `haus`/`wt`, though it drives hearth's zellij dotfiles.
+      # a dev CLI on PATH like `haus`/`holt`, though it drives hearth's zellij dotfiles.
       (writeShellScriptBin "zscratch" (builtins.readFile ./zscratch.sh))
 
       # `claude-statusline` — the agent-worktree HUD for Claude Code's status bar
       # (hearth's claudeCodeSettings points the `statusLine` key here). Row 1 is
       # THIS session's worktree name + one status token (⏏ purge / N^ commits —
       # blue when unmerged, orange when they landed AFTER the PR merged and no PR
-      # covers them / +A -D uncommitted); rows below list sister `wt` worktrees across
+      # covers them / +A -D uncommitted); rows below list sister `holt` worktrees across
       # ALL repos, with GitHub PR state. Cheap local git runs in the render path;
       # the cross-repo + `gh` enumeration is done detached by the companion
       # `claude-statusline-refresh` and cached (stale-while-revalidate), so the bar
-      # never blocks. Reads `wt`'s registry — same agent-worktree flow, same home.
+      # never blocks. Reads `holt`'s registry — same agent-worktree flow, same home.
       # It doubles as the writer for sill's `claudeUsage` pill: Claude Code hands
       # every render the account's 5-hour + weekly rate-limit percentages, so the
       # render path stashes them to ~/.cache/claude-statusline/usage.tsv — the

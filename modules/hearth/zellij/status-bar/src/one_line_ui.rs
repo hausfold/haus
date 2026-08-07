@@ -890,10 +890,10 @@ fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usi
     // labels and the Floating/Focus/Resize hints were dropped versus upstream.
     // The `a` launcher is "start an agent", not "start Claude": hearth renders
     // that bind from nebelhaus.agents.default, so it is `claude --worktree` on a
-    // Claude machine and `wt new` on a Codex/Opencode one. Try each spelling and
-    // take the first that resolves — matching only the Claude one used to blank
-    // the whole hint block's first key the moment the default changed.
-    let agent_key = [("claude", Some("--worktree")), ("wt", Some("new"))]
+    // Claude machine and `holt new` on a Codex/Opencode one. Try each spelling
+    // and take the first that resolves — matching only the Claude one used to
+    // blank the whole hint block's first key the moment the default changed.
+    let agent_key = [("claude", Some("--worktree")), ("holt", Some("new"))]
         .into_iter()
         .map(|(cmd, arg)| run_bind_key(binds, cmd, arg))
         .find(|keys| !keys.is_empty())
