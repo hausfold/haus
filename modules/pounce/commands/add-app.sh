@@ -97,16 +97,20 @@ launch_used_letters() {
   } | sort -u
 }
 
-# ONE module shape, for every source and both lanes: a `nebelhaus.roster` entry.
-# Which FIELDS it sets is what the entry means — a `key` puts it on the leader,
-# a `workspace` gives it a pill, neither makes it a plain install — so a cask, a
-# formula, a Nixpkgs package and an App Store app all land in the same roster
-# instead of half here and half in `homebrew.casks`. (Before the roster grew the
-# brew/package/appStoreId fields this had to emit two different module shapes,
-# which is exactly the split-brain the rice's modules/roster removed.)
+# ONE module shape, for every source and both lanes: a `nebelhaus.roster` entry,
+# plus (when the app got its own workspace) a paired `nebelhaus.workspaces`
+# entry naming it in `apps`. Which FIELDS the roster entry sets is what it
+# means — a `key` puts it on the leader, neither makes it a plain install — so
+# a cask, a formula, a Nixpkgs package and an App Store app all land in the
+# same roster instead of half here and half in `homebrew.casks`. (Before the
+# roster grew the brew/package/appStoreId fields this had to emit two
+# different module shapes, which is exactly the split-brain the rice's
+# modules/roster removed. Which WORKSPACE an app owns is a similar split now:
+# the roster entry only ever names ITSELF, nebelhaus.workspaces.<id>.apps is
+# what claims it — see notes/options-roadmap.md §5.4.)
 write_app_module() {
   local target="$1" resolved_app_id="${2:-$app_id}"
-  local id_value id_lit key_lit name_lit app_id_lit icon_lit label_lit workspace_lit token_lit
+  local id_value id_lit key_lit name_lit app_id_lit icon_lit label_lit token_lit
   if [ "$type" = "mas" ]; then id_value="mas-$token"; else id_value="$token"; fi
   id_lit="$(nix_string "$id_value")"
   token_lit="$(nix_string "$token")"
@@ -115,7 +119,6 @@ write_app_module() {
   label_lit="$(nix_string "$appname")"
   if [ -n "$resolved_app_id" ]; then app_id_lit="$(nix_string "$resolved_app_id")"; else app_id_lit="null"; fi
   if [ -n "$bar_icon" ]; then icon_lit="$(nix_string "$bar_icon")"; else icon_lit="null"; fi
-  if [ -n "$workspace" ]; then workspace_lit="$(nix_string "$workspace")"; else workspace_lit="null"; fi
 
   {
     printf '%s\n' '# Added by pounce "Install App". Safe to edit or remove.'
@@ -131,9 +134,7 @@ write_app_module() {
     if [ "$lane" = "Add to roster" ]; then
       printf '    key = lib.mkDefault %s;\n' "$key_lit"
       printf '    name = lib.mkDefault %s;\n' "$name_lit"
-      printf '    workspace = lib.mkDefault %s;\n' "$workspace_lit"
       printf '    appId = lib.mkDefault %s;\n' "$app_id_lit"
-      printf '    barIcon = lib.mkDefault %s;\n' "$icon_lit"
       printf '    label = lib.mkDefault %s;\n' "$label_lit"
     elif [ "$type" = "cask" ] || [ "$type" = "mas" ]; then
       # No leader key, but it IS a Mac app — record what `open -a` calls it.
@@ -156,6 +157,16 @@ write_app_module() {
         ;;
     esac
     printf '%s\n' '  };'
+    if [ -n "$workspace" ]; then
+      printf '  nebelhaus.workspaces.%s = {\n' "$(nix_string "$workspace")"
+      printf '    key = lib.mkDefault %s;\n' "$key_lit"
+      printf '    icon = lib.mkDefault %s;\n' "$icon_lit"
+      # A plain list, not lib.mkDefault: a fresh workspace this app owns
+      # alone, so there's nothing to merge with — but a mkDefault list here
+      # would still be the wrong habit to model (see the option's own docs).
+      printf '    apps = [ %s ];\n' "$id_lit"
+      printf '%s\n' '  };'
+    fi
     printf '%s\n' '}'
   } >"$target"
 }

@@ -24,6 +24,11 @@
     ./secrets/options.nix
     ./snippets/options.nix
 
+    # Named workspaces: resolves nebelhaus.workspaces into the internal lookup
+    # ./roster folds into each app's resolved workspace membership. Comes
+    # first because roster depends on it, though the module system's laziness
+    # means the two could import in either order without changing anything.
+    ./workspaces
     # The app roster: resolves nebelhaus.roster into the internal lists the rooms
     # below read, and installs whatever each entry names. Ungated on purpose —
     # an entry that only wants to BE installed shouldn't need the tiler on.

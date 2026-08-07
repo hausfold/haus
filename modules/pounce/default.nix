@@ -147,7 +147,7 @@ let
   # The app font's package installs only the TTF, but its pinned source also
   # carries the authoritative app-name → ligature mappings. Generate the same
   # shell case table as upstream's build.js and ship it beside Install App, so
-  # roster entries can set barIcon deterministically — no web/AI guessing.
+  # a workspace's `icon` can be set deterministically — no web/AI guessing.
   appIconMap = pkgs.runCommand "sketchybar-app-icon-map" { } ''
         {
           cat <<'EOF'

@@ -323,7 +323,12 @@ let
         lib.concatMapStringsSep "\n" (
           a:
           "- `${a.key}` → ${a.name}"
-          + (if a.workspace == null then " *(launcher-only)*" else " (workspace `${a.workspace}`)")
+          + (
+            let
+              ws = config.nebelhaus._appWorkspace.${a.id} or null;
+            in
+            if ws == null then " *(launcher-only)*" else " (workspace `${ws}`)"
+          )
           + sourceOf a
         ) launcherRoster
     }

@@ -28,7 +28,7 @@ darwinConfigurations.myhost = nebelhaus.mkNebelhaus {
 Any single field is yours to override without forking the pack, and — unlike a
 preset — plainly: **your host outranks a pack.** Set `roster.obsidian.key` in
 your own host file and it wins, no `lib.mkForce`, while the rest of the pack's
-entry (its workspace, its pill, the cask that installs it) stays. That is not
+entry (the cask that installs it, its leader name) stays. That is not
 "the host is imported last", which is not a thing — import order carries no
 priority in the module system. It's the *seam*: `nebelhaus.packs.<name>` hands
 you the pack through `nebelhaus.lib.pack`, which lowers every field it defines
@@ -52,13 +52,21 @@ list and the install instruction. The whole file:
     obsidian = {
       key = "o";                # leader, then o
       name = "Obsidian";        # as `open -a` spells it
-      workspace = "O";          # owns a workspace and a bar pill
-      barIcon = ":obsidian:";   # a sketchybar-app-font ligature
       cask = "obsidian";        # declaring it installs it
     };
     calibre = { name = "calibre"; cask = "calibre"; };   # install-only
   };
 }
+```
+
+A pack can't give Obsidian a workspace or a pill itself — `checkPack` only lets
+it set `nebelhaus.roster`, and which workspace an app owns is
+`nebelhaus.workspaces.<id>.apps` now, not a roster field (see
+`notes/options-roadmap.md` §5.4 in the workshop repo). Say so in your README
+and let the consumer add the two lines themselves:
+
+```nix
+nebelhaus.workspaces.O = { key = "o"; icon = ":obsidian:"; apps = [ "obsidian" ]; };
 ```
 
 Self-test before publishing — the same checks CI runs:
@@ -108,8 +116,9 @@ when its apps are popular.
 }
 ```
 
-Obsidian answers to your letter and keeps the pack's workspace, pill and cask.
-One field, one winner; the rest of the entry is untouched.
+Obsidian answers to your letter and keeps the pack's name and cask (and
+whatever workspace YOU gave it, since that's yours to set — see above). One
+field, one winner; the rest of the entry is untouched.
 
 **How, and the one place it doesn't apply.** A pack is data-only, so it cannot
 lower its own priority — writing `lib.mkDefault` would make the file a function,
@@ -134,18 +143,18 @@ are equals and nobody else can settle it. Naming that app in your own host
 settles it — a plain assignment outranks both packs at once.
 
 What a pack author can do about it: keep entries minimal. Every optional field
-you set is one a consumer silently overrides, so leave `workspace`, `barIcon`
-and `appId` null unless the pack genuinely needs them. And note the trade this
-makes for you: **you are not told when a consumer disagrees with you.** A pack
-suggests; the machine's owner decides.
+you set is one a consumer silently overrides, so leave `appId` null unless the
+pack genuinely needs it. And note the trade this makes for you: **you are not
+told when a consumer disagrees with you.** A pack suggests; the machine's
+owner decides.
 
 **3. `appId` is the one field a pack usually can't fill in.** It's the bundle id
-AeroSpace matches on to herd a window to its workspace, it isn't in Homebrew's
-cask metadata, and a guessed one produces a rule that silently never matches.
-Leave it null and say so: null costs *only* auto-assignment — the leader key,
-the workspace, the pill and the cheatsheet row all still work. The consumer
-closes it once the app is installed, with
-`osascript -e 'id of app "Obsidian"'`.
+AeroSpace matches on to herd a window to its workspace (once the consumer's
+own `nebelhaus.workspaces` names this app), and it isn't in Homebrew's cask
+metadata — a guessed one produces a rule that silently never matches. Leave it
+null and say so: null costs *only* auto-assignment — the leader key and the
+cheatsheet row still work regardless. The consumer closes it once the app is
+installed, with `osascript -e 'id of app "Obsidian"'`.
 
 **4. Install from Nixpkgs by NAMING the package, not evaluating it.** All four
 sources are expressible: Homebrew (`cask`, `brew`), the App Store (`appStoreId`)

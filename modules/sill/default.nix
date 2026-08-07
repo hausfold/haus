@@ -2,9 +2,10 @@
 # with the stray-agent eviction that keeps a rogue `brew services` instance from
 # stealing the lock file.
 #
-# The workspace pills are data-driven: WORKSPACES / LAUNCHER_KEYS / ws_icon are
-# generated from nebelhaus._roster (the resolved shared app roster) so the bar can't
-# drift from AeroSpace's launcher. Every right-side pill is individually
+# The workspace pills are data-driven: WORKSPACES / ws_icon are generated from
+# nebelhaus._workspaces, LAUNCHER_KEYS from nebelhaus._launchers (the resolved
+# shared app roster) — so the bar can't drift from AeroSpace's launcher. Every
+# right-side pill is individually
 # toggleable via nebelhaus.sill.items (one bool per pill): the core
 # clock/weather/media/battery/wifi default on, the extras cpu/memory/volume/
 # calendar/caffeinate plus the personal agents/elgato/harvest default off.
@@ -43,10 +44,12 @@ let
   # (apple.logo) deliberately keep the default.
   popupAlign = "popup.align=right";
 
-  # The whole roster drives the pills (a workspace is what earns one); only the
-  # keyed subset drives the leader picker.
-  apps = config.nebelhaus._roster;
+  # nebelhaus.workspaces drives the pills now (workspace membership earns
+  # one, not an app field — see notes/options-roadmap.md §5.4); the keyed
+  # roster subset still drives the leader picker.
   launchers = config.nebelhaus._launchers;
+  workspaces = config.nebelhaus._workspaces;
+  appWorkspaceId = a: config.nebelhaus._appWorkspace.${a.id} or null;
 
   # ---- type sizes: ui.scale, up to the menu bar's own ceiling -----------------
   # Resolved in ../lib/bar.nix, not here, because PROWL reads the same resolution
@@ -79,7 +82,7 @@ let
   barFont = config.nebelhaus.fonts.mono.name;
 
   bashArray = xs: lib.concatMapStringsSep " " (x: ''"${x}"'') xs;
-  appWorkspaces = lib.filter (w: w != null) (map (a: a.workspace) apps);
+  appWorkspaces = map (ws: ws.id) workspaces;
   iconFont =
     icon:
     if lib.hasPrefix ":" icon then
@@ -87,13 +90,16 @@ let
     else
       "${barFont}:Bold:${sizes.icon}";
   wsIconCases = lib.concatMapStrings (
-    a:
-    lib.optionalString (a.workspace != null && a.barIcon != null)
-      "    ${a.workspace}) ICON=${lib.escapeShellArg a.barIcon} ; IFONT=${lib.escapeShellArg (iconFont a.barIcon)} ;;\n"
-  ) apps;
+    ws:
+    lib.optionalString (ws.icon != null) (
+      "    ${ws.id}) ICON=${lib.escapeShellArg ws.icon} ; IFONT=${lib.escapeShellArg (iconFont ws.icon)} ;;\n"
+    )
+  ) workspaces;
   # Leader-key -> workspace map for launch_mode.sh, same colon-joined shape it
   # used to hardcode. Digits 1-4 focus the numbered workspaces; each app key maps
-  # to its workspace; a null workspace renders as "<key>:" (always closed/grey).
+  # to the workspace it belongs to (nebelhaus._appWorkspace, populated from
+  # nebelhaus.workspaces.*.apps); no membership renders as "<key>:" (always
+  # closed/grey).
   launchersStr = lib.concatStringsSep " " (
     [
       "1:1"
@@ -101,7 +107,9 @@ let
       "3:3"
       "4:4"
     ]
-    ++ map (a: "${a.key}:${lib.optionalString (a.workspace != null) a.workspace}") launchers
+    ++ map (
+      a: "${a.key}:${lib.optionalString (appWorkspaceId a != null) (appWorkspaceId a)}"
+    ) launchers
   );
 
   # Sourced by sketchybarrc: the workspace roster + a per-workspace icon lookup.
