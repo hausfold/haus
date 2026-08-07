@@ -8,10 +8,14 @@
 #
 # This is that something, as DATA rather than one-off fixes scattered through
 # postActivation. rice#181 hand-rolled the Finder case alone; den/default.nix
-# now derives every restart it fires from this table instead, and asserts
-# that every plist domain it actually writes into has an entry here — so a
-# future domain with no restart declared fails the build loudly instead of
-# silently waiting for a logout the way Finder used to.
+# now derives every restart it fires from this table instead, and WARNS if any
+# plist domain it actually writes into has no entry here — a rice module
+# missing a domain is a bug worth fixing in this file, but a host's own
+# `haus capture <domain>` (which can name ANY plist domain, not just ones this
+# repo knows about) must never be turned into a hard build failure over it, so
+# this is `warnings`, not `assertions`. A domain with no entry just falls back
+# to "nothing restarts it automatically" — the same as it waiting for a logout
+# today, not worse.
 #
 # Keyed by the plist domain exactly as `defaults write DOMAIN …` (and
 # nix-darwin's `system.defaults.<domain>` / `CustomUserPreferences."<domain>"`)
@@ -54,7 +58,7 @@
   "com.apple.desktopservices" = "Finder"; # .DS_Store behaviour; Finder reads it at launch same as its own domain
 
   # ---- not written yet — declared ahead of use ------------------------------
-  # The day the rice (or a host) writes into either of these, the assertion in
+  # The day the rice (or a host) writes into either of these, the warning in
   # den/default.nix already has a correct answer instead of another rice#181.
   "com.apple.controlcenter" = "ControlCenter"; # matrix: killall ControlCenter, not done anywhere before this
   "com.apple.WindowManager" = "logout"; # matrix: 12 typed keys, no live-reload path exists on macOS 26

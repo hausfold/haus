@@ -178,6 +178,17 @@ in
       nebelhaus.accessibility.* reaches the two useful keys in this domain
       (increaseContrast, differentiateWithoutColor) WITHOUT that hazard — it
       guards the write, so a missing grant costs you the setting and nothing else.
+    ''
+    ++ lib.optional (undeclaredDomains != [ ]) ''
+      nebelhaus: these plist domains are written but have no entry in
+      modules/lib/restart-map.nix: ${lib.concatStringsSep ", " undeclaredDomains}.
+
+      A domain with no declared restart silently waits for the user to log out
+      to take effect. In the rice's own modules this is a bug — add the domain
+      to restart-map.nix. If you got here from `haus capture <domain>` on your
+      own host file, this is just a heads-up: that domain isn't a plist this
+      rice ships a restart for, so if it doesn't take effect right away, log
+      out once and it will.
     '';
 
   # Two ways to say the same thing, and no way to rank them: `package` is a
@@ -191,19 +202,6 @@ in
         nebelhaus: fonts.mono.package and fonts.mono.packageName are both set.
         They are the same setting written two ways — `package` for a module that
         has `pkgs`, `packageName` for a data-only rice that doesn't. Keep one.
-      '';
-    }
-    {
-      assertion = undeclaredDomains == [ ];
-      message = ''
-        nebelhaus: these plist domains are written but have no entry in
-        modules/lib/restart-map.nix: ${lib.concatStringsSep ", " undeclaredDomains}.
-
-        Add one there — see notes/macos-settings-matrix.md for what each domain
-        needs (killall <process> / activateSettings / none / logout). A domain
-        with no declared restart silently waits for the user to log out, which
-        is exactly the failure mode this map exists to catch at build time
-        instead of on someone's Mac.
       '';
     }
   ];
