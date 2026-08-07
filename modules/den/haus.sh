@@ -11,6 +11,10 @@
 #   haus status          current generation + how old your pinned rice is
 #   haus edit            open your host config (identity, apps) in $EDITOR
 #   haus options         refresh hosts/<host>/options.nix — every nebelhaus.* option, annotated
+#   haus plan            preview what 'haus rebuild' would change — read-only
+#   haus diff            declared config vs what macOS actually has right now — read-only
+#   haus capture         turn this Mac's current settings into config lines + a snapshot
+#   haus revert-settings put back a 'haus capture' snapshot (Nix rollback can't touch macOS defaults)
 #   haus doctor          check the machine's health (Nix, CLT, the GUI agents)
 #   haus btm             check BTM daemon-gating (macOS 26 Tahoe+; no-op before)
 #   haus tour            take the guided haus tour (it lives in the bar)
@@ -169,6 +173,16 @@ haus — the everyday CLI for a nebelhaus machine.
   haus edit           open your host config in $EDITOR
   haus options        refresh the annotated catalogue of every nebelhaus.* option
                       (--force replaces your copy instead of writing options.nix.new)
+  haus plan           preview what 'haus rebuild' would change — settings, packages,
+                      casks — without building anything into place
+  haus diff           the config currently active on this machine vs what macOS
+                      actually has right now (effective state, not just the plist)
+  haus capture [cat…] turn this Mac's current settings into config lines, and
+                      snapshot them (default: dock keyboard finder; or a literal
+                      plist domain, e.g. com.apple.Terminal)
+  haus revert-settings [snapshot|list]
+                      put back a 'haus capture' snapshot — Nix rollback rewinds
+                      packages and agents, never macOS's own preferences
   haus doctor         check the machine's health (Nix, CLT, the GUI agents)
   haus btm            check BTM daemon-gating (macOS 26 Tahoe+; no-op before)
   haus tour           take the guided haus tour (haus tour reset re-arms it)
@@ -314,6 +328,451 @@ closure_diff() { nix store diff-closures "$1" "$2" >"$3" 2>/dev/null || true; }
 
 # The pre-haus-activate route, kept whole for the one rebuild that needs it.
 legacy_switch() { ( cd "$CONSUMER" && sudo /run/current-system/sw/bin/darwin-rebuild switch --flake ".#$1" ); }
+
+# ---- reversibility: plan / diff / capture / revert-settings ----------------
+# §5.11 of the workshop's notes/options-roadmap.md. A shared engine, because
+# `haus plan` (what WOULD change) and `haus diff` (what's declared vs what
+# macOS actually has right now) are the same comparison run against two
+# different activation scripts — a fresh build for plan, the running system
+# for diff.
+#
+# Ground truth is the BUILT activation script, not a hand-maintained map of
+# nix-darwin's ~193 typed keys to plist domains: nix-darwin's own generator
+# emits a uniform `defaults write DOMAIN KEY '<xml…>'` per key (verified
+# against a real activate script, every one of the 47 this machine currently
+# writes matches), so parsing that is ground truth that can't drift out from
+# under an upstream change the way a hand-copied table would.
+
+# TSV domain\tkey\tvalue for every `defaults write DOMAIN KEY '<?xml…'` block a
+# built activation script contains. `-g` is normalised to `NSGlobalDomain` so
+# callers never special-case it. `value` is plutil's rendering of the plist
+# block, with any embedded newline (a dict/array value, e.g. Finder's
+# FXInfoPanesExpanded) escaped to a literal `\n` — so this always emits exactly
+# one TSV row per declared key, never a multi-line one a `read` loop would
+# silently misparse into extra, bogus rows.
+# `|| true` throughout: a key that isn't set, a domain with zero declared
+# writes, a value plutil can't render — every one of these is a normal
+# outcome, not a script error, and this runs (like the rest of haus.sh) under
+# `set -euo pipefail`, which would otherwise abort the whole comparison on the
+# first machine that doesn't happen to set every key this parses.
+declared_defaults() {
+  local f="$1" lineno rest domain key endline val
+  grep -n -- "-- defaults write .* '<?xml" "$f" 2>/dev/null | while IFS=: read -r lineno rest; do
+    domain="$(printf '%s' "$rest" | sed -E "s/.*-- defaults write (-g|[^ ]+) ([^ ]+) .*/\\1/")"
+    key="$(printf '%s' "$rest" | sed -E "s/.*-- defaults write (-g|[^ ]+) ([^ ]+) .*/\\2/")"
+    [ "$domain" = "-g" ] && domain="NSGlobalDomain"
+    endline="$(awk -v s="$lineno" 'NR>=s && /<\/plist>/ {print NR; exit}' "$f")"
+    [ -n "$endline" ] || continue
+    val="$(
+      sed -n "${lineno},${endline}p" "$f" \
+        | sed -E "1s/^.*'(<\\?xml)/\\1/" \
+        | sed -E "\$s/<\\/plist>'\$/<\\/plist>/" \
+        | plutil -p - 2>/dev/null
+    )" || true
+    val="${val//$'\n'/\\n}"
+    printf '%s\t%s\t%s\n' "$domain" "$key" "$val"
+  done || true
+}
+
+# TSV domain\tkey\tvalue for den's own guarded accessibility writer (see
+# modules/den/default.nix's `nebelhausAccessibility` postActivation block) — a
+# raw `defaults write … -bool` shell call, not the typed XML-plist shape
+# declared_defaults parses, so it needs its own extraction.
+declared_a11y_calls() {
+  grep -E '^[[:space:]]*nebelhausAccessibility [A-Za-z]+ (true|false)[[:space:]]*$' "$1" 2>/dev/null \
+    | while read -r _ key value; do printf 'com.apple.universalaccess\t%s\t%s\n' "$key" "$value"; done || true
+}
+
+# plutil's rendering → the same textual shape `defaults read` prints, so the
+# two sides of a comparison need no further massaging. A value with an escaped
+# `\n` (a dict/array — declared_defaults's escape marker, see above) is flagged
+# rather than compared, since neither side of that comparison is a scalar.
+normalize_declared() {
+  case "$1" in
+    *'\n'*) printf '%s' "__COMPLEX__" ;;
+    true) echo 1 ;;
+    false) echo 0 ;;
+    \"*) local v="${1#\"}"; printf '%s\n' "${v%\"}" ;;
+    *) printf '%s\n' "$1" ;;
+  esac
+}
+
+live_value() { # <domain> <key> -> `defaults read`'s raw output, empty if unset
+  # `|| true`: an unset key is the common case, not a script error — `defaults
+  # read` exits non-zero for it, and this runs under `set -e`.
+  if [ "$1" = "NSGlobalDomain" ]; then defaults read -g "$2" 2>/dev/null || true
+  else defaults read "$1" "$2" 2>/dev/null || true; fi
+}
+
+# How to verify a declared key, per §4/§8's finding: some domains write and
+# silently no-op, so a plist-only diff would call them "applied" when they
+# aren't.
+#   effective    — compare against hausax's NSWorkspace read, not the plist
+#                  (the four universalaccess keys measured to write AND work)
+#   noop         — com.apple.Accessibility: writes, changes nothing, ever
+#   unconfirmed  — other universalaccess keys: persist, effect never measured
+#   plain        — everything else: the matrix's control group, plist is fine
+classify_key() {
+  case "$1" in
+    com.apple.Accessibility) echo noop ;;
+    com.apple.universalaccess)
+      case "$2" in
+        reduceMotion | reduceTransparency | increaseContrast | differentiateWithoutColor) echo effective ;;
+        *) echo unconfirmed ;;
+      esac
+      ;;
+    *) echo plain ;;
+  esac
+}
+
+# The comparison itself: every declared key against what macOS actually has.
+# Read-only, always — callers decide which activation script (a running system
+# for `diff`, a freshly built one for `plan`) but this never writes anything.
+settings_diff() {
+  local script="$1" domain key declared_raw declared kind live
+  local changed=0 matched=0 flagged=0
+  local ax_json; ax_json="$(hausax 2>/dev/null || true)"
+
+  while IFS=$'\t' read -r domain key declared_raw; do
+    [ -n "$domain" ] || continue
+    declared="$(normalize_declared "$declared_raw")"
+    kind="$(classify_key "$domain" "$key")"
+
+    case "$kind" in
+      effective)
+        if [ -z "$ax_json" ]; then
+          warn "$domain $key: declared $declared — can't verify (hausax unavailable)"
+          flagged=$((flagged + 1))
+          continue
+        fi
+        live="$(printf '%s' "$ax_json" | jq -r --arg k "$key" '.[$k]')" || true
+        case "$live" in true) live=1 ;; false) live=0 ;; esac
+        if [ "$declared" = "$live" ]; then
+          matched=$((matched + 1))
+        else
+          bad "$domain $key: declared $declared, macOS effectively reports $live (NSWorkspace, not the plist)"
+          changed=$((changed + 1))
+        fi
+        ;;
+      noop)
+        warn "$domain $key: declared $declared — this domain is a KNOWN SILENT NO-OP on macOS 26 (writes, no effect; see notes/macos-settings-matrix.md)"
+        flagged=$((flagged + 1))
+        ;;
+      unconfirmed | plain)
+        if [ "$declared" = "__COMPLEX__" ]; then
+          info "$domain $key: dict/array value — not diffed automatically"
+          flagged=$((flagged + 1))
+          continue
+        fi
+        live="$(live_value "$domain" "$key")"
+        if [ "$declared" = "${live:-}" ]; then
+          matched=$((matched + 1))
+          [ "$kind" = unconfirmed ] && flagged=$((flagged + 1)) # matches, but a match here isn't proof it works
+        else
+          if [ "$kind" = unconfirmed ]; then
+            warn "$domain $key: declared $declared, plist shows ${live:-unset} (persists only — effect unconfirmed on this macOS)"
+            flagged=$((flagged + 1))
+          else
+            printf '  %-28s %-26s %-14s -> %s\n' "$domain" "$key" "${live:-unset}" "$declared"
+          fi
+          changed=$((changed + 1))
+        fi
+        ;;
+    esac
+  done < <(declared_defaults "$script"; declared_a11y_calls "$script")
+
+  echo
+  if [ "$changed" = 0 ]; then
+    info "settings: live matches declared ($matched key(s))"
+  else
+    info "settings: $changed key(s) differ from live, $matched already match"
+  fi
+  [ "$flagged" -gt 0 ] && info "$flagged key(s) flagged above — unconfirmed effect, known no-op, or a value diff can't compare automatically"
+}
+
+# What a rebuild's Brewfile would newly install — the forward-looking half of
+# cmd_doctor's declared-vs-installed check. Never removes anything to report:
+# cleanup defaults to "none", so an uninstall is never silent either way.
+plan_homebrew() {
+  command -v brew >/dev/null 2>&1 || {
+    info "no Homebrew on this machine yet — the rice installs it on first activation"
+    return 0
+  }
+  local sys="$1" brewfile declared installed toinstall
+  # `|| true`: matches cmd_doctor's identical extraction below — a build with
+  # no Brewfile line at all is a zero-match grep, not a script error.
+  brewfile="$(grep -oE "brew bundle --file='[^']+'" "$sys/activate" 2>/dev/null | sed "s/.*--file='//;s/'\$//" || true)"
+  if [ -z "$brewfile" ] || [ ! -f "$brewfile" ]; then
+    info "no Brewfile in the new build"
+    return 0
+  fi
+  declared="$(sed -nE 's/^cask "([^"]+)".*/\1/p' "$brewfile" | sed -E 's#.*/##')"
+  installed="$(brew list --cask 2>/dev/null || true)"
+  toinstall="$(comm -23 <(printf '%s\n' "$declared" | sort -u) <(printf '%s\n' "$installed" | sort -u) | grep . || true)"
+  if [ -n "$toinstall" ]; then
+    printf '  will install: %s\n' "$(printf '%s' "$toinstall" | paste -sd', ' -)"
+  else
+    info "no new casks to install"
+  fi
+  info "cleanup=none means nothing is ever removed automatically — 'haus doctor' flags undeclared casks"
+}
+
+cmd_plan() {
+  local host drvfile drvpath sysfile sys difffile
+  host="$(host_name)"
+  say "$host · plan — a preview of 'haus rebuild' (read-only; nothing is built into place)"
+  [ -n "$VERBOSE" ] || echo
+  log_open "plan $host from $CONSUMER"
+
+  drvfile="$(mktemp)"
+  run_phase resolve heal resolve_drv "$host" "$drvfile" || die "evaluation failed — nothing was changed."
+  drvpath="$(cat "$drvfile")"
+  rm -f "$drvfile"
+  phase_ok resolve "$HAUS_PHASE_ELAPSED"
+
+  sysfile="$(mktemp)"
+  if ! (cd "$CONSUMER" && nix build --no-link --print-out-paths "$drvpath^*") >"$sysfile"; then
+    rm -f "$sysfile"
+    die "build failed — plan needs a successful build to know what would change."
+  fi
+  sys="$(cat "$sysfile")"
+  rm -f "$sysfile"
+
+  echo
+  say "packages"
+  difffile="$(mktemp)"
+  closure_diff /run/current-system "$sys" "$difffile"
+  if [ -s "$difffile" ]; then sed 's/^/  /' "$difffile"; else info "no package changes"; fi
+  rm -f "$difffile"
+
+  echo
+  say "settings"
+  settings_diff "$sys/activate"
+
+  echo
+  say "homebrew"
+  plan_homebrew "$sys"
+
+  echo
+  info "nothing was changed — apply this with: haus rebuild"
+}
+
+cmd_diff() {
+  say "declared vs live — the config currently ACTIVE on this machine against what macOS actually has"
+  [ -x /run/current-system/activate ] || die "no running system to compare against — haus rebuild first."
+  echo
+  settings_diff /run/current-system/activate
+}
+
+# ---- haus capture ------------------------------------------------------------
+# Turn THIS Mac's current settings into pasteable nebelhaus host-config lines —
+# the general form of bootstrap.sh's NEBELHAUS_KEEP (which only ever runs once,
+# at install). bootstrap.sh keeps its own copy of this logic rather than
+# depending on `haus`: it runs before the first switch, when `haus` isn't on
+# PATH yet.
+#
+# Every domain this reads is ALSO snapshotted raw (`defaults export`), so a
+# later `haus revert-settings` can put the exact bytes back — this is the
+# "pre-activation preference snapshot" §5.11 asks for: run `haus capture`
+# before a rebuild that's about to change settings you might want to keep.
+SNAP_BASE="${XDG_STATE_HOME:-$HOME/.local/state}/nebelhaus/settings-snapshots"
+
+cap_bool() { case "$(defaults read "$1" "$2" 2>/dev/null || true)" in 1) echo true ;; 0) echo false ;; esac; }
+cap_int() {
+  local v
+  v="$(defaults read "$1" "$2" 2>/dev/null || true)"
+  case "$v" in '' | *[!0-9-]*) : ;; *) echo "$v" ;; esac
+}
+cap_str() {
+  local v
+  v="$(defaults read "$1" "$2" 2>/dev/null || true)"
+  [ -n "$v" ] && printf '"%s"' "$v"
+}
+cap_emit() { [ -n "${2:-}" ] && printf '  system.defaults.%s = %s;\n' "$1" "$2"; }
+
+capture_dock() {
+  cap_emit dock.autohide "$(cap_bool com.apple.dock autohide)"
+  cap_emit dock.orientation "$(cap_str com.apple.dock orientation)"
+  cap_emit dock.show-recents "$(cap_bool com.apple.dock show-recents)"
+  cap_emit dock.mru-spaces "$(cap_bool com.apple.dock mru-spaces)"
+}
+
+capture_keyboard() {
+  cap_emit NSGlobalDomain.KeyRepeat "$(cap_int NSGlobalDomain KeyRepeat)"
+  cap_emit NSGlobalDomain.InitialKeyRepeat "$(cap_int NSGlobalDomain InitialKeyRepeat)"
+  cap_emit NSGlobalDomain.ApplePressAndHoldEnabled "$(cap_bool NSGlobalDomain ApplePressAndHoldEnabled)"
+  local kbdui; kbdui="$(cap_int NSGlobalDomain AppleKeyboardUIMode)"
+  case "$kbdui" in 0 | 2 | 3) cap_emit NSGlobalDomain.AppleKeyboardUIMode "$kbdui" ;; esac
+}
+
+capture_finder() {
+  local ext; ext="$(cap_bool NSGlobalDomain AppleShowAllExtensions)"
+  cap_emit finder.AppleShowAllExtensions "$ext"
+  cap_emit NSGlobalDomain.AppleShowAllExtensions "$ext"
+  cap_emit finder.AppleShowAllFiles "$(cap_bool com.apple.finder AppleShowAllFiles)"
+  cap_emit finder.FXPreferredViewStyle "$(cap_str com.apple.finder FXPreferredViewStyle)"
+  cap_emit finder.ShowPathbar "$(cap_bool com.apple.finder ShowPathbar)"
+  cap_emit finder.ShowStatusBar "$(cap_bool com.apple.finder ShowStatusBar)"
+  cap_emit finder._FXSortFoldersFirst "$(cap_bool com.apple.finder _FXSortFoldersFirst)"
+  cap_emit finder._FXSortFoldersFirstOnDesktop "$(cap_bool com.apple.finder _FXSortFoldersFirstOnDesktop)"
+  cap_emit finder._FXShowPosixPathInTitle "$(cap_bool com.apple.finder _FXShowPosixPathInTitle)"
+  cap_emit finder._FXEnableColumnAutoSizing "$(cap_bool com.apple.finder _FXEnableColumnAutoSizing)"
+  cap_emit finder.FXDefaultSearchScope "$(cap_str com.apple.finder FXDefaultSearchScope)"
+  cap_emit finder.FXEnableExtensionChangeWarning "$(cap_bool com.apple.finder FXEnableExtensionChangeWarning)"
+  cap_emit finder.QuitMenuItem "$(cap_bool com.apple.finder QuitMenuItem)"
+  cap_emit finder.ShowHardDrivesOnDesktop "$(cap_bool com.apple.finder ShowHardDrivesOnDesktop)"
+  cap_emit finder.ShowExternalHardDrivesOnDesktop "$(cap_bool com.apple.finder ShowExternalHardDrivesOnDesktop)"
+  cap_emit finder.ShowMountedServersOnDesktop "$(cap_bool com.apple.finder ShowMountedServersOnDesktop)"
+  cap_emit finder.ShowRemovableMediaOnDesktop "$(cap_bool com.apple.finder ShowRemovableMediaOnDesktop)"
+  local nwt=""
+  case "$(defaults read com.apple.finder NewWindowTarget 2>/dev/null || true)" in
+    PfCm) nwt='"Computer"' ;; PfVo) nwt='"OS volume"' ;;
+    PfHm) nwt='"Home"' ;; PfDe) nwt='"Desktop"' ;;
+    PfDo) nwt='"Documents"' ;; PfID) nwt='"iCloud Drive"' ;;
+    PfLo) : ;; # "Other" needs NewWindowTargetPath too — leave both to the rice
+    Recents | "") : ;;
+    *) nwt='"Recents"' ;;
+  esac
+  cap_emit finder.NewWindowTarget "$nwt"
+  cap_emit NSGlobalDomain.NSTableViewDefaultSizeMode "$(cap_int NSGlobalDomain NSTableViewDefaultSizeMode)"
+  cap_emit NSGlobalDomain.NSNavPanelExpandedStateForSaveMode "$(cap_bool NSGlobalDomain NSNavPanelExpandedStateForSaveMode)"
+  cap_emit NSGlobalDomain.NSNavPanelExpandedStateForSaveMode2 "$(cap_bool NSGlobalDomain NSNavPanelExpandedStateForSaveMode2)"
+  cap_emit NSGlobalDomain.NSDocumentSaveNewDocumentsToCloud "$(cap_bool NSGlobalDomain NSDocumentSaveNewDocumentsToCloud)"
+}
+
+# Any other domain: not a friendly category, so there's no known nix-darwin
+# attribute path for it — but system.defaults.CustomUserPreferences takes a
+# raw plist domain directly, which is exactly what this is. Nested (array or
+# dict) values are called out rather than emitted, since JSON's `[a, b]` isn't
+# valid nix list syntax (`[ a b ]`) and silently emitting it would be a nix
+# file that doesn't evaluate.
+capture_domain_block() {
+  local domain="$1" json body
+  json="$(defaults export "$domain" - 2>/dev/null | plutil -convert json -o - - 2>/dev/null)" || return 0
+  [ -n "$json" ] && [ "$json" != "null" ] && [ "$json" != "{}" ] || return 0
+  # Rendered into a variable first, not streamed straight to stdout: a jq
+  # failure must skip the WHOLE domain, not print an opening `= {` with no
+  # closing `};` (a truncated block would be worse than the domain missing).
+  body="$(
+    printf '%s\n' "$json" | jq -r '
+      to_entries[] |
+      if (.value | type) == "array" or (.value | type) == "object"
+      then "    # " + .key + " — nested value, add it by hand if you need it"
+      else "    " + (.key | @json) + " = " + (.value | tojson) + ";"
+      end
+    '
+  )" || return 0
+  printf '  system.defaults.CustomUserPreferences."%s" = {\n%s\n  };\n' "$domain" "$body"
+}
+
+cmd_capture() {
+  local cats=("$@") cat lines="" domains=() cats_used=()
+  [ "${#cats[@]}" -gt 0 ] || cats=(dock keyboard finder)
+
+  for cat in "${cats[@]}"; do
+    case "$cat" in
+      dock) lines+="$(capture_dock)"$'\n'; domains+=(com.apple.dock); cats_used+=("$cat") ;;
+      keyboard) lines+="$(capture_keyboard)"$'\n'; domains+=(NSGlobalDomain); cats_used+=("$cat") ;;
+      finder) lines+="$(capture_finder)"$'\n'; domains+=(com.apple.finder NSGlobalDomain); cats_used+=("$cat") ;;
+      *.*) lines+="$(capture_domain_block "$cat")"$'\n'; domains+=("$cat"); cats_used+=("$cat") ;;
+      *) die "unknown capture category '$cat' — try: dock keyboard finder, or a literal domain like com.apple.Terminal" ;;
+    esac
+  done
+
+  # De-dupe (finder and keyboard both touch NSGlobalDomain).
+  local uniq_domains=() d s seen
+  for d in "${domains[@]}"; do
+    seen=""
+    for s in ${uniq_domains[@]+"${uniq_domains[@]}"}; do [ "$s" = "$d" ] && seen=1; done
+    [ -n "$seen" ] || uniq_domains+=("$d")
+  done
+
+  local ts snapdir
+  ts="$(date -u '+%Y%m%dT%H%M%SZ')"
+  snapdir="$SNAP_BASE/$ts"
+  mkdir -p "$snapdir"
+  : >"$snapdir/manifest.tsv"
+  for d in "${uniq_domains[@]}"; do
+    if defaults export "$d" "$snapdir/$(printf '%s' "$d" | tr '/' '_').plist" 2>/dev/null; then
+      printf '%s\t%s\n' "$d" "$snapdir/$(printf '%s' "$d" | tr '/' '_').plist" >>"$snapdir/manifest.tsv"
+    else
+      warn "couldn't export $d (empty or unreadable domain) — not in the snapshot"
+    fi
+  done
+  ln -sfn "$ts" "$SNAP_BASE/latest"
+
+  say "captured $(IFS=,; echo "${cats_used[*]}") — snapshot: $snapdir"
+  echo
+  printf '%s' "$lines"
+  echo
+  info "paste what you want into your host file — a line you don't paste means 'use the rice's default'."
+  info "the snapshot above is what 'haus revert-settings' puts back if you don't like where a rebuild takes this."
+}
+
+# ---- haus revert-settings ----------------------------------------------------
+# The installer already admits Nix rollback doesn't undo macOS defaults —
+# `haus rollback` rewinds every package and launchd agent, atomically, but a
+# Dock or Finder preference just sits there. This is the other half: restore
+# the exact snapshot `haus capture` took, byte for byte (`defaults import`,
+# not a replay of individual key writes), then make it live the same way den's
+# own postActivation does — a Dock/Finder restart plus activateSettings, so
+# nothing waits for a logout.
+cmd_revert_settings() {
+  local which="${1:-latest}" snapdir domain file rc=0 touched_dock="" touched_finder=""
+
+  if [ "$which" = "list" ]; then
+    if [ ! -d "$SNAP_BASE" ]; then
+      info "no snapshots yet — run 'haus capture' first."
+      return 0
+    fi
+    say "settings snapshots ($SNAP_BASE):"
+    local latest d name
+    latest="$(readlink "$SNAP_BASE/latest" 2>/dev/null || true)"
+    for d in "$SNAP_BASE"/*/; do
+      [ -d "$d" ] || continue
+      name="$(basename "$d")"
+      [ "$name" = latest ] && continue # the symlink alias, not a snapshot of its own
+      printf '  %s%s\n' "$name" "$([ "$name" = "$latest" ] && echo '  (latest)' || echo '')"
+    done
+    return 0
+  fi
+
+  snapdir="$SNAP_BASE/$which"
+  [ -d "$snapdir" ] || die "no snapshot '$which' — try 'haus revert-settings list'."
+  [ -f "$snapdir/manifest.tsv" ] || die "$snapdir has no manifest.tsv — was it written by 'haus capture'?"
+
+  say "restoring settings from $snapdir"
+  while IFS=$'\t' read -r domain file; do
+    [ -n "$domain" ] || continue
+    if { [ "$domain" = com.apple.universalaccess ] || [ "$domain" = com.apple.Accessibility ]; } && ! has_fda; then
+      warn "$domain needs Full Disk Access on this app to restore — skipped (run from a terminal that has it)"
+      continue
+    fi
+    if defaults import "$domain" "$file" 2>/dev/null; then
+      ok "$domain restored"
+      [ "$domain" = com.apple.dock ] && touched_dock=1
+      [ "$domain" = com.apple.finder ] && touched_finder=1
+    else
+      bad "$domain: restore failed"
+      rc=1
+    fi
+  done <"$snapdir/manifest.tsv"
+
+  # `|| true` on every one of these: a `defaults write`-triggered restart is
+  # allowed to no-op (Dock/Finder not running, activateSettings missing on a
+  # future macOS) without aborting the rest of this command under `set -e` —
+  # same convention modules/den/default.nix uses for the identical calls.
+  [ -n "$touched_dock" ] && { killall -qu "$(id -un)" Dock 2>/dev/null || true; }
+  [ -n "$touched_finder" ] && { killall -qu "$(id -un)" Finder 2>/dev/null || true; }
+
+  # Same broadcast den's postActivation makes after writing preferences — run
+  # as ourselves (not root, so no launchctl-asuser wrapping needed here).
+  local activateSettings=/System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings
+  [ -x "$activateSettings" ] && { "$activateSettings" -u 2>/dev/null || true; }
+
+  if [ "$rc" = 0 ]; then say "restored."; else warn "some domains failed to restore — see above."; fi
+  return "$rc"
+}
 
 cmd_rebuild() {
   local host drv sys old gen_before drvfile outfile difffile bt0
@@ -853,9 +1312,13 @@ case "${1:-status}" in
   status)      cmd_status ;;
   edit)        cmd_edit ;;
   options)     cmd_options "${2:-}" ;;
+  plan)        cmd_plan ;;
+  diff)        cmd_diff ;;
+  capture)     shift; cmd_capture "$@" ;;
+  revert-settings) cmd_revert_settings "${2:-latest}" ;;
   doctor)      cmd_doctor ;;
   btm)         cmd_btm ;;
   tour)        cmd_tour "${2:-}" ;;
   -h|--help|help) usage ;;
-  *)           die "unknown command '$1' — try: rebuild update rollback generations status edit options doctor btm tour" ;;
+  *)           die "unknown command '$1' — try: rebuild update rollback generations status edit options plan diff capture revert-settings doctor btm tour" ;;
 esac

@@ -98,8 +98,12 @@ dotfiles the rice writes.
 It does **not** rewind:
 
 - **macOS system settings** the rebuild wrote (Dock, keyboard, Finder…). Those
-  persist. Reverting them means setting the option back and rebuilding again, or
-  changing it in System Settings.
+  persist. Reverting them means setting the option back and rebuilding again;
+  changing it by hand in System Settings; or, if the user ran `haus capture`
+  before the rebuild that changed them, `haus revert-settings` puts the exact
+  captured values back. `haus diff` shows what's currently declared vs what
+  macOS actually has (effective state, not just the plist) if it's unclear
+  what changed at all.
 - **Homebrew casks.** They live outside Nix generations entirely.
 
 Say which kind of change you are about to make, so the user knows whether a

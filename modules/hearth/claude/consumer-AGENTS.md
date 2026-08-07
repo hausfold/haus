@@ -23,7 +23,9 @@ The `CLAUDE.md` beside it is that pointer and holds no rules of its own.
   a broken config never reaches the running system.
 - **Undo with `haus rollback`.** Atomic, instant, and it rewinds everything Nix
   manages — but *not* macOS system settings the rebuild wrote, and *not* Homebrew
-  casks.
+  casks. For settings: `haus capture` before a change snapshots them so `haus
+  revert-settings` can put them back; `haus diff`/`haus plan` show declared vs
+  what macOS actually has.
 - **Don't invent option names.** The authoritative list for the revision this
   machine is pinned to is `~/.claude/skills/nebelhaus/references/options.md`.
   It's plain markdown — read it whatever client you are, even if your client
