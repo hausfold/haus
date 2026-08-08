@@ -67,7 +67,7 @@ haus update          # pull the latest rice, then rebuild
 haus rollback        # go back a generation (haus generations lists them)
 haus status          # current generation + how old your pinned rice is
 haus options         # refresh the annotated catalogue of every nebelhaus.* option
-haus set theme.accent teal # write + apply one option in the machine overlay
+haus set theme.accent teal # write + apply options in the machine overlay (pairs)
 haus get theme.accent      # read the declared value (or omit the path to list overrides)
 haus unset lock.requirePassword # explicitly set a nullable option to null
 haus reset theme.accent    # remove the override and inherit the rice/preset again
@@ -81,7 +81,10 @@ haus tour            # a guided lap of the four moves, right in the bar
 
 `haus set` writes one ordinary module per value under
 `hosts/<host>/settings/`, stages it so the flake can see it, type-checks it, then
-rebuilds. Only `nebelhaus.*` options cross this boundary; the short form above is
+rebuilds. Pass several `<path> <value>` pairs and they land together, in one
+rebuild, all-or-nothing —
+`haus set theme.flavor latte theme.systemAppearance flavor` is light mode in a
+single command. Only `nebelhaus.*` options cross this boundary; the short form above is
 expanded to `nebelhaus.theme.accent`. There is no separate settings database:
 the generated file is the config, and `haus reset` removes it.
 

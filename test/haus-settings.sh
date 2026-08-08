@@ -60,6 +60,23 @@ if "${haus[@]}" set theme.flavor >/dev/null 2>&1; then
   echo "haus set accepted an odd number of arguments" >&2
   exit 1
 fi
+if "${haus[@]}" set theme.flavor mocha theme.contrast >/dev/null 2>&1; then
+  echo "haus set accepted a trailing path with no value" >&2
+  exit 1
+fi
+
+# The transaction must cover more than a rejected VALUE. A stale index.lock makes
+# settings_stage's `git add` fail — a bare `set -e` abort partway through the
+# writes — and with several pairs that would leave file 1 written, staged,
+# unvalidated and un-restored: the exact half-done machine this command exists to
+# prevent, with no error the user can act on. The EXIT trap is what covers it.
+: >"$tmp/.git/index.lock"
+"${haus[@]}" set theme.wallpaper orbits theme.contrast high >/dev/null 2>&1 || true
+rm -f "$tmp/.git/index.lock"
+test ! -e "$tmp/hosts/test/settings/theme.wallpaper.nix"
+test ! -e "$tmp/hosts/test/settings/theme.contrast.nix"
+test "$("${haus[@]}" get theme.wallpaper)" = "none"
+test "$("${haus[@]}" get theme.contrast)" = "normal"
 
 "${haus[@]}" reset theme.flavor >/dev/null
 "${haus[@]}" reset theme.systemAppearance >/dev/null

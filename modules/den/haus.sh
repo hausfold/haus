@@ -1186,11 +1186,47 @@ settings_write() {
 # version's restore-on-failure existed to prevent, and it gets worse with more
 # pairs, not better. The cost is that a bad value is reported after every file is
 # on disk rather than before; the files are ordinary Nix and all of them go back.
+# The rollback half of cmd_set's transaction, kept out of the trap body so the
+# trap is one line. Reads the SET_* globals cmd_set fills in; deliberately NOT
+# `local` in cmd_set, because a trap reaching into another frame's locals is the
+# kind of thing that works until someone refactors.
+settings_set_rollback() {
+  local k
+  for k in ${SET_TARGETS[@]+"${!SET_TARGETS[@]}"}; do
+    [ "${SET_BACKUPS[$k]+set}" = set ] || continue # never got as far as writing this one
+    settings_restore "${SET_TARGETS[$k]}" "${SET_BACKUPS[$k]}" || true
+  done
+  settings_drop_backups ${SET_BACKUPS[@]+"${SET_BACKUPS[@]}"}
+}
+
+# `haus set` takes PAIRS: `haus set theme.flavor latte theme.systemAppearance flavor`.
+#
+# Not ergonomics — arithmetic. settings_apply is a full rebuild, so N calls is N
+# rebuilds, and the intents that genuinely need more than one option (pounce's
+# "Switch to light mode", which is theme.flavor AND theme.systemAppearance) would
+# otherwise rebuild twice AND leave the machine sitting in the half-done state in
+# between. One call, one validation, one rebuild.
+#
+# Every file is written BEFORE anything is validated, and ANY failure between the
+# first write and the last type-check restores ALL of them — via an EXIT trap, not
+# just the explicit rejection path. That distinction is the whole safety property
+# and it was found by the pre-PR assurance pass: `set -e` has plenty of other ways
+# out of here (a stale `.git/index.lock` making `settings_stage` fail is the
+# realistic one), and with a single pair those aborted before anything else was on
+# disk. With pairs they'd leave file 1 written, staged, unvalidated and un-restored
+# — precisely the half-done machine this command exists to prevent, with no error
+# the user can act on. (`ERR` would not do: the script has `set -e` but not `set -E`,
+# so an ERR trap isn't inherited into settings_write/settings_stage.)
+#
+# Validating each pair as it lands is the other tempting shape and it is worse: it
+# leaves pairs 1..n-1 applied when pair n is refused, which is the same partial
+# write, arrived at deliberately.
 cmd_set() {
   local usage="usage: haus set <nebelhaus.path|relative.path> <value> [<path> <value>…]"
   [ "$#" -ge 2 ] && [ $(( $# % 2 )) -eq 0 ] || die "$usage"
-  local host dir path target seen="" i
-  local -a paths=() values=() targets=() backups=()
+  local host dir path target seen="" i err
+  local -a paths=() values=() results=()
+  SET_TARGETS=() SET_BACKUPS=()
   host="$(host_name)"
   dir="$(settings_host_dir)"
 
@@ -1207,38 +1243,40 @@ cmd_set() {
     if [ -e "$target" ] && ! grep -q '^# Managed by haus set\.' "$target"; then
       die "$target already exists and is not managed by haus; edit it by hand"
     fi
-    paths+=("$path"); values+=("$2"); targets+=("$target")
+    paths+=("$path"); values+=("$2"); SET_TARGETS+=("$target")
     shift 2
   done
 
-  # Phase 2 — back up and write all of them.
+  # Phase 2 — from here until phase 3 succeeds, ANY exit rolls everything back.
   mkdir -p "$dir"
+  trap 'settings_set_rollback' EXIT
   for i in "${!paths[@]}"; do
-    if [ -e "${targets[$i]}" ]; then
-      backups+=("$(mktemp)"); cp -p "${targets[$i]}" "${backups[$i]}"
+    if [ -e "${SET_TARGETS[$i]}" ]; then
+      SET_BACKUPS+=("$(mktemp)"); cp -p "${SET_TARGETS[$i]}" "${SET_BACKUPS[$i]}"
     else
-      backups+=("")
+      SET_BACKUPS+=("")
     fi
-    settings_write "${paths[$i]}" "${values[$i]}" "$dir" "${targets[$i]}"
+    settings_write "${paths[$i]}" "${values[$i]}" "$dir" "${SET_TARGETS[$i]}"
   done
 
-  # Phase 3 — one evaluation per path; the FIRST failure rolls every file back.
-  local err; err="$(mktemp)"
+  # Phase 3 — one evaluation per path, keeping the value so phase 4 needn't
+  # re-evaluate. The first rejection reports and lets the trap do the restoring.
+  err="$(mktemp)"
   for i in "${!paths[@]}"; do
-    if settings_eval_json "$host" "${paths[$i]}" >/dev/null 2>"$err"; then continue; fi
-    local j
-    for j in "${!paths[@]}"; do settings_restore "${targets[$j]}" "${backups[$j]}"; done
+    if results+=("$(settings_eval_json "$host" "${paths[$i]}" 2>"$err")"); then continue; fi
     warn "the generated override did not type-check; restored the previous file(s)."
     tail -n 12 "$err" >&2
-    rm -f "$err"; settings_drop_backups ${backups[@]+"${backups[@]}"}
+    rm -f "$err"
     die "'${paths[$i]}' rejected that value — no config change remains"
   done
-  rm -f "$err"; settings_drop_backups ${backups[@]+"${backups[@]}"}
+  rm -f "$err"
+  trap - EXIT
+  settings_drop_backups ${SET_BACKUPS[@]+"${SET_BACKUPS[@]}"}
 
   # Phase 4 — report everything, then rebuild ONCE.
   for i in "${!paths[@]}"; do
-    say "set ${paths[$i]#nebelhaus.} = $(settings_eval_json "$host" "${paths[$i]}" 2>/dev/null | settings_print_json)"
-    info "${targets[$i]} (staged as ordinary Nix)"
+    say "set ${paths[$i]#nebelhaus.} = $(printf '%s' "${results[$i]}" | settings_print_json)"
+    info "${SET_TARGETS[$i]} (staged as ordinary Nix)"
   done
   settings_apply
 }

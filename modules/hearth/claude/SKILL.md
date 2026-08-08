@@ -59,8 +59,13 @@ step. The store is read-only by design.
 surface. If the user wants something the options cannot express, say that plainly —
 it is a change to the rice (a different repo, upstream), not to their machine.
 
-For a single value, prefer `haus set <path> <value>`: it writes an ordinary
-module under `hosts/<host>/settings/`, type-checks it, and rebuilds. `haus get
+For a value, prefer `haus set <path> <value>`: it writes an ordinary
+module under `hosts/<host>/settings/`, type-checks it, and rebuilds. It takes as
+many `<path> <value>` PAIRS as you need and applies them all-or-nothing in ONE
+rebuild — so an intent that spans two options (light mode is `theme.flavor` plus
+`theme.systemAppearance`) is one command, not two rebuilds with the machine
+half-switched in between. Reach for the host file when the change is structural,
+not merely multi-valued. `haus get
 [path]` reads the declared result, `haus unset <path>` writes null for a nullable
 option, and `haus reset <path>` removes the machine override so the host, preset,
 or rice value wins again. The commands only accept `nebelhaus.*` paths (the
