@@ -540,11 +540,17 @@ in
 
   # The nebelung ports this room wires itself, so the roster pass in
   # modules/theme/ports.nix leaves them alone instead of dropping a second,
-  # blunter copy beside the integration below. Twelve are sourced from the
+  # blunter copy beside the integration below. Most are sourced from the
   # rendered theme tree; starship, fzf and lazygit take the palette as Nix
   # values instead (they want colours inline in a config this room already
   # owns, not a file to point at) — either way the tool is handled here.
   # An assertion in theme/ports.nix checks every name is still a real port.
+  #
+  # gh-dash is the one conditional entry: unlike the rest, its integration is
+  # opt-in (nebelhaus.hearth.ghDash.enable), and claiming a port this room only
+  # sometimes wires would tell the roster pass "handled" on a machine where
+  # nothing wires it — so a host that installed gh-dash itself would get no
+  # theme AND no manual-step nudge from `haus doctor`.
   nebelhaus.theme.ports.handled = [
     "bat"
     "delta"
@@ -561,8 +567,8 @@ in
     "starship"
     "fzf"
     "lazygit"
-    "gh-dash"
-  ];
+  ]
+  ++ lib.optional ghDashCfg.enable "gh-dash";
 
   home-manager.users.${username} =
     {

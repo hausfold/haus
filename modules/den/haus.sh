@@ -1137,7 +1137,10 @@ cmd_set() {
   {
     printf '%s\n' '# Managed by haus set. Ordinary Nix: safe to inspect or edit.'
     printf '# Remove this override with: haus reset %s\n' "${path#nebelhaus.}"
-    printf '%s\n\n' '{ lib, ... }:' '{'
+    # One arg per %s: `printf FMT a b` reuses FMT, so a shared '%s\n\n' here
+    # would put a blank line after the opening brace as well as before it.
+    printf '%s\n\n' '{ lib, ... }:'
+    printf '%s\n' '{'
     printf '  %s = lib.mkForce (%s);\n' "$path" "$literal"
     printf '%s\n' '}'
   } >"$tmp"

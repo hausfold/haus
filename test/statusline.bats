@@ -175,6 +175,31 @@ vis() {
   [[ "$bare" == *"+1 more"* ]] || fail "the capped reapable row was not counted"
 }
 
+@test "an orphan worktree is marked, and only in the \$HOME pane" {
+  # No recorded parent (trailing field empty) — a raw `git worktree add` that
+  # skipped `holt child`, so nothing in the registry knows who owns it. The
+  # $HOME pane is the only one that surfaces those, and the ◇ is the "adopt or
+  # reap me" flag: a child and an orphan must not render identically.
+  printf 'nebelhaus/pounce\tstray\t1\t0\t0\t0\t#7 open\t\n' \
+    >"$CLAUDE_STATUSLINE_CACHE/panel.tsv"
+
+  # From a worktree pane: not $HOME, so the orphan isn't surfaced at all.
+  run -0 render claude-opus-5
+  [[ "$output" != *"stray"* ]] || fail "an orphan leaked into a non-\$HOME pane"
+
+  # From $HOME: surfaced, and marked.
+  local out
+  out=$(printf '{"model":{"id":"claude-opus-5"},"workspace":{"current_dir":"%s"},"cost":{"total_cost_usd":1.23},"context_window":{"used_percentage":42}}' \
+    "$HOME" | bash "$SL")
+  [[ "$out" == *"stray"* ]] || fail "the orphan is not surfaced at \$HOME: $out"
+  [[ "$out" == *"◇"* ]] || fail "the orphan carries no ◇ marker: $out"
+}
+
+@test "a parented child carries no orphan marker" {
+  run -0 render claude-opus-5
+  [[ "$output" != *"◇"* ]] || fail "a parented child was marked as an orphan"
+}
+
 @test "an untinted row keeps its old ragged-right shape" {
   # The tint must be strictly additive: on any other model rows stay unpadded,
   # which is exactly what they were before emit() existed.

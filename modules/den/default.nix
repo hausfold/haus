@@ -61,20 +61,29 @@ let
   domainsWritten = lib.unique (typedDomainsWritten ++ customPrefDomainsWritten);
   undeclaredDomains = builtins.filter (d: !(restartMap ? ${d})) domainsWritten;
 
-  # Every restart action that names an actual process, deduplicated, minus
-  # Dock — nix-darwin already restarts Dock itself whenever the dock domain is
-  # set (which the rice always sets), so repeating it here would just bounce
-  # the Dock twice on every rebuild for no benefit. "activateSettings" /
-  # "none" / "logout" aren't process names, so they drop out here — the first
-  # is handled by the unconditional activateSettings call below, the other two
-  # need no restart at all (or none this rice can give).
-  restartProcesses = [
-    "Finder"
-    "ControlCenter"
-    "SystemUIServer"
+  # Every restart action that names an actual process, deduplicated. A restart
+  # map value is EITHER a process name or one of these four sentinels, so
+  # subtracting the sentinels is what's left — a denylist, not an allowlist of
+  # process names. That direction matters: an allowlist has to be edited in
+  # lockstep with restart-map.nix, and the day someone adds a domain whose
+  # value is a process not on the list, the map would say "restart X" and this
+  # would silently drop it — reintroducing the exact hand-maintained gap
+  # ../lib/restart-map.nix exists to close.
+  #
+  #   "Dock"             nix-darwin already restarts Dock itself whenever the
+  #                      dock domain is set (which the rice always does), so
+  #                      repeating it here just bounces the Dock twice per
+  #                      rebuild for no benefit.
+  #   "activateSettings" handled by the unconditional activateSettings call below.
+  #   "none" / "logout"  no restart to give (or none this rice can give).
+  notProcesses = [
+    "Dock"
+    "activateSettings"
+    "none"
+    "logout"
   ];
   processesToRestart = lib.unique (
-    builtins.filter (p: builtins.elem p restartProcesses) (
+    builtins.filter (p: p != null && !(builtins.elem p notProcesses)) (
       map (d: restartMap.${d} or null) domainsWritten
     )
   );
