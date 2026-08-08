@@ -734,7 +734,7 @@ in
       #      Survivable — a wrapper could set the flag only inside a repo.
       #   2. Flag on, cwd inside a repo, press `s` three times to reach the view
       #      → nil-pointer panic in `branch.(*Branch).renderRepoName`
-      #      (branch/branch.go:175), taking the whole TUI down. Reproduced in two
+      #      (branch/branch.go:170), taking the whole TUI down. Reproduced in two
       #      different repos; the 3-view cycle with the flag off is fine, so it's
       #      the view, not the key. That one no wrapper can fix.
       #
