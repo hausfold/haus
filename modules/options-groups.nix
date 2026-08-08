@@ -34,14 +34,18 @@
   };
   roster = {
     order = 20;
-    blurb = "One list of everything this machine has — apps, fonts, command-line tools. Each entry drives its launcher key, workspace, bar pill and cheatsheet row, and installs it from whichever source it names: a Homebrew cask or formula, a Nixpkgs package, or the Mac App Store.";
+    blurb = "One list of everything this machine has — apps, fonts, command-line tools. Each entry drives its launcher key, cheatsheet row, and installs it from whichever source it names: a Homebrew cask or formula, a Nixpkgs package, or the Mac App Store.";
+  };
+  workspaces = {
+    order = 21;
+    blurb = "The named AeroSpace workspaces this machine declares, and which roster apps live on each. A workspace, not an app, owns its bar pill and leader throw — so several apps (a whole \"comms\" role) can share one.";
   };
   appStore = {
-    order = 21;
+    order = 22;
     blurb = "Whether a rebuild may install the roster's `appStoreId` entries. Off by default: it reaches the network and acts on your Apple Account, and it can never be complete — `mas` cannot sign in, and cannot buy a paid app.";
   };
   apps = {
-    order = 22;
+    order = 23;
     blurb = "The apps the rice picks for you, and the file types they claim — the ones a finished machine has rather than the ones a room needs to work. Each is one switch you can turn off; what it installs is a roster entry like any other, so you can retune or replace it by app id.";
   };
 

@@ -67,25 +67,32 @@
   # nebelhaus.apps.videoPlayer.claimFileTypes = false;
 
   # Your apps — ONE list, whatever the source. An entry with a `key` joins the
-  # Caps-Lock launcher (and a `workspace` gives it a tiling workspace + a bar
-  # pill); an entry with neither is simply installed. So the app you reach for
-  # by keyboard and the font you never think about live in the same place.
+  # Caps-Lock launcher; an entry with neither key nor workspace membership is
+  # simply installed. So the app you reach for by keyboard and the font you
+  # never think about live in the same place.
   # nebelhaus.roster = {
   #   slack = {
   #     key = "s";                              # Caps Lock, then s
   #     name = "Slack";                         # as `open -a` spells it
-  #     workspace = "S";                        # owns this workspace + a pill
   #     appId = "com.tinyspeck.slackmacgap";    # osascript -e 'id of app "Slack"'
-  #     barIcon = ":slack:";
   #     cask = "slack";                         # declaring it installs it
   #   };
   #
-  #   # No key, no workspace: installed and left alone.
+  #   # No key: installed and left alone.
   #   google-chrome = { name = "Google Chrome"; cask = "google-chrome"; };
   #   ical-buddy = { brew = "ical-buddy"; };            # a formula, not an app
   #   orbstack = { name = "OrbStack"; package = pkgs.orbstack; };
   #   ripgrep = { package = pkgs.ripgrep; scope = "system"; };  # machine-wide
   #   xcode = { name = "Xcode"; appStoreId = 497799835; };      # see appStore.install
+  # };
+  #
+  # Which WORKSPACE an app owns is the workspace's call, not the app's — so
+  # several apps (a "comms" role: Slack + Mail + Messages) can share one pill
+  # and one leader throw instead of "one app, one workspace":
+  # nebelhaus.workspaces.S = {
+  #   key = "s";                     # leader, then ⇧s throws a window here
+  #   icon = ":slack:";              # falls back to the workspace id ("S")
+  #   apps = [ "slack" ];            # roster ids that herd here
   # };
   #
   # The plain lists still work and still merge, for the rare thing that isn't

@@ -47,38 +47,45 @@ let
           an app you launch some other way.
         '';
       };
-      workspace = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        example = "S";
-        description = ''
-          The AeroSpace workspace this app owns — its window auto-moves
-          here, it gets a SketchyBar pill, and the leader then ⇧<key>
-          throws a window to it. null makes the app "launcher-only": the
-          leader still opens it in the current workspace, but it claims no
-          workspace, pill, or auto-assign rule (e.g. Passwords).
-        '';
-      };
       appId = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
         example = "com.tinyspeck.slackmacgap";
         description = ''
-          Bundle id, used for the AeroSpace `on-window-detected`
-          auto-assign rule and the wake-time re-sort. null skips
-          auto-assignment (the app still launches, it just isn't herded
-          to its workspace). Find one with `osascript -e 'id of app "…"'`.
+          Bundle id, used for the AeroSpace `on-window-detected` auto-assign
+          rule (when this app is a member of a `nebelhaus.workspaces` entry),
+          the `float` rule below, and the wake-time re-sort. null skips both
+          — the app still launches, it just isn't herded anywhere or floated.
+          Find one with `osascript -e 'id of app "…"'`.
         '';
       };
-      barIcon = lib.mkOption {
+      float = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Always float this app's windows instead of tiling them — an
+          AeroSpace `on-window-detected` rule generated from `appId`
+          (`run = 'layout floating'`). Right for a picker/dialog/status
+          window that would otherwise reflow the whole workspace every time
+          it opens (FaceTime, Flick's Settings/Inbox), not for something you
+          work inside. Requires `appId`; ignored (with a warning) without it.
+        '';
+      };
+      titleRegex = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
-        example = ":slack:";
+        example = "^Picture in Picture$";
         description = ''
-          The SketchyBar workspace-pill glyph. A sketchybar-app-font
-          ligature like ":slack:" renders the app's logo; any other
-          string is drawn in the bar's Nerd Font. null falls back to the
-          workspace letter. Ignored when workspace is null.
+          Scope `float` to windows of this app whose title matches this
+          regex (AeroSpace's `window-title-regex-substring`), instead of
+          every window the app opens. null (default) floats all of them.
+
+          Some apps' windows report their title only AFTER AeroSpace has
+          already detected and tiled them once (a race, not a bug this
+          option can fix) — Ghostty is the known case, which is why this
+          rice's own Ghostty float rule is hand-written in aerospace.toml
+          rather than generated from the roster. If a title rule flaps,
+          that race is almost certainly why. Ignored when `float` is false.
         '';
       };
       label = lib.mkOption {
@@ -201,6 +208,88 @@ let
           the hole. This is that comment, as data.
         '';
       };
+      id = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        internal = true;
+        description = ''
+          The roster key this entry was declared under. Set BY ../roster
+          from the attribute name — the same "set by the rice, not by you"
+          pattern as `installedBy` — so a resolved entry can be looked up
+          in a `nebelhaus.workspaces` entry's `apps` membership list
+          without roster and workspaces having to re-derive each other's
+          keys.
+        '';
+      };
+    };
+  };
+
+  workspaceType = lib.types.submodule {
+    options = {
+      key = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "c";
+        description = ''
+          Leader then ⇧<key> throws the focused window to this workspace
+          and follows it there (AeroSpace's `move-node-to-workspace
+          --focus-follows-window`). There is no bare <key> binding for a
+          workspace — that namespace belongs to `nebelhaus.roster` app
+          launch keys, one of which can double as this workspace's "open
+          something here" action by being one of its `apps`. null means the
+          workspace is reachable only by launching an app that belongs to
+          it (or not by keyboard at all). Must be unique across workspaces,
+          and ⇧<key> must not collide with a built-in launch-mode binding
+          (⇧1-4 are taken).
+        '';
+      };
+      icon = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = ":slack:";
+        description = ''
+          The SketchyBar workspace-pill glyph. A sketchybar-app-font
+          ligature like ":slack:" renders a logo; any other string is
+          drawn in the bar's Nerd Font. null falls back to the workspace's
+          own id.
+        '';
+      };
+      apps = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        example = [
+          "slack"
+          "mail"
+          "messages"
+        ];
+        description = ''
+          `nebelhaus.roster` app ids that live on this workspace: each
+          one's window auto-moves here (via its `appId`), opening any of
+          them from the leader lands you here, and this workspace's `key`
+          throw (above) sends the focused window here regardless of which
+          member app owns it. An app id may belong to at most one
+          workspace.
+
+          A plain list, not wrapped in `lib.mkDefault` even where the rice
+          itself contributes to it (ghostty → workspace `T`, say) — list
+          options MERGE across modules at equal priority but a `mkDefault`
+          list is dropped whole rather than merged the moment anything else
+          defines the same option, so a host adding a second app to `T`
+          would silently lose ghostty's membership if the rice's own
+          contribution used `mkDefault` here. Override a single membership
+          by dropping the app's id from your own list instead.
+        '';
+      };
+      id = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        internal = true;
+        description = ''
+          The nebelhaus.workspaces attribute name. Set BY ../workspaces
+          from the attribute name, the same pattern as appType's own `id` —
+          not meant to be set by hand.
+        '';
+      };
     };
   };
 in
@@ -211,13 +300,12 @@ in
       default = { };
       example = lib.literalExpression ''
         {
-          # Launcher app: leader s, owns workspace S, installs itself.
+          # Launcher app: leader s. Own workspace + pill come from putting
+          # "slack" in a nebelhaus.workspaces entry's `apps` (see below).
           slack = {
             key = "s";
             name = "Slack";
-            workspace = "S";
             appId = "com.tinyspeck.slackmacgap";
-            barIcon = ":slack:";
             cask = "slack";
           };
 
@@ -231,18 +319,24 @@ in
       '';
       description = ''
         The one list of things this machine has, keyed by a stable id. It is
-        the canonical, composable source for AeroSpace launcher keys and
-        workspaces, SketchyBar pills, the pounce cheatsheet, Nebelung theme
-        ports — and for the install itself, from any of four sources
-        (`cask`, `brew`, `package`, `appStoreId`).
+        the canonical, composable source for AeroSpace launcher keys, the
+        SketchyBar pills, the pounce cheatsheet, Nebelung theme ports — and
+        for the install itself, from any of four sources (`cask`, `brew`,
+        `package`, `appStoreId`).
 
         Every field except the id is optional, and WHICH fields you set is
-        what the entry means. Set `key` and it joins the launcher; set
-        `workspace` and it claims one, with a pill; set none of those and
-        it's install-only — which is how a font or a command-line tool
-        lives in the same list as Slack instead of in a second one beside
-        it. The rice's own `homebrew.casks` / `home.packages` still work and
-        still merge; you just shouldn't need them for an app.
+        what the entry means. Set `key` and it joins the launcher; set none
+        of the launcher/workspace/install fields and it's install-only —
+        which is how a font or a command-line tool lives in the same list as
+        Slack instead of in a second one beside it. The rice's own
+        `homebrew.casks` / `home.packages` still work and still merge; you
+        just shouldn't need them for an app.
+
+        Which WORKSPACE an app owns is not a field here — it's
+        `nebelhaus.workspaces.<id>.apps` naming this entry's id, so one
+        workspace can hold several apps (a "comms" workspace with Slack,
+        Mail and Messages) instead of baking "one app, one workspace" into
+        this schema. See that option.
 
         Attribute-set entries merge across Nix modules, so a host, an imported
         file, and pounce's "Install App" command can each contribute one app
@@ -258,6 +352,65 @@ in
       internal = true;
       readOnly = true;
       description = "Resolved, enabled app roster used internally by nebelhaus modules.";
+    };
+
+    workspaces = lib.mkOption {
+      type = lib.types.attrsOf workspaceType;
+      default = { };
+      example = lib.literalExpression ''
+        {
+          # Role workspace: three apps, one pill, one throw key.
+          comms = {
+            key = "c";
+            icon = ":slack:";
+            apps = [ "slack" "mail" "messages" ];
+          };
+
+          # Single-app workspace: the common case, one entry each.
+          T = { key = "t"; icon = ":ghostty:"; apps = [ "ghostty" ]; };
+        }
+      '';
+      description = ''
+        AeroSpace workspaces this machine names on purpose, keyed by the
+        workspace id AeroSpace itself will use (any string it accepts as a
+        workspace name — a single letter like `T`, or a word like `comms`).
+        First-class rather than a field on an app: an app can only ever own
+        one workspace if the field lives on the app, which makes a role
+        workspace ("communication" = Mail + Slack + Messages) or a project
+        workspace literally unrepresentable. Here, a workspace lists its own
+        members instead.
+
+        The four fixed numbered workspaces (1-4, leader/⇧+digit) are not
+        part of this option — they always exist, independent of what any
+        app claims. This option is for the NAMED workspaces app windows get
+        herded onto.
+
+        An entry with no `key` and no `apps` does nothing (a warning says
+        so); one with `apps` but no `key` still gets a persistent workspace,
+        a pill (with `icon`) and auto-herds its member windows, it just has
+        no dedicated leader throw.
+      '';
+    };
+
+    # Normalized by modules/workspaces. Same shape as _roster/_launchers: one
+    # resolution (sorted list + the reverse app→workspace lookup) so prowl,
+    # sill and the doc generator can't compute it three different ways and
+    # disagree.
+    _workspaces = lib.mkOption {
+      type = lib.types.listOf workspaceType;
+      internal = true;
+      readOnly = true;
+      description = "Resolved, sorted nebelhaus.workspaces entries, each carrying its id.";
+    };
+    _appWorkspace = lib.mkOption {
+      type = lib.types.attrsOf lib.types.str;
+      internal = true;
+      readOnly = true;
+      description = ''
+        Reverse lookup, roster app id -> the workspace id it belongs to
+        (from nebelhaus.workspaces.*.apps). An id absent here belongs to no
+        workspace.
+      '';
     };
 
     # The launcher subset: entries that claim a leader key. Its own list rather

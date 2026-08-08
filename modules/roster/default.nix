@@ -56,6 +56,7 @@ let
     // {
       app =
         entry.app
+        // { id = entry.id; }
         // lib.optionalAttrs (entry.app.package == null && entry.app.packageName != null) {
           package = import ../lib/pkg-by-name.nix {
             inherit lib pkgs;
@@ -89,19 +90,29 @@ let
   );
 
   # Entries whose only content is metadata — no source, nothing to launch, no
-  # key. Almost always a typo'd field rather than an intention, and the entry
-  # does nothing at all, so say so once instead of leaving it inert.
+  # key, no float rule, and no nebelhaus.workspaces membership. Almost always
+  # a typo'd field rather than an intention, and the entry does nothing at
+  # all, so say so once instead of leaving it inert.
   emptyEntries = map (e: e.id) (
     lib.filter (
       e:
       e.app.key == null
-      && e.app.workspace == null
+      && !e.app.float
+      && !(config.nebelhaus._appWorkspace ? ${e.id})
       && e.app.cask == null
       && e.app.brew == null
       && e.app.package == null
       && e.app.appStoreId == null
       && e.app.installedBy == null
     ) orderedNamedEntries
+  );
+
+  # `float` without `appId` has nothing to match the on-window-detected rule
+  # against — the entry is silently inert rather than an eval error, because
+  # an app you haven't found the bundle id for yet is a normal in-progress
+  # state (see add-app.sh's own two-rebuild dance for the same reason).
+  floatWithoutAppId = map (e: e.id) (
+    lib.filter (e: e.app.float && e.app.appId == null) orderedNamedEntries
   );
 
   rosterCasks = lib.filter (c: c != null) (map (a: a.cask) apps);
@@ -217,8 +228,14 @@ in
   warnings =
     lib.optional (emptyEntries != [ ]) (
       "nebelhaus.roster entries declare nothing to install and nothing to launch (no key, "
-      + "workspace, cask, brew, package/packageName, appStoreId or installedBy), so they have no effect: "
+      + "float, nebelhaus.workspaces membership, cask, brew, package/packageName, appStoreId "
+      + "or installedBy), so they have no effect: "
       + lib.concatStringsSep ", " emptyEntries
+    )
+    ++ lib.optional (floatWithoutAppId != [ ]) (
+      "nebelhaus.roster entries set `float` with no `appId`, so there is nothing for the "
+      + "AeroSpace rule to match and it never floats: "
+      + lib.concatStringsSep ", " floatWithoutAppId
     )
     ++ lib.optional (duplicateSources != [ ]) (
       "declared twice, so it installs twice and nothing errors: "

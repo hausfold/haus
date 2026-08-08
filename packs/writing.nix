@@ -67,8 +67,6 @@
     obsidian = {
       key = "o"; # leader, then o
       name = "Obsidian";
-      workspace = "O";
-      barIcon = ":obsidian:";
       cask = "obsidian";
     };
 
@@ -87,8 +85,6 @@
     zotero = {
       key = "l";
       name = "Zotero";
-      workspace = "L";
-      barIcon = ":zotero:";
       cask = "zotero";
     };
 
@@ -97,7 +93,6 @@
     anki = {
       key = "k";
       name = "Anki";
-      barIcon = ":anki:";
       cask = "anki";
     };
 
@@ -109,4 +104,22 @@
       cask = "calibre";
     };
   };
+
+  # ---- what's ALSO deliberately missing, since notes/options-roadmap.md §5.4 --
+  #
+  # WORKSPACE ownership moved off the roster entry entirely (a workspace names
+  # its own members now, not the other way round), so this pack can no longer
+  # give Obsidian or Zotero one — `checkPack` only lets a pack set
+  # `nebelhaus.roster`, and `lib.pack` only lowers THAT option's priority to
+  # `mkDefault` on the way in. Give them one in your own host file instead:
+  #
+  #   nebelhaus.workspaces.O = { key = "o"; icon = ":obsidian:"; apps = [ "obsidian" ]; };
+  #   nebelhaus.workspaces.L = { key = "l"; icon = ":zotero:"; apps = [ "zotero" ]; };
+  #
+  # Letting a pack claim a workspace id the way it claims a roster id is a real
+  # gap this migration surfaced, not a design choice — `checkPack` and
+  # `lib.pack` would need to grow the same per-leaf-mkDefault treatment for
+  # `nebelhaus.workspaces` that `nebelhaus.roster` already gets, and `apps`
+  # specifically would need list-merge rather than mkDefault (see that
+  # option's own docs for why). Left for a follow-up.
 }

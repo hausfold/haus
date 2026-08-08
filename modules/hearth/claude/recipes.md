@@ -11,21 +11,36 @@ what exists and what values are allowed.
 ## "Install Slack" / "get me Figma"
 
 Add an entry to the app roster rather than running `brew install` or reaching
-for `homebrew.casks` — one entry gives the app its launcher key, its workspace,
-its bar pill AND installs it.
+for `homebrew.casks` — one entry gives the app its launcher key AND installs
+it.
 
 ```nix
 nebelhaus.roster.slack = {
   name = "Slack";      # the .app name, for launching
   cask = "slack";      # Homebrew cask — omit if the app is already installed
   key = "s";           # leader → s launches it
-  workspace = "S";     # the tiling workspace it owns (omit for launcher-only)
+  appId = "com.tinyspeck.slackmacgap";  # osascript -e 'id of app "Slack"'
 };
 ```
 
 Pick a `key` that isn't already taken — read the existing `nebelhaus.roster.*` in
 the host file first. If the app is already on the machine, leave the source
 fields unset; the entry is then just metadata.
+
+**A workspace + bar pill is a separate claim, made BY the workspace, not the
+app** (so several apps can share one — a "comms" workspace holding Slack, Mail
+and Messages):
+
+```nix
+nebelhaus.workspaces.S = {
+  key = "s";                      # leader ⇧s throws a window here
+  icon = ":slack:";               # falls back to the workspace id ("S")
+  apps = [ "slack" ];             # roster ids that herd here — needs appId set
+};
+```
+
+Omit the whole `nebelhaus.workspaces` entry for a launcher-only app (opens in
+whatever workspace you're already on, no pill, no dedicated throw).
 
 **Everything installable goes here, not only launcher apps.** Omit `key` and the
 entry claims no leader letter, no cheatsheet row and no pill — it is simply

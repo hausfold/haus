@@ -151,8 +151,8 @@ shift-up = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh of
 shift-right = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'move right', 'mode navigate']
 # App launcher letters — generated from nebelhaus._apps.
 @LAUNCH_LETTERS@
-# App-workspace throws (⇧+the same roster letter) — generated from
-# nebelhaus._apps. Only apps that own a workspace get one.
+# Workspace throws (⇧+the workspace's own key) — generated from
+# nebelhaus._workspaces. Only workspaces that set `key` get one.
 @LAUNCH_MOVES@
 # Resize mode (entered via the launch leader's -/=, or by pressing -/= while
 # navigating). Repeat -/= to keep growing/shrinking the focused tiled window;
@@ -199,8 +199,10 @@ enter = ['exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh off
 # never reflows the tiles), and regular terminal windows tile themselves onto
 # workspace T from inside zellij/launch.sh, which knows what it is with
 # certainty. At aerospace (re)start, existing windows go straight to T tiled,
-# same as before. (Ghostty's workspace lives in the roster but its window rules
-# are bespoke, so the generated auto-assign block below skips it.)
+# same as before. (Ghostty belongs to nebelhaus.workspaces.T but its window
+# rules are bespoke, so the generated auto-assign block below skips it — see
+# ../options.nix' `titleRegex` for why a generated rule can't just replace
+# this: the same startup-window race would hit it too.)
 [[on-window-detected]]
 if.app-id = 'com.mitchellh.ghostty'
 if.during-aerospace-startup = true
@@ -210,14 +212,11 @@ run = 'move-node-to-workspace T'
 if.app-id = 'com.mitchellh.ghostty'
 run = 'layout floating'
 
-# App window auto-assignment — generated from nebelhaus._apps.
+# App window auto-assignment — generated from nebelhaus._workspaces via
+# nebelhaus._appWorkspace.
 @WINDOW_RULES@
-[[on-window-detected]]
-if.app-id = 'com.apple.FaceTime'
-run = 'layout floating'
-
-# Flick's status-item windows (Settings, Inbox) are user-summoned utility
-# windows, not tiled documents — same treatment as FaceTime.
-[[on-window-detected]]
-if.app-id = 'com.nebelhaus.flick'
-run = 'layout floating'
+# Always-float apps (nebelhaus.roster.*.float) — generated from
+# nebelhaus._apps. FaceTime and Flick are declared this way in
+# modules/prowl/default.nix; a host can add its own the same way instead of
+# hand-editing this file.
+@FLOAT_RULES@
