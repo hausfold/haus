@@ -718,6 +718,29 @@ in
       # Nebelung theme so flavor/accent/contrast changes follow automatically.
       # --replace-fail makes an upstream redraw a loud build failure instead of
       # silently putting the stock mark back.
+      #
+      # One thing deliberately NOT wired into this override, with the reason kept
+      # so nobody has to rediscover it: gh-dash has a FOURTH view — the local
+      # repo's branches, each with its PR and checks — behind an `FF_REPO_VIEW`
+      # env-var feature flag, and it looks like the git-side twin of the agent
+      # HUD (holt's branches, seen from GitHub). It is not usable yet, in two
+      # distinct ways, both measured on 4.25.2 rather than guessed:
+      #
+      #   1. Flag on, cwd outside a git repo → gh-dash doesn't degrade, it EXITS
+      #      on startup with `FATA … failed parsing config file … not a git
+      #      repository`. The message is a lie about which thing failed (ui.go
+      #      reuses one `showError` closure for the config parse and for the
+      #      git-remote lookup), and it means `gh-dash` from ~ simply quits.
+      #      Survivable — a wrapper could set the flag only inside a repo.
+      #   2. Flag on, cwd inside a repo, press `s` three times to reach the view
+      #      → nil-pointer panic in `branch.(*Branch).renderRepoName`
+      #      (branch/branch.go:175), taking the whole TUI down. Reproduced in two
+      #      different repos; the 3-view cycle with the flag off is fine, so it's
+      #      the view, not the key. That one no wrapper can fix.
+      #
+      # So this stays stock until upstream ships the view unflagged. Retesting is
+      # two commands (`FF_REPO_VIEW=1 gh-dash` in a repo, then `sss`) — worth
+      # doing on a gh-dash bump, because the view is genuinely wanted.
       ghDashPkg = pkgs.gh-dash.overrideAttrs (old: {
         postPatch = (old.postPatch or "") + ''
           substituteInPlace internal/tui/constants/constants.go \
