@@ -28,14 +28,14 @@ let
     lib.filterAttrs (_: v: v != null) config.system.defaults.universalaccess
   );
 
-  # The nebelhaus.accessibility.* keys the host actually set. Same domain as
+  # The haus.accessibility.* keys the host actually set. Same domain as
   # above, deliberately NOT the same mechanism — see the block that writes them.
   a11ySet = lib.filterAttrs (_: v: v != null) {
-    inherit (config.nebelhaus.accessibility) increaseContrast differentiateWithoutColor;
+    inherit (config.haus.accessibility) increaseContrast differentiateWithoutColor;
   };
 
-  devCfg = config.nebelhaus.developer;
-  fontsCfg = config.nebelhaus.fonts;
+  devCfg = config.haus.developer;
+  fontsCfg = config.haus.fonts;
 
   # ---- restart map (notes/macos-settings-matrix.md §4) ----------------------
   # See modules/lib/restart-map.nix for what each value means and why. The
@@ -53,9 +53,9 @@ let
     "com.apple.AppleMultitouchTrackpad"
     "com.apple.screencapture"
     "com.apple.universalaccess"
-    "com.apple.screensaver" # nebelhaus.lock
-    "com.apple.menuExtraClock" # nebelhaus.menuBar.clock
-    "com.apple.controlcenter" # nebelhaus.menuBar.controlCenter
+    "com.apple.screensaver" # haus.lock
+    "com.apple.menuExtraClock" # haus.menuBar.clock
+    "com.apple.controlcenter" # haus.menuBar.controlCenter
   ];
   customPrefDomainsWritten = lib.attrNames config.system.defaults.CustomUserPreferences;
   domainsWritten = lib.unique (typedDomainsWritten ++ customPrefDomainsWritten);
@@ -95,20 +95,20 @@ let
   hotCornerValue = lib.listToAttrs (
     map (a: lib.nameValuePair a.name a.value) (import ./hot-corners.nix)
   );
-  # nebelhaus.hotCorners.<camelCase> → the wvous infix macOS uses.
+  # haus.hotCorners.<camelCase> → the wvous infix macOS uses.
   hotCornerKeys = {
     topLeft = "tl";
     topRight = "tr";
     bottomLeft = "bl";
     bottomRight = "br";
   };
-  hotCornersSet = lib.filterAttrs (n: _: config.nebelhaus.hotCorners.${n} != null) hotCornerKeys;
+  hotCornersSet = lib.filterAttrs (n: _: config.haus.hotCorners.${n} != null) hotCornerKeys;
 
   # ---- lock / menu bar / security --------------------------------------------
-  lockCfg = config.nebelhaus.lock;
-  clockCfg = config.nebelhaus.menuBar.clock;
-  ccCfg = config.nebelhaus.menuBar.controlCenter;
-  firewallCfg = config.nebelhaus.security.firewall;
+  lockCfg = config.haus.lock;
+  clockCfg = config.haus.menuBar.clock;
+  ccCfg = config.haus.menuBar.controlCenter;
+  firewallCfg = config.haus.security.firewall;
   clockShowDateValue = {
     "when-space-allows" = 0;
     "always" = 1;
@@ -116,7 +116,7 @@ let
   };
 
   # ---- screenshots ----------------------------------------------------------
-  shotsCfg = config.nebelhaus.screenshots;
+  shotsCfg = config.haus.screenshots;
   # macOS stores `location` verbatim and expands nothing, so a "~/Pictures/…"
   # written literally into the plist is a path that does not exist — and
   # screencapture's response to a missing directory is to quietly use the
@@ -137,7 +137,7 @@ let
     else if fontsCfg.mono.packageName != null then
       import ../lib/pkg-by-name.nix {
         inherit lib pkgs;
-        option = "nebelhaus.fonts.mono.packageName";
+        option = "haus.fonts.mono.packageName";
         name = fontsCfg.mono.packageName;
       }
     else
@@ -148,7 +148,7 @@ let
   fontFamilyUnprovided =
     fontsCfg.mono.package == null
     && fontsCfg.mono.packageName == null
-    && fontsCfg.mono.name != options.nebelhaus.fonts.mono.name.default;
+    && fontsCfg.mono.name != options.haus.fonts.mono.name.default;
 in
 {
   system.primaryUser = username;
@@ -198,7 +198,7 @@ in
       installs (awake, aerospace, hush-watcher, pounce, sketchybar). If a rebuild
       ever half-completes, this is the first thing to check.
 
-      nebelhaus.accessibility.* reaches the two useful keys in this domain
+      haus.accessibility.* reaches the two useful keys in this domain
       (increaseContrast, differentiateWithoutColor) WITHOUT that hazard — it
       guards the write, so a missing grant costs you the setting and nothing else.
     ''
@@ -229,7 +229,7 @@ in
     }
   ];
 
-  # ---- nebelhaus.accessibility → com.apple.universalaccess -------------------
+  # ---- haus.accessibility → com.apple.universalaccess -------------------
   # Writes the two keys in that domain measured to write AND take effect on
   # macOS 26 (checked against NSWorkspace, not a plist read-back).
   #
@@ -348,7 +348,7 @@ in
       # not the developer toolbelt.
       hausax
 
-      # The annotated host file — every nebelhaus.* option at its default, with
+      # The annotated host file — every haus.* option at its default, with
       # its description and a docs link, all commented out — installed at
       # share/nebelhaus/host-options.nix. `haus options` copies it beside your
       # host file; nothing reads it at runtime.
@@ -485,7 +485,7 @@ in
       # auto-update/upgrade (keeps rebuilds reproducible) and never delete
       # undeclared casks (cleanup = "none") so the rice can't eat an app you
       # installed yourself. A declarative-minded host can opt into "zap".
-      inherit (config.nebelhaus.homebrew) autoUpdate upgrade cleanup;
+      inherit (config.haus.homebrew) autoUpdate upgrade cleanup;
     };
 
     # No casks here on purpose. den's own (ghostty) is a roster entry below,
@@ -499,13 +499,13 @@ in
   # at a different build — or null the cask and install ghostty its own way — by
   # app id, without touching this file. prowl adds the leader key and workspace
   # when tiling is on; with prowl off this is just an install.
-  nebelhaus.roster.ghostty = {
+  haus.roster.ghostty = {
     name = lib.mkDefault "Ghostty";
     cask = lib.mkDefault "ghostty";
   };
 
   # ---- Fonts ----------------------------------------------------------------
-  # The rice's terminal font, from nebelhaus.fonts.mono. JetBrains Mono Nerd
+  # The rice's terminal font, from haus.fonts.mono. JetBrains Mono Nerd
   # Font is the default because a Nerd Font is load-bearing here: starship's
   # powerline prompt, lsd's icons, and yazi all draw with patched glyphs that a
   # stock font renders as tofu. hearth points Ghostty at whatever this resolves
@@ -521,7 +521,7 @@ in
   # requirement globally via a brew.env that `bin/brew` reads on every call.
   #
   # HOMEBREW_API_AUTO_UPDATE_SECS only bites hosts that set
-  # `nebelhaus.homebrew.autoUpdate = true` (the rice default is false, which
+  # `haus.homebrew.autoUpdate = true` (the rice default is false, which
   # disables the check outright). For those, brew re-downloads its ~15 MB
   # formula/cask JSON API whenever the last check is older than the window —
   # and the stock window is 450 s, so any two rebuilds more than 7½ minutes
@@ -548,8 +548,8 @@ in
       # Dock you sized by hand is left alone rather than snapped back to Apple's
       # 48. Same principle as theme.wallpaper = "none" — don't move what wasn't
       # asked about.
-      tilesize = lib.mkIf (config.nebelhaus.ui.scale != 1.0) (
-        lib.mkDefault (builtins.floor (48 * config.nebelhaus.ui.scale + 0.5))
+      tilesize = lib.mkIf (config.haus.ui.scale != 1.0) (
+        lib.mkDefault (builtins.floor (48 * config.haus.ui.scale + 0.5))
       );
       autohide = lib.mkDefault true;
       show-recents = lib.mkDefault false;
@@ -567,7 +567,7 @@ in
     # whenever ANY typed dock option is set, and the rice always sets autohide.
     # So a corner is live the moment activation finishes, no logout.
     // lib.mapAttrs' (
-      n: k: lib.nameValuePair "wvous-${k}-corner" hotCornerValue.${config.nebelhaus.hotCorners.${n}}
+      n: k: lib.nameValuePair "wvous-${k}-corner" hotCornerValue.${config.haus.hotCorners.${n}}
     ) hotCornersSet;
     # The rice's Finder is aimed at someone who thinks in paths: everything
     # visible, sorted the way a Linux file manager sorts, navigable from the
@@ -650,18 +650,18 @@ in
 
       # Small sidebar rows fit noticeably more places in a tiled window. Hosts
       # that scaled the UI up asked for bigger chrome, so leave them Apple's.
-      NSTableViewDefaultSizeMode = lib.mkDefault (if config.nebelhaus.ui.scale > 1.0 then 3 else 1);
+      NSTableViewDefaultSizeMode = lib.mkDefault (if config.haus.ui.scale > 1.0 then 3 else 1);
 
       # Hide the stock menu bar only when Sill draws its own; otherwise keep it.
       # Rice-controlled (not mkDefault): it tracks sill.enable, not user taste.
-      _HIHideMenuBar = config.nebelhaus.sill.enable;
+      _HIHideMenuBar = config.haus.sill.enable;
     };
     trackpad = {
       Clicking = lib.mkDefault true;
       TrackpadRightClick = lib.mkDefault true;
       TrackpadThreeFingerDrag = lib.mkDefault true;
     };
-    # ---- nebelhaus.screenshots → com.apple.screencapture ---------------------
+    # ---- haus.screenshots → com.apple.screencapture ---------------------
     # The gentlest domain on the Mac: no TCC grant, no restart (screencapture
     # re-reads its preferences on every capture), every key typed upstream. So
     # unlike Finder or the menu bar there is nothing for the rice to own here —
@@ -680,7 +680,7 @@ in
       include-date = shotsCfg.includeDate;
     };
 
-    # ---- nebelhaus.lock → com.apple.screensaver -------------------------------
+    # ---- haus.lock → com.apple.screensaver -------------------------------
     # Two keys, both null by default like every group in §5.6. No persistent
     # process reads this domain, so restart-map.nix says "none" — same shape as
     # screencapture, unverified against an effective-state oracle this pass (no
@@ -690,7 +690,7 @@ in
       askForPasswordDelay = lockCfg.requirePasswordDelay;
     };
 
-    # ---- nebelhaus.menuBar.clock → com.apple.menuExtraClock -------------------
+    # ---- haus.menuBar.clock → com.apple.menuExtraClock -------------------
     menuExtraClock = {
       Show24Hour = if clockCfg.format == null then null else clockCfg.format == "24h";
       ShowSeconds = clockCfg.showSeconds;
@@ -699,7 +699,7 @@ in
       IsAnalog = clockCfg.analog;
     };
 
-    # ---- nebelhaus.menuBar.controlCenter → com.apple.controlcenter ------------
+    # ---- haus.menuBar.controlCenter → com.apple.controlcenter ------------
     controlcenter = {
       BatteryShowPercentage = ccCfg.batteryPercentage;
       Sound = ccCfg.sound;
@@ -753,11 +753,11 @@ in
       # it restores an opaque bar so the reveal fully covers Sill. Lives in
       # CustomUserPreferences because nix-darwin's typed NSGlobalDomain block has no
       # option for it (and no freeform); `defaults write NSGlobalDomain …` == `-g`.
-      NSGlobalDomain.SLSMenuBarUseBlurredAppearance = config.nebelhaus.sill.enable;
+      NSGlobalDomain.SLSMenuBarUseBlurredAppearance = config.haus.sill.enable;
     };
   };
 
-  # ---- nebelhaus.security.firewall → networking.applicationFirewall ---------
+  # ---- haus.security.firewall → networking.applicationFirewall ---------
   # NOT system.defaults: nix-darwin's own networking module runs
   # `socketfilterfw` directly in its own activation script, unconditionally,
   # every rebuild — a live imperative command, not a plist write waiting on

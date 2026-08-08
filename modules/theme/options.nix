@@ -6,7 +6,7 @@
 { lib, ... }:
 
 {
-  options.nebelhaus = {
+  options.haus = {
     theme.flavor = lib.mkOption {
       type = lib.types.enum [
         "mocha"
@@ -41,18 +41,18 @@
         What does NOT follow it:
 
           - pounce and perch, by default. Both read their palette at runtime and
-            can pick per polarity, so nebelhaus.pounce.followSystemAppearance
-            and nebelhaus.perch.followSystemAppearance (default true) hand that
+            can pick per polarity, so haus.pounce.followSystemAppearance
+            and haus.perch.followSystemAppearance (default true) hand that
             choice to macOS Light/Dark instead: the rice installs every rendered
             variant into ~/.config/{pounce,perch}/themes/ and writes the
             dark/light PAIR at your `contrast`. Set either option false to pin
             that app to this flavor like everything else.
           - macOS's own Light/Dark appearance, unless you opt in with
-            nebelhaus.theme.systemAppearance = "flavor". Left at its default the
+            haus.theme.systemAppearance = "flavor". Left at its default the
             rice does not touch system appearance in either direction, so a
             latte rice on a dark macOS looks half-done and that half is yours —
             except in pounce and perch, which read the appearance themselves.
-          - the desktop wallpaper (nebelhaus.theme.wallpaper). The three hand-made
+          - the desktop wallpaper (haus.theme.wallpaper). The three hand-made
             looks have the dark palette baked in; only "bold" is generated, and it
             follows theme.accent rather than the flavor.
       '';
@@ -74,7 +74,7 @@
 
           unmanaged  (default) leave it alone, in both directions. Your Mac's
                      appearance stays yours; nothing about a rebuild moves it.
-          flavor     follow nebelhaus.theme.flavor — latte sets Light, mocha
+          flavor     follow haus.theme.flavor — latte sets Light, mocha
                      sets Dark. This is the one that makes light mode complete
                      rather than half-done.
           light      pin Light, whatever the flavor is.
@@ -96,7 +96,7 @@
         which does flip it live in ~0.3s — and confirms the result with `hausax`
         (AppKit's effective appearance), never by reading the key back.
 
-        Reachability, the same shape as nebelhaus.accessibility.increaseContrast:
+        Reachability, the same shape as haus.accessibility.increaseContrast:
         driving System Events needs an Automation grant for whichever app runs
         the rebuild (System Settings ▸ Privacy & Security ▸ Automation). Without
         it macOS refuses, the rebuild says so in a named warning and carries on
@@ -108,7 +108,7 @@
         this option holds only until the next scheduled switch. Pick Light or
         Dark there if you want it to stick.
 
-        Interaction worth knowing: nebelhaus.{pounce,perch}.followSystemAppearance
+        Interaction worth knowing: haus.{pounce,perch}.followSystemAppearance
         hand polarity to macOS. Set this to "flavor" and macOS's polarity is in
         turn the rice's, so those two end up following `flavor` transitively —
         which is usually what you wanted, but it does mean `followSystemAppearance`
@@ -145,7 +145,7 @@
         light/dark pair), Zen and Obsidian. It does NOT reach:
 
           - macOS itself. For system-wide contrast see
-            nebelhaus.accessibility.increaseContrast — a separate, FDA-gated
+            haus.accessibility.increaseContrast — a separate, FDA-gated
             setting. The two are complementary, and a genuinely high-contrast
             machine wants both.
       '';
@@ -173,7 +173,7 @@
       description = ''
         The accent colour, by Catppuccin name (the Nebelung palette is a
         grey-tinted Catppuccin, so the fourteen names are the same in both
-        flavors — the hue you pick follows nebelhaus.theme.flavor). It recolours
+        flavors — the hue you pick follows haus.theme.flavor). It recolours
         the tools nebelhaus injects colours into — lazygit, fzf, yazi (including
         glow-rendered Markdown headings), and the Zen browser — via the matching
         Nebelung per-accent ports.
@@ -185,9 +185,9 @@
         default it accents with its own mark green.
 
         Two more things follow it: the `bold` wallpaper (generated from the
-        accent hex — see nebelhaus.theme.wallpaper), and any roster app whose
+        accent hex — see haus.theme.wallpaper), and any roster app whose
         Nebelung port ships a per-accent matrix (zed, gh-dash, mpv), placed by
-        nebelhaus.theme.ports. Those ports name the theme file after the accent,
+        haus.theme.ports. Those ports name the theme file after the accent,
         so changing the accent renames the file the app's own `theme` key points
         at — re-pick it in the app, or it falls back to stock.
 
@@ -202,7 +202,7 @@
         `about:` pages — github.com and youtube.com are themed by the Stylus
         extension, whose Catppuccin-derived styles carry their OWN `accentColor`
         var (default mauve) inside the extension's storage, where no stylesheet
-        can reach it. Declare `nebelhaus.zen.extensions.stylus` and the rice
+        can reach it. Declare `haus.zen.extensions.stylus` and the rice
         stamps that var with this accent and tells you, once, when there's a new
         bundle to import; the import itself stays a click, because Stylus has no
         file interface. Until you make it, the web keeps the accent you last
@@ -243,13 +243,13 @@
       type = lib.types.bool;
       default = true;
       description = ''
-        Theme the apps in your roster (`nebelhaus.roster`) that Nebelung ships a
+        Theme the apps in your roster (`haus.roster`) that Nebelung ships a
         port for, without wiring each one by hand.
 
         The rice already themes every tool it installs itself — the shell, the
         terminal, the git stack, Zen, Obsidian. This covers the other direction:
         an app YOU added to the roster that Nebelung happens to have a theme for.
-        Add `zed`, `warp` or `xcode` to `nebelhaus.roster` and its Nebelung theme
+        Add `zed`, `warp` or `xcode` to `haus.roster` and its Nebelung theme
         lands where that app looks for themes, in the flavor and contrast you
         selected, following them on every rebuild. Matching is by roster id, so
         the entry has to be named after the port (`zed`, not `zed-editor`).

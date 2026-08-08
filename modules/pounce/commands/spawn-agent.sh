@@ -130,7 +130,7 @@ fi
 
 agent="$(holt agent default 2>/dev/null)"
 [ -n "$agent" ] || agent="claude"
-# Belt to the assertion's braces. `nebelhaus.agents.clients` makes the default
+# Belt to the assertion's braces. `haus.agents.clients` makes the default
 # client present at BUILD time, but this script runs long after that — the
 # client can still be missing on a machine driving `holt` without the rice, or
 # with a hand-managed install that moved. Checking here, before anything is
@@ -138,7 +138,7 @@ agent="$(holt agent default 2>/dev/null)"
 # succeeds, the pane opens, and only `holt agent start` inside it finds nothing —
 # leaving a dead pane and a worktree nobody asked for.
 if ! command -v "$agent" >/dev/null 2>&1; then
-  notice "$agent is not installed" "Add it to nebelhaus.agents.clients, or change agents.default"
+  notice "$agent is not installed" "Add it to haus.agents.clients, or change agents.default"
   exit 1
 fi
 

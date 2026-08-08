@@ -1,4 +1,4 @@
-# Reading order and a one-line blurb for each `nebelhaus.*` room.
+# Reading order and a one-line blurb for each `haus.*` room.
 #
 # Everything else about an option — type, default, example, description, the
 # file that declares it — comes out of the module system itself (options-doc.nix)

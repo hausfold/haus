@@ -459,12 +459,12 @@ EOF
 
 # Assemble the optional host lines (omit anything left at the rice default).
 opt_lines=""
-[ -z "$ROOM_SILL" ]   && opt_lines+="  nebelhaus.sill.enable = false;"$'\n'
-[ -z "$ROOM_PROWL" ]  && opt_lines+="  nebelhaus.prowl.enable = false;"$'\n'
-[ -z "$ROOM_POUNCE" ] && opt_lines+="  nebelhaus.pounce.enable = false;"$'\n'
-[ "$ACCENT" != "mauve" ] && opt_lines+="  nebelhaus.theme.accent = \"$ACCENT\";"$'\n'
-[ "$WALLPAPER" != "none" ] && opt_lines+="  nebelhaus.theme.wallpaper = \"$WALLPAPER\";"$'\n'
-[ "$EDITOR_CHOICE" != "hx" ] && opt_lines+="  nebelhaus.hearth.editor = \"$EDITOR_CHOICE\";"$'\n'
+[ -z "$ROOM_SILL" ]   && opt_lines+="  haus.sill.enable = false;"$'\n'
+[ -z "$ROOM_PROWL" ]  && opt_lines+="  haus.prowl.enable = false;"$'\n'
+[ -z "$ROOM_POUNCE" ] && opt_lines+="  haus.pounce.enable = false;"$'\n'
+[ "$ACCENT" != "mauve" ] && opt_lines+="  haus.theme.accent = \"$ACCENT\";"$'\n'
+[ "$WALLPAPER" != "none" ] && opt_lines+="  haus.theme.wallpaper = \"$WALLPAPER\";"$'\n'
+[ "$EDITOR_CHOICE" != "hx" ] && opt_lines+="  haus.hearth.editor = \"$EDITOR_CHOICE\";"$'\n'
 [ -n "$opt_lines" ] && opt_lines=$'\n'"$opt_lines"
 cask_lines=""
 for c in $ADOPT_CASKS; do cask_lines+="    \"$c\""$'\n'; done
@@ -477,7 +477,7 @@ settings_block=""
 [ -n "$settings_lines" ] && settings_block=$'\n'"  # ---- macOS settings kept as yours (read at install) ----"$'\n'"$settings_lines"
 
 # ---- the annotated option catalogue ---------------------------------------
-# hosts/<host>/options.nix: every nebelhaus.* option at its default, described,
+# hosts/<host>/options.nix: every haus.* option at its default, described,
 # docs-linked, and commented out. It's how you find out an option exists without
 # leaving your editor — read it, uncomment what you want, delete the rest.
 #
@@ -486,14 +486,14 @@ settings_block=""
 # upstream's latest. That's a real flake fetch, so it's best-effort: a machine
 # that's offline, or pinning a rice older than the output, gets a config that
 # works exactly as before and a pointer to `haus options`.
-say "Rendering the option catalogue (every nebelhaus.* option, annotated)"
+say "Rendering the option catalogue (every haus.* option, annotated)"
 IMPORTS_LINE=""
 if tmpl="$(nix build --no-link --print-out-paths \
              "${NEBELHAUS_FLAKE:-github:nebelhaus/nebelhaus}#host-template" 2>/dev/null)" \
    && [ -f "$tmpl/share/nebelhaus/host-options.nix" ]; then
   cp -f "$tmpl/share/nebelhaus/host-options.nix" "$DEST/hosts/$HOSTNAME/options.nix"
   chmod u+w "$DEST/hosts/$HOSTNAME/options.nix"   # it comes out of the store read-only
-  IMPORTS_LINE="  imports = [ ./options.nix ]; # every nebelhaus.* option, annotated — read it
+  IMPORTS_LINE="  imports = [ ./options.nix ]; # every haus.* option, annotated — read it
 "
 else
   warn "couldn't render the option catalogue (offline?) — run 'haus options' after your first rebuild."
@@ -507,16 +507,16 @@ cat >"$DEST/hosts/$HOSTNAME/default.nix" <<EOF
 {
 $IMPORTS_LINE
   # ---- identity ----
-  nebelhaus.git.name = "$GIT_NAME";
-  nebelhaus.git.email = "$GIT_EMAIL";
-  nebelhaus.git.signingKey = "$GIT_SIGNING"; # GPG key id; "" disables signing.
+  haus.git.name = "$GIT_NAME";
+  haus.git.email = "$GIT_EMAIL";
+  haus.git.signingKey = "$GIT_SIGNING"; # GPG key id; "" disables signing.
 
   # pounce code-signing identity (SHA-1 from: security find-identity -v -p codesigning).
   # "" runs pounce unsigned — the palette works, Accessibility features stay off.
-  nebelhaus.pounce.signingIdentity = "";
+  haus.pounce.signingIdentity = "";
 $opt_lines$settings_block
   # Homebrew never deletes an undeclared cask by default (cleanup = "none"); set
-  # nebelhaus.homebrew.cleanup = "zap" only once every app you keep is listed.
+  # haus.homebrew.cleanup = "zap" only once every app you keep is listed.
   # Your apps — merged with what the rooms install (ghostty, aerospace):
   homebrew.casks = [
 $cask_lines  ];
@@ -550,7 +550,7 @@ EOF
 $(say "Two files are yours to edit:")
 
     hosts/$HOSTNAME/default.nix   who you are, and your apps — short on purpose
-    hosts/$HOSTNAME/options.nix   EVERY nebelhaus.* option, at its default,
+    hosts/$HOSTNAME/options.nix   EVERY haus.* option, at its default,
                                   described, docs-linked, and commented out
 
   Read the second one to learn what exists; uncomment a line to change it, and
@@ -582,7 +582,7 @@ if [ -n "$DRY_RUN" ]; then
   sed 's/^/    /' "$DEST/hosts/$HOSTNAME/default.nix"
   # Not dumped — it's ~1000 lines. The count is the useful signal: it proves the
   # render ran and how much of the surface it covered.
-  [ -f "$DEST/hosts/$HOSTNAME/options.nix" ] && say "[dry-run] generated $DEST/hosts/$HOSTNAME/options.nix: $(grep -c '^  # nebelhaus\.' "$DEST/hosts/$HOSTNAME/options.nix") options"
+  [ -f "$DEST/hosts/$HOSTNAME/options.nix" ] && say "[dry-run] generated $DEST/hosts/$HOSTNAME/options.nix: $(grep -c '^  # haus\.' "$DEST/hosts/$HOSTNAME/options.nix") options"
 fi
 
 # ---- optional: raise it right now ------------------------------------------

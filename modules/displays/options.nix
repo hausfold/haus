@@ -5,7 +5,7 @@
 { lib, ... }:
 
 {
-  options.nebelhaus.displays = lib.mkOption {
+  options.haus.displays = lib.mkOption {
     default = { };
     example = {
       internal.uiScale = "larger-text";
@@ -30,7 +30,7 @@
       app re-reads, while the accessibility scalars that do work affect contrast
       or motion rather than system-wide size — measured, not assumed (the
       workshop's notes/macos-settings-matrix.md records the sweep). So
-      `nebelhaus.ui.scale` and `nebelhaus.fonts` make the *rice* bigger, and this
+      `haus.ui.scale` and `haus.fonts` make the *rice* bigger, and this
       makes the *Mac* bigger.
     '';
     type = lib.types.attrsOf (

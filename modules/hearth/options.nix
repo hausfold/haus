@@ -8,7 +8,7 @@
 
 let
   # The extensions the rice itself has an opinion about, so naming one in
-  # nebelhaus.zen.extensions is enough. Stylus is here because it's the Nebelung
+  # haus.zen.extensions is enough. Stylus is here because it's the Nebelung
   # port whose theme lives inside the extension rather than in a file — the one
   # thing standing between the rice's palette and the actual web.
   #
@@ -27,7 +27,7 @@ let
 in
 
 {
-  options.nebelhaus = {
+  options.haus = {
     git = {
       name = lib.mkOption {
         type = lib.types.str;
@@ -92,7 +92,7 @@ in
       description = ''
         When true, build a small opener app and make it the default handler
         for ~80 text/code extensions (json, md, ts, nix, rs, go, kdl, …), so
-        opening or clicking those files opens them in nebelhaus.hearth.editor in
+        opening or clicking those files opens them in haus.hearth.editor in
         a terminal tab. The app declares the types itself (not just `duti`) so
         extensions nothing else on the machine declares still bind. Off by
         default: silently rewriting your file associations is a jarring,
@@ -249,7 +249,7 @@ in
         The mechanism is Firefox's enterprise-policy file — the rice renders
         `Zen/distribution/policies.json` with an `ExtensionSettings` block — so
         it reaches Zen the way an IT department reaches Firefox, without a
-        profile to hand-edit. `nebelhaus.roster` deliberately cannot do this: a
+        profile to hand-edit. `haus.roster` deliberately cannot do this: a
         roster entry installs from a cask, a brew, a nixpkgs package or the App
         Store, and a browser add-on is none of those.
 
@@ -259,7 +259,7 @@ in
         option for where to find it.
 
         Naming `stylus` here also turns on the stamped userstyle bundle (see
-        nebelhaus.theme.accent): the Catppuccin-derived styles Stylus imports
+        haus.theme.accent): the Catppuccin-derived styles Stylus imports
         carry their own accent and flavor variables, which no palette file can
         reach, so the rice stamps the bundle from your theme — accent, flavor,
         and the contrast it's rendered for — and tells you when there's a new
@@ -273,7 +273,7 @@ in
       example = lib.literalExpression "{ DisableTelemetry = true; }";
       description = ''
         Anything else to put in Zen's policy file, merged beside the
-        `ExtensionSettings` block `nebelhaus.zen.extensions` renders. The rice
+        `ExtensionSettings` block `haus.zen.extensions` renders. The rice
         OWNS that file, so this is the escape hatch for the rest of the policy
         surface rather than a reason to take the file back by hand. Keys here
         win over the rice's on a collision.
@@ -317,7 +317,7 @@ in
         opened there is oriented whichever client it runs.
 
         Unrelated to Claude Code's own settings, which follow
-        nebelhaus.developer.agents.enable. This is a plain file drop: a machine
+        haus.developer.agents.enable. This is a plain file drop: a machine
         that never runs an agent just carries an unread markdown file. Set
         false to leave ~/.claude/skills alone entirely.
       '';

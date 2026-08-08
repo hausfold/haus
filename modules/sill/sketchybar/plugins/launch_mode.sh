@@ -26,7 +26,7 @@ LOCK="/tmp/sketchybar_launch.lock"
 
 source "$HOME/.config/sketchybar/colors.sh"
 source "$HOME/.config/sketchybar/sizes.sh"
-# LAUNCHERS (leader key -> workspace map) is GENERATED from nebelhaus._roster
+# LAUNCHERS (leader key -> workspace map) is GENERATED from haus._roster
 # into workspaces.sh — the same data-driven roster as the workspace pills, so the
 # picker can't drift from the app roster. (bash 3.2 has no assoc arrays, hence a
 # plain "<key>:<ws>" string.)

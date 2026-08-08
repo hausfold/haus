@@ -1,18 +1,25 @@
 # The per-room options files, as a plain list of paths.
 #
-# These are the ONLY modules that declare `nebelhaus.*`, and they are pure
+# These are the ONLY modules that declare `haus.*`, and they are pure
 # `{ lib, ... }` modules — no config, no pkgs, no darwin system. That purity is
 # what lets the option surface be evaluated on its own, on any platform, which
 # in turn is what lets it be RENDERED rather than hand-documented:
 #
-#   flake.nix  →  .#options-json   → nebelhaus.com's options reference (Linux CI)
+#   flake.nix  →  .#options-json   → the site's options reference (Linux CI)
 #   flake.nix  →  .#claude-skill   → the agent skill installed on every machine
 #
-# Two consumers, one list. It lived inline in flake.nix while there was one;
-# the second would have been a copy that silently stops covering a new room the
-# day someone adds one — the exact drift the whole rendered-docs approach exists
-# to prevent. Add a room's options.nix here and both surfaces pick it up.
+# Two consumers, one list — three now that modules/default.nix imports this file
+# rather than writing the same paths out again. It lived inline in flake.nix
+# while there was one; the second would have been a copy that silently stops
+# covering a new room the day someone adds one — the exact drift the whole
+# rendered-docs approach exists to prevent. Add a room's options.nix here and
+# every surface picks it up.
 [
+  # The `nebelhaus.*` -> `haus.*` aliases. In this list rather than only in
+  # modules/default.nix because the pure-lib evals above are ALSO consumers of
+  # the old names: flake.nix's pack and preset checks feed rice files written
+  # against `nebelhaus.*` into a bare evalModules of exactly this list.
+  ./renamed.nix
   ./options.nix
   ./apps/options.nix
   ./den/options.nix

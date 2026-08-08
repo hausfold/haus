@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Auto-position hook for nebelhaus.sill.position = "auto". Subscribed to
+# Auto-position hook for haus.sill.position = "auto". Subscribed to
 # display_change + system_woke in sketchybarrc (added only in auto mode), so it
 # fires whenever a display attaches/detaches or the machine wakes. bar_position()
 # lives in the GENERATED position.sh: it echoes `bottom` when an external display

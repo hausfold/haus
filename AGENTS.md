@@ -4,6 +4,23 @@
 repo is the "distro": a personal machine consumes it via `mkNebelhaus` and adds
 only its own host (identity, private apps, secrets).
 
+> 🚨 **The option namespace is `haus.*`.** Declare every new option under
+> `haus.`, in one of the files `modules/options-modules.nix` lists — that list
+> is the single source (`modules/default.nix` imports it; don't write the paths
+> out again). `nebelhaus.*` still works for CONSUMERS: `modules/renamed.nix`
+> generates one `lib.mkRenamedOptionModule` per leaf, so a host or a
+> third-party rice on the old spelling keeps evaluating, with a warning. It is
+> not a second namespace to add to — a declaration under `nebelhaus.` would
+> collide with its own alias.
+>
+> **Three things stay `nebelhaus`, and they are not drift**: the repo, the
+> rice, and the flake input. `nebelhaus.presets.everyday`,
+> `nebelhaus.lib.checkRice` and `inputs.nebelhaus.url` are all correct as
+> written — flake outputs and an input name, not options. Same for
+> `org.nebelhaus.*` launchd labels, `~/.claude/skills/nebelhaus/`,
+> `share/nebelhaus/` and nebelhaus.com links; each has its own phase in
+> workshop `notes/hausfold-rename.md`, none of them is this one.
+
 **This file is the one set of instructions, for every agent.** Claude Code,
 Codex, OpenCode, Cursor, Copilot — TUI or GUI — all read *this*, directly or
 through a one-line pointer. Nothing harness-specific belongs here; when a flow
@@ -11,7 +28,7 @@ needs per-client wiring (a hook, a slash command), the wiring lives in that
 client's own file and the *content* stays here or in `.agents/`. The map of
 which tool reads which file is [`.agents/README.md`](./.agents/README.md).
 (That's the rule for this repo's *own* files. The rice also **ships** agent
-config to end users — `nebelhaus.claude.*`, the `hearth/claude` skill — and
+config to end users — `haus.claude.*`, the `hearth/claude` skill — and
 that's a product surface, not this layer.)
 
 ## Am I in the right repo? (routing)
@@ -36,7 +53,7 @@ elsewhere.
 > **Whatever agent you are, enforce this.** If a request targets a different repo
 > than the one whose files you're in, STOP and say so before editing — e.g.
 > "That's a color change; the palette lives in `~/code/workshop/nebelung`. Want
-> me to switch?" Never hardcode a user's identity here — it's a `nebelhaus.*`
+> me to switch?" Never hardcode a user's identity here — it's a `haus.*`
 > option the host sets.
 
 ## Architecture
@@ -58,11 +75,11 @@ modules/
                           #   entries, so a cask of the same app still collides loudly
   den/                    # system: macOS defaults, Homebrew framework, core CLI, GC
                           #   + on-PATH CLIs: haus / awake / zscratch / statusline
-  displays/               # nebelhaus.displays: scaled resolution by intent + the
+  displays/               # haus.displays: scaled resolution by intent + the
                           #   hausdisp helper (Swift, xcrun-compiled like pounce's)
   theme/                  # desktop wallpaper + accent-derived bold wordmark
   hearth/                 # shell: zsh, starship, git, yazi, zellij, ghostty + theming
-    claude/               # the nebelhaus Claude Code skill (nebelhaus.claude.skill):
+    claude/               # the nebelhaus Claude Code skill (haus.claude.skill):
                           #   hand-written SKILL.md + recipes, plus an option reference
                           #   rendered per-revision — see skill.nix for why it's a package.
                           #   Also ships the consumer starter pair (consumer-AGENTS.md +
@@ -114,12 +131,12 @@ transcript, not your summary of it. The full checklist is the workshop ship skil
 **Step 2.5**; in this repo it hunts the things that only bite after merge:
 
 a hex that belongs in nebelung or app logic that belongs in pounce landing in a
-module here; a `nebelhaus.*` option added or renamed with no matching edit in
+module here; a `haus.*` option added or renamed with no matching edit in
 `reference/options.md` or the guides in the workshop's `web/src/content/docs/`; a new
 keybind colliding across zellij / AeroSpace (prowl) / pounce / macOS symbolic hotkeys —
 collisions are silent, the loser just stops firing; a breaking option rename whose
 consumer edit didn't ride in the same PR, leaving `main` broken mid-ripple; and
-hardcoded identity that should be a `nebelhaus.*` option.
+hardcoded identity that should be a `haus.*` option.
 
 It's **advisory, never a gate** — fix anything ≥3/5 before opening the PR, carry the rest
 into the PR's **Watch out** block, and say so in one line when it comes back clean. A false
@@ -134,7 +151,7 @@ it silently.
 ## Rules
 
 - **Never hardcode identity.** Anything personal (git name/email/signing key, the
-  pounce signing cert) is a `nebelhaus.*` option set by the host — see `options.nix`.
+  pounce signing cert) is a `haus.*` option set by the host — see `options.nix`.
 - A **dynamic attr key** (`${username}`) can't be defined across multiple statements —
   set `home-manager.users.${username}` once per module. Pass it as a module *function*
   (`{ lib, pkgs, ... }: {...}`) when you need home-manager's `lib.hm`.
@@ -155,7 +172,7 @@ it silently.
   bootout` then `bootstrap`.
 - **pounce self-signing** (`modules/pounce`): macOS keys an Accessibility (TCC) grant
   to a code-signing identity, but a store build is adhoc-signed (cdhash changes every
-  rebuild). When `nebelhaus.pounce.signingIdentity` is set, the daemon wrapper copies
+  rebuild). When `haus.pounce.signingIdentity` is set, the daemon wrapper copies
   `Pounce.app` to `~/.local/state/pounce` and re-signs it with a stable identity so the
   grant survives rebuilds. Don't repoint the agent at the store path. One-time on a new
   machine: `pounce --request-accessibility`, approve the prompt (and the keychain
@@ -180,7 +197,7 @@ it silently.
   into `modules/sill/sketchybar/sketchybarrc`. Follow an existing plugin.
 - **A new default app pick** (an app the rice thinks a finished machine has, not one a
   room needs to do its job): it goes in `modules/apps` — one
-  `nebelhaus.apps.<thing>.enable` knob in its `options.nix`, one roster entry (never a
+  `haus.apps.<thing>.enable` knob in its `options.nix`, one roster entry (never a
   bare `home.packages` line), and if it should own file types, `duti` pins in the same
   activation that `lsregister`s the bundle — binding a type LaunchServices hasn't seen
   yet is a silent `-50`. An app a room NEEDS (AeroSpace, SketchyBar, espanso) still
@@ -204,7 +221,7 @@ it silently.
     ~200 ms and closing the 16-row usage pill over a second. Now the toggle runs
     first and alone, the rects are read once at arm time, and the dismissing call
     is fired without waiting: ~12 ms to open, ~30 ms from click to closed.
-- **Theme**: `nebelhaus.theme.{flavor,contrast}` are the single source of truth, and
+- **Theme**: `haus.theme.{flavor,contrast}` are the single source of truth, and
   **`modules/lib/nebelung.nix` is the only place that resolves them.** It returns the
   themes-package `root` to source rendered files from, the `palette` (name → hex),
   and the `flavor` — which is load-bearing, not decoration: whiskers names its output
@@ -302,5 +319,5 @@ it silently.
   leader-mode scripts + `aerospace-notify.sh` feed it `tour.sh event <name>`
   behind a `[ -f ~/.local/state/nebelhaus/tour ]` guard — one stat when idle;
   keep it that cheap. `haus tour` and the pounce `tour` command are just doors
-  into it. Gated by `nebelhaus.tour.enable` via the generated
+  into it. Gated by `haus.tour.enable` via the generated
   `tour_item.sh` / `tour_config.sh` (see `modules/sill/default.nix`).

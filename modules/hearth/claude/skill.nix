@@ -5,7 +5,7 @@
 # The obvious shape for "teach an agent about nebelhaus" is a SKILL.md someone
 # writes and keeps up to date. That file is stale the first time an option is
 # added, and a confidently-wrong option name costs the user a failed rebuild and
-# a rollback. So the half that can drift — every `nebelhaus.*` name, type,
+# a rollback. So the half that can drift — every `haus.*` name, type,
 # default and description — is RENDERED from the module system, the same source
 # the nebelhaus.com reference is rendered from.
 #
@@ -57,8 +57,8 @@ pkgs.runCommand "nebelhaus-claude-skill-${version}"
       > "$out/references/options.md"
 
     # A skill whose option reference silently rendered empty would be worse than
-    # no skill: the agent would conclude nebelhaus has no options rather than
+    # no skill: the agent would conclude the rice has no options rather than
     # that the render broke. Fail the build instead.
-    grep -q '^nebelhaus\.' "$out/references/options.md" \
-      || { echo "options.md rendered no nebelhaus.* options — the render is broken" >&2; exit 1; }
+    grep -q '^haus\.' "$out/references/options.md" \
+      || { echo "options.md rendered no haus.* options — the render is broken" >&2; exit 1; }
   ''

@@ -17,9 +17,9 @@ The `CLAUDE.md` beside it is that pointer and holds no rules of its own.
 
 ## Working here
 
-- **Edit only the host config.** Set `nebelhaus.*` options in `default.nix`.
+- **Edit only the host config.** Set `haus.*` options in `default.nix`.
   It's an ordinary nix-darwin module, so raw `system.defaults.*` / `homebrew.*`
-  also work — but prefer a `nebelhaus.*` option when one exists.
+  also work — but prefer a `haus.*` option when one exists.
 - **For options, use `haus set <path> <value> [<path> <value>…]`.** It writes and
   stages a small module per pair under `settings/`, type-checks them, then
   rebuilds once — all-or-nothing, so a two-option intent (light mode is
@@ -27,7 +27,7 @@ The `CLAUDE.md` beside it is that pointer and holds no rules of its own.
   [path]` reads it, `haus unset <path> [<path>…]` writes null for nullable
   options, and `haus reset <path> [<path>…]` removes overrides — both take a LIST
   with the same all-or-nothing single rebuild, so undoing that two-option intent
-  is also one command. Only `nebelhaus.*` paths are allowed.
+  is also one command. Only `haus.*` paths are allowed.
 - **Apply with `haus rebuild`.** It builds first and switches only on success, so
   a broken config never reaches the running system.
 - **Undo with `haus rollback`.** Atomic, instant, and it rewinds everything Nix
@@ -40,7 +40,7 @@ The `CLAUDE.md` beside it is that pointer and holds no rules of its own.
   It's plain markdown — read it whatever client you are, even if your client
   doesn't load Claude Code skills.
 - **Ask before touching identity or secrets** — git identity, signing keys,
-  `nebelhaus.secrets.*`.
+  `haus.secrets.*`.
 
 ## Where the detail lives
 

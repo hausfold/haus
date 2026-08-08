@@ -9,7 +9,7 @@
 # spent months in hearth, the SHELL room, purely because hearth's file-
 # association code was next door.
 #
-# The shape each pick takes: one `nebelhaus.apps.<thing>.enable` knob, a roster
+# The shape each pick takes: one `haus.apps.<thing>.enable` knob, a roster
 # entry (never a bare package — the roster is the one list of what this machine
 # HAS, and it's what makes a second copy from a cask a build warning instead of
 # a silent duplicate), and optionally the file types that pick should own.
@@ -25,7 +25,7 @@
 }:
 
 let
-  cfg = config.nebelhaus.apps;
+  cfg = config.haus.apps;
   videoCfg = cfg.videoPlayer;
 
   # The extensions IINA declares as VIDEO, read off its own Info.plist
@@ -83,7 +83,7 @@ in
   # can retune it by app id, and naming the same app from two sources trips the
   # roster's one-source assertion instead of quietly installing IINA twice (which
   # is exactly what happened for months — see modules/roster).
-  nebelhaus.roster = lib.mkIf videoCfg.enable {
+  haus.roster = lib.mkIf videoCfg.enable {
     iina = {
       name = lib.mkDefault "IINA";
       package = lib.mkDefault pkgs.iina;

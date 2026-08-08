@@ -26,7 +26,7 @@
 #     `{palette}` rather than a typed "⌘ Space" so the hint still names the
 #     right key on a rice that imports this one and moves it.
 {
-  nebelhaus = {
+  haus = {
     sill.enable = true;
     pounce.enable = true;
     tour.enable = true;

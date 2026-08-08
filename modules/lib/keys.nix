@@ -1,8 +1,8 @@
-# Resolve nebelhaus.keys.* into the concrete AeroSpace chords, the pounce hotkey
+# Resolve haus.keys.* into the concrete AeroSpace chords, the pounce hotkey
 # definition, and the glyphs that describe them. Imported the same way as
 # gui-wait.nix / nebelung.nix — a plain function, no module system involved.
 #
-#   k = import ../lib/keys.nix { inherit lib; keys = config.nebelhaus.keys; };
+#   k = import ../lib/keys.nix { inherit lib; keys = config.haus.keys; };
 #
 # The point of putting the vocabulary in ONE table is that a chord and the caption
 # that documents it come from the same row. Before this, "⌥ hjkl" was typed as a

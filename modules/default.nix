@@ -16,12 +16,12 @@
   # neither file: absent from this one, a real system loses the option; absent
   # from that one, only the option-surface evals do.
   imports = (import ./options-modules.nix) ++ [
-    # Named workspaces: resolves nebelhaus.workspaces into the internal lookup
+    # Named workspaces: resolves haus.workspaces into the internal lookup
     # ./roster folds into each app's resolved workspace membership. Comes
     # first because roster depends on it, though the module system's laziness
     # means the two could import in either order without changing anything.
     ./workspaces
-    # The app roster: resolves nebelhaus.roster into the internal lists the rooms
+    # The app roster: resolves haus.roster into the internal lists the rooms
     # below read, and installs whatever each entry names. Ungated on purpose —
     # an entry that only wants to BE installed shouldn't need the tiler on.
     ./roster

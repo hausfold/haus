@@ -5,7 +5,7 @@
 # it says nothing about the developer pack, the rooms, or the keymap. Compose it
 # with whichever rice describes the person:
 #
-#   extraModules = [ nebelhaus.presets.everyday nebelhaus.presets.large-print ];
+#   extraModules = [ haus.presets.everyday haus.presets.large-print ];
 #
 # That composition is the actual readiness test from the roadmap, and it's why
 # this file sets three options rather than fifteen. A preset that had to restate
@@ -20,7 +20,7 @@
 #                         see below), Dock icons 48 → 67, Finder's sidebar rows
 #                         (a threshold: above 1.0 you get Apple's large ones),
 #                         and prowl's window gaps, all at once. Pin any single one afterwards
-#                         (nebelhaus.fonts.mono.size = 24) and it wins — scale sets
+#                         (haus.fonts.mono.size = 24) and it wins — scale sets
 #                         defaults, not values.
 #   theme.contrast         body text goes from 11.3:1 to 19.9:1 against the
 #                         background, across every tool the rice colours. Measured
@@ -88,15 +88,15 @@
 # A more legible typeface — Atkynson Mono is Atkinson Hyperlegible's monospaced
 # sibling, drawn by the Braille Institute for exactly this problem:
 #
-#   nebelhaus.fonts.mono.packageName = "nerd-fonts.atkynson-mono";
-#   nebelhaus.fonts.mono.name        = "AtkynsonMono Nerd Font";
+#   haus.fonts.mono.packageName = "nerd-fonts.atkynson-mono";
+#   haus.fonts.mono.name        = "AtkynsonMono Nerd Font";
 #
 # And light mode, if it reads better for you — some people find dark text on
 # light easier at size, some the reverse:
 #
-#   nebelhaus.theme.flavor = "latte";
+#   haus.theme.flavor = "latte";
 {
-  nebelhaus = {
+  haus = {
     ui.scale = 1.4;
 
     theme.contrast = "high";

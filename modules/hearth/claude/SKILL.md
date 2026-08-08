@@ -1,6 +1,6 @@
 ---
 name: nebelhaus
-description: Change this Mac's setup on a machine running the nebelhaus rice — install or remove apps, change the theme, fonts, keybindings, window management, the bar, the shell, or macOS settings. Use whenever the user asks you to change how their Mac looks or behaves, or mentions nebelhaus, haus, their host file, or ~/.config/nix. Covers finding the right nebelhaus.* option, editing the host file, applying with `haus rebuild`, and undoing with `haus rollback`.
+description: Change this Mac's setup on a machine running the nebelhaus rice — install or remove apps, change the theme, fonts, keybindings, window management, the bar, the shell, or macOS settings. Use whenever the user asks you to change how their Mac looks or behaves, or mentions nebelhaus, haus, their host file, or ~/.config/nix. Covers finding the right haus.* option, editing the host file, applying with `haus rebuild`, and undoing with `haus rollback`.
 ---
 
 # Changing a nebelhaus machine
@@ -55,7 +55,7 @@ option may exist upstream and simply be newer than this machine's pin.
 Pulling a newer rice is `haus update`, which bumps the pin and rebuilds in one
 step. The store is read-only by design.
 
-**Never edit the rice itself.** The `nebelhaus.*` options are the entire supported
+**Never edit the rice itself.** The `haus.*` options are the entire supported
 surface. If the user wants something the options cannot express, say that plainly —
 it is a change to the rice (a different repo, upstream), not to their machine.
 
@@ -71,18 +71,19 @@ nullable options, and `haus reset <path> [<path>…]` removes machine overrides 
 the host, preset, or rice value wins again. Those two take a LIST the way `set`
 takes pairs, with the same all-or-nothing single rebuild — so undoing light mode
 is one `haus reset theme.flavor theme.systemAppearance`, not two rebuilds with
-the machine half-undone in between. The commands only accept `nebelhaus.*` paths (the
-`nebelhaus.` prefix may be omitted). Edit the host file directly when the change
-is structural or needs several related definitions in one module.
+the machine half-undone in between. The commands only accept `haus.*` paths (the
+`haus.` prefix may be omitted, and the pre-rename `nebelhaus.` spelling is still
+accepted). Edit the host file directly when the change is structural or needs
+several related definitions in one module.
 
-**Ask before touching identity or secrets.** `nebelhaus.git.*`, signing keys,
-anything under `nebelhaus.secrets.*`, and the pounce signing identity are the
+**Ask before touching identity or secrets.** `haus.git.*`, signing keys,
+anything under `haus.secrets.*`, and the pounce signing identity are the
 user's, not yours.
 
-**Prefer a `nebelhaus.*` option to a raw nix-darwin setting.** Both work — the
+**Prefer a `haus.*` option to a raw nix-darwin setting.** Both work — the
 host file is an ordinary nix-darwin module — but the rice's options are the ones
 that are documented, checked, and safe. Reach for `system.defaults.*` or
-`homebrew.*` directly only when nothing in `nebelhaus.*` covers it, and say that
+`homebrew.*` directly only when nothing in `haus.*` covers it, and say that
 you did.
 
 ## After a successful rebuild
@@ -102,7 +103,7 @@ write fails it fails mid-activation and aborts the rest, skipping every
 background service the rice installs, with a symptom nowhere near the cause.
 
 So: tell the user to run `haus rebuild` themselves in their terminal. The edit is
-already written; nothing is lost. (`nebelhaus.accessibility.*` reaches the useful
+already written; nothing is lost. (`haus.accessibility.*` reaches the useful
 keys in that domain without the hazard — prefer it if the goal is contrast or
 motion, and mention that to the user.)
 
@@ -128,7 +129,7 @@ rollback will actually undo it.
 
 ## The Homebrew trap
 
-Removing an app from `nebelhaus.roster` (or `homebrew.casks`) stops nebelhaus from
+Removing an app from `haus.roster` (or `homebrew.casks`) stops nebelhaus from
 *managing* it — it does **not** uninstall it. The app stays on disk. Tell the
 user the extra step: `brew uninstall --zap <cask>`.
 
@@ -146,7 +147,7 @@ user the extra step: `brew uninstall --zap <cask>`.
 
 | File | What it is |
 |---|---|
-| `references/options.md` | Every `nebelhaus.*` option on this machine's revision — generated, authoritative. Grep it. |
+| `references/options.md` | Every `haus.*` option on this machine's revision — generated, authoritative. Grep it. |
 | `references/recipes.md` | Worked examples for the common asks (install an app, change the theme, resize the UI…). |
 | `references/this-machine.md` | This host: name, paths, which rooms are enabled. |
 | `consumer-AGENTS.md` | A starter `AGENTS.md` for `~/.config/nix` — the rules themselves, read by Codex, OpenCode, Cursor, Copilot and anything else that speaks agents.md. |

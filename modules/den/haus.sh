@@ -10,8 +10,8 @@
 #   haus generations     list the generations you can roll back to
 #   haus status          current generation + how old your pinned rice is
 #   haus edit            open your host config (identity, apps) in $EDITOR
-#   haus options         refresh hosts/<host>/options.nix — every nebelhaus.* option, annotated
-#   haus set             write + apply nebelhaus.* options in the machine overlay (pairs)
+#   haus options         refresh hosts/<host>/options.nix — every haus.* option, annotated
+#   haus set             write + apply haus.* options in the machine overlay (pairs)
 #   haus get             read one option, or list the machine overlay
 #   haus unset           force nullable options to null (variadic)
 #   haus reset           remove machine overrides and inherit config again (variadic)
@@ -153,7 +153,7 @@ bg_wait() {
 # download nobody asked for yet.
 #
 # Gated on the running system's activate script, because a host with
-# `nebelhaus.homebrew.upgrade = false` will never install what we'd fetch:
+# `haus.homebrew.upgrade = false` will never install what we'd fetch:
 # nix-darwin passes `--no-upgrade` to `brew bundle` exactly then.
 brew_prefetch() {
   command -v brew >/dev/null 2>&1 || return 0
@@ -175,11 +175,11 @@ haus — the everyday CLI for a nebelhaus machine.
   haus generations    list the generations you can roll back to
   haus status         current generation + how old your pinned rice is
   haus edit           open your host config in $EDITOR
-  haus options        refresh the annotated catalogue of every nebelhaus.* option
+  haus options        refresh the annotated catalogue of every haus.* option
                       (--force replaces your copy instead of writing options.nix.new)
   haus set <path> <value> [<path> <value>…]
                       write hosts/<host>/settings/<path>.nix, type-check it, and
-                      rebuild (theme.accent and nebelhaus.theme.accent both work).
+                      rebuild (theme.accent and haus.theme.accent both work).
                       Several pairs land in ONE rebuild, all-or-nothing — which is
                       what an intent spanning two options needs (light mode is
                       theme.flavor + theme.systemAppearance)
@@ -328,7 +328,7 @@ guard_agent_rebuild() {
 
       haus rebuild
 
-  For contrast or reduced motion, nebelhaus.accessibility.* reaches the useful
+  For contrast or reduced motion, haus.accessibility.* reaches the useful
   keys in that domain with a guarded write, and works from anywhere.
   (Really meant it? HAUS_AGENT_REBUILD=1 haus rebuild.)
 EOF
@@ -496,7 +496,7 @@ settings_diff() {
         if [ -n "$ax_json" ]; then
           live="$(printf '%s' "$ax_json" | jq -r '.appearance // "unknown"')" || live=unknown
         fi
-        warn "$domain $key: declared $declared — writing this key is a KNOWN NO-OP in BOTH directions on macOS 26 (measured; the appearance system only mirrors it). macOS is effectively showing $live. Use nebelhaus.theme.systemAppearance instead."
+        warn "$domain $key: declared $declared — writing this key is a KNOWN NO-OP in BOTH directions on macOS 26 (measured; the appearance system only mirrors it). macOS is effectively showing $live. Use haus.theme.systemAppearance instead."
         flagged=$((flagged + 1))
         ;;
       unconfirmed | plain)
@@ -1062,12 +1062,17 @@ cmd_edit() {
 settings_path() {
   local raw="$1" path
   [ -n "$raw" ] || die "an option path is required (for example: theme.accent)"
+  # `nebelhaus.` is accepted as the pre-rename spelling of the same namespace
+  # (modules/renamed.nix), but the canonical prefix is what gets WRITTEN — an
+  # overlay file is regenerated on every `haus set`, so this upgrades old ones
+  # in place without a migration.
   case "$raw" in
-    nebelhaus.*) path="$raw" ;;
-    *) path="nebelhaus.$raw" ;;
+    haus.*) path="$raw" ;;
+    nebelhaus.*) path="haus.${raw#nebelhaus.}" ;;
+    *) path="haus.$raw" ;;
   esac
-  [[ "$path" =~ ^nebelhaus(\.[A-Za-z_][A-Za-z0-9_-]*)+$ ]] \
-    || die "only nebelhaus.* option paths are writable (got '$raw')"
+  [[ "$path" =~ ^haus(\.[A-Za-z_][A-Za-z0-9_-]*)+$ ]] \
+    || die "only haus.* option paths are writable (got '$raw')"
   printf '%s\n' "$path"
 }
 
@@ -1077,7 +1082,7 @@ settings_host_dir() {
 
 settings_file() {
   local path="$1"
-  printf '%s/%s.nix\n' "$(settings_host_dir)" "${path#nebelhaus.}"
+  printf '%s/%s.nix\n' "$(settings_host_dir)" "${path#haus.}"
 }
 
 settings_option_exists() {
@@ -1151,7 +1156,7 @@ settings_write() {
   tmp="$(mktemp "$dir/.haus-set.XXXXXX")"
   {
     printf '%s\n' '# Managed by haus set. Ordinary Nix: safe to inspect or edit.'
-    printf '# Remove this override with: haus reset %s\n' "${path#nebelhaus.}"
+    printf '# Remove this override with: haus reset %s\n' "${path#haus.}"
     # One arg per %s: `printf FMT a b` reuses FMT, so a shared '%s\n\n' here
     # would put a blank line after the opening brace as well as before it.
     printf '%s\n\n' '{ lib, ... }:'
@@ -1203,7 +1208,7 @@ settings_tx_rollback() {
 cmd_set() {
   # cmd_unset delegates here, and quoting `haus set`'s pair syntax at someone who
   # typed `haus unset` names a command they didn't run — so it may override this.
-  local usage="${TX_USAGE:-usage: haus set <nebelhaus.path|relative.path> <value> [<path> <value>…]}"
+  local usage="${TX_USAGE:-usage: haus set <haus.path|relative.path> <value> [<path> <value>…]}"
   [ "$#" -ge 2 ] && [ $(( $# % 2 )) -eq 0 ] || die "$usage"
   local host dir path target backup seen="" i err
   local -a paths=() values=() results=()
@@ -1218,7 +1223,7 @@ cmd_set() {
   while [ "$#" -gt 0 ]; do
     path="$(settings_path "$1")"
     settings_option_exists "$host" "$path"
-    case "$seen" in *"|$path|"*) die "$usage — ${path#nebelhaus.} named twice" ;; esac
+    case "$seen" in *"|$path|"*) die "$usage — ${path#haus.} named twice" ;; esac
     seen="$seen|$path|"
     target="$(settings_file "$path")"
     if [ -e "$target" ] && ! grep -q '^# Managed by haus set\.' "$target"; then
@@ -1260,7 +1265,7 @@ cmd_set() {
 
   # Phase 4 — report everything, then rebuild ONCE.
   for i in "${!paths[@]}"; do
-    say "set ${paths[$i]#nebelhaus.} = $(printf '%s' "${results[$i]}" | settings_print_json)"
+    say "set ${paths[$i]#haus.} = $(printf '%s' "${results[$i]}" | settings_print_json)"
     info "${TX_TARGETS[$i]} (staged as ordinary Nix)"
   done
   settings_apply
@@ -1281,9 +1286,9 @@ cmd_get() {
   for f in "$dir"/*.nix; do
     [ -e "$f" ] || continue
     grep -q '^# Managed by haus set\.' "$f" || continue
-    path="nebelhaus.$(basename "$f" .nix)"
+    path="haus.$(basename "$f" .nix)"
     json="$(settings_eval_json "$host" "$path" 2>/dev/null)" || continue
-    printf '%-38s %s\n' "${path#nebelhaus.}" "$(printf '%s' "$json" | settings_print_json)"
+    printf '%-38s %s\n' "${path#haus.}" "$(printf '%s' "$json" | settings_print_json)"
     found=1
   done
   [ -n "$found" ] || info "no machine-writable settings; use: haus set <path> <value>"
@@ -1297,7 +1302,7 @@ cmd_unset() {
   # Bash's dynamic scope makes this local visible inside cmd_set, so a rejection
   # from down there quotes the invocation the user actually typed rather than
   # `haus set`'s pair syntax.
-  local TX_USAGE="usage: haus unset <nebelhaus.path|relative.path> [<path>…]"
+  local TX_USAGE="usage: haus unset <haus.path|relative.path> [<path>…]"
   [ "$#" -ge 1 ] || die "$TX_USAGE"
   local p
   local -a pairs=()
@@ -1322,7 +1327,7 @@ cmd_unset() {
 # EXIT trap — settings_restore puts a backed-up file back, which is all
 # "un-remove" means here.
 cmd_reset() {
-  local usage="usage: haus reset <nebelhaus.path|relative.path> [<path>…]"
+  local usage="usage: haus reset <haus.path|relative.path> [<path>…]"
   [ "$#" -ge 1 ] || die "$usage"
   local host path target backup seen="" i err
   local -a paths=() results=() inherited=()
@@ -1338,11 +1343,11 @@ cmd_reset() {
   while [ "$#" -gt 0 ]; do
     path="$(settings_path "$1")"
     settings_option_exists "$host" "$path"
-    case "$seen" in *"|$path|"*) die "$usage — ${path#nebelhaus.} named twice" ;; esac
+    case "$seen" in *"|$path|"*) die "$usage — ${path#haus.} named twice" ;; esac
     seen="$seen|$path|"
     target="$(settings_file "$path")"
     if [ ! -e "$target" ]; then
-      inherited+=("${path#nebelhaus.} already inherits the host/rice value ($(settings_eval_json "$host" "$path" 2>/dev/null | settings_print_json))")
+      inherited+=("${path#haus.} already inherits the host/rice value ($(settings_eval_json "$host" "$path" 2>/dev/null | settings_print_json))")
       shift; continue
     fi
     grep -q '^# Managed by haus set\.' "$target" \
@@ -1383,14 +1388,14 @@ cmd_reset() {
   # Phase 4 — report everything, then rebuild ONCE.
   for i in ${inherited[@]+"${!inherited[@]}"}; do say "${inherited[$i]}"; done
   for i in "${!paths[@]}"; do
-    say "reset ${paths[$i]#nebelhaus.}; now inherits $(printf '%s' "${results[$i]}" | settings_print_json)"
+    say "reset ${paths[$i]#haus.}; now inherits $(printf '%s' "${results[$i]}" | settings_print_json)"
   done
   settings_apply
 }
 
 # ---- haus options -----------------------------------------------------------
 # Refresh hosts/<host>/options.nix — the annotated catalogue of every
-# nebelhaus.* option at its default, all commented out. The bootstrap writes it
+# haus.* option at its default, all commented out. The bootstrap writes it
 # once at install; this is how it gets refreshed when `haus update` moves the
 # pin and the rice grows options that weren't in your copy.
 #
@@ -1556,7 +1561,7 @@ cmd_doctor() {
   if [ -f "$skilldir/SKILL.md" ]; then
     ok "the nebelhaus skill is installed ($skilldir)"
   else
-    info "no nebelhaus skill — set nebelhaus.claude.skill = true to let an agent change this machine"
+    info "no nebelhaus skill — set haus.claude.skill = true to let an agent change this machine"
   fi
   if [ -f "$CONSUMER/AGENTS.md" ] && [ -f "$CONSUMER/CLAUDE.md" ]; then
     ok "$CONSUMER/AGENTS.md orients any agent opened there (+ CLAUDE.md imports it)"
@@ -1571,14 +1576,14 @@ cmd_doctor() {
     # the whole point of copying is to then edit.
     info "nothing orients an agent opened in your config — start from the rice's pair: install -m 644 $skilldir/consumer-AGENTS.md $CONSUMER/AGENTS.md && install -m 644 $skilldir/consumer-CLAUDE.md $CONSUMER/CLAUDE.md"
   else
-    info "nothing orients an agent opened in your config, and the starter pair isn't here to copy — set nebelhaus.claude.skill = true, rebuild, then re-run 'haus doctor'"
+    info "nothing orients an agent opened in your config, and the starter pair isn't here to copy — set haus.claude.skill = true, rebuild, then re-run 'haus doctor'"
   fi
   # Reported for the app running THIS command — the grant is per-app, so the
   # answer legitimately differs between your terminal and an agent's pane.
   if has_fda; then
     ok "this app has Full Disk Access (system.defaults.universalaccess.* can be written from here)"
   else
-    info "this app has no Full Disk Access — system.defaults.universalaccess.* can't be written from here, and 'haus rebuild' will refuse rather than half-activate (nebelhaus.accessibility.* is the safe route)"
+    info "this app has no Full Disk Access — system.defaults.universalaccess.* can't be written from here, and 'haus rebuild' will refuse rather than half-activate (haus.accessibility.* is the safe route)"
   fi
 
   # Secrets — the declaration (secretspec.toml) rebuilds with Nix, but the
@@ -1589,7 +1594,7 @@ cmd_doctor() {
     local provider
     provider="$(sed -n 's/^provider *= *"\(.*\)"/\1/p' "$HOME/.config/secretspec/config.toml" 2>/dev/null | head -1)"
     if [ -n "$provider" ]; then ok "secretspec on PATH (default provider: $provider)"
-    else warn "no default provider — set nebelhaus.secrets.provider, or run: secretspec config init"; fi
+    else warn "no default provider — set haus.secrets.provider, or run: secretspec config init"; fi
     # If your config flake declares secrets, verify their values are present.
     # </dev/null keeps check from prompting; missing values are for `set`.
     if [ -f "$CONSUMER/secretspec.toml" ]; then

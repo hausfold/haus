@@ -50,7 +50,7 @@ darwinConfigurations.mymac = inputs.nebelhaus.mkNebelhaus {
 
 ## Identity knobs
 
-- **pounce signing** — set `nebelhaus.pounce.signingIdentity` to an Apple
+- **pounce signing** — set `haus.pounce.signingIdentity` to an Apple
   Development identity's SHA-1 (`security find-identity -v -p codesigning`) so
   the palette's Accessibility grant survives rebuilds. Leave empty to run
   unsigned. See the [pounce README](https://github.com/nebelhaus/pounce) for the
@@ -60,13 +60,13 @@ darwinConfigurations.mymac = inputs.nebelhaus.mkNebelhaus {
   home-manager block; key material and any smartcard/YubiKey setup live outside
   Nix (gpg-agent + pinentry-mac).
 
-- **perch** — `nebelhaus.perch.enable` installs through Nix via its flake
+- **perch** — `haus.perch.enable` installs through Nix via its flake
   input and copies to a fixed `/Applications/Perch.app` path.
 
-- **hush** — `nebelhaus.hush.*` for the Focus/DND hotkey, Slack status, and
+- **hush** — `haus.hush.*` for the Focus/DND hotkey, Slack status, and
   shell hooks.
 
-- **theme** — `nebelhaus.theme.accent` and `nebelhaus.theme.wallpaper`.
+- **theme** — `haus.theme.accent` and `haus.theme.wallpaper`.
 
 The full option list is [Making it
 yours](https://nebelhaus.com/guides/making-it-yours/) and

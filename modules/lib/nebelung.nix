@@ -1,8 +1,8 @@
-# Resolve nebelhaus.theme.{flavor,contrast} into the handful of things every
+# Resolve haus.theme.{flavor,contrast} into the handful of things every
 # module that reads the `nebelung` input needs. Imported the same way as
 # gui-wait.nix — a plain function, no module system involved.
 #
-#   nb = import ../lib/nebelung.nix { inherit lib nebelung; theme = osConfig.nebelhaus.theme; };
+#   nb = import ../lib/nebelung.nix { inherit lib nebelung; theme = osConfig.haus.theme; };
 #   nb.root      # themes-package path to source rendered ports from
 #   nb.palette   # name -> "#hex" for the selected variant
 #   nb.flavor    # the catppuccin flavor whiskers rendered it as ("mocha" | "latte")
@@ -92,7 +92,7 @@ in
   palette =
     nebelung.palettes.${variant} or (throw ''
       nebelhaus: the pinned `nebelung` input renders no "${variant}" palette.
-      nebelhaus.theme.flavor = "${theme.flavor}" with contrast = "${theme.contrast}"
+      haus.theme.flavor = "${theme.flavor}" with contrast = "${theme.contrast}"
       needs a newer nebelung — run `nix flake update nebelung` (or `bench ship`,
       which ripples it) and rebuild.
     '');

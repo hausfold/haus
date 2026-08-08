@@ -12,7 +12,7 @@
 #   • Nix packages   — searches the flake's pinned nixpkgs revision.
 #
 # Every selection becomes an ordinary Nix module under hosts/<host>/packages/,
-# and always the SAME shape: one `nebelhaus.roster` entry naming its source
+# and always the SAME shape: one `haus.roster` entry naming its source
 # (cask / brew / package / appStoreId). mkNebelhaus auto-imports those files, so
 # this command writes exactly what a person writes by hand.
 #
@@ -20,7 +20,7 @@
 # and can't purchase a paid app or sign in at all, so it runs here, visibly,
 # where a Touch ID/password prompt has a terminal to appear in. The declaration
 # is still a native roster entry; a machine that opts into
-# nebelhaus.appStore.install can then fetch it unattended.
+# haus.appStore.install can then fetch it unattended.
 #
 # The flake lives at ~/.config/nix by convention (override with
 # $NEBELHAUS_FLAKE or $HAUS_CONSUMER). The host is baked in by mkNebelhaus and
@@ -58,7 +58,7 @@ file_slug() {
 # EVERY key launch mode binds, not just the roster's. The generated
 # aerospace.toml's [mode.launch.binding] is the authority: roster launchers,
 # their ⇧throws, the fixed built-ins (v clipboard, e emoji, z reopen-last-app,
-# `,` settings, ` resort, - / = resize) and any nebelhaus.keys.leaderExtras all
+# `,` settings, ` resort, - / = resize) and any haus.keys.leaderExtras all
 # land in that ONE table, which is exactly the set prowl asserts against.
 #
 # Reading only the cheatsheet's Launch Mode rows was the bug: the built-ins
@@ -97,8 +97,8 @@ launch_used_letters() {
   } | sort -u
 }
 
-# ONE module shape, for every source and both lanes: a `nebelhaus.roster` entry,
-# plus (when the app got its own workspace) a paired `nebelhaus.workspaces`
+# ONE module shape, for every source and both lanes: a `haus.roster` entry,
+# plus (when the app got its own workspace) a paired `haus.workspaces`
 # entry naming it in `apps`. Which FIELDS the roster entry sets is what it
 # means — a `key` puts it on the leader, neither makes it a plain install — so
 # a cask, a formula, a Nixpkgs package and an App Store app all land in the
@@ -106,7 +106,7 @@ launch_used_letters() {
 # roster grew the brew/package/appStoreId fields this had to emit two
 # different module shapes, which is exactly the split-brain the rice's
 # modules/roster removed. Which WORKSPACE an app owns is a similar split now:
-# the roster entry only ever names ITSELF, nebelhaus.workspaces.<id>.apps is
+# the roster entry only ever names ITSELF, haus.workspaces.<id>.apps is
 # what claims it — see notes/options-roadmap.md §5.4.)
 write_app_module() {
   local target="$1" resolved_app_id="${2:-$app_id}"
@@ -128,7 +128,7 @@ write_app_module() {
       printf '%s\n' '{ lib, ... }:'
     fi
     printf '%s\n' '{'
-    printf '  nebelhaus.roster.%s = {\n' "$id_lit"
+    printf '  haus.roster.%s = {\n' "$id_lit"
     printf '    enable = lib.mkDefault true;\n'
     printf '    order = lib.mkDefault 1000;\n'
     if [ "$lane" = "Add to roster" ]; then
@@ -158,7 +158,7 @@ write_app_module() {
     esac
     printf '%s\n' '  };'
     if [ -n "$workspace" ]; then
-      printf '  nebelhaus.workspaces.%s = {\n' "$(nix_string "$workspace")"
+      printf '  haus.workspaces.%s = {\n' "$(nix_string "$workspace")"
       printf '    key = lib.mkDefault %s;\n' "$key_lit"
       printf '    icon = lib.mkDefault %s;\n' "$icon_lit"
       # A plain list, not lib.mkDefault: a fresh workspace this app owns

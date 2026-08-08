@@ -51,7 +51,7 @@
   # afterwards, with no AppleInterfaceThemeChangedNotification posted either
   # time. The key is a MIRROR the appearance system writes on its way past, not
   # a lever. No restart makes an inert write live, so appearance is driven
-  # through System Events instead (nebelhaus.theme.systemAppearance, see
+  # through System Events instead (haus.theme.systemAppearance, see
   # modules/theme/default.nix) and confirmed with `hausax`. `haus diff` flags the
   # key if a host declares it by hand, the same way it flags
   # com.apple.Accessibility.
@@ -72,7 +72,7 @@
   "com.apple.desktopservices" = "Finder"; # .DS_Store behaviour; Finder reads it at launch same as its own domain
 
   # ---- §5.6 behaviour groups (options-roadmap.md) ---------------------------
-  # nebelhaus.lock and nebelhaus.menuBar, added the same pass this comment was
+  # haus.lock and haus.menuBar, added the same pass this comment was
   # written. Neither restart action has been measured against NSWorkspace or an
   # equivalent effective-state oracle the way dock/finder/universalaccess were —
   # there is no cheap observable for "did the clock re-render" the way
@@ -82,12 +82,12 @@
   # domains at launch, same as Finder) rather than a spike on this machine.
   # Treat as "wired, not independently verified" until someone confirms by eye
   # — see options-roadmap.md §5.6's status note.
-  "com.apple.screensaver" = "none"; # nebelhaus.lock — no persistent process to restart; read at next lock
-  "com.apple.menuExtraClock" = "SystemUIServer"; # nebelhaus.menuBar.clock
-  "com.apple.controlcenter" = "ControlCenter"; # nebelhaus.menuBar.controlCenter — first actual write into this domain; restartProcesses has carried "ControlCenter" unused since rice#249
+  "com.apple.screensaver" = "none"; # haus.lock — no persistent process to restart; read at next lock
+  "com.apple.menuExtraClock" = "SystemUIServer"; # haus.menuBar.clock
+  "com.apple.controlcenter" = "ControlCenter"; # haus.menuBar.controlCenter — first actual write into this domain; restartProcesses has carried "ControlCenter" unused since rice#249
 
   # ---- not written yet — declared ahead of use ------------------------------
   # The day the rice (or a host) writes into this, the warning in den/default.nix
   # already has a correct answer instead of another rice#181.
-  "com.apple.WindowManager" = "logout"; # matrix: 12 typed keys, no live-reload path exists on macOS 26 — no nebelhaus.* option is backed by this domain yet, on purpose (§5.6: a group that silently needs a logout is worse than no group)
+  "com.apple.WindowManager" = "logout"; # matrix: 12 typed keys, no live-reload path exists on macOS 26 — no haus.* option is backed by this domain yet, on purpose (§5.6: a group that silently needs a logout is worse than no group)
 }

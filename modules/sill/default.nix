@@ -3,10 +3,10 @@
 # stealing the lock file.
 #
 # The workspace pills are data-driven: WORKSPACES / ws_icon are generated from
-# nebelhaus._workspaces, LAUNCHER_KEYS from nebelhaus._launchers (the resolved
+# haus._workspaces, LAUNCHER_KEYS from haus._launchers (the resolved
 # shared app roster) — so the bar can't drift from AeroSpace's launcher. Every
 # right-side pill is individually
-# toggleable via nebelhaus.sill.items (one bool per pill): the core
+# toggleable via haus.sill.items (one bool per pill): the core
 # clock/weather/media/battery/wifi default on, the extras cpu/memory/volume/
 # calendar/caffeinate plus the personal agents/elgato/harvest default off.
 {
@@ -44,12 +44,12 @@ let
   # (apple.logo) deliberately keep the default.
   popupAlign = "popup.align=right";
 
-  # nebelhaus.workspaces drives the pills now (workspace membership earns
+  # haus.workspaces drives the pills now (workspace membership earns
   # one, not an app field — see notes/options-roadmap.md §5.4); the keyed
   # roster subset still drives the leader picker.
-  launchers = config.nebelhaus._launchers;
-  workspaces = config.nebelhaus._workspaces;
-  appWorkspaceId = a: config.nebelhaus._appWorkspace.${a.id} or null;
+  launchers = config.haus._launchers;
+  workspaces = config.haus._workspaces;
+  appWorkspaceId = a: config.haus._appWorkspace.${a.id} or null;
 
   # ---- type sizes: ui.scale, up to the menu bar's own ceiling -----------------
   # Resolved in ../lib/bar.nix, not here, because PROWL reads the same resolution
@@ -60,14 +60,14 @@ let
   # was measured to have no setting behind it).
   bar = import ../lib/bar.nix {
     inherit lib;
-    scale = config.nebelhaus.ui.scale;
+    scale = config.haus.ui.scale;
   };
   inherit (bar) sizes;
 
   # ---- the bar's type FAMILY, from the same option as the terminal's ----------
   # Everything in the bar except the workspace logos is drawn in this. It used to
   # be the literal "Hack Nerd Font", written into the rc, four plugins and six
-  # generated blocks — so a rice that changed nebelhaus.fonts.mono.name got a
+  # generated blocks — so a rice that changed haus.fonts.mono.name got a
   # machine with two type families and no way to say otherwise, which is a
   # promise the option never made and a limit nothing wrote down.
   #
@@ -79,7 +79,7 @@ let
   # deriving the propositional variant by trimming " Mono" would silently
   # invent a family for anything not following Nerd Font's naming (Berkeley
   # Mono → "Berkeley", which does not exist).
-  barFont = config.nebelhaus.fonts.mono.name;
+  barFont = config.haus.fonts.mono.name;
 
   bashArray = xs: lib.concatMapStringsSep " " (x: ''"${x}"'') xs;
   appWorkspaces = map (ws: ws.id) workspaces;
@@ -97,8 +97,8 @@ let
   ) workspaces;
   # Leader-key -> workspace map for launch_mode.sh, same colon-joined shape it
   # used to hardcode. Digits 1-4 focus the numbered workspaces; each app key maps
-  # to the workspace it belongs to (nebelhaus._appWorkspace, populated from
-  # nebelhaus.workspaces.*.apps); no membership renders as "<key>:" (always
+  # to the workspace it belongs to (haus._appWorkspace, populated from
+  # haus.workspaces.*.apps); no membership renders as "<key>:" (always
   # closed/grey).
   launchersStr = lib.concatStringsSep " " (
     [
@@ -116,7 +116,7 @@ let
   # bash 3.2 (macOS /bin/bash) has no associative arrays, hence the case in a fn.
   workspacesSh = ''
     #!/bin/bash
-    # GENERATED from nebelhaus._roster by modules/sill/default.nix — do not edit.
+    # GENERATED from haus._roster by modules/sill/default.nix — do not edit.
     WORKSPACES=(${
       bashArray (
         [
@@ -157,7 +157,7 @@ let
   '';
 
   # The hush pill — generic (no personal hardware/service), so unlike the
-  # sill.items extras below it rides nebelhaus.hush.enable, not an opt-in
+  # sill.items extras below it rides haus.hush.enable, not an opt-in
   # list. hush_change is fired by the hush engine after its own toggles and by
   # the hush-watcher agent (modules/hush) when the Focus DB changes; the
   # update_freq poll is only a backstop for missed events.
@@ -174,7 +174,7 @@ let
         --subscribe hush mouse.clicked hush_change system_woke
   '';
 
-  # The opt-in pills, emitted only for the ones nebelhaus.sill.items switches on.
+  # The opt-in pills, emitted only for the ones haus.sill.items switches on.
   # They reference $SURFACE0 (from colors.sh) and $HOME, both live when
   # sketchybarrc sources this file.
   optionalPluginBlocks = {
@@ -393,9 +393,9 @@ let
   enabledExtras = lib.filter (
     name:
     if name == "aiUsage" then
-      config.nebelhaus.sill.items.aiUsage || config.nebelhaus.sill.items.claudeUsage
+      config.haus.sill.items.aiUsage || config.haus.sill.items.claudeUsage
     else
-      config.nebelhaus.sill.items.${name}
+      config.haus.sill.items.${name}
   ) extraOrder;
 
   # The always-on core pills; a false in sill.items hides one.
@@ -406,29 +406,29 @@ let
     "battery"
     "wifi"
   ];
-  hiddenCore = lib.filter (name: !config.nebelhaus.sill.items.${name}) coreItems;
+  hiddenCore = lib.filter (name: !config.haus.sill.items.${name}) coreItems;
 
   optionalItemsSh = ''
     #!/bin/bash
-    # GENERATED from nebelhaus.hush.enable + nebelhaus.sill.items by
+    # GENERATED from haus.hush.enable + haus.sill.items by
     # modules/sill/default.nix — do not edit.
   ''
-  + lib.optionalString config.nebelhaus.hush.enable hushBlock
+  + lib.optionalString config.haus.hush.enable hushBlock
   + lib.concatMapStrings (name: optionalPluginBlocks.${name}) enabledExtras;
 
-  # Which core pills the user turned off (a false in nebelhaus.sill.items). Sourced
+  # Which core pills the user turned off (a false in haus.sill.items). Sourced
   # by sketchybarrc BEFORE the core `--add`s so each can guard on sill_hidden and
   # simply not create the item — cleaner than adding-then-hiding (media.sh flips
   # its own drawing on when a track plays, so a post-hoc drawing=off wouldn't
   # stick). bash 3.2 (macOS) has no associative arrays, hence the substring match.
   hiddenItemsSh = ''
     #!/bin/bash
-    # GENERATED from nebelhaus.sill.items by modules/sill/default.nix — do not edit.
+    # GENERATED from haus.sill.items by modules/sill/default.nix — do not edit.
     SILL_HIDDEN="${lib.concatStringsSep " " hiddenCore}"
     sill_hidden() { case " $SILL_HIDDEN " in *" $1 "*) return 0 ;; *) return 1 ;; esac ; }
   '';
 
-  # Bar position (nebelhaus.sill.position). Sourced by sketchybarrc — which sets
+  # Bar position (haus.sill.position). Sourced by sketchybarrc — which sets
   # `position=$(bar_position)` on --bar — and, in auto mode, re-run by
   # plugins/position.sh on every display_change. bar_position() echoes the
   # position to hand sketchybar. In auto mode "docked" means any non-built-in
@@ -438,8 +438,8 @@ let
   # display_change fires rarely, so the cost is only paid on dock/undock/boot.
   positionSh = ''
     #!/bin/bash
-    # GENERATED from nebelhaus.sill.position by modules/sill/default.nix — do not edit.
-    SILL_POSITION_MODE="${config.nebelhaus.sill.position}"
+    # GENERATED from haus.sill.position by modules/sill/default.nix — do not edit.
+    SILL_POSITION_MODE="${config.haus.sill.position}"
 
     bar_position() {
       case "$SILL_POSITION_MODE" in
@@ -466,12 +466,12 @@ let
   # other existing signals (for example Pounce), so it needs only Sill itself.
   # `init` repaints whatever state the last session left: mid-tour step, done
   # (hidden), or the dormant hint.
-  customTourSteps = config.nebelhaus.tour.steps;
+  customTourSteps = config.haus.tour.steps;
   customTour = customTourSteps != null;
-  tourWired = config.nebelhaus.tour.enable && (customTour || config.nebelhaus.prowl.enable);
+  tourWired = config.haus.tour.enable && (customTour || config.haus.prowl.enable);
   tourItemSh = ''
     #!/bin/bash
-    # GENERATED from nebelhaus.tour.* by modules/sill/default.nix — do not edit.
+    # GENERATED from haus.tour.* by modules/sill/default.nix — do not edit.
   ''
   + lib.optionalString tourWired ''
     sketchybar --add item tour right \
@@ -491,7 +491,7 @@ let
   # keys.leader = "alt-space" teaches a chord that does nothing.
   k = import ../lib/keys.nix {
     inherit lib;
-    keys = config.nebelhaus.keys;
+    keys = config.haus.keys;
   };
 
   # Placeholders an authored hint may use; tour.sh expands them at render time
@@ -522,14 +522,14 @@ let
 
   tourConfigSh = ''
         #!/bin/bash
-        # GENERATED from nebelhaus.tour.steps + pounce.enable + keys.* by
+        # GENERATED from haus.tour.steps + pounce.enable + keys.* by
         # modules/sill/default.nix — do not edit. TOUR_CUSTOM switches from the
         # built-in four-move lap to the authored list below. TOUR_HAS_PALETTE decides
         # whether the built-in lap has a step 4 (it needs pounce); the glyphs name the
         # leader and palette chords this rice actually binds.
         TOUR_CUSTOM=${if customTour then "1" else "0"}
         TOUR_CUSTOM_COUNT=${toString (if customTour then builtins.length customTourSteps else 0)}
-        TOUR_HAS_PALETTE=${if config.nebelhaus.pounce.enable && k.palette != null then "1" else "0"}
+        TOUR_HAS_PALETTE=${if config.haus.pounce.enable && k.palette != null then "1" else "0"}
         TOUR_LEADER=${lib.escapeShellArg (if k.leader != null then k.leader.glyph else "⇪")}
         TOUR_LEADER_NAME=${lib.escapeShellArg (if k.leader != null then k.leader.name else "Caps Lock")}
         TOUR_PALETTE=${lib.escapeShellArg (if k.palette != null then k.palette.glyph else "⌘ Space")}
@@ -549,12 +549,12 @@ let
         }
   '';
 in
-lib.mkIf config.nebelhaus.sill.enable {
+lib.mkIf config.haus.sill.enable {
   warnings =
     lib.optional
       (
         customTour
-        && !config.nebelhaus.prowl.enable
+        && !config.haus.prowl.enable
         && lib.any (
           step:
           builtins.elem step.detect [
@@ -565,22 +565,22 @@ lib.mkIf config.nebelhaus.sill.enable {
           ]
         ) customTourSteps
       )
-      "nebelhaus.tour.steps uses a prowl detector while nebelhaus.prowl.enable is false; that step can only be skipped."
+      "haus.tour.steps uses a prowl detector while haus.prowl.enable is false; that step can only be skipped."
     ++
       lib.optional
         (
           customTour
-          && (!config.nebelhaus.pounce.enable || k.palette == null)
+          && (!config.haus.pounce.enable || k.palette == null)
           && lib.any (step: step.detect == "palette") customTourSteps
         )
-        "nebelhaus.tour.steps uses the palette detector while Pounce or its palette binding is disabled; that step can only be skipped."
+        "haus.tour.steps uses the palette detector while Pounce or its palette binding is disabled; that step can only be skipped."
     ++
       # A misspelled placeholder renders literally — `{palete}` sits in the bar
       # of whoever IMPORTED the rice, and the author, whose own hints they never
       # re-read, is the last person to find out. Same asymmetry as a pack's
       # leader key: check the thing the author can't see.
       lib.optional (customTour && badPlaceholders != [ ]) (
-        "nebelhaus.tour.steps names unknown placeholders: "
+        "haus.tour.steps names unknown placeholders: "
         + lib.concatStringsSep ", " badPlaceholders
         + ". Known: {palette}, {leader}, {leaderName}; anything else renders as typed."
       );
@@ -595,15 +595,15 @@ lib.mkIf config.nebelhaus.sill.enable {
   # that plugin is enabled so a default bar stays lean. If a host ALSO declares
   # ical-buddy, the two definitions merge on the shared id rather than
   # double-installing — which is the difference between a keyed roster and a list.
-  nebelhaus.roster = {
+  haus.roster = {
     sketchybar.brew = lib.mkDefault "FelixKratz/formulae/sketchybar";
   }
-  // lib.optionalAttrs config.nebelhaus.sill.items.calendar {
+  // lib.optionalAttrs config.haus.sill.items.calendar {
     ical-buddy.brew = lib.mkDefault "ical-buddy";
   };
   # sketchybar-app-font draws the workspace-pill logos, and nothing else does —
   # so this is the one font sill still installs for itself. Everything else in
-  # the bar is drawn in `barFont`, i.e. nebelhaus.fonts.mono.name, whose package
+  # the bar is drawn in `barFont`, i.e. haus.fonts.mono.name, whose package
   # den installs (and warns about when a rice names a family it wasn't given).
   #
   # The rule that keeps this honest is the one that put Hack here in the first
@@ -657,7 +657,7 @@ lib.mkIf config.nebelhaus.sill.enable {
       ...
     }:
     let
-      # nebelhaus.theme.{flavor,contrast} select which rendered variant everything
+      # haus.theme.{flavor,contrast} select which rendered variant everything
       # below reads — ../lib/nebelung.nix owns that resolution for hearth, sill and
       # theme alike, so the flavor axis landed in one place rather than three.
       #
@@ -668,16 +668,16 @@ lib.mkIf config.nebelhaus.sill.enable {
       nebelungPalette =
         (import ../lib/nebelung.nix {
           inherit lib nebelung;
-          theme = osConfig.nebelhaus.theme;
+          theme = osConfig.haus.theme;
         }).palette;
-      # Type sizes, resolved from nebelhaus.ui.scale against the menu bar's own
+      # Type sizes, resolved from haus.ui.scale against the menu bar's own
       # ceiling (see ../lib/bar.nix). Sourced by sketchybarrc and by the plugins
       # that set a font, exactly like colors.sh — so the bar's sizes are
       # single-sourced the same way its colours are, and neither the rc nor a
       # plugin carries a tuned number of its own.
       sizesSh = ''
         #!/bin/bash
-        # GENERATED from nebelhaus.ui.scale by modules/sill/default.nix — do not
+        # GENERATED from haus.ui.scale by modules/sill/default.nix — do not
         # edit by hand.
         #
         # The bar's HEIGHT never scales: 36pt of bar with 28pt pills is what keeps
@@ -685,7 +685,7 @@ lib.mkIf config.nebelhaus.sill.enable {
         # covers. Only the type inside the pills follows ui.scale, and only up to
         # the largest that still fits one. See modules/lib/bar.nix.
         SILL_SCALE="${toString bar.typeScale}"
-        # The family every pill draws in, from nebelhaus.fonts.mono.name — the
+        # The family every pill draws in, from haus.fonts.mono.name — the
         # same one Ghostty uses. Here rather than in the rc for the reason the
         # sizes are: the rc and four plugins all name it, and a font written in
         # five places is a font that ends up being two.
@@ -725,30 +725,30 @@ lib.mkIf config.nebelhaus.sill.enable {
         ".config/sketchybar/tour_config.sh".text = tourConfigSh;
         ".config/sketchybar/battery_config.sh".text = ''
           #!/bin/bash
-          # GENERATED from nebelhaus.sill.battery.* by modules/sill/default.nix — do not edit.
+          # GENERATED from haus.sill.battery.* by modules/sill/default.nix — do not edit.
           SILL_BATTERY_HIDE_OVER="${
-            if config.nebelhaus.sill.battery.hideOver != null then
-              toString config.nebelhaus.sill.battery.hideOver
+            if config.haus.sill.battery.hideOver != null then
+              toString config.haus.sill.battery.hideOver
             else
               ""
           }"
         '';
         ".config/sketchybar/clock_config.sh".text = ''
           #!/bin/bash
-          # GENERATED from nebelhaus.sill.clock.* by modules/sill/default.nix — do not edit.
-          SILL_CLOCK_MODE="${config.nebelhaus.sill.clock.mode}"
+          # GENERATED from haus.sill.clock.* by modules/sill/default.nix — do not edit.
+          SILL_CLOCK_MODE="${config.haus.sill.clock.mode}"
         '';
         # Empty by default: plugins/elgato.sh then discovers the light over
         # mDNS rather than the rice shipping somebody's device hostname.
         ".config/sketchybar/elgato_config.sh".text = ''
           #!/bin/bash
-          # GENERATED from nebelhaus.sill.elgato.* by modules/sill/default.nix — do not edit.
-          SILL_ELGATO_HOST="${config.nebelhaus.sill.elgato.host}"
+          # GENERATED from haus.sill.elgato.* by modules/sill/default.nix — do not edit.
+          SILL_ELGATO_HOST="${config.haus.sill.elgato.host}"
         '';
         ".config/sketchybar/ai_usage_config.sh".text = ''
           #!/bin/bash
-          # GENERATED from nebelhaus.sill.aiUsage.* by modules/sill/default.nix — do not edit.
-          SILL_AI_USAGE_PROVIDER="${config.nebelhaus.sill.aiUsage.provider}"
+          # GENERATED from haus.sill.aiUsage.* by modules/sill/default.nix — do not edit.
+          SILL_AI_USAGE_PROVIDER="${config.haus.sill.aiUsage.provider}"
         '';
         ".config/sketchybar/sketchybarrc".source = ./sketchybar/sketchybarrc;
         # The far-left logo pill's image: the nebelhaus ears (the two cat-ear

@@ -9,19 +9,19 @@
 #
 # This is a plain nix-darwin module — anything nix-darwin or home-manager
 # accepts goes here, and it merges with what the rice modules already declare.
-# `pkgs` is here for nebelhaus.roster entries that install from Nixpkgs.
+# `pkgs` is here for haus.roster entries that install from Nixpkgs.
 { username, pkgs, ... }:
 
 {
   # ---- your identity ----
-  nebelhaus.git.name = "Your Name";
-  nebelhaus.git.email = "you@example.com";
+  haus.git.name = "Your Name";
+  haus.git.email = "you@example.com";
   # GPG key id for commit signing; leave "" to disable signing.
-  nebelhaus.git.signingKey = "";
+  haus.git.signingKey = "";
   # Hearth ships a compact, framework-independent set of Git shell aliases
   # (gst, gco, gp, grbi, gwt, …). Extend/override them here, or set one to null
   # to remove it:
-  # nebelhaus.git.shellAliases = {
+  # haus.git.shellAliases = {
   #   gst = "git status --short --branch";
   #   gsync = "git pull --rebase --autostash";
   #   gco = null;
@@ -30,7 +30,7 @@
   # pounce signing. Find your identity's SHA-1 with:
   #   security find-identity -v -p codesigning
   # Leave "" to run pounce unsigned (palette works; Accessibility features off).
-  nebelhaus.pounce.signingIdentity = "";
+  haus.pounce.signingIdentity = "";
 
   # Where secretspec finds secret VALUES on this machine. Default "keyring" is
   # the local macOS keychain (no accounts, values re-entered once per Mac —
@@ -38,14 +38,14 @@
   # "awssm", "bws", "onepassword", …) makes values follow you to the next Mac;
   # you configure its credentials outside Nix. WHICH secrets exist is each
   # project's committed secretspec.toml, not an option here.
-  # nebelhaus.secrets.provider = "keyring";
+  # haus.secrets.provider = "keyring";
 
   # Text expansion (espanso): type a trigger, get the expansion, in any app —
   # terminal included. Opt-in: installs the Espanso.app cask and needs a
   # one-time Accessibility grant the first time it runs (System Settings →
   # Privacy & Security → Accessibility → enable Espanso). Grant survives reboots
   # + updates because it runs the signed app bundle, not a nix-store binary.
-  # nebelhaus.snippets = {
+  # haus.snippets = {
   #   enable = true;
   #   matches = [
   #     { trigger = "@@"; replace = "you@example.com"; }
@@ -55,7 +55,7 @@
   # Obsidian keeps appearance per vault. List home-relative vault paths here to
   # install/select the full Nebelung theme on every rebuild; empty leaves all
   # vaults untouched. The vault must already contain a .obsidian directory.
-  # nebelhaus.hearth.obsidianVaults = [
+  # haus.hearth.obsidianVaults = [
   #   "Library/Mobile Documents/iCloud~md~obsidian/Documents/notes"
   # ];
 
@@ -63,14 +63,14 @@
   # video types QuickTime, TV and your browser would otherwise get (audio, gifs
   # and playlists are left alone). Turn either half off if you'd rather bring
   # your own player, or keep it and leave your associations untouched:
-  # nebelhaus.apps.videoPlayer.enable = false;
-  # nebelhaus.apps.videoPlayer.claimFileTypes = false;
+  # haus.apps.videoPlayer.enable = false;
+  # haus.apps.videoPlayer.claimFileTypes = false;
 
   # Your apps — ONE list, whatever the source. An entry with a `key` joins the
   # Caps-Lock launcher; an entry with neither key nor workspace membership is
   # simply installed. So the app you reach for by keyboard and the font you
   # never think about live in the same place.
-  # nebelhaus.roster = {
+  # haus.roster = {
   #   slack = {
   #     key = "s";                              # Caps Lock, then s
   #     name = "Slack";                         # as `open -a` spells it
@@ -89,7 +89,7 @@
   # Which WORKSPACE an app owns is the workspace's call, not the app's — so
   # several apps (a "comms" role: Slack + Mail + Messages) can share one pill
   # and one leader throw instead of "one app, one workspace":
-  # nebelhaus.workspaces.S = {
+  # haus.workspaces.S = {
   #   key = "s";                     # leader, then ⇧s throws a window here
   #   icon = ":slack:";              # falls back to the workspace id ("S")
   #   apps = [ "slack" ];            # roster ids that herd here

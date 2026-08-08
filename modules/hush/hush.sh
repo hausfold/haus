@@ -196,7 +196,7 @@ doctor() {
             echo "  [!!] slack: API rejected the token (needs scopes users.profile:write + dnd:write)"
         fi
     else
-        echo "  [--] slack: disabled (nebelhaus.hush.slack.enable)"
+        echo "  [--] slack: disabled (haus.hush.slack.enable)"
     fi
 }
 

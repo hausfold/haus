@@ -1,6 +1,6 @@
 #!/bin/bash
 # ai_usage.sh — the reader half of the `aiUsage` pill (opt-in via
-# nebelhaus.sill.items). Puts rate-limit gauges for AI providers (Claude Code,
+# haus.sill.items). Puts rate-limit gauges for AI providers (Claude Code,
 # Codex, etc.) or token API costs (Opencode, etc.) in the menu bar.
 #
 # Subscription TSV lines:
@@ -102,7 +102,7 @@ read_tokens() { # read_tokens <file> — T_D/T_W/T_M/T_ALL, false if there's no 
 # on. At the default FS_SMALL=13 that is 92, which is what measuring it by hand
 # gave (against Hack, when the bar had a font of its own; JetBrains Mono and
 # Fira Code are 0.6em, so the number survived the switch to
-# nebelhaus.fonts.mono.name). It is the one place in the bar that assumes a
+# haus.fonts.mono.name). It is the one place in the bar that assumes a
 # fixed advance — name a proportional family there and this indent drifts,
 # which is an alignment wobble in one popup rather than a broken bar.
 TOKEN_INDENT=$(awk -v s="${FS_SMALL:-13}" 'BEGIN { printf "%.0f", 22 + 9 * s * 0.602 }')

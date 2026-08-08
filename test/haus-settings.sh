@@ -27,7 +27,19 @@ haus=(env HAUS_CONSUMER="$tmp" HAUS_HOST=test HAUS_NO_REBUILD=1 bash "$repo/modu
 
 "${haus[@]}" set theme.accent teal >/dev/null
 test "$("${haus[@]}" get theme.accent)" = "teal"
-grep -q 'nebelhaus.theme.accent = lib.mkForce ("teal");' "$tmp/hosts/test/settings/theme.accent.nix"
+grep -q '^  haus\.theme\.accent = lib\.mkForce ("teal");$' "$tmp/hosts/test/settings/theme.accent.nix"
+
+# The pre-rename spelling still reaches the same option — modules/renamed.nix
+# aliases it — and is normalised to the canonical prefix on the way in, so an
+# overlay file written before the rename is upgraded by the next `haus set`
+# rather than needing a migration. Both halves matter: accepting it and not
+# writing it back.
+"${haus[@]}" set nebelhaus.theme.accent sky >/dev/null
+test "$("${haus[@]}" get nebelhaus.theme.accent)" = "sky"
+grep -q '^  haus\.theme\.accent = lib\.mkForce ("sky");$' "$tmp/hosts/test/settings/theme.accent.nix"
+grep -q 'nebelhaus\.' "$tmp/hosts/test/settings/theme.accent.nix" && {
+  echo "haus set wrote the pre-rename prefix" >&2; exit 1; }
+"${haus[@]}" set theme.accent teal >/dev/null
 
 "${haus[@]}" set ui.scale 1.35 >/dev/null
 test "$("${haus[@]}" get ui.scale)" = "1.35"
@@ -152,7 +164,7 @@ test "$("${haus[@]}" get theme.accent)" = "mauve"
 test ! -e "$tmp/hosts/test/settings/theme.accent.nix"
 
 if "${haus[@]}" set system.defaults.dock.autohide true >/dev/null 2>&1; then
-  echo "haus set accepted a path outside nebelhaus.*" >&2
+  echo "haus set accepted a path outside haus.*" >&2
   exit 1
 fi
 

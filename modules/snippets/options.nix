@@ -6,7 +6,7 @@
 { lib, ... }:
 
 {
-  options.nebelhaus = {
+  options.haus = {
     snippets = {
       enable = lib.mkOption {
         type = lib.types.bool;

@@ -1,5 +1,5 @@
 # GENERATED WRAPPER — templated by modules/prowl/default.nix. The @TOKENS@
-# below are filled from nebelhaus._apps (the resolved app roster) and the resolved
+# below are filled from haus._apps (the resolved app roster) and the resolved
 # home path at build time; don't deploy this file directly. Everything OUTSIDE
 # the tokens is the static, hand-tuned AeroSpace config.
 
@@ -11,7 +11,7 @@ config-version = 2
 
 # Every workspace the rice can reach, declared rather than inferred: the fixed
 # digits 1-4 plus each roster app's workspace (Ghostty's T included), generated
-# from nebelhaus._apps. Same members v1 inferred from the chords, so the set no
+# from haus._apps. Same members v1 inferred from the chords, so the set no
 # longer changes as a side effect of which bindings happen to exist — a
 # workspace stays on the roster even when a keymap ("none") binds nothing to it.
 persistent-workspaces = [@PERSISTENT_WS@]
@@ -67,7 +67,7 @@ outer.right = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTER
 # Static tiling / workspace / layout / palette bindings — generated from
 # modules/prowl/wm-bindings.nix, the SAME table that renders the pounce
 # cheatsheet, so a binding and its caption can't drift. The modifier every one of
-# them hangs off is nebelhaus.keys.windowNav (⌥ by default): focus <mod>hjkl,
+# them hangs off is haus.keys.windowNav (⌥ by default): focus <mod>hjkl,
 # layouts <mod>/ <mod>,, fullscreen <mod>f,
 # move-workspace <mod>⇧⇥, palette per keys.palette. <mod>⇥ is deliberately
 # unbound — workspace back-and-forth is retired in favour of pounce's
@@ -81,8 +81,8 @@ outer.right = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTER
 # mid-sentence.)
 @MAIN_STATIC@
 # Leader: enters `launch` mode -> letter -> open app (the launcher letters live in
-# [mode.launch.binding] below, generated from nebelhaus._apps). Generated from
-# nebelhaus.keys.leader: "caps" binds f18, because AeroSpace can't bind Caps Lock
+# [mode.launch.binding] below, generated from haus._apps). Generated from
+# haus.keys.leader: "caps" binds f18, because AeroSpace can't bind Caps Lock
 # itself and the rice hidutil-remaps it (see modules/prowl/default.nix);
 # "alt-space" binds that instead and leaves Caps Lock alone; "none" emits nothing.
 @LEADER_ENTRY@
@@ -123,7 +123,7 @@ shift-4 = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off
 # (Palette is on cmd+space now, so the old space->palette leader is gone.)
 #
 # v and e go through `pounce run mode:<name>` — pounce's one dispatch grammar,
-# the same string that keys nebelhaus.pounce.items and the same closure a pounce
+# the same string that keys haus.pounce.items and the same closure a pounce
 # hotkey fires. So the leader row and an item binding are now literally the same
 # address, and the flags they used to call (`pounce --clipboard`) are gone from
 # pounce entirely. It's also a shorter-lived client: RUN acknowledges and exits
@@ -149,10 +149,10 @@ shift-left = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh 
 shift-down = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'move down', 'mode navigate']
 shift-up = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'move up', 'mode navigate']
 shift-right = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'move right', 'mode navigate']
-# App launcher letters — generated from nebelhaus._apps.
+# App launcher letters — generated from haus._apps.
 @LAUNCH_LETTERS@
 # Workspace throws (⇧+the workspace's own key) — generated from
-# nebelhaus._workspaces. Only workspaces that set `key` get one.
+# haus._workspaces. Only workspaces that set `key` get one.
 @LAUNCH_MOVES@
 # Resize mode (entered via the launch leader's -/=, or by pressing -/= while
 # navigating). Repeat -/= to keep growing/shrinking the focused tiled window;
@@ -199,7 +199,7 @@ enter = ['exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh off
 # never reflows the tiles), and regular terminal windows tile themselves onto
 # workspace T from inside zellij/launch.sh, which knows what it is with
 # certainty. At aerospace (re)start, existing windows go straight to T tiled,
-# same as before. (Ghostty belongs to nebelhaus.workspaces.T but its window
+# same as before. (Ghostty belongs to haus.workspaces.T but its window
 # rules are bespoke, so the generated auto-assign block below skips it — see
 # ../options.nix' `titleRegex` for why a generated rule can't just replace
 # this: the same startup-window race would hit it too.)
@@ -212,11 +212,11 @@ run = 'move-node-to-workspace T'
 if.app-id = 'com.mitchellh.ghostty'
 run = 'layout floating'
 
-# App window auto-assignment — generated from nebelhaus._workspaces via
-# nebelhaus._appWorkspace.
+# App window auto-assignment — generated from haus._workspaces via
+# haus._appWorkspace.
 @WINDOW_RULES@
-# Always-float apps (nebelhaus.roster.*.float) — generated from
-# nebelhaus._apps. FaceTime and Flick are declared this way in
+# Always-float apps (haus.roster.*.float) — generated from
+# haus._apps. FaceTime and Flick are declared this way in
 # modules/prowl/default.nix; a host can add its own the same way instead of
 # hand-editing this file.
 @FLOAT_RULES@

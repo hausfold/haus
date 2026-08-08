@@ -11,7 +11,7 @@ The short version:
   the "distro". A personal machine consumes it via `mkNebelhaus` and adds only
   its own host.
 - **Never hardcode identity.** Anything personal — git name/email, signing keys,
-  a signing cert — is a `nebelhaus.*` option the host sets. A literal name or
+  a signing cert — is a `haus.*` option the host sets. A literal name or
   email in this repo is a bug, not a convenience.
 - **This repo owns the rice and nothing else.** Colors live in `nebelung`, the
   palette app in `pounce`, the notch file shelf in `perch`, one machine's config

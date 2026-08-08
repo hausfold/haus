@@ -1,7 +1,7 @@
 #!/bin/bash
 # The Elgato Key Light pill: click toggles the light, colour reflects its state.
 #
-# The light's address is NOT baked in. nebelhaus.sill.elgato.host pins it when
+# The light's address is NOT baked in. haus.sill.elgato.host pins it when
 # you want it pinned (a static lease, several lights, flaky mDNS); left empty —
 # the default — the pill discovers the light over mDNS (_elg._tcp) and caches
 # what it found in ~/.local/state/nebelhaus/elgato-host. A rice can't ship one
@@ -15,7 +15,7 @@
 
 source "$HOME/.config/sketchybar/colors.sh"
 
-# GENERATED from nebelhaus.sill.elgato.* — absent on an older generation, hence
+# GENERATED from haus.sill.elgato.* — absent on an older generation, hence
 # the guard rather than a bare source.
 ELGATO_CONFIG="$HOME/.config/sketchybar/elgato_config.sh"
 [ -f "$ELGATO_CONFIG" ] && source "$ELGATO_CONFIG"

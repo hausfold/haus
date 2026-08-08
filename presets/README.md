@@ -1,7 +1,8 @@
 # Presets — and the shape a shared rice has to take
 
 A preset is a **data-only rice**: a `.nix` file that evaluates to an attribute
-set whose only top-level key is `nebelhaus`.
+set whose only top-level key is `haus`. (`nebelhaus` is still accepted, as the
+pre-rename spelling of the same namespace; new files should use `haus`.)
 
 That's the whole rule, and it's deliberately mechanical, because it's the
 difference between "import this stranger's config" and "run this stranger's
@@ -26,7 +27,7 @@ nebelhaus.lib.checkRice ./my-rice.nix   # true, or throws saying which key is st
 
 **The repo's own presets are not special.** They go through the same check and
 the same import path a stranger's rice would, which is the point: if the option
-surface can't express one of these without reaching around `nebelhaus.*`, it
+surface can't express one of these without reaching around `haus.*`, it
 can't express a community rice either, and we find out here rather than after
 publishing a format.
 
@@ -51,8 +52,8 @@ restating something a preset already decided costs nothing but the line.)
 ```nix
 { lib, ... }:                                   # add lib to your host's args
 {
-  nebelhaus.ui.scale = lib.mkForce 1.0;         # large-print sets this
-  nebelhaus.git.email = "you@example.com";      # no preset sets this — plain
+  haus.ui.scale = lib.mkForce 1.0;         # large-print sets this
+  haus.git.email = "you@example.com";      # no preset sets this — plain
 }
 ```
 
@@ -107,7 +108,7 @@ the rule above: nothing arbitrates a disagreement, so a preset that sets just
 what it's about is the one kind that always stacks.
 
 `everyday` is the one worth reading if you're designing your own — it's the
-first preset that could not be expressed at all before `nebelhaus.developer`
+first preset that could not be expressed at all before `haus.developer`
 existed, and it's the closest thing here to a rice aimed at somebody other than
 its author. `large-print` is worth reading for the opposite reason: its comment
 block is explicit about what it does NOT reach (system-wide text size, the menu
@@ -117,7 +118,7 @@ whose whole promise is legibility.
 ## The limits, honestly
 
 Data-only is a real boundary, not a sandbox. A preset still evaluates arbitrary
-Nix *expressions* in its values — it just can't reach outside `nebelhaus.*` to
+Nix *expressions* in its values — it just can't reach outside `haus.*` to
 apply them. It's the difference between a config file and a program, which is
 the distinction that matters for reading someone else's rice before running it.
 

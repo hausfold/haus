@@ -27,12 +27,12 @@ def field($label; $t):
 
 def room: .key | split(".") | .[1];
 
-# Internal options (`nebelhaus._apps.*`) are already pruned upstream, in
+# Internal options (`haus._apps.*`) are already pruned upstream, in
 # options-doc.nix — the public reference and this one are fed the same surface,
 # so there's deliberately no second filter here to drift out of step with it.
-[ to_entries[] | select(.key | startswith("nebelhaus.")) ] | sort_by(.key) as $opts
+[ to_entries[] | select(.key | startswith("haus.")) ] | sort_by(.key) as $opts
 
-| "# nebelhaus.* — every option on this machine's rice\n\n"
+| "# haus.* — every option on this machine's rice\n\n"
 
 + "Generated from the rice's own module system at build time, so this file "
 + "describes the EXACT revision this machine is pinned to — not the latest "
@@ -51,7 +51,7 @@ def room: .key | split(".") | .[1];
 + ( $opts
     | group_by(room)
     | map(
-        "### nebelhaus.\(.[0] | room)\n\n"
+        "### haus.\(.[0] | room)\n\n"
         + ( map(
               "#### `\(.key)`\n\n"
               + field("type"; .value.type)

@@ -8,7 +8,7 @@
 { lib, ... }:
 
 {
-  options.nebelhaus.apps = {
+  options.haus.apps = {
     videoPlayer = {
       enable = lib.mkOption {
         type = lib.types.bool;
@@ -26,8 +26,8 @@
           Set false and nothing is installed or rebound — bring your own
           player via the pounce "Install App" palette command or a roster
           entry. Once on it is a roster entry like any other: give it a leader
-          letter with `nebelhaus.roster.iina.key`, or pin a different build
-          with `nebelhaus.roster.iina.package`.
+          letter with `haus.roster.iina.key`, or pin a different build
+          with `haus.roster.iina.package`.
         '';
       };
 
@@ -52,7 +52,7 @@
           means "and my music library too". The transport-stream extensions
           `.ts`, `.mts` and `.m2ts` are excluded too: on a developer's machine
           they are TypeScript far more often than video, and
-          `nebelhaus.hearth.hijackFileAssociations` claims them for the editor.
+          `haus.hearth.hijackFileAssociations` claims them for the editor.
           Claiming them here as well made macOS stop and ask which app should
           win on every single rebuild, because `.mts` and `.m2ts` share one
           UTI.

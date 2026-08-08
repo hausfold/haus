@@ -1,5 +1,5 @@
 # Renders nixosOptionsDoc's options.json into an ANNOTATED HOST FILE — every
-# `nebelhaus.*` option, at its default, with its description and a docs link,
+# `haus.*` option, at its default, with its description and a docs link,
 # all commented out.
 #
 # The shape is stolen from AeroSpace's default config, which ships every setting
@@ -15,7 +15,7 @@
 #     the module system (presets/README.md), so a stated default and a preset's
 #     value are two definitions at the same priority, and the build stops with
 #     a conflict per field. `extraModules = [ nebelhaus.presets.large-print ]`
-#     would fail on `nebelhaus.ui.scale` — an option you never meant to set.
+#     would fail on `haus.ui.scale` — an option you never meant to set.
 #   - It would FREEZE the defaults it states. The rice's own defaults are
 #     `lib.mkDefault`s, so a plain restatement wins over them permanently: a
 #     later rice that retunes that default can never reach you, and nothing
@@ -73,7 +73,7 @@ def commented($indent):
   split("\n")
   | map(if (. | test("^[ \t]*$")) then ($indent + "#") else ($indent + "# " + .) end);
 
-# Starlight slugifies `### \`nebelhaus.theme.accent\`` by lowercasing and
+# Starlight slugifies `### \`haus.theme.accent\`` by lowercasing and
 # dropping everything that isn't alphanumeric — so the dots and the backticks
 # vanish. Verified against the links already in the docs site
 # (/reference/options/#nebelhauspouncewindowswitcher).
@@ -87,18 +87,18 @@ def room: .key | split(".")[1];
 def demarkdown: gsub("\\[(?<t>[^\\]]*)\\]\\([^)]*\\)"; .t);
 
 # A default that teaches nothing about the option's shape. For those — and only
-# those — the example is worth the extra lines, because `nebelhaus.apps = { }`
+# those — the example is worth the extra lines, because `haus.apps = { }`
 # on its own tells you nothing about what goes inside.
 def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
   | ($t == "{ }") or ($t == "[ ]") or ($t == "null") or ($t == "\"\"") or ($t == "{}") or ($t == "[]");
 
-# Submodule children (`nebelhaus.apps.<name>.key`, `nebelhaus.tour.steps.*.hint`)
+# Submodule children (`haus.apps.<name>.key`, `haus.tour.steps.*.hint`)
 # are documentation for what goes INSIDE an attrset option — you cannot write
-# `nebelhaus.apps.<name>.key = "s";` in a host file. The parent (`nebelhaus.apps`)
+# `haus.apps.<name>.key = "s";` in a host file. The parent (`haus.apps`)
 # is in the list with an example that shows the whole shape, so the children are
 # dropped here rather than rendered as lines that can't be uncommented.
 [ to_entries[]
-  | select(.key | startswith("nebelhaus."))
+  | select(.key | startswith("haus."))
   | select(.key | test("<|\\*") | not)
 ] | sort_by(.key) as $opts
 
@@ -108,7 +108,7 @@ def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
 # yet sorts alphabetically after them rather than vanishing.
 | ($opts | group_by(room) | sort_by([ ($g[.[0] | room].order // 100000), (.[0] | room) ])) as $rooms
 
-| "# Every nebelhaus.* option on this machine's rice, at its default.\n"
+| "# Every haus.* option on this machine's rice, at its default.\n"
 + "#\n"
 + "# GENERATED at install time from rice \($riceVersion)'s own module system, so it\n"
 + "# describes the options that exist at the revision you pinned — not upstream's\n"
@@ -142,8 +142,8 @@ def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
     | map(
         (.[0] | room) as $r
         | ($g[$r] // {}) as $meta
-        # 59 = 78 columns minus the "  # ═══ nebelhaus." + " " that precedes it.
-        | "\n  # ═══ nebelhaus.\($r) " + ("═" * (if (59 - ($r | length)) > 3 then (59 - ($r | length)) else 3 end)) + "\n"
+        # 64 = 78 columns minus the "  # ═══ haus." + " " that precedes it.
+        | "\n  # ═══ haus.\($r) " + ("═" * (if (64 - ($r | length)) > 3 then (64 - ($r | length)) else 3 end)) + "\n"
         + (if ($meta.blurb // "") != ""
            then (($meta.blurb | demarkdown | wrap(74) | join("\n")) | commented("  ") | join("\n")) + "\n"
            else "" end)
@@ -158,7 +158,7 @@ def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
               # that the other two don't. Two ways it can't:
               #
               #   literalMD      a sentence describing the default, not Nix
-              #                  ("19, scaled by nebelhaus.ui.scale")
+              #                  ("19, scaled by haus.ui.scale")
               #   mentions config.  a real expression, but one that reads the
               #                  evaluated config — a `{ ... }:` host module has
               #                  no `config` in scope, so it fails at eval.

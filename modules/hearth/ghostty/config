@@ -1,4 +1,4 @@
-# ONE theme, whichever variant nebelhaus.theme.{flavor,contrast} selected —
+# ONE theme, whichever variant haus.theme.{flavor,contrast} selected —
 # hearth drops it at ~/.config/ghostty/themes/nebelung. This used to be
 # `dark:nebelung,light:Catppuccin Latte`, i.e. it followed macOS appearance and
 # fell back to STOCK Catppuccin in light mode, which meant a Mac running light

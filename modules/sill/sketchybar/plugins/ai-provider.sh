@@ -17,7 +17,7 @@
 #
 # The size is the caller's, because the same table is drawn at pill size in the
 # bar and one step down in a popup row. Callers pass $FS_LABEL / $FS_SMALL
-# (sizes.sh) rather than a number, so both follow nebelhaus.ui.scale.
+# (sizes.sh) rather than a number, so both follow haus.ui.scale.
 #     → sets P_ICON, P_FONT, P_NAME
 #
 # The sketchybar-app-font glyphs (:claude:, :openai:) are monochrome and take

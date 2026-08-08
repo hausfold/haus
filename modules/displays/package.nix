@@ -32,7 +32,7 @@ stdenvNoCC.mkDerivation {
   '';
 
   meta = {
-    description = "Set a display's scaled resolution by intent (nebelhaus.displays)";
+    description = "Set a display's scaled resolution by intent (haus.displays)";
     platforms = lib.platforms.darwin;
     mainProgram = "hausdisp";
   };
