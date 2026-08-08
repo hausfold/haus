@@ -24,7 +24,7 @@
 // appearance, before OR after `activateSettings -u`, and not even for a process
 // launched fresh afterwards; no AppleInterfaceThemeChangedNotification is
 // posted. The System Events route does all of that within ~0.3s, and deletes or
-// writes that same key on its way past. So nebelhaus.theme.systemAppearance is
+// writes that same key on its way past. So haus.theme.systemAppearance is
 // driven by AppleScript and confirmed HERE — never by reading the key back,
 // which would report the write it just made and call an inert one applied.
 import AppKit

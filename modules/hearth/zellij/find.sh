@@ -405,7 +405,7 @@ cmd_ui() {
         printf '\n  find is missing:%s\n\n' "$missing"
         printf '  These resolve off this script'\''s own PATH, not your shell'\''s,\n'
         printf '  so a shell alias will not do. Install via the rice:\n'
-        printf '    nebelhaus.developer.toolbelt.enable = true;  (then haus rebuild)\n\n'
+        printf '    haus.developer.toolbelt.enable = true;  (then haus rebuild)\n\n'
         printf '  press any key to close '
         { read -r -n 1 -s </dev/tty; } 2>/dev/null || sleep 10
         exit 0

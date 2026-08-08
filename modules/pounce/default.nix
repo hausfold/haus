@@ -4,7 +4,7 @@
 # The daemon needs a STABLE code-signing identity so a macOS Accessibility (TCC)
 # grant survives rebuilds — a store path's adhoc cdhash changes every build,
 # losing any grant keyed to it. The nix sandbox can't reach the login keychain,
-# so when you provide `nebelhaus.pounce.signingIdentity` we sign impurely here in
+# so when you provide `haus.pounce.signingIdentity` we sign impurely here in
 # the Aqua session: copy Pounce.app to a fixed writable path, codesign it with
 # that identity (a Developer ID cert by name gives the most durable designated
 # requirement → grant persists across rebuilds and cert renewals), and exec the
@@ -20,15 +20,15 @@
 }:
 
 let
-  identity = config.nebelhaus.pounce.signingIdentity;
+  identity = config.haus.pounce.signingIdentity;
 
   # The resolved keymap (../lib/keys.nix). pounce needs it twice over: the palette
   # hotkey it registers in-process, and the cheatsheet — which must never teach a
   # key this machine doesn't have, so every page below is conditional on the
-  # relevant part of nebelhaus.keys.* being present.
+  # relevant part of haus.keys.* being present.
   k = import ../lib/keys.nix {
     inherit lib;
-    keys = config.nebelhaus.keys;
+    keys = config.haus.keys;
   };
 
   # Rice-owned discovery shelf for Install App. This is deliberately not a
@@ -180,7 +180,7 @@ let
     # Pounce discovers every top-level file as a command. Keep picker payloads
     # nested so the catalog cannot appear in the launcher and be run as Bash.
     install -Dm444 ${popularAppsCatalog} $out/data/popular-apps.tsv
-    ${lib.optionalString (!config.nebelhaus.hush.enable) "rm $out/hush.sh"}
+    ${lib.optionalString (!config.haus.hush.enable) "rm $out/hush.sh"}
   '';
 
   # The built-in command set exposed by the pounce-commands package. The daemon
@@ -208,14 +208,14 @@ let
     (map (a: {
       key = a.key;
       action = if a.label != null then a.label else a.name;
-    }) config.nebelhaus._launchers)
-    # Non-app leader actions (nebelhaus.keys.leaderExtras) — same source list the
+    }) config.haus._launchers)
+    # Non-app leader actions (haus.keys.leaderExtras) — same source list the
     # AeroSpace [mode.launch.binding] renders from, so this page can't drift from
     # what the keys actually do.
     ++ (map (e: {
       key = launchKeyGlyphs.${e.key} or e.key;
       action = if e.caption != null then e.caption else e.command;
-    }) config.nebelhaus.keys.leaderExtras)
+    }) config.haus.keys.leaderExtras)
     ++ [
       {
         key = "1-4";
@@ -293,9 +293,9 @@ let
   # since the bind stopped being Claude-only.
   termBindings = import ../hearth/term-bindings.nix {
     inherit lib;
-    agentDefault = config.nebelhaus.agents.default;
-    agentsEnabled = config.nebelhaus.agents.clients != [ ];
-    ghDashEnabled = config.nebelhaus.hearth.ghDash.enable;
+    agentDefault = config.haus.agents.default;
+    agentsEnabled = config.haus.agents.clients != [ ];
+    ghDashEnabled = config.haus.hearth.ghDash.enable;
   };
   termPages = termBindings.pages;
 
@@ -341,7 +341,7 @@ let
         action = commandField file "description";
       })
       (
-        lib.filter (f: f != "hush.sh" || config.nebelhaus.hush.enable) (
+        lib.filter (f: f != "hush.sh" || config.haus.hush.enable) (
           lib.naturalSort (
             lib.attrNames (
               lib.filterAttrs (n: t: t == "regular" && lib.hasSuffix ".sh" n) (builtins.readDir ./commands)
@@ -387,7 +387,7 @@ let
         fi
         exec "$DEST/Contents/MacOS/pounce" --daemon
       '';
-  # ---- nebelhaus.pounce.items → config.json's `items` map ---------------------
+  # ---- haus.pounce.items → config.json's `items` map ---------------------
   #
   # pounce owns the schema (its ItemSettings.swift): one map keyed by an item's
   # stable address, each entry carrying `enabled` / `alias` / `hotkey`. This is the
@@ -396,7 +396,7 @@ let
   #
   # Only the differences are written. An entry that says nothing is omitted
   # entirely, so the generated config stays readable and a diff shows intent.
-  items = config.nebelhaus.pounce.items;
+  items = config.haus.pounce.items;
 
   itemsJSON = lib.mapAttrs (
     _: item:
@@ -532,11 +532,11 @@ let
   # the assertion reserves exactly the terminal surface this host actually has.
   riceChords =
     lib.optional (k.palette != null) {
-      what = "nebelhaus.keys.palette";
+      what = "haus.keys.palette";
       chord = (normalizeStep (lib.concatStringsSep "+" (k.palette.modifiers ++ [ k.palette.key ]))).chord;
     }
     ++ lib.optional (k.leader != null) {
-      what = "nebelhaus.keys.leader";
+      what = "haus.keys.leader";
       # The leader's AeroSpace chord ("f18" for Caps Lock, "alt-space") is already
       # modifier-dash-key, so "+" is all that differs.
       chord = (normalizeStep (lib.replaceStrings [ "-" ] [ "+" ] k.leader.chord)).chord;
@@ -664,13 +664,13 @@ let
     }
   ];
 in
-lib.mkIf config.nebelhaus.pounce.enable {
+lib.mkIf config.haus.pounce.enable {
   # The palette runs from a nix-store bundle rather than a cask, so no source
   # field describes it; `installedBy` keeps it visible in the machine's one list
   # instead of being the app that mysteriously isn't declared anywhere.
-  nebelhaus.roster.pounce = {
+  haus.roster.pounce = {
     name = lib.mkDefault "Pounce";
-    installedBy = lib.mkDefault "nebelhaus.pounce";
+    installedBy = lib.mkDefault "haus.pounce";
   };
 
   # A bare laptop Fn/Globe tap opens Pounce's emoji grid. Pounce handles this
@@ -678,18 +678,18 @@ lib.mkIf config.nebelhaus.pounce.enable {
   # its window switcher: granted machines replace the stock Globe action, while
   # an ungranted/stopped daemon leaves macOS's native action untouched. mkDefault
   # keeps the opinion easy to undo with
-  #   nebelhaus.pounce.items."mode:emoji".hotkey = null;
-  nebelhaus.pounce.items."mode:emoji".hotkey = lib.mkDefault "fn";
+  #   haus.pounce.items."mode:emoji".hotkey = null;
+  haus.pounce.items."mode:emoji".hotkey = lib.mkDefault "fn";
 
   assertions = [
     {
       assertion = keyProblems == [ ];
-      message = "nebelhaus.pounce.items: " + lib.concatStringsSep "; " keyProblems;
+      message = "haus.pounce.items: " + lib.concatStringsSep "; " keyProblems;
     }
     {
       assertion = unknownModifiers == [ ];
       message =
-        "nebelhaus.pounce.items: "
+        "haus.pounce.items: "
         + lib.concatStringsSep "; " unknownModifiers
         + ". Modifiers are cmd/command/super/meta, opt/option/alt, ctrl/control, shift "
         + "— an unrecognised one is ignored by pounce, which arms a chord you didn't ask for.";
@@ -697,7 +697,7 @@ lib.mkIf config.nebelhaus.pounce.enable {
     {
       assertion = firstStepClashes ++ duplicateSequences ++ leaderShadows == [ ];
       message =
-        "nebelhaus.pounce.items: "
+        "haus.pounce.items: "
         + lib.concatStringsSep "; " (firstStepClashes ++ duplicateSequences ++ leaderShadows)
         + ". A chord claimed twice is not an error at runtime — whoever registers "
         + "first wins — so it has to be one here.";
@@ -745,7 +745,7 @@ lib.mkIf config.nebelhaus.pounce.enable {
         # The Spawn Agent command runs underneath this launchd environment, not
         # an interactive shell. Keep the selected client explicit here so a
         # palette spawn and a later `holt <name>` agree on its default.
-        NEBELHAUS_AGENT_DEFAULT = config.nebelhaus.agents.default;
+        NEBELHAUS_AGENT_DEFAULT = config.haus.agents.default;
         # Where the ssh plugin (and any command that respects the hook) opens a
         # terminal: a new tab in the `main` zellij session instead of stock
         # Terminal. See modules/hearth/zellij/pounce-terminal.sh.
@@ -794,9 +794,9 @@ lib.mkIf config.nebelhaus.pounce.enable {
       # same way hearth/sill/theme do it.
       nb = import ../lib/nebelung.nix {
         inherit lib nebelung;
-        theme = config.nebelhaus.theme;
+        theme = config.haus.theme;
       };
-      followAppearance = config.nebelhaus.pounce.followSystemAppearance;
+      followAppearance = config.haus.pounce.followSystemAppearance;
       # Every rendered nebelung variant, dropped where pounce's runtime palette
       # loader looks (~/.config/pounce/themes/<name>.json, read per open — see
       # pounce's docs/reference.md). All of them, not just the selected one, so a
@@ -834,19 +834,19 @@ lib.mkIf config.nebelhaus.pounce.enable {
         {
           # Shape and size, kept apart on purpose: windowMode picks the layout's
           # proportions, scale picks how big it's drawn. scale follows
-          # nebelhaus.ui.scale, so the palette grows with the terminal and the
+          # haus.ui.scale, so the palette grows with the terminal and the
           # Dock rather than staying the one thing that didn't.
           # An older pounce that predates `scale` ignores the key rather than
           # failing on it — same lenient parse as `themeLight`.
-          windowMode = config.nebelhaus.pounce.windowMode;
-          scale = config.nebelhaus.pounce.scale;
+          windowMode = config.haus.pounce.windowMode;
+          scale = config.haus.pounce.scale;
           # The selected nebelung variant, following theme.{flavor,contrast}. The
           # default variant's name ("nebelung") matches pounce's compiled-in
           # palette, and an older pounce without runtime themes falls back to that
           # same compiled-in default — so this key is safe against both an old
           # pounce lock and an old nebelung lock (no themeFiles → fallback).
           #
-          # With nebelhaus.pounce.followSystemAppearance (the default) we write the
+          # With haus.pounce.followSystemAppearance (the default) we write the
           # dark/light PAIR at this contrast instead, and pounce picks per open.
           # An old pounce that doesn't know `themeLight` just reads `theme` and
           # stays dark — the extra key is inert, never an error.
@@ -856,8 +856,8 @@ lib.mkIf config.nebelhaus.pounce.enable {
           themeLight = if followAppearance then nb.lightVariant else nb.variant;
           # The palette hotkey, registered in-process by the daemon for a near-instant
           # open (no shell/client spawn). Which chord — and whether there is one at all
-          # — is nebelhaus.keys.palette.
-          # nebelhaus.keys.palette; "none" hands the chord back to the OS entirely.
+          # — is haus.keys.palette.
+          # haus.keys.palette; "none" hands the chord back to the OS entirely.
           hotkey = {
             enabled = k.palette != null;
             key = if k.palette != null then k.palette.key else "space";
@@ -868,7 +868,7 @@ lib.mkIf config.nebelhaus.pounce.enable {
           # installs keep stock ⌘Tab, so shipping this on is safe. The option exists
           # for hosts that want the native app switcher back.
           windows = {
-            enabled = config.nebelhaus.pounce.windowSwitcher;
+            enabled = config.haus.pounce.windowSwitcher;
             key = "tab";
             modifiers = [ "cmd" ];
           };
@@ -879,7 +879,7 @@ lib.mkIf config.nebelhaus.pounce.enable {
             autoPaste = true; # synthesize ⌘V into the prior app; needs Accessibility
           };
         }
-        # nebelhaus.pounce.items — hidden rows, aliases and per-item hotkeys (see the
+        # haus.pounce.items — hidden rows, aliases and per-item hotkeys (see the
         # generator in the let-block). Omitted entirely when nothing is configured:
         # this file is a /nix/store symlink, so the rice is its only writer, and an
         # empty `items: {}` would just be a key nobody set.
@@ -900,7 +900,7 @@ lib.mkIf config.nebelhaus.pounce.enable {
         # The whole page is conditional — a cheatsheet teaching keys that do
         # nothing would be worse than no page. Keys must stay true to the
         # `windows` block written into config.json above.
-        ++ lib.optionals config.nebelhaus.pounce.windowSwitcher [
+        ++ lib.optionals config.haus.pounce.windowSwitcher [
           {
             title = "Window Switcher [⌘ ⇥]";
             page = "Tips";
@@ -937,7 +937,7 @@ lib.mkIf config.nebelhaus.pounce.enable {
             ];
           }
         ]
-        # Your own per-item keys (nebelhaus.pounce.items), from the same list the
+        # Your own per-item keys (haus.pounce.items), from the same list the
         # collision assertions read. Absent when nothing is bound.
         ++ itemKeyPages
         # ── Tips page (⇥ flips to it) — workflows and the stuff that's hard to
@@ -953,7 +953,7 @@ lib.mkIf config.nebelhaus.pounce.enable {
         # install that had never seen the workshop — so these rows are true on any
         # machine running this rice. Off when no agent client is installed, same
         # gate as the ⌘A card on the Keys page.
-        ++ lib.optionals (config.nebelhaus.agents.clients != [ ]) [
+        ++ lib.optionals (config.haus.agents.clients != [ ]) [
           {
             title = "Agent Worktrees";
             page = "Tips";

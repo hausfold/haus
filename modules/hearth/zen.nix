@@ -10,13 +10,13 @@
 # Deploying an extension goes through Firefox's ENTERPRISE POLICY file —
 # `Zen/distribution/policies.json` — which is how an IT department reaches
 # Firefox and the only mechanism that works without hand-editing a
-# randomly-named profile. nebelhaus.roster deliberately cannot do this: its four
+# randomly-named profile. haus.roster deliberately cannot do this: its four
 # sources are a cask, a brew, a nixpkgs package and the App Store, and a browser
 # add-on is none of them.
 #
 # ---- the Stylus problem, which is the reason this file exists ----------------
 #
-# Zen's accent follows nebelhaus.theme.accent and always has. But that covers
+# Zen's accent follows haus.theme.accent and always has. But that covers
 # the browser's own UI: userContent.css is entirely `@-moz-document
 # url-prefix("about:")` rules, so github.com and youtube.com are not in it. Real
 # sites are styled by the Catppuccin userstyles, which are LESS compiled in the
@@ -42,7 +42,7 @@
 }:
 
 let
-  cfg = config.nebelhaus.zen;
+  cfg = config.haus.zen;
   wanted = lib.filterAttrs (_: e: e.enable) cfg.extensions;
   stylusWanted = wanted ? stylus;
 in
@@ -51,12 +51,12 @@ in
   # Once we stamp and announce the Stylus bundle we HAVE wired it, so claim it —
   # otherwise a `stylus` roster entry gets reported as an unhandled manual port
   # pointing at nebelung's accent-blind copy, which is now the wrong file.
-  nebelhaus.theme.ports.handled = lib.optional stylusWanted "stylus";
+  haus.theme.ports.handled = lib.optional stylusWanted "stylus";
 
   assertions = lib.mapAttrsToList (name: e: {
     assertion = e.id != null && e.url != "";
     message = ''
-      nebelhaus.zen.extensions.${name} needs an `id` (and a `slug` or `url`).
+      haus.zen.extensions.${name} needs an `id` (and a `slug` or `url`).
       Firefox's policy engine matches the extension's OWN id, not its AMO slug,
       and a wrong or missing one installs nothing without an error — so the rice
       refuses to write a policy it can't tell you is correct. Read the id off
@@ -75,10 +75,10 @@ in
     let
       nb = import ../lib/nebelung.nix {
         inherit lib nebelung;
-        theme = osConfig.nebelhaus.theme;
+        theme = osConfig.haus.theme;
       };
-      accent = osConfig.nebelhaus.theme.accent;
-      flavor = osConfig.nebelhaus.theme.flavor;
+      accent = osConfig.haus.theme.accent;
+      flavor = osConfig.haus.theme.flavor;
 
       # The variant root, like every other port — nebelung renders one bundle
       # per CONTRAST now, and the flavor dirs symlink at their contrast twin,
@@ -141,7 +141,7 @@ in
                 }
               ) wanted;
             }
-            // osConfig.nebelhaus.zen.extraPolicies;
+            // osConfig.haus.zen.extraPolicies;
           };
         }
         # Placed under a FIXED name so the Stylus import dialog always points at

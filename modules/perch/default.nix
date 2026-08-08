@@ -31,13 +31,13 @@
   ...
 }:
 
-lib.mkIf config.nebelhaus.perch.enable {
+lib.mkIf config.haus.perch.enable {
   # The bundle is copied to a fixed /Applications path by this module's
   # activation step (see the header on why the path must be fixed), so
   # `installedBy` is the only honest source field.
-  nebelhaus.roster.perch = {
+  haus.roster.perch = {
     name = lib.mkDefault "Perch";
-    installedBy = lib.mkDefault "nebelhaus.perch";
+    installedBy = lib.mkDefault "haus.perch";
   };
 
   # All home-manager wiring in ONE block — a dynamic attr key (${username}) can't
@@ -56,9 +56,9 @@ lib.mkIf config.nebelhaus.perch.enable {
       # same way hearth/sill/theme/pounce do it.
       nb = import ../lib/nebelung.nix {
         inherit lib nebelung;
-        theme = config.nebelhaus.theme;
+        theme = config.haus.theme;
       };
-      followAppearance = config.nebelhaus.perch.followSystemAppearance;
+      followAppearance = config.haus.perch.followSystemAppearance;
 
       # The palette per polarity. Perch picks between them by the macOS
       # appearance, so PINNING a flavor is expressed by writing the same variant
@@ -72,7 +72,7 @@ lib.mkIf config.nebelhaus.perch.enable {
         builtins.toJSON {
           themeDark = if followAppearance then nb.darkVariant else nb.variant;
           themeLight = if followAppearance then nb.lightVariant else nb.variant;
-          accent = config.nebelhaus.theme.accent;
+          accent = config.haus.theme.accent;
         }
       );
 

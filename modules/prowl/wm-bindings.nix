@@ -1,6 +1,6 @@
 # The static AeroSpace bindings — the tiling/workspace/service chords that are
 # the SAME on every install (the per-app launcher chords live in the roster,
-# nebelhaus._roster). Declared ONCE here, then rendered two ways:
+# haus._roster). Declared ONCE here, then rendered two ways:
 #
 #   modules/prowl/default.nix   → the `binds` become aerospace.toml lines
 #                                 (@MAIN_STATIC@ / @SERVICE_STATIC@ tokens).
@@ -12,7 +12,7 @@
 #
 # A FUNCTION of the resolved keymap (modules/lib/keys.nix), because the modifier
 # was the last part of a row still written twice: "⌥ hjkl" as a caption beside
-# `alt-h` as a chord. Both now come from `k.nav`, so nebelhaus.keys.windowNav
+# `alt-h` as a chord. Both now come from `k.nav`, so haus.keys.windowNav
 # moves the chord and its caption together — and `k.nav == null` (windowNav =
 # "none") returns no window sections at all, rather than a cheatsheet advertising
 # keys that aren't bound.
@@ -92,7 +92,7 @@ lib.optionals hasNav [
   # for an app), and THROWING the focused window there is the leader then ⇧+the
   # digit — or ⇧+an app's roster letter for its workspace. Those live in
   # [mode.launch.binding] in aerospace.toml (the roster half generated from
-  # nebelhaus._roster) and on the Launch Mode cheatsheet page, so no main-mode
+  # haus._roster) and on the Launch Mode cheatsheet page, so no main-mode
   # chord here carries a workspace. The window chords that remain are the ones
   # that act on the CURRENT workspace, above, plus service mode below.
   {

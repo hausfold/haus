@@ -10,7 +10,7 @@ let
   agentClients = import ../lib/agents.nix;
 in
 {
-  options.nebelhaus = {
+  options.haus = {
     sill.enable = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -67,7 +67,7 @@ in
 
     sill.aiUsage.provider = lib.mkOption {
       # The clients come from modules/lib/agents.nix — the same list
-      # nebelhaus.agents.clients and .default read, so a fourth client is one
+      # haus.agents.clients and .default read, so a fourth client is one
       # edit rather than one per room. `latest` is sill's own extra: it is a
       # selection rule, not a client, which is why it is prepended here.
       type = lib.types.enum ([ "latest" ] ++ agentClients);
@@ -82,7 +82,7 @@ in
         Note this is about *usage readouts*, not about which client `holt` can
         spawn: a provider reports here whenever it has data for your account —
         Codex notably does so from a ChatGPT login alone, with no CLI installed
-        — so it is deliberately not tied to `nebelhaus.agents.clients`.
+        — so it is deliberately not tied to `haus.agents.clients`.
       '';
     };
 
@@ -174,7 +174,7 @@ in
         A community-authored tour, in order. null keeps the built-in four-move
         nebelhaus tour unchanged; supplying a list replaces it, so a shared rice can
         teach its own workflow without shipping scripts or reaching outside the
-        `nebelhaus.*` option surface.
+        `haus.*` option surface.
 
         Detection reuses signals the rice already emits. `launch`, `workspace`,
         `navigate` and `resize` need prowl; `palette` needs Pounce and its palette
@@ -210,7 +210,7 @@ in
           agents = "A paw pill tracking your agent-worktree panes — amber when one is blocked on you, click for the per-agent list, each row marked with the client sitting in it; left-click a row to jump to that pane, ⌥/right-click for a live `zellij subscribe` peek. Fed by each client's own lifecycle hooks, which all call `agent-state` (also installed as ~/.config/sketchybar/plugins/agents-hook.sh): Opencode's plugin and Codex's ~/.codex/hooks.json are written for you (Codex asks you to trust its hooks the first time it sees them), while Claude Code's four agent-state hooks stay yours to point at it in ~/.claude/settings.json — Claude owns that file and rewrites it, so the rice merges in only the keys it must and never touches those four. (The two worktree hooks ARE declared, in hearth: they point at a rice-controlled path and self-heal on rebuild.) A row whose zellij pane is gone drops off by itself, which is what stands in for the session-end event Codex doesn't have. Dormant until a client fires.";
           aiUsage = "A gauge pill showing AI usage (Claude Code/Codex subscription rate limits as %, or Opencode API token cost as daily $). Automatically shows whichever provider reported most recently. Click for expanded session/weekly limits and daily/monthly API costs with model breakdowns. Claude and Opencode are read off disk; Codex has no local usage data, so its row is polled from your ChatGPT account with the OAuth token in ~/.codex/auth.json (refreshed and rewritten in place) — no Codex login on the machine, no call is made. Claude's row is pushed by its statusline; the Codex and Opencode rows are pulled by the pill itself on a 3-minute TTL, so they stay current on a machine that never opens Claude at all. Claude and Opencode also get a `tokens` block in the dropdown — raw tokens moved today, this week, this month and all time (cache reads and all), two periods to a line so a full set reads as a 2×2, purely for the fun of watching the number climb. A period with nothing in it is left out rather than printed as a zero, so the block simply gets smaller, and a closing `∑ Everything` adds every provider up when more than one is reporting. It is a score, not a limit: nothing acts on it, and it never reaches the pill's own label. Claude's is summed from your transcripts on a 15-minute TTL behind an index, so only sessions that grew since the last pass are re-read; Codex has no row because it keeps no local history to count.";
           claudeUsage = "Deprecated alias for `aiUsage`.";
-          elgato = "Toggles an Elgato Key Light on the local network. The light is found over mDNS (or pinned with `nebelhaus.sill.elgato.host`), and the pill draws dim when it can't be reached at all — a light that dropped off the wifi is not the same thing as a light that's switched off.";
+          elgato = "Toggles an Elgato Key Light on the local network. The light is found over mDNS (or pinned with `haus.sill.elgato.host`), and the pill draws dim when it can't be reached at all — a light that dropped off the wifi is not the same thing as a light that's switched off.";
           harvest = "A Harvest time-tracking pill; needs a ~/.config/sketchybar/harvest_secrets.sh you provide.";
         };
         mkItem =
@@ -238,7 +238,7 @@ in
           default false. Set
           only what you want to change:
 
-            nebelhaus.sill.items = {
+            haus.sill.items = {
               weather = false;   # drop a default-on core pill
               cpu = true;        # add an off-by-default readout
               caffeinate = true; # add the keep-awake controller
@@ -246,7 +246,7 @@ in
 
           A pill set false is never created (its update script doesn't run either).
           The hush (Do-Not-Disturb) pill is separate — it rides
-          nebelhaus.hush.enable, not this set.
+          haus.hush.enable, not this set.
         '';
       };
   };

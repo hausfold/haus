@@ -9,7 +9,7 @@
 # the old hand-carried ~/.secrets directory on the new-Mac checklist.
 #
 # WHERE values live is personal infrastructure, so it's a host option
-# (nebelhaus.secrets.provider). The default, "keyring", is the macOS login
+# (haus.secrets.provider). The default, "keyring", is the macOS login
 # keychain — local, zero accounts, encrypted at rest. Cloud providers (gcsm /
 # awssm / bws / onepassword / vault / …) make values follow you across
 # machines; their own credential bootstrap (e.g. one gcloud login) becomes the
@@ -23,7 +23,7 @@
 }:
 
 let
-  cfg = config.nebelhaus.secrets;
+  cfg = config.haus.secrets;
 in
 {
   # System-wide (like the rest of den's baseline CLI) so haus doctor, sudo, and

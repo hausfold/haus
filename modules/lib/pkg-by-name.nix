@@ -1,6 +1,6 @@
 # Resolve a package NAMED as a string into the package itself.
 #
-#   pkgByName { inherit lib pkgs; option = "nebelhaus.fonts.mono.packageName";
+#   pkgByName { inherit lib pkgs; option = "haus.fonts.mono.packageName";
 #               name = "nerd-fonts.fira-code"; }
 #
 # Why a string at all, when `types.package` exists and is more precise: a

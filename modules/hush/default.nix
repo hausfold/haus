@@ -24,7 +24,7 @@
 }:
 
 let
-  cfg = config.nebelhaus.hush;
+  cfg = config.haus.hush;
 
   # ⌃⌥⇧⌘ F13 — a chord no keyboard layout or app claims. 65535 = "no ASCII
   # char", 105 = F13's key code, 1966080 = ctrl(262144) + opt(524288) +
@@ -58,7 +58,7 @@ lib.mkIf cfg.enable {
   # changes. launchd watches the path itself, so no Full Disk Access is
   # involved here; the pill's own state read is what may fall back. Harmless
   # no-op if sketchybar isn't up yet (cold boot).
-  launchd.user.agents.hush-watcher = lib.mkIf config.nebelhaus.sill.enable {
+  launchd.user.agents.hush-watcher = lib.mkIf config.haus.sill.enable {
     serviceConfig = {
       ProgramArguments = [
         "/bin/bash"

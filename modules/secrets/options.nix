@@ -6,7 +6,7 @@
 { lib, ... }:
 
 {
-  options.nebelhaus = {
+  options.haus = {
     secrets.provider = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = "keyring";

@@ -6,10 +6,10 @@
 #
 # Still a DEVELOPER machine. "Minimal" here means few rooms, not few tools; if
 # you want a Mac with no developer tooling, that's `everyday`. (Before
-# nebelhaus.developer existed this distinction was impossible to make, and
+# haus.developer existed this distinction was impossible to make, and
 # "minimal" quietly installed the whole toolbelt anyway.)
 {
-  nebelhaus = {
+  haus = {
     sill.enable = false;
     prowl.enable = false;
     pounce.enable = false;

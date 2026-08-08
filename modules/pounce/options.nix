@@ -6,7 +6,7 @@
 { lib, config, ... }:
 
 {
-  options.nebelhaus = {
+  options.haus = {
     pounce.enable = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -32,7 +32,7 @@
         siblings are still the rows just below you in the list.
 
         Needs the daemon to hold an Accessibility grant — in practice, set
-        nebelhaus.pounce.signingIdentity so the grant survives rebuilds. Without
+        haus.pounce.signingIdentity so the grant survives rebuilds. Without
         the grant the event tap can't install and stock ⌘Tab keeps working, so
         this default is safe on a fresh, not-yet-granted install. false leaves
         ⌘Tab native even when the grant is there.
@@ -52,16 +52,16 @@
         which shows the top results the moment it opens.
 
         This is shape, not size: how BIG the palette is drawn is
-        nebelhaus.pounce.scale. The two compose — a compact palette at scale 1.4
+        haus.pounce.scale. The two compose — a compact palette at scale 1.4
         is still the compact layout, just readable from further away.
       '';
     };
 
     pounce.scale = lib.mkOption {
       type = lib.types.numbers.between 0.8 2.0;
-      default = lib.min 2.0 (lib.max 0.8 config.nebelhaus.ui.scale);
-      # Prose, so literalMD — see nebelhaus.developer.languages in modules/options.nix.
-      defaultText = lib.literalMD "nebelhaus.ui.scale, held inside pounce's 0.8-2.0";
+      default = lib.min 2.0 (lib.max 0.8 config.haus.ui.scale);
+      # Prose, so literalMD — see haus.developer.languages in modules/options.nix.
+      defaultText = lib.literalMD "haus.ui.scale, held inside pounce's 0.8-2.0";
       example = 1.4;
       description = ''
         How big the palette is drawn. Multiplies every size in pounce's UI — the
@@ -69,7 +69,7 @@
         the emoji grid, clipboard history, recent screenshots, camera peek, Find
         Files, the cheatsheet and the window switcher.
 
-        Follows nebelhaus.ui.scale by default, so you rarely set this directly.
+        Follows haus.ui.scale by default, so you rarely set this directly.
         It exists as its own option for the case where the palette wants a
         different size from the rest of the rice — the launcher is read at arm's
         length for a second, not lived in like the terminal.
@@ -80,7 +80,7 @@
         Two things adapt on their own, which is why one number is enough: the
         launcher shows fewer rows when the scaled rows stop fitting on screen, and
         every panel's width is held inside the visible frame. That matters most
-        alongside `nebelhaus.displays.<name>.uiScale` — a larger-text display mode
+        alongside `haus.displays.<name>.uiScale` — a larger-text display mode
         and a larger palette multiply, and the palette is the one that would
         otherwise run off the edge.
       '';
@@ -92,11 +92,11 @@
       description = ''
         Let the palette follow macOS Light/Dark Mode instead of pinning one
         polarity: pounce gets the nebelung variant AND its latte counterpart at
-        your nebelhaus.theme.contrast, as its `theme`/`themeLight` pair, and
+        your haus.theme.contrast, as its `theme`/`themeLight` pair, and
         picks between them per open (no rebuild, no daemon restart).
 
         Honest scope: this makes pounce the one themed tool that does NOT follow
-        nebelhaus.theme.flavor — a flavor pin is a *palette* choice, and asking
+        haus.theme.flavor — a flavor pin is a *palette* choice, and asking
         to follow the system says the polarity is macOS's call. The contrast
         axis still applies to both halves. Everything else on the rice keeps
         whatever flavor pins.
@@ -149,8 +149,8 @@
 
         Two things this checks at build time, because both fail SILENTLY at
         runtime: a key that names no real item shape (a "mode:" typo binds
-        nothing at all), and a chord already claimed by nebelhaus.keys.palette,
-        nebelhaus.keys.leader, or a terminal binding (whoever registers first
+        nothing at all), and a chord already claimed by haus.keys.palette,
+        haus.keys.leader, or a terminal binding (whoever registers first
         wins, and it isn't always the same one). What it can't check is whether
         `cmd:<id>` names a command that exists — command scripts are discovered
         at runtime, so pounce warns about that itself when the daemon starts, and

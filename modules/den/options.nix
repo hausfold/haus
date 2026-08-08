@@ -50,7 +50,7 @@ let
 in
 
 {
-  options.nebelhaus = {
+  options.haus = {
     # ---- accessibility ----
     # Deliberately TWO options, not a family. These are the only keys in
     # com.apple.universalaccess measured to write AND actually take effect on
@@ -113,7 +113,7 @@ in
 
           It reaches the terminal AND the menu bar: every pill label and icon
           sill draws is in this family, at sizes of its own (see
-          `nebelhaus.ui.scale`). The workspace-logo glyphs are the one exception
+          `haus.ui.scale`). The workspace-logo glyphs are the one exception
           — those are sketchybar-app-font, which sill installs itself.
 
           This should be a NERD FONT patched build: starship's prompt, lsd's
@@ -129,9 +129,9 @@ in
       };
       size = lib.mkOption {
         type = lib.types.ints.positive;
-        default = builtins.floor (19 * config.nebelhaus.ui.scale + 0.5);
-        # Prose, so literalMD — see nebelhaus.developer.languages in modules/options.nix.
-        defaultText = lib.literalMD "19, scaled by nebelhaus.ui.scale";
+        default = builtins.floor (19 * config.haus.ui.scale + 0.5);
+        # Prose, so literalMD — see haus.developer.languages in modules/options.nix.
+        defaultText = lib.literalMD "19, scaled by haus.ui.scale";
         example = 24;
         description = ''
           Terminal font size in points. The single most useful knob for a
@@ -330,7 +330,7 @@ in
     # the current session, and there is no live-reload path — exactly the
     # "silent logout" trap this section exists to avoid. It waits until this
     # group has somewhere honest to say "takes effect at next login" out loud,
-    # the way `nebelhaus.accessibility` says "needs Full Disk Access".
+    # the way `haus.accessibility` says "needs Full Disk Access".
     lock = {
       requirePassword = lib.mkOption {
         type = lib.types.nullOr lib.types.bool;

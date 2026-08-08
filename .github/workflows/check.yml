@@ -48,8 +48,11 @@ jobs:
           tmpl=$(nix build --no-link --print-out-paths .#host-template)
           host=$(mktemp -d)
           printf '{ ... }:\n\n{\n  imports = [ ./options.nix ];\n}\n' > "$host/default.nix"
-          sed -E 's/^  # (nebelhaus\.)/  \1/' "$tmpl/share/nebelhaus/host-options.nix" \
+          sed -E 's/^  # (haus\.)/  \1/' "$tmpl/share/nebelhaus/host-options.nix" \
             | grep -v '= …;$' > "$host/options.nix"
+          # A prefix that no longer matches would uncomment NOTHING and this
+          # step would pass on an empty host — the one failure it can't see.
+          grep -q '^  haus\.' "$host/options.nix"
           nix eval --impure --apply 'x: x.system.drvPath' --expr \
             "(builtins.getFlake \"path:$PWD\").mkNebelhaus { username = \"ada\"; hostname = \"lovelace\"; host = $host; }"
 

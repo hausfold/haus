@@ -1,7 +1,7 @@
 #!/bin/zsh
 
 # Open a file OR a directory in the rice editor, in a new zellij tab. @editor@
-# is baked from nebelhaus.hearth.editor at build time (the one editor the whole
+# is baked from haus.hearth.editor at build time (the one editor the whole
 # rice uses — same value as $EDITOR). Called by the EditorOpen.app
 # file-association handler (a file) and by nix-config-open.sh (a file plus a
 # cwd override, so the pane sits at the flake root rather than the file's own

@@ -6,7 +6,7 @@
 { lib, ... }:
 
 {
-  options.nebelhaus = {
+  options.haus = {
     # ---- hush ----
     hush.enable = lib.mkOption {
       type = lib.types.bool;

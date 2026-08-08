@@ -6,7 +6,7 @@
 { lib, ... }:
 
 {
-  options.nebelhaus = {
+  options.haus = {
     perch.enable = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -19,11 +19,11 @@
       description = ''
         Let the shelf's palette follow macOS Light/Dark Mode instead of pinning
         one polarity: perch gets the nebelung variant AND its latte counterpart
-        at your nebelhaus.theme.contrast, and picks between them itself — no
+        at your haus.theme.contrast, and picks between them itself — no
         rebuild, no relaunch.
 
         Same honest scope as the pounce option of the same name: with
-        this on, perch does NOT follow nebelhaus.theme.flavor, because asking to
+        this on, perch does NOT follow haus.theme.flavor, because asking to
         follow the system says the polarity is macOS's call. The contrast axis
         still applies to both halves. Set it false to pin the shelf to
         theme.flavor like every other themed tool.

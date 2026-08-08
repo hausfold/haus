@@ -12,7 +12,7 @@
 # machine pays one stat per mode change and nothing else. We verify the
 # RESULTING state (mode entered, workspace changed), never the keystroke.
 #
-# With nebelhaus.tour.steps = null, the built-in steps are strictly sequential:
+# With haus.tour.steps = null, the built-in steps are strictly sequential:
 #   1a  tap the leader (launch mode armed)    <- launch_mode.sh on
 #   1b  press a letter (an app launches)      <- aerospace-notify.sh (workspace
 #                                                changed). The named key is
@@ -29,13 +29,13 @@
 #   4   palette hotkey, type tour             <- the pounce "Haus Tour" command
 #                                                (skipped when pounce is off)
 #
-# Setting nebelhaus.tour.steps replaces that lap with community-authored
+# Setting haus.tour.steps replaces that lap with community-authored
 # { hint, detect } rows. tour_config.sh contains those rows as shell-safe case
 # functions; the state becomes c1, c2, ... and the same event funnel advances
 # them. No executable code crosses the data-only rice boundary.
 #
 # The leader and palette GLYPHS come from tour_config.sh, generated from
-# nebelhaus.keys.* — the built-in prompts have to name the key this machine
+# haus.keys.* — the built-in prompts have to name the key this machine
 # actually has, or the tutor teaches a chord that does nothing.
 #
 # Left-click skips the current step (dormant: starts), right-click dismisses
@@ -300,10 +300,10 @@ advance() {
 }
 
 start() {
-    # The item only exists when the tour is wired in (nebelhaus.tour.enable +
+    # The item only exists when the tour is wired in (haus.tour.enable +
     # prowl + sill) — refuse cleanly instead of scribbling state nothing reads.
     if ! sketchybar --query tour >/dev/null 2>&1; then
-        echo "tour: the bar has no tour item — it needs nebelhaus.tour.enable with prowl + sill on." >&2
+        echo "tour: the bar has no tour item — it needs haus.tour.enable with prowl + sill on." >&2
         exit 1
     fi
     mkdir -p "$STATE_DIR"

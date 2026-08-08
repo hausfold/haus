@@ -53,7 +53,7 @@
 }:
 
 let
-  cfg = config.nebelhaus.collar;
+  cfg = config.haus.collar;
 in
 {
   config = lib.mkIf cfg.enable {

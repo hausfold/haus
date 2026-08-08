@@ -1,15 +1,15 @@
 # writing — a pack for a Mac that reads and writes rather than compiles.
 #
 # A PACK, not a preset. Same data-only rule (`checkRice` runs over this file too),
-# but it deliberately touches ONE option family: `nebelhaus.roster`. A preset
+# but it deliberately touches ONE option family: `haus.roster`. A preset
 # answers "what kind of machine is this"; a pack answers "what's on it". So a
 # pack composes with any preset and with any other pack, and none of them have to
 # know about each other:
 #
 #   extraModules = [
-#     nebelhaus.presets.everyday      # a Mac for someone who doesn't write code
-#     nebelhaus.presets.large-print   # …that you can read
-#     nebelhaus.packs.writing         # …with these four apps on it
+#     haus.presets.everyday      # a Mac for someone who doesn't write code
+#     haus.presets.large-print   # …that you can read
+#     haus.packs.writing         # …with these four apps on it
 #   ];
 #
 # Declaring an app in the roster is what installs it, so this file is both the
@@ -30,10 +30,10 @@
 # opens where you are instead of being moved. To close the gap once the app is
 # installed, in your own host file:
 #
-#   nebelhaus.roster.obsidian.appId = "…";   # osascript -e 'id of app "Obsidian"'
+#   haus.roster.obsidian.appId = "…";   # osascript -e 'id of app "Obsidian"'
 #
 # A plain assignment — and it stays plain for the fields this file DOES set, too.
-# `packs.writing` reaches you through `nebelhaus.lib.pack`, which lowers every
+# `packs.writing` reaches you through `haus.lib.pack`, which lowers every
 # field here to `mkDefault` on the way in, so your host outranks it per field
 # while the rest of the entry survives. Import order still carries no priority in
 # the module system; the SEAM does. This same file imported as a bare path gets
@@ -41,7 +41,7 @@
 #
 # So a letter of yours that clashes with one below is one line, no `mkForce`:
 #
-#   nebelhaus.roster.zotero.key = "y";   # or null, for ⌘Space only
+#   haus.roster.zotero.key = "y";   # or null, for ⌘Space only
 #
 # See bite 2 in packs/README.md for the whole rule, including the two cases that
 # still stop the build: two PACKS naming one app, and two roster entries in the
@@ -61,7 +61,7 @@
 # the right source for these four anyway — and `packageName` is what a pack of
 # Nixpkgs command-line tools would be written with today.
 {
-  nebelhaus.roster = {
+  haus.roster = {
     # The notes app, and the one that earns a workspace: it's the thing you leave
     # open all day and come back to, which is what a workspace is for.
     obsidian = {
@@ -110,16 +110,16 @@
   # WORKSPACE ownership moved off the roster entry entirely (a workspace names
   # its own members now, not the other way round), so this pack can no longer
   # give Obsidian or Zotero one — `checkPack` only lets a pack set
-  # `nebelhaus.roster`, and `lib.pack` only lowers THAT option's priority to
+  # `haus.roster`, and `lib.pack` only lowers THAT option's priority to
   # `mkDefault` on the way in. Give them one in your own host file instead:
   #
-  #   nebelhaus.workspaces.O = { key = "o"; icon = ":obsidian:"; apps = [ "obsidian" ]; };
-  #   nebelhaus.workspaces.L = { key = "l"; icon = ":zotero:"; apps = [ "zotero" ]; };
+  #   haus.workspaces.O = { key = "o"; icon = ":obsidian:"; apps = [ "obsidian" ]; };
+  #   haus.workspaces.L = { key = "l"; icon = ":zotero:"; apps = [ "zotero" ]; };
   #
   # Letting a pack claim a workspace id the way it claims a roster id is a real
   # gap this migration surfaced, not a design choice — `checkPack` and
   # `lib.pack` would need to grow the same per-leaf-mkDefault treatment for
-  # `nebelhaus.workspaces` that `nebelhaus.roster` already gets, and `apps`
+  # `haus.workspaces` that `haus.roster` already gets, and `apps`
   # specifically would need list-merge rather than mkDefault (see that
   # option's own docs for why). Left for a follow-up.
 }

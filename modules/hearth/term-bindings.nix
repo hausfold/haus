@@ -34,12 +34,12 @@
 # has nothing behind them, so the card stays off).
 {
   lib,
-  # nebelhaus.agents.default — what @AGENT_NEW@/@AGENT_HERE@ resolve to, so the
+  # haus.agents.default — what @AGENT_NEW@/@AGENT_HERE@ resolve to, so the
   # agent rows name the client this host actually starts.
   agentDefault,
-  # Whether any agent client is installed at all (nebelhaus.agents.clients).
+  # Whether any agent client is installed at all (haus.agents.clients).
   agentsEnabled,
-  # nebelhaus.hearth.ghDash.enable — the bind only exists when the dashboard
+  # haus.hearth.ghDash.enable — the bind only exists when the dashboard
   # itself is installed, so neither the cheatsheet nor Ghostty advertises a
   # dead Cmd-G on machines that do not want it.
   ghDashEnabled,

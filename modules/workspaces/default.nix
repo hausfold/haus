@@ -1,12 +1,12 @@
 # Workspaces — the one list of named AeroSpace workspaces this machine
 # declares, and which roster apps live on each.
 #
-# `nebelhaus.workspaces` is a keyed, composable map (declared in ../options.nix
+# `haus.workspaces` is a keyed, composable map (declared in ../options.nix
 # next to the app roster it pairs with). This module does what ../roster does
-# for the app list: NORMALIZE it into `nebelhaus._workspaces` (sorted, each
-# entry carrying its id) and `nebelhaus._appWorkspace` (the reverse lookup,
+# for the app list: NORMALIZE it into `haus._workspaces` (sorted, each
+# entry carrying its id) and `haus._appWorkspace` (the reverse lookup,
 # roster app id -> workspace id) that prowl, sill and the doc generator all
-# read instead of each re-deriving membership from `nebelhaus.workspaces`
+# read instead of each re-deriving membership from `haus.workspaces`
 # themselves.
 #
 # Ungated on purpose, same reasoning as ../roster: a workspace's pill and
@@ -15,7 +15,7 @@
 { config, lib, ... }:
 
 let
-  named = lib.mapAttrsToList (id: ws: ws // { inherit id; }) config.nebelhaus.workspaces;
+  named = lib.mapAttrsToList (id: ws: ws // { inherit id; }) config.haus.workspaces;
   sorted = lib.sort (a: b: a.id < b.id) named;
 
   allMemberships = lib.concatMap (
@@ -37,7 +37,7 @@ let
   # roster) would otherwise fail silently: the workspace still gets declared,
   # its pill still renders, and the ONE thing that's supposed to happen — that
   # app's windows herding here — just never fires, with nothing to say why.
-  knownAppIds = lib.attrNames config.nebelhaus.roster;
+  knownAppIds = lib.attrNames config.haus.roster;
   unknownMembers = lib.unique (
     lib.filter (id: !lib.elem id knownAppIds) (map (m: m.appId) allMemberships)
   );
@@ -50,14 +50,14 @@ let
   );
 in
 {
-  nebelhaus._workspaces = sorted;
-  nebelhaus._appWorkspace = appWorkspace;
+  haus._workspaces = sorted;
+  haus._appWorkspace = appWorkspace;
 
   assertions = [
     {
       assertion = duplicateMembers == [ ];
       message =
-        "nebelhaus.workspaces lists the same roster app in more than one "
+        "haus.workspaces lists the same roster app in more than one "
         + "workspace's `apps` (its window can only ever herd to one): "
         + lib.concatStringsSep ", " duplicateMembers;
     }
@@ -65,12 +65,12 @@ in
 
   warnings =
     lib.optional (unknownMembers != [ ]) (
-      "nebelhaus.workspaces names roster app ids that don't exist in "
-      + "nebelhaus.roster, so nothing will ever herd there: "
+      "haus.workspaces names roster app ids that don't exist in "
+      + "haus.roster, so nothing will ever herd there: "
       + lib.concatStringsSep ", " unknownMembers
     )
     ++ lib.optional (emptyWorkspaces != [ ]) (
-      "nebelhaus.workspaces entries declare no leader `key` and no member "
+      "haus.workspaces entries declare no leader `key` and no member "
       + "`apps`, so they have no effect: " + lib.concatStringsSep ", " emptyWorkspaces
     );
 }

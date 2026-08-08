@@ -889,7 +889,7 @@ fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usi
     // run_bind_key / action_key), so a rebind re-letters the block; only the
     // labels and the Floating/Focus/Resize hints were dropped versus upstream.
     // The `a` launcher is "start an agent", not "start Claude": hearth renders
-    // that bind from nebelhaus.agents.default, so it is `claude --worktree` on a
+    // that bind from haus.agents.default, so it is `claude --worktree` on a
     // Claude machine and `holt new` on a Codex/Opencode one. Try each spelling
     // and take the first that resolves — matching only the Claude one used to
     // blank the whole hint block's first key the moment the default changed.

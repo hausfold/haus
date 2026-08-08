@@ -1,6 +1,6 @@
 # displays — the size of everything, from macOS's side.
 #
-# `nebelhaus.ui.scale` and `nebelhaus.fonts` make the RICE bigger: the terminal,
+# `haus.ui.scale` and `haus.fonts` make the RICE bigger: the terminal,
 # the bar, the Dock, the gaps. They can't touch Mail, Safari, or an app nobody
 # here has heard of. macOS's own text-size setting writes a value that running
 # apps never re-read (System Settings then renders a desynced view of its own
@@ -34,7 +34,7 @@
 let
   hausdisp = pkgs.callPackage ./package.nix { };
 
-  displays = config.nebelhaus.displays;
+  displays = config.haus.displays;
 
   # Only entries that actually ask for something. `displays.foo = { }` declares a
   # display without an opinion about it, which is a no-op rather than an error —
@@ -66,7 +66,7 @@ in
     {
       assertion = badSelectors == [ ];
       message =
-        "nebelhaus.displays: ${lib.concatStringsSep ", " (map (n: "\"${n}\"") badSelectors)} "
+        "haus.displays: ${lib.concatStringsSep ", " (map (n: "\"${n}\"") badSelectors)} "
         + "is not a display selector. Use \"internal\", \"main\", or a persistent "
         + "display UUID (run `hausdisp list` to print the UUIDs of the displays "
         + "attached right now).";

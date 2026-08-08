@@ -3,7 +3,7 @@
 # hearth themes the tools the rice INSTALLS: it knows those tools intimately, owns
 # their config files, and wires each rendered theme by hand. That covers the shell,
 # the terminal, the git stack, Zen, Obsidian. It cannot cover an app YOU added to
-# `nebelhaus.roster`, because the rice has never heard of it.
+# `haus.roster`, because the rice has never heard of it.
 #
 # This room closes that gap from the other side. nebelung publishes, per port,
 # where its rendered theme has to land and what makes it active (its `ports`
@@ -31,7 +31,7 @@
 }:
 
 {
-  config = lib.mkIf config.nebelhaus.theme.ports.enable {
+  config = lib.mkIf config.haus.theme.ports.enable {
     home-manager.users.${username} =
       {
         lib,
@@ -42,23 +42,23 @@
       let
         nb = import ../lib/nebelung.nix {
           inherit lib nebelung;
-          theme = osConfig.nebelhaus.theme;
+          theme = osConfig.haus.theme;
         };
 
         # Empty on a nebelung lock that predates the `ports` output. Every use
         # below degrades to "nothing to offer" rather than failing, so being
         # pinned behind it costs the report, not the build.
-        handled = osConfig.nebelhaus.theme.ports.handled;
+        handled = osConfig.haus.theme.ports.handled;
 
         # Several ports render the whole accent matrix and leave the choice to
         # the consumer — nebelung spells that `<accent>` in the path (`<Accent>`
         # where the port title-cases the directory, as Zen does). nebelhaus HAS
-        # an answer: nebelhaus.theme.accent. Filling it in here is what keeps Zed
+        # an answer: haus.theme.accent. Filling it in here is what keeps Zed
         # and friends installable instead of falling through to "do it yourself"
         # over a placeholder we could resolve. Anything still holding a
         # placeholder after this (Telegram's brace expansion) genuinely has no
         # single right answer, and stays a reported manual step.
-        accent = osConfig.nebelhaus.theme.accent;
+        accent = osConfig.haus.theme.accent;
         Accent = lib.toUpper (lib.substring 0 1 accent) + lib.substring 1 (lib.stringLength accent) accent;
         ports = lib.mapAttrs (
           _: p:
@@ -79,7 +79,7 @@
         chosen = lib.mapAttrs (id: _: ports.${id}) (
           lib.filterAttrs (
             id: app: app.enable && ports ? ${id} && !(builtins.elem id handled)
-          ) osConfig.nebelhaus.roster
+          ) osConfig.haus.roster
         );
 
         # A port this module can place unattended: a straight file copy into a
@@ -153,7 +153,7 @@
               missing = lib.filter (id: !(ports ? ${id})) handled;
             in
             ''
-              nebelhaus.theme.ports.handled names ${toString (builtins.length missing)} port(s)
+              haus.theme.ports.handled names ${toString (builtins.length missing)} port(s)
               the pinned nebelung doesn't ship on macOS: ${lib.concatStringsSep ", " missing}.
               Either the port was renamed upstream (fix the name where the room
               declares it) or the room stopped wiring it (drop it from the list, so

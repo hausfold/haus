@@ -11,9 +11,9 @@
 export PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/etc/profiles/per-user/$USER/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 choice="$({
-  printf '%s\t%s\t%s\n' 'Make text bigger' 'nebelhaus.ui.scale → 1.35' 'textformat.size.larger'
+  printf '%s\t%s\t%s\n' 'Make text bigger' 'haus.ui.scale → 1.35' 'textformat.size.larger'
   printf '%s\t%s\t%s\n' 'Switch to light mode' 'the rice AND macOS → light' 'sun.max.fill'
-  printf '%s\t%s\t%s\n' 'High contrast on' 'nebelhaus.theme.contrast → high' 'circle.lefthalf.filled'
+  printf '%s\t%s\t%s\n' 'High contrast on' 'haus.theme.contrast → high' 'circle.lefthalf.filled'
 } | pounce -p 'Haus Settings' -i 'slider.horizontal.3')"
 
 # Each action is a list of `haus set` PAIRS. Light mode needs two of them, and

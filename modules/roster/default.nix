@@ -1,11 +1,11 @@
 # Roster — the one list of what this machine has.
 #
-# `nebelhaus.roster` is a keyed, composable map (declared in ../options.nix
+# `haus.roster` is a keyed, composable map (declared in ../options.nix
 # next to the other cross-room options). This module does the two things that
 # turn it from a description into the machine:
 #
-#   1. NORMALIZE — resolve the attrset into `nebelhaus._roster` (enabled entries,
-#      in `order`) and `nebelhaus._launchers` (the subset with a leader key).
+#   1. NORMALIZE — resolve the attrset into `haus._roster` (enabled entries,
+#      in `order`) and `haus._launchers` (the subset with a leader key).
 #      prowl renders the keymap from those, sill the pills, pounce the
 #      cheatsheet; one resolution, so the three can't disagree.
 #   2. INSTALL — hand each entry's `cask` / `brew` / `package` (or the named
@@ -37,7 +37,7 @@
 
 let
   namedEntries = lib.mapAttrsToList (id: app: { inherit id app; }) (
-    lib.filterAttrs (_: app: app.enable) config.nebelhaus.roster
+    lib.filterAttrs (_: app: app.enable) config.haus.roster
   );
   rawEntries = lib.sort (
     a: b: a.app.order < b.app.order || (a.app.order == b.app.order && a.id < b.id)
@@ -60,7 +60,7 @@ let
         // lib.optionalAttrs (entry.app.package == null && entry.app.packageName != null) {
           package = import ../lib/pkg-by-name.nix {
             inherit lib pkgs;
-            option = "nebelhaus.roster.${entry.id}.packageName";
+            option = "haus.roster.${entry.id}.packageName";
             name = entry.app.packageName;
           };
         };
@@ -90,7 +90,7 @@ let
   );
 
   # Entries whose only content is metadata — no source, nothing to launch, no
-  # key, no float rule, and no nebelhaus.workspaces membership. Almost always
+  # key, no float rule, and no haus.workspaces membership. Almost always
   # a typo'd field rather than an intention, and the entry does nothing at
   # all, so say so once instead of leaving it inert.
   emptyEntries = map (e: e.id) (
@@ -98,7 +98,7 @@ let
       e:
       e.app.key == null
       && !e.app.float
-      && !(config.nebelhaus._appWorkspace ? ${e.id})
+      && !(config.haus._appWorkspace ? ${e.id})
       && e.app.cask == null
       && e.app.brew == null
       && e.app.package == null
@@ -185,8 +185,8 @@ let
 in
 {
   # One resolved view for prowl, sill, pounce and the theme ports.
-  nebelhaus._roster = apps;
-  nebelhaus._launchers = launchers;
+  haus._roster = apps;
+  haus._launchers = launchers;
 
   assertions = [
     {
@@ -196,7 +196,7 @@ in
     {
       assertion = keyedWithoutName == [ ];
       message =
-        "nebelhaus.roster entries with a leader `key` must also set `name` (the macOS "
+        "haus.roster entries with a leader `key` must also set `name` (the macOS "
         + "application name `open -a` is given); missing on: "
         + lib.concatStringsSep ", " keyedWithoutName;
     }
@@ -207,7 +207,7 @@ in
       # places, and there is no way to guess which one was meant.
       assertion = multiSourceEntries == [ ];
       message =
-        "nebelhaus.roster entries name more than one install source (cask / brew / "
+        "haus.roster entries name more than one install source (cask / brew / "
         + "package / packageName / appStoreId); pick one per entry: "
         + lib.concatStringsSep ", " multiSourceEntries;
     }
@@ -218,7 +218,7 @@ in
       # disagree, one of them silently loses.
       assertion = bothPackageFields == [ ];
       message =
-        "nebelhaus.roster entries set both `package` and `packageName`. They are one "
+        "haus.roster entries set both `package` and `packageName`. They are one "
         + "source written two ways — a derivation for a module that has `pkgs`, a "
         + "nixpkgs attribute path for a data-only rice that doesn't. Keep one, on: "
         + lib.concatStringsSep ", " bothPackageFields;
@@ -227,20 +227,20 @@ in
 
   warnings =
     lib.optional (emptyEntries != [ ]) (
-      "nebelhaus.roster entries declare nothing to install and nothing to launch (no key, "
-      + "float, nebelhaus.workspaces membership, cask, brew, package/packageName, appStoreId "
+      "haus.roster entries declare nothing to install and nothing to launch (no key, "
+      + "float, haus.workspaces membership, cask, brew, package/packageName, appStoreId "
       + "or installedBy), so they have no effect: "
       + lib.concatStringsSep ", " emptyEntries
     )
     ++ lib.optional (floatWithoutAppId != [ ]) (
-      "nebelhaus.roster entries set `float` with no `appId`, so there is nothing for the "
+      "haus.roster entries set `float` with no `appId`, so there is nothing for the "
       + "AeroSpace rule to match and it never floats: "
       + lib.concatStringsSep ", " floatWithoutAppId
     )
     ++ lib.optional (duplicateSources != [ ]) (
       "declared twice, so it installs twice and nothing errors: "
       + lib.concatStringsSep ", " duplicateSources
-      + ". Something names these outside nebelhaus.roster — a raw homebrew.casks/brews line, "
+      + ". Something names these outside haus.roster — a raw homebrew.casks/brews line, "
       + "or an old pounce-generated module under hosts/<host>/packages/. Move it into the "
       + "roster (one entry, one source) and delete the other."
     );
@@ -261,8 +261,8 @@ in
   # neither prompts nor wedges. Failures are reported and stepped over — an app
   # you haven't bought must not be able to fail a rebuild.
   system.activationScripts.postActivation.text =
-    lib.optionalString (config.nebelhaus.appStore.install && appStoreEntries != [ ]) ''
-      # --- apps: Mac App Store (nebelhaus.appStore.install) --------------------
+    lib.optionalString (config.haus.appStore.install && appStoreEntries != [ ]) ''
+      # --- apps: Mac App Store (haus.appStore.install) --------------------
       ${appStoreCmds}
     '';
 }

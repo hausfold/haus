@@ -20,7 +20,7 @@ Only Claude-specific wiring belongs below.
 
 **Not to be confused with the rice's product surface.** This table is about
 *hacking on nebelhaus*. What nebelhaus **ships to a user's machine** —
-`nebelhaus.claude.globalMd`, `nebelhaus.claude.skill`, the generated
+`haus.claude.globalMd`, `haus.claude.skill`, the generated
 `~/.claude/skills/nebelhaus/` and its `consumer-AGENTS.md`/`consumer-CLAUDE.md`
 starter pair, the per-client agent-state hooks in `modules/hearth` — is a
 feature of the distro, documented in `AGENTS.md` and `modules/hearth/claude/`.

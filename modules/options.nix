@@ -53,7 +53,7 @@ let
         example = "com.tinyspeck.slackmacgap";
         description = ''
           Bundle id, used for the AeroSpace `on-window-detected` auto-assign
-          rule (when this app is a member of a `nebelhaus.workspaces` entry),
+          rule (when this app is a member of a `haus.workspaces` entry),
           the `float` rule below, and the wake-time re-sort. null skips both
           — the app still launches, it just isn't herded anywhere or floated.
           Find one with `osascript -e 'id of app "…"'`.
@@ -184,7 +184,7 @@ let
           rather than in a comment.
 
           Recording it is always safe; INSTALLING from it is opt-in via
-          `nebelhaus.appStore.install`, because the App Store is the one
+          `haus.appStore.install`, because the App Store is the one
           source that can't be fully automated: `mas` has no sign-in
           command, and it cannot buy a paid app for the first time. Free
           apps it can fetch; paid ones you purchase once in App Store.app
@@ -194,7 +194,7 @@ let
       installedBy = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
-        example = "nebelhaus.perch";
+        example = "haus.perch";
         description = ''
           The nebelhaus module that puts this app on disk, when none of the
           four sources above describes it: pounce and perch copy a
@@ -216,7 +216,7 @@ let
           The roster key this entry was declared under. Set BY ../roster
           from the attribute name — the same "set by the rice, not by you"
           pattern as `installedBy` — so a resolved entry can be looked up
-          in a `nebelhaus.workspaces` entry's `apps` membership list
+          in a `haus.workspaces` entry's `apps` membership list
           without roster and workspaces having to re-derive each other's
           keys.
         '';
@@ -234,7 +234,7 @@ let
           Leader then ⇧<key> throws the focused window to this workspace
           and follows it there (AeroSpace's `move-node-to-workspace
           --focus-follows-window`). There is no bare <key> binding for a
-          workspace — that namespace belongs to `nebelhaus.roster` app
+          workspace — that namespace belongs to `haus.roster` app
           launch keys, one of which can double as this workspace's "open
           something here" action by being one of its `apps`. null means the
           workspace is reachable only by launching an app that belongs to
@@ -263,7 +263,7 @@ let
           "messages"
         ];
         description = ''
-          `nebelhaus.roster` app ids that live on this workspace: each
+          `haus.roster` app ids that live on this workspace: each
           one's window auto-moves here (via its `appId`), opening any of
           them from the leader lands you here, and this workspace's `key`
           throw (above) sends the focused window here regardless of which
@@ -285,7 +285,7 @@ let
         default = "";
         internal = true;
         description = ''
-          The nebelhaus.workspaces attribute name. Set BY ../workspaces
+          The haus.workspaces attribute name. Set BY ../workspaces
           from the attribute name, the same pattern as appType's own `id` —
           not meant to be set by hand.
         '';
@@ -294,14 +294,14 @@ let
   };
 in
 {
-  options.nebelhaus = {
+  options.haus = {
     roster = lib.mkOption {
       type = lib.types.attrsOf appType;
       default = { };
       example = lib.literalExpression ''
         {
           # Launcher app: leader s. Own workspace + pill come from putting
-          # "slack" in a nebelhaus.workspaces entry's `apps` (see below).
+          # "slack" in a haus.workspaces entry's `apps` (see below).
           slack = {
             key = "s";
             name = "Slack";
@@ -333,7 +333,7 @@ in
         just shouldn't need them for an app.
 
         Which WORKSPACE an app owns is not a field here — it's
-        `nebelhaus.workspaces.<id>.apps` naming this entry's id, so one
+        `haus.workspaces.<id>.apps` naming this entry's id, so one
         workspace can hold several apps (a "comms" workspace with Slack,
         Mail and Messages) instead of baking "one app, one workspace" into
         this schema. See that option.
@@ -400,7 +400,7 @@ in
       type = lib.types.listOf workspaceType;
       internal = true;
       readOnly = true;
-      description = "Resolved, sorted nebelhaus.workspaces entries, each carrying its id.";
+      description = "Resolved, sorted haus.workspaces entries, each carrying its id.";
     };
     _appWorkspace = lib.mkOption {
       type = lib.types.attrsOf lib.types.str;
@@ -408,7 +408,7 @@ in
       readOnly = true;
       description = ''
         Reverse lookup, roster app id -> the workspace id it belongs to
-        (from nebelhaus.workspaces.*.apps). An id absent here belongs to no
+        (from haus.workspaces.*.apps). An id absent here belongs to no
         workspace.
       '';
     };
@@ -461,7 +461,7 @@ in
     # thing it cannot do proportionally is the menu bar's HEIGHT, which belongs to
     # macOS's own band (see the note on ui.scale); nor can it resize third-party
     # apps, since macOS has no system-wide UI scale — the OS-level lever there is
-    # display resolution (`nebelhaus.displays`).
+    # display resolution (`haus.displays`).
     ui.scale = lib.mkOption {
       type = lib.types.numbers.between 0.5 3.0;
       default = 1.0;
@@ -473,13 +473,13 @@ in
         It sets the DEFAULT of the sizes it drives, so anything you pin by hand
         still wins:
 
-          nebelhaus.ui.scale = 1.5;          # everything grows
-          nebelhaus.fonts.mono.size = 18;    # …except the terminal, pinned here
+          haus.ui.scale = 1.5;          # everything grows
+          haus.fonts.mono.size = 18;    # …except the terminal, pinned here
 
         What it currently moves:
 
-          - the terminal font size (nebelhaus.fonts.mono.size)
-          - the command palette, whole (nebelhaus.pounce.scale) — its rows,
+          - the terminal font size (haus.fonts.mono.size)
+          - the command palette, whole (haus.pounce.scale) — its rows,
             text and icons, and the emoji / clipboard / screenshots / camera /
             Find Files / cheatsheet panels behind it
           - the type in Sill's menu bar — pill labels, icons and popup rows —
@@ -516,7 +516,7 @@ in
             third-party apps follow only a display-resolution change.
 
         Worth knowing if you set both: this and
-        `nebelhaus.displays.<name>.uiScale` MULTIPLY. A larger-text display mode
+        `haus.displays.<name>.uiScale` MULTIPLY. A larger-text display mode
         leaves a smaller desktop in points, and this asks for bigger points
         inside it — so 1.4 on an already-scaled display is a bigger jump than
         1.4 on the panel's default.
@@ -564,7 +564,7 @@ in
           The remap is re-applied at every activation and does not survive a
           reboot, so moving off "caps" ends it — at the latest, at next boot.
 
-          Only meaningful with nebelhaus.prowl.enable (AeroSpace owns the modes).
+          Only meaningful with haus.prowl.enable (AeroSpace owns the modes).
         '';
       };
 
@@ -588,7 +588,7 @@ in
           to take Spotlight's ⌘Space away unconditionally, even where nothing
           claimed it.
 
-          Only meaningful with nebelhaus.pounce.enable.
+          Only meaningful with haus.pounce.enable.
         '';
       };
 
@@ -633,12 +633,12 @@ in
           tiler tiles and the keyboard is left alone — mouse-first. The cheatsheet
           follows, so it never advertises a key that does nothing.
 
-          Only meaningful with nebelhaus.prowl.enable.
+          Only meaningful with haus.prowl.enable.
         '';
       };
 
       # The seam for leader actions that AREN'T "launch an app". The app roster
-      # (nebelhaus.roster) already fronts a letter → open an app; this fronts a key
+      # (haus.roster) already fronts a letter → open an app; this fronts a key
       # → run a command (a script, an AppleScript, a `things:///` open). Rendered
       # into AeroSpace's [mode.launch.binding] AND the pounce cheatsheet from this
       # one list, so a binding and its caption can't drift — the same guarantee the
@@ -703,7 +703,7 @@ in
           then `key`, to run `command`. Use it for leader actions that aren't
           "launch an app" — a script, an AppleScript, opening a URL.
 
-          Only meaningful with nebelhaus.prowl.enable and keys.leader != "none"
+          Only meaningful with haus.prowl.enable and keys.leader != "none"
           (with no leader there is no launch mode to bind into).
         '';
       };
@@ -736,27 +736,27 @@ in
           The sub-options below each default to THIS value, so turning it off
           turns everything off and you can then re-enable one piece:
 
-            nebelhaus.developer.enable = false;
-            nebelhaus.developer.git.enable = true;  # …but keep git
+            haus.developer.enable = false;
+            haus.developer.git.enable = true;  # …but keep git
         '';
       };
 
       git.enable = lib.mkOption {
         type = lib.types.bool;
-        default = config.nebelhaus.developer.enable;
-        defaultText = lib.literalExpression "config.nebelhaus.developer.enable";
+        default = config.haus.developer.enable;
+        defaultText = lib.literalExpression "config.haus.developer.enable";
         description = ''
           Git and its surroundings: the shell alias vocabulary, the themed git
           config, delta (diff pager), lazygit, `gh`, and gnupg for commit
-          signing. Off drops all of them, and `nebelhaus.git.*` then has
+          signing. Off drops all of them, and `haus.git.*` then has
           nothing to configure.
         '';
       };
 
       toolbelt.enable = lib.mkOption {
         type = lib.types.bool;
-        default = config.nebelhaus.developer.enable;
-        defaultText = lib.literalExpression "config.nebelhaus.developer.enable";
+        default = config.haus.developer.enable;
+        defaultText = lib.literalExpression "config.haus.developer.enable";
         description = ''
           The terminal toolbelt: bat, fzf, fd, ripgrep, yazi, zoxide, lsd,
           glow, jq, tree, chafa, ttyd and fastfetch — the themed replacements
@@ -770,8 +770,8 @@ in
 
       agents.enable = lib.mkOption {
         type = lib.types.bool;
-        default = config.nebelhaus.developer.enable;
-        defaultText = lib.literalExpression "config.nebelhaus.developer.enable";
+        default = config.haus.developer.enable;
+        defaultText = lib.literalExpression "config.haus.developer.enable";
         description = ''
           Coding-agent *tooling*: `holt` (agent worktrees), `agent-state` (the
           pane-status writer behind the `agents` bar pill and the zellij tab
@@ -787,12 +787,12 @@ in
 
       languages = lib.mkOption {
         type = lib.types.listOf (lib.types.enum [ "node" ]);
-        default = lib.optionals config.nebelhaus.developer.enable [ "node" ];
+        default = lib.optionals config.haus.developer.enable [ "node" ];
         # literalMD, not literalExpression: this SENTENCE describes the default,
         # it isn't Nix you could paste anywhere. The distinction is load-bearing
         # now — host-template.jq copies a literalExpression straight into the
         # generated host file as the option's value, and would have emitted
-        # `nebelhaus.developer.languages = [ "node" ] when developer.enable …;`,
+        # `haus.developer.languages = [ "node" ] when developer.enable …;`,
         # a syntax error the moment someone uncommented it. Prose ⇒ literalMD.
         defaultText = lib.literalMD ''[ "node" ] when developer.enable is true, else [ ]'';
         example = [ ];
@@ -808,7 +808,7 @@ in
 
     agents.clients = lib.mkOption {
       type = lib.types.listOf (lib.types.enum agentClients);
-      default = lib.optionals config.nebelhaus.developer.agents.enable [
+      default = lib.optionals config.haus.developer.agents.enable [
         "claude"
         "opencode"
       ];
@@ -863,7 +863,7 @@ in
         lifecycle, and all three light up the `agents` bar pill and the zellij
         tab-bar badge — the opencode plugin and the codex hooks are written for
         you; only Claude Code's stay yours to wire, because Claude owns its own
-        settings.json (see `nebelhaus.sill.items.agents`).
+        settings.json (see `haus.sill.items.agents`).
       '';
     };
   };

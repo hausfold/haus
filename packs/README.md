@@ -1,6 +1,6 @@
 # Packs — a shareable list of apps
 
-A **pack** is a data-only rice that touches one option family: `nebelhaus.roster`.
+A **pack** is a data-only rice that touches one option family: `haus.roster`.
 
 Same file format as a [preset](../presets/README.md), same `checkRice` rule, same
 `nix flake check`. The separate name is about scope, not mechanism:
@@ -48,7 +48,7 @@ list and the install instruction. The whole file:
 
 ```nix
 {
-  nebelhaus.roster = {
+  haus.roster = {
     obsidian = {
       key = "o";                # leader, then o
       name = "Obsidian";        # as `open -a` spells it
@@ -60,20 +60,20 @@ list and the install instruction. The whole file:
 ```
 
 A pack can't give Obsidian a workspace or a pill itself — `checkPack` only lets
-it set `nebelhaus.roster`, and which workspace an app owns is
-`nebelhaus.workspaces.<id>.apps` now, not a roster field (see
+it set `haus.roster`, and which workspace an app owns is
+`haus.workspaces.<id>.apps` now, not a roster field (see
 `notes/options-roadmap.md` §5.4 in the workshop repo). Say so in your README
 and let the consumer add the two lines themselves:
 
 ```nix
-nebelhaus.workspaces.O = { key = "o"; icon = ":obsidian:"; apps = [ "obsidian" ]; };
+haus.workspaces.O = { key = "o"; icon = ":obsidian:"; apps = [ "obsidian" ]; };
 ```
 
 Self-test before publishing — the same checks CI runs:
 
 ```nix
-nebelhaus.lib.checkRice ./my-pack.nix   # data-only: only a `nebelhaus` key
-nebelhaus.lib.checkPack ./my-pack.nix   # pack-shaped: only `nebelhaus.roster`
+nebelhaus.lib.checkRice ./my-pack.nix   # data-only: only a `haus` key
+nebelhaus.lib.checkPack ./my-pack.nix   # pack-shaped: only `haus.roster`
 ```
 
 `checkPack` is the narrower of the two and exists because `lib.pack` carries
@@ -100,7 +100,7 @@ arrows  navigate  esc  exit    /  cheatsheet
 
 A pack author can't know what the *consumer's* roster uses, so expect the
 occasional clash and say in your README that the fix is one line:
-`nebelhaus.roster.<id>.key = "y";` — or `null`, which keeps the app installed and
+`haus.roster.<id>.key = "y";` — or `null`, which keeps the app installed and
 reachable from ⌘Space while claiming no letter at all.
 
 **2. The consumer already has the app — your host just wins, and that is worth
@@ -112,7 +112,7 @@ when its apps are popular.
 ```nix
 # your host file — no lib, no mkForce, nothing special
 {
-  nebelhaus.roster.obsidian.key = "n";
+  haus.roster.obsidian.key = "n";
 }
 ```
 
@@ -150,7 +150,7 @@ owner decides.
 
 **3. `appId` is the one field a pack usually can't fill in.** It's the bundle id
 AeroSpace matches on to herd a window to its workspace (once the consumer's
-own `nebelhaus.workspaces` names this app), and it isn't in Homebrew's cask
+own `haus.workspaces` names this app), and it isn't in Homebrew's cask
 metadata — a guessed one produces a rule that silently never matches. Leave it
 null and say so: null costs *only* auto-assignment — the leader key and the
 cheatsheet row still work regardless. The consumer closes it once the app is
@@ -163,8 +163,8 @@ written as a string:
 
 ```nix
 {
-  nebelhaus.roster.ripgrep.packageName = "ripgrep";              # pkgs.ripgrep
-  nebelhaus.roster.black.packageName = "python3Packages.black";  # dotted paths work
+  haus.roster.ripgrep.packageName = "ripgrep";              # pkgs.ripgrep
+  haus.roster.black.packageName = "python3Packages.black";  # dotted paths work
 }
 ```
 

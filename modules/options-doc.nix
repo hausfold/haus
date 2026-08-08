@@ -1,4 +1,4 @@
-# Machine-readable metadata for every `nebelhaus.*` option: type, default,
+# Machine-readable metadata for every `haus.*` option: type, default,
 # example, description, and the file that declares it.
 #
 # Evaluates ONLY the per-room options files (see options-modules.nix) — not a
@@ -65,7 +65,7 @@ let
   #
   # `internal = true` is not enough on its own: nixosOptionsDoc drops the marked
   # option but NOT the submodule children underneath it, and it strips the
-  # `internal` flag from the JSON on the way out — so `nebelhaus._roster.*.cask`
+  # `internal` flag from the JSON on the way out — so `haus._roster.*.cask`
   # and friends arrived downstream looking exactly like settable options, and
   # rendered onto the public reference as if they were. They aren't: `_roster` is
   # the resolved app roster the modules pass among themselves, and setting one
@@ -75,7 +75,7 @@ let
   # page, the agent skill, anything added later — is fed the same public
   # surface. The rice's convention is a leading underscore on the room segment.
   visible = optionsEval.options // {
-    nebelhaus = lib.filterAttrs (name: _: !(lib.hasPrefix "_" name)) optionsEval.options.nebelhaus;
+    haus = lib.filterAttrs (name: _: !(lib.hasPrefix "_" name)) optionsEval.options.haus;
   };
   optionsJSON =
     (pkgs.nixosOptionsDoc {

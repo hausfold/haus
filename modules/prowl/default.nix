@@ -2,15 +2,15 @@
 # (not Login Items) so it survives cold boot, plus the leader-key remap and
 # a wake-time window re-sort.
 #
-# The KEYMAP is nebelhaus.keys.* (resolved by ../lib/keys.nix), not baked in:
+# The KEYMAP is haus.keys.* (resolved by ../lib/keys.nix), not baked in:
 # `leader` picks what enters launch mode (or removes it), `windowNav` picks the
 # modifier every window chord hangs off (or removes them). Both can be "none",
 # which is what makes a mouse-first rice — or a non-US-layout one, where ⌥+letter
 # belongs to the keyboard rather than to a window manager — expressible at all.
 #
 # The launcher (which app lives on which workspace, its leader key + window
-# rules) is data-driven: keyed nebelhaus.roster entries are the composable source
-# of truth, resolved by ../roster into nebelhaus._roster / ._launchers. This module
+# rules) is data-driven: keyed haus.roster entries are the composable source
+# of truth, resolved by ../roster into haus._roster / ._launchers. This module
 # renders those lists into aerospace.toml (+ the wake-time resort script);
 # SketchyBar and pounce read the same resolved options so nothing drifts.
 {
@@ -37,24 +37,24 @@ let
   # from, since an app can float or belong to a workspace without claiming a
   # leader key. `launchers` is the keyboard half, and the only one allowed to
   # render a binding: a null key in [mode.launch.binding] would be the literal
-  # string. `workspaces` is ../workspaces' resolved nebelhaus.workspaces list —
+  # string. `workspaces` is ../workspaces' resolved haus.workspaces list —
   # the workspace throw below is keyed off IT now, not off an app's own key,
   # so several apps can share one workspace and one throw.
-  apps = config.nebelhaus._roster;
-  launchers = config.nebelhaus._launchers;
-  workspaces = config.nebelhaus._workspaces;
+  apps = config.haus._roster;
+  launchers = config.haus._launchers;
+  workspaces = config.haus._workspaces;
   appKeys = map (app: app.key) launchers;
   workspaceKeys = map (ws: ws.key) (lib.filter (ws: ws.key != null) workspaces);
 
   # Which workspace (if any) an app's window herds to, resolved by
-  # ../workspaces from nebelhaus.workspaces.*.apps — the app itself no longer
+  # ../workspaces from haus.workspaces.*.apps — the app itself no longer
   # carries a `workspace` field (see notes/options-roadmap.md §5.4).
-  appWorkspaceId = a: config.nebelhaus._appWorkspace.${a.id} or null;
+  appWorkspaceId = a: config.haus._appWorkspace.${a.id} or null;
 
   # The resolved keymap: chords + the glyphs that document them, from one table.
   k = import ../lib/keys.nix {
     inherit lib;
-    keys = config.nebelhaus.keys;
+    keys = config.haus.keys;
   };
 
   # The static tiling/workspace/service bindings, shared with the pounce
@@ -90,7 +90,7 @@ let
   # The workspace roster for aerospace.toml's persistent-workspaces (config
   # schema v2 stopped inferring it from the binding right-hand sides). The fixed
   # digits are the ones hand-written into the toml's launch mode (focus AND
-  # throw); the rest is every nebelhaus.workspaces id — Ghostty's T included,
+  # throw); the rest is every haus.workspaces id — Ghostty's T included,
   # even though its window rules are bespoke, since it's still declared there
   # for its pill and persistent workspace. Unconditional on the keymap: a
   # keys.* of "none" removes the chords, not the workspaces the window rules
@@ -141,7 +141,7 @@ let
     a: "${a.key} = ['exec-and-forget ${launchInvocation a}', 'mode main']\n"
   ) launchers;
 
-  # Non-app leader actions (nebelhaus.keys.leaderExtras): a leader key that runs a
+  # Non-app leader actions (haus.keys.leaderExtras): a leader key that runs a
   # command instead of launching a roster app. Each command goes into its OWN
   # script file (leaderExtraFiles below) and the binding just execs that path —
   # NOT the command inlined. AeroSpace's toml array elements are single-quoted
@@ -151,7 +151,7 @@ let
   # already uses for reopen-last-app.sh / resort-windows.sh. Same
   # [mode.launch.binding] slot as the letters: drop the indicator, run, return to
   # main. homeDir is baked literally (like launchInvocation), so no subTokens pass.
-  leaderExtras = config.nebelhaus.keys.leaderExtras;
+  leaderExtras = config.haus.keys.leaderExtras;
   leaderExtraPath = e: "${homeDir}/.config/aerospace/leader-extra-${e.key}.sh";
   launchExtras = lib.concatMapStrings (
     e: "${e.key} = ['exec-and-forget ${homeDir}/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget ${leaderExtraPath e}', 'mode main']\n"
@@ -159,7 +159,7 @@ let
   leaderExtraFiles = lib.listToAttrs (map (e: {
     name = ".config/aerospace/leader-extra-${e.key}.sh";
     value = {
-      text = "#!/bin/sh\n# nebelhaus.keys.leaderExtras — leader → ${e.key}\nexec ${e.command}\n";
+      text = "#!/bin/sh\n# haus.keys.leaderExtras — leader → ${e.key}\nexec ${e.command}\n";
       executable = true;
     };
   }) leaderExtras);
@@ -243,10 +243,10 @@ let
     + lib.optionalString (isRealAssign a) "\n"
   ) apps;
 
-  # Window gaps follow nebelhaus.ui.scale. Base values are the tuned ones: 10 on
+  # Window gaps follow haus.ui.scale. Base values are the tuned ones: 10 on
   # the built-in display, 20 around an external. One outer edge reserves bar room
-  # (40) — whichever edge sill's bar sits on (nebelhaus.sill.position).
-  gap = base: toString (builtins.floor (base * config.nebelhaus.ui.scale + 0.5));
+  # (40) — whichever edge sill's bar sits on (haus.sill.position).
+  gap = base: toString (builtins.floor (base * config.haus.ui.scale + 0.5));
 
   # The bar's own resolution, shared with sill (../lib/bar.nix). prowl needs it
   # for `bar.room`: a scaled bar draws BIGGER TYPE IN THE SAME 28pt PILL, because
@@ -262,12 +262,12 @@ let
   # bottom bar and below a top one without a second table to keep in sync.
   bar = import ../lib/bar.nix {
     inherit lib;
-    scale = config.nebelhaus.ui.scale;
+    scale = config.haus.ui.scale;
   };
   # A gap plus the bar's breathing room, for the edge the bar is on. Written as
   # one function so the two can't be added in one branch and forgotten in another.
   barGap =
-    base: toString (builtins.floor (base * config.nebelhaus.ui.scale + 0.5) + bar.room);
+    base: toString (builtins.floor (base * config.haus.ui.scale + 0.5) + bar.room);
 
   # The bar-room reservation follows the bar. A built-in display's TOP is under
   # the notch/menu-bar strip macOS already excludes, so a top bar needs no extra
@@ -278,7 +278,7 @@ let
   # docked with the lid open the bar sits at the bottom on BOTH displays; aerospace
   # gaps can't flip per dock-state, so the built-in keeps its notch-tuned top in
   # `auto`, leaving a small overlap at the built-in's bottom in that one case.)
-  barPos = if config.nebelhaus.sill.enable then config.nebelhaus.sill.position else "top";
+  barPos = if config.haus.sill.enable then config.haus.sill.position else "top";
   monLine = builtin: external: ''[{ monitor."Built-in Retina Display" = ${builtin} }, ${external}]'';
   # `barGap` marks every edge a bar can sit on, `gap` every edge it can't. On the
   # built-in with a top bar that means barGap 10 rather than gap 10: the notch
@@ -311,10 +311,10 @@ let
 
 in
 lib.mkMerge [
-  (lib.mkIf config.nebelhaus.prowl.enable {
+  (lib.mkIf config.haus.prowl.enable {
     # A fresh host gets a useful terminal + browser. These are field-level
     # defaults, so keyed entries compose with them and can override by app id.
-    nebelhaus.roster = {
+    haus.roster = {
       # `name` and `cask` are den's (it's den that installs the terminal) — this
       # adds only the tiling half, so the two modules never define one field
       # twice. That split is the pattern: whoever INSTALLS an app owns its
@@ -359,11 +359,11 @@ lib.mkMerge [
     };
 
     # Ghostty/Zen's workspace membership. A PLAIN `apps` list (not
-    # lib.mkDefault) — see nebelhaus.workspaces.<id>.apps' own description for
+    # lib.mkDefault) — see haus.workspaces.<id>.apps' own description for
     # why: a plain list here MERGES with whatever a host adds to T or B,
     # where an mkDefault one would be dropped whole the moment a host wrote
     # its own `apps` for the same workspace, silently losing ghostty's spot.
-    nebelhaus.workspaces = {
+    haus.workspaces = {
       T = {
         key = lib.mkDefault "t";
         icon = lib.mkDefault ":ghostty:";
@@ -379,8 +379,8 @@ lib.mkMerge [
     # A warning rather than an assertion, deliberately: the tour still works, it
     # just has less to teach, and blocking a legitimate combination is worse than
     # saying so. Same call as the universalaccess warning (nebelhaus#89).
-    warnings = lib.optional (config.nebelhaus.tour.enable && k.leader == null) (
-      "nebelhaus.tour.enable is on with nebelhaus.keys.leader = \"none\": three of "
+    warnings = lib.optional (config.haus.tour.enable && k.leader == null) (
+      "haus.tour.enable is on with haus.keys.leader = \"none\": three of "
       + "the tour's four steps teach leader moves this rice doesn't bind. Set a "
       + "leader, or turn the tour off."
     );
@@ -391,7 +391,7 @@ lib.mkMerge [
         # in-process hotkey, so nothing would have caught them claiming the same
         # one — and the failure is silent, whoever registers first wins.
         assertion = k.conflicts == [ ];
-        message = "nebelhaus.keys assigns the same chord twice: " + lib.concatStringsSep "; " k.conflicts;
+        message = "haus.keys assigns the same chord twice: " + lib.concatStringsSep "; " k.conflicts;
       }
       {
         # leaderExtras shares the launch mode with the roster letters and the fixed
@@ -399,7 +399,7 @@ lib.mkMerge [
         # reads last), so refuse it at eval instead.
         assertion = extraCollisions == [ ] && extraDuplicates == [ ];
         message =
-          "nebelhaus.keys.leaderExtras keys must be unique and must not reuse a roster app's "
+          "haus.keys.leaderExtras keys must be unique and must not reuse a roster app's "
           + "key or a built-in launch-mode key; conflicting: "
           + lib.concatStringsSep ", " (lib.unique (extraCollisions ++ extraDuplicates));
       }
@@ -409,20 +409,20 @@ lib.mkMerge [
         # silently keeps one — reached from the roster side instead.
         assertion = rosterBuiltinCollisions == [ ];
         message =
-          "nebelhaus.roster leader keys must not reuse a built-in launch-mode key; conflicting: "
+          "haus.roster leader keys must not reuse a built-in launch-mode key; conflicting: "
           + lib.concatStringsSep ", " rosterBuiltinCollisions
           + ". Those letters are leader actions the rice already binds (v clipboard, e emoji, "
           + "z reopen-last-app, , settings, ` resort, - / = resize, digits and arrows for "
           + "workspaces). Pick another letter for the app, or set its key to null and reach it "
           + "from the palette. If the entry came from a shared rice or app pack, override just "
-          + "the key in your host file: nebelhaus.roster.<id>.key = \"…\";";
+          + "the key in your host file: haus.roster.<id>.key = \"…\";";
       }
       {
         # Two workspaces claiming the same key means two `shift-<key>` throws
         # collide in one TOML table; AeroSpace keeps whichever it parses last.
         assertion = duplicateWorkspaceKeys == [ ];
         message =
-          "nebelhaus.workspaces keys must be unique; duplicated: "
+          "haus.workspaces keys must be unique; duplicated: "
           + lib.concatStringsSep ", " duplicateWorkspaceKeys;
       }
       {
@@ -430,7 +430,7 @@ lib.mkMerge [
         # binding the fixed numbered-workspace throws already own.
         assertion = workspaceBuiltinCollisions == [ ];
         message =
-          "nebelhaus.workspaces keys must not reuse a numbered workspace's digit (their "
+          "haus.workspaces keys must not reuse a numbered workspace's digit (their "
           + "⇧-throw is already bound); conflicting: "
           + lib.concatStringsSep ", " workspaceBuiltinCollisions;
       }
@@ -440,7 +440,7 @@ lib.mkMerge [
   # stays a raw homebrew.taps line: a tap isn't an app, and the roster models
   # what a machine HAS, not where Homebrew looks for it.
   homebrew.taps = [ "nikitabobko/tap" ];
-  nebelhaus.roster.aerospace = {
+  haus.roster.aerospace = {
     name = lib.mkDefault "AeroSpace";
     cask = lib.mkDefault "aerospace";
   };

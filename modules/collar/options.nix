@@ -7,7 +7,7 @@
 { lib, ... }:
 
 {
-  options.nebelhaus = {
+  options.haus = {
     collar.enable = lib.mkOption {
       type = lib.types.bool;
       default = true;

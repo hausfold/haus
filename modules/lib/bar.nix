@@ -1,8 +1,8 @@
-# Resolve nebelhaus.ui.scale into the menu bar's geometry: how big its type is
+# Resolve haus.ui.scale into the menu bar's geometry: how big its type is
 # drawn, and how much room the tiling manager has to leave beside it. Imported
 # the same way as keys.nix / nebelung.nix — a plain function, no module system.
 #
-#   bar = import ../lib/bar.nix { inherit lib; scale = config.nebelhaus.ui.scale; };
+#   bar = import ../lib/bar.nix { inherit lib; scale = config.haus.ui.scale; };
 #
 # TWO rooms read this, which is why it isn't just a let-binding in sill: sill
 # draws the bar (its fonts), and prowl reserves the screen edge the bar sits on
@@ -20,7 +20,7 @@
 # 13pt — and none of the three is a preference. There is no menu-bar-size setting
 # on macOS; `NSStatusItemSpacing` / `NSStatusItemSelectionPadding` move the
 # spacing between items, not their size. The only lever that makes the whole bar
-# bigger is the display's scaled resolution (nebelhaus.displays), which changes
+# bigger is the display's scaled resolution (haus.displays), which changes
 # what a point MEANS rather than how many of them the bar gets.
 #
 # So the bar's HEIGHT never scales, its TYPE scales to the largest that still fits

@@ -139,7 +139,7 @@
                   themes = nebelung.packages.${system}.default;
                   palette = nebelung.palette;
                   # Every rendered variant, so a module can follow
-                  # nebelhaus.theme.{flavor,contrast}. Selection has to happen in
+                  # haus.theme.{flavor,contrast}. Selection has to happen in
                   # the modules rather than here: extraSpecialArgs is built before
                   # any option is evaluated. modules/lib/nebelung.nix does it.
                   palettes = nebelung.palettes;
@@ -171,7 +171,7 @@
         # so it stacks onto any of the above rather than replacing one.
         large-print = ./presets/large-print.nix;
       };
-      # Packs are presets that touch ONE option family: `nebelhaus.roster`. Same
+      # Packs are presets that touch ONE option family: `haus.roster`. Same
       # data-only rule, same import path, same check — a separate name only
       # because "what kind of machine is this" and "what's on it" are different
       # questions, and keeping them apart is what lets a pack compose with any
@@ -190,31 +190,69 @@
         # `nebelhaus.lib.checkRice ./my-rice.nix` — true, or throws naming the
         # stray key. Exposed so a third party can self-test before publishing
         # rather than learning the rule from a rejected PR.
+        #
+        # TWO namespaces are accepted for the length of the rename, and this is
+        # the one place `modules/renamed.nix` cannot help: the aliases live in
+        # the module system, and this reads the FILE's top-level attribute name
+        # before any module is evaluated. `haus` is the answer; `nebelhaus` is
+        # still true of every rice written before the rename, including
+        # third-party ones, who move last by definition. Narrow this to `haus`
+        # alone in the same commit that deletes modules/renamed.nix.
+        riceNamespaces = [
+          "haus"
+          "nebelhaus"
+        ];
         checkRice =
           path:
           let
             m = import path;
             isData = builtins.isAttrs m;
-            stray = if isData then builtins.filter (k: k != "nebelhaus") (builtins.attrNames m) else [ ];
+            stray =
+              if isData then
+                builtins.filter (k: !(builtins.elem k riceNamespaces)) (builtins.attrNames m)
+              else
+                [ ];
           in
           if !isData then
             throw (
               "checkRice: ${toString path} is a function, so it is not a data-only rice. "
               + "A data-only rice takes no arguments — no pkgs, no lib, no config — and evaluates "
-              + "to { nebelhaus = { … }; }. A rice that genuinely needs pkgs is a power module: "
+              + "to { haus = { … }; }. A rice that genuinely needs pkgs is a power module: "
               + "an ordinary nix-darwin module, with the trust that implies."
             )
           else if stray != [ ] then
             throw (
               "checkRice: ${toString path} sets ${builtins.concatStringsSep ", " stray} outside "
-              + "`nebelhaus`. A data-only rice may set nothing else — that boundary is the whole "
-              + "reason one can be read and trusted at a glance."
+              + "`haus`. A data-only rice may set nothing else — that boundary is the whole "
+              + "reason one can be read and trusted at a glance. (`nebelhaus` is still accepted "
+              + "as the pre-rename spelling of the same namespace.)"
+            )
+          else if (m ? haus) && (m ? nebelhaus) then
+            throw (
+              "checkRice: ${toString path} sets BOTH `haus` and `nebelhaus`. They are one "
+              + "namespace under two spellings, so a file that uses both is asking two "
+              + "questions about the same options — and everything downstream here reads one "
+              + "key, which would drop the other half in silence. Pick one; `haus` is current."
             )
           else
             true;
 
+        # A rice file's body, under whichever of `riceNamespaces` it used. Reading
+        # `.nebelhaus` directly is the bug this exists to prevent: against a
+        # `haus`-keyed file the `or { }` makes it EMPTY rather than an error, so
+        # checkPack would pass vacuously and `pack` below drop the whole roster in
+        # silence — the exact failure shape checkPack's comment swears off. The
+        # both-keys case can't reach here: checkRice rejects it above, which is
+        # why this can pick one and not merge.
+        riceBody =
+          path:
+          let
+            m = import path;
+          in
+          m.haus or m.nebelhaus or { };
+
         # `nebelhaus.lib.checkPack ./my-pack.nix` — checkRice, one level in. A
-        # pack is a rice narrowed to `nebelhaus.roster`, and that narrowing used
+        # pack is a rice narrowed to `haus.roster`, and that narrowing used
         # to be a comment at the top of packs/writing.nix. It has to be a rule
         # now, because `pack` below only carries `roster` through: anything else
         # a pack file set would be silently dropped, which is the failure shape
@@ -222,15 +260,13 @@
         checkPack =
           path:
           let
-            outside = builtins.filter (k: k != "roster") (
-              builtins.attrNames ((import path).nebelhaus or { })
-            );
+            outside = builtins.filter (k: k != "roster") (builtins.attrNames (riceBody path));
           in
           assert checkRice path;
           if outside != [ ] then
             throw (
-              "checkPack: ${toString path} sets nebelhaus.${builtins.concatStringsSep ", nebelhaus." outside} "
-              + "— a pack may only set `nebelhaus.roster`. A file that answers what KIND of machine this "
+              "checkPack: ${toString path} sets haus.${builtins.concatStringsSep ", haus." outside} "
+              + "— a pack may only set `haus.roster`. A file that answers what KIND of machine this "
               + "is, rather than what's on it, is a preset: pass it through `presets`/extraModules "
               + "directly instead."
             )
@@ -248,7 +284,7 @@
         # refuses. So the priority is applied HERE, to the pack, on the way in.
         #
         # Per LEAF, and that detail is the whole trick. `mkDefault` on the whole
-        # `nebelhaus.roster` attrset is the tempting one-liner and it is wrong in
+        # `haus.roster` attrset is the tempting one-liner and it is wrong in
         # the worst available way: `roster` is where the option boundary sits, so
         # the priority would attach to the entire definition and one
         # normal-priority field in the host would outrank the pack's WHOLE
@@ -283,9 +319,9 @@
             # someone else's module owes it a `_file`.
             _file = toString path;
 
-            nebelhaus.roster = builtins.mapAttrs (
+            haus.roster = builtins.mapAttrs (
               _: entry: builtins.mapAttrs (_: value: nixpkgs.lib.mkDefault value) entry
-            ) ((import path).nebelhaus.roster or { });
+            ) ((riceBody path).roster or { });
           };
       };
 
@@ -328,20 +364,21 @@
 
       # ---- presets: the shared-rice format, dogfooded --------------------------
       # A preset is a DATA-ONLY rice: a file evaluating to an attrset whose only
-      # top-level key is `nebelhaus`. No pkgs, no lib, no config — so it cannot
+      # top-level key is `haus` (`nebelhaus` is still accepted as its pre-rename
+      # spelling — see riceNamespaces). No pkgs, no lib, no config — so it cannot
       # add a package, run an activation script, or reach anything outside the
       # rice's own options. That boundary is what makes importing a stranger's
       # rice a different act from running their code.
       #
       # The repo's own presets go through the same check and the same import
       # path a stranger's would, deliberately: if the option surface can't
-      # express `everyday` without reaching around nebelhaus.*, it can't express
+      # express `everyday` without reaching around haus.*, it can't express
       # a community rice either — better to learn that here than after
       # publishing a format. See presets/README.md.
       presets = presetFiles;
 
       # `nebelhaus.packs.writing` — the same format aimed at one family. A pack
-      # only sets `nebelhaus.roster.*`: the apps on a machine, not the kind of
+      # only sets `haus.roster.*`: the apps on a machine, not the kind of
       # machine it is. Separate output from `presets` so composing reads as what
       # it is — a rice, plus what's installed on it:
       #
@@ -368,7 +405,7 @@
       # that defines that format has to be enforced, not merely documented.
       #
       # Two properties, and both matter. Data-only (checkRice) is the TRUST
-      # half: a preset can't reach outside nebelhaus.*. Evaluating a real system
+      # half: a preset can't reach outside haus.*. Evaluating a real system
       # with each is the USEFULNESS half — a preset that is beautifully
       # data-only and doesn't build is worse than no preset. Evaluation only:
       # the drv paths are stripped of context, so this checks the presets rather
@@ -442,7 +479,7 @@
           # beside itself and refer to it as ./thing, which stays data.
           packageTyped = builtins.filter (
             o:
-            nixpkgs.lib.hasPrefix "nebelhaus." o.name
+            nixpkgs.lib.hasPrefix "haus." o.name
             && builtins.match ".*(package|derivation|store path).*" o.type != null
           ) surfaceLeaves;
           unnamedPackageOptions = map (o: "${o.name} : ${o.type}") (
@@ -455,7 +492,7 @@
           # Three rules about packs that are all invisible until a STRANGER hits
           # them, which is exactly when nobody is around to explain:
           #
-          #   1. a pack sets nothing outside `nebelhaus.roster` (checkPack) —
+          #   1. a pack sets nothing outside `haus.roster` (checkPack) —
           #      because `lib.pack` carries only roster through, so anything else
           #      would be silently dropped;
           #   2. the wrapped pack loses to the consumer's host, PER FIELD, and
@@ -479,14 +516,14 @@
           packCompose =
             name:
             let
-              entries = (import packFiles.${name}).nebelhaus.roster;
+              entries = (riceLib.riceBody packFiles.${name}).roster;
               keyed = builtins.filter (id: (entries.${id}.key or null) != null) (
                 builtins.attrNames entries
               );
               id = builtins.head keyed;
               # The consumer who wants the app but claims no letter for it —
               # today's `mkForce` case, and the one a pack author can't foresee.
-              host.nebelhaus.roster.${id}.key = null;
+              host.haus.roster.${id}.key = null;
               resolved =
                 (nixpkgs.lib.evalModules {
                   specialArgs.lib = nixpkgs.lib;
@@ -494,7 +531,7 @@
                     packModules.${name}
                     host
                   ];
-                }).config.nebelhaus.roster;
+                }).config.haus.roster;
               # Every field the pack set on that entry, other than the one the
               # host overrode, has to survive with the pack's value.
               lost = builtins.filter (
@@ -583,7 +620,9 @@
           pathsOf = data: defPaths [ ] data;
           # Rows read better without the prefix every path shares.
           showPath =
-            p: nixpkgs.lib.concatStringsSep "." (if builtins.head p == "nebelhaus" then builtins.tail p else p);
+            p: nixpkgs.lib.concatStringsSep "." (
+              if builtins.elem (builtins.head p) riceLib.riceNamespaces then builtins.tail p else p
+            );
 
           composedConfig =
             mods:
@@ -725,7 +764,7 @@
           # §5.13's whole community-tour mechanism, so this is the one that would
           # actually reach a stranger.
           riceTour = hint: {
-            nebelhaus.tour.steps = [
+            haus.tour.steps = [
               {
                 inherit hint;
                 detect = "palette";
@@ -733,7 +772,7 @@
             ];
           };
           riceApp = id: {
-            nebelhaus.roster.${id} = {
+            haus.roster.${id} = {
               name = id;
               cask = id;
             };
@@ -745,7 +784,7 @@
                   (composedConfig [
                     (riceTour "A")
                     (riceTour "B")
-                  ]).nebelhaus.tour.steps
+                  ]).haus.tour.steps
               )
             } (merged, no error)"
             "two rices, one app each: ${
@@ -754,7 +793,7 @@
                   (composedConfig [
                     (riceApp "obsidian")
                     (riceApp "zotero")
-                  ]).nebelhaus.roster
+                  ]).haus.roster
               )
             } (merged, no error)"
           ];
@@ -778,7 +817,7 @@
           '';
 
           # ---- theme-variants -------------------------------------------------
-          # modules/lib/nebelung.nix turns nebelhaus.theme.{flavor,contrast} into a
+          # modules/lib/nebelung.nix turns haus.theme.{flavor,contrast} into a
           # subdirectory of the nebelung themes package and a palette-variant name.
           # That rule MIRRORS nebelung's own (`variantDir` in its
           # scripts/generate-palette.mjs) across a repo boundary, and its failure
@@ -841,7 +880,7 @@
                 }).palette
               )).success;
           # ---- keymap ---------------------------------------------------------
-          # modules/lib/keys.nix turns nebelhaus.keys.* into AeroSpace chords, the
+          # modules/lib/keys.nix turns haus.keys.* into AeroSpace chords, the
           # pounce hotkey, and the glyphs that caption them — and the whole reason
           # it exists is that a chord and its caption must not drift. So the table
           # is pinned: change a chord and this check shows you the caption that
@@ -877,7 +916,7 @@
             alt-space/alt-space/cmd-alt leader=alt-space ⌥␣ caps=no palette=alt-space ⌥ Space spotlight=no nav=cmd-alt ⌘⌥ conflicts=1
           '';
           # ---- accent-reach ---------------------------------------------------
-          # nebelhaus.theme.accent does NOT recolour everything, and the option
+          # haus.theme.accent does NOT recolour everything, and the option
           # says so — it moves the handful of tools the rice injects an accent
           # hex into, and leaves the single-file dotfiles on their built-in
           # colour. Both halves of that sentence are a promise, and both fail
@@ -908,20 +947,20 @@
                   hostname = "example";
                   extraModules = [
                     {
-                      nebelhaus.theme.accent = accent;
+                      haus.theme.accent = accent;
                       # `bold` is the one wallpaper generated from the accent hex;
                       # the three hand-made ones are shipped PNGs by design.
-                      nebelhaus.theme.wallpaper = "bold";
+                      haus.theme.wallpaper = "bold";
                       # Not in the default rice — added here so the roster-port
                       # accent path has a subject at all.
-                      nebelhaus.roster.zed = {
+                      haus.roster.zed = {
                         name = "Zed";
                         cask = "zed";
                       };
                       # Same reason, and the one surface here that reaches the
                       # WEB rather than an app's own config: the stamped Stylus
                       # bundle only exists once the extension is declared.
-                      nebelhaus.zen.extensions.stylus = { };
+                      haus.zen.extensions.stylus = { };
                     }
                   ];
                 }).config;
@@ -1022,7 +1061,7 @@
           # The same treatment as accent-reach, for the other fan-out option —
           # and it needed one word the accent vocabulary doesn't have.
           #
-          # `nebelhaus.ui.scale` promises three different things, all of which
+          # `haus.ui.scale` promises three different things, all of which
           # fail silently:
           #
           #   1. it REACHES a specific set of surfaces (terminal type, the
@@ -1061,7 +1100,7 @@
                   inherit system;
                   username = "you";
                   hostname = "example";
-                  extraModules = [ { nebelhaus.ui.scale = scale; } ];
+                  extraModules = [ { haus.ui.scale = scale; } ];
                 }).config;
               hm = cfg.home-manager.users.you;
               text =
@@ -1097,8 +1136,8 @@
                 # The ONE option in the whole surface whose unit is points —
                 # `ui.scale` and `pounce.scale` are multipliers, and the other
                 # numeric leaves are ids, counts and a percentage.
-                "opt fonts.mono.size" = toString cfg.nebelhaus.fonts.mono.size;
-                "opt pounce.scale" = toString cfg.nebelhaus.pounce.scale;
+                "opt fonts.mono.size" = toString cfg.haus.fonts.mono.size;
+                "opt pounce.scale" = toString cfg.haus.pounce.scale;
                 # Deliberately unset at 1.0: a Dock sized by hand is left alone
                 # unless the rice was actually asked to scale (den/default.nix).
                 "sys dock.tilesize" =
@@ -1202,7 +1241,7 @@
 
           # ---- font-reach -----------------------------------------------------
           # The third "this option reaches exactly these things" table, and the
-          # one with a story: `nebelhaus.fonts.mono.name` used to reach ONE
+          # one with a story: `haus.fonts.mono.name` used to reach ONE
           # surface. The bar named "Hack Nerd Font" in its rc, four plugins and
           # six generated blocks, so a rice that changed the family got a machine
           # with two of them — and nothing said so, because a font option's reach
@@ -1224,10 +1263,10 @@
                   hostname = "example";
                   extraModules = [
                     {
-                      nebelhaus.fonts.mono.name = name;
+                      haus.fonts.mono.name = name;
                       # Named, not evaluated: a family with no package warns, and
                       # a check that evaluates a warning is measuring the warning.
-                      nebelhaus.fonts.mono.packageName = "nerd-fonts.fira-code";
+                      haus.fonts.mono.packageName = "nerd-fonts.fira-code";
                     }
                   ];
                 }).config;
@@ -1325,7 +1364,7 @@
               ${builtins.concatStringsSep "\n" unnamedPackageOptions}
 
               Give each one a string sibling named <option>Name, resolved through
-              modules/lib/pkg-by-name.nix (see nebelhaus.roster.<name>.packageName
+              modules/lib/pkg-by-name.nix (see haus.roster.<name>.packageName
               for the shape). Keep the package-typed option too — it stays the
               precise way to say it from a module that has `pkgs`.
               OFFENDERS
@@ -1336,7 +1375,7 @@
 
           packs = pkgs.runCommand "nebelhaus-packs-ok" { } ''
             ${nixpkgs.lib.optionalString (!packSurfaceOk)
-              "echo 'a pack sets something outside nebelhaus.roster' >&2; exit 1"
+              "echo 'a pack sets something outside haus.roster' >&2; exit 1"
             }
             ${nixpkgs.lib.optionalString (packFailures != [ ]) ''
               cat >&2 <<'FAILURES'
@@ -1414,7 +1453,7 @@
           # Exists for the docs repo's keybinding tripwire. That script used to
           # `nix eval --json --file modules/prowl/wm-bindings.nix`, which worked
           # only while that file was plain data; the keys.* change made it a
-          # function of nebelhaus.keys.*, so the eval started failing with
+          # function of haus.keys.*, so the eval started failing with
           # "cannot convert a function to JSON" — a regression in ANOTHER repo, on
           # a weekly cron, with nothing here to catch it.
           #
@@ -1445,7 +1484,7 @@
             );
 
           # `nix build .#options-json` — machine-readable metadata for every
-          # nebelhaus.* option: type, default, example, description, and the
+          # haus.* option: type, default, example, description, and the
           # file that declares it. nebelhaus.com's options reference is
           # RENDERED from this instead of hand-maintained, so the page cannot
           # drift from the module system (as prose, it drifted for months).
@@ -1459,12 +1498,12 @@
           # A package rather than a checked-in file on purpose: built from the
           # revision a machine has actually pinned, it can only ever describe
           # the options that exist there. hearth installs it into
-          # ~/.claude/skills/nebelhaus (nebelhaus.claude.skill), so `haus update`
+          # ~/.claude/skills/nebelhaus (haus.claude.skill), so `haus update`
           # updates the agent's knowledge along with the rice.
           claude-skill = import ./modules/hearth/claude/skill.nix { inherit pkgs; };
 
           # `nix build .#host-template` — the annotated host file a fresh
-          # install is scaffolded with: every nebelhaus.* option at its default,
+          # install is scaffolded with: every haus.* option at its default,
           # described, docs-linked, and commented out (see host-template.nix for
           # why commented). Two consumers, both needing it built from a SPECIFIC
           # revision rather than committed: bootstrap.sh, on a Mac that has no
