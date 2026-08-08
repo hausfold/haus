@@ -41,6 +41,20 @@
   # ---- always written (mkDefault, every rebuild) ---------------------------
   "com.apple.dock" = "Dock"; # nix-darwin restarts Dock itself whenever this domain is set — see den's postActivation, which skips it to avoid bouncing the Dock twice
   "com.apple.finder" = "Finder";
+  # activateSettings covers every NSGlobalDomain key the rice writes — with ONE
+  # measured exception, and no value in this table can express it, because the
+  # problem is not which restart to fire. `AppleInterfaceStyle` (macOS
+  # Light/Dark) is INERT as a `defaults` write in BOTH directions on macOS 26.6
+  # (measured 2026-08-08, not recalled from docs): writing "Dark" from a light
+  # session and deleting the key from a dark one each change nothing — before or
+  # after `activateSettings -u`, and not even for a process launched fresh
+  # afterwards, with no AppleInterfaceThemeChangedNotification posted either
+  # time. The key is a MIRROR the appearance system writes on its way past, not
+  # a lever. No restart makes an inert write live, so appearance is driven
+  # through System Events instead (nebelhaus.theme.systemAppearance, see
+  # modules/theme/default.nix) and confirmed with `hausax`. `haus diff` flags the
+  # key if a host declares it by hand, the same way it flags
+  # com.apple.Accessibility.
   "NSGlobalDomain" = "activateSettings";
   "com.apple.AppleMultitouchTrackpad" = "activateSettings";
   "com.apple.screencapture" = "none"; # screencapture re-reads its prefs on every capture
