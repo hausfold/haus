@@ -220,7 +220,13 @@ it silently.
   no per-flavor edit.
   - Adding a flavor means: a nebelung `VARIANTS` entry, one enum value in
     `modules/theme/options.nix`, one row in the `theme-variants` golden table, and a
-    `nix flake update nebelung`. Nothing else — that's the point of the factoring.
+    `nix flake update nebelung`. Nothing else *for colour* — that's the point of the
+    factoring. One non-colour line does want you: `modules/theme/default.nix`'s
+    `appearanceWanted` maps flavor → macOS Light/Dark for
+    `theme.systemAppearance = "flavor"`, and a flavor it doesn't know silently gets
+    Dark. That's a polarity question rather than a palette one, which is why it isn't
+    in `modules/lib/nebelung.nix` with the rest — but it is the one place the list
+    above doesn't cover.
 - **Iterating on a zellij edit** — two cases, and only one of them costs you
   anything.
   - **config.kdl (keybinds, theme, options) hot-reloads. Just

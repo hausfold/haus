@@ -47,16 +47,72 @@
             variant into ~/.config/{pounce,perch}/themes/ and writes the
             dark/light PAIR at your `contrast`. Set either option false to pin
             that app to this flavor like everything else.
-          - macOS's own Light/Dark appearance. Turning ON dark mode is one typed
-            setting, but turning it OFF means DELETING a default rather than
-            writing one, which nix-darwin has no way to express — so the rice
-            leaves system appearance alone in both directions and you set it in
-            System Settings ▸ Appearance. A latte rice on a dark macOS looks
-            half-done, and that half is currently yours — except in pounce and
-            perch, which read the appearance themselves.
+          - macOS's own Light/Dark appearance, unless you opt in with
+            nebelhaus.theme.systemAppearance = "flavor". Left at its default the
+            rice does not touch system appearance in either direction, so a
+            latte rice on a dark macOS looks half-done and that half is yours —
+            except in pounce and perch, which read the appearance themselves.
           - the desktop wallpaper (nebelhaus.theme.wallpaper). The three hand-made
             looks have the dark palette baked in; only "bold" is generated, and it
             follows theme.accent rather than the flavor.
+      '';
+    };
+
+    theme.systemAppearance = lib.mkOption {
+      type = lib.types.enum [
+        "unmanaged"
+        "flavor"
+        "light"
+        "dark"
+      ];
+      default = "unmanaged";
+      example = "flavor";
+      description = ''
+        Whether the rice also sets macOS's OWN Light/Dark appearance — the one
+        in System Settings ▸ Appearance, which paints Finder, the menu bar and
+        every native app the rice can't reach.
+
+          unmanaged  (default) leave it alone, in both directions. Your Mac's
+                     appearance stays yours; nothing about a rebuild moves it.
+          flavor     follow nebelhaus.theme.flavor — latte sets Light, mocha
+                     sets Dark. This is the one that makes light mode complete
+                     rather than half-done.
+          light      pin Light, whatever the flavor is.
+          dark       pin Dark, whatever the flavor is.
+
+        Default "unmanaged" on purpose: a managed default would silently revert
+        an appearance you picked in System Settings on the next rebuild, which
+        is a worse surprise than a half-light rice.
+
+        How it is applied, and why it is not a `system.defaults` key. Measured
+        on macOS 26.6 (2026-08-08), NOT recalled from docs:
+        `NSGlobalDomain.AppleInterfaceStyle` is INERT in both directions. Writing
+        "Dark" from a light session does nothing; deleting the key from a dark
+        one does nothing; `activateSettings -u` does not help; a process launched
+        fresh afterwards still reports the old appearance, and no
+        AppleInterfaceThemeChangedNotification is posted. That key is a mirror
+        the appearance system writes, not a lever. So the rice drives appearance
+        through System Events (AppleScript) at each home-manager activation,
+        which does flip it live in ~0.3s — and confirms the result with `hausax`
+        (AppKit's effective appearance), never by reading the key back.
+
+        Reachability, the same shape as nebelhaus.accessibility.increaseContrast:
+        driving System Events needs an Automation grant for whichever app runs
+        the rebuild (System Settings ▸ Privacy & Security ▸ Automation). Without
+        it macOS refuses, the rebuild says so in a named warning and carries on
+        — the appearance just doesn't move, and nothing else is affected.
+
+        One more thing macOS can undo: System Settings ▸ Appearance ▸ **Auto**
+        switches polarity on its own schedule. The rice sets the appearance at
+        rebuild time and does not fight it afterwards, so on an Auto machine
+        this option holds only until the next scheduled switch. Pick Light or
+        Dark there if you want it to stick.
+
+        Interaction worth knowing: nebelhaus.{pounce,perch}.followSystemAppearance
+        hand polarity to macOS. Set this to "flavor" and macOS's polarity is in
+        turn the rice's, so those two end up following `flavor` transitively —
+        which is usually what you wanted, but it does mean `followSystemAppearance`
+        stops being an independent axis on this machine.
       '';
     };
 

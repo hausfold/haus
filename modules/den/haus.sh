@@ -420,11 +420,23 @@ live_value() { # <domain> <key> -> `defaults read`'s raw output, empty if unset
 #   effective    — compare against hausax's NSWorkspace read, not the plist
 #                  (the four universalaccess keys measured to write AND work)
 #   noop         — com.apple.Accessibility: writes, changes nothing, ever
+#   appearance   — NSGlobalDomain AppleInterfaceStyle: inert in BOTH directions
+#                  (measured 2026-08-08 on 26.6), and worse than `noop` to diff,
+#                  because the key IS where macOS mirrors the appearance it's
+#                  showing — so a plist comparison would read back the write
+#                  that did nothing and call it applied. There is a working
+#                  lever; it just isn't this one. See modules/theme.
 #   unconfirmed  — other universalaccess keys: persist, effect never measured
 #   plain        — everything else: the matrix's control group, plist is fine
 classify_key() {
   case "$1" in
     com.apple.Accessibility) echo noop ;;
+    NSGlobalDomain)
+      case "$2" in
+        AppleInterfaceStyle) echo appearance ;;
+        *) echo plain ;;
+      esac
+      ;;
     com.apple.universalaccess)
       case "$2" in
         reduceMotion | reduceTransparency | increaseContrast | differentiateWithoutColor) echo effective ;;
@@ -466,6 +478,17 @@ settings_diff() {
         ;;
       noop)
         warn "$domain $key: declared $declared — this domain is a KNOWN SILENT NO-OP on macOS 26 (writes, no effect; see notes/macos-settings-matrix.md)"
+        flagged=$((flagged + 1))
+        ;;
+      appearance)
+        # Deliberately not diffed against the plist: this key is where macOS
+        # MIRRORS the appearance it is showing, so reading it back reports the
+        # inert write rather than the effect. hausax has the real answer.
+        live=unknown
+        if [ -n "$ax_json" ]; then
+          live="$(printf '%s' "$ax_json" | jq -r '.appearance // "unknown"')" || live=unknown
+        fi
+        warn "$domain $key: declared $declared — writing this key is a KNOWN NO-OP in BOTH directions on macOS 26 (measured; the appearance system only mirrors it). macOS is effectively showing $live. Use nebelhaus.theme.systemAppearance instead."
         flagged=$((flagged + 1))
         ;;
       unconfirmed | plain)

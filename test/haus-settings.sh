@@ -32,6 +32,13 @@ grep -q 'nebelhaus.theme.accent = lib.mkForce ("teal");' "$tmp/hosts/test/settin
 "${haus[@]}" set ui.scale 1.35 >/dev/null
 test "$("${haus[@]}" get ui.scale)" = "1.35"
 
+# theme.systemAppearance is the option a light-mode palette action would want to
+# set alongside theme.flavor, so it has to survive the overlay's own validation.
+"${haus[@]}" set theme.systemAppearance flavor >/dev/null
+test "$("${haus[@]}" get theme.systemAppearance)" = "flavor"
+"${haus[@]}" reset theme.systemAppearance >/dev/null
+test "$("${haus[@]}" get theme.systemAppearance)" = "unmanaged"
+
 "${haus[@]}" unset lock.requirePassword >/dev/null
 test "$("${haus[@]}" get lock.requirePassword)" = "null"
 
