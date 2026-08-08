@@ -99,8 +99,14 @@
         Reachability, the same shape as nebelhaus.accessibility.increaseContrast:
         driving System Events needs an Automation grant for whichever app runs
         the rebuild (System Settings ▸ Privacy & Security ▸ Automation). Without
-        it macOS refuses and the rice says so and carries on — the appearance
-        just doesn't move. `haus doctor` reports it; nothing else is affected.
+        it macOS refuses, the rebuild says so in a named warning and carries on
+        — the appearance just doesn't move, and nothing else is affected.
+
+        One more thing macOS can undo: System Settings ▸ Appearance ▸ **Auto**
+        switches polarity on its own schedule. The rice sets the appearance at
+        rebuild time and does not fight it afterwards, so on an Auto machine
+        this option holds only until the next scheduled switch. Pick Light or
+        Dark there if you want it to stick.
 
         Interaction worth knowing: nebelhaus.{pounce,perch}.followSystemAppearance
         hand polarity to macOS. Set this to "flavor" and macOS's polarity is in

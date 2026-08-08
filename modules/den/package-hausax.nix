@@ -1,4 +1,5 @@
-# hausax — the effective-accessibility-state oracle `haus diff`/`haus plan` call.
+# hausax — the effective appearance + accessibility oracle. `haus diff`/`haus plan`
+# call it, and so does modules/theme's systemAppearance activation block.
 # See hausax.swift for why a plist read isn't enough. Compiled with the system
 # Swift via xcrun, the same way modules/displays/package.nix builds hausdisp —
 # building the Swift toolchain from source to compile a few dozen lines against
@@ -29,7 +30,7 @@ stdenvNoCC.mkDerivation {
   '';
 
   meta = {
-    description = "Effective accessibility state via NSWorkspace, for haus plan/diff";
+    description = "Effective appearance + accessibility state via AppKit, for haus plan/diff and theme.systemAppearance";
     platforms = lib.platforms.darwin;
     mainProgram = "hausax";
   };

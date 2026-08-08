@@ -15,9 +15,9 @@ let
   # pill is only a view/controller; the wake lock survives bar/shell restarts.
   awake = pkgs.writeShellScriptBin "awake" (builtins.readFile ./awake.sh);
 
-  # `hausax` — the NSWorkspace effective-accessibility-state oracle `haus
-  # diff`/`haus plan` shell out to. See hausax.swift for why a plist read isn't
-  # enough on macOS 26.
+  # `hausax` — the effective appearance + accessibility oracle `haus diff`/`haus
+  # plan` shell out to (and modules/theme, for systemAppearance). See
+  # hausax.swift for why a plist read isn't enough on macOS 26.
   hausax = pkgs.callPackage ./package-hausax.nix { };
 
   homeDir = "/Users/${username}";
@@ -341,8 +341,9 @@ in
       # passwordless-sudo rule to match it. See the script's header.
       (writeShellScriptBin "haus-activate" (builtins.readFile ./haus-activate.sh))
 
-      # The oracle `haus diff`/`haus plan` use to tell a declared setting that
-      # actually took effect from one macOS silently ignored — see hausax.swift.
+      # The oracle `haus diff`/`haus plan` (and modules/theme's appearance block)
+      # use to tell a declared setting that actually took effect from one macOS
+      # silently ignored — see hausax.swift.
       # Unconditional beside `haus`, for the same reason: both are the product,
       # not the developer toolbelt.
       hausax

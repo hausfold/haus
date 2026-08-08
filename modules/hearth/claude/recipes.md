@@ -122,8 +122,13 @@ editing `flake.nix` unprompted.
 ## "Switch to light mode"
 
 ```nix
-nebelhaus.theme.flavor = "latte";   # "mocha" is the dark default
+nebelhaus.theme.flavor = "latte";            # "mocha" is the dark default
+nebelhaus.theme.systemAppearance = "flavor"; # …and move macOS itself with it
 ```
+
+Suggest both lines together. The first recolours the tools the rice themes; the
+second moves System Settings ▸ Appearance, which the rice leaves alone by
+default — without it a light rice looks half-done on a dark Mac.
 
 ## "Change the accent colour"
 
