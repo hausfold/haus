@@ -540,7 +540,7 @@ in
 
   # The nebelung ports this room wires itself, so the roster pass in
   # modules/theme/ports.nix leaves them alone instead of dropping a second,
-  # blunter copy beside the integration below. Twelve are sourced from the
+  # blunter copy beside the integration below. Most are sourced from the
   # rendered theme tree; starship, fzf and lazygit take the palette as Nix
   # values instead (they want colours inline in a config this room already
   # owns, not a file to point at) — either way the tool is handled here.

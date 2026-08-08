@@ -552,10 +552,11 @@ shown=0; extra=0
 while IFS=$'\t' read -r pslug pname pahead pfiles pins pdel ppr pparent; do
   [ -n "$pname" ] || continue
   [ "$ppr" = "-" ] && ppr=""                    # decode empty-prstate sentinel
+  orphan=0
   if [ "$pparent" = "$cwd" ]; then
     :                                           # a worktree I spawned
   elif [ "$is_home" = 1 ] && [ -z "$pparent" ]; then
-    :                                           # unattributed — surfaced only at $HOME
+    orphan=1                                    # unattributed — surfaced only at $HOME
   else
     continue
   fi
@@ -572,12 +573,20 @@ while IFS=$'\t' read -r pslug pname pahead pfiles pins pdel ppr pparent; do
   # in prseg carries the URL as zero-width bytes that plain() can't strip.
   bullet="$pst"; [ -z "$bullet" ] && bullet="${DOT}●${R}"
   bulletplain=$(plain "$bullet"); bulletlen=${#bulletplain}
+  # An orphan has no recorded parent — a raw `git worktree add` that skipped
+  # `holt child`, so nothing in the registry knows who owns it. It rides in
+  # front of the repo name because the bullet slot is the STATUS token now
+  # (rice#…, "Prioritize active Claude statusline rows"), which is what took
+  # the old leading ◇ away and left orphans rendering identically to real
+  # children — invisible, in the one pane that surfaces them at all.
+  mark=""; [ "$orphan" = 1 ] && mark="${PURGE}◇${R}"
+  marklen=0; [ -n "$mark" ] && marklen=1
   prlen=${#prnum}; [ "$prlen" -gt 0 ] && prlen=$((prlen+1))   # +1 for trailing space
-  budget=$(( COLS - 4 - bulletlen - ${#repo} - prlen ))
+  budget=$(( COLS - 4 - bulletlen - marklen - ${#repo} - prlen ))
   [ "$budget" -lt 8 ] && budget=8
   disp="$pname"
   [ ${#disp} -gt "$budget" ] && disp="${disp:0:budget-1}…"
-  emit "  ${bullet} ${DIM}${repo}${R} ${prseg:+$prseg }${disp}"
+  emit "  ${bullet} ${mark}${DIM}${repo}${R} ${prseg:+$prseg }${disp}"
   shown=$((shown+1))
 done < <(ordered_panel)
 [ "$extra" -gt 0 ] && emit "  ${DIM}+${extra} more${R}"
