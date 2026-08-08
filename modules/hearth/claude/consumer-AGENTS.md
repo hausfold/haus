@@ -20,8 +20,10 @@ The `CLAUDE.md` beside it is that pointer and holds no rules of its own.
 - **Edit only the host config.** Set `nebelhaus.*` options in `default.nix`.
   It's an ordinary nix-darwin module, so raw `system.defaults.*` / `homebrew.*`
   also work — but prefer a `nebelhaus.*` option when one exists.
-- **For one option, use `haus set <path> <value>`.** It writes and stages a
-  small module under `settings/`, type-checks it, then rebuilds. `haus get
+- **For options, use `haus set <path> <value> [<path> <value>…]`.** It writes and
+  stages a small module per pair under `settings/`, type-checks them, then
+  rebuilds once — all-or-nothing, so a two-option intent (light mode is
+  `theme.flavor` + `theme.systemAppearance`) is one command and one rebuild. `haus get
   [path]` reads it, `haus unset <path>` writes null for a nullable option, and
   `haus reset <path>` removes the override. Only `nebelhaus.*` paths are allowed.
 - **Apply with `haus rebuild`.** It builds first and switches only on success, so
