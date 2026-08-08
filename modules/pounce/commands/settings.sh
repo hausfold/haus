@@ -12,14 +12,19 @@ export PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/etc/p
 
 choice="$({
   printf '%s\t%s\t%s\n' 'Make text bigger' 'nebelhaus.ui.scale → 1.35' 'textformat.size.larger'
-  printf '%s\t%s\t%s\n' 'Switch to light mode' 'nebelhaus.theme.flavor → latte' 'sun.max.fill'
+  printf '%s\t%s\t%s\n' 'Switch to light mode' 'the rice AND macOS → light' 'sun.max.fill'
   printf '%s\t%s\t%s\n' 'High contrast on' 'nebelhaus.theme.contrast → high' 'circle.lefthalf.filled'
 } | pounce -p 'Haus Settings' -i 'slider.horizontal.3')"
 
+# Each action is a list of `haus set` PAIRS. Light mode needs two of them, and
+# needs them in one `haus set`: theme.flavor alone recolours the rice's own tools
+# and leaves System Settings ▸ Appearance dark, which is the half-done state
+# this row exists to avoid — and two `haus set` calls would be two rebuilds with
+# the machine sitting in exactly that state in between.
 case "${choice%%$'\t'*}" in
-  'Make text bigger') path='ui.scale'; value='1.35' ;;
-  'Switch to light mode') path='theme.flavor'; value='latte' ;;
-  'High contrast on') path='theme.contrast'; value='high' ;;
+  'Make text bigger') pairs=(ui.scale 1.35) ;;
+  'Switch to light mode') pairs=(theme.flavor latte theme.systemAppearance flavor) ;;
+  'High contrast on') pairs=(theme.contrast high) ;;
   *) exit 0 ;;
 esac
 
@@ -30,7 +35,7 @@ runner="$(mktemp "${TMPDIR:-/tmp}/nebelhaus-setting.XXXXXX")"
   # shellcheck disable=SC2016
   printf '%s\n' 'trap '\''rm -f -- "$0"'\'' EXIT'
   printf 'export PATH=%q\n' "$PATH"
-  printf 'haus set %q %q\n' "$path" "$value"
+  printf 'haus set'; printf ' %q' "${pairs[@]}"; printf '\n'
   printf '%s\n' 'echo' 'echo "Press any key to close…"' 'read -n 1 -s'
 } >"$runner"
 chmod 700 "$runner"

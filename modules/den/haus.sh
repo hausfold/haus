@@ -11,7 +11,7 @@
 #   haus status          current generation + how old your pinned rice is
 #   haus edit            open your host config (identity, apps) in $EDITOR
 #   haus options         refresh hosts/<host>/options.nix — every nebelhaus.* option, annotated
-#   haus set             write + apply one nebelhaus.* option in the machine overlay
+#   haus set             write + apply nebelhaus.* options in the machine overlay (pairs)
 #   haus get             read one option, or list the machine overlay
 #   haus unset           force a nullable option to null
 #   haus reset           remove one machine override and inherit config again
@@ -177,9 +177,12 @@ haus — the everyday CLI for a nebelhaus machine.
   haus edit           open your host config in $EDITOR
   haus options        refresh the annotated catalogue of every nebelhaus.* option
                       (--force replaces your copy instead of writing options.nix.new)
-  haus set <path> <value>
+  haus set <path> <value> [<path> <value>…]
                       write hosts/<host>/settings/<path>.nix, type-check it, and
-                      rebuild (theme.accent and nebelhaus.theme.accent both work)
+                      rebuild (theme.accent and nebelhaus.theme.accent both work).
+                      Several pairs land in ONE rebuild, all-or-nothing — which is
+                      what an intent spanning two options needs (light mode is
+                      theme.flavor + theme.systemAppearance)
   haus get [path]     print a declared value, or list values in the writable overlay
   haus unset <path>   force a nullable option to null
   haus reset <path>   remove the writable override and inherit the host/rice default
@@ -1141,21 +1144,19 @@ settings_apply() {
   fi
 }
 
-cmd_set() {
-  [ "$#" = 2 ] || die "usage: haus set <nebelhaus.path|relative.path> <value>"
-  local path host dir target backup="" tmp literal
-  path="$(settings_path "$1")"
-  host="$(host_name)"
-  settings_option_exists "$host" "$path"
-  dir="$(settings_host_dir)"
-  target="$(settings_file "$path")"
+# `rm -f ""` is not portably a no-op, and an override that had no previous file
+# is recorded as an empty backup path, so drop them one at a time.
+settings_drop_backups() {
+  local b
+  for b in "$@"; do [ -n "$b" ] && rm -f "$b"; done
+  return 0
+}
 
-  if [ -e "$target" ] && ! grep -q '^# Managed by haus set\.' "$target"; then
-    die "$target already exists and is not managed by haus; edit it by hand"
-  fi
-  mkdir -p "$dir"
-  if [ -e "$target" ]; then backup="$(mktemp)"; cp -p "$target" "$backup"; fi
-  literal="$(settings_literal "$2")"
+# Write ONE override file. No validation, no rebuild — cmd_set owns both,
+# because with several pairs neither can be per-file (see its header).
+settings_write() {
+  local path="$1" value="$2" dir="$3" target="$4" tmp literal
+  literal="$(settings_literal "$value")"
   tmp="$(mktemp "$dir/.haus-set.XXXXXX")"
   {
     printf '%s\n' '# Managed by haus set. Ordinary Nix: safe to inspect or edit.'
@@ -1169,9 +1170,76 @@ cmd_set() {
   } >"$tmp"
   mv "$tmp" "$target"
   settings_stage "$target"
-  settings_validate_or_restore "$host" "$path" "$target" "$backup"
-  say "set ${path#nebelhaus.} = $(settings_eval_json "$host" "$path" 2>/dev/null | settings_print_json)"
-  info "$target (staged as ordinary Nix)"
+}
+
+# `haus set` takes PAIRS: `haus set theme.flavor latte theme.systemAppearance flavor`.
+#
+# Not ergonomics — arithmetic. settings_apply is a full rebuild, so N calls is N
+# rebuilds, and the intents that genuinely need more than one option (pounce's
+# "Switch to light mode", which is theme.flavor AND theme.systemAppearance) would
+# otherwise rebuild twice AND leave the machine sitting in the half-done state in
+# between. One call, one validation, one rebuild.
+#
+# Every file is written BEFORE anything is validated, and one rejection restores
+# ALL of them. Validating each pair as it lands would leave pairs 1..n-1 applied
+# when pair n is refused — which is precisely the partial write the single-pair
+# version's restore-on-failure existed to prevent, and it gets worse with more
+# pairs, not better. The cost is that a bad value is reported after every file is
+# on disk rather than before; the files are ordinary Nix and all of them go back.
+cmd_set() {
+  local usage="usage: haus set <nebelhaus.path|relative.path> <value> [<path> <value>…]"
+  [ "$#" -ge 2 ] && [ $(( $# % 2 )) -eq 0 ] || die "$usage"
+  local host dir path target seen="" i
+  local -a paths=() values=() targets=() backups=()
+  host="$(host_name)"
+  dir="$(settings_host_dir)"
+
+  # Phase 1 — resolve every pair and refuse anything we can't own, before a
+  # single byte is written. A path named twice is an error rather than
+  # last-one-wins: the second write's "backup" would be the first write's file,
+  # so a restore would leave the first value in place and report failure.
+  while [ "$#" -gt 0 ]; do
+    path="$(settings_path "$1")"
+    settings_option_exists "$host" "$path"
+    case "$seen" in *"|$path|"*) die "$usage — ${path#nebelhaus.} named twice" ;; esac
+    seen="$seen|$path|"
+    target="$(settings_file "$path")"
+    if [ -e "$target" ] && ! grep -q '^# Managed by haus set\.' "$target"; then
+      die "$target already exists and is not managed by haus; edit it by hand"
+    fi
+    paths+=("$path"); values+=("$2"); targets+=("$target")
+    shift 2
+  done
+
+  # Phase 2 — back up and write all of them.
+  mkdir -p "$dir"
+  for i in "${!paths[@]}"; do
+    if [ -e "${targets[$i]}" ]; then
+      backups+=("$(mktemp)"); cp -p "${targets[$i]}" "${backups[$i]}"
+    else
+      backups+=("")
+    fi
+    settings_write "${paths[$i]}" "${values[$i]}" "$dir" "${targets[$i]}"
+  done
+
+  # Phase 3 — one evaluation per path; the FIRST failure rolls every file back.
+  local err; err="$(mktemp)"
+  for i in "${!paths[@]}"; do
+    if settings_eval_json "$host" "${paths[$i]}" >/dev/null 2>"$err"; then continue; fi
+    local j
+    for j in "${!paths[@]}"; do settings_restore "${targets[$j]}" "${backups[$j]}"; done
+    warn "the generated override did not type-check; restored the previous file(s)."
+    tail -n 12 "$err" >&2
+    rm -f "$err"; settings_drop_backups ${backups[@]+"${backups[@]}"}
+    die "'${paths[$i]}' rejected that value — no config change remains"
+  done
+  rm -f "$err"; settings_drop_backups ${backups[@]+"${backups[@]}"}
+
+  # Phase 4 — report everything, then rebuild ONCE.
+  for i in "${!paths[@]}"; do
+    say "set ${paths[$i]#nebelhaus.} = $(settings_eval_json "$host" "${paths[$i]}" 2>/dev/null | settings_print_json)"
+    info "${targets[$i]} (staged as ordinary Nix)"
+  done
   settings_apply
 }
 
