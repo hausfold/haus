@@ -78,14 +78,55 @@ test ! -e "$tmp/hosts/test/settings/theme.contrast.nix"
 test "$("${haus[@]}" get theme.wallpaper)" = "none"
 test "$("${haus[@]}" get theme.contrast)" = "normal"
 
-"${haus[@]}" reset theme.flavor >/dev/null
-"${haus[@]}" reset theme.systemAppearance >/dev/null
+# reset is variadic for the same arithmetic as set: the light-mode intent took
+# two options to make, so it must take ONE command to undo — two calls is two
+# rebuilds with the machine half-undone in between.
+"${haus[@]}" reset theme.flavor theme.systemAppearance >/dev/null
 test "$("${haus[@]}" get theme.systemAppearance)" = "unmanaged"
+test ! -e "$tmp/hosts/test/settings/theme.flavor.nix"
+test ! -e "$tmp/hosts/test/settings/theme.systemAppearance.nix"
 
+# A path with no override is not fatal — the caller asked for it to inherit and
+# it already does, so the paths that DO have one still get withdrawn.
+"${haus[@]}" set theme.flavor latte >/dev/null
+"${haus[@]}" reset theme.contrast theme.flavor >/dev/null
+test "$("${haus[@]}" get theme.flavor)" = "mocha"
+test ! -e "$tmp/hosts/test/settings/theme.flavor.nix"
+
+# …but naming one twice is, for the same reason it is in set: the second
+# removal's "backup" would be a file the first removal already took away.
+"${haus[@]}" set theme.flavor latte >/dev/null
+if "${haus[@]}" reset theme.flavor theme.flavor >/dev/null 2>&1; then
+  echo "haus reset accepted the same path twice" >&2
+  exit 1
+fi
+test "$("${haus[@]}" get theme.flavor)" = "latte"        # refused before any removal
+"${haus[@]}" reset theme.flavor >/dev/null
+
+if "${haus[@]}" reset >/dev/null 2>&1; then
+  echo "haus reset accepted no arguments" >&2
+  exit 1
+fi
+
+# unset is variadic too, expanding to `<path> null` pairs through set — so it
+# inherits set's all-or-nothing: an option whose type has no null takes the whole
+# call down rather than leaving the others written.
 "${haus[@]}" unset lock.requirePassword >/dev/null
 test "$("${haus[@]}" get lock.requirePassword)" = "null"
 
-"${haus[@]}" reset theme.accent >/dev/null
+if "${haus[@]}" unset lock.requirePasswordDelay theme.accent >/dev/null 2>&1; then
+  echo "haus unset accepted a non-nullable option" >&2
+  exit 1
+fi
+test "$("${haus[@]}" get theme.accent)" = "teal"         # rolled back, still set
+test ! -e "$tmp/hosts/test/settings/lock.requirePasswordDelay.nix"
+
+if "${haus[@]}" unset >/dev/null 2>&1; then
+  echo "haus unset accepted no arguments" >&2
+  exit 1
+fi
+
+"${haus[@]}" reset lock.requirePassword theme.accent >/dev/null
 test "$("${haus[@]}" get theme.accent)" = "mauve"
 test ! -e "$tmp/hosts/test/settings/theme.accent.nix"
 

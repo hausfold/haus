@@ -13,8 +13,8 @@
 #   haus options         refresh hosts/<host>/options.nix — every nebelhaus.* option, annotated
 #   haus set             write + apply nebelhaus.* options in the machine overlay (pairs)
 #   haus get             read one option, or list the machine overlay
-#   haus unset           force a nullable option to null
-#   haus reset           remove one machine override and inherit config again
+#   haus unset           force nullable options to null (variadic)
+#   haus reset           remove machine overrides and inherit config again (variadic)
 #   haus plan            preview what 'haus rebuild' would change — read-only
 #   haus diff            declared config vs what macOS actually has right now — read-only
 #   haus capture         turn this Mac's current settings into config lines + a snapshot
@@ -184,8 +184,13 @@ haus — the everyday CLI for a nebelhaus machine.
                       what an intent spanning two options needs (light mode is
                       theme.flavor + theme.systemAppearance)
   haus get [path]     print a declared value, or list values in the writable overlay
-  haus unset <path>   force a nullable option to null
-  haus reset <path>   remove the writable override and inherit the host/rice default
+  haus unset <path> [<path>…]
+                      force nullable options to null
+  haus reset <path> [<path>…]
+                      remove writable overrides and inherit the host/rice default.
+                      Like set, several paths land in ONE rebuild, all-or-nothing,
+                      so an intent that took two options to make takes one command
+                      to undo
   haus plan           preview what 'haus rebuild' would change — settings, packages,
                       casks — without building anything into place
   haus diff           the config currently active on this machine vs what macOS
@@ -1122,20 +1127,6 @@ settings_restore() {
   settings_stage "$target"
 }
 
-settings_validate_or_restore() {
-  local host="$1" path="$2" target="$3" backup="$4" err
-  err="$(mktemp)"
-  if settings_eval_json "$host" "$path" >/dev/null 2>"$err"; then
-    rm -f "$err" "${backup:-}"
-    return 0
-  fi
-  settings_restore "$target" "$backup"
-  warn "the generated override did not type-check; restored the previous file."
-  tail -n 12 "$err" >&2
-  rm -f "$err" "${backup:-}"
-  die "'$path' rejected that value — no config change remains"
-}
-
 settings_apply() {
   if [ -n "${HAUS_NO_REBUILD:-}" ]; then
     info "not rebuilding (HAUS_NO_REBUILD is set)"
@@ -1172,31 +1163,19 @@ settings_write() {
   settings_stage "$target"
 }
 
-# `haus set` takes PAIRS: `haus set theme.flavor latte theme.systemAppearance flavor`.
-#
-# Not ergonomics — arithmetic. settings_apply is a full rebuild, so N calls is N
-# rebuilds, and the intents that genuinely need more than one option (pounce's
-# "Switch to light mode", which is theme.flavor AND theme.systemAppearance) would
-# otherwise rebuild twice AND leave the machine sitting in the half-done state in
-# between. One call, one validation, one rebuild.
-#
-# Every file is written BEFORE anything is validated, and one rejection restores
-# ALL of them. Validating each pair as it lands would leave pairs 1..n-1 applied
-# when pair n is refused — which is precisely the partial write the single-pair
-# version's restore-on-failure existed to prevent, and it gets worse with more
-# pairs, not better. The cost is that a bad value is reported after every file is
-# on disk rather than before; the files are ordinary Nix and all of them go back.
-# The rollback half of cmd_set's transaction, kept out of the trap body so the
-# trap is one line. Reads the SET_* globals cmd_set fills in; deliberately NOT
-# `local` in cmd_set, because a trap reaching into another frame's locals is the
-# kind of thing that works until someone refactors.
-settings_set_rollback() {
+# The rollback half of the set/reset transaction, kept out of the trap body so
+# the trap is one line. Reads the TX_* globals the command fills in; deliberately
+# NOT `local` there, because a trap reaching into another frame's locals is the
+# kind of thing that works until someone refactors. Shared by cmd_set and
+# cmd_reset — restoring a backup and un-removing a file are the same operation,
+# and settings_restore already treats an empty backup as "there was no file".
+settings_tx_rollback() {
   local k
-  for k in ${SET_TARGETS[@]+"${!SET_TARGETS[@]}"}; do
-    [ "${SET_BACKUPS[$k]+set}" = set ] || continue # never got as far as writing this one
-    settings_restore "${SET_TARGETS[$k]}" "${SET_BACKUPS[$k]}" || true
+  for k in ${TX_TARGETS[@]+"${!TX_TARGETS[@]}"}; do
+    [ "${TX_BACKUPS[$k]+set}" = set ] || continue # never got as far as touching this one
+    settings_restore "${TX_TARGETS[$k]}" "${TX_BACKUPS[$k]}" || true
   done
-  settings_drop_backups ${SET_BACKUPS[@]+"${SET_BACKUPS[@]}"}
+  settings_drop_backups ${TX_BACKUPS[@]+"${TX_BACKUPS[@]}"}
 }
 
 # `haus set` takes PAIRS: `haus set theme.flavor latte theme.systemAppearance flavor`.
@@ -1226,7 +1205,7 @@ cmd_set() {
   [ "$#" -ge 2 ] && [ $(( $# % 2 )) -eq 0 ] || die "$usage"
   local host dir path target seen="" i err
   local -a paths=() values=() results=()
-  SET_TARGETS=() SET_BACKUPS=()
+  TX_TARGETS=() TX_BACKUPS=()
   host="$(host_name)"
   dir="$(settings_host_dir)"
 
@@ -1243,20 +1222,20 @@ cmd_set() {
     if [ -e "$target" ] && ! grep -q '^# Managed by haus set\.' "$target"; then
       die "$target already exists and is not managed by haus; edit it by hand"
     fi
-    paths+=("$path"); values+=("$2"); SET_TARGETS+=("$target")
+    paths+=("$path"); values+=("$2"); TX_TARGETS+=("$target")
     shift 2
   done
 
   # Phase 2 — from here until phase 3 succeeds, ANY exit rolls everything back.
   mkdir -p "$dir"
-  trap 'settings_set_rollback' EXIT
+  trap 'settings_tx_rollback' EXIT
   for i in "${!paths[@]}"; do
-    if [ -e "${SET_TARGETS[$i]}" ]; then
-      SET_BACKUPS+=("$(mktemp)"); cp -p "${SET_TARGETS[$i]}" "${SET_BACKUPS[$i]}"
+    if [ -e "${TX_TARGETS[$i]}" ]; then
+      TX_BACKUPS+=("$(mktemp)"); cp -p "${TX_TARGETS[$i]}" "${TX_BACKUPS[$i]}"
     else
-      SET_BACKUPS+=("")
+      TX_BACKUPS+=("")
     fi
-    settings_write "${paths[$i]}" "${values[$i]}" "$dir" "${SET_TARGETS[$i]}"
+    settings_write "${paths[$i]}" "${values[$i]}" "$dir" "${TX_TARGETS[$i]}"
   done
 
   # Phase 3 — one evaluation per path, keeping the value so phase 4 needn't
@@ -1271,12 +1250,12 @@ cmd_set() {
   done
   rm -f "$err"
   trap - EXIT
-  settings_drop_backups ${SET_BACKUPS[@]+"${SET_BACKUPS[@]}"}
+  settings_drop_backups ${TX_BACKUPS[@]+"${TX_BACKUPS[@]}"}
 
   # Phase 4 — report everything, then rebuild ONCE.
   for i in "${!paths[@]}"; do
     say "set ${paths[$i]#nebelhaus.} = $(printf '%s' "${results[$i]}" | settings_print_json)"
-    info "${SET_TARGETS[$i]} (staged as ordinary Nix)"
+    info "${TX_TARGETS[$i]} (staged as ordinary Nix)"
   done
   settings_apply
 }
@@ -1304,33 +1283,87 @@ cmd_get() {
   [ -n "$found" ] || info "no machine-writable settings; use: haus set <path> <value>"
 }
 
+# Variadic for the same arithmetic as cmd_set, which does the actual work: every
+# path becomes a `<path> null` pair, so N paths are one validation and one
+# rebuild, all-or-nothing, and an option whose type has no null takes the whole
+# call down rather than leaving the others applied.
 cmd_unset() {
-  [ "$#" = 1 ] || die "usage: haus unset <nebelhaus.path|relative.path>"
+  [ "$#" -ge 1 ] || die "usage: haus unset <nebelhaus.path|relative.path> [<path>…]"
+  local p
+  local -a pairs=()
+  for p in "$@"; do pairs+=("$p" null); done
   # Validation after writing is intentional: the module system is the one
   # authority on whether this option's type admits null.
-  cmd_set "$1" null
+  cmd_set "${pairs[@]}"
 }
 
+# The mirror image of cmd_set, phase for phase, and variadic for the same reason:
+# an intent that took two options to express takes two files to withdraw, and
+# doing that as two calls is two rebuilds with a half-undone machine in between
+# (`haus set theme.flavor latte theme.systemAppearance flavor` is light mode; one
+# `haus reset theme.flavor theme.systemAppearance` is the way back).
+#
+# Removing a file can fail validation exactly like writing one: the value
+# underneath is the host/preset/rice value, which another module may since have
+# come to depend on. So the removals are a transaction too, under the same EXIT
+# trap — settings_restore puts a backed-up file back, which is all "un-remove"
+# means here.
 cmd_reset() {
-  [ "$#" = 1 ] || die "usage: haus reset <nebelhaus.path|relative.path>"
-  local path host target backup
-  path="$(settings_path "$1")"
+  local usage="usage: haus reset <nebelhaus.path|relative.path> [<path>…]"
+  [ "$#" -ge 1 ] || die "$usage"
+  local host path target seen="" i err
+  local -a paths=() results=()
+  TX_TARGETS=() TX_BACKUPS=()
   host="$(host_name)"
-  settings_option_exists "$host" "$path"
-  target="$(settings_file "$path")"
-  if [ ! -e "$target" ]; then
-    say "${path#nebelhaus.} already inherits the host/rice value ($(settings_eval_json "$host" "$path" 2>/dev/null | settings_print_json))"
-    return
-  fi
-  grep -q '^# Managed by haus set\.' "$target" \
-    || die "$target is not managed by haus; refusing to remove it"
-  backup="$(mktemp)"
-  cp -p "$target" "$backup"
-  rm -f "$target"
-  settings_stage "$target"
-  settings_validate_or_restore "$host" "$path" "$target" "$backup"
-  rmdir "$(dirname "$target")" 2>/dev/null || true
-  say "reset ${path#nebelhaus.}; now inherits $(settings_eval_json "$host" "$path" 2>/dev/null | settings_print_json)"
+
+  # Phase 1 — resolve every path and refuse anything we can't own, before a
+  # single file is removed. A path that has no override is reported and dropped
+  # rather than fatal: the caller asked for it to inherit, and it already does,
+  # so `haus reset a b` still withdraws b.
+  while [ "$#" -gt 0 ]; do
+    path="$(settings_path "$1")"
+    settings_option_exists "$host" "$path"
+    case "$seen" in *"|$path|"*) die "$usage — ${path#nebelhaus.} named twice" ;; esac
+    seen="$seen|$path|"
+    target="$(settings_file "$path")"
+    if [ ! -e "$target" ]; then
+      say "${path#nebelhaus.} already inherits the host/rice value ($(settings_eval_json "$host" "$path" 2>/dev/null | settings_print_json))"
+      shift; continue
+    fi
+    grep -q '^# Managed by haus set\.' "$target" \
+      || die "$target is not managed by haus; refusing to remove it"
+    paths+=("$path"); TX_TARGETS+=("$target")
+    shift
+  done
+  # Nothing was overridden, so nothing changed — don't spend a rebuild saying so.
+  [ "${#paths[@]}" -gt 0 ] || return 0
+
+  # Phase 2 — from here until phase 3 succeeds, ANY exit puts every file back.
+  trap 'settings_tx_rollback' EXIT
+  for i in "${!paths[@]}"; do
+    TX_BACKUPS+=("$(mktemp)"); cp -p "${TX_TARGETS[$i]}" "${TX_BACKUPS[$i]}"
+    rm -f "${TX_TARGETS[$i]}"
+    settings_stage "${TX_TARGETS[$i]}"
+  done
+
+  # Phase 3 — one evaluation per path, keeping the inherited value for phase 4.
+  err="$(mktemp)"
+  for i in "${!paths[@]}"; do
+    if results+=("$(settings_eval_json "$host" "${paths[$i]}" 2>"$err")"); then continue; fi
+    warn "removing the override did not type-check; restored the previous file(s)."
+    tail -n 12 "$err" >&2
+    rm -f "$err"
+    die "'${paths[$i]}' cannot inherit its underlying value — no config change remains"
+  done
+  rm -f "$err"
+  trap - EXIT
+  settings_drop_backups ${TX_BACKUPS[@]+"${TX_BACKUPS[@]}"}
+  rmdir "$(settings_host_dir)" 2>/dev/null || true
+
+  # Phase 4 — report everything, then rebuild ONCE.
+  for i in "${!paths[@]}"; do
+    say "reset ${paths[$i]#nebelhaus.}; now inherits $(printf '%s' "${results[$i]}" | settings_print_json)"
+  done
   settings_apply
 }
 
