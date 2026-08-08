@@ -136,6 +136,12 @@
           hotkey = "opt+space e";          # ⌥Space, then E
           hotkey = [ "cmd+k" "cmd+c" ];    # the same thing, step by step
 
+        The modifier-only laptop Fn/Globe key is the one special single-step
+        value: hotkey = "fn". It needs Pounce's Accessibility grant, unlike a
+        Carbon chord or leader sequence, and fires only when Fn is tapped alone.
+        The rice uses it for mode:emoji by default; set that item's hotkey to
+        null to leave the Globe key to macOS.
+
         Sequences are worth knowing about on a tiling rice: they open a namespace
         that structurally can't collide with the ⌥/⌘ chords prowl already claims,
         and they need no Accessibility grant (pounce grabs the second step as an
@@ -210,6 +216,10 @@
                 Whether the KEY name is one pounce can bind is not checked here
                 (that vocabulary lives in the app); a chord it can't register is
                 reported by `pounce doctor` rather than silently dropped.
+
+                `fn` is the modifier-only exception: it uses Pounce's
+                Accessibility-gated event tap, fires only on a lone tap, and
+                suppresses macOS's stock Globe action while armed.
               '';
             };
           };

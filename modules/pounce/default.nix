@@ -472,6 +472,13 @@ let
     "ctrl"
     "shift"
   ];
+  # Pounce accepts all three names for the one physical modifier-only key.
+  # Canonicalize them before collision checks so `fn` + `globe` cannot pass Nix
+  # evaluation and then fight over the same event tap at runtime.
+  keyAliases = {
+    function = "fn";
+    globe = "fn";
+  };
 
   # "cmd + shift + v" is ONE step; "opt+space e" is two. Whitespace separates
   # steps, so spacing around a "+" has to go first (pounce normalizes the same way).
@@ -490,7 +497,8 @@ let
     step:
     let
       parts = map (p: lib.toLower p) (lib.splitString "+" step);
-      key = lib.last parts;
+      rawKey = lib.last parts;
+      key = keyAliases.${rawKey} or rawKey;
       mods = map (m: modifierAliases.${m} or m) (lib.init parts);
     in
     {
@@ -601,6 +609,9 @@ let
     right = "→";
     up = "↑";
     down = "↓";
+    fn = "fn";
+    function = "fn";
+    globe = "🌐";
   };
   # One step's glyphs are CONCATENATED and steps are separated by a space, so
   # "⌘⇧V" (one chord) can't be misread as "⌥␣ V" (press, then press) — a
@@ -661,6 +672,14 @@ lib.mkIf config.nebelhaus.pounce.enable {
     name = lib.mkDefault "Pounce";
     installedBy = lib.mkDefault "nebelhaus.pounce";
   };
+
+  # A bare laptop Fn/Globe tap opens Pounce's emoji grid. Pounce handles this
+  # modifier-only key through the same Accessibility-gated session event tap as
+  # its window switcher: granted machines replace the stock Globe action, while
+  # an ungranted/stopped daemon leaves macOS's native action untouched. mkDefault
+  # keeps the opinion easy to undo with
+  #   nebelhaus.pounce.items."mode:emoji".hotkey = null;
+  nebelhaus.pounce.items."mode:emoji".hotkey = lib.mkDefault "fn";
 
   assertions = [
     {
