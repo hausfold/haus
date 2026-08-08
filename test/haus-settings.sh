@@ -108,6 +108,19 @@ if "${haus[@]}" reset >/dev/null 2>&1; then
   exit 1
 fi
 
+# Phase 1 must not narrate a call it is about to abort. theme.contrast has no
+# override (an "already inherits" line), and the hand-written file after it is
+# fatal — reporting the first before dying on the second reads as if something
+# happened, when nothing did.
+printf '%s\n' '{ ... }: { }' >"$tmp/hosts/test/settings/theme.wallpaper.nix"
+out="$("${haus[@]}" reset theme.contrast theme.wallpaper 2>&1 || true)"
+case "$out" in
+  *"already inherits"*)
+    echo "haus reset narrated a path before dying on a later one" >&2
+    exit 1 ;;
+esac
+rm -f "$tmp/hosts/test/settings/theme.wallpaper.nix"
+
 # unset is variadic too, expanding to `<path> null` pairs through set — so it
 # inherits set's all-or-nothing: an option whose type has no null takes the whole
 # call down rather than leaving the others written.
@@ -125,6 +138,14 @@ if "${haus[@]}" unset >/dev/null 2>&1; then
   echo "haus unset accepted no arguments" >&2
   exit 1
 fi
+
+# unset delegates to set, so without care a rejection from down there quotes
+# `haus set`'s pair syntax at someone who typed `haus unset`.
+out="$("${haus[@]}" unset theme.contrast theme.contrast 2>&1 || true)"
+case "$out" in
+  *"usage: haus unset"*) ;;
+  *) echo "haus unset reported haus set's usage: $out" >&2; exit 1 ;;
+esac
 
 "${haus[@]}" reset lock.requirePassword theme.accent >/dev/null
 test "$("${haus[@]}" get theme.accent)" = "mauve"

@@ -72,7 +72,11 @@ jobs:
           # statusline-refresh.sh is linted for a different reason: it runs
           # DETACHED with its output discarded, so a non-zero anywhere in it is
           # completely invisible — the bar just quietly stops updating.
-          shellcheck --severity=warning bootstrap.sh modules/den/haus.sh modules/den/awake.sh modules/den/statusline-refresh.sh test/awake.sh
+          # test/haus-settings.sh can only be RUN on macOS — it evaluates a
+          # darwinConfiguration — so this runner can never execute it. Linting is
+          # the only thing CI can do for it, and the alternative is a suite that
+          # nothing at all touches until someone remembers it by hand.
+          shellcheck --severity=warning bootstrap.sh modules/den/haus.sh modules/den/awake.sh modules/den/statusline-refresh.sh test/awake.sh test/haus-settings.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
       # The refresher is `holt`'s reader, and it fails in the one way nobody sees:

@@ -188,9 +188,9 @@ haus — the everyday CLI for a nebelhaus machine.
                       force nullable options to null
   haus reset <path> [<path>…]
                       remove writable overrides and inherit the host/rice default.
-                      Like set, several paths land in ONE rebuild, all-or-nothing,
-                      so an intent that took two options to make takes one command
-                      to undo
+                      unset and reset take a LIST the way set takes pairs: several
+                      paths land in ONE rebuild, all-or-nothing, so an intent that
+                      took two options to make takes one command to undo
   haus plan           preview what 'haus rebuild' would change — settings, packages,
                       casks — without building anything into place
   haus diff           the config currently active on this machine vs what macOS
@@ -1201,9 +1201,11 @@ settings_tx_rollback() {
 # leaves pairs 1..n-1 applied when pair n is refused, which is the same partial
 # write, arrived at deliberately.
 cmd_set() {
-  local usage="usage: haus set <nebelhaus.path|relative.path> <value> [<path> <value>…]"
+  # cmd_unset delegates here, and quoting `haus set`'s pair syntax at someone who
+  # typed `haus unset` names a command they didn't run — so it may override this.
+  local usage="${TX_USAGE:-usage: haus set <nebelhaus.path|relative.path> <value> [<path> <value>…]}"
   [ "$#" -ge 2 ] && [ $(( $# % 2 )) -eq 0 ] || die "$usage"
-  local host dir path target seen="" i err
+  local host dir path target backup seen="" i err
   local -a paths=() values=() results=()
   TX_TARGETS=() TX_BACKUPS=()
   host="$(host_name)"
@@ -1230,8 +1232,12 @@ cmd_set() {
   mkdir -p "$dir"
   trap 'settings_tx_rollback' EXIT
   for i in "${!paths[@]}"; do
+    # Register the backup only once the copy is IN it. Appending first and
+    # filling it after would, on a failed `cp`, leave the rollback restoring an
+    # empty file over the user's previous override — a worse outcome than the
+    # failure itself. An unregistered temp file is the cheap side of that trade.
     if [ -e "${TX_TARGETS[$i]}" ]; then
-      TX_BACKUPS+=("$(mktemp)"); cp -p "${TX_TARGETS[$i]}" "${TX_BACKUPS[$i]}"
+      backup="$(mktemp)"; cp -p "${TX_TARGETS[$i]}" "$backup"; TX_BACKUPS+=("$backup")
     else
       TX_BACKUPS+=("")
     fi
@@ -1288,7 +1294,11 @@ cmd_get() {
 # rebuild, all-or-nothing, and an option whose type has no null takes the whole
 # call down rather than leaving the others applied.
 cmd_unset() {
-  [ "$#" -ge 1 ] || die "usage: haus unset <nebelhaus.path|relative.path> [<path>…]"
+  # Bash's dynamic scope makes this local visible inside cmd_set, so a rejection
+  # from down there quotes the invocation the user actually typed rather than
+  # `haus set`'s pair syntax.
+  local TX_USAGE="usage: haus unset <nebelhaus.path|relative.path> [<path>…]"
+  [ "$#" -ge 1 ] || die "$TX_USAGE"
   local p
   local -a pairs=()
   for p in "$@"; do pairs+=("$p" null); done
@@ -1303,23 +1313,28 @@ cmd_unset() {
 # (`haus set theme.flavor latte theme.systemAppearance flavor` is light mode; one
 # `haus reset theme.flavor theme.systemAppearance` is the way back).
 #
-# Removing a file can fail validation exactly like writing one: the value
-# underneath is the host/preset/rice value, which another module may since have
-# come to depend on. So the removals are a transaction too, under the same EXIT
-# trap — settings_restore puts a backed-up file back, which is all "un-remove"
-# means here.
+# Removing a file can fail validation exactly like writing one — not because
+# some other option breaks (nix is lazy; phase 3 only forces the path being
+# withdrawn, so it would never see that), but because the definition underneath
+# is the one the override was masking: two host/preset modules that conflict on
+# this option evaluate fine while mkForce sits on top of them and stop doing so
+# the moment it is removed. So the removals are a transaction too, under the same
+# EXIT trap — settings_restore puts a backed-up file back, which is all
+# "un-remove" means here.
 cmd_reset() {
   local usage="usage: haus reset <nebelhaus.path|relative.path> [<path>…]"
   [ "$#" -ge 1 ] || die "$usage"
-  local host path target seen="" i err
-  local -a paths=() results=()
+  local host path target backup seen="" i err
+  local -a paths=() results=() inherited=()
   TX_TARGETS=() TX_BACKUPS=()
   host="$(host_name)"
 
   # Phase 1 — resolve every path and refuse anything we can't own, before a
-  # single file is removed. A path that has no override is reported and dropped
+  # single file is removed. A path that has no override is noted and dropped
   # rather than fatal: the caller asked for it to inherit, and it already does,
-  # so `haus reset a b` still withdraws b.
+  # so `haus reset a b` still withdraws b. Noted, not said — a later path can
+  # still take the whole call down, and a transcript that reported success for
+  # one path before dying reads as if something happened.
   while [ "$#" -gt 0 ]; do
     path="$(settings_path "$1")"
     settings_option_exists "$host" "$path"
@@ -1327,7 +1342,7 @@ cmd_reset() {
     seen="$seen|$path|"
     target="$(settings_file "$path")"
     if [ ! -e "$target" ]; then
-      say "${path#nebelhaus.} already inherits the host/rice value ($(settings_eval_json "$host" "$path" 2>/dev/null | settings_print_json))"
+      inherited+=("${path#nebelhaus.} already inherits the host/rice value ($(settings_eval_json "$host" "$path" 2>/dev/null | settings_print_json))")
       shift; continue
     fi
     grep -q '^# Managed by haus set\.' "$target" \
@@ -1335,13 +1350,18 @@ cmd_reset() {
     paths+=("$path"); TX_TARGETS+=("$target")
     shift
   done
-  # Nothing was overridden, so nothing changed — don't spend a rebuild saying so.
-  [ "${#paths[@]}" -gt 0 ] || return 0
+  # Nothing was overridden, so nothing changed — say so, but don't spend a
+  # rebuild on it.
+  if [ "${#paths[@]}" -eq 0 ]; then
+    for i in ${inherited[@]+"${!inherited[@]}"}; do say "${inherited[$i]}"; done
+    return 0
+  fi
 
   # Phase 2 — from here until phase 3 succeeds, ANY exit puts every file back.
   trap 'settings_tx_rollback' EXIT
   for i in "${!paths[@]}"; do
-    TX_BACKUPS+=("$(mktemp)"); cp -p "${TX_TARGETS[$i]}" "${TX_BACKUPS[$i]}"
+    # Register the backup only once the copy is IN it — see cmd_set's phase 2.
+    backup="$(mktemp)"; cp -p "${TX_TARGETS[$i]}" "$backup"; TX_BACKUPS+=("$backup")
     rm -f "${TX_TARGETS[$i]}"
     settings_stage "${TX_TARGETS[$i]}"
   done
@@ -1361,6 +1381,7 @@ cmd_reset() {
   rmdir "$(settings_host_dir)" 2>/dev/null || true
 
   # Phase 4 — report everything, then rebuild ONCE.
+  for i in ${inherited[@]+"${!inherited[@]}"}; do say "${inherited[$i]}"; done
   for i in "${!paths[@]}"; do
     say "reset ${paths[$i]#nebelhaus.}; now inherits $(printf '%s' "${results[$i]}" | settings_print_json)"
   done

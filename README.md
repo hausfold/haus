@@ -87,9 +87,9 @@ rebuild, all-or-nothing —
 single command. `haus unset` and `haus reset` take a list of paths the same way,
 so the way back out is also one command and one rebuild —
 `haus reset theme.flavor theme.systemAppearance`. Only `nebelhaus.*` options
-cross this boundary; the short form above is
-expanded to `nebelhaus.theme.accent`. There is no separate settings database:
-the generated file is the config, and `haus reset` removes it.
+cross this boundary; the short form above is expanded to
+`nebelhaus.theme.accent`. There is no separate settings database: the generated
+file is the config, and `haus reset` removes it.
 
 On a fresh machine the bar shows a small "new here?" paw — click it and **haus
 tour** walks you through the four moves (launch, navigate, resize, palette) live,

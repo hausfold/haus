@@ -24,8 +24,10 @@ The `CLAUDE.md` beside it is that pointer and holds no rules of its own.
   stages a small module per pair under `settings/`, type-checks them, then
   rebuilds once — all-or-nothing, so a two-option intent (light mode is
   `theme.flavor` + `theme.systemAppearance`) is one command and one rebuild. `haus get
-  [path]` reads it, `haus unset <path>` writes null for a nullable option, and
-  `haus reset <path>` removes the override. Only `nebelhaus.*` paths are allowed.
+  [path]` reads it, `haus unset <path> [<path>…]` writes null for nullable
+  options, and `haus reset <path> [<path>…]` removes overrides — both take a LIST
+  with the same all-or-nothing single rebuild, so undoing that two-option intent
+  is also one command. Only `nebelhaus.*` paths are allowed.
 - **Apply with `haus rebuild`.** It builds first and switches only on success, so
   a broken config never reaches the running system.
 - **Undo with `haus rollback`.** Atomic, instant, and it rewinds everything Nix
