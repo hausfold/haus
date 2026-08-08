@@ -25,11 +25,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1786195087,
-        "narHash": "sha256-h9thh+C3it6O0rTL45V2wsXGQ7lCmZ4GqP+E9IHsZac=",
+        "lastModified": 1786196743,
+        "narHash": "sha256-BT6r8kKPkW/cmpzXRtWW3qwZQjOo62Tt5/q95PBdjtg=",
         "owner": "nebelhaus",
         "repo": "holt",
-        "rev": "b3adec7bbc7fba383a75b43933edb953e608e6cd",
+        "rev": "3275e21fab2eecc5ca0a85a94d1474f519508abc",
         "type": "github"
       },
       "original": {
