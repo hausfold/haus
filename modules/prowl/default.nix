@@ -219,7 +219,7 @@ let
       "[[on-window-detected]]\nif.app-id = '${a.appId}'\nrun = 'move-node-to-workspace ${appWorkspaceId a}'\n\n"
   ) apps;
 
-  # `float` entries — the generalised shape the three FaceTime/Flick/Ghostty
+  # `float` entries — the generalised shape the three FaceTime/Trill/Ghostty
   # rules used to be hardcoded as (notes/options-roadmap.md §5.4's "window
   # rules beyond assignment" box). Ghostty stays hand-written in aerospace.toml
   # (its rule is startup-vs-runtime, not a plain always-float — see the
@@ -339,7 +339,7 @@ lib.mkMerge [
       # Always-float utility windows — the generalised shape of what used to
       # be two hand-written aerospace.toml rules (§5.4's "window rules beyond
       # assignment" box). Neither installs anything (FaceTime is stock macOS;
-      # Flick isn't shipped by this rice yet — its rule was hand-added ahead
+      # Trill isn't shipped by this rice yet — its rule was hand-added ahead
       # of the module landing), so both are metadata-only entries whose only
       # job is naming a bundle id and setting `float`.
       facetime = {
@@ -348,12 +348,12 @@ lib.mkMerge [
         appId = lib.mkDefault "com.apple.FaceTime";
         float = lib.mkDefault true;
       };
-      # Flick's status-item windows (Settings, Inbox) are user-summoned
+      # Trill's status-item windows (Settings, Inbox) are user-summoned
       # utility windows, not tiled documents — same treatment as FaceTime.
-      flick = {
+      trill = {
         enable = lib.mkDefault true;
         order = lib.mkDefault 991;
-        appId = lib.mkDefault "com.nebelhaus.flick";
+        appId = lib.mkDefault "com.hausfold.trill";
         float = lib.mkDefault true;
       };
     };

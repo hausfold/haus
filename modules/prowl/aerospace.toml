@@ -216,7 +216,7 @@ run = 'layout floating'
 # haus._appWorkspace.
 @WINDOW_RULES@
 # Always-float apps (haus.roster.*.float) — generated from
-# haus._apps. FaceTime and Flick are declared this way in
+# haus._apps. FaceTime and Trill are declared this way in
 # modules/prowl/default.nix; a host can add its own the same way instead of
 # hand-editing this file.
 @FLOAT_RULES@

@@ -67,7 +67,7 @@ let
           AeroSpace `on-window-detected` rule generated from `appId`
           (`run = 'layout floating'`). Right for a picker/dialog/status
           window that would otherwise reflow the whole workspace every time
-          it opens (FaceTime, Flick's Settings/Inbox), not for something you
+          it opens (FaceTime, Trill's Settings/Inbox), not for something you
           work inside. Requires `appId`; ignored (with a warning) without it.
         '';
       };
