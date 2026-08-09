@@ -25,7 +25,12 @@ fi
 # that died (the adapter is a private-framework trick; assuming it runs forever
 # would mean a pill that goes dark until the next login). Restarting it repaints
 # from the current state, so there is nothing else to do on the happy path.
-if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
+#
+# The pid is matched against the process's own command line, not just kill -0:
+# a streamer killed without running its trap leaves the pidfile behind, and PIDs
+# get reused, so a live-looking pid is not on its own evidence the stream is up.
+PID="$(cat "$PIDFILE" 2>/dev/null)"
+if [ -n "$PID" ] && ps -p "$PID" -o command= 2>/dev/null | grep -q media_stream.sh; then
     exit 0
 fi
 
