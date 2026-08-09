@@ -46,10 +46,18 @@ source "$HOME/.config/sketchybar/bar.sh"
 # it into something that reads as recessed. An opaque `color=` does not help:
 # the shadow is painted on top of the bar, not seen through it. `window` is
 # kCGFloatingWindowLevel (3), just enough to outrank the window and its shadow
-# while leaving the transparent floating-pill look untouched. The top bar can
-# stay at the default because macOS reserves the menu-bar strip and no window
-# ever tiles into it; see bar_topmost() in the generated position.sh, which is
-# how the OTHER bar picks this up when haus.sill.position puts it down here too.
+# while leaving the transparent floating-pill look untouched.
+#
+# Safe to hardcode here because bottom.enable makes prowl reserve barGap 40 on
+# EVERY display, unconditionally — a lifted bar with no room under it covers
+# windows instead. That reservation is exactly what haus.sill.position = "auto"
+# can't promise, which is why the main bar's own lift is gated; bar_topmost() in
+# the generated position.sh is that gate, and the place to look when the OTHER
+# bar is docked down here too.
+#
+# Not a fullscreen risk: a bar is pulled off-screen on a fullscreen space by
+# space TYPE, not by window level (SLSSpaceGetType == 4, and show_in_fullscreen
+# is off), so the level can't leak the strip over a fullscreen app.
 "$SB" --bar \
     height=36 \
     blur_radius=30 \

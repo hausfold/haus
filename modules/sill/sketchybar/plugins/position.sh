@@ -7,12 +7,13 @@
 # is attached, `top` on the built-in alone. Re-asserting the same position is
 # harmless, so there's no need to diff the current one.
 #
-# topmost travels WITH the position — a bar that lands at the bottom has to
-# outrank the tiled window above it or that window's shadow paints over the
-# strip (bar_topmost() in position.sh has the full story). Leave it out here and
-# an undock would move the bar back to the top while the level stayed floating.
-# bar_position() is resolved once and handed on: in auto mode it costs ~1s.
+# Position ONLY — deliberately not topmost. bar_topmost() answers from the mode
+# rather than the resolved position, and in `auto` (the only mode this hook runs
+# in) that answer is a constant, so there is nothing here to re-send. Just as
+# well: unlike bar_manager_set_position, bar_manager_set_topmost has no
+# unchanged-guard and calls bar_manager_reset() every time, which would turn
+# each wake and each dock/undock into a full teardown-and-rebuild of every bar
+# and item window. See bar_topmost() in the generated position.sh.
 source "$HOME/.config/sketchybar/position.sh"
 
-pos="$(bar_position)"
-sketchybar --bar position="$pos" topmost="$(bar_topmost "$pos")"
+sketchybar --bar position="$(bar_position)"

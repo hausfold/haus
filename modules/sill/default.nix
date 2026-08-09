@@ -677,9 +677,8 @@ let
   # clamshell external apart from the built-in. It's slow (~1s) but
   # display_change fires rarely, so the cost is only paid on dock/undock/boot.
   #
-  # bar_topmost() takes the ALREADY-RESOLVED position as $1 rather than calling
-  # bar_position() itself — in auto mode that would pay the ~1s system_profiler
-  # a second time on every boot and every dock/undock.
+  # bar_topmost() answers from SILL_POSITION_MODE alone and so costs nothing —
+  # only the fixed `bottom` mode is lifted, for the reasons in its own comment.
   positionSh = ''
     #!/bin/bash
     # GENERATED from haus.sill.position by modules/sill/default.nix — do not edit.
@@ -698,12 +697,18 @@ let
       esac
     }
 
-    # Which window level the bar draws at, given a resolved position ($1).
+    # Which window level the bar draws at. Keyed on the MODE, not on the
+    # resolved position — see the `auto` carve-out below — so the answer is
+    # fixed for the life of the process and plugins/position.sh never re-sends
+    # it (bar_manager_set_topmost has no unchanged-guard: it calls
+    # bar_manager_reset() every time, tearing down and rebuilding every bar and
+    # item window, where re-sending the same `position=` is a real no-op).
     #
-    # SketchyBar defaults to kCGBackstopMenuLevel (-20) — BELOW normal windows.
-    # At the top that's right: macOS reserves the menu-bar strip, nothing tiles
-    # into it, and staying under the windows is what lets a native-fullscreen
-    # app cover the bar the way it should.
+    # SketchyBar draws at kCGBackstopMenuLevel (-20), BELOW normal windows. At
+    # the top that costs nothing: macOS reserves the menu-bar strip, so nothing
+    # tiles into it and nothing is there to shadow it. (Fullscreen is not the
+    # reason to stay low — a bar leaves a fullscreen space by space TYPE, not by
+    # level: SLSSpaceGetType == 4, with show_in_fullscreen off.)
     #
     # At the bottom macOS reserves nothing, so prowl carves the room out of its
     # own outer-bottom gap — and the tiled window directly above then drops its
@@ -712,8 +717,22 @@ let
     # transparency problem: an opaque `color=` is painted over just the same.
     # `topmost=window` (kCGFloatingWindowLevel, 3) lifts the bar above the
     # window — and so above its shadow — with the floating-pill look intact.
+    #
+    # `auto` deliberately does NOT get the lift, even though it resolves to
+    # `bottom` while docked. Lifting is only safe where the room underneath is
+    # actually reserved, and in auto mode it isn't: prowl's outerBottom is
+    # `monLine (gap 10) (barGap 40)` (modules/prowl/default.nix), because
+    # AeroSpace gaps can't flip per dock-state and the built-in has to keep a
+    # bottom gap sized for the undocked case, when the bar is up at the top.
+    # Docked with the lid open the bar draws along the BOTTOM of both displays,
+    # so on the built-in it already overlaps the tiled windows — prowl's comment
+    # calls that out. Today the window covers the bar there; at level 3 the bar
+    # would cover the bottom ~26pt of every window on the laptop screen instead,
+    # which is a good deal worse than a shadow. Fixed `position = "bottom"`
+    # reserves barGap 40 on both displays and is safe, as is the dedicated
+    # second bar (haus.sill.bottom.enable), which reserves it unconditionally.
     bar_topmost() {
-      case "$1" in
+      case "$SILL_POSITION_MODE" in
         bottom) echo window ;;
         *) echo off ;;
       esac

@@ -29,9 +29,10 @@ macos-titlebar-style = hidden
 # yabai's window_shadow — it is a pure scripting-addition payload, no direct
 # path — but the wrong problem). The bar was never being shadowed because
 # shadows exist; it was being shadowed because SketchyBar draws at
-# kCGBackstopMenuLevel, UNDER the windows. sill now sets topmost=window on any
-# bottom bar (see modules/sill/sketchybar/sill-bottomrc), which fixes it for
-# every app at once and needs no SIP, no yabai, and nothing from ghostty.
+# kCGBackstopMenuLevel, UNDER the windows. sill now lifts a bottom bar to
+# kCGFloatingWindowLevel instead — bar_topmost() in modules/sill/default.nix is
+# the rule, applied by sill-bottomrc and sketchybarrc — which fixes it for every
+# app at once and needs no SIP, no yabai, and nothing from ghostty.
 macos-window-shadow = false
 # Option is sent into the terminal as Alt (so ⌥-chords reach zellij / the
 # shell), which leaves Cmd as ghostty's link-open modifier. That split is load-
