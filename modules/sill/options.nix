@@ -2,12 +2,56 @@
 # lives next to the code that implements it; modules/default.nix imports them all.
 # Cross-cutting options (the app roster) stay in modules/options.nix.
 #
-# sill's options — the menu bar: whether it's drawn, which pills, and the
-# first-run tour that rides in it.
+# sill's options — the bar(s): whether one is drawn, which pills go on it, the
+# optional second bar along the bottom of the screen, and the first-run tour
+# that rides in the top one.
 { lib, ... }:
 
 let
   agentClients = import ../lib/agents.nix;
+
+  # Per-pill on/off for the whole right side of the bar. One bool per item in a
+  # submodule (not attrsOf) so unknown keys are rejected and each item carries
+  # its own default: the core pills default true, the extras default false. The
+  # descriptions here are the single source for the options reference.
+  #
+  # Up here rather than inside `sill.items` because `sill.bottom.items` reads the
+  # same `extra` table — a pill's description is written once and both bars'
+  # option pages render it.
+  core = {
+    clock = "The clock pill, pinned to the far right.";
+    weather = "The weather pill and its click-to-open forecast popover.";
+    media = "The now-playing track (scrolls; auto-hides when nothing plays, dims when paused, click to play/pause). It reads the same system-wide session Control Center does, so it follows a browser tab as readily as Apple Music or Spotify, and its icon says which app the sound is coming from. SketchyBar's own `media_change` event has been dead since macOS 15.4, where Apple started requiring an entitlement to talk to `mediaremoted`; the pill is fed instead by `media-control`, which does the read from inside the entitled `/usr/bin/perl`. That is a private-framework route Apple could close in any point release — `media-control test` exits non-zero once it has.";
+    battery = "The battery pill.";
+    wifi = "The Wi-Fi status pill.";
+  };
+  extra = {
+    cpu = "Total CPU load, as a percentage pill.";
+    memory = "Memory-pressure percentage pill.";
+    volume = "Output volume / mute state.";
+    calendar = "Your next timed event, with a click-popup of the next five. Pulls in `ical-buddy` automatically and reads Calendar, so macOS prompts for Calendar access on first run.";
+    caffeinate = "A coffee pill that prevents idle system sleep for 1/2/4/8 hours, a custom whole-hour duration, or indefinitely. The display may still turn off; closing a MacBook lid still sleeps it. Uses macOS's built-in `caffeinate`, so there is no extra package.";
+    agents = "A paw pill tracking your agent-worktree panes — amber when one is blocked on you, click for the per-agent list, each row marked with the client sitting in it; left-click a row to jump to that pane, ⌥/right-click for a live `zellij subscribe` peek. Fed by each client's own lifecycle hooks, which all call `agent-state` (also installed as ~/.config/sketchybar/plugins/agents-hook.sh): Opencode's plugin and Codex's ~/.codex/hooks.json are written for you (Codex asks you to trust its hooks the first time it sees them), while Claude Code's four agent-state hooks stay yours to point at it in ~/.claude/settings.json — Claude owns that file and rewrites it, so the rice merges in only the keys it must and never touches those four. (The two worktree hooks ARE declared, in hearth: they point at a rice-controlled path and self-heal on rebuild.) A row whose zellij pane is gone drops off by itself, which is what stands in for the session-end event Codex doesn't have. Dormant until a client fires.";
+    aiUsage = "A gauge pill showing AI usage (Claude Code/Codex subscription rate limits as %, or Opencode API token cost as daily $). Automatically shows whichever provider reported most recently. Click for expanded session/weekly limits and daily/monthly API costs with model breakdowns. Claude and Opencode are read off disk; Codex has no local usage data, so its row is polled from your ChatGPT account with the OAuth token in ~/.codex/auth.json (refreshed and rewritten in place) — no Codex login on the machine, no call is made. Claude's row is pushed by its statusline; the Codex and Opencode rows are pulled by the pill itself on a 3-minute TTL, so they stay current on a machine that never opens Claude at all. Claude and Opencode also get a `tokens` block in the dropdown — raw tokens moved today, this week, this month and all time (cache reads and all), two periods to a line so a full set reads as a 2×2, purely for the fun of watching the number climb. A period with nothing in it is left out rather than printed as a zero, so the block simply gets smaller, and a closing `∑ Everything` adds every provider up when more than one is reporting. It is a score, not a limit: nothing acts on it, and it never reaches the pill's own label. Claude's is summed from your transcripts on a 15-minute TTL behind an index, so only sessions that grew since the last pass are re-read; Codex has no row because it keeps no local history to count.";
+    claudeUsage = "Deprecated alias for `aiUsage`.";
+    elgato = "Toggles an Elgato Key Light on the local network. The light is found over mDNS (or pinned with `haus.sill.elgato.host`), and the pill draws dim when it can't be reached at all — a light that dropped off the wifi is not the same thing as a light that's switched off.";
+    harvest = "A Harvest time-tracking pill; needs a ~/.config/sketchybar/harvest_secrets.sh you provide.";
+  };
+  mkItem =
+    default: desc:
+    lib.mkOption {
+      type = lib.types.bool;
+      inherit default;
+      description = desc;
+    };
+
+  # Which pills the SECOND bar can host. The whole left side (workspace pills,
+  # front app, the leader picker) and the five core pills stay on the menu bar:
+  # they are hand-written in `sketchybarrc`, whereas every name below is emitted
+  # from Nix (`optionalPluginBlocks`) and so can be emitted against either bar
+  # without duplicating a line of bar config. `claudeUsage` is left out because
+  # it is only a deprecated alias for `aiUsage`.
+  movable = builtins.removeAttrs extra [ "claudeUsage" ];
 in
 {
   options.haus = {
@@ -187,67 +231,89 @@ in
       '';
     };
 
-    # Per-pill on/off for the whole right side of the bar. One bool per item in a
-    # submodule (not attrsOf) so unknown keys are rejected and each item carries
-    # its own default: the core pills default true, the extras default false. The
-    # descriptions here are the single source for the options reference.
-
-    sill.items =
-      let
-        core = {
-          clock = "The clock pill, pinned to the far right.";
-          weather = "The weather pill and its click-to-open forecast popover.";
-          media = "The now-playing track (scrolls; auto-hides when nothing plays, dims when paused, click to play/pause). It reads the same system-wide session Control Center does, so it follows a browser tab as readily as Apple Music or Spotify, and its icon says which app the sound is coming from. SketchyBar's own `media_change` event has been dead since macOS 15.4, where Apple started requiring an entitlement to talk to `mediaremoted`; the pill is fed instead by `media-control`, which does the read from inside the entitled `/usr/bin/perl`. That is a private-framework route Apple could close in any point release — `media-control test` exits non-zero once it has.";
-          battery = "The battery pill.";
-          wifi = "The Wi-Fi status pill.";
-        };
-        extra = {
-          cpu = "Total CPU load, as a percentage pill.";
-          memory = "Memory-pressure percentage pill.";
-          volume = "Output volume / mute state.";
-          calendar = "Your next timed event, with a click-popup of the next five. Pulls in `ical-buddy` automatically and reads Calendar, so macOS prompts for Calendar access on first run.";
-          caffeinate = "A coffee pill that prevents idle system sleep for 1/2/4/8 hours, a custom whole-hour duration, or indefinitely. The display may still turn off; closing a MacBook lid still sleeps it. Uses macOS's built-in `caffeinate`, so there is no extra package.";
-          agents = "A paw pill tracking your agent-worktree panes — amber when one is blocked on you, click for the per-agent list, each row marked with the client sitting in it; left-click a row to jump to that pane, ⌥/right-click for a live `zellij subscribe` peek. Fed by each client's own lifecycle hooks, which all call `agent-state` (also installed as ~/.config/sketchybar/plugins/agents-hook.sh): Opencode's plugin and Codex's ~/.codex/hooks.json are written for you (Codex asks you to trust its hooks the first time it sees them), while Claude Code's four agent-state hooks stay yours to point at it in ~/.claude/settings.json — Claude owns that file and rewrites it, so the rice merges in only the keys it must and never touches those four. (The two worktree hooks ARE declared, in hearth: they point at a rice-controlled path and self-heal on rebuild.) A row whose zellij pane is gone drops off by itself, which is what stands in for the session-end event Codex doesn't have. Dormant until a client fires.";
-          aiUsage = "A gauge pill showing AI usage (Claude Code/Codex subscription rate limits as %, or Opencode API token cost as daily $). Automatically shows whichever provider reported most recently. Click for expanded session/weekly limits and daily/monthly API costs with model breakdowns. Claude and Opencode are read off disk; Codex has no local usage data, so its row is polled from your ChatGPT account with the OAuth token in ~/.codex/auth.json (refreshed and rewritten in place) — no Codex login on the machine, no call is made. Claude's row is pushed by its statusline; the Codex and Opencode rows are pulled by the pill itself on a 3-minute TTL, so they stay current on a machine that never opens Claude at all. Claude and Opencode also get a `tokens` block in the dropdown — raw tokens moved today, this week, this month and all time (cache reads and all), two periods to a line so a full set reads as a 2×2, purely for the fun of watching the number climb. A period with nothing in it is left out rather than printed as a zero, so the block simply gets smaller, and a closing `∑ Everything` adds every provider up when more than one is reporting. It is a score, not a limit: nothing acts on it, and it never reaches the pill's own label. Claude's is summed from your transcripts on a 15-minute TTL behind an index, so only sessions that grew since the last pass are re-read; Codex has no row because it keeps no local history to count.";
-          claudeUsage = "Deprecated alias for `aiUsage`.";
-          elgato = "Toggles an Elgato Key Light on the local network. The light is found over mDNS (or pinned with `haus.sill.elgato.host`), and the pill draws dim when it can't be reached at all — a light that dropped off the wifi is not the same thing as a light that's switched off.";
-          harvest = "A Harvest time-tracking pill; needs a ~/.config/sketchybar/harvest_secrets.sh you provide.";
-        };
-        mkItem =
-          default: desc:
-          lib.mkOption {
-            type = lib.types.bool;
-            inherit default;
-            description = desc;
-          };
-      in
-      lib.mkOption {
-        type = lib.types.submodule {
-          options = lib.mapAttrs (_: mkItem true) core // lib.mapAttrs (_: mkItem false) extra;
-        };
-        default = { };
-        example = {
-          weather = false;
-          cpu = true;
-        };
-        description = ''
-          Which SketchyBar pills to draw, one bool each. The core pills —
-          `clock`, `weather`, `media`, `battery`, `wifi` — default true; the extras
-          — the readouts `cpu`, `memory`, `volume`, `calendar`, `caffeinate`
-          and the personal `agents`, `aiUsage`, `elgato`, `harvest` —
-          default false. Set
-          only what you want to change:
-
-            haus.sill.items = {
-              weather = false;   # drop a default-on core pill
-              cpu = true;        # add an off-by-default readout
-              caffeinate = true; # add the keep-awake controller
-            };
-
-          A pill set false is never created (its update script doesn't run either).
-          The hush (Do-Not-Disturb) pill is separate — it rides
-          haus.hush.enable, not this set.
-        '';
+    sill.items = lib.mkOption {
+      type = lib.types.submodule {
+        options = lib.mapAttrs (_: mkItem true) core // lib.mapAttrs (_: mkItem false) extra;
       };
+      default = { };
+      example = {
+        weather = false;
+        cpu = true;
+      };
+      description = ''
+        Which SketchyBar pills to draw, one bool each. The core pills —
+        `clock`, `weather`, `media`, `battery`, `wifi` — default true; the extras
+        — the readouts `cpu`, `memory`, `volume`, `calendar`, `caffeinate`
+        and the personal `agents`, `aiUsage`, `elgato`, `harvest` —
+        default false. Set
+        only what you want to change:
+
+          haus.sill.items = {
+            weather = false;   # drop a default-on core pill
+            cpu = true;        # add an off-by-default readout
+            caffeinate = true; # add the keep-awake controller
+          };
+
+        A pill set false is never created (its update script doesn't run either).
+        The hush (Do-Not-Disturb) pill is separate — it rides
+        haus.hush.enable, not this set.
+
+        This is the MENU BAR's set. `haus.sill.bottom.items` is the same table
+        for the optional second bar along the bottom of the screen, and a pill
+        named there moves down rather than being drawn twice.
+      '';
+    };
+
+    sill.bottom.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      example = true;
+      description = ''
+        Draw a SECOND bar along the bottom of the screen, at the same time as
+        the menu bar one. `haus.sill.bottom.items` picks what goes on it; an
+        empty set draws an empty strip, which the module warns about.
+
+        SketchyBar has no two-bars-in-one-process mode — an instance is named
+        after `basename(argv[0])` and keys both its lock file and its mach
+        service on that name — so this is a second launchd agent running the
+        SAME binary under a second name, `sill-bottom`. That name is also the
+        CLI for it: `sill-bottom --set cpu label=…` talks to the bottom bar the
+        way `sketchybar --set` talks to the menu bar one.
+
+        Two things macOS does not do for you here. It reserves the top strip of
+        every display for the menu bar but reserves NOTHING at the bottom, so
+        windows would sit under this bar: prowl carves the room out of its
+        outer-bottom gap whenever this is on (with `haus.prowl.enable = false`,
+        nothing reserves it and your windows will run underneath). And the Dock,
+        if you keep it at the bottom, shares that edge — move it to a side, or
+        leave it hidden.
+      '';
+    };
+
+    sill.bottom.items = lib.mkOption {
+      type = lib.types.submodule { options = lib.mapAttrs (_: mkItem false) movable; };
+      default = { };
+      example = {
+        cpu = true;
+        memory = true;
+      };
+      description = ''
+        Which pills the bottom bar draws, one bool each, all default false. A
+        pill named here MOVES: it is drawn on the bottom bar and not on the menu
+        bar, whatever `haus.sill.items` says about it — so there is one switch
+        per pill per bar and never two copies of the same readout.
+
+        The set is the `haus.sill.items` extras (`cpu`, `memory`, `volume`,
+        `calendar`, `caffeinate`, `agents`, `aiUsage`, `elgato`, `harvest`). The
+        five core pills — `clock`, `weather`, `media`, `battery`, `wifi` — and
+        the whole left side (workspace pills, front app, the leader picker, the
+        tour) stay on the menu bar: those are hand-written in `sketchybarrc`,
+        while every name above is emitted from Nix and can therefore be emitted
+        against either bar. The hush pill stays up top too — it rides
+        `haus.hush.enable` rather than this table.
+
+        Needs `haus.sill.bottom.enable`; without it nothing here is drawn.
+      '';
+    };
   };
 }

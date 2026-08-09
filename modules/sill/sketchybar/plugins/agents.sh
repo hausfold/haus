@@ -25,6 +25,14 @@ set -u
 export USER="${USER:-$(id -un)}"
 export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:$PATH"
 source "$HOME/.config/sketchybar/colors.sh"
+# $SB — which bar this pill lives on (haus.sill.bottom.items can move it to
+# the bottom bar, a separate SketchyBar instance addressed by its own
+# binary). SILL_ITEM is the fallback bar.sh needs on the HOOK path: invoked
+# from outside SketchyBar there is no $BAR_NAME to route on, and not every
+# caller sets $NAME either.
+SILL_ITEM=agents
+source "$HOME/.config/sketchybar/bar.sh"
+
 source "$HOME/.config/sketchybar/sizes.sh"
 # provider_style() — the same client icon table the aiUsage pill draws from, so
 # a Codex pane wears the same mark in both pills.
@@ -68,7 +76,7 @@ if [ "${1:-}" = "row" ]; then
           | grep -w Ghostty | grep -F "$sess" | head -1 | awk '{print $1}')
     if [ -n "$win" ]; then aerospace focus --window-id "$win" 2>/dev/null; else open -a Ghostty; fi
   fi
-  sketchybar --set agents popup.drawing=off
+  "$SB" --set agents popup.drawing=off
   exit 0
 fi
 
@@ -121,7 +129,7 @@ prune_dead_panes
 
 # ── click: rebuild the popup as one row per agent, then toggle it ─────────────
 if [ "${SENDER:-}" = "mouse.clicked" ]; then
-  sketchybar --remove '/agents.popup\..*/' 2>/dev/null
+  "$SB" --remove '/agents.popup\..*/' 2>/dev/null
   i=0
   for f in "$DIR"/*.state; do
     [ -e "$f" ] || continue
@@ -131,7 +139,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
     # colour — two facts in the space the paw used to spend on one. The pill
     # itself keeps the paw: it stands for "agents", not for any one client.
     provider_style "${client:-}" "" "$FS_SMALL"
-    sketchybar --add item "agents.popup.$i" popup.agents 2>/dev/null \
+    "$SB" --add item "agents.popup.$i" popup.agents 2>/dev/null \
       --set "agents.popup.$i" \
         icon="$P_ICON" icon.color="$COL" icon.font="$P_FONT" \
         label="$label · $TAG" label.color="$TEXT" \
@@ -141,14 +149,18 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
     i=$((i + 1))
   done
   if [ "$i" -eq 0 ]; then
-    sketchybar --add item agents.popup.0 popup.agents 2>/dev/null \
+    "$SB" --add item agents.popup.0 popup.agents 2>/dev/null \
       --set agents.popup.0 icon.drawing=off label="no active agents" label.color="$SUBTEXT0"
   fi
   # The toggle first and alone, so opening costs what it always did; then sillpop
   # guards it in the background so it also closes on a click anywhere else — the
   # dismissal sketchybar can't do, since it only hears clicks on its own items.
-  sketchybar --set agents popup.drawing=toggle
-  /run/current-system/sw/bin/sillpop arm agents 2>/dev/null &
+  "$SB" --set agents popup.drawing=toggle
+  # SKETCHYBAR_BIN is what sillpop resolves its own client from: unset, it
+  # queries the TOP bar, finds no such item on a pill that moved to the
+  # bottom one, and exits before it ever arms — leaving a dropdown nothing
+  # closes but a second click on the pill.
+  SKETCHYBAR_BIN="$SB" /run/current-system/sw/bin/sillpop arm agents 2>/dev/null &
   exit 0
 fi
 
@@ -165,7 +177,7 @@ for f in "$DIR"/*.state; do
 done
 
 if [ $((working + waiting + idle)) -eq 0 ]; then
-  sketchybar --set agents drawing=off   # nothing running → no clutter
+  "$SB" --set agents drawing=off   # nothing running → no clutter
   exit 0
 fi
 
@@ -173,5 +185,5 @@ if   [ "$waiting" -gt 0 ]; then state_style waiting; n=$waiting
 elif [ "$working" -gt 0 ]; then state_style working; n=$working
 else                           state_style idle;    n=$idle
 fi
-sketchybar --set agents drawing=on icon="$PAW" icon.color="$COL" \
+"$SB" --set agents drawing=on icon="$PAW" icon.color="$COL" \
   label="$n" label.color="$COL"

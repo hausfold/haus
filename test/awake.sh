@@ -27,6 +27,16 @@ cat >"$TMP/bin/sketchybar" <<'EOF'
 printf 'sketchybar %s\n' "$*" >>"$AWAKE_TEST_LOG"
 EOF
 
+# sill's optional second bar (haus.sill.bottom.enable) is a second SketchyBar
+# instance under a second name, and `awake` pokes BOTH — so it needs a stub too.
+# Without one the default path is /run/current-system/sw/bin/sill-bottom, which
+# on a dev Mac running that bar means this suite fires a real --trigger at the
+# live bottom bar; CI (Linux, no such path) would never see it.
+cat >"$TMP/bin/sill-bottom" <<'EOF'
+#!/usr/bin/env bash
+printf 'sill-bottom %s\n' "$*" >>"$AWAKE_TEST_LOG"
+EOF
+
 chmod +x "$TMP/bin/"*
 
 export HOME="$TMP/home"
@@ -34,6 +44,7 @@ export AWAKE_STATE_DIR="$TMP/state"
 export AWAKE_LAUNCHCTL_BIN="$TMP/bin/launchctl"
 export AWAKE_CAFFEINATE_BIN="$TMP/bin/caffeinate"
 export AWAKE_SKETCHYBAR_BIN="$TMP/bin/sketchybar"
+export AWAKE_SILL_BOTTOM_BIN="$TMP/bin/sill-bottom"
 export AWAKE_TEST_LOG="$TMP/log"
 export AWAKE_NOW=1000000
 
@@ -55,6 +66,7 @@ assert_eq "$out" "awake for 2h 00m"
 assert_eq "$("$AWAKE" status --raw)" "$(printf 'timed\t7200\t1007200')"
 assert_contains "$TMP/log" "kickstart -k gui/$(id -u)/org.nebelhaus.awake"
 assert_contains "$TMP/log" "sketchybar --trigger caffeinate_change"
+assert_contains "$TMP/log" "sill-bottom --trigger caffeinate_change"
 
 out=$("$AWAKE" indefinitely)
 assert_eq "$out" "awake indefinitely"

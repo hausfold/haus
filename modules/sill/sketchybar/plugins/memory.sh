@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# $SB — the bar this pill lives on. It can be either one: the readouts are
+# movable via haus.sill.bottom.items, and a bare `sketchybar` here would keep
+# updating a top-bar item that no longer exists. See bar.sh.
+source "$HOME/.config/sketchybar/bar.sh"
+
 # Get memory usage
 MEMORY_USED=$(memory_pressure | grep "System-wide memory free percentage:" | awk '{print 100-$5}' | sed 's/%//')
 
@@ -21,6 +26,6 @@ fi
 ICON=$(printf "\U000F049D")
 
 # Update the bar item
-/opt/homebrew/bin/sketchybar --set $NAME \
+"$SB" --set $NAME \
     icon="$ICON" \
     label="${MEMORY_USED}%"

@@ -18,6 +18,12 @@ HEADERS=(
 )
 
 source "$HOME/.config/sketchybar/colors.sh"
+# $SB — which bar this pill lives on. haus.sill.bottom.items can move it to
+# the second (bottom) bar, and the two instances are addressed by different
+# binaries; a bare `sketchybar` would always mean the menu bar one. bar.sh
+# reads $BAR_NAME, which SketchyBar exports into everything it runs.
+source "$HOME/.config/sketchybar/bar.sh"
+
 
 # Helper to format duration
 format_duration() {
@@ -65,7 +71,7 @@ if [ "$SENDER" = "mouse.clicked" ]; then
     PROJECT_NAME=$(echo "$CURRENT_ENTRY" | jq -r '.time_entries[0].client.name // .time_entries[0].project.name // "Timer"')
 
     # Optimistic UI update
-    sketchybar --set $NAME \
+    "$SB" --set $NAME \
       icon.color=$TEXT \
       label.color=$TEXT \
       background.color=$SURFACE0 \
@@ -76,7 +82,7 @@ if [ "$SENDER" = "mouse.clicked" ]; then
 
     if [ "$HTTP_CODE" -ne 200 ]; then
       osascript -e 'display notification "Failed to stop timer" with title "Harvest"'
-      sketchybar --trigger harvest_update
+      "$SB" --trigger harvest_update
     fi
 
   else
@@ -87,7 +93,7 @@ if [ "$SENDER" = "mouse.clicked" ]; then
 
     if [ "$ENTRY_ID" != "null" ] && [ -n "$ENTRY_ID" ]; then
       # Optimistic UI update
-      sketchybar --set $NAME \
+      "$SB" --set $NAME \
         icon.color=$BASE \
         label.color=$BASE \
         background.color=$PEACH \
@@ -98,7 +104,7 @@ if [ "$SENDER" = "mouse.clicked" ]; then
 
       if [ "$HTTP_CODE" -ne 200 ] && [ "$HTTP_CODE" -ne 201 ]; then
         osascript -e 'display notification "Failed to restart timer" with title "Harvest"'
-        sketchybar --trigger harvest_update
+        "$SB" --trigger harvest_update
       fi
     else
       osascript -e 'display notification "No previous timer to restart" with title "Harvest"'
@@ -135,7 +141,7 @@ if [ "$RUNNING_COUNT" -gt "0" ]; then
     LABEL="$LABEL · $DURATION"
   fi
 
-  sketchybar --set $NAME \
+  "$SB" --set $NAME \
     icon="󰔟" \
     icon.color=$BASE \
     label.color=$BASE \
@@ -157,7 +163,7 @@ else
     LABEL="Start Timer"
   fi
 
-  sketchybar --set $NAME \
+  "$SB" --set $NAME \
     icon="󰔟" \
     icon.color=$TEXT \
     label.color=$TEXT \

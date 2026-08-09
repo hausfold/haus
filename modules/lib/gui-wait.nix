@@ -42,6 +42,26 @@ in
 {
   inherit script;
 
+  # `.wrapArgs` is `.wrap` for an executable that also takes arguments. Kept as
+  # `exec "$0" "$@"` with the target passed as bash's $0 rather than folded into
+  # the -c string, because ARGV[0] IS LOAD-BEARING for at least one caller:
+  # SketchyBar names its instance after `basename(argv[0])` and keys both its
+  # lock file and its mach service on that, which is how sill draws a second bar
+  # (a `sill-bottom` symlink to the same binary — see modules/sill).
+  wrapArgs =
+    target: args:
+    [
+      "/bin/bash"
+      "-c"
+      ''
+        ${script}
+        sleep 5
+        exec "$0" "$@"
+      ''
+      target
+    ]
+    ++ args;
+
   wrap = target: [
     "/bin/bash"
     "-c"
