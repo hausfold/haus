@@ -1496,6 +1496,19 @@
             fi
             touch $out
           '';
+
+          # SketchyBar executes each rc directly. When an rc is not executable it
+          # tries to chmod it first; Home Manager's source link resolves into the
+          # immutable Nix store, so that chmod fails and the bar starts empty.
+          # The original top rc carried +x, while the newer second-bar rc did not
+          # and therefore passed every evaluation/build check but never populated
+          # the live process. Pin both source modes before another rc ships with
+          # the same silent startup failure.
+          sill-rc-executable = pkgs.runCommand "nebelhaus-sill-rc-executable-ok" { } ''
+            test -x ${./modules/sill/sketchybar/sketchybarrc}
+            test -x ${./modules/sill/sketchybar/sill-bottomrc}
+            touch $out
+          '';
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-darwin" system) {
           accent-reach = pkgs.runCommand "nebelhaus-accent-reach-ok" { } ''
