@@ -759,8 +759,8 @@ lib.mkIf config.haus.pounce.enable {
   # falls back to the signing certificate's owner: the agent execs /bin/bash and
   # the daemon copy is signed with an *individual* Developer ID, so a rice
   # install showed the maintainer's legal name instead of "Pounce". This is the
-  # rice-side counterpart to the standalone Homebrew fix (nebelhaus/homebrew-tap#7);
-  # the daemon self-registers the bundle via LSRegisterURL (nebelhaus/pounce#29)
+  # rice-side counterpart to the standalone Homebrew fix (hausfold/homebrew-tap#7);
+  # the daemon self-registers the bundle via LSRegisterURL (hausfold/pounce#29)
   # so Launch Services can resolve com.local.pounce → the running signed copy.
   #
   # nix-darwin's launchd serviceConfig submodule is strictly typed with no

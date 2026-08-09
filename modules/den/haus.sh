@@ -913,16 +913,27 @@ cmd_rebuild() {
 }
 
 # Family apps (pounce, perch…) ship as CI-published casks/formulae in
-# nebelhaus/tap, released on their OWN cadence — a rice flake bump never carries
+# hausfold/tap, released on their OWN cadence — a rice flake bump never carries
 # them. Worse, activation's `brew bundle` leans on Homebrew's auto-update, which
 # is THROTTLED: a rebuild can run against a stale tap clone and never see a fresh
 # release (the "released but not installed" trap). So do an explicit, unthrottled
-# `brew update` + a targeted upgrade of just the nebelhaus/tap packages here —
+# `brew update` + a targeted upgrade of just the hausfold/tap packages here —
 # third-party casks keep whatever upgrade policy the host set (autoUpdate/upgrade).
+#
+# Both tap directories are probed: the tap was `nebelhaus/tap` until the org
+# migration, and a machine that tapped it before then still has the old dir on
+# disk. Homebrew keys a tap by the directory, not by where it redirects to, so
+# looking only at the new path would turn this into a silent no-op — which is
+# indistinguishable from "nothing to upgrade", the exact trap above.
 refresh_family_apps() {
   command -v brew >/dev/null 2>&1 || return 0
-  local tap; tap="$(brew --repository 2>/dev/null)/Library/Taps/nebelhaus/homebrew-tap"
-  [ -d "$tap" ] || return 0
+  local root tap="" cand
+  root="$(brew --repository 2>/dev/null)" || return 0
+  for cand in "$root/Library/Taps/hausfold/homebrew-tap" \
+              "$root/Library/Taps/nebelhaus/homebrew-tap"; do
+    [ -d "$cand" ] && { tap="$cand"; break; }
+  done
+  [ -n "$tap" ] || return 0
   brew update --quiet >/dev/null 2>&1 || warn "brew update failed — family apps may be stale"
   local kind dir f name
   for kind in Casks Formula; do
@@ -969,8 +980,8 @@ cmd_update() {
     # rate-limited, or non-GitHub upstreams just skip the list. Fetched in the
     # background: it's a 5-second timeout on a network you may not have, and
     # nothing downstream waits on it.
-    owner="$(jq -r '.nodes.nebelhaus.original.owner // "nebelhaus"' "$CONSUMER/flake.lock")"
-    repo="$(jq -r '.nodes.nebelhaus.original.repo // "nebelhaus"' "$CONSUMER/flake.lock")"
+    owner="$(jq -r '.nodes.nebelhaus.original.owner // "hausfold"' "$CONSUMER/flake.lock")"
+    repo="$(jq -r '.nodes.nebelhaus.original.repo // "hausfold"' "$CONSUMER/flake.lock")"
     logfile="$(mktemp)"
     bg fetch_changelog "$owner" "$repo" "$old" "$new" "$logfile"
   fi
@@ -1037,8 +1048,8 @@ cmd_status() {
       printf '  %s\n' "${lockrev:0:12}"
     fi
     # Is the upstream rice ahead of what you've pinned? Best-effort, offline-safe.
-    owner="$(jq -r '.nodes.nebelhaus.original.owner // "nebelhaus"' "$CONSUMER/flake.lock")"
-    repo="$(jq -r '.nodes.nebelhaus.original.repo // "nebelhaus"' "$CONSUMER/flake.lock")"
+    owner="$(jq -r '.nodes.nebelhaus.original.owner // "hausfold"' "$CONSUMER/flake.lock")"
+    repo="$(jq -r '.nodes.nebelhaus.original.repo // "hausfold"' "$CONSUMER/flake.lock")"
     ref="$(jq -r '.nodes.nebelhaus.original.ref // "HEAD"' "$CONSUMER/flake.lock")"
     url="https://github.com/$owner/$repo.git"
     remoterev="$(git ls-remote "$url" "$ref" 2>/dev/null | awk 'NR==1{print $1}')"

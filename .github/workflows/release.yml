@@ -5,7 +5,7 @@ name: release
 # itself is consumed as a flake input, so there's no build artifact to attach —
 # the release is just a named, reviewed point in the history.
 #
-# Cut tags with `bench release nebelhaus` from the workshop; it enforces that the
+# Cut tags with `bench release hausfold` from the workshop; it enforces that the
 # tag matches VERSION and that everything is pushed first.
 
 on:

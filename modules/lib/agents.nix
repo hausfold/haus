@@ -11,7 +11,7 @@
 # fourth client would have to be added in both or the bar would refuse to
 # display a client the palette could happily spawn.
 #
-# `specFor()` in holt (nebelhaus/holt, internal/commands/agent.go) is the one
+# `specFor()` in holt (hausfold/holt, internal/commands/agent.go) is the one
 # copy that CANNOT be folded in: it's the same set on the Go side, and a Go
 # binary can't read Nix. Adding a client means editing there too.
 [

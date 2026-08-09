@@ -362,7 +362,7 @@ cc_prnum=$(j '.pr.number'); cc_prurl=$(j '.pr.url')
 if [ "$is_wt" = 1 ] && [ -f "$PANEL" ]; then
   # Match our own panel row by (slug, name). slug is the remote-derived owner/name
   # (same parse the refresher uses) — NOT the local dir name, which can differ
-  # (e.g. dir "nebelhaus" but slug "nebelhaus/workshop").
+  # (e.g. dir "org-profile" but slug "hausfold/.github").
   slug=$(g remote get-url origin 2>/dev/null)
   slug=${slug%.git}; slug=${slug#*://}; slug=${slug#*@}; slug=${slug#*[:/]}
   if [ -n "$slug" ]; then

@@ -9,7 +9,7 @@
 # concurrently: a mkdir-lock elects one refresher; the rest exit immediately.
 #
 #   panel.tsv rows:  slug <TAB> name <TAB> ahead <TAB> files <TAB> ins <TAB> del <TAB> prstate <TAB> parent
-#     slug    = owner/repo   (e.g. nebelhaus/pounce)
+#     slug    = owner/repo   (e.g. hausfold/pounce)
 #     name    = worktree name (branch minus worktree- prefix)
 #     ahead   = commits on the branch not in its default branch
 #     files/ins/del = uncommitted working-tree delta (live checkouts only)
