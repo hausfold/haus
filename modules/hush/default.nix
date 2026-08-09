@@ -63,7 +63,11 @@ lib.mkIf cfg.enable {
       ProgramArguments = [
         "/bin/bash"
         "-c"
-        "/bin/sleep 1; /opt/homebrew/opt/sketchybar/bin/sketchybar --trigger hush_change 2>/dev/null || true"
+        ''
+          /bin/sleep 1
+          /opt/homebrew/opt/sketchybar/bin/sketchybar --trigger hush_change 2>/dev/null || true
+          ${lib.optionalString config.haus.sill.bottom.enable "/run/current-system/sw/bin/sill-bottom --trigger hush_change 2>/dev/null || true"}
+        ''
       ];
       WatchPaths = [ "/Users/${username}/Library/DoNotDisturb/DB" ];
       RunAtLoad = false;

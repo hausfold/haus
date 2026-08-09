@@ -7,6 +7,7 @@
 # update_freq polls as a backstop.
 
 source "$HOME/.config/sketchybar/colors.sh"
+source "$HOME/.config/sketchybar/bar.sh"
 
 HUSH="$HOME/.local/bin/hush"
 
@@ -17,13 +18,13 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
 fi
 
 if [ "$("$HUSH" status 2>/dev/null)" = "on" ]; then
-    sketchybar --set "$NAME" \
+    "$SB" --set "$NAME" \
         icon="󰂛" \
         icon.color=$BASE \
         background.color=$MAUVE \
         label.drawing=off
 else
-    sketchybar --set "$NAME" \
+    "$SB" --set "$NAME" \
         icon="󰂚" \
         icon.color=$TEXT \
         background.color=$SURFACE0 \

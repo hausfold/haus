@@ -49,7 +49,12 @@ let
   # one parameterized block table, so core and extra pills can move without a
   # second source copy. `claudeUsage` is left out because it is only a
   # deprecated alias for `aiUsage`.
-  movable = core // builtins.removeAttrs extra [ "claudeUsage" ];
+  movable =
+    core
+    // builtins.removeAttrs extra [ "claudeUsage" ]
+    // {
+      hush = "The Hush (Do-Not-Disturb) pill. Needs `haus.hush.enable`; setting this moves the pill but does not enable the Hush room by itself.";
+    };
 in
 {
   options.haus = {
@@ -254,11 +259,12 @@ in
 
         A pill set false is never created (its update script doesn't run either).
         The hush (Do-Not-Disturb) pill is separate — it rides
-        haus.hush.enable, not this set.
+        haus.hush.enable, not this set. It can still be moved to the second bar
+        with `haus.sill.bottom.items.hush`.
 
-        This is the MENU BAR's set. `haus.sill.bottom.items` is the same table
-        for the optional second bar along the bottom of the screen, and a pill
-        named there moves down rather than being drawn twice.
+        This is the MENU BAR's set. `haus.sill.bottom.items` mirrors these pills
+        for the optional second bar and also accepts `hush`; a pill named there
+        moves down rather than being drawn twice.
       '';
     };
 
@@ -304,10 +310,10 @@ in
 
         The set is the five core pills (`clock`, `weather`, `media`, `battery`,
         `wifi`) plus the `haus.sill.items` extras (`cpu`, `memory`, `volume`,
-        `calendar`, `caffeinate`, `agents`, `aiUsage`, `elgato`, `harvest`). The
-        whole left side (workspace pills, front app, the leader picker) and the
-        tour stay on the menu bar. The hush pill stays up top too — it rides
-        `haus.hush.enable` rather than this table.
+        `calendar`, `caffeinate`, `agents`, `aiUsage`, `elgato`, `harvest`), plus
+        the Hush pill when `haus.hush.enable` is on. The whole left side
+        (workspace pills, front app, the leader picker) and the tour stay on the
+        menu bar.
 
         Needs `haus.sill.bottom.enable`; without it nothing here is drawn.
       '';
