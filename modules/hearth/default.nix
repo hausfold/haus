@@ -712,12 +712,36 @@ in
       obsidianTheme = "${nebelungRoot}/obsidian/Nebelung";
       ghDashTheme = "${nebelungRoot}/gh-dash/themes/${nbFlavor}/catppuccin-${nbFlavor}-${accent}.yml";
 
-      # gh-dash hardcodes both its stock logo and its cyan colour. Once Hearth
-      # owns the dashboard integration, the house mark belongs here too: patch
-      # the same-width glyph in place, then source its colour from the active
-      # Nebelung theme so flavor/accent/contrast changes follow automatically.
-      # --replace-fail makes an upstream redraw a loud build failure instead of
-      # silently putting the stock mark back.
+      # Two edits to gh-dash, for two different surfaces.
+      #
+      # 1. The CLI banner (`gh dash --help`) hardcodes gh-dash's own wordmark.
+      #    Once Hearth owns the dashboard integration, the house mark belongs
+      #    there: patch the same-width glyphs in place. --replace-fail makes an
+      #    upstream redraw a loud build failure instead of silently putting the
+      #    stock mark back. This is the ONLY place the mark survives — the TUI
+      #    no longer draws it at all (see below) — and it keeps gh-dash's own
+      #    hardcoded cyan, because the theme-following colour we used to inject
+      #    only ever applied to the TUI copy that's now gone.
+      #
+      # 2. plain-chrome.patch strips the TUI's decoration. gh-dash spends its
+      #    header's right slot on the wordmark + version string, and a whole
+      #    bottom row on a coloured bar carrying a view switcher, repo/user
+      #    pills and a donate link. In a full-window Cmd-G overlay none of that
+      #    is information — the section tabs already say which view you're in,
+      #    and the version renders as "dev" no matter what nixpkgs stamps into
+      #    `cmd.Version`, because the TUI takes its version from
+      #    `debug.ReadBuildInfo()` (ui.go) and a from-source Go build leaves
+      #    `Main.Sum` empty. So: the header slot carries the `? help` hint
+      #    instead, and the footer bar goes unstyled. The footer ROW is
+      #    deliberately kept (one blank line): it is also where y/N prompt
+      #    confirmations, the list pager and running-task status are drawn —
+      #    each still carrying its own background, so they read as an island on
+      #    a bare row — and it is what `?` expands the full keymap out of.
+      #    Blanking it outright would hide a prompt that still eats the
+      #    keypress. A patch file rather than more substituteInPlace because the
+      #    edits are multi-line Go; it fails just as loudly on an upstream bump,
+      #    which is the point — a nixpkgs bump that reshapes footer.go or
+      #    tabs.go now fails the whole system build on a ghDash host.
       #
       # One thing deliberately NOT wired into this override, with the reason kept
       # so nobody has to rediscover it: gh-dash has a FOURTH view — the local
@@ -742,17 +766,11 @@ in
       # two commands (`FF_REPO_VIEW=1 gh-dash` in a repo, then `sss`) — worth
       # doing on a gh-dash bump, because the view is genuinely wanted.
       ghDashPkg = pkgs.gh-dash.overrideAttrs (old: {
+        patches = (old.patches or [ ]) ++ [ ./gh-dash/patches/plain-chrome.patch ];
         postPatch = (old.postPatch or "") + ''
           substituteInPlace internal/tui/constants/constants.go \
             --replace-fail '▜▔▚▐▔▌▚▔▐ ▌' '▐ ▌▐▔▌▐ ▌▚▔' \
             --replace-fail '▟▁▞▐▔▌▁▚▐▔▌' '▐▔▌▐▔▌▙▁▟▁▚'
-          substituteInPlace internal/tui/components/tabs/tabs.go \
-            --replace-fail \
-              'Foreground(m.ctx.Theme.SecondaryText).Render(m.ctx.Version)' \
-              'Foreground(m.ctx.Theme.FaintText).Render(m.ctx.Version)' \
-            --replace-fail \
-              'Foreground(context.LogoColor)' \
-              'Foreground(m.ctx.Theme.SecondaryText)'
         '';
       });
 
