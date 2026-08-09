@@ -1557,7 +1557,7 @@ cmd_doctor() {
   # saying out loud, since the agent keybind can spawn any of the three.
   echo
   say "Agents"
-  local skilldir="$HOME/.claude/skills/nebelhaus"
+  local skilldir="$HOME/.claude/skills/haus"
   if [ -f "$skilldir/SKILL.md" ]; then
     ok "the nebelhaus skill is installed ($skilldir)"
   else

@@ -162,7 +162,7 @@ let
     otherwise). Change it there, then `haus rebuild` — a hand-edit here either
     fails outright or is reverted by the next rebuild.
 
-    The same goes for `~/.claude/skills/nebelhaus/`, generated from the rice
+    The same goes for `~/.claude/skills/haus/`, generated from the rice
     revision this machine pins (`haus update` regenerates it). It does NOT go
     for all of `~/.claude`: `settings.json` is Claude Code's own, and a host may
     wire individual skills as out-of-store symlinks that you can edit live with
@@ -1495,10 +1495,10 @@ in
         # rather than as one directory symlink so this-machine.md — rendered
         # from THIS host, not from the rice — can sit inside the same skill
         # alongside the store-built parts.
-        ".claude/skills/nebelhaus/SKILL.md".source = "${claudeSkill}/SKILL.md";
-        ".claude/skills/nebelhaus/references/options.md".source = "${claudeSkill}/references/options.md";
-        ".claude/skills/nebelhaus/references/recipes.md".source = "${claudeSkill}/references/recipes.md";
-        ".claude/skills/nebelhaus/references/this-machine.md".text = thisMachine;
+        ".claude/skills/haus/SKILL.md".source = "${claudeSkill}/SKILL.md";
+        ".claude/skills/haus/references/options.md".source = "${claudeSkill}/references/options.md";
+        ".claude/skills/haus/references/recipes.md".source = "${claudeSkill}/references/recipes.md";
+        ".claude/skills/haus/references/this-machine.md".text = thisMachine;
 
         # The starter instruction pair for ~/.config/nix, parked in the skill
         # rather than written into that repo: it's the user's own git repo, and a
@@ -1512,8 +1512,8 @@ in
         # a bare @AGENTS.md import for the one client that reads only that name.
         # Copying just the CLAUDE.md would leave a Codex or OpenCode pane in that
         # repo with no instructions at all.
-        ".claude/skills/nebelhaus/consumer-AGENTS.md".source = "${claudeSkill}/consumer-AGENTS.md";
-        ".claude/skills/nebelhaus/consumer-CLAUDE.md".source = "${claudeSkill}/consumer-CLAUDE.md";
+        ".claude/skills/haus/consumer-AGENTS.md".source = "${claudeSkill}/consumer-AGENTS.md";
+        ".claude/skills/haus/consumer-CLAUDE.md".source = "${claudeSkill}/consumer-CLAUDE.md";
       }
       // {
 

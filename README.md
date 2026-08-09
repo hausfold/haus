@@ -130,7 +130,7 @@ was knowledge — left to guess, a model reaches for `brew install` and dotfiles
 the next rebuild overwrites, or invents an option that doesn't exist.
 
 So the rice ships it. `haus.claude.skill` (on by default) installs a Claude
-Code skill at `~/.claude/skills/nebelhaus` whose option reference is **generated
+Code skill at `~/.claude/skills/haus` whose option reference is **generated
 from the revision you're pinned to** — it can only ever describe options you
 actually have, and `haus update` refreshes it with the rice. "Install Slack" or
 "make everything bigger" becomes an edit to your host file, applied and
