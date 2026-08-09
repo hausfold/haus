@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# $SB — the bar this pill lives on. It can be either one: the readouts are
+# movable via haus.sill.bottom.items, and a bare `sketchybar` here would keep
+# updating a top-bar item that no longer exists. See bar.sh.
+source "$HOME/.config/sketchybar/bar.sh"
+
 # Get volume level
 VOLUME=$(osascript -e 'output volume of (get volume settings)')
 MUTED=$(osascript -e 'output muted of (get volume settings)')
@@ -23,6 +28,6 @@ else
 fi
 
 # Update the bar item
-/opt/homebrew/bin/sketchybar --set $NAME \
+"$SB" --set $NAME \
     icon="$ICON" \
     label="$LABEL"

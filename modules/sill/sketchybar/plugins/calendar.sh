@@ -2,7 +2,10 @@
 
 # Calendar plugin using icalBuddy
 ICALBUDDY="/opt/homebrew/bin/icalBuddy"
-SKETCHYBAR="/opt/homebrew/bin/sketchybar"
+# The bar this pill lives on — either one (haus.sill.bottom.items moves it),
+# so the client comes from bar.sh rather than a hardcoded Homebrew path.
+source "$HOME/.config/sketchybar/bar.sh"
+SKETCHYBAR="$SB"
 
 # Get next timed event (exclude all-day events)
 # -n: limit to next event

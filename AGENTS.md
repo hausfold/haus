@@ -204,6 +204,23 @@ it silently.
 
 - **New SketchyBar plugin**: add `modules/sill/sketchybar/plugins/<name>.sh`, wire it
   into `modules/sill/sketchybar/sketchybarrc`. Follow an existing plugin.
+- **A plugin that can end up on the SECOND bar must never write `sketchybar`.**
+  `haus.sill.bottom.enable` draws a second bar along the bottom of the screen,
+  and SketchyBar has no two-bars-in-one-process mode: an instance is named
+  `basename(argv[0])` and keys BOTH its lock file and its mach service on that
+  name, so the bottom bar is the same binary under a second name (`sill-bottom`,
+  a symlink — `BAR_NAME` is exported TO plugins, never read, so setting it on the
+  way in does nothing). The consequence is that a bare `sketchybar --set` in a
+  plugin ALWAYS means the top bar: same syntax, no error, and a pill that moved
+  down just silently stops updating. So `source ~/.config/sketchybar/bar.sh` and
+  use `"$SB"` — it routes on `$BAR_NAME`, falling back to `SILL_ITEM`/`$NAME` for
+  the HOOK path (agents-hook.sh, the statusline's usage push), which has no bar
+  and so no `$BAR_NAME`. Same rule in Nix: `mkPluginBlocks` takes the bar command
+  as its argument, and anything poking the bar from OUTSIDE sill (den's `awake`
+  and its `caffeinate_change`) pokes both. Only the Nix-emitted pills can move —
+  the core five and the whole left side are hand-written in `sketchybarrc` and
+  stay on the menu bar. macOS reserves the top strip of a display and reserves
+  NOTHING at the bottom, so prowl's `outerBottom` carves the room instead.
 - **A new default app pick** (an app the rice thinks a finished machine has, not one a
   room needs to do its job): it goes in `modules/apps` — one
   `haus.apps.<thing>.enable` knob in its `options.nix`, one roster entry (never a

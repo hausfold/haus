@@ -9,6 +9,13 @@
 # toggleable via haus.sill.items (one bool per pill): the core
 # clock/weather/media/battery/wifi default on, the extras cpu/memory/volume/
 # calendar/caffeinate plus the personal agents/elgato/harvest default off.
+#
+# haus.sill.bottom.enable adds a SECOND bar along the bottom of the screen,
+# running at the same time as this one, with the extras named in
+# haus.sill.bottom.items moved down onto it. It is a second launchd agent
+# running the same binary under a second name — see `sillBottom` below for why
+# there is no other way, and `barSh` for how a shared plugin knows which of the
+# two it is talking to.
 {
   config,
   lib,
@@ -18,10 +25,43 @@
 }:
 
 let
-  withGUIWait = (import ../lib/gui-wait.nix).wrap;
+  guiWait = import ../lib/gui-wait.nix;
+  withGUIWait = guiWait.wrap;
   userPath = "/run/current-system/sw/bin:/etc/profiles/per-user/${username}/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin";
 
+  cfg = config.haus.sill;
+
   sillpop = pkgs.callPackage ./sillpop.nix { };
+
+  # ---- the second bar, and why it is a symlink -------------------------------
+  # SketchyBar has no two-bars-in-one-process mode. An instance names itself
+  # after `basename(argv[0])` (src/sketchybar.c) and keys BOTH its lock file
+  # (/tmp/<name>_<user>.lock) and its mach service (git.felix.<name>) on that
+  # name — so two bars means the SAME binary invoked under two names, and the
+  # name has to reach it through argv[0]. There is no flag and no environment
+  # variable for it: BAR_NAME is EXPORTED to plugins, never read, so setting it
+  # on the way in does nothing at all.
+  #
+  # Hence a symlink rather than a wrapper script: `exec -a` would work too, but a
+  # link is the whole mechanism in one line, and it is what the client half needs
+  # anyway. `sill-bottom --set cpu label=…` addresses the bottom bar exactly the
+  # way `sketchybar --set` addresses the top one — same binary, second name,
+  # second mach service — which is why this lands on PATH and not just in the
+  # launchd agent. It dangles at build time (Homebrew's prefix isn't in the
+  # sandbox) and resolves at run time, same as the agent's own ProgramArguments.
+  sillBottom = pkgs.runCommand "sill-bottom" { } ''
+    mkdir -p "$out/bin"
+    ln -s /opt/homebrew/opt/sketchybar/bin/sketchybar "$out/bin/sill-bottom"
+  '';
+
+  # How each bar is addressed from a config file or a plugin. BOTH are absolute:
+  # a misdirected --set is silent (it targets the other bar's instance and says
+  # nothing), so neither is left to whatever `sketchybar` a PATH happens to
+  # resolve — and sillpop takes the same string as its SKETCHYBAR_BIN, which has
+  # to be a path it can stat. The plugins have always spelled the top one out
+  # this way; this is the generated blocks catching up.
+  barTopPath = "/opt/homebrew/bin/sketchybar";
+  barBottomPath = "/run/current-system/sw/bin/sill-bottom";
 
   # What feeds the media pill now that SketchyBar's own media_change event is
   # dead on macOS 15.4+. Reached by absolute store path from media_config.sh
@@ -38,9 +78,16 @@ let
   # it. That ordering is the whole latency story — armed inline, it added ~200 ms
   # to every open. `&` also means no fallback is needed: if the binary is missing
   # the popup has already opened, and only the dismissal is lost.
+  #
+  # SKETCHYBAR_BIN is how sillpop is told WHICH bar's popup it is guarding: it
+  # resolves its own client from that variable first (sillpop.swift), and unset
+  # it queries the top bar — so on a pill moved to the bottom bar it would find
+  # no such item and exit before arming, leaving a dropdown that only a second
+  # click on the pill can close. Which is the whole thing sillpop exists to fix.
+  # `sb` is an absolute path on both bars precisely so it can serve as both.
   popToggle =
-    item:
-    "sketchybar --set ${item} popup.drawing=toggle; /run/current-system/sw/bin/sillpop arm ${item} 2>/dev/null &";
+    sb: item:
+    "${sb} --set ${item} popup.drawing=toggle; SKETCHYBAR_BIN=${sb} /run/current-system/sw/bin/sillpop arm ${item} 2>/dev/null &";
 
   # Every dropdown on a RIGHT-side pill carries this. SketchyBar's popup.align
   # defaults to `left`, i.e. the popup's left edge is pinned to the pill's left
@@ -182,7 +229,7 @@ let
   # The opt-in pills, emitted only for the ones haus.sill.items switches on.
   # They reference $SURFACE0 (from colors.sh) and $HOME, both live when
   # sketchybarrc sources this file.
-  optionalPluginBlocks = {
+  mkPluginBlocks = sb: {
     # Agent-pane status, for whichever client the pane runs (Claude Code, Codex,
     # Opencode). The refresh is push, not poll: agents-hook.sh invokes
     # agents.sh directly on every agent state change, so the pill updates even
@@ -192,7 +239,7 @@ let
     # stale files. Starts hidden; agents.sh flips it on when a pane is live.
     # Popup styling mirrors the apple-logo menu.
     agents = ''
-      sketchybar --add item agents right \
+      ${sb} --add item agents right \
           --set agents \
               update_freq=10 \
               drawing=off \
@@ -222,7 +269,7 @@ let
     # update_freq is the while-visible backstop that rolls a window over to 0% at
     # its reset. Starts hidden until the first row lands.
     aiUsage = ''
-      sketchybar --add item ai_usage right \
+      ${sb} --add item ai_usage right \
           --set ai_usage \
               update_freq=15 \
               drawing=off \
@@ -249,7 +296,7 @@ let
     # vars are live via colors.sh, sourced by sketchybarrc before this file); the
     # plugin script only refreshes icon+label on its update_freq tick.
     cpu = ''
-      sketchybar --add item cpu right \
+      ${sb} --add item cpu right \
           --set cpu \
               update_freq=5 \
               icon.color=$PEACH \
@@ -259,7 +306,7 @@ let
               script="$HOME/.config/sketchybar/plugins/cpu.sh"
     '';
     memory = ''
-      sketchybar --add item memory right \
+      ${sb} --add item memory right \
           --set memory \
               update_freq=15 \
               icon.color=$GREEN \
@@ -269,7 +316,7 @@ let
               script="$HOME/.config/sketchybar/plugins/memory.sh"
     '';
     volume = ''
-      sketchybar --add item volume right \
+      ${sb} --add item volume right \
           --set volume \
               update_freq=5 \
               icon.color=$SKY \
@@ -285,7 +332,7 @@ let
     # Opening goes through sillpop (see popToggle above) so the dropdown closes on
     # the next click anywhere else, not only on a second click of the pill.
     calendar = ''
-      sketchybar --add item calendar right \
+      ${sb} --add item calendar right \
           --set calendar \
               update_freq=60 \
               icon="󰃭" \
@@ -297,10 +344,10 @@ let
               popup.background.color=$MANTLE \
               ${popupAlign} \
               script="$HOME/.config/sketchybar/plugins/calendar.sh" \
-              click_script="${popToggle "calendar"}" \
+              click_script="${popToggle sb "calendar"}" \
           --subscribe calendar mouse.clicked system_woke
       for i in 1 2 3 4 5; do
-          sketchybar --add item calendar.event.$i popup.calendar \
+          ${sb} --add item calendar.event.$i popup.calendar \
               --set calendar.event.$i \
                   icon.color=$MAUVE \
                   label.color=$TEXT \
@@ -313,8 +360,8 @@ let
     # assertion; this popup only chooses a duration and renders state. A bar
     # reload therefore cannot accidentally release an active assertion.
     caffeinate = ''
-      sketchybar --add event caffeinate_change
-      sketchybar --add item caffeinate right \
+      ${sb} --add event caffeinate_change
+      ${sb} --add item caffeinate right \
           --set caffeinate \
               update_freq=30 \
               icon="󰅶" \
@@ -340,30 +387,30 @@ let
           background.color=0x00000000
           background.drawing=off
       )
-      sketchybar --add item caffeinate.1h popup.caffeinate \
+      ${sb} --add item caffeinate.1h popup.caffeinate \
           --set caffeinate.1h "''${CAFFEINATE_POPUP[@]}" icon="1" label="1 hour" \
-              click_script="/run/current-system/sw/bin/awake 1h >/dev/null; sketchybar --set caffeinate popup.drawing=off"
-      sketchybar --add item caffeinate.2h popup.caffeinate \
+              click_script="/run/current-system/sw/bin/awake 1h >/dev/null; ${sb} --set caffeinate popup.drawing=off"
+      ${sb} --add item caffeinate.2h popup.caffeinate \
           --set caffeinate.2h "''${CAFFEINATE_POPUP[@]}" icon="2" label="2 hours" \
-              click_script="/run/current-system/sw/bin/awake 2h >/dev/null; sketchybar --set caffeinate popup.drawing=off"
-      sketchybar --add item caffeinate.4h popup.caffeinate \
+              click_script="/run/current-system/sw/bin/awake 2h >/dev/null; ${sb} --set caffeinate popup.drawing=off"
+      ${sb} --add item caffeinate.4h popup.caffeinate \
           --set caffeinate.4h "''${CAFFEINATE_POPUP[@]}" icon="4" label="4 hours" \
-              click_script="/run/current-system/sw/bin/awake 4h >/dev/null; sketchybar --set caffeinate popup.drawing=off"
-      sketchybar --add item caffeinate.8h popup.caffeinate \
+              click_script="/run/current-system/sw/bin/awake 4h >/dev/null; ${sb} --set caffeinate popup.drawing=off"
+      ${sb} --add item caffeinate.8h popup.caffeinate \
           --set caffeinate.8h "''${CAFFEINATE_POPUP[@]}" icon="8" label="8 hours" \
-              click_script="/run/current-system/sw/bin/awake 8h >/dev/null; sketchybar --set caffeinate popup.drawing=off"
-      sketchybar --add item caffeinate.custom popup.caffeinate \
+              click_script="/run/current-system/sw/bin/awake 8h >/dev/null; ${sb} --set caffeinate popup.drawing=off"
+      ${sb} --add item caffeinate.custom popup.caffeinate \
           --set caffeinate.custom "''${CAFFEINATE_POPUP[@]}" icon="󰅐" label="Custom hours…" \
               click_script="$HOME/.config/sketchybar/plugins/caffeinate.sh custom"
-      sketchybar --add item caffeinate.indefinite popup.caffeinate \
+      ${sb} --add item caffeinate.indefinite popup.caffeinate \
           --set caffeinate.indefinite "''${CAFFEINATE_POPUP[@]}" icon="∞" label="Until stopped" \
-              click_script="/run/current-system/sw/bin/awake indefinitely >/dev/null; sketchybar --set caffeinate popup.drawing=off"
-      sketchybar --add item caffeinate.stop popup.caffeinate \
+              click_script="/run/current-system/sw/bin/awake indefinitely >/dev/null; ${sb} --set caffeinate popup.drawing=off"
+      ${sb} --add item caffeinate.stop popup.caffeinate \
           --set caffeinate.stop "''${CAFFEINATE_POPUP[@]}" icon="󰅖" icon.color=$RED label="Allow sleep" \
-              click_script="/run/current-system/sw/bin/awake off >/dev/null; sketchybar --set caffeinate popup.drawing=off"
+              click_script="/run/current-system/sw/bin/awake off >/dev/null; ${sb} --set caffeinate popup.drawing=off"
     '';
     elgato = ''
-      sketchybar --add item elgato right \
+      ${sb} --add item elgato right \
           --set elgato \
               update_freq=5 \
               script="$HOME/.config/sketchybar/plugins/elgato.sh" \
@@ -374,8 +421,8 @@ let
           --subscribe elgato mouse.clicked
     '';
     harvest = ''
-      sketchybar --add event harvest_update
-      sketchybar --add item harvest right \
+      ${sb} --add event harvest_update
+      ${sb} --add item harvest right \
           --set harvest \
               update_freq=3 \
               script="$HOME/.config/sketchybar/plugins/harvest.sh" \
@@ -395,13 +442,31 @@ let
     "elgato"
     "harvest"
   ];
-  enabledExtras = lib.filter (
-    name:
+  # Is this pill switched on in a given items table? Both tables are read through
+  # here so `claudeUsage` — the deprecated alias, which only the top bar's table
+  # carries — is honoured in exactly one place.
+  wantsExtra =
+    items: name:
     if name == "aiUsage" then
-      config.haus.sill.items.aiUsage || config.haus.sill.items.claudeUsage
+      (items.aiUsage or false) || (items.claudeUsage or false)
     else
-      config.haus.sill.items.${name}
+      items.${name} or false;
+
+  # The pills the SECOND bar claims (haus.sill.bottom.items), and then the ones
+  # left for the menu bar. A pill MOVES rather than duplicating: the bottom table
+  # wins outright, so there is one switch per pill per bar and never two live
+  # copies of a readout racing each other's update_freq.
+  bottomExtras = lib.optionals cfg.bottom.enable (
+    lib.filter (wantsExtra cfg.bottom.items) extraOrder
+  );
+  enabledExtras = lib.filter (
+    name: wantsExtra cfg.items name && !(builtins.elem name bottomExtras)
   ) extraOrder;
+
+  # nix name -> the item name SketchyBar knows it by. Identity for all but the
+  # camel-cased one, and the plugins' own $NAME is the sketchybar side — so this
+  # is what the routing list in bar.sh has to be written in.
+  itemId = name: if name == "aiUsage" then "ai_usage" else name;
 
   # The always-on core pills; a false in sill.items hides one.
   coreItems = [
@@ -419,7 +484,52 @@ let
     # modules/sill/default.nix — do not edit.
   ''
   + lib.optionalString config.haus.hush.enable hushBlock
-  + lib.concatMapStrings (name: optionalPluginBlocks.${name}) enabledExtras;
+  + lib.concatMapStrings (name: (mkPluginBlocks barTopPath).${name}) enabledExtras;
+
+  # The same blocks again, emitted against the OTHER bar. $SB is set by bar.sh,
+  # which sill-bottomrc sources before this file — an absolute path to the
+  # `sill-bottom` symlink, so both the `--add`s here and every click_script
+  # string they carry address the bottom instance. Emitting `sketchybar` down
+  # here would silently build the whole strip on the top bar instead.
+  bottomItemsSh = ''
+    #!/bin/bash
+    # GENERATED from haus.sill.bottom.items by modules/sill/default.nix — do not
+    # edit.
+  ''
+  + lib.concatMapStrings (name: (mkPluginBlocks "$SB").${name}) bottomExtras;
+
+  # Which bar a plugin should talk to. Sourced by every plugin that can end up on
+  # either one, and the answer is nearly always $BAR_NAME: SketchyBar exports it
+  # into every script and click_script it runs, so a pill's own update knows the
+  # instance that asked for it without anything being generated at all.
+  #
+  # The list is the fallback for the OTHER caller — a plugin invoked by a HOOK
+  # rather than by a bar (agents-hook.sh on an agent state change, the
+  # statusline's ai_usage push). Those have no bar, hence no $BAR_NAME, so they
+  # fall back to the item they are updating: $NAME when the caller set one, else
+  # the SILL_ITEM the plugin declares about itself.
+  barSh = ''
+    #!/bin/bash
+    # GENERATED from haus.sill.bottom.items by modules/sill/default.nix — do not
+    # edit. Sets $SB to the SketchyBar instance this invocation belongs to.
+    SILL_BAR_TOP="${barTopPath}"
+    SILL_BAR_BOTTOM="${barBottomPath}"
+    SILL_BOTTOM_ITEMS="${lib.concatMapStringsSep " " itemId bottomExtras}"
+
+    case "''${BAR_NAME:-}" in
+      sill-bottom) SB="$SILL_BAR_BOTTOM" ;;
+      ?*) SB="$SILL_BAR_TOP" ;;
+      *)
+        SB="$SILL_BAR_TOP"
+        sill_item="''${SILL_ITEM:-''${NAME:-}}"
+        if [ -n "$sill_item" ]; then
+          case " $SILL_BOTTOM_ITEMS " in
+            *" $sill_item "*) SB="$SILL_BAR_BOTTOM" ;;
+          esac
+        fi
+        ;;
+    esac
+  '';
 
   # Which core pills the user turned off (a false in haus.sill.items). Sourced
   # by sketchybarrc BEFORE the core `--add`s so each can guard on sill_hidden and
@@ -588,6 +698,18 @@ lib.mkIf config.haus.sill.enable {
         "haus.tour.steps names unknown placeholders: "
         + lib.concatStringsSep ", " badPlaceholders
         + ". Known: {palette}, {leader}, {leaderName}; anything else renders as typed."
+      )
+    ++
+      # A bar with nothing on it still costs a launchd job and, via prowl, a
+      # 40pt strip of every display — and it draws no pill to explain either.
+      lib.optional (cfg.bottom.enable && bottomExtras == [ ]) (
+        "haus.sill.bottom.enable is on with no haus.sill.bottom.items — the second bar draws an empty strip and still reserves room at the bottom of every display."
+      )
+    ++
+      # Both bars on the same edge overlap: SketchyBar pins each instance to the
+      # edge it was told, and neither knows the other is there.
+      lib.optional (cfg.bottom.enable && cfg.position != "top") (
+        "haus.sill.bottom.enable is on while haus.sill.position = \"${cfg.position}\"; the two bars share the bottom edge and will draw on top of each other (position = \"auto\" only when an external display is attached)."
       );
 
   # SketchyBar (brew) + its tap. sketchybar-app-font renders the workspace pill
@@ -600,10 +722,16 @@ lib.mkIf config.haus.sill.enable {
   # that plugin is enabled so a default bar stays lean. If a host ALSO declares
   # ical-buddy, the two definitions merge on the shared id rather than
   # double-installing — which is the difference between a keyed roster and a list.
+  #
+  # Keyed off "is the pill drawn ANYWHERE", not off sill.items: the documented
+  # way to put the pill on the bottom bar is `sill.bottom.items.calendar = true`
+  # with `sill.items.calendar` left at its default false, and reading only the
+  # top table there would draw the pill with no icalBuddy behind it — which
+  # calendar.sh reports as a permanent, silent "No events".
   haus.roster = {
     sketchybar.brew = lib.mkDefault "FelixKratz/formulae/sketchybar";
   }
-  // lib.optionalAttrs config.haus.sill.items.calendar {
+  // lib.optionalAttrs (builtins.elem "calendar" (enabledExtras ++ bottomExtras)) {
     ical-buddy.brew = lib.mkDefault "ical-buddy";
   };
   # sketchybar-app-font draws the workspace-pill logos, and nothing else does —
@@ -622,19 +750,49 @@ lib.mkIf config.haus.sill.enable {
   # /run/current-system/sw/bin path. On PATH as well because it's the one honest
   # way to open a bar popup by hand (`sillpop toggle calendar`) — a raw
   # `popup.drawing=on` leaves a dropdown nothing will close.
-  environment.systemPackages = [ sillpop ];
+  # sillpop, plus — when the second bar is on — the `sill-bottom` name that IS
+  # that bar. On PATH for the same reason `sketchybar` is: it's the CLI half,
+  # the only way to poke the bottom bar by hand or from a script.
+  environment.systemPackages = [ sillpop ] ++ lib.optional cfg.bottom.enable sillBottom;
 
-  launchd.user.agents.sketchybar = {
-    serviceConfig = {
-      ProgramArguments = withGUIWait "/opt/homebrew/opt/sketchybar/bin/sketchybar";
-      KeepAlive = true;
-      RunAtLoad = true;
-      ProcessType = "Interactive";
-      StandardOutPath = "/tmp/sketchybar.out.log";
-      StandardErrorPath = "/tmp/sketchybar.err.log";
-      EnvironmentVariables = {
-        LANG = "en_US.UTF-8";
-        PATH = userPath;
+  launchd.user.agents = {
+    sketchybar = {
+      serviceConfig = {
+        ProgramArguments = withGUIWait "/opt/homebrew/opt/sketchybar/bin/sketchybar";
+        KeepAlive = true;
+        RunAtLoad = true;
+        ProcessType = "Interactive";
+        StandardOutPath = "/tmp/sketchybar.out.log";
+        StandardErrorPath = "/tmp/sketchybar.err.log";
+        EnvironmentVariables = {
+          LANG = "en_US.UTF-8";
+          PATH = userPath;
+        };
+      };
+    };
+  }
+  // lib.optionalAttrs cfg.bottom.enable {
+    # The second bar: the same agent, the same binary, launched under the second
+    # NAME (see `sillBottom` above — argv[0] is the whole mechanism) and pointed
+    # at its own config. --config is not optional here: SketchyBar's default is
+    # ~/.config/sketchybar/sketchybarrc for every instance, so without it both
+    # jobs would build the menu bar and the second would just lose the race for
+    # its own lock.
+    sill-bottom = {
+      serviceConfig = {
+        ProgramArguments = guiWait.wrapArgs barBottomPath [
+          "--config"
+          "/Users/${username}/.config/sketchybar/sill-bottomrc"
+        ];
+        KeepAlive = true;
+        RunAtLoad = true;
+        ProcessType = "Interactive";
+        StandardOutPath = "/tmp/sill-bottom.out.log";
+        StandardErrorPath = "/tmp/sill-bottom.err.log";
+        EnvironmentVariables = {
+          LANG = "en_US.UTF-8";
+          PATH = userPath;
+        };
       };
     };
   };
@@ -725,6 +883,7 @@ lib.mkIf config.haus.sill.enable {
         ".config/sketchybar/workspaces.sh".text = workspacesSh;
         ".config/sketchybar/optional_items.sh".text = optionalItemsSh;
         ".config/sketchybar/hidden_items.sh".text = hiddenItemsSh;
+        ".config/sketchybar/bar.sh".text = barSh;
         ".config/sketchybar/position.sh".text = positionSh;
         ".config/sketchybar/tour_item.sh".text = tourItemSh;
         ".config/sketchybar/tour_config.sh".text = tourConfigSh;
@@ -761,6 +920,15 @@ lib.mkIf config.haus.sill.enable {
           SILL_AI_USAGE_PROVIDER="${config.haus.sill.aiUsage.provider}"
         '';
         ".config/sketchybar/sketchybarrc".source = ./sketchybar/sketchybarrc;
+      }
+      // lib.optionalAttrs cfg.bottom.enable {
+        # The second bar's rc + its item list. Deployed only when the bar is on,
+        # so a rice without it carries neither file and `sill-bottomrc` can't be
+        # run by hand against a `sill-bottom` that isn't installed.
+        ".config/sketchybar/sill-bottomrc".source = ./sketchybar/sill-bottomrc;
+        ".config/sketchybar/bottom_items.sh".text = bottomItemsSh;
+      }
+      // {
         # The far-left logo pill's image: the nebelhaus ears (the two cat-ear
         # shapes of the org mark, extracted from web/logos/nebelhaus-mark and
         # tinted PINK). Drawn as apple.logo's background.image in sketchybarrc.

@@ -292,13 +292,24 @@ let
       auto = monLine (barGap 10) (gap 20);
     }
     .${barPos};
+  # sill's optional SECOND bar (haus.sill.bottom.enable) draws at the bottom of
+  # every display, AS WELL AS the main bar rather than instead of it — so when
+  # it's on, the bottom edge reserves room whatever `barPos` would have said.
+  # macOS is no help here: it excludes the menu-bar strip at the top of a display
+  # and excludes NOTHING at the bottom, so without this the second bar simply
+  # draws over the tiled windows on both screens. (Both bars on the SAME edge is
+  # the one case this can't fix — sill warns about it.)
+  bottomBar = config.haus.sill.enable && config.haus.sill.bottom.enable;
   outerBottom =
-    {
-      top = monLine (gap 10) (gap 20);
-      bottom = monLine (barGap 40) (barGap 40);
-      auto = monLine (gap 10) (barGap 40);
-    }
-    .${barPos};
+    if bottomBar then
+      monLine (barGap 40) (barGap 40)
+    else
+      {
+        top = monLine (gap 10) (gap 20);
+        bottom = monLine (barGap 40) (barGap 40);
+        auto = monLine (gap 10) (barGap 40);
+      }
+      .${barPos};
 
   aerospaceToml = builtins.replaceStrings
     [ "@HOME@" "@BIN@" "@MAIN_STATIC@" "@SERVICE_STATIC@" "@LAUNCH_MOVES@" "@LEADER_ENTRY@" "@SERVICE_ENTRY@" "@LAUNCH_LETTERS@" "@WINDOW_RULES@" "@FLOAT_RULES@" "@PERSISTENT_WS@" "@GAP_BUILTIN@" "@GAP_EXTERNAL@" "@GAP_OUTER_TOP@" "@GAP_OUTER_BOTTOM@" ]

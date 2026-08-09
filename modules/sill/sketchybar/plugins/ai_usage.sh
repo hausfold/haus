@@ -17,6 +17,14 @@ set -u
 export USER="${USER:-$(id -un)}"
 export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:$PATH"
 source "$HOME/.config/sketchybar/colors.sh"
+# $SB — which bar this pill lives on (haus.sill.bottom.items can move it to
+# the bottom bar, a separate SketchyBar instance addressed by its own
+# binary). SILL_ITEM is the fallback bar.sh needs on the HOOK path: invoked
+# from outside SketchyBar there is no $BAR_NAME to route on, and not every
+# caller sets $NAME either.
+SILL_ITEM=ai_usage
+source "$HOME/.config/sketchybar/bar.sh"
+
 source "$HOME/.config/sketchybar/sizes.sh"
 # provider_style() — the shared icon/font/name table, so the agents pill draws
 # the same mark for a client that this pill draws for its usage.
@@ -236,12 +244,12 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
   # see — so closing it flashed through a shrink/regrow before finally toggling
   # off. Query the current state and take the cheap path out; the rows are
   # rebuilt on the way back IN, where the popup is hidden and nothing shows.
-  if [ "$(sketchybar --query "$ITEM_NAME" 2>/dev/null | jq -r '.popup.drawing')" = "on" ]; then
-    sketchybar --set "$ITEM_NAME" popup.drawing=off
+  if [ "$("$SB" --query "$ITEM_NAME" 2>/dev/null | jq -r '.popup.drawing')" = "on" ]; then
+    "$SB" --set "$ITEM_NAME" popup.drawing=off
     exit 0
   fi
 
-  sketchybar --remove "/${ITEM_NAME}\.popup\..*/" 2>/dev/null
+  "$SB" --remove "/${ITEM_NAME}\.popup\..*/" 2>/dev/null
   # Every row below is accumulated into ARGS and handed to ONE sketchybar call at
   # the end, so the popup appears fully formed in a single repaint instead of
   # growing a row at a time.
@@ -272,7 +280,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
         icon.padding_left=10 icon.padding_right=6
         label="$p_name" label.color="$TEXT" label.font="${BAR_FONT}:Bold:$FS_SMALL"
         background.drawing=off
-        click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off")
+        click_script="$SB --set ${ITEM_NAME} popup.drawing=off")
     i=$((i + 1))
 
     # Usage rows helper
@@ -285,7 +293,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
           label.font="${BAR_FONT}:Regular:$FS_SMALL"
           label.padding_left="${3:-22}" label.padding_right=10
           background.drawing=off
-          click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off")
+          click_script="$SB --set ${ITEM_NAME} popup.drawing=off")
       i=$((i + 1))
     }
 
@@ -323,7 +331,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
           label="as of $((f_age / 60))m ago" label.color="$OVERLAY1"
           label.font="${BAR_FONT}:Italic:$FS_TINY" label.padding_left=22 label.padding_right=10
           background.drawing=off
-          click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off")
+          click_script="$SB --set ${ITEM_NAME} popup.drawing=off")
       i=$((i + 1))
     fi
   done
@@ -347,7 +355,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
         icon.padding_left=10 icon.padding_right=6
         label="Everything" label.color="$TEXT" label.font="${BAR_FONT}:Bold:13.0"
         background.drawing=off
-        click_script="sketchybar --set ${ITEM_NAME} popup.drawing=off")
+        click_script="$SB --set ${ITEM_NAME} popup.drawing=off")
     i=$((i + 1))
     token_block "$g_d" "$g_w" "$g_m" "$g_all"
   fi
@@ -355,16 +363,20 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
   # One message: every row, then reveal. Not `toggle` — the state was already
   # settled above, and toggling off a popup whose rows we just rebuilt is exactly
   # the double-open the flash came from if a stray click arrives mid-build.
-  [ ${#ARGS[@]} -gt 0 ] && sketchybar "${ARGS[@]}" 2>/dev/null
-  sketchybar --set "$ITEM_NAME" popup.drawing=on
+  [ ${#ARGS[@]} -gt 0 ] && "$SB" "${ARGS[@]}" 2>/dev/null
+  "$SB" --set "$ITEM_NAME" popup.drawing=on
   # Then hand it to sillpop so it also closes on the first click anywhere else —
   # the dismissal sketchybar can't do, since it only hears clicks on its own
   # items. Backgrounded and after the reveal, so opening costs what it did above.
-  /run/current-system/sw/bin/sillpop arm "$ITEM_NAME" 2>/dev/null &
+  # SKETCHYBAR_BIN is what sillpop resolves its own client from: unset, it
+  # queries the TOP bar, finds no such item on a pill that moved to the
+  # bottom one, and exits before it ever arms — leaving a dropdown nothing
+  # closes but a second click on the pill.
+  SKETCHYBAR_BIN="$SB" /run/current-system/sw/bin/sillpop arm "$ITEM_NAME" 2>/dev/null &
   exit 0
 fi
 
 # ── update: main pill icon + label + colour ───────────────────────────────────
-sketchybar --set ${ITEM_NAME} drawing=on icon="$ICON" icon.font="$IFONT" icon.color="$COL" \
+"$SB" --set ${ITEM_NAME} drawing=on icon="$ICON" icon.font="$IFONT" icon.color="$COL" \
   label="$MAIN_LABEL" label.color="$COL"
 

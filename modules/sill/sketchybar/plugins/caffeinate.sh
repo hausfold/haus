@@ -3,11 +3,18 @@
 # rice-level `awake` command; this script only relays clicks and paints status.
 
 source "$HOME/.config/sketchybar/colors.sh"
+# $SB — which bar this pill lives on. haus.sill.bottom.items can move it to
+# the second (bottom) bar, and the two instances are addressed by different
+# binaries; a bare `sketchybar` would always mean the menu bar one. bar.sh
+# reads $BAR_NAME, which SketchyBar exports into everything it runs.
+SILL_ITEM=caffeinate
+source "$HOME/.config/sketchybar/bar.sh"
+
 
 AWAKE="/run/current-system/sw/bin/awake"
 
 if [ "${1:-}" = "custom" ]; then
-    sketchybar --set caffeinate popup.drawing=off
+    "$SB" --set caffeinate popup.drawing=off
     HOURS=$(/usr/bin/osascript -e \
         'text returned of (display dialog "Stay awake for how many whole hours?" default answer "3" with title "Keep Awake" buttons {"Cancel", "Start"} default button "Start" cancel button "Cancel")' \
         2>/dev/null) || exit 0
@@ -22,13 +29,17 @@ fi
 if [ "${SENDER:-}" = "mouse.clicked" ]; then
     if [ "${BUTTON:-}" = "right" ]; then
         "$AWAKE" off >/dev/null 2>&1 || true
-        sketchybar --set caffeinate popup.drawing=off
+        "$SB" --set caffeinate popup.drawing=off
     else
         # The toggle first and alone, so opening costs what it always did; then
         # sillpop guards it in the background so the menu also closes on a click
         # anywhere else (sketchybar only ever sees clicks on its own items).
-        sketchybar --set caffeinate popup.drawing=toggle
-        /run/current-system/sw/bin/sillpop arm caffeinate 2>/dev/null &
+        "$SB" --set caffeinate popup.drawing=toggle
+        # SKETCHYBAR_BIN is what sillpop resolves its own client from: unset, it
+        # queries the TOP bar, finds no such item on a pill that moved to the
+        # bottom one, and exits before it ever arms — leaving a dropdown nothing
+        # closes but a second click on the pill.
+        SKETCHYBAR_BIN="$SB" /run/current-system/sw/bin/sillpop arm caffeinate 2>/dev/null &
     fi
 fi
 
@@ -64,7 +75,7 @@ esac
 if [ "$ACTIVE" -eq 1 ]; then
     # Label is drawing: tuck the icon close to it (idle padding is symmetric so
     # the lone icon stays centred; the countdown needs the tighter gap).
-    sketchybar --set caffeinate \
+    "$SB" --set caffeinate \
         icon.color="$BASE" \
         icon.padding_right=4 \
         label="$LABEL" \
@@ -73,7 +84,7 @@ if [ "$ACTIVE" -eq 1 ]; then
         background.color="$PEACH" \
         --set caffeinate.stop label.color="$RED"
 else
-    sketchybar --set caffeinate \
+    "$SB" --set caffeinate \
         icon.color="$TEXT" \
         icon.padding_right=10 \
         label.drawing=off \

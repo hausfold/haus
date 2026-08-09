@@ -14,6 +14,12 @@
 # nothing and nothing said why.
 
 source "$HOME/.config/sketchybar/colors.sh"
+# $SB — which bar this pill lives on. haus.sill.bottom.items can move it to
+# the second (bottom) bar, and the two instances are addressed by different
+# binaries; a bare `sketchybar` would always mean the menu bar one. bar.sh
+# reads $BAR_NAME, which SketchyBar exports into everything it runs.
+source "$HOME/.config/sketchybar/bar.sh"
+
 
 # GENERATED from haus.sill.elgato.* — absent on an older generation, hence
 # the guard rather than a bare source.
@@ -97,14 +103,14 @@ STATE="$(echo "$DATA" | jq -r '.lights[0].on' 2>/dev/null)"
 
 case "$STATE" in
 1)
-  sketchybar --set "$NAME" \
+  "$SB" --set "$NAME" \
     icon="" \
     icon.color=$BASE \
     background.color=$YELLOW \
     label.drawing=off
   ;;
 0)
-  sketchybar --set "$NAME" \
+  "$SB" --set "$NAME" \
     icon="" \
     icon.color=$TEXT \
     background.color=$SURFACE0 \
@@ -112,7 +118,7 @@ case "$STATE" in
   ;;
 *)
   # Unreachable: off the network, out of battery, or never discovered.
-  sketchybar --set "$NAME" \
+  "$SB" --set "$NAME" \
     icon="" \
     icon.color=$OVERLAY0 \
     background.color=$SURFACE0 \

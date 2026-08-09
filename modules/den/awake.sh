@@ -14,6 +14,9 @@ LABEL="${AWAKE_LAUNCHD_LABEL:-org.nebelhaus.awake}"
 LAUNCHCTL="${AWAKE_LAUNCHCTL_BIN:-/bin/launchctl}"
 CAFFEINATE="${AWAKE_CAFFEINATE_BIN:-/usr/bin/caffeinate}"
 SKETCHYBAR="${AWAKE_SKETCHYBAR_BIN:-/opt/homebrew/opt/sketchybar/bin/sketchybar}"
+# sill's optional SECOND bar (haus.sill.bottom.enable) — the same binary under a
+# second name, hence a second client to poke. Absent on a machine without it.
+SILL_BOTTOM="${AWAKE_SILL_BOTTOM_BIN:-/run/current-system/sw/bin/sill-bottom}"
 
 usage() {
     cat <<'EOF'
@@ -43,10 +46,18 @@ now() {
     fi
 }
 
+# Poke BOTH bars: the coffee pill can be on either one (haus.sill.bottom.items
+# moves it to sill's second bar, a separate SketchyBar instance with its own mach
+# service and so its own client binary). A --trigger for an event a bar never
+# registered is a no-op, and the second binary only exists on a machine that
+# turned that bar on — so poking both beats teaching this script which bar won.
 poke_bar() {
-    if [ -x "$SKETCHYBAR" ]; then
-        "$SKETCHYBAR" --trigger caffeinate_change >/dev/null 2>&1 || true
-    fi
+    local bar
+    for bar in "$SKETCHYBAR" "$SILL_BOTTOM"; do
+        if [ -x "$bar" ]; then
+            "$bar" --trigger caffeinate_change >/dev/null 2>&1 || true
+        fi
+    done
 }
 
 domain() {
