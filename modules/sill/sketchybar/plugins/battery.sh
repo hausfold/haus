@@ -3,6 +3,8 @@
 [ -f "$HOME/.config/sketchybar/battery_config.sh" ] && source "$HOME/.config/sketchybar/battery_config.sh"
 
 source "$HOME/.config/sketchybar/colors.sh"
+SILL_ITEM=battery
+source "$HOME/.config/sketchybar/bar.sh"
 
 # Get battery info
 BATTERY_INFO=$(pmset -g batt)
@@ -11,7 +13,7 @@ CHARGING=$(echo "$BATTERY_INFO" | grep 'AC Power')
 
 # Hide pill if over threshold
 if [ -n "${SILL_BATTERY_HIDE_OVER:-}" ] && [ "$PERCENTAGE" -gt "$SILL_BATTERY_HIDE_OVER" ]; then
-    /opt/homebrew/bin/sketchybar --set $NAME drawing=off
+    "$SB" --set "$NAME" drawing=off
     exit 0
 fi
 
@@ -39,7 +41,7 @@ else
 fi
 
 # Update the bar item
-/opt/homebrew/bin/sketchybar --set $NAME \
+"$SB" --set "$NAME" \
     drawing=on \
     icon="$ICON" \
     icon.color=$COLOR \

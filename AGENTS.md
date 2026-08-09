@@ -217,10 +217,10 @@ it silently.
   the HOOK path (agents-hook.sh, the statusline's usage push), which has no bar
   and so no `$BAR_NAME`. Same rule in Nix: `mkPluginBlocks` takes the bar command
   as its argument, and anything poking the bar from OUTSIDE sill (den's `awake`
-  and its `caffeinate_change`) pokes both. Only the Nix-emitted pills can move —
-  the core five and the whole left side are hand-written in `sketchybarrc` and
-  stay on the menu bar. macOS reserves the top strip of a display and reserves
-  NOTHING at the bottom, so prowl's `outerBottom` carves the room instead.
+  and its `caffeinate_change`) pokes both. The whole right side is emitted from
+  that one table and can move; the coupled left-side workspace/leader group and
+  the tour stay on the menu bar. macOS reserves the top strip of a display and
+  reserves NOTHING at the bottom, so prowl's `outerBottom` carves the room instead.
 - **A new default app pick** (an app the rice thinks a finished machine has, not one a
   room needs to do its job): it goes in `modules/apps` — one
   `haus.apps.<thing>.enable` knob in its `options.nix`, one roster entry (never a

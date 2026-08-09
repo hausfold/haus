@@ -4,7 +4,9 @@
 # https://open-meteo.com/
 
 JQ="/run/current-system/sw/bin/jq"
-SKETCHYBAR="/opt/homebrew/bin/sketchybar"
+SILL_ITEM=weather
+source "$HOME/.config/sketchybar/bar.sh"
+SKETCHYBAR="$SB"
 CACHE_FILE="/tmp/sketchybar-weather-location.json"
 CACHE_AGE=86400  # Cache location for 24 hours
 
