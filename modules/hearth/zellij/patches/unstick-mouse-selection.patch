@@ -1,0 +1,68 @@
+diff --git a/zellij-server/src/tab/mouse_handler.rs b/zellij-server/src/tab/mouse_handler.rs
+index 97f4ce2..94bd49e 100644
+--- a/zellij-server/src/tab/mouse_handler.rs
++++ b/zellij-server/src/tab/mouse_handler.rs
+@@ -387,6 +387,30 @@ impl MouseHandler {
+             (None, None)
+         };
+ 
++        // nebelhaus: a drag-selection whose pane has since closed is not a
++        // drag-selection. `selecting_with_mouse_in_pane` is only ever cleared
++        // by a Release that reaches `execute_end_selection` AND finds that
++        // pane still alive; if the pane went away while the button was held
++        // (a `close_on_exit` float, a command pane that exited, a pane the
++        // click itself closed), the field keeps pointing at a dead PaneId and
++        // `determine_mouse_action` answers `NoAction` to every wheel and every
++        // click in this TAB, forever. That is the "mouse died in one tab but
++        // not the others" wedge: keyboard tab-switching still works, the tab
++        // bar of a healthy tab can still click into the wedged one, and
++        // nothing short of throwing the tab away recovers it.
++        //
++        // Dropping the stale id here heals a tab that is ALREADY wedged on the
++        // very next mouse event of any kind — a wheel notch is enough. The
++        // `take` in `execute_end_selection` below can only heal one on a left
++        // click-and-release, since that is the one event a wedged tab still
++        // routes anywhere.
++        if tab
++            .selecting_with_mouse_in_pane
++            .is_some_and(|p_id| tab.get_pane_with_id(p_id).is_none())
++        {
++            tab.selecting_with_mouse_in_pane = None;
++        }
++
+         Ok(MouseEventContext {
+             pane_id_at_position,
+             active_pane_id,
+@@ -934,8 +958,24 @@ impl MouseHandler {
+         let mut leave_clipboard_message = false;
+         let copy_on_release = tab.copy_on_select;
+ 
++        // nebelhaus: `take`, not a read — the button is up, so the drag is over
++        // no matter which branch below runs or whether one of their `?`s bails
++        // out first. Upstream clears this field in exactly ONE place: the
++        // `else` that ends a *text* selection. The other branch — the pane's
++        // terminal emulator wants mouse events, so the release is forwarded to
++        // the application instead — leaves it set, and so does a pane that has
++        // closed while the button was held (the lookup below then fails and
++        // the whole `if let` is skipped, which no later Release can undo,
++        // because that lookup will keep failing).
++        //
++        // While it stays set, `determine_mouse_action` reads every mouse event
++        // in this TAB as "the drag continues" and answers `NoAction` to
++        // anything that isn't a left-motion or a left-release: the tab stops
++        // scrolling and stops answering clicks, its own tab bar included,
++        // while every other tab is fine.
+         if let Some(pane_with_selection) = tab
+             .selecting_with_mouse_in_pane
++            .take()
+             .and_then(|p_id| tab.get_pane_with_id_mut(p_id))
+         {
+             let mut relative_position = pane_with_selection.relative_position(&position);
+@@ -970,7 +1010,6 @@ impl MouseHandler {
+                         }
+                     }
+                 }
+-                tab.selecting_with_mouse_in_pane = None;
+             }
+         }
+ 

@@ -516,7 +516,60 @@ in
   # keybind path calls — with no upstream line deleted, so a nixpkgs bump can
   # only break it by rewriting mouse_handler.rs wholesale.
   #
-  # All three patched at zellij-unwrapped, not zellij: the latter is a thin
+  # The fourth patch unsticks the mouse in a tab that has stopped answering it.
+  # The symptom is unmistakable and, until now, unrecoverable: one tab stops
+  # responding to the wheel and to clicks — its tab bar included — while its
+  # neighbours are fine, and a healthy tab's bar can still click INTO the dead
+  # one. Only the keyboard works there.
+  #
+  # One `Option<PaneId>` explains all of it. A left-press that doesn't go to a
+  # mouse-tracking application starts a text selection and records the pane in
+  # `Tab::selecting_with_mouse_in_pane`; while that is set, every mouse event in
+  # THAT TAB is read as "the drag continues", so `determine_mouse_action`
+  # answers `NoAction` to anything that isn't a left-motion or a left-release
+  # (zellij-server tab/mouse_handler.rs). It is per-tab state, which is why the
+  # damage is per-tab. Upstream clears it in exactly one place: the branch of
+  # `execute_end_selection` that ends a text selection. So two ordinary things
+  # leave it set forever —
+  #
+  #   · the pane is gone by the time the button comes up (a `close_on_exit`
+  #     float like the find/links overlays, a command pane that exited, a click
+  #     that closed the thing it landed on). The pane lookup fails, the whole
+  #     `if let` is skipped, and no later Release can ever clear it either,
+  #     because that lookup will keep failing.
+  #   · the pane's application turned mouse tracking ON between the press and
+  #     the release. The release is then forwarded to the application by the
+  #     OTHER branch — the one with no reset in it.
+  #
+  # Both hunks are one line of behaviour each: drop a `selecting_with_mouse_in_pane`
+  # that points at a pane which no longer exists, and `take` the field at the
+  # top of `execute_end_selection` instead of assigning `None` on one branch
+  # near the bottom — the button is up, so the drag is over whichever branch
+  # runs and whichever of their `?`s bails out first. The first hunk is the one
+  # that matters for a tab that is ALREADY wedged: it heals on the next mouse
+  # event of any kind, where the `take` needs a left click-and-release, the one
+  # event a wedged tab still routes anywhere.
+  #
+  # Everything that reads the field wants it false once the button is up:
+  # `determine_mouse_action`'s early return, the `MouseEventContext` literal,
+  # and — ours — `track_selection_autoscroll` in screen.rs, added by the first
+  # patch above. That last one is the reason a wedged tab was costing more than
+  # a dead mouse: the autoscroll thread arms on held-left-motion while a
+  # selection is in progress and re-posts the held position at 16ms forever, so
+  # a wedged tab left a timer thread spinning for the life of the session. The
+  # resize twin next to it (`pane_being_resized_with_mouse`) already clears
+  # unconditionally — this only brings selection into line.
+  #
+  # What it still doesn't cover: a release that never arrives at all for a pane
+  # that is still alive (the button let go while the terminal wasn't focused,
+  # say). Hunk one only heals once the pane is gone.
+  #
+  # It has to be a patch: the field is private tab state with no option, no
+  # keybind and no plugin surface anywhere near it. Upstream carries the same
+  # bug on main (checked 2026-08-09), so this is a candidate to send upstream
+  # rather than a local preference.
+  #
+  # All four patched at zellij-unwrapped, not zellij: the latter is a thin
   # wrapper derivation with no source of its own. It rebuilds from source on
   # every nixpkgs bump that moves zellij or its deps.
   nixpkgs.overlays = [
@@ -526,6 +579,7 @@ in
           ./zellij/patches/selection-autoscroll.patch
           ./zellij/patches/no-ctrl-scroll-resize.patch
           ./zellij/patches/ctrl-click-fullscreen.patch
+          ./zellij/patches/unstick-mouse-selection.patch
         ];
       });
     })
