@@ -13,6 +13,7 @@ STATE_DIR="$HOME/.local/state/hush"
 STATE_FILE="$STATE_DIR/state"
 DB="$HOME/Library/DoNotDisturb/DB/Assertions.json"
 SKETCHYBAR="/opt/homebrew/opt/sketchybar/bin/sketchybar"
+SILL_BOTTOM="/run/current-system/sw/bin/sill-bottom"
 
 # Must match the AppleSymbolicHotKeys 175 binding written by default.nix.
 KEY_CODE=@keyCode@
@@ -38,7 +39,10 @@ pounce_focus_available() {
 
 note() { printf 'hush: %s\n' "$*" >&2; }
 notify() { /usr/bin/osascript -e "display notification \"$1\" with title \"hush\"" >/dev/null 2>&1 || true; }
-poke_bar() { [ -x "$SKETCHYBAR" ] && "$SKETCHYBAR" --trigger hush_change >/dev/null 2>&1 || true; }
+poke_bar() {
+    [ -x "$SKETCHYBAR" ] && "$SKETCHYBAR" --trigger hush_change >/dev/null 2>&1 || true
+    [ -x "$SILL_BOTTOM" ] && "$SILL_BOTTOM" --trigger hush_change >/dev/null 2>&1 || true
+}
 
 # on|off. Exact when the signed pounce can report it (its FDA grant) or when
 # Assertions.json is readable directly (the calling app's own FDA); otherwise

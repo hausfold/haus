@@ -2571,7 +2571,7 @@
       "_type": "literalExpression",
       "text": "{ }"
     },
-    "description": "Which pills the bottom bar draws, one bool each, all default false. A\npill named here MOVES: it is drawn on the bottom bar and not on the menu\nbar, whatever `haus.sill.items` says about it — so there is one switch\nper pill per bar and never two copies of the same readout.\n\nThe set is the five core pills (`clock`, `weather`, `media`, `battery`,\n`wifi`) plus the `haus.sill.items` extras (`cpu`, `memory`, `volume`,\n`calendar`, `caffeinate`, `agents`, `aiUsage`, `elgato`, `harvest`). The\nwhole left side (workspace pills, front app, the leader picker) and the\ntour stay on the menu bar. The hush pill stays up top too — it rides\n`haus.hush.enable` rather than this table.\n\nNeeds `haus.sill.bottom.enable`; without it nothing here is drawn.\n",
+    "description": "Which pills the bottom bar draws, one bool each, all default false. A\npill named here MOVES: it is drawn on the bottom bar and not on the menu\nbar, whatever `haus.sill.items` says about it — so there is one switch\nper pill per bar and never two copies of the same readout.\n\nThe set is the five core pills (`clock`, `weather`, `media`, `battery`,\n`wifi`) plus the `haus.sill.items` extras (`cpu`, `memory`, `volume`,\n`calendar`, `caffeinate`, `agents`, `aiUsage`, `elgato`, `harvest`), plus\nthe Hush pill when `haus.hush.enable` is on. The whole left side\n(workspace pills, front app, the leader picker) and the tour stay on the\nmenu bar.\n\nNeeds `haus.sill.bottom.enable`; without it nothing here is drawn.\n",
     "example": {
       "_type": "literalExpression",
       "text": "{\n  cpu = true;\n  media = true;\n  weather = true;\n}"
@@ -2756,6 +2756,25 @@
     "readOnly": false,
     "type": "boolean"
   },
+  "haus.sill.bottom.items.hush": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "The Hush (Do-Not-Disturb) pill. Needs `haus.hush.enable`; setting this moves the pill but does not enable the Hush room by itself.",
+    "loc": [
+      "haus",
+      "sill",
+      "bottom",
+      "items",
+      "hush"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
   "haus.sill.bottom.items.media": {
     "declarations": [
       "modules/sill/options.nix"
@@ -2920,7 +2939,7 @@
       "_type": "literalExpression",
       "text": "{ }"
     },
-    "description": "Which SketchyBar pills to draw, one bool each. The core pills —\n`clock`, `weather`, `media`, `battery`, `wifi` — default true; the extras\n— the readouts `cpu`, `memory`, `volume`, `calendar`, `caffeinate`\nand the personal `agents`, `aiUsage`, `elgato`, `harvest` —\ndefault false. Set\nonly what you want to change:\n\n  haus.sill.items = {\n    weather = false;   # drop a default-on core pill\n    cpu = true;        # add an off-by-default readout\n    caffeinate = true; # add the keep-awake controller\n  };\n\nA pill set false is never created (its update script doesn't run either).\nThe hush (Do-Not-Disturb) pill is separate — it rides\nhaus.hush.enable, not this set.\n\nThis is the MENU BAR's set. `haus.sill.bottom.items` is the same table\nfor the optional second bar along the bottom of the screen, and a pill\nnamed there moves down rather than being drawn twice.\n",
+    "description": "Which SketchyBar pills to draw, one bool each. The core pills —\n`clock`, `weather`, `media`, `battery`, `wifi` — default true; the extras\n— the readouts `cpu`, `memory`, `volume`, `calendar`, `caffeinate`\nand the personal `agents`, `aiUsage`, `elgato`, `harvest` —\ndefault false. Set\nonly what you want to change:\n\n  haus.sill.items = {\n    weather = false;   # drop a default-on core pill\n    cpu = true;        # add an off-by-default readout\n    caffeinate = true; # add the keep-awake controller\n  };\n\nA pill set false is never created (its update script doesn't run either).\nThe hush (Do-Not-Disturb) pill is separate — it rides\nhaus.hush.enable, not this set. It can still be moved to the second bar\nwith `haus.sill.bottom.items.hush`.\n\nThis is the MENU BAR's set. `haus.sill.bottom.items` mirrors these pills\nfor the optional second bar and also accepts `hush`; a pill named there\nmoves down rather than being drawn twice.\n",
     "example": {
       "_type": "literalExpression",
       "text": "{\n  cpu = true;\n  weather = false;\n}"

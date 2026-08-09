@@ -1531,6 +1531,37 @@
             touch $out
           '';
 
+          sill-bottom-hush =
+            let
+              cfg =
+                (mkNebelhaus {
+                  inherit system;
+                  username = "you";
+                  hostname = "example";
+                  extraModules = [
+                    {
+                      haus.hush.enable = true;
+                      haus.sill.bottom = {
+                        enable = true;
+                        items.hush = true;
+                      };
+                    }
+                  ];
+                }).config.home-manager.users.you;
+              top = pkgs.writeText "top_items.sh" cfg.home.file.".config/sketchybar/top_items.sh".text;
+              bottom = pkgs.writeText "bottom_items.sh" cfg.home.file.".config/sketchybar/bottom_items.sh".text;
+              routing = pkgs.writeText "bar.sh" cfg.home.file.".config/sketchybar/bar.sh".text;
+            in
+            pkgs.runCommand "nebelhaus-sill-bottom-hush-ok" { } ''
+              if grep -q -- '--add item hush' ${top}; then
+                echo 'hush was duplicated on the top bar after moving to bottom.items' >&2
+                exit 1
+              fi
+              grep -q -- '\$SB --add item hush' ${bottom}
+              grep -q 'SILL_BOTTOM_ITEMS="[^"]*hush' ${routing}
+              touch $out
+            '';
+
           presets = pkgs.runCommand "nebelhaus-presets-ok" { } ''
             ${nixpkgs.lib.optionalString (!dataOnly) "echo 'a preset is not data-only' >&2; exit 1"}
             cat > $out <<'PRESETS'

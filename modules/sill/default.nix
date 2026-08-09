@@ -213,9 +213,9 @@ let
   # list. hush_change is fired by the hush engine after its own toggles and by
   # the hush-watcher agent (modules/hush) when the Focus DB changes; the
   # update_freq poll is only a backstop for missed events.
-  hushBlock = ''
-    sketchybar --add event hush_change
-    sketchybar --add item hush right \
+  hushBlock = sb: ''
+    ${sb} --add event hush_change
+    ${sb} --add item hush right \
         --set hush \
             update_freq=30 \
             script="$HOME/.config/sketchybar/plugins/hush.sh" \
@@ -232,6 +232,7 @@ let
   # reference $SURFACE0 (from colors.sh) and $HOME, both live when either rc
   # sources its generated item file.
   mkPluginBlocks = sb: {
+    hush = hushBlock sb;
     clock = ''
       ${sb} --add item clock right \
           --set clock \
@@ -578,7 +579,7 @@ let
     "elgato"
     "harvest"
   ];
-  itemOrder = coreOrder ++ extraOrder;
+  itemOrder = coreOrder ++ [ "hush" ] ++ extraOrder;
 
   # Is this pill switched on in a given items table? Both tables are read through
   # here so `claudeUsage` — the deprecated alias, which only the top bar's table
@@ -594,14 +595,19 @@ let
   # left for the menu bar. A pill MOVES rather than duplicating: the bottom table
   # wins outright, so there is one switch per pill per bar and never two live
   # copies of a readout racing each other's update_freq.
-  bottomItems = lib.optionals cfg.bottom.enable (lib.filter (wantsItem cfg.bottom.items) itemOrder);
+  bottomItems = lib.optionals cfg.bottom.enable (
+    lib.filter (
+      name: wantsItem cfg.bottom.items name && (name != "hush" || config.haus.hush.enable)
+    ) itemOrder
+  );
   topCore = lib.filter (
     name: wantsItem cfg.items name && !(builtins.elem name bottomItems)
   ) coreOrder;
   topExtras = lib.filter (
     name: wantsItem cfg.items name && !(builtins.elem name bottomItems)
   ) extraOrder;
-  topItems = topCore ++ topExtras;
+  topHush = config.haus.hush.enable && !(builtins.elem "hush" bottomItems);
+  topItems = topCore ++ lib.optional topHush "hush" ++ topExtras;
 
   # nix name -> the item name SketchyBar knows it by. Identity for all but the
   # camel-cased one, and the plugins' own $NAME is the sketchybar side — so this
@@ -614,7 +620,7 @@ let
     # modules/sill/default.nix — do not edit.
   ''
   + lib.concatMapStrings (name: (mkPluginBlocks barTopPath).${name}) topCore
-  + lib.optionalString config.haus.hush.enable hushBlock
+  + lib.optionalString topHush (hushBlock barTopPath)
   + lib.concatMapStrings (name: (mkPluginBlocks barTopPath).${name}) topExtras;
 
   # The same blocks again, emitted against the OTHER bar. $SB is set by bar.sh,
@@ -703,7 +709,7 @@ let
   customTourSteps = config.haus.tour.steps;
   customTour = customTourSteps != null;
   tourWired = config.haus.tour.enable && (customTour || config.haus.prowl.enable);
-  topRightItems = topCore ++ lib.optional config.haus.hush.enable "hush" ++ topExtras;
+  topRightItems = topItems;
   tourAnchor = if topRightItems == [ ] then null else itemId (builtins.head topRightItems);
   tourItemSh = ''
     #!/bin/bash
