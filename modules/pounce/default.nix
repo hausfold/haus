@@ -780,15 +780,23 @@ lib.mkIf config.haus.pounce.enable {
         lib.generators.toPlist { escape = true; } (
           config.launchd.user.agents.pounce.serviceConfig
           // {
-            # Keep the legacy bundle ID as a narrow compatibility association
-            # until this flake pins the Pounce source change. It covers the
-            # supported unsigned path and a signing-failure fallback, both of
-            # which execute the immutable store app without rewriting its
-            # Info.plist. Remove com.local.pounce with that lock ripple.
-            AssociatedBundleIdentifiers = [
-              "com.hausfold.pounce"
-              "com.local.pounce"
-            ];
+            # One id, deliberately. This briefly also listed the legacy
+            # com.local.pounce, as a narrow compatibility association covering
+            # the two paths that execute the immutable store app WITHOUT
+            # rewriting its Info.plist — the supported unsigned path and the
+            # signing-failure fallback — because until this flake pinned the
+            # Pounce source change, that store app still declared the old id.
+            # It does not any more: the pinned pounce ships
+            # com.hausfold.pounce in pkgs/pounce/Info.plist, so both of those
+            # paths now resolve to the id already listed here and the legacy
+            # entry named nothing that exists. Removed.
+            #
+            # Don't re-add an id "just in case": this key is what Background
+            # Task Management reads to attribute the agent, and an entry that
+            # resolves to no installed bundle is how the fallback-to-the-
+            # certificate-owner bug (the maintainer's legal name in the Login
+            # Items row) gets back in.
+            AssociatedBundleIdentifiers = [ "com.hausfold.pounce" ];
           }
         )
       );
