@@ -303,7 +303,7 @@ in
       type = lib.types.bool;
       default = true;
       description = ''
-        Install the `nebelhaus` Claude Code skill into
+        Install the `haus` Claude Code skill into
         ~/.claude/skills/haus, so an agent asked to "install Slack" or
         "make everything bigger" edits your host file and runs `haus rebuild`
         instead of guessing at dotfiles and `brew install`.

@@ -17,9 +17,14 @@ only its own host (identity, private apps, secrets).
 > rice, and the flake input. `nebelhaus.presets.everyday`,
 > `nebelhaus.lib.checkRice` and `inputs.nebelhaus.url` are all correct as
 > written — flake outputs and an input name, not options. Same for
-> `org.nebelhaus.*` launchd labels, `~/.claude/skills/haus/`,
-> `share/nebelhaus/` and nebelhaus.com links; each has its own phase in
-> workshop `notes/hausfold-rename.md`, none of them is this one.
+> `org.nebelhaus.*` launchd labels, `share/nebelhaus/`, the state dirs
+> (`~/.local/state/nebelhaus`, `~/.config/nebelhaus/`) and nebelhaus.com
+> links; each has its own phase in workshop `notes/hausfold-rename.md`, none
+> of them is this one.
+>
+> The agent skill **used to be on that list and no longer is.** It installs at
+> `~/.claude/skills/haus/` and its frontmatter `name:` is `haus`, so a
+> `skills/nebelhaus` path anywhere is drift now, not a deliberate hold-out.
 
 **This file is the one set of instructions, for every agent.** Claude Code,
 Codex, OpenCode, Cursor, Copilot — TUI or GUI — all read *this*, directly or
