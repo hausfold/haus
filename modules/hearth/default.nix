@@ -411,6 +411,14 @@ in
         + "so a chord and its caption move together or not at all.";
     }
     {
+      assertion = !ghDashCfg.enable || devCfg.git.enable;
+      message =
+        "haus.hearth.ghDash.enable is on but haus.developer.git.enable is off. gh-dash has no "
+        + "login of its own — it reads the token `gh auth login` wrote — and the Git pack is what "
+        + "installs `gh`, so the dashboard would open on a machine with nothing to authenticate "
+        + "it, and every tab would be an error. Turn the Git pack on, or the dashboard off.";
+    }
+    {
       assertion = unavailableClients == [ ];
       message =
         "haus.agents.clients names ${lib.concatStringsSep ", " unavailableClients}, which "
@@ -711,6 +719,99 @@ in
       zenTheme = "${nebelungRoot}/zen/themes/${nb.title}/${zenAccent}";
       obsidianTheme = "${nebelungRoot}/obsidian/Nebelung";
       ghDashTheme = "${nebelungRoot}/gh-dash/themes/${nbFlavor}/catppuccin-${nbFlavor}-${accent}.yml";
+
+      # The house queue, in two halves, because only one of them needs an owner.
+      #
+      # A gh-dash section is a GitHub search filter, and the PR tabs below are
+      # scoped by `org:` — so haus.git.org is what makes them shippable at all,
+      # and with no owner set Hearth writes none of them rather than guessing.
+      # The self tabs (`@me`, `is:unread`) name no owner, so gating them on one
+      # would only take four good tabs away from the machine that reads several
+      # owners at once — exactly the machine the option tells to leave it empty.
+      #
+      # Everything else about a queue — which repos are checked out where,
+      # which key runs which command, how wide the columns are — describes a
+      # machine rather than an owner, and stays the host's in
+      # programs.gh-dash.settings.
+      #
+      # Each list is separately mkDefault: a host replacing prSections keeps
+      # the issue and notification tabs, and vice versa. Per-list rather than
+      # per-tab by necessity — gh-dash reads a section list as a whole, and
+      # there is no merge of two tab lists that isn't a guess about order.
+      ghDashOrgTabs = {
+        # Ordered by how often you look at them.
+        #
+        # `is:open`, NOT `is:unmerged`: unmerged means "not merged", which is
+        # true of every closed-without-merging PR forever, so the live tabs
+        # slowly fill with abandoned branches. `is:open` is open + draft and
+        # nothing else — exactly the working queue. `shipped` is the only tab
+        # here that looks at finished PRs.
+        prSections = lib.mkDefault [
+          {
+            title = "open";
+            filters = "org:${gitCfg.org} is:pr is:open";
+          }
+          # green and red sit side by side because together they ARE the merge
+          # decision: green is the queue a ship can take, red is the queue that
+          # needs a session reopened. `status:` reads the check state of a PR's
+          # head commit, so a branch still building shows in neither — which is
+          # the point, that's the "come back in a minute" bucket.
+          {
+            title = "green";
+            filters = "org:${gitCfg.org} is:pr is:open status:success";
+          }
+          {
+            title = "red";
+            filters = "org:${gitCfg.org} is:pr is:open status:failure";
+          }
+          # One week of landings. `nowModify` is gh-dash's own template
+          # function; GitHub's `merged:` qualifier wants the rendered date
+          # immediately after >=, with no spaces around the operator.
+          {
+            title = "shipped";
+            filters = ''is:pr is:merged org:${gitCfg.org} merged:>={{ nowModify "-7d" }}'';
+            limit = 10;
+          }
+        ];
+
+      };
+
+      # The half that asks who you are rather than where you work, and so ships
+      # with the dashboard itself.
+      ghDashSelfTabs = {
+        # Not org-scoped, unlike the PR tabs: an issue you filed or were handed
+        # matters wherever it is, and the one in somebody else's repo is the one
+        # you're most likely to forget.
+        issuesSections = lib.mkDefault [
+          {
+            title = "mine";
+            filters = "is:open author:@me";
+          }
+          {
+            title = "assigned";
+            filters = "is:open assignee:@me";
+          }
+        ];
+
+        # gh-dash ships EIGHT notification tabs. Two.
+        #
+        # `is:unread` rather than an empty filter, even though the tab is
+        # already called unread: with no filters gh-dash matches GitHub's own
+        # default and returns read notifications too (that's
+        # `includeReadNotifications`, which defaults to true). An explicit
+        # `is:unread` overrides it for this section, so the tab's count is a
+        # number of things you haven't seen — the only number worth a tab.
+        notificationsSections = lib.mkDefault [
+          {
+            title = "unread";
+            filters = "is:unread";
+          }
+          {
+            title = "participating";
+            filters = "reason:participating";
+          }
+        ];
+      };
 
       # Two edits to gh-dash, for two different surfaces.
       #
@@ -1355,14 +1456,20 @@ in
 
       programs.zellij.enable = true;
 
-      # Optional because the sections themselves are personal, while the tool,
-      # theme and terminal surface are generic. Hosts compose their own queue in
-      # programs.gh-dash.settings; Hearth supplies the patched binary, Nebelung
-      # include, and Cmd-G overlay when the integration is enabled.
+      # Opt-in because a GitHub dashboard is not something to hand someone who
+      # never asked for one. Hearth supplies the patched binary, the Nebelung
+      # include, the Cmd-G overlay and the self tabs; the PR tabs come from
+      # haus.git.org (see above), and with no owner set Hearth writes none of
+      # them rather than guessing — gh-dash keeps its own, and a host composing
+      # its own PR queue in programs.gh-dash.settings has nothing to fight.
       programs.gh-dash = lib.mkIf ghDashCfg.enable {
         enable = true;
         package = lib.mkDefault ghDashPkg;
-        settings.include = lib.mkBefore [ ghDashTheme ];
+        settings = lib.mkMerge [
+          { include = lib.mkBefore [ ghDashTheme ]; }
+          ghDashSelfTabs
+          (lib.mkIf (gitCfg.org != "") ghDashOrgTabs)
+        ];
       };
 
       # Catppuccin: `catppuccin.flavor` is the single source of truth — every

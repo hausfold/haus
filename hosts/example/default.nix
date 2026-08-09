@@ -18,6 +18,11 @@
   haus.git.email = "you@example.com";
   # GPG key id for commit signing; leave "" to disable signing.
   haus.git.signingKey = "";
+  # The GitHub owner your work lives under — an org, or your own account. Only
+  # gh-dash reads it today: with haus.hearth.ghDash.enable it fills ⌘G's PR tabs
+  # with that owner's open / green / red / just-shipped work. Leave "" and those
+  # tabs aren't written at all.
+  # haus.git.org = "your-org";
   # Hearth ships a compact, framework-independent set of Git shell aliases
   # (gst, gco, gp, grbi, gwt, …). Extend/override them here, or set one to null
   # to remove it:

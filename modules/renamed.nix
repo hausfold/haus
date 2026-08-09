@@ -15,13 +15,22 @@
 #                else go (p ++ [ n ]) v) o);
 #     in lib.concatStringsSep "\n" (map (lib.concatStringsSep ".") (go [ ] ev.options.haus))'
 #
+# Regenerating is for keeping the RENAMED set honest, not for growing it: the
+# command below enumerates every `haus.*` leaf, so an option added after the
+# rename comes back with an alias it was never owed — `haus.git.org` (added
+# 2026-08-08) never had a `nebelhaus.` name and must not acquire one, or this
+# file outlives its own deletion condition. Drop any entry the rename didn't
+# create, and don't read the count below as a target: the tree grows, this
+# file doesn't.
+#
 # NOT from `nix build .#options-json`, which is the obvious source and the wrong
 # one: `optionsDoc` drops every `internal = true` option, so five leaves are
 # missing from it — `_roster`, `_workspaces`, `_appWorkspace`, `_launchers`, and
 # `theme.ports.handled`, which is internal WITHOUT the underscore and so escapes
 # any naming heuristic too. Those five are ours; they were renamed in place
-# rather than aliased, and are the reason this file has 105 entries for a
-# 110-leaf tree.
+# rather than aliased, and are the reason this file had 105 entries for the
+# 110-leaf tree the rename found. The tree is 111 leaves now — see the
+# paragraph above for why that gap is the healthy direction.
 #
 # What the aliases buy: `haus.*` is canonical today, a host or rice still
 # written against `nebelhaus.*` keeps evaluating (with an obsolete-option
