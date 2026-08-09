@@ -90,6 +90,10 @@
     order = 110;
     blurb = "The keys the rice owns — the leader, the palette, the window-chord modifier — and anything extra you hang off the leader.";
   };
+  # ---- macOS settings groups (options-roadmap §5.6) -------------------------
+  # Dense on purpose: this block ran out of the file's usual ten-wide spacing
+  # when the last three groups landed, and `prowl` at 120 is the next fixed
+  # point. A seventh group here means renumbering the block, not squeezing.
   hotCorners = {
     order = 112;
     blurb = "What each corner of the screen does when the pointer reaches it. Every corner is unset by default, so the rice never overwrites one you set yourself.";

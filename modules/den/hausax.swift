@@ -104,11 +104,28 @@ case "input-source":
     guard args.count == 3, args[1] == "enable" || args[1] == "disable" else {
         fail("usage: hausax input-source enable|disable <input-source-id>")
     }
-    guard let src = layouts(includeDisabled: true).first(where: { sourceID($0) == args[2] }) else {
+    // ALL matches, not the first: TISCreateInputSourceList returns some ids
+    // twice (the Wubihua layouts do on macOS 26.6), and picking one of a
+    // duplicate pair looks exactly like a write that didn't take.
+    let matches = layouts(includeDisabled: true).filter { sourceID($0) == args[2] }
+    if matches.isEmpty {
         fail("no such keyboard layout: \(args[2]) — `hausax input-sources --all` lists them")
     }
-    let status = args[1] == "enable" ? TISEnableInputSource(src) : TISDisableInputSource(src)
-    if status != noErr { fail("could not \(args[1]) \(args[2]) — OSStatus \(status)") }
+    // The last layout standing is not ours to remove. A Mac with no enabled
+    // keyboard layout is a Mac you cannot type on, and nothing in the config
+    // that produced it would look wrong — so the refusal lives HERE, at the
+    // one call that could do it, rather than only in the caller that happens
+    // to exist today.
+    if args[1] == "disable" {
+        let enabled = layouts(includeDisabled: false).map(sourceID)
+        if enabled.count <= 1 && enabled.contains(args[2]) {
+            fail("refusing to disable \(args[2]) — it is the only enabled keyboard layout")
+        }
+    }
+    for src in matches {
+        let status = args[1] == "enable" ? TISEnableInputSource(src) : TISDisableInputSource(src)
+        if status != noErr { fail("could not \(args[1]) \(args[2]) — OSStatus \(status)") }
+    }
 
 default:
     fail("unknown command: \(args[0])")

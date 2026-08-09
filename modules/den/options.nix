@@ -790,6 +790,9 @@ in
             description = ''
               Minutes of idleness before ${what} while on ${source}, or
               `"never"`. null (the default) leaves macOS's own choice alone.
+
+              A desktop Mac has no battery profile to write, so `pmset` warns
+              and the rebuild carries on — set the `charger` half there.
             '';
           };
       in

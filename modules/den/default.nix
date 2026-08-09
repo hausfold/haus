@@ -94,8 +94,17 @@ let
   # The third verb (see ../lib/restart-map.nix): domains whose consumers are
   # every running app rather than one daemon. `hausax post-notification` does
   # the posting; nothing else in the rice can reach DistributedNotificationCenter.
-  notificationsToPost = map (lib.removePrefix "notify:") (
-    builtins.filter (lib.hasPrefix "notify:") actionsWritten
+  #
+  # The map supplies the NAME — the load-bearing half, since a made-up
+  # notification does nothing — but not the trigger. NSGlobalDomain is written
+  # on every rebuild of every machine (key repeat, the springing pair), so
+  # keying the post on domain membership alone would tell every app on every
+  # Mac that its locale changed once a rebuild, forever, on configurations with
+  # no locale opinion at all. Domain granularity cannot express "when a locale
+  # key is declared", so the group names its own trigger here.
+  localeDeclared = lib.any (v: v != null) (lib.attrValues localeCfg);
+  notificationsToPost = lib.optionals localeDeclared (
+    map (lib.removePrefix "notify:") (builtins.filter (lib.hasPrefix "notify:") actionsWritten)
   );
 
   # ---- hot corners ----------------------------------------------------------
@@ -290,6 +299,21 @@ in
         has `pkgs`, `packageName` for a data-only rice that doesn't. Keep one.
       '';
     }
+    {
+      # `null` and `[ ]` are worlds apart for this one option, and the type
+      # cannot tell them apart: null means "leave my layouts alone", while an
+      # empty list literally means "the complete set of keyboard layouts is
+      # none" — a Mac you cannot type on. Nothing downstream would look wrong.
+      assertion = localeCfg.inputSources != [ ];
+      message = ''
+        nebelhaus: haus.locale.inputSources is an empty list.
+
+        That option is EXHAUSTIVE — a list is the whole set of keyboard layouts,
+        so an empty one asks for a Mac with no way to type. Use `null` (the
+        default) to leave your layouts alone, or name at least one id:
+        `hausax input-sources --all` lists them.
+      '';
+    }
   ];
 
   # ---- haus.accessibility → com.apple.universalaccess -------------------
@@ -336,7 +360,8 @@ in
     (lib.optionalString (alertSoundPath != null) ''
       if [ -f ${lib.escapeShellArg alertSoundPath} ]; then
         launchctl asuser "$(id -u -- ${username})" sudo --user=${username} -- \
-          defaults write -g com.apple.sound.beep.sound -string ${lib.escapeShellArg alertSoundPath}
+          defaults write -g com.apple.sound.beep.sound -string ${lib.escapeShellArg alertSoundPath} \
+          || echo "warning: sound: could not write the alert sound. Setting skipped; nothing else was affected." >&2
       else
         echo "warning: sound: ${alertSoundPath} is missing on this macOS — alert sound left alone (writing it would silence the beep, not fall back)." >&2
       fi
@@ -369,23 +394,42 @@ in
     # Enable first, then disable, so the machine is never briefly left with no
     # layout at all — and so a selected layout being retired hands over to one
     # that already exists rather than to nothing.
-    (lib.optionalString (localeCfg.inputSources != null) ''
+    (lib.optionalString (localeCfg.inputSources != null && localeCfg.inputSources != [ ]) ''
       hausInputSource() {
         if ! launchctl asuser "$(id -u -- ${username})" sudo --user=${username} -- \
              ${lib.getExe hausax} input-source "$1" "$2" 2>/dev/null; then
           echo "warning: locale: could not $1 $2 — is it a real input source id? (\`hausax input-sources --all\`)" >&2
+          return 1
         fi
       }
+      hausInputSourcesNow() {
+        launchctl asuser "$(id -u -- ${username})" sudo --user=${username} -- \
+          ${lib.getExe hausax} input-sources 2>/dev/null
+      }
       ${lib.concatMapStringsSep "\n" (
-        id: "hausInputSource enable ${lib.escapeShellArg id}"
+        id: "hausInputSource enable ${lib.escapeShellArg id} || true"
       ) localeCfg.inputSources}
+
+      # The disable pass runs ONLY once at least one declared layout is really
+      # enabled. Without this check, a list of ids that are all typo'd —
+      # "US" instead of "com.apple.keylayout.US" — warns four times and then
+      # disables everything that WAS working, and a Mac with no keyboard layout
+      # is a Mac you cannot type on. `hausax input-source disable` refuses to
+      # remove the last one as a second line of defence; this is the first.
       declared=${lib.escapeShellArg (lib.concatStringsSep "\n" localeCfg.inputSources)}
-      for enabled in $(launchctl asuser "$(id -u -- ${username})" sudo --user=${username} -- \
-                         ${lib.getExe hausax} input-sources 2>/dev/null); do
-        if ! printf '%s\n' "$declared" | grep -qxF "$enabled"; then
-          hausInputSource disable "$enabled"
-        fi
+      landed=0
+      for enabled in $(hausInputSourcesNow); do
+        if printf '%s\n' "$declared" | grep -qxF "$enabled"; then landed=1; fi
       done
+      if [ "$landed" = 0 ]; then
+        echo "warning: locale: none of the declared input sources could be enabled, so nothing was disabled either — the machine keeps the layouts it had. Check the ids with \`hausax input-sources --all\`." >&2
+      else
+        for enabled in $(hausInputSourcesNow); do
+          if ! printf '%s\n' "$declared" | grep -qxF "$enabled"; then
+            hausInputSource disable "$enabled" || true
+          fi
+        done
+      fi
     '')
 
     # ---- haus.power.* → pmset ----------------------------------------------
