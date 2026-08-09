@@ -36,7 +36,7 @@ The `CLAUDE.md` beside it is that pointer and holds no rules of its own.
   revert-settings` can put them back; `haus diff`/`haus plan` show declared vs
   what macOS actually has.
 - **Don't invent option names.** The authoritative list for the revision this
-  machine is pinned to is `~/.claude/skills/nebelhaus/references/options.md`.
+  machine is pinned to is `~/.claude/skills/haus/references/options.md`.
   It's plain markdown — read it whatever client you are, even if your client
   doesn't load Claude Code skills.
 - **Ask before touching identity or secrets** — git identity, signing keys,
@@ -44,7 +44,7 @@ The `CLAUDE.md` beside it is that pointer and holds no rules of its own.
 
 ## Where the detail lives
 
-The nebelhaus skill at `~/.claude/skills/nebelhaus/` carries the full option
+The nebelhaus skill at `~/.claude/skills/haus/` carries the full option
 reference, worked recipes, and this machine's current state. Read it before
 making changes; it is generated from this machine's pinned rice, so it can't
 drift from what's actually settable here. (That directory is Claude Code's skill

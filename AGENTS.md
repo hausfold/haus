@@ -17,7 +17,7 @@ only its own host (identity, private apps, secrets).
 > rice, and the flake input. `nebelhaus.presets.everyday`,
 > `nebelhaus.lib.checkRice` and `inputs.nebelhaus.url` are all correct as
 > written — flake outputs and an input name, not options. Same for
-> `org.nebelhaus.*` launchd labels, `~/.claude/skills/nebelhaus/`,
+> `org.nebelhaus.*` launchd labels, `~/.claude/skills/haus/`,
 > `share/nebelhaus/` and nebelhaus.com links; each has its own phase in
 > workshop `notes/hausfold-rename.md`, none of them is this one.
 

@@ -1230,7 +1230,7 @@
             opt pounce.scale 1.000000 1.400000 2.000000 2.000000
             sys dock.tilesize unset 67 120 144
             sys finder.sidebar 1 3 3 3
-            file .claude/skills/nebelhaus/references/this-machine.md moves
+            file .claude/skills/haus/references/this-machine.md moves
             file .config/aerospace/aerospace.toml moves
             file .config/pounce/config.json ceiling
             file .config/sketchybar/sizes.sh ceiling
@@ -1347,7 +1347,7 @@
             gen sill workspace letter JetBrainsMono Nerd Font Mono | FiraCode Nerd Font
             gen sill workspace logo sketchybar-app-font | sketchybar-app-font
             static sill hardcoded-family-literals 0
-            file .claude/skills/nebelhaus/references/this-machine.md moves
+            file .claude/skills/haus/references/this-machine.md moves
             file .config/sketchybar/sizes.sh moves
             file .config/sketchybar/tour_item.sh moves
             file .config/sketchybar/workspaces.sh moves
@@ -1498,7 +1498,7 @@
           # A package rather than a checked-in file on purpose: built from the
           # revision a machine has actually pinned, it can only ever describe
           # the options that exist there. hearth installs it into
-          # ~/.claude/skills/nebelhaus (haus.claude.skill), so `haus update`
+          # ~/.claude/skills/haus (haus.claude.skill), so `haus update`
           # updates the agent's knowledge along with the rice.
           claude-skill = import ./modules/hearth/claude/skill.nix { inherit pkgs; };
 

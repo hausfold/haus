@@ -1,6 +1,6 @@
 ---
-name: nebelhaus
-description: Change this Mac's setup on a machine running the nebelhaus rice — install or remove apps, change the theme, fonts, keybindings, window management, the bar, the shell, or macOS settings. Use whenever the user asks you to change how their Mac looks or behaves, or mentions nebelhaus, haus, their host file, or ~/.config/nix. Covers finding the right haus.* option, editing the host file, applying with `haus rebuild`, and undoing with `haus rollback`.
+name: haus
+description: Change this Mac's setup on a machine managed by haus — the nebelhaus rice, or any other rice built on it. Install or remove apps, change the theme, fonts, keybindings, window management, the bar, the shell, or macOS settings. Use whenever the user asks you to change how their Mac looks or behaves, or mentions nebelhaus, haus, their host file, or ~/.config/nix. Covers finding the right haus.* option, editing the host file, applying with `haus rebuild`, and undoing with `haus rollback`.
 ---
 
 # Changing a nebelhaus machine
