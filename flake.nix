@@ -1452,6 +1452,48 @@
                     ${pkgs.writeText "actual" (variantTable + "\n")}
             touch $out
           '';
+
+          # ---- site-data-current ----------------------------------------------
+          # `docs/site-data/` is a COMMITTED copy of the `site-data` derivation —
+          # the rice's option surface and binding table as plain JSON, so the
+          # docs site can read them out of a checkout instead of running Nix.
+          # A committed copy of generated data is a lie waiting to happen, so
+          # this is the pin: the same shape as the golden tables above, and the
+          # same reason.
+          #
+          # 🚨 It only runs when it is BUILT — the diff is in the builder, so
+          # `nix flake check --no-build` passes it vacuously. Unlike scale-reach
+          # and font-reach, which share that property and are ALSO darwin-gated,
+          # this one is in the all-systems set and does run on CI's Linux
+          # runner. Locally: `nix build .#checks.aarch64-darwin.site-data-current`.
+          #
+          # `diff -r` rather than a hardcoded list of filenames, because the
+          # question is whether the two DIRECTORIES agree: a file added to the
+          # derivation and never committed, or one committed and later dropped
+          # upstream, is exactly the drift a per-file loop reports as green.
+          # README.md is the one hand-written thing in there, hence the -x.
+          #
+          # When this goes red the fix is mechanical and never prose: nothing in
+          # docs/site-data/ is hand-written, so regenerate and commit.
+          site-data-current = pkgs.runCommand "nebelhaus-site-data-current-ok" { } ''
+            if ! diff -ru -x README.md \
+                 ${./docs/site-data} ${self.packages.${system}.site-data}; then
+              cat >&2 <<'STALE'
+
+            docs/site-data/ has drifted from the module system.
+
+            Nothing in that directory is hand-written — it is `nix build .#site-data`
+            committed, so the docs site can read it without Nix. Regenerate it from
+            the repo root and commit the result:
+
+                out=$(nix build --no-link --print-out-paths .#site-data)
+                install -m644 "$out"/*.json docs/site-data/
+
+            STALE
+              exit 1
+            fi
+            touch $out
+          '';
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-darwin" system) {
           accent-reach = pkgs.runCommand "nebelhaus-accent-reach-ok" { } ''
@@ -1540,6 +1582,20 @@
           # RENDERED from this instead of hand-maintained, so the page cannot
           # drift from the module system (as prose, it drifted for months).
           options-json = import ./modules/options-doc.nix { inherit pkgs; };
+
+          # `nix build .#site-data` — the two outputs above, filtered and
+          # pretty-printed into three plain JSON files a docs site can read with
+          # NO Nix at all. `docs/site-data/` is the committed copy of this, and
+          # the `site-data-current` check is what keeps the two equal.
+          #
+          # It exists so the site repo's CI doesn't need Nix, a flake pin and a
+          # nixpkgs fetch to check its own reference page — see
+          # modules/site-data.nix, and workshop's notes/hausfold-rename.md §5.1.
+          site-data = import ./modules/site-data.nix {
+            inherit pkgs;
+            optionsJson = self.packages.${system}.options-json;
+            wmBindingsJson = self.packages.${system}.wm-bindings-json;
+          };
 
           # `nix build .#claude-skill` — the Claude Code skill that teaches an
           # agent to change THIS machine's config: the edit → `haus rebuild` →

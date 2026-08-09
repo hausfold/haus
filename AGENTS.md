@@ -73,6 +73,10 @@ modules/
   options-modules.nix     # the per-room options.nix list — shared by both renderers below
   options-doc.nix         # nixosOptionsDoc over them → the metadata the docs site
                           #   (.#options-json) and the agent skill are both RENDERED from
+  site-data.nix           # .#site-data: that metadata + the binding table, filtered to
+                          #   haus.* and pretty-printed, so the docs site can read it with
+                          #   NO Nix. Committed at docs/site-data/ — regenerate and commit
+                          #   whenever an option moves, or `site-data-current` goes red
   lib/gui-wait.nix        # cold-boot-safe GUI agent launch: .wrap (an executable) +
                           #   .script (the bounded wait alone, for pounce)
   apps/                   # the EDITORIAL picks: apps the rice chooses for a finished

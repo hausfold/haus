@@ -1,0 +1,3549 @@
+{
+  "haus.accessibility.differentiateWithoutColor": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "macOS's \"Differentiate without colour\" — native UI adds shapes and\ntext where it would otherwise rely on hue alone. The setting to pair\nwith a rice built for colour-blind readability.\n\n\nnull (the default) leaves whatever you have alone — this is a\npersonal setting, so the rice never picks a value for you.\n\nREACHABILITY: `com.apple.universalaccess` is TCC-protected. It writes\nonly when the app that runs the rebuild holds Full Disk Access\n(System Settings ▸ Privacy & Security ▸ Full Disk Access; on macOS 26\na stale grant often needs removing and re-adding with (+)). Without\nthat grant the rice logs a warning and moves on — it does NOT fail\nthe rebuild. Worth knowing: an agent-driven `haus rebuild` runs under\na different app than your terminal, so it may skip this while your\nown rebuild applies it.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "accessibility",
+      "differentiateWithoutColor"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.accessibility.increaseContrast": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "macOS's \"Increase contrast\" — stronger borders and reduced use of\ncolour alone to convey state, across native apps. This is the\nsystem-level companion to a high-contrast nebelhaus theme: the theme\nrestyles the tools nebelhaus colours, this reaches everything else.\n\n\nnull (the default) leaves whatever you have alone — this is a\npersonal setting, so the rice never picks a value for you.\n\nREACHABILITY: `com.apple.universalaccess` is TCC-protected. It writes\nonly when the app that runs the rebuild holds Full Disk Access\n(System Settings ▸ Privacy & Security ▸ Full Disk Access; on macOS 26\na stale grant often needs removing and re-adding with (+)). Without\nthat grant the rice logs a warning and moves on — it does NOT fail\nthe rebuild. Worth knowing: an agent-driven `haus rebuild` runs under\na different app than your terminal, so it may skip this while your\nown rebuild applies it.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "accessibility",
+      "increaseContrast"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.agents.clients": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalMD",
+      "text": "[ \"claude\" \"opencode\" ] when developer.agents.enable is true, else [ ]"
+    },
+    "description": "Which coding-agent clients to install. `claude` is Claude Code, `codex`\nis OpenAI Codex, `opencode` is OpenCode. The ⌘A terminal binding starts\nwhichever one `agents.default` names — Claude Code through its own\n`--worktree` hook, the others through `holt new`.\n\nA list rather than one bool per client, matching `developer.languages`\n— a fourth client later doesn't change this option's shape.\n\nThis is the option that makes `agents.default` honest. Naming a client\nyou have not installed used to fail *at spawn time*, inside the pane,\nafter the worktree already existed: a flash of\n`codex is unavailable`, and litter to reap. `agents.default` must now\nbe a member of this list, so the same mistake fails the rebuild\ninstead, with both values named.\n\nOverride the package for a client the usual Nix way — an overlay on\n`claude-code`, `codex` or `opencode` — rather than dropping the client\nhere and installing your own copy alongside; two derivations shipping\nthe same `bin/` name collide in one profile.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"claude\"\n  \"codex\"\n]"
+    },
+    "loc": [
+      "haus",
+      "agents",
+      "clients"
+    ],
+    "readOnly": false,
+    "type": "list of (one of \"claude\", \"codex\", \"opencode\")"
+  },
+  "haus.agents.default": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"claude\""
+    },
+    "description": "The coding agent started by Pounce's **Spawn Agent** command, by the\n⌘A / Super-a zellij binds and the `c` shell alias, and used to reopen\nworktrees with no client recorded yet. Each spawned worktree records its\nown client, so changing this affects new work but never reopens an\nexisting Codex or OpenCode task in Claude.\n\nMust be one of `agents.clients` — see there.\n\nOnly `claude` can make its own worktree (its native `--worktree` flag,\nwhich fires `holt hook create`); for `codex` and `opencode` ⌘A runs\n`holt new` instead, producing the same checkout, branch and registry\nentry from the outside. Resuming follows the client too: `codex` reopens\nits cwd-filtered `codex resume` picker, `opencode` continues its latest\nsession for that cwd. All three share one `holt` branch/parking/reap\nlifecycle, and all three light up the `agents` bar pill and the zellij\ntab-bar badge — the opencode plugin and the codex hooks are written for\nyou; only Claude Code's stay yours to wire, because Claude owns its own\nsettings.json (see `haus.sill.items.agents`).\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"codex\""
+    },
+    "loc": [
+      "haus",
+      "agents",
+      "default"
+    ],
+    "readOnly": false,
+    "type": "one of \"claude\", \"codex\", \"opencode\""
+  },
+  "haus.appStore.install": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Install roster entries that set `appStoreId` from the Mac App\nStore during activation, skipping any already installed.\n\nOff by default: this reaches the network and acts on your Apple\nID, which shouldn't happen as a side effect of turning on a\nwindow manager. It also can't be complete — `mas` cannot sign in\n(do that once in App Store.app) and cannot make a first-time\nPURCHASE, so a paid app you don't already own is reported and\nskipped rather than installed.\n\nDeliberately NOT nix-darwin's `homebrew.masApps`: that runs\n`mas install` through `brew bundle` as your user, and since\nmacOS 13 the App Store install path requires root — so it stops\nfor a password prompt that a rebuild has no terminal to show,\nand the rebuild hangs. The activation step this option enables\nis already running as root, so it neither prompts nor wedges.\n",
+    "loc": [
+      "haus",
+      "appStore",
+      "install"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.apps.videoPlayer.claimFileTypes": {
+    "declarations": [
+      "modules/apps/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Make IINA the default handler for the everyday video extensions —\nmp4, m4v, mov, mpg, mpeg, mkv, webm, avi, wmv, flv, 3gp, ogv, vob —\nso double-clicking a video opens IINA instead of QuickTime Player, TV\nor a browser. Ignored unless the player is installed.\n\nA short list on purpose: it covers what you actually double-click,\nnot everything IINA can decode. Dead, professional and DRM'd\ncontainers (qt, divx, asf, f4v, 3g2, ogm, rm, rmvb, mxf, dv, …) are\nleft alone — they still play via Open With, they just don't get the\ndefault, and every extension the rice claims is a binding it\nre-asserts on every rebuild.\n\nVideo only. Audio (mp3, flac, m4a, wav, …), `.gif` and playlists\nkeep whatever owns them today, since \"open videos in IINA\" rarely\nmeans \"and my music library too\". The transport-stream extensions\n`.ts`, `.mts` and `.m2ts` are excluded too: on a developer's machine\nthey are TypeScript far more often than video, and\n`haus.hearth.hijackFileAssociations` claims them for the editor.\nClaiming them here as well made macOS stop and ask which app should\nwin on every single rebuild, because `.mts` and `.m2ts` share one\nUTI.\n\nThis sets the USER default (via `duti`) — the same record Finder's\nGet Info ▸ Change All writes, so it is undoable by hand. Set false to\ninstall the app and leave every association alone.\n",
+    "loc": [
+      "haus",
+      "apps",
+      "videoPlayer",
+      "claimFileTypes"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.apps.videoPlayer.enable": {
+    "declarations": [
+      "modules/apps/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Install IINA — the rice's video player — as the roster entry `iina`.\nA nixpkgs build, so it lands in ~/Applications/Home Manager Apps\nrather than /Applications.\n\nOn by default: macOS ships QuickTime Player, which refuses most of\nwhat you actually double-click (mkv, webm, and anything not in\nApple's codec list), so \"a video player that plays videos\" is part\nof what the rice considers a finished machine.\n\nSet false and nothing is installed or rebound — bring your own\nplayer via the pounce \"Install App\" palette command or a roster\nentry. Once on it is a roster entry like any other: give it a leader\nletter with `haus.roster.iina.key`, or pin a different build\nwith `haus.roster.iina.package`.\n",
+    "loc": [
+      "haus",
+      "apps",
+      "videoPlayer",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.claude.globalMd": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "Contents of Claude Code's global memory file, written to\n~/.claude/CLAUDE.md (hearth wires it into home-manager). This is your\npersonal, cross-project operating context. When set, the rice prepends\ntwo short sections of its own — a note that the file is generated and\nwhere to actually edit it, and the `holt` worktree etiquette, since the\nrice ships `holt` and that rule is what keeps it working — then your\ntext. Leave it empty to manage ~/.claude/CLAUDE.md fully by hand\n(nothing is written, so the rice never clobbers a by-hand file).\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "''\n  # CLAUDE.md — global\n  How I like to work across every repo…\n''"
+    },
+    "loc": [
+      "haus",
+      "claude",
+      "globalMd"
+    ],
+    "readOnly": false,
+    "type": "strings concatenated with \"\\n\""
+  },
+  "haus.claude.skill": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Install the `haus` Claude Code skill into\n~/.claude/skills/haus, so an agent asked to \"install Slack\" or\n\"make everything bigger\" edits your host file and runs `haus rebuild`\ninstead of guessing at dotfiles and `brew install`.\n\nThe skill's option reference is GENERATED from the rice revision this\nmachine is pinned to, so it can only ever describe options that\nactually exist here — and it is regenerated by `haus update`. It also\ncarries this host's current state (which rooms are on, where the host\nfile is) and a starter AGENTS.md + CLAUDE.md pair for your config repo —\nthe rules in the first, a one-line import in the second, so a session\nopened there is oriented whichever client it runs.\n\nUnrelated to Claude Code's own settings, which follow\nhaus.developer.agents.enable. This is a plain file drop: a machine\nthat never runs an agent just carries an unread markdown file. Set\nfalse to leave ~/.claude/skills alone entirely.\n",
+    "loc": [
+      "haus",
+      "claude",
+      "skill"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.collar.enable": {
+    "declarations": [
+      "modules/collar/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "The collar room: Touch ID for `sudo`, with `reattach` — the PAM shim\nthat keeps the prompt working when sudo runs inside a terminal\nmultiplexer (tmux/zellij/screen), where it otherwise beachballs.\n\nOff means macOS's stock password prompt everywhere, including for the\nrebuild below. Nothing else in the rice depends on it.\n",
+    "loc": [
+      "haus",
+      "collar",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.collar.passwordlessRebuild": {
+    "declarations": [
+      "modules/collar/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Exempt system activation from authenticating at all: a sudoers rule\ngranting NOPASSWD to `darwin-rebuild` and `haus-activate` at their\nstable /run/current-system paths. This is what makes `haus rebuild`,\n`haus rollback` and `bench try switch` a single uninterrupted command\nrather than one that stops for a fingerprint you already gave.\n\nHonest scope: this is a real root grant, and both commands take a path\nor flake ref you choose — so it means \"anything I can build, I can\nactivate as root, unprompted\". That is the whole point (you already\nauthenticated to build it), but on a shared or managed machine it's the\nknob to turn off. With it off, activation prompts via Touch ID (or a\npassword when `enable` is false) and nothing else changes.\n",
+    "loc": [
+      "haus",
+      "collar",
+      "passwordlessRebuild"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.developer.agents.enable": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "config.haus.developer.enable"
+    },
+    "description": "Coding-agent *tooling*: `holt` (agent worktrees), `agent-state` (the\npane-status writer behind the `agents` bar pill and the zellij tab\nbadge), `zscratch`, the agent-worktree statusline, and the client\nconfig hearth writes (Claude Code's settings.json keys, opencode's\nagent-state plugin). Which clients get installed is `agents.clients`.\n\nOff is right for any machine not running coding agents — it's a large\nsurface a non-developer never sees. It also empties `agents.clients`,\nsince a client with no `holt` to park it is not the deal on offer.\n",
+    "loc": [
+      "haus",
+      "developer",
+      "agents",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.developer.enable": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "The developer pack: the CLI toolbelt, Git tooling, coding-agent\ntooling, and language runtimes. On (the default) is the rice as it\nhas always been.\n\n`false` is what makes a non-developer nebelhaus possible — it strips\nthose tools rather than merely hiding them. What remains is the\nproduct: `haus`, `awake`, the theme, the terminal, the bar, the tiler\nand the palette.\n\nThe sub-options below each default to THIS value, so turning it off\nturns everything off and you can then re-enable one piece:\n\n  haus.developer.enable = false;\n  haus.developer.git.enable = true;  # …but keep git\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "loc": [
+      "haus",
+      "developer",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.developer.git.enable": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "config.haus.developer.enable"
+    },
+    "description": "Git and its surroundings: the shell alias vocabulary, the themed git\nconfig, delta (diff pager), lazygit, `gh`, and gnupg for commit\nsigning. Off drops all of them, and `haus.git.*` then has\nnothing to configure.\n",
+    "loc": [
+      "haus",
+      "developer",
+      "git",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.developer.languages": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalMD",
+      "text": "[ \"node\" ] when developer.enable is true, else [ ]"
+    },
+    "description": "Language runtimes to install. Currently only \"node\" (bun + fnm, with\nfnm's `--use-on-cd` shell hook).\n\nDeliberately a list rather than one bool per language, so adding\n\"rust\" or \"python\" later doesn't change this option's shape.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[ ]"
+    },
+    "loc": [
+      "haus",
+      "developer",
+      "languages"
+    ],
+    "readOnly": false,
+    "type": "list of value \"node\" (singular enum)"
+  },
+  "haus.developer.toolbelt.enable": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "config.haus.developer.enable"
+    },
+    "description": "The terminal toolbelt: bat, fzf, fd, ripgrep, yazi, zoxide, lsd,\nglow, jq, tree, chafa, ttyd and fastfetch — the themed replacements\nfor cat, find, grep, ls and friends that the rice's shell is built\naround.\n\nOff leaves a plain shell. The prompt (starship) and the colour scheme\nstay: these are the *tools*, not the appearance.\n",
+    "loc": [
+      "haus",
+      "developer",
+      "toolbelt",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.displays": {
+    "declarations": [
+      "modules/displays/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "{ }"
+    },
+    "description": "Per-display settings, keyed by which screen you mean:\n\n  internal   the built-in panel\n  main       whichever display is currently main\n  <uuid>     a persistent display UUID, for a specific external monitor —\n             run `hausdisp list` to print the UUIDs of what's attached\n\nDefault is the empty set, and then nothing about your displays is touched.\nA key naming a display that isn't plugged in right now is skipped with a\nnote, not an error, so a `displays.<uuid>` entry for the monitor at the\noffice can't fail a rebuild on the train.\n\nWhy this option exists at all: display scaling is the only lever macOS 26\ngives us for \"make EVERYTHING bigger\", system-wide, including apps the rice\nknows nothing about. macOS's own text-size setting writes a value no running\napp re-reads, while the accessibility scalars that do work affect contrast\nor motion rather than system-wide size — measured, not assumed (the\nworkshop's notes/macos-settings-matrix.md records the sweep). So\n`haus.ui.scale` and `haus.fonts` make the *rice* bigger, and this\nmakes the *Mac* bigger.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "{\n  \"37D8832A-2D66-02CA-B9F7-8F30A301B230\" = {\n    uiScale = \"more-space\";\n  };\n  internal = {\n    uiScale = \"larger-text\";\n  };\n}"
+    },
+    "loc": [
+      "haus",
+      "displays"
+    ],
+    "readOnly": false,
+    "type": "attribute set of (submodule)"
+  },
+  "haus.displays.<name>.uiScale": {
+    "declarations": [
+      "modules/displays/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The scaled resolution, as an intent rather than a pixel count — the\nsame four positions System Settings ▸ Displays offers, named:\n\n  more-space     the largest resolution the panel offers (smallest UI)\n  default        the panel's own default mode\n  larger-text    between the default and the smallest resolution\n  largest-text   the smallest resolution the panel offers (biggest UI)\n\nResolved per panel from the modes that panel actually reports, so the\nsame value means the same *thing* on a 14\" laptop and a 27\" monitor\nrather than the same number of pixels. On the 14\" MacBook Pro this was\ndeveloped on that resolves to 1800x1169 · 1512x982 · 1147x745 ·\n1024x665.\n\nApplied at each home-manager activation and set permanently, so it\nsurvives a reboot; re-applying an already-current mode is a no-op, so\na rebuild doesn't flash your screen. null (the default) leaves the\ndisplay alone.\n\nWhen more than one selector names the same attached panel, the more\nspecific setting wins: UUID over internal over main. This lets a\nhost-specific display setting refine a broad preset such as\nlarge-print without depending on activation order.\n\nHonest scope: this is a real, system-wide size change — every app gets\nbigger, not just the rice's own tools — and the cost is desk space,\nbecause a larger UI means less of it. It also can't run from a rebuild\nwith no GUI session attached (over SSH, say); the setting applies at\nthe next activation you run while logged in.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"larger-text\""
+    },
+    "loc": [
+      "haus",
+      "displays",
+      "<name>",
+      "uiScale"
+    ],
+    "readOnly": false,
+    "type": "null or one of \"more-space\", \"default\", \"larger-text\", \"largest-text\""
+  },
+  "haus.fonts.mono.name": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"JetBrainsMono Nerd Font Mono\""
+    },
+    "description": "The rice's type family, as Ghostty's `font-family` names it.\n\nIt reaches the terminal AND the menu bar: every pill label and icon\nsill draws is in this family, at sizes of its own (see\n`haus.ui.scale`). The workspace-logo glyphs are the one exception\n— those are sketchybar-app-font, which sill installs itself.\n\nThis should be a NERD FONT patched build: starship's prompt, lsd's\nicons, yazi previews and half the bar's icons draw with glyphs a stock\nfont renders as tofu. If you change this, set `package` (or\n`packageName`) too — the rice can only install a font it's been given,\nand it warns when you name a family without one.\n\nThe name is taken verbatim, so a \"… Nerd Font Mono\" family is drawn in\nthe bar as well: the bar mixes icon glyphs into its labels, which is\nthe same reason the terminal wants a patched font.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"Berkeley Mono\""
+    },
+    "loc": [
+      "haus",
+      "fonts",
+      "mono",
+      "name"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.fonts.mono.package": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The package providing `name`. null (the default) installs the rice's\nown JetBrains Mono Nerd Font, which is what `name` defaults to.\n\nSet this whenever you change `name`, or the family simply won't exist\non the machine and Ghostty will silently fall back — the rice warns if\nit spots that combination.\n\nA shared rice can't set this one — it needs `pkgs`, and a data-only\nrice has no arguments. Use `packageName` there.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "pkgs.nerd-fonts.fira-code"
+    },
+    "loc": [
+      "haus",
+      "fonts",
+      "mono",
+      "package"
+    ],
+    "readOnly": false,
+    "type": "null or package"
+  },
+  "haus.fonts.mono.packageName": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The same thing as `package`, NAMED rather than evaluated: an\nattribute path into nixpkgs, so \"nerd-fonts.fira-code\" means\n`pkgs.nerd-fonts.fira-code`.\n\nThis exists so a data-only rice (presets/README.md) can change the\nfont FAMILY and not just its size — reaching `pkgs` is precisely what\nthat format forbids, which made `fonts.mono.package` unreachable to\nevery shared rice. A name is data; a package is code.\n\nSet one or the other, never both. A name that resolves to nothing, or\nto a set of packages rather than a package, fails at eval with the\nspelling to try instead.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"nerd-fonts.fira-code\""
+    },
+    "loc": [
+      "haus",
+      "fonts",
+      "mono",
+      "packageName"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.fonts.mono.size": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalMD",
+      "text": "19, scaled by haus.ui.scale"
+    },
+    "description": "Terminal font size in points. The single most useful knob for a\nlarger-text machine, since it moves everything the rice actually\nlives in.\n\n19 (at ui.scale = 1.0) is the base for a reason worth knowing: the Ghostty window is\ntiled to a fixed pixel height by prowl, and sizes that don't divide\nthat height evenly used to leave a gap under zellij's status bar.\nThat's since been fixed properly (window-padding-balance +\n`extend-always`), so any size is safe now — 19 is simply the tuned\nstarting point.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "24"
+    },
+    "loc": [
+      "haus",
+      "fonts",
+      "mono",
+      "size"
+    ],
+    "readOnly": false,
+    "type": "positive integer, meaning >0"
+  },
+  "haus.git.email": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "Git user.email for commits.",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"ada@example.com\""
+    },
+    "loc": [
+      "haus",
+      "git",
+      "email"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.git.name": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "Git user.name for commits (hearth wires it into home-manager).",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"Ada Lovelace\""
+    },
+    "loc": [
+      "haus",
+      "git",
+      "name"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.git.org": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "The GitHub owner whose repos this machine works on. An organisation,\nor your own account: GitHub's issue search treats `org:<user>` the\nsame as `user:<user>`, so one option covers both (measured against\nboth qualifiers, 2026-08-08 — the counts match).\n\nIt exists because a gh-dash PR section is a GitHub search filter\nscoped by `org:`. Set this **and** `haus.hearth.ghDash.enable` and\nHearth renders four PR tabs for that owner — the open / green / red /\njust-shipped work. On its own it does nothing: it is the dashboard's\nscope, not a feature of its own.\n\nLeave it empty (the default) and Hearth writes no PR tabs at all, so\ngh-dash keeps its own and a host composing a queue in\n`programs.gh-dash.settings` never fights one. Empty is the right\nanswer for a machine that reads several owners at once: there is no\nsingle owner to render. The issue and notification tabs are unaffected\neither way — they ask who you are (`@me`, `is:unread`) rather than\nwhere you work, so the dashboard ships them regardless.\n\nWhere it earns its keep is a rename: an org that changes name, or a\nrepo set that moves between orgs, is one word here rather than one per\ntab. A host's `repoPaths` can follow the same word instead of\nrepeating it — read it as `config.haus.git.org` from a darwin-level\nmodule, or as `osConfig.haus.git.org` from inside\n`home-manager.users.<user>`, where `config` is home-manager's and\ncarries no `haus.*` at all.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"nebelhaus\""
+    },
+    "loc": [
+      "haus",
+      "git",
+      "org"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.git.shellAliases": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "{ }"
+    },
+    "description": "Per-host additions and overrides for Hearth's built-in Git shell\naliases. Values are shell command strings; null removes a built-in.\nHearth deliberately owns a compact, framework-independent default\nset, so this changes only Git shortcuts and does not require a shell\nplugin manager.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "{\n  gst = \"git status --short --branch\"; # replace a built-in\n  gsync = \"git pull --rebase --autostash\"; # add one\n  gco = null; # remove one\n}\n"
+    },
+    "loc": [
+      "haus",
+      "git",
+      "shellAliases"
+    ],
+    "readOnly": false,
+    "type": "attribute set of (null or string)"
+  },
+  "haus.git.signingKey": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "GPG key id for signing commits/tags. Empty disables commit signing.\nKey material + any YubiKey/smartcard setup live outside Nix\n(gpg-agent + pinentry-mac).\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"6F7BD6F43A7C1420\""
+    },
+    "loc": [
+      "haus",
+      "git",
+      "signingKey"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.hearth.editor": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"hx\""
+    },
+    "description": "The ONE editor the rice uses everywhere. It's the shell command for\n$EDITOR / $VISUAL (git, etc.) AND what every \"open in an editor\" action\nlaunches — the \"Nix Config\" palette command, the bar's nix-open item,\nand the file-association hijack. Those open the target in a new zellij\ntab running this command, so a terminal editor (hx, nvim, vim, nano) is\nthe natural fit for the rice; a GUI editor's CLI works too (e.g. \"code\"\nor \"code -w\" to block).\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"nvim\""
+    },
+    "loc": [
+      "haus",
+      "hearth",
+      "editor"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.hearth.ghDash.enable": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Whether to enable the themed gh-dash GitHub dashboard and its Cmd-G\nfullscreen Zellij overlay.\n\nEnabling it gets you the issue and notification tabs (yours, assigned,\nunread, participating). The four PR tabs — open / green / red /\nshipped — need `haus.git.org` as well, since a PR section is a search\nfilter scoped to an owner. A host can compose or replace any of it\nthrough home-manager's `programs.gh-dash.settings`: every section list\nHearth writes is a `mkDefault`, per list.\n\nNeeds `haus.developer.git.enable` (an assertion enforces it): gh-dash\nauthenticates out of `gh`'s own credentials, so the Git pack is where\nits login comes from.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "hearth",
+      "ghDash",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.hearth.hijackFileAssociations": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "When true, build a small opener app and make it the default handler\nfor ~80 text/code extensions (json, md, ts, nix, rs, go, kdl, …), so\nopening or clicking those files opens them in haus.hearth.editor in\na terminal tab. The app declares the types itself (not just `duti`) so\nextensions nothing else on the machine declares still bind. Off by\ndefault: silently rewriting your file associations is a jarring,\nhard-to-undo change, so it's strictly opt-in. (Extensionless executables\nlike `bench` are NOT covered — macOS gates the public.unix-executable\nhandler behind an interactive dialog; set it by hand once if wanted:\n`duti -s org.nebelhaus.editoropen public.unix-executable all`.)\n",
+    "loc": [
+      "haus",
+      "hearth",
+      "hijackFileAssociations"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.hearth.obsidianVaults": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ ]"
+    },
+    "description": "Home-relative paths to existing Obsidian vaults that should use the\nNebelung theme. On each activation, Hearth copies the rendered\ntheme.css + manifest.json into each vault's .obsidian/themes/Nebelung/\ndirectory, selects Nebelung's dark appearance in appearance.json, and\nremoves the obsolete \"nebelung\" CSS snippet from the enabled list.\n\nEmpty (the default) leaves every vault untouched. Paths must be\nrelative to the user's home, may not contain \"..\", and are skipped\nwith a warning unless their .obsidian directory already exists.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"Library/Mobile Documents/iCloud~md~obsidian/Documents/notes\"\n]"
+    },
+    "loc": [
+      "haus",
+      "hearth",
+      "obsidianVaults"
+    ],
+    "readOnly": false,
+    "type": "list of string"
+  },
+  "haus.hearth.zellijStartLocked": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "When true (the default), zellij boots into Locked input mode instead of\nNormal — its single-key submode leaders (pane, tab, resize, …) stay\ninert until you unlock with Ctrl-g, so a stray keystroke can't jump you\ninto a submode. The `Super`-prefixed launchers (claude / pane / tab /\nyazi-peek / fullscreen) are bound in `shared` and keep working while\nlocked, as do `Alt [` / `Alt ]` (cycle swap layouts) — the rest of\nzellij's `Alt` row stays inert while locked, since those keys are\nreadline/vim word motions the pane's app wants. The bar's bottom-right\nquick-hint block only shows in Locked mode. Set false to start in Normal\nmode (zellij's own default).\n",
+    "loc": [
+      "haus",
+      "hearth",
+      "zellijStartLocked"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.homebrew.autoUpdate": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Run `brew update` before activating the Homebrew step on every\nrebuild. Off by default — reproducible rebuilds shouldn't silently\npull newer formulae. Turn on if you want brew to track upstream.\n",
+    "loc": [
+      "haus",
+      "homebrew",
+      "autoUpdate"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.homebrew.cleanup": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"none\""
+    },
+    "description": "How `darwin-rebuild switch` treats Homebrew casks/brews that are\ninstalled but NOT declared anywhere in your config.\n\n- \"none\" (default, safe): leave undeclared formulae/casks alone. The\n  rice never deletes apps you installed yourself.\n- \"uninstall\": remove undeclared formulae/casks (keeps their data).\n- \"zap\": remove undeclared formulae/casks AND their app data. Fully\n  declarative, but a stray cask you forgot to list is deleted — with\n  no backup — on the very next rebuild. Only choose this once every\n  app you keep is declared (bootstrap can adopt your current casks).\n",
+    "loc": [
+      "haus",
+      "homebrew",
+      "cleanup"
+    ],
+    "readOnly": false,
+    "type": "one of \"none\", \"uninstall\", \"zap\""
+  },
+  "haus.homebrew.upgrade": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Upgrade outdated Homebrew packages on every rebuild. Off by default\nfor the same reproducibility reason as autoUpdate.\n",
+    "loc": [
+      "haus",
+      "homebrew",
+      "upgrade"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.hotCorners.bottomLeft": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "What happens when the pointer reaches the bottom-left corner of the main\ndisplay.\n\n```\n              disabled  nothing happens — the corner is explicitly claimed and left inert\n       mission-control  Mission Control: every window and Space, zoomed out\n   application-windows  App Exposé: every window of the app you're in\n               desktop  push all windows aside and show the desktop\n             launchpad  the grid of installed apps (on macOS 26 this opens the Apps view)\n   notification-center  slide out Notification Center and its widgets\n            quick-note  start a Quick Note — Apple's own default for the bottom-right corner\n          screen-saver  start the screen saver immediately\n  prevent-screen-saver  hold the screen saver off while the pointer rests here\n         sleep-display  put the display to sleep (the machine keeps running)\n           lock-screen  lock the screen and return to the login window\n```\n\nnull (the default) writes nothing at all, which is not the same as\n\"disabled\": corners are a setting people have usually already made by\nhand, and a rice that names one it doesn't care about would silently\nerase it. Use `\"disabled\"` to explicitly claim a corner and make it inert.\n\nSetting a corner also clears its MODIFIER key. macOS stores \"hold ⌘ for\nthis corner\" separately (`wvous-*-modifier`), and a leftover modifier from\nan earlier setup makes a corner the rice just declared look broken —\nnothing happens, because you weren't holding the key nobody told you\nabout. Corners the rice leaves at null keep whatever modifier they have.\n\nWorth knowing if you also run tiling: `mission-control` and `desktop` are\nmacOS's own window and Space management, which prowl replaces. They still\nwork, they just show you a view of the windows prowl is arranging.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"mission-control\""
+    },
+    "loc": [
+      "haus",
+      "hotCorners",
+      "bottomLeft"
+    ],
+    "readOnly": false,
+    "type": "null or one of \"disabled\", \"mission-control\", \"application-windows\", \"desktop\", \"launchpad\", \"notification-center\", \"quick-note\", \"screen-saver\", \"prevent-screen-saver\", \"sleep-display\", \"lock-screen\""
+  },
+  "haus.hotCorners.bottomRight": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "What happens when the pointer reaches the bottom-right corner of the main\ndisplay.\n\n```\n              disabled  nothing happens — the corner is explicitly claimed and left inert\n       mission-control  Mission Control: every window and Space, zoomed out\n   application-windows  App Exposé: every window of the app you're in\n               desktop  push all windows aside and show the desktop\n             launchpad  the grid of installed apps (on macOS 26 this opens the Apps view)\n   notification-center  slide out Notification Center and its widgets\n            quick-note  start a Quick Note — Apple's own default for the bottom-right corner\n          screen-saver  start the screen saver immediately\n  prevent-screen-saver  hold the screen saver off while the pointer rests here\n         sleep-display  put the display to sleep (the machine keeps running)\n           lock-screen  lock the screen and return to the login window\n```\n\nnull (the default) writes nothing at all, which is not the same as\n\"disabled\": corners are a setting people have usually already made by\nhand, and a rice that names one it doesn't care about would silently\nerase it. Use `\"disabled\"` to explicitly claim a corner and make it inert.\n\nSetting a corner also clears its MODIFIER key. macOS stores \"hold ⌘ for\nthis corner\" separately (`wvous-*-modifier`), and a leftover modifier from\nan earlier setup makes a corner the rice just declared look broken —\nnothing happens, because you weren't holding the key nobody told you\nabout. Corners the rice leaves at null keep whatever modifier they have.\n\nWorth knowing if you also run tiling: `mission-control` and `desktop` are\nmacOS's own window and Space management, which prowl replaces. They still\nwork, they just show you a view of the windows prowl is arranging.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"mission-control\""
+    },
+    "loc": [
+      "haus",
+      "hotCorners",
+      "bottomRight"
+    ],
+    "readOnly": false,
+    "type": "null or one of \"disabled\", \"mission-control\", \"application-windows\", \"desktop\", \"launchpad\", \"notification-center\", \"quick-note\", \"screen-saver\", \"prevent-screen-saver\", \"sleep-display\", \"lock-screen\""
+  },
+  "haus.hotCorners.topLeft": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "What happens when the pointer reaches the top-left corner of the main\ndisplay.\n\n```\n              disabled  nothing happens — the corner is explicitly claimed and left inert\n       mission-control  Mission Control: every window and Space, zoomed out\n   application-windows  App Exposé: every window of the app you're in\n               desktop  push all windows aside and show the desktop\n             launchpad  the grid of installed apps (on macOS 26 this opens the Apps view)\n   notification-center  slide out Notification Center and its widgets\n            quick-note  start a Quick Note — Apple's own default for the bottom-right corner\n          screen-saver  start the screen saver immediately\n  prevent-screen-saver  hold the screen saver off while the pointer rests here\n         sleep-display  put the display to sleep (the machine keeps running)\n           lock-screen  lock the screen and return to the login window\n```\n\nnull (the default) writes nothing at all, which is not the same as\n\"disabled\": corners are a setting people have usually already made by\nhand, and a rice that names one it doesn't care about would silently\nerase it. Use `\"disabled\"` to explicitly claim a corner and make it inert.\n\nSetting a corner also clears its MODIFIER key. macOS stores \"hold ⌘ for\nthis corner\" separately (`wvous-*-modifier`), and a leftover modifier from\nan earlier setup makes a corner the rice just declared look broken —\nnothing happens, because you weren't holding the key nobody told you\nabout. Corners the rice leaves at null keep whatever modifier they have.\n\nWorth knowing if you also run tiling: `mission-control` and `desktop` are\nmacOS's own window and Space management, which prowl replaces. They still\nwork, they just show you a view of the windows prowl is arranging.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"mission-control\""
+    },
+    "loc": [
+      "haus",
+      "hotCorners",
+      "topLeft"
+    ],
+    "readOnly": false,
+    "type": "null or one of \"disabled\", \"mission-control\", \"application-windows\", \"desktop\", \"launchpad\", \"notification-center\", \"quick-note\", \"screen-saver\", \"prevent-screen-saver\", \"sleep-display\", \"lock-screen\""
+  },
+  "haus.hotCorners.topRight": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "What happens when the pointer reaches the top-right corner of the main\ndisplay.\n\n```\n              disabled  nothing happens — the corner is explicitly claimed and left inert\n       mission-control  Mission Control: every window and Space, zoomed out\n   application-windows  App Exposé: every window of the app you're in\n               desktop  push all windows aside and show the desktop\n             launchpad  the grid of installed apps (on macOS 26 this opens the Apps view)\n   notification-center  slide out Notification Center and its widgets\n            quick-note  start a Quick Note — Apple's own default for the bottom-right corner\n          screen-saver  start the screen saver immediately\n  prevent-screen-saver  hold the screen saver off while the pointer rests here\n         sleep-display  put the display to sleep (the machine keeps running)\n           lock-screen  lock the screen and return to the login window\n```\n\nnull (the default) writes nothing at all, which is not the same as\n\"disabled\": corners are a setting people have usually already made by\nhand, and a rice that names one it doesn't care about would silently\nerase it. Use `\"disabled\"` to explicitly claim a corner and make it inert.\n\nSetting a corner also clears its MODIFIER key. macOS stores \"hold ⌘ for\nthis corner\" separately (`wvous-*-modifier`), and a leftover modifier from\nan earlier setup makes a corner the rice just declared look broken —\nnothing happens, because you weren't holding the key nobody told you\nabout. Corners the rice leaves at null keep whatever modifier they have.\n\nWorth knowing if you also run tiling: `mission-control` and `desktop` are\nmacOS's own window and Space management, which prowl replaces. They still\nwork, they just show you a view of the windows prowl is arranging.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"mission-control\""
+    },
+    "loc": [
+      "haus",
+      "hotCorners",
+      "topRight"
+    ],
+    "readOnly": false,
+    "type": "null or one of \"disabled\", \"mission-control\", \"application-windows\", \"desktop\", \"launchpad\", \"notification-center\", \"quick-note\", \"screen-saver\", \"prevent-screen-saver\", \"sleep-display\", \"lock-screen\""
+  },
+  "haus.hush.enable": {
+    "declarations": [
+      "modules/hush/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "The hush room: one quiet switch — bar pill, palette command, and a\n`hush` CLI — that turns macOS Do Not Disturb on/off (via the\ndeclaratively-bound symbolic hotkey 175, pressed synthetically),\noptionally sets your Slack status, and runs your hooks.\n\nHonest scope: hush flips the built-in Do Not Disturb, not named Focus\nmodes, and it doesn't manage which apps break through — curate that\nonce in System Settings. The keypress needs an Accessibility grant on\nwhatever app invokes hush (palette runs inherit pounce's; grant\nsketchybar once for the pill). `hush doctor` walks the one-time steps.\n",
+    "loc": [
+      "haus",
+      "hush",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.hush.hooks": {
+    "declarations": [
+      "modules/hush/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ ]"
+    },
+    "description": "Extra scripts run on every hush/unhush, each called with a single\nargument \"on\" or \"off\". Paths are copied into the store; strings are\nrun as-is (so $HOME paths work). Failures are logged, never fatal —\na broken hook can't wedge the toggle.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[ ./onair-light.sh \"/Users/ada/bin/pause-music\" ]"
+    },
+    "loc": [
+      "haus",
+      "hush",
+      "hooks"
+    ],
+    "readOnly": false,
+    "type": "list of (absolute path or string)"
+  },
+  "haus.hush.slack.enable": {
+    "declarations": [
+      "modules/hush/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Also set a Slack status and snooze Slack notifications (all devices,\nphone included) while hushed. Off by default: it needs a personal\nSlack user token (scopes users.profile:write + dnd:write) provided\nvia tokenCommand. The previous status is saved and restored on\nunhush.\n",
+    "loc": [
+      "haus",
+      "hush",
+      "slack",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.hush.slack.snooze": {
+    "declarations": [
+      "modules/hush/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Also pause Slack's own notifications (dnd.setSnooze) while hushed —\nthis is what silences the phone. Ended on unhush; capped at 24h as\na failsafe if you forget.\n",
+    "loc": [
+      "haus",
+      "hush",
+      "slack",
+      "snooze"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.hush.slack.statusEmoji": {
+    "declarations": [
+      "modules/hush/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\":no_bell:\""
+    },
+    "description": "Slack status emoji while hushed.",
+    "loc": [
+      "haus",
+      "hush",
+      "slack",
+      "statusEmoji"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.hush.slack.statusText": {
+    "declarations": [
+      "modules/hush/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"heads down\""
+    },
+    "description": "Slack status text while hushed.",
+    "loc": [
+      "haus",
+      "hush",
+      "slack",
+      "statusText"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.hush.slack.tokenCommand": {
+    "declarations": [
+      "modules/hush/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "Shell command that prints the Slack user token (xoxp-…) to stdout.\nKeychain-first so no secret ever lands in the store or a dotfile:\n  security add-generic-password -s hush-slack -a $USER -w 'xoxp-…'\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"security find-generic-password -s hush-slack -w\""
+    },
+    "loc": [
+      "haus",
+      "hush",
+      "slack",
+      "tokenCommand"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.keys.leader": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"caps\""
+    },
+    "description": "What enters the launcher/leader mode — tap it, then a letter opens an\napp, a digit focuses a workspace, ⇧+either throws the focused window\nto that workspace and follows it there, an arrow navigates, `-`/`=`\nresizes.\n\n  - \"caps\" (default): Caps Lock. AeroSpace can't bind Caps Lock itself,\n    so the rice remaps it to F18 with hidutil and binds that.\n  - \"alt-space\": the leader without giving up Caps Lock. No remap at all.\n  - \"none\": no leader. Caps Lock stays Caps Lock, launch mode is\n    unreachable, and nothing is remapped — the setting for a mouse-first\n    rice, or for a Mac you are handing to someone else. What the leader\n    fronted is still reachable: apps through the palette, window moves\n    through service mode's join-with and the palette's own commands.\n    Workspace focus and the workspace throws go away with it — they\n    live only in launch mode.\n\nThe remap is re-applied at every activation and does not survive a\nreboot, so moving off \"caps\" ends it — at the latest, at next boot.\n\nOnly meaningful with haus.prowl.enable (AeroSpace owns the modes).\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"none\""
+    },
+    "loc": [
+      "haus",
+      "keys",
+      "leader"
+    ],
+    "readOnly": false,
+    "type": "one of \"caps\", \"alt-space\", \"none\""
+  },
+  "haus.keys.leaderExtras": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ ]"
+    },
+    "description": "Extra launch-mode (leader) bindings beyond the app roster: tap the leader,\nthen `key`, to run `command`. Use it for leader actions that aren't\n\"launch an app\" — a script, an AppleScript, opening a URL.\n\nOnly meaningful with haus.prowl.enable and keys.leader != \"none\"\n(with no leader there is no launch mode to bind into).\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  {\n    key = \"enter\";\n    command = \"osascript -e 'tell application \\\"Things3\\\" to show quick entry panel'\";\n    caption = \"Things Quick Entry\";\n  }\n]\n"
+    },
+    "loc": [
+      "haus",
+      "keys",
+      "leaderExtras"
+    ],
+    "readOnly": false,
+    "type": "list of (submodule)"
+  },
+  "haus.keys.leaderExtras.*.caption": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The Launch Mode cheatsheet caption for this action. null falls back\nto the raw command, which is rarely what you want — set it.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"Things Quick Entry\""
+    },
+    "loc": [
+      "haus",
+      "keys",
+      "leaderExtras",
+      "*",
+      "caption"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.keys.leaderExtras.*.command": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "description": "The shell command run when the leader is followed by `key`; launch\nmode exits afterward. It's written verbatim into a small `/bin/sh`\nscript that AeroSpace execs, so ordinary shell rules apply — `$HOME`\nresolves, and single quotes (an `osascript -e '…'`, say) are safe,\nwhich they would not be inlined into AeroSpace's own config.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"osascript -e 'tell application \\\"Things3\\\" to show quick entry panel'\""
+    },
+    "loc": [
+      "haus",
+      "keys",
+      "leaderExtras",
+      "*",
+      "command"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.keys.leaderExtras.*.key": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "description": "The AeroSpace key name pressed after the leader (e.g. \"enter\",\n\"space\", \"period\", or a letter). Must not collide with a roster\napp's key or a built-in launch-mode key (the digits 1-4, the\narrows, `-`/`=`, `v`/`e`/`z`, `,`, `` ` ``, `/`, esc) — nor with\nthe workspace throws, which are ⇧ + any of those digits or a\nroster letter (\"shift-1\", \"shift-b\", …). An assertion in\nmodules/prowl catches a clash rather than letting one binding\nsilently shadow another.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"enter\""
+    },
+    "loc": [
+      "haus",
+      "keys",
+      "leaderExtras",
+      "*",
+      "key"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.keys.palette": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"cmd-space\""
+    },
+    "description": "What opens the pounce command palette. Registered in-process by the\ndaemon, so it's near-instant and doesn't go through AeroSpace.\n\n\"cmd-space\" (default) is the one value that also DISABLES Spotlight's\nown ⌘Space, because the two can't share it. Every other value leaves\nSpotlight alone — including \"none\", which hands the palette's job back\nto Spotlight entirely. That's a fix as much as an option: the rice used\nto take Spotlight's ⌘Space away unconditionally, even where nothing\nclaimed it.\n\nOnly meaningful with haus.pounce.enable.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"none\""
+    },
+    "loc": [
+      "haus",
+      "keys",
+      "palette"
+    ],
+    "readOnly": false,
+    "type": "one of \"cmd-space\", \"alt-space\", \"ctrl-space\", \"none\""
+  },
+  "haus.keys.windowNav": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"alt\""
+    },
+    "description": "The modifier vocabulary for prowl's window chords — one setting rather\nthan a bind-per-action, because what people need to move is the\nmodifier, not the letters. It drives focus (`<mod>` + hjkl), layouts\n(`<mod>` + `/` `,`), fullscreen, moving a workspace to the next\nmonitor (`<mod>⇧⇥`), and entering service mode\n(`<mod>⇧;`). Anything that names a workspace — focusing one, or\nthrowing the focused window there — hangs off `leader` instead, not\nthis option.\n\n\"alt\" (default) is ⌥. The alternatives are for **non-US keyboard\nlayouts**, where ⌥+letter types accented characters — a rice that owns\n⌥+letter is unusable on those, which is the concrete reason this option\nexists.\n\nWhatever you pick, AeroSpace claims those chords **globally**, so they\nstop reaching whatever owned them inside a terminal. The surface is\nsmall now that the workspace throws moved to the leader: only hjkl,\n`/` `,`, `f`, `⇧⇥` and `⇧;`, none of which a roster letter can land\non — and `<mod>⇥` is free again, since workspace back-and-forth\nretired in favour of pounce's cross-workspace ⌘⇥ switcher. (Under\n\"ctrl-alt\" that used to bite — the throws were `⌃⌥⇧` + an app's roster\nletter, so an app on `a` silently ate hearth's zellij\n`Ctrl Alt Shift a` in-place-agent bind. That collision is gone.)\nNothing on a stock macOS collides either: the only ⌃⌥ system hotkeys\nare input-source switching (⌃⌥Space, off by default) and hyper-F13.\n\n\"none\" drops the modifier chords entirely: no focus/layout chords, no\nservice mode. Combined with `leader = \"none\"` that's a rice where the\ntiler tiles and the keyboard is left alone — mouse-first. The cheatsheet\nfollows, so it never advertises a key that does nothing.\n\nOnly meaningful with haus.prowl.enable.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"ctrl-alt\""
+    },
+    "loc": [
+      "haus",
+      "keys",
+      "windowNav"
+    ],
+    "readOnly": false,
+    "type": "one of \"alt\", \"ctrl-alt\", \"cmd-alt\", \"none\""
+  },
+  "haus.locale.hourFormat": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Force 12- or 24-hour time everywhere, overriding whatever `region`\nimplies. null (the default) follows the region.\n\nSystem-wide, unlike `haus.menuBar.clock.format`, which is only the\nmenu bar clock's own key. Setting both is fine and normal; setting\nonly this one still changes the menu bar, because the clock has no\nopinion of its own until you give it one.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"24h\""
+    },
+    "loc": [
+      "haus",
+      "locale",
+      "hourFormat"
+    ],
+    "readOnly": false,
+    "type": "null or one of \"12h\", \"24h\""
+  },
+  "haus.locale.inputSources": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The keyboard layouts available in the input menu, by input-source id\n(`com.apple.keylayout.*`). null (the default) leaves your layouts\nalone. List them with:\n\n```\nhausax input-sources --all\n```\n\nTHIS ONE OWNS THE LIST. Unlike every other option in §5.6's groups, a\nnon-null value here is exhaustive: layouts you don't name get\ndisabled, because \"add these and keep whatever else was there\" makes\na rice that can never remove a layout it once added. Non-keyboard\ninput methods (emoji picker, press-and-hold) are never touched.\n\nApplied through the documented Text Input Sources API rather than by\nwriting `com.apple.HIToolbox` directly. The plist route does work, but\nit resolves a layout by an English display name (`Swiss French`, not\n`SwissFrench`) next to a numeric id that is required and never\nvalidated — a table the rice would have to hardcode and would get\nwrong for exactly the layouts nobody here tests.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"com.apple.keylayout.US\"\n  \"com.apple.keylayout.German\"\n]"
+    },
+    "loc": [
+      "haus",
+      "locale",
+      "inputSources"
+    ],
+    "readOnly": false,
+    "type": "null or (list of string)"
+  },
+  "haus.locale.language": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Preferred languages, best first — the order System Settings ▸ General\n▸ Language & Region shows. null (the default) leaves macOS's own list\nalone.\n\nApps use the first entry they have a translation for, so a list is a\nfallback chain, not a single choice.\n\nTAKES EFFECT ON RELAUNCH: an app picks its language when it starts.\nAlready-open apps keep the old one until you quit and reopen them,\nand the login window follows at next login. Nothing the rice can post\nchanges that — it is how bundle resources load.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"de-DE\"\n  \"en-GB\"\n]"
+    },
+    "loc": [
+      "haus",
+      "locale",
+      "language"
+    ],
+    "readOnly": false,
+    "type": "null or (list of string)"
+  },
+  "haus.locale.metric": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Use the metric system, overriding whatever `region` implies. null\n(the default) follows the region.\n\nWrites BOTH keys macOS keeps for this (`AppleMetricUnits` and\n`AppleMeasurementUnits`), because it writes both itself and only one\nof them is load-bearing — setting the friendlier-looking\n`AppleMeasurementUnits` alone leaves a plist that reads right and a\nmachine that ignores it.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "locale",
+      "metric"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.locale.region": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The region whose formats macOS uses — dates, number separators, paper\nsize, the first day of the week. An ICU locale identifier\n(`de_DE`, `en_GB`, `fr_CA`). null (the default) leaves macOS's own\nchoice alone.\n\nThis is the lever with the most reach in the group: it moves the hour\nformat, the measurement system and the first weekday together. Set it\nbefore reaching for the individual overrides below — and note there is\ndeliberately no `firstWeekday` option, because macOS's own\n`AppleFirstWeekday` key is stored and then ignored (measured; it is\nthe second dict-valued key in this domain found to do that). The\nregion's own answer is the only one that applies.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"de_DE\""
+    },
+    "loc": [
+      "haus",
+      "locale",
+      "region"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.locale.temperature": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Temperature unit, overriding whatever `region` implies. null (the\ndefault) follows the region. Separate from `metric` because macOS\nkeeps it separate — a metric machine reporting °F is a real\ncombination, not a mistake.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"celsius\""
+    },
+    "loc": [
+      "haus",
+      "locale",
+      "temperature"
+    ],
+    "readOnly": false,
+    "type": "null or one of \"celsius\", \"fahrenheit\""
+  },
+  "haus.lock.requirePassword": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Require a password to wake this Mac from sleep or the screen saver.\nnull (the default) leaves macOS's own choice alone.\n\nThe one setting in this group worth turning on for ANY shared or\nportable machine — a family Mac, a laptop that leaves the house.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "lock",
+      "requirePassword"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.lock.requirePasswordDelay": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Seconds to wait after sleep/screen-saver starts before\n`requirePassword` actually locks the screen — macOS's \"grace period\".\nnull (the default) leaves macOS's own choice alone.\n\n0 locks instantly. Has no effect while `requirePassword` is null or\nfalse.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "5"
+    },
+    "loc": [
+      "haus",
+      "lock",
+      "requirePasswordDelay"
+    ],
+    "readOnly": false,
+    "type": "null or (unsigned integer, meaning >=0)"
+  },
+  "haus.menuBar.clock.analog": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Draw an analog clock face instead of a digital readout. null (the\ndefault) leaves macOS's own choice alone (digital).\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "loc": [
+      "haus",
+      "menuBar",
+      "clock",
+      "analog"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.menuBar.clock.format": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "12-hour or 24-hour menu bar clock. null (the default) leaves\nmacOS's own choice alone (region-dependent, usually 12h in the US).\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"24h\""
+    },
+    "loc": [
+      "haus",
+      "menuBar",
+      "clock",
+      "format"
+    ],
+    "readOnly": false,
+    "type": "null or one of \"12h\", \"24h\""
+  },
+  "haus.menuBar.clock.showDate": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Whether the full date appears next to the time. null (the default)\nleaves macOS's own choice alone (\"when-space-allows\").\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"always\""
+    },
+    "loc": [
+      "haus",
+      "menuBar",
+      "clock",
+      "showDate"
+    ],
+    "readOnly": false,
+    "type": "null or one of \"when-space-allows\", \"always\", \"never\""
+  },
+  "haus.menuBar.clock.showDayOfWeek": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Show the day of the week next to the clock. null (the default)\nleaves macOS's own choice alone.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "menuBar",
+      "clock",
+      "showDayOfWeek"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.menuBar.clock.showSeconds": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Show the clock to second precision instead of minutes. null (the\ndefault) leaves macOS's own choice alone.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "loc": [
+      "haus",
+      "menuBar",
+      "clock",
+      "showSeconds"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.menuBar.controlCenter.airdrop": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Whether the AirDrop control has a menu bar icon of its own. null (the default) leaves macOS's own choice alone.",
+    "example": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "loc": [
+      "haus",
+      "menuBar",
+      "controlCenter",
+      "airdrop"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.menuBar.controlCenter.batteryPercentage": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Show the battery percentage next to its menu bar icon. null (the\ndefault) leaves macOS's own choice alone.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "menuBar",
+      "controlCenter",
+      "batteryPercentage"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.menuBar.controlCenter.bluetooth": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Whether the Bluetooth control has a menu bar icon of its own. null (the default) leaves macOS's own choice alone.",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "menuBar",
+      "controlCenter",
+      "bluetooth"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.menuBar.controlCenter.displayBrightness": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Whether the Screen Brightness control has a menu bar icon of its own. null (the default) leaves macOS's own choice alone.",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "menuBar",
+      "controlCenter",
+      "displayBrightness"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.menuBar.controlCenter.focus": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Whether the Focus control has a menu bar icon of its own. null (the default) leaves macOS's own choice alone.",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "menuBar",
+      "controlCenter",
+      "focus"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.menuBar.controlCenter.nowPlaying": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Whether the Now Playing control has a menu bar icon of its own. null (the default) leaves macOS's own choice alone.",
+    "example": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "loc": [
+      "haus",
+      "menuBar",
+      "controlCenter",
+      "nowPlaying"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.menuBar.controlCenter.sound": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Whether the Sound control has a menu bar icon of its own. null (the default) leaves macOS's own choice alone.",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "menuBar",
+      "controlCenter",
+      "sound"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.perch.enable": {
+    "declarations": [
+      "modules/perch/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "The perch notch file shelf, installed via the perch flake (copied to /Applications).",
+    "loc": [
+      "haus",
+      "perch",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.perch.followSystemAppearance": {
+    "declarations": [
+      "modules/perch/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Let the shelf's palette follow macOS Light/Dark Mode instead of pinning\none polarity: perch gets the nebelung variant AND its latte counterpart\nat your haus.theme.contrast, and picks between them itself — no\nrebuild, no relaunch.\n\nSame honest scope as the pounce option of the same name: with\nthis on, perch does NOT follow haus.theme.flavor, because asking to\nfollow the system says the polarity is macOS's call. The contrast axis\nstill applies to both halves. Set it false to pin the shelf to\ntheme.flavor like every other themed tool.\n\nPerch has no theme picker of its own — the shelf is a five-second\nsurface with nowhere to put one — so this is the only word on its\ncolors.\n",
+    "loc": [
+      "haus",
+      "perch",
+      "followSystemAppearance"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.pounce.enable": {
+    "declarations": [
+      "modules/pounce/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "The pounce command palette daemon (⌘Space) + its rice commands.",
+    "loc": [
+      "haus",
+      "pounce",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.pounce.followSystemAppearance": {
+    "declarations": [
+      "modules/pounce/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Let the palette follow macOS Light/Dark Mode instead of pinning one\npolarity: pounce gets the nebelung variant AND its latte counterpart at\nyour haus.theme.contrast, as its `theme`/`themeLight` pair, and\npicks between them per open (no rebuild, no daemon restart).\n\nHonest scope: this makes pounce the one themed tool that does NOT follow\nhaus.theme.flavor — a flavor pin is a *palette* choice, and asking\nto follow the system says the polarity is macOS's call. The contrast\naxis still applies to both halves. Everything else on the rice keeps\nwhatever flavor pins.\n\nfalse pins pounce to the flavor like every other port, which is exactly\nwhat it did before this option existed.\n",
+    "loc": [
+      "haus",
+      "pounce",
+      "followSystemAppearance"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.pounce.items": {
+    "declarations": [
+      "modules/pounce/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "{ }"
+    },
+    "description": "Per-item palette settings, keyed by the item's own address. One entry is\none row of the palette: hide it, give it a search shorthand, give it a key.\n\n  \"cmd:<id>\"                       a command, by script name without .sh\n  \"app:/Applications/Foo.app\"      an application, by path\n  \"mode:<name>\"                    a built-in window — launcher, clipboard,\n                                   emoji, screenshots, camera, filesearch\n\nThose keys are pounce's own address space (the same strings its frecency\nstore and `pounce run` use), so a key written here is also what you'd type\nto invoke the thing from a script or another tool's binding.\n\nHotkeys can be a single chord (\"opt+e\") or a LEADER SEQUENCE — steps\nseparated by spaces, modifiers by \"+\", the notation Emacs and VS Code use:\n\n  hotkey = \"opt+space e\";          # ⌥Space, then E\n  hotkey = [ \"cmd+k\" \"cmd+c\" ];    # the same thing, step by step\n\nThe modifier-only laptop Fn/Globe key is the one special single-step\nvalue: hotkey = \"fn\". It needs Pounce's Accessibility grant, unlike a\nCarbon chord or leader sequence, and fires only when Fn is tapped alone.\nThe rice uses it for mode:emoji by default; set that item's hotkey to\nnull to leave the Globe key to macOS.\n\nSequences are worth knowing about on a tiling rice: they open a namespace\nthat structurally can't collide with the ⌥/⌘ chords prowl already claims,\nand they need no Accessibility grant (pounce grabs the second step as an\nordinary global hotkey for a couple of seconds rather than tapping events).\n\nTwo things this checks at build time, because both fail SILENTLY at\nruntime: a key that names no real item shape (a \"mode:\" typo binds\nnothing at all), and a chord already claimed by haus.keys.palette,\nhaus.keys.leader, or a terminal binding (whoever registers first\nwins, and it isn't always the same one). What it can't check is whether\n`cmd:<id>` names a command that exists — command scripts are discovered\nat runtime, so pounce warns about that itself when the daemon starts, and\n`pounce doctor` lists any binding that failed to arm.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "{\n  \"app:/Applications/Ghostty.app\" = {\n    hotkey = \"opt+t\";\n  };\n  \"cmd:brew-services\" = {\n    listed = false;\n  };\n  \"cmd:emoji\" = {\n    alias = \"emo\";\n    hotkey = \"opt+e\";\n  };\n  \"mode:clipboard\" = {\n    hotkey = \"cmd+shift+v\";\n  };\n}"
+    },
+    "loc": [
+      "haus",
+      "pounce",
+      "items"
+    ],
+    "readOnly": false,
+    "type": "attribute set of (submodule)"
+  },
+  "haus.pounce.items.<name>.alias": {
+    "declarations": [
+      "modules/pounce/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "A search shorthand, matched at a bonus over the item's real name —\nso \"emo\" can find the Emoji Picker without renaming it.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"emo\""
+    },
+    "loc": [
+      "haus",
+      "pounce",
+      "items",
+      "<name>",
+      "alias"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.pounce.items.<name>.caption": {
+    "declarations": [
+      "modules/pounce/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "How this item reads on the cheatsheet page that lists your item\nhotkeys (⌘Space then ⇥, or the leader's `/`). Only used when the\nitem has a `hotkey` — a row without a key has nothing to teach.\n\nDefaults to a name derived from the key, which is right often\nenough to leave alone: `mode:clipboard` becomes \"Clipboard\nhistory\", `app:/Applications/Ghostty.app` becomes \"Ghostty\", and\n`cmd:brew-services` becomes \"Brew services\". Set this when the\nderived name isn't what the palette actually calls the row — the\nrice can't read a command's own `# pounce: name` header at\nevaluation time, so that one is a guess.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"Clipboard history\""
+    },
+    "loc": [
+      "haus",
+      "pounce",
+      "items",
+      "<name>",
+      "caption"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.pounce.items.<name>.hotkey": {
+    "declarations": [
+      "modules/pounce/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "A global chord, or a leader sequence, that invokes this item\ndirectly without opening the palette first. Modifier names follow\npounce's spelling: cmd/command/super/meta · opt/option/alt ·\nctrl/control · shift.\n\nWhether the KEY name is one pounce can bind is not checked here\n(that vocabulary lives in the app); a chord it can't register is\nreported by `pounce doctor` rather than silently dropped.\n\n`fn` is the modifier-only exception: it uses Pounce's\nAccessibility-gated event tap, fires only on a lone tap, and\nsuppresses macOS's stock Globe action while armed.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"opt+space e\""
+    },
+    "loc": [
+      "haus",
+      "pounce",
+      "items",
+      "<name>",
+      "hotkey"
+    ],
+    "readOnly": false,
+    "type": "null or string or list of string"
+  },
+  "haus.pounce.items.<name>.listed": {
+    "declarations": [
+      "modules/pounce/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Whether the item appears in the palette's list.\n\nNamed `listed` rather than `enable` because that is precisely what\nit does: false removes the ROW, and a `hotkey` on the same item\nkeeps working. It's how you hide a command you only ever want to\nreach by key — or clear the launcher of tools someone else on this\nMac has no use for, which is the closest thing to a \"pack\" the\nsurface has today. (It writes pounce's own `enabled` key.)\n",
+    "loc": [
+      "haus",
+      "pounce",
+      "items",
+      "<name>",
+      "listed"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.pounce.scale": {
+    "declarations": [
+      "modules/pounce/options.nix"
+    ],
+    "default": {
+      "_type": "literalMD",
+      "text": "haus.ui.scale, held inside pounce's 0.8-2.0"
+    },
+    "description": "How big the palette is drawn. Multiplies every size in pounce's UI — the\nlauncher's rows, header, icons and action bar, and the panels behind it:\nthe emoji grid, clipboard history, recent screenshots, camera peek, Find\nFiles, the cheatsheet and the window switcher.\n\nFollows haus.ui.scale by default, so you rarely set this directly.\nIt exists as its own option for the case where the palette wants a\ndifferent size from the rest of the rice — the launcher is read at arm's\nlength for a second, not lived in like the terminal.\n\npounce's own range is narrower than ui.scale's, so a rice at\n`ui.scale = 2.5` gets a palette at 2.0 rather than an evaluation error.\n\nTwo things adapt on their own, which is why one number is enough: the\nlauncher shows fewer rows when the scaled rows stop fitting on screen, and\nevery panel's width is held inside the visible frame. That matters most\nalongside `haus.displays.<name>.uiScale` — a larger-text display mode\nand a larger palette multiply, and the palette is the one that would\notherwise run off the edge.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "1.4"
+    },
+    "loc": [
+      "haus",
+      "pounce",
+      "scale"
+    ],
+    "readOnly": false,
+    "type": "integer or floating point number between 0.8 and 2.0 (both inclusive)"
+  },
+  "haus.pounce.signingIdentity": {
+    "declarations": [
+      "modules/pounce/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "A code-signing identity in your login keychain — either its SHA-1 or\n(preferred) its full common name. The pounce daemon is re-signed with\nit so a macOS Accessibility (TCC) grant survives rebuilds. List yours:\n  security find-identity -v -p codesigning\n\nPrefer a \"Developer ID Application\" identity passed BY NAME (e.g.\n\"Developer ID Application: Jane Doe (TEAMID)\"): its designated\nrequirement anchors on the stable team OU, so the grant survives even\na certificate renewal (the renewed cert keeps the same name/team but\ngets a new SHA — a hardcoded SHA would silently fall back to unsigned).\nThis is also the identity the Homebrew build is signed with, so both\ninstall paths share one identity. An \"Apple Development\" cert works too\nbut expires yearly and pins the specific cert, so it's less durable.\n\nChanging this once invalidates the existing grant (the requirement\nchanges) — re-approve pounce in Accessibility a single time after.\n\nLeave empty to run pounce unsigned (the palette works, but auto-paste\nand other Accessibility-gated features stay off).\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"Developer ID Application: Jane Doe (ABCDE12345)\""
+    },
+    "loc": [
+      "haus",
+      "pounce",
+      "signingIdentity"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.pounce.windowMode": {
+    "declarations": [
+      "modules/pounce/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"compact\""
+    },
+    "description": "The palette's proportions. `compact` is narrower with tighter rows and\nkeeps its list hidden until you type — the rice's tuned look, and what it\nshipped before this option existed. `default` is pounce's roomier layout,\nwhich shows the top results the moment it opens.\n\nThis is shape, not size: how BIG the palette is drawn is\nhaus.pounce.scale. The two compose — a compact palette at scale 1.4\nis still the compact layout, just readable from further away.\n",
+    "loc": [
+      "haus",
+      "pounce",
+      "windowMode"
+    ],
+    "readOnly": false,
+    "type": "one of \"default\", \"compact\""
+  },
+  "haus.pounce.windowSwitcher": {
+    "declarations": [
+      "modules/pounce/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Replace the stock ⌘Tab app switcher with pounce's MRU *window* switcher:\ntap ⌘⇥ to toggle to the last window (across workspaces), hold ⌘ and keep\ntapping ⇥ to walk older ones, type while holding to fuzzy-filter\n(frecency-ranked). Rows are gathered by AeroSpace workspace under a\nheader each, and focusing goes through `aerospace focus --window-id` so\na window parked on another workspace surfaces correctly.\n\nBecause prowl is tiling here, a bare tap deliberately looks past the\nworkspace you're on and takes the most recent window on a different\none — with two panes tiled side by side the most recent window is one\nyou're already looking at, so landing there wouldn't be a switch.\nMoving between visible tiles stays windowNav's focus keys; the skipped\nsiblings are still the rows just below you in the list.\n\nNeeds the daemon to hold an Accessibility grant — in practice, set\nhaus.pounce.signingIdentity so the grant survives rebuilds. Without\nthe grant the event tap can't install and stock ⌘Tab keeps working, so\nthis default is safe on a fresh, not-yet-granted install. false leaves\n⌘Tab native even when the grant is there.\n",
+    "loc": [
+      "haus",
+      "pounce",
+      "windowSwitcher"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.power.computerSleep.battery": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Minutes of idleness before the Mac sleeps while on battery, or\n`\"never\"`. null (the default) leaves macOS's own choice alone.\n\nA desktop Mac has no battery profile to write, so `pmset` warns\nand the rebuild carries on — set the `charger` half there.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "10"
+    },
+    "loc": [
+      "haus",
+      "power",
+      "computerSleep",
+      "battery"
+    ],
+    "readOnly": false,
+    "type": "null or positive integer, meaning >0, or value \"never\" (singular enum)"
+  },
+  "haus.power.computerSleep.charger": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Minutes of idleness before the Mac sleeps while on the charger, or\n`\"never\"`. null (the default) leaves macOS's own choice alone.\n\nA desktop Mac has no battery profile to write, so `pmset` warns\nand the rebuild carries on — set the `charger` half there.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "10"
+    },
+    "loc": [
+      "haus",
+      "power",
+      "computerSleep",
+      "charger"
+    ],
+    "readOnly": false,
+    "type": "null or positive integer, meaning >0, or value \"never\" (singular enum)"
+  },
+  "haus.power.diskSleep.battery": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Minutes of idleness before the disk spins down while on battery, or\n`\"never\"`. null (the default) leaves macOS's own choice alone.\n\nA desktop Mac has no battery profile to write, so `pmset` warns\nand the rebuild carries on — set the `charger` half there.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "10"
+    },
+    "loc": [
+      "haus",
+      "power",
+      "diskSleep",
+      "battery"
+    ],
+    "readOnly": false,
+    "type": "null or positive integer, meaning >0, or value \"never\" (singular enum)"
+  },
+  "haus.power.diskSleep.charger": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Minutes of idleness before the disk spins down while on the charger, or\n`\"never\"`. null (the default) leaves macOS's own choice alone.\n\nA desktop Mac has no battery profile to write, so `pmset` warns\nand the rebuild carries on — set the `charger` half there.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "10"
+    },
+    "loc": [
+      "haus",
+      "power",
+      "diskSleep",
+      "charger"
+    ],
+    "readOnly": false,
+    "type": "null or positive integer, meaning >0, or value \"never\" (singular enum)"
+  },
+  "haus.power.displaySleep.battery": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Minutes of idleness before the display sleeps while on battery, or\n`\"never\"`. null (the default) leaves macOS's own choice alone.\n\nA desktop Mac has no battery profile to write, so `pmset` warns\nand the rebuild carries on — set the `charger` half there.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "10"
+    },
+    "loc": [
+      "haus",
+      "power",
+      "displaySleep",
+      "battery"
+    ],
+    "readOnly": false,
+    "type": "null or positive integer, meaning >0, or value \"never\" (singular enum)"
+  },
+  "haus.power.displaySleep.charger": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Minutes of idleness before the display sleeps while on the charger, or\n`\"never\"`. null (the default) leaves macOS's own choice alone.\n\nA desktop Mac has no battery profile to write, so `pmset` warns\nand the rebuild carries on — set the `charger` half there.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "10"
+    },
+    "loc": [
+      "haus",
+      "power",
+      "displaySleep",
+      "charger"
+    ],
+    "readOnly": false,
+    "type": "null or positive integer, meaning >0, or value \"never\" (singular enum)"
+  },
+  "haus.power.lowPowerMode.battery": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Low Power Mode while on battery. null (the default) leaves\nmacOS's own choice alone.\n\nThe setting with the clearest opinion in this group for a laptop:\non for battery, off for the charger, is what most people want and\nalmost nobody sets.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "power",
+      "lowPowerMode",
+      "battery"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.power.lowPowerMode.charger": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Low Power Mode while plugged in. null (the default) leaves\nmacOS's own choice alone.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "loc": [
+      "haus",
+      "power",
+      "lowPowerMode",
+      "charger"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.prowl.enable": {
+    "declarations": [
+      "modules/prowl/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "AeroSpace tiling window management + the leader-key launcher.\n\nThis is the room switch: off drops AeroSpace, its launch agent, the\nwake-time window re-sort and the key remap entirely. To keep the tiler but\nleave the keyboard alone, use haus.keys.leader = \"none\" and\nhaus.keys.windowNav = \"none\" instead of turning the room off.\n",
+    "loc": [
+      "haus",
+      "prowl",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.roster": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "{ }"
+    },
+    "description": "The one list of things this machine has, keyed by a stable id. It is\nthe canonical, composable source for AeroSpace launcher keys, the\nSketchyBar pills, the pounce cheatsheet, Nebelung theme ports — and\nfor the install itself, from any of four sources (`cask`, `brew`,\n`package`, `appStoreId`).\n\nEvery field except the id is optional, and WHICH fields you set is\nwhat the entry means. Set `key` and it joins the launcher; set none\nof the launcher/workspace/install fields and it's install-only —\nwhich is how a font or a command-line tool lives in the same list as\nSlack instead of in a second one beside it. The rice's own\n`homebrew.casks` / `home.packages` still work and still merge; you\njust shouldn't need them for an app.\n\nWhich WORKSPACE an app owns is not a field here — it's\n`haus.workspaces.<id>.apps` naming this entry's id, so one\nworkspace can hold several apps (a \"comms\" workspace with Slack,\nMail and Messages) instead of baking \"one app, one workspace\" into\nthis schema. See that option.\n\nAttribute-set entries merge across Nix modules, so a host, an imported\nfile, and pounce's \"Install App\" command can each contribute one app\nwithout parsing or replacing a monolithic list. Set an entry's enable\nfield to false to remove it, or override individual fields by app id.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "{\n  # Launcher app: leader s. Own workspace + pill come from putting\n  # \"slack\" in a haus.workspaces entry's `apps` (see below).\n  slack = {\n    key = \"s\";\n    name = \"Slack\";\n    appId = \"com.tinyspeck.slackmacgap\";\n    cask = \"slack\";\n  };\n\n  # Install-only: no key, so no leader binding and no pill.\n  framer = { cask = \"framer\"; };\n  orbstack = { package = pkgs.orbstack; };\n  biome = { package = pkgs.biome; scope = \"system\"; };\n  ical-buddy = { brew = \"ical-buddy\"; };\n  xcode = { name = \"Xcode\"; appStoreId = 497799835; };\n}\n"
+    },
+    "loc": [
+      "haus",
+      "roster"
+    ],
+    "readOnly": false,
+    "type": "attribute set of (submodule)"
+  },
+  "haus.roster.<name>.appId": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Bundle id, used for the AeroSpace `on-window-detected` auto-assign\nrule (when this app is a member of a `haus.workspaces` entry),\nthe `float` rule below, and the wake-time re-sort. null skips both\n— the app still launches, it just isn't herded anywhere or floated.\nFind one with `osascript -e 'id of app \"…\"'`.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"com.tinyspeck.slackmacgap\""
+    },
+    "loc": [
+      "haus",
+      "roster",
+      "<name>",
+      "appId"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.roster.<name>.appStoreId": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Mac App Store numeric app id (the digits in its store URL), so an\nApp Store app is declared in the same roster as everything else\nrather than in a comment.\n\nRecording it is always safe; INSTALLING from it is opt-in via\n`haus.appStore.install`, because the App Store is the one\nsource that can't be fully automated: `mas` has no sign-in\ncommand, and it cannot buy a paid app for the first time. Free\napps it can fetch; paid ones you purchase once in App Store.app\nand every machine afterwards can install them.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "497799835"
+    },
+    "loc": [
+      "haus",
+      "roster",
+      "<name>",
+      "appStoreId"
+    ],
+    "readOnly": false,
+    "type": "null or signed integer"
+  },
+  "haus.roster.<name>.brew": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Homebrew FORMULA that installs this entry, appended to\nhomebrew.brews. For the command-line half of the roster — a tool\nwith no .app bundle, which usually means `key`, `name` and\n`workspace` are all null.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"ical-buddy\""
+    },
+    "loc": [
+      "haus",
+      "roster",
+      "<name>",
+      "brew"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.roster.<name>.cask": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Homebrew cask that installs this app. When set, it's appended to\nhomebrew.casks so declaring the app also installs it. null means\n\"already present / installed some other way\" (e.g. Safari, Music).\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"slack\""
+    },
+    "loc": [
+      "haus",
+      "roster",
+      "<name>",
+      "cask"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.roster.<name>.enable": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Whether this app participates in the shared launcher roster.",
+    "loc": [
+      "haus",
+      "roster",
+      "<name>",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.roster.<name>.float": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Always float this app's windows instead of tiling them — an\nAeroSpace `on-window-detected` rule generated from `appId`\n(`run = 'layout floating'`). Right for a picker/dialog/status\nwindow that would otherwise reflow the whole workspace every time\nit opens (FaceTime, Trill's Settings/Inbox), not for something you\nwork inside. Requires `appId`; ignored (with a warning) without it.\n",
+    "loc": [
+      "haus",
+      "roster",
+      "<name>",
+      "float"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.roster.<name>.installedBy": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The nebelhaus module that puts this app on disk, when none of the\nfour sources above describes it: pounce and perch copy a\nnotarized bundle into /Applications from their own activation\nstep, which is neither a cask nor a package you can list.\n\nSet BY the rice, not by you. It exists so the roster can still\nanswer \"who installed this?\" for those apps — without it, a host\nadding a leader key for Perch had to KNOW the rice already ships\nit, leave every source field null, and leave a comment explaining\nthe hole. This is that comment, as data.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"haus.perch\""
+    },
+    "loc": [
+      "haus",
+      "roster",
+      "<name>",
+      "installedBy"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.roster.<name>.key": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The leader letter for this app: tap Caps Lock then this key to\nlaunch/focus it. Must be unique across the roster.\n\nnull (the default) means the entry is INSTALL-ONLY: it still\nbrings its cask/formula/package, but claims no leader key, no\ncheatsheet row, and no launch-mode bubble. That is what lets one\nroster hold both the apps you reach for by keyboard and the ones\nyou just want on the machine (and fonts, and CLI tools).\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"s\""
+    },
+    "loc": [
+      "haus",
+      "roster",
+      "<name>",
+      "key"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.roster.<name>.label": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Cheatsheet caption for the leader key. null uses name.",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"Slack\""
+    },
+    "loc": [
+      "haus",
+      "roster",
+      "<name>",
+      "label"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.roster.<name>.name": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "macOS application name, as passed to `open -a`. Required when\n`key` is set (the launcher has nothing to open otherwise);\nnull is right for an install-only entry — a font, a CLI tool, or\nan app you launch some other way.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"Slack\""
+    },
+    "loc": [
+      "haus",
+      "roster",
+      "<name>",
+      "name"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.roster.<name>.order": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "1000"
+    },
+    "description": "Roster order; lower values appear first. Ties are sorted by app id.",
+    "loc": [
+      "haus",
+      "roster",
+      "<name>",
+      "order"
+    ],
+    "readOnly": false,
+    "type": "signed integer"
+  },
+  "haus.roster.<name>.package": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Nixpkgs package that installs this entry. Where it lands is\n`scope`'s call.\n\nA shared rice or app pack can't set this one — it needs `pkgs`, and a\ndata-only rice has no arguments. Use `packageName` there.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "pkgs.orbstack"
+    },
+    "loc": [
+      "haus",
+      "roster",
+      "<name>",
+      "package"
+    ],
+    "readOnly": false,
+    "type": "null or package"
+  },
+  "haus.roster.<name>.packageName": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The same source as `package`, NAMED rather than evaluated: an\nattribute path into nixpkgs, so \"orbstack\" means `pkgs.orbstack` and\n\"python3Packages.black\" means what it says. `scope` applies to it\nidentically.\n\nThis is the source a shared app pack can use (packs/README.md).\nWithout it a pack could install from Homebrew and the App Store but\nnever from Nixpkgs, because reaching `pkgs` is exactly what the\ndata-only format forbids — the one gap in the four sources.\n\nSet this or `package`, never both; and it counts as a source like any\nother, so pairing it with `cask` is the same mistake as pairing\n`cask` with `brew`.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"orbstack\""
+    },
+    "loc": [
+      "haus",
+      "roster",
+      "<name>",
+      "packageName"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.roster.<name>.scope": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"user\""
+    },
+    "description": "Which profile `package` installs into.\n\n- \"user\" (default): home-manager's `home.packages`. Right for\n  anything you run as yourself — apps, editors, CLI tools.\n- \"system\": nix-darwin's `environment.systemPackages`. Installed\n  once for the whole machine, so it's on PATH for root, for\n  non-login shells, and for launchd jobs — which is what a tool\n  invoked by a daemon, a `sudo` workflow, or an activation script\n  actually needs. (It is about REACH, not about the package\n  needing elevated privileges to install: `darwin-rebuild` runs\n  under sudo either way.)\n\nIgnored when `package` is null — Homebrew has no such split.\n",
+    "loc": [
+      "haus",
+      "roster",
+      "<name>",
+      "scope"
+    ],
+    "readOnly": false,
+    "type": "one of \"user\", \"system\""
+  },
+  "haus.roster.<name>.titleRegex": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Scope `float` to windows of this app whose title matches this\nregex (AeroSpace's `window-title-regex-substring`), instead of\nevery window the app opens. null (default) floats all of them.\n\nSome apps' windows report their title only AFTER AeroSpace has\nalready detected and tiled them once (a race, not a bug this\noption can fix) — Ghostty is the known case, which is why this\nrice's own Ghostty float rule is hand-written in aerospace.toml\nrather than generated from the roster. If a title rule flaps,\nthat race is almost certainly why. Ignored when `float` is false.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"^Picture in Picture$\""
+    },
+    "loc": [
+      "haus",
+      "roster",
+      "<name>",
+      "titleRegex"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.screenshots.format": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The image format new screenshots are saved in. null (the default)\nleaves macOS's own choice alone, which is png.\n\npng is lossless and the right default for UI and text — a jpg\nscreenshot of a terminal has visible ringing around every glyph. jpg\nis worth choosing only when you screenshot photographs often enough\nfor the file sizes to matter.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"png\""
+    },
+    "loc": [
+      "haus",
+      "screenshots",
+      "format"
+    ],
+    "readOnly": false,
+    "type": "null or one of \"png\", \"jpg\", \"pdf\", \"tiff\", \"heic\", \"gif\""
+  },
+  "haus.screenshots.includeDate": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Whether filenames carry the date and time (\"Screenshot 2026-08-03 at\n13.37.20.png\") or just a counter (\"Screenshot 1.png\"). null (the\ndefault) leaves macOS's own choice alone, which is to include it.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "screenshots",
+      "includeDate"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.screenshots.location": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Where ⇧⌘3 / ⇧⌘4 / ⇧⌘5 write their files. null (the default) leaves\nmacOS's own choice alone, which is the Desktop.\n\nAbsolute, or starting with `~/` — the rice expands the `~` for you and\nCREATES the directory during activation. Both halves matter: macOS\nstores this string verbatim and expands nothing, and if the path does\nnot exist screencapture silently falls back to the Desktop, so a\ntypo'd or not-yet-created folder looks exactly like the setting having\nbeen ignored.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"~/Pictures/Screenshots\""
+    },
+    "loc": [
+      "haus",
+      "screenshots",
+      "location"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.screenshots.shadow": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Whether a window capture (⇧⌘4 then Space) keeps macOS's big soft drop\nshadow. null (the default) leaves macOS's own choice alone, which is\nto include it.\n\nfalse is the setting to want if screenshots go into documentation: the\nshadow is transparent padding, so it adds a wide invisible margin that\nevery layout then has to fight. Holding ⌥ while you click suppresses\nit for one capture either way.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "loc": [
+      "haus",
+      "screenshots",
+      "shadow"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.screenshots.thumbnail": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Whether the floating preview thumbnail appears in the bottom-right\ncorner after a capture. null (the default) leaves macOS's own choice\nalone, which is to show it.\n\nfalse writes the file immediately instead of after the ~5s the\nthumbnail waits around — the setting to want if you screenshot in\nquick succession, or if you script anything that reads the file. The\ncost is losing the markup/drag affordance the thumbnail offers.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "loc": [
+      "haus",
+      "screenshots",
+      "thumbnail"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.secrets.provider": {
+    "declarations": [
+      "modules/secrets/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"keyring\""
+    },
+    "description": "The secretspec provider that supplies secret VALUES on this machine.\nThe secrets room writes it to ~/.config/secretspec/config.toml as the\ndefault provider, so `secretspec run / check / set` work without\nflags. Any provider string secretspec accepts, URIs included:\n\"keyring\" (macOS login keychain — local, no accounts), \"onepassword\",\n\"bws\" (Bitwarden Secrets Manager), \"gcsm\" (Google Cloud Secret\nManager), \"awssm\" (AWS Secrets Manager), \"vault\", \"pass\",\n\"protonpass\", \"lastpass\", \"dotenv\", \"env\", or a scoped URI like\n\"onepassword://account@vault\".\n\nWHICH secrets exist is not declared here — that's each project's\ncommitted secretspec.toml. Cloud providers authenticate with their own\ncredentials, configured outside Nix (e.g. `gcloud auth\napplication-default login` for gcsm); that login is the one manual\nstep on a new Mac. null skips writing the config file entirely — run\n`secretspec config init` yourself.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"gcsm\""
+    },
+    "loc": [
+      "haus",
+      "secrets",
+      "provider"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.security.firewall.allowSigned": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Let built-in, Apple-signed software receive incoming connections\nwithout asking. null (the default) leaves macOS's own choice alone.\nHas no effect while `enable` is null or false.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "security",
+      "firewall",
+      "allowSigned"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.security.firewall.allowSignedApp": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Let downloaded, signed third-party software receive incoming\nconnections without asking. null (the default) leaves macOS's own\nchoice alone. Has no effect while `enable` is null or false.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "security",
+      "firewall",
+      "allowSignedApp"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.security.firewall.blockAllIncoming": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Block ALL incoming connections, including ones apps ask for (AirDrop,\nscreen sharing, a dev server on your LAN). null (the default) leaves\nmacOS's own choice alone. Has no effect while `enable` is null or\nfalse.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "loc": [
+      "haus",
+      "security",
+      "firewall",
+      "blockAllIncoming"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.security.firewall.enable": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The built-in application firewall. null (the default) leaves\nmacOS's own choice alone (off, on a fresh install).\n\nThe \"public Wi-Fi\" setting: worth true for a laptop that leaves\nhome, closer to unnecessary for a desktop that never does.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "security",
+      "firewall",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.security.firewall.stealthMode": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Don't respond to network probes (ping, closed-port connection\nattempts) at all, instead of replying \"connection refused\". null\n(the default) leaves macOS's own choice alone. Has no effect while\n`enable` is null or false.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "security",
+      "firewall",
+      "stealthMode"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.sill.aiUsage.provider": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"latest\""
+    },
+    "description": "Which AI provider to display in the main pill: `latest` (default, automatically\nshows whichever provider reported most recently), or one of\n`claude`, `codex`, `opencode`.\nClicking the pill always displays the full dropdown with all reporting providers.\n\nNote this is about *usage readouts*, not about which client `holt` can\nspawn: a provider reports here whenever it has data for your account —\nCodex notably does so from a ChatGPT login alone, with no CLI installed\n— so it is deliberately not tied to `haus.agents.clients`.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"claude\""
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "aiUsage",
+      "provider"
+    ],
+    "readOnly": false,
+    "type": "one of \"latest\", \"claude\", \"codex\", \"opencode\""
+  },
+  "haus.sill.battery.hideOver": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Hide the battery pill when charge percentage is above this threshold\n(e.g., set to 80 to show the battery pill only when charge is at or below 80%).\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "80"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "battery",
+      "hideOver"
+    ],
+    "readOnly": false,
+    "type": "null or signed integer"
+  },
+  "haus.sill.clock.mode": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"full\""
+    },
+    "description": "The display mode for the clock pill: `full` (default, e.g. \"Fri Jul 31  09:41 AM\" with calendar icon)\nor `compact` (e.g. \"Fri 31/7 9:41\" without icon and trimmed spacing).\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"compact\""
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "clock",
+      "mode"
+    ],
+    "readOnly": false,
+    "type": "one of \"full\", \"compact\""
+  },
+  "haus.sill.elgato.host": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "Which Elgato Key Light the `elgato` pill toggles — a hostname or IP,\noptionally with a `:port` (the light's HTTP API is on 9123).\n\nEmpty (the default) means discover it: the pill browses mDNS for\n`_elg._tcp`, caches what it found in\n`~/.local/state/nebelhaus/elgato-host`, and re-browses at most once a\nminute whenever the light stops answering — so a light that took a new\nDHCP address comes back on its own, without a rebuild. Pin this when\nyou have more than one light, when the light has a static lease, or\nwhen mDNS is unreliable on your network.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"elgato-key-light-mini-57a3.local\""
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "elgato",
+      "host"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.sill.enable": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "The SketchyBar menu bar. When off, the native macOS menu bar is kept\n(nebelhaus stops hiding it) and no bar is drawn.\n",
+    "loc": [
+      "haus",
+      "sill",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.items": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "{ }"
+    },
+    "description": "Which SketchyBar pills to draw, one bool each. The core pills —\n`clock`, `weather`, `media`, `battery`, `wifi` — default true; the extras\n— the readouts `cpu`, `memory`, `volume`, `calendar`, `caffeinate`\nand the personal `agents`, `aiUsage`, `elgato`, `harvest` —\ndefault false. Set\nonly what you want to change:\n\n  haus.sill.items = {\n    weather = false;   # drop a default-on core pill\n    cpu = true;        # add an off-by-default readout\n    caffeinate = true; # add the keep-awake controller\n  };\n\nA pill set false is never created (its update script doesn't run either).\nThe hush (Do-Not-Disturb) pill is separate — it rides\nhaus.hush.enable, not this set.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "{\n  cpu = true;\n  weather = false;\n}"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "items"
+    ],
+    "readOnly": false,
+    "type": "submodule"
+  },
+  "haus.sill.items.agents": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "A paw pill tracking your agent-worktree panes — amber when one is blocked on you, click for the per-agent list, each row marked with the client sitting in it; left-click a row to jump to that pane, ⌥/right-click for a live `zellij subscribe` peek. Fed by each client's own lifecycle hooks, which all call `agent-state` (also installed as ~/.config/sketchybar/plugins/agents-hook.sh): Opencode's plugin and Codex's ~/.codex/hooks.json are written for you (Codex asks you to trust its hooks the first time it sees them), while Claude Code's four agent-state hooks stay yours to point at it in ~/.claude/settings.json — Claude owns that file and rewrites it, so the rice merges in only the keys it must and never touches those four. (The two worktree hooks ARE declared, in hearth: they point at a rice-controlled path and self-heal on rebuild.) A row whose zellij pane is gone drops off by itself, which is what stands in for the session-end event Codex doesn't have. Dormant until a client fires.",
+    "loc": [
+      "haus",
+      "sill",
+      "items",
+      "agents"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.items.aiUsage": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "A gauge pill showing AI usage (Claude Code/Codex subscription rate limits as %, or Opencode API token cost as daily $). Automatically shows whichever provider reported most recently. Click for expanded session/weekly limits and daily/monthly API costs with model breakdowns. Claude and Opencode are read off disk; Codex has no local usage data, so its row is polled from your ChatGPT account with the OAuth token in ~/.codex/auth.json (refreshed and rewritten in place) — no Codex login on the machine, no call is made. Claude's row is pushed by its statusline; the Codex and Opencode rows are pulled by the pill itself on a 3-minute TTL, so they stay current on a machine that never opens Claude at all. Claude and Opencode also get a `tokens` block in the dropdown — raw tokens moved today, this week, this month and all time (cache reads and all), two periods to a line so a full set reads as a 2×2, purely for the fun of watching the number climb. A period with nothing in it is left out rather than printed as a zero, so the block simply gets smaller, and a closing `∑ Everything` adds every provider up when more than one is reporting. It is a score, not a limit: nothing acts on it, and it never reaches the pill's own label. Claude's is summed from your transcripts on a 15-minute TTL behind an index, so only sessions that grew since the last pass are re-read; Codex has no row because it keeps no local history to count.",
+    "loc": [
+      "haus",
+      "sill",
+      "items",
+      "aiUsage"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.items.battery": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "The battery pill.",
+    "loc": [
+      "haus",
+      "sill",
+      "items",
+      "battery"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.items.caffeinate": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "A coffee pill that prevents idle system sleep for 1/2/4/8 hours, a custom whole-hour duration, or indefinitely. The display may still turn off; closing a MacBook lid still sleeps it. Uses macOS's built-in `caffeinate`, so there is no extra package.",
+    "loc": [
+      "haus",
+      "sill",
+      "items",
+      "caffeinate"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.items.calendar": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Your next timed event, with a click-popup of the next five. Pulls in `ical-buddy` automatically and reads Calendar, so macOS prompts for Calendar access on first run.",
+    "loc": [
+      "haus",
+      "sill",
+      "items",
+      "calendar"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.items.claudeUsage": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Deprecated alias for `aiUsage`.",
+    "loc": [
+      "haus",
+      "sill",
+      "items",
+      "claudeUsage"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.items.clock": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "The clock pill, pinned to the far right.",
+    "loc": [
+      "haus",
+      "sill",
+      "items",
+      "clock"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.items.cpu": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Total CPU load, as a percentage pill.",
+    "loc": [
+      "haus",
+      "sill",
+      "items",
+      "cpu"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.items.elgato": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Toggles an Elgato Key Light on the local network. The light is found over mDNS (or pinned with `haus.sill.elgato.host`), and the pill draws dim when it can't be reached at all — a light that dropped off the wifi is not the same thing as a light that's switched off.",
+    "loc": [
+      "haus",
+      "sill",
+      "items",
+      "elgato"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.items.harvest": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "A Harvest time-tracking pill; needs a ~/.config/sketchybar/harvest_secrets.sh you provide.",
+    "loc": [
+      "haus",
+      "sill",
+      "items",
+      "harvest"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.items.media": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "The now-playing track (scrolls; auto-hides when nothing plays).",
+    "loc": [
+      "haus",
+      "sill",
+      "items",
+      "media"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.items.memory": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Memory-pressure percentage pill.",
+    "loc": [
+      "haus",
+      "sill",
+      "items",
+      "memory"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.items.volume": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Output volume / mute state.",
+    "loc": [
+      "haus",
+      "sill",
+      "items",
+      "volume"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.items.weather": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "The weather pill and its click-to-open forecast popover.",
+    "loc": [
+      "haus",
+      "sill",
+      "items",
+      "weather"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.items.wifi": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "The Wi-Fi status pill.",
+    "loc": [
+      "haus",
+      "sill",
+      "items",
+      "wifi"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.position": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"top\""
+    },
+    "description": "Where the bar sits. `top` and `bottom` pin it there. `auto` flips it\nat runtime — `bottom` whenever an external display is attached (docked\nwith the lid open, or clamshell), `top` on the built-in display alone —\ndriven by a `display_change` hook, so the bar moves the moment you dock\nor undock, without a rebuild.\n\nThe bar's height/pill offsets are tuned for the notch, which only\nexists at the top of the built-in display; at `bottom` there's no notch\nto tuck under, so `auto` conveniently keeps the notch case (`top`) on\nthe notched screen and the plain case (`bottom`) on the external.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"auto\""
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "position"
+    ],
+    "readOnly": false,
+    "type": "one of \"top\", \"bottom\", \"auto\""
+  },
+  "haus.snippets.enable": {
+    "declarations": [
+      "modules/snippets/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Text expansion via espanso: type a short trigger (say \"@@\") and it's\nreplaced inline with a longer string (your email), in any app —\nbrowsers, Messages, and the terminal. espanso injects keystrokes, so\nit works where macOS's own text replacement doesn't (terminals,\nmany Electron apps).\n\nOff by default: it installs the Espanso.app cask and needs a one-time\nmacOS Accessibility grant (System Settings → Privacy & Security →\nAccessibility → enable Espanso) the first time it runs. The rice runs\nthe SIGNED app bundle rather than a nix-store binary on purpose, so\nthat grant is keyed to a stable identity and survives reboots and\nnixpkgs bumps — you grant it once, not on every rebuild (and so the\nespanso troubleshooting window stops popping up at login, since that\nwindow only ever meant \"the grant went missing\").\n",
+    "loc": [
+      "haus",
+      "snippets",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.snippets.matches": {
+    "declarations": [
+      "modules/snippets/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ ]"
+    },
+    "description": "The expansion table — one { trigger; replace; } per snippet, written\nto ~/.config/espanso/match/default.yml. Only espanso's plain\ntrigger→replace form is exposed here; for dynamic matches (dates,\nshell output, forms) drop a hand-written .yml alongside it in\n~/.config/espanso/match/ — espanso loads every file in that dir.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  { trigger = \"@@\"; replace = \"ada@example.com\"; }\n  { trigger = \"##\"; replace = \"+1 555 0100\"; }\n]\n"
+    },
+    "loc": [
+      "haus",
+      "snippets",
+      "matches"
+    ],
+    "readOnly": false,
+    "type": "list of (submodule)"
+  },
+  "haus.snippets.matches.*.replace": {
+    "declarations": [
+      "modules/snippets/options.nix"
+    ],
+    "description": "What it expands to.",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"ada@example.com\""
+    },
+    "loc": [
+      "haus",
+      "snippets",
+      "matches",
+      "*",
+      "replace"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.snippets.matches.*.trigger": {
+    "declarations": [
+      "modules/snippets/options.nix"
+    ],
+    "description": "What you type.",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"@@\""
+    },
+    "loc": [
+      "haus",
+      "snippets",
+      "matches",
+      "*",
+      "trigger"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.sound.alertSound": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Which sound the alert beep plays, by name:\n\n```\n  Basso  Blow  Bottle  Frog  Funk  Glass  Hero  Morse  Ping  Pop  Purr  Sosumi  Submarine  Tink\n```\n\nnull (the default) leaves macOS's own choice alone.\n\nAn enum rather than a path on purpose. macOS stores an absolute path\nhere and validates nothing, and a path that doesn't resolve does not\nfall back to the default beep — it goes SILENT (measured by ear,\n2026-08-08), while the plist still reads like a working setting. The\nrice builds the path from the name and skips the write with a warning\nif that file is missing, so a macOS release retiring a sound can't\nquietly mute you.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"Submarine\""
+    },
+    "loc": [
+      "haus",
+      "sound",
+      "alertSound"
+    ],
+    "readOnly": false,
+    "type": "null or one of \"Basso\", \"Blow\", \"Bottle\", \"Frog\", \"Funk\", \"Glass\", \"Hero\", \"Morse\", \"Ping\", \"Pop\", \"Purr\", \"Sosumi\", \"Submarine\", \"Tink\""
+  },
+  "haus.sound.alertVolume": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "How loud the alert beep is, 0–100, exactly as the slider in System\nSettings ▸ Sound reads. null (the default) leaves macOS's own choice\nalone.\n\nThe rice converts to the exponential value macOS actually stores\n(`e^(v/100 − 1)`, with 0 meaning silence), because that key is not a\nfraction: writing the obvious `0.5` gets you 31%.\n\nTWO WRITERS: the volume keys and the Sound pane write this same key.\nDeclaring it means every rebuild reasserts your number over anything\nyou changed by hand since — which is the point of declaring it, but\nleave it null if you'd rather the slider win.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "50"
+    },
+    "loc": [
+      "haus",
+      "sound",
+      "alertVolume"
+    ],
+    "readOnly": false,
+    "type": "null or integer between 0 and 100 (both inclusive)"
+  },
+  "haus.sound.startupChime": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The chime a Mac plays at boot. null (the default) leaves it alone.\n\nThe odd one in this group: it is firmware state (`nvram StartupMute`),\nnot a preference, so it survives an OS reinstall and a wiped home\ndirectory — and it is the only setting here that needs the rebuild to\nrun as root, which activation already does.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "loc": [
+      "haus",
+      "sound",
+      "startupChime"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.sound.uiSounds": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Play user-interface sound effects — the Trash whoosh, the screenshot\nshutter, the Mail whoosh. null (the default) leaves macOS's own\nchoice alone.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "loc": [
+      "haus",
+      "sound",
+      "uiSounds"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.sound.volumeFeedback": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Play a sound when the volume keys change the volume. null (the\ndefault) leaves macOS's own choice alone.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "sound",
+      "volumeFeedback"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.theme.accent": {
+    "declarations": [
+      "modules/theme/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"mauve\""
+    },
+    "description": "The accent colour, by Catppuccin name (the Nebelung palette is a\ngrey-tinted Catppuccin, so the fourteen names are the same in both\nflavors — the hue you pick follows haus.theme.flavor). It recolours\nthe tools nebelhaus injects colours into — lazygit, fzf, yazi (including\nglow-rendered Markdown headings), and the Zen browser — via the matching\nNebelung per-accent ports.\n\nperch follows it too, and is the one surface handed the NAME rather than\na hex: the shelf resolves it against whichever half of its dark/light\npair macOS is showing, so the ember under the notch and a pinned tile\nwear this accent in both polarities from one key. Left at perch's\ndefault it accents with its own mark green.\n\nTwo more things follow it: the `bold` wallpaper (generated from the\naccent hex — see haus.theme.wallpaper), and any roster app whose\nNebelung port ships a per-accent matrix (zed, gh-dash, mpv), placed by\nhaus.theme.ports. Those ports name the theme file after the accent,\nso changing the accent renames the file the app's own `theme` key points\nat — re-pick it in the app, or it falls back to stock.\n\nHonest scope: this moves the accent on those tools, NOT literally\neverything. Single-file dotfiles that bake the palette at their own\ntheme slot (ghostty, starship, tmux, bat, zellij, …) keep their built-in\ncolour and don't follow this option. The base palette stays the same\nNebelung grey either way — only the accent hue changes.\n\nZen means Zen's own UI, and the web is a separate story. The rice places\nthe Nebelung userChrome/userContent pair, but userContent only styles\n`about:` pages — github.com and youtube.com are themed by the Stylus\nextension, whose Catppuccin-derived styles carry their OWN `accentColor`\nvar (default mauve) inside the extension's storage, where no stylesheet\ncan reach it. Declare `haus.zen.extensions.stylus` and the rice\nstamps that var with this accent and tells you, once, when there's a new\nbundle to import; the import itself stays a click, because Stylus has no\nfile interface. Until you make it, the web keeps the accent you last\nimported.\n\nBoth halves of that are pinned by the `accent-reach` flake check, which\nfingerprints every surface under three accents and fails if one starts\nor stops following the accent without anyone deciding it should.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"sapphire\""
+    },
+    "loc": [
+      "haus",
+      "theme",
+      "accent"
+    ],
+    "readOnly": false,
+    "type": "one of \"rosewater\", \"flamingo\", \"pink\", \"mauve\", \"red\", \"maroon\", \"peach\", \"yellow\", \"green\", \"teal\", \"sky\", \"sapphire\", \"blue\", \"lavender\""
+  },
+  "haus.theme.contrast": {
+    "declarations": [
+      "modules/theme/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"normal\""
+    },
+    "description": "How far the interface separates from its background.\n\n\"high\" swaps in the Nebelung high-contrast palette: the same hues and\nthe same accents, with the neutral ramp pulled apart in OKLCH so text\nand background separate further at every step. Measured rather than\neyeballed — body text goes from 11.3:1 to 19.9:1 against the base,\nclearing WCAG AAA (nebelung's own CI asserts it).\n\nComposes with `flavor`, and the boost is tuned per flavor rather than\nshared: light mode has far less room above its background before the ramp\nclips to white, so latte goes 7.0:1 → 9.9:1 where mocha goes 11.3 → 19.9.\nBoth keep all twelve ramp steps distinct, which is the property nebelung's\ntests actually assert.\n\nHonest scope. This recolours what the rice injects colours into:\nGhostty, bat, delta, lsd, yazi, zellij, glow, starship, lazygit, the\nbar, pounce and perch (at runtime, via ~/.config/{pounce,perch}/themes/ —\nand unlike `flavor`, contrast reaches both on BOTH halves of their\nlight/dark pair), Zen and Obsidian. It does NOT reach:\n\n  - macOS itself. For system-wide contrast see\n    haus.accessibility.increaseContrast — a separate, FDA-gated\n    setting. The two are complementary, and a genuinely high-contrast\n    machine wants both.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"high\""
+    },
+    "loc": [
+      "haus",
+      "theme",
+      "contrast"
+    ],
+    "readOnly": false,
+    "type": "one of \"normal\", \"high\""
+  },
+  "haus.theme.flavor": {
+    "declarations": [
+      "modules/theme/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"mocha\""
+    },
+    "description": "Light or dark. \"mocha\" (the default) is the rice as it has always been;\n\"latte\" is light mode.\n\nNot an inversion of the dark palette — a different SOURCE palette. Nebelung\nis \"Catppuccin with the blue stripped out\", and those rules say nothing\nabout dark, so they apply to Catppuccin Latte just as well: same warm-grey\nneutral ramp, same calmed accents, the other polarity. Light mode lands at\n7.0:1 for body text on its own, so it's legible before you reach for\ncontrast = \"high\" (which takes it to 9.9:1).\n\nIt composes with `contrast`: the two axes give four palettes, and nebelung's\nCI measures each one's contrast ratio rather than eyeballing it.\n\nHonest scope, in two parts.\n\nWhat follows it: every tool the rice injects colours into or points at a\nrendered theme — Ghostty, bat, delta, lsd, yazi, fzf, glow, starship,\nlazygit, helix, zellij, opencode, the bar, Zen and Obsidian.\nThese are genuinely re-rendered for the flavor, not recoloured in place:\nwhiskers takes different branches for a light flavor (terminal ANSI\n0/7/8/15 swap, Zen switches its prefers-color-scheme block, delta sets\n`light = true`).\n\nWhat does NOT follow it:\n\n  - pounce and perch, by default. Both read their palette at runtime and\n    can pick per polarity, so haus.pounce.followSystemAppearance\n    and haus.perch.followSystemAppearance (default true) hand that\n    choice to macOS Light/Dark instead: the rice installs every rendered\n    variant into ~/.config/{pounce,perch}/themes/ and writes the\n    dark/light PAIR at your `contrast`. Set either option false to pin\n    that app to this flavor like everything else.\n  - macOS's own Light/Dark appearance, unless you opt in with\n    haus.theme.systemAppearance = \"flavor\". Left at its default the\n    rice does not touch system appearance in either direction, so a\n    latte rice on a dark macOS looks half-done and that half is yours —\n    except in pounce and perch, which read the appearance themselves.\n  - the desktop wallpaper (haus.theme.wallpaper). The three hand-made\n    looks have the dark palette baked in; only \"bold\" is generated, and it\n    follows theme.accent rather than the flavor.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"latte\""
+    },
+    "loc": [
+      "haus",
+      "theme",
+      "flavor"
+    ],
+    "readOnly": false,
+    "type": "one of \"mocha\", \"latte\""
+  },
+  "haus.theme.ports.enable": {
+    "declarations": [
+      "modules/theme/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Theme the apps in your roster (`haus.roster`) that Nebelung ships a\nport for, without wiring each one by hand.\n\nThe rice already themes every tool it installs itself — the shell, the\nterminal, the git stack, Zen, Obsidian. This covers the other direction:\nan app YOU added to the roster that Nebelung happens to have a theme for.\nAdd `zed`, `warp` or `xcode` to `haus.roster` and its Nebelung theme\nlands where that app looks for themes, in the flavor and contrast you\nselected, following them on every rebuild. Matching is by roster id, so\nthe entry has to be named after the port (`zed`, not `zed-editor`).\n\nHonest scope, and it is the whole point of the option: this drops the\ntheme FILE. Whether that alone makes the theme *active* is the app's\nchoice, not ours, and Nebelung records which is which per port. Ghostty\nreads a config key we own, so it just works. Xcode, Warp, OBS and friends\noffer no file interface for picking a theme — the file is put where they\nlook, and the one click that selects it stays yours. `haus doctor` lists\nexactly which apps are waiting on that click, so the difference is\nvisible rather than something you discover months later.\n\nPorts whose install is a merge into an existing config file, or that need\na compile step first, are reported but never written: silently\nhalf-applying someone's config is worse than saying so.\n",
+    "loc": [
+      "haus",
+      "theme",
+      "ports",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.theme.systemAppearance": {
+    "declarations": [
+      "modules/theme/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"unmanaged\""
+    },
+    "description": "Whether the rice also sets macOS's OWN Light/Dark appearance — the one\nin System Settings ▸ Appearance, which paints Finder, the menu bar and\nevery native app the rice can't reach.\n\n  unmanaged  (default) leave it alone, in both directions. Your Mac's\n             appearance stays yours; nothing about a rebuild moves it.\n  flavor     follow haus.theme.flavor — latte sets Light, mocha\n             sets Dark. This is the one that makes light mode complete\n             rather than half-done.\n  light      pin Light, whatever the flavor is.\n  dark       pin Dark, whatever the flavor is.\n\nDefault \"unmanaged\" on purpose: a managed default would silently revert\nan appearance you picked in System Settings on the next rebuild, which\nis a worse surprise than a half-light rice.\n\nHow it is applied, and why it is not a `system.defaults` key. Measured\non macOS 26.6 (2026-08-08), NOT recalled from docs:\n`NSGlobalDomain.AppleInterfaceStyle` is INERT in both directions. Writing\n\"Dark\" from a light session does nothing; deleting the key from a dark\none does nothing; `activateSettings -u` does not help; a process launched\nfresh afterwards still reports the old appearance, and no\nAppleInterfaceThemeChangedNotification is posted. That key is a mirror\nthe appearance system writes, not a lever. So the rice drives appearance\nthrough System Events (AppleScript) at each home-manager activation,\nwhich does flip it live in ~0.3s — and confirms the result with `hausax`\n(AppKit's effective appearance), never by reading the key back.\n\nReachability, the same shape as haus.accessibility.increaseContrast:\ndriving System Events needs an Automation grant for whichever app runs\nthe rebuild (System Settings ▸ Privacy & Security ▸ Automation). Without\nit macOS refuses, the rebuild says so in a named warning and carries on\n— the appearance just doesn't move, and nothing else is affected.\n\nOne more thing macOS can undo: System Settings ▸ Appearance ▸ **Auto**\nswitches polarity on its own schedule. The rice sets the appearance at\nrebuild time and does not fight it afterwards, so on an Auto machine\nthis option holds only until the next scheduled switch. Pick Light or\nDark there if you want it to stick.\n\nInteraction worth knowing: haus.{pounce,perch}.followSystemAppearance\nhand polarity to macOS. Set this to \"flavor\" and macOS's polarity is in\nturn the rice's, so those two end up following `flavor` transitively —\nwhich is usually what you wanted, but it does mean `followSystemAppearance`\nstops being an independent axis on this machine.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"flavor\""
+    },
+    "loc": [
+      "haus",
+      "theme",
+      "systemAppearance"
+    ],
+    "readOnly": false,
+    "type": "one of \"unmanaged\", \"flavor\", \"light\", \"dark\""
+  },
+  "haus.theme.wallpaper": {
+    "declarations": [
+      "modules/theme/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"none\""
+    },
+    "description": "The desktop wallpaper, set at each home-manager activation (osascript,\nevery desktop on the current Space). Four Nebelung looks:\n\n  orbits · constellation · flow  hand-made, the palette baked in\n  bold                           generated from theme.accent, so it\n                                 follows the accent (a bold pink at\n                                 accent = \"pink\")\n\nDefault \"none\" leaves your current wallpaper alone — changing the\ndesktop is visible and personal, so nothing moves unless you ask (the\nbootstrap interview offers the choice on a fresh install).\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"orbits\""
+    },
+    "loc": [
+      "haus",
+      "theme",
+      "wallpaper"
+    ],
+    "readOnly": false,
+    "type": "one of \"none\", \"orbits\", \"constellation\", \"flow\", \"bold\""
+  },
+  "haus.tour.enable": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "The haus tour — a first-run tutor that walks the four moves (launch /\nnavigate / resize / palette) as ONE quiet pill in the bar, advancing\nlive as each move is detected. It never opens a window or steals\nfocus: a fresh machine just shows a dormant \"new here?\" hint, clicking\nit (or `haus tour`, or ⌘Space → tour) starts the lap, right-click\nhides it forever. Detection reuses signals the rice already fires (the\nleader-mode scripts) — no key logging, no Accessibility.\n\nNeeds prowl + sill (it silently stays out of the bar without them);\nthe ⌘Space step is dropped when pounce is off. Progress lives in\n~/.local/state/nebelhaus — `haus tour reset` re-arms a finished tour.\n",
+    "loc": [
+      "haus",
+      "tour",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.tour.steps": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "A community-authored tour, in order. null keeps the built-in four-move\nnebelhaus tour unchanged; supplying a list replaces it, so a shared rice can\nteach its own workflow without shipping scripts or reaching outside the\n`haus.*` option surface.\n\nDetection reuses signals the rice already emits. `launch`, `workspace`,\n`navigate` and `resize` need prowl; `palette` needs Pounce and its palette\nbinding. The module warns when a chosen detector's room is disabled.\n\nAuthoring a tour is also the ONLY way to have one without prowl: the\nbuilt-in lap is three leader moves plus the palette, so `tour.enable` on a\nrice with `prowl.enable = false` draws nothing at all. `presets/everyday.nix`\nis the worked example — one step, the launcher.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  {\n    detect = \"palette\";\n    hint = \"Press {palette}, type tour, then hit ↵\";\n  }\n]"
+    },
+    "loc": [
+      "haus",
+      "tour",
+      "steps"
+    ],
+    "readOnly": false,
+    "type": "null or (non-empty (list of (submodule)))"
+  },
+  "haus.tour.steps.*.detect": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "description": "The existing rice signal that completes this step: entering launch,\nnavigate or resize mode; changing workspace; or running the Haus Tour\ncommand from Pounce (`palette`). The tour observes outcomes, never\nkeystrokes. Clicking the pill still skips a step that cannot be\ndetected in the current setup.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"palette\""
+    },
+    "loc": [
+      "haus",
+      "tour",
+      "steps",
+      "*",
+      "detect"
+    ],
+    "readOnly": false,
+    "type": "one of \"launch\", \"workspace\", \"navigate\", \"resize\", \"palette\""
+  },
+  "haus.tour.steps.*.hint": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "description": "The instruction shown in the tour pill for this step.\n\nName keys with the placeholders `{palette}`, `{leader}` and\n`{leaderName}` rather than typing a chord: they expand to what\nTHIS machine resolved, so a tour written once still teaches the\nright keys on a rice that moved `keys.palette` or `keys.leader`.\nA hardcoded \"⌘Space\" is wrong on that machine and the author\nnever sees it — the consumer does.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"Press {palette}, type calendar, then hit ↵\""
+    },
+    "loc": [
+      "haus",
+      "tour",
+      "steps",
+      "*",
+      "hint"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.ui.scale": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "1.0"
+    },
+    "description": "One number for \"make the interface bigger\". 1.0 is the rice as tuned;\n1.35 is a comfortable large-print setting; below 1.0 tightens things up.\n\nIt sets the DEFAULT of the sizes it drives, so anything you pin by hand\nstill wins:\n\n  haus.ui.scale = 1.5;          # everything grows\n  haus.fonts.mono.size = 18;    # …except the terminal, pinned here\n\nWhat it currently moves:\n\n  - the terminal font size (haus.fonts.mono.size)\n  - the command palette, whole (haus.pounce.scale) — its rows,\n    text and icons, and the emoji / clipboard / screenshots / camera /\n    Find Files / cheatsheet panels behind it\n  - the type in Sill's menu bar — pill labels, icons and popup rows —\n    up to a ceiling; see below\n  - the Dock icon size (system.defaults.dock.tilesize)\n  - Finder's sidebar rows (NSTableViewDefaultSizeMode) — a threshold\n    rather than a multiplier, and it is set at every scale: at or below\n    1.0 the rice picks SMALL rows (more fits in a tiled window), above\n    1.0 it picks Apple's large ones\n  - prowl's window gaps\n\nThat list is pinned by `nix flake check`'s `scale-reach`, which\nfingerprints every surface it names at four scales — so a wire dropped\nin a refactor fails a check instead of quietly ceasing to arrive.\n\nWhere it stops, and why it isn't a gap waiting to be filled:\n\n  - Sill's bar HEIGHT. The bar is 36pt with 28pt pills so the pills sit\n    inside the 32pt menu-bar band that macOS's own hover-reveal covers;\n    taller pills poke out below it. That band is macOS's, fixed, and has\n    no setting behind it — measured, not assumed. So the bar's type\n    follows this option up to the largest that still fits a pill\n    (1.25x) and then stops, silently: past that a rice simply gets the\n    ceiling. The only way to make the whole bar bigger is to change what\n    a point MEANS — the display's scaled resolution, below.\n  - perch, the notch shelf. It sizes itself from the SCREEN — a fraction\n    of the display's width, clamped — which is the right answer for a\n    thing hanging off the notch, and it means NEITHER lever moves it: a\n    scaled display shrinks the shelf's width in points by the same\n    factor that makes a point bigger, so it stays the same physical\n    size while everything around it grows. A large-print rice gets a\n    normal-sized shelf, and there is no option here that changes that.\n  - anything outside nebelhaus. macOS has no system-wide UI scale, so\n    third-party apps follow only a display-resolution change.\n\nWorth knowing if you set both: this and\n`haus.displays.<name>.uiScale` MULTIPLY. A larger-text display mode\nleaves a smaller desktop in points, and this asks for bigger points\ninside it — so 1.4 on an already-scaled display is a bigger jump than\n1.4 on the panel's default.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "1.35"
+    },
+    "loc": [
+      "haus",
+      "ui",
+      "scale"
+    ],
+    "readOnly": false,
+    "type": "integer or floating point number between 0.5 and 3.0 (both inclusive)"
+  },
+  "haus.workspaces": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "{ }"
+    },
+    "description": "AeroSpace workspaces this machine names on purpose, keyed by the\nworkspace id AeroSpace itself will use (any string it accepts as a\nworkspace name — a single letter like `T`, or a word like `comms`).\nFirst-class rather than a field on an app: an app can only ever own\none workspace if the field lives on the app, which makes a role\nworkspace (\"communication\" = Mail + Slack + Messages) or a project\nworkspace literally unrepresentable. Here, a workspace lists its own\nmembers instead.\n\nThe four fixed numbered workspaces (1-4, leader/⇧+digit) are not\npart of this option — they always exist, independent of what any\napp claims. This option is for the NAMED workspaces app windows get\nherded onto.\n\nAn entry with no `key` and no `apps` does nothing (a warning says\nso); one with `apps` but no `key` still gets a persistent workspace,\na pill (with `icon`) and auto-herds its member windows, it just has\nno dedicated leader throw.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "{\n  # Role workspace: three apps, one pill, one throw key.\n  comms = {\n    key = \"c\";\n    icon = \":slack:\";\n    apps = [ \"slack\" \"mail\" \"messages\" ];\n  };\n\n  # Single-app workspace: the common case, one entry each.\n  T = { key = \"t\"; icon = \":ghostty:\"; apps = [ \"ghostty\" ]; };\n}\n"
+    },
+    "loc": [
+      "haus",
+      "workspaces"
+    ],
+    "readOnly": false,
+    "type": "attribute set of (submodule)"
+  },
+  "haus.workspaces.<name>.apps": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ ]"
+    },
+    "description": "`haus.roster` app ids that live on this workspace: each\none's window auto-moves here (via its `appId`), opening any of\nthem from the leader lands you here, and this workspace's `key`\nthrow (above) sends the focused window here regardless of which\nmember app owns it. An app id may belong to at most one\nworkspace.\n\nA plain list, not wrapped in `lib.mkDefault` even where the rice\nitself contributes to it (ghostty → workspace `T`, say) — list\noptions MERGE across modules at equal priority but a `mkDefault`\nlist is dropped whole rather than merged the moment anything else\ndefines the same option, so a host adding a second app to `T`\nwould silently lose ghostty's membership if the rice's own\ncontribution used `mkDefault` here. Override a single membership\nby dropping the app's id from your own list instead.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"slack\"\n  \"mail\"\n  \"messages\"\n]"
+    },
+    "loc": [
+      "haus",
+      "workspaces",
+      "<name>",
+      "apps"
+    ],
+    "readOnly": false,
+    "type": "list of string"
+  },
+  "haus.workspaces.<name>.icon": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The SketchyBar workspace-pill glyph. A sketchybar-app-font\nligature like \":slack:\" renders a logo; any other string is\ndrawn in the bar's Nerd Font. null falls back to the workspace's\nown id.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\":slack:\""
+    },
+    "loc": [
+      "haus",
+      "workspaces",
+      "<name>",
+      "icon"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.workspaces.<name>.key": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Leader then ⇧<key> throws the focused window to this workspace\nand follows it there (AeroSpace's `move-node-to-workspace\n--focus-follows-window`). There is no bare <key> binding for a\nworkspace — that namespace belongs to `haus.roster` app\nlaunch keys, one of which can double as this workspace's \"open\nsomething here\" action by being one of its `apps`. null means the\nworkspace is reachable only by launching an app that belongs to\nit (or not by keyboard at all). Must be unique across workspaces,\nand ⇧<key> must not collide with a built-in launch-mode binding\n(⇧1-4 are taken).\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"c\""
+    },
+    "loc": [
+      "haus",
+      "workspaces",
+      "<name>",
+      "key"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.zen.extensions": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "{ }"
+    },
+    "description": "Browser extensions to deploy into Zen, by a stable id of your choosing.\n\nThe mechanism is Firefox's enterprise-policy file — the rice renders\n`Zen/distribution/policies.json` with an `ExtensionSettings` block — so\nit reaches Zen the way an IT department reaches Firefox, without a\nprofile to hand-edit. `haus.roster` deliberately cannot do this: a\nroster entry installs from a cask, a brew, a nixpkgs package or the App\nStore, and a browser add-on is none of those.\n\nThe rice knows the id and slug of the extensions it themes\n(stylus),\nso those need only be named. Everything else needs `id` — see that\noption for where to find it.\n\nNaming `stylus` here also turns on the stamped userstyle bundle (see\nhaus.theme.accent): the Catppuccin-derived styles Stylus imports\ncarry their own accent and flavor variables, which no palette file can\nreach, so the rice stamps the bundle from your theme — accent, flavor,\nand the contrast it's rendered for — and tells you when there's a new\none to import.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "{\n  # Known to the rice — id and slug are filled in.\n  stylus = { };\n  # Anything else: bring the id.\n  ublock-origin = {\n    id = \"uBlock0@raymondhill.net\";\n    slug = \"ublock-origin\";\n  };\n}\n"
+    },
+    "loc": [
+      "haus",
+      "zen",
+      "extensions"
+    ],
+    "readOnly": false,
+    "type": "attribute set of (submodule)"
+  },
+  "haus.zen.extensions.<name>.enable": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Whether to deploy this extension. Set false to remove one an imported rice added.",
+    "loc": [
+      "haus",
+      "zen",
+      "extensions",
+      "<name>",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.zen.extensions.<name>.id": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The extension's own id — the key Firefox's policy engine\nmatches on, NOT its AMO slug. Usually a brace-wrapped UUID,\nsometimes an email-shaped string (`addon@example.org`).\n\nFind it by installing the add-on once and reading `Extension\nID` under about:debugging ▸ This Firefox, or from the\n`browser_specific_settings` block of its source. Wrong id and\nthe policy silently installs nothing — which is why this has\nno guessable default.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"{7a7a4a92-a2a0-41d1-9fd7-1e92480d612d}\""
+    },
+    "loc": [
+      "haus",
+      "zen",
+      "extensions",
+      "<name>",
+      "id"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.zen.extensions.<name>.mode": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"force_installed\""
+    },
+    "description": "Firefox's `installation_mode`. `force_installed` installs it\nand stops the user removing it (the point, for a rice that\nwants an extension present); `normal_installed` installs it\nbut leaves it removable.\n",
+    "loc": [
+      "haus",
+      "zen",
+      "extensions",
+      "<name>",
+      "mode"
+    ],
+    "readOnly": false,
+    "type": "one of \"force_installed\", \"normal_installed\", \"allowed\", \"blocked\""
+  },
+  "haus.zen.extensions.<name>.slug": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The add-on's AMO slug — the last path segment of its\naddons.mozilla.org URL. Only used to build the default\n`url`; set `url` directly and this is ignored.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"styl-us\""
+    },
+    "loc": [
+      "haus",
+      "zen",
+      "extensions",
+      "<name>",
+      "slug"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.zen.extensions.<name>.url": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "Where the .xpi comes from. Defaults to AMO's \"latest\" endpoint\nfor `slug`, so the add-on updates itself; point it at a pinned\nversion or a self-hosted file to freeze it.\n",
+    "loc": [
+      "haus",
+      "zen",
+      "extensions",
+      "<name>",
+      "url"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.zen.extraPolicies": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "{ }"
+    },
+    "description": "Anything else to put in Zen's policy file, merged beside the\n`ExtensionSettings` block `haus.zen.extensions` renders. The rice\nOWNS that file, so this is the escape hatch for the rest of the policy\nsurface rather than a reason to take the file back by hand. Keys here\nwin over the rice's on a collision.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "{ DisableTelemetry = true; }"
+    },
+    "loc": [
+      "haus",
+      "zen",
+      "extraPolicies"
+    ],
+    "readOnly": false,
+    "type": "attribute set"
+  }
+}

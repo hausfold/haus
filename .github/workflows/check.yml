@@ -22,14 +22,20 @@ jobs:
       # example left to eval (see flake.nix `allSystems`).
       - run: nix eval .#darwinConfigurations.example.system.drvPath
       # The pure-lib checks are declared for Linux too precisely so they can run
-      # HERE — five of them now: theme-variants and keymap pin the
+      # HERE — seven of them now: theme-variants and keymap pin the
       # flavor/contrast → themes-subdir and keys.* → chord/glyph tables,
-      # data-only-surface fails on a package-typed option a data-only rice
-      # cannot set, and packs / preset-composition pin what happens when two
-      # rices MEET (a pack against a host, every pair of the presets). All five
+      # alert-volume pins the beep-volume ladder, data-only-surface fails on a
+      # package-typed option a data-only rice cannot set, packs /
+      # preset-composition pin what happens when two rices MEET (a pack against
+      # a host, every pair of the presets), and site-data-current pins
+      # docs/site-data/ against the derivation the docs site reads. All seven
       # mirror a rule that lives in another repo, in a generated dotfile, or in a
       # README — where drift is silent. Without this line they were declared and
-      # never executed. The darwin-only checks (presets, accent-reach,
+      # never executed.
+      #
+      # Keep this census honest when a check is added: it is this repo's only
+      # record of what CI actually covers, and it went one stale before anyone
+      # noticed. The darwin-only checks (presets, accent-reach,
       # scale-reach, font-reach) fingerprint a real evaluated system, so they
       # stay guarded and don't run here — they fire on a Mac, by hand, or not at
       # all.
