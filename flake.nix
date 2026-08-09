@@ -470,9 +470,7 @@
                 specialArgs.lib = nixpkgs.lib;
                 modules = import ./modules/options-modules.nix;
               }).options;
-          leafType = builtins.listToAttrs (
-            map (o: nixpkgs.lib.nameValuePair o.name o.type) surfaceLeaves
-          );
+          leafType = builtins.listToAttrs (map (o: nixpkgs.lib.nameValuePair o.name o.type) surfaceLeaves);
           # "package", "null or package", "list of package" — the whole family,
           # plus derivations and store paths, which are unreachable for the same
           # reason. `path` is deliberately NOT here: a rice may ship a script
@@ -517,9 +515,7 @@
             name:
             let
               entries = (riceLib.riceBody packFiles.${name}).roster;
-              keyed = builtins.filter (id: (entries.${id}.key or null) != null) (
-                builtins.attrNames entries
-              );
+              keyed = builtins.filter (id: (entries.${id}.key or null) != null) (builtins.attrNames entries);
               id = builtins.head keyed;
               # The consumer who wants the app but claims no letter for it —
               # today's `mkForce` case, and the one a pack author can't foresee.
@@ -534,9 +530,9 @@
                 }).config.haus.roster;
               # Every field the pack set on that entry, other than the one the
               # host overrode, has to survive with the pack's value.
-              lost = builtins.filter (
-                f: f != "key" && resolved.${id}.${f} != entries.${id}.${f}
-              ) (builtins.attrNames entries.${id});
+              lost = builtins.filter (f: f != "key" && resolved.${id}.${f} != entries.${id}.${f}) (
+                builtins.attrNames entries.${id}
+              );
             in
             if keyed == [ ] then
               [ ]
@@ -557,9 +553,7 @@
                 + "${builtins.concatStringsSep ", " lost} went with it — an override of one field must "
                 + "not take the rest of the entry."
               );
-          packSurfaceOk = builtins.all (n: self.lib.checkPack packFiles.${n}) (
-            builtins.attrNames packFiles
-          );
+          packSurfaceOk = builtins.all (n: self.lib.checkPack packFiles.${n}) (builtins.attrNames packFiles);
           # Rule 3. `_file` is what the module system quotes in a conflict, and
           # it is the first thing a wrapper drops — the failure is invisible
           # until two packs actually collide, on someone else's machine.
@@ -620,7 +614,8 @@
           pathsOf = data: defPaths [ ] data;
           # Rows read better without the prefix every path shares.
           showPath =
-            p: nixpkgs.lib.concatStringsSep "." (
+            p:
+            nixpkgs.lib.concatStringsSep "." (
               if builtins.elem (builtins.head p) riceLib.riceNamespaces then builtins.tail p else p
             );
 
@@ -827,12 +822,17 @@
           # the two tables diffed side by side.
           nbStub = {
             themes = "/THEMES";
-            palettes = nixpkgs.lib.genAttrs [
-              "nebelung"
-              "nebelung-high-contrast"
-              "nebelung-latte"
-              "nebelung-latte-high-contrast"
-            ] (name: { base = name; });
+            palettes =
+              nixpkgs.lib.genAttrs
+                [
+                  "nebelung"
+                  "nebelung-high-contrast"
+                  "nebelung-latte"
+                  "nebelung-latte-high-contrast"
+                ]
+                (name: {
+                  base = name;
+                });
           };
           resolve =
             flavor: contrast:
@@ -865,20 +865,19 @@
           # "run nix flake update nebelung" message rather than nix's bare
           # "attribute missing", which points nowhere near the cause.
           staleLockThrows =
-            !
-              (builtins.tryEval (
-                (import ./modules/lib/nebelung.nix {
-                  inherit (pkgs) lib;
-                  nebelung = {
-                    themes = "/THEMES";
-                    palettes.nebelung = { };
-                  };
-                  theme = {
-                    flavor = "latte";
-                    contrast = "normal";
-                  };
-                }).palette
-              )).success;
+            !(builtins.tryEval (
+              (import ./modules/lib/nebelung.nix {
+                inherit (pkgs) lib;
+                nebelung = {
+                  themes = "/THEMES";
+                  palettes.nebelung = { };
+                };
+                theme = {
+                  flavor = "latte";
+                  contrast = "normal";
+                };
+              }).palette
+            )).success;
           # ---- keymap ---------------------------------------------------------
           # modules/lib/keys.nix turns haus.keys.* into AeroSpace chords, the
           # pounce hotkey, and the glyphs that caption them — and the whole reason
@@ -897,8 +896,17 @@
               show = v: f: if v == null then "-" else f v;
             in
             "${leader}/${palette}/${windowNav}"
-            + " leader=${show k.leader (v: "${v.chord} ${v.glyph} caps=${if v.capsRemap then "yes" else "no"}")}"
-            + " palette=${show k.palette (v: "${nixpkgs.lib.concatStringsSep "-" (v.modifiers ++ [ v.key ])} ${v.glyph} spotlight=${if v.stealsSpotlight then "yes" else "no"}")}"
+            + " leader=${
+               show k.leader (v: "${v.chord} ${v.glyph} caps=${if v.capsRemap then "yes" else "no"}")
+             }"
+            + " palette=${
+               show k.palette (
+                 v:
+                 "${nixpkgs.lib.concatStringsSep "-" (v.modifiers ++ [ v.key ])} ${v.glyph} spotlight=${
+                   if v.stealsSpotlight then "yes" else "no"
+                 }"
+               )
+             }"
             + " nav=${show k.nav (v: "${v.chord} ${v.glyph}")}"
             + " conflicts=${toString (builtins.length k.conflicts)}";
           keymapTable = builtins.concatStringsSep "\n" [
@@ -909,6 +917,44 @@
             # wins), so prowl asserts on it — this pins that it's detected at all.
             (keymapRow "alt-space" "alt-space" "cmd-alt")
           ];
+          # ---- alert-volume ----------------------------------------------------
+          # haus.sound.alertVolume is 0–100, and macOS stores e^(v/100 − 1).
+          # The conversion is a Taylor series in modules/lib/alert-volume.nix
+          # (Nix has no `exp`), so it is exactly the kind of thing that can
+          # drift a decimal place in a refactor and produce a machine that is
+          # merely quieter than it asked to be — no error, nothing to notice.
+          #
+          # The right-hand column is not a re-derivation of the formula: it is
+          # what CoreAudio reported when each value was written on macOS 26.6.1
+          # (workshop notes/probes/sound-sweep.sh, `osascript -e 'get volume
+          # settings'`). Recomputing the same maths a second time would only
+          # check the code against itself; these numbers came off the machine.
+          alertVolumeTable = builtins.concatStringsSep "\n" (
+            map
+              (
+                p:
+                "${toString p} -> ${
+                  toString ((import ./modules/lib/alert-volume.nix { lib = nixpkgs.lib; }).fromPercent p)
+                }"
+              )
+              [
+                0
+                25
+                50
+                60
+                75
+                100
+              ]
+          );
+          expectedAlertVolumeTable = ''
+            0 -> 0.000000
+            25 -> 0.472367
+            50 -> 0.606531
+            60 -> 0.670320
+            75 -> 0.778801
+            100 -> 1.000000
+          '';
+
           expectedKeymapTable = ''
             caps/cmd-space/alt leader=f18 ⇪ caps=yes palette=cmd-space ⌘ Space spotlight=yes nav=alt ⌥ conflicts=0
             alt-space/ctrl-space/ctrl-alt leader=alt-space ⌥␣ caps=no palette=ctrl-space ⌃ Space spotlight=no nav=ctrl-alt ⌃⌥ conflicts=0
@@ -1314,13 +1360,9 @@
               dir = ./modules/sill/sketchybar;
               plugins = builtins.attrNames (builtins.readDir (dir + "/plugins"));
               files = [ (dir + "/sketchybarrc") ] ++ map (f: dir + "/plugins" + "/${f}") plugins;
-              lines = builtins.concatLists (
-                map (f: nixpkgs.lib.splitString "\n" (builtins.readFile f)) files
-              );
+              lines = builtins.concatLists (map (f: nixpkgs.lib.splitString "\n" (builtins.readFile f)) files);
             in
-            builtins.length (
-              builtins.filter (l: builtins.match ".*[A-Za-z] Nerd Font:.*" l != null) lines
-            );
+            builtins.length (builtins.filter (l: builtins.match ".*[A-Za-z] Nerd Font:.*" l != null) lines);
           fontA = fontAt "JetBrainsMono Nerd Font Mono";
           fontB = fontAt "FiraCode Nerd Font";
           fontFileRows = builtins.filter (r: r != null) (
@@ -1368,21 +1410,19 @@
               for the shape). Keep the package-typed option too — it stays the
               precise way to say it from a module that has `pkgs`.
               OFFENDERS
-              exit 1''
-            }
+              exit 1''}
             touch $out
           '';
 
           packs = pkgs.runCommand "nebelhaus-packs-ok" { } ''
-            ${nixpkgs.lib.optionalString (!packSurfaceOk)
-              "echo 'a pack sets something outside haus.roster' >&2; exit 1"
-            }
+            ${nixpkgs.lib.optionalString (
+              !packSurfaceOk
+            ) "echo 'a pack sets something outside haus.roster' >&2; exit 1"}
             ${nixpkgs.lib.optionalString (packFailures != [ ]) ''
               cat >&2 <<'FAILURES'
               ${builtins.concatStringsSep "\n\n" packFailures}
               FAILURES
-              exit 1''
-            }
+              exit 1''}
             touch $out
           '';
 
@@ -1398,10 +1438,16 @@
             touch $out
           '';
 
+          alert-volume = pkgs.runCommand "nebelhaus-alert-volume-ok" { } ''
+            diff -u ${pkgs.writeText "expected" expectedAlertVolumeTable} \
+                    ${pkgs.writeText "actual" (alertVolumeTable + "\n")}
+            touch $out
+          '';
+
           theme-variants = pkgs.runCommand "nebelhaus-theme-variants-ok" { } ''
-            ${nixpkgs.lib.optionalString (!staleLockThrows)
-              "echo 'a missing palette variant did not throw' >&2; exit 1"
-            }
+            ${nixpkgs.lib.optionalString (
+              !staleLockThrows
+            ) "echo 'a missing palette variant did not throw' >&2; exit 1"}
             diff -u ${pkgs.writeText "expected" expectedVariantTable} \
                     ${pkgs.writeText "actual" (variantTable + "\n")}
             touch $out
@@ -1409,8 +1455,10 @@
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-darwin" system) {
           accent-reach = pkgs.runCommand "nebelhaus-accent-reach-ok" { } ''
-            diff -u ${pkgs.writeText "expected" expectedAccentTable}                     ${pkgs.writeText "actual" (accentTable + "
-")}
+            diff -u ${pkgs.writeText "expected" expectedAccentTable}                     ${
+              pkgs.writeText "actual" (accentTable + "
+")
+            }
             touch $out
           '';
 
@@ -1479,7 +1527,10 @@
             in
             pkgs.writeText "wm-bindings.json" (
               builtins.toJSON (
-                import ./modules/prowl/wm-bindings.nix { inherit (pkgs) lib; inherit k; }
+                import ./modules/prowl/wm-bindings.nix {
+                  inherit (pkgs) lib;
+                  inherit k;
+                }
               )
             );
 
