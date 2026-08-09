@@ -8,7 +8,9 @@
 #          session spawned — there so they survive the row-2+ list being capped
 #          or clipped in a short pane) ·
 #          rice-nag (⇡N — commits your pinned nebelhaus is behind, `haus update`)
-#          · ctx% · cost · permission-mode icon (blank auto, ⏵ default, ⏵⏵ accept,
+#          · ctx% (green <100k tokens, yellow <200k, red beyond — banded on
+#          absolute tokens, not the percentage) · cost · permission-mode icon
+#          (blank auto, ⏵ default, ⏵⏵ accept,
 #          ⏵⏵⏵ bypass, ⏸ plan, ⊘ dontAsk) · model tier chip (O5 / S5 / H45 / F5).
 # Tint   : on Fable/Mythos only, every row gets a dark magenta background painted
 #          edge-to-edge, so the special model is legible from across a wall of
@@ -48,7 +50,7 @@ MAX_ROWS=8      # cap child rows; extras collapse into a "+N more" line
 # 256-colour palette — muted, rice-consistent (cf. `holt`: 103 gray, 167 red).
 c() { printf '\033[38;5;%sm' "$1"; }
 DOT=$(c 108); DIM=$(c 244); NAME=$'\033[1m'
-AHEAD=$(c 75); ADD=$(c 71); DEL=$(c 167); PURGE=$(c 173)
+AHEAD=$(c 75); ADD=$(c 71); DEL=$(c 167); PURGE=$(c 173); WARN=$(c 179)
 PR_OPEN=$(c 71); PR_MERGED=$(c 139); PR_CLOSED=$(c 167)
 R0=$'\033[0m'   # true reset — ends a line, drops any row tint
 R="$R0"         # in-row reset; re-armed to keep the tint when one is set (below)
@@ -57,15 +59,17 @@ R="$R0"         # in-row reset; re-armed to keep the tint when one is set (below
 # every row, so the whole block reads as "this pane is on the special model" at
 # a glance across a wall of panes. #382713 is the terminal background (nebelung
 # ghostty: 202020) warmed toward amber — dark enough that the dimmest foreground
-# in the bar (the 244 gray of ctx%/cost) keeps a 3.6:1 contrast ratio, which is
-# what it has against the bare background anyway; a brighter amber costs real
+# in the bar — the 244 gray of cost, and of ctx% on a Claude Code too old to
+# send token counts — keeps a 3.6:1 contrast ratio, which is what it has against the bare
+# background anyway; a brighter amber costs real
 # legibility fast, because yellows carry far more luminance per unit of colour
 # than the plum this started as. Truecolor rather than a 256 index because the
 # cube has nothing simultaneously this dark and this saturated; every terminal
 # this rice targets does 24-bit. Tune it here, it's the one knob.
 #
 # It does collide semantically with the bar's own warm slots — orange (173) is
-# "this branch needs you" on ⏏/N^, yellow (179) is the stale-rice nag. Those
+# "this branch needs you" on ⏏/N^, yellow (179) is the stale-rice nag and the
+# ctx% 100–200k band. Those
 # stay legible (5:1 and 6.8:1), but they pop a little less against a warm band
 # than they did against a cool one. Accepted: the tint is a per-pane constant
 # you stop seeing, while those two are events you're looking for.
@@ -156,6 +160,12 @@ cwd=$(j '.workspace.current_dir // .cwd'); [ -z "$cwd" ] && cwd="$PWD"
 is_home=0; [ "$cwd" = "$HOME" ] && is_home=1
 wt_name=$(j '.worktree.name // .workspace.git_worktree')
 ctx=$(j '.context_window.used_percentage')
+# Absolute tokens in the window, for the ctx% chip's colour (see CTX below).
+# Sum of input+output, which is what `exceeds_200k_tokens` counts too; input
+# already includes cache reads and writes.
+ctx_tok=$(j '.context_window
+             | select(.total_input_tokens != null or .total_output_tokens != null)
+             | (.total_input_tokens // 0) + (.total_output_tokens // 0) | floor')
 cost=$(j '.cost.total_cost_usd')
 transcript=$(j '.transcript_path')
 COLS=${COLUMNS:-120}
@@ -467,7 +477,7 @@ if [ -s "$CACHE_DIR/lock-nag.tsv" ]; then
   case "${nbehind:-}" in ''|*[!0-9]*) nbehind=0;; esac
   case "${nlockdate:-}" in ''|*[!0-9]*) nlockdate=0;; esac
   if [ "$nbehind" -gt 0 ]; then
-    ncol=$(c 179)
+    ncol="$WARN"
     [ "$nlockdate" -gt 0 ] &&
       [ $(( ( $(date +%s) - nlockdate ) / 86400 )) -ge "$NAG_ALERT_DAYS" ] && ncol="$DEL"
     if [ -n "${nagurl:-}" ]; then
@@ -507,9 +517,42 @@ emit() {
   [ "$pad" -lt 0 ] && pad=0
   printf '%s%s%*s%s\n' "$BG" "$1" "$pad" '' "$R0"
 }
+# ctx% colour: green under 100k tokens, yellow to 200k, red past it — banded on
+# the ABSOLUTE token count, never on the percentage. The percentage is relative
+# to `context_window_size`, which is 200k on most models and 1M on the extended
+# ones, so the same 40% is 80k tokens in one pane and 400k in the next; a colour
+# keyed to it would mean two different things side by side in a mixed fleet.
+# Tokens are the thing that actually costs money, slows a turn down and decides
+# when a compaction lands, so that is what the band tracks. Consequence worth
+# knowing: on a 200k model red is unreachable (compaction fires first) and
+# yellow starts at 50%, while on a 1M model yellow lands at 10% — that asymmetry
+# is the point, not a bug.
+#
+# The number stays the number, so colour is a second channel over a value that
+# already reads on its own (the same rule the model chip follows) — a terminal
+# that drops the SGR loses nothing. Missing token counts fall back to the old dim
+# gray rather than guessing a band from the percentage — that path is for a
+# Claude Code too old to send the two fields, and ONLY that: a fresh pane sends
+# a real 0/0 (the payload builder defaults them, it never omits them), so it
+# renders a green 0%, which is what it should.
+#
+# The bands share their colours with the chips either side — the ⇡ rice-nag is
+# yellow at the same 179 and red at the same 167, and the child-PR cluster's open
+# PRs are green at the same 71 — so at ≥200k a stale-rice pane shows two red
+# numbers side by side meaning unrelated things. Accepted: each chip carries its
+# own glyph (⇡, %, $) and the tail-group order is fixed, so the position tells
+# you which is which before the colour does. Same trade the tint paragraph makes
+# above.
+CTX="$DIM"
+if [ -n "$ctx_tok" ]; then
+  if   [ "$ctx_tok" -ge 200000 ]; then CTX="$DEL"
+  elif [ "$ctx_tok" -ge 100000 ]; then CTX="$WARN"
+  else                                 CTX="$ADD"
+  fi
+fi
 tailseg=""
 [ -n "$nagseg" ] && tailseg="$nagseg"
-[ -n "$ctx" ]  && tailseg="${tailseg:+$tailseg }${DIM}${ctx}%${R}"
+[ -n "$ctx" ]  && tailseg="${tailseg:+$tailseg }${CTX}${ctx}%${R}"
 [ -n "$cost" ] && [ "$cost" != "0" ] && tailseg="${tailseg:+$tailseg }${DIM}\$$(printf '%.2f' "$cost" 2>/dev/null)${R}"
 [ -n "$mseg" ] && tailseg="${tailseg:+$tailseg }$mseg"
 [ -n "$MODEL" ] && tailseg="${tailseg:+$tailseg }$MODEL"

@@ -200,6 +200,59 @@ vis() {
   [[ "$output" != *"◇"* ]] || fail "a parented child was marked as an orphan"
 }
 
+# --- ctx% colour banding ----------------------------------------------------
+# The band is keyed to the ABSOLUTE token count, never the percentage: the same
+# 42% is 84k tokens on a 200k model and 420k on a 1M one, so a percentage-keyed
+# colour would mean two different things in two panes of the same fleet. Every
+# case below therefore holds the percentage fixed at 42 and moves only the token
+# counts, which is precisely the confusion these tests exist to catch.
+
+# render_ctx <input-tokens> <output-tokens> — 42% in every case, on purpose.
+render_ctx() {
+  printf '{"model":{"id":"claude-opus-5"},"workspace":{"current_dir":"%s"},"context_window":{"used_percentage":42,"total_input_tokens":%s,"total_output_tokens":%s}}' \
+    "$REPO" "$1" "$2" | bash "$SL"
+}
+
+@test "ctx% is green under 100k tokens" {
+  run -0 render_ctx 99000 999
+  [[ "$output" == *"${ESC}[38;5;71m42%"* ]] || fail "99999 tokens is not green: $output"
+}
+
+@test "ctx% is yellow from 100k to 200k tokens" {
+  run -0 render_ctx 100000 0
+  [[ "$output" == *"${ESC}[38;5;179m42%"* ]] || fail "100k tokens is not yellow: $output"
+  run -0 render_ctx 199000 999
+  [[ "$output" == *"${ESC}[38;5;179m42%"* ]] || fail "199999 tokens is not yellow: $output"
+}
+
+@test "ctx% is red at 200k tokens and beyond" {
+  run -0 render_ctx 200000 0
+  [[ "$output" == *"${ESC}[38;5;167m42%"* ]] || fail "200k tokens is not red: $output"
+  run -0 render_ctx 700000 12000
+  [[ "$output" == *"${ESC}[38;5;167m42%"* ]] || fail "712k tokens is not red: $output"
+}
+
+@test "output tokens count toward the band, not just input" {
+  # 99k input alone is green; the same input with 2k of output crosses into
+  # yellow. A band computed from total_input_tokens only would stay green.
+  run -0 render_ctx 99000 2000
+  [[ "$output" == *"${ESC}[38;5;179m42%"* ]] || fail "output tokens were ignored: $output"
+}
+
+@test "ctx% falls back to dim gray when the payload carries no token counts" {
+  # The one payload that reaches this path: a Claude Code old enough to predate
+  # the two fields. Guess nothing, keep the colour the chip has always had. A
+  # FRESH session is NOT this case — the payload builder defaults both counts to
+  # 0 rather than omitting them, so it takes the green branch (next test).
+  run -0 render claude-opus-5
+  [[ "$output" == *"${ESC}[38;5;244m42%"* ]] || fail "no dim fallback: $output"
+}
+
+@test "a fresh session's real 0/0 payload is green, not the dim fallback" {
+  run -0 render_ctx 0 0
+  [[ "$output" == *"${ESC}[38;5;71m42%"* ]] || fail "0 tokens is not green: $output"
+}
+
 @test "an untinted row keeps its old ragged-right shape" {
   # The tint must be strictly additive: on any other model rows stay unpadded,
   # which is exactly what they were before emit() existed.
