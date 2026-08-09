@@ -30,7 +30,7 @@
   # ---- who you are ----------------------------------------------------------
   git = {
     order = 10;
-    blurb = "Your commit identity — set your own. It stays in [your host file](/internals/flakes/#your-config-is-a-thin-consumer).";
+    blurb = "Your commit identity, plus the GitHub owner this machine's work lives under — set your own. It stays in [your host file](/internals/flakes/#your-config-is-a-thin-consumer).";
   };
   roster = {
     order = 20;
