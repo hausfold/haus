@@ -332,6 +332,10 @@ let
               drawing=off \
               script="$HOME/.config/sketchybar/plugins/media.sh" \
               click_script="$HOME/.config/sketchybar/plugins/media.sh toggle"
+      # Exec'd rather than sourced, with its output on /dev/null — so
+      # media_stream.sh has to carry the +x bit in git (home.file copies the
+      # source mode verbatim). Without it both this launch and media.sh's
+      # watchdog restart fail silently and the pill simply never lights up.
       ("$HOME/.config/sketchybar/plugins/media_stream.sh" >/dev/null 2>&1 &)
     '';
     # updates=on is load-bearing: battery.sh hides the pill over the configured
