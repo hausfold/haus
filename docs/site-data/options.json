@@ -2549,7 +2549,7 @@
       "_type": "literalExpression",
       "text": "false"
     },
-    "description": "Draw a SECOND bar along the bottom of the screen, at the same time as\nthe menu bar one. `haus.sill.bottom.items` picks what goes on it; an\nempty set draws an empty strip, which the module warns about.\n\nSketchyBar has no two-bars-in-one-process mode — an instance is named\nafter `basename(argv[0])` and keys both its lock file and its mach\nservice on that name — so this is a second launchd agent running the\nSAME binary under a second name, `sill-bottom`. That name is also the\nCLI for it: `sill-bottom --set cpu label=…` talks to the bottom bar the\nway `sketchybar --set` talks to the menu bar one.\n\nTwo things macOS does not do for you here. It reserves the top strip of\nevery display for the menu bar but reserves NOTHING at the bottom, so\nwindows would sit under this bar: prowl carves the room out of its\nouter-bottom gap whenever this is on (with `haus.prowl.enable = false`,\nnothing reserves it and your windows will run underneath). And the Dock,\nif you keep it at the bottom, shares that edge — move it to a side, or\nleave it hidden.\n",
+    "description": "Draw a SECOND bar along the bottom of the screen, at the same time as\nthe menu bar one. `haus.sill.bottom.items` picks what goes on it and\nwhich of its three groups — left, center, right — each pill lands in; an\nempty set draws an empty strip, which the module warns about.\n\nSketchyBar has no two-bars-in-one-process mode — an instance is named\nafter `basename(argv[0])` and keys both its lock file and its mach\nservice on that name — so this is a second launchd agent running the\nSAME binary under a second name, `sill-bottom`. That name is also the\nCLI for it: `sill-bottom --set cpu label=…` talks to the bottom bar the\nway `sketchybar --set` talks to the menu bar one.\n\nTwo things macOS does not do for you here. It reserves the top strip of\nevery display for the menu bar but reserves NOTHING at the bottom, so\nwindows would sit under this bar: prowl carves the room out of its\nouter-bottom gap whenever this is on (with `haus.prowl.enable = false`,\nnothing reserves it and your windows will run underneath). And the Dock,\nif you keep it at the bottom, shares that edge — move it to a side, or\nleave it hidden.\n",
     "example": {
       "_type": "literalExpression",
       "text": "true"
@@ -2571,10 +2571,10 @@
       "_type": "literalExpression",
       "text": "{ }"
     },
-    "description": "Which pills the bottom bar draws, one bool each, all default false. A\npill named here MOVES: it is drawn on the bottom bar and not on the menu\nbar, whatever `haus.sill.items` says about it — so there is one switch\nper pill per bar and never two copies of the same readout.\n\nThe set is the five core pills (`clock`, `weather`, `media`, `battery`,\n`wifi`) plus the `haus.sill.items` extras (`cpu`, `memory`, `volume`,\n`calendar`, `caffeinate`, `agents`, `aiUsage`, `elgato`, `harvest`), plus\nthe Hush pill when `haus.hush.enable` is on. The whole left side\n(workspace pills, front app, the leader picker) and the tour stay on the\nmenu bar.\n\nNeeds `haus.sill.bottom.enable`; without it nothing here is drawn.\n",
+    "description": "Which pills the bottom bar draws, and WHERE along it — one value each,\nall default false. A pill named here MOVES: it is drawn on the bottom\nbar and not on the menu bar, whatever `haus.sill.items` says about it —\nso there is one switch per pill per bar and never two copies of the\nsame readout.\n\nEach value is `false` (not on this bar), one of `\"left\"`, `\"center\"`,\n`\"right\"` — the bar's three groups — or `true`, which is `\"right\"`:\n\n  haus.sill.bottom.items = {\n    agents = \"left\";\n    media = \"center\";\n    clock = \"right\";\n    cpu = true;       # same as \"right\"\n  };\n\nWithin a group the order is fixed (the same order the menu bar uses),\nand each group packs outward from its own edge: on the `right` the\nfirst pill sits furthest right, exactly as `clock` does up top, while\n`left` fills rightward from the left edge and `center` grows around the\nmiddle of the screen. All three are offered here and only `right` is\noffered on the menu bar, because this strip has nothing else on it:\nno workspace pills, no front-app slot, and no notch across its middle.\n\nThe set is the five core pills (`clock`, `weather`, `media`, `battery`,\n`wifi`) plus the `haus.sill.items` extras (`cpu`, `memory`, `volume`,\n`calendar`, `caffeinate`, `agents`, `aiUsage`, `elgato`, `harvest`), plus\nthe Hush pill when `haus.hush.enable` is on. The whole left side\n(workspace pills, front app, the leader picker) and the tour stay on the\nmenu bar.\n\nNeeds `haus.sill.bottom.enable`; without it nothing here is drawn.\n",
     "example": {
       "_type": "literalExpression",
-      "text": "{\n  cpu = true;\n  media = true;\n  weather = true;\n}"
+      "text": "{\n  agents = \"left\";\n  clock = \"right\";\n  media = \"center\";\n}"
     },
     "loc": [
       "haus",
@@ -2602,7 +2602,7 @@
       "agents"
     ],
     "readOnly": false,
-    "type": "boolean"
+    "type": "boolean or one of \"left\", \"center\", \"right\""
   },
   "haus.sill.bottom.items.aiUsage": {
     "declarations": [
@@ -2621,7 +2621,7 @@
       "aiUsage"
     ],
     "readOnly": false,
-    "type": "boolean"
+    "type": "boolean or one of \"left\", \"center\", \"right\""
   },
   "haus.sill.bottom.items.battery": {
     "declarations": [
@@ -2640,7 +2640,7 @@
       "battery"
     ],
     "readOnly": false,
-    "type": "boolean"
+    "type": "boolean or one of \"left\", \"center\", \"right\""
   },
   "haus.sill.bottom.items.caffeinate": {
     "declarations": [
@@ -2659,7 +2659,7 @@
       "caffeinate"
     ],
     "readOnly": false,
-    "type": "boolean"
+    "type": "boolean or one of \"left\", \"center\", \"right\""
   },
   "haus.sill.bottom.items.calendar": {
     "declarations": [
@@ -2678,7 +2678,7 @@
       "calendar"
     ],
     "readOnly": false,
-    "type": "boolean"
+    "type": "boolean or one of \"left\", \"center\", \"right\""
   },
   "haus.sill.bottom.items.clock": {
     "declarations": [
@@ -2697,7 +2697,7 @@
       "clock"
     ],
     "readOnly": false,
-    "type": "boolean"
+    "type": "boolean or one of \"left\", \"center\", \"right\""
   },
   "haus.sill.bottom.items.cpu": {
     "declarations": [
@@ -2716,7 +2716,7 @@
       "cpu"
     ],
     "readOnly": false,
-    "type": "boolean"
+    "type": "boolean or one of \"left\", \"center\", \"right\""
   },
   "haus.sill.bottom.items.elgato": {
     "declarations": [
@@ -2735,7 +2735,7 @@
       "elgato"
     ],
     "readOnly": false,
-    "type": "boolean"
+    "type": "boolean or one of \"left\", \"center\", \"right\""
   },
   "haus.sill.bottom.items.harvest": {
     "declarations": [
@@ -2754,7 +2754,7 @@
       "harvest"
     ],
     "readOnly": false,
-    "type": "boolean"
+    "type": "boolean or one of \"left\", \"center\", \"right\""
   },
   "haus.sill.bottom.items.hush": {
     "declarations": [
@@ -2773,7 +2773,7 @@
       "hush"
     ],
     "readOnly": false,
-    "type": "boolean"
+    "type": "boolean or one of \"left\", \"center\", \"right\""
   },
   "haus.sill.bottom.items.media": {
     "declarations": [
@@ -2792,7 +2792,7 @@
       "media"
     ],
     "readOnly": false,
-    "type": "boolean"
+    "type": "boolean or one of \"left\", \"center\", \"right\""
   },
   "haus.sill.bottom.items.memory": {
     "declarations": [
@@ -2811,7 +2811,7 @@
       "memory"
     ],
     "readOnly": false,
-    "type": "boolean"
+    "type": "boolean or one of \"left\", \"center\", \"right\""
   },
   "haus.sill.bottom.items.volume": {
     "declarations": [
@@ -2830,7 +2830,7 @@
       "volume"
     ],
     "readOnly": false,
-    "type": "boolean"
+    "type": "boolean or one of \"left\", \"center\", \"right\""
   },
   "haus.sill.bottom.items.weather": {
     "declarations": [
@@ -2849,7 +2849,7 @@
       "weather"
     ],
     "readOnly": false,
-    "type": "boolean"
+    "type": "boolean or one of \"left\", \"center\", \"right\""
   },
   "haus.sill.bottom.items.wifi": {
     "declarations": [
@@ -2868,7 +2868,7 @@
       "wifi"
     ],
     "readOnly": false,
-    "type": "boolean"
+    "type": "boolean or one of \"left\", \"center\", \"right\""
   },
   "haus.sill.clock.mode": {
     "declarations": [
@@ -2939,7 +2939,7 @@
       "_type": "literalExpression",
       "text": "{ }"
     },
-    "description": "Which SketchyBar pills to draw, one bool each. The core pills —\n`clock`, `weather`, `media`, `battery`, `wifi` — default true; the extras\n— the readouts `cpu`, `memory`, `volume`, `calendar`, `caffeinate`\nand the personal `agents`, `aiUsage`, `elgato`, `harvest` —\ndefault false. Set\nonly what you want to change:\n\n  haus.sill.items = {\n    weather = false;   # drop a default-on core pill\n    cpu = true;        # add an off-by-default readout\n    caffeinate = true; # add the keep-awake controller\n  };\n\nA pill set false is never created (its update script doesn't run either).\nThe hush (Do-Not-Disturb) pill is separate — it rides\nhaus.hush.enable, not this set. It can still be moved to the second bar\nwith `haus.sill.bottom.items.hush`.\n\nThis is the MENU BAR's set. `haus.sill.bottom.items` mirrors these pills\nfor the optional second bar and also accepts `hush`; a pill named there\nmoves down rather than being drawn twice.\n",
+    "description": "Which SketchyBar pills to draw, one bool each. The core pills —\n`clock`, `weather`, `media`, `battery`, `wifi` — default true; the extras\n— the readouts `cpu`, `memory`, `volume`, `calendar`, `caffeinate`\nand the personal `agents`, `aiUsage`, `elgato`, `harvest` —\ndefault false. Set\nonly what you want to change:\n\n  haus.sill.items = {\n    weather = false;   # drop a default-on core pill\n    cpu = true;        # add an off-by-default readout\n    caffeinate = true; # add the keep-awake controller\n  };\n\nA pill set false is never created (its update script doesn't run either).\nThe hush (Do-Not-Disturb) pill is separate — it rides\nhaus.hush.enable, not this set. It can still be moved to the second bar\nwith `haus.sill.bottom.items.hush`.\n\nThis is the MENU BAR's set, and it is one group: the movable pills all\nsit on the right, because its left is the workspace pills, the front app\nand the leader picker, and its center is kept clear — that is the one\nspan a MacBook's notch covers when the bar is at the top, which is where\nit is by default. `haus.sill.bottom.items` mirrors these pills\nfor the optional second bar, also accepts `hush`, and takes a side\n(`\"left\"` / `\"center\"` / `\"right\"`) rather than a bare bool; a pill named\nthere moves down rather than being drawn twice.\n",
     "example": {
       "_type": "literalExpression",
       "text": "{\n  cpu = true;\n  weather = false;\n}"

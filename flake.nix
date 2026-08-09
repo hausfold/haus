@@ -1562,6 +1562,106 @@
               touch $out
             '';
 
+          # The bottom bar's three groups. A pill's side reaches SketchyBar as
+          # the `--add item <name> <side>` argument and NOTHING else reports it,
+          # so a block that lost its side parameter would still evaluate, still
+          # build, and quietly pile every pill back on the right — invisible
+          # until someone looks at the live bar. Hence a check that reads the
+          # generated file.
+          #
+          # `clock = true` is here on purpose: this option shipped bool-only, so
+          # the bool has to keep meaning the right group.
+          sill-bottom-groups =
+            let
+              mkBottom =
+                items:
+                (mkNebelhaus {
+                  inherit system;
+                  username = "you";
+                  hostname = "example";
+                  extraModules = [
+                    {
+                      haus.sill.bottom = {
+                        enable = true;
+                        inherit items;
+                      };
+                    }
+                  ];
+                }).config.home-manager.users.you;
+
+              spread = mkBottom {
+                agents = "left";
+                calendar = "center";
+                clock = true;
+              };
+              top = pkgs.writeText "top_items.sh" spread.home.file.".config/sketchybar/top_items.sh".text;
+              bottom =
+                pkgs.writeText "bottom_items.sh"
+                  spread.home.file.".config/sketchybar/bottom_items.sh".text;
+
+              # Every movable pill on ONE side. Whatever this file says next to
+              # `--add item`, all of it has to be `left` — which is the check no
+              # named-pill grep can make: a block that dropped its side argument
+              # and kept a literal `right` passes the fixture above (some other
+              # pill is genuinely on the right) and fails here.
+              allLeft = mkBottom (
+                nixpkgs.lib.genAttrs [
+                  "clock"
+                  "weather"
+                  "media"
+                  "battery"
+                  "wifi"
+                  "cpu"
+                  "memory"
+                  "volume"
+                  "calendar"
+                  "caffeinate"
+                  "agents"
+                  "aiUsage"
+                  "elgato"
+                  "harvest"
+                ] (_: "left")
+              );
+              left = pkgs.writeText "bottom_items.sh" allLeft.home.file.".config/sketchybar/bottom_items.sh".text;
+            in
+            pkgs.runCommand "nebelhaus-sill-bottom-groups-ok" { } ''
+              grep -q -- '\$SB --add item agents left' ${bottom}
+              grep -q -- '\$SB --add item calendar center' ${bottom}
+              grep -q -- '\$SB --add item clock right' ${bottom}
+
+              # A dropdown follows its pill, or it grows off the edge the pill is
+              # now sitting against. agents is on the left, calendar the center.
+              grep -q -- 'popup.align=left' ${bottom}
+              grep -q -- 'popup.align=center' ${bottom}
+
+              # Groups are emitted left, then center, then right.
+              at() { grep -n -- "$1" ${bottom} | head -1 | cut -d: -f1; }
+              l=$(at '--add item agents left')
+              c=$(at '--add item calendar center')
+              r=$(at '--add item clock right')
+              if [ "$l" -ge "$c" ] || [ "$c" -ge "$r" ]; then
+                echo "bottom bar groups are out of order (left=$l center=$c right=$r)" >&2
+                exit 1
+              fi
+
+              # No pill block hardcodes a side. `popup.<parent>` is the position
+              # of a dropdown ROW and is not a group, so it is allowed through.
+              stray=$(grep -o -- '--add item [a-z_.0-9]* [a-z]*' ${left} \
+                | grep -v ' left$' | grep -v ' popup$' || true)
+              if [ -n "$stray" ]; then
+                echo 'a bottom-bar pill ignored its group and hardcoded a side:' >&2
+                echo "$stray" >&2
+                exit 1
+              fi
+
+              # And a pill named down there is still gone from the menu bar.
+              if grep -q -- '--add item clock' ${top}; then
+                echo 'clock was duplicated on the top bar after moving to a bottom group' >&2
+                exit 1
+              fi
+              touch $out
+            '';
+
           presets = pkgs.runCommand "nebelhaus-presets-ok" { } ''
             ${nixpkgs.lib.optionalString (!dataOnly) "echo 'a preset is not data-only' >&2; exit 1"}
             cat > $out <<'PRESETS'

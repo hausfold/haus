@@ -216,10 +216,17 @@ it silently.
   use `"$SB"` — it routes on `$BAR_NAME`, falling back to `SILL_ITEM`/`$NAME` for
   the HOOK path (agents-hook.sh, the statusline's usage push), which has no bar
   and so no `$BAR_NAME`. Same rule in Nix: `mkPluginBlocks` takes the bar command
-  as its argument, and anything poking the bar from OUTSIDE sill (den's `awake`
-  and its `caffeinate_change`) pokes both. The whole right side is emitted from
-  that one table and can move; the coupled left-side workspace/leader group and
-  the tour stay on the menu bar. macOS reserves the top strip of a display and
+  AND the group as its two arguments — a block that hardcodes `right` rather than
+  writing `${side}` still evaluates, still builds, and quietly piles its pill back
+  into the corner, so thread both through — and anything poking the bar from
+  OUTSIDE sill (den's `awake` and its `caffeinate_change`) pokes both bars. Every
+  movable pill is emitted from that one table; the coupled left-side
+  workspace/leader group and the tour stay on the menu bar. On the MENU bar those
+  pills are all `right` (its left and center are spoken for); the bottom bar
+  hands out all three of SketchyBar's groups from `haus.sill.bottom.items`, whose
+  sides list lives in `modules/sill/sides.nix` — imported by both `options.nix`
+  and `default.nix` so the enum and the emission can't disagree.
+  macOS reserves the top strip of a display and
   reserves NOTHING at the bottom, so prowl's `outerBottom` carves the room instead.
 - **A new default app pick** (an app the rice thinks a finished machine has, not one a
   room needs to do its job): it goes in `modules/apps` — one

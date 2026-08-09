@@ -92,6 +92,12 @@ source "$HOME/.config/sketchybar/bar.sh"
 # from the same blocks the menu bar's top_items.sh is built from, emitted
 # against $SB instead of `sketchybar`. A pill named there is drawn here and NOT
 # up top: it moves, it doesn't duplicate.
+#
+# This strip uses all THREE of SketchyBar's regions — the file arrives as a left
+# run, then a center run, then a right run — which the menu bar can't: up there
+# the left is the workspace pills and the front app, and the center is the one
+# span a MacBook's notch covers. `notch_width=0` above is the same value the menu
+# bar sets; down here there is simply no notch for it to describe.
 source "$HOME/.config/sketchybar/bottom_items.sh"
 
 # Force all scripts to run at startup
