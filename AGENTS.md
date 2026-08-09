@@ -38,13 +38,13 @@ that's a product surface, not this layer.)
 
 ## Am I in the right repo? (routing)
 
-**This repo (`~/code/workshop/nebelhaus`) owns THE RICE** — the generic, no-identity
+**This repo (`~/code/workshop/hausfold`) owns THE RICE** — the generic, no-identity
 system + shell modules. Personal machine config and the pounce/theme sources live
 elsewhere.
 
 | Want to change… | Repo |
 |---|---|
-| the rice: macOS defaults, tiling (prowl), bar (sill), shell (hearth), security (collar), secrets plumbing (secrets), pounce wiring (pounce), notch shelf install (perch), Focus/DND (hush), wallpaper/accent (theme), the apps every machine gets + what opens which file type (apps) | `~/code/workshop/nebelhaus` ← **you are here** |
+| the rice: macOS defaults, tiling (prowl), bar (sill), shell (hearth), security (collar), secrets plumbing (secrets), pounce wiring (pounce), notch shelf install (perch), Focus/DND (hush), wallpaper/accent (theme), the apps every machine gets + what opens which file type (apps) | `~/code/workshop/hausfold` ← **you are here** |
 | the pounce palette app or its command scripts | `~/code/workshop/pounce` |
 | colors / the theme palette | `~/code/workshop/nebelung` |
 | one machine's personal apps / identity / secrets | `~/.config/nix` (or that machine's own config) |
@@ -323,7 +323,7 @@ it silently.
   <client>`) — which is why the wirings hearth writes for opencode and codex never
   need to know where a bar keeps its plugins. They're plain bash embedded via
   `builtins.readFile`, so a rebuild re-installs them on `PATH`. Agent worktrees
-  themselves are **`holt`** — [its own repo](https://github.com/nebelhaus/holt),
+  themselves are **`holt`** — [its own repo](https://github.com/hausfold/holt),
   taken as a flake input rather than a den-sourced script, ejected from the
   incubator 2026-08-03 with all 79 acceptance tests green. It replaces the old
   bash `wt.sh`, which has been retired entirely — its registry format, hooks,
@@ -335,7 +335,7 @@ it silently.
   (User-facing docs: the [agent worktree guide](https://nebelhaus.com/guides/claude-agents/)
   and [haus reference](https://nebelhaus.com/reference/haus/) on nebelhaus.com.)
 - **New pounce command**: generic ones live in the
-  [pounce repo](https://github.com/nebelhaus/pounce) (`pkgs/pounce-commands/commands`);
+  [pounce repo](https://github.com/hausfold/pounce) (`pkgs/pounce-commands/commands`);
   rice/machine-specific ones live HERE in `modules/pounce/commands/` — one
   self-describing script each (metadata in a `# pounce: key = value` header),
   layered onto the palette via `pounce-commands.override { extraCommandDirs … }`.

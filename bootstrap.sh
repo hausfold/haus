@@ -2,7 +2,7 @@
 # nebelhaus bootstrap — raise the house on a fresh Mac.
 #
 #   curl -fsSL https://nebelhaus.com/init.sh | bash        (or the github raw URL)
-#   nix run github:nebelhaus/nebelhaus#bootstrap           (once nix exists)
+#   nix run github:hausfold/hausfold#bootstrap             (once nix exists)
 #
 # It installs the prerequisites (Xcode CLT, Determinate Nix), runs a short
 # interview, and scaffolds a THIN PERSONAL CONFIG at ~/.config/nix — a tiny flake
@@ -443,7 +443,7 @@ cat >"$DEST/flake.nix" <<EOF
   # The whole rice (system + shell + pounce + nebelung) comes from the public
   # nebelhaus flake. This config holds only what's personal: the host.
   # Update everything with:  nix flake update nebelhaus
-  inputs.nebelhaus.url = "github:nebelhaus/nebelhaus";
+  inputs.nebelhaus.url = "github:hausfold/hausfold";
 
   outputs =
     { nebelhaus, ... }:
@@ -489,7 +489,7 @@ settings_block=""
 say "Rendering the option catalogue (every haus.* option, annotated)"
 IMPORTS_LINE=""
 if tmpl="$(nix build --no-link --print-out-paths \
-             "${NEBELHAUS_FLAKE:-github:nebelhaus/nebelhaus}#host-template" 2>/dev/null)" \
+             "${NEBELHAUS_FLAKE:-github:hausfold/hausfold}#host-template" 2>/dev/null)" \
    && [ -f "$tmpl/share/nebelhaus/host-options.nix" ]; then
   cp -f "$tmpl/share/nebelhaus/host-options.nix" "$DEST/hosts/$HOSTNAME/options.nix"
   chmod u+w "$DEST/hosts/$HOSTNAME/options.nix"   # it comes out of the store read-only

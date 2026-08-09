@@ -603,7 +603,7 @@ in
       lazygit
     ]
     ++ lib.optionals devCfg.agents.enable [
-      # holt — agent worktrees, its own product now (nebelhaus/holt, taken as
+      # holt — agent worktrees, its own product now (hausfold/holt, taken as
       # a flake input). Every caller the rice owns is on it: hearth's
       # ⌘A runs `holt new`, pounce's Spawn Agent goes through `holt spawn`, and
       # the Claude Code WorktreeCreate/WorktreeRemove hooks — which hearth

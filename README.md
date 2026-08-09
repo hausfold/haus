@@ -34,7 +34,7 @@ machine, run one command, and the house stands again exactly as it was.
 ```sh
 curl -fsSL https://nebelhaus.com/init.sh | bash
 # or straight from the flake, once nix is installed:
-nix run github:nebelhaus/nebelhaus#bootstrap
+nix run github:hausfold/hausfold#bootstrap
 ```
 
 It installs the prerequisites (Xcode CLT, Determinate Nix), then scaffolds a
@@ -106,8 +106,8 @@ The house is built from composable nix-darwin modules. Take the whole thing, or
 - 🔥 **hearth** — the terminal — zsh, a Nebelung-tinted starship prompt, git, helix, and a themed toolbelt (bat, delta, lazygit, lsd, yazi, zoxide, fzf), plus the ghostty / zellij / yazi dotfiles
 - 🔖 **collar** — identity & auth — Touch ID for sudo (with `reattach`, so it works inside tmux/zellij), and passwordless activation so a rebuild never stops for a fingerprint you already gave (`haus.collar.passwordlessRebuild`)
 - 🗝️ **secrets** — declarative secrets via [secretspec](https://secretspec.dev) — projects commit *which* secrets they need, never values; values live in the provider you pick per host
-- 🐾 **pounce** — the [Pounce](https://github.com/nebelhaus/pounce) palette, wired in as a self-signing daemon that holds its Accessibility grant across rebuilds, and ⌘Space freed for it
-- 🪺 **perch** — the [Perch](https://github.com/nebelhaus/perch) notch file shelf, installed through Nix and copied to a fixed `/Applications/Perch.app` (`haus.perch.enable`)
+- 🐾 **pounce** — the [Pounce](https://github.com/hausfold/pounce) palette, wired in as a self-signing daemon that holds its Accessibility grant across rebuilds, and ⌘Space freed for it
+- 🪺 **perch** — the [Perch](https://github.com/hausfold/perch) notch file shelf, installed through Nix and copied to a fixed `/Applications/Perch.app` (`haus.perch.enable`)
 - 🤫 **hush** — a one-switch Focus/DND: a declarative global hotkey, plus optional Slack status and shell hooks
 - 🎨 **theme** — the desktop wallpaper and an accent-derived bold wordmark
 - 📼 **apps** — the picks a finished machine gets rather than the ones a room needs: [IINA](https://iina.io) as the video player, and the video types it takes over from QuickTime. One switch each (`haus.apps.*`), installed as roster entries you can retune
@@ -145,11 +145,11 @@ verifiable. `haus doctor` reports whether it's installed.
 
 ## the family
 
-- 🏠 [**nebelhaus**](https://github.com/nebelhaus/nebelhaus) — the house. the whole rice, one Nix flake. start here. *(you are here)*
-- 🐾 [**pounce**](https://github.com/nebelhaus/pounce) — the palette. keyboard-first launcher; every command a file.
-- 🪺 [**perch**](https://github.com/nebelhaus/perch) — the shelf. files, caught in the notch.
-- 🌫️ [**nebelung**](https://github.com/nebelhaus/nebelung) — the theme. the silver-mist palette.
-- 🧰 [**workshop**](https://github.com/nebelhaus/workshop) — the bench. where the family is built.
+- 🏠 [**nebelhaus**](https://github.com/hausfold/hausfold) — the house. the whole rice, one Nix flake. start here. *(you are here)*
+- 🐾 [**pounce**](https://github.com/hausfold/pounce) — the palette. keyboard-first launcher; every command a file.
+- 🪺 [**perch**](https://github.com/hausfold/perch) — the shelf. files, caught in the notch.
+- 🌫️ [**nebelung**](https://github.com/hausfold/nebelung) — the theme. the silver-mist palette.
+- 🧰 [**workshop**](https://github.com/hausfold/workshop) — the bench. where the family is built.
 
 Each one stands alone. Together they're a house.
 

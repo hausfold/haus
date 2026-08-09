@@ -22,7 +22,7 @@ pounce, hush, secrets. Pull just what you want into your own flake:
 
 ```nix
 {
-  inputs.nebelhaus.url = "github:nebelhaus/nebelhaus";
+  inputs.nebelhaus.url = "github:hausfold/hausfold";
 
   # in your darwinSystem modules list:
   modules = [
@@ -53,7 +53,7 @@ darwinConfigurations.mymac = inputs.nebelhaus.mkNebelhaus {
 - **pounce signing** — set `haus.pounce.signingIdentity` to an Apple
   Development identity's SHA-1 (`security find-identity -v -p codesigning`) so
   the palette's Accessibility grant survives rebuilds. Leave empty to run
-  unsigned. See the [pounce README](https://github.com/nebelhaus/pounce) for the
+  unsigned. See the [pounce README](https://github.com/hausfold/pounce) for the
   one-time accessibility approval.
 
 - **git / GPG / YubiKey** — commit signing is configured in your host's
@@ -83,7 +83,7 @@ is described in text files, and one command makes reality match them.
 ## Hacking on the house
 
 This repo is one of a family. The
-[workshop](https://github.com/nebelhaus/workshop) checks them all out side by
+[workshop](https://github.com/hausfold/workshop) checks them all out side by
 side and ships a `bench` CLI for the cross-repo flow — most usefully `bench try`,
 which builds your real machine against your **local, uncommitted** checkouts, so
 you never push to find out whether something works.

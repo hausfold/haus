@@ -27,13 +27,13 @@
       "locked": {
         "lastModified": 1786196743,
         "narHash": "sha256-BT6r8kKPkW/cmpzXRtWW3qwZQjOo62Tt5/q95PBdjtg=",
-        "owner": "nebelhaus",
+        "owner": "hausfold",
         "repo": "holt",
         "rev": "3275e21fab2eecc5ca0a85a94d1474f519508abc",
         "type": "github"
       },
       "original": {
-        "owner": "nebelhaus",
+        "owner": "hausfold",
         "repo": "holt",
         "type": "github"
       }
@@ -70,13 +70,13 @@
       "locked": {
         "lastModified": 1786272642,
         "narHash": "sha256-ultAA39a+rW0gcJtCoO9lKjy0EiBhEr8E39p5/B20P4=",
-        "owner": "nebelhaus",
+        "owner": "hausfold",
         "repo": "nebelung",
         "rev": "af1a3ab983a005d0ca45d1b68685ec0a8270855b",
         "type": "github"
       },
       "original": {
-        "owner": "nebelhaus",
+        "owner": "hausfold",
         "repo": "nebelung",
         "type": "github"
       }
@@ -161,13 +161,13 @@
       "locked": {
         "lastModified": 1786272636,
         "narHash": "sha256-eGEsE6jmt0ZeVqGoGnHZnuKWNMeQdSL7HIhFHAyN87M=",
-        "owner": "nebelhaus",
+        "owner": "hausfold",
         "repo": "perch",
         "rev": "89af7ce2d57eceef1d4fffb6239215cce6c1e52b",
         "type": "github"
       },
       "original": {
-        "owner": "nebelhaus",
+        "owner": "hausfold",
         "repo": "perch",
         "type": "github"
       }
@@ -184,13 +184,13 @@
       "locked": {
         "lastModified": 1786273548,
         "narHash": "sha256-CSIAYkVXnit/YlZmTc35PdsZruqhumzbiVbWB+Xy6H4=",
-        "owner": "nebelhaus",
+        "owner": "hausfold",
         "repo": "pounce",
         "rev": "baae9ea4224f89c98ffd5d217a924e7acf0f83c1",
         "type": "github"
       },
       "original": {
-        "owner": "nebelhaus",
+        "owner": "hausfold",
         "repo": "pounce",
         "type": "github"
       }

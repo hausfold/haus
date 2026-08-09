@@ -20,7 +20,7 @@
     # for dark, Latte for light). Rendered in a pure derivation so themes rebuild
     # with `darwin-rebuild`.
     nebelung = {
-      url = "github:nebelhaus/nebelung";
+      url = "github:hausfold/nebelung";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.catppuccin.follows = "catppuccin";
     };
@@ -30,7 +30,7 @@
     # load at runtime from ~/.config/pounce/themes/); point it at the rice's own
     # nebelung so that default can't drift from the rest of the theme.
     pounce = {
-      url = "github:nebelhaus/pounce";
+      url = "github:hausfold/pounce";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.nebelung.follows = "nebelung";
     };
@@ -41,7 +41,7 @@
     # see the perch repo), so this input tracks perch *releases*, not its main
     # branch.
     perch = {
-      url = "github:nebelhaus/perch";
+      url = "github:hausfold/perch";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -50,7 +50,7 @@
     # `holt` in pkgs, and den ships it on PATH as the only worktree-lifecycle
     # CLI the rice knows.
     holt = {
-      url = "github:nebelhaus/holt";
+      url = "github:hausfold/holt";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -1525,7 +1525,7 @@
         }
       );
 
-      # `nix run github:nebelhaus/nebelhaus#pounce`
+      # `nix run github:hausfold/hausfold#pounce`
       # Linux is in allSystems for options-json alone: nebelhaus.com's CI renders
       # the options reference there. Nothing else in this set is buildable on
       # Linux, but option metadata is pure evaluation.
@@ -1624,7 +1624,7 @@
         }
       );
 
-      # `nix run github:nebelhaus/nebelhaus#bootstrap` — raise the house on a
+      # `nix run github:hausfold/hausfold#bootstrap` — raise the house on a
       # fresh Mac. Scaffolds a thin personal config at ~/.config/nix; it never
       # touches this repo. Same script as the curl|bash path (bootstrap.sh).
       apps = nixpkgs.lib.genAttrs [ "aarch64-darwin" ] (system: {
