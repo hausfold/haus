@@ -7,7 +7,7 @@
 
 the house — the whole rice, one Nix flake. start here.
 
-![part of nebelhaus](https://img.shields.io/badge/part_of-nebelhaus-f2c4e5?labelColor=202020)
+![part of hausfold](https://img.shields.io/badge/part_of-hausfold-f2c4e5?labelColor=202020)
 ![themed by nebelung](https://img.shields.io/badge/themed_by-nebelung-c9a8f1?labelColor=202020)
 ![license](https://img.shields.io/badge/license-MIT-d7d7d7?labelColor=202020)
 

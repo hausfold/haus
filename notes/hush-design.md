@@ -1,7 +1,7 @@
 # hush — Focus/DND as a room (design brainstorm)
 
 > Status: v1 implemented — see `modules/hush` (+ the sill pill, pounce
-> command, and `nebelhaus.hush.*` options). This note is kept for the
+> command, and `haus.hush.*` options). This note is kept for the
 > rationale and the v2 backlog. One toggle in the bar + palette that
 > silences notifications (real macOS Focus, so it syncs to your iPhone) and
 > sets your Slack status. Declarative where macOS allows; honest where it
