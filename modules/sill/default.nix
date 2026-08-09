@@ -22,6 +22,13 @@ let
   userPath = "/run/current-system/sw/bin:/etc/profiles/per-user/${username}/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin";
 
   sillpop = pkgs.callPackage ./sillpop.nix { };
+
+  # What feeds the media pill now that SketchyBar's own media_change event is
+  # dead on macOS 15.4+. Reached by absolute store path from media_config.sh
+  # rather than put on PATH, and only when the pill is actually on, so a rice
+  # with `sill.items.media = false` doesn't carry it in its closure.
+  mediaControl = pkgs.callPackage ./media-control.nix { };
+
   # What a pill with a dropdown uses instead of a bare `popup.drawing=toggle`, so
   # the dropdown also closes on a click anywhere else — sketchybar alone only ever
   # sees clicks on its own items (see sillpop.swift).
@@ -107,9 +114,7 @@ let
       "3:3"
       "4:4"
     ]
-    ++ map (
-      a: "${a.key}:${lib.optionalString (appWorkspaceId a != null) (appWorkspaceId a)}"
-    ) launchers
+    ++ map (a: "${a.key}:${lib.optionalString (appWorkspaceId a != null) (appWorkspaceId a)}") launchers
   );
 
   # Sourced by sketchybarrc: the workspace roster + a per-workspace icon lookup.
@@ -727,16 +732,21 @@ lib.mkIf config.haus.sill.enable {
           #!/bin/bash
           # GENERATED from haus.sill.battery.* by modules/sill/default.nix — do not edit.
           SILL_BATTERY_HIDE_OVER="${
-            if config.haus.sill.battery.hideOver != null then
-              toString config.haus.sill.battery.hideOver
-            else
-              ""
+            if config.haus.sill.battery.hideOver != null then toString config.haus.sill.battery.hideOver else ""
           }"
         '';
         ".config/sketchybar/clock_config.sh".text = ''
           #!/bin/bash
           # GENERATED from haus.sill.clock.* by modules/sill/default.nix — do not edit.
           SILL_CLOCK_MODE="${config.haus.sill.clock.mode}"
+        '';
+        # Empty when the pill is off, which is what keeps media-control out of a
+        # rice that doesn't draw it — plugins/media.sh and media_stream.sh both
+        # exit 0 on an empty value rather than assuming the binary is there.
+        ".config/sketchybar/media_config.sh".text = ''
+          #!/bin/bash
+          # GENERATED from haus.sill.items.media by modules/sill/default.nix — do not edit.
+          SILL_MEDIA_CONTROL="${lib.optionalString config.haus.sill.items.media (lib.getExe mediaControl)}"
         '';
         # Empty by default: plugins/elgato.sh then discovers the light over
         # mDNS rather than the rice shipping somebody's device hostname.
