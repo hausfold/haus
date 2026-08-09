@@ -12,10 +12,13 @@
 #
 # haus.sill.bottom.enable adds a SECOND bar along the bottom of the screen,
 # running at the same time as this one, with the extras named in
-# haus.sill.bottom.items moved down onto it. It is a second launchd agent
-# running the same binary under a second name — see `sillBottom` below for why
-# there is no other way, and `barSh` for how a shared plugin knows which of the
-# two it is talking to.
+# haus.sill.bottom.items moved down onto it. Down there each pill also names its
+# GROUP — left, center or right, SketchyBar's own three regions — because that
+# bar has no workspace pills, no front-app slot and no notch competing for the
+# other two; up here every movable pill is on the right and always was. It is a
+# second launchd agent running the same binary under a second name — see
+# `sillBottom` below for why there is no other way, and `barSh` for how a shared
+# plugin knows which of the two it is talking to.
 {
   config,
   lib,
@@ -89,14 +92,20 @@ let
     sb: item:
     "${sb} --set ${item} popup.drawing=toggle; SKETCHYBAR_BIN=${sb} /run/current-system/sw/bin/sillpop arm ${item} 2>/dev/null &";
 
-  # Every dropdown on a RIGHT-side pill carries this. SketchyBar's popup.align
-  # defaults to `left`, i.e. the popup's left edge is pinned to the pill's left
-  # edge and the rows grow rightward — fine under the apple menu at the far left,
-  # but on the right half of the bar a wide row (an agent's repo/branch, a usage
-  # gauge) runs straight off the screen edge. `right` pins the popup's RIGHT edge
-  # to the pill instead, so it opens leftward, into the bar. Left-side items
-  # (apple.logo) deliberately keep the default.
-  popupAlign = "popup.align=right";
+  # Every dropdown carries this, aligned to the GROUP its pill sits in.
+  # SketchyBar's popup.align defaults to `left`, i.e. the popup's left edge is
+  # pinned to the pill's left edge and the rows grow rightward — fine under the
+  # apple menu at the far left, but on the right half of the bar a wide row (an
+  # agent's repo/branch, a usage gauge) runs straight off the screen edge.
+  # `right` pins the popup's RIGHT edge to the pill instead, so it opens
+  # leftward, into the bar; `center` grows both ways from the pill's middle.
+  #
+  # Taking the side as an argument is what keeps that true on the bottom bar's
+  # left and center groups: a pill moved there would otherwise still carry
+  # `align=right` and open away from the screen edge it is now nowhere near.
+  # The hand-written left-side items in sketchybarrc (apple.logo) never come
+  # through here and keep the default.
+  popupAlign = side: "popup.align=${side}";
 
   # haus.workspaces drives the pills now (workspace membership earns
   # one, not an app field — see notes/options-roadmap.md §5.4); the keyed
@@ -213,9 +222,9 @@ let
   # list. hush_change is fired by the hush engine after its own toggles and by
   # the hush-watcher agent (modules/hush) when the Focus DB changes; the
   # update_freq poll is only a backstop for missed events.
-  hushBlock = sb: ''
+  hushBlock = sb: side: ''
     ${sb} --add event hush_change
-    ${sb} --add item hush right \
+    ${sb} --add item hush ${side} \
         --set hush \
             update_freq=30 \
             script="$HOME/.config/sketchybar/plugins/hush.sh" \
@@ -226,15 +235,18 @@ let
         --subscribe hush mouse.clicked hush_change system_woke
   '';
 
-  # Every movable right-side pill, emitted only for the bar that owns it. The
-  # definitions live once and take the target bar client as an argument; Nix
-  # renders the selected blocks into the top and bottom item files. They
+  # Every movable pill, emitted only for the bar that owns it. The definitions
+  # live once and take TWO arguments: the target bar client, and the group the
+  # pill is being added to (`left`, `center` or `right` — SketchyBar's own three
+  # regions). Nix renders the selected blocks into the top and bottom item
+  # files. The menu bar always passes `right`, because its left and center are
+  # spoken for; the bottom bar passes whatever haus.sill.bottom.items said. They
   # reference $SURFACE0 (from colors.sh) and $HOME, both live when either rc
   # sources its generated item file.
-  mkPluginBlocks = sb: {
-    hush = hushBlock sb;
+  mkPluginBlocks = sb: side: {
+    hush = hushBlock sb side;
     clock = ''
-      ${sb} --add item clock right \
+      ${sb} --add item clock ${side} \
           --set clock \
               update_freq=10 \
               icon= \
@@ -248,7 +260,7 @@ let
     # Right-click opens Weather; left-click goes through popToggle so sillpop
     # guards the popup on the same bar instance that owns the pill.
     weather = ''
-      ${sb} --add item weather right \
+      ${sb} --add item weather ${side} \
           --set weather \
               update_freq=600 \
               icon="󰖐" \
@@ -258,7 +270,7 @@ let
               popup.background.corner_radius=10 \
               popup.background.border_color=$SURFACE0 \
               popup.background.color=$MANTLE \
-              ${popupAlign} \
+              ${popupAlign side} \
               script="$HOME/.config/sketchybar/plugins/weather.sh" \
               click_script="if [ \"\$BUTTON\" = \"right\" ]; then open -a Weather; else ${popToggle sb "weather"} fi" \
           --subscribe weather system_woke mouse.clicked
@@ -318,7 +330,7 @@ let
     # media-control stream owns repainting. updates=on lets a hidden media pill
     # keep running its watchdog tick and recover a dead stream.
     media = ''
-      ${sb} --add item media right \
+      ${sb} --add item media ${side} \
           --set media \
               icon= \
               icon.color=$PINK \
@@ -337,7 +349,7 @@ let
     # updates=on is load-bearing: battery.sh hides the pill over the configured
     # threshold, and a when_shown item could never notice charge later dropped.
     battery = ''
-      ${sb} --add item battery right \
+      ${sb} --add item battery ${side} \
           --set battery \
               icon.color=$GREEN \
               update_freq=30 \
@@ -348,7 +360,7 @@ let
           --subscribe battery system_woke power_source_change
     '';
     wifi = ''
-      ${sb} --add item wifi right \
+      ${sb} --add item wifi ${side} \
           --set wifi \
               icon=󰖩 \
               label.drawing=off \
@@ -369,7 +381,7 @@ let
     # stale files. Starts hidden; agents.sh flips it on when a pane is live.
     # Popup styling mirrors the apple-logo menu.
     agents = ''
-      ${sb} --add item agents right \
+      ${sb} --add item agents ${side} \
           --set agents \
               update_freq=10 \
               drawing=off \
@@ -381,7 +393,7 @@ let
               popup.background.corner_radius=10 \
               popup.background.border_color=$SURFACE0 \
               popup.background.color=$MANTLE \
-              ${popupAlign} \
+              ${popupAlign side} \
               popup.horizontal=off \
               script="$HOME/.config/sketchybar/plugins/agents.sh" \
               click_script="$HOME/.config/sketchybar/plugins/agents.sh" \
@@ -399,7 +411,7 @@ let
     # update_freq is the while-visible backstop that rolls a window over to 0% at
     # its reset. Starts hidden until the first row lands.
     aiUsage = ''
-      ${sb} --add item ai_usage right \
+      ${sb} --add item ai_usage ${side} \
           --set ai_usage \
               update_freq=15 \
               drawing=off \
@@ -411,7 +423,7 @@ let
               popup.background.corner_radius=10 \
               popup.background.border_color=$SURFACE0 \
               popup.background.color=$MANTLE \
-              ${popupAlign} \
+              ${popupAlign side} \
               popup.horizontal=off \
               script="$HOME/.config/sketchybar/plugins/ai_usage.sh" \
               click_script="$HOME/.config/sketchybar/plugins/ai_usage.sh" \
@@ -426,7 +438,7 @@ let
     # vars are live via colors.sh, sourced by sketchybarrc before this file); the
     # plugin script only refreshes icon+label on its update_freq tick.
     cpu = ''
-      ${sb} --add item cpu right \
+      ${sb} --add item cpu ${side} \
           --set cpu \
               update_freq=5 \
               icon.color=$PEACH \
@@ -436,7 +448,7 @@ let
               script="$HOME/.config/sketchybar/plugins/cpu.sh"
     '';
     memory = ''
-      ${sb} --add item memory right \
+      ${sb} --add item memory ${side} \
           --set memory \
               update_freq=15 \
               icon.color=$GREEN \
@@ -446,7 +458,7 @@ let
               script="$HOME/.config/sketchybar/plugins/memory.sh"
     '';
     volume = ''
-      ${sb} --add item volume right \
+      ${sb} --add item volume ${side} \
           --set volume \
               update_freq=5 \
               icon.color=$SKY \
@@ -462,7 +474,7 @@ let
     # Opening goes through sillpop (see popToggle above) so the dropdown closes on
     # the next click anywhere else, not only on a second click of the pill.
     calendar = ''
-      ${sb} --add item calendar right \
+      ${sb} --add item calendar ${side} \
           --set calendar \
               update_freq=60 \
               icon="󰃭" \
@@ -472,7 +484,7 @@ let
               popup.background.corner_radius=10 \
               popup.background.border_color=$SURFACE0 \
               popup.background.color=$MANTLE \
-              ${popupAlign} \
+              ${popupAlign side} \
               script="$HOME/.config/sketchybar/plugins/calendar.sh" \
               click_script="${popToggle sb "calendar"}" \
           --subscribe calendar mouse.clicked system_woke
@@ -491,7 +503,7 @@ let
     # reload therefore cannot accidentally release an active assertion.
     caffeinate = ''
       ${sb} --add event caffeinate_change
-      ${sb} --add item caffeinate right \
+      ${sb} --add item caffeinate ${side} \
           --set caffeinate \
               update_freq=30 \
               icon="󰅶" \
@@ -504,7 +516,7 @@ let
               popup.background.corner_radius=10 \
               popup.background.border_color=$SURFACE0 \
               popup.background.color=$MANTLE \
-              ${popupAlign} \
+              ${popupAlign side} \
               script="$HOME/.config/sketchybar/plugins/caffeinate.sh" \
           --subscribe caffeinate mouse.clicked caffeinate_change system_woke
 
@@ -540,7 +552,7 @@ let
               click_script="/run/current-system/sw/bin/awake off >/dev/null; ${sb} --set caffeinate popup.drawing=off"
     '';
     elgato = ''
-      ${sb} --add item elgato right \
+      ${sb} --add item elgato ${side} \
           --set elgato \
               update_freq=5 \
               script="$HOME/.config/sketchybar/plugins/elgato.sh" \
@@ -552,7 +564,7 @@ let
     '';
     harvest = ''
       ${sb} --add event harvest_update
-      ${sb} --add item harvest right \
+      ${sb} --add item harvest ${side} \
           --set harvest \
               update_freq=3 \
               script="$HOME/.config/sketchybar/plugins/harvest.sh" \
@@ -581,9 +593,11 @@ let
   ];
   itemOrder = coreOrder ++ [ "hush" ] ++ extraOrder;
 
-  # Is this pill switched on in a given items table? Both tables are read through
-  # here so `claudeUsage` — the deprecated alias, which only the top bar's table
-  # carries — is honoured in exactly one place.
+  # Is this pill switched on in the MENU BAR's table? Kept bool-only on purpose:
+  # the top bar has exactly one group to offer, and `claudeUsage` — the
+  # deprecated alias, which only this table carries — is honoured here, in one
+  # place. The bottom table is read through `bottomSideOf` instead, because its
+  # values answer a second question.
   wantsItem =
     items: name:
     if name == "aiUsage" then
@@ -591,15 +605,45 @@ let
     else
       items.${name} or false;
 
-  # The pills the SECOND bar claims (haus.sill.bottom.items), and then the ones
+  # ---- the second bar's three groups -----------------------------------------
+  # Which group of the bottom bar a pill was asked for, or null for "not on this
+  # bar at all". `haus.sill.bottom.items.<pill>` is a side name, or a bool: the
+  # option shipped bool-only, so `true` still has to mean the right group, which
+  # is where every pill landed then.
+  bottomSides = import ./sides.nix;
+  bottomSideOf =
+    name:
+    let
+      v = cfg.bottom.items.${name} or false;
+    in
+    if lib.isString v then
+      v
+    else if v then
+      "right"
+    else
+      null;
+
+  # The pills each group claims, in the same fixed order everywhere. SketchyBar
+  # packs a group outward from its own edge, so `right` still reads outside-in
+  # (clock furthest right, exactly as on the menu bar) while `left` fills
+  # rightward from the left edge — the two are mirrors of one list, not two
+  # lists.
+  bottomGroup =
+    side:
+    lib.optionals cfg.bottom.enable (
+      lib.filter (
+        name: bottomSideOf name == side && (name != "hush" || config.haus.hush.enable)
+      ) itemOrder
+    );
+
+  # Every pill on the SECOND bar, whichever group it sits in, and then the ones
   # left for the menu bar. A pill MOVES rather than duplicating: the bottom table
   # wins outright, so there is one switch per pill per bar and never two live
-  # copies of a readout racing each other's update_freq.
-  bottomItems = lib.optionals cfg.bottom.enable (
-    lib.filter (
-      name: wantsItem cfg.bottom.items name && (name != "hush" || config.haus.hush.enable)
-    ) itemOrder
-  );
+  # copies of a readout racing each other's update_freq. This flattened list is
+  # what the "is it down there?" questions read — the top bar's exclusion, the
+  # bar.sh routing table, the media/calendar closure — none of which care about
+  # the group.
+  bottomItems = lib.concatMap bottomGroup bottomSides;
   topCore = lib.filter (
     name: wantsItem cfg.items name && !(builtins.elem name bottomItems)
   ) coreOrder;
@@ -619,21 +663,30 @@ let
     # GENERATED from haus.hush.enable + haus.sill.items by
     # modules/sill/default.nix — do not edit.
   ''
-  + lib.concatMapStrings (name: (mkPluginBlocks barTopPath).${name}) topCore
-  + lib.optionalString topHush (hushBlock barTopPath)
-  + lib.concatMapStrings (name: (mkPluginBlocks barTopPath).${name}) topExtras;
+  + lib.concatMapStrings (name: (mkPluginBlocks barTopPath "right").${name}) topCore
+  + lib.optionalString topHush (hushBlock barTopPath "right")
+  + lib.concatMapStrings (name: (mkPluginBlocks barTopPath "right").${name}) topExtras;
 
-  # The same blocks again, emitted against the OTHER bar. $SB is set by bar.sh,
-  # which sill-bottomrc sources before this file — an absolute path to the
-  # `sill-bottom` symlink, so both the `--add`s here and every click_script
-  # string they carry address the bottom instance. Emitting `sketchybar` down
-  # here would silently build the whole strip on the top bar instead.
+  # The same blocks again, emitted against the OTHER bar and grouped by side.
+  # $SB is set by bar.sh, which sill-bottomrc sources before this file — an
+  # absolute path to the `sill-bottom` symlink, so both the `--add`s here and
+  # every click_script string they carry address the bottom instance. Emitting
+  # `sketchybar` down here would silently build the whole strip on the top bar
+  # instead.
   bottomItemsSh = ''
     #!/bin/bash
     # GENERATED from haus.sill.bottom.items by modules/sill/default.nix — do not
-    # edit.
+    # edit. One `# --- <side>` run per group, in left/center/right order.
   ''
-  + lib.concatMapStrings (name: (mkPluginBlocks "$SB").${name}) bottomItems;
+  + lib.concatMapStrings (
+    side:
+    let
+      names = bottomGroup side;
+    in
+    lib.optionalString (names != [ ]) (
+      "\n# --- ${side} ---\n" + lib.concatMapStrings (name: (mkPluginBlocks "$SB" side).${name}) names
+    )
+  ) bottomSides;
 
   # Which bar a plugin should talk to. Sourced by every plugin that can end up on
   # either one, and the answer is nearly always $BAR_NAME: SketchyBar exports it

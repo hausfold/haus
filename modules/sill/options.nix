@@ -55,6 +55,28 @@ let
     // {
       hush = "The Hush (Do-Not-Disturb) pill. Needs `haus.hush.enable`; setting this moves the pill but does not enable the Hush room by itself.";
     };
+
+  # The bottom bar's three groups. Shared with default.nix, which emits one run
+  # per group in this order — see sides.nix for why it is one list and not two.
+  sides = import ./sides.nix;
+
+  # A pill on the SECOND bar. Same table as `sill.items`, but each value also
+  # answers WHERE: `false` keeps it off this bar, a side name puts it in that
+  # group, and `true` means `right` — which is what this option shipped as
+  # while it was bool-only, so a rice written against that keeps working
+  # unchanged rather than being renamed out from under it.
+  #
+  # No per-item `example`: the type line already reads
+  # `boolean or one of "left", "center", "right"`, and fifteen identical
+  # "Example: center" blocks would be fifteen new sections of noise in the
+  # options reference. The worked example lives on the parent option, once.
+  mkBottomItem =
+    desc:
+    lib.mkOption {
+      type = lib.types.either lib.types.bool (lib.types.enum sides);
+      default = false;
+      description = desc;
+    };
 in
 {
   options.haus = {
@@ -262,9 +284,14 @@ in
         haus.hush.enable, not this set. It can still be moved to the second bar
         with `haus.sill.bottom.items.hush`.
 
-        This is the MENU BAR's set. `haus.sill.bottom.items` mirrors these pills
-        for the optional second bar and also accepts `hush`; a pill named there
-        moves down rather than being drawn twice.
+        This is the MENU BAR's set, and it is one group: the movable pills all
+        sit on the right, because its left is the workspace pills, the front app
+        and the leader picker, and its center is kept clear — that is the one
+        span a MacBook's notch covers when the bar is at the top, which is where
+        it is by default. `haus.sill.bottom.items` mirrors these pills
+        for the optional second bar, also accepts `hush`, and takes a side
+        (`"left"` / `"center"` / `"right"`) rather than a bare bool; a pill named
+        there moves down rather than being drawn twice.
       '';
     };
 
@@ -274,7 +301,8 @@ in
       example = true;
       description = ''
         Draw a SECOND bar along the bottom of the screen, at the same time as
-        the menu bar one. `haus.sill.bottom.items` picks what goes on it; an
+        the menu bar one. `haus.sill.bottom.items` picks what goes on it and
+        which of its three groups — left, center, right — each pill lands in; an
         empty set draws an empty strip, which the module warns about.
 
         SketchyBar has no two-bars-in-one-process mode — an instance is named
@@ -295,18 +323,37 @@ in
     };
 
     sill.bottom.items = lib.mkOption {
-      type = lib.types.submodule { options = lib.mapAttrs (_: mkItem false) movable; };
+      type = lib.types.submodule { options = lib.mapAttrs (_: mkBottomItem) movable; };
       default = { };
       example = {
-        weather = true;
-        media = true;
-        cpu = true;
+        agents = "left";
+        media = "center";
+        clock = "right";
       };
       description = ''
-        Which pills the bottom bar draws, one bool each, all default false. A
-        pill named here MOVES: it is drawn on the bottom bar and not on the menu
-        bar, whatever `haus.sill.items` says about it — so there is one switch
-        per pill per bar and never two copies of the same readout.
+        Which pills the bottom bar draws, and WHERE along it — one value each,
+        all default false. A pill named here MOVES: it is drawn on the bottom
+        bar and not on the menu bar, whatever `haus.sill.items` says about it —
+        so there is one switch per pill per bar and never two copies of the
+        same readout.
+
+        Each value is `false` (not on this bar), one of `"left"`, `"center"`,
+        `"right"` — the bar's three groups — or `true`, which is `"right"`:
+
+          haus.sill.bottom.items = {
+            agents = "left";
+            media = "center";
+            clock = "right";
+            cpu = true;       # same as "right"
+          };
+
+        Within a group the order is fixed (the same order the menu bar uses),
+        and each group packs outward from its own edge: on the `right` the
+        first pill sits furthest right, exactly as `clock` does up top, while
+        `left` fills rightward from the left edge and `center` grows around the
+        middle of the screen. All three are offered here and only `right` is
+        offered on the menu bar, because this strip has nothing else on it:
+        no workspace pills, no front-app slot, and no notch across its middle.
 
         The set is the five core pills (`clock`, `weather`, `media`, `battery`,
         `wifi`) plus the `haus.sill.items` extras (`cpu`, `memory`, `volume`,
