@@ -90,13 +90,41 @@
     order = 110;
     blurb = "The keys the rice owns — the leader, the palette, the window-chord modifier — and anything extra you hang off the leader.";
   };
+  # ---- macOS settings groups (options-roadmap §5.6) -------------------------
+  # Dense on purpose: this block ran out of the file's usual ten-wide spacing
+  # when the last three groups landed, and `prowl` at 120 is the next fixed
+  # point. A seventh group here means renumbering the block, not squeezing.
   hotCorners = {
     order = 112;
     blurb = "What each corner of the screen does when the pointer reaches it. Every corner is unset by default, so the rice never overwrites one you set yourself.";
   };
   screenshots = {
-    order = 114;
+    order = 113;
     blurb = "Where ⇧⌘4 puts its files, in what format, and whether it draws a window shadow or a preview thumbnail. Unset by default, so macOS's own choices stand.";
+  };
+  lock = {
+    order = 114;
+    blurb = "Whether waking this Mac needs a password, and how long the grace period is. Worth setting on any laptop that leaves the house.";
+  };
+  menuBar = {
+    order = 115;
+    blurb = "The stock menu bar: what the clock shows, and which Control Center glyphs sit beside it. (The nebelhaus bar itself is `sill`.)";
+  };
+  security = {
+    order = 116;
+    blurb = "Security posture: the built-in application firewall and how strict it is. Off on a fresh Mac; the setting to turn on for a laptop that joins networks you don't own.";
+  };
+  sound = {
+    order = 117;
+    blurb = "Alert volume and sound, interface sound effects, and the boot chime. Volume is 0–100 the way the slider reads it — macOS stores a curve, and the rice does the conversion.";
+  };
+  locale = {
+    order = 118;
+    blurb = "Language, region, units and keyboard layouts. What a rice in any language other than English needs — and the one room whose settings reach apps you already have open, because the rice posts the change notification macOS itself posts.";
+  };
+  power = {
+    order = 119;
+    blurb = "Sleep timers and Low Power Mode, said separately for battery and charger — which is the whole point, and why this is built on `pmset` rather than on nix-darwin's own power options.";
   };
 
   # ---- the rooms ------------------------------------------------------------

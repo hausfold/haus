@@ -7,6 +7,11 @@
 { lib, config, ... }:
 
 let
+  # One table for the enum and for the path den/default.nix writes — see
+  # alert-sounds.nix, the same shape hot-corners.nix uses.
+  alertSoundNames = import ./alert-sounds.nix;
+  alertSoundList = "  ${lib.concatStringsSep "  " alertSoundNames}\n";
+
   hotCornerActions = import ./hot-corners.nix;
   hotCornerNames = map (a: a.name) hotCornerActions;
   # The value list in the description comes from the same table the enum does,
@@ -541,5 +546,293 @@ in
         '';
       };
     };
+
+    # ---- sound ----
+    # §5.6's "Sound" group, spiked 2026-08-08 (workshop
+    # notes/macos-settings-matrix.md). Everything here writes live: no restart,
+    # no logout, no Full Disk Access. Two keys are typed by nix-darwin
+    # (beep.volume, beep.feedback), two go through CustomUserPreferences, and
+    # the startup chime isn't a plist at all.
+    #
+    # The reason `alertVolume` is 0–100 rather than the raw float upstream
+    # types: macOS stores the alert volume as `e^(fraction − 1)`, so 0.5 is 31%
+    # and anything at or below e⁻¹ ≈ 0.368 is silence. A rice that exposed the
+    # float would ship a number that reads like a percentage and isn't.
+    sound = {
+      alertVolume = lib.mkOption {
+        type = lib.types.nullOr (lib.types.ints.between 0 100);
+        default = null;
+        example = 50;
+        description = ''
+          How loud the alert beep is, 0–100, exactly as the slider in System
+          Settings ▸ Sound reads. null (the default) leaves macOS's own choice
+          alone.
+
+          The rice converts to the exponential value macOS actually stores
+          (`e^(v/100 − 1)`, with 0 meaning silence), because that key is not a
+          fraction: writing the obvious `0.5` gets you 31%.
+
+          TWO WRITERS: the volume keys and the Sound pane write this same key.
+          Declaring it means every rebuild reasserts your number over anything
+          you changed by hand since — which is the point of declaring it, but
+          leave it null if you'd rather the slider win.
+        '';
+      };
+      alertSound = lib.mkOption {
+        type = lib.types.nullOr (lib.types.enum alertSoundNames);
+        default = null;
+        example = "Submarine";
+        description = ''
+          Which sound the alert beep plays, by name:
+
+          ```
+          ${alertSoundList}```
+
+          null (the default) leaves macOS's own choice alone.
+
+          An enum rather than a path on purpose. macOS stores an absolute path
+          here and validates nothing, and a path that doesn't resolve does not
+          fall back to the default beep — it goes SILENT (measured by ear,
+          2026-08-08), while the plist still reads like a working setting. The
+          rice builds the path from the name and skips the write with a warning
+          if that file is missing, so a macOS release retiring a sound can't
+          quietly mute you.
+        '';
+      };
+      volumeFeedback = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        example = true;
+        description = ''
+          Play a sound when the volume keys change the volume. null (the
+          default) leaves macOS's own choice alone.
+        '';
+      };
+      uiSounds = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        example = false;
+        description = ''
+          Play user-interface sound effects — the Trash whoosh, the screenshot
+          shutter, the Mail whoosh. null (the default) leaves macOS's own
+          choice alone.
+        '';
+      };
+      startupChime = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        example = false;
+        description = ''
+          The chime a Mac plays at boot. null (the default) leaves it alone.
+
+          The odd one in this group: it is firmware state (`nvram StartupMute`),
+          not a preference, so it survives an OS reinstall and a wiped home
+          directory — and it is the only setting here that needs the rebuild to
+          run as root, which activation already does.
+        '';
+      };
+    };
+
+    # ---- locale ----
+    # §5.6's "Locale / input sources" group, spiked 2026-08-08.
+    #
+    # The finding that shapes this whole block: a `defaults write` here reaches
+    # NEWLY LAUNCHED processes only. An app that is already running never sees
+    # it — not even through Locale.autoupdatingCurrent, the API documented to
+    # track changes — unless AppleDatePreferencesChangedNotification is posted
+    # afterwards. That post is a distributed notification, not a killall and
+    # not a logout, which is why modules/lib/restart-map.nix grew a third verb
+    # (`notify:<name>`) for this group. See den/default.nix.
+    #
+    # `language` is the exception no notification can rescue: which .lproj a
+    # bundle loads is decided when it launches, so the UI language of an app
+    # you already have open changes when you relaunch it, and the login window
+    # follows at next login.
+    locale = {
+      language = lib.mkOption {
+        type = lib.types.nullOr (lib.types.listOf lib.types.str);
+        default = null;
+        example = [
+          "de-DE"
+          "en-GB"
+        ];
+        description = ''
+          Preferred languages, best first — the order System Settings ▸ General
+          ▸ Language & Region shows. null (the default) leaves macOS's own list
+          alone.
+
+          Apps use the first entry they have a translation for, so a list is a
+          fallback chain, not a single choice.
+
+          TAKES EFFECT ON RELAUNCH: an app picks its language when it starts.
+          Already-open apps keep the old one until you quit and reopen them,
+          and the login window follows at next login. Nothing the rice can post
+          changes that — it is how bundle resources load.
+        '';
+      };
+      region = lib.mkOption {
+        type = lib.types.nullOr lib.types.str;
+        default = null;
+        example = "de_DE";
+        description = ''
+          The region whose formats macOS uses — dates, number separators, paper
+          size, the first day of the week. An ICU locale identifier
+          (`de_DE`, `en_GB`, `fr_CA`). null (the default) leaves macOS's own
+          choice alone.
+
+          This is the lever with the most reach in the group: it moves the hour
+          format, the measurement system and the first weekday together. Set it
+          before reaching for the individual overrides below — and note there is
+          deliberately no `firstWeekday` option, because macOS's own
+          `AppleFirstWeekday` key is stored and then ignored (measured; it is
+          the second dict-valued key in this domain found to do that). The
+          region's own answer is the only one that applies.
+        '';
+      };
+      metric = lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        example = true;
+        description = ''
+          Use the metric system, overriding whatever `region` implies. null
+          (the default) follows the region.
+
+          Writes BOTH keys macOS keeps for this (`AppleMetricUnits` and
+          `AppleMeasurementUnits`), because it writes both itself and only one
+          of them is load-bearing — setting the friendlier-looking
+          `AppleMeasurementUnits` alone leaves a plist that reads right and a
+          machine that ignores it.
+        '';
+      };
+      temperature = lib.mkOption {
+        type = lib.types.nullOr (
+          lib.types.enum [
+            "celsius"
+            "fahrenheit"
+          ]
+        );
+        default = null;
+        example = "celsius";
+        description = ''
+          Temperature unit, overriding whatever `region` implies. null (the
+          default) follows the region. Separate from `metric` because macOS
+          keeps it separate — a metric machine reporting °F is a real
+          combination, not a mistake.
+        '';
+      };
+      hourFormat = lib.mkOption {
+        type = lib.types.nullOr (
+          lib.types.enum [
+            "12h"
+            "24h"
+          ]
+        );
+        default = null;
+        example = "24h";
+        description = ''
+          Force 12- or 24-hour time everywhere, overriding whatever `region`
+          implies. null (the default) follows the region.
+
+          System-wide, unlike `haus.menuBar.clock.format`, which is only the
+          menu bar clock's own key. Setting both is fine and normal; setting
+          only this one still changes the menu bar, because the clock has no
+          opinion of its own until you give it one.
+        '';
+      };
+      inputSources = lib.mkOption {
+        type = lib.types.nullOr (lib.types.listOf lib.types.str);
+        default = null;
+        example = [
+          "com.apple.keylayout.US"
+          "com.apple.keylayout.German"
+        ];
+        description = ''
+          The keyboard layouts available in the input menu, by input-source id
+          (`com.apple.keylayout.*`). null (the default) leaves your layouts
+          alone. List them with:
+
+          ```
+          hausax input-sources --all
+          ```
+
+          THIS ONE OWNS THE LIST. Unlike every other option in §5.6's groups, a
+          non-null value here is exhaustive: layouts you don't name get
+          disabled, because "add these and keep whatever else was there" makes
+          a rice that can never remove a layout it once added. Non-keyboard
+          input methods (emoji picker, press-and-hold) are never touched.
+
+          Applied through the documented Text Input Sources API rather than by
+          writing `com.apple.HIToolbox` directly. The plist route does work, but
+          it resolves a layout by an English display name (`Swiss French`, not
+          `SwissFrench`) next to a numeric id that is required and never
+          validated — a table the rice would have to hardcode and would get
+          wrong for exactly the layouts nobody here tests.
+        '';
+      };
+    };
+
+    # ---- power ----
+    # §5.6's "Power" group, spiked 2026-08-08 — and deliberately NOT built on
+    # nix-darwin's typed `power.sleep.*`, which shells out to `systemsetup`.
+    # Measured on macOS 26.6.1: `systemsetup -setcomputersleep 17`, run while
+    # the machine was on BATTERY, wrote the AC profile and left battery alone,
+    # while nix-darwin discards its stderr. So those options configure a power
+    # source the config never named. `pmset -b` / `-c` says which source it
+    # means and is what this group uses.
+    power =
+      let
+        mkTimer =
+          what: source:
+          lib.mkOption {
+            type = lib.types.nullOr (lib.types.either lib.types.ints.positive (lib.types.enum [ "never" ]));
+            default = null;
+            example = 10;
+            description = ''
+              Minutes of idleness before ${what} while on ${source}, or
+              `"never"`. null (the default) leaves macOS's own choice alone.
+
+              A desktop Mac has no battery profile to write, so `pmset` warns
+              and the rebuild carries on — set the `charger` half there.
+            '';
+          };
+      in
+      {
+        displaySleep = {
+          battery = mkTimer "the display sleeps" "battery";
+          charger = mkTimer "the display sleeps" "the charger";
+        };
+        computerSleep = {
+          battery = mkTimer "the Mac sleeps" "battery";
+          charger = mkTimer "the Mac sleeps" "the charger";
+        };
+        diskSleep = {
+          battery = mkTimer "the disk spins down" "battery";
+          charger = mkTimer "the disk spins down" "the charger";
+        };
+        lowPowerMode = {
+          battery = lib.mkOption {
+            type = lib.types.nullOr lib.types.bool;
+            default = null;
+            example = true;
+            description = ''
+              Low Power Mode while on battery. null (the default) leaves
+              macOS's own choice alone.
+
+              The setting with the clearest opinion in this group for a laptop:
+              on for battery, off for the charger, is what most people want and
+              almost nobody sets.
+            '';
+          };
+          charger = lib.mkOption {
+            type = lib.types.nullOr lib.types.bool;
+            default = null;
+            example = false;
+            description = ''
+              Low Power Mode while plugged in. null (the default) leaves
+              macOS's own choice alone.
+            '';
+          };
+        };
+      };
   };
 }

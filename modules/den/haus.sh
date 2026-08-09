@@ -401,6 +401,17 @@ declared_a11y_calls() {
     | while read -r _ key value; do printf 'com.apple.universalaccess\t%s\t%s\n' "$key" "$value"; done || true
 }
 
+# TSV for den's other guarded writer: haus.sound.alertSound. Same reason as
+# the block above — it is a raw `defaults write … -string` call rather than the
+# typed XML shape, because the write has to be skipped when the sound file is
+# missing (an unresolvable path SILENCES the alert instead of falling back, and
+# a pure-eval `builtins.pathExists` can't tell). Without this line `haus diff`
+# would report a declared key as undeclared.
+declared_alert_sound() {
+  grep -E '^[[:space:]]*defaults write -g com\.apple\.sound\.beep\.sound -string ' "$1" 2>/dev/null \
+    | sed -E 's/.*-string ([^ \\]+).*/NSGlobalDomain\tcom.apple.sound.beep.sound\t\1/' || true
+}
+
 # plutil's rendering → the same textual shape `defaults read` prints, so the
 # two sides of a comparison need no further massaging. A value with an escaped
 # `\n` (a dict/array — declared_defaults's escape marker, see above) is flagged
@@ -520,7 +531,7 @@ settings_diff() {
         fi
         ;;
     esac
-  done < <(declared_defaults "$script"; declared_a11y_calls "$script")
+  done < <(declared_defaults "$script"; declared_a11y_calls "$script"; declared_alert_sound "$script")
 
   echo
   if [ "$changed" = 0 ]; then

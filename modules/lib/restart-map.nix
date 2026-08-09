@@ -21,6 +21,10 @@
 # nix-darwin's `system.defaults.<domain>` / `CustomUserPreferences."<domain>"`)
 # name it, so a domain never needs two spellings.
 #
+# A value is one verb, or a LIST of verbs when a domain genuinely needs more
+# than one (NSGlobalDomain does — see its entry). den treats a bare string as a
+# one-element list.
+#
 # Values, per the matrix:
 #   "Dock" / "Finder" / "ControlCenter" / "SystemUIServer"
 #     — killall that process; it re-reads its domain at launch.
@@ -30,6 +34,17 @@
 #       broadcast a preference change, and covers everything measured in this
 #       domain: key repeat, the trackpad trio, _HIHideMenuBar and
 #       SLSMenuBarUseBlurredAppearance (both of which Sill depends on).
+#   "notify:<DistributedNotificationName>"
+#     — post that distributed notification. The third verb, added 2026-08-08
+#       for the locale family, which has no process to kill: EVERY app is the
+#       consumer. Measured on 26.6.1 (workshop notes/probes/locale-sweep.sh): a
+#       `defaults write` into the region keys reaches newly launched processes
+#       only — an app already running never sees it, not even through
+#       Locale.autoupdatingCurrent, the API documented to track changes.
+#       Posting AppleDatePreferencesChangedNotification right after the write
+#       flips both within one sample, while a made-up notification name does
+#       nothing, so this is name-specific rather than a generic cache poke.
+#       `hausax post-notification <name>` does the posting.
 #   "none"
 #     — takes effect immediately; nothing to do.
 #   "logout"
@@ -55,7 +70,18 @@
   # modules/theme/default.nix) and confirmed with `hausax`. `haus diff` flags the
   # key if a host declares it by hand, the same way it flags
   # com.apple.Accessibility.
-  "NSGlobalDomain" = "activateSettings";
+  # The one domain that needs TWO verbs, which is why a value may be a list.
+  # activateSettings covers the input/appearance keys; the locale family
+  # (haus.locale — AppleLocale, AppleLanguages, the unit keys,
+  # AppleICUForce24HourTime) needs the distributed notification instead, and
+  # activateSettings -u does NOT stand in for it: measured, a running app keeps
+  # its old locale indefinitely without the post. Posting on every rebuild the
+  # way activateSettings already runs on every rebuild — it invalidates a cache,
+  # so re-resolving unchanged values is a no-op.
+  "NSGlobalDomain" = [
+    "activateSettings"
+    "notify:AppleDatePreferencesChangedNotification"
+  ];
   "com.apple.AppleMultitouchTrackpad" = "activateSettings";
   "com.apple.screencapture" = "none"; # screencapture re-reads its prefs on every capture
 

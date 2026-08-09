@@ -42,7 +42,13 @@ let
   # theme/themeLight pair). Contrast still tracks theme.contrast — only the
   # flavor is taken out of the machine's hands.
   darkVariant = lib.concatStringsSep "-" ([ "nebelung" ] ++ contrastParts);
-  lightVariant = lib.concatStringsSep "-" ([ "nebelung" "latte" ] ++ contrastParts);
+  lightVariant = lib.concatStringsSep "-" (
+    [
+      "nebelung"
+      "latte"
+    ]
+    ++ contrastParts
+  );
 
   capitalise = s: lib.toUpper (lib.substring 0 1 s) + lib.substring 1 (lib.stringLength s) s;
 
@@ -56,8 +62,7 @@ let
   # modules/hearth does inline (`catppuccin-${nbFlavor}.conf`); doing it here
   # means a port's path comes FROM nebelung instead of being retyped next to it.
   resolveFlavor =
-    p:
-    builtins.replaceStrings [ "mocha" "Mocha" ] [ theme.flavor (capitalise theme.flavor) ] p;
+    p: builtins.replaceStrings [ "mocha" "Mocha" ] [ theme.flavor (capitalise theme.flavor) ] p;
 in
 {
   # "normal"/"mocha" is the EMPTY subdir, i.e. byte-for-byte the paths that were
@@ -84,7 +89,9 @@ in
       howto = resolveFlavor p.howto;
     }
     // lib.optionalAttrs (p ? setting && p.setting ? value) {
-      setting = p.setting // { value = resolveFlavor p.setting.value; };
+      setting = p.setting // {
+        value = resolveFlavor p.setting.value;
+      };
     }
     // lib.optionalAttrs (p ? requires) { requires = map resolveFlavor p.requires; }
   ) (lib.filterAttrs (_: p: builtins.elem "darwin" p.platform) (nebelung.ports or { }));

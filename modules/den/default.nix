@@ -75,6 +75,9 @@ let
   #                      repeating it here just bounces the Dock twice per
   #                      rebuild for no benefit.
   #   "activateSettings" handled by the unconditional activateSettings call below.
+  #   "notify:<name>"    a distributed notification, posted below — not a
+  #                      process, so it is subtracted here by prefix rather
+  #                      than by name (the name varies per domain).
   #   "none" / "logout"  no restart to give (or none this rice can give).
   notProcesses = [
     "Dock"
@@ -82,10 +85,26 @@ let
     "none"
     "logout"
   ];
+  # A map value is one verb or a list of them (NSGlobalDomain needs two), so
+  # everything downstream reads the flattened action list.
+  actionsWritten = lib.unique (lib.concatMap (d: lib.toList (restartMap.${d} or [ ])) domainsWritten);
   processesToRestart = lib.unique (
-    builtins.filter (p: p != null && !(builtins.elem p notProcesses)) (
-      map (d: restartMap.${d} or null) domainsWritten
-    )
+    builtins.filter (p: !(builtins.elem p notProcesses) && !(lib.hasPrefix "notify:" p)) actionsWritten
+  );
+  # The third verb (see ../lib/restart-map.nix): domains whose consumers are
+  # every running app rather than one daemon. `hausax post-notification` does
+  # the posting; nothing else in the rice can reach DistributedNotificationCenter.
+  #
+  # The map supplies the NAME — the load-bearing half, since a made-up
+  # notification does nothing — but not the trigger. NSGlobalDomain is written
+  # on every rebuild of every machine (key repeat, the springing pair), so
+  # keying the post on domain membership alone would tell every app on every
+  # Mac that its locale changed once a rebuild, forever, on configurations with
+  # no locale opinion at all. Domain granularity cannot express "when a locale
+  # key is declared", so the group names its own trigger here.
+  localeDeclared = lib.any (v: v != null) (lib.attrValues localeCfg);
+  notificationsToPost = lib.optionals localeDeclared (
+    map (lib.removePrefix "notify:") (builtins.filter (lib.hasPrefix "notify:") actionsWritten)
   );
 
   # ---- hot corners ----------------------------------------------------------
@@ -103,6 +122,59 @@ let
     bottomRight = "br";
   };
   hotCornersSet = lib.filterAttrs (n: _: config.haus.hotCorners.${n} != null) hotCornerKeys;
+
+  # ---- sound / locale / power (§5.6, spiked 2026-08-08) ----------------------
+  soundCfg = config.haus.sound;
+  localeCfg = config.haus.locale;
+  powerCfg = config.haus.power;
+  # 0–100 → the exponential macOS stores. See ../lib/alert-volume.nix.
+  alertVolume = import ../lib/alert-volume.nix { inherit lib; };
+  # An absolute path built from the enum, never a path the host typed. The
+  # write is still guarded at activation (see the block below): macOS validates
+  # nothing here and a path that doesn't resolve makes the alert SILENT rather
+  # than falling back — and an eval-time `builtins.pathExists` cannot help,
+  # because in pure evaluation it answers `false` for every /System path and
+  # would skip the write on every machine.
+  alertSoundPath =
+    if soundCfg.alertSound == null then null else "/System/Library/Sounds/${soundCfg.alertSound}.aiff";
+
+  # `pmset -b` (battery) / `-c` (charger) writes, as data. Deliberately NOT
+  # nix-darwin's typed power.sleep.*: those shell out to `systemsetup`, which
+  # takes no power source and — measured on 26.6.1 — wrote the AC profile while
+  # the machine was running on battery, with its stderr discarded upstream.
+  pmsetArgs =
+    let
+      timer = v: if v == "never" then "0" else toString v;
+      flag = v: if v then "1" else "0";
+      rows = [
+        {
+          key = "displaysleep";
+          conv = timer;
+          cfg = powerCfg.displaySleep;
+        }
+        {
+          key = "sleep";
+          conv = timer;
+          cfg = powerCfg.computerSleep;
+        }
+        {
+          key = "disksleep";
+          conv = timer;
+          cfg = powerCfg.diskSleep;
+        }
+        {
+          key = "lowpowermode";
+          conv = flag;
+          cfg = powerCfg.lowPowerMode;
+        }
+      ];
+      forSource =
+        source: attr:
+        lib.concatMap (
+          r: lib.optional (r.cfg.${attr} != null) "-${source} ${r.key} ${r.conv r.cfg.${attr}}"
+        ) rows;
+    in
+    forSource "b" "battery" ++ forSource "c" "charger";
 
   # ---- lock / menu bar / security --------------------------------------------
   lockCfg = config.haus.lock;
@@ -227,6 +299,21 @@ in
         has `pkgs`, `packageName` for a data-only rice that doesn't. Keep one.
       '';
     }
+    {
+      # `null` and `[ ]` are worlds apart for this one option, and the type
+      # cannot tell them apart: null means "leave my layouts alone", while an
+      # empty list literally means "the complete set of keyboard layouts is
+      # none" — a Mac you cannot type on. Nothing downstream would look wrong.
+      assertion = localeCfg.inputSources != [ ];
+      message = ''
+        nebelhaus: haus.locale.inputSources is an empty list.
+
+        That option is EXHAUSTIVE — a list is the whole set of keyboard layouts,
+        so an empty one asks for a Mac with no way to type. Use `null` (the
+        default) to leave your layouts alone, or name at least one id:
+        `hausax input-sources --all` lists them.
+      '';
+    }
   ];
 
   # ---- haus.accessibility → com.apple.universalaccess -------------------
@@ -258,6 +345,102 @@ in
       ${lib.concatStringsSep "\n" (
         lib.mapAttrsToList (k: v: "nebelhausAccessibility ${k} ${lib.boolToString v}") a11ySet
       )}
+    '')
+
+    # ---- haus.sound.alertSound → com.apple.sound.beep.sound ----------------
+    # Guarded rather than declared, and the guard is the whole point: macOS
+    # stores an absolute path here and validates nothing, and a path that does
+    # not resolve makes the alert beep SILENT — it does not fall back to the
+    # default (measured by ear, 2026-08-08). The plist still reads like a
+    # working setting, so the failure is invisible from every direction except
+    # the machine having stopped beeping. `system.defaults` cannot express
+    # "write this only if the file exists", and an eval-time check cannot
+    # either: in pure evaluation `builtins.pathExists "/System/…"` is false, so
+    # a config that worked by hand would silently skip the write in CI.
+    (lib.optionalString (alertSoundPath != null) ''
+      if [ -f ${lib.escapeShellArg alertSoundPath} ]; then
+        launchctl asuser "$(id -u -- ${username})" sudo --user=${username} -- \
+          defaults write -g com.apple.sound.beep.sound -string ${lib.escapeShellArg alertSoundPath} \
+          || echo "warning: sound: could not write the alert sound. Setting skipped; nothing else was affected." >&2
+      else
+        echo "warning: sound: ${alertSoundPath} is missing on this macOS — alert sound left alone (writing it would silence the beep, not fall back)." >&2
+      fi
+    '')
+
+    # ---- haus.sound.startupChime → nvram StartupMute ------------------------
+    # Firmware, not a preference: it survives an OS reinstall and a wiped home
+    # directory, and it is the one setting in this group that needs root, which
+    # activation already is. `%01` mutes; DELETING the variable is how you get
+    # the chime back, since an unset StartupMute is the factory state and a
+    # `%00` is not the same thing on every model.
+    (lib.optionalString (soundCfg.startupChime != null) (
+      if soundCfg.startupChime then
+        ''
+          nvram -d StartupMute 2>/dev/null || true
+        ''
+      else
+        ''
+          nvram StartupMute=%01 || echo "warning: sound: could not mute the startup chime (nvram write refused)." >&2
+        ''
+    ))
+
+    # ---- haus.locale.inputSources → the Text Input Sources API --------------
+    # THE ONE EXHAUSTIVE OPTION in §5.6's groups: a non-null list is the whole
+    # set of keyboard layouts, so anything enabled and unnamed gets disabled.
+    # "Add and never remove" would make a rice that can only ever accumulate
+    # layouts. Non-keyboard input methods (emoji picker, press-and-hold) are
+    # not layouts and hausax never touches them.
+    #
+    # Enable first, then disable, so the machine is never briefly left with no
+    # layout at all — and so a selected layout being retired hands over to one
+    # that already exists rather than to nothing.
+    (lib.optionalString (localeCfg.inputSources != null && localeCfg.inputSources != [ ]) ''
+      hausInputSource() {
+        if ! launchctl asuser "$(id -u -- ${username})" sudo --user=${username} -- \
+             ${lib.getExe hausax} input-source "$1" "$2" 2>/dev/null; then
+          echo "warning: locale: could not $1 $2 — is it a real input source id? (\`hausax input-sources --all\`)" >&2
+          return 1
+        fi
+      }
+      hausInputSourcesNow() {
+        launchctl asuser "$(id -u -- ${username})" sudo --user=${username} -- \
+          ${lib.getExe hausax} input-sources 2>/dev/null
+      }
+      ${lib.concatMapStringsSep "\n" (
+        id: "hausInputSource enable ${lib.escapeShellArg id} || true"
+      ) localeCfg.inputSources}
+
+      # The disable pass runs ONLY once at least one declared layout is really
+      # enabled. Without this check, a list of ids that are all typo'd —
+      # "US" instead of "com.apple.keylayout.US" — warns four times and then
+      # disables everything that WAS working, and a Mac with no keyboard layout
+      # is a Mac you cannot type on. `hausax input-source disable` refuses to
+      # remove the last one as a second line of defence; this is the first.
+      declared=${lib.escapeShellArg (lib.concatStringsSep "\n" localeCfg.inputSources)}
+      landed=0
+      for enabled in $(hausInputSourcesNow); do
+        if printf '%s\n' "$declared" | grep -qxF "$enabled"; then landed=1; fi
+      done
+      if [ "$landed" = 0 ]; then
+        echo "warning: locale: none of the declared input sources could be enabled, so nothing was disabled either — the machine keeps the layouts it had. Check the ids with \`hausax input-sources --all\`." >&2
+      else
+        for enabled in $(hausInputSourcesNow); do
+          if ! printf '%s\n' "$declared" | grep -qxF "$enabled"; then
+            hausInputSource disable "$enabled" || true
+          fi
+        done
+      fi
+    '')
+
+    # ---- haus.power.* → pmset ----------------------------------------------
+    # Not nix-darwin's typed power.sleep.*: those call `systemsetup`, which has
+    # no power-source selector, and on 26.6.1 wrote the AC profile while the
+    # machine was on battery — silently, since upstream discards its output.
+    # `pmset -b` / `-c` names the source it means. Root, which activation is.
+    (lib.optionalString (pmsetArgs != [ ]) ''
+      ${lib.concatMapStringsSep "\n" (
+        args: "pmset ${args} || echo \"warning: power: pmset ${args} was refused.\" >&2"
+      ) pmsetArgs}
     '')
 
     # ---- restart map (notes/macos-settings-matrix.md §4) --------------------
@@ -311,6 +494,27 @@ in
           "$activateSettings" -u || true
       fi
     '')
+
+    # ---- the restart map's third verb: distributed notifications ------------
+    # activateSettings does NOT stand in for these. The locale family's
+    # consumers are every running app rather than one daemon, and a
+    # `defaults write` there reaches newly launched processes only — measured
+    # on 26.6.1, an app already running keeps its old locale indefinitely, even
+    # through Locale.autoupdatingCurrent, until
+    # AppleDatePreferencesChangedNotification is posted. A made-up name does
+    # nothing, so the name in restart-map.nix is load-bearing.
+    #
+    # As the user, for the same reason activateSettings is: root's session is
+    # not the one with the apps in it. mkAfter after the block above so the
+    # post is the last thing that happens, once the writes are all in.
+    (lib.mkAfter (
+      lib.optionalString (notificationsToPost != [ ]) ''
+        ${lib.concatMapStringsSep "\n" (n: ''
+          launchctl asuser "$(id -u -- ${username})" sudo --user=${username} -- \
+            ${lib.getExe hausax} post-notification ${lib.escapeShellArg n} || true
+        '') notificationsToPost}
+      ''
+    ))
   ];
 
   programs.zsh.enable = true;
@@ -655,6 +859,41 @@ in
       # Hide the stock menu bar only when Sill draws its own; otherwise keep it.
       # Rice-controlled (not mkDefault): it tracks sill.enable, not user taste.
       _HIHideMenuBar = config.haus.sill.enable;
+
+      # ---- haus.sound → the two typed beep keys --------------------------
+      # Not mkDefault: these are host opinions, null for null, same as the
+      # §5.6 groups below. The volume conversion is the whole reason the
+      # option is 0–100 — see ../lib/alert-volume.nix for the measured curve.
+      "com.apple.sound.beep.volume" =
+        if soundCfg.alertVolume == null then null else alertVolume.fromPercent soundCfg.alertVolume;
+      # Upstream types this one as an INT, not a bool (0/1), unlike almost
+      # every other switch in this domain.
+      "com.apple.sound.beep.feedback" =
+        if soundCfg.volumeFeedback == null then null else (if soundCfg.volumeFeedback then 1 else 0);
+
+      # ---- haus.locale → the four typed region keys ----------------------
+      # `metric` writes BOTH unit keys because macOS writes both and only
+      # AppleMetricUnits is load-bearing: setting the friendlier-looking
+      # AppleMeasurementUnits alone leaves a plist that reads right and a
+      # machine that ignores it (measured — the group's "what second key makes
+      # the first one a lie").
+      AppleMetricUnits = if localeCfg.metric == null then null else (if localeCfg.metric then 1 else 0);
+      AppleMeasurementUnits =
+        if localeCfg.metric == null then
+          null
+        else if localeCfg.metric then
+          "Centimeters"
+        else
+          "Inches";
+      AppleTemperatureUnit =
+        if localeCfg.temperature == null then
+          null
+        else if localeCfg.temperature == "celsius" then
+          "Celsius"
+        else
+          "Fahrenheit";
+      AppleICUForce24HourTime =
+        if localeCfg.hourFormat == null then null else localeCfg.hourFormat == "24h";
     };
     trackpad = {
       Clicking = lib.mkDefault true;
@@ -753,7 +992,24 @@ in
       # it restores an opaque bar so the reveal fully covers Sill. Lives in
       # CustomUserPreferences because nix-darwin's typed NSGlobalDomain block has no
       # option for it (and no freeform); `defaults write NSGlobalDomain …` == `-g`.
-      NSGlobalDomain.SLSMenuBarUseBlurredAppearance = config.haus.sill.enable;
+      # Two more NSGlobalDomain keys nix-darwin has no typed option for, both
+      # null-means-absent (an unset host option contributes no key at all
+      # rather than a null the plist writer would have to interpret):
+      #   haus.sound.uiSounds  — the Trash whoosh, the screenshot shutter
+      #   haus.locale.language / .region — AppleLanguages is an ARRAY and
+      #     AppleLocale a string; both are untyped upstream.
+      NSGlobalDomain = {
+        SLSMenuBarUseBlurredAppearance = config.haus.sill.enable;
+      }
+      // lib.optionalAttrs (soundCfg.uiSounds != null) {
+        "com.apple.sound.uiaudio.enabled" = if soundCfg.uiSounds then 1 else 0;
+      }
+      // lib.optionalAttrs (localeCfg.language != null) {
+        AppleLanguages = localeCfg.language;
+      }
+      // lib.optionalAttrs (localeCfg.region != null) {
+        AppleLocale = localeCfg.region;
+      };
     };
   };
 
