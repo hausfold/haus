@@ -197,7 +197,7 @@ in
         core = {
           clock = "The clock pill, pinned to the far right.";
           weather = "The weather pill and its click-to-open forecast popover.";
-          media = "The now-playing track (scrolls; auto-hides when nothing plays).";
+          media = "The now-playing track (scrolls; auto-hides when nothing plays, dims when paused, click to play/pause). It reads the same system-wide session Control Center does, so it follows a browser tab as readily as Apple Music or Spotify, and its icon says which app the sound is coming from. SketchyBar's own `media_change` event has been dead since macOS 15.4, where Apple started requiring an entitlement to talk to `mediaremoted`; the pill is fed instead by `media-control`, which does the read from inside the entitled `/usr/bin/perl`. That is a private-framework route Apple could close in any point release — `media-control test` exits non-zero once it has.";
           battery = "The battery pill.";
           wifi = "The Wi-Fi status pill.";
         };
