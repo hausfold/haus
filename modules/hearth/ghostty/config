@@ -19,12 +19,20 @@ command = @HOME@/.config/zellij/launch.sh
 
 macos-titlebar-style = hidden
 # Kill the window drop-shadow. Under prowl (AeroSpace) windows tile edge-to-edge
-# and the terminal sits directly above sill's bar when it's docked to the bottom
-# — the macOS drop-shadow then bleeds down into the gap and darkens the bar's top
-# edge, making it read as recessed. AeroSpace can't disable shadows globally
-# (that needs the SIP-off yabai scripting addition), but ghostty can drop its
-# own, which is the window that actually neighbours the bar. Gaps + the nebelung
-# theme already separate tiles, so nothing's lost visually.
+# and a shadow at every seam reads as clutter; gaps + the nebelung theme already
+# separate the tiles, so nothing is lost by dropping it. Purely ghostty's own
+# look — this is NOT what keeps sill's bar clean.
+#
+# It used to be. This line was originally the workaround for a bottom-docked
+# sill bar being darkened by the shadow of the window above it, and the comment
+# claimed the general fix "needs the SIP-off yabai scripting addition" (true of
+# yabai's window_shadow — it is a pure scripting-addition payload, no direct
+# path — but the wrong problem). The bar was never being shadowed because
+# shadows exist; it was being shadowed because SketchyBar draws at
+# kCGBackstopMenuLevel, UNDER the windows. sill now lifts a bottom bar to
+# kCGFloatingWindowLevel instead — bar_topmost() in modules/sill/default.nix is
+# the rule, applied by sill-bottomrc and sketchybarrc — which fixes it for every
+# app at once and needs no SIP, no yabai, and nothing from ghostty.
 macos-window-shadow = false
 # Option is sent into the terminal as Alt (so ⌥-chords reach zellij / the
 # shell), which leaves Cmd as ghostty's link-open modifier. That split is load-
