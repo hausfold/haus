@@ -669,13 +669,17 @@ let
   '';
 
   # Bar position (haus.sill.position). Sourced by sketchybarrc — which sets
-  # `position=$(bar_position)` on --bar — and, in auto mode, re-run by
-  # plugins/position.sh on every display_change. bar_position() echoes the
+  # `position=` / `topmost=` on --bar from these two — and, in auto mode, re-run
+  # by plugins/position.sh on every display_change. bar_position() echoes the
   # position to hand sketchybar. In auto mode "docked" means any non-built-in
   # display is attached: system_profiler is the only guaranteed source of a
   # display's connection type, so it (not a bare display count) is what tells a
   # clamshell external apart from the built-in. It's slow (~1s) but
   # display_change fires rarely, so the cost is only paid on dock/undock/boot.
+  #
+  # bar_topmost() takes the ALREADY-RESOLVED position as $1 rather than calling
+  # bar_position() itself — in auto mode that would pay the ~1s system_profiler
+  # a second time on every boot and every dock/undock.
   positionSh = ''
     #!/bin/bash
     # GENERATED from haus.sill.position by modules/sill/default.nix — do not edit.
@@ -691,6 +695,27 @@ let
           internal="$(grep -c 'Connection Type: Internal' <<<"$info")"
           if [ "$(( total - internal ))" -gt 0 ]; then echo bottom; else echo top; fi
           ;;
+      esac
+    }
+
+    # Which window level the bar draws at, given a resolved position ($1).
+    #
+    # SketchyBar defaults to kCGBackstopMenuLevel (-20) — BELOW normal windows.
+    # At the top that's right: macOS reserves the menu-bar strip, nothing tiles
+    # into it, and staying under the windows is what lets a native-fullscreen
+    # app cover the bar the way it should.
+    #
+    # At the bottom macOS reserves nothing, so prowl carves the room out of its
+    # own outer-bottom gap — and the tiled window directly above then drops its
+    # macOS shadow straight down into that gap. At -20 the shadow composites
+    # OVER the bar, darkening the strip and making it read as recessed. Not a
+    # transparency problem: an opaque `color=` is painted over just the same.
+    # `topmost=window` (kCGFloatingWindowLevel, 3) lifts the bar above the
+    # window — and so above its shadow — with the floating-pill look intact.
+    bar_topmost() {
+      case "$1" in
+        bottom) echo window ;;
+        *) echo off ;;
       esac
     }
   '';

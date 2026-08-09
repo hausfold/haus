@@ -38,10 +38,23 @@ source "$HOME/.config/sketchybar/bar.sh"
 # strip of a display for the menu bar and reserves NOTHING at the bottom, so
 # windows would sit under this — prowl carves the room out of its outer-bottom
 # gap whenever haus.sill.bottom.enable is on (modules/prowl/default.nix).
+#
+# topmost=window follows from that gap, and it is NOT optional down here.
+# SketchyBar draws at kCGBackstopMenuLevel (-20) by default — below normal
+# windows — so the tiled window sitting directly above drops its macOS shadow
+# into the reserved gap and it composites straight over this strip, darkening
+# it into something that reads as recessed. An opaque `color=` does not help:
+# the shadow is painted on top of the bar, not seen through it. `window` is
+# kCGFloatingWindowLevel (3), just enough to outrank the window and its shadow
+# while leaving the transparent floating-pill look untouched. The top bar can
+# stay at the default because macOS reserves the menu-bar strip and no window
+# ever tiles into it; see bar_topmost() in the generated position.sh, which is
+# how the OTHER bar picks this up when haus.sill.position puts it down here too.
 "$SB" --bar \
     height=36 \
     blur_radius=30 \
     position=bottom \
+    topmost=window \
     padding_left=10 \
     padding_right=10 \
     margin=0 \
