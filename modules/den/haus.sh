@@ -1492,7 +1492,7 @@ cmd_doctor() {
   echo
   say "GUI agents"
   local label name
-  for pair in "org.nixos.aerospace:AeroSpace" "org.nixos.sketchybar:sketchybar" "org.nixos.pounce:pounce"; do
+  for pair in "org.nixos.aerospace:AeroSpace" "org.nixos.sketchybar:sketchybar" "com.hausfold.pounce:pounce"; do
     label="${pair%%:*}"; name="${pair##*:}"
     if launchctl print "gui/$uid/$label" >/dev/null 2>&1; then
       if pgrep -qx "$name"; then ok "$name running"
@@ -1503,7 +1503,7 @@ cmd_doctor() {
   # Accessibility grant — pounce's auto-paste and emoji insertion need it, and a
   # missing grant is the #1 "why won't paste work" gotcha. Only meaningful when
   # pounce is enabled (its launchd plist exists).
-  if launchctl print "gui/$uid/org.nixos.pounce" >/dev/null 2>&1; then
+  if launchctl print "gui/$uid/com.hausfold.pounce" >/dev/null 2>&1; then
     echo
     say "Accessibility"
     if command -v pounce >/dev/null 2>&1 && [ "$(pounce --check-accessibility 2>/dev/null)" = "true" ]; then

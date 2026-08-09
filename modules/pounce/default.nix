@@ -134,15 +134,19 @@ let
   # k.leader is known non-null.
   leaderGlyph = if k.leader != null then k.leader.glyph else "";
 
-  # What the running signed copy was signed FROM — the store path AND the
-  # identity. The daemon writes this to the .signed-from marker; both the
+  # What the running signed copy was signed FROM — the store path, identity AND
+  # bundle-ID schema. The daemon writes this to the .signed-from marker; both the
   # re-sign guard (in the daemon script) and the kickstart activation compare
   # against it. Encoding the identity too means changing EITHER the pounce
-  # version OR signingIdentity invalidates the marker → re-sign + bounce.
+  # version, signingIdentity OR identifier invalidates the marker → re-sign +
+  # bounce. The identifier suffix is what forces the one-time
+  # com.local.pounce → com.hausfold.pounce migration even if the package pin and
+  # certificate did not move.
   # (Store path alone would silently keep a stale identity on an identity-only
   # change.) Unsigned mode keeps the bare store path, matching old behaviour.
   signedFrom =
-    "${pkgs.pounce}/Applications/Pounce.app" + lib.optionalString (identity != "") "@@${identity}";
+    "${pkgs.pounce}/Applications/Pounce.app"
+    + lib.optionalString (identity != "") "@@${identity}@@com.hausfold.pounce";
 
   # The app font's package installs only the TTF, but its pinned source also
   # carries the authoritative app-name → ligature mappings. Generate the same
@@ -377,7 +381,8 @@ let
           /bin/rm -rf "$DEST"
           if /bin/cp -R "$STORE_APP" "$DEST" \
              && /bin/chmod -R u+w "$DEST" \
-             && /usr/bin/codesign --force --identifier com.local.pounce -s "${identity}" "$DEST"; then
+             && /usr/bin/plutil -replace CFBundleIdentifier -string com.hausfold.pounce "$DEST/Contents/Info.plist" \
+             && /usr/bin/codesign --force --identifier com.hausfold.pounce -s "${identity}" "$DEST"; then
             /usr/bin/printf '%s' "${signedFrom}" > "$MARKER"
           else
             echo "pounce: codesign failed, falling back to unsigned store binary (no Accessibility)" >&2
@@ -706,6 +711,7 @@ lib.mkIf config.haus.pounce.enable {
 
   launchd.user.agents.pounce = {
     serviceConfig = {
+      Label = "com.hausfold.pounce";
       ProgramArguments = [
         "/bin/bash"
         "-c"
@@ -761,7 +767,7 @@ lib.mkIf config.haus.pounce.enable {
   # install showed the maintainer's legal name instead of "Pounce". This is the
   # rice-side counterpart to the standalone Homebrew fix (hausfold/homebrew-tap#7);
   # the daemon self-registers the bundle via LSRegisterURL (hausfold/pounce#29)
-  # so Launch Services can resolve com.local.pounce → the running signed copy.
+  # so Launch Services can resolve com.hausfold.pounce → the running signed copy.
   #
   # nix-darwin's launchd serviceConfig submodule is strictly typed with no
   # AssociatedBundleIdentifiers option (and no freeform escape on this pin), so
@@ -774,7 +780,15 @@ lib.mkIf config.haus.pounce.enable {
         lib.generators.toPlist { escape = true; } (
           config.launchd.user.agents.pounce.serviceConfig
           // {
-            AssociatedBundleIdentifiers = [ "com.local.pounce" ];
+            # Keep the legacy bundle ID as a narrow compatibility association
+            # until this flake pins the Pounce source change. It covers the
+            # supported unsigned path and a signing-failure fallback, both of
+            # which execute the immutable store app without rewriting its
+            # Info.plist. Remove com.local.pounce with that lock ripple.
+            AssociatedBundleIdentifiers = [
+              "com.hausfold.pounce"
+              "com.local.pounce"
+            ];
           }
         )
       );
@@ -1057,13 +1071,20 @@ lib.mkIf config.haus.pounce.enable {
       # keeps the OLD image running until something bounces it. The .signed-from
       # marker records the store path + identity the running copy was signed from
       # — when it lags (a pounce bump OR a signingIdentity change), kick the agent;
-      # the respawn re-copies + re-signs (a stable identity keeps the Accessibility
-      # grant) and clipboard history is on disk, so the bounce loses nothing.
+      # the respawn re-copies + re-signs. A stable identity normally keeps the
+      # Accessibility grant; the one-time com.local.pounce →
+      # com.hausfold.pounce identifier migration deliberately changes the code
+      # requirement, so that activation needs one fresh approval. Clipboard
+      # history is on disk, so the bounce itself loses nothing.
       # Marker match → unchanged → no bounce. Runs in home-manager activation, i.e.
       # after nix-darwin has loaded the new agent plist.
       home.activation.kickstartPounce = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        # Retire the pre-hausfold launchd label explicitly. nix-darwin normally
+        # unloads removed plists, but a stale KeepAlive job must never survive
+        # beside the canonical agent after this one-time migration.
+        $DRY_RUN_CMD /bin/launchctl bootout "gui/$(/usr/bin/id -u)/org.nixos.pounce" 2>/dev/null || true
         if [ "$(/bin/cat "$HOME/.local/state/pounce/.signed-from" 2>/dev/null)" != "${signedFrom}" ]; then
-          $DRY_RUN_CMD /bin/launchctl kickstart -k "gui/$(/usr/bin/id -u)/org.nixos.pounce" || true
+          $DRY_RUN_CMD /bin/launchctl kickstart -k "gui/$(/usr/bin/id -u)/com.hausfold.pounce" || true
         fi
       '';
     };
