@@ -328,26 +328,41 @@ let
     '';
     # SketchyBar's media_change event is dead on macOS 15.4+, so a detached
     # media-control stream owns repainting. updates=on lets a hidden media pill
-    # keep running its watchdog tick and recover a dead stream.
+    # keep running its watchdog tick and recover a dead stream — and the tick is
+    # also what advances a long-form countdown, which no payload announces (see
+    # plugins/media.sh), hence 30s rather than the old 60.
+    #
+    # scroll_texts is deliberately NOT set on here any more: the streamer turns
+    # the marquee on for a few seconds after a track changes and settles it
+    # again, so a long title stops scrolling forever in the corner of your eye.
+    # Hovering brings it back, which is what mouse.entered/exited are for.
     media = ''
       ${sb} --add item media ${side} \
           --set media \
               icon= \
               icon.color=$PINK \
               updates=on \
-              update_freq=60 \
+              update_freq=30 \
               background.color=$SURFACE0 \
               background.padding_left=8 \
               background.padding_right=8 \
               label.max_chars=25 \
-              scroll_texts=on \
               drawing=off \
+              popup.background.border_width=2 \
+              popup.background.corner_radius=10 \
+              popup.background.border_color=$SURFACE0 \
+              popup.background.color=$MANTLE \
+              ${popupAlign side} \
+              popup.horizontal=off \
               script="$HOME/.config/sketchybar/plugins/media.sh" \
-              click_script="$HOME/.config/sketchybar/plugins/media.sh toggle"
+              click_script="$HOME/.config/sketchybar/plugins/media.sh click" \
+          --subscribe media mouse.clicked mouse.entered mouse.exited mouse.exited.global mouse.scrolled system_woke
       # Exec'd rather than sourced, with its output on /dev/null — so
       # media_stream.sh has to carry the +x bit in git (home.file copies the
       # source mode verbatim). Without it both this launch and media.sh's
       # watchdog restart fail silently and the pill simply never lights up.
+      # media_art.sh is launched the same way, from the streamer, and needs it
+      # for the same reason; media_lib.sh is sourced, so it stays 644.
       ("$HOME/.config/sketchybar/plugins/media_stream.sh" >/dev/null 2>&1 &)
     '';
     # updates=on is load-bearing: battery.sh hides the pill over the configured
@@ -1127,13 +1142,25 @@ lib.mkIf config.haus.sill.enable {
           SILL_CLOCK_MODE="${config.haus.sill.clock.mode}"
         '';
         # Empty when the pill is off, which is what keeps media-control out of a
-        # rice that doesn't draw it — plugins/media.sh and media_stream.sh both
-        # exit 0 on an empty value rather than assuming the binary is there.
+        # rice that doesn't draw it — plugins/media.sh, media_stream.sh and
+        # media_art.sh all exit 0 on an empty value rather than assuming the
+        # binary is there.
+        #
+        # SILL_MEDIA_ICONS is the glyph override table, one "key<TAB>glyph" per
+        # line. Real tabs and newlines rather than \t/\n escapes because the
+        # consumer is a plain double-quoted bash string, where a backslash-t is
+        # two characters and nothing would ever match.
         ".config/sketchybar/media_config.sh".text = ''
           #!/bin/bash
-          # GENERATED from haus.sill{,.bottom}.items.media by modules/sill/default.nix — do not edit.
+          # GENERATED from haus.sill{,.bottom}.items.media + haus.sill.media.* by
+          # modules/sill/default.nix — do not edit.
           SILL_MEDIA_CONTROL="${
             lib.optionalString (builtins.elem "media" (topItems ++ bottomItems)) (lib.getExe mediaControl)
+          }"
+          SILL_MEDIA_COLLAPSE="${if cfg.media.collapse then "1" else "0"}"
+          SILL_MEDIA_ARTWORK_TINT="${if cfg.media.artworkTint then "1" else "0"}"
+          SILL_MEDIA_ICONS="${
+            lib.concatStringsSep "\n" (lib.mapAttrsToList (key: glyph: "${key}\t${glyph}") cfg.media.icons)
           }"
         '';
         # Empty by default: plugins/elgato.sh then discovers the light over
