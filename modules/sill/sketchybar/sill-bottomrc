@@ -68,7 +68,7 @@ source "$HOME/.config/sketchybar/bar.sh"
     background.padding_right=4
 
 # The pills — GENERATED from haus.sill.bottom.items by modules/sill/default.nix,
-# from the same blocks the menu bar's optional_items.sh is built from, emitted
+# from the same blocks the menu bar's top_items.sh is built from, emitted
 # against $SB instead of `sketchybar`. A pill named there is drawn here and NOT
 # up top: it moves, it doesn't duplicate.
 source "$HOME/.config/sketchybar/bottom_items.sh"

@@ -16,7 +16,7 @@ let
   # descriptions here are the single source for the options reference.
   #
   # Up here rather than inside `sill.items` because `sill.bottom.items` reads the
-  # same `extra` table — a pill's description is written once and both bars'
+  # same tables — a pill's description is written once and both bars'
   # option pages render it.
   core = {
     clock = "The clock pill, pinned to the far right.";
@@ -45,13 +45,11 @@ let
       description = desc;
     };
 
-  # Which pills the SECOND bar can host. The whole left side (workspace pills,
-  # front app, the leader picker) and the five core pills stay on the menu bar:
-  # they are hand-written in `sketchybarrc`, whereas every name below is emitted
-  # from Nix (`optionalPluginBlocks`) and so can be emitted against either bar
-  # without duplicating a line of bar config. `claudeUsage` is left out because
-  # it is only a deprecated alias for `aiUsage`.
-  movable = builtins.removeAttrs extra [ "claudeUsage" ];
+  # Which pills the SECOND bar can host. The whole right side is emitted from
+  # one parameterized block table, so core and extra pills can move without a
+  # second source copy. `claudeUsage` is left out because it is only a
+  # deprecated alias for `aiUsage`.
+  movable = core // builtins.removeAttrs extra [ "claudeUsage" ];
 in
 {
   options.haus = {
@@ -294,8 +292,9 @@ in
       type = lib.types.submodule { options = lib.mapAttrs (_: mkItem false) movable; };
       default = { };
       example = {
+        weather = true;
+        media = true;
         cpu = true;
-        memory = true;
       };
       description = ''
         Which pills the bottom bar draws, one bool each, all default false. A
@@ -303,13 +302,11 @@ in
         bar, whatever `haus.sill.items` says about it — so there is one switch
         per pill per bar and never two copies of the same readout.
 
-        The set is the `haus.sill.items` extras (`cpu`, `memory`, `volume`,
+        The set is the five core pills (`clock`, `weather`, `media`, `battery`,
+        `wifi`) plus the `haus.sill.items` extras (`cpu`, `memory`, `volume`,
         `calendar`, `caffeinate`, `agents`, `aiUsage`, `elgato`, `harvest`). The
-        five core pills — `clock`, `weather`, `media`, `battery`, `wifi` — and
-        the whole left side (workspace pills, front app, the leader picker, the
-        tour) stay on the menu bar: those are hand-written in `sketchybarrc`,
-        while every name above is emitted from Nix and can therefore be emitted
-        against either bar. The hush pill stays up top too — it rides
+        whole left side (workspace pills, front app, the leader picker) and the
+        tour stay on the menu bar. The hush pill stays up top too — it rides
         `haus.hush.enable` rather than this table.
 
         Needs `haus.sill.bottom.enable`; without it nothing here is drawn.

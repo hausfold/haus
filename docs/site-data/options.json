@@ -2571,10 +2571,10 @@
       "_type": "literalExpression",
       "text": "{ }"
     },
-    "description": "Which pills the bottom bar draws, one bool each, all default false. A\npill named here MOVES: it is drawn on the bottom bar and not on the menu\nbar, whatever `haus.sill.items` says about it — so there is one switch\nper pill per bar and never two copies of the same readout.\n\nThe set is the `haus.sill.items` extras (`cpu`, `memory`, `volume`,\n`calendar`, `caffeinate`, `agents`, `aiUsage`, `elgato`, `harvest`). The\nfive core pills — `clock`, `weather`, `media`, `battery`, `wifi` — and\nthe whole left side (workspace pills, front app, the leader picker, the\ntour) stay on the menu bar: those are hand-written in `sketchybarrc`,\nwhile every name above is emitted from Nix and can therefore be emitted\nagainst either bar. The hush pill stays up top too — it rides\n`haus.hush.enable` rather than this table.\n\nNeeds `haus.sill.bottom.enable`; without it nothing here is drawn.\n",
+    "description": "Which pills the bottom bar draws, one bool each, all default false. A\npill named here MOVES: it is drawn on the bottom bar and not on the menu\nbar, whatever `haus.sill.items` says about it — so there is one switch\nper pill per bar and never two copies of the same readout.\n\nThe set is the five core pills (`clock`, `weather`, `media`, `battery`,\n`wifi`) plus the `haus.sill.items` extras (`cpu`, `memory`, `volume`,\n`calendar`, `caffeinate`, `agents`, `aiUsage`, `elgato`, `harvest`). The\nwhole left side (workspace pills, front app, the leader picker) and the\ntour stay on the menu bar. The hush pill stays up top too — it rides\n`haus.hush.enable` rather than this table.\n\nNeeds `haus.sill.bottom.enable`; without it nothing here is drawn.\n",
     "example": {
       "_type": "literalExpression",
-      "text": "{\n  cpu = true;\n  memory = true;\n}"
+      "text": "{\n  cpu = true;\n  media = true;\n  weather = true;\n}"
     },
     "loc": [
       "haus",
@@ -2623,6 +2623,25 @@
     "readOnly": false,
     "type": "boolean"
   },
+  "haus.sill.bottom.items.battery": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "The battery pill.",
+    "loc": [
+      "haus",
+      "sill",
+      "bottom",
+      "items",
+      "battery"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
   "haus.sill.bottom.items.caffeinate": {
     "declarations": [
       "modules/sill/options.nix"
@@ -2657,6 +2676,25 @@
       "bottom",
       "items",
       "calendar"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.bottom.items.clock": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "The clock pill, pinned to the far right.",
+    "loc": [
+      "haus",
+      "sill",
+      "bottom",
+      "items",
+      "clock"
     ],
     "readOnly": false,
     "type": "boolean"
@@ -2718,6 +2756,25 @@
     "readOnly": false,
     "type": "boolean"
   },
+  "haus.sill.bottom.items.media": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "The now-playing track (scrolls; auto-hides when nothing plays, dims when paused, click to play/pause). It reads the same system-wide session Control Center does, so it follows a browser tab as readily as Apple Music or Spotify, and its icon says which app the sound is coming from. SketchyBar's own `media_change` event has been dead since macOS 15.4, where Apple started requiring an entitlement to talk to `mediaremoted`; the pill is fed instead by `media-control`, which does the read from inside the entitled `/usr/bin/perl`. That is a private-framework route Apple could close in any point release — `media-control test` exits non-zero once it has.",
+    "loc": [
+      "haus",
+      "sill",
+      "bottom",
+      "items",
+      "media"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
   "haus.sill.bottom.items.memory": {
     "declarations": [
       "modules/sill/options.nix"
@@ -2752,6 +2809,44 @@
       "bottom",
       "items",
       "volume"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.bottom.items.weather": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "The weather pill and its click-to-open forecast popover.",
+    "loc": [
+      "haus",
+      "sill",
+      "bottom",
+      "items",
+      "weather"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.bottom.items.wifi": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "The Wi-Fi status pill.",
+    "loc": [
+      "haus",
+      "sill",
+      "bottom",
+      "items",
+      "wifi"
     ],
     "readOnly": false,
     "type": "boolean"

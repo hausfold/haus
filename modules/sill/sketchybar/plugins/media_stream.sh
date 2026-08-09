@@ -22,8 +22,10 @@ export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/usr/bin:/bin:$PATH"
 
 source "$HOME/.config/sketchybar/colors.sh"
 source "$HOME/.config/sketchybar/media_config.sh"
+SILL_ITEM=media
+source "$HOME/.config/sketchybar/bar.sh"
 
-SKETCHYBAR="/opt/homebrew/bin/sketchybar"
+SKETCHYBAR="$SB"
 PIDFILE="/tmp/sketchybar_media_stream.pid"
 
 [ -n "$SILL_MEDIA_CONTROL" ] && [ -x "$SILL_MEDIA_CONTROL" ] || exit 0

@@ -226,10 +226,139 @@ let
         --subscribe hush mouse.clicked hush_change system_woke
   '';
 
-  # The opt-in pills, emitted only for the ones haus.sill.items switches on.
-  # They reference $SURFACE0 (from colors.sh) and $HOME, both live when
-  # sketchybarrc sources this file.
+  # Every movable right-side pill, emitted only for the bar that owns it. The
+  # definitions live once and take the target bar client as an argument; Nix
+  # renders the selected blocks into the top and bottom item files. They
+  # reference $SURFACE0 (from colors.sh) and $HOME, both live when either rc
+  # sources its generated item file.
   mkPluginBlocks = sb: {
+    clock = ''
+      ${sb} --add item clock right \
+          --set clock \
+              update_freq=10 \
+              icon= \
+              icon.color=$PINK \
+              background.color=$MANTLE \
+              background.padding_left=8 \
+              background.padding_right=8 \
+              script="$HOME/.config/sketchybar/plugins/clock.sh" \
+              click_script="open -a 'Notion Calendar'"
+    '';
+    # Right-click opens Weather; left-click goes through popToggle so sillpop
+    # guards the popup on the same bar instance that owns the pill.
+    weather = ''
+      ${sb} --add item weather right \
+          --set weather \
+              update_freq=600 \
+              icon="󰖐" \
+              icon.color=$SKY \
+              background.color=$SURFACE0 \
+              popup.background.border_width=2 \
+              popup.background.corner_radius=10 \
+              popup.background.border_color=$SURFACE0 \
+              popup.background.color=$MANTLE \
+              ${popupAlign} \
+              script="$HOME/.config/sketchybar/plugins/weather.sh" \
+              click_script="if [ \"\$BUTTON\" = \"right\" ]; then open -a Weather; else ${popToggle sb "weather"} fi" \
+          --subscribe weather system_woke mouse.clicked
+
+      WEATHER_POPUP_ITEM=(
+          icon.padding_left=10
+          label.padding_right=10
+          background.height=30
+          background.padding_left=0
+          background.padding_right=0
+          background.color=0x00000000
+          background.drawing=off
+          icon.font="${barFont}:Bold:${sizes.appIcon}"
+          label.font="${barFont}:Regular:${sizes.label}"
+      )
+
+      ${sb} --add item weather.location popup.weather \
+          --set weather.location "''${WEATHER_POPUP_ITEM[@]}" \
+              icon.color=$BLUE label.color=$TEXT
+      ${sb} --add item weather.condition popup.weather \
+          --set weather.condition "''${WEATHER_POPUP_ITEM[@]}" \
+              icon.color=$SKY label.color=$SUBTEXT0
+      ${sb} --add item weather.temp popup.weather \
+          --set weather.temp "''${WEATHER_POPUP_ITEM[@]}" \
+              icon.color=$PEACH label.color=$TEXT
+      ${sb} --add item weather.highlow popup.weather \
+          --set weather.highlow "''${WEATHER_POPUP_ITEM[@]}" \
+              icon.color=$RED label.color=$SUBTEXT0
+      ${sb} --add item weather.sun popup.weather \
+          --set weather.sun "''${WEATHER_POPUP_ITEM[@]}" \
+              icon.color=$YELLOW label.color=$TEXT
+      ${sb} --add item weather.wind popup.weather \
+          --set weather.wind "''${WEATHER_POPUP_ITEM[@]}" \
+              icon.color=$TEAL label.color=$TEXT
+      ${sb} --add item weather.humidity popup.weather \
+          --set weather.humidity "''${WEATHER_POPUP_ITEM[@]}" \
+              icon.color=$SAPPHIRE label.color=$TEXT
+      ${sb} --add item weather.uv popup.weather \
+          --set weather.uv "''${WEATHER_POPUP_ITEM[@]}" \
+              icon.color=$YELLOW label.color=$TEXT
+      ${sb} --add item weather.precip popup.weather \
+          --set weather.precip "''${WEATHER_POPUP_ITEM[@]}" \
+              icon.color=$BLUE label.color=$TEXT
+
+      for i in 0 1 2 3; do
+          ${sb} --add item weather.hour.$i popup.weather \
+              --set weather.hour.$i "''${WEATHER_POPUP_ITEM[@]}" \
+                  icon.color=$LAVENDER label.color=$SUBTEXT0
+      done
+      for i in 1 2 3; do
+          ${sb} --add item weather.forecast.$i popup.weather \
+              --set weather.forecast.$i "''${WEATHER_POPUP_ITEM[@]}" \
+                  icon.color=$MAUVE label.color=$TEXT
+      done
+    '';
+    # SketchyBar's media_change event is dead on macOS 15.4+, so a detached
+    # media-control stream owns repainting. updates=on lets a hidden media pill
+    # keep running its watchdog tick and recover a dead stream.
+    media = ''
+      ${sb} --add item media right \
+          --set media \
+              icon= \
+              icon.color=$PINK \
+              updates=on \
+              update_freq=60 \
+              background.color=$SURFACE0 \
+              background.padding_left=8 \
+              background.padding_right=8 \
+              label.max_chars=25 \
+              scroll_texts=on \
+              drawing=off \
+              script="$HOME/.config/sketchybar/plugins/media.sh" \
+              click_script="$HOME/.config/sketchybar/plugins/media.sh toggle"
+      ("$HOME/.config/sketchybar/plugins/media_stream.sh" >/dev/null 2>&1 &)
+    '';
+    # updates=on is load-bearing: battery.sh hides the pill over the configured
+    # threshold, and a when_shown item could never notice charge later dropped.
+    battery = ''
+      ${sb} --add item battery right \
+          --set battery \
+              icon.color=$GREEN \
+              update_freq=30 \
+              updates=on \
+              background.color=$SURFACE0 \
+              script="$HOME/.config/sketchybar/plugins/battery.sh" \
+              click_script="open -a 'System Settings' 'x-apple.systempreferences:com.apple.preference.battery'" \
+          --subscribe battery system_woke power_source_change
+    '';
+    wifi = ''
+      ${sb} --add item wifi right \
+          --set wifi \
+              icon=󰖩 \
+              label.drawing=off \
+              icon.color=$TEAL \
+              background.color=$SURFACE0 \
+              icon.padding_left=10 \
+              icon.padding_right=10 \
+              script="$HOME/.config/sketchybar/plugins/wifi.sh" \
+              click_script="open -a 'System Settings' 'x-apple.systempreferences:com.apple.wifi-settings-extension'" \
+              update_freq=10
+    '';
     # Agent-pane status, for whichever client the pane runs (Claude Code, Codex,
     # Opencode). The refresh is push, not poll: agents-hook.sh invokes
     # agents.sh directly on every agent state change, so the pill updates even
@@ -429,8 +558,15 @@ let
           --subscribe harvest mouse.clicked harvest_update system_woke
     '';
   };
-  # The opt-in pills sit in an attrset (no inherent order), so emission follows
-  # this fixed left-to-right order — only the ones sill.items switches on are drawn.
+  # Item blocks sit in an attrset (no inherent order), so emission follows these
+  # fixed left-to-right orders — only the ones each bar owns are drawn.
+  coreOrder = [
+    "clock"
+    "weather"
+    "media"
+    "battery"
+    "wifi"
+  ];
   extraOrder = [
     "agents"
     "aiUsage"
@@ -442,10 +578,12 @@ let
     "elgato"
     "harvest"
   ];
+  itemOrder = coreOrder ++ extraOrder;
+
   # Is this pill switched on in a given items table? Both tables are read through
   # here so `claudeUsage` — the deprecated alias, which only the top bar's table
   # carries — is honoured in exactly one place.
-  wantsExtra =
+  wantsItem =
     items: name:
     if name == "aiUsage" then
       (items.aiUsage or false) || (items.claudeUsage or false)
@@ -456,35 +594,28 @@ let
   # left for the menu bar. A pill MOVES rather than duplicating: the bottom table
   # wins outright, so there is one switch per pill per bar and never two live
   # copies of a readout racing each other's update_freq.
-  bottomExtras = lib.optionals cfg.bottom.enable (
-    lib.filter (wantsExtra cfg.bottom.items) extraOrder
-  );
-  enabledExtras = lib.filter (
-    name: wantsExtra cfg.items name && !(builtins.elem name bottomExtras)
+  bottomItems = lib.optionals cfg.bottom.enable (lib.filter (wantsItem cfg.bottom.items) itemOrder);
+  topCore = lib.filter (
+    name: wantsItem cfg.items name && !(builtins.elem name bottomItems)
+  ) coreOrder;
+  topExtras = lib.filter (
+    name: wantsItem cfg.items name && !(builtins.elem name bottomItems)
   ) extraOrder;
+  topItems = topCore ++ topExtras;
 
   # nix name -> the item name SketchyBar knows it by. Identity for all but the
   # camel-cased one, and the plugins' own $NAME is the sketchybar side — so this
   # is what the routing list in bar.sh has to be written in.
   itemId = name: if name == "aiUsage" then "ai_usage" else name;
 
-  # The always-on core pills; a false in sill.items hides one.
-  coreItems = [
-    "clock"
-    "weather"
-    "media"
-    "battery"
-    "wifi"
-  ];
-  hiddenCore = lib.filter (name: !config.haus.sill.items.${name}) coreItems;
-
-  optionalItemsSh = ''
+  topItemsSh = ''
     #!/bin/bash
     # GENERATED from haus.hush.enable + haus.sill.items by
     # modules/sill/default.nix — do not edit.
   ''
+  + lib.concatMapStrings (name: (mkPluginBlocks barTopPath).${name}) topCore
   + lib.optionalString config.haus.hush.enable hushBlock
-  + lib.concatMapStrings (name: (mkPluginBlocks barTopPath).${name}) enabledExtras;
+  + lib.concatMapStrings (name: (mkPluginBlocks barTopPath).${name}) topExtras;
 
   # The same blocks again, emitted against the OTHER bar. $SB is set by bar.sh,
   # which sill-bottomrc sources before this file — an absolute path to the
@@ -496,7 +627,7 @@ let
     # GENERATED from haus.sill.bottom.items by modules/sill/default.nix — do not
     # edit.
   ''
-  + lib.concatMapStrings (name: (mkPluginBlocks "$SB").${name}) bottomExtras;
+  + lib.concatMapStrings (name: (mkPluginBlocks "$SB").${name}) bottomItems;
 
   # Which bar a plugin should talk to. Sourced by every plugin that can end up on
   # either one, and the answer is nearly always $BAR_NAME: SketchyBar exports it
@@ -514,7 +645,7 @@ let
     # edit. Sets $SB to the SketchyBar instance this invocation belongs to.
     SILL_BAR_TOP="${barTopPath}"
     SILL_BAR_BOTTOM="${barBottomPath}"
-    SILL_BOTTOM_ITEMS="${lib.concatMapStringsSep " " itemId bottomExtras}"
+    SILL_BOTTOM_ITEMS="${lib.concatMapStringsSep " " itemId bottomItems}"
 
     case "''${BAR_NAME:-}" in
       sill-bottom) SB="$SILL_BAR_BOTTOM" ;;
@@ -529,18 +660,6 @@ let
         fi
         ;;
     esac
-  '';
-
-  # Which core pills the user turned off (a false in haus.sill.items). Sourced
-  # by sketchybarrc BEFORE the core `--add`s so each can guard on sill_hidden and
-  # simply not create the item — cleaner than adding-then-hiding (media.sh flips
-  # its own drawing on when a track plays, so a post-hoc drawing=off wouldn't
-  # stick). bash 3.2 (macOS) has no associative arrays, hence the substring match.
-  hiddenItemsSh = ''
-    #!/bin/bash
-    # GENERATED from haus.sill.items by modules/sill/default.nix — do not edit.
-    SILL_HIDDEN="${lib.concatStringsSep " " hiddenCore}"
-    sill_hidden() { case " $SILL_HIDDEN " in *" $1 "*) return 0 ;; *) return 1 ;; esac ; }
   '';
 
   # Bar position (haus.sill.position). Sourced by sketchybarrc — which sets
@@ -584,6 +703,8 @@ let
   customTourSteps = config.haus.tour.steps;
   customTour = customTourSteps != null;
   tourWired = config.haus.tour.enable && (customTour || config.haus.prowl.enable);
+  topRightItems = topCore ++ lib.optional config.haus.hush.enable "hush" ++ topExtras;
+  tourAnchor = if topRightItems == [ ] then null else itemId (builtins.head topRightItems);
   tourItemSh = ''
     #!/bin/bash
     # GENERATED from haus.tour.* by modules/sill/default.nix — do not edit.
@@ -598,7 +719,7 @@ let
             label.font="${barFont}:Bold:${sizes.small}" \
             background.color=$MANTLE \
             click_script="$HOME/.config/sketchybar/plugins/tour.sh click"
-    sketchybar --move tour after clock
+    ${lib.optionalString (tourAnchor != null) "sketchybar --move tour after ${tourAnchor}"}
     "$HOME/.config/sketchybar/plugins/tour.sh" init
   '';
   # The resolved keymap (../lib/keys.nix). The tour's prompts must name the keys
@@ -702,7 +823,7 @@ lib.mkIf config.haus.sill.enable {
     ++
       # A bar with nothing on it still costs a launchd job and, via prowl, a
       # 40pt strip of every display — and it draws no pill to explain either.
-      lib.optional (cfg.bottom.enable && bottomExtras == [ ]) (
+      lib.optional (cfg.bottom.enable && bottomItems == [ ]) (
         "haus.sill.bottom.enable is on with no haus.sill.bottom.items — the second bar draws an empty strip and still reserves room at the bottom of every display."
       )
     ++
@@ -731,7 +852,7 @@ lib.mkIf config.haus.sill.enable {
   haus.roster = {
     sketchybar.brew = lib.mkDefault "FelixKratz/formulae/sketchybar";
   }
-  // lib.optionalAttrs (builtins.elem "calendar" (enabledExtras ++ bottomExtras)) {
+  // lib.optionalAttrs (builtins.elem "calendar" (topItems ++ bottomItems)) {
     ical-buddy.brew = lib.mkDefault "ical-buddy";
   };
   # sketchybar-app-font draws the workspace-pill logos, and nothing else does —
@@ -881,8 +1002,7 @@ lib.mkIf config.haus.sill.enable {
         ".config/sketchybar/colors.sh".text = colorsSh;
         ".config/sketchybar/sizes.sh".text = sizesSh;
         ".config/sketchybar/workspaces.sh".text = workspacesSh;
-        ".config/sketchybar/optional_items.sh".text = optionalItemsSh;
-        ".config/sketchybar/hidden_items.sh".text = hiddenItemsSh;
+        ".config/sketchybar/top_items.sh".text = topItemsSh;
         ".config/sketchybar/bar.sh".text = barSh;
         ".config/sketchybar/position.sh".text = positionSh;
         ".config/sketchybar/tour_item.sh".text = tourItemSh;
@@ -904,8 +1024,10 @@ lib.mkIf config.haus.sill.enable {
         # exit 0 on an empty value rather than assuming the binary is there.
         ".config/sketchybar/media_config.sh".text = ''
           #!/bin/bash
-          # GENERATED from haus.sill.items.media by modules/sill/default.nix — do not edit.
-          SILL_MEDIA_CONTROL="${lib.optionalString config.haus.sill.items.media (lib.getExe mediaControl)}"
+          # GENERATED from haus.sill{,.bottom}.items.media by modules/sill/default.nix — do not edit.
+          SILL_MEDIA_CONTROL="${
+            lib.optionalString (builtins.elem "media" (topItems ++ bottomItems)) (lib.getExe mediaControl)
+          }"
         '';
         # Empty by default: plugins/elgato.sh then discovers the light over
         # mDNS rather than the rice shipping somebody's device hostname.

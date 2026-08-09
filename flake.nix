@@ -1280,6 +1280,7 @@
             file .config/aerospace/aerospace.toml moves
             file .config/pounce/config.json ceiling
             file .config/sketchybar/sizes.sh ceiling
+            file .config/sketchybar/top_items.sh ceiling
             file .config/sketchybar/tour_item.sh ceiling
             file .config/sketchybar/workspaces.sh ceiling
             file Library/Application Support/com.mitchellh.ghostty/config moves
@@ -1391,6 +1392,7 @@
             static sill hardcoded-family-literals 0
             file .claude/skills/haus/references/this-machine.md moves
             file .config/sketchybar/sizes.sh moves
+            file .config/sketchybar/top_items.sh moves
             file .config/sketchybar/tour_item.sh moves
             file .config/sketchybar/workspaces.sh moves
             file Library/Application Support/com.mitchellh.ghostty/config moves

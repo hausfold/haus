@@ -1,6 +1,8 @@
 #!/bin/bash
 
 source "$HOME/.config/sketchybar/colors.sh"
+SILL_ITEM=wifi
+source "$HOME/.config/sketchybar/bar.sh"
 
 # Get Wi-Fi status using ipconfig (more reliable than networksetup on newer macOS)
 INFO=$(ipconfig getsummary en0)
@@ -14,12 +16,12 @@ if [ "$LINK_STATUS" = "TRUE" ]; then
         LABEL="Connected"
     fi
     
-    /opt/homebrew/bin/sketchybar --set $NAME \
+    "$SB" --set "$NAME" \
         icon=󰖩 \
         label.drawing=off \
         icon.color=$TEAL
 else
-    /opt/homebrew/bin/sketchybar --set $NAME \
+    "$SB" --set "$NAME" \
         icon=󰖪 \
         label.drawing=off \
         icon.color=$RED
