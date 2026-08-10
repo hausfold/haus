@@ -994,9 +994,12 @@
                   extraModules = [
                     {
                       haus.theme.accent = accent;
-                      # `bold` is the one wallpaper generated from the accent hex;
-                      # the three hand-made ones are shipped PNGs by design.
-                      haus.theme.wallpaper = "bold";
+                      # `minimal` is the generated desktop, and it spends the
+                      # accent twice — as the bloom behind the mark, and in the
+                      # derivation's own name. The three hand-made looks are
+                      # shipped PNGs by design; `bold` follows the accent too,
+                      # through one interpolation that predates this check.
+                      haus.wallpaper.style = "minimal";
                       # Not in the default rice — added here so the roster-port
                       # accent path has a subject at all.
                       haus.roster.zed = {
@@ -1036,7 +1039,7 @@
               lazygit = file "Library/Application Support/lazygit/config.yml";
               yazi = file ".config/yazi/theme.toml";
               zen = hm.home.activation.zenNebelung.data;
-              wallpaper-bold = hm.home.activation.nebelhausWallpaper.data;
+              wallpaper = hm.home.activation.nebelhausWallpaper.data;
               zed-roster-port = targetsUnder ".config/zed/themes/";
               # The WEB, via Stylus — the one surface here that isn't an app's
               # own config. A path rather than contents on purpose: the bundle
@@ -1105,7 +1108,7 @@
             sill-logo moves
             starship pinned
             stylus moves
-            wallpaper-bold moves
+            wallpaper moves
             yazi moves
             zed-roster-port moves
             zellij pinned
@@ -1538,6 +1541,45 @@
             test -x ${./modules/sill/sketchybar/sill-bottomrc}
             touch $out
           '';
+
+          # ---- wallpaper --------------------------------------------------
+          # Renders the `minimal` desktop and asserts the two things about it
+          # that nobody would notice going wrong.
+          #
+          # GEOMETRY, because macOS rescales anything that isn't the panel's own
+          # pixel count and rescaling is where a clean gradient starts to look
+          # stepped — so the picture has to come out at exactly the size the
+          # option asked for, not merely near it.
+          #
+          # COLOUR COUNT, because that is what banding IS. The bloom spends
+          # about ten of the 256 levels an 8-bit PNG has; quantised without the
+          # grain that dithers it the picture draws visible contour rings.
+          #
+          # The whole ladder, measured at the shipped defaults rather than
+          # guessed, because the floor is only defensible against real numbers:
+          # `grain = 0` gives 127 distinct colours, 0.004 (the lowest value the
+          # option calls useful) gives 182, the default 0.01 gives 291, and 0.02
+          # gives 588. So 160 — above the ungrained case, below the lowest
+          # grain anyone should ship. If this ever fails, the dither stopped
+          # reaching the reduction; it does NOT fail on a retune of taste.
+          #
+          # It renders the DEFAULTS and only the defaults. Drop the default
+          # grain below ~0.003 and this stops being a meaningful floor — move it
+          # then, with fresh numbers, rather than deleting it.
+          #
+          # 🚨 Like site-data-current, it only runs when it is BUILT.
+          wallpaper =
+            pkgs.runCommand "nebelhaus-wallpaper-ok" { nativeBuildInputs = [ pkgs.imagemagick ]; }
+              ''
+                pic=${self.packages.${system}.wallpaper}
+                geom=$(magick identify -format '%wx%h' "$pic")
+                [ "$geom" = "3456x2234" ] \
+                  || { echo "wallpaper rendered $geom, expected the option's 3456x2234" >&2; exit 1; }
+                colours=$(magick identify -format '%k' "$pic")
+                [ "$colours" -gt 160 ] \
+                  || { echo "wallpaper has only $colours distinct colours — the grain that dithers the bloom is not reaching the 8-bit reduction, so it will band" >&2; exit 1; }
+                touch $out
+              '';
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-darwin" system) {
           accent-reach = pkgs.runCommand "nebelhaus-accent-reach-ok" { } ''
@@ -1792,6 +1834,45 @@
           # nebelhaus yet, and `haus options` on one that does — den installs it
           # into the system profile so that second path costs nothing.
           host-template = import ./modules/host-template.nix { inherit pkgs; };
+
+          # `nix build .#wallpaper` — the generated `minimal` desktop at the
+          # shipped defaults, as a PNG you can open.
+          #
+          # A wallpaper is the one rice surface you cannot review by reading a
+          # diff, and until this existed the only way to see one was to rebuild a
+          # Mac and look at it. Now the same ./modules/wallpaper/render.nix a
+          # real machine uses is handed the option DEFAULTS instead of a host's
+          # values, so what this builds is exactly what someone gets by writing
+          # `haus.wallpaper.style = "minimal"` and nothing else. `--override-input`
+          # or a checkout is how you preview a change to it.
+          #
+          # The defaults come from evalModules over the same options list every
+          # other renderer reads (see ./modules/options-modules.nix), so this
+          # can't quietly fall behind a retuned default. `style` is the one
+          # override: the shipped default is "none", which is a desktop with
+          # nothing to render.
+          wallpaper =
+            let
+              surface =
+                (nixpkgs.lib.evalModules {
+                  specialArgs.lib = nixpkgs.lib;
+                  modules = (import ./modules/options-modules.nix) ++ [ { _module.check = false; } ];
+                }).config.haus;
+            in
+            import ./modules/wallpaper/render.nix {
+              inherit pkgs inputs;
+              lib = nixpkgs.lib;
+              nebelung = { inherit (nebelung) palettes; };
+              inherit (surface)
+                theme
+                ui
+                sill
+                fonts
+                ;
+              cfg = surface.wallpaper // {
+                style = "minimal";
+              };
+            };
         }
         // nixpkgs.lib.optionalAttrs isDarwin {
           pounce = pounce.packages.${system}.default;

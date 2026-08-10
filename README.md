@@ -112,7 +112,8 @@ The house is built from composable nix-darwin modules. Take the whole thing, or
 - 🐾 **pounce** — the [Pounce](https://github.com/hausfold/pounce) palette, wired in as a self-signing daemon that holds its Accessibility grant across rebuilds, and ⌘Space freed for it
 - 🪺 **perch** — the [Perch](https://github.com/hausfold/perch) notch file shelf, installed through Nix and copied to a fixed `/Applications/Perch.app` (`haus.perch.enable`)
 - 🤫 **hush** — a one-switch Focus/DND: a declarative global hotkey, plus optional Slack status and shell hooks
-- 🎨 **theme** — the desktop wallpaper and an accent-derived bold wordmark
+- 🎨 **theme** — the palette's flavour and contrast, and the accent every themed tool spends
+- 🏠 **wallpaper** — the desktop, generated here: a flat field at the depth you pick out of the palette, the haus mark ⌂ at its centre, a bloom in your accent, grain so none of it bands, and — off by default — this machine's lock edges tucked exactly under where a tiled window lands (`haus.wallpaper.*`)
 - 📼 **apps** — the picks a finished machine gets rather than the ones a room needs: [IINA](https://iina.io) as the video player, and the video types it takes over from QuickTime. One switch each (`haus.apps.*`), installed as roster entries you can retune
 
 ## identity is the only thing that's yours

@@ -2,7 +2,8 @@
 # lives next to the code that implements it; modules/default.nix imports them all.
 # Cross-cutting options (the app roster) stay in modules/options.nix.
 #
-# theme's options — the accent colour and desktop wallpaper.
+# theme's options — the accent colour and macOS's Light/Dark appearance. The
+# desktop picture is its own room now: haus.wallpaper.* in ../wallpaper.
 { lib, ... }:
 
 let
@@ -57,9 +58,11 @@ in
             rice does not touch system appearance in either direction, so a
             latte rice on a dark macOS looks half-done and that half is yours —
             except in pounce and perch, which read the appearance themselves.
-          - the desktop wallpaper (haus.theme.wallpaper). The three hand-made
-            looks have the dark palette baked in; only "bold" is generated, and it
-            follows theme.accent rather than the flavor.
+          - three of the six desktops (haus.wallpaper.style). The hand-made
+            "orbits", "constellation" and "flow" have the dark palette baked into
+            their pixels; "bold" is generated but follows theme.accent rather
+            than the flavor. "minimal" DOES follow it, in every part — field,
+            mark, glow and debug band.
       '';
     };
 
@@ -174,8 +177,9 @@ in
         wear this accent in both polarities from one key. Left at perch's
         default it accents with its own mark green.
 
-        Three more things follow it: the `bold` wallpaper (generated from the
-        accent hex — see haus.theme.wallpaper), any roster app whose
+        Three more things follow it: the generated desktop (the bloom behind
+        the mark in `minimal`, and the whole sweep in `bold` — see
+        haus.wallpaper.style), any roster app whose
         Nebelung port ships a per-accent matrix (zed, gh-dash, mpv), placed by
         haus.theme.ports, and the bar's far-left logo pill. Those ports name the
         theme file after the accent, so changing the accent renames the file the
@@ -208,31 +212,6 @@ in
         Both halves of that are pinned by the `accent-reach` flake check, which
         fingerprints every surface under three accents and fails if one starts
         or stops following the accent without anyone deciding it should.
-      '';
-    };
-
-    theme.wallpaper = lib.mkOption {
-      type = lib.types.enum [
-        "none"
-        "orbits"
-        "constellation"
-        "flow"
-        "bold"
-      ];
-      default = "none";
-      example = "orbits";
-      description = ''
-        The desktop wallpaper, set at each home-manager activation (osascript,
-        every desktop on the current Space). Four Nebelung looks:
-
-          orbits · constellation · flow  hand-made, the palette baked in
-          bold                           generated from theme.accent, so it
-                                         follows the accent (a bold pink at
-                                         accent = "pink")
-
-        Default "none" leaves your current wallpaper alone — changing the
-        desktop is visible and personal, so nothing moves unless you ask (the
-        bootstrap interview offers the choice on a fresh install).
       '';
     };
 

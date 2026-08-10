@@ -120,7 +120,7 @@
     "order": 117
   },
   "theme": {
-    "blurb": "Colour and wallpaper.",
+    "blurb": "Colour: the palette's flavour and contrast, the accent every themed tool spends, and whether macOS's own Light/Dark follows it.",
     "order": 30
   },
   "tour": {
@@ -130,6 +130,10 @@
   "ui": {
     "blurb": "One number for \"make the interface bigger\", applied across the rice's own surfaces.",
     "order": 50
+  },
+  "wallpaper": {
+    "blurb": "The desktop behind everything. `minimal` is generated on this machine — a flat field at whatever depth you pick out of the palette, the haus mark ⌂ at its centre, a bloom in your accent, and enough grain that none of it bands. The other looks are the hand-made Nebelung ones.",
+    "order": 35
   },
   "workspaces": {
     "blurb": "The named AeroSpace workspaces this machine declares, and which roster apps live on each. A workspace, not an app, owns its bar pill and leader throw — so several apps (a whole \"comms\" role) can share one.",

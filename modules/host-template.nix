@@ -73,8 +73,18 @@ pkgs.runCommand "nebelhaus-host-template-${version}"
     # (The sed uncomments ONE line per option, which is all any default needs
     # today — none of them span lines. The day one does, its continuation lines
     # stay commented and this check fails rather than shipping a half-uncommented
-    # block: teach the renderer to mark the block before teaching this to skip it.)
-    sed -E 's|^  # (haus\.)|  \1|' "$tmpl" > uncommented.nix
+    # block: teach the renderer to mark the block before teaching this to skip it.
+    # Until then `defaultText` is the escape hatch — spell the default on one
+    # line and this stays true. haus.wallpaper.debug.inputs is the first to need
+    # it.)
+    #
+    # The pattern requires the ` =` as well, and that is not decoration. Every
+    # option's own prose is in this file as `  # `-prefixed comment lines, so a
+    # description that softwraps to start a line with `haus.theme.accent's hex`
+    # reads to a bare `^  # haus\.` exactly like an assignment does — it got
+    # uncommented, the file stopped parsing, and the error named the sentence
+    # rather than the option whose description it was.
+    sed -E 's|^  # (haus\.[A-Za-z0-9._-]+ =)|  \1|' "$tmpl" > uncommented.nix
     grep -v '= …;$' uncommented.nix > parseable.nix
     nixfmt < parseable.nix > /dev/null \
       || { echo "host template does not parse once its option lines are uncommented" >&2; exit 1; }

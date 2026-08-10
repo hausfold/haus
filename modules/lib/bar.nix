@@ -99,7 +99,7 @@ rec {
   # strip. That shadow is offset downward, though, and measures flat above a
   # window. The reasoning and the measurement (and its one caveat: the probe is
   # the built-in's strip, not the flush external's) are at `barEdge` in
-  # ../prowl/default.nix.
+  # ./gaps.nix, which owns every number in prowl's [gaps] block.
   #
   # 0 at scale 1.0 (nothing grew, nothing to compensate) rising to 10pt at the
   # ceiling, which is a third of a pill — enough to read as deliberate, small
