@@ -39,6 +39,13 @@ source "$HOME/.config/sketchybar/position.sh"
 # behind it — the only way to make the whole bar bigger is to change what a point
 # means, i.e. the display's scaled resolution (haus.displays).
 #
+# That 36 is stated twice more: modules/lib/bar.nix's `barHeight`, which is what
+# prowl reserves at whichever edge the bar sits on, and sill-bottomrc for the
+# second bar. Change one and the others have to move with it. A reservation that
+# outgrew the bar leaves a strip of dead wallpaper along that edge — which is
+# exactly what prowl's old hardcoded 40 did after this line went 40 -> 36 — and
+# one that lags it puts tiled windows under the pills.
+#
 # topmost is mode-dependent and set once here: only a fixed `bottom` bar is
 # lifted above the windows, so their drop-shadows stop painting the strip.
 # `auto` is deliberately excluded even though it resolves to bottom while

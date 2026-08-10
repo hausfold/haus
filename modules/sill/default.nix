@@ -778,7 +778,7 @@ let
     # `auto` deliberately does NOT get the lift, even though it resolves to
     # `bottom` while docked. Lifting is only safe where the room underneath is
     # actually reserved, and in auto mode it isn't: prowl's outerBottom is
-    # `monLine (gap 10) (barGap 40)` (modules/prowl/default.nix), because
+    # `monLine (gap 10) barEdge` (modules/prowl/default.nix), because
     # AeroSpace gaps can't flip per dock-state and the built-in has to keep a
     # bottom gap sized for the undocked case, when the bar is up at the top.
     # Docked with the lid open the bar draws along the BOTTOM of both displays,
@@ -786,8 +786,9 @@ let
     # calls that out. Today the window covers the bar there; at level 3 the bar
     # would cover the bottom ~26pt of every window on the laptop screen instead,
     # which is a good deal worse than a shadow. Fixed `position = "bottom"`
-    # reserves barGap 40 on both displays and is safe, as is the dedicated
-    # second bar (haus.sill.bottom.enable), which reserves it unconditionally.
+    # reserves barEdge — the bar's own height — on both displays and is safe, as
+    # is the dedicated second bar (haus.sill.bottom.enable), which reserves it
+    # unconditionally.
     bar_topmost() {
       case "$SILL_POSITION_MODE" in
         bottom) echo window ;;

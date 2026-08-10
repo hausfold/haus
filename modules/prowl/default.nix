@@ -245,7 +245,8 @@ let
 
   # Window gaps follow haus.ui.scale. Base values are the tuned ones: 10 on
   # the built-in display, 20 around an external. One outer edge reserves bar room
-  # (40) — whichever edge sill's bar sits on (haus.sill.position).
+  # — whichever edge sill's bar sits on (haus.sill.position) — and that edge is
+  # sized from the bar itself (`barEdge` below), not from a base value here.
   gap = base: toString (builtins.floor (base * config.haus.ui.scale + 0.5));
 
   # The bar's own resolution, shared with sill (../lib/bar.nix). prowl needs it
@@ -269,6 +270,25 @@ let
   barGap =
     base: toString (builtins.floor (base * config.haus.ui.scale + 0.5) + bar.room);
 
+  # The reservation for an edge the bar actually OCCUPIES: the bar's own height
+  # plus the same breathing room, and nothing else. It is a measurement, not a
+  # tuned gap, which is why it doesn't go through `gap`/`barGap`:
+  #
+  # - It must equal what sill draws. This was a hardcoded 40 from back when the
+  #   bar was 40pt tall; sill dropped to 36 in the Tahoe menu-bar fix (28pt pills
+  #   have to sit inside the 32pt band macOS's hover-reveal covers) and the
+  #   reservation never followed, so every bar edge has been carrying 4pt of dead
+  #   space since — most visibly under haus.sill.bottom.enable, where it's the
+  #   strip between the tiled windows and the second bar.
+  # - It must NOT scale. `gap 40` multiplies by haus.ui.scale, but the bar's
+  #   height is the one rice surface that can't grow (../lib/bar.nix: the height
+  #   belongs to the macOS menu-bar band, only the TYPE inside it scales). At
+  #   ui.scale = 1.25 the old form reserved 60pt for a bar still drawing 36.
+  #
+  # `bar.room` is the compensation for exactly that: growth the pill couldn't
+  # take vertically, handed back as space beside the bar. 36 at ui.scale = 1.0.
+  barEdge = toString (bar.barHeight + bar.room);
+
   # The bar-room reservation follows the bar. A built-in display's TOP is under
   # the notch/menu-bar strip macOS already excludes, so a top bar needs no extra
   # reservation there; the external, and a built-in's bottom, have no such strip,
@@ -280,14 +300,14 @@ let
   # `auto`, leaving a small overlap at the built-in's bottom in that one case.)
   barPos = if config.haus.sill.enable then config.haus.sill.position else "top";
   monLine = builtin: external: ''[{ monitor."Built-in Retina Display" = ${builtin} }, ${external}]'';
-  # `barGap` marks every edge a bar can sit on, `gap` every edge it can't. On the
-  # built-in with a top bar that means barGap 10 rather than gap 10: the notch
-  # strip already excludes the bar's height there, so the reservation stays at its
-  # tuned 10 — but the pills still end right where the windows begin, which is the
-  # one place the breathing room matters MOST rather than least.
+  # `barEdge` sizes an edge the bar sits ON, `barGap`/`gap` an edge it doesn't.
+  # On the built-in with a top bar that means barGap 10 rather than barEdge: the
+  # notch strip already excludes the bar's height there, so the reservation stays
+  # at its tuned 10 — but the pills still end right where the windows begin, which
+  # is the one place the breathing room matters MOST rather than least.
   outerTop =
     {
-      top = monLine (barGap 10) (barGap 40);
+      top = monLine (barGap 10) barEdge;
       bottom = monLine (gap 10) (gap 20);
       auto = monLine (barGap 10) (gap 20);
     }
@@ -302,12 +322,12 @@ let
   bottomBar = config.haus.sill.enable && config.haus.sill.bottom.enable;
   outerBottom =
     if bottomBar then
-      monLine (barGap 40) (barGap 40)
+      monLine barEdge barEdge
     else
       {
         top = monLine (gap 10) (gap 20);
-        bottom = monLine (barGap 40) (barGap 40);
-        auto = monLine (gap 10) (barGap 40);
+        bottom = monLine barEdge barEdge;
+        auto = monLine (gap 10) barEdge;
       }
       .${barPos};
 
