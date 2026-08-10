@@ -103,48 +103,46 @@ build_popup() {
     }
 
     # ── the cover ────────────────────────────────────────────────────────────
-    # A real cover when the source published one; the source app's own icon when
-    # it didn't, which is most of the time — no Firefox-family browser publishes
-    # artwork at all. SketchyBar resolves `app.<Name>` by application NAME, not
-    # by bundle id, which is why media_app_name reads it off the running process.
+    # Only when the source actually published one — no Firefox-family browser
+    # ever does. There is deliberately no app-icon stand-in here any more: a
+    # 56pt icon in an 84pt cover well read as an ill-fitting hero image (a lot
+    # of dead space around something too small to be one). Nothing else at the
+    # top has to fill that gap — the title row below carries the kind glyph,
+    # and the source app gets named in the "Show in <App>" row down in the
+    # transport, both of which are the identity a browser tab needs. RUNNING
+    # is checked separately, right where the app-icon badge near "Show in" is
+    # built, well below — a cover well only ever holds a real cover now.
     art="$(ls -1 "$SILL_MEDIA_ART".* 2>/dev/null | head -1)"
     if [ -n "$art" ] && [ -s "$art" ]; then
         scale="$(cat "$SILL_MEDIA_ART_SCALE" 2>/dev/null)"
-        [ -n "$scale" ] || scale=0.2
+        [ -n "$scale" ] || scale=0.16
         ARGS+=(--add item media.popup.art popup.media
             --set media.popup.art
-            icon.drawing=off label.drawing=off
-            width=84 background.height=84
+            icon.drawing=off icon.padding_left=0 icon.padding_right=0
+            label.drawing=off label.padding_left=0 label.padding_right=0
+            width="$SILL_MEDIA_ART_BOX" background.height="$SILL_MEDIA_ART_BOX"
             background.drawing=on background.color=0x00000000
             background.image="$art"
             background.image.scale="$scale"
             background.image.corner_radius=6
             background.image.drawing=on
             click_script="$CLOSE")
-    elif [ -n "$label_app" ] && [ -n "$MEDIA_PID" ] && ps -p "$MEDIA_PID" >/dev/null 2>&1; then
-        # Only while the source app is actually RUNNING. SketchyBar resolves
-        # `app.<Name>` against live applications and logs "Invalid application
-        # name" for anything else — and once the pid is gone media_app_name is
-        # down to the bundle id's last component, which is a lowercase
-        # executable stub ("zen"), not an application name ("Zen").
-        ARGS+=(--add item media.popup.art popup.media
-            --set media.popup.art
-            icon.drawing=off label.drawing=off
-            width=56 background.height=56
-            background.drawing=on background.color=0x00000000
-            background.image="app.$label_app"
-            background.image.scale=0.9
-            background.image.drawing=on
-            click_script="$CLOSE")
     fi
 
     # ── what it is ───────────────────────────────────────────────────────────
+    # max_chars, not a fixed width: sketchybar's `width` is a static size, not
+    # a cap, and setting one forced every title — a three-word one included —
+    # to the same wide box. max_chars leaves a short title sized to itself and
+    # only kicks in once one actually runs long, at which point scroll_texts
+    # sweeps the part it cut off — the popup's answer to the pill's own hover
+    # marquee, just running for as long as the dropdown stays open rather than
+    # one timed pass.
     ARGS+=(--add item media.popup.title popup.media
         --set media.popup.title "${ROW[@]}"
         icon="$icon" icon.color="$accent"
         label="$MEDIA_TITLE" label.color="$TEXT"
         label.font="$BAR_FONT:Bold:$FS_SMALL"
-        label.max_chars=42)
+        label.max_chars="$SILL_MEDIA_POPUP_MAX_CHARS" scroll_texts=on)
 
     sub="$MEDIA_ARTIST"
     [ -n "$MEDIA_ALBUM" ] && sub="${sub:+$sub — }$MEDIA_ALBUM"
@@ -153,7 +151,8 @@ build_popup() {
             --set media.popup.sub "${ROW[@]}"
             icon="" icon.padding_left=0 icon.padding_right=0
             label="$sub" label.color="$SUBTEXT0"
-            label.padding_left=38 label.max_chars=42)
+            label.padding_left=38
+            label.max_chars="$SILL_MEDIA_POPUP_MAX_CHARS" scroll_texts=on)
     fi
 
     # ── the scrubber ─────────────────────────────────────────────────────────
@@ -186,10 +185,9 @@ build_popup() {
     fi
 
     # ── the transport ────────────────────────────────────────────────────────
-    # A vertical menu rather than a ⏮⏯⏭ button strip: SketchyBar lays a popup out
-    # in ONE direction, and a horizontal popup would have cost the history list
-    # below. Labelled rows also teach the pill's own gestures, which is what the
-    # keyboard-free half of this dropdown is for.
+    # A vertical menu rather than a ⏮⏯⏭ button strip: labelled rows teach the
+    # pill's own gestures, which is what the keyboard-free half of this
+    # dropdown is for.
     if [ "$MEDIA_PLAYING" = "true" ]; then
         row "󰏤" "Pause" "$accent" "$TEXT" "toggle"
     else
@@ -199,32 +197,28 @@ build_popup() {
     row "󰒮" "Previous" "$SUBTEXT1" "$TEXT" "prev"
     row "󰒝" "Shuffle" "$SUBTEXT1" "$SUBTEXT0" "shuffle"
     row "󰑖" "Repeat" "$SUBTEXT1" "$SUBTEXT0" "repeat"
-    [ -n "$label_app" ] && row "󰏋" "Show in $label_app" "$SUBTEXT1" "$SUBTEXT0" "focus"
-
-    # ── what came before ─────────────────────────────────────────────────────
-    # macOS keeps no now-playing history — nothing on the machine can answer
-    # "what was that track before this one" ten seconds after it ends. So the
-    # streamer writes each change down, and this is the only place it surfaces.
-    # The rows are deliberately inert: there is no track identifier in the
-    # payload that anything could be asked to play again.
-    if [ -s "$SILL_MEDIA_HISTORY" ]; then
-        local h_epoch h_title h_artist h_bundle h_kind shown=0
-        ARGS+=(--add item media.popup.hist popup.media
-            --set media.popup.hist "${ROW[@]}"
-            icon="" icon.padding_left=0 icon.padding_right=0
-            label="recently played" label.color="$OVERLAY1"
-            label.font="$BAR_FONT:Italic:$FS_TINY"
-            label.padding_left=12)
-        # Newest first, and never the track that is playing right now.
-        while IFS="$SILL_MEDIA_FS" read -r h_epoch h_title h_artist h_bundle; do
-            [ -n "$h_title" ] || continue
-            [ "$h_title" = "$MEDIA_TITLE" ] && continue
-            h_kind="$(media_kind "$h_bundle" "$h_title" "$h_artist" "" "")"
-            row "$(media_icon "$h_kind" "$h_bundle")" \
-                "$h_title${h_artist:+ — $h_artist}" "$OVERLAY1" "$SUBTEXT0"
-            shown=$((shown + 1))
-            [ "$shown" -ge 4 ] && break
-        done < <(tail -r "$SILL_MEDIA_HISTORY" 2>/dev/null)
+    if [ -n "$label_app" ]; then
+        # A small app-icon badge, right above the row that focuses it — the
+        # source's identity, given a spot proportional to how much it matters
+        # once there's no cover to lead with, not a hero image standing in for
+        # one. Only when there's no real cover (that badge would be pure
+        # clutter next to actual artwork) and only while the app is confirmed
+        # RUNNING — see the cover well above for why.
+        if { [ -z "$art" ] || [ ! -s "$art" ]; } &&
+            [ -n "$MEDIA_PID" ] && ps -p "$MEDIA_PID" >/dev/null 2>&1; then
+            ARGS+=(--add item media.popup.appicon popup.media
+                --set media.popup.appicon
+                icon.drawing=off icon.padding_left=0 icon.padding_right=0
+                label.drawing=off label.padding_left=0 label.padding_right=0
+                width="$SILL_MEDIA_BADGE_BOX" background.height="$SILL_MEDIA_BADGE_BOX"
+                background.drawing=on background.color=0x00000000
+                background.image="app.$label_app"
+                background.image.scale=0.9
+                background.image.corner_radius=6
+                background.image.drawing=on
+                click_script="$HOME/.config/sketchybar/plugins/media.sh do focus")
+        fi
+        row "󰏋" "Show in $label_app" "$SUBTEXT1" "$SUBTEXT0" "focus"
     fi
 
     [ ${#ARGS[@]} -gt 0 ] && $SB "${ARGS[@]}" 2>/dev/null
