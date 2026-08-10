@@ -8,7 +8,7 @@
     "order": 80
   },
   "animations": {
-    "blurb": "How long macOS's own Dock and window animations take. The one group in this block that ships **on** — set `\"system\"` to leave macOS's timings alone. Deliberately not the Accessibility \"Reduce motion\" switch, which every browser also reads as `prefers-reduced-motion`.",
+    "blurb": "How much motion macOS spends on its own Dock and windows. The one group in this block that ships **on** — `\"system\"` leaves macOS's own timings alone (but only stops writing; it doesn't restore values a rebuild already replaced). Deliberately not the Accessibility \"Reduce motion\" switch, which every browser also reads as `prefers-reduced-motion`.",
     "order": 111
   },
   "appStore": {

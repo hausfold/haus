@@ -104,11 +104,21 @@ in
       };
 
     # ---- animations ----
-    # macOS's own motion, at the five timings that are just numbers in a plist.
-    # Deliberately NOT `com.apple.universalaccess reduceMotion`, which is the
-    # setting anyone reaches for first and is a much wider blast radius than it
-    # looks — the option's description says why, because that reasoning is the
-    # whole point of the group existing separately.
+    # macOS's own motion: five keys that are just numbers and switches in a
+    # plist. Deliberately NOT `com.apple.universalaccess reduceMotion`, which is
+    # the setting anyone reaches for first and is a much wider blast radius than
+    # it looks — the description says why, because that reasoning is the whole
+    # point of the group existing separately.
+    #
+    # THE ONE §5.6 GROUP THAT SHIPS AN OPINION. Every other curated macOS
+    # settings group defaults each leaf to null ("a group is a place to make an
+    # opinion available, not to impose one; a preset is where an opinion
+    # belongs" — notes/options-roadmap.md §5.6). This one defaults to "fast", on
+    # purpose and against that rule: the domain it writes is one the rice
+    # already holds opinions in three keys deep (autohide, mru-spaces,
+    # orientation, right below in default.nix), and desktop motion is a feel
+    # decision a rice exists to have made for you. The escape hatch is one
+    # word — but read what "system" does and doesn't do, in the description.
     animations = lib.mkOption {
       type = lib.types.enum [
         "fast"
@@ -117,7 +127,8 @@ in
       default = "fast";
       example = "system";
       description = ''
-        How long macOS's own Dock and window animations take.
+        How much motion macOS spends on its own Dock and windows — how long
+        three animations run, and two it plays at all.
 
         `"fast"` — the rice's opinion, and its default — writes five keys, all
         `mkDefault`, so any one of them can be overridden by name in your host
@@ -131,10 +142,19 @@ in
           NSGlobalDomain  NSAutomaticWindowAnimationsEnabled  false  window open/close
         ```
 
-        `"system"` writes NOTHING — not the macOS defaults, nothing at all — so
-        a Dock you tuned by hand years ago keeps its own values. Same principle
-        as `haus.hotCorners`: the rice doesn't overwrite a setting you didn't
-        ask it about.
+        `"system"` writes NOTHING — not the macOS defaults, nothing at all.
+
+        Read that literally, because it is the one thing about this group that
+        can surprise you: `"system"` means STOP WRITING, not RESTORE. A
+        `defaults` write is sticky and macOS keeps no memory of what was there
+        before, so if you rebuild once on `"fast"` and then set `"system"`, the
+        five keys keep the rice's numbers — nothing puts your old ones back. Set
+        `"system"` BEFORE your first rebuild on a rice that has this option, or
+        write the values you want back by name (they're all `mkDefault`, so a
+        plain value in your host file wins). The same is true of every default
+        the rice ships; it's called out here because this one arrived after
+        machines were already running, so it lands on an existing Dock rather
+        than a fresh one.
 
         WHY THIS ISN'T "REDUCE MOTION". macOS's accessibility switch of that
         name (`com.apple.universalaccess reduceMotion`) would cover all of this
