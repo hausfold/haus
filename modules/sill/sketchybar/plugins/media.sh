@@ -108,43 +108,48 @@ build_popup() {
     # artwork at all. SketchyBar resolves `app.<Name>` by application NAME, not
     # by bundle id, which is why media_app_name reads it off the running process.
     art="$(ls -1 "$SILL_MEDIA_ART".* 2>/dev/null | head -1)"
+    ART_ROW=(
+        icon.drawing=off icon.padding_left=0 icon.padding_right=0
+        label.drawing=off label.padding_left=0 label.padding_right=0
+        width="$SILL_MEDIA_ART_BOX" background.height="$SILL_MEDIA_ART_BOX"
+        background.drawing=on background.color=0x00000000
+        background.image.corner_radius=6
+        background.image.drawing=on
+        click_script="$CLOSE"
+    )
     if [ -n "$art" ] && [ -s "$art" ]; then
         scale="$(cat "$SILL_MEDIA_ART_SCALE" 2>/dev/null)"
-        [ -n "$scale" ] || scale=0.2
+        [ -n "$scale" ] || scale=0.16
         ARGS+=(--add item media.popup.art popup.media
-            --set media.popup.art
-            icon.drawing=off label.drawing=off
-            width=84 background.height=84
-            background.drawing=on background.color=0x00000000
+            --set media.popup.art "${ART_ROW[@]}"
             background.image="$art"
-            background.image.scale="$scale"
-            background.image.corner_radius=6
-            background.image.drawing=on
-            click_script="$CLOSE")
+            background.image.scale="$scale")
     elif [ -n "$label_app" ] && [ -n "$MEDIA_PID" ] && ps -p "$MEDIA_PID" >/dev/null 2>&1; then
         # Only while the source app is actually RUNNING. SketchyBar resolves
         # `app.<Name>` against live applications and logs "Invalid application
         # name" for anything else — and once the pid is gone media_app_name is
         # down to the bundle id's last component, which is a lowercase
-        # executable stub ("zen"), not an application name ("Zen").
+        # executable stub ("zen"), not an application name ("Zen"). Same well
+        # as the real cover (not a smaller box of its own) — `scale` governs
+        # the icon's actual rendered size, so this only widens its margin.
         ARGS+=(--add item media.popup.art popup.media
-            --set media.popup.art
-            icon.drawing=off label.drawing=off
-            width=56 background.height=56
-            background.drawing=on background.color=0x00000000
+            --set media.popup.art "${ART_ROW[@]}"
             background.image="app.$label_app"
-            background.image.scale=0.9
-            background.image.drawing=on
-            click_script="$CLOSE")
+            background.image.scale=0.9)
     fi
 
     # ── what it is ───────────────────────────────────────────────────────────
+    # Capped to SILL_MEDIA_POPUP_LABEL_WIDTH rather than a character count: a
+    # long album name is what has, in practice, stretched the whole dropdown
+    # to its width. scroll_texts sweeps whatever the width cuts off — same
+    # mechanic as the pill's own hover marquee, just running for as long as the
+    # dropdown (rebuilt fresh on every open) stays up rather than one timed pass.
     ARGS+=(--add item media.popup.title popup.media
         --set media.popup.title "${ROW[@]}"
         icon="$icon" icon.color="$accent"
         label="$MEDIA_TITLE" label.color="$TEXT"
         label.font="$BAR_FONT:Bold:$FS_SMALL"
-        label.max_chars=42)
+        width="$SILL_MEDIA_POPUP_LABEL_WIDTH" scroll_texts=on)
 
     sub="$MEDIA_ARTIST"
     [ -n "$MEDIA_ALBUM" ] && sub="${sub:+$sub — }$MEDIA_ALBUM"
@@ -153,7 +158,8 @@ build_popup() {
             --set media.popup.sub "${ROW[@]}"
             icon="" icon.padding_left=0 icon.padding_right=0
             label="$sub" label.color="$SUBTEXT0"
-            label.padding_left=38 label.max_chars=42)
+            label.padding_left=38
+            width="$SILL_MEDIA_POPUP_LABEL_WIDTH" scroll_texts=on)
     fi
 
     # ── the scrubber ─────────────────────────────────────────────────────────
@@ -186,10 +192,9 @@ build_popup() {
     fi
 
     # ── the transport ────────────────────────────────────────────────────────
-    # A vertical menu rather than a ⏮⏯⏭ button strip: SketchyBar lays a popup out
-    # in ONE direction, and a horizontal popup would have cost the history list
-    # below. Labelled rows also teach the pill's own gestures, which is what the
-    # keyboard-free half of this dropdown is for.
+    # A vertical menu rather than a ⏮⏯⏭ button strip: labelled rows teach the
+    # pill's own gestures, which is what the keyboard-free half of this
+    # dropdown is for.
     if [ "$MEDIA_PLAYING" = "true" ]; then
         row "󰏤" "Pause" "$accent" "$TEXT" "toggle"
     else
@@ -200,32 +205,6 @@ build_popup() {
     row "󰒝" "Shuffle" "$SUBTEXT1" "$SUBTEXT0" "shuffle"
     row "󰑖" "Repeat" "$SUBTEXT1" "$SUBTEXT0" "repeat"
     [ -n "$label_app" ] && row "󰏋" "Show in $label_app" "$SUBTEXT1" "$SUBTEXT0" "focus"
-
-    # ── what came before ─────────────────────────────────────────────────────
-    # macOS keeps no now-playing history — nothing on the machine can answer
-    # "what was that track before this one" ten seconds after it ends. So the
-    # streamer writes each change down, and this is the only place it surfaces.
-    # The rows are deliberately inert: there is no track identifier in the
-    # payload that anything could be asked to play again.
-    if [ -s "$SILL_MEDIA_HISTORY" ]; then
-        local h_epoch h_title h_artist h_bundle h_kind shown=0
-        ARGS+=(--add item media.popup.hist popup.media
-            --set media.popup.hist "${ROW[@]}"
-            icon="" icon.padding_left=0 icon.padding_right=0
-            label="recently played" label.color="$OVERLAY1"
-            label.font="$BAR_FONT:Italic:$FS_TINY"
-            label.padding_left=12)
-        # Newest first, and never the track that is playing right now.
-        while IFS="$SILL_MEDIA_FS" read -r h_epoch h_title h_artist h_bundle; do
-            [ -n "$h_title" ] || continue
-            [ "$h_title" = "$MEDIA_TITLE" ] && continue
-            h_kind="$(media_kind "$h_bundle" "$h_title" "$h_artist" "" "")"
-            row "$(media_icon "$h_kind" "$h_bundle")" \
-                "$h_title${h_artist:+ — $h_artist}" "$OVERLAY1" "$SUBTEXT0"
-            shown=$((shown + 1))
-            [ "$shown" -ge 4 ] && break
-        done < <(tail -r "$SILL_MEDIA_HISTORY" 2>/dev/null)
-    fi
 
     [ ${#ARGS[@]} -gt 0 ] && $SB "${ARGS[@]}" 2>/dev/null
     return 0

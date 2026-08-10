@@ -126,18 +126,6 @@ media_read_now && PREV_KEY="$(media_change_key)"
         if [ "$key" != "$PREV_KEY" ]; then
             PREV_KEY="$key"
             if [ -n "$MEDIA_TITLE" ]; then
-                # Recently played, for the dropdown. Written on the change rather
-                # than sampled on open, because by the time you go looking for
-                # "what was that one before this" it is gone from every API on
-                # the machine — macOS keeps no now-playing history at all.
-                printf '%s%s%s%s%s%s%s\n' \
-                    "$(date +%s)" "$SILL_MEDIA_FS" "$MEDIA_TITLE" "$SILL_MEDIA_FS" \
-                    "$MEDIA_ARTIST" "$SILL_MEDIA_FS" "$MEDIA_BUNDLE" \
-                    >>"$SILL_MEDIA_HISTORY"
-                tail -n "$SILL_MEDIA_HISTORY_MAX" "$SILL_MEDIA_HISTORY" \
-                    >"$SILL_MEDIA_HISTORY.tmp" 2>/dev/null &&
-                    mv "$SILL_MEDIA_HISTORY.tmp" "$SILL_MEDIA_HISTORY"
-
                 ("$HOME/.config/sketchybar/plugins/media_art.sh" "$MEDIA_ID" >/dev/null 2>&1 &)
             else
                 rm -f "$SILL_MEDIA_ART".* "$SILL_MEDIA_ART_SCALE" "$SILL_MEDIA_TINT" 2>/dev/null

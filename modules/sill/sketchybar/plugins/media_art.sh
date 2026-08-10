@@ -77,11 +77,13 @@ fi
 
 # SketchyBar draws a background image at its natural size times `scale`, and
 # covers arrive at anything from 300 to 3000 px square — so the factor that fits
-# one into the dropdown's 84pt well has to be computed per image, here, rather
-# than guessed once in the popup builder.
+# one into the dropdown's art well has to be computed per image, here, rather
+# than guessed once in the popup builder. Targeting SILL_MEDIA_ART_TARGET rather
+# than the well's own width (SILL_MEDIA_ART_BOX) is what leaves the cover its
+# margin instead of filling the well edge to edge.
 ART_W="$(sips -g pixelWidth "$ART" 2>/dev/null | awk '/pixelWidth/ { print $2 }')"
 if [ -n "$ART_W" ] && [ "$ART_W" -gt 0 ] 2>/dev/null; then
-    awk -v w="$ART_W" 'BEGIN { printf "%.4f\n", 84 / w }' >"$SILL_MEDIA_ART_SCALE"
+    awk -v w="$ART_W" -v t="$SILL_MEDIA_ART_TARGET" 'BEGIN { printf "%.4f\n", t / w }' >"$SILL_MEDIA_ART_SCALE"
 fi
 
 # ── the tint ─────────────────────────────────────────────────────────────────

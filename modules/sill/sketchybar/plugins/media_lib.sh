@@ -29,7 +29,6 @@
 
 SILL_MEDIA_STATE_DIR="$HOME/.local/state/nebelhaus/media"
 SILL_MEDIA_NOW="$SILL_MEDIA_STATE_DIR/now"
-SILL_MEDIA_HISTORY="$SILL_MEDIA_STATE_DIR/history"
 
 # The field separator for both of those files, and it is deliberately NOT a tab.
 # Tab is IFS *whitespace*, which bash collapses: a run of them is one delimiter,
@@ -43,7 +42,19 @@ SILL_MEDIA_FS=$'\037'
 SILL_MEDIA_ART="$SILL_MEDIA_STATE_DIR/cover"
 SILL_MEDIA_ART_SCALE="$SILL_MEDIA_STATE_DIR/cover-scale"
 SILL_MEDIA_TINT="$SILL_MEDIA_STATE_DIR/tint"
-SILL_MEDIA_HISTORY_MAX=6
+
+# The dropdown's art well: the outer box every cover or fallback app icon sits
+# in, and the inner target size the image is scaled to. The gap between the
+# two is deliberate margin, so a square cover doesn't sit flush against the
+# well's edges (and, by extension, the dropdown's own rounded corner).
+SILL_MEDIA_ART_BOX=84
+SILL_MEDIA_ART_TARGET=68
+
+# The dropdown's title/album rows are capped to this width rather than left to
+# grow with the text — an unbounded label made the whole dropdown as wide as
+# its longest album name. Text that overflows it sweeps once on open instead,
+# the popup's answer to the pill's own hover marquee.
+SILL_MEDIA_POPUP_LABEL_WIDTH=220
 
 # Every browser whose media session lands on the bar as "a tab". Kept as one list
 # because the two things done with it — classify, and pick the fallback glyph —
@@ -246,8 +257,8 @@ media_read_now() {
 # NOT contentItemIdentifier on its own: plenty of sources publish none at all —
 # the browsers this pill spends most of its design on among them — and an id that
 # is always the empty string makes every change look like no change, so the
-# cover, the marquee and the recently-played list would all freeze after the
-# first switch into such a source. Title+artist+bundle is what's left, and it is
+# cover and the marquee would both freeze after the first switch into such a
+# source. Title+artist+bundle is what's left, and it is
 # a fine key: two consecutive tracks agreeing on all three are the same track.
 media_change_key() {
     if [ -n "$MEDIA_ID" ]; then
