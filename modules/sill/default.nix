@@ -105,7 +105,7 @@ let
   # Every dropdown carries this, aligned to the GROUP its pill sits in.
   # SketchyBar's popup.align defaults to `left`, i.e. the popup's left edge is
   # pinned to the pill's left edge and the rows grow rightward — fine under the
-  # apple menu at the far left, but on the right half of the bar a wide row (an
+  # haus logo at the far left, but on the right half of the bar a wide row (an
   # agent's repo/branch, a usage gauge) runs straight off the screen edge.
   # `right` pins the popup's RIGHT edge to the pill instead, so it opens
   # leftward, into the bar; `center` grows both ways from the pill's middle.
@@ -113,7 +113,7 @@ let
   # Taking the side as an argument is what keeps that true on the bottom bar's
   # left and center groups: a pill moved there would otherwise still carry
   # `align=right` and open away from the screen edge it is now nowhere near.
-  # The hand-written left-side items in sketchybarrc (apple.logo) never come
+  # The hand-written left-side items in sketchybarrc (haus.logo) never come
   # through here and keep the default.
   popupAlign = side: "popup.align=${side}";
 
@@ -1156,11 +1156,50 @@ lib.mkIf config.haus.sill.enable {
           ) nebelungPalette
         )}
       '';
+      # The far-left logo pill. SILL_LOGO_COLOR is resolved to a colors.sh
+      # VARIABLE REFERENCE rather than a hex: the accent name is a palette key,
+      # colors.sh exports every key UPPER-cased, and both files are sourced by
+      # the same shell — so `$MAUVE` here picks up whatever the nebelung input
+      # says mauve is today, and a palette change reaches the logo without this
+      # file knowing a single hex. `haus.sill.logo.color` left null follows
+      # haus.theme.accent, which is the case worth optimising for: the pill is
+      # the rice's own mark, so it wears the rice's own accent.
+      #
+      # SILL_LOGO_SWEEP_COLORS is the six hausfold accents in the order the
+      # conic gradient on hausfold.co runs them (nebelung → holt → perch →
+      # trill → pounce → nebelhaus, i.e. mauve → teal → green → yellow → peach
+      # → pink). Those are dark-mode's `--a-*` tokens, and every one of them
+      # resolves to a nebelung palette key, which is the whole reason the bar
+      # can reproduce the site's mark without an asset.
+      logoConfigSh = ''
+        #!/bin/bash
+        # GENERATED from haus.sill.logo.* by modules/sill/default.nix — do not edit.
+        SILL_LOGO_ICON=${lib.escapeShellArg cfg.logo.icon}
+        SILL_LOGO_SIZE="${toString cfg.logo.size}"
+        SILL_LOGO_COLOR="''$${lib.toUpper (if cfg.logo.color != null then cfg.logo.color else config.haus.theme.accent)}"
+        SILL_LOGO_STATUS="${if cfg.logo.status then "1" else "0"}"
+        SILL_LOGO_UPDATE_CHECK="${if cfg.logo.updateCheck then "1" else "0"}"
+        SILL_LOGO_SWEEP="${if cfg.logo.sweep then "1" else "0"}"
+        # Off when the room that draws all three menus isn't enabled, as well as
+        # when the option says so: with no pounce there is nothing for a click to
+        # open, and a pill that swallows clicks silently is worse than one that
+        # is plainly not a button.
+        SILL_LOGO_GESTURES="${
+          if cfg.logo.gestures && config.haus.pounce.enable then "1" else "0"
+        }"
+        SILL_LOGO_SWEEP_COLORS="$MAUVE $TEAL $GREEN $YELLOW $PEACH $PINK"
+        # This rice's pounce commands, so the menu's rows can RUN rebuild.sh and
+        # reload-bar.sh rather than carry a second implementation of either.
+        # Empty when haus.pounce.enable is off, which is also when the pill's
+        # click gestures have nothing to open — haus_menu.sh checks for that.
+        SILL_LOGO_COMMANDS="${config.haus._pounceCommands}"
+      '';
       # Every file the two bars read. Bound here rather than assigned straight
       # to home.file so the reload stamp below can hash it — see there for why
       # the reload hangs off one derived file rather than off each of these.
       barFiles = {
         ".config/sketchybar/colors.sh".text = colorsSh;
+        ".config/sketchybar/logo_config.sh".text = logoConfigSh;
         ".config/sketchybar/sizes.sh".text = sizesSh;
         ".config/sketchybar/workspaces.sh".text = workspacesSh;
         ".config/sketchybar/top_items.sh".text = topItemsSh;
@@ -1224,10 +1263,11 @@ lib.mkIf config.haus.sill.enable {
         ".config/sketchybar/bottom_items.sh".text = bottomItemsSh;
       }
       // {
-        # The far-left logo pill's image: the nebelhaus ears (the two cat-ear
-        # shapes of the org mark, extracted from web/logos/nebelhaus-mark and
-        # tinted PINK). Drawn as apple.logo's background.image in sketchybarrc.
-        ".config/sketchybar/nebelhaus-ears.png".source = ./sketchybar/nebelhaus-ears.png;
+        # No image asset for the logo pill any more. It carried the nebelhaus
+        # ears here as a PINK-tinted PNG until the pill became a glyph
+        # (haus.sill.logo.icon): SketchyBar's background.image takes no tint, so
+        # every colour the pill now says something with — the accent, the state,
+        # the hover sweep, leader mode — was unreachable while it was a picture.
         ".config/sketchybar/aerospace-notify.sh".source = ./sketchybar/aerospace-notify.sh;
         ".config/sketchybar/plugins".source = ./sketchybar/plugins;
       };

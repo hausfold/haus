@@ -3326,6 +3326,148 @@
     "readOnly": false,
     "type": "boolean"
   },
+  "haus.sill.logo.color": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The logo's resting colour, by Catppuccin name. `null` (the default)\nfollows `haus.theme.accent`, which is almost always what you want — the\npill is the rice's own mark, so it wearing the rice's own accent is the\npoint.\n\nThis is only the RESTING colour. `haus.sill.logo.status` paints over it\nwhile something needs attention, and the hover sweep runs from it and\nreturns to it.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"teal\""
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "logo",
+      "color"
+    ],
+    "readOnly": false,
+    "type": "null or one of \"rosewater\", \"flamingo\", \"pink\", \"mauve\", \"red\", \"maroon\", \"peach\", \"yellow\", \"green\", \"teal\", \"sky\", \"sapphire\", \"blue\", \"lavender\""
+  },
+  "haus.sill.logo.gestures": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "What the logo pill does when clicked:\n\n| gesture | what it opens |\n|---|---|\n| left click | the **haus menu** — System Settings, Activity Monitor, Lock Screen, Nix Config, Haus Settings, Rebuild System, Reload SketchyBar |\n| ⌘ left click | `haus rebuild`, straight into a floating terminal |\n| right click | the full pounce palette (⌘Space), which is what a bare click on this pill used to do |\n\nAll three are drawn by **pounce**, so all three need\n`haus.pounce.enable` (on by default). With pounce off they are silent\nno-ops and this option is the switch that says so out loud — turn it off\nand the pill stops responding to clicks entirely, rather than looking\nlike an affordance that does nothing.\n\nThe menu's rows are not reimplemented here: each one runs the palette\ncommand of the same name, so fixing one fixes both places. That is the\nwhole reason the popup dropdown this replaces is gone — it was a second\ncopy of five of these rows, and (having never been openable at all) a\nsecond copy nobody could check.\n",
+    "loc": [
+      "haus",
+      "sill",
+      "logo",
+      "gestures"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.logo.icon": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "The glyph in the far-left logo pill — the one that was an Apple menu\nuntil it was the nebelhaus cat-ears mark. Any single character your bar\nfont can draw; the default is Nerd Font's `nf-fa-home` (`U+F015`), a\nsolid house.\n\nIt has to hold up at 28pt with a pill's padding around it, which rules\nout more glyphs than you would expect. In particular **`⌂` (`U+2302`),\nthe hausfold mark itself, is drawn hairline-thin in JetBrains Mono and\ndoes not gain weight at Bold or ExtraBold** — it is in the font, it is\non the list below, and beside the workspace pills it reads as a much\nlighter object than everything around it. A taste call, not a bug: if\nyou want the literal mark, take it and raise `haus.sill.logo.size`.\n\nSix that hold up at bar size, most to least solid:\n\n| glyph | codepoint | what it is |\n|---|---|---|\n| `` | `U+F015` | `nf-fa-home` — solid house (the default) |\n| `` | `U+F46D` | `nf-oct-home` — outlined house at icon weight |\n| `` | `U+EB06` | `nf-cod-home` — the same, slightly rounder |\n| `⌂` | `U+2302` | the hausfold mark, hairline |\n| `` | `U+F302` | `nf-fa-apple` — the logo this pill replaced |\n| `` | `U+F313` | `nf-linux-nixos` — the snowflake |\n\nThere is deliberately no way to point this at an image file. SketchyBar\ndraws a `background.image` left-anchored, at a scale you have to\nhand-tune per asset, and applies no tint to it — so a picture here can\nfollow neither `haus.theme.accent` nor the state colours below, and\ncannot sweep on hover. The rice drew this pill as a PNG for a while and\nevery one of those was a real limitation of it.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"⌂\""
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "logo",
+      "icon"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.sill.logo.size": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "20"
+    },
+    "description": "Point size of the logo glyph. Its own knob rather than the bar's\n`FS_ICON`, because the glyphs worth putting here have wildly different\noptical sizes: the default solid house wants 20, `⌂` needs 25 before it\nstops looking like a typo, and a Nerd Font apple wants 17.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "25"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "logo",
+      "size"
+    ],
+    "readOnly": false,
+    "type": "positive integer, meaning >0"
+  },
+  "haus.sill.logo.status": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Let the logo's colour report the health of the machine, so the pill says\nsomething without being clicked:\n\n| colour | meaning |\n|---|---|\n| accent | everything the rice runs is up |\n| `yellow` | a newer rice is pinned upstream (needs `haus.sill.logo.updateCheck`) |\n| `red` | something the rice runs is enabled but not running |\n\nRed is the one that matters. It is the same check `haus doctor` opens\nwith — `nix-daemon`, plus each of AeroSpace / SketchyBar / pounce whose\nlaunchd job exists on this machine — and its whole point is that a\nwedged agent is otherwise invisible: the bar keeps drawing the last\nframe it painted, so a dead SketchyBar and a quiet one look identical.\nAll of it is local, costs four `pgrep`s on a five-minute tick, and\nmakes no network call.\n\nYellow ranks below red and both outrank the accent, so the pill always\nshows the worst thing true about the machine.\n",
+    "loc": [
+      "haus",
+      "sill",
+      "logo",
+      "status"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.logo.sweep": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Sweep the logo through the six hausfold accents — mauve, teal, green,\nyellow, peach, pink, the order the site runs them (nebelung → holt →\nperch → trill → pounce → nebelhaus) — while the pointer is over it,\nthen settle back.\nIt is the bar's copy of the mark on hausfold.co, where hovering the `⌂`\nturns a conic gradient of those same six through the glyph. SketchyBar\ncannot put a gradient inside a glyph, so the sweep IS the gradient: one\ncolour at a time, animated.\n\nIt only runs from the resting accent. A pill sitting at yellow or red\nhas something to say, and a rainbow running over that is a pill saying\ntwo things at once — so hover does nothing until the state clears.\nLeader mode suppresses it for the same reason.\n",
+    "loc": [
+      "haus",
+      "sill",
+      "logo",
+      "sweep"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.logo.updateCheck": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Add the yellow \"a newer rice is available\" state to the logo pill. Off\nby default because it is the one part of the pill that leaves the\nmachine: it asks GitHub for the rice's current head (the same\n`git ls-remote` behind `haus status`) once every half hour, and a bar\nthat phones home should be something you turned on.\n\nNo effect unless `haus.sill.logo.status` is on.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "logo",
+      "updateCheck"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
   "haus.sill.media.artworkTint": {
     "declarations": [
       "modules/sill/options.nix"
@@ -3624,7 +3766,7 @@
       "_type": "literalExpression",
       "text": "\"mauve\""
     },
-    "description": "The accent colour, by Catppuccin name (the Nebelung palette is a\ngrey-tinted Catppuccin, so the fourteen names are the same in both\nflavors — the hue you pick follows haus.theme.flavor). It recolours\nthe tools nebelhaus injects colours into — lazygit, fzf, yazi (including\nglow-rendered Markdown headings), and the Zen browser — via the matching\nNebelung per-accent ports.\n\nperch follows it too, and is the one surface handed the NAME rather than\na hex: the shelf resolves it against whichever half of its dark/light\npair macOS is showing, so the ember under the notch and a pinned tile\nwear this accent in both polarities from one key. Left at perch's\ndefault it accents with its own mark green.\n\nTwo more things follow it: the generated desktop (the bloom behind the\nmark in `minimal`, and the whole sweep in `bold` — see\nhaus.wallpaper.style), and any roster app whose\nNebelung port ships a per-accent matrix (zed, gh-dash, mpv), placed by\nhaus.theme.ports. Those ports name the theme file after the accent,\nso changing the accent renames the file the app's own `theme` key points\nat — re-pick it in the app, or it falls back to stock.\n\nHonest scope: this moves the accent on those tools, NOT literally\neverything. Single-file dotfiles that bake the palette at their own\ntheme slot (ghostty, starship, tmux, bat, zellij, …) keep their built-in\ncolour and don't follow this option. The base palette stays the same\nNebelung grey either way — only the accent hue changes.\n\nZen means Zen's own UI, and the web is a separate story. The rice places\nthe Nebelung userChrome/userContent pair, but userContent only styles\n`about:` pages — github.com and youtube.com are themed by the Stylus\nextension, whose Catppuccin-derived styles carry their OWN `accentColor`\nvar (default mauve) inside the extension's storage, where no stylesheet\ncan reach it. Declare `haus.zen.extensions.stylus` and the rice\nstamps that var with this accent and tells you, once, when there's a new\nbundle to import; the import itself stays a click, because Stylus has no\nfile interface. Until you make it, the web keeps the accent you last\nimported.\n\nBoth halves of that are pinned by the `accent-reach` flake check, which\nfingerprints every surface under three accents and fails if one starts\nor stops following the accent without anyone deciding it should.\n",
+    "description": "The accent colour, by Catppuccin name (the Nebelung palette is a\ngrey-tinted Catppuccin, so the fourteen names are the same in both\nflavors — the hue you pick follows haus.theme.flavor). It recolours\nthe tools nebelhaus injects colours into — lazygit, fzf, yazi (including\nglow-rendered Markdown headings), and the Zen browser — via the matching\nNebelung per-accent ports.\n\nperch follows it too, and is the one surface handed the NAME rather than\na hex: the shelf resolves it against whichever half of its dark/light\npair macOS is showing, so the ember under the notch and a pinned tile\nwear this accent in both polarities from one key. Left at perch's\ndefault it accents with its own mark green.\n\nThree more things follow it: the generated desktop (the bloom behind\nthe mark in `minimal`, and the whole sweep in `bold` — see\nhaus.wallpaper.style), any roster app whose\nNebelung port ships a per-accent matrix (zed, gh-dash, mpv), placed by\nhaus.theme.ports, and the bar's far-left logo pill. Those ports name the\ntheme file after the accent, so changing the accent renames the file the\napp's own `theme` key points at — re-pick it in the app, or it falls\nback to stock.\n\nThe bar is the newest and the narrowest of the three: `haus.sill.logo`\nis the ONLY pill that follows this option. Every other colour on the bar\nis a fixed palette key, and the palette itself doesn't move — so a\nmachine that changes its accent sees exactly one pill change hue, unless\n`haus.sill.logo.color` names one of its own.\n\nHonest scope: this moves the accent on those tools, NOT literally\neverything. Single-file dotfiles that bake the palette at their own\ntheme slot (ghostty, starship, tmux, bat, zellij, …) keep their built-in\ncolour and don't follow this option. The base palette stays the same\nNebelung grey either way — only the accent hue changes.\n\nZen means Zen's own UI, and the web is a separate story. The rice places\nthe Nebelung userChrome/userContent pair, but userContent only styles\n`about:` pages — github.com and youtube.com are themed by the Stylus\nextension, whose Catppuccin-derived styles carry their OWN `accentColor`\nvar (default mauve) inside the extension's storage, where no stylesheet\ncan reach it. Declare `haus.zen.extensions.stylus` and the rice\nstamps that var with this accent and tells you, once, when there's a new\nbundle to import; the import itself stays a click, because Stylus has no\nfile interface. Until you make it, the web keeps the accent you last\nimported.\n\nBoth halves of that are pinned by the `accent-reach` flake check, which\nfingerprints every surface under three accents and fails if one starts\nor stops following the accent without anyone deciding it should.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"sapphire\""

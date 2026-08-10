@@ -225,7 +225,9 @@ it silently.
   into the corner, so thread both through — and **anything that pokes or reloads
   a bar pokes both**, whether it sits outside sill (den's `awake` and its
   `caffeinate_change`, the `Reload SketchyBar` palette command) or inside it
-  (sketchybarrc's own `apple.reload` row, and the `.haus-stamp` onChange that
+  (the logo pill's own `Reload SketchyBar` row — which now runs the palette's
+  `reload-bar.sh` rather than carrying a second copy of it — and the
+  `.haus-stamp` onChange that
   reloads on rebuild). A bare `sketchybar --reload` reaches one mach service and
   leaves the other bar a generation behind, silently — this list has gained a
   member every time that was forgotten. And **every reload names its rc**

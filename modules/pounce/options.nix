@@ -336,5 +336,25 @@
         and other Accessibility-gated features stay off).
       '';
     };
+
+    # Where this rice's own palette commands (modules/pounce/commands) landed in
+    # the store. Internal, and the same shape as _roster: one resolved value
+    # every room reads instead of each recomputing it. Empty when pounce is off.
+    #
+    # It exists because SketchyBar's plugins are copied into ~/.config verbatim
+    # rather than generated, so a plugin cannot interpolate a store path of its
+    # own — and the alternative to handing it this one is a second copy of
+    # rebuild.sh and reload-bar.sh living inside the bar. Only pounce's BUILT-IN
+    # commands get a `pounce-<id>` bin on PATH (pkgs/pounce-commands wraps
+    # `builtinIds`); a rice command arrives through `extraCommandDirs`, which
+    # the palette discovers at runtime and nothing puts a launcher in front of.
+    # No `readOnly`, unlike _roster: readOnly counts the option's own `default`
+    # as a definition, so an option that has both can never be assigned.
+    _pounceCommands = lib.mkOption {
+      type = lib.types.str;
+      internal = true;
+      default = "";
+      description = "Store path of this rice's pounce commands, for rooms that invoke one directly.";
+    };
   };
 }

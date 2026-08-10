@@ -683,6 +683,11 @@ let
   ];
 in
 lib.mkIf config.haus.pounce.enable {
+  # Published so another room can run one of these scripts directly instead of
+  # keeping a second copy of it — sill's logo pill is the first caller (the
+  # option in ./options.nix says why a bar plugin can't resolve this itself).
+  haus._pounceCommands = "${riceCommands}";
+
   # The palette runs from a nix-store bundle rather than a cask, so no source
   # field describes it; `installedBy` keeps it visible in the machine's one list
   # instead of being the app that mysteriously isn't declared anywhere.
