@@ -43,18 +43,25 @@ SILL_MEDIA_ART="$SILL_MEDIA_STATE_DIR/cover"
 SILL_MEDIA_ART_SCALE="$SILL_MEDIA_STATE_DIR/cover-scale"
 SILL_MEDIA_TINT="$SILL_MEDIA_STATE_DIR/tint"
 
-# The dropdown's art well: the outer box every cover or fallback app icon sits
-# in, and the inner target size the image is scaled to. The gap between the
-# two is deliberate margin, so a square cover doesn't sit flush against the
-# well's edges (and, by extension, the dropdown's own rounded corner).
+# The dropdown's cover well: the outer box a real cover sits in, and the inner
+# target size the image is scaled to. The gap between the two is deliberate
+# margin, so a square cover doesn't sit flush against the well's edges (and,
+# by extension, the dropdown's own rounded corner). Only ever holds a real
+# cover — see media.sh for why there's no app-icon stand-in here any more.
 SILL_MEDIA_ART_BOX=84
 SILL_MEDIA_ART_TARGET=68
 
-# The dropdown's title/album rows are capped to this width rather than left to
-# grow with the text — an unbounded label made the whole dropdown as wide as
-# its longest album name. Text that overflows it sweeps once on open instead,
-# the popup's answer to the pill's own hover marquee.
-SILL_MEDIA_POPUP_LABEL_WIDTH=220
+# The small app-icon badge next to "Show in <App>", for when there's no cover
+# to name the source instead. Deliberately its own (smaller) size rather than
+# the cover well's — it is an aside, not a hero image.
+SILL_MEDIA_BADGE_BOX=56
+
+# The dropdown's title/album rows are capped to this many characters — not a
+# fixed width, which sketchybar treats as static rather than a maximum, and
+# would keep even a three-word title padded out to it. A short label still
+# sizes to itself; only past this cap does scroll_texts sweep the rest, the
+# popup's answer to the pill's own hover marquee.
+SILL_MEDIA_POPUP_MAX_CHARS=30
 
 # Every browser whose media session lands on the bar as "a tab". Kept as one list
 # because the two things done with it — classify, and pick the fallback glyph —

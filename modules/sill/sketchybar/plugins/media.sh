@@ -103,53 +103,46 @@ build_popup() {
     }
 
     # ── the cover ────────────────────────────────────────────────────────────
-    # A real cover when the source published one; the source app's own icon when
-    # it didn't, which is most of the time — no Firefox-family browser publishes
-    # artwork at all. SketchyBar resolves `app.<Name>` by application NAME, not
-    # by bundle id, which is why media_app_name reads it off the running process.
+    # Only when the source actually published one — no Firefox-family browser
+    # ever does. There is deliberately no app-icon stand-in here any more: a
+    # 56pt icon in an 84pt cover well read as an ill-fitting hero image (a lot
+    # of dead space around something too small to be one). Nothing else at the
+    # top has to fill that gap — the title row below carries the kind glyph,
+    # and the source app gets named in the "Show in <App>" row down in the
+    # transport, both of which are the identity a browser tab needs. RUNNING
+    # is checked separately, right where the app-icon badge near "Show in" is
+    # built, well below — a cover well only ever holds a real cover now.
     art="$(ls -1 "$SILL_MEDIA_ART".* 2>/dev/null | head -1)"
-    ART_ROW=(
-        icon.drawing=off icon.padding_left=0 icon.padding_right=0
-        label.drawing=off label.padding_left=0 label.padding_right=0
-        width="$SILL_MEDIA_ART_BOX" background.height="$SILL_MEDIA_ART_BOX"
-        background.drawing=on background.color=0x00000000
-        background.image.corner_radius=6
-        background.image.drawing=on
-        click_script="$CLOSE"
-    )
     if [ -n "$art" ] && [ -s "$art" ]; then
         scale="$(cat "$SILL_MEDIA_ART_SCALE" 2>/dev/null)"
         [ -n "$scale" ] || scale=0.16
         ARGS+=(--add item media.popup.art popup.media
-            --set media.popup.art "${ART_ROW[@]}"
+            --set media.popup.art
+            icon.drawing=off icon.padding_left=0 icon.padding_right=0
+            label.drawing=off label.padding_left=0 label.padding_right=0
+            width="$SILL_MEDIA_ART_BOX" background.height="$SILL_MEDIA_ART_BOX"
+            background.drawing=on background.color=0x00000000
             background.image="$art"
-            background.image.scale="$scale")
-    elif [ -n "$label_app" ] && [ -n "$MEDIA_PID" ] && ps -p "$MEDIA_PID" >/dev/null 2>&1; then
-        # Only while the source app is actually RUNNING. SketchyBar resolves
-        # `app.<Name>` against live applications and logs "Invalid application
-        # name" for anything else — and once the pid is gone media_app_name is
-        # down to the bundle id's last component, which is a lowercase
-        # executable stub ("zen"), not an application name ("Zen"). Same well
-        # as the real cover (not a smaller box of its own) — `scale` governs
-        # the icon's actual rendered size, so this only widens its margin.
-        ARGS+=(--add item media.popup.art popup.media
-            --set media.popup.art "${ART_ROW[@]}"
-            background.image="app.$label_app"
-            background.image.scale=0.9)
+            background.image.scale="$scale"
+            background.image.corner_radius=6
+            background.image.drawing=on
+            click_script="$CLOSE")
     fi
 
     # ── what it is ───────────────────────────────────────────────────────────
-    # Capped to SILL_MEDIA_POPUP_LABEL_WIDTH rather than a character count: a
-    # long album name is what has, in practice, stretched the whole dropdown
-    # to its width. scroll_texts sweeps whatever the width cuts off — same
-    # mechanic as the pill's own hover marquee, just running for as long as the
-    # dropdown (rebuilt fresh on every open) stays up rather than one timed pass.
+    # max_chars, not a fixed width: sketchybar's `width` is a static size, not
+    # a cap, and setting one forced every title — a three-word one included —
+    # to the same wide box. max_chars leaves a short title sized to itself and
+    # only kicks in once one actually runs long, at which point scroll_texts
+    # sweeps the part it cut off — the popup's answer to the pill's own hover
+    # marquee, just running for as long as the dropdown stays open rather than
+    # one timed pass.
     ARGS+=(--add item media.popup.title popup.media
         --set media.popup.title "${ROW[@]}"
         icon="$icon" icon.color="$accent"
         label="$MEDIA_TITLE" label.color="$TEXT"
         label.font="$BAR_FONT:Bold:$FS_SMALL"
-        width="$SILL_MEDIA_POPUP_LABEL_WIDTH" scroll_texts=on)
+        label.max_chars="$SILL_MEDIA_POPUP_MAX_CHARS" scroll_texts=on)
 
     sub="$MEDIA_ARTIST"
     [ -n "$MEDIA_ALBUM" ] && sub="${sub:+$sub — }$MEDIA_ALBUM"
@@ -159,7 +152,7 @@ build_popup() {
             icon="" icon.padding_left=0 icon.padding_right=0
             label="$sub" label.color="$SUBTEXT0"
             label.padding_left=38
-            width="$SILL_MEDIA_POPUP_LABEL_WIDTH" scroll_texts=on)
+            label.max_chars="$SILL_MEDIA_POPUP_MAX_CHARS" scroll_texts=on)
     fi
 
     # ── the scrubber ─────────────────────────────────────────────────────────
@@ -204,7 +197,29 @@ build_popup() {
     row "󰒮" "Previous" "$SUBTEXT1" "$TEXT" "prev"
     row "󰒝" "Shuffle" "$SUBTEXT1" "$SUBTEXT0" "shuffle"
     row "󰑖" "Repeat" "$SUBTEXT1" "$SUBTEXT0" "repeat"
-    [ -n "$label_app" ] && row "󰏋" "Show in $label_app" "$SUBTEXT1" "$SUBTEXT0" "focus"
+    if [ -n "$label_app" ]; then
+        # A small app-icon badge, right above the row that focuses it — the
+        # source's identity, given a spot proportional to how much it matters
+        # once there's no cover to lead with, not a hero image standing in for
+        # one. Only when there's no real cover (that badge would be pure
+        # clutter next to actual artwork) and only while the app is confirmed
+        # RUNNING — see the cover well above for why.
+        if { [ -z "$art" ] || [ ! -s "$art" ]; } &&
+            [ -n "$MEDIA_PID" ] && ps -p "$MEDIA_PID" >/dev/null 2>&1; then
+            ARGS+=(--add item media.popup.appicon popup.media
+                --set media.popup.appicon
+                icon.drawing=off icon.padding_left=0 icon.padding_right=0
+                label.drawing=off label.padding_left=0 label.padding_right=0
+                width="$SILL_MEDIA_BADGE_BOX" background.height="$SILL_MEDIA_BADGE_BOX"
+                background.drawing=on background.color=0x00000000
+                background.image="app.$label_app"
+                background.image.scale=0.9
+                background.image.corner_radius=6
+                background.image.drawing=on
+                click_script="$HOME/.config/sketchybar/plugins/media.sh do focus")
+        fi
+        row "󰏋" "Show in $label_app" "$SUBTEXT1" "$SUBTEXT0" "focus"
+    fi
 
     [ ${#ARGS[@]} -gt 0 ] && $SB "${ARGS[@]}" 2>/dev/null
     return 0
