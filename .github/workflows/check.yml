@@ -83,11 +83,21 @@ jobs:
           # completely invisible — the bar just quietly stops updating.
           # test/haus-settings.sh can only be RUN on macOS — it evaluates a
           # darwinConfiguration — so this runner can never execute it. Linting is
-          # the only thing CI can do for it, and the alternative is a suite that
-          # nothing at all touches until someone remembers it by hand.
-          shellcheck --severity=warning bootstrap.sh modules/den/haus.sh modules/den/awake.sh modules/den/statusline-refresh.sh test/awake.sh test/haus-settings.sh
+          # the only thing CI can do for THAT one, and the alternative is a suite
+          # that nothing at all touches until someone remembers it by hand.
+          # test/haus-plan.sh is linted here and also RUN below: its subject is
+          # pure parsing over fixture files, so it needs neither Nix nor a Mac.
+          shellcheck --severity=warning bootstrap.sh modules/den/haus.sh modules/den/awake.sh modules/den/statusline-refresh.sh test/awake.sh test/haus-settings.sh test/haus-plan.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
+      # `haus plan`'s parsers, and the only part of plan CI can execute: they
+      # read a BUILT activation script and a home-manager generation, both of
+      # which this suite hand-writes as fixtures, so no Nix and no Mac needed.
+      # Worth running rather than only linting, because the failure mode they
+      # guard against is a preview that says "nothing was changed" about a
+      # rebuild that changes something — silence, which no lint can catch.
+      - name: haus plan parser tests
+        run: bash test/haus-plan.sh
       # The refresher is `holt`'s reader, and it fails in the one way nobody sees:
       # it runs detached under `set -e`, so any non-zero leaves the LAST panel.tsv
       # in place and the bar keeps showing worktrees that were reaped hours ago —
