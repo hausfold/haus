@@ -289,6 +289,14 @@ let
   # take vertically, handed back as space beside the bar. 36 at ui.scale = 1.0.
   barEdge = toString (bar.barHeight + bar.room);
 
+  # Same rule for sill's SECOND bar, which is shorter (32) because it is the one
+  # bar that doesn't sit in the menu-bar band and so doesn't pay the band's
+  # clearance — see `bottomHeight` in ../lib/bar.nix. It matters more here than
+  # anywhere else that the number is the bar's own: at the bottom of a display
+  # macOS reserves nothing, so this gap is the ONLY thing keeping the tiled
+  # windows off a bar that draws above them (topmost=window).
+  bottomEdge = toString (bar.bottomHeight + bar.room);
+
   # The bar-room reservation follows the bar. A built-in display's TOP is under
   # the notch/menu-bar strip macOS already excludes, so a top bar needs no extra
   # reservation there; the external, and a built-in's bottom, have no such strip,
@@ -322,7 +330,15 @@ let
   bottomBar = config.haus.sill.enable && config.haus.sill.bottom.enable;
   outerBottom =
     if bottomBar then
-      monLine barEdge barEdge
+      # `bottomEdge` unless the MAIN bar is parked down here too, where the
+      # taller of the two is what has to be cleared. The test is `!= "top"`, not
+      # `== "bottom"`: `auto` resolves to the bottom whenever an external display
+      # is attached, which is the same overlap, and it's the exact condition
+      # sill's own "the two bars share the bottom edge" warning uses.
+      let
+        edge = if barPos != "top" then barEdge else bottomEdge;
+      in
+      monLine edge edge
     else
       {
         top = monLine (gap 10) (gap 20);

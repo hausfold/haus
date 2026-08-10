@@ -786,9 +786,9 @@ let
     # calls that out. Today the window covers the bar there; at level 3 the bar
     # would cover the bottom ~26pt of every window on the laptop screen instead,
     # which is a good deal worse than a shadow. Fixed `position = "bottom"`
-    # reserves barEdge — the bar's own height — on both displays and is safe, as
-    # is the dedicated second bar (haus.sill.bottom.enable), which reserves it
-    # unconditionally.
+    # reserves barEdge — this bar's own height — on both displays and is safe, as
+    # is the dedicated second bar (haus.sill.bottom.enable), which reserves its
+    # own shorter bottomEdge unconditionally.
     bar_topmost() {
       case "$SILL_POSITION_MODE" in
         bottom) echo window ;;
@@ -930,7 +930,7 @@ lib.mkIf config.haus.sill.enable {
       )
     ++
       # A bar with nothing on it still costs a launchd job and, via prowl, a
-      # 40pt strip of every display — and it draws no pill to explain either.
+      # 32pt strip of every display — and it draws no pill to explain either.
       lib.optional (cfg.bottom.enable && bottomItems == [ ]) (
         "haus.sill.bottom.enable is on with no haus.sill.bottom.items — the second bar draws an empty strip and still reserves room at the bottom of every display."
       )
@@ -1072,11 +1072,21 @@ lib.mkIf config.haus.sill.enable {
         # GENERATED from haus.ui.scale by modules/sill/default.nix — do not
         # edit by hand.
         #
-        # The bar's HEIGHT never scales: 36pt of bar with 28pt pills is what keeps
-        # the pills inside the 32pt menu-bar band the hidden bar's hover-reveal
-        # covers. Only the type inside the pills follows ui.scale, and only up to
-        # the largest that still fits one. See modules/lib/bar.nix.
+        # Neither bar's HEIGHT scales: 36pt of menu bar with 28pt pills is what
+        # keeps the pills inside the 32pt band the hidden bar's hover-reveal
+        # covers, and the second bar is 32 because it sits in no band at all.
+        # Only the type inside the pills follows ui.scale, and only up to the
+        # largest that still fits one. See modules/lib/bar.nix.
         SILL_SCALE="${toString bar.typeScale}"
+        # The two bars' heights, from that same file. Generated rather than
+        # written in each rc because prowl reserves exactly these numbers as
+        # window gaps (modules/prowl/default.nix) — an rc that drifted from them
+        # would leave a strip of dead wallpaper or put windows under the pills,
+        # and the drift would be invisible in either file on its own. The second
+        # bar is shorter on purpose: it doesn't sit in the menu-bar band, so it
+        # doesn't pay the band's 4pt of clearance.
+        BAR_HEIGHT="${toString bar.barHeight}"
+        BAR_BOTTOM_HEIGHT="${toString bar.bottomHeight}"
         # The family every pill draws in, from haus.fonts.mono.name — the
         # same one Ghostty uses. Here rather than in the rc for the reason the
         # sizes are: the rc and four plugins all name it, and a font written in
