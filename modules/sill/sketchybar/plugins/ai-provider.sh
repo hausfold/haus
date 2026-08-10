@@ -39,9 +39,11 @@
 [ -n "${BAR_FONT:-}" ] || source "$HOME/.config/sketchybar/sizes.sh"
 # Same story for the palette, now that the table names brand accents: under
 # `set -u` an unsourced colours.sh is not a wrong colour, it is the caller
-# exiting mid-repaint.
+# exiting mid-repaint. Tested on FLAMINGO rather than on any old key because
+# that is the first accent this file dereferences — the guard should fail on
+# the same variable the code would.
 # shellcheck source=/dev/null
-[ -n "${MAUVE:-}" ] || source "$HOME/.config/sketchybar/colors.sh"
+[ -n "${FLAMINGO:-}" ] || source "$HOME/.config/sketchybar/colors.sh"
 
 provider_style() {
   local prov="${1:-}" model="${2:-}" size="${3:-${FS_LABEL:-14.0}}"
@@ -51,7 +53,7 @@ provider_style() {
   # neighbour to Anthropic's orange that isn't PEACH (a status colour); TEAL is
   # OpenAI's green-teal; LAVENDER is Gemini's blue-violet; MAUVE is the
   # bring-your-own-key catch-all, which is also what an unknown client gets.
-  P_COLOR="${MAUVE:-0xffc9a8f1}"
+  P_COLOR="$MAUVE"
   case "$prov" in
     claude)
       P_ICON=":claude:"; P_FONT="$appfont"; P_NAME="Claude"; P_COLOR="$FLAMINGO"

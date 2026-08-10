@@ -62,11 +62,14 @@ CACHE_DIR="${CLAUDE_STATUSLINE_CACHE:-$HOME/.cache/claude-statusline}"
 ITEM_NAME="${NAME:-ai_usage}"
 
 pct_color() { # pct_color <pct> — the one ladder, so the pill and the row it
-  # explains can never disagree about whether 76% is worth worrying over.
-  if   [ "${1:-0}" -ge 90 ]; then printf '%s' "$RED"
-  elif [ "${1:-0}" -ge 75 ]; then printf '%s' "$PEACH"
-  elif [ "${1:-0}" -ge 50 ]; then printf '%s' "$YELLOW"
-  else                            printf '%s' "$GREEN"
+  # explains can never disagree about whether 76% is worth worrying over. The
+  # stderr redirects are the same guard the pill's own comparison carries: a TSV
+  # field that isn't a number would otherwise print "integer expression
+  # expected" into sketchybar's log once per row, per open.
+  if   [ "${1:-0}" -ge 90 ] 2>/dev/null; then printf '%s' "$RED"
+  elif [ "${1:-0}" -ge 75 ] 2>/dev/null; then printf '%s' "$PEACH"
+  elif [ "${1:-0}" -ge 50 ] 2>/dev/null; then printf '%s' "$YELLOW"
+  else                                        printf '%s' "$GREEN"
   fi
 }
 
@@ -86,11 +89,19 @@ gauge() { # gauge <pct> — a meter in block elements, sharing the row's colour
   # across the room, and ▄ renders with gaps between cells in JetBrains Mono, so
   # a solid 45% reads as five separate things. A rail reads as empty, because it
   # is; a full block reads as one bar, because it is.
-  awk -v p="${1:-0}" -v n="$GAUGE_CELLS" -v f="$GAUGE_FILL" -v t="$GAUGE_TRACK" 'BEGIN {
-    if (p + 0 < 0) p = 0; if (p + 0 > 100) p = 100
-    k = int(p * n / 100 + 0.5)
-    for (i = 0; i < n; i++) printf "%s", (i < k ? f : t)
-  }'
+  #
+  # Bash, not awk, because this runs twice per provider on the click path and an
+  # awk fork costs ~2.4 ms on this machine — the popup's whole budget is ~12 ms
+  # to open (see the sillpop note at the bottom of this file). Everything the
+  # meter needs is integer arithmetic the shell can already do.
+  local p="${1:-0}" k i out=""
+  [[ "$p" =~ ^[0-9]+$ ]] || p=0
+  ((p > 100)) && p=100
+  k=$(((p * GAUGE_CELLS + 50) / 100))
+  for ((i = 0; i < GAUGE_CELLS; i++)); do
+    if ((i < k)); then out+="$GAUGE_FILL"; else out+="$GAUGE_TRACK"; fi
+  done
+  printf '%s' "$out"
 }
 
 ago() { # ago <seconds> — "90m", "5h 12m", "4d". The old row said `6962m ago`,
@@ -185,18 +196,21 @@ read_tokens() { # read_tokens <file> — T_D/T_W/T_M/T_ALL, false if there's no 
 ROW_INDENT=22                    # left margin of a value row, under its header
 DESC_COLS=7                      # widest descriptor: `session` / `monthly`
 DESC_GAP=12                      # descriptor → value gutter
-ADVANCE=$(awk -v s="${FS_SMALL:-13}" 'BEGIN { printf "%.4f", s * 0.602 }')
+# The advance in THOUSANDTHS of a point, so every measure below is integer
+# arithmetic the shell can do in-process. One awk at load time — and this file
+# is re-run on every 15-second tick, not just on a click, so the fork it isn't
+# doing is the one that would have been cheapest to overlook.
+ADV_M=$(awk -v s="${FS_SMALL:-13}" 'BEGIN { printf "%.0f", s * 602 }')
+px() { printf '%s' $((($1 + 500) / 1000)); }   # thousandths → points, rounded
 # Where the value column starts, in points from the popup's left edge. A
 # continuation row (the second line of the token block) has no descriptor of its
 # own and pads its LABEL to exactly here, which is what puts it under the line
 # above instead of beside it.
-TOKEN_INDENT=$(awk -v a="$ADVANCE" -v i="$ROW_INDENT" -v c="$DESC_COLS" -v g="$DESC_GAP" \
-  'BEGIN { printf "%.0f", i + c * a + g }')
+TOKEN_INDENT=$(px $((ROW_INDENT * 1000 + DESC_COLS * ADV_M + DESC_GAP * 1000)))
 desc_pad() { # desc_pad <descriptor> [extra columns] — the icon's right padding
   # that lands the value on the column, whatever this row happened to call
   # itself, plus any leading blanks the value wanted and can't have (see unpad).
-  awk -v n="${#1}" -v a="$ADVANCE" -v c="$DESC_COLS" -v g="$DESC_GAP" -v x="${2:-0}" \
-    'BEGIN { printf "%.0f", (c - n + x) * a + g }'
+  px $(((DESC_COLS - ${#1} + ${2:-0}) * ADV_M + DESC_GAP * 1000))
 }
 
 # A value that right-aligns its number — ` 7%` under `46%`, ` 733M` under
@@ -219,8 +233,9 @@ unpad() { # unpad <value> → sets UNPADDED (blanks stripped) and LEAD (how many
 # Height is the other half of the hierarchy, and it costs nothing to read: a
 # header that stands 8 points taller than its rows separates two providers
 # without a rule between them, and a footnote that sits 4 shorter stops
-# pretending to be data. background.drawing stays off — this is layout, not a
-# box.
+# pretending to be data. background.drawing stays off and the height still
+# applies — checked on the live popup, since every other background.height in
+# this module is on a pill that actually draws its box.
 H_HEADER=32
 H_ROW=25
 H_META=20
@@ -266,7 +281,7 @@ row_cont() { # row_cont <value> <color> [weight] — a value row whose descripto
   # the one above it. No icon at all: an empty icon still reserves its padding,
   # and the label carries the whole indent instead.
   local indent; unpad "$1"
-  indent=$(awk -v t="$TOKEN_INDENT" -v a="$ADVANCE" -v x="$LEAD" 'BEGIN { printf "%.0f", t + x * a }')
+  indent=$(px $((TOKEN_INDENT * 1000 + LEAD * ADV_M)))
   pop_add label="$UNPADDED" label.color="$2" \
     label.font="${BAR_FONT}:${3:-Bold}:${FS_SMALL}" \
     label.padding_left="$indent"
@@ -377,7 +392,7 @@ if [ "$is_cost" = 0 ]; then
 fi
 
 if [ "$is_cost" = 1 ]; then
-  COL=$TEAL
+  COL=$SAPPHIRE
 else
   COL=$(pct_color "$main_pct")
 fi
@@ -429,7 +444,12 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
     f_age=$((now - stamp))
     f_stale=0; [ "$stamp" -gt 0 ] && [ "$f_age" -gt "$STALE" ] && f_stale=1
 
-    provider_style "$prov" "${prov_id:-$model}" "$FS_SMALL"
+    # FS_LABEL, not FS_SMALL: a header's name is drawn one step up from its
+    # rows, and the size passed here is what a NERD-FONT mark (Opencode's 󰏫,
+    # Gemini's ✦) is drawn at. Ask for the row size and those clients get a
+    # glyph smaller than their own name, while :claude:/:openai: — sized from
+    # FS_APP_ICON — look right, so the mismatch shows on some providers only.
+    provider_style "$prov" "${prov_id:-$model}" "$FS_LABEL"
     p_icon="$P_ICON"; p_font="$P_FONT"; p_name="$P_NAME"; p_color="$P_COLOR"
 
     # A dead feed greys out as a BLOCK — mark, name and all — the same way the
@@ -442,12 +462,14 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
 
     if [ "$f_is_cost" = 1 ]; then
       # Money is off the ladder by construction: there is no ceiling to be 90%
-      # of, so a spend can never be GREEN-as-in-safe without lying. TEAL says
-      # "a quantity, no verdict" — and a period that hasn't started yet stays
-      # grey rather than shouting $0.00 in colour.
-      c5="$TEAL"; cw="$TEAL"
-      awk -v v="$val5" 'BEGIN { exit !(v + 0 > 0) }' || c5="$OVERLAY1"
-      awk -v v="$valw" 'BEGIN { exit !(v + 0 > 0) }' || cw="$OVERLAY1"
+      # of, so a spend can never be GREEN-as-in-safe without lying. SAPPHIRE
+      # says "a quantity, no verdict" — and it is the one accent that is neither
+      # a ladder rung nor any client's brand mark, so a blue number can't be
+      # misread as Codex's teal. A period that hasn't started yet stays grey
+      # rather than shouting $0.00 in colour.
+      c5="$SAPPHIRE"; cw="$SAPPHIRE"
+      [[ "$val5" =~ ^[0.]*$ ]] && c5="$OVERLAY1"
+      [[ "$valw" =~ ^[0.]*$ ]] && cw="$OVERLAY1"
       [ "$f_stale" = 1 ] && { c5="$OVERLAY0"; cw="$OVERLAY0"; }
       row "today"   "\$$val5" "$c5"
       row "monthly" "\$$valw" "$cw"
