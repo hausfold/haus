@@ -2958,7 +2958,7 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "25"
+      "text": "32"
     },
     "description": "How wide the `calendar` pill's label is allowed to get, in CHARACTERS —\nnot pixels. The label reads \"in 12m · <event>\"; anything longer is\nclipped to this and swept past on a change, the same way the media\npill's title is.\n\nThe countdown leads deliberately: the clip eats the END of a label, so\nthe number the pill exists for has to sit in front of the part that can\nrun long.\n\nIt is a MAXIMUM, not a fixed size — a short event name still draws a\nshort pill.\n",
     "example": {
@@ -3398,7 +3398,7 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "25"
+      "text": "32"
     },
     "description": "How wide the media pill's title is allowed to get, in CHARACTERS — not\npixels. Anything longer is clipped to this and swept past instead, so\nthis is the knob for how much of the bar the now-playing title may rent.\n\nNarrow it on a MacBook, where the bar's centre span sits under the notch\nand every character of title is paid for out of the room the workspace\npills and the front-app name need. `haus.sill.media.collapse` is the\nharder version of the same trade: no title at all until you hover.\n\nIt is a MAXIMUM, not a fixed size — the pill still shrinks to fit a\nshort title, so a wide setting costs nothing until something long plays.\n",
     "example": {

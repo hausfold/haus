@@ -173,7 +173,7 @@ in
 
     sill.media.width = lib.mkOption {
       type = lib.types.ints.positive;
-      default = 25;
+      default = 32;
       example = 16;
       description = ''
         How wide the media pill's title is allowed to get, in CHARACTERS — not
@@ -239,7 +239,7 @@ in
 
     sill.calendar.width = lib.mkOption {
       type = lib.types.ints.positive;
-      default = 25;
+      default = 32;
       example = 16;
       description = ''
         How wide the `calendar` pill's label is allowed to get, in CHARACTERS —
