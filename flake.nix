@@ -1103,6 +1103,22 @@
             zen moves
           '';
 
+          # Both reach tables below derive their file rows from the WHOLE
+          # home-file set on purpose: a surface that starts following the option
+          # then shows up as a new row rather than going unnoticed in a curated
+          # list. That only works while every file is a subject in its own right.
+          #
+          # A DERIVED file is not. sill's `.haus-stamp` is a content hash over
+          # every other bar file (modules/sill/default.nix), so it moves whenever
+          # any of them does — it would earn a row in both tables while measuring
+          # nothing, and in every reach-style check written after this one. Named
+          # by convention rather than by path so the next derived file inherits
+          # the exclusion instead of rediscovering this comment.
+          #
+          # This is the one exclusion that ADDS signal by removing a row; a file
+          # dropped here for any other reason is a hole in the check.
+          reachFiles = nixpkgs.lib.filterAttrs (target: _: baseNameOf target != ".haus-stamp");
+
           # ---- scale-reach ----------------------------------------------------
           # The same treatment as accent-reach, for the other fan-out option —
           # and it needed one word the accent vocabulary doesn't have.
@@ -1177,7 +1193,7 @@
               aerospace = ".config/aerospace/aerospace.toml";
             in
             {
-              files = builtins.mapAttrs (target: _: text target) hm.home.file;
+              files = builtins.mapAttrs (target: _: text target) (reachFiles hm.home.file);
               numbers = {
                 # The ONE option in the whole surface whose unit is points —
                 # `ui.scale` and `pounce.scale` are multipliers, and the other
@@ -1343,7 +1359,7 @@
                   builtins.concatStringsSep "/" (builtins.head hits);
             in
             {
-              files = builtins.mapAttrs (target: _: text target) hm.home.file;
+              files = builtins.mapAttrs (target: _: text target) (reachFiles hm.home.file);
               names = {
                 "gen ghostty font-family" =
                   capture "Library/Application Support/com.mitchellh.ghostty/config" ".*font-family = (.*)";
