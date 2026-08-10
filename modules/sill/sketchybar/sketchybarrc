@@ -105,8 +105,8 @@ sketchybar --default \
 # have to be dropped to keep the ability.
 #
 # The item id is `haus.logo`. It was `apple.logo` from the original scaffold
-# right through the ears, long after the last Apple glyph left it; the only two
-# readers are this file and plugins/launch_mode.sh.
+# right through the ears, long after the last Apple glyph left it; the three
+# readers are this file, plugins/logo.sh and plugins/launch_mode.sh.
 #
 # One item, five gestures, all of them in plugins/logo.sh (see there):
 #   left click        the haus menu — a prefilled pounce list of system rows
@@ -126,6 +126,17 @@ sketchybar --default \
 # `updates=on` rather than the default `when_shown`: the state tick has to keep
 # running while leader mode has the left side of the bar swapped out, or the
 # pill comes back wearing whatever colour it wore when the leader was armed.
+#
+# A sweep loop belongs to the SketchyBar instance that started it, and does not
+# die with it: it is a backgrounded subshell, so a `launchctl kickstart -k`, a
+# crash, or the stray-`brew services` eviction below reparents it to launchd
+# with its guard file still on disk — and it goes on writing icon.color to the
+# NEW instance every 0.75s forever. Clearing it here, at the one moment a fresh
+# instance is known to be starting, is the same fix and the same reason as the
+# calendar pill's `hover` flag (modules/sill/default.nix). `sweep-stop` rather
+# than a bare `rm` so an orphan that is still running is also killed, not just
+# told to stop at its next frame; run AFTER the item exists so its settling
+# --set has something to address.
 sketchybar --add item haus.logo left \
     --set haus.logo \
         icon="$SILL_LOGO_ICON" \
@@ -142,6 +153,8 @@ sketchybar --add item haus.logo left \
         script="$HOME/.config/sketchybar/plugins/logo.sh" \
         click_script="$HOME/.config/sketchybar/plugins/logo.sh" \
     --subscribe haus.logo mouse.clicked mouse.entered mouse.exited mouse.exited.global system_woke
+
+"$HOME/.config/sketchybar/plugins/logo.sh" sweep-stop
 
 # Spaces - All AeroSpace workspaces. WORKSPACES + ws_icon come from the
 # generated workspaces.sh (sourced above); app-workspaces show the app's logo

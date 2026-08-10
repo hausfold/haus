@@ -162,6 +162,34 @@ in
       '';
     };
 
+    # Documented once, here, because three of the four gestures below are
+    # pounce's and the option page is where someone finds that out.
+    sill.logo.gestures = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        What the logo pill does when clicked:
+
+        | gesture | what it opens |
+        |---|---|
+        | left click | the **haus menu** — System Settings, Activity Monitor, Lock Screen, Nix Config, Haus Settings, Rebuild System, Reload SketchyBar |
+        | ⌘ left click | `haus rebuild`, straight into a floating terminal |
+        | right click | the full pounce palette (⌘Space), which is what a bare click on this pill used to do |
+
+        All three are drawn by **pounce**, so all three need
+        `haus.pounce.enable` (on by default). With pounce off they are silent
+        no-ops and this option is the switch that says so out loud — turn it off
+        and the pill stops responding to clicks entirely, rather than looking
+        like an affordance that does nothing.
+
+        The menu's rows are not reimplemented here: each one runs the palette
+        command of the same name, so fixing one fixes both places. That is the
+        whole reason the popup dropdown this replaces is gone — it was a second
+        copy of five of these rows, and (having never been openable at all) a
+        second copy nobody could check.
+      '';
+    };
+
     sill.logo.size = lib.mkOption {
       type = lib.types.ints.positive;
       default = 20;
@@ -235,8 +263,10 @@ in
       type = lib.types.bool;
       default = true;
       description = ''
-        Sweep the logo through the six hausfold accents — pink, peach, teal,
-        green, mauve, yellow — while the pointer is over it, then settle back.
+        Sweep the logo through the six hausfold accents — mauve, teal, green,
+        yellow, peach, pink, the order the site runs them (nebelung → holt →
+        perch → trill → pounce → nebelhaus) — while the pointer is over it,
+        then settle back.
         It is the bar's copy of the mark on hausfold.co, where hovering the `⌂`
         turns a conic gradient of those same six through the glyph. SketchyBar
         cannot put a gradient inside a glyph, so the sweep IS the gradient: one

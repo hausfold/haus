@@ -258,6 +258,9 @@ fi
 
 case "${SENDER:-}" in
 mouse.clicked)
+    # Every gesture opens something pounce draws, so all of them are off
+    # together — see haus.sill.logo.gestures, which folds in haus.pounce.enable.
+    [ "$SILL_LOGO_GESTURES" = "1" ] || exit 0
     # A plain click sends MODIFIER=none (not empty), so test against "none".
     case "${BUTTON:-left}" in
     right) palette ;;

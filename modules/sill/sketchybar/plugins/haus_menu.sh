@@ -40,18 +40,24 @@ rows() {
 choice="$(rows | pounce -p 'haus' -i 'house')"
 [ -n "$choice" ] || exit 0
 
+# The first three are pounce's OWN built-ins, which unlike a rice command each
+# ship a `pounce-<id>` launcher on PATH (pkgs/pounce-commands wraps `builtinIds`)
+# — so they are named, not reimplemented, for the same reason the rice rows go
+# through $SILL_LOGO_COMMANDS. `pounce-lock` in particular already IS the
+# ⌃⌘Q osascript, and a second copy here would be the one that went stale.
 case "${choice%%$'\t'*}" in
-'System Settings') open -a 'System Settings' ;;
-'Activity Monitor') open -a 'Activity Monitor' ;;
-# The same ⌃⌘Q the keyboard sends. `pmset displaysleepnow` sleeps the display
-# without locking unless "require password immediately" is set, so it is not the
-# same action and is not a fallback for this one.
-'Lock Screen')
-    osascript -e 'tell application "System Events" to keystroke "q" using {control down, command down}'
-    ;;
+'System Settings') exec pounce-preferences ;;
+'Activity Monitor') exec pounce-activity ;;
+# NB this is the first thing in the rice to drive System Events from a bar
+# click. The rows it inherits from the old dropdown were never reachable, so
+# none of them has ever run: expect macOS to ask, once, for Automation on
+# SketchyBar's behalf, and expect that grant to be keyed to the Homebrew
+# binary's VERSIONED path (so `brew upgrade sketchybar` orphans it and it asks
+# again). Nothing else on this menu needs a grant — `open -a` never does.
+'Lock Screen') exec pounce-lock ;;
 # Already a sibling plugin, and hearth's opener underneath it resolves the host
-# file and the flake root — so this row is the one that does NOT go through
-# $SILL_LOGO_COMMANDS.
+# file and the flake root — so this row is the one that goes through neither
+# $SILL_LOGO_COMMANDS nor a pounce built-in.
 'Nix Config') exec "$HOME/.config/sketchybar/plugins/nix_open.sh" ;;
 'Haus Settings') exec "$SILL_LOGO_COMMANDS/settings.sh" ;;
 'Rebuild System') exec "$SILL_LOGO_COMMANDS/rebuild.sh" ;;

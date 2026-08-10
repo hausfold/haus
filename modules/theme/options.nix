@@ -174,12 +174,19 @@ in
         wear this accent in both polarities from one key. Left at perch's
         default it accents with its own mark green.
 
-        Two more things follow it: the `bold` wallpaper (generated from the
-        accent hex — see haus.theme.wallpaper), and any roster app whose
+        Three more things follow it: the `bold` wallpaper (generated from the
+        accent hex — see haus.theme.wallpaper), any roster app whose
         Nebelung port ships a per-accent matrix (zed, gh-dash, mpv), placed by
-        haus.theme.ports. Those ports name the theme file after the accent,
-        so changing the accent renames the file the app's own `theme` key points
-        at — re-pick it in the app, or it falls back to stock.
+        haus.theme.ports, and the bar's far-left logo pill. Those ports name the
+        theme file after the accent, so changing the accent renames the file the
+        app's own `theme` key points at — re-pick it in the app, or it falls
+        back to stock.
+
+        The bar is the newest and the narrowest of the three: `haus.sill.logo`
+        is the ONLY pill that follows this option. Every other colour on the bar
+        is a fixed palette key, and the palette itself doesn't move — so a
+        machine that changes its accent sees exactly one pill change hue, unless
+        `haus.sill.logo.color` names one of its own.
 
         Honest scope: this moves the accent on those tools, NOT literally
         everything. Single-file dotfiles that bake the palette at their own

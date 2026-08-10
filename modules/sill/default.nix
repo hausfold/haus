@@ -1180,6 +1180,13 @@ lib.mkIf config.haus.sill.enable {
         SILL_LOGO_STATUS="${if cfg.logo.status then "1" else "0"}"
         SILL_LOGO_UPDATE_CHECK="${if cfg.logo.updateCheck then "1" else "0"}"
         SILL_LOGO_SWEEP="${if cfg.logo.sweep then "1" else "0"}"
+        # Off when the room that draws all three menus isn't enabled, as well as
+        # when the option says so: with no pounce there is nothing for a click to
+        # open, and a pill that swallows clicks silently is worse than one that
+        # is plainly not a button.
+        SILL_LOGO_GESTURES="${
+          if cfg.logo.gestures && config.haus.pounce.enable then "1" else "0"
+        }"
         SILL_LOGO_SWEEP_COLORS="$MAUVE $TEAL $GREEN $YELLOW $PEACH $PINK"
         # This rice's pounce commands, so the menu's rows can RUN rebuild.sh and
         # reload-bar.sh rather than carry a second implementation of either.

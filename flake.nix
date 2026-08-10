@@ -1048,6 +1048,14 @@
               # dark/light pair macOS is showing — so the fingerprint that moves
               # here is the name inside config.json, not a colour.
               perch = hm.home.activation.perchTheme.data;
+              # The BAR, via its far-left logo pill only. sill's palette file is
+              # the whole nebelung palette and never moves with the accent (it is
+              # in the pinned half below, and stays there); haus.sill.logo.color
+              # left null resolves to the accent and lands here, so this is the
+              # one bar file the accent reaches. Split out rather than folded
+              # into the `sill` row because the two answer different questions —
+              # "did the palette change" and "did the accent choose a pill".
+              sill-logo = file ".config/sketchybar/logo_config.sh";
               # --- and is supposed to leave these alone ---
               bat = file "/Users/you/.config/bat/themes/Catppuccin Mocha.tmTheme";
               ghostty = file "Library/Application Support/com.mitchellh.ghostty/config";
@@ -1081,7 +1089,7 @@
             }";
           accentTable = builtins.concatStringsSep "\n" (map accentRow (builtins.attrNames accentA));
           # Alphabetical because the rows are `attrNames` — self-sorting, so a new
-          # surface can't be added in a spot that hides it. Nine move, nine hold.
+          # surface can't be added in a spot that hides it. Ten move, nine hold.
           expectedAccentTable = ''
             bat pinned
             fzf moves
@@ -1094,6 +1102,7 @@
             perch moves
             pounce pinned
             sill pinned
+            sill-logo moves
             starship pinned
             stylus moves
             wallpaper-bold moves

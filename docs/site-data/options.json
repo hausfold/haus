@@ -3348,6 +3348,24 @@
     "readOnly": false,
     "type": "null or one of \"rosewater\", \"flamingo\", \"pink\", \"mauve\", \"red\", \"maroon\", \"peach\", \"yellow\", \"green\", \"teal\", \"sky\", \"sapphire\", \"blue\", \"lavender\""
   },
+  "haus.sill.logo.gestures": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "What the logo pill does when clicked:\n\n| gesture | what it opens |\n|---|---|\n| left click | the **haus menu** — System Settings, Activity Monitor, Lock Screen, Nix Config, Haus Settings, Rebuild System, Reload SketchyBar |\n| ⌘ left click | `haus rebuild`, straight into a floating terminal |\n| right click | the full pounce palette (⌘Space), which is what a bare click on this pill used to do |\n\nAll three are drawn by **pounce**, so all three need\n`haus.pounce.enable` (on by default). With pounce off they are silent\nno-ops and this option is the switch that says so out loud — turn it off\nand the pill stops responding to clicks entirely, rather than looking\nlike an affordance that does nothing.\n\nThe menu's rows are not reimplemented here: each one runs the palette\ncommand of the same name, so fixing one fixes both places. That is the\nwhole reason the popup dropdown this replaces is gone — it was a second\ncopy of five of these rows, and (having never been openable at all) a\nsecond copy nobody could check.\n",
+    "loc": [
+      "haus",
+      "sill",
+      "logo",
+      "gestures"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
   "haus.sill.logo.icon": {
     "declarations": [
       "modules/sill/options.nix"
@@ -3418,7 +3436,7 @@
       "_type": "literalExpression",
       "text": "true"
     },
-    "description": "Sweep the logo through the six hausfold accents — pink, peach, teal,\ngreen, mauve, yellow — while the pointer is over it, then settle back.\nIt is the bar's copy of the mark on hausfold.co, where hovering the `⌂`\nturns a conic gradient of those same six through the glyph. SketchyBar\ncannot put a gradient inside a glyph, so the sweep IS the gradient: one\ncolour at a time, animated.\n\nIt only runs from the resting accent. A pill sitting at yellow or red\nhas something to say, and a rainbow running over that is a pill saying\ntwo things at once — so hover does nothing until the state clears.\nLeader mode suppresses it for the same reason.\n",
+    "description": "Sweep the logo through the six hausfold accents — mauve, teal, green,\nyellow, peach, pink, the order the site runs them (nebelung → holt →\nperch → trill → pounce → nebelhaus) — while the pointer is over it,\nthen settle back.\nIt is the bar's copy of the mark on hausfold.co, where hovering the `⌂`\nturns a conic gradient of those same six through the glyph. SketchyBar\ncannot put a gradient inside a glyph, so the sweep IS the gradient: one\ncolour at a time, animated.\n\nIt only runs from the resting accent. A pill sitting at yellow or red\nhas something to say, and a rainbow running over that is a pill saying\ntwo things at once — so hover does nothing until the state clears.\nLeader mode suppresses it for the same reason.\n",
     "loc": [
       "haus",
       "sill",
@@ -3748,7 +3766,7 @@
       "_type": "literalExpression",
       "text": "\"mauve\""
     },
-    "description": "The accent colour, by Catppuccin name (the Nebelung palette is a\ngrey-tinted Catppuccin, so the fourteen names are the same in both\nflavors — the hue you pick follows haus.theme.flavor). It recolours\nthe tools nebelhaus injects colours into — lazygit, fzf, yazi (including\nglow-rendered Markdown headings), and the Zen browser — via the matching\nNebelung per-accent ports.\n\nperch follows it too, and is the one surface handed the NAME rather than\na hex: the shelf resolves it against whichever half of its dark/light\npair macOS is showing, so the ember under the notch and a pinned tile\nwear this accent in both polarities from one key. Left at perch's\ndefault it accents with its own mark green.\n\nTwo more things follow it: the `bold` wallpaper (generated from the\naccent hex — see haus.theme.wallpaper), and any roster app whose\nNebelung port ships a per-accent matrix (zed, gh-dash, mpv), placed by\nhaus.theme.ports. Those ports name the theme file after the accent,\nso changing the accent renames the file the app's own `theme` key points\nat — re-pick it in the app, or it falls back to stock.\n\nHonest scope: this moves the accent on those tools, NOT literally\neverything. Single-file dotfiles that bake the palette at their own\ntheme slot (ghostty, starship, tmux, bat, zellij, …) keep their built-in\ncolour and don't follow this option. The base palette stays the same\nNebelung grey either way — only the accent hue changes.\n\nZen means Zen's own UI, and the web is a separate story. The rice places\nthe Nebelung userChrome/userContent pair, but userContent only styles\n`about:` pages — github.com and youtube.com are themed by the Stylus\nextension, whose Catppuccin-derived styles carry their OWN `accentColor`\nvar (default mauve) inside the extension's storage, where no stylesheet\ncan reach it. Declare `haus.zen.extensions.stylus` and the rice\nstamps that var with this accent and tells you, once, when there's a new\nbundle to import; the import itself stays a click, because Stylus has no\nfile interface. Until you make it, the web keeps the accent you last\nimported.\n\nBoth halves of that are pinned by the `accent-reach` flake check, which\nfingerprints every surface under three accents and fails if one starts\nor stops following the accent without anyone deciding it should.\n",
+    "description": "The accent colour, by Catppuccin name (the Nebelung palette is a\ngrey-tinted Catppuccin, so the fourteen names are the same in both\nflavors — the hue you pick follows haus.theme.flavor). It recolours\nthe tools nebelhaus injects colours into — lazygit, fzf, yazi (including\nglow-rendered Markdown headings), and the Zen browser — via the matching\nNebelung per-accent ports.\n\nperch follows it too, and is the one surface handed the NAME rather than\na hex: the shelf resolves it against whichever half of its dark/light\npair macOS is showing, so the ember under the notch and a pinned tile\nwear this accent in both polarities from one key. Left at perch's\ndefault it accents with its own mark green.\n\nThree more things follow it: the `bold` wallpaper (generated from the\naccent hex — see haus.theme.wallpaper), any roster app whose\nNebelung port ships a per-accent matrix (zed, gh-dash, mpv), placed by\nhaus.theme.ports, and the bar's far-left logo pill. Those ports name the\ntheme file after the accent, so changing the accent renames the file the\napp's own `theme` key points at — re-pick it in the app, or it falls\nback to stock.\n\nThe bar is the newest and the narrowest of the three: `haus.sill.logo`\nis the ONLY pill that follows this option. Every other colour on the bar\nis a fixed palette key, and the palette itself doesn't move — so a\nmachine that changes its accent sees exactly one pill change hue, unless\n`haus.sill.logo.color` names one of its own.\n\nHonest scope: this moves the accent on those tools, NOT literally\neverything. Single-file dotfiles that bake the palette at their own\ntheme slot (ghostty, starship, tmux, bat, zellij, …) keep their built-in\ncolour and don't follow this option. The base palette stays the same\nNebelung grey either way — only the accent hue changes.\n\nZen means Zen's own UI, and the web is a separate story. The rice places\nthe Nebelung userChrome/userContent pair, but userContent only styles\n`about:` pages — github.com and youtube.com are themed by the Stylus\nextension, whose Catppuccin-derived styles carry their OWN `accentColor`\nvar (default mauve) inside the extension's storage, where no stylesheet\ncan reach it. Declare `haus.zen.extensions.stylus` and the rice\nstamps that var with this accent and tells you, once, when there's a new\nbundle to import; the import itself stays a click, because Stylus has no\nfile interface. Until you make it, the web keeps the accent you last\nimported.\n\nBoth halves of that are pinned by the `accent-reach` flake check, which\nfingerprints every surface under three accents and fails if one starts\nor stops following the accent without anyone deciding it should.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"sapphire\""
