@@ -49,7 +49,6 @@ esac
 # the pointer is on the pill.
 arm_sweep() {
     local key="$1"
-    printf '%s\n' "$key" >"$LAST"
     $SKETCHYBAR --set "$NAME" scroll_texts=on
     (
         sleep "$SWEEP_SECONDS"
@@ -59,14 +58,21 @@ arm_sweep() {
     ) &
 }
 
-# Called on every tick with the event that's showing. Arms the sweep when that
-# changed; otherwise makes sure the sweep is OFF. That second half is the
-# backstop: SketchyBar reaps a script= run's children, so the timer above can be
-# killed by the next tick before it settles, and a pill left permanently
-# scrolling is the exact failure mode this replaced truncation to avoid.
+# Called on every tick with the event that's showing (the empty string for "no
+# events"). Arms the sweep when that changed; otherwise makes sure the sweep is
+# OFF. That second half is the backstop: SketchyBar reaps a script= run's
+# children, so the timer above can be killed before it settles — by the next
+# tick, or by any mouse.exited.global, which this item now hears every time the
+# pointer leaves the bar for any reason. A pill left permanently scrolling is
+# the exact failure mode this replaced truncation to avoid, so it is worth a
+# second, slower guarantee.
 settle() {
-    local key="$1"
-    if [ "$(cat "$LAST" 2>/dev/null)" != "$key" ]; then
+    local key="$1" prev
+    prev="$(cat "$LAST" 2>/dev/null)"
+    printf '%s\n' "$key" >"$LAST"
+    # An empty key never arms: "No events" is short enough that it could not
+    # scroll anyway, and sweeping it would only be motion announcing nothing.
+    if [ -n "$key" ] && [ "$key" != "$prev" ]; then
         arm_sweep "$key"
     elif [ ! -f "$HOVER" ]; then
         $SKETCHYBAR --set "$NAME" scroll_texts=off
@@ -130,11 +136,17 @@ else
     TIME_STR="${MINUTES}m"
 fi
 
-# The title goes on whole — SketchyBar clips it to label.max_chars and sweeps
-# the rest past. Keying the sweep on the TITLE and not on the whole label is
-# deliberate: the countdown changes every minute, and a pill that re-armed on
-# that would scroll for eight seconds out of every sixty, forever.
-$SKETCHYBAR --set $NAME label="$TITLE in $TIME_STR"
+# The countdown leads, and this is why: SketchyBar clips a label to
+# label.max_chars from the START, so whatever is last is what a long name eats.
+# The old "<title> in 12m" put the one number the pill exists for in exactly
+# that spot — settled (which is ~52 seconds out of every 60) a long meeting name
+# would leave "Design review with Ac…" and no time at all. Countdown first pins
+# it; the title is the part that sweeps.
+#
+# The title goes on whole, and keying the sweep on the TITLE rather than the
+# whole label is deliberate: the countdown changes every minute, and a pill that
+# re-armed on that would scroll eight seconds out of every sixty, forever.
+$SKETCHYBAR --set $NAME label="in $TIME_STR · $TITLE"
 settle "$TITLE"
 
 # Update popup with next 5 events

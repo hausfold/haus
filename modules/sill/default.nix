@@ -499,7 +499,16 @@ let
     # afford to lose the end of. scroll_texts is NOT set on here — the plugin
     # arms it when the next event CHANGES and settles it a few seconds later, so
     # nothing scrolls forever; mouse.entered/exited are what bring it back.
+    #
+    # The hover flag is cleared here, at every bar start, for the same reason
+    # media_stream.sh clears its own: mouse.exited is missable — a --reload with
+    # the pointer parked on the pill, a sleep, a display change moving the bar —
+    # and a stranded flag disables BOTH of the plugin's off-switches at once, so
+    # the next event change would start a marquee nothing could ever stop. The
+    # media pill has a long-lived streamer to do this from; the calendar has
+    # only script= runs, so the bar's own init is the one place left.
     calendar = ''
+      rm -f "$HOME/.local/state/nebelhaus/calendar/hover" 2>/dev/null || true
       ${sb} --add item calendar ${side} \
           --set calendar \
               update_freq=60 \
