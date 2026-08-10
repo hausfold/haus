@@ -29,7 +29,7 @@ let
     cpu = "Total CPU load, as a percentage pill.";
     memory = "Memory-pressure percentage pill.";
     volume = "Output volume / mute state.";
-    calendar = "Your next timed event, with a click-popup of the next five. Pulls in `ical-buddy` automatically and reads Calendar, so macOS prompts for Calendar access on first run.";
+    calendar = "Your next timed event, with a click-popup of the next five. It reads \"in 12m · Design review\" — countdown first, because a label is clipped from the END and the number is the part you must never lose. A name too long for the pill sweeps past for a few seconds when the next event changes and then settles into the clipped form, so nothing moves in the corner of your eye forever; hovering brings the whole name back, and `haus.sill.calendar.width` sets how much room it gets before any of that applies. Pulls in `ical-buddy` automatically and reads Calendar, so macOS prompts for Calendar access on first run.";
     caffeinate = "A coffee pill that prevents idle system sleep for 1/2/4/8 hours, a custom whole-hour duration, or indefinitely. The display may still turn off; closing a MacBook lid still sleeps it. Uses macOS's built-in `caffeinate`, so there is no extra package.";
     agents = "A paw pill tracking your agent-worktree panes — amber when one is blocked on you, click for the per-agent list, each row marked with the client sitting in it; left-click a row to jump to that pane, ⌥/right-click for a live `zellij subscribe` peek. Fed by each client's own lifecycle hooks, which all call `agent-state` (also installed as ~/.config/sketchybar/plugins/agents-hook.sh): Opencode's plugin and Codex's ~/.codex/hooks.json are written for you (Codex asks you to trust its hooks the first time it sees them), while Claude Code's four agent-state hooks stay yours to point at it in ~/.claude/settings.json — Claude owns that file and rewrites it, so the rice merges in only the keys it must and never touches those four. (The two worktree hooks ARE declared, in hearth: they point at a rice-controlled path and self-heal on rebuild.) A row whose zellij pane is gone drops off by itself, which is what stands in for the session-end event Codex doesn't have. Dormant until a client fires.";
     aiUsage = "A gauge pill showing AI usage (Claude Code/Codex subscription rate limits as %, or Opencode API token cost as daily $). Automatically shows whichever provider reported most recently. Click for expanded session/weekly limits and daily/monthly API costs with model breakdowns. Claude and Opencode are read off disk; Codex has no local usage data, so its row is polled from your ChatGPT account with the OAuth token in ~/.codex/auth.json (refreshed and rewritten in place) — no Codex login on the machine, no call is made. Claude's row is pushed by its statusline; the Codex and Opencode rows are pulled by the pill itself on a 3-minute TTL, so they stay current on a machine that never opens Claude at all. Claude and Opencode also get a `tokens` block in the dropdown — raw tokens moved today, this week, this month and all time (cache reads and all), two periods to a line so a full set reads as a 2×2, purely for the fun of watching the number climb. A period with nothing in it is left out rather than printed as a zero, so the block simply gets smaller, and a closing `∑ Everything` adds every provider up when more than one is reporting. It is a score, not a limit: nothing acts on it, and it never reaches the pill's own label. Claude's is summed from your transcripts on a 15-minute TTL behind an index, so only sessions that grew since the last pass are re-read; Codex has no row because it keeps no local history to count.";
@@ -171,6 +171,25 @@ in
       '';
     };
 
+    sill.media.width = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 25;
+      example = 16;
+      description = ''
+        How wide the media pill's title is allowed to get, in CHARACTERS — not
+        pixels. Anything longer is clipped to this and swept past instead, so
+        this is the knob for how much of the bar the now-playing title may rent.
+
+        Narrow it on a MacBook, where the bar's centre span sits under the notch
+        and every character of title is paid for out of the room the workspace
+        pills and the front-app name need. `haus.sill.media.collapse` is the
+        harder version of the same trade: no title at all until you hover.
+
+        It is a MAXIMUM, not a fixed size — the pill still shrinks to fit a
+        short title, so a wide setting costs nothing until something long plays.
+      '';
+    };
+
     sill.media.artworkTint = lib.mkOption {
       type = lib.types.bool;
       default = false;
@@ -215,6 +234,25 @@ in
         If you know that on YOUR machine browser video means YouTube, say so:
 
           haus.sill.media.icons."browser.video" = "󰗃";
+      '';
+    };
+
+    sill.calendar.width = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 25;
+      example = 16;
+      description = ''
+        How wide the `calendar` pill's label is allowed to get, in CHARACTERS —
+        not pixels. The label reads "in 12m · <event>"; anything longer is
+        clipped to this and swept past on a change, the same way the media
+        pill's title is.
+
+        The countdown leads deliberately: the clip eats the END of a label, so
+        the number the pill exists for has to sit in front of the part that can
+        run long.
+
+        It is a MAXIMUM, not a fixed size — a short event name still draws a
+        short pill.
       '';
     };
 

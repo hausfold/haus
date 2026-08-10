@@ -346,7 +346,7 @@ let
               background.color=$SURFACE0 \
               background.padding_left=8 \
               background.padding_right=8 \
-              label.max_chars=25 \
+              label.max_chars=${toString cfg.media.width} \
               drawing=off \
               popup.background.border_width=2 \
               popup.background.corner_radius=10 \
@@ -492,13 +492,30 @@ let
     # item name so no $NAME has to survive add-time expansion.
     # Opening goes through sillpop (see popToggle above) so the dropdown closes on
     # the next click anywhere else, not only on a second click of the pill.
+    #
+    # label.max_chars + the marquee in calendar.sh replace what used to be a
+    # 15-character chop with an ellipsis: "Design review w…" and "Design review
+    # r…" are the same pill, and a meeting name is the one string you can least
+    # afford to lose the end of. scroll_texts is NOT set on here — the plugin
+    # arms it when the next event CHANGES and settles it a few seconds later, so
+    # nothing scrolls forever; mouse.entered/exited are what bring it back.
+    #
+    # The hover flag is cleared here, at every bar start, for the same reason
+    # media_stream.sh clears its own: mouse.exited is missable — a --reload with
+    # the pointer parked on the pill, a sleep, a display change moving the bar —
+    # and a stranded flag disables BOTH of the plugin's off-switches at once, so
+    # the next event change would start a marquee nothing could ever stop. The
+    # media pill has a long-lived streamer to do this from; the calendar has
+    # only script= runs, so the bar's own init is the one place left.
     calendar = ''
+      rm -f "$HOME/.local/state/nebelhaus/calendar/hover" 2>/dev/null || true
       ${sb} --add item calendar ${side} \
           --set calendar \
               update_freq=60 \
               icon="󰃭" \
               icon.color=$MAUVE \
               background.color=$SURFACE0 \
+              label.max_chars=${toString cfg.calendar.width} \
               popup.background.border_width=2 \
               popup.background.corner_radius=10 \
               popup.background.border_color=$SURFACE0 \
@@ -506,7 +523,7 @@ let
               ${popupAlign side} \
               script="$HOME/.config/sketchybar/plugins/calendar.sh" \
               click_script="${popToggle sb "calendar"}" \
-          --subscribe calendar mouse.clicked system_woke
+          --subscribe calendar mouse.clicked mouse.entered mouse.exited mouse.exited.global system_woke
       for i in 1 2 3 4 5; do
           ${sb} --add item calendar.event.$i popup.calendar \
               --set calendar.event.$i \
