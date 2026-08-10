@@ -232,8 +232,12 @@ it silently.
   reload, exit 0, `configuration loaded..` in the log. That is `sill-bottom` and
   only `sill-bottom` (the menu bar carries no `--config`, so it re-resolves the
   live path by accident), and it cost a day of hausfold#279's `topmost=window`
-  never reaching the screen. Diagnose it with `lsof -p <pid> -a -d cwd`: a cwd
-  under `/nix/store` is a pinned bar. Every
+  never reaching the screen. Which bar is exposed is `ps -o command= -p <pid>` —
+  a `--config` in the argv is the whole risk, and `lsof -p <pid> -a -d cwd`
+  showing `/nix/store` says the same thing (SketchyBar chdir'd to the resolved
+  rc). Neither tells you whether it's *currently* stale, because both stay true
+  after a correct reload; for that, read the bar against the generation —
+  `sill-bottom --query bar` vs `~/.config/sketchybar/sizes.sh`. Every
   movable pill is emitted from that one table; the coupled left-side
   workspace/leader group and the tour stay on the menu bar. On the MENU bar those
   pills are all `right` (its left and center are spoken for); the bottom bar
