@@ -16,7 +16,7 @@
 # Doing the bloom in the SVG instead would quantise it to 8 bits inside resvg,
 # before any grain exists to break the contours up — which is exactly the
 # stepped-gradient wallpaper this look was written to replace. Measured at the
-# shipped defaults: 127 distinct colours with `grain = 0` and 291 with the
+# shipped defaults: 137 distinct colours with `grain = 0` and 329 with the
 # default grain, and under a 25x contrast stretch the first is visibly ringed
 # and the second is flat.
 {
@@ -62,12 +62,24 @@ let
   # a font without the codepoint — where the mark is meant to be the one thing
   # that looks the same everywhere. Unit box is 100x100.
   #
-  # The body's verticals start at y=40 rather than at their own corner: the roof
-  # line passes through y≈39.9 at x=17 and x=83, so ending them there tucks the
-  # butt caps inside the roof's stroke at ANY weight. Ending them lower leaves a
-  # hairline gap that only opens up as the stroke gets thinner.
-  roofPath = "M 4 52 L 50 9 L 96 52";
-  bodyPath = "M 17 40 L 17 91 L 83 91 L 83 40";
+  # Not set, but not invented either: these are the CENTRELINES of the real
+  # codepoint, traced off the outline hausfold.co actually renders. The site
+  # asks for `ui-monospace, "SF Mono", Menlo` — SF Mono has no U+2302, so every
+  # Mac browser falls through to Menlo Regular's `house`, whose outer contour is
+  # (146,0) (146,647) (616,1220) (1086,647) (1086,0) on a 2048 em. Halving that
+  # against its inner contour puts the walls 818 units apart, the roof/wall
+  # junction 53% of the way up, and the drawing 0.77 as wide as it is tall.
+  #
+  # Which is what makes it read as ⌂ and not as a house ICON: the roof does NOT
+  # overhang. Its slope ENDS on the wall — one corner, no eave — and the glyph
+  # is taller than it is wide, where every generic house pushes the roof out
+  # past the walls and squats. Hence ONE closed path rather than a roof and a
+  # body: the pentagon is the glyph's own outline, so every corner is a real
+  # mitre at any weight, and there are no stroke ENDS left in the drawing —
+  # which is why the group below sets no linecap. The two-path version needed
+  # one, and needed the body's verticals to start above their own corner so the
+  # caps hid inside the roof's stroke; a closed subpath has neither problem.
+  markPath = "M 50 9 L 81.7 47.7 L 81.7 91 L 18.3 91 L 18.3 47.7 Z";
 
   markSide = mark.size * short;
   markX = (W - markSide) / 2.0;
@@ -78,8 +90,8 @@ let
     ''
       <g ${attrs} transform="translate(${n2s markX} ${n2s markY}) scale(${n2s (markSide / 100.0)})"
          fill="none" stroke-width="${n2s (100.0 * mark.weight)}"
-         stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="6">''
-    + ''<path d="${roofPath}"/><path d="${bodyPath}"/></g>'';
+         stroke-linejoin="miter" stroke-miterlimit="6">''
+    + ''<path d="${markPath}"/></g>'';
 
   # ---- the spectrum sweep -----------------------------------------------
   # CSS has conic-gradient; SVG does not, and resvg is honest about it. So the
