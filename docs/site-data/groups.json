@@ -7,6 +7,10 @@
     "blurb": "Which coding-agent clients this machine installs, and which one the agent keybinding spawns.",
     "order": 80
   },
+  "animations": {
+    "blurb": "How much motion macOS spends on its own Dock and windows: the slide, the launch bounce, minimise, Mission Control, window open/close. Unset by default like the rest of this block — `\"fast\"` opts in, and going back only stops writing rather than restoring. Deliberately not the Accessibility \"Reduce motion\" switch, which every browser also reads as `prefers-reduced-motion`.",
+    "order": 111
+  },
   "appStore": {
     "blurb": "Whether a rebuild may install the roster's `appStoreId` entries. Off by default: it reaches the network and acts on your Apple Account, and it can never be complete — `mas` cannot sign in, and cannot buy a paid app.",
     "order": 22

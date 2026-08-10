@@ -93,7 +93,13 @@
   # ---- macOS settings groups (options-roadmap §5.6) -------------------------
   # Dense on purpose: this block ran out of the file's usual ten-wide spacing
   # when the last three groups landed, and `prowl` at 120 is the next fixed
-  # point. A seventh group here means renumbering the block, not squeezing.
+  # point. `animations` then took 111 — the last free slot, and the last
+  # squeeze available: the block is now 111–119 with no gaps, so the NEXT group added
+  # here has to renumber it, from `prowl` at 120 downwards.
+  animations = {
+    order = 111;
+    blurb = "How much motion macOS spends on its own Dock and windows: the slide, the launch bounce, minimise, Mission Control, window open/close. Unset by default like the rest of this block — `\"fast\"` opts in, and going back only stops writing rather than restoring. Deliberately not the Accessibility \"Reduce motion\" switch, which every browser also reads as `prefers-reduced-motion`.";
+  };
   hotCorners = {
     order = 112;
     blurb = "What each corner of the screen does when the pointer reaches it. Every corner is unset by default, so the rice never overwrites one you set yourself.";
