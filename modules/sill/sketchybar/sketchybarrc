@@ -184,6 +184,14 @@ sketchybar --add item apple.nix_config popup.apple.logo \
 # so its ABSENCE is expected and silent, but a --reload that actually fails is
 # not — unswallowed it lands in /tmp/sketchybar.err.log instead of nowhere. A
 # click_script has no way to notify, so the log is the whole report.
+#
+# Both reloads NAME their rc, and for the bottom bar that is the load-bearing
+# half: `--reload` on its own re-runs the config path the instance resolved AT
+# STARTUP, and SketchyBar resolves it through the symlink to a file in
+# /nix/store — so a `--config`'d bar replays the generation it booted on, every
+# time, exit 0. `sill-bottom` is the only bar launched that way; this one is
+# spelled out to match. Full story in ../default.nix. ($HOME expands here, when
+# this rc runs, so the click_script carries real paths.)
 sketchybar --add item apple.reload popup.apple.logo \
     --set apple.reload \
         icon= \
@@ -195,7 +203,7 @@ sketchybar --add item apple.reload popup.apple.logo \
         background.padding_right=0 \
         background.color=0x00000000 \
         background.drawing=off \
-        click_script="sketchybar --reload; [ -x /run/current-system/sw/bin/sill-bottom ] && /run/current-system/sw/bin/sill-bottom --reload; sketchybar --set apple.logo popup.drawing=off"
+        click_script="sketchybar --reload $HOME/.config/sketchybar/sketchybarrc; [ -x /run/current-system/sw/bin/sill-bottom ] && /run/current-system/sw/bin/sill-bottom --reload $HOME/.config/sketchybar/sill-bottomrc; sketchybar --set apple.logo popup.drawing=off"
 
 # Spaces - All AeroSpace workspaces. WORKSPACES + ws_icon come from the
 # generated workspaces.sh (sourced above); app-workspaces show the app's logo

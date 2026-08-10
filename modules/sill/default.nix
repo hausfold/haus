@@ -66,6 +66,16 @@ let
   barTopPath = "/opt/homebrew/bin/sketchybar";
   barBottomPath = "/run/current-system/sw/bin/sill-bottom";
 
+  # Where each bar's rc LIVES, as the deployed ~/.config path rather than the
+  # store path it links to. Both the launchd agent and the reload below name it,
+  # and it has to be this spelling in both: home.file deploys a symlink into
+  # /nix/store, SketchyBar resolves the config path ONCE at startup, and a
+  # `--reload` with no argument then re-runs whatever realpath it resolved back
+  # then — the store file from the generation the process booted on, forever.
+  # See the reload's own comment at the bottom of this file for what that cost.
+  barTopRc = "/Users/${username}/.config/sketchybar/sketchybarrc";
+  barBottomRc = "/Users/${username}/.config/sketchybar/sill-bottomrc";
+
   # What feeds the media pill now that SketchyBar's own media_change event is
   # dead on macOS 15.4+. Reached by absolute store path from media_config.sh
   # rather than put on PATH, and only when the pill is actually on, so a rice
@@ -1043,7 +1053,7 @@ lib.mkIf config.haus.sill.enable {
       serviceConfig = {
         ProgramArguments = guiWait.wrapArgs barBottomPath [
           "--config"
-          "/Users/${username}/.config/sketchybar/sill-bottomrc"
+          barBottomRc
         ];
         KeepAlive = true;
         RunAtLoad = true;
@@ -1258,6 +1268,30 @@ lib.mkIf config.haus.sill.enable {
       # fail the rebuild — launchd's RunAtLoad then starts each bar on the fresh
       # config anyway, and a plist change restarts the agent outright, so the
       # two mechanisms cover between them everything a rebuild can move.
+      #
+      # EACH RELOAD NAMES ITS RC. A bare `--reload` does not mean "re-read your
+      # config file", it means "re-run the path you resolved at startup" — and
+      # SketchyBar resolves that path once, through the symlink, to a file in
+      # /nix/store. home.file rewrites the symlink every rebuild but the old
+      # store path is still there and still readable, so an instance launched
+      # with `--config ~/.config/sketchybar/sill-bottomrc` re-runs the rc from
+      # the generation it BOOTED on, every reload, for the life of the process.
+      # It reports success and logs `configuration loaded..` while doing it.
+      #
+      # That is not theoretical: the second bar spent a day pinned to a
+      # pre-#279 rc, so `topmost=window` — the lift that keeps the tiled
+      # window's drop-shadow off the strip — was on disk, in every reload, and
+      # never once applied. It only surfaced when #283 took prowl's bottom
+      # reservation from 40 down to the bar's real 32 while the live bar was
+      # still drawing the old 36: the windows came down flush onto pills that
+      # were still sitting under them, and the shadow landed on the pills.
+      #
+      # Naming the ~/.config path re-resolves the symlink at reload time, which
+      # is the whole fix. The menu bar is passed its rc for the same reason even
+      # though it survives a bare reload today — it survives only because it is
+      # launched with NO --config, so it falls back to the same ~/.config path
+      # on every reload by accident rather than by intent. One spelling, one
+      # behaviour, and no second bar-shaped trap for whoever adds the third.
       home.file = barFiles // {
         ".config/sketchybar/.haus-stamp" = {
           text = ''
@@ -1269,8 +1303,8 @@ lib.mkIf config.haus.sill.enable {
             )}
           '';
           onChange = lib.concatLines (
-            [ "${barTopPath} --reload 2>/dev/null || true" ]
-            ++ lib.optional cfg.bottom.enable "${barBottomPath} --reload 2>/dev/null || true"
+            [ "${barTopPath} --reload ${barTopRc} 2>/dev/null || true" ]
+            ++ lib.optional cfg.bottom.enable "${barBottomPath} --reload ${barBottomRc} 2>/dev/null || true"
           );
         };
       };
