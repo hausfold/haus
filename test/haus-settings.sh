@@ -173,4 +173,104 @@ if "${haus[@]}" set theme.accent chartreuse >/dev/null 2>&1; then
   exit 1
 fi
 
+# A sub-path of a submodule is an ordinary definition site, and the options tree
+# doesn't say so — `options.haus.sill.items` is an option, `…items.aiUsage` is not
+# an attribute of anything. Setting ONE pill has to work without the whole-attrset
+# form, which resets every key it doesn't name.
+"${haus[@]}" set sill.items.aiUsage true >/dev/null
+test "$("${haus[@]}" get sill.items.aiUsage)" = "true"
+grep -q '^  haus\.sill\.items\.aiUsage = lib\.mkForce (builtins\.fromJSON "true");$' \
+  "$tmp/hosts/test/settings/sill.items.aiUsage.nix"
+test "$("${haus[@]}" get sill.items.weather)" = "true"   # untouched, still its own default
+"${haus[@]}" reset sill.items.aiUsage >/dev/null
+test "$("${haus[@]}" get sill.items.aiUsage)" = "false"
+
+# …and a typo underneath one is still refused, which is the half of the old guard
+# worth keeping.
+if "${haus[@]}" set sill.items.nosuchpill true >/dev/null 2>&1; then
+  echo "haus set accepted an undeclared submodule sub-option" >&2
+  exit 1
+fi
+
+# Running out of path components has to land on an OPTION. `theme` and `sill` are
+# namespaces — a whole-room mkForce there evaluates fine and then scatters over
+# every option in the room, and with the overlap guard it would lock all of them
+# out of `haus set` until someone found the file.
+for ns in theme sill; do
+  if "${haus[@]}" set "$ns" '{}' >/dev/null 2>&1; then
+    echo "haus set accepted the namespace '$ns' as if it were an option" >&2
+    exit 1
+  fi
+done
+
+# An attrsOf option's keys are the USER's — they can't be in the options tree at
+# all, so the walk consumes one component as a key and checks what's under it.
+# Display UUIDs are the reason a component may start with a digit, and the reason
+# the generated attrpath quotes what isn't a bare Nix identifier.
+"${haus[@]}" set displays.internal.uiScale larger-text >/dev/null
+test "$("${haus[@]}" get displays.internal.uiScale)" = "larger-text"
+"${haus[@]}" set displays.37D8832A-2D66-02CA-B9F7-8F30A301B230.uiScale more-space >/dev/null
+grep -q '^  haus\.displays\."37D8832A-2D66-02CA-B9F7-8F30A301B230"\.uiScale = ' \
+  "$tmp/hosts/test/settings/displays.37D8832A-2D66-02CA-B9F7-8F30A301B230.uiScale.nix"
+test "$("${haus[@]}" get displays.37D8832A-2D66-02CA-B9F7-8F30A301B230.uiScale)" = "more-space"
+if "${haus[@]}" set displays.internal.noSuchKnob 1 >/dev/null 2>&1; then
+  echo "haus set accepted an undeclared option under an attrsOf key" >&2
+  exit 1
+fi
+
+# A Nix keyword is all letters and still not a bare identifier, so the attrpath
+# has to quote it too — an attrsOf key is any word the user likes.
+"${haus[@]}" set displays.with.uiScale more-space >/dev/null
+grep -q '^  haus\.displays\."with"\.uiScale = ' "$tmp/hosts/test/settings/displays.with.uiScale.nix"
+"${haus[@]}" reset displays.with.uiScale >/dev/null
+
+# Withdrawing the last override that DEFINED an attrsOf key takes the key away
+# rather than revealing a value beneath it, so `config.<path>` stops evaluating —
+# the reset working, reported as such and not as a failure.
+out="$("${haus[@]}" reset displays.37D8832A-2D66-02CA-B9F7-8F30A301B230.uiScale 2>&1)"
+case "$out" in
+  *"nothing defines it now"*) ;;
+  *) echo "haus reset misreported a key it removed: $out" >&2; exit 1 ;;
+esac
+test ! -e "$tmp/hosts/test/settings/displays.37D8832A-2D66-02CA-B9F7-8F30A301B230.uiScale.nix"
+
+# …and that must not swallow the failure it looks exactly like. Two plain
+# definitions of one option conflict the moment the mkForce on top of them goes,
+# and the override has to come back.
+printf '{ ... }: { haus.theme.wallpaper = "orbits"; }\n' >"$tmp/hosts/test/settings/zz-a.nix"
+printf '{ ... }: { haus.theme.wallpaper = "waves"; }\n' >"$tmp/hosts/test/settings/zz-b.nix"
+git -C "$tmp" add -A
+"${haus[@]}" set theme.wallpaper none >/dev/null
+if "${haus[@]}" reset theme.wallpaper >/dev/null 2>&1; then
+  echo "haus reset reported success on a path that cannot evaluate without it" >&2
+  exit 1
+fi
+test -e "$tmp/hosts/test/settings/theme.wallpaper.nix"    # restored, not left removed
+rm -f "$tmp/hosts/test/settings/zz-a.nix" "$tmp/hosts/test/settings/zz-b.nix"
+git -C "$tmp" add -A
+"${haus[@]}" reset theme.wallpaper >/dev/null
+
+# A path and one of its ancestors can't both hold an override: they'd be two
+# mkForce definitions of the same leaf, and the module system would report that
+# from inside the submodule, as a conflict traceable to neither file. Refused in
+# both directions, and before anything is written.
+if "${haus[@]}" set displays '{"internal":{"uiScale":"more-space"}}' >/dev/null 2>&1; then
+  echo "haus set wrote an override over an existing descendant one" >&2
+  exit 1
+fi
+test "$("${haus[@]}" get displays.internal.uiScale)" = "larger-text"
+"${haus[@]}" reset displays.internal.uiScale >/dev/null
+"${haus[@]}" set displays '{"internal":{"uiScale":"more-space"}}' >/dev/null
+if "${haus[@]}" set displays.internal.uiScale larger-text >/dev/null 2>&1; then
+  echo "haus set wrote an override under an existing ancestor one" >&2
+  exit 1
+fi
+# …including two pairs of the SAME call, where neither file exists yet.
+"${haus[@]}" reset displays >/dev/null
+if "${haus[@]}" set displays.internal.uiScale larger-text displays '{}' >/dev/null 2>&1; then
+  echo "haus set accepted an overlapping pair within one call" >&2
+  exit 1
+fi
+test ! -e "$tmp/hosts/test/settings/displays.internal.uiScale.nix"
+
 printf 'haus settings: ok\n'
