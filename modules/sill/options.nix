@@ -21,7 +21,7 @@ let
   core = {
     clock = "The clock pill, pinned to the far right.";
     weather = "The weather pill and its click-to-open forecast popover.";
-    media = "The now-playing track (scrolls; auto-hides when nothing plays, dims when paused, click to play/pause). It reads the same system-wide session Control Center does, so it follows a browser tab as readily as Apple Music or Spotify, and its icon says which app the sound is coming from. SketchyBar's own `media_change` event has been dead since macOS 15.4, where Apple started requiring an entitlement to talk to `mediaremoted`; the pill is fed instead by `media-control`, which does the read from inside the entitled `/usr/bin/perl`. That is a private-framework route Apple could close in any point release — `media-control test` exits non-zero once it has.";
+    media = "The now-playing track — auto-hides when nothing plays, dims when paused, and counts DOWN instead of scrolling a title once the thing playing is longer than twenty minutes (a podcast or a video is one you already know the name of; what you keep glancing at the bar for is how much is left). The title scrolls for a few seconds after a track changes and then settles, so nothing moves in the corner of your eye forever; hovering brings the full title back. Gestures: left click play/pause, RIGHT click the dropdown, ⌥ next, ⇧ previous, ⌘ focus whatever app the sound is coming from, scroll to seek ±10s. The dropdown carries the cover (or the source app's icon), a scrubbable position slider, transport rows, and a short recently-played list — macOS keeps no now-playing history at all, so that list is written as tracks change or it could not exist. It reads the same system-wide session Control Center does, so it follows a browser tab as readily as Apple Music or Spotify, and its icon says what KIND of thing is playing: an app it recognises gets that app's glyph, a browser gets video or music depending on whether an album was published. It cannot say which SITE — no URL reaches the now-playing session and none of window titles, artwork shape or the session's pid can recover one, so a wrong YouTube glyph on a Netflix tab is a guess this deliberately doesn't make; `haus.sill.media.icons` is the override for a machine that knows better. SketchyBar's own `media_change` event has been dead since macOS 15.4, where Apple started requiring an entitlement to talk to `mediaremoted`; the pill is fed instead by `media-control`, which does the read from inside the entitled `/usr/bin/perl`. That is a private-framework route Apple could close in any point release — `media-control test` exits non-zero once it has.";
     battery = "The battery pill.";
     wifi = "The Wi-Fi status pill.";
   };
@@ -152,6 +152,69 @@ in
         spawn: a provider reports here whenever it has data for your account —
         Codex notably does so from a ChatGPT login alone, with no CLI installed
         — so it is deliberately not tied to `haus.agents.clients`.
+      '';
+    };
+
+    sill.media.collapse = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      example = true;
+      description = ''
+        Draw the media pill as its glyph alone, and reveal the title only while
+        the pointer is on it.
+
+        Worth having on a MacBook: the bar's centre span is under the notch, so
+        every character of scrolling track title is rent paid out of the room
+        the workspace pills and the front-app name need. The pill still hides
+        itself entirely when nothing is playing — this is about the case where
+        something is.
+      '';
+    };
+
+    sill.media.artworkTint = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      example = true;
+      description = ''
+        Colour the media pill's glyph from the current cover art instead of from
+        what kind of thing is playing.
+
+        The colour is the cover's average, SNAPPED to the nearest member of the
+        rice's palette — so the pill picks up the mood of a record without ever
+        drawing a colour that isn't in the theme. Off by default because it
+        trades a stable meaning (pink is Music, green is Spotify, red is video)
+        for a colour that changes every three minutes.
+
+        Only sources that publish artwork can drive it, which is fewer than you
+        would think: every Firefox-family browser publishes none at all, and the
+        pill falls back to the kind colour for those.
+      '';
+    };
+
+    sill.media.icons = lib.mkOption {
+      type = lib.types.attrsOf lib.types.str;
+      default = { };
+      example = {
+        "browser.video" = "󰗃";
+        "com.apple.podcasts" = "󰦔";
+      };
+      description = ''
+        Override the media pill's glyph, keyed by bundle id
+        (`com.spotify.client`) or by KIND — one of `music`, `spotify`,
+        `podcast`, `video`, `vlc`, `browser.video`, `browser.music`, `other`.
+        A bundle id wins over a kind.
+
+        This exists because of one hard limit: **nothing on the machine can tell
+        you which site a browser tab is playing.** macOS's now-playing session
+        carries no URL, window titles only ever name the FOREGROUND tab (the one
+        playing audio is usually behind), Firefox-family browsers publish no
+        artwork to shape-check, and the session's pid is the browser's parent
+        process rather than the tab's. So the pill draws a neutral video glyph
+        for a browser rather than guessing YouTube and being wrong on Netflix.
+
+        If you know that on YOUR machine browser video means YouTube, say so:
+
+          haus.sill.media.icons."browser.video" = "󰗃";
       '';
     };
 

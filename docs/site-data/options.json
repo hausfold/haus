@@ -2783,7 +2783,7 @@
       "_type": "literalExpression",
       "text": "false"
     },
-    "description": "The now-playing track (scrolls; auto-hides when nothing plays, dims when paused, click to play/pause). It reads the same system-wide session Control Center does, so it follows a browser tab as readily as Apple Music or Spotify, and its icon says which app the sound is coming from. SketchyBar's own `media_change` event has been dead since macOS 15.4, where Apple started requiring an entitlement to talk to `mediaremoted`; the pill is fed instead by `media-control`, which does the read from inside the entitled `/usr/bin/perl`. That is a private-framework route Apple could close in any point release — `media-control test` exits non-zero once it has.",
+    "description": "The now-playing track — auto-hides when nothing plays, dims when paused, and counts DOWN instead of scrolling a title once the thing playing is longer than twenty minutes (a podcast or a video is one you already know the name of; what you keep glancing at the bar for is how much is left). The title scrolls for a few seconds after a track changes and then settles, so nothing moves in the corner of your eye forever; hovering brings the full title back. Gestures: left click play/pause, RIGHT click the dropdown, ⌥ next, ⇧ previous, ⌘ focus whatever app the sound is coming from, scroll to seek ±10s. The dropdown carries the cover (or the source app's icon), a scrubbable position slider, transport rows, and a short recently-played list — macOS keeps no now-playing history at all, so that list is written as tracks change or it could not exist. It reads the same system-wide session Control Center does, so it follows a browser tab as readily as Apple Music or Spotify, and its icon says what KIND of thing is playing: an app it recognises gets that app's glyph, a browser gets video or music depending on whether an album was published. It cannot say which SITE — no URL reaches the now-playing session and none of window titles, artwork shape or the session's pid can recover one, so a wrong YouTube glyph on a Netflix tab is a guess this deliberately doesn't make; `haus.sill.media.icons` is the override for a machine that knows better. SketchyBar's own `media_change` event has been dead since macOS 15.4, where Apple started requiring an entitlement to talk to `mediaremoted`; the pill is fed instead by `media-control`, which does the read from inside the entitled `/usr/bin/perl`. That is a private-framework route Apple could close in any point release — `media-control test` exits non-zero once it has.",
     "loc": [
       "haus",
       "sill",
@@ -3140,7 +3140,7 @@
       "_type": "literalExpression",
       "text": "true"
     },
-    "description": "The now-playing track (scrolls; auto-hides when nothing plays, dims when paused, click to play/pause). It reads the same system-wide session Control Center does, so it follows a browser tab as readily as Apple Music or Spotify, and its icon says which app the sound is coming from. SketchyBar's own `media_change` event has been dead since macOS 15.4, where Apple started requiring an entitlement to talk to `mediaremoted`; the pill is fed instead by `media-control`, which does the read from inside the entitled `/usr/bin/perl`. That is a private-framework route Apple could close in any point release — `media-control test` exits non-zero once it has.",
+    "description": "The now-playing track — auto-hides when nothing plays, dims when paused, and counts DOWN instead of scrolling a title once the thing playing is longer than twenty minutes (a podcast or a video is one you already know the name of; what you keep glancing at the bar for is how much is left). The title scrolls for a few seconds after a track changes and then settles, so nothing moves in the corner of your eye forever; hovering brings the full title back. Gestures: left click play/pause, RIGHT click the dropdown, ⌥ next, ⇧ previous, ⌘ focus whatever app the sound is coming from, scroll to seek ±10s. The dropdown carries the cover (or the source app's icon), a scrubbable position slider, transport rows, and a short recently-played list — macOS keeps no now-playing history at all, so that list is written as tracks change or it could not exist. It reads the same system-wide session Control Center does, so it follows a browser tab as readily as Apple Music or Spotify, and its icon says what KIND of thing is playing: an app it recognises gets that app's glyph, a browser gets video or music depending on whether an album was published. It cannot say which SITE — no URL reaches the now-playing session and none of window titles, artwork shape or the session's pid can recover one, so a wrong YouTube glyph on a Netflix tab is a guess this deliberately doesn't make; `haus.sill.media.icons` is the override for a machine that knows better. SketchyBar's own `media_change` event has been dead since macOS 15.4, where Apple started requiring an entitlement to talk to `mediaremoted`; the pill is fed instead by `media-control`, which does the read from inside the entitled `/usr/bin/perl`. That is a private-framework route Apple could close in any point release — `media-control test` exits non-zero once it has.",
     "loc": [
       "haus",
       "sill",
@@ -3221,6 +3221,72 @@
     ],
     "readOnly": false,
     "type": "boolean"
+  },
+  "haus.sill.media.artworkTint": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Colour the media pill's glyph from the current cover art instead of from\nwhat kind of thing is playing.\n\nThe colour is the cover's average, SNAPPED to the nearest member of the\nrice's palette — so the pill picks up the mood of a record without ever\ndrawing a colour that isn't in the theme. Off by default because it\ntrades a stable meaning (pink is Music, green is Spotify, red is video)\nfor a colour that changes every three minutes.\n\nOnly sources that publish artwork can drive it, which is fewer than you\nwould think: every Firefox-family browser publishes none at all, and the\npill falls back to the kind colour for those.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "media",
+      "artworkTint"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.media.collapse": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Draw the media pill as its glyph alone, and reveal the title only while\nthe pointer is on it.\n\nWorth having on a MacBook: the bar's centre span is under the notch, so\nevery character of scrolling track title is rent paid out of the room\nthe workspace pills and the front-app name need. The pill still hides\nitself entirely when nothing is playing — this is about the case where\nsomething is.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "media",
+      "collapse"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.media.icons": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "{ }"
+    },
+    "description": "Override the media pill's glyph, keyed by bundle id\n(`com.spotify.client`) or by KIND — one of `music`, `spotify`,\n`podcast`, `video`, `vlc`, `browser.video`, `browser.music`, `other`.\nA bundle id wins over a kind.\n\nThis exists because of one hard limit: **nothing on the machine can tell\nyou which site a browser tab is playing.** macOS's now-playing session\ncarries no URL, window titles only ever name the FOREGROUND tab (the one\nplaying audio is usually behind), Firefox-family browsers publish no\nartwork to shape-check, and the session's pid is the browser's parent\nprocess rather than the tab's. So the pill draws a neutral video glyph\nfor a browser rather than guessing YouTube and being wrong on Netflix.\n\nIf you know that on YOUR machine browser video means YouTube, say so:\n\n  haus.sill.media.icons.\"browser.video\" = \"󰗃\";\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "{\n  \"browser.video\" = \"󰗃\";\n  \"com.apple.podcasts\" = \"󰦔\";\n}"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "media",
+      "icons"
+    ],
+    "readOnly": false,
+    "type": "attribute set of string"
   },
   "haus.sill.position": {
     "declarations": [
