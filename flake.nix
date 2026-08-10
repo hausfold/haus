@@ -1557,15 +1557,17 @@
           #
           # The whole ladder, measured at the shipped defaults rather than
           # guessed, because the floor is only defensible against real numbers:
-          # `grain = 0` gives 127 distinct colours, 0.004 (the lowest value the
-          # option calls useful) gives 182, the default 0.01 gives 291, and 0.02
-          # gives 588. So 160 — above the ungrained case, below the lowest
+          # `grain = 0` gives 137 distinct colours, 0.004 (the lowest value the
+          # option calls useful) gives 193, the default 0.01 gives 329, and 0.02
+          # gives 625. So 160 — above the ungrained case, below the lowest
           # grain anyone should ship. If this ever fails, the dither stopped
           # reaching the reduction; it does NOT fail on a retune of taste.
           #
           # It renders the DEFAULTS and only the defaults. Drop the default
           # grain below ~0.003 and this stops being a meaningful floor — move it
-          # then, with fresh numbers, rather than deleting it.
+          # then, with fresh numbers, rather than deleting it. `depth` moves them
+          # too, a little, since a darker field clips more of the noise: the four
+          # above were re-measured when the default depth went to 1.
           #
           # 🚨 Like site-data-current, it only runs when it is BUILT.
           wallpaper =

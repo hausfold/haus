@@ -87,7 +87,7 @@ in
     # ---- the field --------------------------------------------------------
     wallpaper.depth = lib.mkOption {
       type = lib.types.ints.between 0 5;
-      default = 2;
+      default = 1;
       example = 0;
       description = ''
         How far in from the palette's outermost tone the field sits — the
@@ -99,26 +99,30 @@ in
 
           depth  dark (mocha)          light (latte)
           0      crust    #121212      base     #f1f1f1
-          1      mantle   #191919      mantle   #e9e9e9
-          2      base     #202020      crust    #e0e0e0     ← default
+          1      mantle   #191919      mantle   #e9e9e9     ← default
+          2      base     #202020      crust    #e0e0e0
           3      surface0 #343434      surface0 #d0d0d0
           4      surface1 #494949      surface1 #c0c0c0
           5      surface2 #5c5c5c      surface2 #b0b0b0
 
         0 is as far out as the palette goes — our blackest black, our whitest
-        white. The default of 2 lands one rung inside a full-screen extreme,
-        which is what keeps the desktop reading as material rather than as a
-        hole cut in the screen.
+        white. The default of 1 lands exactly one rung inside that extreme in
+        EITHER polarity, which is what keeps the desktop reading as material
+        rather than as a hole cut in the screen while still being properly dark
+        in a dark rice — a full screen of `base` reads as a big terminal window,
+        not as a wall behind one.
 
         The two columns are NOT symmetric, and the asymmetry is the palette's
         rather than a choice: mocha's canvas (`base`) sits at depth 2 because
         two tones are darker than it, while latte's canvas is the LIGHTEST tone
-        it has, so it sits at depth 0. A dark rice at the default therefore gets
-        exactly the colour its terminal draws on; a light one gets `crust`,
-        #e0e0e0 — a step down from the canvas, and the better end of the trade,
-        since a full screen of near-white is the one field size where the canvas
-        stops being comfortable. `depth = 0` is the way to match the terminal
-        exactly in a light rice.
+        it has, so it sits at depth 0. So the ONE number moves the two flavours
+        in opposite directions relative to their canvas — the default puts a
+        dark rice one step BELOW the colour its terminal draws on (#191919) and
+        a light one one step below the canvas too (#e9e9e9), which is the
+        agreement worth having, since a full screen of near-white is the one
+        field size where latte's canvas stops being comfortable. `depth = 0` is
+        the way to match the terminal exactly in a light rice; `depth = 2` is
+        the way to match it in a dark one.
 
         Which flavour's column applies follows haus.theme.flavor, like every
         other themed surface. haus.wallpaper.background overrides the whole
@@ -164,10 +168,10 @@ in
         PNG costs, noise being the one thing that doesn't compress:
 
           grain    colours    size
-          0          127      0.1 MB   ← rings, visibly
-          0.004      182      1.2 MB   ← the floor worth using
-          0.010      291      2.5 MB   ← the default
-          0.020      588      4.2 MB
+          0          137      0.1 MB   ← rings, visibly
+          0.004      193      1.1 MB   ← the floor worth using
+          0.010      329      2.5 MB   ← the default
+          0.020      625      4.2 MB
       '';
     };
 
@@ -242,9 +246,14 @@ in
       default = 0.055;
       example = 0.09;
       description = ''
-        Stroke width, as a fraction of the mark's own height. The default is
-        drawn to the weight the ⌂ has on hausfold.co — light enough to read as
-        an outline rather than as an icon.
+        Stroke width, as a fraction of the mark's own height.
+
+        The mark's SHAPE is the real U+2302 — traced off the outline hausfold.co
+        renders — but its weight deliberately isn't: that glyph's stems are a
+        tenth of its height, which is right for a character sitting in a line of
+        type and heavy for one drawn a foot wide on a wall. The default is about
+        half of it, light enough to read as an outline rather than as an icon.
+        Set 0.1 for the site's mark at the site's weight.
       '';
     };
 
