@@ -93,15 +93,12 @@
   # ---- macOS settings groups (options-roadmap §5.6) -------------------------
   # Dense on purpose: this block ran out of the file's usual ten-wide spacing
   # when the last three groups landed, and `prowl` at 120 is the next fixed
-  # point. `animations` then took 111 — the last free slot, ahead of the block
-  # rather than inside it — because it reads first: it is the only group here
-  # that is ON by default, so it's the one a reader most needs to meet before
-  # wondering why their Dock moves differently. That was the last squeeze
-  # available: the block is now 111–119 with no gaps, so the NEXT group added
+  # point. `animations` then took 111 — the last free slot, and the last
+  # squeeze available: the block is now 111–119 with no gaps, so the NEXT group added
   # here has to renumber it, from `prowl` at 120 downwards.
   animations = {
     order = 111;
-    blurb = "How much motion macOS spends on its own Dock and windows. The one group in this block that ships **on** — `\"system\"` leaves macOS's own timings alone (but only stops writing; it doesn't restore values a rebuild already replaced). Deliberately not the Accessibility \"Reduce motion\" switch, which every browser also reads as `prefers-reduced-motion`.";
+    blurb = "How much motion macOS spends on its own Dock and windows: the slide, the launch bounce, minimise, Mission Control, window open/close. Unset by default like the rest of this block — `\"fast\"` opts in, and going back only stops writing rather than restoring. Deliberately not the Accessibility \"Reduce motion\" switch, which every browser also reads as `prefers-reduced-motion`.";
   };
   hotCorners = {
     order = 112;

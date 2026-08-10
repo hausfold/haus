@@ -8,7 +8,7 @@
     "order": 80
   },
   "animations": {
-    "blurb": "How much motion macOS spends on its own Dock and windows. The one group in this block that ships **on** — `\"system\"` leaves macOS's own timings alone (but only stops writing; it doesn't restore values a rebuild already replaced). Deliberately not the Accessibility \"Reduce motion\" switch, which every browser also reads as `prefers-reduced-motion`.",
+    "blurb": "How much motion macOS spends on its own Dock and windows: the slide, the launch bounce, minimise, Mission Control, window open/close. Unset by default like the rest of this block — `\"fast\"` opts in, and going back only stops writing rather than restoring. Deliberately not the Accessibility \"Reduce motion\" switch, which every browser also reads as `prefers-reduced-motion`.",
     "order": 111
   },
   "appStore": {

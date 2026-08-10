@@ -110,29 +110,32 @@ in
     # it looks — the description says why, because that reasoning is the whole
     # point of the group existing separately.
     #
-    # THE ONE §5.6 GROUP THAT SHIPS AN OPINION. Every other curated macOS
-    # settings group defaults each leaf to null ("a group is a place to make an
-    # opinion available, not to impose one; a preset is where an opinion
-    # belongs" — notes/options-roadmap.md §5.6). This one defaults to "fast", on
-    # purpose and against that rule: the domain it writes is one the rice
-    # already holds opinions in three keys deep (autohide, mru-spaces,
-    # orientation, right below in default.nix), and desktop motion is a feel
-    # decision a rice exists to have made for you. The escape hatch is one
-    # word — but read what "system" does and doesn't do, in the description.
+    # Default "system" = write nothing, the same policy every other curated
+    # macOS settings group follows ("a group is a place to make an opinion
+    # available, not to impose one; a preset is where an opinion belongs" —
+    # notes/options-roadmap.md §5.6). It was briefly drafted the other way
+    # round, defaulting to "fast", and the argument against that is the one hot
+    # corners already made: these keys land on machines that have been running
+    # for years, macOS keeps no memory of a prior value, and a rice that speeds
+    # up a Dock nobody asked it about can't put it back. Opting in is one line.
     animations = lib.mkOption {
       type = lib.types.enum [
         "fast"
         "system"
       ];
-      default = "fast";
-      example = "system";
+      default = "system";
+      example = "fast";
       description = ''
         How much motion macOS spends on its own Dock and windows — how long
         three animations run, and two it plays at all.
 
-        `"fast"` — the rice's opinion, and its default — writes five keys, all
-        `mkDefault`, so any one of them can be overridden by name in your host
-        file:
+        `"system"` (the default) writes NOTHING — not the macOS values, nothing
+        at all — so whatever your Dock does today, it keeps doing. Same policy
+        as `haus.hotCorners`: the rice doesn't overwrite a setting you didn't
+        ask it about.
+
+        `"fast"` writes five keys, all `mkDefault`, so any one of them can be
+        overridden by name in your host file:
 
         ```
           com.apple.dock  autohide-time-modifier         0.15   Dock slide
@@ -142,19 +145,14 @@ in
           NSGlobalDomain  NSAutomaticWindowAnimationsEnabled  false  window open/close
         ```
 
-        `"system"` writes NOTHING — not the macOS defaults, nothing at all.
-
-        Read that literally, because it is the one thing about this group that
-        can surprise you: `"system"` means STOP WRITING, not RESTORE. A
-        `defaults` write is sticky and macOS keeps no memory of what was there
-        before, so if you rebuild once on `"fast"` and then set `"system"`, the
-        five keys keep the rice's numbers — nothing puts your old ones back. Set
-        `"system"` BEFORE your first rebuild on a rice that has this option, or
-        write the values you want back by name (they're all `mkDefault`, so a
-        plain value in your host file wins). The same is true of every default
-        the rice ships; it's called out here because this one arrived after
-        machines were already running, so it lands on an existing Dock rather
-        than a fresh one.
+        GOING BACK IS NOT AUTOMATIC, which is the one thing about this group
+        that can surprise you and the reason it isn't on by default. Setting
+        `"system"` again means STOP WRITING, not RESTORE: a `defaults` write is
+        sticky and macOS keeps no memory of what was there before, so once
+        you've rebuilt on `"fast"`, the five keys keep the rice's numbers.
+        Undoing it means naming the values you want back in your host file
+        (they're `mkDefault`, so a plain value wins), or a `defaults delete`.
+        Worth knowing before you try `"fast"` on a Dock you tuned by hand.
 
         WHY THIS ISN'T "REDUCE MOTION". macOS's accessibility switch of that
         name (`com.apple.universalaccess reduceMotion`) would cover all of this
@@ -166,7 +164,8 @@ in
         place, which then never appears at all. These five keys are in two
         entirely different domains and move no accessibility flag — `hausax`
         reads that exact `NSWorkspace` property, so `hausax | jq .reduceMotion`
-        stays `false` with this set to `"fast"`. If you DO want the
+        stays `false` with this set to `"fast"` — that's the whole reason this
+        group exists as five curated keys instead of one switch. If you DO want the
         accessibility switch, that's `System Settings ▸ Accessibility ▸
         Display`, deliberately not a rice option.
 
