@@ -62,20 +62,23 @@ let
   # a font without the codepoint — where the mark is meant to be the one thing
   # that looks the same everywhere. Unit box is 100x100.
   #
-  # Drawn rather than set, but not invented: these are the CENTRELINES of the
-  # real codepoint, traced off the outline hausfold.co actually renders. The
-  # site asks for `ui-monospace, "SF Mono", Menlo` — SF Mono has no U+2302, so
-  # every Mac browser falls through to Menlo Regular's `house`, whose outer
-  # contour is (146,0) (146,647) (616,1220) (1086,647) (1086,0) on a 2048 em.
-  # Halving that against its inner contour puts the walls 818 units apart, the
-  # eave 53% of the way up, and the drawing 0.77 as wide as it is tall.
+  # Not set, but not invented either: these are the CENTRELINES of the real
+  # codepoint, traced off the outline hausfold.co actually renders. The site
+  # asks for `ui-monospace, "SF Mono", Menlo` — SF Mono has no U+2302, so every
+  # Mac browser falls through to Menlo Regular's `house`, whose outer contour is
+  # (146,0) (146,647) (616,1220) (1086,647) (1086,0) on a 2048 em. Halving that
+  # against its inner contour puts the walls 818 units apart, the roof/wall
+  # junction 53% of the way up, and the drawing 0.77 as wide as it is tall.
   #
   # Which is what makes it read as ⌂ and not as a house ICON: the roof does NOT
   # overhang. Its slope ENDS on the wall — one corner, no eave — and the glyph
   # is taller than it is wide, where every generic house pushes the roof out
   # past the walls and squats. Hence ONE closed path rather than a roof and a
   # body: the pentagon is the glyph's own outline, so every corner is a real
-  # mitre at any weight, with no butt caps to tuck under a crossing stroke.
+  # mitre at any weight, and there are no stroke ENDS left in the drawing —
+  # which is why the group below sets no linecap. The two-path version needed
+  # one, and needed the body's verticals to start above their own corner so the
+  # caps hid inside the roof's stroke; a closed subpath has neither problem.
   markPath = "M 50 9 L 81.7 47.7 L 81.7 91 L 18.3 91 L 18.3 47.7 Z";
 
   markSide = mark.size * short;
@@ -87,7 +90,7 @@ let
     ''
       <g ${attrs} transform="translate(${n2s markX} ${n2s markY}) scale(${n2s (markSide / 100.0)})"
          fill="none" stroke-width="${n2s (100.0 * mark.weight)}"
-         stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="6">''
+         stroke-linejoin="miter" stroke-miterlimit="6">''
     + ''<path d="${markPath}"/></g>'';
 
   # ---- the spectrum sweep -----------------------------------------------

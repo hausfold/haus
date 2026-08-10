@@ -251,9 +251,10 @@ in
         The mark's SHAPE is the real U+2302 — traced off the outline hausfold.co
         renders — but its weight deliberately isn't: that glyph's stems are a
         tenth of its height, which is right for a character sitting in a line of
-        type and heavy for one drawn a foot wide on a wall. The default is about
-        half of it, light enough to read as an outline rather than as an icon.
-        Set 0.1 for the site's mark at the site's weight.
+        type and heavy for one drawn a foot wide on a wall. The default is a
+        little under 60% of it, light enough to read as an outline rather than
+        as an icon. 0.094 is that same tenth once the miter at the apex is
+        counted, and gets you the site's mark at the site's weight.
       '';
     };
 
