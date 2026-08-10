@@ -332,10 +332,10 @@ let
     # also what advances a long-form countdown, which no payload announces (see
     # plugins/media.sh), hence 30s rather than the old 60.
     #
-    # scroll_texts is deliberately NOT set on here any more: the streamer turns
-    # the marquee on for a few seconds after a track changes and settles it
-    # again, so a long title stops scrolling forever in the corner of your eye.
-    # Hovering brings it back, which is what mouse.entered/exited are for.
+    # scroll_texts is deliberately NOT set on here: a long title never scrolls
+    # on its own, not even right after a track changes. Hover is the only thing
+    # that starts a sweep, and once started it's a one-shot that runs to
+    # completion regardless of hover — see media.sh's start_marquee.
     media = ''
       ${sb} --add item media ${side} \
           --set media \

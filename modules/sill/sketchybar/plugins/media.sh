@@ -15,6 +15,7 @@
 #   ⇧ + click         previous track
 #   ⌘ + click         focus the app the sound is coming from
 #   scroll            seek ±10s
+#   hover             sweep a long title once, start to finish (see below)
 #
 # Left-click stays play/pause rather than becoming the dropdown (which is what
 # weather, agents and ai_usage do with a left click) because this pill is a
@@ -38,6 +39,26 @@ PIDFILE="/tmp/sketchybar_media_stream.pid"
 mkdir -p "$SILL_MEDIA_STATE_DIR" 2>/dev/null
 
 close_popup() { $SB --set media popup.drawing=off; }
+
+# ── the marquee ──────────────────────────────────────────────────────────────
+# Hover is the ONLY thing that starts a sweep — nothing fires one off a track
+# change or on any kind of interval. One hover, one full pass through the title
+# back to its start, no matter how briefly the pointer was actually on the pill:
+# the lock makes a sweep a promise it keeps once made, so mouse.exited below
+# does not (and must not) cut it off early. Re-entering while a sweep is still
+# running is a no-op — mkdir fails, the in-flight one is left alone — so
+# hovering on and off mid-sweep can't restart it from the top.
+MARQUEE_SECONDS=8
+
+start_marquee() {
+    mkdir "$SILL_MEDIA_STATE_DIR/marquee.lock" 2>/dev/null || return
+    $SB --set media scroll_texts=on
+    (
+        sleep "$MARQUEE_SECONDS"
+        $SB --set media scroll_texts=off
+        rmdir "$SILL_MEDIA_STATE_DIR/marquee.lock" 2>/dev/null
+    ) &
+}
 
 # ── the dropdown ─────────────────────────────────────────────────────────────
 # Built on open, from the state file, never kept warm: a popup nobody has opened
@@ -344,18 +365,20 @@ esac
 case "${SENDER:-}" in
 mouse.entered)
     # Hovering is the "show me the whole thing" gesture: it un-collapses a
-    # collapsed pill and restarts the marquee the streamer settled.
+    # collapsed pill and starts a one-shot marquee sweep (a no-op if one is
+    # already running — see start_marquee).
     : >"$SILL_MEDIA_STATE_DIR/hover"
-    $SB --set media scroll_texts=on
     media_read_now && media_render
+    start_marquee
     ;;
 mouse.exited | mouse.exited.global)
     # The .global twin is belt and braces: the per-item mouse.exited can be
     # missed when the pointer is flicked straight off the bar, and a stranded
-    # hover flag means a collapsed pill stays expanded and the marquee scrolls
-    # forever — precisely the two things this pill was changed to stop doing.
+    # hover flag means a collapsed pill stays expanded forever. Only the hover
+    # flag is cleared here — an in-flight sweep runs to completion regardless of
+    # hover, so scroll_texts is deliberately left alone; start_marquee's own
+    # timer is what turns it back off.
     rm -f "$SILL_MEDIA_STATE_DIR/hover" 2>/dev/null
-    $SB --set media scroll_texts=off
     media_read_now && media_render
     ;;
 mouse.scrolled)

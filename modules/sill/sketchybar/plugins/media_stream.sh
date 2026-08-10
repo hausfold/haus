@@ -40,13 +40,14 @@ mkdir -p "$SILL_MEDIA_STATE_DIR" 2>/dev/null
 
 # Start from a clean slate, because the LAST stream may not have got to run its
 # trap. bash does not run an EXIT trap on an untrapped SIGKILL, and a bar reload
-# signals the whole process group — so an artwork fetch or a scroll-seek caught
-# mid-flight leaves its lock directory behind, and a lock nothing ever releases
-# is a feature switched off forever, silently, across reboots. The hover flag and
-# the marquee get the same treatment: both are cleared by events that a pointer
-# flicked off the bar can miss, and neither should outlive the stream that set
-# them.
-rmdir "$SILL_MEDIA_STATE_DIR/art.lock" "$SILL_MEDIA_STATE_DIR/scroll.lock" 2>/dev/null
+# signals the whole process group — so an artwork fetch, a scroll-seek or a
+# marquee sweep caught mid-flight leaves its lock directory behind, and a lock
+# nothing ever releases is a feature switched off forever, silently, across
+# reboots. The hover flag gets the same treatment: it's cleared by an event a
+# pointer flicked off the bar can miss, and shouldn't outlive the stream that
+# set it.
+rmdir "$SILL_MEDIA_STATE_DIR/art.lock" "$SILL_MEDIA_STATE_DIR/scroll.lock" \
+    "$SILL_MEDIA_STATE_DIR/marquee.lock" 2>/dev/null
 rm -f "$SILL_MEDIA_STATE_DIR/hover" 2>/dev/null
 $SB --set media scroll_texts=off 2>/dev/null
 
@@ -63,29 +64,13 @@ fi
 echo $$ >"$PIDFILE"
 trap 'pkill -P $$ 2>/dev/null; rm -f "$PIDFILE"' EXIT
 
-# ── the marquee, on a timer ──────────────────────────────────────────────────
-# scroll_texts used to be on forever, which meant a title longer than the pill
-# scrolled for as long as the track played — permanent motion in the corner of
-# your eye, on a bar you are not looking at. It earns its scroll for a few
-# seconds after a track CHANGES (when you actually want to read the whole name)
-# and then settles into the truncated form. Hovering brings it back; that's what
-# media.sh's mouse.entered does.
-MARQUEE_SECONDS=8
-
-arm_marquee() {
-    local key="$1"
-    $SB --set media scroll_texts=on
-    (
-        sleep "$MARQUEE_SECONDS"
-        # Only settle if this is still the track we armed for, and the pointer
-        # isn't on the pill — otherwise a fast skip would stop the NEXT title
-        # mid-scroll, and a hover would be yanked out from under the reader.
-        media_read_now || exit 0
-        [ "$(media_change_key)" = "$key" ] || exit 0
-        media_hovered && exit 0
-        $SB --set media scroll_texts=off
-    ) &
-}
+# The marquee is entirely hover-driven now (media.sh's mouse.entered) — a track
+# change does not, on its own, scroll anything. scroll_texts used to be on
+# forever, which meant a title longer than the pill scrolled for as long as the
+# track played — permanent motion in the corner of your eye, on a bar you are
+# not looking at; arming it off a track change instead just moved the same
+# problem to "for a few seconds after every change", so nothing here fires it
+# on its own any more. See media.sh for the hover-triggered one-shot sweep.
 
 # ── the stream ───────────────────────────────────────────────────────────────
 # --no-artwork keeps several hundred KB of base64 per update out of a pipe that
@@ -154,7 +139,6 @@ media_read_now && PREV_KEY="$(media_change_key)"
                     mv "$SILL_MEDIA_HISTORY.tmp" "$SILL_MEDIA_HISTORY"
 
                 ("$HOME/.config/sketchybar/plugins/media_art.sh" "$MEDIA_ID" >/dev/null 2>&1 &)
-                arm_marquee "$key"
             else
                 rm -f "$SILL_MEDIA_ART".* "$SILL_MEDIA_ART_SCALE" "$SILL_MEDIA_TINT" 2>/dev/null
             fi
