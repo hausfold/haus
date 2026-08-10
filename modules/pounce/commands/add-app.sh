@@ -642,8 +642,13 @@ if haus rebuild; then
     fi
   fi
 
-  sketchybar --reload 2>/dev/null || true
-  aerospace reload-config 2>/dev/null || true
+  # No explicit bar/tiling reload here: the rebuild above already did both, via
+  # the onChange hooks on the files it rewrites — sill's .haus-stamp (both bars,
+  # modules/sill/default.nix) and prowl's aerospace.toml (modules/prowl). The
+  # hand-rolled pair that used to live here predated those and had gone
+  # asymmetric: it reloaded only the TOP bar, so on a machine running
+  # haus.sill.bottom.enable an app added here left the bottom bar a generation
+  # behind, silently.
   git commit -q -m "config: add $APPNAME via pounce Install App" -- "$TARGET_REL" 2>/dev/null || true
   echo
   if [ "$LANE" = "Add to roster" ]; then

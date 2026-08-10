@@ -173,6 +173,17 @@ sketchybar --add item apple.nix_config popup.apple.logo \
 # implementation via the shared float-term helper, instead of the stale
 # hardcoded-hostname duplicate that used to hang off this menu.
 
+# BOTH bars, like the palette's Reload SketchyBar command. haus.sill.bottom.enable
+# runs a second instance under the name `sill-bottom` with its own mach service,
+# so a bare `sketchybar --reload` leaves the bottom bar on the previous
+# generation and nothing says half the reload didn't happen — the row is called
+# "Reload SketchyBar", not "reload one of them".
+#
+# Guarded on `-x` rather than by swallowing stderr, for the reason reload-bar.sh
+# gives: that binary is on PATH only on a machine that turned the bottom bar on,
+# so its ABSENCE is expected and silent, but a --reload that actually fails is
+# not — unswallowed it lands in /tmp/sketchybar.err.log instead of nowhere. A
+# click_script has no way to notify, so the log is the whole report.
 sketchybar --add item apple.reload popup.apple.logo \
     --set apple.reload \
         icon= \
@@ -184,7 +195,7 @@ sketchybar --add item apple.reload popup.apple.logo \
         background.padding_right=0 \
         background.color=0x00000000 \
         background.drawing=off \
-        click_script="sketchybar --reload; sketchybar --set apple.logo popup.drawing=off"
+        click_script="sketchybar --reload; [ -x /run/current-system/sw/bin/sill-bottom ] && /run/current-system/sw/bin/sill-bottom --reload; sketchybar --set apple.logo popup.drawing=off"
 
 # Spaces - All AeroSpace workspaces. WORKSPACES + ws_icon come from the
 # generated workspaces.sh (sourced above); app-workspaces show the app's logo
