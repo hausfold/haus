@@ -76,6 +76,13 @@ the machine half-undone in between. The commands only accept `haus.*` paths (the
 accepted). Edit the host file directly when the change is structural or needs
 several related definitions in one module.
 
+**A path may go INSIDE an option, and usually should.** `haus set
+sill.items.aiUsage true` switches one pill; `haus set displays.internal.uiScale
+larger-text` scales one screen. Naming the enclosing attribute set instead —
+`haus set sill.items '{"aiUsage":true}'` — is an `mkForce` over the WHOLE set, so
+every key the user didn't name falls back to its default and a bar they arranged
+over several commands goes back to stock. Setting the leaf touches only the leaf.
+
 **Ask before touching identity or secrets.** `haus.git.*`, signing keys,
 anything under `haus.secrets.*`, and the pounce signing identity are the
 user's, not yours.

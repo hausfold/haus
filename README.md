@@ -88,8 +88,10 @@ single command. `haus unset` and `haus reset` take a list of paths the same way,
 so the way back out is also one command and one rebuild —
 `haus reset theme.flavor theme.systemAppearance`. Only `haus.*` options
 cross this boundary; the short form above is expanded to
-`haus.theme.accent`. There is no separate settings database: the generated
-file is the config, and `haus reset` removes it.
+`haus.theme.accent`. A path may address one key *inside* an option —
+`haus set sill.items.aiUsage true` switches a single pill, where naming the whole
+set would send every other pill back to its default. There is no separate
+settings database: the generated file is the config, and `haus reset` removes it.
 
 On a fresh machine the bar shows a small "new here?" paw — click it and **haus
 tour** walks you through the four moves (launch, navigate, resize, palette) live,

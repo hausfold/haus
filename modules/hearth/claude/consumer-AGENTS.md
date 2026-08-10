@@ -28,6 +28,11 @@ The `CLAUDE.md` beside it is that pointer and holds no rules of its own.
   options, and `haus reset <path> [<path>…]` removes overrides — both take a LIST
   with the same all-or-nothing single rebuild, so undoing that two-option intent
   is also one command. Only `haus.*` paths are allowed.
+- **Address the leaf, not the set it sits in.** A path may go inside an option:
+  `haus set sill.items.aiUsage true`, `haus set displays.internal.uiScale
+  larger-text`. Naming the whole attribute set (`haus set sill.items
+  '{"aiUsage":true}'`) is an `mkForce` over all of it, so every key you didn't
+  name falls back to its default.
 - **Apply with `haus rebuild`.** It builds first and switches only on success, so
   a broken config never reaches the running system.
 - **Undo with `haus rollback`.** Atomic, instant, and it rewinds everything Nix

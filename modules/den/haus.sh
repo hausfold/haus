@@ -1093,9 +1093,34 @@ settings_path() {
     nebelhaus.*) path="haus.${raw#nebelhaus.}" ;;
     *) path="haus.$raw" ;;
   esac
-  [[ "$path" =~ ^haus(\.[A-Za-z_][A-Za-z0-9_-]*)+$ ]] \
+  # A component may start with a digit: the keys of an `attrsOf` option are the
+  # user's, not the rice's, and `haus.displays.<uuid>.uiScale` is the worked
+  # example — display UUIDs begin with a hex digit as often as not.
+  [[ "$path" =~ ^haus(\.[A-Za-z0-9_][A-Za-z0-9_-]*)+$ ]] \
     || die "only haus.* option paths are writable (got '$raw')"
   printf '%s\n' "$path"
+}
+
+# `haus.displays."37D8832A-…".uiScale` — a component that isn't a bare Nix
+# identifier gets quoted, and only then, so the common file still reads as the
+# plain attrpath a human would have typed.
+settings_attrpath() {
+  local out="" c
+  local IFS=.
+  # Deliberate word splitting on '.' — that is what makes this a path walk.
+  # shellcheck disable=SC2086
+  for c in $1; do
+    case "$c" in
+      # A Nix keyword is all letters and still not an identifier, so it needs the
+      # quotes as much as a UUID does — `haus.displays.if.uiScale` is a syntax
+      # error otherwise, and an attrsOf key can be any word the user likes.
+      assert | else | if | in | inherit | let | or | rec | then | with) c="\"$c\"" ;;
+      [A-Za-z_]*) ;;
+      *) c="\"$c\"" ;;
+    esac
+    out="${out:+$out.}$c"
+  done
+  printf '%s' "$out"
 }
 
 settings_host_dir() {
@@ -1107,11 +1132,95 @@ settings_file() {
   printf '%s/%s.nix\n' "$(settings_host_dir)" "${path#haus.}"
 }
 
+# Does this path name something settable? `options.<path>` alone can't answer
+# that, and that was the old guard's bug: the module system's options tree stops
+# at an option, so `options.haus.sill.items` exists but `options.haus.sill.items.
+# aiUsage` does not — a submodule's sub-options live behind `type.getSubOptions`,
+# and an `attrsOf`'s keys aren't in the tree at all because they're the user's to
+# invent. Both are perfectly ordinary definition sites, so both were being
+# refused, leaving the whole-attrset form (`haus set sill.items '{"cpu":true}'`)
+# as the only way in — which silently resets every key you didn't name.
+#
+# So walk it instead, one component at a time:
+#   - a plain attrset of options: index into it (`sill` → `sill.bottom`)
+#   - an option whose type is attrsOf/lazyAttrsOf: the next component is a KEY,
+#     free-form by definition, so consume it without checking
+#   - an option with sub-options (submodule, or nullOr/attrsOf of one): descend
+#     into getSubOptions, which is where a submodule's declared options live
+#   - anything left over with nowhere to go is a typo, and is still refused
+# A leaf reached this way is settable exactly when the module system would accept
+# a definition there, which is the property this guard is trying to have.
+#
+# Running OUT of components has to land on an option, not merely somewhere: the
+# old guard refused `haus set theme '{…}'` because a namespace has no `.type`,
+# and it was right to. A whole-room mkForce evaluates fine and then quietly
+# scatters over every option in the room — and, now, collides with the overlap
+# guard, so one of those would lock every leaf under it out of `haus set`.
 settings_option_exists() {
-  local host="$1" path="$2"
-  ( cd "$CONSUMER" && nix eval --raw \
-      ".#darwinConfigurations.$host.options.$path.type.description" >/dev/null 2>&1 ) \
+  local host="$1" path="$2" parts result err
+  # Every component is [A-Za-z0-9_-]+ by now (settings_path), so this is safe to
+  # interpolate into Nix string literals.
+  parts="$(printf '%s' "${path#haus.}" | tr '.' '\n' | sed 's/.*/"&"/' | tr '\n' ' ')"
+  err="$(mktemp)"
+  result="$(
+    cd "$CONSUMER" && nix eval --json ".#darwinConfigurations.$host" --apply "cfg:
+      let
+        isOption = x: (x._type or null) == \"option\";
+        descend = node: ps:
+          if ps == [ ] then isOption node
+          else if isOption node then
+            (let
+              rest = if node.type.name == \"attrsOf\" || node.type.name == \"lazyAttrsOf\"
+                     then builtins.tail ps else ps;
+              subs = node.type.getSubOptions [ ];
+            in if rest == [ ] then true
+               else if subs == { } then false
+               else into subs rest)
+          else into node ps;
+        into = attrs: ps:
+          let h = builtins.head ps; in
+          if !builtins.isAttrs attrs then false
+          else if !(attrs ? \${h}) then false
+          else descend attrs.\${h} (builtins.tail ps);
+      in descend cfg.options.haus [ $parts ]" 2>"$err"
+  )" || {
+    # A failure here is the host file or the pinned rice not evaluating at all,
+    # never this walk — so show nix's own words rather than a shrug.
+    warn "could not evaluate this machine's option surface:"
+    tail -n 12 "$err" >&2
+    rm -f "$err"
+    die "'$path' could not be checked (try: haus doctor)"
+  }
+  rm -f "$err"
+  [ "$result" = "true" ] \
     || die "'$path' is not a settable option on this machine's pinned rice"
+}
+
+# One override per path is the model, and a path plus one of its ancestors is
+# not one override — `sill.items` written whole and `sill.items.cpu` written on
+# its own are two mkForce definitions of the same leaf the moment they name the
+# same key, and the module system reports that from inside the submodule, as a
+# conflict between two anonymous definitions the caller can't trace back to
+# either file. So refuse the overlap here, where both file names are in hand.
+# Prints the offending path and returns 0 when there is one.
+settings_overlap() {
+  local path="$1" p f
+  shift
+  p="$path"
+  while [ "${p%.*}" != "$p" ] && [ "${p%.*}" != "haus" ]; do
+    p="${p%.*}"
+    [ -e "$(settings_file "$p")" ] && { printf '%s\n' "$p"; return 0; }
+    for f in "$@"; do [ "$f" = "$p" ] && { printf '%s\n' "$p"; return 0; }; done
+  done
+  for f in "$(settings_host_dir)/${path#haus.}."*.nix; do
+    [ -e "$f" ] || continue
+    printf 'haus.%s\n' "$(basename "$f" .nix)"
+    return 0
+  done
+  for f in "$@"; do
+    case "$f" in "$path".*) printf '%s\n' "$f"; return 0 ;; esac
+  done
+  return 1
 }
 
 settings_stage() {
@@ -1129,6 +1238,21 @@ settings_eval_json() {
 
 settings_print_json() {
   jq -r 'if type == "string" then . else tojson end'
+}
+
+# True when a path is GONE rather than broken. An `attrsOf` key exists only
+# because something defined it, so withdrawing the last definition of
+# `displays.<uuid>.uiScale` takes the key away instead of revealing a value
+# underneath — the reset working, but failing to evaluate exactly like a real
+# conflict does. The nearest ancestor that still evaluates tells them apart: a
+# conflict takes the tree above it down too, a vanished key doesn't.
+settings_path_vanished() {
+  local host="$1" p="$2"
+  while [ "${p%.*}" != "$p" ]; do
+    p="${p%.*}"
+    settings_eval_json "$host" "$p" >/dev/null 2>&1 && return 0
+  done
+  return 1
 }
 
 settings_literal() {
@@ -1173,8 +1297,9 @@ settings_drop_backups() {
 # Write ONE override file. No validation, no rebuild — cmd_set owns both,
 # because with several pairs neither can be per-file (see its header).
 settings_write() {
-  local path="$1" value="$2" dir="$3" target="$4" tmp literal
+  local path="$1" value="$2" dir="$3" target="$4" tmp literal attrpath
   literal="$(settings_literal "$value")"
+  attrpath="$(settings_attrpath "$path")"
   tmp="$(mktemp "$dir/.haus-set.XXXXXX")"
   {
     printf '%s\n' '# Managed by haus set. Ordinary Nix: safe to inspect or edit.'
@@ -1183,7 +1308,7 @@ settings_write() {
     # would put a blank line after the opening brace as well as before it.
     printf '%s\n\n' '{ lib, ... }:'
     printf '%s\n' '{'
-    printf '  %s = lib.mkForce (%s);\n' "$path" "$literal"
+    printf '  %s = lib.mkForce (%s);\n' "$attrpath" "$literal"
     printf '%s\n' '}'
   } >"$tmp"
   mv "$tmp" "$target"
@@ -1232,7 +1357,7 @@ cmd_set() {
   # typed `haus unset` names a command they didn't run — so it may override this.
   local usage="${TX_USAGE:-usage: haus set <haus.path|relative.path> <value> [<path> <value>…]}"
   [ "$#" -ge 2 ] && [ $(( $# % 2 )) -eq 0 ] || die "$usage"
-  local host dir path target backup seen="" i err
+  local host dir path target backup clash seen="" i err
   local -a paths=() values=() results=()
   TX_TARGETS=() TX_BACKUPS=()
   host="$(host_name)"
@@ -1250,6 +1375,10 @@ cmd_set() {
     target="$(settings_file "$path")"
     if [ -e "$target" ] && ! grep -q '^# Managed by haus set\.' "$target"; then
       die "$target already exists and is not managed by haus; edit it by hand"
+    fi
+    if clash="$(settings_overlap "$path" ${paths[@]+"${paths[@]}"})"; then
+      die "${path#haus.} overlaps ${clash#haus.}, which is already set — \
+reset one of them first (haus reset ${clash#haus.})"
     fi
     paths+=("$path"); values+=("$2"); TX_TARGETS+=("$target")
     shift 2
@@ -1299,7 +1428,14 @@ cmd_get() {
   if [ -n "${1:-}" ]; then
     path="$(settings_path "$1")"
     settings_option_exists "$host" "$path"
-    settings_eval_json "$host" "$path" 2>/dev/null | settings_print_json
+    # A settable path need not be a defined one: nothing has to have named this
+    # `attrsOf` key yet. Saying so beats printing a blank line — on stderr, so
+    # `$(haus get …)` stays the value alone and this doesn't become one.
+    if json="$(settings_eval_json "$host" "$path" 2>/dev/null)"; then
+      printf '%s' "$json" | settings_print_json
+    else
+      info "${path#haus.} is settable, but nothing defines it yet" >&2
+    fi
     return
   fi
 
@@ -1397,6 +1533,8 @@ cmd_reset() {
   err="$(mktemp)"
   for i in "${!paths[@]}"; do
     if results+=("$(settings_eval_json "$host" "${paths[$i]}" 2>"$err")"); then continue; fi
+    # The failed substitution already appended "", which phase 4 reads as "gone".
+    if settings_path_vanished "$host" "${paths[$i]}"; then continue; fi
     warn "removing the override did not type-check; restored the previous file(s)."
     tail -n 12 "$err" >&2
     rm -f "$err"
@@ -1410,7 +1548,11 @@ cmd_reset() {
   # Phase 4 — report everything, then rebuild ONCE.
   for i in ${inherited[@]+"${!inherited[@]}"}; do say "${inherited[$i]}"; done
   for i in "${!paths[@]}"; do
-    say "reset ${paths[$i]#haus.}; now inherits $(printf '%s' "${results[$i]}" | settings_print_json)"
+    if [ -n "${results[$i]}" ]; then
+      say "reset ${paths[$i]#haus.}; now inherits $(printf '%s' "${results[$i]}" | settings_print_json)"
+    else
+      say "reset ${paths[$i]#haus.}; nothing defines it now"
+    fi
   done
   settings_apply
 }
