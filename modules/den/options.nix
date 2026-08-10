@@ -103,6 +103,67 @@ in
         '';
       };
 
+    # ---- animations ----
+    # macOS's own motion, at the five timings that are just numbers in a plist.
+    # Deliberately NOT `com.apple.universalaccess reduceMotion`, which is the
+    # setting anyone reaches for first and is a much wider blast radius than it
+    # looks — the option's description says why, because that reasoning is the
+    # whole point of the group existing separately.
+    animations = lib.mkOption {
+      type = lib.types.enum [
+        "fast"
+        "system"
+      ];
+      default = "fast";
+      example = "system";
+      description = ''
+        How long macOS's own Dock and window animations take.
+
+        `"fast"` — the rice's opinion, and its default — writes five keys, all
+        `mkDefault`, so any one of them can be overridden by name in your host
+        file:
+
+        ```
+          com.apple.dock  autohide-time-modifier         0.15   Dock slide
+          com.apple.dock  expose-animation-duration      0.1    Mission Control
+          com.apple.dock  launchanim                     false  the bouncing icon
+          com.apple.dock  mineffect                      scale  minimise (not genie)
+          NSGlobalDomain  NSAutomaticWindowAnimationsEnabled  false  window open/close
+        ```
+
+        `"system"` writes NOTHING — not the macOS defaults, nothing at all — so
+        a Dock you tuned by hand years ago keeps its own values. Same principle
+        as `haus.hotCorners`: the rice doesn't overwrite a setting you didn't
+        ask it about.
+
+        WHY THIS ISN'T "REDUCE MOTION". macOS's accessibility switch of that
+        name (`com.apple.universalaccess reduceMotion`) would cover all of this
+        and more — but it is also the single flag every browser maps to the
+        `prefers-reduced-motion: reduce` CSS media query, via
+        `NSWorkspace.accessibilityDisplayShouldReduceMotion`. Turning it on
+        rewrites the web: mostly for the better, except on sites whose
+        scroll-reveal animation is what sets the content visible in the first
+        place, which then never appears at all. These five keys are in two
+        entirely different domains and move no accessibility flag — `hausax`
+        reads that exact `NSWorkspace` property, so `hausax | jq .reduceMotion`
+        stays `false` with this set to `"fast"`. If you DO want the
+        accessibility switch, that's `System Settings ▸ Accessibility ▸
+        Display`, deliberately not a rice option.
+
+        WHEN YOU'LL FEEL IT. The four Dock keys are live the moment activation
+        finishes — nix-darwin restarts the Dock whenever anything in its domain
+        is written, and the rice always writes `autohide`. The NSGlobalDomain
+        one is read by each app AT LAUNCH, so apps you already have open keep
+        animating their windows until you relaunch them; `activateSettings`
+        can't reach back into a running `NSApplication`.
+
+        These are timings, not a state the rice can prove from a plist — unlike
+        the `haus.accessibility` keys, there's no oracle for "did the Dock
+        slide faster". They're felt, not measured. The one measurable claim
+        here is the negative one above.
+      '';
+    };
+
     # ---- fonts ----
     # Honest scope: this is the rice's type FAMILY — Ghostty's, and (since the
     # bar stopped hardcoding one of its own) sill's. `size` is the terminal's

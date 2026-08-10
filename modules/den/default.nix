@@ -34,6 +34,11 @@ let
     inherit (config.haus.accessibility) increaseContrast differentiateWithoutColor;
   };
 
+  # haus.animations — one predicate, read by the two domains that carry the
+  # group (the Dock's four keys and NSGlobalDomain's one). "system" writes
+  # neither, which is why this is a mkIf at each key rather than a value.
+  fastAnimations = config.haus.animations == "fast";
+
   devCfg = config.haus.developer;
   fontsCfg = config.haus.fonts;
 
@@ -759,6 +764,22 @@ in
       show-recents = lib.mkDefault false;
       mru-spaces = lib.mkDefault false;
       orientation = lib.mkDefault "bottom";
+
+      # ---- haus.animations ---------------------------------------------------
+      # The Dock's four motion timings. mkIf, so `animations = "system"` writes
+      # nothing at all and a Dock someone tuned by hand keeps its own numbers —
+      # same principle as tilesize above. Live at the end of activation without
+      # a logout: nix-darwin restarts the Dock whenever ANY typed key in this
+      # domain is set, and autohide directly above guarantees one always is.
+      #
+      # Note what is NOT here: autohide-DELAY. That's how long the Dock waits
+      # before it starts, which is a pointing preference, not motion — and with
+      # a bottom Dock, zeroing it means the Dock flies out every time the
+      # pointer grazes the bottom edge on its way somewhere else.
+      autohide-time-modifier = lib.mkIf fastAnimations (lib.mkDefault 0.15);
+      expose-animation-duration = lib.mkIf fastAnimations (lib.mkDefault 0.1);
+      launchanim = lib.mkIf fastAnimations (lib.mkDefault false);
+      mineffect = lib.mkIf fastAnimations (lib.mkDefault "scale");
     }
     # ---- hot corners -------------------------------------------------------
     # Emitted ONLY for the corners the host actually named. Not mkDefault and
@@ -830,6 +851,15 @@ in
       KeyRepeat = lib.mkDefault 2;
       InitialKeyRepeat = lib.mkDefault 15;
       AppleShowAllExtensions = lib.mkDefault true;
+
+      # ---- haus.animations ---------------------------------------------------
+      # The one key in the group that isn't the Dock's: AppKit's window
+      # open/close animation. Unlike its four Dock siblings this is read by each
+      # app AT LAUNCH, so apps already running keep animating until relaunched —
+      # activateSettings invalidates the preference cache, it doesn't reach back
+      # into a live NSApplication. Worth knowing before you conclude it didn't
+      # apply.
+      NSAutomaticWindowAnimationsEnabled = lib.mkIf fastAnimations (lib.mkDefault false);
 
       # ---- the half of Finder that lives in NSGlobalDomain -------------------
       # Tab reaches every control in a dialog, not just text fields and lists —

@@ -7,6 +7,10 @@
     "blurb": "Which coding-agent clients this machine installs, and which one the agent keybinding spawns.",
     "order": 80
   },
+  "animations": {
+    "blurb": "How long macOS's own Dock and window animations take. The one group in this block that ships **on** — set `\"system\"` to leave macOS's timings alone. Deliberately not the Accessibility \"Reduce motion\" switch, which every browser also reads as `prefers-reduced-motion`.",
+    "order": 111
+  },
   "appStore": {
     "blurb": "Whether a rebuild may install the roster's `appStoreId` entries. Off by default: it reaches the network and acts on your Apple Account, and it can never be complete — `mas` cannot sign in, and cannot buy a paid app.",
     "order": 22
