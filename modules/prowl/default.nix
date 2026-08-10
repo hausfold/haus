@@ -287,6 +287,24 @@ let
   #
   # `bar.room` is the compensation for exactly that: growth the pill couldn't
   # take vertically, handed back as space beside the bar. 36 at ui.scale = 1.0.
+  #
+  # Which leaves a top bar's edge FLUSH with the windows at scale 1.0 — on the
+  # EXTERNAL, the one display whose top macOS reserves nothing at. That is fine,
+  # and it is measured rather than assumed. The open question when the stale 40
+  # came out was the 4pt it had been leaving behind: a `top`/`auto` bar is not
+  # lifted (bar_topmost() in the generated position.sh lifts only a fixed
+  # `bottom` bar), so the tiled window composites its macOS drop shadow straight
+  # onto the strip. But that shadow is offset DOWNWARD — the heavy edge is the
+  # one UNDER a window, which is the whole reason sill's second bar has to be
+  # lifted and this one doesn't. The probe was the built-in's top strip, the
+  # same unlifted bar sitting 6pt further off (the notch band plus `barGap 10`):
+  # the pixels 1pt above the window read identical to the pixels at the very top
+  # of the screen, no gradient at all, and the left outer gap — where a side
+  # shadow would show if any edge but the bottom carried one — is just as flat.
+  # So the 4pt was buying nothing, and handing it back through `room` would buy
+  # nothing either: a 4pt buffer cannot hold off a shadow that blurs well past
+  # 4pt. If an external ever does show one, the answer is to lift the bar
+  # (topmost) rather than to widen the gap.
   barEdge = toString (bar.barHeight + bar.room);
 
   # Same rule for sill's SECOND bar, which is shorter (32) because it is the one
@@ -306,7 +324,17 @@ let
   # docked with the lid open the bar sits at the bottom on BOTH displays; aerospace
   # gaps can't flip per dock-state, so the built-in keeps its notch-tuned top in
   # `auto`, leaving a small overlap at the built-in's bottom in that one case.)
-  barPos = if config.haus.sill.enable then config.haus.sill.position else "top";
+  #
+  # No sill, no bar, no reservation — `noBar` short-circuits both tables below
+  # to the tuned gaps. This used to be a `barPos` fallback of `"top"`, which
+  # made a rice with `haus.sill.enable = false` reserve `barEdge` at an
+  # EXTERNAL's top edge for a bar nobody draws: 36pt of dead wallpaper along the
+  # top of every external display. The built-in never showed it — a top bar
+  # reserves `barGap 10` there, which is the tuned gap plus `bar.room`, and
+  # `room` is 0 on an unscaled rice — so it only ever bit the display that
+  # can't be tested without plugging one in.
+  noBar = !config.haus.sill.enable;
+  barPos = config.haus.sill.position;
   monLine = builtin: external: ''[{ monitor."Built-in Retina Display" = ${builtin} }, ${external}]'';
   # `barEdge` sizes an edge the bar sits ON, `barGap`/`gap` an edge it doesn't.
   # On the built-in with a top bar that means barGap 10 rather than barEdge: the
@@ -314,12 +342,15 @@ let
   # at its tuned 10 — but the pills still end right where the windows begin, which
   # is the one place the breathing room matters MOST rather than least.
   outerTop =
-    {
-      top = monLine (barGap 10) barEdge;
-      bottom = monLine (gap 10) (gap 20);
-      auto = monLine (barGap 10) (gap 20);
-    }
-    .${barPos};
+    if noBar then
+      monLine (gap 10) (gap 20)
+    else
+      {
+        top = monLine (barGap 10) barEdge;
+        bottom = monLine (gap 10) (gap 20);
+        auto = monLine (barGap 10) (gap 20);
+      }
+      .${barPos};
   # sill's optional SECOND bar (haus.sill.bottom.enable) draws at the bottom of
   # every display, AS WELL AS the main bar rather than instead of it — so when
   # it's on, the bottom edge reserves room whatever `barPos` would have said.
@@ -339,6 +370,8 @@ let
         edge = if barPos != "top" then barEdge else bottomEdge;
       in
       monLine edge edge
+    else if noBar then
+      monLine (gap 10) (gap 20)
     else
       {
         top = monLine (gap 10) (gap 20);
