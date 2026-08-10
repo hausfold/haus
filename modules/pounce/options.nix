@@ -64,6 +64,11 @@
 
         Off by default: this changes when your apps die, which is a thing you
         feel, and the muscle memory it suits is not everyone's.
+
+        Unlike the rest of pounce's config, the auto-quit settings are read once
+        — when the daemon arms them — rather than per open. So a rebuild that
+        touches any of the three restarts the pounce daemon, which the rice does
+        for you; nothing here needs a log-out to land.
       '';
     };
 
@@ -83,6 +88,9 @@
         enough for a cold IDE reopening a project — that is a case for
         haus.pounce.autoQuit.exclude rather than for a delay you would feel on
         every app.
+
+        Read once, when auto-quit arms — changing it bounces the pounce daemon
+        on the next rebuild.
       '';
     };
 
@@ -107,6 +115,10 @@
 
         Read a bundle id off any running app with
         `osascript -e 'id of app "Notes"'`.
+
+        Read once, when auto-quit arms — adding an app here bounces the pounce
+        daemon on the next rebuild, so the app stops being quit immediately
+        rather than at the next log-in.
       '';
     };
 

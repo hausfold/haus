@@ -148,10 +148,18 @@ let
     "${pkgs.pounce}/Applications/Pounce.app"
     + lib.optionalString (identity != "") "@@${identity}@@com.hausfold.pounce";
 
-  # Whether auto-quit is armed, as the activation marker's whole content — see
-  # home.activation.kickstartPounce. A word rather than a bool so an empty/absent
-  # marker (a machine that predates this) can never read as "off" by accident.
-  autoQuitState = if config.haus.pounce.autoQuit.enable then "on" else "off";
+  # The auto-quit settings as one opaque word, the activation marker's whole
+  # content — see home.activation.kickstartPounce. The WHOLE block, not just the
+  # flag: pounce's AutoQuit captures delay and exclude when it arms and never
+  # re-reads them (pkgs/pounce/AutoQuit.swift's init), which is why its own docs
+  # list `autoQuit` alongside `windows` among the startup-only keys. A marker
+  # that tracked `enable` alone would let a rebuild that adds a bundle id to
+  # `exclude` report success while the daemon kept quitting that app until the
+  # next login.
+  # Hashed rather than inlined so the marker is one short line whatever the
+  # exclude list grows to, and prefixed so an absent or empty marker (a machine
+  # that predates this) can never collide with a real state.
+  autoQuitState = "v1-${builtins.hashString "sha256" (builtins.toJSON config.haus.pounce.autoQuit)}";
 
   # The app font's package installs only the TTF, but its pinned source also
   # carries the authoritative app-name → ligature mappings. Generate the same
@@ -1107,15 +1115,13 @@ lib.mkIf config.haus.pounce.enable {
       # Marker match → unchanged → no bounce. Runs in home-manager activation, i.e.
       # after nix-darwin has loaded the new agent plist.
       #
-      # The SECOND marker is autoQuit: `autoQuit.enabled` is the one key in
-      # config.json pounce reads once at startup rather than per open, so a
-      # rebuild that just flips haus.pounce.autoQuit.enable would write the file
-      # and change nothing until the next login. It gets its own marker instead
-      # of being folded into .signed-from, because that one also drives the
-      # re-copy + re-sign in the daemon script — and flipping a flag has no
-      # business re-signing the app. delay and exclude are re-read live, so they
-      # are deliberately NOT in the marker: bouncing the daemon on every tweak
-      # would cost more than it buys.
+      # The SECOND marker is autoQuit: the daemon reads that whole block once, at
+      # startup, rather than per open like the rest of config.json, so a rebuild
+      # that touches haus.pounce.autoQuit would otherwise write the file and
+      # change nothing until the next login. It gets its own marker instead of
+      # being folded into .signed-from, because that one also drives the re-copy
+      # + re-sign in the daemon script — and a settings change has no business
+      # re-signing the app.
       home.activation.kickstartPounce = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
         # Retire the pre-hausfold launchd label explicitly. nix-darwin normally
         # unloads removed plists, but a stale KeepAlive job must never survive
@@ -1137,7 +1143,10 @@ lib.mkIf config.haus.pounce.enable {
             # One /bin/sh -c so the redirection is INSIDE what $DRY_RUN_CMD
             # wraps — a bare `> "$HOME/…"` here would write the marker even on
             # a dry run, and then the real activation would skip the bounce.
-            $DRY_RUN_CMD /bin/sh -c '/bin/mkdir -p "$HOME/.local/state/pounce" && /usr/bin/printf "%s" "${autoQuitState}" > "$HOME/.local/state/pounce/.auto-quit"'
+            # `|| true` like every sibling here: activation runs under `set -eu`,
+            # and a bookkeeping file must never be able to fail a rebuild. Losing
+            # the write just means one redundant bounce next time.
+            $DRY_RUN_CMD /bin/sh -c '/bin/mkdir -p "$HOME/.local/state/pounce" && /usr/bin/printf "%s" "${autoQuitState}" > "$HOME/.local/state/pounce/.auto-quit"' || true
           fi
         fi
       '';
