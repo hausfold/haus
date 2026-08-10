@@ -6,8 +6,11 @@
 source "$HOME/.config/sketchybar/colors.sh"
 
 # Type sizes (FS_ICON, FS_LABEL, …) — GENERATED from haus.ui.scale, capped at
-# the largest type that still fits a 28pt pill. The bar's HEIGHT is not in there
-# on purpose: it belongs to the macOS menu-bar band, not to ui.scale (see below).
+# the largest type that still fits a 28pt pill — plus both bars' HEIGHTS
+# ($BAR_HEIGHT, $BAR_BOTTOM_HEIGHT), which are in there for a different reason:
+# they do NOT follow ui.scale (they belong to the macOS menu-bar band, see
+# below), but prowl reserves them as window gaps, so they have to be stated once.
+# Nothing in this tree should carry a bar height of its own.
 source "$HOME/.config/sketchybar/sizes.sh"
 
 # Workspace roster (WORKSPACES, LAUNCHER_KEYS, ws_icon) — GENERATED from
@@ -39,6 +42,13 @@ source "$HOME/.config/sketchybar/position.sh"
 # behind it — the only way to make the whole bar bigger is to change what a point
 # means, i.e. the display's scaled resolution (haus.displays).
 #
+# $BAR_HEIGHT rather than a literal 36 for the same reason as the $FS_* sizes:
+# modules/lib/bar.nix owns it, and prowl reserves that exact number as a window
+# gap at whichever edge the bar sits on. A literal here could drift from the
+# reservation, and the drift is invisible in either file alone — it shows up as a
+# strip of dead wallpaper along the edge (which is what prowl's hardcoded 40 left
+# behind when this bar went 40 -> 36) or as tiled windows under the pills.
+#
 # topmost is mode-dependent and set once here: only a fixed `bottom` bar is
 # lifted above the windows, so their drop-shadows stop painting the strip.
 # `auto` is deliberately excluded even though it resolves to bottom while
@@ -46,7 +56,7 @@ source "$HOME/.config/sketchybar/position.sh"
 # reserve the room on the built-in in that mode, so a lifted bar would cover
 # windows there rather than merely be shadowed by them).
 sketchybar --bar \
-    height=36 \
+    height=$BAR_HEIGHT \
     blur_radius=30 \
     position=$(bar_position) \
     topmost=$(bar_topmost) \

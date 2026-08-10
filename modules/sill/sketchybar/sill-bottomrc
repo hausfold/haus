@@ -27,11 +27,22 @@ source "$HOME/.config/sketchybar/sizes.sh"
 export BAR_NAME="${BAR_NAME:-sill-bottom}"
 source "$HOME/.config/sketchybar/bar.sh"
 
-# Same look as the menu bar, one edge down. height/blur/padding are copied
-# deliberately rather than shared: the top bar's 36 is pinned to the macOS
-# menu-bar band (see sketchybarrc), while this one is free — it just has no
-# reason to differ yet, and a rice that wants a chunkier bottom strip changes it
-# here without moving the pills out from under the notch up there.
+# Same pills as the menu bar, one edge down — and the SAME SIZE, because the
+# pills are what anyone sees and they're the same 28pt on both bars. The strip
+# around them is not the same, on purpose: $BAR_BOTTOM_HEIGHT is 32 where the
+# menu bar's $BAR_HEIGHT is 36.
+#
+# The top bar's extra 4pt is the price of the band. SketchyBar centres a pill in
+# the bar, so 36 is what lands a 28pt pill at y=4..32 — inside the 32pt strip
+# macOS's hover-reveal covers (see sketchybarrc). Down here there is no strip and
+# no reveal: macOS reserves nothing at the bottom of a display, so every point of
+# this bar is a point prowl takes out of the tiled windows, and 4 of them were
+# buying clearance from a band that isn't there. 32 = the same pill, 2pt of
+# centring slack, nothing else — which is also, exactly, the height of the band
+# the top bar's pills sit in.
+#
+# Both numbers come from modules/lib/bar.nix through the generated sizes.sh,
+# because prowl reserves them as window gaps; see the $FS_* note in sketchybarrc.
 #
 # position=bottom is the whole point, and it is FIXED: haus.sill.position steers
 # the other bar, and this one has nowhere else to be. macOS reserves the top
@@ -48,10 +59,11 @@ source "$HOME/.config/sketchybar/bar.sh"
 # kCGFloatingWindowLevel (3), just enough to outrank the window and its shadow
 # while leaving the transparent floating-pill look untouched.
 #
-# Safe to hardcode here because bottom.enable makes prowl reserve barGap 40 on
-# EVERY display, unconditionally — a lifted bar with no room under it covers
-# windows instead. That reservation is exactly what haus.sill.position = "auto"
-# can't promise, which is why the main bar's own lift is gated; bar_topmost() in
+# Safe to hardcode here because bottom.enable makes prowl reserve bottomEdge —
+# this bar's own height — on EVERY display, unconditionally; a lifted bar with no
+# room under it covers windows instead. That reservation is exactly what
+# haus.sill.position = "auto" can't promise, which is why the main bar's own
+# lift is gated; bar_topmost() in
 # the generated position.sh is that gate, and the place to look when the OTHER
 # bar is docked down here too.
 #
@@ -59,7 +71,7 @@ source "$HOME/.config/sketchybar/bar.sh"
 # space TYPE, not by window level (SLSSpaceGetType == 4, and show_in_fullscreen
 # is off), so the level can't leak the strip over a fullscreen app.
 "$SB" --bar \
-    height=36 \
+    height=$BAR_BOTTOM_HEIGHT \
     blur_radius=30 \
     position=bottom \
     topmost=window \

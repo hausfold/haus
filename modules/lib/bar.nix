@@ -54,6 +54,21 @@ rec {
   barHeight = 36;
   pillHeight = 28;
 
+  # The SECOND bar (haus.sill.bottom.enable) is the one bar that does NOT belong
+  # to the band, so it doesn't pay for it. `barHeight`'s 36 is 28pt of pill plus
+  # the 4pt of slack above and below that SketchyBar's centring needs to land the
+  # pill at y=4..32 — inside the 32pt strip macOS's hover-reveal covers. At the
+  # bottom of a display there is no strip and no reveal: macOS reserves nothing
+  # there, so every point of this bar is a point prowl has to take out of the
+  # tiled windows, and 4pt of it was buying clearance from a band that isn't
+  # there.
+  #
+  # So: the same 28pt pill, 2pt of centring slack, and nothing else — a 32pt
+  # strip, which is exactly the height of the band the top bar's pills sit in.
+  # The two bars read as the same size because their PILLS are the same size;
+  # that was always the part anyone could see.
+  bottomHeight = pillHeight + 4;
+
   # Point sizes by role, rendered with the `.0` sketchybar writes everywhere so a
   # generated size is indistinguishable from a hand-tuned one. At typeScale = 1.0
   # these are byte-identical to the values sketchybarrc carried before any of this

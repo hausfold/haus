@@ -1198,9 +1198,13 @@
                 # extended regexes, where an escaped brace is not a literal.
                 "gen prowl inner.horizontal" =
                   capture aerospace ".*inner[.]horizontal = [[][{] monitor[.][^=]+= ([0-9]+) [}], ([0-9]+)[]].*";
-                # The bar's edge, which carries bar.room on top of the gap — the
-                # separation the pill couldn't take vertically once its type hit
-                # the ceiling.
+                # The bar's edge. The built-in is a scaled gap plus bar.room (the
+                # notch strip already excludes the bar's height there); the
+                # external is `barEdge` — the bar's own HEIGHT plus that same
+                # room. A measurement, so it sits at 36 and then rises only by
+                # the room, the separation the pill couldn't take vertically once
+                # its type hit the ceiling. A number climbing with the scale here
+                # would be reserving a band for a bar that never got taller.
                 "gen prowl outer.top" =
                   capture aerospace ".*outer[.]top = [[][{] monitor[.][^=]+= ([0-9]+) [}], ([0-9]+)[]].*";
                 "gen sill FS_ICON" = capture ".config/sketchybar/sizes.sh" ".*FS_ICON=\"([0-9.]+)\".*";
@@ -1270,7 +1274,7 @@
             gen ghostty font-size 19 27 48 57
             gen pounce scale 1.0 1.4 2.0 2.0
             gen prowl inner.horizontal 10/20 14/28 25/50 30/60
-            gen prowl outer.top 10/40 24/66 35/110 40/130
+            gen prowl outer.top 10/36 24/46 35/46 40/46
             gen sill FS_ICON 17.0 21.0 21.0 21.0
             opt fonts.mono.size 19 27 48 57
             opt pounce.scale 1.000000 1.400000 2.000000 2.000000
