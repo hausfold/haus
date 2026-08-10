@@ -22,7 +22,7 @@
 #   * The apply runs as a home-manager activation, not a system one. A display
 #     configuration belongs to a logged-in GUI session; the system activation runs
 #     as root outside it, where a mode change either fails or lands on the wrong
-#     session. Same reason the wallpaper is set from home-manager (theme/).
+#     session. Same reason the wallpaper is set from home-manager (wallpaper/).
 {
   config,
   lib,
@@ -76,7 +76,7 @@ in
   environment.systemPackages = [ hausdisp ];
 
   # Takes home-manager's own `lib` (the outer one has no `lib.hm.dag`), like the
-  # wallpaper activation in theme/ does.
+  # wallpaper activation in wallpaper/ does.
   home-manager.users.${username} =
     { lib, ... }:
     {

@@ -205,20 +205,13 @@ let
       "${homeDir}/${lib.removePrefix "~/" shotsCfg.location}"
     else
       shotsCfg.location;
-  # The font package, from whichever of the two ways it was given. `package` is
-  # the precise one; `packageName` is the same thing named as a string, which is
-  # the only one a data-only rice can express — see modules/lib/pkg-by-name.nix.
-  monoPackage =
-    if fontsCfg.mono.package != null then
-      fontsCfg.mono.package
-    else if fontsCfg.mono.packageName != null then
-      import ../lib/pkg-by-name.nix {
-        inherit lib pkgs;
-        option = "haus.fonts.mono.packageName";
-        name = fontsCfg.mono.packageName;
-      }
-    else
-      pkgs.nerd-fonts.jetbrains-mono;
+  # The font package, from whichever of the three ways it was given. It moved to
+  # ../lib/mono-font.nix when the wallpaper's debug band started needing the same
+  # answer — den installs the family, wallpaper reads a face out of it.
+  monoPackage = import ../lib/mono-font.nix {
+    inherit lib pkgs;
+    fonts = fontsCfg;
+  };
 
   # Naming a family the rice was never given a package for is silent tofu:
   # Ghostty just falls back and the powerline/icon glyphs vanish. Cheap to spot.
@@ -755,7 +748,7 @@ in
       # The one macOS-side size ui.scale can move honestly. Set ONLY when you've
       # actually asked for scaling: at scale 1.0 the rice writes nothing, so a
       # Dock you sized by hand is left alone rather than snapped back to Apple's
-      # 48. Same principle as theme.wallpaper = "none" — don't move what wasn't
+      # 48. Same principle as wallpaper.style = "none" — don't move what wasn't
       # asked about.
       tilesize = lib.mkIf (config.haus.ui.scale != 1.0) (
         lib.mkDefault (builtins.floor (48 * config.haus.ui.scale + 0.5))

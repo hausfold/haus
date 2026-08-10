@@ -83,11 +83,11 @@ fi
 # unvalidated and un-restored: the exact half-done machine this command exists to
 # prevent, with no error the user can act on. The EXIT trap is what covers it.
 : >"$tmp/.git/index.lock"
-"${haus[@]}" set theme.wallpaper orbits theme.contrast high >/dev/null 2>&1 || true
+"${haus[@]}" set wallpaper.style orbits theme.contrast high >/dev/null 2>&1 || true
 rm -f "$tmp/.git/index.lock"
-test ! -e "$tmp/hosts/test/settings/theme.wallpaper.nix"
+test ! -e "$tmp/hosts/test/settings/wallpaper.style.nix"
 test ! -e "$tmp/hosts/test/settings/theme.contrast.nix"
-test "$("${haus[@]}" get theme.wallpaper)" = "none"
+test "$("${haus[@]}" get wallpaper.style)" = "none"
 test "$("${haus[@]}" get theme.contrast)" = "normal"
 
 # reset is variadic for the same arithmetic as set: the light-mode intent took
@@ -124,14 +124,14 @@ fi
 # override (an "already inherits" line), and the hand-written file after it is
 # fatal — reporting the first before dying on the second reads as if something
 # happened, when nothing did.
-printf '%s\n' '{ ... }: { }' >"$tmp/hosts/test/settings/theme.wallpaper.nix"
-out="$("${haus[@]}" reset theme.contrast theme.wallpaper 2>&1 || true)"
+printf '%s\n' '{ ... }: { }' >"$tmp/hosts/test/settings/wallpaper.style.nix"
+out="$("${haus[@]}" reset theme.contrast wallpaper.style 2>&1 || true)"
 case "$out" in
   *"already inherits"*)
     echo "haus reset narrated a path before dying on a later one" >&2
     exit 1 ;;
 esac
-rm -f "$tmp/hosts/test/settings/theme.wallpaper.nix"
+rm -f "$tmp/hosts/test/settings/wallpaper.style.nix"
 
 # unset is variadic too, expanding to `<path> null` pairs through set — so it
 # inherits set's all-or-nothing: an option whose type has no null takes the whole
@@ -237,18 +237,18 @@ test ! -e "$tmp/hosts/test/settings/displays.37D8832A-2D66-02CA-B9F7-8F30A301B23
 # …and that must not swallow the failure it looks exactly like. Two plain
 # definitions of one option conflict the moment the mkForce on top of them goes,
 # and the override has to come back.
-printf '{ ... }: { haus.theme.wallpaper = "orbits"; }\n' >"$tmp/hosts/test/settings/zz-a.nix"
-printf '{ ... }: { haus.theme.wallpaper = "waves"; }\n' >"$tmp/hosts/test/settings/zz-b.nix"
+printf '{ ... }: { haus.wallpaper.style = "orbits"; }\n' >"$tmp/hosts/test/settings/zz-a.nix"
+printf '{ ... }: { haus.wallpaper.style = "waves"; }\n' >"$tmp/hosts/test/settings/zz-b.nix"
 git -C "$tmp" add -A
-"${haus[@]}" set theme.wallpaper none >/dev/null
-if "${haus[@]}" reset theme.wallpaper >/dev/null 2>&1; then
+"${haus[@]}" set wallpaper.style none >/dev/null
+if "${haus[@]}" reset wallpaper.style >/dev/null 2>&1; then
   echo "haus reset reported success on a path that cannot evaluate without it" >&2
   exit 1
 fi
-test -e "$tmp/hosts/test/settings/theme.wallpaper.nix"    # restored, not left removed
+test -e "$tmp/hosts/test/settings/wallpaper.style.nix"    # restored, not left removed
 rm -f "$tmp/hosts/test/settings/zz-a.nix" "$tmp/hosts/test/settings/zz-b.nix"
 git -C "$tmp" add -A
-"${haus[@]}" reset theme.wallpaper >/dev/null
+"${haus[@]}" reset wallpaper.style >/dev/null
 
 # A path and one of its ancestors can't both hold an override: they'd be two
 # mkForce definitions of the same leaf, and the module system would report that
