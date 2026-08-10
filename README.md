@@ -5,7 +5,7 @@
 
 **an opinionated macOS, raised in the fog**
 
-the house — the whole rice, one Nix flake. start here.
+the house — the `haus` layer and the nebelhaus rice, one Nix flake. start here.
 
 ![part of hausfold](https://img.shields.io/badge/part_of-hausfold-f2c4e5?labelColor=202020)
 ![themed by nebelung](https://img.shields.io/badge/themed_by-nebelung-c9a8f1?labelColor=202020)
@@ -24,6 +24,15 @@ machine, run one command, and the house stands again exactly as it was.
 
 > [!TIP]
 > Think *omarchy*, but for macOS instead of Arch.
+
+> [!NOTE]
+> **`haus` is the layer; nebelhaus is the rice.** This one flake ships both.
+> `haus` is the nix-darwin layer — the modules, the `haus.*` options you set and
+> the `haus` CLI you run — and any rice can be built on it. **nebelhaus** is the
+> rice this repo dresses it in: the fog-grey defaults, the first one, and the
+> one you get from the install command below. **hausfold** is the org it all
+> ships from — the maker, and the name on the receipt — which is why this repo
+> is `hausfold/hausfold`.
 
 📖 **Full docs & guides: [nebelhaus.com](https://nebelhaus.com)** — start with
 [Install](https://nebelhaus.com/start/install/) and
@@ -149,7 +158,7 @@ verifiable. `haus doctor` reports whether it's installed.
 
 ## the family
 
-- 🏠 [**nebelhaus**](https://github.com/hausfold/hausfold) — the house. the whole rice, one Nix flake. start here. *(you are here)*
+- 🏠 [**nebelhaus**](https://github.com/hausfold/hausfold) — the house. the `haus` layer and the nebelhaus rice, one Nix flake. start here. *(you are here)*
 - 🐾 [**pounce**](https://github.com/hausfold/pounce) — the palette. keyboard-first launcher; every command a file.
 - 🪺 [**perch**](https://github.com/hausfold/perch) — the shelf. files, caught in the notch.
 - 🌫️ [**nebelung**](https://github.com/hausfold/nebelung) — the theme. the silver-mist palette.
