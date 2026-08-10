@@ -22,8 +22,10 @@ if [ -z "$MEMORY_USED" ]; then
     MEMORY_USED=$(echo "scale=0; ($USED_MEM * 100) / $TOTAL_MEM" | bc)
 fi
 
-# Nerd Font memory icon (nf-md-memory)
-ICON=$(printf "\U000F049D")
+# Nerd Font memory icon (nf-md-memory, U+F049D). Literal glyph, not printf
+# '\UXXXXXXXX' — macOS ships bash 3.2, whose printf has no \u/\U escapes and
+# emits the escape text verbatim into the bar.
+ICON="󰒝"
 
 # Update the bar item
 "$SB" --set $NAME \

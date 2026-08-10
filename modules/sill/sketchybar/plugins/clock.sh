@@ -18,7 +18,7 @@ if [ "$MODE" = "compact" ]; then
 else
     DATE=$(date '+%a %b %d')
     TIME=$(date '+%I:%M %p')
-    ICON=$(printf "\uf073")
+    ICON=""
 
     # Update the bar item
     "$SB" --set "$NAME" \
