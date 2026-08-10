@@ -40,6 +40,13 @@ rows() {
 choice="$(rows | pounce -p 'haus' -i 'house')"
 [ -n "$choice" ] || exit 0
 
+# A generic stdin picker's row commit is "<action>\t<raw-row>", not the raw
+# row alone (State.swift's buildCommit, .plain case) — action is enter/cmd/
+# opt/ctrl depending which key committed it. Drop that verb before matching
+# on the row's own first field, or every row here compares against "enter"
+# and none of them ever fire.
+choice="${choice#*$'\t'}"
+
 # The first three are pounce's OWN built-ins, which unlike a rice command each
 # ship a `pounce-<id>` launcher on PATH (pkgs/pounce-commands wraps `builtinIds`)
 # — so they are named, not reimplemented, for the same reason the rice rows go
