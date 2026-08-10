@@ -8,8 +8,10 @@ source "$HOME/.config/sketchybar/bar.sh"
 # Get CPU usage percentage
 CPU_USAGE=$(ps -A -o %cpu | awk '{s+=$1} END {printf "%.0f", s}')
 
-# Nerd Font CPU icon (nf-md-cpu_64_bit)
-ICON=$(printf "\uf4bc")
+# Nerd Font CPU icon (nf-oct-cpu, U+F4BC). Literal glyph, not printf '\uXXXX' —
+# macOS ships bash 3.2, whose printf has no \u/\U escapes and emits the escape
+# text verbatim into the bar.
+ICON=""
 
 # Update the bar item
 "$SB" --set $NAME \
