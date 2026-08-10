@@ -106,9 +106,19 @@ in
           5      surface2 #5c5c5c      surface2 #b0b0b0
 
         0 is as far out as the palette goes — our blackest black, our whitest
-        white. 2 is the canvas every other rice surface draws on, which is why
-        it's the default: the desktop reads as the same material as the
-        terminal behind it rather than as a hole cut in it.
+        white. The default of 2 lands one rung inside a full-screen extreme,
+        which is what keeps the desktop reading as material rather than as a
+        hole cut in the screen.
+
+        The two columns are NOT symmetric, and the asymmetry is the palette's
+        rather than a choice: mocha's canvas (`base`) sits at depth 2 because
+        two tones are darker than it, while latte's canvas is the LIGHTEST tone
+        it has, so it sits at depth 0. A dark rice at the default therefore gets
+        exactly the colour its terminal draws on; a light one gets `crust`,
+        #e0e0e0 — a step down from the canvas, and the better end of the trade,
+        since a full screen of near-white is the one field size where the canvas
+        stops being comfortable. `depth = 0` is the way to match the terminal
+        exactly in a light rice.
 
         Which flavour's column applies follows haus.theme.flavor, like every
         other themed surface. haus.wallpaper.background overrides the whole
@@ -149,8 +159,15 @@ in
         0 turns it off. Do that only with `glow.enable = false` too — a glow on
         an ungrained field is exactly the picture this exists to prevent.
 
-        It costs file size (noise doesn't compress): about 3 MB at 0, 6 MB at
-        0.004, 12 MB at 0.012 for a 6 MP picture.
+        Measured at the shipped defaults (3456x2234), since the effect is easier
+        to state in numbers than to argue about — distinct colours, and what the
+        PNG costs, noise being the one thing that doesn't compress:
+
+          grain    colours    size
+          0          127      0.1 MB   ← rings, visibly
+          0.004      182      1.2 MB   ← the floor worth using
+          0.010      291      2.5 MB   ← the default
+          0.020      588      4.2 MB
       '';
     };
 

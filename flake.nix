@@ -1544,12 +1544,19 @@
           #
           # COLOUR COUNT, because that is what banding IS. The bloom spends
           # about ten of the 256 levels an 8-bit PNG has; quantised without the
-          # grain that dithers it, the whole picture lands in the low tens of
-          # distinct colours and draws visible contour rings. Measured at the
-          # shipped defaults: 41 unique colours with `grain = 0` and several
-          # hundred with it. 200 sits far enough above the broken case to be
-          # unambiguous and far enough below the working one to survive a retune
-          # — if this ever fails, the dither stopped happening, not the taste.
+          # grain that dithers it the picture draws visible contour rings.
+          #
+          # The whole ladder, measured at the shipped defaults rather than
+          # guessed, because the floor is only defensible against real numbers:
+          # `grain = 0` gives 127 distinct colours, 0.004 (the lowest value the
+          # option calls useful) gives 182, the default 0.01 gives 291, and 0.02
+          # gives 588. So 160 — above the ungrained case, below the lowest
+          # grain anyone should ship. If this ever fails, the dither stopped
+          # reaching the reduction; it does NOT fail on a retune of taste.
+          #
+          # It renders the DEFAULTS and only the defaults. Drop the default
+          # grain below ~0.003 and this stops being a meaningful floor — move it
+          # then, with fresh numbers, rather than deleting it.
           #
           # 🚨 Like site-data-current, it only runs when it is BUILT.
           wallpaper =
@@ -1560,7 +1567,7 @@
                 [ "$geom" = "3456x2234" ] \
                   || { echo "wallpaper rendered $geom, expected the option's 3456x2234" >&2; exit 1; }
                 colours=$(magick identify -format '%k' "$pic")
-                [ "$colours" -gt 200 ] \
+                [ "$colours" -gt 160 ] \
                   || { echo "wallpaper has only $colours distinct colours — the grain that dithers the bloom is not reaching the 8-bit reduction, so it will band" >&2; exit 1; }
                 touch $out
               '';

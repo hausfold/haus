@@ -15,9 +15,10 @@
 #
 # Doing the bloom in the SVG instead would quantise it to 8 bits inside resvg,
 # before any grain exists to break the contours up — which is exactly the
-# stepped-gradient wallpaper this look was written to replace. Measured: a 7%
-# bloom over #202020 lands 41 distinct greys with no grain and 242 with it, and
-# under a 25x contrast stretch the first is visibly ringed and the second isn't.
+# stepped-gradient wallpaper this look was written to replace. Measured at the
+# shipped defaults: 127 distinct colours with `grain = 0` and 291 with the
+# default grain, and under a 25x contrast stretch the first is visibly ringed
+# and the second is flat.
 {
   lib,
   runCommand,
