@@ -29,12 +29,35 @@ notify() {
 # both: reloading only the top one leaves the bottom bar on the previous
 # generation with nothing saying half the reload didn't happen. The second binary
 # exists only on a machine that turned that bar on.
+#
+# EACH RELOAD NAMES ITS RC, and the ~/.config path is the load-bearing part. A
+# bare `--reload` does not mean "re-read your config file", it means "re-run the
+# path you resolved at STARTUP" — and SketchyBar resolves that path once,
+# through the symlink, to a file in /nix/store. So an instance launched with
+# `--config` re-runs the rc from the generation it BOOTED on, forever, reporting
+# success every time. That is `sill-bottom`, and only `sill-bottom`: the menu bar
+# is launched with no --config at all, so it lands on the live ~/.config path by
+# accident, and is spelled out here only so both halves read the same. The full
+# story, and the day the bottom bar's shadow lift spent on disk unapplied because
+# of it, is in the reload comment in modules/sill/default.nix.
 SILL_BOTTOM=/run/current-system/sw/bin/sill-bottom
+SKETCHYBARRC="$HOME/.config/sketchybar/sketchybarrc"
+SILL_BOTTOMRC="$HOME/.config/sketchybar/sill-bottomrc"
 
-if ! err="$(sketchybar --reload 2>&1)"; then
-  notify "${err:-sketchybar --reload failed}" "SketchyBar reload failed"
-elif [ -x "$SILL_BOTTOM" ] && ! err="$("$SILL_BOTTOM" --reload 2>&1)"; then
-  notify "${err:-sill-bottom --reload failed}" "SketchyBar reload failed"
-else
+# Exit status is NOT the test, because naming the rc gave this command a way to
+# fail quietly that the bare form didn't have: `sketchybar --reload /nope` prints
+# `[?] Reload: Invalid config path` and exits 0. Any output at all is the
+# failure — a reload that worked says nothing back to the client (the bar logs
+# `configuration loaded..` to its own stdout, not down the socket).
+reload() {
+  local what="$1" bin="$2" rc="$3" err
+  err="$("$bin" --reload "$rc" 2>&1)" || err="${err:-$what --reload failed}"
+  [ -z "$err" ] || { notify "$err" "SketchyBar reload failed"; return 1; }
+}
+
+# A missing $SILL_BOTTOM is a pass, not a failure — it's the shape of a one-bar
+# machine. `reload` has already notified on the way out of whichever half broke.
+if reload sketchybar sketchybar "$SKETCHYBARRC" &&
+  { [ ! -x "$SILL_BOTTOM" ] || reload sill-bottom "$SILL_BOTTOM" "$SILL_BOTTOMRC"; }; then
   notify "SketchyBar reloaded" "SketchyBar"
 fi
