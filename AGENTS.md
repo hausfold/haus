@@ -4,6 +4,23 @@
 repo is the "distro": a personal machine consumes it via `mkNebelhaus` and adds
 only its own host (identity, private apps, secrets).
 
+> **This repo holds two things, and only one of them is nebelhaus.** **`haus`**
+> is the **layer** — the nix-darwin modules, the `haus.*` options and the `haus`
+> CLI — and it is what *any* rice builds on, not just this one. **nebelhaus** is
+> one rice on that layer: the default *values* those modules ship with
+> (nebelung's fog-grey, prowl/sill/hearth turned on the way this desktop likes
+> them), the first rice and the developer-focused one. **hausfold** is neither —
+> it is the org, the maker and the seller, which is why the repo is
+> `hausfold/hausfold` while the layer inside it is `haus`. That's **decision 8**
+> in the workshop's `notes/hausfold-rename.md`, 2026-08-10.
+>
+> Today the two are interleaved in the same files, because the plan's decision 4
+> renames first and neutralizes the defaults later (its §7). So the distinction
+> is a **writing** rule right now, not a directory boundary: when you touch a
+> module, know whether you're changing what every rice gets or only what this
+> one looks like, and say which in the commit. The rice's own name never moves —
+> §6, and `flake.nix`'s description with it.
+
 > 🚨 **The option namespace is `haus.*`.** Declare every new option under
 > `haus.`, in one of the files `modules/options-modules.nix` lists — that list
 > is the single source (`modules/default.nix` imports it; don't write the paths
@@ -38,8 +55,9 @@ that's a product surface, not this layer.)
 
 ## Am I in the right repo? (routing)
 
-**This repo (`~/code/workshop/hausfold`) owns THE RICE** — the generic, no-identity
-system + shell modules. Personal machine config and the pounce/theme sources live
+**This repo (`~/code/workshop/hausfold`) owns THE LAYER AND THE RICE** — `haus`,
+the generic, no-identity system + shell modules, and nebelhaus's default values
+on top of them. Personal machine config and the pounce/theme sources live
 elsewhere.
 
 | Want to change… | Repo |
