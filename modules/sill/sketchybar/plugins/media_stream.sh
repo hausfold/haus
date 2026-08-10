@@ -31,15 +31,33 @@ source "$HOME/.config/sketchybar/plugins/media_lib.sh"
 SILL_ITEM=media
 source "$HOME/.config/sketchybar/bar.sh"
 
-PIDFILE="/tmp/sketchybar_media_stream.pid"
-LOCKDIR="/tmp/sketchybar_media_stream.lock"
+# Both of these are keyed on the plugin DIRECTORY — not per bar (see the takeover
+# below for why that would be wrong), and not one name for the whole machine.
+# The key is what stops a COPY of these plugins run from anywhere else — a
+# scratchpad, a second checkout, whatever an agent or a bisect leaves lying
+# around — from becoming this bar's streamer of record. It is not hypothetical
+# and it fails silently: with one shared name, a stray copy's pid sat in the
+# pidfile, media.sh's watchdog matched it (a stranger's command line carries the
+# script's name too), certified the stream as healthy, and so never restarted the
+# real one — for as long as the stranger lived. The uid buys the same separation
+# between two users' rices on one machine.
+#
+# The directory is this script's own as INVOKED, deliberately NOT resolved.
+# ~/.config/sketchybar/plugins is a symlink into the store, so `pwd -P` would
+# mint a new name on every generation — and a rebuild's reload, which is the
+# moment the takeover below exists for, would then never find the streamer it
+# came to replace.
+SILL_PLUGIN_DIR="$(dirname "${BASH_SOURCE[0]}")"
+SILL_STREAM_KEY="$(id -u).$(printf '%s' "$SILL_PLUGIN_DIR" | shasum -a 256 | cut -c1-12)"
+PIDFILE="/tmp/sketchybar_media_stream.$SILL_STREAM_KEY.pid"
+LOCKDIR="/tmp/sketchybar_media_stream.$SILL_STREAM_KEY.lock"
 
 [ -n "$SILL_MEDIA_CONTROL" ] && [ -x "$SILL_MEDIA_CONTROL" ] || exit 0
 command -v jq >/dev/null 2>&1 || exit 0
 
 mkdir -p "$SILL_MEDIA_STATE_DIR" 2>/dev/null
 
-# ── one streamer, machine-wide ────────────────────────────────────────────────
+# ── one streamer per installed rice ───────────────────────────────────────────
 # A reload runs the bar's config again without killing what the last one spawned,
 # so the previous stream (and the perl adapter under it) has to go first, or every
 # track change repaints once per stream that survived.
@@ -48,7 +66,9 @@ mkdir -p "$SILL_MEDIA_STATE_DIR" 2>/dev/null
 # exactly one of them (a pill named in haus.sill.bottom.items MOVES rather than
 # duplicating, so only that bar's items file carries the launch), and a single
 # file is what makes moving the pill from one bar to the other kill the streamer
-# the OTHER bar started. Keyed per bar, that one would stream on forever.
+# the OTHER bar started. Keyed per bar, that one would stream on forever. The
+# plugin-directory key above does not reintroduce that: both bars run out of the
+# same plugins dir, so they still share one record, exactly as they must.
 #
 # The shape below is two bugs deep, and both of them ended the same way — a live
 # stream nobody owns, repainting the pill a second time on every track change,
