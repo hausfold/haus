@@ -324,7 +324,17 @@ let
   # docked with the lid open the bar sits at the bottom on BOTH displays; aerospace
   # gaps can't flip per dock-state, so the built-in keeps its notch-tuned top in
   # `auto`, leaving a small overlap at the built-in's bottom in that one case.)
-  barPos = if config.haus.sill.enable then config.haus.sill.position else "top";
+  #
+  # No sill, no bar, no reservation — `noBar` short-circuits both tables below
+  # to the tuned gaps. This used to be a `barPos` fallback of `"top"`, which
+  # made a rice with `haus.sill.enable = false` reserve `barEdge` at an
+  # EXTERNAL's top edge for a bar nobody draws: 36pt of dead wallpaper along the
+  # top of every external display. The built-in never showed it — a top bar
+  # reserves `barGap 10` there, which is the tuned gap plus `bar.room`, and
+  # `room` is 0 on an unscaled rice — so it only ever bit the display that
+  # can't be tested without plugging one in.
+  noBar = !config.haus.sill.enable;
+  barPos = config.haus.sill.position;
   monLine = builtin: external: ''[{ monitor."Built-in Retina Display" = ${builtin} }, ${external}]'';
   # `barEdge` sizes an edge the bar sits ON, `barGap`/`gap` an edge it doesn't.
   # On the built-in with a top bar that means barGap 10 rather than barEdge: the
@@ -332,12 +342,15 @@ let
   # at its tuned 10 — but the pills still end right where the windows begin, which
   # is the one place the breathing room matters MOST rather than least.
   outerTop =
-    {
-      top = monLine (barGap 10) barEdge;
-      bottom = monLine (gap 10) (gap 20);
-      auto = monLine (barGap 10) (gap 20);
-    }
-    .${barPos};
+    if noBar then
+      monLine (gap 10) (gap 20)
+    else
+      {
+        top = monLine (barGap 10) barEdge;
+        bottom = monLine (gap 10) (gap 20);
+        auto = monLine (barGap 10) (gap 20);
+      }
+      .${barPos};
   # sill's optional SECOND bar (haus.sill.bottom.enable) draws at the bottom of
   # every display, AS WELL AS the main bar rather than instead of it — so when
   # it's on, the bottom edge reserves room whatever `barPos` would have said.
@@ -357,6 +370,8 @@ let
         edge = if barPos != "top" then barEdge else bottomEdge;
       in
       monLine edge edge
+    else if noBar then
+      monLine (gap 10) (gap 20)
     else
       {
         top = monLine (gap 10) (gap 20);
