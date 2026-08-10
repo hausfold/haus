@@ -1,8 +1,8 @@
 # AGENTS.md
 
-**nebelhaus** — an opinionated macOS rice as composable nix-darwin modules. This
-repo is the "distro": a personal machine consumes it via `mkNebelhaus` and adds
-only its own host (identity, private apps, secrets).
+**nebelhaus** — an opinionated macOS rice, built on `haus`, a set of composable
+nix-darwin modules. This repo is the "distro": a personal machine consumes it
+via `mkNebelhaus` and adds only its own host (identity, private apps, secrets).
 
 > **This repo holds two things, and only one of them is nebelhaus.** **`haus`**
 > is the **layer** — the nix-darwin modules, the `haus.*` options and the `haus`
@@ -30,8 +30,11 @@ only its own host (identity, private apps, secrets).
 > not a second namespace to add to — a declaration under `nebelhaus.` would
 > collide with its own alias.
 >
-> **Three things stay `nebelhaus`, and they are not drift**: the repo, the
-> rice, and the flake input. `nebelhaus.presets.everyday`,
+> **Three things stay `nebelhaus`, and they are not drift**: the rice, the
+> flake outputs, and the flake input. *(This said "the repo" until 2026-08-10;
+> the repo is `hausfold/hausfold` and has been since the org migration on
+> 2026-08-09 — and none of the three examples below was ever a repo name.)*
+> `nebelhaus.presets.everyday`,
 > `nebelhaus.lib.checkRice` and `inputs.nebelhaus.url` are all correct as
 > written — flake outputs and an input name, not options. Same for
 > `org.nebelhaus.*` launchd labels, `share/nebelhaus/`, the state dirs
