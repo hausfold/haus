@@ -32,7 +32,17 @@ source "$HOME/.config/sketchybar/plugins/media_lib.sh"
 SILL_ITEM=media
 source "$HOME/.config/sketchybar/bar.sh"
 
-PIDFILE="/tmp/sketchybar_media_stream.pid"
+# Keyed on the plugin directory, so a copy of these plugins run from anywhere
+# else cannot capture this bar's streamer — media_stream.sh carries the whole
+# reasoning, including why the directory is the invoked path and not the resolved
+# one. These three lines are deliberately IDENTICAL there, character for
+# character, rather than factored into media_lib.sh: the lib is sourced through a
+# hardcoded ~/.config path, so a stray copy would source the real one and derive
+# the real key, which is precisely the isolation this is buying. Duplicated on
+# purpose; keep them in step.
+SILL_PLUGIN_DIR="$(dirname "${BASH_SOURCE[0]}")"
+SILL_STREAM_KEY="$(id -u).$(printf '%s' "$SILL_PLUGIN_DIR" | shasum -a 256 | cut -c1-12)"
+PIDFILE="/tmp/sketchybar_media_stream.$SILL_STREAM_KEY.pid"
 
 [ -n "$SILL_MEDIA_CONTROL" ] && [ -x "$SILL_MEDIA_CONTROL" ] || exit 0
 
@@ -316,11 +326,16 @@ scroll_seek() {
 # The pid is matched against the process's own command line, not just kill -0: a
 # streamer killed without running its trap leaves the pidfile behind, and PIDs
 # get reused, so a live-looking pid is not on its own evidence the stream is up.
+# The match is against the FULL path we would launch, not the bare basename: a
+# copy of the script run from elsewhere satisfied the loose form, which made this
+# watchdog certify a stranger's stream as ours and stop restarting the real one.
+# It is launched from the same variable it is matched on, so the two cannot drift.
 tick() {
     local pid
     pid="$(cat "$PIDFILE" 2>/dev/null)"
-    if [ -z "$pid" ] || ! ps -p "$pid" -o command= 2>/dev/null | grep -q media_stream.sh; then
-        ("$HOME/.config/sketchybar/plugins/media_stream.sh" >/dev/null 2>&1 &)
+    if [ -z "$pid" ] || ! ps -p "$pid" -o command= 2>/dev/null |
+        grep -qF "$SILL_PLUGIN_DIR/media_stream.sh"; then
+        ("$SILL_PLUGIN_DIR/media_stream.sh" >/dev/null 2>&1 &)
         return
     fi
     # Stream alive: the only thing left that can be stale is a long-form
