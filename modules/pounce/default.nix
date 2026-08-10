@@ -148,6 +148,19 @@ let
     "${pkgs.pounce}/Applications/Pounce.app"
     + lib.optionalString (identity != "") "@@${identity}@@com.hausfold.pounce";
 
+  # The auto-quit settings as one opaque word, the activation marker's whole
+  # content — see home.activation.kickstartPounce. The WHOLE block, not just the
+  # flag: pounce's AutoQuit captures delay and exclude when it arms and never
+  # re-reads them (pkgs/pounce/AutoQuit.swift's init), which is why its own docs
+  # list `autoQuit` alongside `windows` among the startup-only keys. A marker
+  # that tracked `enable` alone would let a rebuild that adds a bundle id to
+  # `exclude` report success while the daemon kept quitting that app until the
+  # next login.
+  # Hashed rather than inlined so the marker is one short line whatever the
+  # exclude list grows to, and prefixed so an absent or empty marker (a machine
+  # that predates this) can never collide with a real state.
+  autoQuitState = "v1-${builtins.hashString "sha256" (builtins.toJSON config.haus.pounce.autoQuit)}";
+
   # The app font's package installs only the TTF, but its pinned source also
   # carries the authoritative app-name → ligature mappings. Generate the same
   # shell case table as upstream's build.js and ship it beside Install App, so
@@ -819,6 +832,7 @@ lib.mkIf config.haus.pounce.enable {
         theme = config.haus.theme;
       };
       followAppearance = config.haus.pounce.followSystemAppearance;
+      autoQuit = config.haus.pounce.autoQuit;
       # Every rendered nebelung variant, dropped where pounce's runtime palette
       # loader looks (~/.config/pounce/themes/<name>.json, read per open — see
       # pounce's docs/reference.md). All of them, not just the selected one, so a
@@ -894,6 +908,20 @@ lib.mkIf config.haus.pounce.enable {
             key = "tab";
             modifiers = [ "cmd" ];
           };
+          # Quit an app when its last window closes — haus.pounce.autoQuit, off
+          # by default. Reads the same window snapshot as the `windows` switcher
+          # above and wants the same Accessibility grant; without it the daemon
+          # keeps auto-quit off rather than acting on a snapshot it can't see
+          # into. `exclude` is omitted when the option is null, because pounce's
+          # own default ([ "com.apple.finder" ]) applies only to a MISSING key —
+          # writing a list here replaces it, and writing [] would leave Finder
+          # quittable. An older pounce that predates autoQuit ignores the whole
+          # block rather than failing on it, same lenient parse as `themeLight`.
+          autoQuit = {
+            enabled = autoQuit.enable;
+            delay = autoQuit.delay;
+          }
+          // lib.optionalAttrs (autoQuit.exclude != null) { exclude = autoQuit.exclude; };
           clipboard = {
             enabled = true;
             maxEntries = 200;
@@ -1086,13 +1114,40 @@ lib.mkIf config.haus.pounce.enable {
       # history is on disk, so the bounce itself loses nothing.
       # Marker match → unchanged → no bounce. Runs in home-manager activation, i.e.
       # after nix-darwin has loaded the new agent plist.
+      #
+      # The SECOND marker is autoQuit: the daemon reads that whole block once, at
+      # startup, rather than per open like the rest of config.json, so a rebuild
+      # that touches haus.pounce.autoQuit would otherwise write the file and
+      # change nothing until the next login. It gets its own marker instead of
+      # being folded into .signed-from, because that one also drives the re-copy
+      # + re-sign in the daemon script — and a settings change has no business
+      # re-signing the app.
       home.activation.kickstartPounce = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
         # Retire the pre-hausfold launchd label explicitly. nix-darwin normally
         # unloads removed plists, but a stale KeepAlive job must never survive
         # beside the canonical agent after this one-time migration.
         $DRY_RUN_CMD /bin/launchctl bootout "gui/$(/usr/bin/id -u)/org.nixos.pounce" 2>/dev/null || true
+
+        pounceBounce=0
         if [ "$(/bin/cat "$HOME/.local/state/pounce/.signed-from" 2>/dev/null)" != "${signedFrom}" ]; then
-          $DRY_RUN_CMD /bin/launchctl kickstart -k "gui/$(/usr/bin/id -u)/com.hausfold.pounce" || true
+          pounceBounce=1
+        fi
+        if [ "$(/bin/cat "$HOME/.local/state/pounce/.auto-quit" 2>/dev/null)" != "${autoQuitState}" ]; then
+          pounceBounce=1
+        fi
+        if [ "$pounceBounce" = 1 ]; then
+          # The marker is written only on a kickstart that took, so a bounce that
+          # failed (no agent loaded yet on a fresh install) is retried next rebuild
+          # rather than being recorded as done.
+          if $DRY_RUN_CMD /bin/launchctl kickstart -k "gui/$(/usr/bin/id -u)/com.hausfold.pounce"; then
+            # One /bin/sh -c so the redirection is INSIDE what $DRY_RUN_CMD
+            # wraps — a bare `> "$HOME/…"` here would write the marker even on
+            # a dry run, and then the real activation would skip the bounce.
+            # `|| true` like every sibling here: activation runs under `set -eu`,
+            # and a bookkeeping file must never be able to fail a rebuild. Losing
+            # the write just means one redundant bounce next time.
+            $DRY_RUN_CMD /bin/sh -c '/bin/mkdir -p "$HOME/.local/state/pounce" && /usr/bin/printf "%s" "${autoQuitState}" > "$HOME/.local/state/pounce/.auto-quit"' || true
+          fi
         fi
       '';
     };

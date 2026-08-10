@@ -39,6 +39,89 @@
       '';
     };
 
+    pounce.autoQuit.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Quit an app when you close its last window, the way Windows does it.
+        macOS keeps a windowless app running, so every one of them is a ⌘Q you
+        forgot; with this on, pounce notices the last window go away and asks
+        the app to quit.
+
+        *Asked*, not killed — it is the same Quit event ⌘Q sends, so an app
+        with unsaved work puts its sheet up and stays. Nothing here can lose
+        work that ⌘Q wouldn't. What it CAN do is stop background work you were
+        keeping a window open for: close Docker Desktop's dashboard and Docker
+        is asked to quit, which stops your containers. Media players, torrent
+        clients and chat apps have the same shape — that class of app is what
+        haus.pounce.autoQuit.exclude is for.
+
+        Reads the same window snapshot as the ⌘Tab switcher, so it wants the
+        same Accessibility grant (set haus.pounce.signingIdentity so it
+        survives rebuilds) and shares the observers rather than taking its own.
+        Without the grant it stays off and says so in the log rather than
+        guessing.
+
+        Off by default: this changes when your apps die, which is a thing you
+        feel, and the muscle memory it suits is not everyone's.
+
+        Unlike the rest of pounce's config, the auto-quit settings are read once
+        — when the daemon arms them — rather than per open. So a rebuild that
+        touches any of the three restarts the pounce daemon, which the rice does
+        for you; nothing here needs a log-out to land.
+      '';
+    };
+
+    pounce.autoQuit.delay = lib.mkOption {
+      type = lib.types.numbers.between 0.25 3600;
+      default = 2;
+      example = 5;
+      description = ''
+        Seconds to wait after the last window closes before looking again and
+        quitting. Load-bearing, not politeness: it is what tells "I'm done with
+        this app" apart from "close this window, open another" — which is what
+        a browser does when you close its last window and hit ⌘N. Anything open
+        at the end of the wait, including panels and dialogs the ⌘Tab switcher
+        wouldn't list, calls the quit off.
+
+        Two seconds is the responsive end of that trade. It is deliberately not
+        enough for a cold IDE reopening a project — that is a case for
+        haus.pounce.autoQuit.exclude rather than for a delay you would feel on
+        every app.
+
+        Read once, when auto-quit arms — changing it bounces the pounce daemon
+        on the next rebuild.
+      '';
+    };
+
+    pounce.autoQuit.exclude = lib.mkOption {
+      type = lib.types.nullOr (lib.types.listOf lib.types.str);
+      default = null;
+      defaultText = lib.literalMD "pounce's own list — `[ \"com.apple.finder\" ]`";
+      example = [
+        "com.apple.finder"
+        "com.docker.docker"
+        "com.spotify.client"
+      ];
+      description = ''
+        Bundle ids never auto-quit. `null` leaves pounce's own default in
+        place, which is `[ "com.apple.finder" ]` — Finder is the one app macOS
+        runs windowless by design, and quitting it blinks the desktop out while
+        it relaunches.
+
+        A list you write **replaces** that default rather than extending it, so
+        put Finder back in it unless you mean to drop it. `[ ]` really does
+        mean nothing is excluded.
+
+        Read a bundle id off any running app with
+        `osascript -e 'id of app "Notes"'`.
+
+        Read once, when auto-quit arms — adding an app here bounces the pounce
+        daemon on the next rebuild, so the app stops being quit immediately
+        rather than at the next log-in.
+      '';
+    };
+
     pounce.windowMode = lib.mkOption {
       type = lib.types.enum [
         "default"
