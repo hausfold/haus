@@ -213,7 +213,16 @@ let
       + ''-background '${background}' -gravity center -extent ${n2s W}x${n2s H} \) ''
       + "-define compose:args=${n2s glow.strength} -compose blend -composite ";
 
-  grainArgs = lib.optionalString (grain > 0.0) "-attenuate ${n2s grain} +noise Gaussian ";
+  # `-seed` is not optional here, however cosmetic noise sounds. ImageMagick's
+  # `+noise` draws from an UNSEEDED RNG by default, so the same command run
+  # twice produces different bytes — measured, not assumed. Nix would not notice
+  # (a store path is fixed by its inputs, not its output), which is exactly what
+  # makes it worth pinning: two machines on the same rice would quietly hold two
+  # different pictures, `nix build --check` would report the derivation as
+  # non-deterministic, and a content-addressed store would treat every rebuild as
+  # a new object. The value is arbitrary — it is U+2302, the mark's codepoint —
+  # and only has to be constant.
+  grainArgs = lib.optionalString (grain > 0.0) "-seed 2302 -attenuate ${n2s grain} +noise Gaussian ";
 
   # The vector layer is drawn at 2x and box-averaged down rather than rendered
   # at 1x: it costs one resize and buys a supersampled roof apex, which is the
