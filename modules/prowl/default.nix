@@ -287,6 +287,24 @@ let
   #
   # `bar.room` is the compensation for exactly that: growth the pill couldn't
   # take vertically, handed back as space beside the bar. 36 at ui.scale = 1.0.
+  #
+  # Which leaves a top bar's edge FLUSH with the windows at scale 1.0 — on the
+  # EXTERNAL, the one display whose top macOS reserves nothing at. That is fine,
+  # and it is measured rather than assumed. The open question when the stale 40
+  # came out was the 4pt it had been leaving behind: a `top`/`auto` bar is not
+  # lifted (bar_topmost() in the generated position.sh lifts only a fixed
+  # `bottom` bar), so the tiled window composites its macOS drop shadow straight
+  # onto the strip. But that shadow is offset DOWNWARD — the heavy edge is the
+  # one UNDER a window, which is the whole reason sill's second bar has to be
+  # lifted and this one doesn't. The probe was the built-in's top strip, the
+  # same unlifted bar sitting 6pt further off (the notch band plus `barGap 10`):
+  # the pixels 1pt above the window read identical to the pixels at the very top
+  # of the screen, no gradient at all, and the left outer gap — where a side
+  # shadow would show if any edge but the bottom carried one — is just as flat.
+  # So the 4pt was buying nothing, and handing it back through `room` would buy
+  # nothing either: a 4pt buffer cannot hold off a shadow that blurs well past
+  # 4pt. If an external ever does show one, the answer is to lift the bar
+  # (topmost) rather than to widen the gap.
   barEdge = toString (bar.barHeight + bar.room);
 
   # Same rule for sill's SECOND bar, which is shorter (32) because it is the one

@@ -93,6 +93,14 @@ rec {
   # start being the top of the window. Handing the growth back as space beside the
   # bar is the compensation the pill couldn't take vertically.
   #
+  # It is NOT a shadow buffer, and shouldn't be floored above 0 to serve as one.
+  # Where a top bar sits flush against the windows — an external's top, the one
+  # edge macOS reserves nothing at — it does take their drop shadow onto its
+  # strip. That shadow is offset downward, though, and measures flat above a
+  # window. The reasoning and the measurement (and its one caveat: the probe is
+  # the built-in's strip, not the flush external's) are at `barEdge` in
+  # ../prowl/default.nix.
+  #
   # 0 at scale 1.0 (nothing grew, nothing to compensate) rising to 10pt at the
   # ceiling, which is a third of a pill — enough to read as deliberate, small
   # enough that it never eats a row of a tiled window. Floored at 0 rather than
