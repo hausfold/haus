@@ -1535,6 +1535,68 @@
     "readOnly": false,
     "type": "boolean"
   },
+  "haus.pounce.autoQuit.delay": {
+    "declarations": [
+      "modules/pounce/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "2"
+    },
+    "description": "Seconds to wait after the last window closes before looking again and\nquitting. Load-bearing, not politeness: it is what tells \"I'm done with\nthis app\" apart from \"close this window, open another\" — which is what\na browser does when you close its last window and hit ⌘N. Anything open\nat the end of the wait, including panels and dialogs the ⌘Tab switcher\nwouldn't list, calls the quit off.\n\nTwo seconds is the responsive end of that trade. It is deliberately not\nenough for a cold IDE reopening a project — that is a case for\nhaus.pounce.autoQuit.exclude rather than for a delay you would feel on\nevery app.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "5"
+    },
+    "loc": [
+      "haus",
+      "pounce",
+      "autoQuit",
+      "delay"
+    ],
+    "readOnly": false,
+    "type": "integer or floating point number between 0.25 and 3600 (both inclusive)"
+  },
+  "haus.pounce.autoQuit.enable": {
+    "declarations": [
+      "modules/pounce/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Quit an app when you close its last window, the way Windows does it.\nmacOS keeps a windowless app running, so every one of them is a ⌘Q you\nforgot; with this on, pounce notices the last window go away and asks\nthe app to quit.\n\n*Asked*, not killed — it is the same Quit event ⌘Q sends, so an app\nwith unsaved work puts its sheet up and stays. Nothing here can lose\nwork that ⌘Q wouldn't. What it CAN do is stop background work you were\nkeeping a window open for: close Docker Desktop's dashboard and Docker\nis asked to quit, which stops your containers. Media players, torrent\nclients and chat apps have the same shape — that class of app is what\nhaus.pounce.autoQuit.exclude is for.\n\nReads the same window snapshot as the ⌘Tab switcher, so it wants the\nsame Accessibility grant (set haus.pounce.signingIdentity so it\nsurvives rebuilds) and shares the observers rather than taking its own.\nWithout the grant it stays off and says so in the log rather than\nguessing.\n\nOff by default: this changes when your apps die, which is a thing you\nfeel, and the muscle memory it suits is not everyone's.\n",
+    "loc": [
+      "haus",
+      "pounce",
+      "autoQuit",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.pounce.autoQuit.exclude": {
+    "declarations": [
+      "modules/pounce/options.nix"
+    ],
+    "default": {
+      "_type": "literalMD",
+      "text": "pounce's own list — `[ \"com.apple.finder\" ]`"
+    },
+    "description": "Bundle ids never auto-quit. `null` leaves pounce's own default in\nplace, which is `[ \"com.apple.finder\" ]` — Finder is the one app macOS\nruns windowless by design, and quitting it blinks the desktop out while\nit relaunches.\n\nA list you write **replaces** that default rather than extending it, so\nput Finder back in it unless you mean to drop it. `[ ]` really does\nmean nothing is excluded.\n\nRead a bundle id off any running app with\n`osascript -e 'id of app \"Notes\"'`.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"com.apple.finder\"\n  \"com.docker.docker\"\n  \"com.spotify.client\"\n]"
+    },
+    "loc": [
+      "haus",
+      "pounce",
+      "autoQuit",
+      "exclude"
+    ],
+    "readOnly": false,
+    "type": "null or (list of string)"
+  },
   "haus.pounce.enable": {
     "declarations": [
       "modules/pounce/options.nix"
