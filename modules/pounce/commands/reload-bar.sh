@@ -21,11 +21,14 @@ notify() {
 
 # Both bars, when there are two. haus.sill.bottom.enable runs a SECOND
 # SketchyBar instance along the bottom of the screen — the same binary under the
-# name `sill-bottom`, with its own mach service — and nothing restarts a bar on
-# rebuild, so this command IS how a changed pill takes effect. Reloading only the
-# top one leaves the bottom bar on the previous generation with nothing saying
-# half the reload didn't happen. The second binary exists only on a machine that
-# turned that bar on.
+# name `sill-bottom`, with its own mach service. A rebuild that changes the bar's
+# config now reloads both for you (the .haus-stamp onChange in
+# modules/sill/default.nix), so this command is the manual fallback rather than
+# the only way a changed pill takes effect — for a bar that went stale on its
+# own, or to drop live `--set` state a script left behind. It still has to cover
+# both: reloading only the top one leaves the bottom bar on the previous
+# generation with nothing saying half the reload didn't happen. The second binary
+# exists only on a machine that turned that bar on.
 SILL_BOTTOM=/run/current-system/sw/bin/sill-bottom
 
 if ! err="$(sketchybar --reload 2>&1)"; then
