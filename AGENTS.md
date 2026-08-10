@@ -44,7 +44,7 @@ elsewhere.
 
 | Want to change… | Repo |
 |---|---|
-| the rice: macOS defaults, tiling (prowl), bar (sill), shell (hearth), security (collar), secrets plumbing (secrets), pounce wiring (pounce), notch shelf install (perch), Focus/DND (hush), wallpaper/accent (theme), the apps every machine gets + what opens which file type (apps) | `~/code/workshop/hausfold` ← **you are here** |
+| the rice: macOS defaults, tiling (prowl), bar (sill), shell (hearth), security (collar), secrets plumbing (secrets), pounce wiring (pounce), notch shelf install (perch), Focus/DND (hush), accent + Light/Dark (theme), the generated desktop (wallpaper), the apps every machine gets + what opens which file type (apps) | `~/code/workshop/hausfold` ← **you are here** |
 | the pounce palette app or its command scripts | `~/code/workshop/pounce` |
 | colors / the theme palette | `~/code/workshop/nebelung` |
 | one machine's personal apps / identity / secrets | `~/.config/nix` (or that machine's own config) |
@@ -67,7 +67,7 @@ elsewhere.
 flake.nix                 # mkNebelhaus builder + darwinModules outputs + example host
 modules/
   default.nix             # imports all rooms
-  options.nix             # all host-set knobs: git.*, theme.{accent,wallpaper}, hearth.*,
+  options.nix             # all host-set knobs: git.*, theme.accent, wallpaper.*, hearth.*,
                           #   claude.globalMd, roster (the shared app list), prowl.*, sill.*,
                           #   pounce.*, hush.*, perch.*, tour.enable, homebrew.*, secrets.provider
   options-modules.nix     # the per-room options.nix list — shared by both renderers below
@@ -86,7 +86,11 @@ modules/
                           #   + on-PATH CLIs: haus / awake / zscratch / statusline
   displays/               # haus.displays: scaled resolution by intent + the
                           #   hausdisp helper (Swift, xcrun-compiled like pounce's)
-  theme/                  # desktop wallpaper + accent-derived bold wordmark
+  theme/                  # the accent, the flavour, macOS Light/Dark
+  wallpaper/              # haus.wallpaper.*: the desktop. `minimal` is GENERATED —
+                          #   package.nix renders it (resvg for the vector layer,
+                          #   ImageMagick for the 16-bit field), looks/ holds the
+                          #   hand-made Nebelung PNGs
   hearth/                 # shell: zsh, starship, git, yazi, zellij, ghostty + theming
     claude/               # the nebelhaus Claude Code skill (haus.claude.skill):
                           #   hand-written SKILL.md + recipes, plus an option reference

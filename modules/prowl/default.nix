@@ -243,146 +243,26 @@ let
     + lib.optionalString (isRealAssign a) "\n"
   ) apps;
 
-  # Window gaps follow haus.ui.scale. Base values are the tuned ones: 10 on
-  # the built-in display, 20 around an external. One outer edge reserves bar room
-  # — whichever edge sill's bar sits on (haus.sill.position) — and that edge is
-  # sized from the bar itself (`barEdge` below), not from a base value here.
-  gap = base: toString (builtins.floor (base * config.haus.ui.scale + 0.5));
-
-  # The bar's own resolution, shared with sill (../lib/bar.nix). prowl needs it
-  # for `bar.room`: a scaled bar draws BIGGER TYPE IN THE SAME 28pt PILL, because
-  # the pill's height belongs to the macOS menu-bar band rather than to us — so
-  # everything the type gains, it gains inside a box that didn't move, and the bar
-  # reads as full rather than as bigger. A full bar sitting flush against a tiled
-  # window stops looking like chrome and starts looking like the top of the
-  # window. `room` hands that growth back as space on the bar's edge — the
-  # separation the pill couldn't take vertically. 0 at ui.scale = 1.0, 10pt at the
-  # bar's ceiling.
-  #
-  # It rides the SAME barPos switch as the reservation below, so it lands above a
-  # bottom bar and below a top one without a second table to keep in sync.
-  bar = import ../lib/bar.nix {
+  # Every number in the [gaps] block, resolved from haus.ui.scale and the bar's
+  # position. It lives in ../lib/gaps.nix rather than here because prowl is no
+  # longer the only room that needs it: the wallpaper draws its debug band at the
+  # inset a tiled window will cover, which is these same reservations read back.
+  # prowl still owns the FORMATTING — the per-monitor table below is AeroSpace's
+  # syntax and nobody else's — but not the arithmetic.
+  gaps = import ../lib/gaps.nix {
     inherit lib;
     scale = config.haus.ui.scale;
+    sill = config.haus.sill;
   };
-  # A gap plus the bar's breathing room, for the edge the bar is on. Written as
-  # one function so the two can't be added in one branch and forgotten in another.
-  barGap =
-    base: toString (builtins.floor (base * config.haus.ui.scale + 0.5) + bar.room);
-
-  # The reservation for an edge the bar actually OCCUPIES: the bar's own height
-  # plus the same breathing room, and nothing else. It is a measurement, not a
-  # tuned gap, which is why it doesn't go through `gap`/`barGap`:
-  #
-  # - It must equal what sill draws. This was a hardcoded 40 from back when the
-  #   bar was 40pt tall; sill dropped to 36 in the Tahoe menu-bar fix (28pt pills
-  #   have to sit inside the 32pt band macOS's hover-reveal covers) and the
-  #   reservation never followed, so every bar edge has been carrying 4pt of dead
-  #   space since — most visibly under haus.sill.bottom.enable, where it's the
-  #   strip between the tiled windows and the second bar.
-  # - It must NOT scale. `gap 40` multiplies by haus.ui.scale, but the bar's
-  #   height is the one rice surface that can't grow (../lib/bar.nix: the height
-  #   belongs to the macOS menu-bar band, only the TYPE inside it scales). At
-  #   ui.scale = 1.25 the old form reserved 60pt for a bar still drawing 36.
-  #
-  # `bar.room` is the compensation for exactly that: growth the pill couldn't
-  # take vertically, handed back as space beside the bar. 36 at ui.scale = 1.0.
-  #
-  # Which leaves a top bar's edge FLUSH with the windows at scale 1.0 — on the
-  # EXTERNAL, the one display whose top macOS reserves nothing at. That is fine,
-  # and it is measured rather than assumed. The open question when the stale 40
-  # came out was the 4pt it had been leaving behind: a `top`/`auto` bar is not
-  # lifted (bar_topmost() in the generated position.sh lifts only a fixed
-  # `bottom` bar), so the tiled window composites its macOS drop shadow straight
-  # onto the strip. But that shadow is offset DOWNWARD — the heavy edge is the
-  # one UNDER a window, which is the whole reason sill's second bar has to be
-  # lifted and this one doesn't. The probe was the built-in's top strip, the
-  # same unlifted bar sitting 6pt further off (the notch band plus `barGap 10`):
-  # the pixels 1pt above the window read identical to the pixels at the very top
-  # of the screen, no gradient at all, and the left outer gap — where a side
-  # shadow would show if any edge but the bottom carried one — is just as flat.
-  # So the 4pt was buying nothing, and handing it back through `room` would buy
-  # nothing either: a 4pt buffer cannot hold off a shadow that blurs well past
-  # 4pt. If an external ever does show one, the answer is to lift the bar
-  # (topmost) rather than to widen the gap.
-  barEdge = toString (bar.barHeight + bar.room);
-
-  # Same rule for sill's SECOND bar, which is shorter (32) because it is the one
-  # bar that doesn't sit in the menu-bar band and so doesn't pay the band's
-  # clearance — see `bottomHeight` in ../lib/bar.nix. It matters more here than
-  # anywhere else that the number is the bar's own: at the bottom of a display
-  # macOS reserves nothing, so this gap is the ONLY thing keeping the tiled
-  # windows off a bar that draws above them (topmost=window).
-  bottomEdge = toString (bar.bottomHeight + bar.room);
-
-  # The bar-room reservation follows the bar. A built-in display's TOP is under
-  # the notch/menu-bar strip macOS already excludes, so a top bar needs no extra
-  # reservation there; the external, and a built-in's bottom, have no such strip,
-  # so the room is carved explicitly. `auto` maps cleanly onto the per-monitor
-  # keys — it pins the bar to the external's bottom and the built-in's notched top
-  # — so statically it reads as "bottom on external, top on built-in". (Caveat:
-  # docked with the lid open the bar sits at the bottom on BOTH displays; aerospace
-  # gaps can't flip per dock-state, so the built-in keeps its notch-tuned top in
-  # `auto`, leaving a small overlap at the built-in's bottom in that one case.)
-  #
-  # No sill, no bar, no reservation — `noBar` short-circuits both tables below
-  # to the tuned gaps. This used to be a `barPos` fallback of `"top"`, which
-  # made a rice with `haus.sill.enable = false` reserve `barEdge` at an
-  # EXTERNAL's top edge for a bar nobody draws: 36pt of dead wallpaper along the
-  # top of every external display. The built-in never showed it — a top bar
-  # reserves `barGap 10` there, which is the tuned gap plus `bar.room`, and
-  # `room` is 0 on an unscaled rice — so it only ever bit the display that
-  # can't be tested without plugging one in.
-  noBar = !config.haus.sill.enable;
-  barPos = config.haus.sill.position;
-  monLine = builtin: external: ''[{ monitor."Built-in Retina Display" = ${builtin} }, ${external}]'';
-  # `barEdge` sizes an edge the bar sits ON, `barGap`/`gap` an edge it doesn't.
-  # On the built-in with a top bar that means barGap 10 rather than barEdge: the
-  # notch strip already excludes the bar's height there, so the reservation stays
-  # at its tuned 10 — but the pills still end right where the windows begin, which
-  # is the one place the breathing room matters MOST rather than least.
-  outerTop =
-    if noBar then
-      monLine (gap 10) (gap 20)
-    else
-      {
-        top = monLine (barGap 10) barEdge;
-        bottom = monLine (gap 10) (gap 20);
-        auto = monLine (barGap 10) (gap 20);
-      }
-      .${barPos};
-  # sill's optional SECOND bar (haus.sill.bottom.enable) draws at the bottom of
-  # every display, AS WELL AS the main bar rather than instead of it — so when
-  # it's on, the bottom edge reserves room whatever `barPos` would have said.
-  # macOS is no help here: it excludes the menu-bar strip at the top of a display
-  # and excludes NOTHING at the bottom, so without this the second bar simply
-  # draws over the tiled windows on both screens. (Both bars on the SAME edge is
-  # the one case this can't fix — sill warns about it.)
-  bottomBar = config.haus.sill.enable && config.haus.sill.bottom.enable;
-  outerBottom =
-    if bottomBar then
-      # `bottomEdge` unless the MAIN bar is parked down here too, where the
-      # taller of the two is what has to be cleared. The test is `!= "top"`, not
-      # `== "bottom"`: `auto` resolves to the bottom whenever an external display
-      # is attached, which is the same overlap, and it's the exact condition
-      # sill's own "the two bars share the bottom edge" warning uses.
-      let
-        edge = if barPos != "top" then barEdge else bottomEdge;
-      in
-      monLine edge edge
-    else if noBar then
-      monLine (gap 10) (gap 20)
-    else
-      {
-        top = monLine (gap 10) (gap 20);
-        bottom = monLine barEdge barEdge;
-        auto = monLine (gap 10) barEdge;
-      }
-      .${barPos};
+  # AeroSpace's per-monitor form: a list whose first entry keys off the display's
+  # name and whose last is the fallback everything else takes.
+  monLine =
+    edge:
+    ''[{ monitor."Built-in Retina Display" = ${toString edge.builtin} }, ${toString edge.external}]'';
 
   aerospaceToml = builtins.replaceStrings
     [ "@HOME@" "@BIN@" "@MAIN_STATIC@" "@SERVICE_STATIC@" "@LAUNCH_MOVES@" "@LEADER_ENTRY@" "@SERVICE_ENTRY@" "@LAUNCH_LETTERS@" "@WINDOW_RULES@" "@FLOAT_RULES@" "@PERSISTENT_WS@" "@GAP_BUILTIN@" "@GAP_EXTERNAL@" "@GAP_OUTER_TOP@" "@GAP_OUTER_BOTTOM@" ]
-    [ homeDir binDir mainStatic serviceStatic launchMoves (subTokens leaderEntry) serviceEntry (launchLetters + launchExtras) windowRules floatRules persistentWorkspaces (gap 10) (gap 20) outerTop outerBottom ]
+    [ homeDir binDir mainStatic serviceStatic launchMoves (subTokens leaderEntry) serviceEntry (launchLetters + launchExtras) windowRules floatRules persistentWorkspaces (toString gaps.inner.builtin) (toString gaps.inner.external) (monLine gaps.outer.top) (monLine gaps.outer.bottom) ]
     (builtins.readFile ./aerospace.toml);
 
   resortScript = builtins.replaceStrings [ "@RESORT_CASES@" ] [ resortCases ] (

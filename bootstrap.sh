@@ -250,7 +250,8 @@ GIT_EMAIL="${NEBELHAUS_GIT_EMAIL:-$(git config --global user.email 2>/dev/null |
 GIT_SIGNING=""
 ACCENT="${NEBELHAUS_ACCENT:-mauve}"
 EDITOR_CHOICE="${NEBELHAUS_EDITOR:-hx}"
-# Wallpaper: none (default — leave it alone) or orbits/constellation/flow/bold.
+# Wallpaper: none (default — leave it alone), the generated `minimal` haus look,
+# or one of the inherited Nebelung ones.
 WALLPAPER="${NEBELHAUS_WALLPAPER:-none}"
 ADOPT_CASKS=""
 # Rooms: a comma list of the ones ON (default all three); omit one to disable it.
@@ -318,9 +319,9 @@ if [ -n "$INTERACTIVE" ]; then
     ACCENT="$(printf 'mauve\nblue\nsapphire\nsky\nteal\ngreen\nyellow\npeach\nmaroon\nred\npink\nflamingo\nrosewater\nlavender' \
       | "$GUM" choose --header 'Accent colour:')"; ACCENT="${ACCENT:-mauve}"
 
-    # Enter takes the shown default (orbits); Esc/skip keeps your wallpaper.
-    WALLPAPER="$(printf 'orbits\nconstellation\nflow\nbold\nnone' \
-      | "$GUM" choose --header 'Desktop wallpaper — Nebelung looks · bold follows your accent · none keeps yours:')"
+    # Enter takes the shown default (minimal); Esc/skip keeps your wallpaper.
+    WALLPAPER="$(printf 'minimal\norbits\nconstellation\nflow\nbold\nnone' \
+      | "$GUM" choose --header 'Desktop wallpaper — minimal is the haus mark on your palette · bold follows your accent · none keeps yours:')"
     WALLPAPER="${WALLPAPER:-none}"
 
     EDITOR_CHOICE="$(printf 'hx\nnvim\nvim\nnano' | "$GUM" choose --header 'Default $EDITOR:')"
@@ -409,7 +410,7 @@ preflight_audit() {
   [ -n "$ROOM_SILL" ]   && printf '              Hide native menu bar: %s -> true (Sill draws its own)\n' "$(dflt -g _HIHideMenuBar)"
   [ -n "$ROOM_PROWL" ]  && printf '              Caps Lock -> a leader key for tiling + the app launcher\n'
   [ -n "$ROOM_POUNCE" ] && printf '              ⌘Space   -> the pounce palette (disabled for Spotlight)\n'
-  [ "$WALLPAPER" != "none" ] && printf '              Desktop wallpaper:    set to the Nebelung "%s" look (your current one is not deleted)\n' "$WALLPAPER"
+  [ "$WALLPAPER" != "none" ] && printf '              Desktop wallpaper:    set to the "%s" look (your current one is not deleted)\n' "$WALLPAPER"
 
   printf '  undo      nothing is switched until you run the build below; the snapshot\n'
   printf '            taken above + `darwin-rebuild --rollback` revert it.\n'
@@ -463,7 +464,7 @@ opt_lines=""
 [ -z "$ROOM_PROWL" ]  && opt_lines+="  haus.prowl.enable = false;"$'\n'
 [ -z "$ROOM_POUNCE" ] && opt_lines+="  haus.pounce.enable = false;"$'\n'
 [ "$ACCENT" != "mauve" ] && opt_lines+="  haus.theme.accent = \"$ACCENT\";"$'\n'
-[ "$WALLPAPER" != "none" ] && opt_lines+="  haus.theme.wallpaper = \"$WALLPAPER\";"$'\n'
+[ "$WALLPAPER" != "none" ] && opt_lines+="  haus.wallpaper.style = \"$WALLPAPER\";"$'\n'
 [ "$EDITOR_CHOICE" != "hx" ] && opt_lines+="  haus.hearth.editor = \"$EDITOR_CHOICE\";"$'\n'
 [ -n "$opt_lines" ] && opt_lines=$'\n'"$opt_lines"
 cask_lines=""

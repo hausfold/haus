@@ -52,7 +52,11 @@
   # ---- how it looks ---------------------------------------------------------
   theme = {
     order = 30;
-    blurb = "Colour and wallpaper.";
+    blurb = "Colour: the palette's flavour and contrast, the accent every themed tool spends, and whether macOS's own Light/Dark follows it.";
+  };
+  wallpaper = {
+    order = 35;
+    blurb = "The desktop behind everything. `minimal` is generated on this machine — a flat field at whatever depth you pick out of the palette, the haus mark ⌂ at its centre, a bloom in your accent, and enough grain that none of it bands. The other looks are the hand-made Nebelung ones.";
   };
   fonts = {
     order = 40;

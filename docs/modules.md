@@ -66,7 +66,10 @@ darwinConfigurations.mymac = inputs.nebelhaus.mkNebelhaus {
 - **hush** — `haus.hush.*` for the Focus/DND hotkey, Slack status, and
   shell hooks.
 
-- **theme** — `haus.theme.accent` and `haus.theme.wallpaper`.
+- **theme** — `haus.theme.{flavor,contrast,accent,systemAppearance}`.
+
+- **wallpaper** — `haus.wallpaper.*`: the desktop, including the generated
+  `minimal` look.
 
 The full option list is [Making it
 yours](https://nebelhaus.com/guides/making-it-yours/) and

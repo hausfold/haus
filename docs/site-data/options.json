@@ -3624,7 +3624,7 @@
       "_type": "literalExpression",
       "text": "\"mauve\""
     },
-    "description": "The accent colour, by Catppuccin name (the Nebelung palette is a\ngrey-tinted Catppuccin, so the fourteen names are the same in both\nflavors — the hue you pick follows haus.theme.flavor). It recolours\nthe tools nebelhaus injects colours into — lazygit, fzf, yazi (including\nglow-rendered Markdown headings), and the Zen browser — via the matching\nNebelung per-accent ports.\n\nperch follows it too, and is the one surface handed the NAME rather than\na hex: the shelf resolves it against whichever half of its dark/light\npair macOS is showing, so the ember under the notch and a pinned tile\nwear this accent in both polarities from one key. Left at perch's\ndefault it accents with its own mark green.\n\nTwo more things follow it: the `bold` wallpaper (generated from the\naccent hex — see haus.theme.wallpaper), and any roster app whose\nNebelung port ships a per-accent matrix (zed, gh-dash, mpv), placed by\nhaus.theme.ports. Those ports name the theme file after the accent,\nso changing the accent renames the file the app's own `theme` key points\nat — re-pick it in the app, or it falls back to stock.\n\nHonest scope: this moves the accent on those tools, NOT literally\neverything. Single-file dotfiles that bake the palette at their own\ntheme slot (ghostty, starship, tmux, bat, zellij, …) keep their built-in\ncolour and don't follow this option. The base palette stays the same\nNebelung grey either way — only the accent hue changes.\n\nZen means Zen's own UI, and the web is a separate story. The rice places\nthe Nebelung userChrome/userContent pair, but userContent only styles\n`about:` pages — github.com and youtube.com are themed by the Stylus\nextension, whose Catppuccin-derived styles carry their OWN `accentColor`\nvar (default mauve) inside the extension's storage, where no stylesheet\ncan reach it. Declare `haus.zen.extensions.stylus` and the rice\nstamps that var with this accent and tells you, once, when there's a new\nbundle to import; the import itself stays a click, because Stylus has no\nfile interface. Until you make it, the web keeps the accent you last\nimported.\n\nBoth halves of that are pinned by the `accent-reach` flake check, which\nfingerprints every surface under three accents and fails if one starts\nor stops following the accent without anyone deciding it should.\n",
+    "description": "The accent colour, by Catppuccin name (the Nebelung palette is a\ngrey-tinted Catppuccin, so the fourteen names are the same in both\nflavors — the hue you pick follows haus.theme.flavor). It recolours\nthe tools nebelhaus injects colours into — lazygit, fzf, yazi (including\nglow-rendered Markdown headings), and the Zen browser — via the matching\nNebelung per-accent ports.\n\nperch follows it too, and is the one surface handed the NAME rather than\na hex: the shelf resolves it against whichever half of its dark/light\npair macOS is showing, so the ember under the notch and a pinned tile\nwear this accent in both polarities from one key. Left at perch's\ndefault it accents with its own mark green.\n\nTwo more things follow it: the generated desktop (the bloom behind the\nmark in `minimal`, and the whole sweep in `bold` — see\nhaus.wallpaper.style), and any roster app whose\nNebelung port ships a per-accent matrix (zed, gh-dash, mpv), placed by\nhaus.theme.ports. Those ports name the theme file after the accent,\nso changing the accent renames the file the app's own `theme` key points\nat — re-pick it in the app, or it falls back to stock.\n\nHonest scope: this moves the accent on those tools, NOT literally\neverything. Single-file dotfiles that bake the palette at their own\ntheme slot (ghostty, starship, tmux, bat, zellij, …) keep their built-in\ncolour and don't follow this option. The base palette stays the same\nNebelung grey either way — only the accent hue changes.\n\nZen means Zen's own UI, and the web is a separate story. The rice places\nthe Nebelung userChrome/userContent pair, but userContent only styles\n`about:` pages — github.com and youtube.com are themed by the Stylus\nextension, whose Catppuccin-derived styles carry their OWN `accentColor`\nvar (default mauve) inside the extension's storage, where no stylesheet\ncan reach it. Declare `haus.zen.extensions.stylus` and the rice\nstamps that var with this accent and tells you, once, when there's a new\nbundle to import; the import itself stays a click, because Stylus has no\nfile interface. Until you make it, the web keeps the accent you last\nimported.\n\nBoth halves of that are pinned by the `accent-reach` flake check, which\nfingerprints every surface under three accents and fails if one starts\nor stops following the accent without anyone deciding it should.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"sapphire\""
@@ -3666,7 +3666,7 @@
       "_type": "literalExpression",
       "text": "\"mocha\""
     },
-    "description": "Light or dark. \"mocha\" (the default) is the rice as it has always been;\n\"latte\" is light mode.\n\nNot an inversion of the dark palette — a different SOURCE palette. Nebelung\nis \"Catppuccin with the blue stripped out\", and those rules say nothing\nabout dark, so they apply to Catppuccin Latte just as well: same warm-grey\nneutral ramp, same calmed accents, the other polarity. Light mode lands at\n7.0:1 for body text on its own, so it's legible before you reach for\ncontrast = \"high\" (which takes it to 9.9:1).\n\nIt composes with `contrast`: the two axes give four palettes, and nebelung's\nCI measures each one's contrast ratio rather than eyeballing it.\n\nHonest scope, in two parts.\n\nWhat follows it: every tool the rice injects colours into or points at a\nrendered theme — Ghostty, bat, delta, lsd, yazi, fzf, glow, starship,\nlazygit, helix, zellij, opencode, the bar, Zen and Obsidian.\nThese are genuinely re-rendered for the flavor, not recoloured in place:\nwhiskers takes different branches for a light flavor (terminal ANSI\n0/7/8/15 swap, Zen switches its prefers-color-scheme block, delta sets\n`light = true`).\n\nWhat does NOT follow it:\n\n  - pounce and perch, by default. Both read their palette at runtime and\n    can pick per polarity, so haus.pounce.followSystemAppearance\n    and haus.perch.followSystemAppearance (default true) hand that\n    choice to macOS Light/Dark instead: the rice installs every rendered\n    variant into ~/.config/{pounce,perch}/themes/ and writes the\n    dark/light PAIR at your `contrast`. Set either option false to pin\n    that app to this flavor like everything else.\n  - macOS's own Light/Dark appearance, unless you opt in with\n    haus.theme.systemAppearance = \"flavor\". Left at its default the\n    rice does not touch system appearance in either direction, so a\n    latte rice on a dark macOS looks half-done and that half is yours —\n    except in pounce and perch, which read the appearance themselves.\n  - the desktop wallpaper (haus.theme.wallpaper). The three hand-made\n    looks have the dark palette baked in; only \"bold\" is generated, and it\n    follows theme.accent rather than the flavor.\n",
+    "description": "Light or dark. \"mocha\" (the default) is the rice as it has always been;\n\"latte\" is light mode.\n\nNot an inversion of the dark palette — a different SOURCE palette. Nebelung\nis \"Catppuccin with the blue stripped out\", and those rules say nothing\nabout dark, so they apply to Catppuccin Latte just as well: same warm-grey\nneutral ramp, same calmed accents, the other polarity. Light mode lands at\n7.0:1 for body text on its own, so it's legible before you reach for\ncontrast = \"high\" (which takes it to 9.9:1).\n\nIt composes with `contrast`: the two axes give four palettes, and nebelung's\nCI measures each one's contrast ratio rather than eyeballing it.\n\nHonest scope, in two parts.\n\nWhat follows it: every tool the rice injects colours into or points at a\nrendered theme — Ghostty, bat, delta, lsd, yazi, fzf, glow, starship,\nlazygit, helix, zellij, opencode, the bar, Zen and Obsidian.\nThese are genuinely re-rendered for the flavor, not recoloured in place:\nwhiskers takes different branches for a light flavor (terminal ANSI\n0/7/8/15 swap, Zen switches its prefers-color-scheme block, delta sets\n`light = true`).\n\nWhat does NOT follow it:\n\n  - pounce and perch, by default. Both read their palette at runtime and\n    can pick per polarity, so haus.pounce.followSystemAppearance\n    and haus.perch.followSystemAppearance (default true) hand that\n    choice to macOS Light/Dark instead: the rice installs every rendered\n    variant into ~/.config/{pounce,perch}/themes/ and writes the\n    dark/light PAIR at your `contrast`. Set either option false to pin\n    that app to this flavor like everything else.\n  - macOS's own Light/Dark appearance, unless you opt in with\n    haus.theme.systemAppearance = \"flavor\". Left at its default the\n    rice does not touch system appearance in either direction, so a\n    latte rice on a dark macOS looks half-done and that half is yours —\n    except in pounce and perch, which read the appearance themselves.\n  - three of the six desktops (haus.wallpaper.style). The hand-made\n    \"orbits\", \"constellation\" and \"flow\" have the dark palette baked into\n    their pixels; \"bold\" is generated but follows theme.accent rather\n    than the flavor. \"minimal\" DOES follow it, in every part — field,\n    mark, glow and debug band.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"latte\""
@@ -3717,27 +3717,6 @@
     ],
     "readOnly": false,
     "type": "one of \"unmanaged\", \"flavor\", \"light\", \"dark\""
-  },
-  "haus.theme.wallpaper": {
-    "declarations": [
-      "modules/theme/options.nix"
-    ],
-    "default": {
-      "_type": "literalExpression",
-      "text": "\"none\""
-    },
-    "description": "The desktop wallpaper, set at each home-manager activation (osascript,\nevery desktop on the current Space). Four Nebelung looks:\n\n  orbits · constellation · flow  hand-made, the palette baked in\n  bold                           generated from theme.accent, so it\n                                 follows the accent (a bold pink at\n                                 accent = \"pink\")\n\nDefault \"none\" leaves your current wallpaper alone — changing the\ndesktop is visible and personal, so nothing moves unless you ask (the\nbootstrap interview offers the choice on a fresh install).\n",
-    "example": {
-      "_type": "literalExpression",
-      "text": "\"orbits\""
-    },
-    "loc": [
-      "haus",
-      "theme",
-      "wallpaper"
-    ],
-    "readOnly": false,
-    "type": "one of \"none\", \"orbits\", \"constellation\", \"flow\", \"bold\""
   },
   "haus.tour.enable": {
     "declarations": [
@@ -3835,6 +3814,411 @@
     ],
     "readOnly": false,
     "type": "integer or floating point number between 0.5 and 3.0 (both inclusive)"
+  },
+  "haus.wallpaper.background": {
+    "declarations": [
+      "modules/wallpaper/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The field colour, as a literal hex — an escape hatch out of the palette\nfor a desktop that wants a colour the rice doesn't have.\n\nNull (the default) resolves it from haus.wallpaper.depth against the\nflavour's ladder, which is the arrangement that keeps following the\ntheme. Setting this pins the field and `depth` stops meaning anything.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"#0b0b0e\""
+    },
+    "loc": [
+      "haus",
+      "wallpaper",
+      "background"
+    ],
+    "readOnly": false,
+    "type": "null or string matching the pattern #[0-9a-fA-F]{6}"
+  },
+  "haus.wallpaper.debug.enable": {
+    "declarations": [
+      "modules/wallpaper/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Print this machine's lock edges in the bottom-left corner — which\nrevision of each family repo the running system was built from.\n\nIt is a detail rather than a readout. It sits at exactly the inset a\ntiled window covers (see `debug.inset`), so it is invisible the moment\nanything is on screen and only ever surfaces on a bare desktop; it is\nset small, dim and wide-tracked; and it names four repos rather than\neverything the flake pins. Off by default.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "wallpaper",
+      "debug",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.wallpaper.debug.inputs": {
+    "declarations": [
+      "modules/wallpaper/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ \"self\" \"nebelung\" \"pounce\" \"perch\" \"holt\" ]"
+    },
+    "description": "Which flake inputs the band names, in the order it prints them. `self`\nis the rice itself and prints as `haus`; every other entry is an input\nname out of the rice's own flake, and one that isn't there is skipped\nrather than failing the build.\n\nThe default is the family chain, which is the one thing a rev is worth\nknowing on a desktop: it's what `bench status` calls the lock edges, and\nthe answer to \"is this machine running the branch I just merged\".\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"self\"\n  \"nixpkgs\"\n]"
+    },
+    "loc": [
+      "haus",
+      "wallpaper",
+      "debug",
+      "inputs"
+    ],
+    "readOnly": false,
+    "type": "list of string"
+  },
+  "haus.wallpaper.debug.inset": {
+    "declarations": [
+      "modules/wallpaper/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "How far in from the bottom-left corner the band sits, in PICTURE\nPIXELS.\n\nNull derives it from the tiling gaps — the widest outer reservation any\nattached display could be using (../lib/gaps.nix, the same numbers prowl\nwrites into aerospace.toml), doubled for a Retina display's two pixels\nper point. That lands the band exactly at a tiled window's bottom-left\ncorner, which is the whole trick: the text is under the windows, not\nbeside them, so a tiled desktop hides it completely and a bare one\ndoesn't.\n\nSet a number if your display isn't 2× — or if you'd rather see it.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "96"
+    },
+    "loc": [
+      "haus",
+      "wallpaper",
+      "debug",
+      "inset"
+    ],
+    "readOnly": false,
+    "type": "null or (unsigned integer, meaning >=0)"
+  },
+  "haus.wallpaper.debug.size": {
+    "declarations": [
+      "modules/wallpaper/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "0.011"
+    },
+    "description": "The band's type size, as a fraction of the picture's short edge. It is\nset in haus.fonts.mono, so the desktop and the terminal in front of it\nare the same typeface.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "0.02"
+    },
+    "loc": [
+      "haus",
+      "wallpaper",
+      "debug",
+      "size"
+    ],
+    "readOnly": false,
+    "type": "integer or floating point number between 0.002 and 0.1 (both inclusive)"
+  },
+  "haus.wallpaper.depth": {
+    "declarations": [
+      "modules/wallpaper/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "2"
+    },
+    "description": "How far in from the palette's outermost tone the field sits — the\nanswer to \"I want it blacker\" without anyone having to name a colour.\n\nNebelung's background tones are a ladder of six, ordered here from the\nend nearest the polarity's extreme inwards, so the SAME number means the\nsame distance from black in a dark rice and from white in a light one:\n\n  depth  dark (mocha)          light (latte)\n  0      crust    #121212      base     #f1f1f1\n  1      mantle   #191919      mantle   #e9e9e9\n  2      base     #202020      crust    #e0e0e0     ← default\n  3      surface0 #343434      surface0 #d0d0d0\n  4      surface1 #494949      surface1 #c0c0c0\n  5      surface2 #5c5c5c      surface2 #b0b0b0\n\n0 is as far out as the palette goes — our blackest black, our whitest\nwhite. 2 is the canvas every other rice surface draws on, which is why\nit's the default: the desktop reads as the same material as the\nterminal behind it rather than as a hole cut in it.\n\nWhich flavour's column applies follows haus.theme.flavor, like every\nother themed surface. haus.wallpaper.background overrides the whole\nthing with a literal hex.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "0"
+    },
+    "loc": [
+      "haus",
+      "wallpaper",
+      "depth"
+    ],
+    "readOnly": false,
+    "type": "integer between 0 and 5 (both inclusive)"
+  },
+  "haus.wallpaper.glow.color": {
+    "declarations": [
+      "modules/wallpaper/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The colour the bloom tends towards at its centre. Null takes\nhaus.theme.accent's hex, which is what makes the desktop change\ntemperature with the accent without anyone wiring a second colour.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"#8db4f3\""
+    },
+    "loc": [
+      "haus",
+      "wallpaper",
+      "glow",
+      "color"
+    ],
+    "readOnly": false,
+    "type": "null or string matching the pattern #[0-9a-fA-F]{6}"
+  },
+  "haus.wallpaper.glow.enable": {
+    "declarations": [
+      "modules/wallpaper/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "A single broad bloom behind the mark, so the field reads as lit rather\nthan as a fill. Subtle by construction — see `glow.strength`.\n",
+    "loc": [
+      "haus",
+      "wallpaper",
+      "glow",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.wallpaper.glow.spread": {
+    "declarations": [
+      "modules/wallpaper/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "1.15"
+    },
+    "description": "The bloom's diameter, as a multiple of the picture's long edge. Above 1\nits falloff runs off the edges and the field reads as evenly lit from\nthe middle; below 1 it closes into a halo around the mark.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "0.6"
+    },
+    "loc": [
+      "haus",
+      "wallpaper",
+      "glow",
+      "spread"
+    ],
+    "readOnly": false,
+    "type": "integer or floating point number between 0.2 and 4.0 (both inclusive)"
+  },
+  "haus.wallpaper.glow.strength": {
+    "declarations": [
+      "modules/wallpaper/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "7"
+    },
+    "description": "How much of the bloom is mixed into the field, as a percentage.\n\nSmall numbers on purpose: at 7 the accent is a few levels of lift you'd\nstruggle to name and would miss if it went. Past ~25 it stops being\nlight on a wall and starts being a coloured wallpaper, which is a\ndifferent desktop than this one.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "14"
+    },
+    "loc": [
+      "haus",
+      "wallpaper",
+      "glow",
+      "strength"
+    ],
+    "readOnly": false,
+    "type": "integer between 0 and 100 (both inclusive)"
+  },
+  "haus.wallpaper.grain": {
+    "declarations": [
+      "modules/wallpaper/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "0.01"
+    },
+    "description": "Film grain over the whole field, as a fraction of full scale — and the\nreason the glow doesn't band.\n\nThis is dither, dressed as texture. A soft glow across two thousand\npixels spends perhaps ten of the 256 levels an 8-bit PNG has, so it\nquantises into visible contour rings — the \"steppy gradient\" every\nhand-made wallpaper picks up on the way out of an image editor. Noise of\na couple of levels, added BEFORE the render is reduced to 8 bits, breaks\nthose contours into something the eye integrates back to smooth. 0.004\nis enough to hide them; the default is comfortably past that.\n\n0 turns it off. Do that only with `glow.enable = false` too — a glow on\nan ungrained field is exactly the picture this exists to prevent.\n\nIt costs file size (noise doesn't compress): about 3 MB at 0, 6 MB at\n0.004, 12 MB at 0.012 for a 6 MP picture.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "0.0"
+    },
+    "loc": [
+      "haus",
+      "wallpaper",
+      "grain"
+    ],
+    "readOnly": false,
+    "type": "integer or floating point number between 0.0 and 0.1 (both inclusive)"
+  },
+  "haus.wallpaper.mark.color": {
+    "declarations": [
+      "modules/wallpaper/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"muted\""
+    },
+    "description": "What the mark is drawn in.\n\n  muted      the palette's overlay1 — present, not loud. The mark as it\n             sits on hausfold.co untouched.\n  ink        the palette's text colour, for a mark meant to be read\n             rather than noticed.\n  accent     haus.theme.accent's hex, flat.\n  spectrum   the whole family at once: a conic sweep through the six\n             product accents — nebelung, holt, perch, trill, pounce,\n             nebelhaus — clipped to the stroke. This is the ⌂ as it\n             looks with a pointer on it on hausfold.co, held still.\n\n`spectrum` follows the flavour like everything else: the six are the\nNebelung pastels in a dark rice and their darker counterparts in a\nlight one, because a pastel sheen on a white wall is invisible.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"spectrum\""
+    },
+    "loc": [
+      "haus",
+      "wallpaper",
+      "mark",
+      "color"
+    ],
+    "readOnly": false,
+    "type": "one of \"muted\", \"ink\", \"accent\", \"spectrum\""
+  },
+  "haus.wallpaper.mark.enable": {
+    "declarations": [
+      "modules/wallpaper/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Draw the haus mark ⌂ at the centre. Off leaves the field, the glow and\nthe grain — which is a perfectly good desktop, and the fastest way to\nget one flat colour that still isn't flat.\n",
+    "loc": [
+      "haus",
+      "wallpaper",
+      "mark",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.wallpaper.mark.opacity": {
+    "declarations": [
+      "modules/wallpaper/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "1.0"
+    },
+    "description": "The mark's opacity over the field. Worth reaching for with `spectrum`,\nwhich is the one colour here loud enough to want turning down.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "0.55"
+    },
+    "loc": [
+      "haus",
+      "wallpaper",
+      "mark",
+      "opacity"
+    ],
+    "readOnly": false,
+    "type": "integer or floating point number between 0.0 and 1.0 (both inclusive)"
+  },
+  "haus.wallpaper.mark.rise": {
+    "declarations": [
+      "modules/wallpaper/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "0.0"
+    },
+    "description": "How far above centre the mark sits, as a fraction of the picture's\nheight. Optical centre is a little above geometric centre, and a bar\nalong the top edge moves it further — a small positive number is the\nusual correction.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "0.06"
+    },
+    "loc": [
+      "haus",
+      "wallpaper",
+      "mark",
+      "rise"
+    ],
+    "readOnly": false,
+    "type": "integer or floating point number between -0.5 and 0.5 (both inclusive)"
+  },
+  "haus.wallpaper.mark.size": {
+    "declarations": [
+      "modules/wallpaper/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "0.11"
+    },
+    "description": "The mark's height, as a fraction of the picture's SHORT edge — so it\nkeeps its proportion whatever `size` and whatever display.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "0.3"
+    },
+    "loc": [
+      "haus",
+      "wallpaper",
+      "mark",
+      "size"
+    ],
+    "readOnly": false,
+    "type": "integer or floating point number between 0.01 and 0.9 (both inclusive)"
+  },
+  "haus.wallpaper.mark.weight": {
+    "declarations": [
+      "modules/wallpaper/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "0.055"
+    },
+    "description": "Stroke width, as a fraction of the mark's own height. The default is\ndrawn to the weight the ⌂ has on hausfold.co — light enough to read as\nan outline rather than as an icon.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "0.09"
+    },
+    "loc": [
+      "haus",
+      "wallpaper",
+      "mark",
+      "weight"
+    ],
+    "readOnly": false,
+    "type": "integer or floating point number between 0.005 and 0.25 (both inclusive)"
+  },
+  "haus.wallpaper.size": {
+    "declarations": [
+      "modules/wallpaper/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"3456x2234\""
+    },
+    "description": "The pixel size `minimal` is rendered at, `WIDTHxHEIGHT`.\n\nSet it to your display's NATIVE pixel count and macOS has nothing left\nto do: the picture lands one image pixel per screen pixel, which is the\nonly arrangement where the grain that keeps the glow smooth survives at\nthe size it was dithered for. Anything else is resampled, and resampling\nis where a gradient that was clean in the file starts to look stepped.\n\nThe default is the 16\" MacBook Pro panel — the largest built-in Retina\ndisplay, so a smaller one scales DOWN (soft, harmless) rather than up.\n`system_profiler SPDisplaysDataType` prints yours.\n\nAspect matters as much as size: macOS fills the screen and crops the\noverflow, so a picture narrower than the display loses its top and\nbottom — which is where `debug` draws. On a display of a different\nshape, set this to that display's own numbers.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"3024x1964\""
+    },
+    "loc": [
+      "haus",
+      "wallpaper",
+      "size"
+    ],
+    "readOnly": false,
+    "type": "string matching the pattern [0-9]+x[0-9]+"
+  },
+  "haus.wallpaper.style": {
+    "declarations": [
+      "modules/wallpaper/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"none\""
+    },
+    "description": "Which desktop this machine wears, set at each home-manager activation\n(osascript, every desktop on the current Space).\n\n  minimal        GENERATED here — a flat field in your palette, the\n                 haus mark ⌂ at its centre, and nothing else. The one\n                 haus-themed look, and the one every option below tunes.\n  orbits         hand-made Nebelung PNGs, the palette baked into their\n  constellation  pixels — they do not follow haus.theme.flavor.\n  flow\n  bold           generated from haus.theme.accent alone (a diagonal\n                 accent→crust sweep), which predates `minimal`.\n\nDefault \"none\" leaves whatever wallpaper you already have alone —\nchanging the desktop is visible and personal, so nothing moves unless\nyou ask (the bootstrap interview offers the choice on a fresh install).\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"minimal\""
+    },
+    "loc": [
+      "haus",
+      "wallpaper",
+      "style"
+    ],
+    "readOnly": false,
+    "type": "one of \"none\", \"minimal\", \"orbits\", \"constellation\", \"flow\", \"bold\""
   },
   "haus.workspaces": {
     "declarations": [

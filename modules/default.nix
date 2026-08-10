@@ -33,8 +33,12 @@
     ./displays
     ./theme
     # Split out of ./theme rather than folded into it: it's gated on its own
-    # option and reads the app roster, not the wallpaper choice.
+    # option and reads the app roster, not the theme's own keys.
     ./theme/ports.nix
+    # The desktop picture. Its own room rather than a value on ./theme because
+    # `minimal` is generated from four other rooms at once — the palette, the
+    # accent, prowl's gaps and the flake's lock edges.
+    ./wallpaper
     ./hearth
     # Split out of ./hearth for the same reason ./theme/ports.nix is split out
     # of ./theme: it's gated on its own option, and what's INSTALLED in the

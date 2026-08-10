@@ -21,17 +21,20 @@ jobs:
       # aarch64 only: nixpkgs 26.11 dropped x86_64-darwin, so there's no Intel
       # example left to eval (see flake.nix `allSystems`).
       - run: nix eval .#darwinConfigurations.example.system.drvPath
-      # The pure-lib checks are declared for Linux too precisely so they can run
-      # HERE — seven of them now: theme-variants and keymap pin the
+      # The platform-independent checks are declared for Linux too precisely so
+      # they can run HERE — eight of them now: theme-variants and keymap pin the
       # flavor/contrast → themes-subdir and keys.* → chord/glyph tables,
       # alert-volume pins the beep-volume ladder, data-only-surface fails on a
       # package-typed option a data-only rice cannot set, packs /
       # preset-composition pin what happens when two rices MEET (a pack against
       # a host, every pair of the presets), and site-data-current pins
-      # docs/site-data/ against the derivation the docs site reads. All seven
+      # docs/site-data/ against the derivation the docs site reads. Those seven
       # mirror a rule that lives in another repo, in a generated dotfile, or in a
-      # README — where drift is silent. Without this line they were declared and
-      # never executed.
+      # README — where drift is silent. The eighth, `wallpaper`, is the odd one
+      # out: it BUILDS the generated desktop and asserts its size and its colour
+      # count, which is the only automated thing that can notice the dither
+      # stopped reaching the 8-bit reduction and the gradient started banding.
+      # Without this line they were declared and never executed.
       #
       # Keep this census honest when a check is added: it is this repo's only
       # record of what CI actually covers, and it went one stale before anyone
@@ -54,7 +57,10 @@ jobs:
           tmpl=$(nix build --no-link --print-out-paths .#host-template)
           host=$(mktemp -d)
           printf '{ ... }:\n\n{\n  imports = [ ./options.nix ];\n}\n' > "$host/default.nix"
-          sed -E 's/^  # (haus\.)/  \1/' "$tmpl/share/nebelhaus/host-options.nix" \
+          # The ` =` is load-bearing — see modules/host-template.nix, which runs
+          # the same substitution: a description line that wraps to start with
+          # `haus.` is not an assignment and uncommenting it breaks the parse.
+          sed -E 's/^  # (haus\.[A-Za-z0-9._-]+ =)/  \1/' "$tmpl/share/nebelhaus/host-options.nix" \
             | grep -v '= …;$' > "$host/options.nix"
           # A prefix that no longer matches would uncomment NOTHING and this
           # step would pass on an empty host — the one failure it can't see.

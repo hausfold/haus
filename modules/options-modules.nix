@@ -25,6 +25,7 @@
   ./den/options.nix
   ./displays/options.nix
   ./theme/options.nix
+  ./wallpaper/options.nix
   ./hearth/options.nix
   ./prowl/options.nix
   ./sill/options.nix
