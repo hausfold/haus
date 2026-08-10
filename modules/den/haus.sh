@@ -15,7 +15,7 @@
 #   haus get             read one option, or list the machine overlay
 #   haus unset           force nullable options to null (variadic)
 #   haus reset           remove machine overrides and inherit config again (variadic)
-#   haus plan            preview what 'haus rebuild' would change — read-only
+#   haus plan            preview what 'haus rebuild' would change — packages, settings, files, launchd jobs, casks — read-only
 #   haus diff            declared config vs what macOS actually has right now — read-only
 #   haus capture         turn this Mac's current settings into config lines + a snapshot
 #   haus revert-settings put back a 'haus capture' snapshot (Nix rollback can't touch macOS defaults)
@@ -191,8 +191,9 @@ haus — the everyday CLI for a nebelhaus machine.
                       unset and reset take a LIST the way set takes pairs: several
                       paths land in ONE rebuild, all-or-nothing, so an intent that
                       took two options to make takes one command to undo
-  haus plan           preview what 'haus rebuild' would change — settings, packages,
-                      casks — without building anything into place
+  haus plan           preview what 'haus rebuild' would change — packages, macOS
+                      settings, the files home-manager writes into your home,
+                      launchd jobs, casks — without building anything into place
   haus diff           the config currently active on this machine vs what macOS
                       actually has right now (effective state, not just the plist)
   haus capture [cat…] turn this Mac's current settings into config lines, and
@@ -569,10 +570,364 @@ plan_homebrew() {
   info "cleanup=none means nothing is ever removed automatically — 'haus doctor' flags undeclared casks"
 }
 
+# ---- which config did we just read? -----------------------------------------
+# `haus` always evaluates $CONSUMER, never the directory you happen to be
+# standing in. That is right for the everyday case (any pane, any cwd, one
+# machine config) and silently wrong in exactly one: a LINKED GIT WORKTREE of
+# the config itself, which is how an agent lane edits a host file. From in
+# there, `haus plan` builds MAIN's config and then truthfully reports "nothing
+# was changed" about a branch it never read — and `haus rebuild` would activate
+# main while you believed you were feeling your branch. Nothing in the worktree
+# is reachable from $CONSUMER, so the honest fix is to say which tree was read
+# and name the way to point at this one.
+consumer_worktree_warning() {
+  local top common consumer ours
+  command -v git >/dev/null 2>&1 || return 0
+  # Every path here is resolved with cd+pwd -P before being compared. git reports
+  # physical paths, $CONSUMER is whatever the environment said, and one symlinked
+  # component anywhere in $HOME (or a /var → /private/var temp dir) is enough to
+  # make two spellings of the same directory look like two directories — which
+  # would silently switch this warning off in exactly the case it exists for.
+  consumer="$(cd "${CONSUMER%/}" 2>/dev/null && pwd -P || true)"
+  [ -n "$consumer" ] || return 0
+  top="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  [ -n "$top" ] || return 0
+  top="$(cd "$top" 2>/dev/null && pwd -P || true)"
+  [ -n "$top" ] || return 0
+  [ "$top" != "$consumer" ] || return 0
+  # The SHARED .git dir is what makes this another checkout of the config, rather
+  # than an unrelated repo you happen to be sitting in. Asked of BOTH sides
+  # rather than built as "$consumer/.git": a config that is a subdirectory of a
+  # bigger dotfiles repo has its common dir at that repo's root, and comparing
+  # against a constructed path would switch this warning off for exactly the
+  # setup it exists for. It also covers $CONSUMER itself being a worktree.
+  common="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  [ -n "$common" ] || return 0
+  common="$(cd "${common%/}" 2>/dev/null && pwd -P || true)"
+  [ -n "$common" ] || return 0
+  ours="$(git -C "$consumer" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  [ -n "$ours" ] || return 0
+  ours="$(cd "${ours%/}" 2>/dev/null && pwd -P || true)"
+  [ "$common" = "$ours" ] || return 0
+  warn "this is a worktree of your config ($top), but haus reads \$CONSUMER — so it is reading $consumer, not the branch checked out here."
+  info "to read THIS tree instead: HAUS_CONSUMER=$top haus <command>"
+}
+
+# ---- what a rebuild would write into $HOME ----------------------------------
+# The other half of a nebelhaus rebuild, and the half `plan` was blind to until
+# workshop#307: every file home-manager manages — the bar's items and plugins,
+# the shell, the tiling config, the agent skills. None of it is a
+# `system.defaults` key, so settings_diff cannot see it, and `nix store
+# diff-closures` does not report it either: the whole tree lands under ONE
+# store path whose name carries no version, and diff-closures only prints a
+# same-name entry once its size has moved enough to notice. Switching on seven
+# sill pills moved it 272 bytes, so `haus plan` said "nothing was changed"
+# about a bar that was about to grow seven pills.
+#
+# Ground truth is the built tree, the same discipline declared_defaults uses on
+# the activation script: walk home-files with the same `-type f -or -type l`
+# find home-manager's own linkGeneration walks, so the set compared here is
+# exactly the set that gets installed.
+
+# <activate script> -> TSV user \t home-manager-generation store path.
+# The chain nix-darwin emits per user, followed one hop at a time:
+#   activate → …-activation-<user> → …-home-manager-generation/activate
+# Read out of the script rather than picked out of the closure, because the
+# closure knows nothing about WHICH user a generation belongs to — a Mac with
+# two managed users would otherwise be compared against itself.
+# Both paths are matched by SHAPE — a 32-character store hash plus the suffix
+# nix-darwin/home-manager give it — rather than by a literal /nix/store prefix.
+# The store dir is configurable, and matching the shape is also what lets
+# test/haus-plan.sh check this against fixture scripts in a temp dir instead of
+# needing a real built system, which no CI runner has.
+hm_generations() {
+  local wrapper user gen
+  grep -oE '/[^ ]*/[a-z0-9]{32}-activation-[A-Za-z0-9_.-]+' "$1" 2>/dev/null | LC_ALL=C sort -u \
+    | while read -r wrapper; do
+        [ -f "$wrapper" ] || continue
+        user="${wrapper##*-activation-}"
+        gen="$(grep -oE '/[^ ]*/[a-z0-9]{32}-home-manager-generation' "$wrapper" 2>/dev/null | head -1 || true)"
+        [ -n "$gen" ] || continue
+        [ -d "$gen/home-files" ] || continue
+        printf '%s\t%s\n' "$user" "$gen"
+      done || true
+}
+
+# A content hash for the few entries in a home-files tree that are real files
+# rather than symlinks into the store. Three spellings because this script is
+# linted and tested on Linux and runs on macOS; `cksum` is the last resort and
+# is only ever a weaker hash, never a wrong answer.
+hash_file() {
+  if command -v shasum >/dev/null 2>&1; then shasum -a 256 -- "$1" | cut -d' ' -f1
+  elif command -v sha256sum >/dev/null 2>&1; then sha256sum -- "$1" | cut -d' ' -f1
+  else cksum -- "$1" | cut -d' ' -f1
+  fi
+}
+
+# TSV relpath \t l|f \t identity, for every file home-manager installs from one
+# home-files tree. `find` is deliberately NOT given -L: a symlink to a store
+# DIRECTORY (the sketchybar plugins dir, a Claude skill) is ONE managed entry,
+# and descending into it would compare files home-manager never links
+# individually — the same choice home-manager's own find makes. Identity is the
+# symlink target, which is content-addressed, so a differing target is a
+# differing file with no hashing needed for the 90% case.
+hm_file_list() {
+  local root p rel
+  # Resolved with cd+pwd -P, because `home-files` is ITSELF a symlink into the
+  # store: `find` without -L would stop at that one link and report a tree of
+  # exactly one entry. Not `readlink -f`, which is a GNU extension this script
+  # avoids everywhere else for the same reason (see now_ds).
+  root="$(cd "${1%/}" 2>/dev/null && pwd -P || true)"
+  [ -n "$root" ] || return 0
+  find "$root" \( -type f -o -type l \) -print 2>/dev/null | while IFS= read -r p; do
+    rel="${p#"$root"/}"
+    if [ -L "$p" ]; then printf '%s\tl\t%s\n' "$rel" "$(readlink "$p" || true)"
+    else printf '%s\tf\t%s\n' "$rel" "$(hash_file "$p" || true)"
+    fi
+  done || true
+}
+
+# The relative paths that carry an onChange hook, out of the BUILT home-manager
+# activation script, which emits one `echo "Running onChange hook for" <path>`
+# per hook. So this needs no table of which file reloads which daemon: sill
+# hashes its whole bar config into one stamp file precisely so ONE hook fires
+# when any of ~20 files move, and this reports that hook because the stamp is
+# in the changed set — not because anything here knows what sill is.
+hm_onchange_paths() {
+  grep -oE 'Running onChange hook for" .+' "$1/activate" 2>/dev/null \
+    | sed 's/^Running onChange hook for" //' || true
+}
+
+# The commands one hook runs, tidied for reading. home-manager wraps them in an
+# `if [[ ! -v DRY_RUN ]]` inside the hook's own `if (( ${changedFiles[<path>]}
+# == 1 ))` block, so the block is bounded by the path itself. The `== 1` is
+# part of the match on purpose: the same subscript also appears earlier in the
+# script, on the `_cmp` line that COMPUTES changedFiles, and matching that
+# would print the comparison instead of the hook. Store paths are shortened to
+# the binary's name and redirections dropped — this is a preview, not a script.
+hm_onchange_cmds() {
+  awk -v key="$2" '
+    /== 1 \)\)/ && index($0, "changedFiles[" key "]") { inblock = 1; next }
+    inblock && /^fi$/ { exit }
+    inblock && /^[[:space:]]*(if|fi|echo)/ { next }
+    inblock && NF {
+      # A trailing backslash continues the command, so join before tidying —
+      # home-managers font hook is a four-line rsync, and printing its lines
+      # separately renders half an invocation as if it were the whole hook.
+      line = line $0
+      if (sub(/\\[[:space:]]*$/, "", line)) next
+      print line; line = ""
+    }
+    END { if (line != "") print line }
+  ' "$1/activate" 2>/dev/null \
+    | sed -E 's#^[[:space:]]*##; s#^(run|\$DRY_RUN_CMD)[[:space:]]+##; s#^[^ ]*/##; s#[[:space:]]*(2>|>|\|\|).*$##' \
+    | awk 'NR <= 2 { print (length > 72 ? substr($0, 1, 71) "…" : $0) } NR == 3 { print "…" }' || true
+}
+
+# How many changed files to name before summarising. A nixpkgs bump can move
+# hundreds of managed files at once, and a preview that scrolls off the screen
+# is the same as no preview.
+FILE_CAP=25
+
+plan_files_user() { # <user> <new home-manager-generation> <old generation or empty>
+  local user="$1" newgen="$2" oldgen="$3"
+  local newlist oldlist touched hooks mark rel cmds
+  local added=0 removed=0 changed=0 shown=0 hooked=0
+
+  if [ -z "$oldgen" ]; then
+    info "$user: no home-manager generation in the running system — every managed file would be new"
+    return 0
+  fi
+
+  newlist="$(mktemp)"; oldlist="$(mktemp)"; touched="$(mktemp)"; hooks="$(mktemp)"
+  hm_file_list "$newgen/home-files" >"$newlist"
+  hm_file_list "$oldgen/home-files" >"$oldlist"
+
+  # FILENAME rather than the usual NR==FNR: an empty old list would make the
+  # whole new list look like the first file and report every change as nothing.
+  while IFS=$'\t' read -r mark rel; do
+    [ -n "$rel" ] || continue
+    case "$mark" in
+      +) added=$((added + 1)) ;;
+      -) removed=$((removed + 1)) ;;
+      '~') changed=$((changed + 1)) ;;
+    esac
+    [ "$mark" = "-" ] || printf '%s\n' "$rel" >>"$touched"
+    if [ "$shown" -lt "$FILE_CAP" ]; then
+      printf '  %s %s\n' "$mark" "$rel"
+      shown=$((shown + 1))
+    fi
+  done < <(
+    awk -F'\t' -v OFS='\t' -v oldfile="$oldlist" '
+      FILENAME == oldfile { kind[$1] = $2; id[$1] = $3; old[$1] = 1; next }
+      {
+        if (!($1 in old)) { print "+", $1; next }
+        delete old[$1]
+        if ($2 != kind[$1] || $3 != id[$1]) print "~", $1
+      }
+      END { for (p in old) print "-", p }
+    ' "$oldlist" "$newlist" | LC_ALL=C sort -t"$(printf '\t')" -k2,2
+  )
+
+  if [ "$((added + changed + removed))" -gt "$shown" ]; then
+    info "… and $((added + changed + removed - shown)) more"
+  fi
+
+  # Which onChange hooks that set would fire — the answer to "it landed on disk,
+  # but will anything notice?" A KeepAlive daemon that read its config once at
+  # boot (sketchybar, AeroSpace) keeps the old one in memory until its hook runs.
+  hm_onchange_paths "$newgen" | LC_ALL=C sort -u >"$hooks"
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    cmds="$(hm_onchange_cmds "$newgen" "$rel" | awk '{ printf "%s%s", sep, $0; sep = " · " } END { print "" }' || true)"
+    info "onChange: $rel → ${cmds:-a hook with no visible command}"
+    hooked=$((hooked + 1))
+  done < <(LC_ALL=C comm -12 "$hooks" <(LC_ALL=C sort -u "$touched"))
+
+  if [ "$((added + changed + removed))" = 0 ]; then
+    info "$user: no managed file would change ($(wc -l <"$newlist" | tr -d ' ') file(s) checked)"
+  else
+    info "$user: $changed changed, $added new, $removed removed — $hooked onChange hook(s) would fire"
+  fi
+  rm -f "$newlist" "$oldlist" "$touched" "$hooks"
+}
+
+plan_files() { # <new activate script> <the running system's activate script>
+  local newgens oldgens user newgen oldgen
+  newgens="$(hm_generations "$1")"
+  if [ -z "$newgens" ]; then
+    # Deliberately hedged rather than stated: a configuration genuinely without
+    # home-manager and a chain this failed to follow (an upstream rename of the
+    # `activation-<user>` wrapper, say) are indistinguishable from here, and
+    # "there are none" would be a verdict where only one of the two is true.
+    info "no home-manager generation found in this build — nothing to compare, or the activation chain has changed shape"
+    return 0
+  fi
+  oldgens="$(hm_generations "$2")"
+  while IFS=$'\t' read -r user newgen; do
+    [ -n "$user" ] || continue
+    oldgen="$(printf '%s\n' "$oldgens" | awk -F'\t' -v u="$user" '$1 == u { print $2; exit }')"
+    plan_files_user "$user" "$newgen" "$oldgen"
+  done < <(printf '%s\n' "$newgens")
+}
+
+# ---- which launchd jobs a rebuild would bounce ------------------------------
+# Not a table of services: nix-darwin emits, per job,
+#   if ! diff <the new plist in the store> <the installed plist>; then … reload
+# so this runs that exact comparison read-only, one step early. A job whose
+# plist is byte-identical is left alone by activation and reported unchanged
+# here — which is precisely why a sill config change alone never restarts the
+# bar (the plist didn't move), and why the onChange hook above is what makes it
+# live. `~user/…` is expanded from the user database rather than by the shell:
+# these paths come out of a generated script, and `eval`ing them to get a tilde
+# expanded would be a needless hole.
+expand_tilde() {
+  local rest user tail home
+  case "$1" in
+    "~"*)
+      rest="${1#\~}"; user="${rest%%/*}"; tail="${rest#*/}"
+      home=""
+      if command -v dscl >/dev/null 2>&1; then
+        # Not `awk '{print $2}'`: a home directory containing a space would be
+        # truncated at the first one, and every one of that user's agents would
+        # then report "will create" against a path that isn't theirs.
+        home="$(dscl . -read "/Users/$user" NFSHomeDirectory 2>/dev/null | sed -n 's/^NFSHomeDirectory: //p' | head -1 || true)"
+      fi
+      [ -n "$home" ] || home="$HOME"
+      printf '%s/%s\n' "${home%/}" "$tail"
+      ;;
+    *) printf '%s\n' "$1" ;;
+  esac
+}
+
+# TSV job name \t new plist \t installed plist, for every launchd job an
+# activation script guards with its own diff.
+launchd_pairs() {
+  sed -nE "s@^if ! diff '?([^' ]+)'? '?([^' ]+)'? &> /dev/null; then\$@\1\t\2@p" "$1" 2>/dev/null || true
+}
+
+plan_services() { # <new activate script> <the running system's activate script>
+  local new inst name installed
+  local reload="" create="" remove="" unchanged=0
+  local newnames oldnames
+
+  # A parse miss must never look like an answer. nix-darwin always ships at
+  # least one daemon (org.nixos.activate-system), so zero guards means the shape
+  # this reads has drifted — a bumped nix-darwin quoting that `if ! diff` line
+  # differently. Without this the removal set below would be `comm -13 <empty>
+  # <every running job>`, and plan would calmly announce that a rebuild is about
+  # to unload the bar, the tiling and the palette. Saying "I could not read it"
+  # is the only honest output there; silence that reads as a verdict is the
+  # exact failure this whole section was added to end.
+  if [ -z "$(launchd_pairs "$1")" ]; then
+    warn "could not read any launchd guard out of this build — skipping the services preview (the activation script's shape has changed; this is a haus bug, not a machine problem)."
+    return 0
+  fi
+
+  newnames="$(mktemp)"; oldnames="$(mktemp)"
+
+  while IFS=$'\t' read -r new inst; do
+    [ -n "$new" ] || continue
+    name="$(basename "$new" .plist)"
+    printf '%s\n' "$name" >>"$newnames"
+    installed="$(expand_tilde "$inst")"
+    if [ ! -e "$installed" ]; then
+      create="$create${create:+, }$name"
+    elif ! diff -q "$new" "$installed" >/dev/null 2>&1; then
+      reload="$reload${reload:+, }$name"
+    else
+      unchanged=$((unchanged + 1))
+    fi
+  done < <(launchd_pairs "$1")
+
+  # A job the new build no longer declares: activation unloads it. Read from the
+  # OLD script's job list, since the new one has no line left to parse. Skipped
+  # when the OLD script parses to nothing, for the mirror of the reason above: a
+  # running system whose guards this cannot read would otherwise contribute no
+  # names and quietly under-report a real removal.
+  if [ -n "${2:-}" ] && [ -r "$2" ] && [ -n "$(launchd_pairs "$2")" ]; then
+    launchd_pairs "$2" | cut -f1 | while IFS= read -r new; do basename "$new" .plist; done >"$oldnames"
+    while IFS= read -r name; do
+      [ -n "$name" ] || continue
+      remove="$remove${remove:+, }$name"
+    done < <(LC_ALL=C comm -13 <(LC_ALL=C sort -u "$newnames") <(LC_ALL=C sort -u "$oldnames"))
+  fi
+
+  [ -z "$reload" ] || printf '  will reload: %s\n' "$reload"
+  [ -z "$create" ] || printf '  will create: %s\n' "$create"
+  [ -z "$remove" ] || printf '  will remove: %s\n' "$remove"
+  if [ -z "$reload$create$remove" ]; then
+    info "no launchd job would change ($unchanged checked)"
+  else
+    info "$unchanged other job(s) unchanged"
+  fi
+  rm -f "$newnames" "$oldnames"
+}
+
+# How activation makes the settings above live — read out of the built script
+# rather than re-derived from modules/lib/restart-map.nix, so it cannot drift
+# from what a rebuild actually runs (den renders that table into these exact
+# calls). Unconditional by design, which is why this says "every rebuild"
+# rather than "because a key changed": it is also the answer to why your Finder
+# windows close.
+plan_restarts() {
+  local procs posts bits=""
+  procs="$(grep -oE '^killall -qu [^ ]+ [A-Za-z]+' "$1" 2>/dev/null | awk '{ print $4 }' | LC_ALL=C sort -u | paste -sd, - || true)"
+  posts="$(grep -oE "post-notification '?[A-Za-z0-9._-]+'?" "$1" 2>/dev/null | sed -E "s/post-notification '?//; s/'\$//" | LC_ALL=C sort -u | paste -sd, - || true)"
+  [ -z "$procs" ] || bits="restarts ${procs//,/, }"
+  if grep -q '"\$activateSettings" -u' "$1" 2>/dev/null; then
+    bits="$bits${bits:+ · }broadcasts activateSettings"
+  fi
+  [ -z "$posts" ] || bits="$bits${bits:+ · }posts ${posts//,/, }"
+  [ -z "$bits" ] || info "every rebuild also $bits"
+}
+
 cmd_plan() {
   local host drvfile drvpath sysfile sys difffile
   host="$(host_name)"
   say "$host · plan — a preview of 'haus rebuild' (read-only; nothing is built into place)"
+  info "from $CONSUMER"
+  consumer_worktree_warning
   [ -n "$VERBOSE" ] || echo
   log_open "plan $host from $CONSUMER"
 
@@ -600,13 +955,29 @@ cmd_plan() {
   echo
   say "settings"
   settings_diff "$sys/activate"
+  plan_restarts "$sys/activate"
+
+  # Everything home-manager writes into $HOME, which is most of the rice and
+  # none of the two sections above. See plan_files's header for why neither the
+  # closure diff nor the settings diff can see a bar pill being switched on.
+  echo
+  say "files"
+  plan_files "$sys/activate" /run/current-system/activate
+
+  echo
+  say "services"
+  plan_services "$sys/activate" /run/current-system/activate
 
   echo
   say "homebrew"
   plan_homebrew "$sys"
 
   echo
-  info "nothing was changed — apply this with: haus rebuild"
+  # NOT "nothing was changed", which is what this said until workshop#307: read
+  # directly under a files section listing ten changed files, that sentence
+  # reads as "your edit does nothing" rather than "this command changed
+  # nothing", and it was the line that made a real change look like a no-op.
+  info "this was a preview — nothing on this machine was touched. Apply it with: haus rebuild"
 }
 
 cmd_diff() {
@@ -837,6 +1208,7 @@ cmd_rebuild() {
   log_open "rebuild $host from $CONSUMER"
 
   say "$host · rebuild"
+  consumer_worktree_warning
   [ -n "$VERBOSE" ] || echo
 
   run_phase resolve heal resolve_drv "$host" "$drvfile" \
@@ -1842,6 +2214,20 @@ cmd_tour() {
     *)     die "unknown tour subcommand '$1' — try: haus tour [start|reset]" ;;
   esac
 }
+
+# Sourced, not run: test/haus-plan.sh exercises the parsers above directly (they
+# are pure text-and-tree functions, so CI can run them on Linux even though a
+# real `haus plan` needs a Mac with a built system). Everything above this line
+# is definitions; everything below is the CLI, so stopping here is the whole
+# library.
+#
+# Gated on ACTUALLY BEING SOURCED as well as on the variable, because `return`
+# outside a sourced script is a fatal error, not a no-op: keyed on HAUS_LIB
+# alone, one exported variable left in a shell would turn every later `haus` in
+# it into `can only 'return' from a function or sourced script`, exit 2, with no
+# other output. The subshell `return` is the standard probe — it succeeds only
+# when this file is being sourced.
+if [ -n "${HAUS_LIB:-}" ] && (return 0 2>/dev/null); then return 0; fi
 
 # -v anywhere turns the summary back into the raw stream (same as HAUS_VERBOSE=1).
 HAUS_ARGS=()

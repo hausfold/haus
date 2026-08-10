@@ -71,7 +71,8 @@ haus set theme.accent teal # write + apply options in the machine overlay (pairs
 haus get theme.accent      # read the declared value (or omit the path to list overrides)
 haus unset lock.requirePassword # explicitly set nullable options to null
 haus reset theme.accent    # remove overrides and inherit the rice/preset again
-haus plan            # preview what the next rebuild would change — read-only
+haus plan            # preview the next rebuild — packages, macOS settings, the files
+                     # home-manager writes into your home, launchd jobs, casks — read-only
 haus diff            # declared config vs what macOS actually has right now
 haus capture         # turn this Mac's current settings into config lines + a snapshot
 haus revert-settings # put back a 'haus capture' snapshot — undoes what haus rollback can't
