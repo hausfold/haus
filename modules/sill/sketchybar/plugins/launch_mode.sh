@@ -9,7 +9,12 @@
 #     letter, closed = grey;
 #   - open/active hints are moved to the LEFT of the row (keeping their original
 #     relative order) so the live state reads first;
-#   - the Apple logo becomes a → "go-to" glyph.
+#   - the haus logo pill INVERTS — same glyph, accent background, BASE glyph —
+#     so the lead reads as the same object in a different state. It used to be
+#     replaced outright by a → "go-to" glyph, which made the leftmost pill a
+#     different object every time the leader was armed, and left the swap
+#     fighting the pill's own state colours (plugins/logo.sh) for the one
+#     `icon.color` all of them have to share.
 # Nothing on the right side is touched. Tapping caps (F18) arms it; esc or any
 # launch action disarms it.
 #
@@ -21,20 +26,25 @@
 export PATH="/run/current-system/sw/bin:/opt/homebrew/bin:/usr/bin:/bin:$PATH"
 
 STATE="/tmp/sketchybar_launch_state"   # desired: "on" | "off"
-SNAP="/tmp/sketchybar_launch_apple.json"  # present == currently armed
+# Present == currently armed. plugins/logo.sh reads this path too — it is the
+# one signal that the logo pill is not its to paint — so the two agree on which
+# of them owns the pill without either querying the other.
+SNAP="/tmp/sketchybar_launch_logo.json"
 LOCK="/tmp/sketchybar_launch.lock"
 
 source "$HOME/.config/sketchybar/colors.sh"
-source "$HOME/.config/sketchybar/sizes.sh"
+# sizes.sh is deliberately not sourced any more: the only thing that needed it
+# was the ${BAR_FONT}:Bold:$FS_ICON on the lead-glyph swap, and the swap is gone.
+# SILL_LOGO_COLOR — the logo's resting accent, GENERATED from haus.sill.logo.*
+# (after colors.sh, which is where the `$MAUVE` it holds comes from). The fill
+# below is that same accent, so leader mode looks like the pill turned inside
+# out rather than like a colour arriving from nowhere.
+source "$HOME/.config/sketchybar/logo_config.sh"
 # LAUNCHERS (leader key -> workspace map) is GENERATED from haus._roster
 # into workspaces.sh — the same data-driven roster as the workspace pills, so the
 # picker can't drift from the app roster. (bash 3.2 has no assoc arrays, hence a
 # plain "<key>:<ws>" string.)
 source "$HOME/.config/sketchybar/workspaces.sh"
-
-# md-arrow-right-bold (U+F0734) as raw UTF-8 bytes — /bin/bash is 3.2, whose
-# printf has no \u/\U; \xHH works.
-ARROW=$(printf '\xF3\xB0\x9C\xB4')
 
 spaces() { sketchybar --query bar | jq -r '.items[] | select(startswith("space."))'; }
 
@@ -49,8 +59,17 @@ acquire_lock() {
 }
 
 do_arm() {
-    sketchybar --query apple.logo | jq '{
-        icon: .icon.value, font: .icon.font,
+    # Before the snapshot, and synchronously: the pointer can be sitting on the
+    # logo pill when caps is tapped, and the hover sweep is a loop in another
+    # process that would both overwrite the inverted pill and put a mid-tween
+    # colour into the snapshot below. logo.sh owns the pidfile, so it is the one
+    # that stops it — and it settles the pill un-animated on the way out, which
+    # is what makes the next two lines record a real state colour.
+    "$HOME/.config/sketchybar/plugins/logo.sh" sweep-stop 2>/dev/null
+
+    # The glyph is not snapshotted any more — it no longer changes. Only the
+    # two colours do, and only they are put back.
+    sketchybar --query haus.logo | jq '{
         color: .icon.color, bg: .geometry.background.color }' > "$SNAP"
 
     local focused open
@@ -80,11 +99,10 @@ do_arm() {
 
     eval "sketchybar $hide $colors"
 
-    # Lead glyph (separate call: the byte-glyph + spaced font name need quoting).
-    # Hide the ears image so the arrow glyph shows alone (the image otherwise
-    # draws on top of it); do_disarm turns it back on from the snapshot.
-    sketchybar --set apple.logo icon="$ARROW" icon.font="${BAR_FONT}:Bold:$FS_ICON" \
-               icon.color=$BASE background.color=$MAUVE background.image.drawing=off
+    # Invert the lead: the accent moves from the glyph to the pill behind it.
+    # Left in the same batch as everything else above (no separate call needed
+    # now that no glyph or font name has to be quoted through it).
+    sketchybar --set haus.logo icon.color=$BASE background.color="$SILL_LOGO_COLOR"
 
     # Move open/active hints to the left, original relative order preserved.
     sketchybar --reorder $active $closed
@@ -114,12 +132,13 @@ do_disarm() {
     done
     a+=" --set aerospace_watcher updates=on --set front_app drawing=on"
 
-    # Restore the Apple logo (glyph/font from the snapshot) in the SAME batch so
-    # the left side repaints in a single frame.
-    local ai af ac ab
-    ai=$(jq -r '.icon'  "$SNAP"); af=$(jq -r '.font'  "$SNAP")
-    ac=$(jq -r '.color' "$SNAP"); ab=$(jq -r '.bg'    "$SNAP")
-    a+=" --set apple.logo icon=$ai icon.font='$af' icon.color=$ac background.color=$ab background.image.drawing=on"
+    # Restore the logo's two colours from the snapshot in the SAME batch, so the
+    # left side repaints in a single frame. Restoring rather than recomputing is
+    # deliberate: a state tick between arm and disarm is a sub-second window
+    # nobody can hit, and logo.sh's next tick corrects it regardless.
+    local ac ab
+    ac=$(jq -r '.color' "$SNAP"); ab=$(jq -r '.bg' "$SNAP")
+    a+=" --set haus.logo icon.color=$ac background.color=$ab"
 
     eval "sketchybar $a"
     rm -f "$SNAP"

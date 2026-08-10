@@ -23,6 +23,12 @@ source "$HOME/.config/sketchybar/workspaces.sh"
 # SILL_POSITION_MODE (gates the auto hook near the end of this file).
 source "$HOME/.config/sketchybar/position.sh"
 
+# The far-left logo pill — GENERATED from haus.sill.logo.*. Defines
+# SILL_LOGO_ICON/SIZE/COLOR/STATUS/UPDATE_CHECK/SWEEP, read here and by
+# plugins/logo.sh (the state tick, the hover sweep and every click) and
+# plugins/launch_mode.sh (which fills the pill while the leader is armed).
+source "$HOME/.config/sketchybar/logo_config.sh"
+
 # General bar appearance
 # Floating-pill look: the bar background is fully transparent so there's no solid
 # band separating the menu bar from the wallpaper — each item floats on its own
@@ -88,122 +94,54 @@ sketchybar --default \
 
 ##### LEFT SIDE #####
 
-# Nebelhaus logo — the org's cat-ears mark on a SURFACE0 pill (matches the other
-# left-side pills), replacing the old blue-on-MANTLE Apple glyph. It's drawn as a
-# background.image (sketchybar can't render an SVG/PNG as an icon glyph, and no
-# Nerd Font carries the ears): a tinted PNG deployed by modules/sill/default.nix.
-# The item id stays `apple.logo` so the popup menu + launch_mode.sh keep working.
-# NB: launch_mode.sh toggles background.image.drawing off while it overlays the
-# leader-mode → arrow glyph, else the ears would draw on top of it.
-# The PNG carries a symmetric transparent border on purpose: sketchybar draws
-# background.image LEFT-anchored and has no image x_offset, so any pill-vs-image
-# slack piles up on one side — baking even padding into the asset self-centers
-# it (both axes) as long as icon.padding keeps the pill ~= the image width.
-sketchybar --add item apple.logo left \
-    --set apple.logo \
-        icon="" \
+# The haus logo — the rice's own mark, on a SURFACE0 pill matching the other
+# left-side pills. A GLYPH, not an image: haus.sill.logo.icon picks it,
+# haus.sill.logo.size sizes it, and everything else this pill does (the state
+# colour, the hover sweep, leader mode) is a colour change — which SketchyBar
+# can only apply to text. A `background.image`, which is how the nebelhaus
+# cat-ears mark was drawn here until now, takes no tint at all, so it could
+# follow neither haus.theme.accent nor any state. That is why there is no
+# option to point this at a file: every one of the four things below would
+# have to be dropped to keep the ability.
+#
+# The item id is `haus.logo`. It was `apple.logo` from the original scaffold
+# right through the ears, long after the last Apple glyph left it; the only two
+# readers are this file and plugins/launch_mode.sh.
+#
+# One item, five gestures, all of them in plugins/logo.sh (see there):
+#   left click        the haus menu — a prefilled pounce list of system rows
+#   ⌘ left click      haus rebuild, in a floating terminal
+#   right click       the full pounce palette (what a bare click used to do)
+#   hover             the six-accent sweep, when the state is clear
+#   update_freq tick  the state colour itself
+#
+# There is no popup dropdown. One hung off this item from the scaffold until
+# now — Preferences / Activity / Lock Screen / Nix Config / Reload SketchyBar —
+# and NOTHING ever set `popup.drawing` on it, so not one of those five rows was
+# ever clickable, and the two that were fixed over the years (nebelhaus#291's
+# both-bars reload, the hardcoded-hostname rebuild before it) were fixes to
+# dead code. They live in the palette, and in the haus menu, instead: written
+# once, and searchable there.
+#
+# `updates=on` rather than the default `when_shown`: the state tick has to keep
+# running while leader mode has the left side of the bar swapped out, or the
+# pill comes back wearing whatever colour it wore when the leader was armed.
+sketchybar --add item haus.logo left \
+    --set haus.logo \
+        icon="$SILL_LOGO_ICON" \
+        icon.font="${BAR_FONT}:Bold:$SILL_LOGO_SIZE" \
+        icon.color="$SILL_LOGO_COLOR" \
         label.drawing=off \
-        icon.padding_left=16 \
-        icon.padding_right=16 \
+        icon.padding_left=10 \
+        icon.padding_right=10 \
         background.padding_left=4 \
         background.padding_right=4 \
         background.color=$SURFACE0 \
-        background.image="$HOME/.config/sketchybar/nebelhaus-ears.png" \
-        background.image.scale=0.0595 \
-        background.image.drawing=on \
-        popup.background.border_width=2 \
-        popup.background.corner_radius=10 \
-        popup.background.border_color=$SURFACE0 \
-        popup.background.color=$MANTLE \
-        click_script="$HOME/.config/sketchybar/plugins/launch_palette.sh"
-
-sketchybar --add item apple.prefs popup.apple.logo \
-    --set apple.prefs \
-        icon= \
-        label="Preferences" \
-        icon.padding_left=10 \
-        label.padding_right=10 \
-        background.height=30 \
-        background.padding_left=0 \
-        background.padding_right=0 \
-        background.color=0x00000000 \
-        background.drawing=off \
-        click_script="open -a 'System Settings'; sketchybar --set apple.logo popup.drawing=off"
-
-sketchybar --add item apple.activity popup.apple.logo \
-    --set apple.activity \
-        icon= \
-        label="Activity" \
-        icon.padding_left=10 \
-        label.padding_right=10 \
-        background.height=30 \
-        background.padding_left=0 \
-        background.padding_right=0 \
-        background.color=0x00000000 \
-        background.drawing=off \
-        click_script="open -a 'Activity Monitor'; sketchybar --set apple.logo popup.drawing=off"
-
-sketchybar --add item apple.lock popup.apple.logo \
-    --set apple.lock \
-        icon= \
-        label="Lock Screen" \
-        icon.padding_left=10 \
-        label.padding_right=10 \
-        background.height=30 \
-        background.padding_left=0 \
-        background.padding_right=0 \
-        background.color=0x00000000 \
-        background.drawing=off \
-        click_script="osascript -e 'tell application \"System Events\" to keystroke \"q\" using {control down, command down}'; sketchybar --set apple.logo popup.drawing=off"
-
-sketchybar --add item apple.nix_config popup.apple.logo \
-    --set apple.nix_config \
-        icon= \
-        label="Nix Config" \
-        icon.padding_left=10 \
-        label.padding_right=10 \
-        background.height=30 \
-        background.padding_left=0 \
-        background.padding_right=0 \
-        background.color=0x00000000 \
-        background.drawing=off \
-        click_script="$HOME/.config/sketchybar/plugins/nix_open.sh; sketchybar --set apple.logo popup.drawing=off"
-
-# "Rebuild System" lives in the pounce palette (⌘Space) now — one host-baked
-# implementation via the shared float-term helper, instead of the stale
-# hardcoded-hostname duplicate that used to hang off this menu.
-
-# BOTH bars, like the palette's Reload SketchyBar command. haus.sill.bottom.enable
-# runs a second instance under the name `sill-bottom` with its own mach service,
-# so a bare `sketchybar --reload` leaves the bottom bar on the previous
-# generation and nothing says half the reload didn't happen — the row is called
-# "Reload SketchyBar", not "reload one of them".
-#
-# Guarded on `-x` rather than by swallowing stderr, for the reason reload-bar.sh
-# gives: that binary is on PATH only on a machine that turned the bottom bar on,
-# so its ABSENCE is expected and silent, but a --reload that actually fails is
-# not — unswallowed it lands in /tmp/sketchybar.err.log instead of nowhere. A
-# click_script has no way to notify, so the log is the whole report.
-#
-# Both reloads NAME their rc, and for the bottom bar that is the load-bearing
-# half: `--reload` on its own re-runs the config path the instance resolved AT
-# STARTUP, and SketchyBar resolves it through the symlink to a file in
-# /nix/store — so a `--config`'d bar replays the generation it booted on, every
-# time, exit 0. `sill-bottom` is the only bar launched that way; this one is
-# spelled out to match. Full story in ../default.nix. ($HOME expands here, when
-# this rc runs, so the click_script carries real paths.)
-sketchybar --add item apple.reload popup.apple.logo \
-    --set apple.reload \
-        icon= \
-        label="Reload SketchyBar" \
-        icon.padding_left=10 \
-        label.padding_right=10 \
-        background.height=30 \
-        background.padding_left=0 \
-        background.padding_right=0 \
-        background.color=0x00000000 \
-        background.drawing=off \
-        click_script="sketchybar --reload $HOME/.config/sketchybar/sketchybarrc; [ -x /run/current-system/sw/bin/sill-bottom ] && /run/current-system/sw/bin/sill-bottom --reload $HOME/.config/sketchybar/sill-bottomrc; sketchybar --set apple.logo popup.drawing=off"
+        updates=on \
+        update_freq=300 \
+        script="$HOME/.config/sketchybar/plugins/logo.sh" \
+        click_script="$HOME/.config/sketchybar/plugins/logo.sh" \
+    --subscribe haus.logo mouse.clicked mouse.entered mouse.exited mouse.exited.global system_woke
 
 # Spaces - All AeroSpace workspaces. WORKSPACES + ws_icon come from the
 # generated workspaces.sh (sourced above); app-workspaces show the app's logo
@@ -275,9 +213,11 @@ sketchybar --add item front_app left \
 
 # Launch-mode picker — one bubble per leader hotkey, hidden until `launch` mode.
 # plugins/launch_mode.sh shows + colors these (focused=mauve / open=green /
-# closed=grey), hides the workspace + front_app pills, and turns the Apple logo
-# into a → "go-to" glyph. LAUNCHER_KEYS comes from the generated workspaces.sh,
-# so it always mirrors [mode.launch.binding] in aerospace.toml.
+# closed=grey), hides the workspace + front_app pills, and FILLS the haus.logo
+# pill — same glyph, accent background, BASE glyph — so the lead reads as the
+# same object in a different state rather than a different object.
+# LAUNCHER_KEYS comes from the generated workspaces.sh, so it always mirrors
+# [mode.launch.binding] in aerospace.toml.
 for key in "${LAUNCHER_KEYS[@]}"; do
     GLYPH=$(echo "$key" | tr '[:lower:]' '[:upper:]')
     sketchybar --add item launcher.$key left \

@@ -3326,6 +3326,130 @@
     "readOnly": false,
     "type": "boolean"
   },
+  "haus.sill.logo.color": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The logo's resting colour, by Catppuccin name. `null` (the default)\nfollows `haus.theme.accent`, which is almost always what you want — the\npill is the rice's own mark, so it wearing the rice's own accent is the\npoint.\n\nThis is only the RESTING colour. `haus.sill.logo.status` paints over it\nwhile something needs attention, and the hover sweep runs from it and\nreturns to it.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"teal\""
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "logo",
+      "color"
+    ],
+    "readOnly": false,
+    "type": "null or one of \"rosewater\", \"flamingo\", \"pink\", \"mauve\", \"red\", \"maroon\", \"peach\", \"yellow\", \"green\", \"teal\", \"sky\", \"sapphire\", \"blue\", \"lavender\""
+  },
+  "haus.sill.logo.icon": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "The glyph in the far-left logo pill — the one that was an Apple menu\nuntil it was the nebelhaus cat-ears mark. Any single character your bar\nfont can draw; the default is Nerd Font's `nf-fa-home` (`U+F015`), a\nsolid house.\n\nIt has to hold up at 28pt with a pill's padding around it, which rules\nout more glyphs than you would expect. In particular **`⌂` (`U+2302`),\nthe hausfold mark itself, is drawn hairline-thin in JetBrains Mono and\ndoes not gain weight at Bold or ExtraBold** — it is in the font, it is\non the list below, and beside the workspace pills it reads as a much\nlighter object than everything around it. A taste call, not a bug: if\nyou want the literal mark, take it and raise `haus.sill.logo.size`.\n\nSix that hold up at bar size, most to least solid:\n\n| glyph | codepoint | what it is |\n|---|---|---|\n| `` | `U+F015` | `nf-fa-home` — solid house (the default) |\n| `` | `U+F46D` | `nf-oct-home` — outlined house at icon weight |\n| `` | `U+EB06` | `nf-cod-home` — the same, slightly rounder |\n| `⌂` | `U+2302` | the hausfold mark, hairline |\n| `` | `U+F302` | `nf-fa-apple` — the logo this pill replaced |\n| `` | `U+F313` | `nf-linux-nixos` — the snowflake |\n\nThere is deliberately no way to point this at an image file. SketchyBar\ndraws a `background.image` left-anchored, at a scale you have to\nhand-tune per asset, and applies no tint to it — so a picture here can\nfollow neither `haus.theme.accent` nor the state colours below, and\ncannot sweep on hover. The rice drew this pill as a PNG for a while and\nevery one of those was a real limitation of it.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"⌂\""
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "logo",
+      "icon"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.sill.logo.size": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "20"
+    },
+    "description": "Point size of the logo glyph. Its own knob rather than the bar's\n`FS_ICON`, because the glyphs worth putting here have wildly different\noptical sizes: the default solid house wants 20, `⌂` needs 25 before it\nstops looking like a typo, and a Nerd Font apple wants 17.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "25"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "logo",
+      "size"
+    ],
+    "readOnly": false,
+    "type": "positive integer, meaning >0"
+  },
+  "haus.sill.logo.status": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Let the logo's colour report the health of the machine, so the pill says\nsomething without being clicked:\n\n| colour | meaning |\n|---|---|\n| accent | everything the rice runs is up |\n| `yellow` | a newer rice is pinned upstream (needs `haus.sill.logo.updateCheck`) |\n| `red` | something the rice runs is enabled but not running |\n\nRed is the one that matters. It is the same check `haus doctor` opens\nwith — `nix-daemon`, plus each of AeroSpace / SketchyBar / pounce whose\nlaunchd job exists on this machine — and its whole point is that a\nwedged agent is otherwise invisible: the bar keeps drawing the last\nframe it painted, so a dead SketchyBar and a quiet one look identical.\nAll of it is local, costs four `pgrep`s on a five-minute tick, and\nmakes no network call.\n\nYellow ranks below red and both outrank the accent, so the pill always\nshows the worst thing true about the machine.\n",
+    "loc": [
+      "haus",
+      "sill",
+      "logo",
+      "status"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.logo.sweep": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Sweep the logo through the six hausfold accents — pink, peach, teal,\ngreen, mauve, yellow — while the pointer is over it, then settle back.\nIt is the bar's copy of the mark on hausfold.co, where hovering the `⌂`\nturns a conic gradient of those same six through the glyph. SketchyBar\ncannot put a gradient inside a glyph, so the sweep IS the gradient: one\ncolour at a time, animated.\n\nIt only runs from the resting accent. A pill sitting at yellow or red\nhas something to say, and a rainbow running over that is a pill saying\ntwo things at once — so hover does nothing until the state clears.\nLeader mode suppresses it for the same reason.\n",
+    "loc": [
+      "haus",
+      "sill",
+      "logo",
+      "sweep"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.logo.updateCheck": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Add the yellow \"a newer rice is available\" state to the logo pill. Off\nby default because it is the one part of the pill that leaves the\nmachine: it asks GitHub for the rice's current head (the same\n`git ls-remote` behind `haus status`) once every half hour, and a bar\nthat phones home should be something you turned on.\n\nNo effect unless `haus.sill.logo.status` is on.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "logo",
+      "updateCheck"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
   "haus.sill.media.artworkTint": {
     "declarations": [
       "modules/sill/options.nix"

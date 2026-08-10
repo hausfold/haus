@@ -5,6 +5,11 @@
 # theme's options — the accent colour and desktop wallpaper.
 { lib, ... }:
 
+let
+  # Shared with haus.sill.logo.color, which defaults to whatever this is set to
+  # — see modules/lib/accents.nix for why the list isn't written out twice.
+  accentNames = import ../lib/accents.nix;
+in
 {
   options.haus = {
     theme.flavor = lib.mkOption {
@@ -152,22 +157,7 @@
     };
 
     theme.accent = lib.mkOption {
-      type = lib.types.enum [
-        "rosewater"
-        "flamingo"
-        "pink"
-        "mauve"
-        "red"
-        "maroon"
-        "peach"
-        "yellow"
-        "green"
-        "teal"
-        "sky"
-        "sapphire"
-        "blue"
-        "lavender"
-      ];
+      type = lib.types.enum accentNames;
       default = "mauve";
       example = "sapphire";
       description = ''

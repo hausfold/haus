@@ -9,6 +9,7 @@
 
 let
   agentClients = import ../lib/agents.nix;
+  accentNames = import ../lib/accents.nix;
 
   # Per-pill on/off for the whole right side of the bar. One bool per item in a
   # submodule (not attrsOf) so unknown keys are rejected and each item carries
@@ -108,6 +109,143 @@ in
         exists at the top of the built-in display; at `bottom` there's no notch
         to tuck under, so `auto` conveniently keeps the notch case (`top`) on
         the notched screen and the plain case (`bottom`) on the external.
+      '';
+    };
+
+    sill.logo.icon = lib.mkOption {
+      type = lib.types.str;
+      # The glyph, not a name: `haus.workspaces.<id>.icon` and
+      # `haus.sill.media.icons` already take one, so this is the surface the
+      # rice has. Write it as the character itself — paste the glyph.
+      #
+      # The DEFAULT is spelled as a codepoint rather than pasted here on
+      # purpose. nf-fa-home lives in the Private Use Area, and PUA characters
+      # are silently dropped by a surprising amount of tooling on the way into
+      # a file — an editor without the font, a patch pipeline, an agent's write
+      # tool (which is how this comment came to be written). A default that
+      # quietly became "" is a bar with a blank pill where its logo was, and
+      # nothing that evaluates or builds would have said so. The table below
+      # can afford to lose one; this line cannot.
+      default = builtins.fromJSON ''"\uf015"''; # nf-fa-home, U+F015
+      example = "⌂";
+      description = ''
+        The glyph in the far-left logo pill — the one that was an Apple menu
+        until it was the nebelhaus cat-ears mark. Any single character your bar
+        font can draw; the default is Nerd Font's `nf-fa-home` (`U+F015`), a
+        solid house.
+
+        It has to hold up at 28pt with a pill's padding around it, which rules
+        out more glyphs than you would expect. In particular **`⌂` (`U+2302`),
+        the hausfold mark itself, is drawn hairline-thin in JetBrains Mono and
+        does not gain weight at Bold or ExtraBold** — it is in the font, it is
+        on the list below, and beside the workspace pills it reads as a much
+        lighter object than everything around it. A taste call, not a bug: if
+        you want the literal mark, take it and raise `haus.sill.logo.size`.
+
+        Six that hold up at bar size, most to least solid:
+
+        | glyph | codepoint | what it is |
+        |---|---|---|
+        | `` | `U+F015` | `nf-fa-home` — solid house (the default) |
+        | `` | `U+F46D` | `nf-oct-home` — outlined house at icon weight |
+        | `` | `U+EB06` | `nf-cod-home` — the same, slightly rounder |
+        | `⌂` | `U+2302` | the hausfold mark, hairline |
+        | `` | `U+F302` | `nf-fa-apple` — the logo this pill replaced |
+        | `` | `U+F313` | `nf-linux-nixos` — the snowflake |
+
+        There is deliberately no way to point this at an image file. SketchyBar
+        draws a `background.image` left-anchored, at a scale you have to
+        hand-tune per asset, and applies no tint to it — so a picture here can
+        follow neither `haus.theme.accent` nor the state colours below, and
+        cannot sweep on hover. The rice drew this pill as a PNG for a while and
+        every one of those was a real limitation of it.
+      '';
+    };
+
+    sill.logo.size = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 20;
+      example = 25;
+      description = ''
+        Point size of the logo glyph. Its own knob rather than the bar's
+        `FS_ICON`, because the glyphs worth putting here have wildly different
+        optical sizes: the default solid house wants 20, `⌂` needs 25 before it
+        stops looking like a typo, and a Nerd Font apple wants 17.
+      '';
+    };
+
+    sill.logo.color = lib.mkOption {
+      type = lib.types.nullOr (lib.types.enum accentNames);
+      default = null;
+      example = "teal";
+      description = ''
+        The logo's resting colour, by Catppuccin name. `null` (the default)
+        follows `haus.theme.accent`, which is almost always what you want — the
+        pill is the rice's own mark, so it wearing the rice's own accent is the
+        point.
+
+        This is only the RESTING colour. `haus.sill.logo.status` paints over it
+        while something needs attention, and the hover sweep runs from it and
+        returns to it.
+      '';
+    };
+
+    sill.logo.status = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Let the logo's colour report the health of the machine, so the pill says
+        something without being clicked:
+
+        | colour | meaning |
+        |---|---|
+        | accent | everything the rice runs is up |
+        | `yellow` | a newer rice is pinned upstream (needs `haus.sill.logo.updateCheck`) |
+        | `red` | something the rice runs is enabled but not running |
+
+        Red is the one that matters. It is the same check `haus doctor` opens
+        with — `nix-daemon`, plus each of AeroSpace / SketchyBar / pounce whose
+        launchd job exists on this machine — and its whole point is that a
+        wedged agent is otherwise invisible: the bar keeps drawing the last
+        frame it painted, so a dead SketchyBar and a quiet one look identical.
+        All of it is local, costs four `pgrep`s on a five-minute tick, and
+        makes no network call.
+
+        Yellow ranks below red and both outrank the accent, so the pill always
+        shows the worst thing true about the machine.
+      '';
+    };
+
+    sill.logo.updateCheck = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      example = true;
+      description = ''
+        Add the yellow "a newer rice is available" state to the logo pill. Off
+        by default because it is the one part of the pill that leaves the
+        machine: it asks GitHub for the rice's current head (the same
+        `git ls-remote` behind `haus status`) once every half hour, and a bar
+        that phones home should be something you turned on.
+
+        No effect unless `haus.sill.logo.status` is on.
+      '';
+    };
+
+    sill.logo.sweep = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Sweep the logo through the six hausfold accents — pink, peach, teal,
+        green, mauve, yellow — while the pointer is over it, then settle back.
+        It is the bar's copy of the mark on hausfold.co, where hovering the `⌂`
+        turns a conic gradient of those same six through the glyph. SketchyBar
+        cannot put a gradient inside a glyph, so the sweep IS the gradient: one
+        colour at a time, animated.
+
+        It only runs from the resting accent. A pill sitting at yellow or red
+        has something to say, and a rainbow running over that is a pill saying
+        two things at once — so hover does nothing until the state clears.
+        Leader mode suppresses it for the same reason.
       '';
     };
 
