@@ -18,8 +18,9 @@
 #   hover             sweep a long title once, start to finish (see below)
 #
 # Left-click is the dropdown, the same as weather, agents, ai_usage and the
-# calendar — every pill on this bar opens on a left click, and this one used to
-# be the exception. The argument for the exception was that the pill is a CONTROL
+# calendar — every pill on this bar that HAS a dropdown opens it on a left
+# click, and this one used to be the exception. (The elgato pill's left click
+# still toggles the light: it has no dropdown to be inconsistent about.) The argument for the exception was that the pill is a CONTROL
 # rather than a readout, so its most-pressed action should be its cheapest; what
 # that missed is that "click the pill, get the thing" is the rule you learn ONCE
 # and then apply to a bar full of pills, and being made to remember which single

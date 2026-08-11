@@ -92,7 +92,8 @@ media_is_browser() {
     case "$1" in
     com.apple.Safari | com.apple.SafariTechnologyPreview | com.google.Chrome | \
         com.google.Chrome.canary | org.mozilla.firefox | org.mozilla.firefoxdeveloperedition | \
-        app.zen-browser.zen | company.thebrowser.Browser | company.thebrowser.dia | \
+        app.zen-browser.zen | io.gitlab.librewolf-community.librewolf | \
+        company.thebrowser.Browser | company.thebrowser.dia | \
         com.brave.Browser | com.microsoft.edgemac | com.vivaldi.Vivaldi | com.operasoftware.Opera)
         return 0
         ;;
@@ -266,7 +267,10 @@ media_badge_align() {
 # Three families, three completely different mechanisms, and only two of them are
 # clean:
 #   * Safari and the Chromium browsers expose their tabs to AppleScript, so this
-#     is a genuine lookup: find the tab, make it current, raise its window.
+#     is a genuine lookup: find the tab, make it current, raise its window. The
+#     first ⌘-click on such a source raises macOS's "SketchyBar wants to control
+#     <Browser>" Automation prompt; refused, osascript fails and the fallback at
+#     the bottom of media_focus_source is the old behaviour.
 #   * Firefox and its forks (Zen among them) expose NOTHING. No AppleScript
 #     dictionary at all, and no accessibility tree either — verified directly on
 #     Zen: the tab strip is absent from the AX tree even after forcing Firefox's
@@ -286,6 +290,9 @@ media_focus_source() {
         com.apple.Safari | com.apple.SafariTechnologyPreview)
             media_focus_tab_safari "$app" "$title" && return 0
             ;;
+        # Arc and Dia are Chromium underneath but ship their OWN AppleScript
+        # dictionary, without the `active tab index` this leans on — they are
+        # deliberately absent, and fall through to plainly fronting the app.
         com.google.Chrome | com.google.Chrome.canary | com.brave.Browser | \
             com.microsoft.edgemac | com.vivaldi.Vivaldi | com.operasoftware.Opera)
             media_focus_tab_chromium "$bundle" "$title" && return 0
@@ -327,6 +334,9 @@ end run
 EOF
 }
 
+# $1 is the app name, unused: Safari's dictionary is reached by its own fixed
+# name, not by bundle id. Kept in the signature so all three routes are called
+# the same way from media_focus_source.
 media_focus_tab_safari() {
     osascript - "$2" >/dev/null 2>&1 <<'EOF'
 on run argv
@@ -348,18 +358,27 @@ end run
 EOF
 }
 
-# The Firefox-family route. Two things about it are deliberate:
+# The Firefox-family route. Three things about it are deliberate:
 #
 #   * The already-in-front case is checked FIRST and answered without typing
 #     anything. That is the common one — you paused a video, you want it back —
 #     and it would be absurd to open a tab and run a search to reach a tab that
 #     is already the one you're looking at.
-#   * Everything else needs System Events, i.e. the Accessibility permission of
+#   * It WAITS for the browser to actually be frontmost, rather than activating
+#     and sleeping a fixed quarter-second. `keystroke` does not deliver to the
+#     process you addressed it to: System Events posts to whatever has focus at
+#     the instant it fires, and `tell process` only names where the events are
+#     ROUTED FROM. So an activation slower than the sleep — a cold app, a window
+#     on another AeroSpace workspace or Space — would have typed "% <track>" and
+#     a Return into whatever you were looking at before. A terminal running an
+#     agent would have submitted it as a prompt. The poll is bounded, and gives
+#     up rather than typing into the wrong window.
+#   * All of it needs System Events, i.e. the Accessibility permission of
 #     whatever spawned this (SketchyBar, for the pill; see the palette's TCC
-#     note for how that identity is inherited). Denied, osascript fails, and
-#     media_focus_source falls back to plainly activating the app — which is
-#     exactly what this gesture did before, so a machine that never grants it is
-#     no worse off than it was.
+#     note for how that identity is inherited) — the front-window check
+#     included. Denied, every osascript here fails, and media_focus_source falls
+#     back to plainly activating the app, which is exactly what this gesture did
+#     before: a machine that never grants it is no worse off than it was.
 media_focus_tab_firefox() {
     local bundle="$1" app="$2" needle="$3" front
 
@@ -375,13 +394,20 @@ media_focus_tab_firefox() {
 on run argv
   set needle to item 1 of argv
   tell application id "$bundle" to activate
-  delay 0.25
-  tell application "System Events" to tell process "$app"
-    keystroke "t" using command down
-    delay 0.2
-    keystroke ("% " & needle)
-    delay 0.5
-    key code 36
+  tell application "System Events"
+    set waited to 0
+    repeat until (frontmost of process "$app") or waited > 20
+      delay 0.1
+      set waited to waited + 1
+    end repeat
+    if not (frontmost of process "$app") then error "never came forward"
+    tell process "$app"
+      keystroke "t" using command down
+      delay 0.2
+      keystroke ("% " & needle)
+      delay 0.5
+      key code 36
+    end tell
   end tell
 end run
 EOF
