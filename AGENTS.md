@@ -11,8 +11,10 @@ via `mkNebelhaus` and adds only its own host (identity, private apps, secrets).
 > (nebelung's fog-grey, prowl/sill/hearth turned on the way this desktop likes
 > them), the first rice and the developer-focused one. **hausfold** is neither —
 > it is the org, the maker and the seller, which is why the repo is
-> `hausfold/hausfold` while the layer inside it is `haus`. That's **decision 8**
-> in the workshop's `notes/hausfold-rename.md`, 2026-08-10.
+> `hausfold/haus`: the layer names the repo, the org names the owner. That is
+> **decision 8** in the workshop's `notes/hausfold-rename.md` (2026-08-10),
+> applied to the slug by **decision 9** (2026-08-11) — this repo was
+> `hausfold/hausfold` until then, and every old URL still redirects.
 >
 > Today the two are interleaved in the same files, because the plan's decision 4
 > renames first and neutralizes the defaults later (its §7). So the distinction
@@ -31,9 +33,10 @@ via `mkNebelhaus` and adds only its own host (identity, private apps, secrets).
 > collide with its own alias.
 >
 > **Three things stay `nebelhaus`, and they are not drift**: the rice, the
-> flake outputs, and the flake input. *(This said "the repo" until 2026-08-10;
-> the repo is `hausfold/hausfold` and has been since the org migration on
-> 2026-08-09 — and none of the three examples below was ever a repo name.)*
+> flake outputs, and the flake input. *(This said "the repo" until 2026-08-10.
+> The repo left the name at the 2026-08-09 org migration and is `hausfold/haus`
+> since 2026-08-11 — and none of the three examples below was ever a repo
+> name.)*
 > `nebelhaus.presets.everyday`,
 > `nebelhaus.lib.checkRice` and `inputs.nebelhaus.url` are all correct as
 > written — flake outputs and an input name, not options. Same for

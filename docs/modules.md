@@ -22,7 +22,7 @@ pounce, hush, secrets. Pull just what you want into your own flake:
 
 ```nix
 {
-  inputs.nebelhaus.url = "github:hausfold/hausfold";
+  inputs.nebelhaus.url = "github:hausfold/haus";
 
   # in your darwinSystem modules list:
   modules = [
