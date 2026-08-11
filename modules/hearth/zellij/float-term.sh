@@ -4,7 +4,7 @@
 # across the Rebuild System pounce command, the Super-y yazi peek panel, and
 # the agent-peek popup.
 #
-# Two subcommands:
+# Three subcommands:
 #
 #   geom [--pct N | --w PX --h PX | --match-frontmost]
 #       Print "X Y W H": a window of the requested size, centered on the
@@ -35,13 +35,33 @@
 #       spawned from and force-floats it, in case any on-window-detected rule
 #       grabbed it first. Finally it CLAIMS FOCUS (see raise below) — these
 #       windows are summoned, and one that opens behind its summoner is a
-#       message nobody reads.
+#       message nobody reads. It also draws the OUTLINE (see ring below) around
+#       the new window, so every popup that comes through here is edged the same.
+#
+#   ring PID [COLOR [WIDTH_PT]]
+#       Draw a rounded outline just outside PID's window and follow it until that
+#       process exits — the thin edge that separates a popup from whatever it
+#       landed on. Baked defaults come from haus.hearth.floatBorder (rendered
+#       into RING_* below), so spawn() needs no flag; the arguments exist to
+#       PREVIEW a colour on any window without a rebuild, e.g.
+#           float-term.sh ring "$(pgrep -x Obsidian | head -1)" '#cba6f7' 2
+#       A no-op when the option is "off" (RING_COLOR renders empty).
+#       Implementation, and why it isn't Ghostty/aerospace/JankyBorders doing it:
+#       modules/hearth/floatring.swift.
 
 set -u
 # open/osascript live in /usr/bin; aerospace in the nix/brew profiles. Callers
 # range from a login shell to launchd's minimal PATH (pounce command), so be
 # explicit rather than trust the inherited environment.
 export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/usr/bin:/bin:$PATH"
+
+# Baked by modules/hearth from haus.hearth.floatBorder — the outline's binary,
+# colour and thickness. RING_COLOR is empty when the option is "off", which is
+# the single check every ring path makes. The binary is referenced by store path
+# rather than by name so a launchd-spawned pounce command (bare PATH) finds it.
+RING_BIN="@floatring@"
+RING_COLOR="@ring_color@"
+RING_WIDTH="@ring_width@"
 
 # ── frame of the window that's on top right now ─────────────────────────────
 # Emits "X Y W H" for the frontmost window of the frontmost application — the
@@ -201,6 +221,22 @@ raise() {
   done
 }
 
+# ── outline the window ──────────────────────────────────────────────────────
+# ring PID [COLOR [WIDTH_PT]] — hand PID to floatring, which draws a rounded
+# outline just outside that window and follows it until the process exits.
+#
+# Detached on purpose: the ring must outlive this script (a pounce command exits
+# the moment it has spawned its terminal), so it's backgrounded with its stdio
+# closed. It reaps ITSELF when the popup goes away — nothing here has to track
+# it, which is why there's no pidfile and no cleanup path.
+ring() {
+  local pid="$1" color="${2:-$RING_COLOR}" width="${3:-$RING_WIDTH}"
+  [ -n "$pid" ] || return 0
+  [ -n "$color" ] || return 0 # haus.hearth.floatBorder = "off"
+  [ -x "$RING_BIN" ] || return 0
+  "$RING_BIN" --pid "$pid" --color "$color" --width "$width" >/dev/null 2>&1 &
+}
+
 # ── spawn a fresh centered instance ─────────────────────────────────────────
 spawn() {
   local title="" command="" pin=0 cols="" rows="" match=0
@@ -281,11 +317,16 @@ spawn() {
   # one you're typing into.
   raise "$new_pid" "$wid"
 
+  # The outline goes on last, after every frame-setting pass above: floatring
+  # follows the window from here on, so it can't be desynced by a late re-plant.
+  ring "$new_pid"
+
   echo "$new_pid"
 }
 
 case "${1:-}" in
   geom)  shift; geom "$@" ;;
   spawn) shift; spawn "$@" ;;
-  *) echo "usage: float-term.sh {geom|spawn} …" >&2; exit 2 ;;
+  ring)  shift; ring "$@" ;;
+  *) echo "usage: float-term.sh {geom|spawn|ring} …" >&2; exit 2 ;;
 esac

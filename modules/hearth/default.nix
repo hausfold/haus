@@ -774,6 +774,20 @@ in
       };
       nebelungRoot = nb.root;
       nebelungPalette = nb.palette;
+
+      # The outline around the floating Ghostty popups (haus.hearth.floatBorder),
+      # baked into float-term.sh below. "grey" is surface0 — the same step off the
+      # background the bar's dropdowns take — and "off" renders an empty colour,
+      # which is the one thing float-term.sh's ring() checks, so the binary is
+      # never even launched.
+      floatring = pkgs.callPackage ./package-floatring.nix { };
+      floatBorderColor =
+        {
+          grey = nebelungPalette.surface0;
+          accent = nebelungPalette.${osConfig.haus.theme.accent};
+          off = "";
+        }
+        .${hearthCfg.floatBorder};
       nbFlavor = nb.flavor; # "mocha" | "latte"
       # The bat theme's name AND its filename, which whiskers title-cases:
       # "Catppuccin Mocha" / "Catppuccin Mocha.tmTheme". Named once because three
@@ -1928,10 +1942,26 @@ in
           source = ./zellij/gh-dash.sh;
           executable = true;
         };
-        # The one floating-Ghostty helper (geom + spawn); peek.sh, the Rebuild
-        # System pounce command, and the agent-peek popup all route through it.
+        # The one floating-Ghostty helper (geom + spawn + ring); peek.sh, the
+        # Rebuild System pounce command, and the agent-peek popup all route
+        # through it. The outline's binary/colour/width are baked in rather than
+        # passed per caller, so haus.hearth.floatBorder moves all three at once
+        # — and so the pounce command, which runs on launchd's bare PATH, gets
+        # floatring by store path instead of hoping it's installed.
         ".config/zellij/float-term.sh" = {
-          source = ./zellij/float-term.sh;
+          text =
+            builtins.replaceStrings
+              [
+                "@floatring@"
+                "@ring_color@"
+                "@ring_width@"
+              ]
+              [
+                "${floatring}/bin/floatring"
+                floatBorderColor
+                "2"
+              ]
+              (builtins.readFile ./zellij/float-term.sh);
           executable = true;
         };
         # The one "open in the editor" launcher — a new zellij tab running

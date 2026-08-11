@@ -180,6 +180,37 @@ in
       '';
     };
 
+    hearth.floatBorder = lib.mkOption {
+      type = lib.types.enum [
+        "grey"
+        "accent"
+        "off"
+      ];
+      default = "grey";
+      example = "accent";
+      description = ''
+        The outline drawn around the floating Ghostty popups — the Super-y yazi
+        peek panel, the Rebuild System palette command, and the bar's agent
+        peek. All three land on top of a tiled desktop, where a dark terminal
+        over a dark window behind it has no edge at all.
+
+        - `grey` (the default) — Nebelung's `surface0`, one step off the
+          terminal's own background. The same relationship the bar's dropdowns
+          wear (`popup.background.border_color` in modules/sill), so a popup
+          reads as another surface of the same family rather than as a highlight.
+        - `accent` — `haus.theme.accent`, for popups that announce themselves.
+        - `off` — no outline; the look before this option existed.
+
+        2pt, following the window's own corner curve. Drawn by a tiny overlay
+        window (modules/hearth/floatring.swift) that lives and dies with the
+        popup, because Ghostty has no border setting of its own and aerospace
+        draws none — that file's header has the rest, including why it isn't
+        JankyBorders. To compare colours without a rebuild, outline any window
+        by hand:
+        `~/.config/zellij/float-term.sh ring "$(pgrep -x Ghostty | head -1)" '#cba6f7'`
+      '';
+    };
+
     hearth.ghDash.enable = lib.mkOption {
       type = lib.types.bool;
       default = false;
