@@ -4374,12 +4374,12 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "\"muted\""
+      "text": "\"spectrum\""
     },
-    "description": "What the mark is drawn in.\n\n  muted      the palette's overlay1 — present, not loud. The mark as it\n             sits on hausfold.co untouched.\n  ink        the palette's text colour, for a mark meant to be read\n             rather than noticed.\n  accent     haus.theme.accent's hex, flat.\n  spectrum   the whole family at once: a conic sweep through the six\n             product accents — nebelung, holt, perch, trill, pounce,\n             nebelhaus — clipped to the stroke. This is the ⌂ as it\n             looks with a pointer on it on hausfold.co, held still.\n\n`spectrum` follows the flavour like everything else: the six are the\nNebelung pastels in a dark rice and their darker counterparts in a\nlight one, because a pastel sheen on a white wall is invisible.\n",
+    "description": "What the mark is drawn in.\n\n  muted      the palette's overlay1 — present, not loud. The mark as it\n             sits on hausfold.co untouched.\n  ink        the palette's text colour, for a mark meant to be read\n             rather than noticed.\n  accent     haus.theme.accent's hex, flat.\n  spectrum   the whole family at once: a conic sweep through the six\n             product accents — nebelung, holt, perch, trill, pounce,\n             nebelhaus — clipped to the stroke. This is the ⌂ as it\n             looks with a pointer on it on hausfold.co, held still.\n\n`spectrum` is the default, and follows the flavour like everything\nelse: the six are the Nebelung pastels in a dark rice and their darker\ncounterparts in a light one, because a pastel sheen on a white wall is\ninvisible. It is the loudest of the four on purpose — one small piece of\ncolour is the whole of what this desktop says out loud, and it says the\nfamily rather than any one product. `muted` is the quiet way back, and\n`mark.opacity` turns the sweep down without leaving it.\n",
     "example": {
       "_type": "literalExpression",
-      "text": "\"spectrum\""
+      "text": "\"muted\""
     },
     "loc": [
       "haus",
@@ -4416,7 +4416,7 @@
       "_type": "literalExpression",
       "text": "1.0"
     },
-    "description": "The mark's opacity over the field. Worth reaching for with `spectrum`,\nwhich is the one colour here loud enough to want turning down.\n",
+    "description": "The mark's opacity over the field. Worth reaching for with `spectrum`\n— the default, and the one colour here loud enough to want turning down.\n",
     "example": {
       "_type": "literalExpression",
       "text": "0.55"
@@ -4458,7 +4458,7 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "0.11"
+      "text": "0.1"
     },
     "description": "The mark's height, as a fraction of the picture's SHORT edge — so it\nkeeps its proportion whatever `size` and whatever display.\n",
     "example": {
@@ -4480,12 +4480,12 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "0.055"
+      "text": "0.09"
     },
-    "description": "Stroke width, as a fraction of the mark's own height.\n\nThe mark's SHAPE is the real U+2302 — traced off the outline hausfold.co\nrenders — but its weight deliberately isn't: that glyph's stems are a\ntenth of its height, which is right for a character sitting in a line of\ntype and heavy for one drawn a foot wide on a wall. The default is a\nlittle under 60% of it, light enough to read as an outline rather than\nas an icon. 0.094 is that same tenth once the miter at the apex is\ncounted, and gets you the site's mark at the site's weight.\n",
+    "description": "Stroke width, as a fraction of the mark's own height.\n\nThe mark's SHAPE is the real U+2302, traced off the outline hausfold.co\nrenders, and the default weight is now the site's too: that glyph's\nstems are a tenth of its height, which is 0.094 here once the miter at\nthe apex is counted, and 0.09 is that within a hair. So the desktop and\nthe site draw the same mark, which is the agreement worth having when\nthe two sit side by side.\n\nIt used to default to 0.055 — a little under 60% of the glyph's own\nweight — on the grounds that a stem which reads right in a line of type\nis heavy drawn a foot wide on a wall. That is true of a mark filling the\nscreen; it is not true of one at `mark.size`, where the lighter stroke\nreads as a hairline rather than as the ⌂. Go back to it if you want the\noutline to recede.\n",
     "example": {
       "_type": "literalExpression",
-      "text": "0.09"
+      "text": "0.055"
     },
     "loc": [
       "haus",
@@ -4523,12 +4523,12 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "\"none\""
+      "text": "\"minimal\""
     },
-    "description": "Which desktop this machine wears, set at each home-manager activation\n(osascript, every desktop on the current Space).\n\n  minimal        GENERATED here — a flat field in your palette, the\n                 haus mark ⌂ at its centre, and nothing else. The one\n                 haus-themed look, and the one every option below tunes.\n  orbits         hand-made Nebelung PNGs, the palette baked into their\n  constellation  pixels — they do not follow haus.theme.flavor.\n  flow\n  bold           generated from haus.theme.accent alone (a diagonal\n                 accent→crust sweep), which predates `minimal`.\n\nDefault \"none\" leaves whatever wallpaper you already have alone —\nchanging the desktop is visible and personal, so nothing moves unless\nyou ask (the bootstrap interview offers the choice on a fresh install).\n",
+    "description": "Which desktop this machine wears, set at each home-manager activation\n(osascript, every desktop on the current Space).\n\n  minimal        GENERATED here — a flat field in your palette, the\n                 haus mark ⌂ at its centre, and nothing else. The one\n                 haus-themed look, and the one every option below tunes.\n  orbits         hand-made Nebelung PNGs, the palette baked into their\n  constellation  pixels — they do not follow haus.theme.flavor.\n  flow\n  bold           generated from haus.theme.accent alone (a diagonal\n                 accent→crust sweep), which predates `minimal`.\n\nThe default is `minimal`, so a machine that says nothing about its\ndesktop wears the haus one. That is a change of mind: this defaulted to\n\"none\" while the generated look was new, on the grounds that the desktop\nis visible and personal. It is — but a rice whose own desktop is opt-in\nships looking like nothing in particular, and `minimal` is drawn from\nthe palette, accent and gaps this machine already chose, so it is the\none look that can't clash with the rest of the install.\n\n\"none\" is the way back, and it is a real value rather than an absence:\nset it and nothing here runs, leaving whatever wallpaper you already\nhave exactly where it was (the bootstrap interview still offers the\nchoice, and writes this line when you take it).\n",
     "example": {
       "_type": "literalExpression",
-      "text": "\"minimal\""
+      "text": "\"none\""
     },
     "loc": [
       "haus",

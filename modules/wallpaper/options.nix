@@ -39,8 +39,8 @@ in
         "flow"
         "bold"
       ];
-      default = "none";
-      example = "minimal";
+      default = "minimal";
+      example = "none";
       description = ''
         Which desktop this machine wears, set at each home-manager activation
         (osascript, every desktop on the current Space).
@@ -54,9 +54,18 @@ in
           bold           generated from haus.theme.accent alone (a diagonal
                          accent→crust sweep), which predates `minimal`.
 
-        Default "none" leaves whatever wallpaper you already have alone —
-        changing the desktop is visible and personal, so nothing moves unless
-        you ask (the bootstrap interview offers the choice on a fresh install).
+        The default is `minimal`, so a machine that says nothing about its
+        desktop wears the haus one. That is a change of mind: this defaulted to
+        "none" while the generated look was new, on the grounds that the desktop
+        is visible and personal. It is — but a rice whose own desktop is opt-in
+        ships looking like nothing in particular, and `minimal` is drawn from
+        the palette, accent and gaps this machine already chose, so it is the
+        one look that can't clash with the rest of the install.
+
+        "none" is the way back, and it is a real value rather than an absence:
+        set it and nothing here runs, leaving whatever wallpaper you already
+        have exactly where it was (the bootstrap interview still offers the
+        choice, and writes this line when you take it).
       '';
     };
 
@@ -234,7 +243,7 @@ in
 
     wallpaper.mark.size = lib.mkOption {
       type = lib.types.numbers.between 0.01 0.9;
-      default = 0.11;
+      default = 0.1;
       example = 0.3;
       description = ''
         The mark's height, as a fraction of the picture's SHORT edge — so it
@@ -244,18 +253,24 @@ in
 
     wallpaper.mark.weight = lib.mkOption {
       type = lib.types.numbers.between 0.005 0.25;
-      default = 0.055;
-      example = 0.09;
+      default = 0.09;
+      example = 0.055;
       description = ''
         Stroke width, as a fraction of the mark's own height.
 
-        The mark's SHAPE is the real U+2302 — traced off the outline hausfold.co
-        renders — but its weight deliberately isn't: that glyph's stems are a
-        tenth of its height, which is right for a character sitting in a line of
-        type and heavy for one drawn a foot wide on a wall. The default is a
-        little under 60% of it, light enough to read as an outline rather than
-        as an icon. 0.094 is that same tenth once the miter at the apex is
-        counted, and gets you the site's mark at the site's weight.
+        The mark's SHAPE is the real U+2302, traced off the outline hausfold.co
+        renders, and the default weight is now the site's too: that glyph's
+        stems are a tenth of its height, which is 0.094 here once the miter at
+        the apex is counted, and 0.09 is that within a hair. So the desktop and
+        the site draw the same mark, which is the agreement worth having when
+        the two sit side by side.
+
+        It used to default to 0.055 — a little under 60% of the glyph's own
+        weight — on the grounds that a stem which reads right in a line of type
+        is heavy drawn a foot wide on a wall. That is true of a mark filling the
+        screen; it is not true of one at `mark.size`, where the lighter stroke
+        reads as a hairline rather than as the ⌂. Go back to it if you want the
+        outline to recede.
       '';
     };
 
@@ -266,8 +281,8 @@ in
         "accent"
         "spectrum"
       ];
-      default = "muted";
-      example = "spectrum";
+      default = "spectrum";
+      example = "muted";
       description = ''
         What the mark is drawn in.
 
@@ -281,9 +296,13 @@ in
                      nebelhaus — clipped to the stroke. This is the ⌂ as it
                      looks with a pointer on it on hausfold.co, held still.
 
-        `spectrum` follows the flavour like everything else: the six are the
-        Nebelung pastels in a dark rice and their darker counterparts in a
-        light one, because a pastel sheen on a white wall is invisible.
+        `spectrum` is the default, and follows the flavour like everything
+        else: the six are the Nebelung pastels in a dark rice and their darker
+        counterparts in a light one, because a pastel sheen on a white wall is
+        invisible. It is the loudest of the four on purpose — one small piece of
+        colour is the whole of what this desktop says out loud, and it says the
+        family rather than any one product. `muted` is the quiet way back, and
+        `mark.opacity` turns the sweep down without leaving it.
       '';
     };
 
@@ -292,8 +311,8 @@ in
       default = 1.0;
       example = 0.55;
       description = ''
-        The mark's opacity over the field. Worth reaching for with `spectrum`,
-        which is the one colour here loud enough to want turning down.
+        The mark's opacity over the field. Worth reaching for with `spectrum`
+        — the default, and the one colour here loud enough to want turning down.
       '';
     };
 

@@ -1844,15 +1844,17 @@
           # diff, and until this existed the only way to see one was to rebuild a
           # Mac and look at it. Now the same ./modules/wallpaper/render.nix a
           # real machine uses is handed the option DEFAULTS instead of a host's
-          # values, so what this builds is exactly what someone gets by writing
-          # `haus.wallpaper.style = "minimal"` and nothing else. `--override-input`
-          # or a checkout is how you preview a change to it.
+          # values, so what this builds is exactly what someone gets on a machine
+          # that says nothing about its desktop at all. `--override-input` or a
+          # checkout is how you preview a change to it.
           #
           # The defaults come from evalModules over the same options list every
           # other renderer reads (see ./modules/options-modules.nix), so this
-          # can't quietly fall behind a retuned default. `style` is the one
-          # override: the shipped default is "none", which is a desktop with
-          # nothing to render.
+          # can't quietly fall behind a retuned default. `style` is pinned below
+          # rather than read: it is the shipped default now, so the pin is a
+          # no-op — but it is what keeps this package rendering `minimal` if the
+          # default ever moves again, since there is nothing to build from any of
+          # the other five.
           wallpaper =
             let
               surface =

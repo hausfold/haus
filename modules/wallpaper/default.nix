@@ -3,11 +3,11 @@
 # Six looks under haus.wallpaper.style (options.nix has the table). Five of them
 # are a file: `orbits`, `constellation` and `flow` are hand-made PNGs with the
 # dark palette baked into their pixels, `bold` is a diagonal accent→crust sweep
-# generated from haus.theme.accent, and `none` — the default — leaves whatever
-# desktop you already have alone.
+# generated from haus.theme.accent, and `none` leaves whatever desktop you
+# already have alone.
 #
-# `minimal` is the haus-themed one, and the reason this stopped being a value on
-# the theme and became a room. It is generated from this machine: the palette and
+# `minimal` is the haus-themed one, the default, and the reason this stopped
+# being a value on the theme and became a room. It is generated from this machine: the palette and
 # flavour pick the field, the accent lights it, prowl's gaps place the debug
 # band, and the flake's own lock edges are what that band says. ./render.nix
 # resolves all five rooms into the picture's arguments and ./package.nix renders
