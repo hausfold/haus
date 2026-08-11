@@ -41,20 +41,21 @@ The `CLAUDE.md` beside it is that pointer and holds no rules of its own.
   revert-settings` can put them back; `haus diff`/`haus plan` show declared vs
   what macOS actually has.
 - **Don't invent option names.** The authoritative list for the revision this
-  machine is pinned to is `~/.claude/skills/haus/references/options.md`.
-  It's plain markdown — read it whatever client you are, even if your client
-  doesn't load Claude Code skills.
+  machine is pinned to is `references/options.md` inside the `haus` skill —
+  `~/.claude/skills/haus/`, `~/.codex/skills/haus/` or
+  `~/.config/opencode/skills/haus/`, whichever your client uses. It's plain
+  markdown, so read it by path even if your client never loads it as a skill.
 - **Ask before touching identity or secrets** — git identity, signing keys,
   `haus.secrets.*`.
 
 ## Where the detail lives
 
-The nebelhaus skill at `~/.claude/skills/haus/` carries the full option
-reference, worked recipes, and this machine's current state. Read it before
-making changes; it is generated from this machine's pinned rice, so it can't
-drift from what's actually settable here. (That directory is Claude Code's skill
-location, because that's the client the rice installs it for — but the files are
-ordinary markdown, so any agent can and should read them.)
+The `haus` skill carries the full option reference, worked recipes, and this
+machine's current state. Read it before making changes; it is generated from
+this machine's pinned rice, so it can't drift from what's actually settable
+here. The rice installs one copy per client it manages — `~/.claude/skills/`,
+`~/.codex/skills/`, `~/.config/opencode/skills/` — and they are ordinary
+markdown, so read whichever one is on disk even if it isn't yours.
 
 `haus doctor` checks the machine's health. <https://nebelhaus.com> has the
 guides — it documents the *latest* rice, which may be ahead of this pin.

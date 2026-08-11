@@ -20,9 +20,9 @@ Only Claude-specific wiring belongs below.
 
 **Not to be confused with the rice's product surface.** This table is about
 *hacking on nebelhaus*. What nebelhaus **ships to a user's machine** —
-`haus.claude.globalMd`, `haus.claude.skill`, the generated
-`~/.claude/skills/haus/` and its `consumer-AGENTS.md`/`consumer-CLAUDE.md`
+`haus.agents.instructions`, `haus.agents.skill`, the generated `haus/` skill in
+each client's skills directory and its `consumer-AGENTS.md`/`consumer-CLAUDE.md`
 starter pair, the per-client agent-state hooks in `modules/hearth` — is a
-feature of the distro, documented in `AGENTS.md` and `modules/hearth/claude/`.
+feature of the distro, documented in `AGENTS.md` and `modules/hearth/agents/`.
 
 The full cross-harness map is [`.agents/README.md`](./.agents/README.md).

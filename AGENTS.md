@@ -42,9 +42,11 @@ via `mkNebelhaus` and adds only its own host (identity, private apps, secrets).
 > links; each has its own phase in workshop `notes/hausfold-rename.md`, none
 > of them is this one.
 >
-> The agent skill **used to be on that list and no longer is.** It installs at
-> `~/.claude/skills/haus/` and its frontmatter `name:` is `haus`, so a
-> `skills/nebelhaus` path anywhere is drift now, not a deliberate hold-out.
+> The agent skill **used to be on that list and no longer is.** It installs as
+> `haus/` inside each client's skills directory (`~/.claude/skills/`,
+> `~/.codex/skills/`, `~/.config/opencode/skills/`) and its frontmatter `name:`
+> is `haus`, so a `skills/nebelhaus` path anywhere is drift now, not a
+> deliberate hold-out.
 
 **This file is the one set of instructions, for every agent.** Claude Code,
 Codex, OpenCode, Cursor, Copilot — TUI or GUI — all read *this*, directly or
@@ -53,8 +55,11 @@ needs per-client wiring (a hook, a slash command), the wiring lives in that
 client's own file and the *content* stays here or in `.agents/`. The map of
 which tool reads which file is [`.agents/README.md`](./.agents/README.md).
 (That's the rule for this repo's *own* files. The rice also **ships** agent
-config to end users — `haus.claude.*`, the `hearth/claude` skill — and
-that's a product surface, not this layer.)
+config to end users — `haus.agents.instructions`, `haus.agents.skill`, the
+`hearth/agents` skill — and that's a product surface, not this layer. It obeys
+the same rule one layer out: one body, written once per client at the path that
+client reads. Both options were `haus.claude.*` until 2026-08-11, when they
+stopped writing Claude's copy alone.)
 
 ## Am I in the right repo? (routing)
 
@@ -89,9 +94,13 @@ flake.nix                 # mkNebelhaus builder + darwinModules outputs + exampl
 modules/
   default.nix             # imports all rooms
   options.nix             # all host-set knobs: git.*, theme.accent, wallpaper.*, hearth.*,
-                          #   claude.globalMd, roster (the shared app list), prowl.*, sill.*,
-                          #   pounce.*, hush.*, perch.*, tour.enable, homebrew.*, secrets.provider
+                          #   agents.* (clients/default/instructions/skill), roster (the shared
+                          #   app list), prowl.*, sill.*, pounce.*, hush.*, perch.*, tour.enable,
+                          #   homebrew.*, secrets.provider
   options-modules.nix     # the per-room options.nix list — shared by both renderers below
+  moved.nix               # aliases for options that changed ADDRESS inside haus.* (today:
+                          #   the claude room → agents). renamed.nix next door is the
+                          #   generated nebelhaus.* → haus.* set; don't grow that one
   options-doc.nix         # nixosOptionsDoc over them → the metadata the docs site
                           #   (.#options-json) and the agent skill are both RENDERED from
   site-data.nix           # .#site-data: that metadata + the binding table, filtered to
@@ -113,11 +122,14 @@ modules/
                           #   ImageMagick for the 16-bit field), looks/ holds the
                           #   hand-made Nebelung PNGs
   hearth/                 # shell: zsh, starship, git, yazi, zellij, ghostty + theming
-    claude/               # the nebelhaus Claude Code skill (haus.claude.skill):
-                          #   hand-written SKILL.md + recipes, plus an option reference
-                          #   rendered per-revision — see skill.nix for why it's a package.
-                          #   Also ships the consumer starter pair (consumer-AGENTS.md +
-                          #   its consumer-CLAUDE.md pointer) `haus doctor` offers to copy
+    agents/               # the nebelhaus agent skill (haus.agents.skill): hand-written
+                          #   SKILL.md + recipes, plus an option reference rendered
+                          #   per-revision — see skill.nix for why it's a package. ONE
+                          #   skill, installed into every client in haus.agents.clients
+                          #   (hearth's agentHomes has the paths; was hearth/claude/ and
+                          #   Claude-only until 2026-08-11). Also ships the consumer
+                          #   starter pair (consumer-AGENTS.md + its consumer-CLAUDE.md
+                          #   pointer) `haus doctor` offers to copy
   prowl/                  # AeroSpace tiling
   sill/                   # SketchyBar + sillpop (Swift, xcrun-compiled): the pill
                           #   dropdowns' click-outside dismissal

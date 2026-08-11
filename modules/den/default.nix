@@ -557,7 +557,7 @@ in
       #
       # Shipped in the system profile rather than fetched on demand so `haus
       # options` describes the revision this machine is PINNED to, the same
-      # reason the Claude skill is built rather than committed. It also makes
+      # reason the agent skill is built rather than committed. It also makes
       # the command instant and offline — a fresh Mac's copy comes from
       # bootstrap's `nix build .#host-template`, which is the only path that
       # has no system to read it out of yet.

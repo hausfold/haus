@@ -1,5 +1,5 @@
 # Renders nixosOptionsDoc's options.json into the agent-facing option reference
-# that ships inside the nebelhaus Claude skill.
+# that ships inside the nebelhaus agent skill.
 #
 # Deliberately NOT the same rendering as nebelhaus.com's options page (which is
 # rendered from the same JSON by the workshop's web/scripts/gen-options.mjs).

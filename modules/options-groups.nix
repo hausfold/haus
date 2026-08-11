@@ -78,12 +78,11 @@
   };
   agents = {
     order = 80;
-    blurb = "Which coding-agent clients this machine installs, and which one the agent keybinding spawns.";
+    blurb = "Which coding-agent clients this machine installs, which one the agent keybinding spawns, and the two files the rice ships into every one of their homes — your instructions, and the `haus` skill.";
   };
-  claude = {
-    order = 90;
-    blurb = "Claude Code integration.";
-  };
+  # 90 was `claude`, folded into `agents` on 2026-08-11: both of its options
+  # describe a file EVERY client reads, at its own path. Left free rather than
+  # backfilled — the gap is cheap and renumbering the groups below isn't.
 
   # ---- reach ----------------------------------------------------------------
   accessibility = {

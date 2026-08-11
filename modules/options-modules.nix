@@ -6,7 +6,7 @@
 # in turn is what lets it be RENDERED rather than hand-documented:
 #
 #   flake.nix  →  .#options-json   → the site's options reference (Linux CI)
-#   flake.nix  →  .#claude-skill   → the agent skill installed on every machine
+#   flake.nix  →  .#agent-skill    → the agent skill installed on every machine
 #
 # Two consumers, one list — three now that modules/default.nix imports this file
 # rather than writing the same paths out again. It lived inline in flake.nix
@@ -20,6 +20,10 @@
   # the old names: flake.nix's pack and preset checks feed rice files written
   # against `nebelhaus.*` into a bare evalModules of exactly this list.
   ./renamed.nix
+  # Options that moved room WITHIN `haus.*` (today: the `claude` room folding
+  # into `agents`). Listed here for the same reason renamed.nix is — the evals
+  # above are fed rice files written against the old address too.
+  ./moved.nix
   ./options.nix
   ./apps/options.nix
   ./den/options.nix

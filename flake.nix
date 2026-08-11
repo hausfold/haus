@@ -1310,6 +1310,7 @@
             sys finder.sidebar 1 3 3 3
             file .claude/skills/haus/references/this-machine.md moves
             file .config/aerospace/aerospace.toml moves
+            file .config/opencode/skills/haus/references/this-machine.md moves
             file .config/pounce/config.json ceiling
             file .config/sketchybar/sizes.sh ceiling
             file .config/sketchybar/top_items.sh ceiling
@@ -1423,6 +1424,7 @@
             gen sill workspace logo sketchybar-app-font | sketchybar-app-font
             static sill hardcoded-family-literals 0
             file .claude/skills/haus/references/this-machine.md moves
+            file .config/opencode/skills/haus/references/this-machine.md moves
             file .config/sketchybar/sizes.sh moves
             file .config/sketchybar/top_items.sh moves
             file .config/sketchybar/tour_item.sh moves
@@ -1816,17 +1818,22 @@
             wmBindingsJson = self.packages.${system}.wm-bindings-json;
           };
 
-          # `nix build .#claude-skill` — the Claude Code skill that teaches an
-          # agent to change THIS machine's config: the edit → `haus rebuild` →
-          # `haus rollback` loop, the boundaries, and an option reference
-          # rendered from the same metadata as above.
+          # `nix build .#agent-skill` — the skill that teaches an agent to change
+          # THIS machine's config: the edit → `haus rebuild` → `haus rollback`
+          # loop, the boundaries, and an option reference rendered from the same
+          # metadata as above.
           #
           # A package rather than a checked-in file on purpose: built from the
           # revision a machine has actually pinned, it can only ever describe
-          # the options that exist there. hearth installs it into
-          # ~/.claude/skills/haus (haus.claude.skill), so `haus update`
-          # updates the agent's knowledge along with the rice.
-          claude-skill = import ./modules/hearth/claude/skill.nix { inherit pkgs; };
+          # the options that exist there. hearth installs it into every client's
+          # own skills directory (haus.agents.skill), so `haus update` updates
+          # the agent's knowledge along with the rice.
+          #
+          # Was `.#claude-skill` until 2026-08-11, when the skill stopped being
+          # Claude Code's alone. Not aliased: a flake output is named in a
+          # command someone types, not pinned in a config that would silently
+          # break, and `nix build .#` lists the new one.
+          agent-skill = import ./modules/hearth/agents/skill.nix { inherit pkgs; };
 
           # `nix build .#host-template` — the annotated host file a fresh
           # install is scaffolded with: every haus.* option at its default,

@@ -26,7 +26,7 @@
 #
 # Two renderings of the same JSON exist beside this one and are deliberately
 # different: nebelhaus.com's page (workshop's gen-options.mjs, for reading
-# top-to-bottom) and the agent skill's reference (hearth/claude/options-md.jq,
+# top-to-bottom) and the agent skill's reference (hearth/agents/options-md.jq,
 # for grepping). This one is for a file you EDIT.
 #
 # Inputs:

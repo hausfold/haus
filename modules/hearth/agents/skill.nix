@@ -1,4 +1,10 @@
-# The nebelhaus Claude Code skill, as a derivation.
+# The nebelhaus agent skill, as a derivation.
+#
+# ONE skill, installed into whichever clients this machine runs — Claude Code,
+# Codex and OpenCode all read a `<dir>/<name>/SKILL.md` of exactly this shape,
+# and hearth (agentHomes) knows each one's directory. It lived under
+# hearth/claude/ and was called the Claude skill until 2026-08-11; nothing in
+# its content ever was.
 #
 # WHY THIS IS GENERATED, NOT COMMITTED
 # ------------------------------------
@@ -30,11 +36,11 @@ let
   # evaluation, so the page and the skill can't disagree about what an option is.
   optionsJSON = import ../../options-doc.nix { inherit pkgs lib; };
 in
-pkgs.runCommand "nebelhaus-claude-skill-${version}"
+pkgs.runCommand "nebelhaus-agent-skill-${version}"
   {
     nativeBuildInputs = [ pkgs.jq ];
     meta = {
-      description = "Claude Code skill teaching an agent to change a nebelhaus machine's config";
+      description = "Agent skill teaching a coding agent to change a nebelhaus machine's config";
       inherit version;
     };
   }
