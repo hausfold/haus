@@ -30,7 +30,7 @@ let
     cpu = "Total CPU load, as a percentage pill.";
     memory = "Memory-pressure percentage pill.";
     volume = "Output volume / mute state.";
-    calendar = "Your next timed event, with a click-popup of the next five. It reads \"in 12m · Design review\" — countdown first, because a label is clipped from the END and the number is the part you must never lose. A name too long for the pill sweeps past for a few seconds when the next event changes and then settles into the clipped form, so nothing moves in the corner of your eye forever; hovering brings the whole name back, and `haus.sill.calendar.width` sets how much room it gets before any of that applies. Pulls in `ical-buddy` automatically and reads Calendar, so macOS prompts for Calendar access on first run.";
+    calendar = "The one meeting you have to be at next, and one gesture to join it. It reads \"in 12m · Design review\" — countdown first, because a label is clipped from the END and the number is the part you must never lose; below `haus.sill.calendar.preciseUnder` hours it carries minutes, above it just \"in 14h\" or \"in 2d\", and while an event is running it says \"now · …\" instead of going blank. For `haus.sill.calendar.imminent` minutes either side of the start the whole pill FILLS with the accent — a shape change rather than a colour change, so it catches the eye you aren't pointing at it. RIGHT-CLICK joins: it opens the event's conferencing link, found in the invite's url, location or notes (Meet, Zoom, Teams, Webex, Jitsi, Whereby and friends out of the box; `haus.sill.calendar.joinHosts` adds your own). LEFT-CLICK opens the day as a timeline — what's DONE in the last `haus.sill.calendar.past` hours, what's on NOW, and what's NEXT — each event carrying its day, clock time, length and who it's with, the next one boxed, and a `Join` affordance on every row that has a link. Your own address is dropped from the \"with\" line automatically: a CalDAV calendar is named for the account it syncs, so the pill can work out which attendee is you with no configuration (`haus.sill.calendar.me` for the cases where it can't). A name too long for the pill sweeps past only while you HOVER it — nothing here starts a marquee on its own — and `haus.sill.calendar.width` sets how much room it gets before that applies. Pulls in `ical-buddy` automatically and reads Calendar, so macOS prompts for Calendar access on first run.";
     caffeinate = "A coffee pill that prevents idle system sleep for 1/2/4/8 hours, a custom whole-hour duration, or indefinitely. The display may still turn off; closing a MacBook lid still sleeps it. Uses macOS's built-in `caffeinate`, so there is no extra package.";
     agents = "A paw pill tracking your agent-worktree panes — amber when one is blocked on you, click for the per-agent list, each row marked with the client sitting in it; left-click a row to jump to that pane, ⌥/right-click for a live `zellij subscribe` peek. Fed by each client's own lifecycle hooks, which all call `agent-state` (also installed as ~/.config/sketchybar/plugins/agents-hook.sh): Opencode's plugin and Codex's ~/.codex/hooks.json are written for you (Codex asks you to trust its hooks the first time it sees them), while Claude Code's four agent-state hooks stay yours to point at it in ~/.claude/settings.json — Claude owns that file and rewrites it, so the rice merges in only the keys it must and never touches those four. (The two worktree hooks ARE declared, in hearth: they point at a rice-controlled path and self-heal on rebuild.) A row whose zellij pane is gone drops off by itself, which is what stands in for the session-end event Codex doesn't have. Dormant until a client fires.";
     aiUsage = "A gauge pill showing AI usage (Claude Code/Codex subscription rate limits as %, or Opencode API token cost as daily $). Automatically shows whichever provider reported most recently. Click for expanded session/weekly limits and daily/monthly API costs with model breakdowns. Claude and Opencode are read off disk; Codex has no local usage data, so its row is polled from your ChatGPT account with the OAuth token in ~/.codex/auth.json (refreshed and rewritten in place) — no Codex login on the machine, no call is made. Claude's row is pushed by its statusline; the Codex and Opencode rows are pulled by the pill itself on a 3-minute TTL, so they stay current on a machine that never opens Claude at all. Claude and Opencode also get a `tokens` block in the dropdown — raw tokens moved today, this week, this month and all time (cache reads and all), two periods to a line so a full set reads as a 2×2, purely for the fun of watching the number climb. A period with nothing in it is left out rather than printed as a zero, so the block simply gets smaller, and a closing `∑ Everything` adds every provider up when more than one is reporting. It is a score, not a limit: nothing acts on it, and it never reaches the pill's own label. Claude's is summed from your transcripts on a 15-minute TTL behind an index, so only sessions that grew since the last pass are re-read; Codex has no row because it keeps no local history to count.";
@@ -412,8 +412,7 @@ in
       description = ''
         How wide the `calendar` pill's label is allowed to get, in CHARACTERS —
         not pixels. The label reads "in 12m · <event>"; anything longer is
-        clipped to this and swept past on a change, the same way the media
-        pill's title is.
+        clipped to this, and sweeps past in full while you hover the pill.
 
         The countdown leads deliberately: the clip eats the END of a label, so
         the number the pill exists for has to sit in front of the part that can
@@ -421,6 +420,127 @@ in
 
         It is a MAXIMUM, not a fixed size — a short event name still draws a
         short pill.
+      '';
+    };
+
+    sill.calendar.refresh = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 15;
+      example = 60;
+      description = ''
+        How often the `calendar` pill re-reads your calendar, in SECONDS.
+
+        This was 60, which is the worst possible number for a pill whose whole
+        job is a countdown in minutes: the displayed number was up to a minute
+        stale, so "in 1m" could mean the meeting started fifty seconds ago, and
+        an event you had just accepted took a minute to appear at all. One read
+        costs about 50ms of `icalBuddy`, so paying it four times a minute is
+        cheaper than being wrong.
+
+        Hovering the pill forces a read regardless of this, which is the case
+        that actually matters — looking at it is the moment it has to be right.
+      '';
+    };
+
+    sill.calendar.horizon = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 24;
+      example = 12;
+      description = ''
+        How far ahead the `calendar` pill looks, in HOURS. Nothing starting
+        later than this makes it say anything but "No events".
+
+        It is a limit on the PILL, not on the dropdown: the timeline still lists
+        what's coming past the horizon, because a list you opened on purpose is
+        allowed to tell you about Thursday.
+      '';
+    };
+
+    sill.calendar.preciseUnder = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 12;
+      example = 3;
+      description = ''
+        Below how many HOURS the countdown carries minutes.
+
+        Under it the pill reads "in 3h20m"; at or above it, "in 14h", "in 2d".
+        A number you are reading as "not yet" doesn't need its minutes, and the
+        digits it drops are the ones a long meeting name would have eaten.
+      '';
+    };
+
+    sill.calendar.imminent = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 5;
+      example = 2;
+      description = ''
+        How many MINUTES either side of an event's start the `calendar` pill
+        fills solid — accent background, dark type — for a window of twice this
+        in total.
+
+        Deliberately tied to the START and not to the whole meeting: five
+        minutes before is "go now" and five after is "you're late", and they are
+        the same fact. A pill that stayed filled for the event's full hour would
+        just be a pill that is a different colour.
+      '';
+    };
+
+    sill.calendar.past = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 24;
+      example = 8;
+      description = ''
+        How many HOURS of finished events the dropdown's `Done` band keeps.
+
+        The band exists so the timeline has a floor to read up from — "what have
+        I already been in today" is the context that makes "next" mean anything.
+        The pill itself never looks backwards.
+      '';
+    };
+
+    sill.calendar.upcoming = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 5;
+      example = 3;
+      description = ''
+        How many future events the dropdown's `Next` band lists, at most. The
+        first of them is the one the pill is about, and the one drawn in a box.
+      '';
+    };
+
+    sill.calendar.me = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [ "you@work.example" ];
+      description = ''
+        Addresses (or display names) that are YOU, dropped from the "with …"
+        line in the dropdown. An attendee list that includes you is a list that
+        tells you nothing — every meeting is "with you and Ana".
+
+        Usually unnecessary: a CalDAV account's calendar is named for the
+        address it syncs, so the pill takes the calendar names that look like
+        email addresses as its answer and re-checks them every six hours. Set
+        this when that guess misses — a local calendar, an alias you're invited
+        under, or a second address on the same account. It ADDS to what was
+        found rather than replacing it.
+      '';
+    };
+
+    sill.calendar.joinHosts = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [ "meet.mycorp.example" ];
+      description = ''
+        Extra hostnames to treat as conferencing links, on top of the built-in
+        set (Google Meet, Zoom, Teams, Webex, Jitsi, Whereby, Chime, BlueJeans,
+        GoTo, Around, Discord). Right-clicking the pill — or clicking a dropdown
+        row — opens the first link in the invite whose host matches.
+
+        Matching is on the HOST, and a bare registrable name also covers its
+        subdomains (`zoom.us` catches `us02web.zoom.us`). That is why it isn't a
+        substring search: every Google Meet invite also carries a `tel.meet`
+        dial-in and a `support.google.com` footer, and looking for "meet"
+        anywhere in the notes opens the phone-number page.
       '';
     };
 

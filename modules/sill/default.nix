@@ -497,31 +497,35 @@ let
               script="$HOME/.config/sketchybar/plugins/volume.sh" \
               click_script="open -a 'System Settings' 'x-apple.systempreferences:com.apple.Sound-Settings.extension'"
     '';
-    # Next timed event + a click-popup of the next five. calendar.sh fills the
-    # popup children (calendar.event.1..5) added below; the toggle uses the literal
-    # item name so no $NAME has to survive add-time expansion.
-    # Opening goes through sillpop (see popToggle above) so the dropdown closes on
-    # the next click anywhere else, not only on a second click of the pill.
+    # The one meeting you have to be at next, with a click-dropdown that lays the
+    # day out as a timeline (done · now · next). No popup children are declared
+    # here any more: this pill used to add a fixed `calendar.event.1..5` and hide
+    # the unused ones, which is why the dropdown could only ever be five identical
+    # one-line rows. calendar.sh now builds `calendar.row.N` per open, the way the
+    # AI-usage pill does, so a row can be a section rule, a title or a dim meta
+    # line and the popup is exactly as tall as the day is full.
     #
-    # label.max_chars + the marquee in calendar.sh replace what used to be a
-    # 15-character chop with an ellipsis: "Design review w…" and "Design review
-    # r…" are the same pill, and a meeting name is the one string you can least
-    # afford to lose the end of. scroll_texts is NOT set on here — the plugin
-    # arms it when the next event CHANGES and settles it a few seconds later, so
-    # nothing scrolls forever; mouse.entered/exited are what bring it back.
+    # click_script rather than a mouse.clicked subscription, and NOT popToggle:
+    # the plugin has to see $BUTTON (right-click joins the meeting) and it has to
+    # rebuild the rows before revealing them, so it owns the whole gesture and
+    # arms sillpop itself once the popup is up. `mouse.clicked` is deliberately
+    # absent from the subscribe list — with click_script set, subscribing would
+    # run this plugin twice per click.
     #
-    # The hover flag is cleared here, at every bar start, for the same reason
-    # media_stream.sh clears its own: mouse.exited is missable — a --reload with
-    # the pointer parked on the pill, a sleep, a display change moving the bar —
-    # and a stranded flag disables BOTH of the plugin's off-switches at once, so
-    # the next event change would start a marquee nothing could ever stop. The
-    # media pill has a long-lived streamer to do this from; the calendar has
-    # only script= runs, so the bar's own init is the one place left.
+    # label.max_chars is the settled width; scroll_texts is NOT set on here. The
+    # plugin turns it on only while the pointer is on the pill — a marquee that
+    # armed itself whenever the next event changed is what this replaced, because
+    # a bar that moves on its own is a bar you stop reading. That also retired the
+    # hover flag file this block used to clear at every bar start; there is no
+    # timer left to strand. The `rm` below is what became of that clear — the two
+    # files the old marquee kept are dead state now, and nothing else would ever
+    # reap them off a machine that has been drawing this pill for months.
     calendar = ''
-      rm -f "$HOME/.local/state/nebelhaus/calendar/hover" 2>/dev/null || true
+      rm -f "$HOME/.local/state/nebelhaus/calendar/hover" \
+            "$HOME/.local/state/nebelhaus/calendar/last-event" 2>/dev/null || true
       ${sb} --add item calendar ${side} \
           --set calendar \
-              update_freq=60 \
+              update_freq=${toString cfg.calendar.refresh} \
               icon="󰃭" \
               icon.color=$MAUVE \
               background.color=$SURFACE0 \
@@ -532,17 +536,8 @@ let
               popup.background.color=$MANTLE \
               ${popupAlign side} \
               script="$HOME/.config/sketchybar/plugins/calendar.sh" \
-              click_script="${popToggle sb "calendar"}" \
-          --subscribe calendar mouse.clicked mouse.entered mouse.exited mouse.exited.global system_woke
-      for i in 1 2 3 4 5; do
-          ${sb} --add item calendar.event.$i popup.calendar \
-              --set calendar.event.$i \
-                  icon.color=$MAUVE \
-                  label.color=$TEXT \
-                  icon.padding_left=10 \
-                  label.padding_right=10 \
-                  drawing=off
-      done
+              click_script="$HOME/.config/sketchybar/plugins/calendar.sh click" \
+          --subscribe calendar mouse.entered mouse.exited mouse.exited.global system_woke
     '';
     # Keep-awake controller. The rice-level `awake` CLI + launchd job own the
     # assertion; this popup only chooses a duration and renders state. A bar
@@ -1247,6 +1242,22 @@ lib.mkIf config.haus.sill.enable {
           #!/bin/bash
           # GENERATED from haus.sill.elgato.* by modules/sill/default.nix — do not edit.
           SILL_ELGATO_HOST="${config.haus.sill.elgato.host}"
+        '';
+        # The calendar pill's knobs. COMMA-joined, not newline-joined, for the two
+        # list options: calendar.sh hands both straight to awk as `-v` values, and
+        # awk's lexer refuses a literal newline inside one — it dies with "newline
+        # in string" on stderr nothing reads, i.e. as a pill that silently forgets
+        # who you are meeting.
+        ".config/sketchybar/calendar_config.sh".text = ''
+          #!/bin/bash
+          # GENERATED from haus.sill.calendar.* by modules/sill/default.nix — do not edit.
+          SILL_CALENDAR_HORIZON="${toString cfg.calendar.horizon}"
+          SILL_CALENDAR_PRECISE_UNDER="${toString cfg.calendar.preciseUnder}"
+          SILL_CALENDAR_IMMINENT="${toString cfg.calendar.imminent}"
+          SILL_CALENDAR_PAST="${toString cfg.calendar.past}"
+          SILL_CALENDAR_UPCOMING="${toString cfg.calendar.upcoming}"
+          SILL_CALENDAR_ME="${lib.concatStringsSep "," cfg.calendar.me}"
+          SILL_CALENDAR_JOIN_HOSTS="${lib.concatStringsSep "," cfg.calendar.joinHosts}"
         '';
         ".config/sketchybar/ai_usage_config.sh".text = ''
           #!/bin/bash

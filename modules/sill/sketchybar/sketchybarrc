@@ -133,7 +133,10 @@ sketchybar --default \
 # with its guard file still on disk — and it goes on writing icon.color to the
 # NEW instance every 0.75s forever. Clearing it here, at the one moment a fresh
 # instance is known to be starting, is the same fix and the same reason as the
-# calendar pill's `hover` flag (modules/sill/default.nix). `sweep-stop` rather
+# media pill's own hover flag, which media_stream.sh clears for itself because it
+# has a long-lived process to do it from. (The calendar pill carried a third copy
+# of this until its marquee became hover-only; with no self-arming timer left,
+# there is no flag there to strand.) `sweep-stop` rather
 # than a bare `rm` so an orphan that is still running is also killed, not just
 # told to stop at its next frame; run AFTER the item exists so its settling
 # --set has something to address.

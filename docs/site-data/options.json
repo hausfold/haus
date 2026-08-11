@@ -2751,7 +2751,7 @@
       "_type": "literalExpression",
       "text": "false"
     },
-    "description": "Your next timed event, with a click-popup of the next five. It reads \"in 12m · Design review\" — countdown first, because a label is clipped from the END and the number is the part you must never lose. A name too long for the pill sweeps past for a few seconds when the next event changes and then settles into the clipped form, so nothing moves in the corner of your eye forever; hovering brings the whole name back, and `haus.sill.calendar.width` sets how much room it gets before any of that applies. Pulls in `ical-buddy` automatically and reads Calendar, so macOS prompts for Calendar access on first run.",
+    "description": "The one meeting you have to be at next, and one gesture to join it. It reads \"in 12m · Design review\" — countdown first, because a label is clipped from the END and the number is the part you must never lose; below `haus.sill.calendar.preciseUnder` hours it carries minutes, above it just \"in 14h\" or \"in 2d\", and while an event is running it says \"now · …\" instead of going blank. For `haus.sill.calendar.imminent` minutes either side of the start the whole pill FILLS with the accent — a shape change rather than a colour change, so it catches the eye you aren't pointing at it. RIGHT-CLICK joins: it opens the event's conferencing link, found in the invite's url, location or notes (Meet, Zoom, Teams, Webex, Jitsi, Whereby and friends out of the box; `haus.sill.calendar.joinHosts` adds your own). LEFT-CLICK opens the day as a timeline — what's DONE in the last `haus.sill.calendar.past` hours, what's on NOW, and what's NEXT — each event carrying its day, clock time, length and who it's with, the next one boxed, and a `Join` affordance on every row that has a link. Your own address is dropped from the \"with\" line automatically: a CalDAV calendar is named for the account it syncs, so the pill can work out which attendee is you with no configuration (`haus.sill.calendar.me` for the cases where it can't). A name too long for the pill sweeps past only while you HOVER it — nothing here starts a marquee on its own — and `haus.sill.calendar.width` sets how much room it gets before that applies. Pulls in `ical-buddy` automatically and reads Calendar, so macOS prompts for Calendar access on first run.",
     "loc": [
       "haus",
       "sill",
@@ -2952,6 +2952,182 @@
     "readOnly": false,
     "type": "boolean or one of \"left\", \"center\", \"right\""
   },
+  "haus.sill.calendar.horizon": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "24"
+    },
+    "description": "How far ahead the `calendar` pill looks, in HOURS. Nothing starting\nlater than this makes it say anything but \"No events\".\n\nIt is a limit on the PILL, not on the dropdown: the timeline still lists\nwhat's coming past the horizon, because a list you opened on purpose is\nallowed to tell you about Thursday.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "12"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "calendar",
+      "horizon"
+    ],
+    "readOnly": false,
+    "type": "positive integer, meaning >0"
+  },
+  "haus.sill.calendar.imminent": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "5"
+    },
+    "description": "How many MINUTES either side of an event's start the `calendar` pill\nfills solid — accent background, dark type — for a window of twice this\nin total.\n\nDeliberately tied to the START and not to the whole meeting: five\nminutes before is \"go now\" and five after is \"you're late\", and they are\nthe same fact. A pill that stayed filled for the event's full hour would\njust be a pill that is a different colour.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "2"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "calendar",
+      "imminent"
+    ],
+    "readOnly": false,
+    "type": "positive integer, meaning >0"
+  },
+  "haus.sill.calendar.joinHosts": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ ]"
+    },
+    "description": "Extra hostnames to treat as conferencing links, on top of the built-in\nset (Google Meet, Zoom, Teams, Webex, Jitsi, Whereby, Chime, BlueJeans,\nGoTo, Around, Discord). Right-clicking the pill — or clicking a dropdown\nrow — opens the first link in the invite whose host matches.\n\nMatching is on the HOST, and a bare registrable name also covers its\nsubdomains (`zoom.us` catches `us02web.zoom.us`). That is why it isn't a\nsubstring search: every Google Meet invite also carries a `tel.meet`\ndial-in and a `support.google.com` footer, and looking for \"meet\"\nanywhere in the notes opens the phone-number page.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"meet.mycorp.example\"\n]"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "calendar",
+      "joinHosts"
+    ],
+    "readOnly": false,
+    "type": "list of string"
+  },
+  "haus.sill.calendar.me": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ ]"
+    },
+    "description": "Addresses (or display names) that are YOU, dropped from the \"with …\"\nline in the dropdown. An attendee list that includes you is a list that\ntells you nothing — every meeting is \"with you and Ana\".\n\nUsually unnecessary: a CalDAV account's calendar is named for the\naddress it syncs, so the pill takes the calendar names that look like\nemail addresses as its answer and re-checks them every six hours. Set\nthis when that guess misses — a local calendar, an alias you're invited\nunder, or a second address on the same account. It ADDS to what was\nfound rather than replacing it.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"you@work.example\"\n]"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "calendar",
+      "me"
+    ],
+    "readOnly": false,
+    "type": "list of string"
+  },
+  "haus.sill.calendar.past": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "24"
+    },
+    "description": "How many HOURS of finished events the dropdown's `Done` band keeps.\n\nThe band exists so the timeline has a floor to read up from — \"what have\nI already been in today\" is the context that makes \"next\" mean anything.\nThe pill itself never looks backwards.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "8"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "calendar",
+      "past"
+    ],
+    "readOnly": false,
+    "type": "positive integer, meaning >0"
+  },
+  "haus.sill.calendar.preciseUnder": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "12"
+    },
+    "description": "Below how many HOURS the countdown carries minutes.\n\nUnder it the pill reads \"in 3h20m\"; at or above it, \"in 14h\", \"in 2d\".\nA number you are reading as \"not yet\" doesn't need its minutes, and the\ndigits it drops are the ones a long meeting name would have eaten.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "3"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "calendar",
+      "preciseUnder"
+    ],
+    "readOnly": false,
+    "type": "positive integer, meaning >0"
+  },
+  "haus.sill.calendar.refresh": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "15"
+    },
+    "description": "How often the `calendar` pill re-reads your calendar, in SECONDS.\n\nThis was 60, which is the worst possible number for a pill whose whole\njob is a countdown in minutes: the displayed number was up to a minute\nstale, so \"in 1m\" could mean the meeting started fifty seconds ago, and\nan event you had just accepted took a minute to appear at all. One read\ncosts about 50ms of `icalBuddy`, so paying it four times a minute is\ncheaper than being wrong.\n\nHovering the pill forces a read regardless of this, which is the case\nthat actually matters — looking at it is the moment it has to be right.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "60"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "calendar",
+      "refresh"
+    ],
+    "readOnly": false,
+    "type": "positive integer, meaning >0"
+  },
+  "haus.sill.calendar.upcoming": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "5"
+    },
+    "description": "How many future events the dropdown's `Next` band lists, at most. The\nfirst of them is the one the pill is about, and the one drawn in a box.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "3"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "calendar",
+      "upcoming"
+    ],
+    "readOnly": false,
+    "type": "positive integer, meaning >0"
+  },
   "haus.sill.calendar.width": {
     "declarations": [
       "modules/sill/options.nix"
@@ -2960,7 +3136,7 @@
       "_type": "literalExpression",
       "text": "32"
     },
-    "description": "How wide the `calendar` pill's label is allowed to get, in CHARACTERS —\nnot pixels. The label reads \"in 12m · <event>\"; anything longer is\nclipped to this and swept past on a change, the same way the media\npill's title is.\n\nThe countdown leads deliberately: the clip eats the END of a label, so\nthe number the pill exists for has to sit in front of the part that can\nrun long.\n\nIt is a MAXIMUM, not a fixed size — a short event name still draws a\nshort pill.\n",
+    "description": "How wide the `calendar` pill's label is allowed to get, in CHARACTERS —\nnot pixels. The label reads \"in 12m · <event>\"; anything longer is\nclipped to this, and sweeps past in full while you hover the pill.\n\nThe countdown leads deliberately: the clip eats the END of a label, so\nthe number the pill exists for has to sit in front of the part that can\nrun long.\n\nIt is a MAXIMUM, not a fixed size — a short event name still draws a\nshort pill.\n",
     "example": {
       "_type": "literalExpression",
       "text": "16"
@@ -3136,7 +3312,7 @@
       "_type": "literalExpression",
       "text": "false"
     },
-    "description": "Your next timed event, with a click-popup of the next five. It reads \"in 12m · Design review\" — countdown first, because a label is clipped from the END and the number is the part you must never lose. A name too long for the pill sweeps past for a few seconds when the next event changes and then settles into the clipped form, so nothing moves in the corner of your eye forever; hovering brings the whole name back, and `haus.sill.calendar.width` sets how much room it gets before any of that applies. Pulls in `ical-buddy` automatically and reads Calendar, so macOS prompts for Calendar access on first run.",
+    "description": "The one meeting you have to be at next, and one gesture to join it. It reads \"in 12m · Design review\" — countdown first, because a label is clipped from the END and the number is the part you must never lose; below `haus.sill.calendar.preciseUnder` hours it carries minutes, above it just \"in 14h\" or \"in 2d\", and while an event is running it says \"now · …\" instead of going blank. For `haus.sill.calendar.imminent` minutes either side of the start the whole pill FILLS with the accent — a shape change rather than a colour change, so it catches the eye you aren't pointing at it. RIGHT-CLICK joins: it opens the event's conferencing link, found in the invite's url, location or notes (Meet, Zoom, Teams, Webex, Jitsi, Whereby and friends out of the box; `haus.sill.calendar.joinHosts` adds your own). LEFT-CLICK opens the day as a timeline — what's DONE in the last `haus.sill.calendar.past` hours, what's on NOW, and what's NEXT — each event carrying its day, clock time, length and who it's with, the next one boxed, and a `Join` affordance on every row that has a link. Your own address is dropped from the \"with\" line automatically: a CalDAV calendar is named for the account it syncs, so the pill can work out which attendee is you with no configuration (`haus.sill.calendar.me` for the cases where it can't). A name too long for the pill sweeps past only while you HOVER it — nothing here starts a marquee on its own — and `haus.sill.calendar.width` sets how much room it gets before that applies. Pulls in `ical-buddy` automatically and reads Calendar, so macOS prompts for Calendar access on first run.",
     "loc": [
       "haus",
       "sill",
