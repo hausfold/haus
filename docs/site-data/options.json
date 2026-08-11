@@ -4768,5 +4768,23 @@
     ],
     "readOnly": false,
     "type": "attribute set"
+  },
+  "haus.zen.tabBridge.enable": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Deploy the rice's own tiny extension into Zen, so the bar can find and\nswitch to the tab that is making noise.\n\nThis is what makes the media pill's ⌘ click land on the **tab** rather\nthan just bringing Zen forward. Safari and the Chromium browsers need\nnothing here — they hand their tab list to AppleScript and the pill uses\nthat. Firefox and its forks hand out nothing at all, to AppleScript or\nto accessibility, so without this the pill falls back to driving\nFirefox's own address-bar tab search with synthetic keystrokes, which\nneeds the Accessibility permission and is exactly as pleasant as it\nsounds.\n\nOff by default because it force-installs an add-on into your browser,\nwhich is not a thing a rice should do to you unasked. Turning it on\ncosts one derivation and two files; turning it back off removes the\nadd-on again on the next rebuild.\n\n**Zen only, and that's a signing constraint rather than a choice.**\nRelease Firefox refuses an extension Mozilla hasn't signed and no policy\noverrides that; Zen ships `xpinstall.signatures.required = false` as a\nbuilt-in default, so the rice can build the `.xpi` itself and install it\nfrom the nix store. Firefox support would mean an AMO account and\nunlisted self-distribution signing — packaging, not a code change.\n",
+    "loc": [
+      "haus",
+      "zen",
+      "tabBridge",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
   }
 }

@@ -31,6 +31,13 @@
 # question and has a different answer: it matches the track's title against the
 # browser's own list of open tabs rather than trying to learn a URL. See
 # media_focus_source below.
+#
+# And on a machine running haus.zen.tabBridge the URL is, in fact, right there —
+# the rice's own extension publishes it beside the title. The classification
+# above deliberately does NOT use it yet: it would be a Zen-only glyph rule, so
+# the pill would name the site on one browser and shrug on the others, and this
+# file's whole argument is that a guess you can't make everywhere is a guess you
+# shouldn't make. Worth revisiting the day the bridge covers more than Zen.
 
 SILL_MEDIA_STATE_DIR="$HOME/.local/state/nebelhaus/media"
 SILL_MEDIA_NOW="$SILL_MEDIA_STATE_DIR/now"
@@ -275,12 +282,15 @@ media_badge_align() {
 #     dictionary at all, and no accessibility tree either — verified directly on
 #     Zen: the tab strip is absent from the AX tree even after forcing Firefox's
 #     a11y engine on with AXEnhancedUserInterface, which leaves only the window
-#     title, which is only ever the FOREGROUND tab. So the route is the one piece
-#     of switch-to-tab machinery Firefox does ship: the address bar's `%`
-#     restriction token, which searches OPEN TABS and switches to the one you
-#     pick. Typed into a fresh tab, so the worst case when nothing matches is a
-#     search results page in a tab that wasn't there a second ago, rather than
-#     navigating away from something you were reading.
+#     title, which is only ever the FOREGROUND tab. Two routes, in order:
+#       1. the rice's own extension, if haus.zen.tabBridge deployed it — an
+#          exact tab id from inside the browser, which is the honest answer;
+#       2. failing that, the one piece of switch-to-tab machinery Firefox does
+#          ship: the address bar's `%` restriction token, which searches OPEN
+#          TABS and switches to the one you pick, driven by synthetic
+#          keystrokes. Typed into a fresh tab, so the worst case when nothing
+#          matches is a search results page in a tab that wasn't there a second
+#          ago, rather than navigating away from something you were reading.
 media_focus_source() {
     local bundle="$1" title="$2" app="$3"
     [ -n "$bundle" ] || return 1
@@ -299,6 +309,7 @@ media_focus_source() {
             ;;
         org.mozilla.firefox | org.mozilla.firefoxdeveloperedition | \
             app.zen-browser.zen | io.gitlab.librewolf-community.librewolf)
+            media_focus_tab_bridge "$bundle" "$title" && return 0
             media_focus_tab_firefox "$bundle" "$app" "$title" && return 0
             ;;
         esac
@@ -358,7 +369,51 @@ end run
 EOF
 }
 
-# The Firefox-family route. Three things about it are deliberate:
+# The good Firefox-family route: ask the browser, through the rice's own
+# extension (haus.zen.tabBridge — modules/hearth/zen-tabs). When it's there this
+# is the whole job: an exact tab id, no keystrokes, no Accessibility permission,
+# and it works on a tab in another window, another Zen workspace or another
+# Space. When it isn't, media_focus_source falls through to the keystroke route
+# below, so this file works either way and neither half knows about the other's
+# failure modes.
+#
+# The PID file is the liveness test, and it has to be: the host dies with the
+# browser and cleans up after itself, but a crashed Zen leaves tabs.json behind,
+# and a browser sitting idle publishes nothing new for hours — so mtime cannot
+# tell a live bridge from a dead one, and only a running process can.
+#
+# The command channel is APPENDED to, never truncated, because a bar click_script
+# must not be able to block: see haustabs.swift's header for why this is a plain
+# file rather than the FIFO or socket it looks like it wants to be.
+#
+# Audible wins over merely matching, because a title can match twice — the same
+# video open in two tabs, a "watch later" duplicate — and the one making the
+# noise is by definition the one you meant.
+media_focus_tab_bridge() {
+    local bundle="$1" needle="$2" state id pid
+    state="$HOME/.local/state/nebelhaus/zen-tabs"
+    [ -r "$state/tabs.json" ] && [ -w "$state/cmd" ] || return 1
+    pid="$(cat "$state/pid" 2>/dev/null)"
+    [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null || return 1
+
+    id="$(jq -r --arg n "$needle" '
+        [.tabs[]? | select((.title // "") | contains($n))]
+        | (map(select(.audible)) + .)
+        | .[0].id // empty' "$state/tabs.json" 2>/dev/null)"
+    case "$id" in
+    "" | *[!0-9]*) return 1 ;;
+    esac
+
+    printf 'focus %s\n' "$id" >>"$state/cmd" 2>/dev/null || return 1
+    # The extension raises the tab's window; this raises the APP. Both are
+    # needed — a focused window belonging to a background app is still behind
+    # whatever you were looking at.
+    open -b "$bundle" 2>/dev/null
+    return 0
+}
+
+# The fallback Firefox-family route, for a machine without the bridge. Three
+# things about it are deliberate:
 #
 #   * The already-in-front case is checked FIRST and answered without typing
 #     anything. That is the common one — you paused a video, you want it back —
