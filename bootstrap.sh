@@ -414,7 +414,14 @@ preflight_audit() {
   [ -n "$ROOM_SILL" ]   && printf '              Hide native menu bar: %s -> true (Sill draws its own)\n' "$(dflt -g _HIHideMenuBar)"
   [ -n "$ROOM_PROWL" ]  && printf '              Caps Lock -> a leader key for tiling + the app launcher\n'
   [ -n "$ROOM_POUNCE" ] && printf '              ⌘Space   -> the pounce palette (disabled for Spotlight)\n'
-  [ "$WALLPAPER" != "none" ] && printf '              Desktop wallpaper:    set to the "%s" look (your current one is not deleted)\n' "$WALLPAPER"
+  # Both branches print. Now that `minimal` is the default, "keep mine" is the
+  # answer that needs echoing back — silence there would read as "nothing will
+  # touch my desktop" whichever way you answered.
+  if [ "$WALLPAPER" = "none" ]; then
+    printf '              Desktop wallpaper:    left as yours (haus.wallpaper.style = "none")\n'
+  else
+    printf '              Desktop wallpaper:    set to the "%s" look (your current one is not deleted, but macOS keeps no record of it — re-pick it by hand if you go back)\n' "$WALLPAPER"
+  fi
 
   printf '  undo      nothing is switched until you run the build below; the snapshot\n'
   printf '            taken above + `darwin-rebuild --rollback` revert it.\n'
