@@ -125,6 +125,8 @@ modules/
                           #   ImageMagick for the 16-bit field), looks/ holds the
                           #   hand-made Nebelung PNGs
   hearth/                 # shell: zsh, starship, git, yazi, zellij, ghostty + theming
+                          #   + floatring (Swift, xcrun-compiled): the outline every
+                          #   window float-term.sh spawns wears (haus.hearth.floatBorder)
     agents/               # the nebelhaus agent skill (haus.agents.skill): hand-written
                           #   SKILL.md + recipes, plus an option reference rendered
                           #   per-revision — see skill.nix for why it's a package. ONE
@@ -242,7 +244,10 @@ it silently.
 - **Determinate owns the nix daemon** (`modules/den`): `nix.enable = false`; config
   lives in `/etc/nix/nix.custom.conf`. GC is our own weekly launchd job.
 - **The pounce build shells out to `/usr/bin/xcrun swiftc`** — needs Xcode CLT + the
-  macOS build sandbox relaxed (Determinate's default). See the pounce repo.
+  macOS build sandbox relaxed (Determinate's default). See the pounce repo. So do the
+  rice's own four one-file Swift helpers, for the same reason (compiling a Swift
+  toolchain from source to build a few hundred lines against AppKit costs hours):
+  `hausax` (den), `hausdisp` (displays), `sillpop` (sill), `floatring` (hearth).
 
 ## Patterns
 

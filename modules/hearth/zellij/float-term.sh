@@ -44,7 +44,7 @@
 #       landed on. Baked defaults come from haus.hearth.floatBorder (rendered
 #       into RING_* below), so spawn() needs no flag; the arguments exist to
 #       PREVIEW a colour on any window without a rebuild, e.g.
-#           float-term.sh ring "$(pgrep -x Obsidian | head -1)" '#cba6f7' 2
+#           float-term.sh ring "$(pgrep -x ghostty | head -1)" '#cba6f7' 2
 #       A no-op when the option is "off" (RING_COLOR renders empty).
 #       Implementation, and why it isn't Ghostty/aerospace/JankyBorders doing it:
 #       modules/hearth/floatring.swift.
@@ -227,14 +227,18 @@ raise() {
 #
 # Detached on purpose: the ring must outlive this script (a pounce command exits
 # the moment it has spawned its terminal), so it's backgrounded with its stdio
-# closed. It reaps ITSELF when the popup goes away — nothing here has to track
+# detached. It reaps ITSELF when the popup goes away — nothing here has to track
 # it, which is why there's no pidfile and no cleanup path.
+#
+# ${1:-} rather than $1: this subcommand is user-facing (the option description
+# hands out a preview command), and `set -u` would turn a bare `ring` into an
+# unbound-variable trace instead of a quiet no-op.
 ring() {
-  local pid="$1" color="${2:-$RING_COLOR}" width="${3:-$RING_WIDTH}"
+  local pid="${1:-}" color="${2:-$RING_COLOR}" width="${3:-$RING_WIDTH}"
   [ -n "$pid" ] || return 0
-  [ -n "$color" ] || return 0 # haus.hearth.floatBorder = "off"
-  [ -x "$RING_BIN" ] || return 0
-  "$RING_BIN" --pid "$pid" --color "$color" --width "$width" >/dev/null 2>&1 &
+  [ -n "$color" ] || return 0     # haus.hearth.floatBorder = "off"
+  [ -x "${RING_BIN:-}" ] || return 0 # …which also renders RING_BIN empty
+  "$RING_BIN" --pid "$pid" --color "$color" --width "$width" </dev/null >/dev/null 2>&1 &
 }
 
 # ── spawn a fresh centered instance ─────────────────────────────────────────

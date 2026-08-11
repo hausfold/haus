@@ -189,10 +189,11 @@ in
       default = "grey";
       example = "accent";
       description = ''
-        The outline drawn around the floating Ghostty popups — the Super-y yazi
-        peek panel, the Rebuild System palette command, and the bar's agent
-        peek. All three land on top of a tiled desktop, where a dark terminal
-        over a dark window behind it has no edge at all.
+        The outline drawn around every floating terminal `float-term.sh` spawns:
+        the Super-y yazi peek panel, the bar's agent peek, and the palette's
+        Rebuild System / Install App / Settings and `zscratch` windows. They all
+        land on top of a tiled desktop, where a dark terminal over a dark window
+        behind it has no edge at all.
 
         - `grey` (the default) — Nebelung's `surface0`, one step off the
           terminal's own background. The same relationship the bar's dropdowns
@@ -206,8 +207,9 @@ in
         popup, because Ghostty has no border setting of its own and aerospace
         draws none — that file's header has the rest, including why it isn't
         JankyBorders. To compare colours without a rebuild, outline any window
-        by hand:
-        `~/.config/zellij/float-term.sh ring "$(pgrep -x Ghostty | head -1)" '#cba6f7'`
+        by hand (the process name is lower-case — `pgrep -x Ghostty` matches
+        nothing and rings nothing):
+        `~/.config/zellij/float-term.sh ring "$(pgrep -x ghostty | head -1)" '#cba6f7'`
       '';
     };
 

@@ -1957,7 +1957,10 @@ in
                 "@ring_width@"
               ]
               [
-                "${floatring}/bin/floatring"
+                # "off" renders BOTH empty, so an opted-out machine doesn't even
+                # carry the binary in its closure (a store path in the script's
+                # text is a real dependency — the swiftc build would run anyway).
+                (if hearthCfg.floatBorder == "off" then "" else "${floatring}/bin/floatring")
                 floatBorderColor
                 "2"
               ]

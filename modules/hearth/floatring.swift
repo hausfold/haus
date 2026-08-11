@@ -33,6 +33,9 @@ import AppKit
 
 // ── args ────────────────────────────────────────────────────────────────────
 var pid: pid_t = 0
+// Only a hand-run fallback: modules/hearth always passes --color, resolved from
+// the SELECTED Nebelung variant (mocha surface0 #343434, latte's #d0d0d0), so
+// this constant can't follow the theme and must never be relied on to.
 var hex = "#343434"
 var width: CGFloat = 2
 // 16.5pt is macOS 26's window corner radius, measured rather than guessed:
