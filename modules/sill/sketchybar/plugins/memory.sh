@@ -138,5 +138,13 @@ else
   LABEL="${PCT}%"
 fi
 
-"$SB" --push "$ITEM_NAME" "$(vitals_fraction "$MEM_PCT")" \
-  --set "$ITEM_NAME" icon="$ICON" label="$LABEL" label.color="$COL"
+# Only the clock pushes a graph point — see the same note in cpu.sh: the graph
+# is 48 evenly spaced values with no time axis, so a hover-driven push would
+# scroll the history sideways at the speed of the pointer.
+case "${SENDER:-}" in
+mouse.*) "$SB" --set "$ITEM_NAME" icon="$ICON" label="$LABEL" label.color="$COL" ;;
+*)
+  "$SB" --push "$ITEM_NAME" "$(vitals_fraction "$MEM_PCT")" \
+    --set "$ITEM_NAME" icon="$ICON" label="$LABEL" label.color="$COL"
+  ;;
+esac

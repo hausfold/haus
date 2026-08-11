@@ -262,7 +262,20 @@ struct PreviousState {
   var wall: Double
   var ticks: CPUTicks
   var cpuNanosByPID: [pid_t: UInt64]
+  /// The last percentages this state file's owner actually reported. Kept so a
+  /// sample taken moments after the previous one can repeat them instead of
+  /// dividing by a window too short to mean anything — see `minimumWindow`.
+  var last: (total: Double, user: Double, system: Double)?
 }
+
+/// Below this many seconds between samples, a tick delta is noise: the pointer
+/// crossing the bar fires mouse.entered and mouse.exited milliseconds apart, and
+/// each one would otherwise redraw the pill from whatever the machine happened
+/// to be doing during those milliseconds — a hover that makes the number jump is
+/// a hover that makes the number look made up. A window this short repeats the
+/// last reported figures and leaves the baseline alone, so the next real tick
+/// still measures from where it should.
+let minimumWindow = 0.4
 
 let stateVersion = "sillvitals1"
 
@@ -273,6 +286,7 @@ func readState(_ path: String) -> PreviousState? {
   var haveTicks = false
   var byPID: [pid_t: UInt64] = [:]
   var versionSeen = false
+  var last: (total: Double, user: Double, system: Double)?
 
   for line in text.split(separator: "\n") {
     let parts = line.split(separator: "\t")
@@ -287,19 +301,27 @@ func readState(_ path: String) -> PreviousState? {
       haveTicks = true
     case "p" where parts.count >= 3:
       if let pid = pid_t(parts[1]), let nanos = UInt64(parts[2]) { byPID[pid] = nanos }
+    case "last" where parts.count >= 4:
+      if let total = Double(parts[1]), let user = Double(parts[2]), let system = Double(parts[3]) {
+        last = (total, user, system)
+      }
     default: continue
     }
   }
   // A file from an older layout is not a baseline, it's a different unit. Treat
   // it as no baseline at all and let the next sample be the first one.
   guard versionSeen, haveTicks, let wallValue = wall else { return nil }
-  return PreviousState(wall: wallValue, ticks: ticks, cpuNanosByPID: byPID)
+  return PreviousState(wall: wallValue, ticks: ticks, cpuNanosByPID: byPID, last: last)
 }
 
-func writeState(_ path: String, wall: Double, ticks: CPUTicks, processes: [ProcessSample]) {
+func writeState(
+  _ path: String, wall: Double, ticks: CPUTicks, processes: [ProcessSample],
+  last: (total: Double, user: Double, system: Double)?
+) {
   var out = "\(stateVersion)\n"
   out += "wall\t\(wall)\n"
   out += "ticks\t\(ticks.user)\t\(ticks.system)\t\(ticks.idle)\t\(ticks.nice)\n"
+  if let last = last { out += "last\t\(f1(last.total))\t\(f1(last.user))\t\(f1(last.system))\n" }
   for process in processes { out += "p\t\(process.pid)\t\(process.cpuNanos)\n" }
   // Write-then-rename: a pill reading the file while we truncate it would find
   // half a baseline and report a percentage computed against it.
@@ -349,20 +371,35 @@ var output = ""
 // it. Both are deltas, so both are absent on the very first run.
 var machineCPU: Double?
 if let ticks = readCPUTicks() {
-  if let previous = previous, ticks.total > previous.ticks.total {
+  var reported: (total: Double, user: Double, system: Double)?
+  let window = previous.map { now - $0.wall } ?? 0
+
+  if let previous = previous, window >= minimumWindow, ticks.total > previous.ticks.total {
     let span = Double(ticks.total &- previous.ticks.total)
     let user = Double((ticks.user &+ ticks.nice) &- (previous.ticks.user &+ previous.ticks.nice)) / span * 100
     let system = Double(ticks.system &- previous.ticks.system) / span * 100
-    machineCPU = user + system
+    reported = (user + system, user, system)
+  } else if let cached = previous?.last {
+    // Too soon to measure again — repeat what we last said. See `minimumWindow`.
+    reported = cached
+  }
+
+  if let reported = reported {
+    machineCPU = reported.total
     var loads = [Double](repeating: 0, count: 3)
     getloadavg(&loads, 3)
     let cores = sysctlUInt64("hw.logicalcpu") ?? 1
-    output += "cpu\t\(f1(user + system))\t\(f1(user))\t\(f1(system))\t\(f1(loads[0]))\t\(cores)\n"
+    output += "cpu\t\(f1(reported.total))\t\(f1(reported.user))"
+    output += "\t\(f1(reported.system))\t\(f1(loads[0]))\t\(cores)\n"
   }
-  // Written unconditionally: the state file IS the baseline for the next run,
-  // and a mode that skipped it would leave every one of its samples reporting
-  // "no previous reading" forever.
-  writeState(statePath, wall: now, ticks: ticks, processes: processes)
+
+  // The state file IS the baseline for the next run, so it is written on every
+  // mode — but NOT when the window was too short to measure: rewriting it there
+  // would move the baseline forward without ever having measured against it, and
+  // a pointer swept across the bar could keep resetting it indefinitely.
+  if window >= minimumWindow || previous == nil {
+    writeState(statePath, wall: now, ticks: ticks, processes: processes, last: reported)
+  }
 }
 
 let memory = readMemory()

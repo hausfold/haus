@@ -161,5 +161,16 @@ fi
 # The graph carries the shape and the label carries the state, which is why the
 # graph's colour is set once in the item definition and never here: a line that
 # changed hue every two seconds would be the busiest thing on the bar.
-"$SB" --push "$ITEM_NAME" "$(vitals_fraction "$CPU_TOTAL")" \
-  --set "$ITEM_NAME" icon="$ICON" label="$LABEL" label.color="$COL"
+#
+# A point is pushed only by the CLOCK. The graph has no time axis of its own — it
+# is the last 48 values, evenly spaced — so a point pushed because the pointer
+# crossed the pill would shove two minutes of history sideways at the speed of a
+# mouse, and hovering would visibly rewrite the past. Mouse-driven runs repaint
+# the label and nothing else.
+case "${SENDER:-}" in
+mouse.*) "$SB" --set "$ITEM_NAME" icon="$ICON" label="$LABEL" label.color="$COL" ;;
+*)
+  "$SB" --push "$ITEM_NAME" "$(vitals_fraction "$CPU_TOTAL")" \
+    --set "$ITEM_NAME" icon="$ICON" label="$LABEL" label.color="$COL"
+  ;;
+esac
