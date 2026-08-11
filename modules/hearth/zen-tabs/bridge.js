@@ -27,6 +27,21 @@ const HOST = "co.hausfold.zentabs";
 // consumer is a click on a bar pill.
 const SETTLE_MS = 300;
 
+// Nothing downstream reads more than a title, and both of these are unbounded
+// in the wild — a generated page title can run to kilobytes, and a data: URL has
+// no length at all. A few thousand tabs of either would push one message past
+// what the host is willing to read in one piece, and the failure would look like
+// "the bridge stopped working" rather than "that one tab has a silly title".
+const MAX_TITLE = 300;
+const MAX_URL = 500;
+
+// How long a connection has to survive before it counts as working. Resetting
+// the backoff at the END of connect() — which is where it lived first — resets
+// it on every ATTEMPT, so the doubling below never took effect and a host that
+// couldn't start had Zen exec'ing a process every second for the browser's whole
+// life. A port is only proof of anything once it has stayed up a while.
+const PROVEN_MS = 15000;
+
 let port = null;
 let pending = null;
 let backoff = 1000;
@@ -42,8 +57,8 @@ function snapshot() {
         tabs: tabs.map((t) => ({
           id: t.id,
           windowId: t.windowId,
-          title: t.title || "",
-          url: t.url || "",
+          title: (t.title || "").slice(0, MAX_TITLE),
+          url: (t.url || "").slice(0, MAX_URL),
           audible: !!t.audible,
           active: !!t.active,
         })),
@@ -91,7 +106,9 @@ function connect() {
     backoff = Math.min(backoff * 2, 60000);
   });
 
-  backoff = 1000;
+  setTimeout(() => {
+    if (port) backoff = 1000;
+  }, PROVEN_MS);
   snapshot();
 }
 

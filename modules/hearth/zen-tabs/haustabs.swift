@@ -65,10 +65,30 @@ func send(_ obj: [String: Any]) {
 // signals that skip it. tabs.json goes FIRST: it is the file the bar trusts, and
 // the window where it exists without a pid to back it is the window where a
 // ⌘-click silently does nothing instead of falling back.
+//
+// It removes the files ONLY if the pid file still says they're ours, and that
+// guard is not paranoia — two hosts overlap in ordinary use. A rebuild swaps the
+// .xpi's store path while Zen is running, so the reinstalled extension connects
+// and spawns a NEW host before the old instance's port closes; a second profile
+// or a second Zen does the same. Without the check, the dying host unlinks the
+// live one's files, and because the survivor's vnode source is then watching an
+// unlinked inode it can never receive a command again — silently, for the rest
+// of the session, with the bar still seeing a live-looking bridge.
+let selfPid = String(getpid())
+var tornDown = false
+
+func ownsState() -> Bool {
+    guard let s = try? String(contentsOfFile: pidPath, encoding: .utf8) else { return false }
+    return s.trimmingCharacters(in: .whitespacesAndNewlines) == selfPid
+}
+
 func teardown() -> Never {
-    try? fm.removeItem(atPath: tabsPath)
-    try? fm.removeItem(atPath: pidPath)
-    try? fm.removeItem(atPath: cmdPath)
+    tornDown = true
+    if ownsState() {
+        try? fm.removeItem(atPath: tabsPath)
+        try? fm.removeItem(atPath: pidPath)
+        try? fm.removeItem(atPath: cmdPath)
+    }
     exit(0)
 }
 
@@ -110,13 +130,17 @@ func drainCommands() {
     }
 }
 
-if cmdFD >= 0 {
-    let watch = DispatchSource.makeFileSystemObjectSource(
-        fileDescriptor: cmdFD, eventMask: [.write, .extend], queue: .global())
-    watch.setEventHandler { drainCommands() }
-    watch.resume()
-    sources.append(watch)
-}
+// Fatal on purpose. A host that runs on with no command channel still satisfies
+// every liveness test the bar makes — tabs.json readable, cmd writable, pid
+// alive — so ⌘-click would append into a void, report success, and never reach
+// the keystroke fallback. Dying is what lets the bar notice.
+guard cmdFD >= 0 else { teardown() }
+
+let watch = DispatchSource.makeFileSystemObjectSource(
+    fileDescriptor: cmdFD, eventMask: [.write, .extend], queue: .global())
+watch.setEventHandler { drainCommands() }
+watch.resume()
+sources.append(watch)
 
 // ── stdin ────────────────────────────────────────────────────────────────────
 func readExact(_ count: Int) -> Data? {
@@ -131,23 +155,59 @@ func readExact(_ count: Int) -> Data? {
     return out
 }
 
+// Same read loop, nothing kept — the point of dropping an oversized message is
+// not to allocate it, so this cannot just be readExact with the result ignored.
+func discardExact(_ count: Int) -> Bool {
+    var left = count
+    var buf = [UInt8](repeating: 0, count: 1 << 16)
+    while left > 0 {
+        let want = min(left, buf.count)
+        let n = buf.withUnsafeMutableBytes { read(0, $0.baseAddress, want) }
+        if n <= 0 { return false }
+        left -= n
+    }
+    return true
+}
+
 // rename(2) rather than FileManager.replaceItemAt: the latter needs the
 // destination to already exist, and this writes the FIRST tabs.json too.
+//
+// The `tornDown` check closes the one-instruction window where a signal lands
+// between the write and the rename: without it, teardown removes the files and
+// then this puts tabs.json straight back — a state file with no live host
+// behind it, which is exactly what the pid file exists to prevent.
 func publish(_ data: Data) {
+    if tornDown { return }
     let tmp = tabsPath + ".tmp"
     guard (try? data.write(to: URL(fileURLWithPath: tmp))) != nil else { return }
     try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: tmp)
+    if tornDown {
+        try? fm.removeItem(atPath: tmp)
+        return
+    }
     rename(tmp, tabsPath)
 }
 
 try? "\(getpid())\n".write(toFile: pidPath, atomically: true, encoding: .utf8)
 
+// The cap is on what we're willing to hold in memory, NOT on what the protocol
+// allows: the 1 MiB limit everyone quotes runs the other way (host → browser),
+// while browser → host is bounded only by the browser. So an over-cap message is
+// READ AND DROPPED rather than treated as fatal — the length prefix is exactly
+// what makes that safe, since discarding a known number of bytes leaves the
+// stream in sync where quitting would take the whole bridge down over one
+// oversized snapshot. bridge.js trims titles and URLs so this stays theoretical;
+// this is the belt for that pair of braces.
+let maxMessage = 16 << 20
+
 while true {
     guard let header = readExact(4) else { teardown() }
     let length = Int(header.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self).littleEndian })
-    // The protocol caps a browser→host message at 1 MiB. Anything claiming more
-    // is a desynced stream, and reading it would hang on a pipe that will never
-    // deliver — so treat it as the end rather than trying to resynchronise.
-    guard length > 0, length <= 1 << 20, let body = readExact(length) else { teardown() }
+    guard length > 0 else { teardown() }
+    if length > maxMessage {
+        guard discardExact(length) else { teardown() }
+        continue
+    }
+    guard let body = readExact(length) else { teardown() }
     publish(body)
 }

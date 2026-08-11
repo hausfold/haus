@@ -391,6 +391,13 @@ EOF
 # noise is by definition the one you meant.
 media_focus_tab_bridge() {
     local bundle="$1" needle="$2" state id pid
+    # ZEN ONLY, and checked here rather than at the call site because the file
+    # this reads holds ZEN's tabs and nothing else. Firefox and LibreWolf share
+    # the Firefox-family branch above, and without this a title playing in
+    # Firefox that happens to substring-match a Zen tab would switch Zen's tab
+    # and then raise Firefox. The bridge is Zen-only for a signing reason (see
+    # modules/hearth/zen-tabs); widen this the day that stops being true.
+    [ "$bundle" = "app.zen-browser.zen" ] || return 1
     state="$HOME/.local/state/nebelhaus/zen-tabs"
     [ -r "$state/tabs.json" ] && [ -w "$state/cmd" ] || return 1
     pid="$(cat "$state/pid" 2>/dev/null)"

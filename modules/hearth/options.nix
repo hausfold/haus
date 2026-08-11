@@ -328,8 +328,10 @@ in
 
         Off by default because it force-installs an add-on into your browser,
         which is not a thing a rice should do to you unasked. Turning it on
-        costs one derivation and two files; turning it back off removes the
-        add-on again on the next rebuild.
+        costs one derivation and two files. Turning it back off stops the rice
+        deploying it — what Zen then does with the add-on already installed is
+        Firefox's policy engine's business, not the rice's, so check
+        `about:addons` and remove it there if it outstays the option.
 
         **Zen only, and that's a signing constraint rather than a choice.**
         Release Firefox refuses an extension Mozilla hasn't signed and no policy
