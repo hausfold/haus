@@ -250,9 +250,10 @@ GIT_EMAIL="${NEBELHAUS_GIT_EMAIL:-$(git config --global user.email 2>/dev/null |
 GIT_SIGNING=""
 ACCENT="${NEBELHAUS_ACCENT:-mauve}"
 EDITOR_CHOICE="${NEBELHAUS_EDITOR:-hx}"
-# Wallpaper: none (default — leave it alone), the generated `minimal` haus look,
-# or one of the inherited Nebelung ones.
-WALLPAPER="${NEBELHAUS_WALLPAPER:-none}"
+# Wallpaper: the generated `minimal` haus look (default, matching the rice's own
+# haus.wallpaper.style), one of the inherited Nebelung ones, or `none` to leave
+# whatever you already have exactly where it is.
+WALLPAPER="${NEBELHAUS_WALLPAPER:-minimal}"
 ADOPT_CASKS=""
 # Rooms: a comma list of the ones ON (default all three); omit one to disable it.
 ROOMS="${NEBELHAUS_ROOMS:-sill,prowl,pounce}"
@@ -319,10 +320,13 @@ if [ -n "$INTERACTIVE" ]; then
     ACCENT="$(printf 'mauve\nblue\nsapphire\nsky\nteal\ngreen\nyellow\npeach\nmaroon\nred\npink\nflamingo\nrosewater\nlavender' \
       | "$GUM" choose --header 'Accent colour:')"; ACCENT="${ACCENT:-mauve}"
 
-    # Enter takes the shown default (minimal); Esc/skip keeps your wallpaper.
+    # Enter and Esc/skip both take the shown default (minimal), like every other
+    # question here; `none` is the explicit choice that keeps your wallpaper, and
+    # the preflight audit below names whichever one you land on before anything
+    # is written.
     WALLPAPER="$(printf 'minimal\norbits\nconstellation\nflow\nbold\nnone' \
       | "$GUM" choose --header 'Desktop wallpaper — minimal is the haus mark on your palette · bold follows your accent · none keeps yours:')"
-    WALLPAPER="${WALLPAPER:-none}"
+    WALLPAPER="${WALLPAPER:-minimal}"
 
     EDITOR_CHOICE="$(printf 'hx\nnvim\nvim\nnano' | "$GUM" choose --header 'Default $EDITOR:')"
     EDITOR_CHOICE="${EDITOR_CHOICE:-hx}"
@@ -464,7 +468,10 @@ opt_lines=""
 [ -z "$ROOM_PROWL" ]  && opt_lines+="  haus.prowl.enable = false;"$'\n'
 [ -z "$ROOM_POUNCE" ] && opt_lines+="  haus.pounce.enable = false;"$'\n'
 [ "$ACCENT" != "mauve" ] && opt_lines+="  haus.theme.accent = \"$ACCENT\";"$'\n'
-[ "$WALLPAPER" != "none" ] && opt_lines+="  haus.wallpaper.style = \"$WALLPAPER\";"$'\n'
+# `minimal` is the rice default now, so it's `none` that has to be written out —
+# omitting the line on a "keep mine" answer would hand that machine the generated
+# desktop, which is the opposite of what was asked for.
+[ "$WALLPAPER" != "minimal" ] && opt_lines+="  haus.wallpaper.style = \"$WALLPAPER\";"$'\n'
 [ "$EDITOR_CHOICE" != "hx" ] && opt_lines+="  haus.hearth.editor = \"$EDITOR_CHOICE\";"$'\n'
 [ -n "$opt_lines" ] && opt_lines=$'\n'"$opt_lines"
 cask_lines=""

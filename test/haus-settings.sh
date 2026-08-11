@@ -87,7 +87,7 @@ fi
 rm -f "$tmp/.git/index.lock"
 test ! -e "$tmp/hosts/test/settings/wallpaper.style.nix"
 test ! -e "$tmp/hosts/test/settings/theme.contrast.nix"
-test "$("${haus[@]}" get wallpaper.style)" = "none"
+test "$("${haus[@]}" get wallpaper.style)" = "minimal"
 test "$("${haus[@]}" get theme.contrast)" = "normal"
 
 # reset is variadic for the same arithmetic as set: the light-mode intent took
