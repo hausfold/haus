@@ -197,15 +197,16 @@ in
 
     wallpaper.glow.strength = lib.mkOption {
       type = lib.types.ints.between 0 100;
-      default = 7;
+      default = 3;
       example = 14;
       description = ''
         How much of the bloom is mixed into the field, as a percentage.
 
-        Small numbers on purpose: at 7 the accent is a few levels of lift you'd
+        Small numbers on purpose: at 3 the accent is a few levels of lift you'd
         struggle to name and would miss if it went. Past ~25 it stops being
         light on a wall and starts being a coloured wallpaper, which is a
-        different desktop than this one.
+        different desktop than this one. (Was 7 until it turned out to read as
+        the field simply not being dark enough, rather than as a glow.)
       '';
     };
 

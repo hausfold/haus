@@ -4155,9 +4155,9 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "7"
+      "text": "3"
     },
-    "description": "How much of the bloom is mixed into the field, as a percentage.\n\nSmall numbers on purpose: at 7 the accent is a few levels of lift you'd\nstruggle to name and would miss if it went. Past ~25 it stops being\nlight on a wall and starts being a coloured wallpaper, which is a\ndifferent desktop than this one.\n",
+    "description": "How much of the bloom is mixed into the field, as a percentage.\n\nSmall numbers on purpose: at 3 the accent is a few levels of lift you'd\nstruggle to name and would miss if it went. Past ~25 it stops being\nlight on a wall and starts being a coloured wallpaper, which is a\ndifferent desktop than this one. (Was 7 until it turned out to read as\nthe field simply not being dark enough, rather than as a glow.)\n",
     "example": {
       "_type": "literalExpression",
       "text": "14"
