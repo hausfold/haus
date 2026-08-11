@@ -213,6 +213,10 @@ it silently.
   "Always Allow" dialog the first time `codesign` runs).
 - **Homebrew tap-trust** (`modules/den`): `HOMEBREW_NO_REQUIRE_TAP_TRUST=1` via
   `/etc/homebrew/brew.env` — third-party taps fail trust checks under sudo activation.
+  That file is also the only place a `HOMEBREW_*` setting reaches the *rebuild's*
+  `brew bundle` (activation runs it under a `sudo … env …` that resets everything
+  else), so the API-refresh window and the env-hint silencing live there too — an
+  export in hearth or bench only ever reaches your interactive shell.
 - **Touch ID + zellij** (`modules/collar`): `reattach = true` is required because sudo
   runs inside zellij; without pam_reattach the Touch ID prompt beachballs.
 - **secretspec + keychain ACLs** (`modules/secrets`): with the default "keyring"

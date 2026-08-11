@@ -733,11 +733,12 @@ in
   # HOMEBREW_NO_ENV_HINTS silences the "Disable this behaviour by setting
   # HOMEBREW_…" tips brew volunteers after a bundle run. They're advice for a
   # human at a prompt; here they land mid-rebuild log, in a run nobody typed,
-  # naming knobs this file already decides. It has to live HERE and not in the
-  # caller's environment: nix-darwin's activation runs the bundle as
-  # `sudo --preserve-env=PATH --user=… env … brew bundle`, so every other
-  # variable is reset — an export in bench, hearth or your shell never arrives.
-  # brew.env is read by `bin/brew` itself, so it survives that reset.
+  # naming knobs this file already decides. hearth exports the same variable in
+  # `home.sessionVariables`, which is why your OWN `brew install` is already
+  # quiet — but that never reaches the rebuild, because nix-darwin activates the
+  # bundle as `sudo --preserve-env=PATH --user=… env … brew bundle` and every
+  # other variable is reset. Only brew.env survives that, because `bin/brew`
+  # reads it itself on each call. Hence both, and hence not bench either.
   environment.etc."homebrew/brew.env".text = ''
     HOMEBREW_NO_REQUIRE_TAP_TRUST=1
     HOMEBREW_API_AUTO_UPDATE_SECS=3600
