@@ -37,7 +37,7 @@ REST=""
 TOP_VALUE=(); TOP_PID=(); TOP_NAME=()
 
 vitals_sample() { # vitals_sample <state-path> <cpu|mem|none> [rows]
-  local line kind a b c d e f g
+  local kind a b c d e f g
   TOP_VALUE=(); TOP_PID=(); TOP_NAME=()
   [ -x "$VITALS_BIN" ] || return 1
   # Process substitution rather than a pipe: a `while read` on the right of a
@@ -108,12 +108,16 @@ VITALS_H_ROW=25
 VITALS_H_META=20
 
 vitals_metrics() { # measure the font once per run, not once per row
+  # Two advances, because the header draws one size up: pad a FS_LABEL row with
+  # FS_SMALL columns and the header's number lands short of the column every row
+  # below it uses, which is the one misalignment in a dropdown you actually see.
   VITALS_ADV=$(awk -v s="${FS_SMALL:-13}" 'BEGIN { printf "%.0f", s * 602 }')
+  VITALS_ADV_LABEL=$(awk -v s="${FS_LABEL:-15}" 'BEGIN { printf "%.0f", s * 602 }')
 }
 
 vitals_px() { printf '%s' $((($1 + 500) / 1000)); }
 
-vitals_name_pad() { # vitals_name_pad <name> [columns already spent] — icon
+vitals_name_pad() { # vitals_name_pad <name> [columns already spent] [advance] — icon
   # padding that lands every value on one column, whatever the app happens to be
   # called. A name longer than the column gets the minimum gap and pushes its own
   # value right; that is one ragged row rather than a dropdown sized for the
@@ -125,7 +129,7 @@ vitals_name_pad() { # vitals_name_pad <name> [columns already spent] — icon
   # named by the caller, beats a length that changes with $LANG.
   local cols=$((VITALS_NAME_COLS - ${#1} - ${2:-0}))
   [ "$cols" -lt 1 ] && cols=1
-  vitals_px $((cols * VITALS_ADV + VITALS_NAME_GAP * 1000))
+  vitals_px $((cols * ${3:-$VITALS_ADV} + VITALS_NAME_GAP * 1000))
 }
 
 # All builders append to ARGS and bump $i — nothing here talks to sketchybar, so
@@ -151,7 +155,7 @@ vitals_header() { # vitals_header <icon> <title> <value> <color>
   # what follows rather than as a caption sitting above it.
   vitals_pop_add icon="$1 $2" icon.color="$4" \
     icon.font="${BAR_FONT}:Bold:${FS_LABEL}" \
-    icon.padding_left=10 icon.padding_right="$(vitals_name_pad "$2" 2)" \
+    icon.padding_left=10 icon.padding_right="$(vitals_name_pad "$2" 2 "$VITALS_ADV_LABEL")" \
     label="$3" label.color="$TEXT" \
     label.font="${BAR_FONT}:Bold:${FS_LABEL}" \
     background.height="$VITALS_H_HEADER"
@@ -216,6 +220,14 @@ vitals_activity_monitor() { # vitals_activity_monitor <tab>
   fi
 }
 
+# The item a row belongs to. SketchyBar sets $NAME to the item that was
+# CLICKED, and a popup row is its own item — `cpu.popup.7` — so a plugin
+# re-entered from a row and reading $NAME straight would address the row rather
+# than the pill. `--set cpu.popup.7 popup.drawing=off` is not an error: rows have
+# a popup property like every item, so the call succeeds, does nothing, and
+# leaves the dropdown floating over the window the row just raised.
+vitals_pill_of() { printf '%s' "${1%%.popup.*}"; }
+
 vitals_focus() { # vitals_focus <name> — bring the app a row names to the front
   # Windows are aerospace's business (the agents pill focuses panes the same
   # way), and the app NAME is what both ends of this agree on: sillvitals names
@@ -224,8 +236,11 @@ vitals_focus() { # vitals_focus <name> — bring the app a row names to the fron
   #
   # No window, no action. A row for a background process is not a broken button
   # — `open -a` on it would either launch a second copy or bounce a Dock icon
-  # for something that has no UI at all.
+  # for something that has no UI at all. Same for a rice running sill WITHOUT
+  # prowl: no aerospace, so no window lookup, so the row is inert rather than
+  # noisy — `haus.sill.enable` doesn't imply `haus.prowl.enable`.
   local wid
+  command -v aerospace >/dev/null 2>&1 || return 0
   wid=$(aerospace list-windows --all --format '%{window-id}|%{app-name}' 2>/dev/null |
     awk -F'|' -v want="$1" 'tolower($2) == tolower(want) { print $1; exit }')
   [ -n "$wid" ] && aerospace focus --window-id "$wid" 2>/dev/null
@@ -237,7 +252,11 @@ vitals_focus() { # vitals_focus <name> — bring the app a row names to the fron
 # clock a second or two later and would otherwise snap back to the short label
 # under a pointer that never moved. A file, not a variable: every one of these
 # runs is a separate process.
-vitals_hover_file() { printf '%s' "/tmp/sill-vitals-${ITEM_NAME}-hover-${USER}"; }
+# Under $TMPDIR, which macOS gives every session as its own 0700 directory,
+# rather than world-writable /tmp: this path is truncated (`: >`) on every hover,
+# and a predictable name in a shared directory is a symlink away from truncating
+# something else.
+vitals_hover_file() { printf '%s' "${TMPDIR:-/tmp}/sill-vitals-${ITEM_NAME}-hover"; }
 vitals_hovering() { [ -f "$(vitals_hover_file)" ]; }
 vitals_hover_set() { : > "$(vitals_hover_file)"; }
 vitals_hover_clear() { rm -f "$(vitals_hover_file)"; }

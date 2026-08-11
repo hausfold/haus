@@ -27,11 +27,15 @@ SILL_ITEM=cpu
 source "$HOME/.config/sketchybar/bar.sh"
 source "$HOME/.config/sketchybar/plugins/vitals_lib.sh"
 
-ITEM_NAME="${NAME:-cpu}"
+# $NAME is the item that was CLICKED, which on the row path is a popup child
+# (`cpu.popup.7`) rather than the pill — hence vitals_pill_of. See its comment
+# for what addressing the row instead quietly fails to do.
+ITEM_NAME="$(vitals_pill_of "${NAME:-cpu}")"
 SELF="$HOME/.config/sketchybar/plugins/cpu.sh"
 # Per-pill state, so this pill's percentages are always "since MY last look" —
-# see sillvitals.swift on why the two pills can't share one baseline.
-STATE="/tmp/sill-vitals-cpu-${USER}"
+# see sillvitals.swift on why the two pills can't share one baseline. In the
+# session's own $TMPDIR (0700) rather than /tmp, like the hover flag.
+STATE="${TMPDIR:-/tmp}/sill-vitals-cpu"
 
 # Nerd Font CPU icon (nf-oct-cpu, U+F4BC). Literal glyph, not printf '\uXXXX' —
 # macOS ships bash 3.2, whose printf has no \u/\U escapes and emits the escape
@@ -88,9 +92,13 @@ fi
 
 # ── the sample ────────────────────────────────────────────────────────────────
 # One run serves the label, the graph point and every row of the dropdown, so
-# the pill and the dropdown explaining it are always the same moment. Rows are
-# only asked for when they'll be drawn — walking every process costs ~25 ms and
-# the periodic tick has nothing to do with them.
+# the pill and the dropdown explaining it are always the same moment.
+#
+# `cpu` mode on BOTH paths, and only the row count changes: a per-process delta
+# needs a per-process baseline, so the periodic tick has to keep recording one
+# even though it draws no rows. That is the tick's real cost — walking every
+# process and rewriting the state file, ~25 ms of the 2-second budget — and it
+# buys a dropdown that opens with numbers already in it.
 if [ "$WANT_POPUP" = 1 ]; then
   vitals_sample "$STATE" cpu 5
 else
@@ -116,24 +124,34 @@ if [ "$WANT_POPUP" = 1 ]; then
   i=0
 
   vitals_header "$ICON" "CPU" "${PCT}%" "$PEACH"
-  vitals_row "user" "${CPU_USER}%" "$TEXT"
-  vitals_row "system" "${CPU_SYS}%" "$TEXT"
-  # Load average is the queue, not the usage: 100% with a load of 2 is a machine
-  # working, 100% with a load of 30 is a machine drowning. Cores are printed
-  # beside it because the number means nothing without them.
-  vitals_row "load" "${LOAD} · ${NCPU} cores" "$TEXT"
+  # Guarded on the split rather than drawn blank: the first click after a bar
+  # reload has no previous sample behind it, and `user  %` / `load  · cores` is
+  # a row claiming to know something it doesn't. One tick later they're all here.
+  if [ -n "$CPU_USER" ]; then
+    vitals_row "user" "${CPU_USER}%" "$TEXT"
+    vitals_row "system" "${CPU_SYS}%" "$TEXT"
+    # Load average is the queue, not the usage: 100% with a load of 2 is a
+    # machine working, 100% with a load of 30 is a machine drowning. Cores are
+    # printed beside it because the number means nothing without them.
+    vitals_row "load" "${LOAD} · ${NCPU} cores" "$TEXT"
+  else
+    vitals_meta "measuring — the bar reloaded a moment ago"
+  fi
 
   if [ ${#TOP_NAME[@]} -gt 0 ]; then
     vitals_meta "what's using it"
     n=0
     while [ "$n" -lt ${#TOP_NAME[@]} ]; do
       name="${TOP_NAME[$n]}"
-      # Rows are clickable and each one goes to its app's window. Single quotes
-      # around the name (any of its own stripped first) because a click_script is
-      # a shell string and half this machine's apps have a space in their name.
-      safe="${name//\'/}"
+      # Rows are clickable and each one goes to its app's window. `printf %q`
+      # rather than hand-rolled quotes (the same thing calendar.sh does with its
+      # join links): a click_script is a shell string the bar evaluates, half
+      # this machine's apps have a space in their name, and an app with an
+      # apostrophe must reach aerospace with the apostrophe still in it — a name
+      # we edited to make quoting easy is a name that matches no window.
+      safe=$(printf '%q' "$name")
       vitals_row "$name" "${TOP_VALUE[$n]}%" "$(vitals_color "${TOP_VALUE[$n]}")" \
-        "$SELF row ${TOP_PID[$n]} '$safe'"
+        "$SELF row ${TOP_PID[$n]} $safe"
       n=$((n + 1))
     done
     # The remainder is drawn, never hidden: sillvitals can only read processes we

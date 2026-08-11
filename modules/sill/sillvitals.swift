@@ -212,11 +212,14 @@ func displayName(forPath path: String) -> String {
   for component in path.split(separator: "/") where component.hasSuffix(".app") {
     return String(component.dropLast(4))
   }
-  // A leading dot is a wrapper's, not a name: nix and Homebrew both install the
-  // real binary as `.thing-wrapped` beside a shim, and a dropdown row reading
-  // `.claude-wrapped` is naming an implementation detail at the user.
-  let base = String(path.split(separator: "/").last ?? "?")
-  return base.hasPrefix(".") ? String(base.dropFirst()) : base
+  // `.claude-wrapped` is a wrapper's filename, not a name. Nix (and Homebrew's
+  // shim layout) install the real binary as `.thing-wrapped` beside a script
+  // that execs it, so BOTH halves have to come off — stripping the dot alone
+  // still reads `claude-wrapped` at someone who asked what's eating their CPU.
+  var base = String(path.split(separator: "/").last ?? "?")
+  if base.hasPrefix(".") { base = String(base.dropFirst()) }
+  if base.hasSuffix("-wrapped") { base = String(base.dropLast(8)) }
+  return base.isEmpty ? "?" : base
 }
 
 func readProcesses() -> [ProcessSample] {

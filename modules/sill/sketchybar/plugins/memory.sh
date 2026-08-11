@@ -25,9 +25,11 @@ SILL_ITEM=memory
 source "$HOME/.config/sketchybar/bar.sh"
 source "$HOME/.config/sketchybar/plugins/vitals_lib.sh"
 
-ITEM_NAME="${NAME:-memory}"
+# $NAME is the CLICKED item, which on the row path is a popup child rather than
+# the pill — see vitals_pill_of, and cpu.sh's note beside the same line.
+ITEM_NAME="$(vitals_pill_of "${NAME:-memory}")"
 SELF="$HOME/.config/sketchybar/plugins/memory.sh"
-STATE="/tmp/sill-vitals-memory-${USER}"
+STATE="${TMPDIR:-/tmp}/sill-vitals-memory"
 
 # Nerd Font memory icon (nf-md-memory, U+F049D). Literal glyph, not printf
 # '\UXXXXXXXX' — macOS ships bash 3.2, whose printf has no \u/\U escapes and
@@ -117,8 +119,8 @@ if [ "$WANT_POPUP" = 1 ]; then
     n=0
     while [ "$n" -lt ${#TOP_NAME[@]} ]; do
       name="${TOP_NAME[$n]}"
-      safe="${name//\'/}"
-      vitals_row "$name" "${TOP_VALUE[$n]} GB" "$TEXT" "$SELF row ${TOP_PID[$n]} '$safe'"
+      safe=$(printf '%q' "$name")   # see cpu.sh — the row is a shell string
+      vitals_row "$name" "${TOP_VALUE[$n]} GB" "$TEXT" "$SELF row ${TOP_PID[$n]} $safe"
       n=$((n + 1))
     done
     # Same honesty as the CPU dropdown: these are processes we own, so anything
