@@ -26,6 +26,11 @@
 # draws a neutral glyph for each, rather than guessing a brand and being wrong on
 # Netflix. A rice that knows better overrides the glyph through
 # haus.sill.media.icons — that option is this limitation's escape hatch.
+#
+# None of that stops ⌘-click from reaching the right TAB, which is a different
+# question and has a different answer: it matches the track's title against the
+# browser's own list of open tabs rather than trying to learn a URL. See
+# media_focus_source below.
 
 SILL_MEDIA_STATE_DIR="$HOME/.local/state/nebelhaus/media"
 SILL_MEDIA_NOW="$SILL_MEDIA_STATE_DIR/now"
@@ -51,10 +56,27 @@ SILL_MEDIA_TINT="$SILL_MEDIA_STATE_DIR/tint"
 SILL_MEDIA_ART_BOX=84
 SILL_MEDIA_ART_TARGET=68
 
-# The small app-icon badge next to "Show in <App>", for when there's no cover
-# to name the source instead. Deliberately its own (smaller) size rather than
-# the cover well's — it is an aside, not a hero image.
-SILL_MEDIA_BADGE_BOX=56
+# The small app-icon badge for when there's no cover to name the source instead.
+# It does NOT sit in the stack as a row of its own any more: a 56pt icon
+# occupying a full-width menu row read as a list ENTRY — something you were meant
+# to click, wedged between two things you actually click — rather than as the
+# aside it is. It now floats in the dropdown's bottom-right corner instead,
+# below the last transport row and pushed right by media_badge_align, which is
+# what the two numbers below are for: the row's height, and the scale the icon is
+# drawn at inside it. `background.image.scale` is a factor on the image's own
+# PIXELS — the same relationship media_art.sh computes per cover — and SketchyBar
+# hands back an app icon about 27px square, so 0.9 lands the badge at ~24pt: read
+# as a mark, small enough not to read as a row.
+SILL_MEDIA_BADGE_BOX=28
+SILL_MEDIA_BADGE_SCALE=0.9
+
+# How far the badge sits from the dropdown's right edge, and the widest a popup
+# row is ever assumed to be when its width can't be read back (see
+# media_badge_align). The floor matters more than it looks: too small and the
+# badge lands mid-row instead of in the corner; too large and IT becomes the
+# widest item and stretches the whole dropdown to fit.
+SILL_MEDIA_BADGE_INSET=12
+SILL_MEDIA_BADGE_MIN_WIDTH=180
 
 # The dropdown's title/album rows are capped to this many characters — not a
 # fixed width, which sketchybar treats as static rather than a maximum, and
@@ -185,6 +207,184 @@ media_app_name() {
     *.client | *.app) printf '%s' "$(printf '%s' "$bundle" | awk -F. '{print $(NF-1)}')" ;;
     *) printf '%s' "${bundle##*.}" ;;
     esac
+}
+
+# Push the app-icon badge into the dropdown's bottom-right corner.
+#
+# SketchyBar has no alignment for this: a popup is a vertical stack of
+# LEFT-aligned items, every item's background is only as wide as ITS OWN content
+# (a full-width row background is something popups simply don't do — measured),
+# and there is no right-align property. What there IS: `background.image
+# .padding_left` both offsets the image rightwards AND grows the item to fit, so
+# an item whose only content is the image, given a padding equal to the
+# dropdown's width minus the badge, draws that badge hard against the right edge
+# of a row exactly as wide as the popup already was — no wider, so it never
+# stretches the dropdown.
+#
+# Which means we need the popup's width, and only SketchyBar knows it. The two
+# rows that can be the widest are the title and its artist/album subtitle (both
+# capped at SILL_MEDIA_POPUP_MAX_CHARS, so a long one settles there); everything
+# below them is a short labelled row or the fixed-width slider, which is what the
+# floor is for.
+#
+# THE CATCH, which cost a round of head-scratching: a popup item has NO
+# bounding_rects until the popup has actually been drawn once. Freshly built and
+# still hidden, every row queries back as an empty rect list — so measuring
+# before the reveal, which is what you'd want, silently measures nothing and
+# falls through to the floor. Hence the return code: the caller reveals the
+# popup and calls again when this said it had nothing to go on, which is only
+# ever the first open after a rebuild. Every later open measures up front and
+# lands the badge before anything is on screen.
+media_badge_align() {
+    local widest="$SILL_MEDIA_BADGE_MIN_WIDTH" w item measured=1 pad
+    for item in media.popup.title media.popup.sub; do
+        w="$($SB --query "$item" 2>/dev/null |
+            jq -r '[.bounding_rects[]?.size[0]] | max // empty' 2>/dev/null)"
+        w="${w%%.*}"
+        [ -n "$w" ] || continue
+        measured=0
+        [ "$w" -gt "$widest" ] 2>/dev/null && widest="$w"
+    done
+    pad=$((widest - SILL_MEDIA_BADGE_BOX - SILL_MEDIA_BADGE_INSET))
+    [ "$pad" -lt 0 ] && pad=0
+    $SB --set media.popup.appicon background.image.padding_left="$pad" 2>/dev/null
+    return "$measured"
+}
+
+# Bring the source forward — and, when the source is a browser, the TAB, not just
+# the app. "Something is making noise and I can't find the tab" is the whole
+# reason ⌘-click exists, and landing you in the right window with the wrong tab
+# in front only answered half of it.
+#
+# The match is on the TITLE, because that is all there is: the now-playing
+# session carries no URL (see this file's header — that limitation is unchanged,
+# and this is the way around it rather than a fix for it). A tab's title contains
+# the track's title as a prefix on every service worth naming — "<video> -
+# YouTube", "<track> • <artist> | Spotify" — so a substring test is enough, and a
+# miss costs nothing but the old behaviour.
+#
+# Three families, three completely different mechanisms, and only two of them are
+# clean:
+#   * Safari and the Chromium browsers expose their tabs to AppleScript, so this
+#     is a genuine lookup: find the tab, make it current, raise its window.
+#   * Firefox and its forks (Zen among them) expose NOTHING. No AppleScript
+#     dictionary at all, and no accessibility tree either — verified directly on
+#     Zen: the tab strip is absent from the AX tree even after forcing Firefox's
+#     a11y engine on with AXEnhancedUserInterface, which leaves only the window
+#     title, which is only ever the FOREGROUND tab. So the route is the one piece
+#     of switch-to-tab machinery Firefox does ship: the address bar's `%`
+#     restriction token, which searches OPEN TABS and switches to the one you
+#     pick. Typed into a fresh tab, so the worst case when nothing matches is a
+#     search results page in a tab that wasn't there a second ago, rather than
+#     navigating away from something you were reading.
+media_focus_source() {
+    local bundle="$1" title="$2" app="$3"
+    [ -n "$bundle" ] || return 1
+
+    if [ -n "$title" ]; then
+        case "$bundle" in
+        com.apple.Safari | com.apple.SafariTechnologyPreview)
+            media_focus_tab_safari "$app" "$title" && return 0
+            ;;
+        com.google.Chrome | com.google.Chrome.canary | com.brave.Browser | \
+            com.microsoft.edgemac | com.vivaldi.Vivaldi | com.operasoftware.Opera)
+            media_focus_tab_chromium "$bundle" "$title" && return 0
+            ;;
+        org.mozilla.firefox | org.mozilla.firefoxdeveloperedition | \
+            app.zen-browser.zen | io.gitlab.librewolf-community.librewolf)
+            media_focus_tab_firefox "$bundle" "$app" "$title" && return 0
+            ;;
+        esac
+    fi
+
+    open -b "$bundle" 2>/dev/null
+}
+
+# Chromium's dictionary indexes tabs by position within a window, and `active tab
+# index` is 1-based — hence the counter rather than `set active tab of w`, which
+# it does not have. `set index of w to 1` is what raises the window; `activate`
+# alone would front the app on whichever window was already topmost.
+media_focus_tab_chromium() {
+    osascript - "$2" >/dev/null 2>&1 <<EOF
+on run argv
+  set needle to item 1 of argv
+  tell application id "$1"
+    repeat with w in windows
+      set i to 0
+      repeat with t in tabs of w
+        set i to i + 1
+        if title of t contains needle then
+          set active tab index of w to i
+          set index of w to 1
+          activate
+          return "ok"
+        end if
+      end repeat
+    end repeat
+  end tell
+  error "no match"
+end run
+EOF
+}
+
+media_focus_tab_safari() {
+    osascript - "$2" >/dev/null 2>&1 <<'EOF'
+on run argv
+  set needle to item 1 of argv
+  tell application "Safari"
+    repeat with w in windows
+      repeat with t in tabs of w
+        if name of t contains needle then
+          set current tab of w to t
+          set index of w to 1
+          activate
+          return "ok"
+        end if
+      end repeat
+    end repeat
+  end tell
+  error "no match"
+end run
+EOF
+}
+
+# The Firefox-family route. Two things about it are deliberate:
+#
+#   * The already-in-front case is checked FIRST and answered without typing
+#     anything. That is the common one — you paused a video, you want it back —
+#     and it would be absurd to open a tab and run a search to reach a tab that
+#     is already the one you're looking at.
+#   * Everything else needs System Events, i.e. the Accessibility permission of
+#     whatever spawned this (SketchyBar, for the pill; see the palette's TCC
+#     note for how that identity is inherited). Denied, osascript fails, and
+#     media_focus_source falls back to plainly activating the app — which is
+#     exactly what this gesture did before, so a machine that never grants it is
+#     no worse off than it was.
+media_focus_tab_firefox() {
+    local bundle="$1" app="$2" needle="$3" front
+
+    front="$(osascript -e "tell application \"System Events\" to tell process \"$app\" to get name of window 1" 2>/dev/null)"
+    case "$front" in
+    *"$needle"*)
+        open -b "$bundle" 2>/dev/null
+        return 0
+        ;;
+    esac
+
+    osascript - "$needle" >/dev/null 2>&1 <<EOF
+on run argv
+  set needle to item 1 of argv
+  tell application id "$bundle" to activate
+  delay 0.25
+  tell application "System Events" to tell process "$app"
+    keystroke "t" using command down
+    delay 0.2
+    keystroke ("% " & needle)
+    delay 0.5
+    key code 36
+  end tell
+end run
+EOF
 }
 
 # Seconds -> m:ss, or h:mm:ss once it earns the hour. Takes a float (the payload
