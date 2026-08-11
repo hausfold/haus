@@ -729,9 +729,20 @@ in
   # and the stock window is 450 s, so any two rebuilds more than 7½ minutes
   # apart each pay for it. An hour still picks up a same-day cask release on
   # the next rebuild, without re-fetching the catalogue mid-iteration.
+  #
+  # HOMEBREW_NO_ENV_HINTS silences the "Disable this behaviour by setting
+  # HOMEBREW_…" tips brew volunteers after a bundle run. They're advice for a
+  # human at a prompt; here they land mid-rebuild log, in a run nobody typed,
+  # naming knobs this file already decides. hearth exports the same variable in
+  # `home.sessionVariables`, which is why your OWN `brew install` is already
+  # quiet — but that never reaches the rebuild, because nix-darwin activates the
+  # bundle as `sudo --preserve-env=PATH --user=… env … brew bundle` and every
+  # other variable is reset. Only brew.env survives that, because `bin/brew`
+  # reads it itself on each call. Hence both, and hence not bench either.
   environment.etc."homebrew/brew.env".text = ''
     HOMEBREW_NO_REQUIRE_TAP_TRUST=1
     HOMEBREW_API_AUTO_UPDATE_SECS=3600
+    HOMEBREW_NO_ENV_HINTS=1
   '';
 
   # ---- macOS defaults -------------------------------------------------------
