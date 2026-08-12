@@ -1,0 +1,900 @@
+--- a/zellij-server/src/tab/mod.rs
++++ b/zellij-server/src/tab/mod.rs
+@@ -9,7 +9,7 @@
+ 
+ use crate::plugins::PluginId;
+ use copy_command::CopyCommand;
+-pub use mouse_handler::{MouseEffect, MouseHandler, PaneEdge, PaneResizeState};
++pub use mouse_handler::{ArmedLinkClick, MouseEffect, MouseHandler, PaneEdge, PaneResizeState};
+ use std::env::temp_dir;
+ use std::net::IpAddr;
+ use std::path::PathBuf;
+@@ -179,6 +179,11 @@
+     pending_vte_events: HashMap<u32, Vec<VteBytes>>,
+     pub selecting_with_mouse_in_pane: Option<PaneId>, // this is only pub for the tests
+     pane_being_resized_with_mouse: Option<PaneResizeState>,
++    // nebelhaus: a plain left press that landed on a link, held until the
++    // release that completes the click — the terminal equivalent of a browser's
++    // "press and release on the same link". See tab/mouse_handler.rs.
++    link_click_armed: HashMap<ClientId, ArmedLinkClick>,
++    last_link_click_open: HashMap<ClientId, (Instant, Position)>,
+     link_handler: Rc<RefCell<LinkHandler>>,
+     clipboard_provider: ClipboardProvider,
+     // TODO: used only to focus the pane when the layout is loaded
+@@ -679,6 +684,15 @@
+         &self,
+         _position: &Position,
+     ) -> Option<(u32, String, String, BTreeMap<String, String>)> {
++        None
++    }
++    // nebelhaus: link anchors (OSC 8 and tracker-detected URLs) live in a
++    // terminal grid, so every other pane kind answers None and never arms a
++    // link click. See tab/mouse_handler.rs `handle_link_click`.
++    fn link_anchor_at(&self, _position: &Position) -> Option<u16> {
++        None
++    }
++    fn first_highlight_plugin_id(&self) -> Option<u32> {
+         None
+     }
+     fn terminal_emulator_wants_mouse(&self) -> bool {
+@@ -836,6 +850,8 @@
+             connected_clients,
+             selecting_with_mouse_in_pane: None,
+             pane_being_resized_with_mouse: None,
++            link_click_armed: HashMap::new(),
++            last_link_click_open: HashMap::new(),
+             link_handler: Rc::new(RefCell::new(LinkHandler::new())),
+             clipboard_provider,
+             focus_pane_id: None,
+--- a/zellij-server/src/tab/mouse_handler.rs
++++ b/zellij-server/src/tab/mouse_handler.rs
+@@ -1,4 +1,5 @@
+-use std::time::Instant;
++use std::collections::BTreeMap;
++use std::time::{Duration, Instant};
+ use zellij_utils::data::{Direction, Resize, ResizeStrategy};
+ use zellij_utils::errors::prelude::*;
+ use zellij_utils::input::mouse::{MouseEvent, MouseEventType};
+@@ -24,6 +25,36 @@
+     } else {
+         false
+     }
++}
++
++/// nebelhaus: the pattern reported to the link-handler plugin when what was
++/// clicked is a link ANCHOR rather than one of the plugin's own regex matches.
++/// The plugin can't match these itself — the visible text may be a word, and a
++/// hard-wrapped URL is two unrelated strings on two rows — so the grid resolves
++/// the destination from the cell and the plugin is handed the finished URL.
++pub const LINK_ANCHOR_PATTERN: &str = "<link-anchor>";
++
++/// nebelhaus: how long after opening a link a second press is ignored. Without
++/// it, double-clicking a link (the ordinary "select this word" gesture) opens
++/// it twice; with it, the first click opens and the second falls through to
++/// zellij's own double-click word selection.
++const LINK_CLICK_DEBOUNCE: Duration = Duration::from_millis(400);
++
++/// nebelhaus: a link click that has begun — a plain left press that landed on a
++/// link, waiting for the release that completes it.
++#[derive(Debug, Clone, PartialEq)]
++pub enum ArmedLinkClick {
++    /// An OSC 8 hyperlink, or a URL zellij's own HyperlinkTracker detected in
++    /// printed text. `uri` is the real destination, wraps and all.
++    Anchor { plugin_id: u32, uri: String },
++    /// One of the link-handler plugin's regex matches — a path, an image, a
++    /// schemeless domain. Carries exactly what upstream's Alt+Click carried.
++    Highlight {
++        plugin_id: u32,
++        pattern: String,
++        matched_string: String,
++        context: BTreeMap<String, String>,
++    },
+ }
+ 
+ #[derive(Debug, Default, Copy, Clone)]
+@@ -347,11 +378,206 @@
+         event: &MouseEvent,
+         client_id: ClientId,
+     ) -> Result<MouseEffect> {
++        // nebelhaus: a plain click on a link opens it, before anything else
++        // gets a say — see `handle_link_click` for the whole story.
++        if let Some(effect) = Self::handle_link_click(tab, event, client_id)? {
++            return Ok(effect);
++        }
+         let context = Self::gather_mouse_event_context(tab, event, client_id)?;
+         let action = Self::determine_mouse_action(event, &context)?;
+         Self::execute_mouse_action(tab, action, event, client_id)
+     }
+ 
++    /// nebelhaus: click a link, it opens. In EVERY pane, whether or not the
++    /// program running there captures the mouse.
++    ///
++    /// Why this has to live at the very top of the event path, above
++    /// `determine_mouse_action`: a pane whose application wants the mouse
++    /// (Claude Code, or any TUI) has every unmodified click forwarded straight
++    /// to it, so nothing downstream ever gets to look at what was under the
++    /// pointer. Upstream's answer was Alt+Click — the one gesture zellij keeps
++    /// for itself — but ⌥ can only report the VISIBLE matched text, which is
++    /// wrong for exactly the links an agent prints: hard-wrapped URLs (two
++    /// unrelated strings on two rows) and OSC 8 hyperlinks (the destination
++    /// isn't in the text at all). Meanwhile ⌘ isn't an option for anyone: the
++    /// SGR mouse encoding has bits for shift, alt and ctrl and none for super,
++    /// so a ⌘-click arrives here indistinguishable from a bare one.
++    ///
++    /// So: the bare click is the gesture, the anchor is the source of truth,
++    /// and ⌥ goes back to meaning what upstream means by it (pane grouping).
++    /// ⇧ still bypasses the whole multiplexer into the host terminal, which is
++    /// the escape hatch when a target is one we get wrong.
++    ///
++    /// The shape is a browser's: arm on press, act on release, and only when
++    /// both landed on the same link. While armed, every event is swallowed —
++    /// the application must not see a lone release for a press it never got,
++    /// and a drag that began on a link should select nothing rather than half
++    /// a line. Returning `None` means "not a link click", and the event flows
++    /// on untouched.
++    fn handle_link_click(
++        tab: &mut Tab,
++        event: &MouseEvent,
++        client_id: ClientId,
++    ) -> Result<Option<MouseEffect>> {
++        if !event.left {
++            // Not part of the gesture at all (a wheel notch, the right
++            // button). Left alone rather than disarmed: dropping the arm here
++            // would hand the application a release for a press it never got.
++            return Ok(None);
++        }
++        if event.alt || event.ctrl || event.shift {
++            // A modified click abandons a click in progress rather than
++            // completing it as something the user didn't ask for. Its RELEASE
++            // is still swallowed if a click was pending, for the same reason
++            // the bare path swallows one: the application never saw the press,
++            // so it must not see the release either.
++            let was_armed = tab.link_click_armed.remove(&client_id).is_some();
++            if was_armed && event.event_type == MouseEventType::Release {
++                return Ok(Some(MouseEffect::state_changed()));
++            }
++            return Ok(None);
++        }
++        match event.event_type {
++            MouseEventType::Press => {
++                let repeat_of_the_last_open = tab
++                    .last_link_click_open
++                    .get(&client_id)
++                    .map(|(at, at_position)| {
++                        at.elapsed() < LINK_CLICK_DEBOUNCE && at_position == &event.position
++                    })
++                    .unwrap_or(false);
++                if repeat_of_the_last_open {
++                    // The second press of a double-click on the same cell: let
++                    // it through as an ordinary click rather than opening the
++                    // link a second time. Keyed on the position as well as the
++                    // clock, so a deliberate click on a DIFFERENT link right
++                    // afterwards still opens.
++                    tab.link_click_armed.remove(&client_id);
++                    return Ok(None);
++                }
++                match Self::link_click_target(tab, &event.position, client_id) {
++                    Some(target) => {
++                        tab.link_click_armed.insert(client_id, target);
++                        Ok(Some(MouseEffect::default()))
++                    },
++                    None => {
++                        tab.link_click_armed.remove(&client_id);
++                        Ok(None)
++                    },
++                }
++            },
++            MouseEventType::Motion => {
++                if tab.link_click_armed.contains_key(&client_id) {
++                    Ok(Some(MouseEffect::default()))
++                } else {
++                    Ok(None)
++                }
++            },
++            MouseEventType::Release => {
++                let Some(armed) = tab.link_click_armed.remove(&client_id) else {
++                    return Ok(None);
++                };
++                let released_on = Self::link_click_target(tab, &event.position, client_id);
++                if released_on.as_ref() == Some(&armed) {
++                    Self::open_link_click_target(tab, armed, client_id);
++                    tab.last_link_click_open
++                        .insert(client_id, (Instant::now(), event.position));
++                }
++                Ok(Some(MouseEffect::state_changed()))
++            },
++        }
++    }
++
++    /// nebelhaus: what a bare click at `position` would open, if anything.
++    ///
++    /// Only the pane that already has focus answers: a click on an unfocused
++    /// pane keeps meaning "focus this pane", so no link is ever opened by the
++    /// click that brought its pane forward.
++    ///
++    /// Anchors are tried before plugin patterns, and that order is the fix for
++    /// the wrapped-link bug — where both can claim the same cell, the anchor is
++    /// the one that knows the whole URL.
++    fn link_click_target(
++        tab: &mut Tab,
++        position: &Position,
++        client_id: ClientId,
++    ) -> Option<ArmedLinkClick> {
++        let active_pane_id = tab.get_active_pane_id(client_id)?;
++        let pane_id_at_position = Self::get_pane_at(tab, position, false).ok()??.pid();
++        if pane_id_at_position != active_pane_id {
++            return None;
++        }
++        let pane = tab.get_pane_with_id(active_pane_id)?;
++        if pane.position_is_on_frame(position) {
++            return None;
++        }
++        let relative_position = pane.relative_position(position);
++        if let (Some(link_id), Some(plugin_id)) = (
++            pane.link_anchor_at(&relative_position),
++            pane.first_highlight_plugin_id(),
++        ) {
++            if let Some(uri) = tab.link_handler.borrow().uri_for(link_id) {
++                return Some(ArmedLinkClick::Anchor { plugin_id, uri });
++            }
++        }
++        if pane.terminal_emulator_wants_mouse() {
++            // An anchor is a link and nothing else, so it is safe to take from
++            // any application. A plugin PATTERN is not: it matches text that
++            // merely looks like a path, and an application that asked for the
++            // mouse is usually one whose own clicks land on exactly that text —
++            // yazi selecting a file, lazygit staging one, gh-dash opening a PR.
++            // Taking those would trade one broken gesture for several, so in a
++            // pane that wants the mouse only real links are ours. The hover
++            // underline is suppressed on the same condition (panes/grid.rs), so
++            // what lights up is always what a click will open.
++            return None;
++        }
++        let (plugin_id, pattern, matched_string, context) =
++            pane.plugin_highlight_at(&relative_position)?;
++        Some(ArmedLinkClick::Highlight {
++            plugin_id,
++            pattern,
++            matched_string,
++            context,
++        })
++    }
++
++    /// nebelhaus: hand the clicked target to the link-handler plugin, which is
++    /// the thing that knows how to open one (browser, editor, image preview) and
++    /// the only side with permission to run a command. Both kinds arrive as the
++    /// same `HighlightClicked` event upstream already defined; an anchor is
++    /// distinguished by `LINK_ANCHOR_PATTERN` so the plugin can trust the string
++    /// instead of re-deriving it.
++    fn open_link_click_target(tab: &mut Tab, target: ArmedLinkClick, client_id: ClientId) {
++        let Some(pane_id) = tab.get_active_pane_id(client_id) else {
++            return;
++        };
++        let (plugin_id, pattern, matched_string, context) = match target {
++            ArmedLinkClick::Anchor { plugin_id, uri } => (
++                plugin_id,
++                LINK_ANCHOR_PATTERN.to_string(),
++                uri,
++                BTreeMap::new(),
++            ),
++            ArmedLinkClick::Highlight {
++                plugin_id,
++                pattern,
++                matched_string,
++                context,
++            } => (plugin_id, pattern, matched_string, context),
++        };
++        let _ = tab
++            .senders
++            .send_to_plugin(PluginInstruction::HighlightClicked {
++                plugin_id,
++                client_id,
++                pane_id,
++                pattern,
++                matched_string,
++                context,
++            });
++    }
++
+     fn gather_mouse_event_context(
+         tab: &mut Tab,
+         event: &MouseEvent,
+@@ -691,29 +917,14 @@
+         }
+ 
+         match action {
+-            MouseAction::GroupToggle(pane_id) => {
+-                // Check if Alt+Click lands on a plugin highlight
+-                if let Some(pane) = tab.get_pane_with_id_mut(pane_id) {
+-                    let relative_position = pane.relative_position(&event.position);
+-                    if let Some((hit_plugin_id, pattern, matched_string, context)) =
+-                        pane.plugin_highlight_at(&relative_position)
+-                    {
+-                        let _ = tab
+-                            .senders
+-                            .send_to_plugin(PluginInstruction::HighlightClicked {
+-                                plugin_id: hit_plugin_id,
+-                                client_id,
+-                                pane_id,
+-                                pattern,
+-                                matched_string,
+-                                context,
+-                            });
+-                        return Ok(MouseEffect::state_changed());
+-                    }
+-                }
+-                // No highlight hit — fall through to pane grouping
+-                Ok(MouseEffect::group_toggle(pane_id))
+-            },
++            // nebelhaus: upstream intercepts Alt+Click here and opens whatever
++            // plugin highlight it lands on. That interception is gone: a bare
++            // click opens links now (`handle_link_click`), in every pane and
++            // with the anchor rather than the visible text as the destination,
++            // so ⌥ carrying a second, worse copy of the same behaviour only
++            // cost a modifier and shipped broken URLs. ⌥+Click is pane
++            // grouping again, which is all upstream ever wanted it for.
++            MouseAction::GroupToggle(pane_id) => Ok(MouseEffect::group_toggle(pane_id)),
+             MouseAction::GroupAdd(pane_id) => Ok(MouseEffect::group_add(pane_id)),
+             MouseAction::Ungroup => Ok(MouseEffect::ungroup()),
+             MouseAction::StartResize {
+@@ -1207,16 +1418,20 @@
+             }
+             // Update hover position on the active pane during motion events
+             // so that on_hover highlights work for the focused pane too.
+-            // Skip when the terminal application has mouse tracking enabled,
+-            // because hover highlights are suppressed in that case and the
+-            // update would only trigger unnecessary re-renders.
++            //
++            // nebelhaus: upstream skipped this whenever the application had
++            // mouse tracking on, because hover highlights were suppressed in
++            // that case anyway. They no longer are (panes/grid.rs,
++            // `compute_plugin_highlight_selections`), and the pointer is in the
++            // same place either way — an agent pane is precisely where the
++            // links are, and it drew no affordance of its own. The event is
++            // still forwarded to the application above; this only adds our own
++            // reading of where the pointer is.
+             if event.event_type == MouseEventType::Motion {
+                 if let Some(pane) = tab.get_pane_with_id_mut(pane_id) {
+-                    if !pane.terminal_emulator_wants_mouse() {
+-                        let relative = pane.relative_position(&event.position);
+-                        if pane.set_hover_position(Some(relative)) {
+-                            should_render = true;
+-                        }
++                    let relative = pane.relative_position(&event.position);
++                    if pane.set_hover_position(Some(relative)) {
++                        should_render = true;
+                     }
+                 }
+             }
+--- a/zellij-server/src/tab/unit/tab_integration_tests.rs
++++ b/zellij-server/src/tab/unit/tab_integration_tests.rs
+@@ -12609,13 +12609,23 @@
+         &Style::default(),
+     );
+ 
+-    // Alt+Click at position where "foo" appears
++    // nebelhaus: a BARE click at the position where "foo" appears — press and
++    // release on the same highlight, the way a browser defines a click. This
++    // was Alt+Click upstream; see tab/mouse_handler.rs `handle_link_click`.
+     // With draw_pane_frames=true, content starts at row 1, col 1
+     // "click here foo bar" -> "foo" starts at offset 11, so col = 1 + 11 = 12
+     let click_position = Position::new(1, 12);
+-    let mut alt_click = MouseEvent::new_left_press_event(click_position);
+-    alt_click.alt = true;
+-    let effect = tab.handle_mouse_event(&alt_click, client_id).unwrap();
++    tab.handle_mouse_event(
++        &MouseEvent::new_left_press_event(click_position),
++        client_id,
++    )
++    .unwrap();
++    let effect = tab
++        .handle_mouse_event(
++            &MouseEvent::new_left_release_event(click_position),
++            client_id,
++        )
++        .unwrap();
+ 
+     assert!(effect.state_changed);
+ 
+@@ -12815,8 +12825,14 @@
+     assert_snapshot!(snapshot);
+ }
+ 
++// nebelhaus: in a pane whose application tracks the mouse, a LINK (an anchor)
++// opens on a bare click — that is what upstream could not do and what made
++// links behave one way in a shell and another way in an agent pane — while a
++// plugin PATTERN is left to the application, because its own clicks land on
++// path-shaped text and taking those would break more than it fixed. Both
++// halves are asserted here, in one pane, because they are one rule.
+ #[test]
+-fn highlight_click_in_mouse_mode_pane_suppressed() {
++fn in_a_mouse_mode_pane_anchors_open_and_patterns_do_not() {
+     let size = Size {
+         cols: 121,
+         rows: 20,
+@@ -12828,9 +12844,12 @@
+     // Feed PTY bytes that enable mouse tracking (SGR mode + any-event tracking)
+     tab.handle_pty_bytes(1, Vec::from("\x1b[?1006h\x1b[?1003h".as_bytes()))
+         .unwrap();
+-    // Then feed text with matchable content
+-    tab.handle_pty_bytes(1, Vec::from("foo bar baz".as_bytes()))
+-        .unwrap();
++    // Then a pattern-matchable word, and an OSC 8 hyperlink after it.
++    tab.handle_pty_bytes(
++        1,
++        Vec::from("foo bar \u{1b}]8;;https://example.com/a\u{1b}\\link\u{1b}]8;;\u{1b}\\".as_bytes()),
++    )
++    .unwrap();
+ 
+     // Set plugin highlight
+     let highlights = vec![RegexHighlight {
+@@ -12851,14 +12870,20 @@
+         &Style::default(),
+     );
+ 
+-    // Left-click on the highlight position
+-    // With mouse tracking, the click goes through SendToTerminal, not StartSelection
+-    let click_position = Position::new(1, 1);
+-    let _effect = tab
+-        .handle_mouse_event(&MouseEvent::new_left_press_event(click_position), client_id)
+-        .unwrap();
++    // A bare click on the PATTERN ("foo" at col 1) — the application's, not
++    // ours.
++    let pattern_position = Position::new(1, 1);
++    tab.handle_mouse_event(
++        &MouseEvent::new_left_press_event(pattern_position),
++        client_id,
++    )
++    .unwrap();
++    tab.handle_mouse_event(
++        &MouseEvent::new_left_release_event(pattern_position),
++        client_id,
++    )
++    .unwrap();
+ 
+-    // No HighlightClicked should be sent (the click is forwarded to the terminal)
+     let mut found_highlight_clicked = false;
+     while let Ok((instruction, _ctx)) = mock_plugin_receiver.try_recv() {
+         if matches!(instruction, PluginInstruction::HighlightClicked { .. }) {
+@@ -12867,11 +12892,116 @@
+     }
+     assert!(
+         !found_highlight_clicked,
+-        "HighlightClicked should NOT be sent when terminal has mouse tracking"
++        "A pattern hit belongs to the application while it is tracking the mouse"
+     );
++
++    // A bare click on the LINK ("link", printed after "foo bar " at col 9) —
++    // ours, in any pane.
++    let link_position = Position::new(1, 10);
++    tab.handle_mouse_event(&MouseEvent::new_left_press_event(link_position), client_id)
++        .unwrap();
++    tab.handle_mouse_event(
++        &MouseEvent::new_left_release_event(link_position),
++        client_id,
++    )
++    .unwrap();
++
++    let mut clicked = None;
++    while let Ok((instruction, _ctx)) = mock_plugin_receiver.try_recv() {
++        if let PluginInstruction::HighlightClicked {
++            pattern,
++            matched_string,
++            ..
++        } = instruction
++        {
++            clicked = Some((pattern, matched_string));
++        }
++    }
++    assert_eq!(
++        clicked,
++        Some((
++            "<link-anchor>".to_string(),
++            "https://example.com/a".to_string()
++        )),
++        "A link should open even when the application tracks the mouse"
++    );
+ }
+ 
++// nebelhaus: the case no plugin regex can reach — an OSC 8 hyperlink, where
++// the visible text is a word and the destination lives in the escape sequence.
++// The click resolves it from the cell's anchor and reports it under
++// LINK_ANCHOR_PATTERN, which is what makes a hard-wrapped or hidden URL open
++// whole instead of one visible fragment of it.
+ #[test]
++fn click_on_osc8_hyperlink_sends_resolved_uri() {
++    let size = Size {
++        cols: 121,
++        rows: 20,
++    };
++    let client_id = 1;
++    let (mut tab, mock_plugin_receiver) =
++        create_new_tab_with_plugin_receiver(size, ModeInfo::default());
++
++    // `see it` is the visible text; the URI is never printed.
++    tab.handle_pty_bytes(
++        1,
++        Vec::from("\u{1b}]8;;https://example.com/a/b\u{1b}\\see it\u{1b}]8;;\u{1b}\\".as_bytes()),
++    )
++    .unwrap();
++
++    // A highlight the click does NOT land on: the anchor path still needs a
++    // plugin to hand the target to, and this is how the pane names one.
++    let highlights = vec![RegexHighlight {
++        pattern: "nothing-matches-this".into(),
++        style: HighlightStyle::Emphasis0,
++        layer: HighlightLayer::Hint,
++        context: BTreeMap::new(),
++        on_hover: false,
++        bold: false,
++        italic: false,
++        underline: true,
++        tooltip_text: None,
++    }];
++    tab.set_plugin_regex_highlights_for_pane(
++        PaneId::Terminal(1),
++        42,
++        highlights,
++        &Style::default(),
++    );
++
++    // Click the middle of "see it" (content starts at row 1, col 1).
++    let click_position = Position::new(1, 3);
++    tab.handle_mouse_event(
++        &MouseEvent::new_left_press_event(click_position),
++        client_id,
++    )
++    .unwrap();
++    tab.handle_mouse_event(
++        &MouseEvent::new_left_release_event(click_position),
++        client_id,
++    )
++    .unwrap();
++
++    let mut clicked = None;
++    while let Ok((instruction, _ctx)) = mock_plugin_receiver.try_recv() {
++        if let PluginInstruction::HighlightClicked {
++            plugin_id,
++            pattern,
++            matched_string,
++            ..
++        } = instruction
++        {
++            clicked = Some((plugin_id, pattern, matched_string));
++        }
++    }
++    assert_eq!(
++        clicked,
++        Some((42, "<link-anchor>".to_string(), "https://example.com/a/b".to_string())),
++        "The anchor's URI should be reported, not the visible text"
++    );
++}
++
++#[test]
+ fn set_and_clear_highlights_across_tiled_and_floating() {
+     let size = Size {
+         cols: 121,
+@@ -12960,8 +13090,13 @@
+     assert_snapshot!(snapshot);
+ }
+ 
++// nebelhaus: upstream's assertion here was that a plain click never opens a
++// highlight (only Alt+Click did). It does now — but only on the RELEASE, and
++// only when the release lands on the same link, which is what this test pins:
++// the press alone opens nothing, and it starts no selection either, because a
++// press on a link is held pending its release rather than beginning a drag.
+ #[test]
+-fn plain_click_on_highlight_does_not_send_highlight_clicked() {
++fn press_on_highlight_alone_opens_nothing() {
+     let size = Size {
+         cols: 121,
+         rows: 20,
+@@ -12991,7 +13126,7 @@
+         &Style::default(),
+     );
+ 
+-    // Plain left-click on "foo" — should start selection, NOT send HighlightClicked
++    // Press on "foo" and hold — nothing should have opened yet.
+     let click_position = Position::new(1, 12);
+     let _effect = tab
+         .handle_mouse_event(&MouseEvent::new_left_press_event(click_position), client_id)
+@@ -13005,11 +13140,27 @@
+     }
+     assert!(
+         !found_highlight_clicked,
+-        "Plain click should NOT send HighlightClicked after Alt+Click change"
++        "A press with no release should open nothing — the click isn't finished"
+     );
+ 
+-    // Selection should have started instead
+-    assert!(tab.selecting_with_mouse_in_pane.is_some());
++    // And no drag was started: the press belongs to the pending link click.
++    assert!(tab.selecting_with_mouse_in_pane.is_none());
++
++    // Releasing somewhere else — a drag off the link — still opens nothing.
++    tab.handle_mouse_event(
++        &MouseEvent::new_left_release_event(Position::new(1, 1)),
++        client_id,
++    )
++    .unwrap();
++    while let Ok((instruction, _ctx)) = mock_plugin_receiver.try_recv() {
++        if matches!(instruction, PluginInstruction::HighlightClicked { .. }) {
++            found_highlight_clicked = true;
++        }
++    }
++    assert!(
++        !found_highlight_clicked,
++        "A release off the link should open nothing"
++    );
+ }
+ 
+ #[test]
+@@ -13241,11 +13392,19 @@
+     tab.set_plugin_regex_highlights_for_pane(PaneId::Terminal(1), 10, h1, &Style::default());
+     tab.set_plugin_regex_highlights_for_pane(PaneId::Terminal(1), 20, h2, &Style::default());
+ 
+-    // Alt+Click on "shared_text" (starts at offset 11, frame adds +1 => col 12)
++    // nebelhaus: a bare click on "shared_text" (starts at offset 11, frame
++    // adds +1 => col 12). Layer precedence is unchanged; only the gesture is.
+     let click_position = Position::new(1, 12);
+-    let mut alt_click = MouseEvent::new_left_press_event(click_position);
+-    alt_click.alt = true;
+-    let _effect = tab.handle_mouse_event(&alt_click, client_id).unwrap();
++    tab.handle_mouse_event(
++        &MouseEvent::new_left_press_event(click_position),
++        client_id,
++    )
++    .unwrap();
++    tab.handle_mouse_event(
++        &MouseEvent::new_left_release_event(click_position),
++        client_id,
++    )
++    .unwrap();
+ 
+     // Drain the plugin receiver and find the HighlightClicked instruction
+     let mut found_plugin_id = None;
+--- a/zellij-server/src/panes/grid.rs
++++ b/zellij-server/src/panes/grid.rs
+@@ -117,7 +117,7 @@
+ use crate::panes::link_handler::LinkHandler;
+ use crate::panes::search::SearchResult;
+ use crate::panes::terminal_character::{
+-    AnsiCode, CharsetIndex, Cursor, CursorShape, RcCharacterStyles, StandardCharset,
++    AnsiCode, CharsetIndex, Cursor, CursorShape, LinkAnchor, RcCharacterStyles, StandardCharset,
+     TerminalCharacter, EMPTY_TERMINAL_CHARACTER,
+ };
+ use crate::panes::Selection;
+@@ -2408,17 +2408,143 @@
+             }
+         }
+         best.map(|(_layer, plugin_id, pattern, matched, ctx)| (plugin_id, pattern, matched, ctx))
++    }
++
++    /// nebelhaus: the link anchor under a pane-relative position, if any — an
++    /// OSC 8 hyperlink the application emitted, or one this grid's
++    /// HyperlinkTracker found in printed text. This is what a regex over the
++    /// visible text cannot be: it carries the real destination even when the
++    /// visible text is a word, and it survives a hard wrap, because the anchor
++    /// is per-cell rather than per-line.
++    ///
++    /// `LinkAnchor::End` cells are deliberately NOT a hit. The pen keeps that
++    /// value for every character printed after a link closes, so treating them
++    /// as link cells would make ordinary text clickable. The cost is that the
++    /// last character of a tracker-detected URL (the one cell that carries
++    /// `End` rather than `Start`) is inert; the other N-1 are not.
++    pub fn link_anchor_at(&self, position: &Position) -> Option<u16> {
++        let row = self.viewport.get(position.line.0 as usize)?;
++        let character_index = row.absolute_character_index(position.column.0 as usize);
++        let character = row.columns.get(character_index)?;
++        match character.styles.link_anchor {
++            Some(LinkAnchor::Start(link_id)) => Some(link_id),
++            _ => None,
++        }
++    }
++
++    /// nebelhaus: the plugin whose highlights this pane carries, so a click on
++    /// a link anchor (which no plugin pattern matched — see `link_anchor_at`)
++    /// still has somewhere to go. In practice there is exactly one: the
++    /// link-handler plugin, which is the thing that knows how to OPEN a target.
++    pub fn first_highlight_plugin_id(&self) -> Option<u32> {
++        // Lowest id, not `keys().next()`: the map's iteration order is
++        // arbitrary, and with two plugins registered that would deliver anchor
++        // clicks to a different one from one click to the next. Today there is
++        // only ever one (link-handler), which is exactly when a
++        // non-determinism like that hides.
++        self.plugin_highlights.keys().min().copied()
++    }
++
++    /// nebelhaus: every run of cells in the viewport carrying `link_id`, one
++    /// selection per row. This is what paints the hover underline for a link
++    /// the plugin's regexes can't see — an OSC 8 hyperlink whose visible text
++    /// is a word, or a URL the application hard-wrapped across two rows (both
++    /// of which describe every link Claude Code prints).
++    fn link_anchor_selections(&self, link_id: u16) -> Vec<Selection> {
++        let mut selections = Vec::new();
++        for (row_index, row) in self.viewport.iter().enumerate() {
++            let mut display_col = 0;
++            let mut run_start: Option<usize> = None;
++            for character in &row.columns {
++                let is_link = matches!(character.styles.link_anchor, Some(LinkAnchor::Start(id)) if id == link_id);
++                if is_link && run_start.is_none() {
++                    run_start = Some(display_col);
++                } else if !is_link {
++                    if let Some(start) = run_start.take() {
++                        let mut selection = Selection::default();
++                        selection.set_start_and_end_positions(
++                            Position::new(row_index as i32, start as u16),
++                            Position::new(row_index as i32, display_col as u16),
++                        );
++                        selections.push(selection);
++                    }
++                }
++                display_col += character.width();
++            }
++            if let Some(start) = run_start.take() {
++                let mut selection = Selection::default();
++                selection.set_start_and_end_positions(
++                    Position::new(row_index as i32, start as u16),
++                    Position::new(row_index as i32, display_col as u16),
++                );
++                selections.push(selection);
++            }
++        }
++        selections
++    }
++
++    /// nebelhaus: mark every row carrying `link_id` for re-render. See the call
++    /// site in `set_hover_position` for why the hovered row alone isn't enough.
++    fn mark_link_anchor_rows_dirty(&mut self, link_id: u16) {
++        let rows: Vec<usize> = self
++            .viewport
++            .iter()
++            .enumerate()
++            .filter(|(_, row)| {
++                row.columns.iter().any(|character| {
++                    matches!(character.styles.link_anchor, Some(LinkAnchor::Start(id)) if id == link_id)
++                })
++            })
++            .map(|(row_index, _)| row_index)
++            .collect();
++        for row_index in rows {
++            self.mark_logical_line_dirty(row_index);
++        }
+     }
+ 
++    /// nebelhaus: the underline for the link under the pointer, if the pointer
++    /// is over one. Runs regardless of `mouse_tracking`: an application that
++    /// captures the mouse (Claude Code, any TUI) still doesn't paint a link
++    /// affordance of its own, and the whole point of the hover hint is that it
++    /// tells you a click will DO something before you spend the click.
++    fn hovered_link_anchor_selections(&self) -> Vec<HighlightSelection> {
++        let Some(hover_position) = self.hover_position else {
++            return vec![];
++        };
++        let Some(link_id) = self.link_anchor_at(&hover_position) else {
++            return vec![];
++        };
++        self.link_anchor_selections(link_id)
++            .into_iter()
++            .map(|selection| HighlightSelection {
++                selection,
++                bg: None,
++                fg: None,
++                bold: false,
++                italic: true,
++                underline: true,
++                layer: HighlightLayer::Hint,
++            })
++            .collect()
++    }
++
+     pub fn set_hover_position(&mut self, new_pos: Option<Position>) -> bool {
+         if self.hover_position == new_pos {
+             return false;
+         }
+ 
+-        let has_hover_consumer = self
+-            .plugin_highlights
+-            .values()
+-            .any(|highlights| highlights.iter().any(|(_, c)| c.on_hover));
++        // nebelhaus: a link anchor under the pointer is a hover consumer too —
++        // it paints an underline (hovered_link_anchor_selections) with no
++        // plugin pattern involved, so a pane that happens to carry no on_hover
++        // highlight must still re-render when the pointer enters or leaves one.
++        let hovered_anchor = new_pos.and_then(|pos| self.link_anchor_at(&pos));
++        let previous_anchor = self.hover_position.and_then(|pos| self.link_anchor_at(&pos));
++        let has_hover_consumer = hovered_anchor.is_some()
++            || previous_anchor.is_some()
++            || self
++                .plugin_highlights
++                .values()
++                .any(|highlights| highlights.iter().any(|(_, c)| c.on_hover));
+ 
+         if !has_hover_consumer {
+             self.hover_position = new_pos;
+@@ -2433,6 +2559,13 @@
+         if let Some(new_pos_inner) = new_pos {
+             self.mark_logical_line_dirty(new_pos_inner.line.0 as usize);
+         }
++        // nebelhaus: an anchor link can span rows that are each their own
++        // canonical group — an application that hard-wraps (Claude Code does)
++        // ends every visual row with a newline, so marking only the hovered
++        // row would underline half a link and leave the other half stale.
++        for link_id in [hovered_anchor, previous_anchor].into_iter().flatten() {
++            self.mark_link_anchor_rows_dirty(link_id);
++        }
+ 
+         self.hover_position = new_pos;
+         self.recompute_hover_tooltip();
+@@ -2510,10 +2643,14 @@
+     /// the viewport.  Hover highlights are emitted first so they take priority
+     /// when the cursor overlaps a match; non-hover highlights follow.
+     fn compute_plugin_highlight_selections(&self) -> Vec<HighlightSelection> {
++        // nebelhaus: the hovered link anchor first — it is not a plugin
++        // highlight (no pattern matched it; it comes from the cells themselves)
++        // and it must still paint on a pane where no plugin registered
++        // anything at all.
++        let mut selections = self.hovered_link_anchor_selections();
+         if self.plugin_highlights.is_empty() {
+-            return vec![];
++            return selections;
+         }
+-        let mut selections = Vec::new();
+         let viewport_len = self.viewport.len();
+         let mut ridx = 0;
+         while ridx < viewport_len {
+@@ -2528,6 +2665,15 @@
+             // style when the cursor overlaps the match.  They are suppressed
+             // when mouse tracking is active (events pass through to the app)
+             // and on unfocused panes (hover_position is not set for those).
++            //
++            // nebelhaus: this suppression stays, and it is deliberately the
++            // SAME condition the click uses (tab/mouse_handler.rs,
++            // `link_click_target`): in a pane whose application wants the
++            // mouse, a plugin pattern is not ours to take, so it must not
++            // advertise itself as clickable either. What still underlines
++            // there is the link ANCHOR — see `hovered_link_anchor_selections`,
++            // which runs regardless — and that is exactly what a click there
++            // will open. Underline and click, one rule.
+             if self.mouse_tracking == MouseTracking::Off {
+                 if let Some(hover_pos) = self.hover_position {
+                     let hover_row = hover_pos.line.0 as usize;
+--- a/zellij-server/src/panes/terminal_pane.rs
++++ b/zellij-server/src/panes/terminal_pane.rs
+@@ -1260,7 +1260,15 @@
+         std::collections::BTreeMap<String, String>,
+     )> {
+         self.grid.plugin_highlight_at(position)
++    }
++    // nebelhaus: the two accessors the naked-click link handler needs — what
++    // link is under the pointer, and which plugin to hand it to.
++    fn link_anchor_at(&self, position: &Position) -> Option<u16> {
++        self.grid.link_anchor_at(position)
+     }
++    fn first_highlight_plugin_id(&self) -> Option<u32> {
++        self.grid.first_highlight_plugin_id()
++    }
+     fn terminal_emulator_wants_mouse(&self) -> bool {
+         self.grid.mouse_tracking != crate::panes::grid::MouseTracking::Off
+     }
+--- a/zellij-server/src/panes/link_handler.rs
++++ b/zellij-server/src/panes/link_handler.rs
+@@ -62,6 +62,18 @@
+         anchor
+     }
+ 
++    /// nebelhaus: resolve an anchor id back to the URI it stands for. Upstream
++    /// only ever writes these ids outward (`output_osc8`, re-emitting the
++    /// sequence to the host terminal); nothing ever read one back, because
++    /// nothing in zellij opened a link itself. The naked-click link handler in
++    /// tab/mouse_handler.rs does, and this is how it learns what it clicked —
++    /// the anchor is the ONLY place the true destination lives when the visible
++    /// text is a word (an OSC 8 hyperlink) or when the application hard-wrapped
++    /// the URL across two rows.
++    pub fn uri_for(&self, index: u16) -> Option<String> {
++        self.links.get(&index).map(|link| link.uri.clone())
++    }
++
+     pub fn output_osc8(&self, link_anchor: Option<LinkAnchor>) -> Option<String> {
+         link_anchor.and_then(|link| match link {
+             LinkAnchor::Start(index) => {

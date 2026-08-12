@@ -113,8 +113,12 @@ render_status() {
 # (plain() strips SGR, not OSC 8). A "#N" is clickable ONLY when its caller
 # passes a url — every caller here does (row 1's own pill, the row-1 sister
 # cluster, and the row-2 children). CC forwards OSC 8 to the terminal, so in a
-# hyperlink-aware terminal (Ghostty) ⌘-click opens the PR; terminals/multiplexers
-# that swallow OSC 8 (some tmux builds — anthropics/claude-code#21586, #27047)
+# hyperlink-aware terminal a BARE click opens the PR: zellij forwards the OSC 8
+# out to Ghostty and, since the rice's naked-click-links patch, resolves the
+# anchor itself, so the pill opens from inside an agent pane with no modifier
+# (⌘ never crossed the wire there — SGR mouse reports have no super bit — which
+# is why this used to say ⌘-click and be wrong inside zellij). Terminals or
+# multiplexers that swallow OSC 8 (some tmux builds — anthropics/claude-code#21586, #27047)
 # just show the colored "#N" with no link, which is a harmless graceful downgrade.
 render_pr() {
   local pr="$1" url="${2:-}" state="${1##* }" col="$DIM" num="${1%% *}"

@@ -29,19 +29,36 @@
 //   - image files open a near-fullscreen floating pane running
 //     ~/.config/zellij/image-preview.sh (chafa render + copy/open hotkeys)
 //     instead of a new tab.
+//   - a FILE opens in the rice editor, at its `:line` when the reference
+//     carried one (editor-open-pane.sh, the same script EditorOpen.app uses);
+//     only a DIRECTORY opens as a new tab cwd'd at itself.
 //   - tooltip says where the click goes.
+//   - OSC 8 hyperlinks arrive here as clicks too, with `pattern` set to
+//     LINK_ANCHOR_PATTERN and `matched_string` already resolved to the real
+//     URI (see below).
 //
-// NOT handled here, on purpose: OSC 8 hyperlinks (visible text is a word, the
-// URL is hidden in the escape sequence — e.g. Claude Code /tui's session/PR
-// links). This plugin can only match VISIBLE text: the zellij 0.44 plugin API
+// This plugin can only MATCH visible text: the zellij 0.44 plugin API
 // (set_pane_regex_highlights + HighlightClicked) hands back the matched
 // *visible* string and nothing else — there is no API surfacing the hidden URI
-// or the raw cell buffer (checked against zellij-tile 0.44.3). So embedded
-// links are ghostty's job, not ours: config.kdl sets `osc8_hyperlinks true`
-// to forward those sequences out to ghostty, which opens them on Cmd+Click.
-// Opt+Click (this plugin) = paths + visible/schemeless links; Cmd+Click
-// (ghostty) = any web link, embedded ones included. Don't try to make the
-// plugin catch OSC 8 without a zellij-core patch first — the API can't.
+// or the raw cell buffer (checked against zellij-tile 0.44.3). That is fatal
+// for exactly the links an agent prints: an OSC 8 hyperlink whose visible text
+// is a word, and a URL the application hard-wrapped across two rows (the
+// visible text is then two unrelated strings, and clicking either used to open
+// half a URL). So the rice patches zellij itself to read the destination off
+// the CELLS — where OSC 8 and zellij's own URL tracker both record it — and to
+// send it here as a click under LINK_ANCHOR_PATTERN, which this plugin trusts
+// whole. See modules/hearth/zellij/patches/naked-click-links.patch.
+//
+// The gesture is a bare click, in every pane, whether or not the program
+// running there captures the mouse — LINKS in every pane, and additionally
+// paths/images in panes no application is tracking the mouse in (there, its
+// own clicks land on path-shaped text and are left alone). There is no ⌥+Click any more (it opened
+// the visible-text version of the same thing, wrongly, and cost a modifier)
+// and there never could be a ⌘+Click inside the terminal: the SGR mouse
+// encoding has bits for shift, alt and ctrl and none for super, so ⌘ never
+// crosses the wire. ⌘⇧+Click still bypasses the multiplexer entirely into
+// ghostty (⇧ frees the mouse from the program capturing it, ⌘ is what makes
+// ghostty read a link there) — the escape hatch for a target we get wrong.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -75,6 +92,14 @@ const COMMON_TLDS: &[&str] = &[
 ];
 
 const CWD_CONTEXT_KEY: &str = "cwd";
+
+/// The pattern zellij reports when the click landed on a link ANCHOR rather
+/// than one of the regexes above — an OSC 8 hyperlink, or a URL zellij's own
+/// HyperlinkTracker found in printed text. Must stay identical to
+/// `LINK_ANCHOR_PATTERN` in the rice's zellij patch
+/// (modules/hearth/zellij/patches/naked-click-links.patch); it is the whole
+/// contract between the two halves.
+const LINK_ANCHOR_PATTERN: &str = "<link-anchor>";
 
 const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico", "tiff"];
 
@@ -135,11 +160,11 @@ impl ZellijPlugin for State {
             },
             Event::HighlightClicked {
                 pane_id: _,
-                pattern: _,
+                pattern,
                 matched_string,
                 context,
             } => {
-                self.handle_highlight_clicked(matched_string, context);
+                self.handle_highlight_clicked(&pattern, matched_string, context);
             },
             Event::CwdChanged(pane_id, new_cwd, _focused_client_ids) => {
                 self.handle_cwd_changed(pane_id, new_cwd);
@@ -210,8 +235,26 @@ impl State {
     /// file/dir; only if that path doesn't exist do we treat it as a schemeless
     /// web link. This ordering is what lets one bare token (`github.com/x` vs
     /// `src/main.rs`) resolve correctly without the regex disambiguating up front.
-    fn handle_highlight_clicked(&self, matched_string: String, context: BTreeMap<String, String>) {
+    ///
+    /// `pattern` is `LINK_ANCHOR_PATTERN` when the click landed on a link
+    /// ANCHOR rather than one of our regexes — an OSC 8 hyperlink, or a URL
+    /// zellij's own tracker found in printed text. Then `matched_string` is a
+    /// finished URI resolved from the cells themselves (see the header), so it
+    /// is trusted whole instead of being re-derived from visible text: that is
+    /// the entire point of the anchor path, and re-parsing would put back the
+    /// hard-wrap bug it exists to fix.
+    fn handle_highlight_clicked(
+        &self,
+        pattern: &str,
+        matched_string: String,
+        context: BTreeMap<String, String>,
+    ) {
         let clicked = matched_string.trim();
+
+        if pattern == LINK_ANCHOR_PATTERN {
+            self.open_anchor_uri(clicked);
+            return;
+        }
 
         // 1. Explicit http(s) URL → browser.
         if let Some(url) = parse_url(clicked) {
@@ -231,12 +274,26 @@ impl State {
         // 4. Otherwise: not a link we recognize — ignore.
     }
 
+    /// Open a URI that came from a link anchor. `file:` URIs are turned back
+    /// into paths so they open in the editor (with the line, if the producer
+    /// put one in the fragment) instead of bouncing through the browser;
+    /// everything else — http(s), mailto:, and whatever scheme an application
+    /// decides to emit — is handed to the system opener, which is the one thing
+    /// that knows what this machine has registered for it.
+    fn open_anchor_uri(&self, uri: &str) {
+        if let Some((path, line)) = parse_file_uri(uri) {
+            self.open_in_editor(Path::new(&path), line);
+            return;
+        }
+        open_in_browser(uri);
+    }
+
     /// Resolve `matched_string` against the pane CWD and, if it names an
     /// existing file or directory, open it. Returns `true` when the path
     /// resolved (and was acted on), `false` when it doesn't exist on disk — the
     /// caller uses that to fall through to the URL kinds.
     fn try_open_as_path(&self, matched_string: &str, context: &BTreeMap<String, String>) -> bool {
-        let (path_str, _line_number) = parse_path_and_line(matched_string);
+        let (path_str, line_number) = parse_path_and_line(matched_string);
         let path_str = path_str.trim();
         let expanded = expand_path(path_str, &self.env_vars);
         let path_str = expanded.as_str();
@@ -284,16 +341,23 @@ impl State {
             return true;
         }
 
-        // A file opens at its parent directory; a directory opens at itself.
-        let dir = if metadata.is_dir() {
-            absolute_path
-        } else {
-            match absolute_path.parent() {
-                Some(parent) => parent.to_path_buf(),
-                None => return true,
-            }
-        };
+        // A file opens IN the editor, at its line when the reference carried
+        // one. It used to open a tab cwd'd at the file's parent instead, which
+        // dropped the `:26` an agent puts on every path it prints and left you
+        // to find the file again by hand — the single most-clicked link in the
+        // whole rice, landing one step short every time.
+        if metadata.is_file() {
+            self.open_in_editor(&absolute_path, line_number);
+            return true;
+        }
 
+        // A directory still opens as a tab cwd'd at itself. Anything that is
+        // neither file nor directory (a fifo, a socket) is not something to
+        // open: fall through as if the path hadn't resolved.
+        if !metadata.is_dir() {
+            return false;
+        }
+        let dir = absolute_path;
         let name = tab_name_for(&dir);
         match self.layout_with_cwd(&dir, &name) {
             Some(layout) => {
@@ -307,6 +371,35 @@ impl State {
             },
         }
         true
+    }
+
+    /// Open a file in the rice editor, at `line` when the reference carried
+    /// one. Delegates to ~/.config/zellij/editor-open-pane.sh — the same script
+    /// the file-association handler (EditorOpen.app) and the "Nix Config"
+    /// palette command call — so a clicked path lands in exactly the same place
+    /// a double-clicked file does: a new tab at the file's repo root, editor
+    /// open on the file. The editor command itself is baked into that script
+    /// from haus.hearth.editor at build time, which is why the plugin (built
+    /// on its own, without the rice's config) doesn't need to know it.
+    fn open_in_editor(&self, path: &Path, line: Option<usize>) {
+        let Some(home) = self.env_vars.get("HOME") else {
+            return;
+        };
+        let script = PathBuf::from(home).join(".config/zellij/editor-open-pane.sh");
+        let script = script.to_string_lossy().into_owned();
+        let path_arg = path.to_string_lossy().into_owned();
+        // The empty argument is the script's cwd override, which only
+        // nix-config-open.sh uses; the line goes after it.
+        let line_arg = line.map(|line| line.to_string()).unwrap_or_default();
+        run_command(
+            &[
+                script.as_str(),
+                path_arg.as_str(),
+                "",
+                line_arg.as_str(),
+            ],
+            BTreeMap::new(),
+        );
     }
 
     /// Clone the live layout file and inject cwd + name onto its content tab —
@@ -356,7 +449,7 @@ impl State {
             bold: false,
             italic: true,
             underline: true,
-            tooltip_text: Some("Open in new tab".to_string()),
+            tooltip_text: Some("Open in editor · dir opens a tab".to_string()),
         });
 
         // http(s) URLs (always present)
@@ -403,7 +496,7 @@ impl State {
                     bold: false,
                     italic: true,
                     underline: true,
-                    tooltip_text: Some("Open in new tab".to_string()),
+                    tooltip_text: Some("Open in editor · dir opens a tab".to_string()),
                 });
             }
         }
@@ -455,6 +548,61 @@ fn tab_name_for(dir: &Path) -> String {
 /// Open a URL in the default browser.
 fn open_in_browser(url: &str) {
     run_command(&["/usr/bin/open", url], BTreeMap::new());
+}
+
+/// Split a `file:` URI into a path and an optional line number, or None when
+/// it isn't one. Both spellings a producer might use for the line are read: a
+/// `#L26` fragment (how a forge spells it) and a trailing `:26` (how a compiler
+/// does). Percent-escapes are decoded — a path that arrived as a URI has them,
+/// a path that arrived as terminal text does not.
+fn parse_file_uri(uri: &str) -> Option<(String, Option<usize>)> {
+    let rest = uri.strip_prefix("file://")?;
+    // An authority component (`file://localhost/etc/hosts`) sits between the
+    // slashes; the common `file:///etc/hosts` leaves `rest` already absolute.
+    let path_and_fragment = match rest.strip_prefix('/') {
+        Some(_) => rest,
+        None => &rest[rest.find('/')?..],
+    };
+
+    let (path_part, line) = match path_and_fragment.split_once('#') {
+        Some((path, fragment)) => {
+            let line = fragment
+                .trim_start_matches(['L', 'l'])
+                .split(['-', ':'])
+                .next()
+                .and_then(|n| n.parse::<usize>().ok());
+            (path, line)
+        },
+        None => {
+            let (path, line) = parse_path_and_line(path_and_fragment);
+            (path, line)
+        },
+    };
+
+    Some((percent_decode(path_part), line))
+}
+
+/// Decode the percent-escapes in a URI path. Deliberately tiny: a file URI's
+/// path is the only thing that reaches it, and an escape that isn't valid
+/// UTF-8 hex is left alone rather than dropped, so a literal `%` in a filename
+/// survives the round trip.
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).ok();
+            if let Some(byte) = hex.and_then(|h| u8::from_str_radix(h, 16).ok()) {
+                out.push(byte);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8(out).unwrap_or_else(|_| s.to_owned())
 }
 
 /// Recognize an http(s) URL in a clicked highlight, with trailing sentence
@@ -889,5 +1037,52 @@ mod tests {
     fn kdl_escape_quotes_and_backslashes() {
         assert_eq!(kdl_escape(r#"a"b\c"#), r#"a\"b\\c"#);
         assert_eq!(kdl_escape("/plain/path"), "/plain/path");
+    }
+
+    // --- parse_file_uri tests (the anchor path) ---
+
+    #[test]
+    fn parse_file_uri_plain() {
+        assert_eq!(
+            parse_file_uri("file:///Users/x/src/main.rs"),
+            Some(("/Users/x/src/main.rs".to_string(), None))
+        );
+    }
+
+    #[test]
+    fn parse_file_uri_with_fragment_line() {
+        assert_eq!(
+            parse_file_uri("file:///Users/x/src/main.rs#L42"),
+            Some(("/Users/x/src/main.rs".to_string(), Some(42)))
+        );
+    }
+
+    #[test]
+    fn parse_file_uri_with_trailing_colon_line() {
+        assert_eq!(
+            parse_file_uri("file:///Users/x/src/main.rs:42"),
+            Some(("/Users/x/src/main.rs".to_string(), Some(42)))
+        );
+    }
+
+    #[test]
+    fn parse_file_uri_with_authority_and_escapes() {
+        assert_eq!(
+            parse_file_uri("file://localhost/Users/x/my%20file.rs#L7-L9"),
+            Some(("/Users/x/my file.rs".to_string(), Some(7)))
+        );
+    }
+
+    #[test]
+    fn parse_file_uri_rejects_other_schemes() {
+        assert_eq!(parse_file_uri("https://example.com/a"), None);
+        assert_eq!(parse_file_uri("mailto:someone@example.com"), None);
+    }
+
+    #[test]
+    fn percent_decode_leaves_a_lone_percent_alone() {
+        assert_eq!(percent_decode("100%"), "100%");
+        assert_eq!(percent_decode("a%zzb"), "a%zzb");
+        assert_eq!(percent_decode("a%2Fb"), "a/b");
     }
 }

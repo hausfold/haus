@@ -686,7 +686,64 @@ in
   # bug on main (checked 2026-08-09), so this is a candidate to send upstream
   # rather than a local preference.
   #
-  # All four patched at zellij-unwrapped, not zellij: the latter is a thin
+  # The fifth patch is the link experience: hover underlines a link in EVERY
+  # pane, and a bare click opens it in every pane.
+  #
+  # The problem it solves is that link behaviour used to change completely
+  # depending on which program owned the pane, and no amount of config could
+  # even it out, because three programs are stacked here and the mouse belongs
+  # to whichever is innermost. In a shell pane zellij had it: hover underlined,
+  # ⌥+Click opened. In a pane running an agent TUI the application had it: no
+  # underline at all (nothing painted one), a bare click did whatever that
+  # application decided, and ⌥+Click — the one gesture zellij keeps for itself —
+  # opened a BROKEN url, because the plugin API can only see the visible text
+  # and an agent hard-wraps a long URL across two rows. ⌘ is not a way out for
+  # anyone: the SGR mouse encoding carries shift, alt and ctrl and has no bit
+  # for super, so ⌘+Click reaches a terminal program indistinguishable from a
+  # bare one. That is the whole reason ⌘+Click "does the same thing as a click"
+  # inside Claude Code and always would.
+  #
+  # So the gesture is the bare click, and the destination comes from the CELLS
+  # rather than from the text. In a pane whose application wants the mouse,
+  # that is ALL we take: a link anchor is a link and nothing else, while a
+  # plugin pattern only matches text that looks like a path — and an
+  # application that asked for the mouse is usually one whose own clicks land
+  # on exactly that text (yazi selecting a file, lazygit staging one). So there
+  # the rule is links-only, hover underline included, and everything else stays
+  # the application's. In a shell pane, where nothing else wants the mouse,
+  # paths and images are clickable too. Both places a real URL is recorded — an OSC 8
+  # hyperlink the application emitted, and zellij's own HyperlinkTracker, which
+  # anchors any URL it sees printed — write a `link_anchor` onto every cell of
+  # the link, and that anchor survives a wrap and is present even when the
+  # visible text is a word. Upstream only ever wrote those anchors outward
+  # (re-emitting the OSC 8 to ghostty); this reads them back. A click resolves
+  # the anchor first and the link-handler plugin's regexes second, so paths,
+  # images and schemeless domains still work exactly as they did.
+  #
+  # Press arms, release opens, and only if both landed on the same link — a
+  # browser's contract, and what keeps a drag that starts on a URL from opening
+  # it. While armed, every event is swallowed, so an application can never see
+  # a release for a press it never got. A second press on the same cell within
+  # 400ms opens nothing and is passed through as an ordinary click, so
+  # double-clicking a link opens it once rather than twice.
+  #
+  # ⌥+Click loses its interception in the same patch and goes back to meaning
+  # what upstream means by it (pane grouping): keeping a second, text-derived
+  # copy of the same behaviour cost a modifier and shipped wrong URLs. ⌘⇧+Click
+  # is untouched and is still the escape hatch: ⇧ is the one modifier ghostty
+  # keeps for itself (mouse-shift-capture), which frees the mouse from whatever
+  # program is capturing it, and ⌘ is what makes ghostty treat what's under the
+  # pointer as a link at all (`link-url` hard-wires that condition, and 1.3.1
+  # can't configure it). Two modifiers, but it's ghostty's chord, not ours, and
+  # it works identically in every pane.
+  #
+  # It has to be a patch on all counts: the anchors are private grid state with
+  # no plugin API (checked against zellij-tile 0.44.3 — HighlightClicked hands
+  # back the matched *visible* string and nothing else), mouse buttons aren't
+  # bindable in config.kdl, and the two suppressions it lifts are unconditional
+  # `if`s in the render and hover paths, not options.
+  #
+  # All five patched at zellij-unwrapped, not zellij: the latter is a thin
   # wrapper derivation with no source of its own. It rebuilds from source on
   # every nixpkgs bump that moves zellij or its deps.
   nixpkgs.overlays = [
@@ -697,6 +754,7 @@ in
           ./zellij/patches/no-ctrl-scroll-resize.patch
           ./zellij/patches/ctrl-click-fullscreen.patch
           ./zellij/patches/unstick-mouse-selection.patch
+          ./zellij/patches/naked-click-links.patch
         ];
       });
     })
@@ -2283,7 +2341,7 @@ in
       #     a family PR reference anywhere in the transcript is one click away.
       #     This is the maintained clickable-PR path: CC 2.1.3+ STRIPS the OSC 8
       #     hyperlinks the statusline (den/statusline.sh) emits for its "#N" PR
-      #     pills — colored but no longer ⌘-clickable (upstream regression,
+      #     pills — colored but no longer clickable at all (upstream regression,
       #     anthropics/claude-code#21586). footerLinksRegexes needs no OSC 8, so
       #     it survives that. Note it's a DIFFERENT surface (the footer, keyed
       #     off conversation text) — it doesn't restore clickability to the

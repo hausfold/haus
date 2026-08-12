@@ -170,20 +170,20 @@ rec {
       page = "Tips";
       items = [
         {
-          key = "⌥ Click path";
-          action = "Opens a repo-named tab cwd'd there";
+          key = "Click url";
+          action = "Opens it — wrapped and hidden ones too";
         }
         {
-          key = "⌥ Click url";
-          action = "Opens a visible link or bare domain";
-        }
-        {
-          key = "⌘ Click link";
-          action = "Opens embedded links too (hidden URLs)";
+          key = "Click path";
+          action = "Shell pane: file at its :line, dir a tab";
         }
         {
           key = "Click image";
           action = "Near-fullscreen chafa preview";
+        }
+        {
+          key = "⌘⇧ Click link";
+          action = "Ghostty's own opener — the fallback";
         }
         {
           key = "⌃ Click pane";
