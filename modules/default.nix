@@ -44,6 +44,10 @@
     # of ./theme: it's gated on its own option, and what's INSTALLED in the
     # browser is a different job from theming the browser's chrome.
     ./hearth/zen.nix
+    # And split out of THAT, one level further down: zen.nix deploys add-ons
+    # other people wrote, this one BUILDS the rice's own — a Swift host, an .xpi
+    # and a native-messaging manifest — and is gated on its own option again.
+    ./hearth/zen-tabs
     ./prowl
     ./sill
     ./collar

@@ -9,19 +9,23 @@
 # THE GESTURES, in one place, because they are also what the option reference
 # promises:
 #
-#   left click        play / pause          the one thing you do most
-#   right click       the dropdown          cover, scrubber, transport, history
+#   left click        the dropdown          cover, scrubber, transport
+#   right click       play / pause          the one thing you do most
 #   ⌥ + click         next track
 #   ⇧ + click         previous track
-#   ⌘ + click         focus the app the sound is coming from
+#   ⌘ + click         focus the TAB the sound is coming from (not just the app)
 #   scroll            seek ±10s
 #   hover             sweep a long title once, start to finish (see below)
 #
-# Left-click stays play/pause rather than becoming the dropdown (which is what
-# weather, agents and ai_usage do with a left click) because this pill is a
-# CONTROL, not a readout: the elgato pill sets the same precedent, and moving the
-# machine's most-pressed bar action behind a menu to gain consistency would be a
-# bad trade. The dropdown takes the right button instead.
+# Left-click is the dropdown, the same as weather, agents, ai_usage and the
+# calendar — every pill on this bar that HAS a dropdown opens it on a left
+# click, and this one used to be the exception. (The elgato pill's left click
+# still toggles the light: it has no dropdown to be inconsistent about.) The argument for the exception was that the pill is a CONTROL
+# rather than a readout, so its most-pressed action should be its cheapest; what
+# that missed is that "click the pill, get the thing" is the rule you learn ONCE
+# and then apply to a bar full of pills, and being made to remember which single
+# pill inverts it costs more than the button swap saves. Play/pause moves to the
+# right button, where it is still one click and still on the pill.
 
 export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/usr/bin:/bin:$PATH"
 
@@ -77,7 +81,7 @@ start_marquee() {
 # instead of growing a row at a time — the same lesson ai_usage.sh's dropdown
 # learned the visible way.
 build_popup() {
-    local kind icon accent art scale sub elapsed dur pct label_app
+    local kind icon accent art scale sub elapsed dur pct label_app badge
     media_read_now || return 1
 
     kind="$(media_kind "$MEDIA_BUNDLE" "$MEDIA_TITLE" "$MEDIA_ARTIST" "$MEDIA_ALBUM" "$MEDIA_DURATION")"
@@ -119,9 +123,9 @@ build_popup() {
     # of dead space around something too small to be one). Nothing else at the
     # top has to fill that gap — the title row below carries the kind glyph,
     # and the source app gets named in the "Show in <App>" row down in the
-    # transport, both of which are the identity a browser tab needs. RUNNING
-    # is checked separately, right where the app-icon badge near "Show in" is
-    # built, well below — a cover well only ever holds a real cover now.
+    # transport, plus a small icon badge in the bottom-right corner. RUNNING is
+    # checked separately, right where that badge is built, well below — a cover
+    # well only ever holds a real cover now.
     art="$(ls -1 "$SILL_MEDIA_ART".* 2>/dev/null | head -1)"
     if [ -n "$art" ] && [ -s "$art" ]; then
         scale="$(cat "$SILL_MEDIA_ART_SCALE" 2>/dev/null)"
@@ -207,31 +211,49 @@ build_popup() {
     row "󰒮" "Previous" "$SUBTEXT1" "$TEXT" "prev"
     row "󰒝" "Shuffle" "$SUBTEXT1" "$SUBTEXT0" "shuffle"
     row "󰑖" "Repeat" "$SUBTEXT1" "$SUBTEXT0" "repeat"
+    badge=0
     if [ -n "$label_app" ]; then
-        # A small app-icon badge, right above the row that focuses it — the
-        # source's identity, given a spot proportional to how much it matters
-        # once there's no cover to lead with, not a hero image standing in for
-        # one. Only when there's no real cover (that badge would be pure
-        # clutter next to actual artwork) and only while the app is confirmed
-        # RUNNING — see the cover well above for why.
+        row "󰏋" "Show in $label_app" "$SUBTEXT1" "$SUBTEXT0" "focus"
+        # A small app-icon badge FLOATING in the bottom-right corner, below the
+        # last row — the source's identity, sized and placed as the aside it is.
+        # It spent a while as a row of its own directly above "Show in …" and
+        # that read wrong: a full-width row of nothing but an icon looks like a
+        # menu entry you're meant to click, wedged between two you are. The
+        # corner is where a "this came from over there" mark belongs.
+        #
+        # Only when there's no real cover (next to actual artwork it is pure
+        # clutter — and the cover already answers the same question) and only
+        # while the app is confirmed RUNNING, since SketchyBar resolves
+        # `app.<Name>` off the running application. The right-alignment can't be
+        # expressed here; media_badge_align does it once the popup's width is
+        # measurable, immediately after this batch.
         if { [ -z "$art" ] || [ ! -s "$art" ]; } &&
             [ -n "$MEDIA_PID" ] && ps -p "$MEDIA_PID" >/dev/null 2>&1; then
+            badge=1
             ARGS+=(--add item media.popup.appicon popup.media
                 --set media.popup.appicon
                 icon.drawing=off icon.padding_left=0 icon.padding_right=0
                 label.drawing=off label.padding_left=0 label.padding_right=0
-                width="$SILL_MEDIA_BADGE_BOX" background.height="$SILL_MEDIA_BADGE_BOX"
+                background.height="$SILL_MEDIA_BADGE_BOX"
                 background.drawing=on background.color=0x00000000
                 background.image="app.$label_app"
-                background.image.scale=0.9
+                background.image.scale="$SILL_MEDIA_BADGE_SCALE"
                 background.image.corner_radius=6
                 background.image.drawing=on
                 click_script="$HOME/.config/sketchybar/plugins/media.sh do focus")
         fi
-        row "󰏋" "Show in $label_app" "$SUBTEXT1" "$SUBTEXT0" "focus"
     fi
 
     [ ${#ARGS[@]} -gt 0 ] && $SB "${ARGS[@]}" 2>/dev/null
+
+    # Right-align the badge before anything is on screen. It can only measure
+    # once this popup has been drawn at least once (see media_badge_align), so
+    # on the very first open it reports back that it guessed, and open_popup
+    # runs it again the moment there is a laid-out popup to measure.
+    MEDIA_BADGE_PENDING=0
+    if [ "$badge" = 1 ]; then
+        media_badge_align || MEDIA_BADGE_PENDING=1
+    fi
     return 0
 }
 
@@ -244,6 +266,7 @@ open_popup() {
     fi
     build_popup || return
     $SB --set media popup.drawing=on
+    [ "${MEDIA_BADGE_PENDING:-0}" = 1 ] && media_badge_align
     # Then hand it to sillpop so it also closes on the first click anywhere else
     # — the dismissal sketchybar can't do, since it only hears clicks on its own
     # items. Backgrounded and after the reveal, so opening costs what it did
@@ -266,8 +289,16 @@ do_action() {
     shuffle) "$SILL_MEDIA_CONTROL" toggle-shuffle >/dev/null 2>&1 ;;
     repeat) "$SILL_MEDIA_CONTROL" toggle-repeat >/dev/null 2>&1 ;;
     focus)
+        # Closed first and then done in the background, unlike every other
+        # action here: reaching a browser TAB can take a second of scripted
+        # typing (see media_focus_tab_firefox), and neither a dropdown still
+        # sitting open over the window you're being sent to nor a click_script
+        # holding a SketchyBar worker thread for that long is acceptable.
+        close_popup
         media_read_now || return
-        [ -n "$MEDIA_BUNDLE" ] && open -b "$MEDIA_BUNDLE" 2>/dev/null
+        (media_focus_source "$MEDIA_BUNDLE" "$MEDIA_TITLE" \
+            "$(media_app_name "$MEDIA_PID" "$MEDIA_BUNDLE")" &) 2>/dev/null
+        return
         ;;
     seek)
         # $PERCENTAGE is where in the slider the click landed. Only meaningful
@@ -357,13 +388,13 @@ do)
 click)
     # A plain click sends MODIFIER=none (not empty), so test against "none".
     case "${BUTTON:-left}" in
-    right) open_popup ;;
+    right) do_action toggle ;;
     *)
         case "${MODIFIER:-none}" in
         *alt*) do_action next ;;
         *shift*) do_action prev ;;
         *cmd*) do_action focus ;;
-        *) do_action toggle ;;
+        *) open_popup ;;
         esac
         ;;
     esac

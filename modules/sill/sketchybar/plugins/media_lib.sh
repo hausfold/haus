@@ -26,6 +26,18 @@
 # draws a neutral glyph for each, rather than guessing a brand and being wrong on
 # Netflix. A rice that knows better overrides the glyph through
 # haus.sill.media.icons — that option is this limitation's escape hatch.
+#
+# None of that stops ⌘-click from reaching the right TAB, which is a different
+# question and has a different answer: it matches the track's title against the
+# browser's own list of open tabs rather than trying to learn a URL. See
+# media_focus_source below.
+#
+# And on a machine running haus.zen.tabBridge the URL is, in fact, right there —
+# the rice's own extension publishes it beside the title. The classification
+# above deliberately does NOT use it yet: it would be a Zen-only glyph rule, so
+# the pill would name the site on one browser and shrug on the others, and this
+# file's whole argument is that a guess you can't make everywhere is a guess you
+# shouldn't make. Worth revisiting the day the bridge covers more than Zen.
 
 SILL_MEDIA_STATE_DIR="$HOME/.local/state/nebelhaus/media"
 SILL_MEDIA_NOW="$SILL_MEDIA_STATE_DIR/now"
@@ -51,10 +63,27 @@ SILL_MEDIA_TINT="$SILL_MEDIA_STATE_DIR/tint"
 SILL_MEDIA_ART_BOX=84
 SILL_MEDIA_ART_TARGET=68
 
-# The small app-icon badge next to "Show in <App>", for when there's no cover
-# to name the source instead. Deliberately its own (smaller) size rather than
-# the cover well's — it is an aside, not a hero image.
-SILL_MEDIA_BADGE_BOX=56
+# The small app-icon badge for when there's no cover to name the source instead.
+# It does NOT sit in the stack as a row of its own any more: a 56pt icon
+# occupying a full-width menu row read as a list ENTRY — something you were meant
+# to click, wedged between two things you actually click — rather than as the
+# aside it is. It now floats in the dropdown's bottom-right corner instead,
+# below the last transport row and pushed right by media_badge_align, which is
+# what the two numbers below are for: the row's height, and the scale the icon is
+# drawn at inside it. `background.image.scale` is a factor on the image's own
+# PIXELS — the same relationship media_art.sh computes per cover — and SketchyBar
+# hands back an app icon about 27px square, so 0.9 lands the badge at ~24pt: read
+# as a mark, small enough not to read as a row.
+SILL_MEDIA_BADGE_BOX=28
+SILL_MEDIA_BADGE_SCALE=0.9
+
+# How far the badge sits from the dropdown's right edge, and the widest a popup
+# row is ever assumed to be when its width can't be read back (see
+# media_badge_align). The floor matters more than it looks: too small and the
+# badge lands mid-row instead of in the corner; too large and IT becomes the
+# widest item and stretches the whole dropdown to fit.
+SILL_MEDIA_BADGE_INSET=12
+SILL_MEDIA_BADGE_MIN_WIDTH=180
 
 # The dropdown's title/album rows are capped to this many characters — not a
 # fixed width, which sketchybar treats as static rather than a maximum, and
@@ -70,7 +99,8 @@ media_is_browser() {
     case "$1" in
     com.apple.Safari | com.apple.SafariTechnologyPreview | com.google.Chrome | \
         com.google.Chrome.canary | org.mozilla.firefox | org.mozilla.firefoxdeveloperedition | \
-        app.zen-browser.zen | company.thebrowser.Browser | company.thebrowser.dia | \
+        app.zen-browser.zen | io.gitlab.librewolf-community.librewolf | \
+        company.thebrowser.Browser | company.thebrowser.dia | \
         com.brave.Browser | com.microsoft.edgemac | com.vivaldi.Vivaldi | com.operasoftware.Opera)
         return 0
         ;;
@@ -185,6 +215,264 @@ media_app_name() {
     *.client | *.app) printf '%s' "$(printf '%s' "$bundle" | awk -F. '{print $(NF-1)}')" ;;
     *) printf '%s' "${bundle##*.}" ;;
     esac
+}
+
+# Push the app-icon badge into the dropdown's bottom-right corner.
+#
+# SketchyBar has no alignment for this: a popup is a vertical stack of
+# LEFT-aligned items, every item's background is only as wide as ITS OWN content
+# (a full-width row background is something popups simply don't do — measured),
+# and there is no right-align property. What there IS: `background.image
+# .padding_left` both offsets the image rightwards AND grows the item to fit, so
+# an item whose only content is the image, given a padding equal to the
+# dropdown's width minus the badge, draws that badge hard against the right edge
+# of a row exactly as wide as the popup already was — no wider, so it never
+# stretches the dropdown.
+#
+# Which means we need the popup's width, and only SketchyBar knows it. The two
+# rows that can be the widest are the title and its artist/album subtitle (both
+# capped at SILL_MEDIA_POPUP_MAX_CHARS, so a long one settles there); everything
+# below them is a short labelled row or the fixed-width slider, which is what the
+# floor is for.
+#
+# THE CATCH, which cost a round of head-scratching: a popup item has NO
+# bounding_rects until the popup has actually been drawn once. Freshly built and
+# still hidden, every row queries back as an empty rect list — so measuring
+# before the reveal, which is what you'd want, silently measures nothing and
+# falls through to the floor. Hence the return code: the caller reveals the
+# popup and calls again when this said it had nothing to go on, which is only
+# ever the first open after a rebuild. Every later open measures up front and
+# lands the badge before anything is on screen.
+media_badge_align() {
+    local widest="$SILL_MEDIA_BADGE_MIN_WIDTH" w item measured=1 pad
+    for item in media.popup.title media.popup.sub; do
+        w="$($SB --query "$item" 2>/dev/null |
+            jq -r '[.bounding_rects[]?.size[0]] | max // empty' 2>/dev/null)"
+        w="${w%%.*}"
+        [ -n "$w" ] || continue
+        measured=0
+        [ "$w" -gt "$widest" ] 2>/dev/null && widest="$w"
+    done
+    pad=$((widest - SILL_MEDIA_BADGE_BOX - SILL_MEDIA_BADGE_INSET))
+    [ "$pad" -lt 0 ] && pad=0
+    $SB --set media.popup.appicon background.image.padding_left="$pad" 2>/dev/null
+    return "$measured"
+}
+
+# Bring the source forward — and, when the source is a browser, the TAB, not just
+# the app. "Something is making noise and I can't find the tab" is the whole
+# reason ⌘-click exists, and landing you in the right window with the wrong tab
+# in front only answered half of it.
+#
+# The match is on the TITLE, because that is all there is: the now-playing
+# session carries no URL (see this file's header — that limitation is unchanged,
+# and this is the way around it rather than a fix for it). A tab's title contains
+# the track's title as a prefix on every service worth naming — "<video> -
+# YouTube", "<track> • <artist> | Spotify" — so a substring test is enough, and a
+# miss costs nothing but the old behaviour.
+#
+# Three families, three completely different mechanisms, and only two of them are
+# clean:
+#   * Safari and the Chromium browsers expose their tabs to AppleScript, so this
+#     is a genuine lookup: find the tab, make it current, raise its window. The
+#     first ⌘-click on such a source raises macOS's "SketchyBar wants to control
+#     <Browser>" Automation prompt; refused, osascript fails and the fallback at
+#     the bottom of media_focus_source is the old behaviour.
+#   * Firefox and its forks (Zen among them) expose NOTHING. No AppleScript
+#     dictionary at all, and no accessibility tree either — verified directly on
+#     Zen: the tab strip is absent from the AX tree even after forcing Firefox's
+#     a11y engine on with AXEnhancedUserInterface, which leaves only the window
+#     title, which is only ever the FOREGROUND tab. Two routes, in order:
+#       1. the rice's own extension, if haus.zen.tabBridge deployed it — an
+#          exact tab id from inside the browser, which is the honest answer;
+#       2. failing that, the one piece of switch-to-tab machinery Firefox does
+#          ship: the address bar's `%` restriction token, which searches OPEN
+#          TABS and switches to the one you pick, driven by synthetic
+#          keystrokes. Typed into a fresh tab, so the worst case when nothing
+#          matches is a search results page in a tab that wasn't there a second
+#          ago, rather than navigating away from something you were reading.
+media_focus_source() {
+    local bundle="$1" title="$2" app="$3"
+    [ -n "$bundle" ] || return 1
+
+    if [ -n "$title" ]; then
+        case "$bundle" in
+        com.apple.Safari | com.apple.SafariTechnologyPreview)
+            media_focus_tab_safari "$app" "$title" && return 0
+            ;;
+        # Arc and Dia are Chromium underneath but ship their OWN AppleScript
+        # dictionary, without the `active tab index` this leans on — they are
+        # deliberately absent, and fall through to plainly fronting the app.
+        com.google.Chrome | com.google.Chrome.canary | com.brave.Browser | \
+            com.microsoft.edgemac | com.vivaldi.Vivaldi | com.operasoftware.Opera)
+            media_focus_tab_chromium "$bundle" "$title" && return 0
+            ;;
+        org.mozilla.firefox | org.mozilla.firefoxdeveloperedition | \
+            app.zen-browser.zen | io.gitlab.librewolf-community.librewolf)
+            media_focus_tab_bridge "$bundle" "$title" && return 0
+            media_focus_tab_firefox "$bundle" "$app" "$title" && return 0
+            ;;
+        esac
+    fi
+
+    open -b "$bundle" 2>/dev/null
+}
+
+# Chromium's dictionary indexes tabs by position within a window, and `active tab
+# index` is 1-based — hence the counter rather than `set active tab of w`, which
+# it does not have. `set index of w to 1` is what raises the window; `activate`
+# alone would front the app on whichever window was already topmost.
+media_focus_tab_chromium() {
+    osascript - "$2" >/dev/null 2>&1 <<EOF
+on run argv
+  set needle to item 1 of argv
+  tell application id "$1"
+    repeat with w in windows
+      set i to 0
+      repeat with t in tabs of w
+        set i to i + 1
+        if title of t contains needle then
+          set active tab index of w to i
+          set index of w to 1
+          activate
+          return "ok"
+        end if
+      end repeat
+    end repeat
+  end tell
+  error "no match"
+end run
+EOF
+}
+
+# $1 is the app name, unused: Safari's dictionary is reached by its own fixed
+# name, not by bundle id. Kept in the signature so all three routes are called
+# the same way from media_focus_source.
+media_focus_tab_safari() {
+    osascript - "$2" >/dev/null 2>&1 <<'EOF'
+on run argv
+  set needle to item 1 of argv
+  tell application "Safari"
+    repeat with w in windows
+      repeat with t in tabs of w
+        if name of t contains needle then
+          set current tab of w to t
+          set index of w to 1
+          activate
+          return "ok"
+        end if
+      end repeat
+    end repeat
+  end tell
+  error "no match"
+end run
+EOF
+}
+
+# The good Firefox-family route: ask the browser, through the rice's own
+# extension (haus.zen.tabBridge — modules/hearth/zen-tabs). When it's there this
+# is the whole job: an exact tab id, no keystrokes, no Accessibility permission,
+# and it works on a tab in another window, another Zen workspace or another
+# Space. When it isn't, media_focus_source falls through to the keystroke route
+# below, so this file works either way and neither half knows about the other's
+# failure modes.
+#
+# The PID file is the liveness test, and it has to be: the host dies with the
+# browser and cleans up after itself, but a crashed Zen leaves tabs.json behind,
+# and a browser sitting idle publishes nothing new for hours — so mtime cannot
+# tell a live bridge from a dead one, and only a running process can.
+#
+# The command channel is APPENDED to, never truncated, because a bar click_script
+# must not be able to block: see haustabs.swift's header for why this is a plain
+# file rather than the FIFO or socket it looks like it wants to be.
+#
+# Audible wins over merely matching, because a title can match twice — the same
+# video open in two tabs, a "watch later" duplicate — and the one making the
+# noise is by definition the one you meant.
+media_focus_tab_bridge() {
+    local bundle="$1" needle="$2" state id pid
+    # ZEN ONLY, and checked here rather than at the call site because the file
+    # this reads holds ZEN's tabs and nothing else. Firefox and LibreWolf share
+    # the Firefox-family branch above, and without this a title playing in
+    # Firefox that happens to substring-match a Zen tab would switch Zen's tab
+    # and then raise Firefox. The bridge is Zen-only for a signing reason (see
+    # modules/hearth/zen-tabs); widen this the day that stops being true.
+    [ "$bundle" = "app.zen-browser.zen" ] || return 1
+    state="$HOME/.local/state/nebelhaus/zen-tabs"
+    [ -r "$state/tabs.json" ] && [ -w "$state/cmd" ] || return 1
+    pid="$(cat "$state/pid" 2>/dev/null)"
+    [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null || return 1
+
+    id="$(jq -r --arg n "$needle" '
+        [.tabs[]? | select((.title // "") | contains($n))]
+        | (map(select(.audible)) + .)
+        | .[0].id // empty' "$state/tabs.json" 2>/dev/null)"
+    case "$id" in
+    "" | *[!0-9]*) return 1 ;;
+    esac
+
+    printf 'focus %s\n' "$id" >>"$state/cmd" 2>/dev/null || return 1
+    # The extension raises the tab's window; this raises the APP. Both are
+    # needed — a focused window belonging to a background app is still behind
+    # whatever you were looking at.
+    open -b "$bundle" 2>/dev/null
+    return 0
+}
+
+# The fallback Firefox-family route, for a machine without the bridge. Three
+# things about it are deliberate:
+#
+#   * The already-in-front case is checked FIRST and answered without typing
+#     anything. That is the common one — you paused a video, you want it back —
+#     and it would be absurd to open a tab and run a search to reach a tab that
+#     is already the one you're looking at.
+#   * It WAITS for the browser to actually be frontmost, rather than activating
+#     and sleeping a fixed quarter-second. `keystroke` does not deliver to the
+#     process you addressed it to: System Events posts to whatever has focus at
+#     the instant it fires, and `tell process` only names where the events are
+#     ROUTED FROM. So an activation slower than the sleep — a cold app, a window
+#     on another AeroSpace workspace or Space — would have typed "% <track>" and
+#     a Return into whatever you were looking at before. A terminal running an
+#     agent would have submitted it as a prompt. The poll is bounded, and gives
+#     up rather than typing into the wrong window.
+#   * All of it needs System Events, i.e. the Accessibility permission of
+#     whatever spawned this (SketchyBar, for the pill; see the palette's TCC
+#     note for how that identity is inherited) — the front-window check
+#     included. Denied, every osascript here fails, and media_focus_source falls
+#     back to plainly activating the app, which is exactly what this gesture did
+#     before: a machine that never grants it is no worse off than it was.
+media_focus_tab_firefox() {
+    local bundle="$1" app="$2" needle="$3" front
+
+    front="$(osascript -e "tell application \"System Events\" to tell process \"$app\" to get name of window 1" 2>/dev/null)"
+    case "$front" in
+    *"$needle"*)
+        open -b "$bundle" 2>/dev/null
+        return 0
+        ;;
+    esac
+
+    osascript - "$needle" >/dev/null 2>&1 <<EOF
+on run argv
+  set needle to item 1 of argv
+  tell application id "$bundle" to activate
+  tell application "System Events"
+    set waited to 0
+    repeat until (frontmost of process "$app") or waited > 20
+      delay 0.1
+      set waited to waited + 1
+    end repeat
+    if not (frontmost of process "$app") then error "never came forward"
+    tell process "$app"
+      keystroke "t" using command down
+      delay 0.2
+      keystroke ("% " & needle)
+      delay 0.5
+      key code 36
+    end tell
+  end tell
+end run
+EOF
 }
 
 # Seconds -> m:ss, or h:mm:ss once it earns the hour. Takes a float (the payload
