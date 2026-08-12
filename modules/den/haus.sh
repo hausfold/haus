@@ -1353,7 +1353,7 @@ cmd_update() {
     # background: it's a 5-second timeout on a network you may not have, and
     # nothing downstream waits on it.
     owner="$(jq -r '.nodes.nebelhaus.original.owner // "hausfold"' "$CONSUMER/flake.lock")"
-    repo="$(jq -r '.nodes.nebelhaus.original.repo // "hausfold"' "$CONSUMER/flake.lock")"
+    repo="$(jq -r '.nodes.nebelhaus.original.repo // "haus"' "$CONSUMER/flake.lock")"
     logfile="$(mktemp)"
     bg fetch_changelog "$owner" "$repo" "$old" "$new" "$logfile"
   fi
@@ -1421,7 +1421,7 @@ cmd_status() {
     fi
     # Is the upstream rice ahead of what you've pinned? Best-effort, offline-safe.
     owner="$(jq -r '.nodes.nebelhaus.original.owner // "hausfold"' "$CONSUMER/flake.lock")"
-    repo="$(jq -r '.nodes.nebelhaus.original.repo // "hausfold"' "$CONSUMER/flake.lock")"
+    repo="$(jq -r '.nodes.nebelhaus.original.repo // "haus"' "$CONSUMER/flake.lock")"
     ref="$(jq -r '.nodes.nebelhaus.original.ref // "HEAD"' "$CONSUMER/flake.lock")"
     url="https://github.com/$owner/$repo.git"
     remoterev="$(git ls-remote "$url" "$ref" 2>/dev/null | awk 'NR==1{print $1}')"

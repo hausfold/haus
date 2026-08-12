@@ -31,8 +31,8 @@ machine, run one command, and the house stands again exactly as it was.
 > the `haus` CLI you run — and any rice can be built on it. **nebelhaus** is the
 > rice this repo dresses it in: the fog-grey defaults, the first one, and the
 > one you get from the install command below. **hausfold** is the org it all
-> ships from — the maker, and the name on the receipt — which is why this repo
-> is `hausfold/hausfold`.
+> ships from — the maker, and the name on the receipt. So the repo is
+> `hausfold/haus`: the layer names the repo, the org owns it.
 
 📖 **Full docs & guides: [nebelhaus.com](https://nebelhaus.com)** — start with
 [Install](https://nebelhaus.com/start/install/) and
@@ -43,7 +43,7 @@ machine, run one command, and the house stands again exactly as it was.
 ```sh
 curl -fsSL https://nebelhaus.com/init.sh | bash
 # or straight from the flake, once nix is installed:
-nix run github:hausfold/hausfold#bootstrap
+nix run github:hausfold/haus#bootstrap
 ```
 
 It installs the prerequisites (Xcode CLT, Determinate Nix), then scaffolds a
@@ -158,7 +158,7 @@ verifiable. `haus doctor` reports whether it's installed.
 
 ## the family
 
-- 🏠 [**nebelhaus**](https://github.com/hausfold/hausfold) — the house. the `haus` layer and the nebelhaus rice, one Nix flake. start here. *(you are here)*
+- 🏠 [**nebelhaus**](https://github.com/hausfold/haus) — the house. the `haus` layer and the nebelhaus rice, one Nix flake. start here. *(you are here)*
 - 🐾 [**pounce**](https://github.com/hausfold/pounce) — the palette. keyboard-first launcher; every command a file.
 - 🪺 [**perch**](https://github.com/hausfold/perch) — the shelf. files, caught in the notch.
 - 🌫️ [**nebelung**](https://github.com/hausfold/nebelung) — the theme. the silver-mist palette.

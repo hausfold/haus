@@ -1744,7 +1744,7 @@
         }
       );
 
-      # `nix run github:hausfold/hausfold#pounce`
+      # `nix run github:hausfold/haus#pounce`
       # Linux is in allSystems for options-json alone: nebelhaus.com's CI renders
       # the options reference there. Nothing else in this set is buildable on
       # Linux, but option metadata is pure evaluation.
@@ -1884,7 +1884,7 @@
         }
       );
 
-      # `nix run github:hausfold/hausfold#bootstrap` — raise the house on a
+      # `nix run github:hausfold/haus#bootstrap` — raise the house on a
       # fresh Mac. Scaffolds a thin personal config at ~/.config/nix; it never
       # touches this repo. Same script as the curl|bash path (bootstrap.sh).
       apps = nixpkgs.lib.genAttrs [ "aarch64-darwin" ] (system: {

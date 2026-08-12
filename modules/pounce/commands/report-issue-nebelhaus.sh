@@ -4,12 +4,12 @@
 # pounce: icon = ladybug
 
 # Rice-specific counterpart to pounce's built-in "Report Pounce Issue": opens
-# github.com/hausfold/hausfold with a new-issue form pre-filled from a
+# github.com/hausfold/haus with a new-issue form pre-filled from a
 # template. Shipped by the rice (modules/pounce/commands, layered in via
 # extraCommandDirs), so it only appears when pounce is used with nebelhaus.
 # Same URL-query approach as the pounce built-in — nothing hosted needed.
 
-repo="hausfold/hausfold"
+repo="hausfold/haus"
 
 # Environment footer, best-effort.
 macos=$(sw_vers -productVersion 2>/dev/null)
