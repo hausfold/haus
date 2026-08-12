@@ -661,6 +661,23 @@
     "readOnly": false,
     "type": "list of string"
   },
+  "haus.hearth.rightClickFullscreen": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "When true (the default), a bare right-click on any pane zooms it\nfullscreen — the same MouseAction::ToggleFullscreen Ctrl+Click already\ntriggers, just a different, easier-to-reach trigger. It's a whole\nzellij-unwrapped patch, not a config toggle (mouse buttons still\naren't bindable in config.kdl — see naked-click-links.patch's header\nfor why link gestures hit the same wall), so flipping this rebuilds\nzellij; it does not take effect on a running server. The real cost:\nright-click stops reaching the pane's own program, so a TUI's own\nright-click context menu (lazygit, vim, mc, …) goes with it. Set\nfalse to leave right-click alone and keep zooming with Ctrl+Click or\nSuper Enter.\n",
+    "loc": [
+      "haus",
+      "hearth",
+      "rightClickFullscreen"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
   "haus.hearth.zellijStartLocked": {
     "declarations": [
       "modules/hearth/options.nix"
