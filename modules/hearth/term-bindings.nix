@@ -43,6 +43,9 @@
   # itself is installed, so neither the cheatsheet nor Ghostty advertises a
   # dead Cmd-G on machines that do not want it.
   ghDashEnabled,
+  # haus.hearth.rightClickFullscreen — the mouse row only appears when the
+  # zellij patch that implements it is actually compiled in.
+  rightClickFullscreenEnabled,
 }:
 
 let
@@ -193,7 +196,11 @@ rec {
           key = "Drag a selection";
           action = "Autoscrolls — near edge flies, far edge brakes";
         }
-      ];
+      ]
+      ++ lib.optional rightClickFullscreenEnabled {
+        key = "Right-click pane";
+        action = "Also zooms it fullscreen — same as ⌃ Click";
+      };
     }
   ];
 

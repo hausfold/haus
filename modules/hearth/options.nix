@@ -185,6 +185,24 @@ in
       '';
     };
 
+    hearth.rightClickFullscreen = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        When true (the default), a bare right-click on any pane zooms it
+        fullscreen — the same MouseAction::ToggleFullscreen Ctrl+Click already
+        triggers, just a different, easier-to-reach trigger. It's a whole
+        zellij-unwrapped patch, not a config toggle (mouse buttons still
+        aren't bindable in config.kdl — see naked-click-links.patch's header
+        for why link gestures hit the same wall), so flipping this rebuilds
+        zellij; it does not take effect on a running server. The real cost:
+        right-click stops reaching the pane's own program, so a TUI's own
+        right-click context menu (lazygit, vim, mc, …) goes with it. Set
+        false to leave right-click alone and keep zooming with Ctrl+Click or
+        Super Enter.
+      '';
+    };
+
     hearth.floatBorder = lib.mkOption {
       type = lib.types.enum (
         [

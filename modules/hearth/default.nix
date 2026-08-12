@@ -101,6 +101,7 @@ let
     inherit lib agentDefault;
     agentsEnabled = agentClients != [ ];
     ghDashEnabled = ghDashCfg.enable;
+    rightClickFullscreenEnabled = hearthCfg.rightClickFullscreen;
   };
   ghDashBind = lib.optionalString ghDashCfg.enable ''
     // Super g — GitHub's review queue in a borderless, full-window
@@ -743,19 +744,27 @@ in
   # bindable in config.kdl, and the two suppressions it lifts are unconditional
   # `if`s in the render and hover paths, not options.
   #
-  # All five patched at zellij-unwrapped, not zellij: the latter is a thin
-  # wrapper derivation with no source of its own. It rebuilds from source on
-  # every nixpkgs bump that moves zellij or its deps.
+  # All patched at zellij-unwrapped, not zellij: the latter is a thin wrapper
+  # derivation with no source of its own. It rebuilds from source on every
+  # nixpkgs bump that moves zellij or its deps.
+  #
+  # right-click-fullscreen is the odd one out of the six: gated on
+  # haus.hearth.rightClickFullscreen rather than always applied, because it
+  # trades away right-click's forward-to-terminal (lazygit/vim/mc's own
+  # context menu) for a bare right-click zoom, and that trade isn't
+  # everyone's — see the option's own doc for the reasoning.
   nixpkgs.overlays = [
     (_final: prev: {
       zellij-unwrapped = prev.zellij-unwrapped.overrideAttrs (old: {
-        patches = (old.patches or [ ]) ++ [
+        patches = (old.patches or [ ])
+        ++ [
           ./zellij/patches/selection-autoscroll.patch
           ./zellij/patches/no-ctrl-scroll-resize.patch
           ./zellij/patches/ctrl-click-fullscreen.patch
           ./zellij/patches/unstick-mouse-selection.patch
           ./zellij/patches/naked-click-links.patch
-        ];
+        ]
+        ++ lib.optional hearthCfg.rightClickFullscreen ./zellij/patches/right-click-fullscreen.patch;
       });
     })
   ];
