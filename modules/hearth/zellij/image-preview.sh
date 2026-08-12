@@ -2,7 +2,7 @@
 # image-preview.sh — terminal-native image preview for the zellij link-handler.
 #
 # Spawned by the link-handler plugin in a floating pane when an image path is
-# option-clicked. Renders with chafa in `symbols` mode (truecolor half-block
+# clicked (a bare click, in a pane no application is tracking the mouse in). Renders with chafa in `symbols` mode (truecolor half-block
 # art) — the ONLY mode that survives this pipeline: zellij's VTE parser drops
 # kitty-graphics APC sequences outright, and it only forwards sixel when the
 # host terminal advertises it in its DA1 response, which Ghostty (kitty

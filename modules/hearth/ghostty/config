@@ -34,15 +34,38 @@ macos-titlebar-style = hidden
 # the rule, applied by sill-bottomrc and sketchybarrc — which fixes it for every
 # app at once and needs no SIP, no yabai, and nothing from ghostty.
 macos-window-shadow = false
-# Option is sent into the terminal as Alt (so ⌥-chords reach zellij / the
-# shell), which leaves Cmd as ghostty's link-open modifier. That split is load-
-# bearing for clickable links: Opt+Click is zellij's (the link-handler plugin —
-# paths + visible/schemeless links), Cmd+Click is ghostty's (any web link,
-# INCLUDING OSC 8 hyperlinks with no visible URL — Claude Code /tui's links).
-# ghostty detects them via `link-url`/`link-previews` (both default true); it
-# only sees the embedded ones because zellij's config.kdl sets
+# Option is sent into the terminal as Alt, so ⌥-chords reach zellij / the shell
+# instead of composing accented characters.
+#
+# This line used to be described as the thing that leaves ⌘ free to be
+# ghostty's link-open modifier, with Opt+Click zellij's link gesture and
+# Cmd+Click ghostty's. Half of that was never true: SGR mouse reports encode
+# shift, alt and ctrl and have NO bit for super, so a ⌘+Click inside any
+# mouse-tracking program (zellij always, an agent TUI on top of it) arrives
+# indistinguishable from a bare click and ghostty never gets a say — which is
+# exactly why ⌘+Click "did the same thing as a click" in a Claude Code pane.
+# Links now open on a BARE click, resolved inside zellij from the cell's link
+# anchor (hearth's naked-click-links.patch), and ⌥+Click is not a link gesture
+# at all any more.
+#
+# ghostty still owns SHIFT (see mouse-shift-capture below), so ⌘⇧+Click stays
+# the escape hatch into its own opener from any pane — ⇧ frees the mouse from
+# the program capturing it, ⌘ is what makes ghostty read a link under the
+# pointer at all, and ⌘⇧+hover is what draws its preview. Both halves are
+# ghostty's own rule: `link-url` hard-wires the hover condition to cmd and
+# ghostty 1.3.1 cannot configure `link` ("TODO: This can't currently be set!").
+# It sees embedded links at all only because zellij's config.kdl sets
 # `osc8_hyperlinks true` to forward them out. See that block for the full story.
 macos-option-as-alt = true
+
+# Shift is the ONE modifier that always reaches ghostty, whatever program owns
+# the pane — that is what makes ⌘⇧+Click a dependable way out of the
+# multiplexer and into ghostty's own link opener, and ⇧-drag a dependable way
+# into its selection. `false` is already the default, but at that setting a
+# program can flip it with XTSHIFTESCAPE; `never` is the same rule with the
+# override refused, so no application can quietly claim the one gesture the
+# whole link design keeps in reserve.
+mouse-shift-capture = never
 
 # Make zellij's bottom status bar sit flush along the window's bottom edge at
 # EVERY font size. The ghostty window is tiled at a fixed pixel height (prowl /
