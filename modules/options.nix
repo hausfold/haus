@@ -27,7 +27,9 @@ let
         example = "s";
         description = ''
           The leader letter for this app: tap Caps Lock then this key to
-          launch/focus it. Must be unique across the roster.
+          launch/focus it. Must be unique across the roster, and not one of
+          launch mode's own: `v` `e` `z` `,` `` ` `` `-` `=` `/` `1`-`4` `esc`
+          and the arrows are taken, and a rebuild refuses them.
 
           null (the default) means the entry is INSTALL-ONLY: it still
           brings its cask/formula/package, but claims no leader key, no
