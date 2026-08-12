@@ -7,6 +7,11 @@
 { lib, ... }:
 
 let
+  # Every Nebelung accent name, so floatBorder can take a colour of its own
+  # rather than only "the accent" — the same courtesy haus.sill.logo.color pays.
+  # Shared with theme's own option, one list, one place (modules/lib/accents.nix).
+  accentNames = import ../lib/accents.nix;
+
   # The extensions the rice itself has an opinion about, so naming one in
   # haus.zen.extensions is enough. Stylus is here because it's the Nebelung
   # port whose theme lives inside the extension rather than in a file — the one
@@ -181,13 +186,16 @@ in
     };
 
     hearth.floatBorder = lib.mkOption {
-      type = lib.types.enum [
-        "grey"
-        "accent"
-        "off"
-      ];
-      default = "grey";
-      example = "accent";
+      type = lib.types.enum (
+        [
+          "accent"
+          "grey"
+          "off"
+        ]
+        ++ accentNames
+      );
+      default = "accent";
+      example = "grey";
       description = ''
         The outline drawn around every floating terminal `float-term.sh` spawns:
         the Super-y yazi peek panel, the bar's agent peek, and the palette's
@@ -195,20 +203,26 @@ in
         land on top of a tiled desktop, where a dark terminal over a dark window
         behind it has no edge at all.
 
-        - `grey` (the default) — Nebelung's `surface0`, one step off the
-          terminal's own background. The same relationship the bar's dropdowns
-          wear (`popup.background.border_color` in modules/sill), so a popup
-          reads as another surface of the same family rather than as a highlight.
-        - `accent` — `haus.theme.accent`, for popups that announce themselves.
-        - `off` — no outline; the look before this option existed.
+        - `accent` (the default) — `haus.theme.accent`, so a summoned window
+          announces itself and the whole desktop keeps one accent.
+        - `grey` — Nebelung's `surface0`, one step off the terminal's own
+          background: the same relationship the bar's dropdowns wear
+          (`popup.background.border_color` in modules/sill), for an edge that
+          defines the window without drawing the eye.
+        - `off` — no outline; the look before this option existed. It also keeps
+          floatring out of the closure entirely, so nothing is compiled for it.
+        - any Nebelung accent name (`lavender`, `sapphire`, …) — one colour for
+          these popups that ISN'T `haus.theme.accent`, the same escape hatch
+          `haus.sill.logo.color` offers.
 
         2pt, following the window's own corner curve. Drawn by a tiny overlay
         window (modules/hearth/floatring.swift) that lives and dies with the
         popup, because Ghostty has no border setting of its own and aerospace
         draws none — that file's header has the rest, including why it isn't
-        JankyBorders. To compare colours without a rebuild, outline any window
-        by hand (the process name is lower-case — `pgrep -x Ghostty` matches
-        nothing and rings nothing):
+        JankyBorders. Switch it with
+        `haus set hearth.floatBorder grey && haus rebuild`; to compare colours
+        first, without a rebuild, outline any window by hand (the process name is
+        lower-case — `pgrep -x Ghostty` matches nothing and rings nothing):
         `~/.config/zellij/float-term.sh ring "$(pgrep -x ghostty | head -1)" '#cba6f7'`
       '';
     };

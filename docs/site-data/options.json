@@ -586,12 +586,12 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "\"grey\""
+      "text": "\"accent\""
     },
-    "description": "The outline drawn around every floating terminal `float-term.sh` spawns:\nthe Super-y yazi peek panel, the bar's agent peek, and the palette's\nRebuild System / Install App / Settings and `zscratch` windows. They all\nland on top of a tiled desktop, where a dark terminal over a dark window\nbehind it has no edge at all.\n\n- `grey` (the default) — Nebelung's `surface0`, one step off the\n  terminal's own background. The same relationship the bar's dropdowns\n  wear (`popup.background.border_color` in modules/sill), so a popup\n  reads as another surface of the same family rather than as a highlight.\n- `accent` — `haus.theme.accent`, for popups that announce themselves.\n- `off` — no outline; the look before this option existed.\n\n2pt, following the window's own corner curve. Drawn by a tiny overlay\nwindow (modules/hearth/floatring.swift) that lives and dies with the\npopup, because Ghostty has no border setting of its own and aerospace\ndraws none — that file's header has the rest, including why it isn't\nJankyBorders. To compare colours without a rebuild, outline any window\nby hand (the process name is lower-case — `pgrep -x Ghostty` matches\nnothing and rings nothing):\n`~/.config/zellij/float-term.sh ring \"$(pgrep -x ghostty | head -1)\" '#cba6f7'`\n",
+    "description": "The outline drawn around every floating terminal `float-term.sh` spawns:\nthe Super-y yazi peek panel, the bar's agent peek, and the palette's\nRebuild System / Install App / Settings and `zscratch` windows. They all\nland on top of a tiled desktop, where a dark terminal over a dark window\nbehind it has no edge at all.\n\n- `accent` (the default) — `haus.theme.accent`, so a summoned window\n  announces itself and the whole desktop keeps one accent.\n- `grey` — Nebelung's `surface0`, one step off the terminal's own\n  background: the same relationship the bar's dropdowns wear\n  (`popup.background.border_color` in modules/sill), for an edge that\n  defines the window without drawing the eye.\n- `off` — no outline; the look before this option existed. It also keeps\n  floatring out of the closure entirely, so nothing is compiled for it.\n- any Nebelung accent name (`lavender`, `sapphire`, …) — one colour for\n  these popups that ISN'T `haus.theme.accent`, the same escape hatch\n  `haus.sill.logo.color` offers.\n\n2pt, following the window's own corner curve. Drawn by a tiny overlay\nwindow (modules/hearth/floatring.swift) that lives and dies with the\npopup, because Ghostty has no border setting of its own and aerospace\ndraws none — that file's header has the rest, including why it isn't\nJankyBorders. Switch it with\n`haus set hearth.floatBorder grey && haus rebuild`; to compare colours\nfirst, without a rebuild, outline any window by hand (the process name is\nlower-case — `pgrep -x Ghostty` matches nothing and rings nothing):\n`~/.config/zellij/float-term.sh ring \"$(pgrep -x ghostty | head -1)\" '#cba6f7'`\n",
     "example": {
       "_type": "literalExpression",
-      "text": "\"accent\""
+      "text": "\"grey\""
     },
     "loc": [
       "haus",
@@ -599,7 +599,7 @@
       "floatBorder"
     ],
     "readOnly": false,
-    "type": "one of \"grey\", \"accent\", \"off\""
+    "type": "one of \"accent\", \"grey\", \"off\", \"rosewater\", \"flamingo\", \"pink\", \"mauve\", \"red\", \"maroon\", \"peach\", \"yellow\", \"green\", \"teal\", \"sky\", \"sapphire\", \"blue\", \"lavender\""
   },
   "haus.hearth.ghDash.enable": {
     "declarations": [

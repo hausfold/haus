@@ -776,18 +776,19 @@ in
       nebelungPalette = nb.palette;
 
       # The outline around the floating Ghostty popups (haus.hearth.floatBorder),
-      # baked into float-term.sh below. "grey" is surface0 — the same step off the
-      # background the bar's dropdowns take — and "off" renders an empty colour,
-      # which is the one thing float-term.sh's ring() checks, so the binary is
-      # never even launched.
+      # baked into float-term.sh below. Three words plus any Nebelung accent name
+      # (the `or` branch): "grey" is surface0 — the same step off the background
+      # the bar's dropdowns take — and "off" renders an empty colour, which is the
+      # one thing float-term.sh's ring() checks, so the binary is never launched
+      # (nor built — the store path is dropped from the script too, below).
       floatring = pkgs.callPackage ./package-floatring.nix { };
       floatBorderColor =
         {
-          grey = nebelungPalette.surface0;
           accent = nebelungPalette.${osConfig.haus.theme.accent};
+          grey = nebelungPalette.surface0;
           off = "";
         }
-        .${hearthCfg.floatBorder};
+        .${hearthCfg.floatBorder} or nebelungPalette.${hearthCfg.floatBorder};
       nbFlavor = nb.flavor; # "mocha" | "latte"
       # The bat theme's name AND its filename, which whiskers title-cases:
       # "Catppuccin Mocha" / "Catppuccin Mocha.tmTheme". Named once because three
