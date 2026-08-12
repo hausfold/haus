@@ -126,6 +126,21 @@ keybinds {
         // convention — it's the only agent allowed to touch the real tree.
         // @AGENT_HERE@ is haus.agents.default's client, plain.
         bind "Ctrl Alt Shift a" { Run @AGENT_HERE@; }
+        // Super b — build+activate this pane's HOLT LANE: this worktree PLUS
+        // every `holt child` worktree spawned from it, however many repos it
+        // touches, in ONE rebuild (`bench try lane switch` — "b" for bench,
+        // since Super l is already Links). Unlike try-batch (which needs an
+        // open PR per repo), this tests the LOCAL checkouts — uncommitted
+        // edits included — so it's the fast loop for a cross-repo change
+        // mid-flight. cwd is inherited from the focused pane, same as Super a:
+        // press it from the lane's PARENT worktree (bench refuses if it isn't
+        // one, or if it has no holt children — see bench's own
+        // `cmd_try`/`detect_lane`). No new-pane suppression here, unlike Super
+        // Shift a: the build/switch output and the post-switch activation
+        // banner are worth reading, so the pane stays open after it exits.
+        // Runs UNGATED — bench's BENCH_AGENT_SWITCH check only fires for an
+        // agent process; a real keypress here is a human at the keyboard.
+        bind "Super b" { Run "@HOME@/code/workshop/bench" "try" "lane" "switch"; }
         // Super p — New pane, inheriting the focused pane's cwd — except next
         //            to a claude --worktree pane: hearth's zshrc notices a
         //            fresh shell starting inside ~/.cache/claude-worktrees and

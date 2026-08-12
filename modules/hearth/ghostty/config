@@ -136,6 +136,12 @@ keybind = cmd+enter=unbind
 # zellij. (The agent lived on ⌘C until it was rebound to ⌘A for "agent", which
 # also let ⌘C go back to meaning copy — see the cmd+c line below.)
 keybind = cmd+a=unbind
+# cmd+b → zellij "Super b": build+activate this pane's holt LANE — this
+# worktree plus every `holt child` worktree spawned from it — in one rebuild
+# (`bench try lane switch`; "b" for bench, since ⌘L is already Links below).
+# Ghostty has no default binding on this chord; unbound defensively, same
+# reasoning as cmd+enter above, so a future default can't steal it.
+keybind = cmd+b=unbind
 # cmd+shift+a → zellij "Super Shift a" (the same isolated agent, but replacing
 # the focused pane instead of splitting beside it). Ghostty binds nothing here
 # today, so this unbind is purely defensive: it guarantees the chord keeps
