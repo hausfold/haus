@@ -10,10 +10,19 @@
 
 {
   options.haus = {
-    # ---- optional rooms ----
-    # den + hearth + collar are always on (system, shell, Touch ID). These three
-    # are the choosable rooms — turning one off drops its packages, agents, and
-    # config entirely (the "minimal vs developer" difference is just these flags).
+    # den + hearth are the floor and have no switch (system, shell). Of the
+    # rooms you can SEE, all six have one — prowl, sill, pounce, perch, hush,
+    # collar — and turning one off drops its packages, agents and config
+    # entirely. (The cross-cutting modules — apps, displays, roster, secrets,
+    # theme, wallpaper, workspaces — have no room switch either; they aren't
+    # rooms. And `full`/bootstrap deliberately expose only sill+prowl+pounce+
+    # tour as the install-time choice, which is a narrower surface than this,
+    # not a different list.)
+    #
+    # collar is NOT always on: haus.collar.enable is real and documented
+    # (modules/collar/options.nix). This comment used to say it was, and that is
+    # where "Touch ID for sudo can't be removed" got into the docs — caught by
+    # hausfold.co#22's fact-check pass. Don't put it back.
     prowl.enable = lib.mkOption {
       type = lib.types.bool;
       default = true;
