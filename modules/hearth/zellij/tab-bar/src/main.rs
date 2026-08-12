@@ -55,15 +55,11 @@ pub enum AgentState {
     Waiting,
 }
 
-/// The small summary rendered on one tab: an exact pane count plus the colour
-/// of the most urgent agent. Keeping both is important: a tab with three
-/// workers should say "3", while a single waiting agent should still win the
-/// colour code users scan for. (The renderer only PRINTS the count past one —
-/// see tab.rs — but it's carried here either way, because "is this 1 or 4"
-/// is exactly the question the chip's presence can't answer.)
+/// The small summary rendered on one tab: the colour of the most urgent agent
+/// across every agent pane it holds. Exact count lives in sill's popup, not
+/// here — a tab cell answers "does this need you, how urgently", not "how many".
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AgentBadge {
-    pub count: usize,
     pub state: AgentState,
 }
 
@@ -121,8 +117,8 @@ static ARROW_SEPARATOR: &str = "";
 register_plugin!(State);
 
 impl State {
-    /// Recompute tab → count + most-urgent-agent from (agent states × pane→tab),
-    /// and report whether what the bar draws actually changed.
+    /// Recompute tab → most-urgent-agent from (agent states × pane→tab), and
+    /// report whether what the bar draws actually changed.
     ///
     /// The return value is the point: PaneUpdate fires on every pane title
     /// change, and an agent pane retitles constantly, so without this the bar
@@ -131,11 +127,9 @@ impl State {
         let mut badges: BTreeMap<usize, AgentBadge> = BTreeMap::new();
         for (pane_id, state) in &self.agents {
             if let Some(tab_position) = self.pane_tab.get(pane_id) {
-                let badge = badges.entry(*tab_position).or_insert(AgentBadge {
-                    count: 0,
-                    state: *state,
-                });
-                badge.count += 1;
+                let badge = badges
+                    .entry(*tab_position)
+                    .or_insert(AgentBadge { state: *state });
                 badge.state = badge.state.max(*state);
             }
         }
@@ -237,7 +231,27 @@ impl ZellijPlugin for State {
                 // not the `remove` pipe — is what actually cleans up in practice:
                 // killing a pane outright (how an agent worktree pane usually
                 // dies) never gives Claude's SessionEnd hook a chance to fire.
+                //
+                // TEMPORARY: logging an eviction here, not just doing it, because
+                // a badge vanishing off an inactive tab on a plain tab-switch
+                // (reported, not yet reproduced) would show up as exactly this —
+                // a pane_id the agent map still holds that this manifest no
+                // longer places anywhere. If that's what's happening, this line
+                // in `~/.cache/zellij-$UID/zellij-log/zellij.log` (or the
+                // platform tmp-dir equivalent) is the smoking gun; if it never
+                // fires, the loss is happening somewhere other than this GC.
                 let live_panes = &self.pane_tab;
+                for pane_id in self.agents.keys() {
+                    if !live_panes.contains_key(pane_id) {
+                        eprintln!(
+                            "agent-status: evicting pane {} (state {:?}) — absent from a manifest covering {} tab(s), {} pane(s)",
+                            pane_id,
+                            self.agents[pane_id],
+                            manifest.panes.len(),
+                            live_panes.len(),
+                        );
+                    }
+                }
                 self.agents.retain(|pane_id, _| live_panes.contains_key(pane_id));
                 if self.refresh_tab_badges() {
                     should_render = true;
