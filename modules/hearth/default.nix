@@ -18,10 +18,10 @@ let
   gitCfg = config.haus.git;
   hearthCfg = config.haus.hearth;
   ghDashCfg = hearthCfg.ghDash;
-  claudeCfg = config.haus.claude;
+  agentsCfg = config.haus.agents;
   accent = config.haus.theme.accent; # a Catppuccin accent name, e.g. "mauve"
   devCfg = config.haus.developer;
-  agentDefault = config.haus.agents.default;
+  agentDefault = agentsCfg.default;
 
   # How the zellij binds and the `c` alias spell "start an agent". Only Claude
   # Code can make its own worktree (`--worktree`, which fires the WorktreeCreate
@@ -42,7 +42,42 @@ let
     codex = pkgs.codex;
     opencode = pkgs.opencode;
   };
-  agentClients = config.haus.agents.clients;
+  agentClients = agentsCfg.clients;
+
+  # One client id → where that client keeps the two files the rice ships into a
+  # home: the always-on instructions (`haus.agents.instructions`) and the `haus`
+  # skill (`haus.agents.skill`). Every client has both slots under a different
+  # name, which is the whole reason those options are named for the room and not
+  # for Claude.
+  #
+  # Verified against the clients themselves rather than their docs, because the
+  # cost of a wrong path here is silent — a file written where nothing reads it
+  # looks exactly like a working install:
+  #
+  #   codex debug prompt-input   → ~/.codex/AGENTS.md and ~/.codex/skills/*
+  #                                appear in the model-visible prompt
+  #   opencode debug skill       → lists ~/.config/opencode/skills/*
+  #
+  # OpenCode also scans `~/.claude/skills` for Claude Code compatibility, so a
+  # machine running both clients has two copies of this skill in its reach. That
+  # is safe on purpose: the same probe shows opencode deduplicating by frontmatter
+  # `name` and preferring its OWN directory, so the skill is offered once. (Its
+  # docs only say "ensure skill names are unique", which is why this was probed.)
+  agentHomes = {
+    claude = {
+      instructions = ".claude/CLAUDE.md";
+      skills = ".claude/skills";
+    };
+    codex = {
+      instructions = ".codex/AGENTS.md";
+      skills = ".codex/skills";
+    };
+    opencode = {
+      instructions = ".config/opencode/AGENTS.md";
+      skills = ".config/opencode/skills";
+    };
+  };
+
   # nixpkgs ships all three for aarch64-darwin only. That is the whole rice's
   # platform since 26.11 dropped x86_64-darwin, so this never fires today — but
   # it is the difference between a named refusal and an install that silently
@@ -138,35 +173,48 @@ let
       "tab-history"
     ] (name: "${build name}/bin/zellij-${name}.wasm");
 
-  # Rice-owned preamble for ~/.claude/CLAUDE.md. The rice ships `holt` (den) on
-  # PATH to every machine, and Claude Code agent worktrees live OUTSIDE the repo
-  # tree (~/.cache/claude-worktrees/…), so a worktree agent's CLAUDE.md walk never
-  # reaches the project/workshop CLAUDE.md — only THIS global memory + the repo's
-  # own checked-out CLAUDE.md are guaranteed read. So the general `holt` etiquette
-  # every agent needs travels HERE, in the global, WITH the tool — not just in the
-  # workshop repo end users don't have. Prepended to the host's own globalMd.
+  # Rice-owned preamble for each client's instructions file. The rice ships
+  # `holt` (den) on PATH to every machine, and agent worktrees live OUTSIDE the
+  # repo tree (~/.cache/claude-worktrees/…), so a worktree agent's instructions
+  # walk never reaches the project/workshop AGENTS.md — only THIS file + the
+  # repo's own checked-out one are guaranteed read. So the general `holt`
+  # etiquette every agent needs travels HERE, WITH the tool — not just in the
+  # workshop repo end users don't have. Prepended to the host's own
+  # `haus.agents.instructions`.
   #
-  # It opens by naming itself as generated, because the file the agent is reading
-  # is a read-only store symlink: an agent asked to "add this to your global
-  # memory" otherwise edits it (fails), or replaces the symlink with a real file
-  # whose contents die at the next rebuild. The scope has to be exact — some
-  # skills under ~/.claude/skills ARE out-of-store symlinks a host wires up
-  # itself, and settings.json is Claude Code's own, so a blanket "~/.claude is
+  # A function of the client, because the only thing that differs between the
+  # three copies is which paths they name — and naming the wrong one is worse
+  # than naming none: a Codex pane told to edit `~/.claude/CLAUDE.md` would
+  # change a file nothing it runs will ever read.
+  #
+  # It opens by naming itself as generated, because the file the agent is
+  # reading is a read-only store symlink: an agent asked to "add this to your
+  # global memory" otherwise edits it (fails), or replaces the symlink with a
+  # real file whose contents die at the next rebuild. The scope has to be
+  # exact — a host may wire individual skills as out-of-store symlinks, and each
+  # client owns its own settings file, so a blanket "this directory is
   # nix-managed" would be wrong.
-  holtGuidance = ''
+  clientScopeNote = {
+    claude = "`settings.json` is Claude Code's own, and a host may wire individual skills as out-of-store symlinks";
+    codex = "`config.toml` and `hooks.json` are Codex's own, and a host may wire individual skills as out-of-store symlinks";
+    opencode = "`opencode.json` is OpenCode's own, and a host may wire individual skills or plugins as out-of-store symlinks";
+  };
+
+  holtGuidance = client: ''
     # This file is generated by Nix — don't edit it here
 
-    `~/.claude/CLAUDE.md` is a read-only symlink into the Nix store, rendered
-    from `haus.claude.globalMd` in this machine's host file
+    `~/${agentHomes.${client}.instructions}` is a read-only symlink into the Nix
+    store, rendered from `haus.agents.instructions` in this machine's host file
     (`~/.config/nix/hosts/${hostname}/default.nix`, unless `HAUS_CONSUMER` says
     otherwise). Change it there, then `haus rebuild` — a hand-edit here either
-    fails outright or is reverted by the next rebuild.
+    fails outright or is reverted by the next rebuild. Every coding agent this
+    machine installs gets the same text at its own path, so a change lands for
+    all of them at once.
 
-    The same goes for `~/.claude/skills/haus/`, generated from the rice
-    revision this machine pins (`haus update` regenerates it). It does NOT go
-    for all of `~/.claude`: `settings.json` is Claude Code's own, and a host may
-    wire individual skills as out-of-store symlinks that you can edit live with
-    no rebuild. `ls -l` the path before assuming which kind it is.
+    The same goes for `~/${agentHomes.${client}.skills}/haus/`, generated from
+    the rice revision this machine pins (`haus update` regenerates it). It does
+    NOT go for everything beside them: ${clientScopeNote.${client}} that you can
+    edit live with no rebuild. `ls -l` the path before assuming which kind it is.
 
     # Agent worktrees & the `holt` tool
 
@@ -177,6 +225,9 @@ let
     a `wip:` commit and only already-merged branches are reaped. Resume a parked
     session with `holt` (lists every worktree across all repos) or
     `holt <name>`; sweep landed ones on demand with `holt reap`.
+
+    Checkouts live under `~/.cache/claude-worktrees/<repo>/<name>` whichever
+    client you are — the path name is historical, not a claim about who owns it.
 
     **Cross-repo work uses `holt child`, never a raw `git worktree add`.** To
     work on a DIFFERENT repo than the pane you're in (e.g. a parent pane editing
@@ -221,10 +272,76 @@ let
   # that doesn't exist.
   #
   # So the rice ships the knowledge with itself. The option reference inside the
-  # skill is RENDERED from this revision's module system (claude/skill.nix), and
+  # skill is RENDERED from this revision's module system (agents/skill.nix), and
   # `this-machine.md` below is rendered from this host's own evaluated config —
   # neither can drift, and `haus update` refreshes both along with the rice.
-  claudeSkill = import ./claude/skill.nix { inherit pkgs; };
+  #
+  # ONE derivation, installed into each client's own skills directory (see
+  # agentHomes): the knowledge is about this machine, not about who's reading.
+  hausSkill = import ./agents/skill.nix { inherit pkgs; };
+
+  # ---- what lands in each installed client's home ---------------------------
+  #
+  # Keyed off agents.clients, not "always Claude": writing ~/.claude/CLAUDE.md on
+  # a codex-only machine is a file nothing reads, and NOT writing
+  # ~/.codex/AGENTS.md on one is the half-truth this fan-out ends — the pane
+  # spawned with none of the context the same machine hands Claude.
+  #
+  # Empty instructions = nothing written for anyone, so a hand-managed
+  # instructions file is never clobbered just to inject the rice's note.
+  # Who the two files below are written for. Normally `agents.clients` — but an
+  # EMPTY list doesn't mean "no agent ever runs here", it means the rice installs
+  # none: `developer.enable = false` empties the list, and `agents.clients` can't
+  # be set without `developer.agents.enable` (the assertion below). A machine like
+  # that can still have Claude Code from npm or Codex from brew, and before this
+  # room existed both files were written unconditionally. So with nothing named,
+  # write for every client we know — they are inert markdown, and a skill nothing
+  # reads is much cheaper than an agent inventing option names.
+  fileClients = if agentClients == [ ] then lib.attrNames agentHomes else agentClients;
+
+  agentInstructionFiles = lib.optionalAttrs (agentsCfg.instructions != "") (
+    lib.listToAttrs (
+      map (
+        client:
+        lib.nameValuePair agentHomes.${client}.instructions {
+          text = holtGuidance client + agentsCfg.instructions;
+        }
+      ) fileClients
+    )
+  );
+
+  # The skill, installed file-by-file rather than as one directory symlink so
+  # this-machine.md — rendered from THIS host, not from the rice — can sit inside
+  # the same skill alongside the store-built parts.
+  #
+  # The starter instruction pair for ~/.config/nix rides along INSIDE the skill
+  # rather than being written into that repo: it's the user's own git repo, and a
+  # read-only store symlink inside it would be a thing they can't commit. `haus
+  # doctor` points at these paths, and the skill tells the agent to offer the
+  # copy — so they land as real, editable files or not at all. Two files, because
+  # that's the shape every repo in the family uses: AGENTS.md carries the rules
+  # (Codex, OpenCode, Cursor, Copilot and anything else that speaks agents.md
+  # read it natively), and CLAUDE.md is a bare @AGENTS.md import for the one
+  # client that reads only that name. Copying just the CLAUDE.md would leave a
+  # Codex or OpenCode pane in that repo with no instructions at all.
+  agentSkillFiles = lib.optionalAttrs agentsCfg.skill (
+    lib.mergeAttrsList (
+      map (
+        client:
+        let
+          dir = "${agentHomes.${client}.skills}/haus";
+        in
+        {
+          "${dir}/SKILL.md".source = "${hausSkill}/SKILL.md";
+          "${dir}/references/options.md".source = "${hausSkill}/references/options.md";
+          "${dir}/references/recipes.md".source = "${hausSkill}/references/recipes.md";
+          "${dir}/references/this-machine.md".text = thisMachine;
+          "${dir}/consumer-AGENTS.md".source = "${hausSkill}/consumer-AGENTS.md";
+          "${dir}/consumer-CLAUDE.md".source = "${hausSkill}/consumer-CLAUDE.md";
+        }
+      ) fileClients
+    )
+  );
 
   onOff = b: if b then "on" else "off";
 
@@ -1641,42 +1758,12 @@ in
       );
 
       # ---- dotfiles + Nebelung theme drops ----
-      home.file = {
-        # Claude Code global memory — cross-project operating context, supplied
-        # by the host via haus.claude.globalMd, with the rice's own `holt`
-        # worktree rule prepended (holtGuidance, see the let). Unset (option empty)
-        # = no file written, so ~/.claude/CLAUDE.md stays hand-managed and the
-        # rice never clobbers a by-hand file just to inject its note.
-        ".claude/CLAUDE.md" = lib.mkIf (claudeCfg.globalMd != "") {
-          text = holtGuidance + claudeCfg.globalMd;
-        };
-      }
-      // lib.optionalAttrs claudeCfg.skill {
-        # The nebelhaus skill (haus.claude.skill). Installed file-by-file
-        # rather than as one directory symlink so this-machine.md — rendered
-        # from THIS host, not from the rice — can sit inside the same skill
-        # alongside the store-built parts.
-        ".claude/skills/haus/SKILL.md".source = "${claudeSkill}/SKILL.md";
-        ".claude/skills/haus/references/options.md".source = "${claudeSkill}/references/options.md";
-        ".claude/skills/haus/references/recipes.md".source = "${claudeSkill}/references/recipes.md";
-        ".claude/skills/haus/references/this-machine.md".text = thisMachine;
-
-        # The starter instruction pair for ~/.config/nix, parked in the skill
-        # rather than written into that repo: it's the user's own git repo, and a
-        # read-only store symlink inside it would be a thing they can't commit.
-        # `haus doctor` points at these paths, and the skill tells the agent to
-        # offer the copy — so they land as real, editable files or not at all.
-        #
-        # Two files, because that's the shape every repo in the family now uses:
-        # AGENTS.md carries the rules (Codex, OpenCode, Cursor, Copilot and
-        # anything else that speaks agents.md read it natively), and CLAUDE.md is
-        # a bare @AGENTS.md import for the one client that reads only that name.
-        # Copying just the CLAUDE.md would leave a Codex or OpenCode pane in that
-        # repo with no instructions at all.
-        ".claude/skills/haus/consumer-AGENTS.md".source = "${claudeSkill}/consumer-AGENTS.md";
-        ".claude/skills/haus/consumer-CLAUDE.md".source = "${claudeSkill}/consumer-CLAUDE.md";
-      }
-      // {
+      # agentInstructionFiles / agentSkillFiles — the two things the rice ships
+      # into every installed client's home: the host's instructions and the
+      # `haus` skill, one copy each per entry in agents.clients. Built in the
+      # `let` beside agentHomes, because what differs between clients is a path
+      # table, not a dotfile.
+      home.file = agentInstructionFiles // agentSkillFiles // {
 
         # opencode
         ".config/opencode/themes/nebelung.json".source = "${nebelungRoot}/opencode/nebelung.json";

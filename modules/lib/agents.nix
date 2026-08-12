@@ -14,6 +14,13 @@
 # `specFor()` in holt (hausfold/holt, internal/commands/agent.go) is the one
 # copy that CANNOT be folded in: it's the same set on the Go side, and a Go
 # binary can't read Nix. Adding a client means editing there too.
+#
+# And two tables in hearth are keyed BY these ids rather than derived from them,
+# because their values are per-client facts this list can't hold: `agentHomes`
+# (where that client keeps its instructions file and its skills dir) and
+# `clientScopeNote` (which of its own files the rice does NOT own). A client
+# added here and not there fails the eval with `attribute '<id>' missing`, which
+# names neither file — so add all four in one go.
 [
   "claude"
   "codex"

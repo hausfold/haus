@@ -4,7 +4,7 @@
     "order": 100
   },
   "agents": {
-    "blurb": "Which coding-agent clients this machine installs, and which one the agent keybinding spawns.",
+    "blurb": "Which coding-agent clients this machine installs, which one the agent keybinding spawns, and the two files the rice ships into every one of their homes — your instructions, and the `haus` skill.",
     "order": 80
   },
   "animations": {
@@ -18,10 +18,6 @@
   "apps": {
     "blurb": "The apps the rice picks for you, and the file types they claim — the ones a finished machine has rather than the ones a room needs to work. Each is one switch you can turn off; what it installs is a roster entry like any other, so you can retune or replace it by app id.",
     "order": 23
-  },
-  "claude": {
-    "blurb": "Claude Code integration.",
-    "order": 90
   },
   "collar": {
     "blurb": "Touch ID for sudo — including inside a terminal multiplexer — and the passwordless-rebuild rule.",

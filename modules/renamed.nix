@@ -64,8 +64,12 @@
       [ "nebelhaus" "apps" "videoPlayer" "enable" ]
       [ "haus" "apps" "videoPlayer" "enable" ]
     )
-    (lib.mkRenamedOptionModule [ "nebelhaus" "claude" "globalMd" ] [ "haus" "claude" "globalMd" ])
-    (lib.mkRenamedOptionModule [ "nebelhaus" "claude" "skill" ] [ "haus" "claude" "skill" ])
+    # Two hops in one alias: these were renamed to `haus.claude.*` here, and the
+    # `claude` room then folded into `agents` (see ./moved.nix). Pointed at the
+    # final address rather than chained through the intermediate one, so a rice
+    # still on `nebelhaus.*` gets one warning naming where the option lives now.
+    (lib.mkRenamedOptionModule [ "nebelhaus" "claude" "globalMd" ] [ "haus" "agents" "instructions" ])
+    (lib.mkRenamedOptionModule [ "nebelhaus" "claude" "skill" ] [ "haus" "agents" "skill" ])
     (lib.mkRenamedOptionModule [ "nebelhaus" "collar" "enable" ] [ "haus" "collar" "enable" ])
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "collar" "passwordlessRebuild" ]
