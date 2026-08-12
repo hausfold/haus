@@ -1,6 +1,6 @@
 // sillvitals — one sample of what this Mac is busy with, for the cpu and memory
 // pills. Prints a few TSV lines and exits; everything the two pills draw (the
-// number, the graph point, the hover breakdown, the dropdown's per-app rows)
+// number, the graph point, the dropdown's figures and its per-app rows)
 // comes out of ONE run of this, so the pill and the dropdown it explains can
 // never disagree about what 41% was made of.
 //
@@ -271,13 +271,15 @@ struct PreviousState {
   var last: (total: Double, user: Double, system: Double)?
 }
 
-/// Below this many seconds between samples, a tick delta is noise: the pointer
-/// crossing the bar fires mouse.entered and mouse.exited milliseconds apart, and
-/// each one would otherwise redraw the pill from whatever the machine happened
-/// to be doing during those milliseconds — a hover that makes the number jump is
-/// a hover that makes the number look made up. A window this short repeats the
-/// last reported figures and leaves the baseline alone, so the next real tick
-/// still measures from where it should.
+/// Below this many seconds between samples, a tick delta is noise: a click
+/// landing just after a periodic tick samples the same pill milliseconds later,
+/// and would otherwise redraw it from whatever the machine happened to be doing
+/// during those milliseconds — a number that jumps when you touch the pill is a
+/// number that looks made up. A window this short repeats the last reported
+/// figures and leaves the baseline alone, so the next real tick still measures
+/// from where it should. (The pointer used to be the other, busier caller here:
+/// mouse.entered and mouse.exited fire milliseconds apart on a bar you cross.
+/// Those pills no longer subscribe to either, but a click can still race a tick.)
 let minimumWindow = 0.4
 
 let stateVersion = "sillvitals1"
