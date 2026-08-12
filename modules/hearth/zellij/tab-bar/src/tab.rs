@@ -252,6 +252,12 @@ pub fn render_tab(
     }
 }
 
+// nf-fa-expand — the same Nerd Font family the status-bar's lock pill already
+// draws from (one_line_ui.rs's LOCK_GLYPH_CLOSED/OPEN). One cell in the rice's
+// JetBrainsMono Nerd Font Mono, replacing the old two-bracket `[]` with an icon
+// that actually reads as "expanded to fill" instead of an empty pair of braces.
+const FULLSCREEN_GLYPH: &str = "\u{f065}";
+
 pub fn tab_style(
     mut tabname: String,
     tab: &TabInfo,
@@ -265,9 +271,11 @@ pub fn tab_style(
     // Fork: compact status glyphs instead of upstream's verbose
     // " (FULLSCREEN)" / " (SYNC)" suffixes — those blow the tab width out in
     // thin views (the whole point of this bar). These mirror the glyphs the old
-    // zjstatus config used: [] fullscreen, <> sync, ! bell.
+    // zjstatus config used, except fullscreen: <> sync, ! bell, and fullscreen
+    // is now the expand icon above instead of zjstatus's `[]`.
     if tab.is_fullscreen_active {
-        tabname.push_str(" []");
+        tabname.push(' ');
+        tabname.push_str(FULLSCREEN_GLYPH);
     } else if tab.is_sync_panes_active {
         tabname.push_str(" <>");
     }
