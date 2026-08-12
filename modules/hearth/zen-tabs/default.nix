@@ -21,15 +21,24 @@
 #
 # ---- why this can be unsigned, which is the whole reason it's cheap ----------
 #
-# Release Firefox will not load an extension Mozilla hasn't signed, and no
-# enterprise policy overrides that — shipping this for Firefox would mean an AMO
-# account, unlisted self-distribution signing in CI, and a hosted .xpi. Zen does
-# not: it ships `xpinstall.signatures.required = false` as a BUILT-IN default in
-# its own greprefs.js, not as a profile pref somebody flipped. So the .xpi is
-# built here by nix and force-installed straight out of /nix/store, and the whole
-# thing costs a derivation and two files. That single pref is what makes this
-# Zen-only, and it is the first thing to re-check if a Zen release ever behaves
-# differently.
+# Release Firefox will not load an extension Mozilla hasn't signed, and no pref
+# and no policy overrides that — shipping this for Firefox would mean an AMO
+# account, unlisted self-distribution signing in CI, and a hosted .xpi. Zen is
+# built the other way: `MOZ_REQUIRE_SIGNING = false` in its AppConstants, which
+# is what demotes signature enforcement from a compile-time constant to a live
+# pref. THAT flag is what makes this Zen-only, and the first thing to re-check
+# if a Zen release ever behaves differently.
+#
+# It is NOT enough on its own, and the trap is worth stating because Zen looks
+# like it already agrees: its greprefs.js does ship
+# `xpinstall.signatures.required = false`. Application prefs load after GRE
+# prefs, though, and Zen carries Firefox's own
+# `browser/defaults/preferences/firefox.js`, which sets it back to `true`. So a
+# policy install of this .xpi fails with `ERROR_SIGNEDSTATE_REQUIRED` unless
+# something turns the pref off again — which is exactly what hearth/zen.nix
+# does, via the Preferences policy, keyed on the `file://` install url this
+# module asks for below. Read that file's `localInstall` comment before
+# touching either half; they only work as a pair.
 #
 # ---- the two files, and why they land in different places -------------------
 #
