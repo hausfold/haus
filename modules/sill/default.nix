@@ -514,7 +514,7 @@ let
               ${popupAlign side} \
               popup.horizontal=off \
               script="$HOME/.config/sketchybar/plugins/cpu.sh" \
-          --subscribe cpu mouse.clicked mouse.entered mouse.exited mouse.exited.global system_woke
+          --subscribe cpu mouse.clicked system_woke
     '';
     memory = ''
       ${sb} --add graph memory ${side} 48 \
@@ -534,7 +534,7 @@ let
               ${popupAlign side} \
               popup.horizontal=off \
               script="$HOME/.config/sketchybar/plugins/memory.sh" \
-          --subscribe memory mouse.clicked mouse.entered mouse.exited mouse.exited.global system_woke
+          --subscribe memory mouse.clicked system_woke
     '';
     volume = ''
       ${sb} --add item volume ${side} \

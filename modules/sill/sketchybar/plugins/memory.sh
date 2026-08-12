@@ -1,6 +1,7 @@
 #!/bin/bash
 # memory.sh — the memory pill: how much RAM is actually spoken for, a rolling
-# graph of it, a hover breakdown, and a dropdown of the biggest footprints.
+# graph of it, and a dropdown breaking it down and naming the biggest
+# footprints.
 #
 # The reading comes from `sillvitals` (modules/sill/sillvitals.swift). What it
 # replaces is `memory_pressure`'s "System-wide memory free percentage", which
@@ -9,11 +10,12 @@
 # dynamic range left to show anything with. This one adds up what Activity
 # Monitor calls Memory Used: app memory + wired + compressed.
 #
-# Four entry paths:
+# Three entry paths:
 #   • periodic (update_freq)          → repaint label + colour, push a graph point
-#   • mouse.entered / exited          → swap the label for the breakdown, and back
 #   • mouse.clicked                   → LEFT the dropdown, RIGHT Activity Monitor
 #   • `memory.sh row <pid> <name>`    → a dropdown row: focus that app
+#
+# Deliberately NOT a fourth: the pointer — see cpu.sh and vitals_lib.sh.
 set -u
 export USER="${USER:-$(id -un)}"
 export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:/usr/bin:/bin:$PATH"
@@ -46,11 +48,6 @@ activity)
   vitals_activity_monitor 1
   exit 0
   ;;
-esac
-
-case "${SENDER:-}" in
-mouse.entered) vitals_hover_set ;;
-mouse.exited | mouse.exited.global) vitals_hover_clear ;;
 esac
 
 WANT_POPUP=0
@@ -134,19 +131,11 @@ if [ "$WANT_POPUP" = 1 ]; then
   exit 0
 fi
 
-if vitals_hovering; then
-  LABEL="${PCT}% · ${MEM_USED}/${MEM_TOTAL} GB · swap ${MEM_SWAP}"
-else
-  LABEL="${PCT}%"
-fi
+# One label, always the number — used/total and swap are dropdown rows. See
+# cpu.sh: a label that grew under the pointer moved every pill beside it.
+LABEL="${PCT}%"
 
-# Only the clock pushes a graph point — see the same note in cpu.sh: the graph
-# is 48 evenly spaced values with no time axis, so a hover-driven push would
-# scroll the history sideways at the speed of the pointer.
-case "${SENDER:-}" in
-mouse.*) "$SB" --set "$ITEM_NAME" icon="$ICON" label="$LABEL" label.color="$COL" ;;
-*)
-  "$SB" --push "$ITEM_NAME" "$(vitals_fraction "$MEM_PCT")" \
-    --set "$ITEM_NAME" icon="$ICON" label="$LABEL" label.color="$COL"
-  ;;
-esac
+# Only ticks reach here — every click path exits above — so the push needs no
+# guard; see the same note in cpu.sh for what it used to be guarding against.
+"$SB" --push "$ITEM_NAME" "$(vitals_fraction "$MEM_PCT")" \
+  --set "$ITEM_NAME" icon="$ICON" label="$LABEL" label.color="$COL"

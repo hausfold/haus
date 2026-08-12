@@ -1,6 +1,6 @@
 #!/bin/bash
-# cpu.sh — the CPU pill: a number, a rolling graph of that number, a hover
-# breakdown, and a dropdown naming what is responsible.
+# cpu.sh — the CPU pill: a number, a rolling graph of that number, and a
+# dropdown splitting it up and naming what is responsible.
 #
 # The reading comes from `sillvitals` (modules/sill/sillvitals.swift), because
 # the `ps -A -o %cpu` sum this used to print is a LIFETIME average per process:
@@ -8,11 +8,13 @@
 # pinned. The graph is the reason that mattered enough to fix — a meter that
 # doesn't move is a static label with extra steps.
 #
-# Four entry paths:
+# Three entry paths:
 #   • periodic (update_freq)          → repaint label + colour, push a graph point
-#   • mouse.entered / exited          → swap the label for the breakdown, and back
 #   • mouse.clicked                   → LEFT the dropdown, RIGHT Activity Monitor
 #   • `cpu.sh row <pid> <name>`       → a dropdown row: focus that app
+#
+# Deliberately NOT a fourth: the pointer. The breakdown is dropdown-only — see
+# vitals_lib.sh on why a hover that widened the pill had to go.
 set -u
 export USER="${USER:-$(id -un)}"
 export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:/usr/bin:/bin:$PATH"
@@ -34,7 +36,8 @@ ITEM_NAME="$(vitals_pill_of "${NAME:-cpu}")"
 SELF="$HOME/.config/sketchybar/plugins/cpu.sh"
 # Per-pill state, so this pill's percentages are always "since MY last look" —
 # see sillvitals.swift on why the two pills can't share one baseline. In the
-# session's own $TMPDIR (0700) rather than /tmp, like the hover flag.
+# session's own $TMPDIR (0700) rather than world-writable /tmp: a predictable
+# name in a shared directory is a symlink away from writing somewhere else.
 STATE="${TMPDIR:-/tmp}/sill-vitals-cpu"
 
 # Nerd Font CPU icon (nf-oct-cpu, U+F4BC). Literal glyph, not printf '\uXXXX' —
@@ -53,17 +56,6 @@ activity)
   vitals_activity_monitor 0
   exit 0
   ;;
-esac
-
-# ── hover ─────────────────────────────────────────────────────────────────────
-# Entering falls through to the repaint below (the label has to CHANGE, and
-# looking at the pill is also the cheapest cache-invalidation there is);
-# leaving repaints and stops. mouse.exited.global is the belt-and-braces twin:
-# the per-item exit is missed when the pointer is flicked straight off the bar,
-# and a pill stranded in its long form pushes every pill beside it sideways.
-case "${SENDER:-}" in
-mouse.entered) vitals_hover_set ;;
-mouse.exited | mouse.exited.global) vitals_hover_clear ;;
 esac
 
 # ── the click ─────────────────────────────────────────────────────────────────
@@ -167,28 +159,18 @@ if [ "$WANT_POPUP" = 1 ]; then
 fi
 
 # ── the pill ──────────────────────────────────────────────────────────────────
-# Hover swaps in the split behind the number: user vs system is the difference
-# between "my build is running" and "the machine is thrashing", and load says
-# whether anything is queued behind it.
-if vitals_hovering; then
-  LABEL="${PCT}% · usr ${CPU_USER} sys ${CPU_SYS} · load ${LOAD}"
-else
-  LABEL="${PCT}%"
-fi
+# One label, always the same width class: the number. user/system and the load
+# average are in the dropdown, where widening something costs nobody a jump.
+LABEL="${PCT}%"
 
 # The graph carries the shape and the label carries the state, which is why the
 # graph's colour is set once in the item definition and never here: a line that
 # changed hue every two seconds would be the busiest thing on the bar.
 #
-# A point is pushed only by the CLOCK. The graph has no time axis of its own — it
-# is the last 48 values, evenly spaced — so a point pushed because the pointer
-# crossed the pill would shove two minutes of history sideways at the speed of a
-# mouse, and hovering would visibly rewrite the past. Mouse-driven runs repaint
-# the label and nothing else.
-case "${SENDER:-}" in
-mouse.*) "$SB" --set "$ITEM_NAME" icon="$ICON" label="$LABEL" label.color="$COL" ;;
-*)
-  "$SB" --push "$ITEM_NAME" "$(vitals_fraction "$CPU_TOTAL")" \
-    --set "$ITEM_NAME" icon="$ICON" label="$LABEL" label.color="$COL"
-  ;;
-esac
+# Every run that reaches here is a tick (a click has exited above, one way or
+# another), so the push is unconditional. It used to be guarded against
+# mouse-driven runs: the graph has no time axis of its own — it is the last 48
+# values, evenly spaced — so a point pushed by the pointer crossing the pill
+# would have shoved two minutes of history sideways at the speed of a mouse.
+"$SB" --push "$ITEM_NAME" "$(vitals_fraction "$CPU_TOTAL")" \
+  --set "$ITEM_NAME" icon="$ICON" label="$LABEL" label.color="$COL"

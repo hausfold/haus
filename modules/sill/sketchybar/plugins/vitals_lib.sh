@@ -2,15 +2,14 @@
 # vitals_lib.sh — everything the cpu and memory pills share: one sample, one
 # colour ladder, one set of dropdown row builders. Sourced, never executed.
 #
-# The two pills are the same pill twice — a number, a graph of that number, a
-# hover breakdown and a dropdown of what's responsible — so the only things
-# their own files hold are the words: which glyph, which unit, which rows. This
-# is the rest.
+# The two pills are the same pill twice — a number, a graph of that number and
+# a dropdown of what's responsible — so the only things their own files hold are
+# the words: which glyph, which unit, which rows. This is the rest.
 #
 # Every reading comes from `sillvitals`, which does the Mach calls and the
 # delta arithmetic (see modules/sill/sillvitals.swift for why neither pill can
 # get an honest number out of `ps` or `memory_pressure`). One run per tick
-# serves the label, the graph point, the hover text AND the dropdown, so no two
+# serves the label, the graph point AND every row of the dropdown, so no two
 # parts of a pill can ever be describing different moments.
 
 # ── the sample ────────────────────────────────────────────────────────────────
@@ -246,17 +245,11 @@ vitals_focus() { # vitals_focus <name> — bring the app a row names to the fron
   [ -n "$wid" ] && aerospace focus --window-id "$wid" 2>/dev/null
 }
 
-# ── hover ─────────────────────────────────────────────────────────────────────
-# Hovering swaps the pill's label for the breakdown behind it. The state has to
-# OUTLIVE the mouse.entered run, because the pill repaints itself on its own
-# clock a second or two later and would otherwise snap back to the short label
-# under a pointer that never moved. A file, not a variable: every one of these
-# runs is a separate process.
-# Under $TMPDIR, which macOS gives every session as its own 0700 directory,
-# rather than world-writable /tmp: this path is truncated (`: >`) on every hover,
-# and a predictable name in a shared directory is a symlink away from truncating
-# something else.
-vitals_hover_file() { printf '%s' "${TMPDIR:-/tmp}/sill-vitals-${ITEM_NAME}-hover"; }
-vitals_hovering() { [ -f "$(vitals_hover_file)" ]; }
-vitals_hover_set() { : > "$(vitals_hover_file)"; }
-vitals_hover_clear() { rm -f "$(vitals_hover_file)"; }
+# ── why there is no hover here ────────────────────────────────────────────────
+# These pills used to swap in a long breakdown label while the pointer sat on
+# them. A wider label is a WIDER PILL, and sketchybar re-lays-out the whole
+# group to fit it: every pill to the left of it jumped sideways the moment the
+# pointer grazed this one, and again when it left. Two pills doing that, on a
+# bar you cross to reach anything else, read as the bar twitching rather than
+# as a readout answering a question — so the breakdown lives only in the
+# left-click dropdown now, which opens BELOW the bar and moves nothing.
