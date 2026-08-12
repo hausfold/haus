@@ -4,15 +4,18 @@ use unicode_width::UnicodeWidthStr;
 use zellij_tile::prelude::*;
 use zellij_tile_utils::style;
 
-// The badge is a FILLED rectangle — the state colour is the background and the
-// number of agent panes is punched out of it in near-black — not a coloured
-// glyph on the tab's own fill. A one-cell glyph tinted peach is a few lit pixels
-// you have to go looking for; a solid block is the thing you catch from across the
-// room, which is the entire job of this badge.
+// Second fork of the agent-status signal: a leading STATE DOT plus a trailing
+// count CHIP, replacing the original underline + superscript pair (see git
+// history for that version). Both prior signals leaned on subtle terminal
+// rendering — a sub-pixel underline curve, a raised-baseline digit — that
+// turned out to be exactly the kind of thing that's hard to see at a normal
+// terminal font size. Shape carries the state now instead of line style, and
+// the count is a real filled chip instead of a few faint lit pixels: this is
+// the badge the header comment described before either of those existed.
 //
 // Same construction as line.rs's layout_indicator_pill (the yellow GRID
-// rectangle): hand-painted flat block, no powerline caps, so the two right-hand
-// signals in this bar read as one family.
+// rectangle): hand-painted flat block, no powerline caps, so the badge chip
+// and that pill read as one family.
 
 /// Blend `color` toward `toward` (0.0 = unchanged, 1.0 = fully `toward`).
 ///
@@ -30,44 +33,20 @@ fn blend(color: PaletteColor, toward: PaletteColor, t: f32) -> PaletteColor {
     }
 }
 
-/// The raw SGR for a styled, independently-coloured underline: `style` is the
-/// bare underline parameter (`4`, or a `4:n` sub-parameter form), followed by
-/// SGR 58, which sets the underline colour separately from the foreground.
+/// The state dot's glyph. Shape carries the meaning, colour is redundant on
+/// top of it — the same belt-and-suspenders reasoning the old dashed / solid /
+/// dotted underline styles used, but shape survives being small and being
+/// squinted at in a way a line-style distinction didn't.
 ///
-/// Hand-emitted because ansi_term models neither. Nothing here turns the
-/// underline back OFF — the reset ansi_term writes after every string it paints
-/// does that, so the SGR has to be emitted immediately before a painted run and
-/// can never leak past it.
-fn underline_sgr(style: &str, color: PaletteColor) -> String {
-    let color = match color {
-        PaletteColor::Rgb((r, g, b)) => format!("58;2;{};{};{}", r, g, b),
-        PaletteColor::EightBit(c) => format!("58;5;{}", c),
-    };
-    format!("\u{1b}[{}m\u{1b}[{}m", style, color)
-}
-
-/// An agent count as superscript digits.
-///
-/// A raised digit is the one way a terminal can render a smaller number, and it
-/// only works because nothing is filled behind it: on a solid block a
-/// superscript floats at cap height with a third of the chip empty under it.
-/// Beside an underlined name it reads as what it is — a footnote on the label.
-///
-/// JetBrains Mono (this rice's terminal font) covers all ten, though they live
-/// in three different blocks: ¹²³ are Latin-1 leftovers, the rest are U+2070's.
-/// All are East-Asian-Ambiguous, i.e. one cell wide the way this bar's `←`/`→`
-/// already are.
-fn superscript_digits(count: usize) -> String {
-    const SUPERSCRIPTS: [char; 10] = ['⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹'];
-    count
-        .to_string()
-        .chars()
-        .map(|c| {
-            c.to_digit(10)
-                .map(|d| SUPERSCRIPTS[d as usize])
-                .unwrap_or(c)
-        })
-        .collect()
+/// `○ ◐ ●` are the fill sequence: empty, half, full — "how done is this",
+/// which reads correctly whether you follow the metaphor or not. All three
+/// are one cell wide in JetBrains Mono (this rice's terminal font).
+fn state_dot(state: AgentState) -> char {
+    match state {
+        AgentState::Idle => '○',
+        AgentState::Working => '◐',
+        AgentState::Waiting => '●',
+    }
 }
 
 fn cursors<'a>(
@@ -125,11 +104,12 @@ pub fn render_tab(
     let dark = palette.text_unselected.background;
 
     // THE WASH. A tab with an agent blocked on you takes over its whole pill —
-    // not a chip bolted to the edge of one. This is the only state that gets it:
-    // the point of a hierarchy is that the loud thing is loud *because* the quiet
-    // things stayed quiet, and working/idle say their piece with the underline
-    // below. The active tab is exempt — its pill colour already means "you are
-    // here", and you don't need to be told to look at the tab you're looking at.
+    // louder than the dot could ever be on its own. This is the only state that
+    // gets it: the point of a hierarchy is that the loud thing is loud *because*
+    // the quiet things stayed quiet, and working/idle say their piece with the
+    // dot alone. The active tab is exempt — its pill colour already means "you
+    // are here", and you don't need to be told to look at the tab you're looking
+    // at.
     if let (Some(badge), Some(state_color)) = (badge, state_color) {
         if badge.state == AgentState::Waiting && !tab.active {
             background_color = blend(background_color, state_color, 0.6);
@@ -151,68 +131,54 @@ pub fn render_tab(
     let left_separator = style!(separator_fill_color, background_color).paint(separator);
     let mut tab_text_len = text.width() + (separator_width * 2) + 2; // +2 for padding
 
-    // Fork: the agent-status signal. It is NOT a chip — a chip is a foreign
-    // object bolted to the tab, and with no digit in it (the one-agent case, i.e.
-    // most tabs) it reads as a floating sliver rather than a badge. Instead the
-    // tab's own typography carries it:
+    // Fork: the agent-status signal. Three pieces:
     //
-    //   · a styled, independently-coloured UNDERLINE beneath the tab name —
-    //     the state, on every tab, costing zero columns and nothing that floats
+    //   · a leading STATE DOT before the tab name — shape (○ ◐ ●) carries the
+    //     state, colour is redundant on top of it, costing 2 columns on every
+    //     agent tab
     //   · the WASH above — the pill itself, for the one state that needs you
-    //   · a SUPERSCRIPT count in the pad cell, only once there's >1 to count
+    //   · a trailing count CHIP — a real filled rectangle, not a glyph — only
+    //     once there's >1 agent to count
     //
-    // Underline colour and shape both encode the state, which is deliberate
-    // redundancy: at 19pt a two-pixel rule's hue is easy to lose, but curly vs
-    // straight vs dotted survives being small, being dim, and being colour-blind.
-    let (underline, superscript) = match (badge, state_color) {
+    // Dot shape and chip fill both encode the state, which is deliberate
+    // redundancy: colour alone is a bad bet (small swatches, colour-blindness),
+    // so the shape has to carry the meaning on its own and colour just confirms
+    // it.
+    let (dot, badge_chip) = match (badge, state_color) {
         (Some(badge), Some(state_color)) => {
-            // Three rules of the same weight but different rhythm: dashes read as
-            // marching ants and get the state that wants you, solid is steady
-            // work in progress, dotted is the quietest rule a terminal can draw
-            // and belongs to "finished, nothing to do". zellij's SGR parser
-            // handles 4:2/4:3/4:4/4:5 and ghostty draws all of them.
-            //
-            // NOT undercurl (4:3), tempting as the spell-checker "something here
-            // is wrong" reading is: ghostty draws the wave partly BELOW the cell
-            // box. Inside a normal pane that's invisible (the row beneath shares
-            // the background), but this bar is ONE row — the wave hangs off the
-            // bottom of the pill onto the bar, and worse, onto pixels the pane
-            // below owns and will repaint over. Double (4:2) puts its second rule
-            // in the same overhanging position. Everything here is single-height.
-            let ul_style = match badge.state {
-                AgentState::Waiting => "4:5", // dashed
-                AgentState::Working => "4",   // solid
-                AgentState::Idle => "4:4",    // dotted
-            };
             // On a washed pill the state colour is already the BACKGROUND, so a
-            // rule in that same colour would be invisible: draw it near-black
+            // dot in that same colour would vanish into it: draw it near-black
             // instead, which is also what the tab's own text is. On the active tab
-            // the pill is the theme's green "you are here", so darken the rule to
-            // keep it legible against a light fill. Everywhere else the rule IS
-            // the only colour the tab carries, so it stays full strength.
-            let ul_color = if tab.active {
+            // the pill is the theme's green "you are here", so darken the dot to
+            // keep it legible against a light fill. Everywhere else the dot IS the
+            // only colour the tab carries, so it stays full strength.
+            let dot_color = if tab.active {
                 blend(state_color, dark, 0.35)
             } else if badge.state == AgentState::Waiting {
                 dark
             } else {
                 state_color
             };
-            let superscript = if badge.count > 1 {
-                Some((superscript_digits(badge.count), ul_color))
+            let badge_chip = if badge.count > 1 {
+                Some((badge.count.to_string(), state_color))
             } else {
                 None
             };
-            (Some(underline_sgr(ul_style, ul_color)), superscript)
+            (Some((state_dot(badge.state), dot_color)), badge_chip)
         },
         _ => (None, None),
     };
-    if let Some((digits, _)) = &superscript {
-        tab_text_len += digits.width();
+    if dot.is_some() {
+        tab_text_len += 2; // glyph + the space separating it from the name
+    }
+    if let Some((digits, _)) = &badge_chip {
+        // " N " chip, plus the plain-background space separating it from the name.
+        tab_text_len += 1 + digits.width() + 2;
     }
 
-    // The pill is painted in three pieces rather than one so the underline can
-    // sit under the NAME alone — a rule running out under the padding would read
-    // as a border on the pill instead of as a mark on the label.
+    // The pill is painted in pieces rather than one run so the count chip can
+    // carry its OWN fill (the state colour) rather than the pill's — a rectangle
+    // stuck to the tab, same construction as line.rs's layout_indicator_pill.
     let tab_styled_text = {
         let pad = |s: &str| {
             style!(foreground_color, background_color)
@@ -222,11 +188,14 @@ pub fn render_tab(
         };
         let mut s = String::new();
         s.push_str(&pad(" "));
-        // ansi_term knows nothing about underlines, so the SGR is emitted by hand
-        // ahead of the painted name; the reset ansi_term already writes after its
-        // own text is what turns the underline back off.
-        if let Some(underline) = &underline {
-            s.push_str(underline);
+        if let Some((glyph, color)) = &dot {
+            s.push_str(
+                &style!(*color, background_color)
+                    .bold()
+                    .paint(glyph.to_string())
+                    .to_string(),
+            );
+            s.push_str(&pad(" "));
         }
         s.push_str(
             &style!(foreground_color, background_color)
@@ -234,11 +203,12 @@ pub fn render_tab(
                 .paint(text.clone())
                 .to_string(),
         );
-        if let Some((digits, color)) = &superscript {
+        if let Some((digits, color)) = &badge_chip {
+            s.push_str(&pad(" "));
             s.push_str(
-                &style!(*color, background_color)
+                &style!(dark, *color)
                     .bold()
-                    .paint(digits.clone())
+                    .paint(format!(" {} ", digits))
                     .to_string(),
             );
         }
