@@ -50,11 +50,15 @@ darwinConfigurations.mymac = inputs.nebelhaus.mkNebelhaus {
 
 ## Identity knobs
 
-- **pounce signing** — set `haus.pounce.signingIdentity` to an Apple
-  Development identity's SHA-1 (`security find-identity -v -p codesigning`) so
-  the palette's Accessibility grant survives rebuilds. Leave empty to run
-  unsigned. See the [pounce README](https://github.com/hausfold/pounce) for the
-  one-time accessibility approval.
+- **pounce signing** — set `haus.pounce.signingIdentity` to a codesigning
+  identity's **full common name** (`security find-identity -v -p codesigning`,
+  e.g. `Developer ID Application: Jane Doe (ABCDE12345)`) so the palette's
+  Accessibility grant survives rebuilds. Prefer the name over a SHA-1: the
+  designated requirement it produces anchors on the stable team OU, so the grant
+  outlives a certificate renewal, while a hardcoded hash silently falls back to
+  unsigned. Leave empty to run unsigned. See the
+  [pounce README](https://github.com/hausfold/pounce) for the one-time
+  accessibility approval.
 
 - **git / GPG / YubiKey** — commit signing is configured in your host's
   home-manager block; key material and any smartcard/YubiKey setup live outside
