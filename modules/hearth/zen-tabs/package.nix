@@ -40,10 +40,11 @@ rec {
     };
   };
 
-  # An .xpi is a zip with manifest.json at its root, and Firefox installs an
-  # unsigned one only because Zen ships `xpinstall.signatures.required = false`
-  # as a BUILT-IN default (greprefs.js) rather than as a profile pref — see
-  # default.nix, which is where that constraint is load-bearing.
+  # An .xpi is a zip with manifest.json at its root. Zen installs an unsigned
+  # one only because it is built `MOZ_REQUIRE_SIGNING = false` AND something
+  # turns `xpinstall.signatures.required` back off — Zen's own greprefs.js is
+  # not that something, Firefox's application prefs re-assert it. hearth's
+  # policy plist does it; see default.nix, where the pair is explained.
   #
   # `touch` before zipping is not tidiness: every file in the store is stamped
   # epoch 1, the zip format cannot represent a year before 1980, and `zip`

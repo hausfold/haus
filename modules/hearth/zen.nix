@@ -15,21 +15,20 @@
 #
 # ---- why a root plist and not policies.json, which is the obvious file -------
 #
-# Firefox reads policies from THREE places, and only two of them are reachable
-# here. `policies.json` is one of them — but the parent process resolves it
-# under `XREAppDist`, which on macOS is `Zen.app/Contents/Resources/distribution/`
-# and nowhere else (EnterprisePoliciesParent.sys.mjs, `readPoliciesFile`). The
+# On macOS Firefox reads policies from TWO places, and the obvious one is not
+# the one you can write. `policies.json` is read from `XREAppDist` —
+# `Zen.app/Contents/Resources/distribution/` and nowhere else
+# (EnterprisePoliciesParent.sys.mjs, `readPoliciesFile`). So the
 # `~/Library/Application Support/Zen/distribution/policies.json` this room used
 # to write was never read by anything: measured on a live profile,
 # `browser.policies.applied` is absent from prefs.js and every row in
 # extensions.json is `location=app-profile, source=amo`. Stylus only looked like
-# it worked because it had been installed from AMO by hand.
-#
-# Writing INSIDE the bundle is the other reachable path and it is a trap twice
+# it worked because it had been installed from AMO by hand. And writing the file
+# where Firefox WOULD read it means writing inside the bundle, a trap twice
 # over: it breaks Zen's code signature, and a cask upgrade replaces the app
 # wholesale and takes the file with it.
 #
-# So: the third path, macOS managed preferences. Firefox's `macOSPoliciesParser`
+# So: the other place, macOS managed preferences. Firefox's `macOSPoliciesParser`
 # reads the app's own preference domain through NSUserDefaults, whose search
 # list includes `/Library/Preferences/<bundle-id>.plist` — root-owned, outside
 # the bundle, and the location Mozilla documents for a non-MDM deploy. Policy
@@ -122,10 +121,11 @@ let
       #
       # Locked, because a rice that installs an unsigned add-on and leaves the
       # switch flippable is telling the user a story about a state it does not
-      # maintain. The narrowing is at the other end: this only appears at all
-      # when something is being installed from the store, i.e. when
-      # `haus.zen.tabBridge.enable` is on, which is off by default and documents
-      # this as its cost.
+      # maintain. The narrowing is at the other end: it appears only when
+      # something is actually being installed from a local file. Today that is
+      # `haus.zen.tabBridge.enable`, which is off by default and documents this
+      # as its cost — but a host that points any `haus.zen.extensions.*.url` at
+      # a `file://` path gets it too, which is why that option says so.
       Preferences = {
         "xpinstall.signatures.required" = {
           Value = false;
@@ -133,6 +133,11 @@ let
         };
       };
     }
+    # Shallow, deliberately: `extraPolicies` is the escape hatch, so a host
+    # naming a top-level policy takes that policy over WHOLE — `ExtensionSettings`
+    # and, now, `Preferences`. A host that wants its own prefs alongside the
+    # signing escape has to restate it; the option says so, because the failure
+    # is otherwise invisible (the bridge just stops installing).
     // cfg.extraPolicies;
 
   # A whole plist rather than a pile of `defaults write` calls: the policy
@@ -178,38 +183,57 @@ in
   #
   # Guarded rather than declared, in the same spirit as den's accessibility
   # writes: a rebuild that can't reach /Library/Preferences should degrade to
-  # "the extension didn't arrive", not take the rest of activation — and every
-  # launchd service after it — down with it.
+  # "the extension didn't arrive" rather than abort activation. The whole block
+  # is guarded, not just the install — a failed marker write would otherwise
+  # take out everything postActivation still has to do, which by this point is
+  # the /run/current-system symlink that makes the generation current.
   #
   # The cfprefsd nudge is the part not to remove. cfprefsd caches a parsed
   # domain in memory and does NOT reliably notice a plist edited underneath it,
-  # so without this a freshly launched Zen can be served the previous policy
-  # set for the rest of the login session. It fires only when the file actually
-  # changed, so a no-op rebuild doesn't restart a system daemon, and it lands in
-  # postActivation — after nix-darwin's own `defaults`/`userDefaults` blocks —
-  # so it can't drop a write those made earlier in the same activation.
+  # so without this a freshly launched Zen can be served the previous policy set
+  # for the rest of the login session. It fires only when the file actually
+  # changed, so a no-op rebuild doesn't restart a system daemon.
+  #
+  # It is unscoped (every user's cfprefsd, not root's), and it runs LATE: by
+  # postActivation, nix-darwin's `defaults`/`userDefaults` blocks and
+  # home-manager's user activation — which sits at the very top of
+  # postActivation — have already written their prefs. cfprefsd flushes on
+  # SIGTERM, which is what makes that safe rather than lossy; don't swap this
+  # for a SIGKILL, and don't "fix" the ordering by moving it earlier, which
+  # would only mean re-caching the stale domain again straight afterwards.
+  #
+  # The marker is rewritten on the matched path too, not only after an install.
+  # It is the sole record that the file is ours, so a marker lost to a restore
+  # or a hand-`rm` would otherwise never come back — and the removal branch
+  # below, which reads it, could then never fire.
   system.activationScripts.postActivation.text =
     if policies == { } then
       ''
         # --- Zen: no policies left; take our plist back down ------------------
         if [ -e ${lib.escapeShellArg policyMarker} ]; then
-          /bin/rm -f ${lib.escapeShellArg policyPath} ${lib.escapeShellArg policyMarker}
-          /usr/bin/killall cfprefsd >/dev/null 2>&1 || true
-          echo "zen: removed ${policyPath} (no haus.zen policies left) — restart Zen" >&2
+          if /bin/rm -f ${lib.escapeShellArg policyPath} ${lib.escapeShellArg policyMarker}; then
+            /usr/bin/killall cfprefsd >/dev/null 2>&1 || true
+            echo "zen: removed ${policyPath} (no haus.zen policies left) — restart Zen" >&2
+          else
+            echo "warning: zen: could not remove ${policyPath}; Zen stays managed until it goes. Nothing else was affected." >&2
+          fi
         fi
       ''
     else
       ''
         # --- Zen: enterprise policies as a managed preference ------------------
-        if ! /usr/bin/cmp -s ${policyPlist} ${lib.escapeShellArg policyPath}; then
-          if /usr/bin/install -m 644 ${policyPlist} ${lib.escapeShellArg policyPath}; then
-            /bin/mkdir -p "$(/usr/bin/dirname ${lib.escapeShellArg policyMarker})"
-            /usr/bin/printf '%s' ${policyPlist} > ${lib.escapeShellArg policyMarker}
-            /usr/bin/killall cfprefsd >/dev/null 2>&1 || true
-            echo "zen: policies written to ${policyPath} — quit and reopen Zen to apply" >&2
-          else
-            echo "warning: zen: could not write ${policyPath}; extensions and policies were NOT deployed. Nothing else was affected." >&2
-          fi
+        zenPolicyMark() {
+          /bin/mkdir -p "$(/usr/bin/dirname ${lib.escapeShellArg policyMarker})" \
+            && /usr/bin/printf '%s' ${lib.escapeShellArg policyPlist} > ${lib.escapeShellArg policyMarker}
+        }
+        if /usr/bin/cmp -s ${lib.escapeShellArg policyPlist} ${lib.escapeShellArg policyPath}; then
+          zenPolicyMark || echo "warning: zen: could not record ${policyMarker}; turning every zen policy off will not remove ${policyPath}." >&2
+        elif /usr/bin/install -m 644 ${lib.escapeShellArg policyPlist} ${lib.escapeShellArg policyPath}; then
+          zenPolicyMark || echo "warning: zen: could not record ${policyMarker}; turning every zen policy off will not remove ${policyPath}." >&2
+          /usr/bin/killall cfprefsd >/dev/null 2>&1 || true
+          echo "zen: policies written to ${policyPath} — quit and reopen Zen to apply" >&2
+        else
+          echo "warning: zen: could not write ${policyPath}; extensions and policies were NOT deployed. Nothing else was affected." >&2
         fi
       '';
 

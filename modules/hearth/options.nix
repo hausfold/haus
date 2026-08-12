@@ -299,6 +299,16 @@ in
                   Where the .xpi comes from. Defaults to AMO's "latest" endpoint
                   for `slug`, so the add-on updates itself; point it at a pinned
                   version or a self-hosted file to freeze it.
+
+                  A `file://` url has a second effect, and it is not local to
+                  this extension: a file on disk cannot have been signed by
+                  Mozilla, and Zen refuses an unsigned add-on
+                  (`ERROR_SIGNEDSTATE_REQUIRED`) unless
+                  `xpinstall.signatures.required` is off. So naming one makes
+                  the rice lock that pref off **for the whole browser** — the
+                  same switch `haus.zen.tabBridge.enable` documents, since the
+                  bridge is the rice's own `file://` install. An `https://` AMO
+                  url never turns it on.
                 '';
               };
 
@@ -386,10 +396,12 @@ in
 
         Off by default because it force-installs an add-on into your browser,
         which is not a thing a rice should do to you unasked. Turning it on
-        costs one derivation and two files. Turning it back off stops the rice
-        deploying it — what Zen then does with the add-on already installed is
-        Firefox's policy engine's business, not the rice's, so check
-        `about:addons` and remove it there if it outstays the option.
+        costs one derivation, a native-messaging manifest, and two keys in the
+        rice's root-owned policy plist — one of which is the signature switch
+        below. Turning it back off stops the rice deploying it — what Zen then
+        does with the add-on already installed is Firefox's policy engine's
+        business, not the rice's, so check `about:addons` and remove it there if
+        it outstays the option.
 
         **Zen only, and that's a signing constraint rather than a choice.**
         Release Firefox refuses an extension Mozilla hasn't signed, and it is
@@ -428,6 +440,18 @@ in
         `Install` array in it, not a key called `Extensions.Install`. Setting
         every policy back to `{ }` (and naming no extensions) takes the file
         down again on the next rebuild.
+
+        The merge is one level deep, so naming a policy takes that policy over
+        WHOLE. Two of them the rice writes itself: `ExtensionSettings` (from
+        `haus.zen.extensions`) and `Preferences` (which is where the signature
+        switch a `file://` install needs ends up). Restate what you still want
+        if you set either — dropping the signature switch this way is invisible
+        until you notice the add-on isn't there.
+
+        Values are passed to a plist writer, so `null` is not a value: it
+        renders as a key with nothing under it, which makes the whole file
+        invalid and drops **every** policy, not just that one. Omit the key
+        instead.
       '';
     };
 
