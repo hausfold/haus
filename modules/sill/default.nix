@@ -36,6 +36,11 @@ let
 
   sillpop = pkgs.callPackage ./sillpop.nix { };
 
+  # What the cpu and memory pills read their numbers from — the Mach calls and
+  # the delta arithmetic neither `ps` nor `memory_pressure` can do honestly.
+  # See sillvitals.swift; installed conditionally at systemPackages below.
+  sillvitals = pkgs.callPackage ./sillvitals.nix { };
+
   # ---- the second bar, and why it is a symlink -------------------------------
   # SketchyBar has no two-bars-in-one-process mode. An instance names itself
   # after `basename(argv[0])` (src/sketchybar.c) and keys BOTH its lock file
@@ -466,25 +471,70 @@ let
     # System readouts. Each pill's colour comes from the --set here (the palette
     # vars are live via colors.sh, sourced by sketchybarrc before this file); the
     # plugin script only refreshes icon+label on its update_freq tick.
+    #
+    # ── why these two are `--add graph` and not `--add item` ────────────────────
+    # A percentage in a bar answers "how busy, right now" and nothing else: it
+    # cannot tell you whether 60% is a spike settling or a climb that started
+    # five minutes ago, which is the actual question you glance up to ask. A
+    # graph item is a normal pill in every other respect — icon, label, popup,
+    # click_script all behave — plus a rolling window of the last GRAPH_WIDTH
+    # pushed values drawn behind the text. The plugins `--push` one point per
+    # tick, so the window is `width × update_freq` seconds wide: about two
+    # minutes of CPU, six of memory.
+    #
+    # The history lives in the RUNNING item, so a bar reload starts the line
+    # empty and it fills in over the next window. That is worth naming because
+    # it looks like a bug the first time you reload the bar and the graph is a
+    # flat line for two minutes: it is drawing exactly what it knows.
+    #
+    # graph.color is fixed per pill and never touched by the plugins. The line
+    # is IDENTITY (which readout is this) and the label is STATE (is it bad) —
+    # the same rule the AI-usage dropdown follows, and the reason a pill under
+    # load doesn't turn into two things flashing different colours at once.
+    # fill_color is the same hue at 0x33 alpha: enough to read the area under
+    # the line at a glance, not enough to compete with the pills either side.
+    # It is derived from the colors.sh variable rather than written as a hex —
+    # `0x33''${PEACH#0xff}` is that palette entry with its opacity swapped — so a
+    # nebelung change reaches the fill in the same rebuild it reaches the line.
     cpu = ''
-      ${sb} --add item cpu ${side} \
+      ${sb} --add graph cpu ${side} 48 \
           --set cpu \
-              update_freq=5 \
+              update_freq=2 \
               icon.color=$PEACH \
+              graph.color=$PEACH \
+              graph.fill_color=0x33''${PEACH#0xff} \
+              graph.line_width=2 \
               background.color=$SURFACE0 \
               background.padding_left=8 \
               background.padding_right=8 \
-              script="$HOME/.config/sketchybar/plugins/cpu.sh"
+              popup.background.border_width=2 \
+              popup.background.corner_radius=10 \
+              popup.background.border_color=$SURFACE0 \
+              popup.background.color=$MANTLE \
+              ${popupAlign side} \
+              popup.horizontal=off \
+              script="$HOME/.config/sketchybar/plugins/cpu.sh" \
+          --subscribe cpu mouse.clicked mouse.entered mouse.exited mouse.exited.global system_woke
     '';
     memory = ''
-      ${sb} --add item memory ${side} \
+      ${sb} --add graph memory ${side} 48 \
           --set memory \
-              update_freq=15 \
+              update_freq=5 \
               icon.color=$GREEN \
+              graph.color=$GREEN \
+              graph.fill_color=0x33''${GREEN#0xff} \
+              graph.line_width=2 \
               background.color=$SURFACE0 \
               background.padding_left=8 \
               background.padding_right=8 \
-              script="$HOME/.config/sketchybar/plugins/memory.sh"
+              popup.background.border_width=2 \
+              popup.background.corner_radius=10 \
+              popup.background.border_color=$SURFACE0 \
+              popup.background.color=$MANTLE \
+              ${popupAlign side} \
+              popup.horizontal=off \
+              script="$HOME/.config/sketchybar/plugins/memory.sh" \
+          --subscribe memory mouse.clicked mouse.entered mouse.exited mouse.exited.global system_woke
     '';
     volume = ''
       ${sb} --add item volume ${side} \
@@ -1019,7 +1069,21 @@ lib.mkIf config.haus.sill.enable {
   # sillpop, plus — when the second bar is on — the `sill-bottom` name that IS
   # that bar. On PATH for the same reason `sketchybar` is: it's the CLI half,
   # the only way to poke the bottom bar by hand or from a script.
-  environment.systemPackages = [ sillpop ] ++ lib.optional cfg.bottom.enable sillBottom;
+  #
+  # sillvitals rides along only when one of the two readouts it feeds is
+  # actually drawn — a rice with neither pill on shouldn't carry a Swift build
+  # in its closure for a sampler nothing calls. Both plugins reach it by its
+  # /run/current-system/sw/bin path, since they run from launchd's PATH where
+  # nothing nix-shaped is on it.
+  environment.systemPackages =
+    [ sillpop ]
+    ++ lib.optional cfg.bottom.enable sillBottom
+    ++ lib.optional (
+      lib.any (name: builtins.elem name (topItems ++ bottomItems)) [
+        "cpu"
+        "memory"
+      ]
+    ) sillvitals;
 
   launchd.user.agents = {
     sketchybar = {
