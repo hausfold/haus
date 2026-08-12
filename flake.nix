@@ -36,10 +36,13 @@
     };
 
     # The notch file shelf. Its overlay puts `perch` in pkgs; modules/perch
-    # places the app at a fixed /Applications path. The flake wraps perch's
+    # places the app at a fixed /Applications path. What gets BUILT is perch's
     # CI-built, notarized release ZIP (macOS 26 blocks a from-source Nix build —
-    # see the perch repo), so this input tracks perch *releases*, not its main
-    # branch.
+    # see the perch repo), because perch's own flake pins that zip in
+    # `nix/release.nix`. The pin is inside perch, not here: this input has no
+    # `ref`, so it tracks perch's default branch like any other. Saying it
+    # "tracks releases" reads as a `ref = "refs/tags/…"` that isn't there, and
+    # the docs took it that way once.
     perch = {
       url = "github:hausfold/perch";
       inputs.nixpkgs.follows = "nixpkgs";
