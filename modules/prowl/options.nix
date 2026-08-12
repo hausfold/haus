@@ -22,7 +22,7 @@
     # collar is NOT always on: haus.collar.enable is real and documented
     # (modules/collar/options.nix). This comment used to say it was, and that is
     # where "Touch ID for sudo can't be removed" got into the docs — caught by
-    # hausfold.co#22's fact-check pass. Don't put it back.
+    # hausfold.co#23's fact-check pass. Don't put it back.
     prowl.enable = lib.mkOption {
       type = lib.types.bool;
       default = true;
