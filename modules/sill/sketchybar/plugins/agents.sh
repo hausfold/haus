@@ -177,7 +177,9 @@ ago() { # ago <seconds> — "4m" / "1h 12m" / "2d", how long an agent has sat in
 # a label can't be indented with leading spaces (sketchybar trims on size and
 # draws untrimmed, so a leading run of spaces buys a clipped row, not a margin).
 ROW_INDENT=22                    # left margin of a value row, under its header
-DESC_COLS=7                      # widest descriptor: `working`
+DESC_COLS=4                      # widest descriptor: `repo` (the state row's own
+                                  # descriptor is empty — its value is the state
+                                  # word itself, so it just gets the full margin)
 DESC_GAP=12                      # descriptor → value gutter
 ADV_M=$(awk -v s="${FS_SMALL:-13}" 'BEGIN { printf "%.0f", s * 602 }')
 px() { printf '%s' $((($1 + 500) / 1000)); }
@@ -283,9 +285,16 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
       [ "$waiting" -gt 0 ] && parts+=("$waiting ready")
       [ "$working" -gt 0 ] && parts+=("$working working")
       [ "$idle" -gt 0 ]    && parts+=("$idle done")
-      summary="${parts[0]}"
-      for p in "${parts[@]:1}"; do summary="$summary  ·  $p"; done
-      row "" "$summary" "$TEXT" Regular
+      # Never index parts[0] directly — waiting+working+idle can fall short of
+      # the file count (a state file carrying something other than the three
+      # words agents-hook.sh writes), and under `set -u` indexing an empty
+      # array is a hard error, not an empty string.
+      summary=""
+      for p in "${parts[@]:-}"; do
+        [ -n "$p" ] || continue
+        summary="${summary:+$summary  ·  }$p"
+      done
+      [ -n "$summary" ] && row "" "$summary" "$TEXT" Regular
     fi
 
     now=$(date +%s)
@@ -318,17 +327,29 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
         verdict="$(printf '%s' "$lane" | jq -r '.landed.verdict // "no"')"
         ahead="$(printf '%s' "$lane" | jq -r '.post_merge_ahead.commits // 0')"
         case "$ahead" in ''|*[!0-9]*) ahead=0 ;; esac
-        if [ "$verdict" = "yes" ]; then
-          if [ "$ahead" -gt 0 ]; then
-            # Exactly the state `holt reship` exists to fix: the PR merged, but
-            # commits landed after it, so nothing carries them forward on its own.
-            row "PR" "+$ahead unshipped" "$PEACH" Bold
-          else
-            row "PR" "merged" "$GREEN" Regular
-          fi
-        else
-          row "PR" "no PR yet" "$OVERLAY1" Regular
-        fi
+        case "$verdict" in
+          yes)
+            if [ "$ahead" -gt 0 ]; then
+              # Exactly the state `holt reship` exists to fix: the PR merged,
+              # but commits landed after it, so nothing carries them forward
+              # on its own.
+              row "PR" "+$ahead unshipped" "$PEACH" Bold
+            else
+              row "PR" "merged" "$GREEN" Regular
+            fi
+            ;;
+          contained)
+            # holt's own "advisory only" verdict (merge-tree-empty): the tree
+            # matches main, but that can't tell a squash-merge from a branch
+            # that never diverged, so `holt reap` itself won't act on it
+            # without --contained. Worded to match that uncertainty rather
+            # than asserting either "merged" or "no PR yet".
+            row "PR" "maybe merged" "$OVERLAY1" Regular
+            ;;
+          *)
+            row "PR" "no PR yet" "$OVERLAY1" Regular
+            ;;
+        esac
 
         dirty="$(printf '%s' "$lane" | jq -r '.dirty // false')"
         [ "$dirty" = "true" ] && meta "uncommitted changes"
