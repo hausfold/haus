@@ -101,6 +101,7 @@ let
     inherit lib agentDefault;
     agentsEnabled = agentClients != [ ];
     ghDashEnabled = ghDashCfg.enable;
+    benchLaneEnabled = devCfg.enable;
     rightClickFullscreenEnabled = hearthCfg.rightClickFullscreen;
   };
   ghDashBind = lib.optionalString ghDashCfg.enable ''
@@ -119,9 +120,35 @@ let
         }
     }
   '';
-  zellijConfigTemplate = builtins.replaceStrings [ "@GH_DASH_BIND@" ] [ ghDashBind ] (
-    builtins.readFile ./zellij/config.kdl
-  );
+  # `bench` (and the whole hausfold family workshop) is a family-DEVELOPER
+  # tool that lives at a fixed, hardcoded path — `~/code/workshop` — on the
+  # rice author's own machines, never on an end-user install (this module
+  # ships to real consumers via mkNebelhaus; see the "workshop repo end users
+  # don't have" note a few hundred lines down). Gate the whole bind — kdl AND
+  # the ghostty release — behind haus.developer.enable, same shape as
+  # ghDashBind above, so a plain end-user rice never renders a chord that
+  # execs a binary that isn't there.
+  benchLaneBind = lib.optionalString devCfg.enable ''
+        // Super b — build+activate this pane's HOLT LANE: this worktree PLUS
+        // every `holt child` worktree spawned from it, however many repos it
+        // touches, in ONE rebuild (`bench try lane switch` — "b" for bench,
+        // since Super l is already Links). Unlike try-batch (which needs an
+        // open PR per repo), this tests the LOCAL checkouts — uncommitted
+        // edits included — so it's the fast loop for a cross-repo change
+        // mid-flight. cwd is inherited from the focused pane, same as Super a:
+        // press it from the lane's PARENT worktree (bench refuses if it isn't
+        // one, or if it has no holt children — see bench's own
+        // `cmd_try`/`detect_lane`). No new-pane suppression here, unlike Super
+        // Shift a: the build/switch output and the post-switch activation
+        // banner are worth reading, so the pane stays open after it exits.
+        // Runs UNGATED — bench's BENCH_AGENT_SWITCH check only fires for an
+        // agent process; a real keypress here is a human at the keyboard.
+        bind "Super b" { Run "@HOME@/code/workshop/bench" "try" "lane" "switch"; }
+  '';
+  zellijConfigTemplate = builtins.replaceStrings [ "@GH_DASH_BIND@" "@BENCH_LANE_BIND@" ] [
+    ghDashBind
+    benchLaneBind
+  ] (builtins.readFile ./zellij/config.kdl);
   ghDashGhosttyBind = lib.optionalString ghDashCfg.enable ''
     # cmd+g → zellij "Super g": gh-dash as a clean fullscreen overlay.
     # Ghostty owns this chord as search-next by default, so it must be released
@@ -129,9 +156,24 @@ let
     # Ctrl-G lock toggle; those are distinct chords and coexist.
     keybind = cmd+g=unbind
   '';
-  ghosttyConfigTemplate = builtins.replaceStrings [ "@GH_DASH_GHOSTTY_BIND@" ] [ ghDashGhosttyBind ] (
-    builtins.readFile ./ghostty/config
-  );
+  benchLaneGhosttyBind = lib.optionalString devCfg.enable ''
+    # cmd+b → zellij "Super b": build+activate this pane's holt LANE — this
+    # worktree plus every `holt child` worktree spawned from it — in one rebuild
+    # (`bench try lane switch`; "b" for bench, since ⌘L is already Links below).
+    # Ghostty has no default binding on this chord; unbound defensively, same
+    # reasoning as cmd+enter above, so a future default can't steal it.
+    keybind = cmd+b=unbind
+  '';
+  ghosttyConfigTemplate = builtins.replaceStrings
+    [
+      "@GH_DASH_GHOSTTY_BIND@"
+      "@BENCH_LANE_GHOSTTY_BIND@"
+    ]
+    [
+      ghDashGhosttyBind
+      benchLaneGhosttyBind
+    ]
+    (builtins.readFile ./ghostty/config);
   # Chords bound in config.kdl. Only the quoted words BEFORE the block open — a
   # bind body can carry its own strings (`bind "Super t" { NewTab { layout "…" } }`)
   # and those are not chords.

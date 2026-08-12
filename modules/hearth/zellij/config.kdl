@@ -126,6 +126,7 @@ keybinds {
         // convention — it's the only agent allowed to touch the real tree.
         // @AGENT_HERE@ is haus.agents.default's client, plain.
         bind "Ctrl Alt Shift a" { Run @AGENT_HERE@; }
+@BENCH_LANE_BIND@
         // Super p — New pane, inheriting the focused pane's cwd — except next
         //            to a claude --worktree pane: hearth's zshrc notices a
         //            fresh shell starting inside ~/.cache/claude-worktrees and
