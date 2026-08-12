@@ -2184,8 +2184,14 @@ cmd_btm() {
   else dump=""; fi
 
   if [ -n "$dump" ]; then
+    # The needle has to cover every naming the family's login items use, not
+    # just the org.nixos.* one nix-darwin gives an agent by default. pounce
+    # carries AssociatedBundleIdentifiers = com.hausfold.pounce (modules/pounce),
+    # and that key is precisely what BTM reads to attribute the item — so a
+    # nixos-only grep reports "no nix items in the BTM store yet" on a machine
+    # where the launcher is the one thing BTM disallowed.
     local stanzas
-    stanzas="$(printf '%s\n' "$dump" | grep -A8 -iE 'nixos|darwin-store' 2>/dev/null || true)"
+    stanzas="$(printf '%s\n' "$dump" | grep -A8 -iE 'nixos|hausfold|darwin-store' 2>/dev/null || true)"
     if [ -z "$stanzas" ]; then
       warn "no nix items in the BTM store yet — they appear after the first post-upgrade login."
     elif printf '%s\n' "$stanzas" | grep -qi 'disallowed'; then
@@ -2196,7 +2202,7 @@ cmd_btm() {
     fi
   else
     warn "couldn't read the BTM store (needs sudo). Inspect it by hand:"
-    printf '     sudo sfltool dumpbtm | grep -B2 -A8 -iE "nixos|darwin-store"\n'
+    printf '     sudo sfltool dumpbtm | grep -B2 -A8 -iE "nixos|hausfold|darwin-store"\n'
     blocked=1
   fi
 
