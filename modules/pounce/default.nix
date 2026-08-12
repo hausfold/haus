@@ -313,6 +313,7 @@ let
     agentDefault = config.haus.agents.default;
     agentsEnabled = config.haus.agents.clients != [ ];
     ghDashEnabled = config.haus.hearth.ghDash.enable;
+    benchLaneEnabled = config.haus.developer.enable;
     rightClickFullscreenEnabled = config.haus.hearth.rightClickFullscreen;
   };
   termPages = termBindings.pages;

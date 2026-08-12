@@ -43,6 +43,12 @@
   # itself is installed, so neither the cheatsheet nor Ghostty advertises a
   # dead Cmd-G on machines that do not want it.
   ghDashEnabled,
+  # haus.developer.enable — Super b shells out to the hausfold workshop's own
+  # `bench` CLI at a hardcoded `~/code/workshop` path, which only exists on
+  # the family developer's own machines. Gate it the same way ghDash is
+  # gated, so an end-user rice install neither advertises nor renders a
+  # chord that would exec a binary it doesn't have.
+  benchLaneEnabled,
   # haus.hearth.rightClickFullscreen — the mouse row only appears when the
   # zellij patch that implements it is actually compiled in.
   rightClickFullscreenEnabled,
@@ -163,6 +169,10 @@ rec {
       ++ lib.optional ghDashEnabled {
         chords = [ "Super g" ];
         action = "GitHub dashboard, fullscreen overlay";
+      }
+      ++ lib.optional benchLaneEnabled {
+        chords = [ "Super b" ];
+        action = "Build+activate this pane's whole holt lane";
       };
     }
     # The mouse half: real terminal behaviour, no chord to check, and workflow
