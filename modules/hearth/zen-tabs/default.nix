@@ -33,14 +33,18 @@
 #
 # ---- the two files, and why they land in different places -------------------
 #
-#   policies.json  ~/Library/Application Support/Zen/distribution/
+#   policies       /Library/Preferences/app.zen-browser.zen.plist  (root-owned)
 #   host manifest  ~/Library/Application Support/Mozilla/NativeMessagingHosts/
 #
-# That asymmetry is real and worth not re-deriving: the policy file is keyed on
-# the APP (Zen, Firefox, …), while native-messaging manifests are keyed on the
-# VENDOR — and Zen's application.ini says `Vendor=Mozilla`. So one host manifest
-# already serves Zen and stock Firefox both, and only the policy half would need
-# a second copy if this ever grew past Zen.
+# That asymmetry is real and worth not re-deriving: the policy domain is keyed
+# on the APP's bundle id (Zen, Firefox, …), while native-messaging manifests are
+# keyed on the VENDOR — and Zen's application.ini says `Vendor=Mozilla`. So one
+# host manifest already serves Zen and stock Firefox both, and only the policy
+# half would need a second copy if this ever grew past Zen.
+#
+# The policy half is a managed preference rather than the `policies.json` you'd
+# expect, because Firefox only ever resolves that file INSIDE the app bundle —
+# hearth/zen.nix's header carries the measurement and the reasoning.
 {
   config,
   lib,
