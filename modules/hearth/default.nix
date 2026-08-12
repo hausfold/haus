@@ -3,8 +3,9 @@
 # lazygit, lsd, yazi, zoxide, fzf), plus the ghostty / zellij / yazi dotfiles.
 #
 # Identity is NOT baked in: git name/email/signing come from `haus.git.*`
-# (set in your host), and secrets stay out of the store — load them in your
-# host's zsh initContent from ~/.secrets or similar.
+# (set in your host), and secrets stay out of the store — they live in the
+# secrets room's provider (secretspec; see modules/secrets), not in a dotfile
+# this module reads.
 {
   config,
   lib,

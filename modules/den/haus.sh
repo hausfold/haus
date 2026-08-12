@@ -1959,7 +1959,7 @@ cmd_options() {
   if [ ! -e "$dest" ] || [ -n "$force" ]; then
     cp -f "$HOST_TEMPLATE" "$dest"
     chmod u+w "$dest"   # it comes out of the store read-only
-    say "wrote $dest ($(grep -c '^  # nebelhaus\.' "$dest") options, all commented out)"
+    say "wrote $dest ($(grep -c '^  # haus\.' "$dest") options, all commented out)"
   elif cmp -s "$HOST_TEMPLATE" "$dest"; then
     say "$dest is already current."
     return 0
