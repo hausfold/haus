@@ -336,12 +336,23 @@ in
       description = ''
         Browser extensions to deploy into Zen, by a stable id of your choosing.
 
-        The mechanism is Firefox's enterprise-policy file — the rice renders
-        `Zen/distribution/policies.json` with an `ExtensionSettings` block — so
-        it reaches Zen the way an IT department reaches Firefox, without a
-        profile to hand-edit. `haus.roster` deliberately cannot do this: a
-        roster entry installs from a cask, a brew, a nixpkgs package or the App
-        Store, and a browser add-on is none of those.
+        The mechanism is Firefox's enterprise policies — the rice renders an
+        `ExtensionSettings` block — so it reaches Zen the way an IT department
+        reaches Firefox, without a profile to hand-edit. `haus.roster`
+        deliberately cannot do this: a roster entry installs from a cask, a
+        brew, a nixpkgs package or the App Store, and a browser add-on is none
+        of those.
+
+        Two consequences of HOW the policies are delivered, both visible.
+        Firefox only ever looks for a `policies.json` inside the app bundle,
+        which a rice has no business writing into (it breaks the code signature
+        and a cask upgrade wipes it), so the rice uses the other route macOS
+        offers: a managed preference at
+        `/Library/Preferences/app.zen-browser.zen.plist`. That file is
+        root-owned, so it's written during system activation and a `haus
+        rebuild` that can't reach it warns instead of installing anything. And
+        because enterprise policies are on, Zen will tell you it is "managed by
+        your organization" — that organization is this rice.
 
         The rice knows the id and slug of the extensions it themes
         (${lib.concatStringsSep ", " (builtins.attrNames knownZenExtensions)}),
@@ -381,11 +392,21 @@ in
         `about:addons` and remove it there if it outstays the option.
 
         **Zen only, and that's a signing constraint rather than a choice.**
-        Release Firefox refuses an extension Mozilla hasn't signed and no policy
-        overrides that; Zen ships `xpinstall.signatures.required = false` as a
-        built-in default, so the rice can build the `.xpi` itself and install it
-        from the nix store. Firefox support would mean an AMO account and
-        unlisted self-distribution signing — packaging, not a code change.
+        Release Firefox refuses an extension Mozilla hasn't signed, and it is
+        built so that no pref and no policy can say otherwise. Zen is built the
+        other way (`MOZ_REQUIRE_SIGNING = false`), which is the whole reason the
+        rice can build the `.xpi` itself and install it out of the nix store.
+
+        It still costs a switch. Zen carries Firefox's own preference defaults,
+        which turn signature enforcement back on, so turning this option on also
+        makes the rice lock `xpinstall.signatures.required = false` — for the
+        browser, not just for its own add-on. Without it Zen refuses the bridge
+        with `ERROR_SIGNEDSTATE_REQUIRED` and the option quietly does nothing;
+        with it, an unsigned add-on from anywhere would also install if
+        something asked. That is the second reason this is off by default.
+
+        Firefox support would mean an AMO account and unlisted self-distribution
+        signing — packaging, not a code change — and would drop the pref.
       '';
     };
 
@@ -394,11 +415,19 @@ in
       default = { };
       example = lib.literalExpression "{ DisableTelemetry = true; }";
       description = ''
-        Anything else to put in Zen's policy file, merged beside the
-        `ExtensionSettings` block `haus.zen.extensions` renders. The rice
-        OWNS that file, so this is the escape hatch for the rest of the policy
+        Anything else to put in Zen's policy set, merged beside the
+        `ExtensionSettings` block `haus.zen.extensions` renders. The rice OWNS
+        the file these land in — `/Library/Preferences/app.zen-browser.zen.plist`,
+        written as root — so this is the escape hatch for the rest of the policy
         surface rather than a reason to take the file back by hand. Keys here
         win over the rice's on a collision.
+
+        Write the policy names as Firefox documents them, nested: this becomes
+        the top level of a plist beside `EnterprisePoliciesEnabled`, so
+        `{ Extensions.Install = [ "…" ]; }` is an `Extensions` dict with an
+        `Install` array in it, not a key called `Extensions.Install`. Setting
+        every policy back to `{ }` (and naming no extensions) takes the file
+        down again on the next rebuild.
       '';
     };
 
