@@ -4,18 +4,13 @@ use unicode_width::UnicodeWidthStr;
 use zellij_tile::prelude::*;
 use zellij_tile_utils::style;
 
-// Second fork of the agent-status signal: a leading STATE DOT plus a trailing
-// count CHIP, replacing the original underline + superscript pair (see git
-// history for that version). Both prior signals leaned on subtle terminal
-// rendering — a sub-pixel underline curve, a raised-baseline digit — that
-// turned out to be exactly the kind of thing that's hard to see at a normal
-// terminal font size. Shape carries the state now instead of line style, and
-// the count is a real filled chip instead of a few faint lit pixels: this is
-// the badge the header comment described before either of those existed.
-//
-// Same construction as line.rs's layout_indicator_pill (the yellow GRID
-// rectangle): hand-painted flat block, no powerline caps, so the badge chip
-// and that pill read as one family.
+// Third fork of the agent-status signal: a leading STATE DOT alone. The
+// second fork (dot + trailing count CHIP, a filled rectangle) traded away
+// legibility for precision — the chip's own background made every agent tab
+// a little pill-within-a-pill, which read as more clutter than "3 agents
+// here" was worth. Count lives only in sill's popup now; the tab-bar just
+// says "does this tab need you, and how urgently" via the dot's shape.
+// (First fork was underline + superscript — see git history for both.)
 
 /// Blend `color` toward `toward` (0.0 = unchanged, 1.0 = fully `toward`).
 ///
@@ -131,20 +126,18 @@ pub fn render_tab(
     let left_separator = style!(separator_fill_color, background_color).paint(separator);
     let mut tab_text_len = text.width() + (separator_width * 2) + 2; // +2 for padding
 
-    // Fork: the agent-status signal. Three pieces:
+    // Fork: the agent-status signal. Two pieces:
     //
     //   · a leading STATE DOT before the tab name — shape (○ ◐ ●) carries the
     //     state, colour is redundant on top of it, costing 2 columns on every
     //     agent tab
     //   · the WASH above — the pill itself, for the one state that needs you
-    //   · a trailing count CHIP — a real filled rectangle, not a glyph — only
-    //     once there's >1 agent to count
     //
-    // Dot shape and chip fill both encode the state, which is deliberate
-    // redundancy: colour alone is a bad bet (small swatches, colour-blindness),
-    // so the shape has to carry the meaning on its own and colour just confirms
-    // it.
-    let (dot, badge_chip) = match (badge, state_color) {
+    // Dot shape alone carries the state, which is deliberate: colour alone is a
+    // bad bet (small swatches, colour-blindness), so the shape has to carry the
+    // meaning on its own and colour just confirms it. The exact agent count is
+    // sill's popup's job, not a tab cell's.
+    let dot = match (badge, state_color) {
         (Some(badge), Some(state_color)) => {
             // On a washed pill the state colour is already the BACKGROUND, so a
             // dot in that same colour would vanish into it: draw it near-black
@@ -159,26 +152,14 @@ pub fn render_tab(
             } else {
                 state_color
             };
-            let badge_chip = if badge.count > 1 {
-                Some((badge.count.to_string(), state_color))
-            } else {
-                None
-            };
-            (Some((state_dot(badge.state), dot_color)), badge_chip)
+            Some((state_dot(badge.state), dot_color))
         },
-        _ => (None, None),
+        _ => None,
     };
     if dot.is_some() {
         tab_text_len += 2; // glyph + the space separating it from the name
     }
-    if let Some((digits, _)) = &badge_chip {
-        // " N " chip, plus the plain-background space separating it from the name.
-        tab_text_len += 1 + digits.width() + 2;
-    }
 
-    // The pill is painted in pieces rather than one run so the count chip can
-    // carry its OWN fill (the state colour) rather than the pill's — a rectangle
-    // stuck to the tab, same construction as line.rs's layout_indicator_pill.
     let tab_styled_text = {
         let pad = |s: &str| {
             style!(foreground_color, background_color)
@@ -203,15 +184,6 @@ pub fn render_tab(
                 .paint(text.clone())
                 .to_string(),
         );
-        if let Some((digits, color)) = &badge_chip {
-            s.push_str(&pad(" "));
-            s.push_str(
-                &style!(dark, *color)
-                    .bold()
-                    .paint(format!(" {} ", digits))
-                    .to_string(),
-            );
-        }
         s.push_str(&pad(" "));
         s
     };
