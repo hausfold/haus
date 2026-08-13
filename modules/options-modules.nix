@@ -21,10 +21,11 @@
   # against `nebelhaus.*` into a bare evalModules of exactly this list.
   ./renamed.nix
   # Options that moved room WITHIN `haus.*` (today: the `claude` room folding
-  # into `agents`). Listed here for the same reason renamed.nix is — the evals
-  # above are fed rice files written against the old address too.
+  # into `ai`). Listed here for the same reason renamed.nix is — the evals above
+  # are fed rice files written against the old address too.
   ./moved.nix
   ./options.nix
+  ./ai/options.nix
   ./apps/options.nix
   ./den/options.nix
   ./displays/options.nix

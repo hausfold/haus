@@ -701,6 +701,27 @@ let
     else
       items.${name} or false;
 
+  # Is the room BEHIND this pill actually here? A pill the bar draws for another
+  # room is that room's feature (modules/lib/contrib.nix): the bar owns where it
+  # sits and how it looks, the source room owns whether there is anything to
+  # show. Asking for one whose room is off used to draw a permanently dormant
+  # pill — silent, and indistinguishable from a broken one — so the bar leaves it
+  # out and the source room warns by name (see modules/ai).
+  #
+  # Read by BOTH bars: a contribution that vanished from the menu bar and stayed
+  # on the bottom one would be the same dead pill, one edge down.
+  # `aiUsage` is deliberately NOT here, though it sits beside `agents` in the
+  # extras and reads the same client list: it renders usage numbers a client
+  # wrote to disk, and a client this rice never installed still writes them. The
+  # `agents` pill is different — its writer is `agent-state`, which the AI room
+  # ships or does not.
+  contributed =
+    name:
+    if name == "agents" then
+      config.haus._contrib.bar.agents.enable
+    else
+      true;
+
   # ---- the second bar's three groups -----------------------------------------
   # Which group of the bottom bar a pill was asked for, or null for "not on this
   # bar at all". `haus.sill.bottom.items.<pill>` is a side name, or a bool: the
@@ -728,7 +749,10 @@ let
     side:
     lib.optionals cfg.bottom.enable (
       lib.filter (
-        name: bottomSideOf name == side && (name != "hush" || config.haus.hush.enable)
+        name:
+        bottomSideOf name == side
+        && (name != "hush" || config.haus.hush.enable)
+        && contributed name
       ) itemOrder
     );
 
@@ -741,10 +765,10 @@ let
   # the group.
   bottomItems = lib.concatMap bottomGroup bottomSides;
   topCore = lib.filter (
-    name: wantsItem cfg.items name && !(builtins.elem name bottomItems)
+    name: wantsItem cfg.items name && contributed name && !(builtins.elem name bottomItems)
   ) coreOrder;
   topExtras = lib.filter (
-    name: wantsItem cfg.items name && !(builtins.elem name bottomItems)
+    name: wantsItem cfg.items name && contributed name && !(builtins.elem name bottomItems)
   ) extraOrder;
   topHush = config.haus.hush.enable && !(builtins.elem "hush" bottomItems);
   topItems = topCore ++ lib.optional topHush "hush" ++ topExtras;
@@ -1024,7 +1048,7 @@ lib.mkIf config.haus.sill.enable {
       # A bar with nothing on it still costs a launchd job and, via prowl, a
       # 32pt strip of every display — and it draws no pill to explain either.
       lib.optional (cfg.bottom.enable && bottomItems == [ ]) (
-        "haus.sill.bottom.enable is on with no haus.sill.bottom.items — the second bar draws an empty strip and still reserves room at the bottom of every display."
+        "haus.sill.bottom.enable is on but no pill lands on the second bar — nothing in haus.sill.bottom.items, or the rooms behind the pills it names are off — so it draws an empty strip and still reserves room at the bottom of every display."
       )
     ++
       # Both bars on the same edge overlap: SketchyBar pins each instance to the

@@ -2108,7 +2108,7 @@ cmd_doctor() {
   if [ -n "$skilldir" ]; then
     ok "the nebelhaus skill is installed ($skilldir)"
   else
-    info "no nebelhaus skill — set haus.agents.skill = true to let an agent change this machine"
+    info "no nebelhaus skill — set haus.ai.skill = true to let an agent change this machine"
   fi
   if [ -f "$CONSUMER/AGENTS.md" ] && [ -f "$CONSUMER/CLAUDE.md" ]; then
     ok "$CONSUMER/AGENTS.md orients any agent opened there (+ CLAUDE.md imports it)"
@@ -2123,7 +2123,7 @@ cmd_doctor() {
     # the whole point of copying is to then edit.
     info "nothing orients an agent opened in your config — start from the rice's pair: install -m 644 $skilldir/consumer-AGENTS.md $CONSUMER/AGENTS.md && install -m 644 $skilldir/consumer-CLAUDE.md $CONSUMER/CLAUDE.md"
   else
-    info "nothing orients an agent opened in your config, and the starter pair isn't here to copy — set haus.agents.skill = true, rebuild, then re-run 'haus doctor'"
+    info "nothing orients an agent opened in your config, and the starter pair isn't here to copy — set haus.ai.skill = true, rebuild, then re-run 'haus doctor'"
   fi
   # Reported for the app running THIS command — the grant is per-app, so the
   # answer legitimately differs between your terminal and an agent's pane.

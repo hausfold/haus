@@ -600,7 +600,23 @@ in
       gnupg
       lazygit
     ]
-    ++ lib.optionals devCfg.agents.enable [
+    # `zscratch` — feel-test a candidate zellij config / layout / plugin.wasm in
+    # a throwaway session in its OWN Ghostty window, WITHOUT a rebuild. Renders
+    # your edit over a copy of the live ~/.config/zellij into a temp config-dir
+    # and boots a fresh scratch session (its own name → its own server →
+    # recompiled wasm), so the working `main` session's tabs stay untouched.
+    # Moves the iterate-loop off `bench try switch` + restart; you rebuild once,
+    # at the end, already knowing it works. Lives here (not hearth) because it's
+    # a dev CLI on PATH like `haus`/`holt`, though it drives hearth's zellij dotfiles.
+    #
+    # It followed the agent switch until 2026-08-13, which was only ever an
+    # accident of where that switch lived: nothing about editing a zellij layout
+    # in a scratch session is about coding agents. It follows the developer pack
+    # now, next to `nixfmt` — the other tool here for editing the rice itself.
+    ++ lib.optional devCfg.enable (writeShellScriptBin "zscratch" (builtins.readFile ./zscratch.sh))
+    # The AI room's payload, hosted here because this is where a system profile
+    # is written; the room that OWNS it is modules/ai, and this is its switch.
+    ++ lib.optionals config.haus.ai.enable [
       # holt — agent worktrees, its own product now (hausfold/holt, taken as
       # a flake input). Every caller the rice owns is on it: hearth's
       # ⌘A runs `holt new`, pounce's Spawn Agent goes through `holt spawn`, and
@@ -610,16 +626,6 @@ in
       # `holt hook create` / `holt hook remove`. Its bash predecessor `wt.sh`
       # has been retired entirely; there is no fallback to roll back to.
       holt
-
-      # `zscratch` — feel-test a candidate zellij config / layout / plugin.wasm in
-      # a throwaway session in its OWN Ghostty window, WITHOUT a rebuild. Renders
-      # your edit over a copy of the live ~/.config/zellij into a temp config-dir
-      # and boots a fresh scratch session (its own name → its own server →
-      # recompiled wasm), so the working `main` session's tabs stay untouched.
-      # Moves the iterate-loop off `bench try switch` + restart; you rebuild once,
-      # at the end, already knowing it works. Lives here (not hearth) because it's
-      # a dev CLI on PATH like `haus`/`holt`, though it drives hearth's zellij dotfiles.
-      (writeShellScriptBin "zscratch" (builtins.readFile ./zscratch.sh))
 
       # `claude-statusline` — the agent-worktree HUD for Claude Code's status bar
       # (hearth's claudeCodeSettings points the `statusLine` key here). Row 1 is

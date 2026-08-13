@@ -28,6 +28,12 @@
     # entries. Right after ./roster because that's all it is — a room whose
     # output is entries in the list above, plus the file types they claim.
     ./apps
+    # The AI room. Pure wiring — its assertions, and the contributions it makes
+    # to the terminal, the bar and the launcher through the extension points
+    # those rooms declare (modules/lib/contrib.nix). Its payload is still
+    # installed by ./den and ./hearth, gated on its switch; see modules/ai.
+    # Early, like ./roster, because rooms below read what it publishes.
+    ./ai
     ./den
     ./displays
     ./theme

@@ -20,16 +20,25 @@
     #
     # Both options describe a file the rice ships into a coding agent's home:
     # the always-on instructions, and the `haus` skill. Neither is about Claude
-    # Code — the rice installs three clients (`haus.agents.clients`) and every
+    # Code — the rice installs three clients (`haus.ai.clients`) and every
     # one of them reads both kinds of file, at its own path. Named for the
-    # client, they wrote only Claude's copy, which made `agents.default =
+    # client, they wrote only Claude's copy, which made `ai.default =
     # "codex"` a half-truth: the pane spawned with none of the operating context
     # or option knowledge the same machine hands Claude.
     #
     # `globalMd` -> `instructions` is a rename as well as a move: "global
     # memory" is Claude Code's word for the slot, and the file the other two
     # clients read is called AGENTS.md.
-    (lib.mkRenamedOptionModule [ "haus" "claude" "globalMd" ] [ "haus" "agents" "instructions" ])
-    (lib.mkRenamedOptionModule [ "haus" "claude" "skill" ] [ "haus" "agents" "skill" ])
+    (lib.mkRenamedOptionModule [ "haus" "claude" "globalMd" ] [ "haus" "ai" "instructions" ])
+    (lib.mkRenamedOptionModule [ "haus" "claude" "skill" ] [ "haus" "ai" "skill" ])
+
+    # 2026-08-13 — the whole coding-agent capability became `haus.ai.*`, and
+    # deliberately got NO alias here. `haus.agents.*` and
+    # `haus.developer.agents.enable` are gone rather than deprecated: the rice
+    # has one consumer, its host moved in the same change, and an alias set for
+    # a five-day-old spelling would be permanent furniture bought to protect
+    # nobody. The `nebelhaus.*` entries next door still resolve — they point at
+    # `haus.ai.*` now, because an alias follows its option rather than being
+    # re-created at each address it passes through.
   ];
 }

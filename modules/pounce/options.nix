@@ -5,8 +5,37 @@
 # pounce's options — the ⌘Space palette daemon and its window switcher.
 { lib, config, ... }:
 
+let
+  contrib = import ../lib/contrib.nix { inherit lib; };
+in
 {
   options.haus = {
+    # ---- the Launcher room's extension points ---------------------------------
+    # See modules/lib/contrib.nix for the contract, and modules/ai for today's
+    # only writer.
+    _contrib.launcher.agents = contrib.mkExtensionPoint {
+      description = ''
+        The AI room's palette surface: the client **Spawn Agent** starts, and the
+        Agent Worktrees cards on the cheatsheet's Tips page.
+
+        Off, the palette carries no agent rows — the same gate the ⌘A card on the
+        Keys page already used, named once here instead of re-derived from
+        `haus.ai.clients` in three separate places.
+      '';
+      options = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+          description = "Whether the palette carries the agent commands and cards.";
+        };
+        default = lib.mkOption {
+          type = lib.types.str;
+          default = "claude";
+          description = "The client Spawn Agent starts — `haus.ai.default`.";
+        };
+      };
+    };
+
     pounce.enable = lib.mkOption {
       type = lib.types.bool;
       default = true;

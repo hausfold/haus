@@ -308,10 +308,17 @@ let
   # hearth's assertion fails the build otherwise. The Tips page used to teach
   # these by hand, and spent months saying ⌘C started an agent; it had been ⌘A
   # since the bind stopped being Claude-only.
+  # What the AI room contributes to the launcher, through the extension point
+  # this room declares (modules/pounce/options.nix). The Terminal cards read the
+  # DEVELOPMENT point instead: they describe the terminal's chords, so they must
+  # say exactly what the terminal bound, not what the palette knows.
+  agentContrib = config.haus._contrib.launcher.agents;
+  termAgentContrib = config.haus._contrib.development.agents;
+
   termBindings = import ../hearth/term-bindings.nix {
     inherit lib;
-    agentDefault = config.haus.agents.default;
-    agentsEnabled = config.haus.agents.clients != [ ];
+    agentDefault = termAgentContrib.default;
+    agentsEnabled = termAgentContrib.enable;
     ghDashEnabled = config.haus.hearth.ghDash.enable;
     benchLaneEnabled = config.haus.developer.enable;
     rightClickFullscreenEnabled = config.haus.hearth.rightClickFullscreen;
@@ -771,7 +778,7 @@ lib.mkIf config.haus.pounce.enable {
         # The Spawn Agent command runs underneath this launchd environment, not
         # an interactive shell. Keep the selected client explicit here so a
         # palette spawn and a later `holt <name>` agree on its default.
-        NEBELHAUS_AGENT_DEFAULT = config.haus.agents.default;
+        NEBELHAUS_AGENT_DEFAULT = agentContrib.default;
         # Where the ssh plugin (and any command that respects the hook) opens a
         # terminal: a new tab in the `main` zellij session instead of stock
         # Terminal. See modules/hearth/zellij/pounce-terminal.sh.
@@ -1010,7 +1017,7 @@ lib.mkIf config.haus.pounce.enable {
         # install that had never seen the workshop — so these rows are true on any
         # machine running this rice. Off when no agent client is installed, same
         # gate as the ⌘A card on the Keys page.
-        ++ lib.optionals (config.haus.agents.clients != [ ]) [
+        ++ lib.optionals agentContrib.enable [
           {
             title = "Agent Worktrees";
             page = "Tips";

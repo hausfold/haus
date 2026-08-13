@@ -142,8 +142,8 @@ system, and `haus rollback` undoes an applied one atomically. What was missing
 was knowledge — left to guess, a model reaches for `brew install` and dotfiles
 the next rebuild overwrites, or invents an option that doesn't exist.
 
-So the rice ships it. `haus.agents.skill` (on by default) installs a `haus`
-skill for every client in `haus.agents.clients`, each in the directory that
+So the rice ships it. `haus.ai.skill` (on by default) installs a `haus`
+skill for every client in `haus.ai.clients`, each in the directory that
 client reads (`~/.claude/skills/haus`, `~/.codex/skills/haus`,
 `~/.config/opencode/skills/haus`). Its option reference is **generated from the
 revision you're pinned to** — it can only ever describe options you actually
@@ -151,7 +151,7 @@ have, and `haus update` refreshes it with the rice. "Install Slack" or
 "make everything bigger" becomes an edit to your host file, applied and
 verifiable. `haus doctor` reports whether it's installed.
 
-`haus.agents.instructions` is the other half: your own cross-project operating
+`haus.ai.instructions` is the other half: your own cross-project operating
 context, written to each client's instructions file (`~/.claude/CLAUDE.md`,
 `~/.codex/AGENTS.md`, `~/.config/opencode/AGENTS.md`) with the rice's `holt`
 worktree etiquette prepended. Write it client-neutrally — the same text is what

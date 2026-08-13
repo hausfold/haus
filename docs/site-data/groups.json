@@ -3,8 +3,8 @@
     "blurb": "macOS accessibility keys the rice can actually apply. These write to a TCC-protected domain, so they take effect only when the app you run the rebuild from holds Full Disk Access — otherwise the rice warns and moves on.",
     "order": 100
   },
-  "agents": {
-    "blurb": "Which coding-agent clients this machine installs, which one the agent keybinding spawns, and the two files the rice ships into every one of their homes — your instructions, and the `haus` skill.",
+  "ai": {
+    "blurb": "The AI room: whether this machine runs coding agents at all, which clients it installs, which one the agent keybinding spawns, and the two files the rice ships into every one of their homes — your instructions, and the `haus` skill. Spelled `haus.agents.*` before 2026-08-13, with the switch under `haus.developer.agents`; both are gone rather than aliased.",
     "order": 80
   },
   "animations": {
@@ -24,7 +24,7 @@
     "order": 210
   },
   "developer": {
-    "blurb": "The developer pack: the CLI toolbelt, Git tooling, coding-agent tooling, and language runtimes. Off is a nebelhaus machine for someone who never opens a terminal by choice.",
+    "blurb": "The developer pack: the CLI toolbelt, Git tooling and language runtimes. Coding agents left this pack on 2026-08-13 and are their own room now (`haus.ai.*`). Off is a nebelhaus machine for someone who never opens a terminal by choice.",
     "order": 200
   },
   "displays": {
@@ -134,21 +134,24 @@
       "order": 100,
       "owner": "appearance"
     },
-    "agents": {
-      "blurb": "Which coding-agent clients this machine installs, which one the agent keybinding spawns, and the two files the rice ships into every one of their homes — your instructions, and the `haus` skill.",
+    "ai": {
+      "blurb": "The AI room: whether this machine runs coding agents at all, which clients it installs, which one the agent keybinding spawns, and the two files the rice ships into every one of their homes — your instructions, and the `haus` skill. Spelled `haus.agents.*` before 2026-08-13, with the switch under `haus.developer.agents`; both are gone rather than aliased.",
       "kind": "room",
-      "optionCount": 4,
+      "optionCount": 5,
       "options": {
-        "haus.agents.clients": {
+        "haus.ai.clients": {
           "desktopSafe": true
         },
-        "haus.agents.default": {
+        "haus.ai.default": {
           "desktopSafe": true
         },
-        "haus.agents.instructions": {
+        "haus.ai.enable": {
+          "desktopSafe": true
+        },
+        "haus.ai.instructions": {
           "desktopSafe": false
         },
-        "haus.agents.skill": {
+        "haus.ai.skill": {
           "desktopSafe": true
         }
       },
@@ -210,13 +213,10 @@
       "owner": "security"
     },
     "developer": {
-      "blurb": "The developer pack: the CLI toolbelt, Git tooling, coding-agent tooling, and language runtimes. Off is a nebelhaus machine for someone who never opens a terminal by choice.",
+      "blurb": "The developer pack: the CLI toolbelt, Git tooling and language runtimes. Coding agents left this pack on 2026-08-13 and are their own room now (`haus.ai.*`). Off is a nebelhaus machine for someone who never opens a terminal by choice.",
       "kind": "room",
-      "optionCount": 5,
+      "optionCount": 4,
       "options": {
-        "haus.developer.agents.enable": {
-          "desktopSafe": true
-        },
         "haus.developer.enable": {
           "desktopSafe": true
         },

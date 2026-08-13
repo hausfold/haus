@@ -356,6 +356,14 @@
         imports = (import ./modules/options-modules.nix) ++ [
           ./modules/workspaces
           ./modules/roster
+          # The AI room's wiring. In the foundation rather than a room of its own
+          # because it publishes the extension points the rooms below read
+          # (modules/lib/contrib.nix), and a partial that imported only `sill`
+          # would otherwise draw its agents pill off an unwritten seam. What that
+          # costs is honest and temporary: the room adds no packages, only
+          # assertions and contributions, and step 3 of the rooms plan is what
+          # decides whether Blank carries it.
+          ./modules/ai
           ./modules/den
           implementation
         ];
@@ -1559,6 +1567,174 @@
             file Library/Application Support/com.mitchellh.ghostty/config moves
           '';
 
+          # ---- ai-room ---------------------------------------------------------
+          # The AI room is the first room declared as a CROSS-ROOM CAPABILITY
+          # (notes/rooms-desktops.md), and the claim it makes is behavioural, not
+          # structural: turning it on brings its own clients and `holt` whatever
+          # else the machine has, and what it adds to the terminal, the bar and
+          # the launcher arrives only with those rooms. A comment cannot hold
+          # that; six evaluated machines can.
+          #
+          # Every row below is read off a REAL evaluated system rather than off
+          # the option that produced it, because the failure this guards against
+          # is precisely a contribution that is decided in one place and drawn in
+          # another. `holt` is a system package, a client is a home one, the
+          # alias is the terminal's, the pill is a generated bar file and the
+          # cards are the launcher's JSON — five different plumbings, one table.
+          aiRoomAt =
+            extraModules:
+            let
+              cfg =
+                (mkNebelhaus {
+                  inherit system extraModules;
+                  username = "you";
+                  hostname = "example";
+                }).config;
+              hm = cfg.home-manager.users.you;
+              named = pkg: pkg.pname or pkg.name or "";
+              hasPkg = list: name: builtins.any (p: nixpkgs.lib.hasInfix name (named p)) list;
+              fileText =
+                target:
+                let
+                  entry = hm.home.file.${target} or null;
+                in
+                if entry == null then
+                  ""
+                else
+                  builtins.unsafeDiscardStringContext (
+                    if entry.text != null then entry.text else toString entry.source
+                  );
+              yn = b: if b then "yes" else "no";
+            in
+            {
+              inherit cfg;
+              # The room's own payload: does this machine get the worktree tool
+              # and at least one client, whatever else it has?
+              holt = yn (hasPkg cfg.environment.systemPackages "holt");
+              # `zscratch` left the agent switch for the developer pack in the
+              # same change that made this room. It is an INSTALL change, so it
+              # gets a column rather than a sentence: the row for a machine with
+              # the pack on and the room off is the whole claim.
+              zscratch = yn (hasPkg cfg.environment.systemPackages "zscratch");
+              client = yn (hasPkg hm.home.packages "claude-code");
+              # What it contributes, as each receiving room actually rendered it.
+              alias = hm.programs.zsh.shellAliases.c or "(none)";
+              pill = yn (nixpkgs.lib.hasInfix "agents" (fileText ".config/sketchybar/top_items.sh"));
+              cards = yn (nixpkgs.lib.hasInfix "Agent Worktrees" (fileText ".config/pounce/cheatsheet.json"));
+            };
+          aiRoomFixtures = {
+            # The rice as shipped: every receiver present, so every contribution
+            # should be drawn.
+            nebelhaus = [ ];
+            # The room ALONE. No bar, no launcher — the clients and `holt` must
+            # still arrive, and nothing may fail for want of a receiver. It ASKS
+            # for the pill: a request whose receiving room is absent has to be
+            # inert, not an error.
+            "ai-alone" = [
+              {
+                haus.sill.enable = false;
+                haus.pounce.enable = false;
+                haus.sill.items.agents = true;
+              }
+            ];
+            # One receiver at a time, to prove the contributions are independent
+            # rather than all riding on one room being present.
+            "ai-with-bar" = [
+              {
+                haus.pounce.enable = false;
+                haus.sill.items.agents = true;
+              }
+            ];
+            "ai-with-launcher" = [ { haus.sill.enable = false; } ];
+            # The room off, with every receiver present: the receivers keep their
+            # own features and lose only what AI was contributing.
+            "ai-off" = [ { haus.ai.enable = false; } ];
+            # A bar asked for a pill whose room is off. The pill is left out
+            # rather than drawn dormant, and the AI room says so by name — the
+            # warning is asserted separately below.
+            "pill-without-ai" = [
+              {
+                haus.ai.enable = false;
+                haus.sill.items.agents = true;
+              }
+            ];
+            # The SECOND bar asking for the same pill. A separate fixture because
+            # the two bars are filtered through one predicate but were nearly
+            # warned about through two: a menu-bar-only warning would have left
+            # the bottom bar silently dropping the pill, which is the failure the
+            # warning exists to end.
+            "bottom-pill-without-ai" = [
+              {
+                haus.ai.enable = false;
+                haus.sill.bottom.enable = true;
+                haus.sill.bottom.items.agents = "left";
+              }
+            ];
+            # The room on with NO client installed by the rice. `ai.clients`
+            # empty means the rice installs none, not that no agent runs here —
+            # a Claude Code from npm still reports panes through `agent-state`,
+            # which follows the room's switch. So the pill stays and the chords
+            # go: nothing would spawn from a chord, but something can report.
+            "no-rice-clients" = [
+              {
+                haus.ai.clients = [ ];
+                haus.sill.items.agents = true;
+              }
+            ];
+          };
+          aiRoomTable = builtins.concatStringsSep "\n" (
+            map (
+              name:
+              let
+                r = aiRoomAt aiRoomFixtures.${name};
+              in
+              "${name} holt=${r.holt} zscratch=${r.zscratch} client=${r.client} alias=${r.alias} pill=${r.pill} cards=${r.cards}"
+            ) (builtins.attrNames aiRoomFixtures)
+          );
+          # `nebelhaus pill=no` is not a miss: the rice ships the agents pill OFF
+          # (it is an extra, like every personal readout), and a host turns it on.
+          # The fixtures that exercise the seam ask for it explicitly.
+          expectedAiRoomTable = ''
+            ai-alone holt=yes zscratch=yes client=yes alias=claude pill=no cards=no
+            ai-off holt=no zscratch=yes client=no alias=(none) pill=no cards=no
+            ai-with-bar holt=yes zscratch=yes client=yes alias=claude pill=yes cards=no
+            ai-with-launcher holt=yes zscratch=yes client=yes alias=claude pill=no cards=yes
+            bottom-pill-without-ai holt=no zscratch=yes client=no alias=(none) pill=no cards=no
+            nebelhaus holt=yes zscratch=yes client=yes alias=claude pill=no cards=yes
+            no-rice-clients holt=yes zscratch=yes client=no alias=(none) pill=yes cards=no
+            pill-without-ai holt=no zscratch=yes client=no alias=(none) pill=no cards=no
+          '';
+
+          # There is no old-address fixture, on purpose: `haus.agents.*` and
+          # `haus.developer.agents.enable` were removed rather than aliased (see
+          # modules/moved.nix), so the only proof worth having is that the old
+          # spellings no longer evaluate at all — which is what the module system
+          # does for free, by refusing an option that does not exist.
+          #
+          # The dormant-pill warning, which has to name BOTH rooms: the one that
+          # asked and the one that is missing. Checked as a whole list so a second
+          # warning can't slip in beside it unnoticed.
+          aiPillWarning =
+            asking:
+            "${asking} asks for the agents pill, but the AI room is off "
+            + "(haus.ai.enable). "
+            + "Nothing writes agent-pane state on this machine, so the pill would stay dormant "
+            + "forever and the bar leaves it out.";
+          aiPillWarnings = (aiRoomAt aiRoomFixtures."pill-without-ai").cfg.warnings;
+          expectedAiPillWarnings = [ (aiPillWarning "haus.sill.items.agents") ];
+          # The bottom bar's own row. Its warning list carries the pre-existing
+          # empty-strip warning too — the second bar really does end up with
+          # nothing on it — so both are asserted, in order, rather than filtered.
+          aiBottomPillWarnings = (aiRoomAt aiRoomFixtures."bottom-pill-without-ai").cfg.warnings;
+          expectedAiBottomPillWarnings = [
+            (
+              "haus.sill.bottom.enable is on but no pill lands on the second bar — nothing in "
+              + "haus.sill.bottom.items, or the rooms behind the pills it names are off — so it "
+              + "draws an empty strip and still reserves room at the bottom of every display."
+            )
+            (aiPillWarning "haus.sill.bottom.items.agents")
+          ];
+
           standaloneEvaluated = map (
             name:
             let
@@ -1778,6 +1954,23 @@
             cat > $out <<'MODULES'
             ${builtins.concatStringsSep "\n" standaloneEvaluated}
             MODULES
+          '';
+
+          ai-room = pkgs.runCommand "haus-ai-room-ok" { } ''
+            diff -u ${pkgs.writeText "expected" expectedAiRoomTable} \
+                    ${pkgs.writeText "actual" (aiRoomTable + "\n")}
+
+
+            diff -u ${
+              pkgs.writeText "expected" (builtins.concatStringsSep "\n" expectedAiPillWarnings + "\n")
+            } \
+                    ${pkgs.writeText "actual" (builtins.concatStringsSep "\n" aiPillWarnings + "\n")}
+
+            diff -u ${
+              pkgs.writeText "expected" (builtins.concatStringsSep "\n" expectedAiBottomPillWarnings + "\n")
+            } \
+                    ${pkgs.writeText "actual" (builtins.concatStringsSep "\n" aiBottomPillWarnings + "\n")}
+            touch $out
           '';
 
           accent-reach = pkgs.runCommand "nebelhaus-accent-reach-ok" { } ''
@@ -2020,7 +2213,7 @@
           # A package rather than a checked-in file on purpose: built from the
           # revision a machine has actually pinned, it can only ever describe
           # the options that exist there. hearth installs it into every client's
-          # own skills directory (haus.agents.skill), so `haus update` updates
+          # own skills directory (haus.ai.skill), so `haus update` updates
           # the agent's knowledge along with the rice.
           #
           # Was `.#claude-skill` until 2026-08-11, when the skill stopped being

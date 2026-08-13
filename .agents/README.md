@@ -18,7 +18,7 @@ harness — is written once, in the workshop:
 The table below is only what's wired in *this* repo.
 
 **This layer is for hacking on the rice.** Don't confuse it with the agent
-config the rice *ships*: `haus.agents.instructions`, `haus.agents.skill`,
+config the rice *ships*: `haus.ai.instructions`, `haus.ai.skill`,
 `modules/hearth/agents/`, and the per-client agent-state hooks. Those write into
 a **user's** home directory and are a product feature; these files configure the
 agent working on this repo. They follow the same rule the table below does —
