@@ -77,16 +77,27 @@ f="$DIR/${sess}__${pane}.state"
 # new column would be churn in two readers to serve a third. Same name, same
 # lifecycle, so `remove` cleans up both and nothing needs to learn a new path.
 sf="$DIR/${sess}__${pane}.session"
+# The pane's checkout, as another sibling for the same reason: agents.sh joins
+# it against `holt --json`'s lane `.path` to pull in repo/PR context, and
+# neither the tab-bar pipe nor the `.session` reader has any use for it. Unlike
+# the session id this is known on every call (CLAUDE_PROJECT_DIR or $PWD), so
+# it's write-on-change rather than write-once — cheap, and self-heals if a pane
+# somehow reports two different cwds across its life.
+cf="$DIR/${sess}__${pane}.cwd"
 mkdir -p "$DIR"
 
 if [ "$st" = remove ]; then
-  rm -f "$f" "$sf"
+  rm -f "$f" "$sf" "$cf"
 else
   # Write-on-change only, and never blank an id we already hold: `chat.message`
   # is the one hook that carries the session id, so the other three states
   # (waiting/idle) arrive with argument 3 empty and must not erase it.
   if [ -n "${3:-}" ] && [ "$(cat "$sf" 2>/dev/null)" != "$3" ]; then
     printf '%s\n' "$3" >"$sf.$$" && mv -f "$sf.$$" "$sf"
+  fi
+  cwd="${CLAUDE_PROJECT_DIR:-$PWD}"
+  if [ "$(cat "$cf" 2>/dev/null)" != "$cwd" ]; then
+    printf '%s\n' "$cwd" >"$cf.$$" && mv -f "$cf.$$" "$cf"
   fi
   # Label the agent by its checkout (worktree/repo basename) — far more useful in
   # the popup than the shared "main" session name every agent pane reports.
