@@ -1,6 +1,7 @@
-# The whole house. Import this for the full rice, or import individual rooms
-# (den / prowl / sill / collar / pounce / perch / hush / secrets) from
-# `darwinModules` in the flake.
+# The whole house, and currently the only self-contained `darwinModules` export.
+# The named exports in flake.nix point at implementation partials whose shared
+# option declarations still come from this aggregate; do not advertise them as
+# standalone room modules until they import a closed declaration surface.
 {
   # Options first, one file per room, each living next to the code that
   # implements it. They're listed separately from the rooms rather than
