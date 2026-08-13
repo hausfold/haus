@@ -3210,6 +3210,28 @@
     "readOnly": false,
     "type": "one of \"full\", \"compact\""
   },
+  "haus.sill.clock.monoFont": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Whether the clock pill's date and time use `haus.fonts.mono.name`, like\nthe rest of Sill. Disable this to use macOS's system UI font, whose zero\nhas no dot and is easier to distinguish from an 8 at a glance. The\ncalendar icon remains in the Nerd Font either way.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "clock",
+      "monoFont"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
   "haus.sill.elgato.host": {
     "declarations": [
       "modules/sill/options.nix"
