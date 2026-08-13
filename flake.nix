@@ -350,7 +350,9 @@
       ];
     in
     {
-      # Import the whole house, or cherry-pick a room. Each is a nix-darwin module.
+      # `default` imports the whole house. The named paths are legacy
+      # implementation partials, not self-contained room modules: their shared
+      # option declarations still come from `modules/default.nix`.
       darwinModules = {
         den = ./modules/den;
         hearth = ./modules/hearth;
