@@ -5,7 +5,7 @@ Three files, none of them hand-written:
 | File | What it is |
 |---|---|
 | `options.json` | every `haus.*` option — type, default, example, description, and the file that declares it |
-| `groups.json` | the per-room reading order and blurb (`modules/options-groups.nix`) |
+| `groups.json` | the export/namespace registry: ownership, reading order, blurbs and per-option desktop safety (`modules/options-groups.nix`); top-level namespace aliases temporarily preserve the previous renderer contract |
 | `wm-bindings.json` | the static tiling/workspace/service binding table, resolved for the **default** keymap |
 
 They are `nix build .#site-data`, committed. Regenerate from the repo root:

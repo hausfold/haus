@@ -24,7 +24,7 @@ let
   version = lib.fileContents ../VERSION;
 
   # The same metadata nebelhaus.com's reference and the agent skill are rendered
-  # from, carrying groups.json (room order + blurbs) beside options.json.
+  # from, carrying groups.json (the room/export/safety registry) beside it.
   optionsJSON = import ./options-doc.nix { inherit pkgs lib; };
 in
 pkgs.runCommand "nebelhaus-host-template-${version}"

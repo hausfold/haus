@@ -14,10 +14,10 @@
 # they can't disagree about what an option is.
 #
 # The output carries a SECOND file beside `options.json`: `groups.json`, the
-# per-room reading order and blurbs from options-groups.nix. Those can't be
-# derived from the module system (it has no notion of "identity first, policy
-# last"), and shipping them in the same derivation means a renderer that already
-# fetches this one needs nothing else to lay a page out.
+# registry from options-groups.nix. It maps exports and namespaces to product
+# owners, reading order and blurbs, and maps every public option to its desktop
+# safety decision. Shipping it beside the evaluated option data gives every
+# renderer the same trust boundary and layout source.
 {
   pkgs,
   lib ? pkgs.lib,
@@ -88,13 +88,18 @@ let
           declarations = map relative opt.declarations;
         };
     }).optionsJSON;
+  registry = import ./options-groups.nix;
+  # Keep the old top-level namespace lookups during the cross-repo rollout.
+  # The versioned registry lives under `namespaces`; these aliases let an older
+  # workshop renderer continue to read `groups.json` if haus lands first.
+  publishedRegistry = registry // lib.mapAttrs (_: meta: { inherit (meta) order blurb; }) registry.namespaces;
 in
 # Copied rather than symlinked so `groups.json` lands in the SAME directory as
 # `options.json` — every consumer already knows that path, and a renderer that
 # has one file has the other without a second store path to plumb through.
 pkgs.runCommand "nebelhaus-options-json"
   {
-    groupsJSON = builtins.toJSON (import ./options-groups.nix);
+    groupsJSON = builtins.toJSON publishedRegistry;
     passAsFile = [ "groupsJSON" ];
   }
   ''
