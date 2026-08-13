@@ -85,17 +85,17 @@ keybinds {
         //
         // "a" for AGENT, not "c" for Claude: this whole family used to live on
         // ⌘C, from back when Claude Code was the only client it could start. It
-        // now starts whichever client haus.agents.default names, and ⌘C is
+        // now starts whichever client haus.ai.default names, and ⌘C is
         // back to being copy in ghostty (see hearth's ghostty/config).
         //
-        // @AGENT_NEW@ is rendered by hearth from haus.agents.default:
+        // @AGENT_NEW@ is rendered by hearth from haus.ai.default:
         //   claude   → `claude --worktree`, its NATIVE flag, which fires the
         //              `holt` WorktreeCreate hook in ~/.claude/settings.json.
         //   codex,   → `holt new`: no client-side equivalent exists, so Holt
         //   opencode   makes the same worktree from the outside and opens the
         //              configured client. Holt reads its persisted config, not
         //              Zellij's launch-time environment, so it keeps following
-        //              haus.agents.default after a rebuild.
+        //              haus.ai.default after a rebuild.
         //              in it. Same path, branch, registry, parking and reaping.
         // Either way the checkout is ~/.cache/claude-worktrees/<repo>/<name> on
         // branch worktree-<name>, branched from this checkout's local HEAD.
@@ -124,7 +124,7 @@ keybinds {
         // Ctrl Alt Shift a — the resident agent: works IN this checkout, on
         // whatever branch you're looking at. At most one per tab, by
         // convention — it's the only agent allowed to touch the real tree.
-        // @AGENT_HERE@ is haus.agents.default's client, plain.
+        // @AGENT_HERE@ is haus.ai.default's client, plain.
         bind "Ctrl Alt Shift a" { Run @AGENT_HERE@; }
 @BENCH_LANE_BIND@
         // Super p — New pane, inheriting the focused pane's cwd — except next

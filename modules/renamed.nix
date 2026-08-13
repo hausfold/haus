@@ -53,8 +53,8 @@
       [ "nebelhaus" "accessibility" "increaseContrast" ]
       [ "haus" "accessibility" "increaseContrast" ]
     )
-    (lib.mkRenamedOptionModule [ "nebelhaus" "agents" "clients" ] [ "haus" "agents" "clients" ])
-    (lib.mkRenamedOptionModule [ "nebelhaus" "agents" "default" ] [ "haus" "agents" "default" ])
+    (lib.mkRenamedOptionModule [ "nebelhaus" "agents" "clients" ] [ "haus" "ai" "clients" ])
+    (lib.mkRenamedOptionModule [ "nebelhaus" "agents" "default" ] [ "haus" "ai" "default" ])
     (lib.mkRenamedOptionModule [ "nebelhaus" "appStore" "install" ] [ "haus" "appStore" "install" ])
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "apps" "videoPlayer" "claimFileTypes" ]
@@ -68,17 +68,17 @@
     # `claude` room then folded into `agents` (see ./moved.nix). Pointed at the
     # final address rather than chained through the intermediate one, so a rice
     # still on `nebelhaus.*` gets one warning naming where the option lives now.
-    (lib.mkRenamedOptionModule [ "nebelhaus" "claude" "globalMd" ] [ "haus" "agents" "instructions" ])
-    (lib.mkRenamedOptionModule [ "nebelhaus" "claude" "skill" ] [ "haus" "agents" "skill" ])
+    (lib.mkRenamedOptionModule [ "nebelhaus" "claude" "globalMd" ] [ "haus" "ai" "instructions" ])
+    (lib.mkRenamedOptionModule [ "nebelhaus" "claude" "skill" ] [ "haus" "ai" "skill" ])
     (lib.mkRenamedOptionModule [ "nebelhaus" "collar" "enable" ] [ "haus" "collar" "enable" ])
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "collar" "passwordlessRebuild" ]
       [ "haus" "collar" "passwordlessRebuild" ]
     )
-    (lib.mkRenamedOptionModule
-      [ "nebelhaus" "developer" "agents" "enable" ]
-      [ "haus" "developer" "agents" "enable" ]
-    )
+    # Another two-hop alias, like the `claude` pair above: renamed to
+    # `haus.developer.agents.enable` here, then moved again when coding agents
+    # became their own room on 2026-08-13. Pointed at the final address.
+    (lib.mkRenamedOptionModule [ "nebelhaus" "developer" "agents" "enable" ] [ "haus" "ai" "enable" ])
     (lib.mkRenamedOptionModule [ "nebelhaus" "developer" "enable" ] [ "haus" "developer" "enable" ])
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "developer" "git" "enable" ]

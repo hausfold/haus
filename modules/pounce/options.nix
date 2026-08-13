@@ -20,7 +20,7 @@ in
 
         Off, the palette carries no agent rows — the same gate the ⌘A card on the
         Keys page already used, named once here instead of re-derived from
-        `haus.agents.clients` in three separate places.
+        `haus.ai.clients` in three separate places.
       '';
       options = {
         enable = lib.mkOption {
@@ -31,7 +31,7 @@ in
         default = lib.mkOption {
           type = lib.types.str;
           default = "claude";
-          description = "The client Spawn Agent starts — `haus.agents.default`.";
+          description = "The client Spawn Agent starts — `haus.ai.default`.";
         };
       };
     };

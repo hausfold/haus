@@ -1,10 +1,11 @@
-# The AI room's option surface: `haus.agents.*`.
+# The AI room's option surface: `haus.ai.*`.
 #
 # These declarations lived in modules/options.nix — the file for what no single
 # room owns — because the AI capability had no room to live in. It has one now
-# (modules/ai), and its switch moved with it: `haus.developer.agents.enable`
-# became `haus.agents.enable`, so the room's own namespace carries the room's
-# own on/off. modules/moved.nix keeps the old address working, with a warning.
+# (modules/ai), and the whole namespace moved with it: `haus.agents.*` became
+# `haus.ai.*`, and the switch that sat outside it altogether
+# (`haus.developer.agents.enable`) became `haus.ai.enable`. One room, one
+# namespace, one on/off. No aliases — modules/moved.nix says why.
 #
 # The room is the first proof of the cross-room contract in
 # notes/rooms-desktops.md: AI OWNS the capability, and the rooms that present it
@@ -14,14 +15,14 @@
 
 let
   # Every coding-agent client the rice knows how to install, spawn and resume —
-  # read by agents.clients, agents.default, and sill's aiUsage.provider, so none
+  # read by ai.clients, ai.default, and sill's aiUsage.provider, so none
   # of the three can drift apart. modules/lib/agents.nix says why it lives there
   # rather than here, and names the one copy that can't be folded in.
   agentClients = import ../lib/agents.nix;
 in
 {
   options.haus = {
-    agents.enable = lib.mkOption {
+    ai.enable = lib.mkOption {
       type = lib.types.bool;
       # Unchanged behaviour, deliberately: this option was
       # `haus.developer.agents.enable`, whose default was the developer pack's
@@ -37,7 +38,7 @@ in
         `agent-state` (the pane-status writer behind the `agents` bar pill and
         the zellij tab badge), the agent-worktree statusline, and the client
         config hearth writes (Claude Code's settings.json keys, opencode's
-        agent-state plugin). Which clients get installed is `agents.clients`.
+        agent-state plugin). Which clients get installed is `ai.clients`.
 
         On, this room brings its clients, `holt` and the lifecycle wiring on its
         own. What it adds to OTHER rooms it adds only when they are present: the
@@ -46,22 +47,23 @@ in
         of those rooms is switched on by turning this one on.
 
         Off is right for any machine not running coding agents — it's a large
-        surface a non-developer never sees. It also empties `agents.clients`,
+        surface a non-developer never sees. It also empties `ai.clients`,
         since a client with no `holt` to park it is not the deal on offer.
 
-        Was `haus.developer.agents.enable` until 2026-08-13; the old address
-        still evaluates, with a warning naming this one.
+        Was `haus.developer.agents.enable`, and the rest of this namespace was
+        `haus.agents.*`, until 2026-08-13. Neither spelling is aliased — see
+        modules/moved.nix for why.
       '';
     };
 
-    agents.clients = lib.mkOption {
+    ai.clients = lib.mkOption {
       type = lib.types.listOf (lib.types.enum agentClients);
-      default = lib.optionals config.haus.agents.enable [
+      default = lib.optionals config.haus.ai.enable [
         "claude"
         "opencode"
       ];
       # Prose, so literalMD — see developer.languages for why that matters.
-      defaultText = lib.literalMD ''[ "claude" "opencode" ] when agents.enable is true, else [ ]'';
+      defaultText = lib.literalMD ''[ "claude" "opencode" ] when ai.enable is true, else [ ]'';
       example = [
         "claude"
         "codex"
@@ -69,16 +71,16 @@ in
       description = ''
         Which coding-agent clients to install. `claude` is Claude Code, `codex`
         is OpenAI Codex, `opencode` is OpenCode. The ⌘A terminal binding starts
-        whichever one `agents.default` names — Claude Code through its own
+        whichever one `ai.default` names — Claude Code through its own
         `--worktree` hook, the others through `holt new`.
 
         A list rather than one bool per client, matching `developer.languages`
         — a fourth client later doesn't change this option's shape.
 
-        This is the option that makes `agents.default` honest. Naming a client
+        This is the option that makes `ai.default` honest. Naming a client
         you have not installed used to fail *at spawn time*, inside the pane,
         after the worktree already existed: a flash of
-        `codex is unavailable`, and litter to reap. `agents.default` must now
+        `codex is unavailable`, and litter to reap. `ai.default` must now
         be a member of this list, so the same mistake fails the rebuild
         instead, with both values named.
 
@@ -89,7 +91,7 @@ in
       '';
     };
 
-    agents.default = lib.mkOption {
+    ai.default = lib.mkOption {
       type = lib.types.enum agentClients;
       default = "claude";
       example = "codex";
@@ -100,7 +102,7 @@ in
         own client, so changing this affects new work but never reopens an
         existing Codex or OpenCode task in Claude.
 
-        Must be one of `agents.clients` — see there.
+        Must be one of `ai.clients` — see there.
 
         Only `claude` can make its own worktree (its native `--worktree` flag,
         which fires `holt hook create`); for `codex` and `opencode` ⌘A runs
@@ -117,12 +119,12 @@ in
 
     # The two files the rice ships into an agent's home, one option each. Both
     # were `haus.claude.*` until 2026-08-11 and wrote only Claude Code's copy —
-    # which made `agents.default = "codex"` a half-truth: the client spawned,
+    # which made `ai.default = "codex"` a half-truth: the client spawned,
     # with none of the operating context or the option knowledge the same
     # machine hands Claude. They are named for the ROOM, not the client, and
-    # hearth writes one copy per entry in `agents.clients` (renamed.nix keeps
+    # hearth writes one copy per entry in `ai.clients` (renamed.nix keeps
     # the old names working, with a warning).
-    agents.instructions = lib.mkOption {
+    ai.instructions = lib.mkOption {
       type = lib.types.lines;
       default = "";
       example = ''
@@ -132,7 +134,7 @@ in
       description = ''
         Your always-on, cross-project operating context — the "instructions"
         slot every client has under a different name. Written once per client
-        in `agents.clients`, to the path that client actually reads:
+        in `ai.clients`, to the path that client actually reads:
         `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`,
         `~/.config/opencode/AGENTS.md`.
 
@@ -151,17 +153,17 @@ in
         rather than refusing — quiet, so check for one before the first rebuild
         after setting this.
 
-        With `agents.clients` empty (a machine the rice installs no client on)
+        With `ai.clients` empty (a machine the rice installs no client on)
         every known client's path is written instead of none: the list being
         empty means the rice installs none, not that no agent runs here.
       '';
     };
 
-    agents.skill = lib.mkOption {
+    ai.skill = lib.mkOption {
       type = lib.types.bool;
       default = true;
       description = ''
-        Install the `haus` skill for every client in `agents.clients`, so an
+        Install the `haus` skill for every client in `ai.clients`, so an
         agent asked to "install Slack" or "make everything bigger" edits your
         host file and runs `haus rebuild` instead of guessing at dotfiles and
         `brew install`.
@@ -182,8 +184,8 @@ in
         opened there is oriented whichever client it runs.
 
         Unrelated to the clients' own settings, which follow
-        `haus.agents.enable`. This is a plain file drop: with
-        `agents.clients` empty — a machine the rice installs no client on, which
+        `haus.ai.enable`. This is a plain file drop: with
+        `ai.clients` empty — a machine the rice installs no client on, which
         can still have one from npm or Homebrew — every known client's directory
         gets a copy rather than none. Set false to leave every client's skills
         directory alone.

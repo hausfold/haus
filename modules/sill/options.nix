@@ -340,7 +340,7 @@ in
 
     sill.aiUsage.provider = lib.mkOption {
       # The clients come from modules/lib/agents.nix — the same list
-      # haus.agents.clients and .default read, so a fourth client is one
+      # haus.ai.clients and .default read, so a fourth client is one
       # edit rather than one per room. `latest` is sill's own extra: it is a
       # selection rule, not a client, which is why it is prepended here.
       type = lib.types.enum ([ "latest" ] ++ agentClients);
@@ -355,7 +355,7 @@ in
         Note this is about *usage readouts*, not about which client `holt` can
         spawn: a provider reports here whenever it has data for your account —
         Codex notably does so from a ChatGPT login alone, with no CLI installed
-        — so it is deliberately not tied to `haus.agents.clients`.
+        — so it is deliberately not tied to `haus.ai.clients`.
       '';
     };
 

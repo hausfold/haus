@@ -58,7 +58,7 @@ needs per-client wiring (a hook, a slash command), the wiring lives in that
 client's own file and the *content* stays here or in `.agents/`. The map of
 which tool reads which file is [`.agents/README.md`](./.agents/README.md).
 (That's the rule for this repo's *own* files. The rice also **ships** agent
-config to end users — `haus.agents.instructions`, `haus.agents.skill`, the
+config to end users — `haus.ai.instructions`, `haus.ai.skill`, the
 `hearth/agents` skill — and that's a product surface, not this layer. It obeys
 the same rule one layer out: one body, written once per client at the path that
 client reads. Both options were `haus.claude.*` until 2026-08-11, when they
@@ -103,10 +103,10 @@ modules/
   options-groups.nix      # the ROOM REGISTRY: every public namespace and darwinModules
                           #   export, its owning room, and whether desktop data may set
                           #   each leaf. `room-registry` fails on anything unmapped
-  moved.nix               # aliases for options that changed ADDRESS inside haus.* (the
-                          #   claude room → agents; developer.agents.enable → agents.enable).
-                          #   renamed.nix next door is the generated nebelhaus.* → haus.*
-                          #   set; don't grow that one
+  moved.nix               # aliases for options that changed ADDRESS inside haus.* (today:
+                          #   the claude room → ai). The 2026-08-13 agents → ai move got
+                          #   NO alias on purpose — read the file for why. renamed.nix next
+                          #   door is the generated nebelhaus.* → haus.* set; don't grow it
   options-doc.nix         # nixosOptionsDoc over them → the metadata the docs site
                           #   (.#options-json) and the agent skill are both RENDERED from
   site-data.nix           # .#site-data: that metadata + the binding table, filtered to
@@ -122,12 +122,12 @@ modules/
   apps/                   # the EDITORIAL picks: apps the rice chooses for a finished
                           #   machine (IINA today) + the file types they claim. Roster
                           #   entries, so a cask of the same app still collides loudly
-  ai/                     # the AI room: haus.agents.* + the coding-agent capability.
+  ai/                     # the AI room: haus.ai.* + the coding-agent capability.
                           #   Pure wiring — its assertions, and what it CONTRIBUTES to
                           #   the terminal, the bar and the launcher through the
                           #   extension points those rooms declare (lib/contrib.nix).
                           #   Its payload is still installed by den (system) and hearth
-                          #   (home), gated on haus.agents.enable
+                          #   (home), gated on haus.ai.enable
   den/                    # system: macOS defaults, Homebrew framework, core CLI, GC
                           #   + on-PATH CLIs: haus / awake / zscratch / statusline
   displays/               # haus.displays: scaled resolution by intent + the
@@ -140,10 +140,10 @@ modules/
   hearth/                 # shell: zsh, starship, git, yazi, zellij, ghostty + theming
                           #   + floatring (Swift, xcrun-compiled): the outline every
                           #   window float-term.sh spawns wears (haus.hearth.floatBorder)
-    agents/               # the nebelhaus agent skill (haus.agents.skill): hand-written
+    agents/               # the nebelhaus agent skill (haus.ai.skill): hand-written
                           #   SKILL.md + recipes, plus an option reference rendered
                           #   per-revision — see skill.nix for why it's a package. ONE
-                          #   skill, installed into every client in haus.agents.clients
+                          #   skill, installed into every client in haus.ai.clients
                           #   (hearth's agentHomes has the paths; was hearth/claude/ and
                           #   Claude-only until 2026-08-11). Also ships the consumer
                           #   starter pair (consumer-AGENTS.md + its consumer-CLAUDE.md

@@ -1648,17 +1648,13 @@
             "ai-with-launcher" = [ { haus.sill.enable = false; } ];
             # The room off, with every receiver present: the receivers keep their
             # own features and lose only what AI was contributing.
-            "ai-off" = [ { haus.agents.enable = false; } ];
-            # The same machine written at the pre-2026-08-13 address. Its row must
-            # be identical, and the drvPath comparison below proves the whole
-            # system is.
-            "ai-off-old-address" = [ { haus.developer.agents.enable = false; } ];
+            "ai-off" = [ { haus.ai.enable = false; } ];
             # A bar asked for a pill whose room is off. The pill is left out
             # rather than drawn dormant, and the AI room says so by name — the
             # warning is asserted separately below.
             "pill-without-ai" = [
               {
-                haus.agents.enable = false;
+                haus.ai.enable = false;
                 haus.sill.items.agents = true;
               }
             ];
@@ -1669,19 +1665,19 @@
             # warning exists to end.
             "bottom-pill-without-ai" = [
               {
-                haus.agents.enable = false;
+                haus.ai.enable = false;
                 haus.sill.bottom.enable = true;
                 haus.sill.bottom.items.agents = "left";
               }
             ];
-            # The room on with NO client installed by the rice. `agents.clients`
+            # The room on with NO client installed by the rice. `ai.clients`
             # empty means the rice installs none, not that no agent runs here —
             # a Claude Code from npm still reports panes through `agent-state`,
             # which follows the room's switch. So the pill stays and the chords
             # go: nothing would spawn from a chord, but something can report.
             "no-rice-clients" = [
               {
-                haus.agents.clients = [ ];
+                haus.ai.clients = [ ];
                 haus.sill.items.agents = true;
               }
             ];
@@ -1701,7 +1697,6 @@
           expectedAiRoomTable = ''
             ai-alone holt=yes zscratch=yes client=yes alias=claude pill=no cards=no
             ai-off holt=no zscratch=yes client=no alias=(none) pill=no cards=no
-            ai-off-old-address holt=no zscratch=yes client=no alias=(none) pill=no cards=no
             ai-with-bar holt=yes zscratch=yes client=yes alias=claude pill=yes cards=no
             ai-with-launcher holt=yes zscratch=yes client=yes alias=claude pill=no cards=yes
             bottom-pill-without-ai holt=no zscratch=yes client=no alias=(none) pill=no cards=no
@@ -1710,40 +1705,19 @@
             pill-without-ai holt=no zscratch=yes client=no alias=(none) pill=no cards=no
           '';
 
-          # Same machine, two spellings of one option. Comparing the built system
-          # rather than a projection is what makes "the old address still works"
-          # a fact instead of a hope: a rename that quietly lost a value would
-          # move this path, and nothing else in the tree would say so.
-          aiCompatOld = builtins.unsafeDiscardStringContext (
-            (mkNebelhaus {
-              inherit system;
-              username = "you";
-              hostname = "example";
-              extraModules = [ { haus.developer.agents.enable = false; } ];
-            }).system.drvPath
-          );
-          aiCompatNew = builtins.unsafeDiscardStringContext (
-            (mkNebelhaus {
-              inherit system;
-              username = "you";
-              hostname = "example";
-              extraModules = [ { haus.agents.enable = false; } ];
-            }).system.drvPath
-          );
-          # And the migration warning is the ONLY thing the old address adds. A
-          # rename that also started warning about something else would be a
-          # second, unannounced change riding along with this one.
-          aiCompatWarnings = (aiRoomAt aiRoomFixtures."ai-off-old-address").cfg.warnings;
-          expectedAiCompatWarnings = [
-            "The option `haus.developer.agents.enable' defined in `<unknown-file>' has been renamed to `haus.agents.enable'."
-          ];
+          # There is no old-address fixture, on purpose: `haus.agents.*` and
+          # `haus.developer.agents.enable` were removed rather than aliased (see
+          # modules/moved.nix), so the only proof worth having is that the old
+          # spellings no longer evaluate at all — which is what the module system
+          # does for free, by refusing an option that does not exist.
+          #
           # The dormant-pill warning, which has to name BOTH rooms: the one that
           # asked and the one that is missing. Checked as a whole list so a second
           # warning can't slip in beside it unnoticed.
           aiPillWarning =
             asking:
             "${asking} asks for the agents pill, but the AI room is off "
-            + "(haus.agents.enable, which was haus.developer.agents.enable before 2026-08-13). "
+            + "(haus.ai.enable). "
             + "Nothing writes agent-pane state on this machine, so the pill would stay dormant "
             + "forever and the bar leaves it out.";
           aiPillWarnings = (aiRoomAt aiRoomFixtures."pill-without-ai").cfg.warnings;
@@ -1986,21 +1960,6 @@
             diff -u ${pkgs.writeText "expected" expectedAiRoomTable} \
                     ${pkgs.writeText "actual" (aiRoomTable + "\n")}
 
-            ${
-              if aiCompatOld == aiCompatNew then
-                ":"
-              else
-                ''
-                  echo "haus.developer.agents.enable and haus.agents.enable build different systems:" >&2
-                  echo "  old ${aiCompatOld}" >&2
-                  echo "  new ${aiCompatNew}" >&2
-                  exit 1''
-            }
-
-            diff -u ${
-              pkgs.writeText "expected" (builtins.concatStringsSep "\n" expectedAiCompatWarnings + "\n")
-            } \
-                    ${pkgs.writeText "actual" (builtins.concatStringsSep "\n" aiCompatWarnings + "\n")}
 
             diff -u ${
               pkgs.writeText "expected" (builtins.concatStringsSep "\n" expectedAiPillWarnings + "\n")
@@ -2254,7 +2213,7 @@
           # A package rather than a checked-in file on purpose: built from the
           # revision a machine has actually pinned, it can only ever describe
           # the options that exist there. hearth installs it into every client's
-          # own skills directory (haus.agents.skill), so `haus update` updates
+          # own skills directory (haus.ai.skill), so `haus update` updates
           # the agent's knowledge along with the rice.
           #
           # Was `.#claude-skill` until 2026-08-11, when the skill stopped being

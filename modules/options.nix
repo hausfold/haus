@@ -724,7 +724,7 @@ in
           runtimes. On (the default) is the rice as it has always been.
 
           Coding agents left this pack on 2026-08-13 and are their own room
-          now (`haus.agents.*`). Its switch still DEFAULTS to this one, so
+          now (`haus.ai.*`). Its switch still DEFAULTS to this one, so
           turning the pack off still takes the agents with it — but the two
           are separable, which they were not before.
 
@@ -733,7 +733,7 @@ in
           product: `haus`, `awake`, the theme, the terminal, the bar, the tiler
           and the palette.
 
-          The sub-options below — and `haus.agents.enable`, next door — each
+          The sub-options below — and `haus.ai.enable`, next door — each
           default to THIS value, so turning it off turns everything off and you
           can then re-enable one piece:
 
@@ -769,8 +769,8 @@ in
         '';
       };
 
-      # `agents.enable` was here until 2026-08-13. The AI capability is its own
-      # room now (modules/ai) and its switch went with it, to `haus.agents.enable`
+      # `ai.enable` was here until 2026-08-13. The AI capability is its own
+      # room now (modules/ai) and its switch went with it, to `haus.ai.enable`
       # beside the rest of that room's namespace; modules/moved.nix keeps this
       # address working with a warning. Nothing about the developer pack changed:
       # the new option still defaults to `developer.enable`.

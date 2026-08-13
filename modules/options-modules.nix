@@ -20,10 +20,9 @@
   # the old names: flake.nix's pack and preset checks feed rice files written
   # against `nebelhaus.*` into a bare evalModules of exactly this list.
   ./renamed.nix
-  # Options that moved room WITHIN `haus.*` (the `claude` room folding into
-  # `agents`, and `developer.agents.enable` becoming the AI room's own switch).
-  # Listed here for the same reason renamed.nix is — the evals above are fed
-  # rice files written against the old address too.
+  # Options that moved room WITHIN `haus.*` (today: the `claude` room folding
+  # into `ai`). Listed here for the same reason renamed.nix is — the evals above
+  # are fed rice files written against the old address too.
   ./moved.nix
   ./options.nix
   ./ai/options.nix

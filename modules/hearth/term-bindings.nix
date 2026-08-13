@@ -34,10 +34,10 @@
 # has nothing behind them, so the card stays off).
 {
   lib,
-  # haus.agents.default — what @AGENT_NEW@/@AGENT_HERE@ resolve to, so the
+  # haus.ai.default — what @AGENT_NEW@/@AGENT_HERE@ resolve to, so the
   # agent rows name the client this host actually starts.
   agentDefault,
-  # Whether any agent client is installed at all (haus.agents.clients).
+  # Whether any agent client is installed at all (haus.ai.clients).
   agentsEnabled,
   # haus.hearth.ghDash.enable — the bind only exists when the dashboard
   # itself is installed, so neither the cheatsheet nor Ghostty advertises a

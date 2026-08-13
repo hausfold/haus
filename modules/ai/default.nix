@@ -25,29 +25,29 @@
 }:
 
 let
-  cfg = config.haus.agents;
+  cfg = config.haus.ai;
   agentPackages = import ../lib/agent-packages.nix pkgs;
 
   # nixpkgs ships all three for aarch64-darwin only. That is the whole rice's
   # platform since 26.11 dropped x86_64-darwin, so this never fires today — but
   # it is the difference between a named refusal and an install that silently
-  # does nothing, which is exactly the dead-pane failure `agents.clients` exists
+  # does nothing, which is exactly the dead-pane failure `ai.clients` exists
   # to end. (The `lib.meta.availableOn` guard it replaces did skip silently.)
   unavailableClients = lib.filter (
     c: !lib.meta.availableOn pkgs.stdenv.hostPlatform agentPackages.${c}
   ) cfg.clients;
 
   # Whether this machine actually SPAWNS agents. The room being on is not enough:
-  # `agents.clients = [ ]` is a machine the rice installs no client on, and a
+  # `ai.clients = [ ]` is a machine the rice installs no client on, and a
   # chord that spawns nothing is the dead-pane failure again, one layer up. So
   # this is what the terminal's chords and the launcher's Spawn Agent follow —
   # the same gate both used before this room existed.
   spawnable = cfg.enable && cfg.clients != [ ];
 
   # The bar is a different question, and answering it with `spawnable` was
-  # wrong: `agents.clients = [ ]` means the RICE installs no client, not that no
+  # wrong: `ai.clients = [ ]` means the RICE installs no client, not that no
   # agent runs here. `agent-state` — the pill's only writer — follows
-  # `agents.enable` alone (modules/den), and hearth writes every client's
+  # `ai.enable` alone (modules/den), and hearth writes every client's
   # instructions and hooks on exactly that machine, by name, for exactly this
   # case. A Claude Code from npm reports its panes there and the pill works, so
   # dropping it would be the dead-pill failure with the sign flipped.
@@ -66,31 +66,31 @@ in
 {
   # ---- what the room asks of itself -----------------------------------------
   # These were hearth's, because hearth was where the agent options happened to
-  # be read. They are the AI room's invariants: they name only `haus.agents.*`,
+  # be read. They are the AI room's invariants: they name only `haus.ai.*`,
   # and they must fail the rebuild on a machine that has no terminal room at all.
   assertions = [
     {
       assertion = lib.elem cfg.default cfg.clients || cfg.clients == [ ];
       message =
-        "haus.agents.default = \"${cfg.default}\" is not in haus.agents.clients "
+        "haus.ai.default = \"${cfg.default}\" is not in haus.ai.clients "
         + "(${lib.concatStringsSep ", " cfg.clients}). Pounce's Spawn Agent would create the "
         + "worktree, open the pane, and only then find no ${cfg.default} on PATH — leaving a "
-        + "dead pane and a worktree to reap. Add it to agents.clients, or point agents.default "
+        + "dead pane and a worktree to reap. Add it to ai.clients, or point ai.default "
         + "at one you install.";
     }
     {
       assertion = cfg.clients == [ ] || cfg.enable;
       message =
-        "haus.agents.clients is set (${lib.concatStringsSep ", " cfg.clients}) but "
-        + "haus.agents.enable is off, so there is no `holt` to make a worktree, park it, or "
-        + "resume it. Turn the room on, or empty agents.clients.";
+        "haus.ai.clients is set (${lib.concatStringsSep ", " cfg.clients}) but "
+        + "haus.ai.enable is off, so there is no `holt` to make a worktree, park it, or "
+        + "resume it. Turn the room on, or empty ai.clients.";
     }
     {
       assertion = unavailableClients == [ ];
       message =
-        "haus.agents.clients names ${lib.concatStringsSep ", " unavailableClients}, which "
+        "haus.ai.clients names ${lib.concatStringsSep ", " unavailableClients}, which "
         + "nixpkgs does not build for ${pkgs.stdenv.hostPlatform.system}. Installing nothing "
-        + "would only move the failure into the agent pane; drop it from agents.clients.";
+        + "would only move the failure into the agent pane; drop it from ai.clients.";
     }
   ];
 
@@ -101,7 +101,7 @@ in
   # than the pill being absent.
   warnings = lib.optional (pillAsks != [ ] && !reportable) (
     "${lib.concatStringsSep " and " pillAsks} asks for the agents pill, but the AI room is off "
-    + "(haus.agents.enable, which was haus.developer.agents.enable before 2026-08-13). Nothing "
+    + "(haus.ai.enable). Nothing "
     + "writes agent-pane state on this machine, so the pill would stay dormant forever and the "
     + "bar leaves it out."
   );
@@ -110,7 +110,7 @@ in
   # One write per extension point. Every value here is a fact about the AI room;
   # how it is presented is the receiving room's business, and each of them draws
   # nothing at all when it is itself switched off. That is the whole seam: no
-  # room reads `config.haus.agents.*` to decide what to draw any more.
+  # room reads `config.haus.ai.*` to decide what to draw any more.
   haus._contrib = {
     # Development — the terminal binds ⌘A / Super-a and aliases `c`, and pounce
     # renders the same table onto its Terminal cards.

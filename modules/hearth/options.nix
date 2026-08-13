@@ -59,7 +59,7 @@ in
         default = lib.mkOption {
           type = lib.types.str;
           default = "claude";
-          description = "The client the chords spawn — `haus.agents.default`.";
+          description = "The client the chords spawn — `haus.ai.default`.";
         };
         # No `clients` field on purpose. The list matters to what gets INSTALLED,
         # which is the AI room's own payload, not a contribution — a field here

@@ -15,7 +15,7 @@
 #                    by hearth), which maps chat.message/permission.ask/
 #                    session.idle/dispose onto the same four words.
 #   • Codex        — ~/.codex/hooks.json (seeded by hearth when codex is in
-#                    agents.clients): UserPromptSubmit→working,
+#                    haus.ai.clients): UserPromptSubmit→working,
 #                    PermissionRequest→waiting, Stop→idle. Codex has NO
 #                    session-end event, so nothing ever reports `remove` for one
 #                    of its panes — agents.sh drops rows whose zellij pane is

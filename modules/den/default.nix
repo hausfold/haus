@@ -616,7 +616,7 @@ in
     ++ lib.optional devCfg.enable (writeShellScriptBin "zscratch" (builtins.readFile ./zscratch.sh))
     # The AI room's payload, hosted here because this is where a system profile
     # is written; the room that OWNS it is modules/ai, and this is its switch.
-    ++ lib.optionals config.haus.agents.enable [
+    ++ lib.optionals config.haus.ai.enable [
       # holt — agent worktrees, its own product now (hausfold/holt, taken as
       # a flake input). Every caller the rice owns is on it: hearth's
       # ⌘A runs `holt new`, pounce's Spawn Agent goes through `holt spawn`, and
