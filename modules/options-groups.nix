@@ -234,6 +234,7 @@ let
       "calendar.upcoming"
       "calendar.width"
       "clock.mode"
+      "clock.monoFont"
       "elgato.host"
       "enable"
       "items"

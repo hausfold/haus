@@ -744,7 +744,7 @@
     "sill": {
       "blurb": "The menu bar, and which pills it draws.",
       "kind": "room",
-      "optionCount": 59,
+      "optionCount": 60,
       "options": {
         "haus.sill.aiUsage.provider": {
           "desktopSafe": true
@@ -831,6 +831,9 @@
           "desktopSafe": true
         },
         "haus.sill.clock.mode": {
+          "desktopSafe": true
+        },
+        "haus.sill.clock.monoFont": {
           "desktopSafe": true
         },
         "haus.sill.elgato.host": {
