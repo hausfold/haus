@@ -61,11 +61,9 @@ in
           default = "claude";
           description = "The client the chords spawn — `haus.agents.default`.";
         };
-        clients = lib.mkOption {
-          type = lib.types.listOf lib.types.str;
-          default = [ ];
-          description = "The installed clients — `haus.agents.clients`.";
-        };
+        # No `clients` field on purpose. The list matters to what gets INSTALLED,
+        # which is the AI room's own payload, not a contribution — a field here
+        # that nothing reads would invite a future reader to trust it.
       };
     };
 

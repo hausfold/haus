@@ -35,10 +35,9 @@ in
       description = ''
         The AI room: coding-agent *tooling*. `holt` (agent worktrees),
         `agent-state` (the pane-status writer behind the `agents` bar pill and
-        the zellij tab badge), `zscratch`, the agent-worktree statusline, and
-        the client config hearth writes (Claude Code's settings.json keys,
-        opencode's agent-state plugin). Which clients get installed is
-        `agents.clients`.
+        the zellij tab badge), the agent-worktree statusline, and the client
+        config hearth writes (Claude Code's settings.json keys, opencode's
+        agent-state plugin). Which clients get installed is `agents.clients`.
 
         On, this room brings its clients, `holt` and the lifecycle wiring on its
         own. What it adds to OTHER rooms it adds only when they are present: the

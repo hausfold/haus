@@ -1611,6 +1611,11 @@
               # The room's own payload: does this machine get the worktree tool
               # and at least one client, whatever else it has?
               holt = yn (hasPkg cfg.environment.systemPackages "holt");
+              # `zscratch` left the agent switch for the developer pack in the
+              # same change that made this room. It is an INSTALL change, so it
+              # gets a column rather than a sentence: the row for a machine with
+              # the pack on and the room off is the whole claim.
+              zscratch = yn (hasPkg cfg.environment.systemPackages "zscratch");
               client = yn (hasPkg hm.home.packages "claude-code");
               # What it contributes, as each receiving room actually rendered it.
               alias = hm.programs.zsh.shellAliases.c or "(none)";
@@ -1657,6 +1662,29 @@
                 haus.sill.items.agents = true;
               }
             ];
+            # The SECOND bar asking for the same pill. A separate fixture because
+            # the two bars are filtered through one predicate but were nearly
+            # warned about through two: a menu-bar-only warning would have left
+            # the bottom bar silently dropping the pill, which is the failure the
+            # warning exists to end.
+            "bottom-pill-without-ai" = [
+              {
+                haus.agents.enable = false;
+                haus.sill.bottom.enable = true;
+                haus.sill.bottom.items.agents = "left";
+              }
+            ];
+            # The room on with NO client installed by the rice. `agents.clients`
+            # empty means the rice installs none, not that no agent runs here —
+            # a Claude Code from npm still reports panes through `agent-state`,
+            # which follows the room's switch. So the pill stays and the chords
+            # go: nothing would spawn from a chord, but something can report.
+            "no-rice-clients" = [
+              {
+                haus.agents.clients = [ ];
+                haus.sill.items.agents = true;
+              }
+            ];
           };
           aiRoomTable = builtins.concatStringsSep "\n" (
             map (
@@ -1664,20 +1692,22 @@
               let
                 r = aiRoomAt aiRoomFixtures.${name};
               in
-              "${name} holt=${r.holt} client=${r.client} alias=${r.alias} pill=${r.pill} cards=${r.cards}"
+              "${name} holt=${r.holt} zscratch=${r.zscratch} client=${r.client} alias=${r.alias} pill=${r.pill} cards=${r.cards}"
             ) (builtins.attrNames aiRoomFixtures)
           );
           # `nebelhaus pill=no` is not a miss: the rice ships the agents pill OFF
           # (it is an extra, like every personal readout), and a host turns it on.
           # The fixtures that exercise the seam ask for it explicitly.
           expectedAiRoomTable = ''
-            ai-alone holt=yes client=yes alias=claude pill=no cards=no
-            ai-off holt=no client=no alias=(none) pill=no cards=no
-            ai-off-old-address holt=no client=no alias=(none) pill=no cards=no
-            ai-with-bar holt=yes client=yes alias=claude pill=yes cards=no
-            ai-with-launcher holt=yes client=yes alias=claude pill=no cards=yes
-            nebelhaus holt=yes client=yes alias=claude pill=no cards=yes
-            pill-without-ai holt=no client=no alias=(none) pill=no cards=no
+            ai-alone holt=yes zscratch=yes client=yes alias=claude pill=no cards=no
+            ai-off holt=no zscratch=yes client=no alias=(none) pill=no cards=no
+            ai-off-old-address holt=no zscratch=yes client=no alias=(none) pill=no cards=no
+            ai-with-bar holt=yes zscratch=yes client=yes alias=claude pill=yes cards=no
+            ai-with-launcher holt=yes zscratch=yes client=yes alias=claude pill=no cards=yes
+            bottom-pill-without-ai holt=no zscratch=yes client=no alias=(none) pill=no cards=no
+            nebelhaus holt=yes zscratch=yes client=yes alias=claude pill=no cards=yes
+            no-rice-clients holt=yes zscratch=yes client=no alias=(none) pill=yes cards=no
+            pill-without-ai holt=no zscratch=yes client=no alias=(none) pill=no cards=no
           '';
 
           # Same machine, two spellings of one option. Comparing the built system
@@ -1710,13 +1740,25 @@
           # The dormant-pill warning, which has to name BOTH rooms: the one that
           # asked and the one that is missing. Checked as a whole list so a second
           # warning can't slip in beside it unnoticed.
+          aiPillWarning =
+            asking:
+            "${asking} asks for the agents pill, but the AI room is off "
+            + "(haus.agents.enable, which was haus.developer.agents.enable before 2026-08-13). "
+            + "Nothing writes agent-pane state on this machine, so the pill would stay dormant "
+            + "forever and the bar leaves it out.";
           aiPillWarnings = (aiRoomAt aiRoomFixtures."pill-without-ai").cfg.warnings;
-          expectedAiPillWarnings = [
+          expectedAiPillWarnings = [ (aiPillWarning "haus.sill.items.agents") ];
+          # The bottom bar's own row. Its warning list carries the pre-existing
+          # empty-strip warning too — the second bar really does end up with
+          # nothing on it — so both are asserted, in order, rather than filtered.
+          aiBottomPillWarnings = (aiRoomAt aiRoomFixtures."bottom-pill-without-ai").cfg.warnings;
+          expectedAiBottomPillWarnings = [
             (
-              "haus.sill.items.agents is on but the AI room has no client to report on "
-              + "(haus.agents.enable is off — it was haus.developer.agents.enable before 2026-08-13)"
-              + ". The pill would stay dormant forever, so the bar leaves it out."
+              "haus.sill.bottom.enable is on but no pill lands on the second bar — nothing in "
+              + "haus.sill.bottom.items, or the rooms behind the pills it names are off — so it "
+              + "draws an empty strip and still reserves room at the bottom of every display."
             )
+            (aiPillWarning "haus.sill.bottom.items.agents")
           ];
 
           standaloneEvaluated = map (
@@ -1964,6 +2006,11 @@
               pkgs.writeText "expected" (builtins.concatStringsSep "\n" expectedAiPillWarnings + "\n")
             } \
                     ${pkgs.writeText "actual" (builtins.concatStringsSep "\n" aiPillWarnings + "\n")}
+
+            diff -u ${
+              pkgs.writeText "expected" (builtins.concatStringsSep "\n" expectedAiBottomPillWarnings + "\n")
+            } \
+                    ${pkgs.writeText "actual" (builtins.concatStringsSep "\n" aiBottomPillWarnings + "\n")}
             touch $out
           '';
 

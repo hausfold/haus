@@ -720,17 +720,22 @@ in
         default = true;
         example = false;
         description = ''
-          The developer pack: the CLI toolbelt, Git tooling, coding-agent
-          tooling, and language runtimes. On (the default) is the rice as it
-          has always been.
+          The developer pack: the CLI toolbelt, Git tooling and language
+          runtimes. On (the default) is the rice as it has always been.
+
+          Coding agents left this pack on 2026-08-13 and are their own room
+          now (`haus.agents.*`). Its switch still DEFAULTS to this one, so
+          turning the pack off still takes the agents with it — but the two
+          are separable, which they were not before.
 
           `false` is what makes a non-developer nebelhaus possible — it strips
           those tools rather than merely hiding them. What remains is the
           product: `haus`, `awake`, the theme, the terminal, the bar, the tiler
           and the palette.
 
-          The sub-options below each default to THIS value, so turning it off
-          turns everything off and you can then re-enable one piece:
+          The sub-options below — and `haus.agents.enable`, next door — each
+          default to THIS value, so turning it off turns everything off and you
+          can then re-enable one piece:
 
             haus.developer.enable = false;
             haus.developer.git.enable = true;  # …but keep git

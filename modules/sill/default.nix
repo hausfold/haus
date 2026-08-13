@@ -710,6 +710,11 @@ let
   #
   # Read by BOTH bars: a contribution that vanished from the menu bar and stayed
   # on the bottom one would be the same dead pill, one edge down.
+  # `aiUsage` is deliberately NOT here, though it sits beside `agents` in the
+  # extras and reads the same client list: it renders usage numbers a client
+  # wrote to disk, and a client this rice never installed still writes them. The
+  # `agents` pill is different — its writer is `agent-state`, which the AI room
+  # ships or does not.
   contributed =
     name:
     if name == "agents" then
@@ -1043,7 +1048,7 @@ lib.mkIf config.haus.sill.enable {
       # A bar with nothing on it still costs a launchd job and, via prowl, a
       # 32pt strip of every display — and it draws no pill to explain either.
       lib.optional (cfg.bottom.enable && bottomItems == [ ]) (
-        "haus.sill.bottom.enable is on with no haus.sill.bottom.items — the second bar draws an empty strip and still reserves room at the bottom of every display."
+        "haus.sill.bottom.enable is on but no pill lands on the second bar — nothing in haus.sill.bottom.items, or the rooms behind the pills it names are off — so it draws an empty strip and still reserves room at the bottom of every display."
       )
     ++
       # Both bars on the same edge overlap: SketchyBar pins each instance to the

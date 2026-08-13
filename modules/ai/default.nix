@@ -37,10 +37,31 @@ let
     c: !lib.meta.availableOn pkgs.stdenv.hostPlatform agentPackages.${c}
   ) cfg.clients;
 
-  # Whether this machine actually runs agents. The room being on is not enough:
+  # Whether this machine actually SPAWNS agents. The room being on is not enough:
   # `agents.clients = [ ]` is a machine the rice installs no client on, and a
-  # chord that spawns nothing is the dead-pane failure again, one layer up.
-  running = cfg.enable && cfg.clients != [ ];
+  # chord that spawns nothing is the dead-pane failure again, one layer up. So
+  # this is what the terminal's chords and the launcher's Spawn Agent follow —
+  # the same gate both used before this room existed.
+  spawnable = cfg.enable && cfg.clients != [ ];
+
+  # The bar is a different question, and answering it with `spawnable` was
+  # wrong: `agents.clients = [ ]` means the RICE installs no client, not that no
+  # agent runs here. `agent-state` — the pill's only writer — follows
+  # `agents.enable` alone (modules/den), and hearth writes every client's
+  # instructions and hooks on exactly that machine, by name, for exactly this
+  # case. A Claude Code from npm reports its panes there and the pill works, so
+  # dropping it would be the dead-pill failure with the sign flipped.
+  reportable = cfg.enable;
+
+  # Every address that asked for the agents pill, on either bar. Both are read
+  # because `contributed` filters both (modules/sill/default.nix), and a warning
+  # that only knew about the menu bar would leave the second one silent — the
+  # exact failure this warning exists to end.
+  pillAsks =
+    lib.optional config.haus.sill.items.agents "haus.sill.items.agents"
+    ++ lib.optional (
+      config.haus.sill.bottom.enable && config.haus.sill.bottom.items.agents != false
+    ) "haus.sill.bottom.items.agents";
 in
 {
   # ---- what the room asks of itself -----------------------------------------
@@ -73,20 +94,16 @@ in
     }
   ];
 
-  # A pill with no agents to count is not a smaller feature, it is a dead one —
+  # A pill with no room behind it is not a smaller feature, it is a dead one —
   # and the failure is silent, which is the whole reason this room warns by name
   # rather than quietly dropping the item. Not an assertion: the bar is still
   # correct without it, and a rebuild that refuses over a pill would be worse
   # than the pill being absent.
-  warnings = lib.optional (config.haus.sill.items.agents && !running) (
-    "haus.sill.items.agents is on but the AI room has no client to report on "
-    + (
-      if cfg.enable then
-        "(haus.agents.clients is empty)"
-      else
-        "(haus.agents.enable is off — it was haus.developer.agents.enable before 2026-08-13)"
-    )
-    + ". The pill would stay dormant forever, so the bar leaves it out."
+  warnings = lib.optional (pillAsks != [ ] && !reportable) (
+    "${lib.concatStringsSep " and " pillAsks} asks for the agents pill, but the AI room is off "
+    + "(haus.agents.enable, which was haus.developer.agents.enable before 2026-08-13). Nothing "
+    + "writes agent-pane state on this machine, so the pill would stay dormant forever and the "
+    + "bar leaves it out."
   );
 
   # ---- what the room contributes to other rooms -------------------------------
@@ -98,17 +115,17 @@ in
     # Development — the terminal binds ⌘A / Super-a and aliases `c`, and pounce
     # renders the same table onto its Terminal cards.
     development.agents = {
-      enable = running;
-      inherit (cfg) default clients;
+      enable = spawnable;
+      inherit (cfg) default;
     };
 
     # Bar — the `agents` paw. Still opt-in per host (`haus.sill.items.agents`);
-    # this only says whether there is anything behind it.
-    bar.agents.enable = running;
+    # this only says whether anything on this machine writes pane state for it.
+    bar.agents.enable = reportable;
 
     # Launcher — Spawn Agent, and the Agent Worktrees cards on the Tips page.
     launcher.agents = {
-      enable = running;
+      enable = spawnable;
       inherit (cfg) default;
     };
   };
