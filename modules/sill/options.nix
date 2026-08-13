@@ -302,6 +302,18 @@ in
       '';
     };
 
+    sill.clock.monoFont = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      example = false;
+      description = ''
+        Whether the clock pill's date and time use `haus.fonts.mono.name`, like
+        the rest of Sill. Disable this to use macOS's system UI font, whose zero
+        has no dot and is easier to distinguish from an 8 at a glance. The
+        calendar icon remains in the Nerd Font either way.
+      '';
+    };
+
     sill.aiUsage.provider = lib.mkOption {
       # The clients come from modules/lib/agents.nix — the same list
       # haus.agents.clients and .default read, so a fourth client is one

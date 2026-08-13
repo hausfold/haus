@@ -158,6 +158,7 @@ let
   # invent a family for anything not following Nerd Font's naming (Berkeley
   # Mono → "Berkeley", which does not exist).
   barFont = config.haus.fonts.mono.name;
+  clockLabelFont = if cfg.clock.monoFont then barFont else ".AppleSystemUIFont";
 
   bashArray = xs: lib.concatMapStringsSep " " (x: ''"${x}"'') xs;
   appWorkspaces = map (ws: ws.id) workspaces;
@@ -260,12 +261,16 @@ let
   # sources its generated item file.
   mkPluginBlocks = sb: side: {
     hush = hushBlock sb side;
+    # The clock can opt out of the rice's mono face when its dotted zero reads
+    # as an 8 at a glance. Its Nerd Font icon remains in the bar default either
+    # way; only the dense date/time label follows clock.monoFont.
     clock = ''
       ${sb} --add item clock ${side} \
           --set clock \
               update_freq=10 \
               icon= \
               icon.color=$PINK \
+              label.font="${clockLabelFont}:Bold:${sizes.label}" \
               background.color=$MANTLE \
               background.padding_left=8 \
               background.padding_right=8 \
