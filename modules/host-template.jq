@@ -31,7 +31,7 @@
 #
 # Inputs:
 #   options.json          on stdin / as the file argument
-#   --slurpfile groups    groups.json (options-groups.nix — room order + blurbs)
+#   --slurpfile groups    groups.json (options-groups.nix registry)
 #   --arg riceVersion     the rice VERSION, stamped into the header
 
 def lit:
@@ -102,11 +102,11 @@ def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
   | select(.key | test("<|\\*") | not)
 ] | sort_by(.key) as $opts
 
-| ($groups[0] // {}) as $g
+| ($groups[0].namespaces // {}) as $g
 
-# Listed rooms in their curated order; anything options-groups.nix hasn't met
-# yet sorts alphabetically after them rather than vanishing.
-| ($opts | group_by(room) | sort_by([ ($g[.[0] | room].order // 100000), (.[0] | room) ])) as $rooms
+# Every namespace is registry-backed; `room-registry` rejects an unclassified
+# option before this renderer runs.
+| ($opts | group_by(room) | sort_by([ $g[.[0] | room].order, (.[0] | room) ])) as $rooms
 
 | "# Every haus.* option on this machine's rice, at its default.\n"
 + "#\n"
@@ -141,7 +141,7 @@ def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
 + ( $rooms
     | map(
         (.[0] | room) as $r
-        | ($g[$r] // {}) as $meta
+        | $g[$r] as $meta
         # 64 = 78 columns minus the "  # ═══ haus." + " " that precedes it.
         | "\n  # ═══ haus.\($r) " + ("═" * (if (64 - ($r | length)) > 3 then (64 - ($r | length)) else 3 end)) + "\n"
         + (if ($meta.blurb // "") != ""
@@ -151,6 +151,7 @@ def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
 
         + ( map(
               . as $o
+              | $meta.options[$o.key] as $safety
               | ($o.value.default) as $dv
               | (if $dv == null then null else ($dv | lit) end) as $default
               # Whether the rendered default can go on the right-hand side of an
@@ -184,6 +185,11 @@ def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
                  | map(if .key == 0 then "  # type: " + .value else "  #       " + .value end)
                  | join("\n")) + "\n"
               + "  # docs: https://nebelhaus.com/reference/options/#\($o.key | slug)\n"
+              + "  # desktop data: "
+              + (if $safety.desktopSafe == true then "safe"
+                 elif $safety.desktopSafe == false then "host-only"
+                 else "recursive (\($safety.validator))" end)
+              + "\n"
               + (if ($o.value | has("example")) and ($default != null) and (uninformative($default))
                  then "  #\n"
                       + "  # example:\n"

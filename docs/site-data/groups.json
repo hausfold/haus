@@ -31,6 +31,53 @@
     "blurb": "Per-display overrides, keyed by which screen you mean.",
     "order": 60
   },
+  "exports": {
+    "collar": {
+      "kind": "room",
+      "owner": "security",
+      "source": "modules/collar"
+    },
+    "default": {
+      "kind": "aggregate",
+      "owner": "haus",
+      "source": "modules"
+    },
+    "den": {
+      "kind": "foundation",
+      "owner": "haus",
+      "source": "modules/den"
+    },
+    "hearth": {
+      "kind": "room",
+      "owner": "development",
+      "source": "modules/hearth"
+    },
+    "hush": {
+      "kind": "room",
+      "owner": "focus",
+      "source": "modules/hush"
+    },
+    "pounce": {
+      "kind": "room",
+      "owner": "launcher",
+      "source": "modules/pounce"
+    },
+    "prowl": {
+      "kind": "room",
+      "owner": "windows",
+      "source": "modules/prowl"
+    },
+    "secrets": {
+      "kind": "room",
+      "owner": "security",
+      "source": "modules/secrets"
+    },
+    "sill": {
+      "kind": "room",
+      "owner": "bar",
+      "source": "modules/sill"
+    }
+  },
   "fonts": {
     "blurb": "The terminal font. The bar keeps its own font at its own tuned sizes.",
     "order": 40
@@ -71,6 +118,1042 @@
     "blurb": "The stock menu bar: what the clock shows, and which Control Center glyphs sit beside it. (The nebelhaus bar itself is `sill`.)",
     "order": 115
   },
+  "namespaces": {
+    "accessibility": {
+      "blurb": "macOS accessibility keys the rice can actually apply. These write to a TCC-protected domain, so they take effect only when the app you run the rebuild from holds Full Disk Access — otherwise the rice warns and moves on.",
+      "kind": "room",
+      "optionCount": 2,
+      "options": {
+        "haus.accessibility.differentiateWithoutColor": {
+          "desktopSafe": true
+        },
+        "haus.accessibility.increaseContrast": {
+          "desktopSafe": true
+        }
+      },
+      "order": 100,
+      "owner": "appearance"
+    },
+    "agents": {
+      "blurb": "Which coding-agent clients this machine installs, which one the agent keybinding spawns, and the two files the rice ships into every one of their homes — your instructions, and the `haus` skill.",
+      "kind": "room",
+      "optionCount": 4,
+      "options": {
+        "haus.agents.clients": {
+          "desktopSafe": true
+        },
+        "haus.agents.default": {
+          "desktopSafe": true
+        },
+        "haus.agents.instructions": {
+          "desktopSafe": false
+        },
+        "haus.agents.skill": {
+          "desktopSafe": true
+        }
+      },
+      "order": 80,
+      "owner": "ai"
+    },
+    "animations": {
+      "blurb": "How much motion macOS spends on its own Dock and windows: the slide, the launch bounce, minimise, Mission Control, window open/close. Unset by default like the rest of this block — `\"fast\"` opts in, and going back only stops writing rather than restoring. Deliberately not the Accessibility \"Reduce motion\" switch, which every browser also reads as `prefers-reduced-motion`.",
+      "kind": "room",
+      "optionCount": 1,
+      "options": {
+        "haus.animations": {
+          "desktopSafe": true
+        }
+      },
+      "order": 111,
+      "owner": "appearance"
+    },
+    "appStore": {
+      "blurb": "Whether a rebuild may install the roster's `appStoreId` entries. Off by default: it reaches the network and acts on your Apple Account, and it can never be complete — `mas` cannot sign in, and cannot buy a paid app.",
+      "kind": "room",
+      "optionCount": 1,
+      "options": {
+        "haus.appStore.install": {
+          "desktopSafe": true
+        }
+      },
+      "order": 22,
+      "owner": "apps"
+    },
+    "apps": {
+      "blurb": "The apps the rice picks for you, and the file types they claim — the ones a finished machine has rather than the ones a room needs to work. Each is one switch you can turn off; what it installs is a roster entry like any other, so you can retune or replace it by app id.",
+      "kind": "room",
+      "optionCount": 2,
+      "options": {
+        "haus.apps.videoPlayer.claimFileTypes": {
+          "desktopSafe": true
+        },
+        "haus.apps.videoPlayer.enable": {
+          "desktopSafe": true
+        }
+      },
+      "order": 23,
+      "owner": "apps"
+    },
+    "collar": {
+      "blurb": "Touch ID for sudo — including inside a terminal multiplexer — and the passwordless-rebuild rule.",
+      "kind": "room",
+      "optionCount": 2,
+      "options": {
+        "haus.collar.enable": {
+          "desktopSafe": true
+        },
+        "haus.collar.passwordlessRebuild": {
+          "desktopSafe": true
+        }
+      },
+      "order": 210,
+      "owner": "security"
+    },
+    "developer": {
+      "blurb": "The developer pack: the CLI toolbelt, Git tooling, coding-agent tooling, and language runtimes. Off is a nebelhaus machine for someone who never opens a terminal by choice.",
+      "kind": "room",
+      "optionCount": 5,
+      "options": {
+        "haus.developer.agents.enable": {
+          "desktopSafe": true
+        },
+        "haus.developer.enable": {
+          "desktopSafe": true
+        },
+        "haus.developer.git.enable": {
+          "desktopSafe": true
+        },
+        "haus.developer.languages": {
+          "desktopSafe": true
+        },
+        "haus.developer.toolbelt.enable": {
+          "desktopSafe": true
+        }
+      },
+      "order": 200,
+      "owner": "development"
+    },
+    "displays": {
+      "blurb": "Per-display overrides, keyed by which screen you mean.",
+      "kind": "room",
+      "optionCount": 2,
+      "options": {
+        "haus.displays": {
+          "desktopSafe": "recursive",
+          "validator": "display-selectors"
+        },
+        "haus.displays.<name>.uiScale": {
+          "desktopSafe": true
+        }
+      },
+      "order": 60,
+      "owner": "displays"
+    },
+    "fonts": {
+      "blurb": "The terminal font. The bar keeps its own font at its own tuned sizes.",
+      "kind": "room",
+      "optionCount": 4,
+      "options": {
+        "haus.fonts.mono.name": {
+          "desktopSafe": true
+        },
+        "haus.fonts.mono.package": {
+          "desktopSafe": false
+        },
+        "haus.fonts.mono.packageName": {
+          "desktopSafe": true
+        },
+        "haus.fonts.mono.size": {
+          "desktopSafe": true
+        }
+      },
+      "order": 40,
+      "owner": "appearance"
+    },
+    "git": {
+      "blurb": "Your commit identity, plus the GitHub owner this machine's work lives under — set your own. It stays in [your host file](/internals/flakes/#your-config-is-a-thin-consumer).",
+      "kind": "host",
+      "optionCount": 5,
+      "options": {
+        "haus.git.email": {
+          "desktopSafe": false
+        },
+        "haus.git.name": {
+          "desktopSafe": false
+        },
+        "haus.git.org": {
+          "desktopSafe": false
+        },
+        "haus.git.shellAliases": {
+          "desktopSafe": false
+        },
+        "haus.git.signingKey": {
+          "desktopSafe": false
+        }
+      },
+      "order": 10,
+      "owner": "host"
+    },
+    "hearth": {
+      "blurb": "The shell and terminal experience.",
+      "kind": "room",
+      "optionCount": 7,
+      "options": {
+        "haus.hearth.editor": {
+          "desktopSafe": false
+        },
+        "haus.hearth.floatBorder": {
+          "desktopSafe": true
+        },
+        "haus.hearth.ghDash.enable": {
+          "desktopSafe": true
+        },
+        "haus.hearth.hijackFileAssociations": {
+          "desktopSafe": true
+        },
+        "haus.hearth.obsidianVaults": {
+          "desktopSafe": false
+        },
+        "haus.hearth.rightClickFullscreen": {
+          "desktopSafe": true
+        },
+        "haus.hearth.zellijStartLocked": {
+          "desktopSafe": true
+        }
+      },
+      "order": 70,
+      "owner": "development"
+    },
+    "homebrew": {
+      "blurb": "How rebuilds treat Homebrew packages you did not declare.",
+      "kind": "room",
+      "optionCount": 3,
+      "options": {
+        "haus.homebrew.autoUpdate": {
+          "desktopSafe": true
+        },
+        "haus.homebrew.cleanup": {
+          "desktopSafe": true
+        },
+        "haus.homebrew.upgrade": {
+          "desktopSafe": true
+        }
+      },
+      "order": 230,
+      "owner": "apps"
+    },
+    "hotCorners": {
+      "blurb": "What each corner of the screen does when the pointer reaches it. Every corner is unset by default, so the rice never overwrites one you set yourself.",
+      "kind": "room",
+      "optionCount": 4,
+      "options": {
+        "haus.hotCorners.bottomLeft": {
+          "desktopSafe": true
+        },
+        "haus.hotCorners.bottomRight": {
+          "desktopSafe": true
+        },
+        "haus.hotCorners.topLeft": {
+          "desktopSafe": true
+        },
+        "haus.hotCorners.topRight": {
+          "desktopSafe": true
+        }
+      },
+      "order": 112,
+      "owner": "windows"
+    },
+    "hush": {
+      "blurb": "One quiet switch: Do Not Disturb, optional Slack status, and your hooks.",
+      "kind": "room",
+      "optionCount": 7,
+      "options": {
+        "haus.hush.enable": {
+          "desktopSafe": true
+        },
+        "haus.hush.hooks": {
+          "desktopSafe": false
+        },
+        "haus.hush.slack.enable": {
+          "desktopSafe": true
+        },
+        "haus.hush.slack.snooze": {
+          "desktopSafe": true
+        },
+        "haus.hush.slack.statusEmoji": {
+          "desktopSafe": true
+        },
+        "haus.hush.slack.statusText": {
+          "desktopSafe": true
+        },
+        "haus.hush.slack.tokenCommand": {
+          "desktopSafe": false
+        }
+      },
+      "order": 170,
+      "owner": "focus"
+    },
+    "keys": {
+      "blurb": "The keys the rice owns — the leader, the palette, the window-chord modifier — and anything extra you hang off the leader.",
+      "kind": "shared",
+      "optionCount": 7,
+      "options": {
+        "haus.keys.leader": {
+          "desktopSafe": true
+        },
+        "haus.keys.leaderExtras": {
+          "desktopSafe": "recursive",
+          "validator": "submodule-list"
+        },
+        "haus.keys.leaderExtras.*.caption": {
+          "desktopSafe": true
+        },
+        "haus.keys.leaderExtras.*.command": {
+          "desktopSafe": false
+        },
+        "haus.keys.leaderExtras.*.key": {
+          "desktopSafe": true
+        },
+        "haus.keys.palette": {
+          "desktopSafe": true
+        },
+        "haus.keys.windowNav": {
+          "desktopSafe": true
+        }
+      },
+      "order": 110,
+      "owner": "haus"
+    },
+    "locale": {
+      "blurb": "Language, region, units and keyboard layouts. What a rice in any language other than English needs — and the one room whose settings reach apps you already have open, because the rice posts the change notification macOS itself posts.",
+      "kind": "host",
+      "optionCount": 6,
+      "options": {
+        "haus.locale.hourFormat": {
+          "desktopSafe": false
+        },
+        "haus.locale.inputSources": {
+          "desktopSafe": false
+        },
+        "haus.locale.language": {
+          "desktopSafe": false
+        },
+        "haus.locale.metric": {
+          "desktopSafe": false
+        },
+        "haus.locale.region": {
+          "desktopSafe": false
+        },
+        "haus.locale.temperature": {
+          "desktopSafe": false
+        }
+      },
+      "order": 118,
+      "owner": "host"
+    },
+    "lock": {
+      "blurb": "Whether waking this Mac needs a password, and how long the grace period is. Worth setting on any laptop that leaves the house.",
+      "kind": "room",
+      "optionCount": 2,
+      "options": {
+        "haus.lock.requirePassword": {
+          "desktopSafe": true
+        },
+        "haus.lock.requirePasswordDelay": {
+          "desktopSafe": true
+        }
+      },
+      "order": 114,
+      "owner": "security"
+    },
+    "menuBar": {
+      "blurb": "The stock menu bar: what the clock shows, and which Control Center glyphs sit beside it. (The nebelhaus bar itself is `sill`.)",
+      "kind": "room",
+      "optionCount": 12,
+      "options": {
+        "haus.menuBar.clock.analog": {
+          "desktopSafe": true
+        },
+        "haus.menuBar.clock.format": {
+          "desktopSafe": true
+        },
+        "haus.menuBar.clock.showDate": {
+          "desktopSafe": true
+        },
+        "haus.menuBar.clock.showDayOfWeek": {
+          "desktopSafe": true
+        },
+        "haus.menuBar.clock.showSeconds": {
+          "desktopSafe": true
+        },
+        "haus.menuBar.controlCenter.airdrop": {
+          "desktopSafe": true
+        },
+        "haus.menuBar.controlCenter.batteryPercentage": {
+          "desktopSafe": true
+        },
+        "haus.menuBar.controlCenter.bluetooth": {
+          "desktopSafe": true
+        },
+        "haus.menuBar.controlCenter.displayBrightness": {
+          "desktopSafe": true
+        },
+        "haus.menuBar.controlCenter.focus": {
+          "desktopSafe": true
+        },
+        "haus.menuBar.controlCenter.nowPlaying": {
+          "desktopSafe": true
+        },
+        "haus.menuBar.controlCenter.sound": {
+          "desktopSafe": true
+        }
+      },
+      "order": 115,
+      "owner": "bar"
+    },
+    "perch": {
+      "blurb": "The notch file shelf.",
+      "kind": "room",
+      "optionCount": 2,
+      "options": {
+        "haus.perch.enable": {
+          "desktopSafe": true
+        },
+        "haus.perch.followSystemAppearance": {
+          "desktopSafe": true
+        }
+      },
+      "order": 160,
+      "owner": "shelf"
+    },
+    "pounce": {
+      "blurb": "The ⌘Space command palette.",
+      "kind": "room",
+      "optionCount": 14,
+      "options": {
+        "haus.pounce.autoQuit.delay": {
+          "desktopSafe": true
+        },
+        "haus.pounce.autoQuit.enable": {
+          "desktopSafe": true
+        },
+        "haus.pounce.autoQuit.exclude": {
+          "desktopSafe": true
+        },
+        "haus.pounce.enable": {
+          "desktopSafe": true
+        },
+        "haus.pounce.followSystemAppearance": {
+          "desktopSafe": true
+        },
+        "haus.pounce.items": {
+          "desktopSafe": "recursive",
+          "validator": "pounce-items"
+        },
+        "haus.pounce.items.<name>.alias": {
+          "desktopSafe": true
+        },
+        "haus.pounce.items.<name>.caption": {
+          "desktopSafe": true
+        },
+        "haus.pounce.items.<name>.hotkey": {
+          "desktopSafe": true
+        },
+        "haus.pounce.items.<name>.listed": {
+          "desktopSafe": true
+        },
+        "haus.pounce.scale": {
+          "desktopSafe": true
+        },
+        "haus.pounce.signingIdentity": {
+          "desktopSafe": false
+        },
+        "haus.pounce.windowMode": {
+          "desktopSafe": true
+        },
+        "haus.pounce.windowSwitcher": {
+          "desktopSafe": true
+        }
+      },
+      "order": 140,
+      "owner": "launcher"
+    },
+    "power": {
+      "blurb": "Sleep timers and Low Power Mode, said separately for battery and charger — which is the whole point, and why this is built on `pmset` rather than on nix-darwin's own power options.",
+      "kind": "host",
+      "optionCount": 8,
+      "options": {
+        "haus.power.computerSleep.battery": {
+          "desktopSafe": false
+        },
+        "haus.power.computerSleep.charger": {
+          "desktopSafe": false
+        },
+        "haus.power.diskSleep.battery": {
+          "desktopSafe": false
+        },
+        "haus.power.diskSleep.charger": {
+          "desktopSafe": false
+        },
+        "haus.power.displaySleep.battery": {
+          "desktopSafe": false
+        },
+        "haus.power.displaySleep.charger": {
+          "desktopSafe": false
+        },
+        "haus.power.lowPowerMode.battery": {
+          "desktopSafe": false
+        },
+        "haus.power.lowPowerMode.charger": {
+          "desktopSafe": false
+        }
+      },
+      "order": 119,
+      "owner": "host"
+    },
+    "prowl": {
+      "blurb": "Tiling window management and the Caps-Lock leader launcher.",
+      "kind": "room",
+      "optionCount": 1,
+      "options": {
+        "haus.prowl.enable": {
+          "desktopSafe": true
+        }
+      },
+      "order": 120,
+      "owner": "windows"
+    },
+    "roster": {
+      "blurb": "One list of everything this machine has — apps, fonts, command-line tools. Each entry drives its launcher key, cheatsheet row, and installs it from whichever source it names: a Homebrew cask or formula, a Nixpkgs package, or the Mac App Store.",
+      "kind": "shared",
+      "optionCount": 16,
+      "options": {
+        "haus.roster": {
+          "desktopSafe": "recursive",
+          "validator": "roster-entries"
+        },
+        "haus.roster.<name>.appId": {
+          "desktopSafe": true
+        },
+        "haus.roster.<name>.appStoreId": {
+          "desktopSafe": true
+        },
+        "haus.roster.<name>.brew": {
+          "desktopSafe": true
+        },
+        "haus.roster.<name>.cask": {
+          "desktopSafe": true
+        },
+        "haus.roster.<name>.enable": {
+          "desktopSafe": true
+        },
+        "haus.roster.<name>.float": {
+          "desktopSafe": true
+        },
+        "haus.roster.<name>.installedBy": {
+          "desktopSafe": false
+        },
+        "haus.roster.<name>.key": {
+          "desktopSafe": true
+        },
+        "haus.roster.<name>.label": {
+          "desktopSafe": true
+        },
+        "haus.roster.<name>.name": {
+          "desktopSafe": true
+        },
+        "haus.roster.<name>.order": {
+          "desktopSafe": true
+        },
+        "haus.roster.<name>.package": {
+          "desktopSafe": false
+        },
+        "haus.roster.<name>.packageName": {
+          "desktopSafe": true
+        },
+        "haus.roster.<name>.scope": {
+          "desktopSafe": true
+        },
+        "haus.roster.<name>.titleRegex": {
+          "desktopSafe": true
+        }
+      },
+      "order": 20,
+      "owner": "haus"
+    },
+    "screenshots": {
+      "blurb": "Where ⇧⌘4 puts its files, in what format, and whether it draws a window shadow or a preview thumbnail. Unset by default, so macOS's own choices stand.",
+      "kind": "room",
+      "optionCount": 5,
+      "options": {
+        "haus.screenshots.format": {
+          "desktopSafe": true
+        },
+        "haus.screenshots.includeDate": {
+          "desktopSafe": true
+        },
+        "haus.screenshots.location": {
+          "desktopSafe": false
+        },
+        "haus.screenshots.shadow": {
+          "desktopSafe": true
+        },
+        "haus.screenshots.thumbnail": {
+          "desktopSafe": true
+        }
+      },
+      "order": 113,
+      "owner": "appearance"
+    },
+    "secrets": {
+      "blurb": "Where secret values come from on this machine.",
+      "kind": "room",
+      "optionCount": 1,
+      "options": {
+        "haus.secrets.provider": {
+          "desktopSafe": false
+        }
+      },
+      "order": 220,
+      "owner": "security"
+    },
+    "security": {
+      "blurb": "Security posture: the built-in application firewall and how strict it is. Off on a fresh Mac; the setting to turn on for a laptop that joins networks you don't own.",
+      "kind": "room",
+      "optionCount": 5,
+      "options": {
+        "haus.security.firewall.allowSigned": {
+          "desktopSafe": true
+        },
+        "haus.security.firewall.allowSignedApp": {
+          "desktopSafe": true
+        },
+        "haus.security.firewall.blockAllIncoming": {
+          "desktopSafe": true
+        },
+        "haus.security.firewall.enable": {
+          "desktopSafe": true
+        },
+        "haus.security.firewall.stealthMode": {
+          "desktopSafe": true
+        }
+      },
+      "order": 116,
+      "owner": "security"
+    },
+    "sill": {
+      "blurb": "The menu bar, and which pills it draws.",
+      "kind": "room",
+      "optionCount": 59,
+      "options": {
+        "haus.sill.aiUsage.provider": {
+          "desktopSafe": true
+        },
+        "haus.sill.battery.hideOver": {
+          "desktopSafe": true
+        },
+        "haus.sill.bottom.enable": {
+          "desktopSafe": true
+        },
+        "haus.sill.bottom.items": {
+          "desktopSafe": true
+        },
+        "haus.sill.bottom.items.agents": {
+          "desktopSafe": true
+        },
+        "haus.sill.bottom.items.aiUsage": {
+          "desktopSafe": true
+        },
+        "haus.sill.bottom.items.battery": {
+          "desktopSafe": true
+        },
+        "haus.sill.bottom.items.caffeinate": {
+          "desktopSafe": true
+        },
+        "haus.sill.bottom.items.calendar": {
+          "desktopSafe": true
+        },
+        "haus.sill.bottom.items.clock": {
+          "desktopSafe": true
+        },
+        "haus.sill.bottom.items.cpu": {
+          "desktopSafe": true
+        },
+        "haus.sill.bottom.items.elgato": {
+          "desktopSafe": true
+        },
+        "haus.sill.bottom.items.harvest": {
+          "desktopSafe": true
+        },
+        "haus.sill.bottom.items.hush": {
+          "desktopSafe": true
+        },
+        "haus.sill.bottom.items.media": {
+          "desktopSafe": true
+        },
+        "haus.sill.bottom.items.memory": {
+          "desktopSafe": true
+        },
+        "haus.sill.bottom.items.volume": {
+          "desktopSafe": true
+        },
+        "haus.sill.bottom.items.weather": {
+          "desktopSafe": true
+        },
+        "haus.sill.bottom.items.wifi": {
+          "desktopSafe": true
+        },
+        "haus.sill.calendar.horizon": {
+          "desktopSafe": true
+        },
+        "haus.sill.calendar.imminent": {
+          "desktopSafe": true
+        },
+        "haus.sill.calendar.joinHosts": {
+          "desktopSafe": true
+        },
+        "haus.sill.calendar.me": {
+          "desktopSafe": false
+        },
+        "haus.sill.calendar.past": {
+          "desktopSafe": true
+        },
+        "haus.sill.calendar.preciseUnder": {
+          "desktopSafe": true
+        },
+        "haus.sill.calendar.refresh": {
+          "desktopSafe": true
+        },
+        "haus.sill.calendar.upcoming": {
+          "desktopSafe": true
+        },
+        "haus.sill.calendar.width": {
+          "desktopSafe": true
+        },
+        "haus.sill.clock.mode": {
+          "desktopSafe": true
+        },
+        "haus.sill.elgato.host": {
+          "desktopSafe": false
+        },
+        "haus.sill.enable": {
+          "desktopSafe": true
+        },
+        "haus.sill.items": {
+          "desktopSafe": true
+        },
+        "haus.sill.items.agents": {
+          "desktopSafe": true
+        },
+        "haus.sill.items.aiUsage": {
+          "desktopSafe": true
+        },
+        "haus.sill.items.battery": {
+          "desktopSafe": true
+        },
+        "haus.sill.items.caffeinate": {
+          "desktopSafe": true
+        },
+        "haus.sill.items.calendar": {
+          "desktopSafe": true
+        },
+        "haus.sill.items.claudeUsage": {
+          "desktopSafe": true
+        },
+        "haus.sill.items.clock": {
+          "desktopSafe": true
+        },
+        "haus.sill.items.cpu": {
+          "desktopSafe": true
+        },
+        "haus.sill.items.elgato": {
+          "desktopSafe": true
+        },
+        "haus.sill.items.harvest": {
+          "desktopSafe": true
+        },
+        "haus.sill.items.media": {
+          "desktopSafe": true
+        },
+        "haus.sill.items.memory": {
+          "desktopSafe": true
+        },
+        "haus.sill.items.volume": {
+          "desktopSafe": true
+        },
+        "haus.sill.items.weather": {
+          "desktopSafe": true
+        },
+        "haus.sill.items.wifi": {
+          "desktopSafe": true
+        },
+        "haus.sill.logo.color": {
+          "desktopSafe": true
+        },
+        "haus.sill.logo.gestures": {
+          "desktopSafe": true
+        },
+        "haus.sill.logo.icon": {
+          "desktopSafe": true
+        },
+        "haus.sill.logo.size": {
+          "desktopSafe": true
+        },
+        "haus.sill.logo.status": {
+          "desktopSafe": true
+        },
+        "haus.sill.logo.sweep": {
+          "desktopSafe": true
+        },
+        "haus.sill.logo.updateCheck": {
+          "desktopSafe": true
+        },
+        "haus.sill.media.artworkTint": {
+          "desktopSafe": true
+        },
+        "haus.sill.media.collapse": {
+          "desktopSafe": true
+        },
+        "haus.sill.media.icons": {
+          "desktopSafe": "recursive",
+          "validator": "attrs-of-string"
+        },
+        "haus.sill.media.width": {
+          "desktopSafe": true
+        },
+        "haus.sill.position": {
+          "desktopSafe": true
+        }
+      },
+      "order": 130,
+      "owner": "bar"
+    },
+    "snippets": {
+      "blurb": "Text expansion via espanso.",
+      "kind": "room",
+      "optionCount": 4,
+      "options": {
+        "haus.snippets.enable": {
+          "desktopSafe": true
+        },
+        "haus.snippets.matches": {
+          "desktopSafe": "recursive",
+          "validator": "submodule-list"
+        },
+        "haus.snippets.matches.*.replace": {
+          "desktopSafe": true
+        },
+        "haus.snippets.matches.*.trigger": {
+          "desktopSafe": true
+        }
+      },
+      "order": 180,
+      "owner": "text-expansion"
+    },
+    "sound": {
+      "blurb": "Alert volume and sound, interface sound effects, and the boot chime. Volume is 0–100 the way the slider reads it — macOS stores a curve, and the rice does the conversion.",
+      "kind": "room",
+      "optionCount": 5,
+      "options": {
+        "haus.sound.alertSound": {
+          "desktopSafe": true
+        },
+        "haus.sound.alertVolume": {
+          "desktopSafe": true
+        },
+        "haus.sound.startupChime": {
+          "desktopSafe": true
+        },
+        "haus.sound.uiSounds": {
+          "desktopSafe": true
+        },
+        "haus.sound.volumeFeedback": {
+          "desktopSafe": true
+        }
+      },
+      "order": 117,
+      "owner": "appearance"
+    },
+    "theme": {
+      "blurb": "Colour: the palette's flavour and contrast, the accent every themed tool spends, and whether macOS's own Light/Dark follows it.",
+      "kind": "room",
+      "optionCount": 5,
+      "options": {
+        "haus.theme.accent": {
+          "desktopSafe": true
+        },
+        "haus.theme.contrast": {
+          "desktopSafe": true
+        },
+        "haus.theme.flavor": {
+          "desktopSafe": true
+        },
+        "haus.theme.ports.enable": {
+          "desktopSafe": true
+        },
+        "haus.theme.systemAppearance": {
+          "desktopSafe": true
+        }
+      },
+      "order": 30,
+      "owner": "appearance"
+    },
+    "tour": {
+      "blurb": "The first-run tutor.",
+      "kind": "shared",
+      "optionCount": 4,
+      "options": {
+        "haus.tour.enable": {
+          "desktopSafe": true
+        },
+        "haus.tour.steps": {
+          "desktopSafe": "recursive",
+          "validator": "submodule-list"
+        },
+        "haus.tour.steps.*.detect": {
+          "desktopSafe": true
+        },
+        "haus.tour.steps.*.hint": {
+          "desktopSafe": true
+        }
+      },
+      "order": 190,
+      "owner": "haus"
+    },
+    "ui": {
+      "blurb": "One number for \"make the interface bigger\", applied across the rice's own surfaces.",
+      "kind": "shared",
+      "optionCount": 1,
+      "options": {
+        "haus.ui.scale": {
+          "desktopSafe": true
+        }
+      },
+      "order": 50,
+      "owner": "haus"
+    },
+    "wallpaper": {
+      "blurb": "The desktop behind everything. `minimal` is generated on this machine — a flat field at whatever depth you pick out of the palette, the haus mark ⌂ at its centre, a bloom in your accent, and enough grain that none of it bands. The other looks are the hand-made Nebelung ones.",
+      "kind": "room",
+      "optionCount": 19,
+      "options": {
+        "haus.wallpaper.background": {
+          "desktopSafe": true
+        },
+        "haus.wallpaper.debug.enable": {
+          "desktopSafe": true
+        },
+        "haus.wallpaper.debug.inputs": {
+          "desktopSafe": true
+        },
+        "haus.wallpaper.debug.inset": {
+          "desktopSafe": true
+        },
+        "haus.wallpaper.debug.size": {
+          "desktopSafe": true
+        },
+        "haus.wallpaper.depth": {
+          "desktopSafe": true
+        },
+        "haus.wallpaper.glow.color": {
+          "desktopSafe": true
+        },
+        "haus.wallpaper.glow.enable": {
+          "desktopSafe": true
+        },
+        "haus.wallpaper.glow.spread": {
+          "desktopSafe": true
+        },
+        "haus.wallpaper.glow.strength": {
+          "desktopSafe": true
+        },
+        "haus.wallpaper.grain": {
+          "desktopSafe": true
+        },
+        "haus.wallpaper.mark.color": {
+          "desktopSafe": true
+        },
+        "haus.wallpaper.mark.enable": {
+          "desktopSafe": true
+        },
+        "haus.wallpaper.mark.opacity": {
+          "desktopSafe": true
+        },
+        "haus.wallpaper.mark.rise": {
+          "desktopSafe": true
+        },
+        "haus.wallpaper.mark.size": {
+          "desktopSafe": true
+        },
+        "haus.wallpaper.mark.weight": {
+          "desktopSafe": true
+        },
+        "haus.wallpaper.size": {
+          "desktopSafe": true
+        },
+        "haus.wallpaper.style": {
+          "desktopSafe": true
+        }
+      },
+      "order": 35,
+      "owner": "appearance"
+    },
+    "workspaces": {
+      "blurb": "The named AeroSpace workspaces this machine declares, and which roster apps live on each. A workspace, not an app, owns its bar pill and leader throw — so several apps (a whole \"comms\" role) can share one.",
+      "kind": "shared",
+      "optionCount": 4,
+      "options": {
+        "haus.workspaces": {
+          "desktopSafe": "recursive",
+          "validator": "workspace-entries"
+        },
+        "haus.workspaces.<name>.apps": {
+          "desktopSafe": true
+        },
+        "haus.workspaces.<name>.icon": {
+          "desktopSafe": true
+        },
+        "haus.workspaces.<name>.key": {
+          "desktopSafe": true
+        }
+      },
+      "order": 21,
+      "owner": "haus"
+    },
+    "zen": {
+      "blurb": "Zen browser policy, extensions and the optional native tab bridge.",
+      "kind": "room",
+      "optionCount": 8,
+      "options": {
+        "haus.zen.extensions": {
+          "desktopSafe": false
+        },
+        "haus.zen.extensions.<name>.enable": {
+          "desktopSafe": false
+        },
+        "haus.zen.extensions.<name>.id": {
+          "desktopSafe": false
+        },
+        "haus.zen.extensions.<name>.mode": {
+          "desktopSafe": false
+        },
+        "haus.zen.extensions.<name>.slug": {
+          "desktopSafe": false
+        },
+        "haus.zen.extensions.<name>.url": {
+          "desktopSafe": false
+        },
+        "haus.zen.extraPolicies": {
+          "desktopSafe": false
+        },
+        "haus.zen.tabBridge.enable": {
+          "desktopSafe": true
+        }
+      },
+      "order": 75,
+      "owner": "development"
+    }
+  },
   "perch": {
     "blurb": "The notch file shelf.",
     "order": 160
@@ -91,6 +1174,7 @@
     "blurb": "One list of everything this machine has — apps, fonts, command-line tools. Each entry drives its launcher key, cheatsheet row, and installs it from whichever source it names: a Homebrew cask or formula, a Nixpkgs package, or the Mac App Store.",
     "order": 20
   },
+  "schemaVersion": 1,
   "screenshots": {
     "blurb": "Where ⇧⌘4 puts its files, in what format, and whether it draws a window shadow or a preview thumbnail. Unset by default, so macOS's own choices stand.",
     "order": 113
@@ -134,5 +1218,9 @@
   "workspaces": {
     "blurb": "The named AeroSpace workspaces this machine declares, and which roster apps live on each. A workspace, not an app, owns its bar pill and leader throw — so several apps (a whole \"comms\" role) can share one.",
     "order": 21
+  },
+  "zen": {
+    "blurb": "Zen browser policy, extensions and the optional native tab bridge.",
+    "order": 75
   }
 }

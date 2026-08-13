@@ -348,20 +348,32 @@
         "aarch64-linux"
         "x86_64-linux"
       ];
+      # A public partial carries the whole declaration surface plus the shared
+      # normalized roster/workspace foundation its implementation may consume.
+      # Den is the safe foundation; beyond it only the named room implementation
+      # is active. This is the current pre-Blank equivalent of “Blank + room”.
+      standaloneModule = implementation: {
+        imports = (import ./modules/options-modules.nix) ++ [
+          ./modules/workspaces
+          ./modules/roster
+          ./modules/den
+          implementation
+        ];
+      };
     in
     {
-      # `default` imports the whole house. The named paths are legacy
-      # implementation partials, not self-contained room modules: their shared
-      # option declarations still come from `modules/default.nix`.
+      # Import the whole house, or one self-contained implementation partial.
+      # Named exports carry the declaration + shared-data foundation above;
+      # they do not activate any other room implementation.
       darwinModules = {
-        den = ./modules/den;
-        hearth = ./modules/hearth;
-        prowl = ./modules/prowl;
-        sill = ./modules/sill;
-        collar = ./modules/collar;
-        pounce = ./modules/pounce;
-        hush = ./modules/hush;
-        secrets = ./modules/secrets;
+        den = standaloneModule ./modules/den;
+        hearth = standaloneModule ./modules/hearth;
+        prowl = standaloneModule ./modules/prowl;
+        sill = standaloneModule ./modules/sill;
+        collar = standaloneModule ./modules/collar;
+        pounce = standaloneModule ./modules/pounce;
+        hush = standaloneModule ./modules/hush;
+        secrets = standaloneModule ./modules/secrets;
         default = ./modules;
       };
 
@@ -469,12 +481,18 @@
           # string sibling of the same name + "Name". It reads the same evaluated
           # option tree the docs are rendered from, so it sees exactly the public
           # surface, and it's pure lib, so it runs on Linux CI with the rest.
-          surfaceLeaves =
-            nixpkgs.lib.optionAttrSetToDocList
-              (nixpkgs.lib.evalModules {
-                specialArgs.lib = nixpkgs.lib;
-                modules = import ./modules/options-modules.nix;
-              }).options;
+          optionsEval = nixpkgs.lib.evalModules {
+            specialArgs.lib = nixpkgs.lib;
+            modules = import ./modules/options-modules.nix;
+          };
+          visibleOptions = optionsEval.options // {
+            haus = nixpkgs.lib.filterAttrs (
+              name: _: !(nixpkgs.lib.hasPrefix "_" name)
+            ) optionsEval.options.haus;
+          };
+          surfaceLeaves = builtins.filter (o: !(o.internal or false) && (o.visible or true)) (
+            nixpkgs.lib.optionAttrSetToDocList visibleOptions
+          );
           leafType = builtins.listToAttrs (map (o: nixpkgs.lib.nameValuePair o.name o.type) surfaceLeaves);
           # "package", "null or package", "list of package" — the whole family,
           # plus derivations and store paths, which are unreachable for the same
@@ -490,6 +508,110 @@
               o: builtins.match ".*string.*" (leafType."${o.name}Name" or "") == null
             ) packageTyped
           );
+
+          # ---- room registry -------------------------------------------------
+          # Compare the one source registry to evaluated values. A new export or
+          # option fails closed until its owner and trust boundary are named.
+          registry = import ./modules/options-groups.nix;
+          registryOptions = builtins.foldl' (
+            acc: namespace: acc // registry.namespaces.${namespace}.options
+          ) { } (builtins.attrNames registry.namespaces);
+          actualOptionNames = map (o: o.name) (
+            builtins.filter (o: nixpkgs.lib.hasPrefix "haus." o.name) surfaceLeaves
+          );
+          registeredOptionNames = builtins.attrNames registryOptions;
+          actualNamespaces = nixpkgs.lib.unique (
+            map (name: builtins.elemAt (nixpkgs.lib.splitString "." name) 1) actualOptionNames
+          );
+          registeredNamespaces = builtins.attrNames registry.namespaces;
+          actualExports = builtins.attrNames self.darwinModules;
+          registeredExports = builtins.attrNames registry.exports;
+
+          missingOptions = builtins.filter (
+            name: !(builtins.elem name registeredOptionNames)
+          ) actualOptionNames;
+          staleOptions = builtins.filter (
+            name: !(builtins.elem name actualOptionNames)
+          ) registeredOptionNames;
+          missingNamespaces = builtins.filter (
+            name: !(builtins.elem name registeredNamespaces)
+          ) actualNamespaces;
+          staleNamespaces = builtins.filter (
+            name: !(builtins.elem name actualNamespaces)
+          ) registeredNamespaces;
+          missingExports = builtins.filter (name: !(builtins.elem name registeredExports)) actualExports;
+          staleExports = builtins.filter (name: !(builtins.elem name actualExports)) registeredExports;
+
+          invalidSafety = builtins.filter (
+            name:
+            let
+              decision = registryOptions.${name}.desktopSafe or null;
+            in
+            !(decision == true || decision == false || decision == "recursive")
+          ) registeredOptionNames;
+          invalidRecursive = builtins.filter (
+            name:
+            let
+              meta = registryOptions.${name};
+            in
+            meta.desktopSafe == "recursive" && (!(meta ? validator) || meta.validator == "")
+          ) registeredOptionNames;
+          duplicateInventory = builtins.filter (
+            namespace:
+            registry.namespaces.${namespace}.optionCount
+            != builtins.length (builtins.attrNames registry.namespaces.${namespace}.options)
+          ) registeredNamespaces;
+
+          dynamicRoot =
+            name:
+            let
+              match = builtins.match "(.*)(\\.<name>|\\.\\*)(\\..*)?" name;
+            in
+            if match == null then null else builtins.head match;
+          dynamicRoots = nixpkgs.lib.unique (
+            builtins.filter (name: name != null) (map dynamicRoot actualOptionNames)
+          );
+          unsafeDynamicRoots = builtins.filter (
+            root:
+            let
+              decision = registryOptions.${root}.desktopSafe or null;
+            in
+            !(decision == false || decision == "recursive")
+          ) dynamicRoots;
+          openAttrsets = map (o: o.name) (
+            builtins.filter (
+              o: nixpkgs.lib.hasPrefix "haus." o.name && nixpkgs.lib.hasPrefix "attribute set" o.type
+            ) surfaceLeaves
+          );
+          unsafeOpenAttrsets = builtins.filter (
+            name:
+            let
+              decision = registryOptions.${name}.desktopSafe or null;
+            in
+            !(decision == false || decision == "recursive")
+          ) openAttrsets;
+          unsafeParents = builtins.filter (
+            parent:
+            registryOptions.${parent}.desktopSafe == true
+            && nixpkgs.lib.any (
+              child: nixpkgs.lib.hasPrefix "${parent}." child && registryOptions.${child}.desktopSafe == false
+            ) registeredOptionNames
+          ) registeredOptionNames;
+
+          registryFailures =
+            nixpkgs.lib.optional (registry.schemaVersion != 1) "unsupported schemaVersion"
+            ++ map (x: "unmapped option: ${x}") missingOptions
+            ++ map (x: "stale option: ${x}") staleOptions
+            ++ map (x: "unclassified namespace: ${x}") missingNamespaces
+            ++ map (x: "stale namespace: ${x}") staleNamespaces
+            ++ map (x: "unmapped darwinModules export: ${x}") missingExports
+            ++ map (x: "stale darwinModules export: ${x}") staleExports
+            ++ map (x: "invalid desktop-safety decision: ${x}") invalidSafety
+            ++ map (x: "recursive option has no validator: ${x}") invalidRecursive
+            ++ map (x: "duplicate option path in namespace: ${x}") duplicateInventory
+            ++ map (x: "unsafe dynamic subtree: ${x}") unsafeDynamicRoots
+            ++ map (x: "open attrset has no recursive validator: ${x}") unsafeOpenAttrsets
+            ++ map (x: "desktop-safe parent contains a host-only leaf: ${x}") unsafeParents;
 
           # ---- packs ----------------------------------------------------------
           # Three rules about packs that are all invisible until a STRANGER hits
@@ -1436,8 +1558,69 @@
             file .config/sketchybar/workspaces.sh moves
             file Library/Application Support/com.mitchellh.ghostty/config moves
           '';
+
+          standaloneEvaluated = map (
+            name:
+            let
+              username = "you";
+              hostname = "example";
+              cfg = inputs.nix-darwin.lib.darwinSystem {
+                inherit system;
+                specialArgs = { inherit inputs username hostname; };
+                modules = [
+                  {
+                    nixpkgs.hostPlatform = system;
+                    nixpkgs.config.allowUnfree = true;
+                    system.primaryUser = username;
+                    system.stateVersion = 7;
+                  }
+                  {
+                    nixpkgs.overlays = [
+                      pounce.overlays.default
+                      perch.overlays.default
+                      holt.overlays.default
+                    ];
+                  }
+                  home-manager.darwinModules.home-manager
+                  {
+                    users.users.${username} = {
+                      name = username;
+                      home = "/Users/${username}";
+                    };
+                    home-manager.useGlobalPkgs = true;
+                    home-manager.useUserPackages = true;
+                    home-manager.users.${username}.home.stateVersion = "24.11";
+                    home-manager.extraSpecialArgs = {
+                      inherit username inputs;
+                      nebelung = {
+                        themes = nebelung.packages.${system}.default;
+                        palette = nebelung.palette;
+                        palettes = nebelung.palettes;
+                        ports = nebelung.ports or { };
+                      };
+                    };
+                    home-manager.sharedModules = [
+                      catppuccin.homeModules.catppuccin
+                      nix-index-database.homeModules.nix-index
+                    ];
+                  }
+                  self.darwinModules.${name}
+                ];
+              };
+            in
+            "${name} ${builtins.unsafeDiscardStringContext cfg.system.drvPath}"
+          ) registeredExports;
         in
         {
+          room-registry = pkgs.runCommand "haus-room-registry-ok" { } ''
+            ${nixpkgs.lib.optionalString (registryFailures != [ ]) ''
+              cat >&2 <<'FAILURES'
+              ${builtins.concatStringsSep "\n" registryFailures}
+              FAILURES
+              exit 1''}
+            touch $out
+          '';
+
           data-only-surface = pkgs.runCommand "nebelhaus-data-only-surface-ok" { } ''
             ${nixpkgs.lib.optionalString (unnamedPackageOptions != [ ]) ''
               cat >&2 <<'OFFENDERS'
@@ -1591,6 +1774,12 @@
               '';
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-darwin" system) {
+          standalone-modules = pkgs.runCommand "haus-standalone-modules-ok" { } ''
+            cat > $out <<'MODULES'
+            ${builtins.concatStringsSep "\n" standaloneEvaluated}
+            MODULES
+          '';
+
           accent-reach = pkgs.runCommand "nebelhaus-accent-reach-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedAccentTable}                     ${
               pkgs.writeText "actual" (accentTable + "
