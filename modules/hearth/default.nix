@@ -22,7 +22,19 @@ let
   agentsCfg = config.haus.agents;
   accent = config.haus.theme.accent; # a Catppuccin accent name, e.g. "mauve"
   devCfg = config.haus.developer;
-  agentDefault = agentsCfg.default;
+
+  # What the AI room contributes to the terminal, through the extension point
+  # this room declares (modules/hearth/options.nix, modules/lib/contrib.nix).
+  # The chords, the `c` alias and the cheatsheet rows read THIS, never
+  # `haus.agents.*`: the AI room decides whether it has an agent to spawn, the
+  # terminal decides how a chord for one is spelled.
+  #
+  # Its own client PAYLOAD is a different thing and is still read directly
+  # below — the packages, the instructions/skill files and the per-client hook
+  # wiring are the AI room's, hosted here only because a home profile is where
+  # they can be written. See modules/ai.
+  agentContrib = config.haus._contrib.development.agents;
+  agentDefault = agentContrib.default;
 
   # How the zellij binds and the `c` alias spell "start an agent". Only Claude
   # Code can make its own worktree (`--worktree`, which fires the WorktreeCreate
@@ -33,16 +45,10 @@ let
   # (@AGENT_HERE@ is just agentDefault).
   agentNewRun = if agentDefault == "claude" then ''"claude" "--worktree"'' else ''"holt" "new"'';
 
-  # One client id → one package. Nothing else in the rice may name these
-  # derivations: a host that wants a patched build overlays `claude-code` (or
-  # `codex`, or `opencode`) so this reference picks the patched one up. Adding
-  # a second derivation of the same client beside this one puts two `bin/claude`
-  # in one profile, which is a collision, not an override.
-  agentPackages = {
-    claude = pkgs.claude-code;
-    codex = pkgs.codex;
-    opencode = pkgs.opencode;
-  };
+  # One client id → one package, from the one table (modules/lib/agent-packages.nix):
+  # the AI room asserts each named client is buildable here, and this is where a
+  # home profile installs it.
+  agentPackages = import ../lib/agent-packages.nix pkgs;
   agentClients = agentsCfg.clients;
 
   # One client id → where that client keeps the two files the rice ships into a
@@ -79,14 +85,6 @@ let
     };
   };
 
-  # nixpkgs ships all three for aarch64-darwin only. That is the whole rice's
-  # platform since 26.11 dropped x86_64-darwin, so this never fires today — but
-  # it is the difference between a named refusal and an install that silently
-  # does nothing, which is exactly the dead-pane failure this option exists to
-  # end. (The `lib.meta.availableOn` guard it replaces did skip silently.)
-  unavailableClients = lib.filter (
-    c: !lib.meta.availableOn pkgs.stdenv.hostPlatform agentPackages.${c}
-  ) agentClients;
   fontsCfg = config.haus.fonts; # terminal font family/size (den installs the package)
 
   # ---- the terminal's hotkeys, and the proof they're documented --------------
@@ -100,7 +98,7 @@ let
   # left the cheatsheet teaching ⌘C for agents long after they moved to ⌘A.
   termBindings = import ./term-bindings.nix {
     inherit lib agentDefault;
-    agentsEnabled = agentClients != [ ];
+    agentsEnabled = agentContrib.enable;
     ghDashEnabled = ghDashCfg.enable;
     benchLaneEnabled = devCfg.enable;
     rightClickFullscreenEnabled = hearthCfg.rightClickFullscreen;
@@ -336,7 +334,7 @@ let
   # Who the two files below are written for. Normally `agents.clients` — but an
   # EMPTY list doesn't mean "no agent ever runs here", it means the rice installs
   # none: `developer.enable = false` empties the list, and `agents.clients` can't
-  # be set without `developer.agents.enable` (the assertion below). A machine like
+  # be set without `haus.agents.enable` (the AI room asserts it). A machine like
   # that can still have Claude Code from npm or Codex from brew, and before this
   # room existed both files were written unconditionally. So with nothing named,
   # write for every client we know — they are inert markdown, and a skill nothing
@@ -536,23 +534,12 @@ let
   '';
 in
 {
+  # The agent assertions that used to sit here — default-not-in-clients, clients
+  # without the tooling, a client nixpkgs can't build — are the AI room's own
+  # invariants and moved to modules/ai with its switch. They named only
+  # `haus.agents.*`, and they have to fail the rebuild on a machine with no
+  # terminal room at all.
   assertions = [
-    {
-      assertion = lib.elem agentDefault agentClients || agentClients == [ ];
-      message =
-        "haus.agents.default = \"${agentDefault}\" is not in haus.agents.clients "
-        + "(${lib.concatStringsSep ", " agentClients}). Pounce's Spawn Agent would create the "
-        + "worktree, open the pane, and only then find no ${agentDefault} on PATH — leaving a "
-        + "dead pane and a worktree to reap. Add it to agents.clients, or point agents.default "
-        + "at one you install.";
-    }
-    {
-      assertion = agentClients == [ ] || devCfg.agents.enable;
-      message =
-        "haus.agents.clients is set (${lib.concatStringsSep ", " agentClients}) but "
-        + "haus.developer.agents.enable is off, so there is no `holt` to make a worktree, "
-        + "park it, or resume it. Turn the tooling on, or empty agents.clients.";
-    }
     {
       assertion = untaughtChords == [ ] && unboundChords == [ ];
       message =
@@ -578,13 +565,6 @@ in
         + "login of its own — it reads the token `gh auth login` wrote — and the Git pack is what "
         + "installs `gh`, so the dashboard would open on a machine with nothing to authenticate "
         + "it, and every tab would be an error. Turn the Git pack on, or the dashboard off.";
-    }
-    {
-      assertion = unavailableClients == [ ];
-      message =
-        "haus.agents.clients names ${lib.concatStringsSep ", " unavailableClients}, which "
-        + "nixpkgs does not build for ${pkgs.stdenv.hostPlatform.system}. Installing nothing "
-        + "would only move the failure into the agent pane; drop it from agents.clients.";
     }
   ];
 
@@ -1292,7 +1272,7 @@ in
           lib.optionalAttrs devCfg.git.enable (gitShellAliases // { lg = "lazygit"; })
           # `c` is "the agent", not "claude" — it follows haus.agents.default
           # so a Codex or Opencode machine doesn't alias a client it never installs.
-          // lib.optionalAttrs devCfg.agents.enable { c = agentDefault; }
+          // lib.optionalAttrs agentContrib.enable { c = agentDefault; }
           // lib.optionalAttrs devCfg.toolbelt.enable {
             cat = "bat --style=header,grid --tabs=2";
             ls = "lsd";
@@ -1899,7 +1879,7 @@ in
           }
         '';
       }
-      // lib.optionalAttrs devCfg.agents.enable {
+      // lib.optionalAttrs agentsCfg.enable {
         # Holt's durable machine default. The zellij server and launchd daemons
         # can outlive the environment that started them, so `holt new` resolves
         # this generated file instead of inheriting a stale client selection.
@@ -2422,7 +2402,7 @@ in
       # stay yours (see modules/sill/options.nix).
       # Claude Code settings/hooks/statusline are agent tooling; a machine that
       # runs no agents should not have its ~/.claude/settings.json rewritten.
-      home.activation.claudeCodeSettings = lib.mkIf devCfg.agents.enable (
+      home.activation.claudeCodeSettings = lib.mkIf agentsCfg.enable (
         lib.hm.dag.entryAfter [ "writeBoundary" ] ''
         run sh -c '
           settings="$0"
@@ -2472,7 +2452,7 @@ in
       # file and may hold hooks of your own, which must survive a rebuild.
       # Only written when Codex is actually installed (`agents.clients`).
       home.activation.codexAgentHooks =
-        lib.mkIf (devCfg.agents.enable && lib.elem "codex" agentClients)
+        lib.mkIf (agentsCfg.enable && lib.elem "codex" agentClients)
           (
             lib.hm.dag.entryAfter [ "writeBoundary" ] ''
               run sh -c '

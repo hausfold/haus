@@ -97,13 +97,16 @@ flake.nix                 # mkNebelhaus builder + darwinModules outputs + exampl
 modules/
   default.nix             # imports all rooms
   options.nix             # all host-set knobs: git.*, theme.accent, wallpaper.*, hearth.*,
-                          #   agents.* (clients/default/instructions/skill), roster (the shared
-                          #   app list), prowl.*, sill.*, pounce.*, hush.*, perch.*, tour.enable,
-                          #   homebrew.*, secrets.provider
+                          #   roster (the shared app list), prowl.*, sill.*, pounce.*,
+                          #   hush.*, perch.*, tour.enable, homebrew.*, secrets.provider
   options-modules.nix     # the per-room options.nix list — shared by both renderers below
-  moved.nix               # aliases for options that changed ADDRESS inside haus.* (today:
-                          #   the claude room → agents). renamed.nix next door is the
-                          #   generated nebelhaus.* → haus.* set; don't grow that one
+  options-groups.nix      # the ROOM REGISTRY: every public namespace and darwinModules
+                          #   export, its owning room, and whether desktop data may set
+                          #   each leaf. `room-registry` fails on anything unmapped
+  moved.nix               # aliases for options that changed ADDRESS inside haus.* (the
+                          #   claude room → agents; developer.agents.enable → agents.enable).
+                          #   renamed.nix next door is the generated nebelhaus.* → haus.*
+                          #   set; don't grow that one
   options-doc.nix         # nixosOptionsDoc over them → the metadata the docs site
                           #   (.#options-json) and the agent skill are both RENDERED from
   site-data.nix           # .#site-data: that metadata + the binding table, filtered to
@@ -112,9 +115,19 @@ modules/
                           #   whenever an option moves, or `site-data-current` goes red
   lib/gui-wait.nix        # cold-boot-safe GUI agent launch: .wrap (an executable) +
                           #   .script (the bounded wait alone, for pounce)
+  lib/contrib.nix         # extension points: how a room contributes a feature to
+                          #   another room without reaching into its config, or
+                          #   switching it on. The receiver declares the point
+                          #   (haus._contrib.<room>.<feature>), the source writes it
   apps/                   # the EDITORIAL picks: apps the rice chooses for a finished
                           #   machine (IINA today) + the file types they claim. Roster
                           #   entries, so a cask of the same app still collides loudly
+  ai/                     # the AI room: haus.agents.* + the coding-agent capability.
+                          #   Pure wiring — its assertions, and what it CONTRIBUTES to
+                          #   the terminal, the bar and the launcher through the
+                          #   extension points those rooms declare (lib/contrib.nix).
+                          #   Its payload is still installed by den (system) and hearth
+                          #   (home), gated on haus.agents.enable
   den/                    # system: macOS defaults, Homebrew framework, core CLI, GC
                           #   + on-PATH CLIs: haus / awake / zscratch / statusline
   displays/               # haus.displays: scaled resolution by intent + the

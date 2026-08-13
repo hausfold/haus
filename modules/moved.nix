@@ -31,5 +31,20 @@
     # clients read is called AGENTS.md.
     (lib.mkRenamedOptionModule [ "haus" "claude" "globalMd" ] [ "haus" "agents" "instructions" ])
     (lib.mkRenamedOptionModule [ "haus" "claude" "skill" ] [ "haus" "agents" "skill" ])
+
+    # 2026-08-13 — the AI capability became its own room.
+    #
+    # Coding agents were a *pack inside the developer pack*: one switch under
+    # `developer`, with the rest of the capability's options already sitting in
+    # `haus.agents.*`. That split is what made the room impossible to reason
+    # about — turning agents on or off meant editing a different namespace from
+    # the one that configures them, and the room's own contributions to the
+    # terminal, the bar and the launcher had no owner to hang off.
+    #
+    # The switch now lives beside the options it governs (modules/ai/options.nix)
+    # and the room's code has a home (modules/ai). Nothing about the developer
+    # pack changed: `haus.agents.enable` still defaults to `developer.enable`,
+    # so a host that sets neither behaves exactly as before.
+    (lib.mkRenamedOptionModule [ "haus" "developer" "agents" "enable" ] [ "haus" "agents" "enable" ])
   ];
 }

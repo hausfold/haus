@@ -39,6 +39,7 @@ let
     agents = [
       "clients"
       "default"
+      "enable"
       "instructions"
       "skill"
     ];
@@ -53,7 +54,6 @@ let
       "passwordlessRebuild"
     ];
     developer = [
-      "agents.enable"
       "enable"
       "git.enable"
       "languages"
@@ -515,7 +515,7 @@ let
     };
     agents = {
       order = 80;
-      blurb = "Which coding-agent clients this machine installs, which one the agent keybinding spawns, and the two files the rice ships into every one of their homes — your instructions, and the `haus` skill.";
+      blurb = "The AI room: whether this machine runs coding agents at all, which clients it installs, which one the agent keybinding spawns, and the two files the rice ships into every one of their homes — your instructions, and the `haus` skill. Its switch was `haus.developer.agents.enable` until 2026-08-13.";
     };
     # 90 was `claude`, folded into `agents` on 2026-08-11: both of its options
     # describe a file EVERY client reads, at its own path. Left free rather than
@@ -606,7 +606,7 @@ let
     # ---- policy ---------------------------------------------------------------
     developer = {
       order = 200;
-      blurb = "The developer pack: the CLI toolbelt, Git tooling, coding-agent tooling, and language runtimes. Off is a nebelhaus machine for someone who never opens a terminal by choice.";
+      blurb = "The developer pack: the CLI toolbelt, Git tooling and language runtimes. Coding agents left this pack on 2026-08-13 and are their own room now (`haus.agents.*`). Off is a nebelhaus machine for someone who never opens a terminal by choice.";
     };
     collar = {
       order = 210;

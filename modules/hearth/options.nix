@@ -29,10 +29,46 @@ let
       slug = "styl-us";
     };
   };
+
+  contrib = import ../lib/contrib.nix { inherit lib; };
 in
 
 {
   options.haus = {
+    # ---- the Development room's extension points ------------------------------
+    # Declared here because hearth is the terminal, which is what a contributed
+    # binding lands in. See modules/lib/contrib.nix for the contract, and
+    # modules/ai for today's only writer.
+    _contrib.development.agents = contrib.mkExtensionPoint {
+      description = ''
+        The AI room's agent lifecycle bindings, as the terminal renders them:
+        the ⌘A / Super-a chords that spawn an agent (in a fresh `holt` worktree,
+        or in this pane), the `c` alias, and the cheatsheet cards pounce draws
+        from the same table.
+
+        Off leaves the terminal exactly as it is without agents — no dead chord
+        teaching a client this machine never installed. It never installs an
+        agent client itself: that is the AI room's own payload.
+      '';
+      options = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+          description = "Whether the terminal binds and teaches the agent chords.";
+        };
+        default = lib.mkOption {
+          type = lib.types.str;
+          default = "claude";
+          description = "The client the chords spawn — `haus.agents.default`.";
+        };
+        clients = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ ];
+          description = "The installed clients — `haus.agents.clients`.";
+        };
+      };
+    };
+
     git = {
       name = lib.mkOption {
         type = lib.types.str;

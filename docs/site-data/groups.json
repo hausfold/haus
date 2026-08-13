@@ -4,7 +4,7 @@
     "order": 100
   },
   "agents": {
-    "blurb": "Which coding-agent clients this machine installs, which one the agent keybinding spawns, and the two files the rice ships into every one of their homes — your instructions, and the `haus` skill.",
+    "blurb": "The AI room: whether this machine runs coding agents at all, which clients it installs, which one the agent keybinding spawns, and the two files the rice ships into every one of their homes — your instructions, and the `haus` skill. Its switch was `haus.developer.agents.enable` until 2026-08-13.",
     "order": 80
   },
   "animations": {
@@ -24,7 +24,7 @@
     "order": 210
   },
   "developer": {
-    "blurb": "The developer pack: the CLI toolbelt, Git tooling, coding-agent tooling, and language runtimes. Off is a nebelhaus machine for someone who never opens a terminal by choice.",
+    "blurb": "The developer pack: the CLI toolbelt, Git tooling and language runtimes. Coding agents left this pack on 2026-08-13 and are their own room now (`haus.agents.*`). Off is a nebelhaus machine for someone who never opens a terminal by choice.",
     "order": 200
   },
   "displays": {
@@ -135,14 +135,17 @@
       "owner": "appearance"
     },
     "agents": {
-      "blurb": "Which coding-agent clients this machine installs, which one the agent keybinding spawns, and the two files the rice ships into every one of their homes — your instructions, and the `haus` skill.",
+      "blurb": "The AI room: whether this machine runs coding agents at all, which clients it installs, which one the agent keybinding spawns, and the two files the rice ships into every one of their homes — your instructions, and the `haus` skill. Its switch was `haus.developer.agents.enable` until 2026-08-13.",
       "kind": "room",
-      "optionCount": 4,
+      "optionCount": 5,
       "options": {
         "haus.agents.clients": {
           "desktopSafe": true
         },
         "haus.agents.default": {
+          "desktopSafe": true
+        },
+        "haus.agents.enable": {
           "desktopSafe": true
         },
         "haus.agents.instructions": {
@@ -210,13 +213,10 @@
       "owner": "security"
     },
     "developer": {
-      "blurb": "The developer pack: the CLI toolbelt, Git tooling, coding-agent tooling, and language runtimes. Off is a nebelhaus machine for someone who never opens a terminal by choice.",
+      "blurb": "The developer pack: the CLI toolbelt, Git tooling and language runtimes. Coding agents left this pack on 2026-08-13 and are their own room now (`haus.agents.*`). Off is a nebelhaus machine for someone who never opens a terminal by choice.",
       "kind": "room",
-      "optionCount": 5,
+      "optionCount": 4,
       "options": {
-        "haus.developer.agents.enable": {
-          "desktopSafe": true
-        },
         "haus.developer.enable": {
           "desktopSafe": true
         },
