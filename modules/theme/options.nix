@@ -21,8 +21,8 @@ in
       default = "mocha";
       example = "latte";
       description = ''
-        Light or dark. "mocha" (the default) is haus's own dark palette;
-        "latte" is light mode.
+        Light or dark. "mocha" (the default) is the dark half of Nebelung,
+        which is what haus has always shipped; "latte" is light mode.
 
         Not an inversion of the dark palette — a different SOURCE palette. Nebelung
         is "Catppuccin with the blue stripped out", and those rules say nothing

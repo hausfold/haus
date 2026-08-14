@@ -609,7 +609,7 @@ in
           this option.
 
           "alt" (default) is ⌥. The alternatives are for **non-US keyboard
-          layouts**, where ⌥+letter types accented characters — a keymap that owns
+          layouts**, where ⌥+letter types accented characters — a machine that owns
           ⌥+letter is unusable on those, which is the concrete reason this option
           exists.
 
