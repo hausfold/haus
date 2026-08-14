@@ -907,6 +907,15 @@ in
       # (@glowStyle@ placeholder) and the `glow -p` opener below.
       glowStyle = "${nebelungRoot}/glow/themes/${nbFlavor}/catppuccin-${nbFlavor}-${accent}.json";
       glowPlugin = pkgs.runCommand "glow.yazi" { } ''
+        # Nix interpolates a store path into a string without asserting anything is
+        # there, and accent-reach fingerprints this plugin's TEXT — the accent varies
+        # only INSIDE the path, so a missing referent would still read `moves`. This
+        # is the one place the build can see the file, so check it here.
+        [ -f ${glowStyle} ] || {
+          echo "hearth: nebelung has no glamour port at ${glowStyle}" >&2
+          echo "  (haus.theme.flavor/accent moved past what the pinned nebelung ships)" >&2
+          exit 1
+        }
         cp -r ${./yazi/plugins/glow.yazi} $out
         chmod -R +w $out
         substituteInPlace $out/main.lua --subst-var-by glowStyle ${glowStyle}
