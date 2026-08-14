@@ -557,7 +557,43 @@ in
       # System-wide (not home-manager) so sudo and non-login shells see it too.
       # (The workshop's developer CLI is `bench` — a different name on purpose,
       # so the two never shadow each other.)
-      (writeShellScriptBin "haus" (builtins.readFile ./haus.sh))
+      #
+      # Wrapped rather than bare because two of its tools have to be THERE, not
+      # merely usually there. `gum` draws `haus set`'s picker and is in nixpkgs
+      # but in nobody's profile — bootstrap.sh fetches it ad-hoc with `nix build
+      # nixpkgs#gum`, which is exactly the sort of thing an end-user command must
+      # not need. `jq` parses every value `haus set` writes and reads the options
+      # catalogue, and it ships only with the developer toolbelt below, so a
+      # machine with `haus.developer.toolbelt.enable = false` had a `haus set` that
+      # died on `jq: command not found`. A suffix, not a prefix: this guarantees
+      # the tools resolve, it doesn't shadow the ones you chose.
+      (symlinkJoin {
+        name = "haus";
+        paths = [ (writeShellScriptBin "haus" (builtins.readFile ./haus.sh)) ];
+        nativeBuildInputs = [ makeWrapper ];
+        postBuild = ''
+          wrapProgram "$out/bin/haus" --suffix PATH : ${
+            lib.makeBinPath [
+              gum
+              jq
+            ]
+          }
+        '';
+      })
+
+      # zsh completion for `haus`: the subcommands, and for set/get/unset/reset
+      # every settable option path — read from the catalogue beside the host
+      # template, never from an evaluation. Lands on fpath through system-path's
+      # /share/zsh, which is why this is a package rather than a hearth dotfile:
+      # `haus` is system-wide, and its completion should not depend on a room a
+      # machine can turn off. jq's path is substituted in for the same reason.
+      (writeTextFile {
+        name = "haus-zsh-completion";
+        destination = "/share/zsh/site-functions/_haus";
+        text = builtins.replaceStrings [ "@jq@" ] [ (lib.getExe jq) ] (
+          builtins.readFile ./haus-completion.zsh
+        );
+      })
 
       # `haus-activate <system>` — the privileged half of a rebuild, split out
       # so the config is evaluated ONCE. `darwin-rebuild switch --flake` builds
