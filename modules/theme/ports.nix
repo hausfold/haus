@@ -35,6 +35,7 @@
     home-manager.users.${username} =
       {
         lib,
+        pkgs,
         osConfig,
         nebelung,
         ...
@@ -140,6 +141,46 @@
             "step\t${p.title}\tplaced at ~/${target p} — ${left}";
 
         report = lib.concatStringsSep "\n" (lib.mapAttrsToList line chosen);
+
+        # Nix interpolates a store path into a string without asserting anything is
+        # there, and home-manager's own `insertFile` ends in a bare `ln -s` — so a
+        # port whose file the pinned nebelung doesn't actually render lands in ~/
+        # as a DANGLING SYMLINK, with no error at build or activation. You find it
+        # months later wondering why the app looks stock, which is the exact
+        # outcome this room's header says it refuses to produce.
+        #
+        # This is the room where that pointer is riskiest: `path` is re-spelled
+        # twice before it means anything — once for the flavor (../lib/nebelung.nix,
+        # whose own comment already notes "a mocha path under a latte root silently
+        # resolves to nothing") and once for `<accent>` — so two substitutions
+        # neither side validates stand between the metadata and a real file.
+        #
+        # Copying through one runCommand makes the referent a build DEPENDENCY
+        # rather than a promise: the same move hearth makes for the glamour port in
+        # its `glowPlugin`, which is the other place a nebelung path is spelled
+        # rather than resolved.
+        checked = pkgs.runCommand "nebelung-ports" { } (
+          ''
+            mkdir -p $out
+          ''
+          + lib.concatStrings (
+            # Every path here is quoted: a rendered port's filename routinely
+            # contains a space ("Catppuccin Mocha.xccolortheme"), which an
+            # unquoted `[ -e ]` reads as two arguments.
+            lib.mapAttrsToList (id: p: ''
+              if [ ! -e "${p.file}" ]; then
+                echo "haus.theme.ports: the pinned nebelung renders no port file at" >&2
+                echo "  ${p.file}" >&2
+                echo "for ${p.title} (haus.roster.${id}) at flavor ${nb.flavor}, accent ${accent}." >&2
+                echo "Either nebelung stopped rendering that combination — run" >&2
+                echo "\`nix flake update nebelung\` — or the port's metadata path moved." >&2
+                exit 1
+              fi
+              mkdir -p "$out/${id}"
+              cp -r "${p.file}" "$out/${id}/${basename p.path}"
+            '') placed
+          )
+        );
       in
       {
         # Every id a room claims to handle must be a port nebelung still ships,
@@ -162,7 +203,9 @@
         };
 
         home.file =
-          lib.mapAttrs' (_: p: lib.nameValuePair (target p) { source = "${p.file}"; }) placed
+          lib.mapAttrs' (
+            id: p: lib.nameValuePair (target p) { source = "${checked}/${id}/${basename p.path}"; }
+          ) placed
           # Read by `haus doctor`. Written even when empty so doctor can tell
           # "nothing in your roster has a port" apart from "this rice predates the
           # feature" and say the right thing for each.

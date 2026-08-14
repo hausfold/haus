@@ -911,7 +911,7 @@ in
         # there, and accent-reach fingerprints this plugin's TEXT — the accent varies
         # only INSIDE the path, so a missing referent would still read `moves`. This
         # is the one place the build can see the file, so check it here.
-        [ -f ${glowStyle} ] || {
+        [ -f "${glowStyle}" ] || {
           echo "hearth: nebelung has no glamour port at ${glowStyle}" >&2
           echo "  (haus.theme.flavor/accent moved past what the pinned nebelung ships)" >&2
           exit 1
