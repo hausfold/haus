@@ -57,6 +57,19 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Terminal session persistence — attach/detach a PTY without a multiplexer,
+    # because "windows, tabs and splits are the window manager's job" and this
+    # rice already has one (prowl). It is the backing store for
+    # `haus.hearth.lanes.backend = "zmx"`: a lane's agent lives in a zmx
+    # session, and a Ghostty window is only ever a view onto it. NO overlay of
+    # its own — the flake exposes `packages.<system>.zmx` and nothing else — so
+    # the builder below lifts it into pkgs by hand.
+    #
+    # Deliberately NOT `inputs.nixpkgs.follows`: zmx builds through zig2nix
+    # against a pinned Zig 0.16, and pointing its nixpkgs at ours buys a
+    # toolchain mismatch rather than a smaller closure.
+    zmx.url = "github:neurosnap/zmx";
+
     nix-index-database = {
       url = "github:nix-community/nix-index-database";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -74,6 +87,7 @@
       pounce,
       perch,
       holt,
+      zmx,
       nix-index-database,
     }:
     let
@@ -132,6 +146,12 @@
                 pounce.overlays.default
                 perch.overlays.default
                 holt.overlays.default
+                # zmx ships packages but no overlay, so put it in pkgs the way
+                # the other three put themselves there. `system` is the
+                # builder's own arg, the same one nixpkgs.hostPlatform gets
+                # above — not prev.system, which is empty under a
+                # cross-configured pkgs.
+                (_final: _prev: { zmx = zmx.packages.${system}.zmx; })
               ];
             }
             home-manager.darwinModules.home-manager
@@ -1900,6 +1920,7 @@
                     pounce.overlays.default
                     perch.overlays.default
                     holt.overlays.default
+                    (_final: _prev: { zmx = zmx.packages.${system}.zmx; })
                   ];
                 }
                 home-manager.darwinModules.home-manager

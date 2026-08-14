@@ -1273,7 +1273,13 @@ in
         # Unlisted means uninstalled, and `ai.default` is asserted to be a
         # member — so the client the palette is about to spawn is on PATH by
         # construction, rather than discovered missing inside the pane.
-        ++ map (c: agentPackages.${c}) agentClients;
+        ++ map (c: agentPackages.${c}) agentClients
+        # zmx, when it is what a lane opens into. Same argument as the clients
+        # above: `lane-open.sh` defers to holt's built-in if it can't find zmx,
+        # so a missing binary degrades to the zellij behaviour instead of a
+        # dead lane — but the whole point of the option is that it doesn't have
+        # to find out at spawn time.
+        ++ lib.optional (hearthCfg.lanes.backend == "zmx") zmx;
 
       programs.zsh = {
         enable = true;
@@ -1914,7 +1920,29 @@ in
         ".config/holt/config.toml".text = ''
           # Generated from haus.ai.default — edit that option, not here.
           agent = "${agentDefault}"
+        ''
+        + lib.optionalString (hearthCfg.lanes.backend == "zmx") ''
+
+          # haus.hearth.lanes.backend = "zmx". `open` and `resume` are the two
+          # seams holt answers by exec'ing a client; both are answered here by
+          # the same script, because with zmx they are the same act — `zmx
+          # attach` creates the session or joins the live one.
+          #
+          # The path is under ~, not a store path: holt's own docs list "a hook
+          # pointing at a store path from a rebuild ago" as a way for this to
+          # break, and home.file below keeps this one current.
+          [hooks]
+          open = "${config.home.homeDirectory}/.config/nebelhaus/lanes/lane-open.sh"
+          resume = "${config.home.homeDirectory}/.config/nebelhaus/lanes/lane-open.sh"
         '';
+
+        # The lane opener itself. Shipped whatever the backend is — it is inert
+        # unless holt's config points at it, and having it on disk is what makes
+        # flipping the option a rebuild rather than a rebuild plus a relaunch.
+        ".config/nebelhaus/lanes/lane-open.sh" = {
+          source = ./lanes/lane-open.sh;
+          executable = true;
+        };
 
         # Opencode's half of the agent-pane status the bar and the zellij tab-bar
         # draw. Claude Code's equivalent is four hooks in ~/.claude/settings.json,

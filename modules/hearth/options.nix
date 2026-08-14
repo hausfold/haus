@@ -257,6 +257,49 @@ in
       '';
     };
 
+    hearth.lanes.backend = lib.mkOption {
+      type = lib.types.enum [
+        "zellij"
+        "zmx"
+      ];
+      # In-room taste, like zellijStartLocked below: both backends ship with
+      # the room either way, and this only decides which one a `holt` lane
+      # opens into. A desktop may set it.
+      default = "zellij";
+      description = ''
+        Where an agent lane's terminal actually lives.
+
+        `zellij` (the default) is the behaviour this rice has always had: a
+        lane is a pane in the `main` zellij session, and `holt` execs the
+        client in the pane you ran it from. Panes are cheap, but a lane's
+        identity is then a (session, pane-id) pair that only zellij
+        understands — which is why the bar keeps a state file per pane and
+        joins it back to a checkout path to work out which window to raise.
+
+        `zmx` makes the lane its own zmx session, viewed through its own
+        Ghostty window, tiled by prowl — all three named
+        `holt.<repo>.<lane>`. Three consequences, in the order you'd feel
+        them:
+
+        - **Closing the window stops meaning parking the work.** A zmx
+          session outlives every client attached to it, so ⌘W detaches and
+          the agent keeps thinking; `holt <name>` reopens a window onto the
+          live conversation instead of resuming a transcript.
+        - **The name is the join.** `zmx ls --where state=waiting`,
+          AeroSpace's `window-title-regex`, and the lane in `holt --json`
+          all key off one string.
+        - **Splits are gone**, because zmx has none by design. Prowl tiles
+          the windows instead, which is the trade: a real window manager
+          rather than a second one nested inside a terminal.
+
+        Both backends can be installed at once — this only picks which one
+        `holt` opens into, through the `[hooks] open`/`resume` seam in
+        `~/.config/holt/config.toml`. If zmx is somehow missing at runtime
+        the hook defers (exit 3) and holt falls back to its built-in, so the
+        worst case is the zellij behaviour you already had.
+      '';
+    };
+
     hearth.zellijStartLocked = lib.mkOption {
       type = lib.types.bool;
       # In-room taste: it only describes how the multiplexer this room already
