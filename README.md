@@ -36,14 +36,14 @@ machine, run one command, and the house stands again exactly as it was.
 > ships from — the maker, and the name on the receipt. So the repo is
 > `hausfold/haus`: the layer names the repo, the org owns it.
 
-📖 **Full docs & guides: [nebelhaus.com](https://nebelhaus.com)** — start with
-[Install](https://nebelhaus.com/start/install/) and
-[First run](https://nebelhaus.com/start/first-run/).
+📖 **Full docs & guides: [hausfold.co/docs](https://hausfold.co/docs)** — start with
+[Install](https://hausfold.co/docs/haus/install/) and
+[First run](https://hausfold.co/docs/nebelhaus/first-run/).
 
 ## raise the whole house
 
 ```sh
-curl -fsSL https://nebelhaus.com/init.sh | bash
+curl -fsSL https://hausfold.co/nebelhaus.sh | bash
 # or straight from the flake, once nix is installed:
 nix run github:hausfold/haus#bootstrap
 ```
@@ -134,7 +134,7 @@ personal to you: git name/email/signing key, the pounce signing identity, your
 secrets, and your private app list. All of it lives in
 `hosts/<hostname>/default.nix`, so the rice is complete out of the box and you
 layer *you* on top. [Making it
-yours](https://nebelhaus.com/guides/making-it-yours/) is the cookbook.
+yours](https://hausfold.co/docs/haus/desktops/customizing/) is the cookbook.
 
 ## ask an agent to change it
 
@@ -162,8 +162,8 @@ every pane you open starts from.
 ## more
 
 - [Modules](docs/modules.md) — stealing one room, `mkNebelhaus`, and the identity knobs
-- [Adding apps](https://nebelhaus.com/guides/adding-apps/) · [Window management](https://nebelhaus.com/guides/window-management/) · [Moving to a new Mac](https://nebelhaus.com/guides/new-mac/) · [Keeping in sync](https://nebelhaus.com/guides/staying-in-sync/)
-- [Coding agents](https://nebelhaus.com/guides/claude-agents/) — `holt`, the worktree tool this rice puts on your PATH, for Claude Code, Codex or OpenCode
+- [Adding apps](https://hausfold.co/docs/haus/rooms/apps/) · [Window management](https://hausfold.co/docs/haus/rooms/windows/) · [Keeping it current](https://hausfold.co/docs/haus/keeping-it-current/) — moving to a new Mac and staying in sync are one page now
+- [Coding agents](https://hausfold.co/docs/haus/rooms/ai/) — `holt`, the worktree tool this rice puts on your PATH, for Claude Code, Codex or OpenCode
 - [`AGENTS.md`](./AGENTS.md) — hacking on the house, including `zscratch`
 
 ## the family

@@ -76,8 +76,8 @@ darwinConfigurations.mymac = inputs.nebelhaus.mkNebelhaus {
   `minimal` look.
 
 The full option list is [Making it
-yours](https://nebelhaus.com/guides/making-it-yours/) and
-[Options reference](https://nebelhaus.com/reference/options/) on nebelhaus.com.
+yours](https://hausfold.co/docs/haus/desktops/customizing/) and
+[Options reference](https://hausfold.co/docs/haus/reference/options/) on hausfold.co.
 
 ## New to the parts?
 

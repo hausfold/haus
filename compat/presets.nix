@@ -45,7 +45,7 @@ let
         (
           "haus.presets is retired: ${replacement}. The preset format let two whole "
           + "selections stack, which the rooms model replaces with exactly one desktop per "
-          + "host — see https://nebelhaus.com/guides/sharing-a-rice/. This alias keeps your "
+          + "host — see https://hausfold.co/docs/haus/desktops/creating/. This alias keeps your "
           + "current machine building and will be removed."
         )
       ];

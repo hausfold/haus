@@ -13,7 +13,7 @@
 # added, and a confidently-wrong option name costs the user a failed rebuild and
 # a rollback. So the half that can drift — every `haus.*` name, type,
 # default and description — is RENDERED from the module system, the same source
-# the nebelhaus.com reference is rendered from.
+# the hausfold.co reference is rendered from.
 #
 # Because it's a derivation, it's built from the rice revision the machine has
 # actually pinned. The skill on disk therefore describes the options that exist
@@ -32,7 +32,7 @@
 let
   version = lib.fileContents ../../../VERSION;
 
-  # The same option metadata nebelhaus.com's reference is rendered from — one
+  # The same option metadata hausfold.co's reference is rendered from — one
   # evaluation, so the page and the skill can't disagree about what an option is.
   optionsJSON = import ../../options-doc.nix { inherit pkgs lib; };
 in

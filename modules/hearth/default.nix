@@ -306,7 +306,7 @@ let
     instead of the ⏏ it used to, and `holt reship [name]` pushes the branch and
     opens the follow-up PR.
 
-    Full guide: https://nebelhaus.com/guides/claude-agents/
+    Full guide: https://hausfold.co/docs/haus/rooms/ai/
 
   '';
 

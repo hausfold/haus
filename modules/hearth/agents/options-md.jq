@@ -1,10 +1,10 @@
 # Renders nixosOptionsDoc's options.json into the agent-facing option reference
 # that ships inside the nebelhaus agent skill.
 #
-# Deliberately NOT the same rendering as nebelhaus.com's options page (which is
-# rendered from the same JSON by the workshop's web/scripts/gen-options.mjs).
+# Deliberately NOT the same rendering as hausfold.co's options page (which is
+# rendered from the same JSON by that repo's scripts/gen-options.mjs).
 # That page is for a person reading top-to-bottom: prose blurbs per room, links
-# into the repo, Starlight components. This one is for a model that will `grep`
+# into the repo, Fumadocs components. This one is for a model that will `grep`
 # it — so it leads with a flat name index (the whole namespace in one screen,
 # which is what stops an agent inventing an option that doesn't exist), then one
 # uniform stanza per option with the fields on their own lines.

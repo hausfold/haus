@@ -17,9 +17,11 @@ The short version:
   palette app in `pounce`, the notch file shelf in `perch`, one machine's config
   in that machine's own repo. A change that would "work here" but belongs
   elsewhere is still wrong.
-- **Docs live downstream:** user-facing guides are the Astro site in the
-  `workshop` repo, served at nebelhaus.com. A change to user-facing behavior
-  needs the matching guide updated there, or it silently drifts.
+- **Docs live downstream:** user-facing guides are `content/docs/` in the
+  `hausfold.co` repo, served at hausfold.co. A change to user-facing behavior
+  needs the matching page updated there, or it silently drifts. Not the
+  workshop's `web/` — that tree was deleted on 2026-08-14 and the zone is a
+  redirect now, so a fix routed there edits nothing.
 - **Verify by evaluating:** `nix eval
   .#darwinConfigurations.example.system.drvPath`. `nixfmt` formats `.nix`.
 - Two traps worth knowing at review time: the **launchd GUI race**
