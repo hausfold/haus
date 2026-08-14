@@ -11,6 +11,8 @@ the house — the `haus` layer and the nebelhaus rice, one Nix flake. start here
 ![themed by nebelung](https://img.shields.io/badge/themed_by-nebelung-c9a8f1?labelColor=202020)
 ![license](https://img.shields.io/badge/license-MIT-d7d7d7?labelColor=202020)
 
+<sub>**pre-release** · nothing here changes your Mac without a way back — every rebuild is a Nix generation `haus rollback` returns to, and macOS's own settings are the one exception a rollback can't reach, which is what `haus capture` and `haus revert-settings` are for. that's the intent, not a warranty — run it on a machine you can afford to rebuild, and tell us what breaks.</sub>
+
 <!-- assets/hero.png — the whole desktop: Sill bar, Prowl tiling, Pounce open, Nebelung everywhere -->
 ![the nebelhaus desktop](./assets/hero.png)
 
