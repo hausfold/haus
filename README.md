@@ -43,9 +43,13 @@ machine, run one command, and the house stands again exactly as it was.
 ## raise the whole house
 
 ```sh
-curl -fsSL https://hausfold.co/nebelhaus.sh | bash
+curl -fsSL https://hausfold.co/haus.sh | bash
+# or name the desktop and skip that question:
+curl -fsSL https://hausfold.co/nebelhaus.sh | bash   # the full desktop
+curl -fsSL https://hausfold.co/everyday.sh  | bash   # for someone who doesn't write code
+curl -fsSL https://hausfold.co/minimal.sh   | bash   # just the themed shell
 # or straight from the flake, once nix is installed:
-nix run github:hausfold/haus#bootstrap
+nix run github:hausfold/haus#bootstrap -- --desktop=minimal
 ```
 
 It installs the prerequisites (Xcode CLT, Determinate Nix), then scaffolds a
