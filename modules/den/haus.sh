@@ -363,9 +363,10 @@ guard_unguarded_fda() {
     1. Move those keys to haus.accessibility.* — it reaches every key in that
        domain MEASURED to take effect, through a guarded write that degrades to
        "setting skipped" instead of a half-activated Mac, and it rebuilds from
-       anywhere. This is the fix; the option exists for exactly this. (The keys
-       it doesn't reach are the ones nobody has watched work — cursor size and
-       the closeView pair. For those, route 2 is the only route.)
+       anywhere. This is the fix; the option exists for exactly this. Since
+       2026-08-14 it covers ALL FIVE keys nix-darwin types here, cursor size and
+       the closeView pair included, so there is nothing left that only route 2
+       can say.
 
     2. Rebuild from an app that holds the grant (System Settings ▸ Privacy &
        Security ▸ Full Disk Access — on macOS 26 a stale entry often needs
@@ -438,11 +439,25 @@ declared_defaults() {
 
 # TSV domain\tkey\tvalue for den's own guarded accessibility writer (see
 # modules/den/default.nix's `nebelhausAccessibility` postActivation block) — a
-# raw `defaults write … -bool` shell call, not the typed XML-plist shape
-# declared_defaults parses, so it needs its own extraction.
+# raw `defaults write` shell call carrying its own type flag, not the typed
+# XML-plist shape declared_defaults parses, so it needs its own extraction.
 declared_a11y_calls() {
-  grep -E '^[[:space:]]*nebelhausAccessibility [A-Za-z]+ (true|false)[[:space:]]*$' "$1" 2>/dev/null \
-    | while read -r _ key value; do printf 'com.apple.universalaccess\t%s\t%s\n' "$key" "$value"; done || true
+  grep -E '^[[:space:]]*nebelhausAccessibility [A-Za-z]+ -(bool|float) [^[:space:]]+[[:space:]]*$' "$1" 2>/dev/null \
+    | while read -r _ key flag value; do
+        # The writer carries `defaults write`'s own type flag since this domain
+        # stopped being all-booleans (mouseDriverCursorSize, 2026-08-14). Only
+        # -float needs anything doing to it: Nix stringifies 3.0 as "3.000000"
+        # and `defaults read` prints "3", so canonicalise here rather than
+        # letting a diff report a key as changed on every run forever. %g drops
+        # the trailing zeros the same way macOS does — under LC_ALL=C, because
+        # %g reads the decimal separator from the locale and a comma-separator
+        # LC_NUMERIC would stop at the dot and turn 1.500000 into 1, causing
+        # exactly the forever-changed diff this line exists to prevent.
+        if [ "$flag" = -float ]; then
+          value="$(LC_ALL=C printf '%g' "$value")"
+        fi
+        printf 'com.apple.universalaccess\t%s\t%s\n' "$key" "$value"
+      done || true
 }
 
 # TSV for den's other guarded writer: haus.sound.alertSound. Same reason as
@@ -489,6 +504,12 @@ live_value() { # <domain> <key> -> `defaults read`'s raw output, empty if unset
 #                  showing — so a plist comparison would read back the write
 #                  that did nothing and call it applied. There is a working
 #                  lever; it just isn't this one. See modules/theme.
+#   by-eye       — measured effective by a HUMAN on real hardware, with no API
+#                  that can re-check it here (NSWorkspace reports no pointer size
+#                  and no zoom state). Diffed against the plist like `plain`, and
+#                  SAYS SO — the one thing it must never do is print the same
+#                  confident line `effective` prints, because that line means
+#                  "macOS itself agrees" and here nothing asked macOS.
 #   unconfirmed  — other universalaccess keys: persist, effect never measured
 #   plain        — everything else: the matrix's control group, plist is fine
 classify_key() {
@@ -503,6 +524,7 @@ classify_key() {
     com.apple.universalaccess)
       case "$2" in
         reduceMotion | reduceTransparency | increaseContrast | differentiateWithoutColor) echo effective ;;
+        mouseDriverCursorSize | closeViewScrollWheelToggle | closeViewZoomFollowsFocus) echo by-eye ;;
         *) echo unconfirmed ;;
       esac
       ;;
@@ -554,7 +576,7 @@ settings_diff() {
         warn "$domain $key: declared $declared — writing this key is a KNOWN NO-OP in BOTH directions on macOS 26 (measured; the appearance system only mirrors it). macOS is effectively showing $live. Use haus.theme.systemAppearance instead."
         flagged=$((flagged + 1))
         ;;
-      unconfirmed | plain)
+      by-eye | unconfirmed | plain)
         if [ "$declared" = "__COMPLEX__" ]; then
           info "$domain $key: dict/array value — not diffed automatically"
           flagged=$((flagged + 1))
@@ -564,10 +586,20 @@ settings_diff() {
         if [ "$declared" = "${live:-}" ]; then
           matched=$((matched + 1))
           [ "$kind" = unconfirmed ] && flagged=$((flagged + 1)) # matches, but a match here isn't proof it works
+          if [ "$kind" = by-eye ]; then
+            # Not flagged — this key backs a supported option and the plist
+            # agreeing is the most any tool can establish for it. Said out loud
+            # anyway: the `effective` arm above means "macOS itself agrees", and
+            # a reader skimming a column of ticks would otherwise read this one
+            # as the same claim.
+            info "$domain $key: plist matches — nothing on this Mac can confirm the effect, so that is all this checked (measured by eye, macOS 26.6.1)"
+          fi
         else
           if [ "$kind" = unconfirmed ]; then
             warn "$domain $key: declared $declared, plist shows ${live:-unset} (persists only — effect unconfirmed on this macOS)"
             flagged=$((flagged + 1))
+          elif [ "$kind" = by-eye ]; then
+            printf '  %-28s %-26s %-14s -> %s  (plist-only check)\n' "$domain" "$key" "${live:-unset}" "$declared"
           else
             printf '  %-28s %-26s %-14s -> %s\n' "$domain" "$key" "${live:-unset}" "$declared"
           fi
@@ -1237,10 +1269,10 @@ cmd_capture() {
 # Dock or Finder preference just sits there. This is the other half: restore
 # the exact snapshot `haus capture` took, byte for byte (`defaults import`,
 # not a replay of individual key writes), then make it live the same way den's
-# own postActivation does — a Dock/Finder restart plus activateSettings, so
-# nothing waits for a logout.
+# own postActivation does — a Dock/Finder/universalaccessd restart plus
+# activateSettings, so nothing waits for a logout.
 cmd_revert_settings() {
-  local which="${1:-latest}" snapdir domain file rc=0 touched_dock="" touched_finder=""
+  local which="${1:-latest}" snapdir domain file rc=0 touched_dock="" touched_finder="" touched_ua=""
 
   if [ "$which" = "list" ]; then
     if [ ! -d "$SNAP_BASE" ]; then
@@ -1274,6 +1306,7 @@ cmd_revert_settings() {
       ok "$domain restored"
       [ "$domain" = com.apple.dock ] && touched_dock=1
       [ "$domain" = com.apple.finder ] && touched_finder=1
+      [ "$domain" = com.apple.universalaccess ] && touched_ua=1
     else
       bad "$domain: restore failed"
       rc=1
@@ -1286,6 +1319,13 @@ cmd_revert_settings() {
   # same convention modules/den/default.nix uses for the identical calls.
   [ -n "$touched_dock" ] && { killall -qu "$(id -un)" Dock 2>/dev/null || true; }
   [ -n "$touched_finder" ] && { killall -qu "$(id -un)" Finder 2>/dev/null || true; }
+  # universalaccessd for the same reason as the two above, added 2026-08-14:
+  # cursor size and the closeView pair are invisible until this daemon rereads
+  # the domain, so a restore without it puts the bytes back and shows the user
+  # nothing until their next logout — the failure this whole command exists to
+  # avoid. Unconditional on the domain rather than per-key: `defaults import`
+  # replaces the whole plist, so which keys moved isn't knowable here.
+  [ -n "$touched_ua" ] && { killall -qu "$(id -un)" universalaccessd 2>/dev/null || true; }
 
   # Same broadcast den's postActivation makes after writing preferences — run
   # as ourselves (not root, so no launchctl-asuser wrapping needed here).

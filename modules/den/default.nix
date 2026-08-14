@@ -36,6 +36,17 @@ let
   # would silently stop being written.
   a11ySet = lib.filterAttrs (_: v: v != null) config.haus.accessibility;
 
+  # `defaults write` needs the value's type named on the command line, and this
+  # domain stopped being all-booleans when `mouseDriverCursorSize` became
+  # shippable (§5.12, 2026-08-14). The type comes from ../lib/reachability.nix's
+  # `keyTypes`, the same table that generates the options themselves — so the
+  # option's Nix type and the `defaults` flag cannot disagree, which is the
+  # failure this shape exists to prevent: `-bool` on a float key writes `1` into
+  # a size field and the pointer quietly stays normal.
+  a11yKeyType = k: (reachMap."com.apple.universalaccess".keyTypes.${k} or { }).type or "bool";
+  a11yWriteFlag = k: if a11yKeyType k == "float" then "-float" else "-bool";
+  a11yWriteValue = k: v: if a11yKeyType k == "float" then builtins.toString v else lib.boolToString v;
+
   # haus.animations — one predicate, read by the two domains that carry the
   # group (the Dock's four keys and NSGlobalDomain's one). "system" writes
   # neither, which is why this is a mkIf at each key rather than a value.
@@ -92,9 +103,51 @@ let
     "none"
     "logout"
   ];
+  # Domains whose restart this rebuild has actually earned. `typedDomainsWritten`
+  # above is deliberately unconditional so every lookup finds an answer, but two
+  # of its members are only written when a host opts in, and for one of them that
+  # gap is now expensive rather than cosmetic: `com.apple.universalaccess`'s verb
+  # is `universalaccessd`, a daemon that owns the RUNNING accessibility features,
+  # so an unconditional entry would interrupt VoiceOver or a live Zoom on every
+  # rebuild of every machine — including the overwhelming majority with no
+  # accessibility opinion at all.
+  #
+  # This is the same split `fdaDeclaredBy` below already needed, and the same
+  # rule the locale notification wrote down: **"which restart" is data, "does
+  # this rebuild need one" sometimes isn't.** A domain absent here defaults to
+  # true, which is right for the ones the rice writes on every rebuild.
+  #
+  # The trigger is per-KEY, not per-option-family, and that distinction is the
+  # whole value of it. Only the `by-eye` three need the daemon bounced; the four
+  # oracle-backed keys were live before it. `haus.appearance.largePrint` sets
+  # `increaseContrast`, so a family-wide trigger would kill `universalaccessd` on
+  # every rebuild of every large-print machine — the population most likely to
+  # have VoiceOver, Zoom or Hover Text actually running, which is precisely the
+  # interruption this gate exists to avoid. Read from the table, so a key
+  # promoted later is covered without an edit here.
+  a11yRestartKeys = lib.attrNames (
+    lib.filterAttrs (_: e: e == "by-eye") reachMap."com.apple.universalaccess".keys
+  );
+  restartDeclaredBy = {
+    # All THREE ways this domain can be written, not just the option family:
+    # a host reaching it through `system.defaults.universalaccess.*` (the raw
+    # route the guard warns about) or through `CustomUserPreferences` (what
+    # `haus capture` generates) writes exactly the same plist, and a write with
+    # no restart is the "looked dead for three weeks" bug this commit exists to
+    # end. `fdaDeclaredBy` below has the same shape for the same reason.
+    "com.apple.universalaccess" = lib.any (k: builtins.elem k a11yRestartKeys) (
+      lib.attrNames a11ySet
+      ++ universalaccessSet
+      ++ lib.attrNames (config.system.defaults.CustomUserPreferences."com.apple.universalaccess" or { })
+    );
+  };
+  domainsRestarted = builtins.filter (d: restartDeclaredBy.${d} or true) domainsWritten;
+
   # A map value is one verb or a list of them (NSGlobalDomain needs two), so
   # everything downstream reads the flattened action list.
-  actionsWritten = lib.unique (lib.concatMap (d: lib.toList (restartMap.${d} or [ ])) domainsWritten);
+  actionsWritten = lib.unique (
+    lib.concatMap (d: lib.toList (restartMap.${d} or [ ])) domainsRestarted
+  );
   processesToRestart = lib.unique (
     builtins.filter (p: !(builtins.elem p notProcesses) && !(lib.hasPrefix "notify:" p)) actionsWritten
   );
@@ -113,7 +166,7 @@ let
   # signal waiting for the first one, not noise on anybody's rebuild.
   logoutDomains = builtins.filter (
     d: builtins.elem "logout" (lib.toList (restartMap.${d} or [ ]))
-  ) domainsWritten;
+  ) domainsRestarted;
 
   # ---- reachability map (§5.12) ---------------------------------------------
   # The other table, over the same `domainsWritten` list: restart-map answers
@@ -124,16 +177,24 @@ let
   reachOf = d: reachMap.${d} or { };
 
   # The keys the guarded route deliberately does NOT reach — read from the table
-  # so the warning below can't claim a coverage it hasn't got. nix-darwin types
-  # three of these, so the raw form genuinely reaches something the options
-  # don't; saying otherwise would be the exact kind of confident-and-wrong
-  # sentence this whole section is about.
-  # Tagged with the table's own verdict rather than lumped together: "persists
-  # but nobody watched it" and "lands in the plist and lies" are different news,
-  # and only the first is worth reaching for the raw form over.
+  # so the warning below can't claim a coverage it hasn't got. Tagged with the
+  # table's own verdict rather than lumped together: "persists but nobody watched
+  # it" and "lands in the plist and lies" are different news.
+  #
+  # As of 2026-08-14 this is `FontSizeCategory` alone, and that is the
+  # interesting part: nix-darwin types five keys in this domain and all five now
+  # have an option, so the raw activation-aborting form no longer reaches
+  # anything the guarded one doesn't. Until the eye-check it reached three, which
+  # is why the sentence here used to say the opposite.
+  #
+  # Which keys the guarded route reaches is read off the option surface itself,
+  # not re-derived from the table's class values — the table already generated
+  # that surface, so this is one fewer copy of the promotion rule, and it stays
+  # right the day that rule changes rather than needing an edit alongside it.
+  a11yCoveredKeys = lib.attrNames config.haus.accessibility;
   a11yUncoveredKeys = lib.concatStringsSep ", " (
     lib.mapAttrsToList (k: e: "${k} (${e})") (
-      lib.filterAttrs (_: e: e != "effective") reachMap."com.apple.universalaccess".keys
+      lib.filterAttrs (k: _: !(builtins.elem k a11yCoveredKeys)) reachMap."com.apple.universalaccess".keys
     )
   );
 
@@ -371,11 +432,16 @@ in
 
           ${a11yUncoveredKeys}
 
-      "unconfirmed" persists in the plist with its effect never watched — no
-      oracle exists for it — and "gui-only" is measured to land and change
-      nothing at all. Neither gets an option on purpose. If you want an
-      unconfirmed one anyway, the raw form is the only route: run the rebuild
-      from an app that holds Full Disk Access.
+      "gui-only" is measured to land and change nothing a running app will read;
+      "unconfirmed" would mean the plist holds it and nobody ever watched the
+      screen. Neither gets an option, on purpose.
+
+      Nothing here is a reason to reach for the raw form any more. Until
+      2026-08-14 there was one: nix-darwin types five keys in this domain and
+      three of them had no option, so the dangerous route was the only way to say
+      what you meant. All five are covered now — the raw form reaches strictly
+      less than haus.accessibility.* does, at the cost of aborting activation
+      without the grant.
     ''
     ++ lib.optional (noopDomains != [ ]) ''
       nebelhaus: this configuration writes ${lib.concatStringsSep ", " noopDomains}, which is
@@ -450,14 +516,16 @@ in
     (lib.optionalString (a11ySet != { }) ''
       nebelhausAccessibility() {
         if launchctl asuser "$(id -u -- ${username})" sudo --user=${username} -- \
-             defaults write com.apple.universalaccess "$1" -bool "$2" 2>/dev/null; then
-          echo "accessibility: $1 = $2" >&2
+             defaults write com.apple.universalaccess "$1" "$2" "$3" 2>/dev/null; then
+          echo "accessibility: $1 = $3" >&2
         else
           echo "warning: accessibility: could not set $1 — com.apple.universalaccess needs Full Disk Access on the app running this rebuild. Setting skipped; nothing else was affected." >&2
         fi
       }
       ${lib.concatStringsSep "\n" (
-        lib.mapAttrsToList (k: v: "nebelhausAccessibility ${k} ${lib.boolToString v}") a11ySet
+        lib.mapAttrsToList (
+          k: v: "nebelhausAccessibility ${k} ${a11yWriteFlag k} ${a11yWriteValue k v}"
+        ) a11ySet
       )}
     '')
 

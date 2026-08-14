@@ -16,7 +16,19 @@ let
   reachability = import ../lib/reachability.nix;
   a11yDomain = "com.apple.universalaccess";
   a11yEntry = reachability.${a11yDomain};
-  a11yEffectiveKeys = lib.attrNames (lib.filterAttrs (_: e: e == "effective") a11yEntry.keys);
+  # Two classes may back an option, and the difference between them is about the
+  # ORACLE, not about how sure we are: `effective` was confirmed by NSWorkspace
+  # and can be re-confirmed on your Mac, `by-eye` was confirmed by a person on
+  # real hardware and cannot be re-confirmed anywhere, because no API reports it.
+  # Both are measured; only one is re-checkable. `mkA11y` says which in the
+  # option's own description rather than flattening them here.
+  a11yOptionClasses = [
+    "effective"
+    "by-eye"
+  ];
+  a11yEffectiveKeys = lib.attrNames (
+    lib.filterAttrs (_: e: builtins.elem e a11yOptionClasses) a11yEntry.keys
+  );
 
   # One table for the enum and for the path den/default.nix writes — see
   # alert-sounds.nix, the same shape hot-corners.nix uses.
@@ -68,23 +80,28 @@ in
 {
   options.haus = {
     # ---- accessibility ----
-    # ../lib/reachability.nix's `effective` class, one option per key, and
+    # ../lib/reachability.nix's MEASURED classes, one option per key, and
     # deliberately NOTHING else: these are the keys in com.apple.universalaccess
-    # measured to write AND actually take effect on macOS 26 (verified against
-    # NSWorkspace, not just a plist read-back — that distinction matters:
-    # com.apple.Accessibility accepts writes and changes nothing, and
+    # somebody has watched actually take effect on macOS 26 — never a plist
+    # read-back, which is the distinction the whole area turns on
+    # (com.apple.Accessibility accepts writes and changes nothing, and
     # universalaccess's own FontSizeCategory writes without ever notifying a
     # running app). Everything else in that domain stays a System Settings job
     # until it's been measured the same way. The table GENERATES this surface
-    # rather than being checked against it — `lib.genAttrs` over the `effective`
-    # keys — so the two cannot disagree, in either direction: a key promoted to
-    # `effective` with no description here fails at eval saying so, and a
-    # description for a key the table doesn't call effective is refused the same
-    # way. The one thing left by hand is the prose, which is the one thing a
-    # table can't hold.
+    # rather than being checked against it — `lib.genAttrs` over those keys — so
+    # the two cannot disagree, in either direction: a key promoted with no
+    # description here fails at eval saying so, and a description for a key the
+    # table doesn't back is refused the same way. The one thing left by hand is
+    # the prose, which is the one thing a table can't hold.
     #
-    # It grew from two options to four on purpose, and the reason is a safety
-    # one rather than a completeness one. `reduceMotion` and `reduceTransparency`
+    # "Measured" is TWO classes since 2026-08-14, and the split is about the
+    # oracle rather than about confidence: `effective` was confirmed by
+    # NSWorkspace and can be re-confirmed on your Mac, `by-eye` was confirmed by
+    # a person on real hardware and can't be re-confirmed anywhere, because no
+    # API reports it. Both back options; each option says which it has.
+    #
+    # It grew two → four → seven on purpose, and the reason is a safety one
+    # rather than a completeness one. `reduceMotion` and `reduceTransparency`
     # are nix-darwin-TYPED, so before this the documented way to set them was
     # `system.defaults.universalaccess.*` — the unguarded route that aborts
     # activation partway through on any machine whose rebuilding app lacks Full
@@ -94,17 +111,54 @@ in
     accessibility =
       let
         mkA11y =
-          desc:
+          key: desc:
+          let
+            # Type and class both come from the table, so neither can be
+            # contradicted here. Absent from `keyTypes` means bool, which is what
+            # this domain mostly is; `mouseDriverCursorSize` is the exception.
+            spec = a11yEntry.keyTypes.${key} or { type = "bool"; };
+            isFloat = spec.type or "bool" == "float";
+            byEye = a11yEntry.keys.${key} == "by-eye";
+          in
           lib.mkOption {
-            type = lib.types.nullOr lib.types.bool;
+            type =
+              if isFloat then
+                lib.types.nullOr (lib.types.numbers.between spec.range.min spec.range.max)
+              else
+                lib.types.nullOr lib.types.bool;
             default = null;
-            example = true;
+            example = if isFloat then spec.range.max else true;
             description = ''
               ${desc}
 
               null (the default) leaves whatever you have alone — this is a
               personal setting, so haus never picks a value for you.
+              ${
+                # Supplies the blank line before REACHABILITY whether or not it
+                # has anything to say, so the four options that predate `by-eye`
+                # keep byte-identical descriptions in the generated docs.
+                lib.optionalString byEye ''
 
+                  HOW THIS ONE WAS VERIFIED — by a person looking at the screen on
+                  real hardware (macOS 26.6.1, 2026-08-14), because no API reports
+                  it: `NSWorkspace` exposes no pointer size and no zoom state, so
+                  `hausax` cannot read it back and `haus diff` will tell you it
+                  compared the plist and nothing more. haus's other
+                  accessibility options are checked against macOS's own answer on
+                  YOUR Mac; this one carries evidence from one Mac. That is a real
+                  difference and it is worth knowing which kind you are getting —
+                  it is written here rather than in a changelog because the option
+                  is where you will be standing when it matters.
+
+                  NEEDS A DAEMON RESTART, which the rebuild does for you: the write
+                  alone changes nothing on screen until `universalaccessd`
+                  restarts, which is exactly why this key spent three weeks
+                  looking dead. `haus rebuild` kills it whenever this option
+                  family is set, so you should never meet the stale state; set the
+                  key by hand with `defaults write` and you will, with
+                  `killall universalaccessd` as the fix.
+                ''
+              }
               REACHABILITY — `${a11yDomain}` is TCC-protected, and this is
               the one property in the whole option surface that can differ
               between two machines running byte-identical config, so it is worth
@@ -171,6 +225,52 @@ in
             `haus.animations = "fast"` is five plain timing keys in two ordinary
             domains, moves no accessibility flag, and needs no TCC grant.
           '';
+          mouseDriverCursorSize = ''
+            How big the mouse pointer is — 1.0 normal, 4.0 the biggest.
+            That range is macOS's own, and the scale is linear: 2.0 is twice
+            the normal pointer, 4.0 is the largest System Settings offers.
+
+            The one accessibility key here that is useful with no accessibility
+            need at all: on a 5K display, or from across a desk, or in a
+            screen recording someone else has to follow, the default pointer is
+            simply too small to find. Set it to 1.5 and you keep noticing you
+            can see it.
+
+            Deliberately NOT wired to `haus.ui.scale`, which would be the
+            obvious thing and is the wrong thing. `ui.scale` is the foundation
+            every machine gets; this domain needs Full Disk Access. Deriving
+            one from the other would make `ui.scale = 1.4` start warning about
+            a TCC grant on machines that never asked for a bigger pointer, for
+            a write that would then be skipped. Reach for this key when you
+            want it — it sharpens a large-text desktop, it does not underpin
+            one.
+          '';
+          closeViewScrollWheelToggle = ''
+            Hold ⌃ (Control) and scroll to magnify the whole display.
+            macOS calls it "Use scroll gesture with modifier keys to zoom";
+            scroll the other way to come back.
+
+            The fastest zoom on the Mac and the one people forget exists. Worth
+            having on a machine you demo, present or pair from, where the
+            alternative is asking everyone to lean in.
+          '';
+          closeViewZoomFollowsFocus = ''
+            Keep a zoomed display on whatever has keyboard focus.
+            ⇥ into a field outside the magnified area and the view goes to it —
+            KEYBOARD focus specifically, not the pointer.
+
+            Needs a zoom to follow, so it does nothing on its own: pair it with
+            `closeViewScrollWheelToggle` (or turn on Zoom in System Settings ▸
+            Accessibility). nix-darwin's own option says the same, and it is the
+            first thing to check if this appears to do nothing.
+
+            Expect it to SNAP rather than glide — the view jumps to the focused
+            control in one step. That is the feature behaving, not a rendering
+            fault, and it is the first thing anyone reports as one. Note also
+            that pushing the POINTER at a screen edge pans the zoomed view
+            whether or not this is set: that behaviour is not this option, which
+            matters if you are trying to tell whether it took.
+          '';
         };
 
         undescribed = builtins.filter (k: !(descriptions ? ${k})) a11yEffectiveKeys;
@@ -181,7 +281,8 @@ in
       if undescribed != [ ] then
         throw ''
           haus.accessibility: ../lib/reachability.nix marks ${lib.concatStringsSep ", " undescribed}
-          as `effective` in ${a11yDomain}, but this file has no description for it.
+          as ${lib.concatStringsSep " or " (map (c: "`${c}`") a11yOptionClasses)} in ${a11yDomain},
+          but this file has no description for it.
           An option surface is generated from that table — write the prose here and
           the option appears. (If the key is not actually measured effective, it
           does not belong in the table.)
@@ -189,13 +290,15 @@ in
       else if unbacked != [ ] then
         throw ''
           haus.accessibility: this file describes ${lib.concatStringsSep ", " unbacked},
-          which ../lib/reachability.nix does not mark `effective` in ${a11yDomain}.
-          Only measured-effective keys get options — everything else in that domain
-          either persists unmeasured or writes and lies, and an option is not the
-          place to find out which. Measure it first, then promote it in the table.
+          which ../lib/reachability.nix does not mark
+          ${lib.concatStringsSep " or " (map (c: "`${c}`") a11yOptionClasses)} in ${a11yDomain}.
+          Only measured keys get options — everything else in that domain either
+          persists unmeasured or writes and lies, and an option is not the place to
+          find out which. Measure it first (an eyeball on real hardware counts, and
+          is what `by-eye` is for), then promote it in the table.
         ''
       else
-        lib.genAttrs a11yEffectiveKeys (k: mkA11y descriptions.${k});
+        lib.genAttrs a11yEffectiveKeys (k: mkA11y k descriptions.${k});
 
     # ---- animations ----
     # macOS's own motion: five keys that are just numbers and switches in a
