@@ -2051,10 +2051,10 @@
           # And the throwing half of the same seam: `checkDesktop` is what
           # `lib.desktop` asserts on, so a bad desktop has to stop the
           # evaluation rather than merely being listed somewhere.
-          desktopThrows = builtins.filter (
+          desktopSlippedThrough = builtins.filter (
             name: (builtins.tryEval (riceLib.checkDesktop (desktopFixture name))).success
           ) desktopBadNames;
-          desktopAccepts = builtins.filter (
+          desktopWronglyRefused = builtins.filter (
             name: !(builtins.tryEval (riceLib.checkDesktop (desktopFixture name))).success
           ) desktopValidNames;
         in
@@ -2243,11 +2243,11 @@
             diff -u ${pkgs.writeText "expected" expectedDesktopDiagnostics} \
                     ${pkgs.writeText "actual" (desktopDiagnostics + "\n")}
 
-            ${nixpkgs.lib.optionalString (desktopThrows != [ ]) ''
-              echo 'checkDesktop accepted a file that is not a desktop: ${builtins.concatStringsSep ", " desktopThrows}' >&2
+            ${nixpkgs.lib.optionalString (desktopSlippedThrough != [ ]) ''
+              echo 'checkDesktop accepted a file that is not a desktop: ${builtins.concatStringsSep ", " desktopSlippedThrough}' >&2
               exit 1''}
-            ${nixpkgs.lib.optionalString (desktopAccepts != [ ]) ''
-              echo 'checkDesktop refused a valid desktop: ${builtins.concatStringsSep ", " desktopAccepts}' >&2
+            ${nixpkgs.lib.optionalString (desktopWronglyRefused != [ ]) ''
+              echo 'checkDesktop refused a valid desktop: ${builtins.concatStringsSep ", " desktopWronglyRefused}' >&2
               exit 1''}
             touch $out
           '';
