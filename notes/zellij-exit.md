@@ -5,10 +5,10 @@
 > separately shippable and separately revertible; the seam in Phase 2 is
 > what makes that true.
 
-## Two decisions, settled 2026-08-14
+## Three decisions, settled 2026-08-14
 
-They were the plan's open questions 1 and 3. Both are now answered, and
-both simplify it:
+They were the plan's open questions. All three are answered, and all three
+simplify it:
 
 1. **Kitty protocol only. Sixel is not needed.** Ghostty has no sixel
    ([open discussion #2496](https://github.com/ghostty-org/ghostty/discussions/2496))
@@ -19,6 +19,16 @@ both simplify it:
    AeroSpace tiles. Ghostty's own splits go unused. `launch.sh:44` already
    self-tiles each new Ghostty window onto workspace `T`, so the mechanism
    is proven in-tree — this promotes it from workaround to architecture.
+3. **The status-bar fork retires wholesale. Nothing ports.** Its tips are
+   *upstream zellij's own* — `quicknav`, `use_mouse`, `compact_layout`,
+   `sync_tab`, `zellij_setup_check` and six more, all teaching zellij
+   actions through `zellij_tile::prelude` — inherited with the fork, not
+   written here. They teach a multiplexer that is going away, and they are
+   bound to an API that goes with it. The other half of that plugin, the
+   bottom-right quick-hint block, exists only to tell you you are in Locked
+   mode and how to leave (`modules/hearth/options.nix:233`); without
+   zellij there are no input modes, so it has nothing left to hint. The
+   pounce cheatsheet keeps the "what does this key do" job on its own.
 
 Decision 2 pays for itself three times over: pane enumeration becomes
 `aerospace list-windows` (a fast CLI, not an osascript round trip), pane
@@ -26,6 +36,11 @@ focus becomes `aerospace focus --window-id`, and the navigation chords
 already exist and are already on the cheatsheet in
 `modules/prowl/wm-bindings.nix`. Most of the keybind work becomes deletion
 rather than translation.
+
+Decision 3 collapses what looked like this plan's hardest problem into
+nothing: **5,991 of the 8,617 forked Rust lines are the status-bar**, and
+they now leave with no replacement work at all. What remains needing a home
+is the agent-count badge alone, and sill already has the pill for it.
 
 ## Why
 
@@ -56,7 +71,7 @@ Four things come along for free once the multiplexer is gone:
 |---|---|
 | **The patch treadmill** | Six patches against `zellij-unwrapped` (`modules/hearth/default.nix:781`). Any nixpkgs bump that moves zellij or its deps can break the build, as the file's own comment at `:772` says. |
 | **The permission-cache hack** | Four `home.activation` blocks seeding grants straight into zellij's plugin permission cache (`:2178`–`:2208`), plus a fifth site in `modules/den/zscratch.sh:65`, because the real path is an interactive y/n prompt a background plugin can never answer. |
-| **8,617 lines of Rust** | Four plugin forks we maintain against a moving `zellij-tile` API. |
+| **8,617 lines of Rust** | Four plugin forks we maintain against a moving `zellij-tile` API — 5,991 of them the status-bar, which decision 3 retires outright. |
 | **Latency** | One fewer VTE parse + reflow per keystroke, and no wasm plugin tick. |
 
 ## The shape
@@ -145,7 +160,7 @@ its own phase (Phase 3) ahead of everything that depends on it:
 | `zellijLiveConfig` activation (the mtime hack, `:2126`) | forces a live-mtime real file so zellij's watcher reloads | **dies** — Ghostty reloads its own config |
 | 5× permission seeds | `:2178`–`:2208` + `zscratch.sh:65` | **die** |
 | **tab-bar** fork | agent-count badge beside the tab name | **sill only.** `macos-titlebar-style = hidden` (`ghostty/config:20`) means there is no visible window title to hang a badge on |
-| **status-bar** fork | quick-hint block + the tips corpus | sill pill, or retired. **The biggest judgement call in this plan.** |
+| **status-bar** fork (5,991 lines) | quick-hint block + 11 tip data files | **retires wholesale — decision 3.** Tips are upstream zellij's, teaching zellij; the quick-hint block only ever explained Locked mode |
 | **link-handler** fork | click an image path → floating preview pane | Ghostty's own OSC 8 + `link` regex; preview becomes a real kitty render in a floated window |
 | **tab-history** fork | MRU tab switching | **dies for free** — AeroSpace already has focus history |
 | `find.sh` (⌘F) | `list-panes` + `dump-screen --full` | `aerospace list-windows` + `zmx history` |
@@ -166,15 +181,10 @@ its own phase (Phase 3) ahead of everything that depends on it:
 
 ## The risks
 
-**1 · Ghostty has no plugin system, and won't. 4/5. The real cost.**
-Everything the four forks draw must move to sill, or be dropped — and with
-`macos-titlebar-style = hidden` there isn't even a window title to fall back
-on. tab-history dies free and link-handler has a native replacement, so the
-live question is the **status-bar tips corpus**: it is the rice's voice, it
-has no natural home in a bar pill, and porting it is a decision about taste,
-not a mechanical translation. Budget a real judgement in Phase 6.
+Decision 3 removed what was the 4/5 here. What's left is ordered by
+severity, and nothing in it is a blocker on its own.
 
-**2 · Window sprawl and spawn cost. 3/5. New with decision 2.**
+**1 · Window sprawl and spawn cost. 3/5. New with decision 2.**
 Every pane is now a real macOS window: Mission Control gets noisy, and
 window creation is heavier than a pane split. AeroSpace's workspace model
 absorbs most of the first problem; the second is unmeasured and is Phase 1's
@@ -182,7 +192,7 @@ job. If a spawn costs more than ~250 ms the ⌘A flow will feel worse than it
 does today, and that changes Phase 5's shape (a resident helper, or
 pre-warmed windows).
 
-**3 · zmx is young, and now load-bearing three ways. 3/5 — but packaged.**
+**2 · zmx is young, and now load-bearing three ways. 3/5 — but packaged.**
 Already in nixpkgs as `pkgs/by-name/zm/zmx/package.nix`, **v0.7.0**, built
 with `zig_0_15` and explicitly Darwin-aware (it wraps `xcrun`/`xcode-select`
 so Ghostty's Zig build finds the SDK inside the sandbox). No packaging cost.
@@ -193,14 +203,7 @@ cadence. `dtach` is no longer a fallback — it has no `history`/`tail`. If
 zmx fails us the fallback is writing the read path ourselves against a PTY
 log, which is a project.
 
-**4 · Small behaviours with no Ghostty equivalent. 2/5, but they add up.**
-`copy-clean.pl` is the clear one: a zellij `copy_command` filter with no
-Ghostty counterpart, so that cleanup is lost rather than ported. The six
-patches are the same shape — Phase 4 must audit each and record here which
-Ghostty gives us free and which are genuinely gone, rather than discovering
-it in use.
-
-**5 · Removing the options is a bigger ripple than removing the code. 3/5.**
+**3 · Removing the options is a bigger ripple than removing the code. 3/5.**
 `haus.hearth.zellijStartLocked` is public and desktop-safe
 (`modules/hearth/options.nix:218`, registered `modules/options-groups.nix:92`,
 aliased `modules/renamed.nix:124-125`) and **both shipped desktops set it** —
@@ -214,6 +217,22 @@ leaf the rice's *default* desktop names needs a `moved.nix`/`renamed.nix`
 decision, a desktop-projection golden regen, and a `site-data` regen or
 `site-data-current` goes red. `flake.nix:1281` and `:1324` also carry a
 zellij row in the accent-reach golden table.
+
+**4 · Small behaviours with no Ghostty equivalent. 2/5, but they add up.**
+`copy-clean.pl` is the clear one: a zellij `copy_command` filter with no
+Ghostty counterpart, so that cleanup is lost rather than ported. The six
+patches are the same shape — Phase 4 must audit each and record here which
+Ghostty gives us free and which are genuinely gone, rather than discovering
+it in use.
+
+**5 · One plugin surface still needs a home. 2/5, down from 4/5.**
+Ghostty has no plugin system and won't, and `macos-titlebar-style = hidden`
+(`ghostty/config:20`) means there is no window title to fall back on either.
+But after decision 3 the list is short: status-bar retires, tab-history dies
+free (AeroSpace has focus history), link-handler has a native replacement
+(OSC 8 + `link` regex). That leaves the **agent-count badge**, and sill
+already draws the paw pill it belongs on — a count is an increment, not a
+port.
 
 ## The path
 
@@ -264,17 +283,17 @@ one at a time and record the verdicts in this file.
 `nix-config-open.sh`, `editor-open-pane.sh`, `gh-dash.sh`, `find.sh`.
 Mechanical once Phase 1 settled the idiom and Phase 3 settled the ids.
 
-**Phase 6 — the plugin surfaces. ~2 sessions.**
-Agent badge → sill. Quick-hints/tips → sill or retired. Image preview →
-delete the chafa branch. link-handler → Ghostty OSC 8 + `link` regex.
-tab-history → nothing, AeroSpace has it. Taste, not mechanics.
+**Phase 6 — the one remaining plugin surface. ~1 session.**
+Agent badge → a count on sill's existing paw pill. Image preview → delete
+the chafa branch. link-handler → Ghostty OSC 8 + `link` regex. status-bar
+and tab-history need nothing (decision 3; AeroSpace has focus history).
 
 **Phase 7 — flip the default. ~1 session.**
 `multiplexer = "none"` by default, zellij still selectable. Live on it.
 
 **Phase 8 — delete. ~2 sessions.**
 Drop the four forks, six patches, the KDL, the activations, `copy-clean.pl`
-and `zscratch` (or re-scope it) — ~10k lines out. Then the ripple risk 5
+and `zscratch` (or re-scope it) — ~10k lines out. Then the ripple risk 3
 describes: retire `zellijStartLocked` and `rightClickFullscreen` through
 `moved.nix`/`renamed.nix`, edit both shipped desktops, regen the
 desktop-projection goldens and `docs/site-data/`, fix `flake.nix:1281`
@@ -283,7 +302,7 @@ and `:1324`. Docs in the same PR: `AGENTS.md`'s architecture map,
 `README.md:118-119`, `bootstrap.sh:385`, and the guides in the workshop's
 `web/src/content/docs/`.
 
-**Total ≈ 13 sessions**, with a genuine off-ramp at the end of Phase 0, a
+**Total ≈ 12 sessions**, with a genuine off-ramp at the end of Phase 0, a
 hard stop at Phase 1 if the read path doesn't hold, and a cheap revert at
 any point before Phase 8.
 
@@ -298,11 +317,9 @@ any point before Phase 8.
 
 ## Open questions
 
-1. **Does the status-bar tips corpus survive, and where?** A sill pill is a
-   worse home than a status line. It might simply retire. (Risk 1.)
-2. **What does a Ghostty window cost to spawn?** Unmeasured, and it sets
-   whether ⌘A still feels instant. (Risk 2, Phase 1.)
-3. **How much Mission Control noise is too much?** Phase 0 answers it by
+1. **What does a Ghostty window cost to spawn?** Unmeasured, and it sets
+   whether ⌘A still feels instant. (Risk 1, Phase 1.)
+2. **How much Mission Control noise is too much?** Phase 0 answers it by
    feel, not by argument.
-4. **Do the six patches have Ghostty equivalents?** Unknown per-patch until
+3. **Do the six patches have Ghostty equivalents?** Unknown per-patch until
    Phase 4 audits them; `copy-clean.pl` is already known lost.
