@@ -46,6 +46,8 @@
 #                 empty field simply vanishes — a source with no title would
 #                 shift its severity into the title column and read fine. The
 #                 unit separator is not whitespace, so every field survives.
+#                 Indices past the end of the current list are swept at the top
+#                 of each fetch — see do_fetch for why an orphan is not inert.
 #   stamp         epoch of the last COMPLETED fetch (success or handled failure).
 #   fetching      present while a fetch is in flight — the pill's "…" state, and
 #                 what a second refresh click checks so it doesn't pile on.
@@ -307,6 +309,28 @@ do_fetch() {
     fi
   fi
   touch "$FETCHING"
+
+  # Drop the cache of every index past the end of the CURRENT list, before
+  # writing the ones that are still there. Sources are index-keyed, so
+  # shortening the list in Nix strands `src-<i>.tsv` for the entries that went
+  # away, and nothing else ever collects them: this is the only writer.
+  #
+  # Swept rather than tolerated because an orphan is not inert. render() walks
+  # the configured sources, so today it goes unread — but the moment the list
+  # grows back past that index, the tick draws the stranded count as if it
+  # belonged to the NEW source at that slot, for the one paint between the bar
+  # restarting and the first fetch landing. First, not last, so that window is
+  # closed for the whole fetch rather than only after it.
+  local f idx
+  for f in "$STATE"/src-*; do
+    [ -e "$f" ] || continue          # no match: the glob stays literal
+    idx=${f##*/src-}
+    idx=${idx%%.*}                   # src-2.tsv, src-2.err, src-2.tsv.tmp → 2
+    case "$idx" in
+      '' | *[!0-9]*) continue ;;
+    esac
+    [ "$idx" -ge "$n_sources" ] && rm -f "$f"
+  done
 
   local i
   for ((i = 0; i < n_sources; i++)); do
