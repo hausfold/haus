@@ -584,8 +584,8 @@ in
         Colour the media pill's glyph from the current cover art instead of from
         what kind of thing is playing.
 
-        The colour is the cover's average, SNAPPED to the nearest member of
-        haus's palette — so the pill picks up the mood of a record without ever
+        The colour is the cover's average, SNAPPED to the nearest member of the
+        Nebelung palette — so the pill picks up the mood of a record without ever
         drawing a colour that isn't in the theme. Off by default because it
         trades a stable meaning (pink is Music, green is Spotify, red is video)
         for a colour that changes every three minutes.
