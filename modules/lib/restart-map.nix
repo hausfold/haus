@@ -136,19 +136,24 @@
   "com.apple.desktopservices" = "Finder"; # .DS_Store behaviour; Finder reads it at launch same as its own domain
 
   # ---- §5.6 behaviour groups (options-roadmap.md) ---------------------------
-  # haus.lock and haus.menuBar, added the same pass this comment was
-  # written. Neither restart action has been measured against NSWorkspace or an
-  # equivalent effective-state oracle the way dock/finder/universalaccess were —
-  # there is no cheap observable for "did the clock re-render" the way
-  # reduceMotion has one. Both rest on documented, widely-relied-on macOS
-  # behaviour (screensaver re-reads its own domain per invocation, same
-  # reasoning as screencapture; SystemUIServer/ControlCenter re-read their
-  # domains at launch, same as Finder) rather than a spike on this machine.
-  # Treat as "wired, not independently verified" until someone confirms by eye
-  # — see options-roadmap.md §5.6's status note.
-  "com.apple.screensaver" = "none"; # haus.lock — no persistent process to restart; read at next lock
-  "com.apple.menuExtraClock" = "SystemUIServer"; # haus.menuBar.clock
-  "com.apple.controlcenter" = "ControlCenter"; # haus.menuBar.controlCenter — first actual write into this domain; restartProcesses has carried "ControlCenter" unused since rice#249
+  # haus.lock and haus.menuBar. Neither has an NSWorkspace-style oracle — there
+  # is no cheap observable for "did the clock re-render" the way reduceMotion
+  # has one — so both were wired from documented macOS behaviour (screensaver
+  # re-reads its own domain per invocation, same reasoning as screencapture;
+  # SystemUIServer/ControlCenter re-read their domains at launch, same as
+  # Finder) rather than from a spike.
+  #
+  # WATCHED BY EYE 2026-08-14 on 26.6.1 (25G76), which is what this comment used
+  # to say it was waiting for: `haus.menuBar.clock.showSeconds` + a 60s
+  # `haus.lock.requirePasswordDelay`, one `bench try switch`, NO logout — the
+  # clock ticked seconds immediately and waking inside the grace period went
+  # straight to the desktop. So the claim these rows now carry is **"no logout
+  # needed, measured 26.6.1"**, and deliberately not `support =
+  # "tested-macos-26"` for the entries themselves: see each row for which half
+  # that run actually isolated. Detail in options-roadmap.md §5.6.
+  "com.apple.screensaver" = "none"; # haus.lock — no persistent process to restart; read at next lock. CONFIRMED 2026-08-14: the grace period was honoured with no logout, so Apple moving this setting to `sysadminctl -screenLock` on 26 has NOT made the plist key inert (the live worry when this row was written)
+  "com.apple.menuExtraClock" = "SystemUIServer"; # haus.menuBar.clock — the write is confirmed felt without a logout, but this ENTRY is not independently confirmed, and structurally can't be from a normal rebuild: this domain sits in den's `typedDomainsWritten` unconditionally, so SystemUIServer (and ControlCenter, which is what 26 actually draws the clock from) are killed on every rebuild whether or not any clock option is set. The kill that re-rendered the clock was never provably THIS row's. Isolating it needs a build with those unconditional entries removed, which nobody needs today
+  "com.apple.controlcenter" = "ControlCenter"; # haus.menuBar.controlCenter — first actual write into this domain; restartProcesses has carried "ControlCenter" unused since rice#249. Same non-isolation caveat as the row above — ControlCenter is restarted on every rebuild anyway
 
   # ---- not written yet — declared ahead of use ------------------------------
   # The day the rice (or a host) writes into this, the warning in den/default.nix
