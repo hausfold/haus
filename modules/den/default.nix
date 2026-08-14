@@ -556,6 +556,20 @@ in
         '';
       })
 
+      # zsh completion for `haus`: the subcommands, and for set/get/unset/reset
+      # every settable option path — read from the catalogue beside the host
+      # template, never from an evaluation. Lands on fpath through system-path's
+      # /share/zsh, which is why this is a package rather than a hearth dotfile:
+      # `haus` is system-wide, and its completion should not depend on a room a
+      # machine can turn off. jq's path is substituted in for the same reason.
+      (writeTextFile {
+        name = "haus-zsh-completion";
+        destination = "/share/zsh/site-functions/_haus";
+        text = builtins.replaceStrings [ "@jq@" ] [ (lib.getExe jq) ] (
+          builtins.readFile ./haus-completion.zsh
+        );
+      })
+
       # `haus-activate <system>` — the privileged half of a rebuild, split out
       # so the config is evaluated ONCE. `darwin-rebuild switch --flake` builds
       # again as root, against root's own eval + lazy-trees caches, which is a
