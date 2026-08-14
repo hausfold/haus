@@ -233,6 +233,88 @@ let
     }
   '';
 
+  # ---- the github pill's sources ---------------------------------------------
+  # A source names exactly one KIND, and the plugin owns the query for it (see
+  # the option's own description, and plugins/github.sh's header, for why this
+  # is typed rather than one query string). These four resolvers are the only
+  # place a kind's defaults are decided, so the config file, the assertions and
+  # the dropdown can't disagree about what an entry meant.
+  gitOrg = config.haus.git.org;
+  ghSources = cfg.github.sources;
+  ghKindsSet =
+    s:
+    lib.optional s.ci "ci"
+    ++ lib.optional (s.search != null) "search"
+    ++ lib.optional (s.command != null) "command";
+  ghKind = s: lib.head (ghKindsSet s ++ [ "command" ]);
+  ghPayload =
+    s:
+    if s.search != null then
+      s.search
+    else if s.command != null then
+      s.command
+    else
+      "";
+  # An owner named per-source, else the machine's one. Falling back rather than
+  # requiring it is what keeps a rename a single word: `haus.git.org` moves and
+  # every ci source follows, without this list being touched.
+  ghOrg = s: if s.org != "" then s.org else gitOrg;
+  # Glyph defaults by kind: a bolt for a workflow, a pull-request mark for a
+  # search (which is nearly always PRs), a cog for whatever a command does.
+  ghIcon =
+    s:
+    if s.icon != "" then
+      s.icon
+    else
+      {
+        ci = "";
+        search = "";
+        command = "";
+      }
+      .${ghKind s};
+  # `bad` for ci and `info` for everything else: a count of red default branches
+  # is an alarm by construction, while a search is a work queue until its author
+  # says otherwise. Resolved here because a submodule option can't take a
+  # default that depends on a sibling.
+  ghSeverity = s: if s.severity != null then s.severity else (if s.ci then "bad" else "info");
+
+  # ASCII 0x1f, the unit separator, and deliberately NOT a tab. Tab is an IFS
+  # *whitespace* character, so `IFS=$'\t' read` folds a run of tabs into one
+  # delimiter and drops empty fields entirely — a source that set no title would
+  # hand the plugin its severity in the title column and parse without a murmur.
+  # The unit separator is not whitespace, so every field arrives, empty or not.
+  ghUS = builtins.fromJSON "\"\\u001f\"";
+
+  # One line per source, in the configured order — the order the pill also
+  # breaks severity ties by. escapeShellArg rather than a double-quoted bash
+  # string: a search filter is user text and may hold quotes, backslashes or a
+  # `$`, and a `command` source is arbitrary shell by definition.
+  ghSourcesTsv = lib.concatMapStrings (
+    s:
+    lib.concatStringsSep ghUS [
+      (ghKind s)
+      (ghPayload s)
+      (ghOrg s)
+      s.title
+      (ghIcon s)
+      (ghSeverity s)
+      (toString s.limit)
+    ]
+    + "\n"
+  ) ghSources;
+
+  githubConfigSh = ''
+    #!/bin/bash
+    # GENERATED from haus.sill.github.* + haus.git.org by
+    # modules/sill/default.nix — do not edit. One line per source, fields
+    # separated by ASCII 0x1f (see ghUS there, and github.sh's header, for why
+    # a tab would silently eat the empty ones):
+    # <kind><US><payload><US><org><US><title><US><icon><US><severity><US><limit>
+    SILL_GITHUB_REFRESH="${toString cfg.github.refresh}"
+    SILL_GITHUB_ICON=""
+    SILL_GITHUB_SOURCES=${lib.escapeShellArg ghSourcesTsv}
+  '';
+
   # The hush pill — generic (no personal hardware/service), so unlike the
   # sill.items extras below it rides haus.hush.enable, not an opt-in
   # list. hush_change is fired by the hush engine after its own toggles and by
@@ -658,6 +740,41 @@ let
               click_script="$HOME/.config/sketchybar/plugins/elgato.sh" \
           --subscribe elgato mouse.clicked
     '';
+    # The one pill in the bar that crosses the network, and the only one whose
+    # tick deliberately does NOT do its own work: github.sh renders a cache and
+    # detaches the `gh` call, then --triggers github_update to repaint. So
+    # update_freq here is not a poll interval — that is
+    # haus.sill.github.refresh — it is only how often the pill looks at how old
+    # its cache is. A minute is far below any legal refresh and costs a cache
+    # read.
+    #
+    # click_script rather than a mouse.clicked subscription, and NOT popToggle:
+    # the plugin has to see $BUTTON (right-click refreshes) and it rebuilds the
+    # rows before revealing them, so it owns the whole gesture and arms sillpop
+    # itself once the popup is up. Subscribing to mouse.clicked as well would
+    # run the plugin twice per click.
+    github = ''
+      ${sb} --add event github_update
+      ${sb} --add item github ${side} \
+          --set github \
+              update_freq=60 \
+              icon="" \
+              icon.color=$TEXT \
+              background.color=$SURFACE0 \
+              popup.background.border_width=2 \
+              popup.background.corner_radius=10 \
+              popup.background.border_color=$SURFACE0 \
+              popup.background.color=$MANTLE \
+              ${popupAlign side} \
+              script="$HOME/.config/sketchybar/plugins/github.sh" \
+              click_script="$HOME/.config/sketchybar/plugins/github.sh click" \
+          --subscribe github github_update system_woke
+
+      # First paint without waiting up to a minute for the tick — and, on a
+      # machine with no cache yet, the fetch that fills it. Backgrounded: a bar
+      # start must never block on GitHub.
+      ("$HOME/.config/sketchybar/plugins/github.sh" >/dev/null 2>&1 &)
+    '';
     harvest = ''
       ${sb} --add event harvest_update
       ${sb} --add item harvest ${side} \
@@ -679,6 +796,7 @@ let
   extraOrder = [
     "agents"
     "aiUsage"
+    "github"
     "cpu"
     "memory"
     "volume"
@@ -715,12 +833,7 @@ let
   # wrote to disk, and a client this rice never installed still writes them. The
   # `agents` pill is different — its writer is `agent-state`, which the AI room
   # ships or does not.
-  contributed =
-    name:
-    if name == "agents" then
-      config.haus._contrib.bar.agents.enable
-    else
-      true;
+  contributed = name: if name == "agents" then config.haus._contrib.bar.agents.enable else true;
 
   # ---- the second bar's three groups -----------------------------------------
   # Which group of the bottom bar a pill was asked for, or null for "not on this
@@ -749,10 +862,7 @@ let
     side:
     lib.optionals cfg.bottom.enable (
       lib.filter (
-        name:
-        bottomSideOf name == side
-        && (name != "hush" || config.haus.hush.enable)
-        && contributed name
+        name: bottomSideOf name == side && (name != "hush" || config.haus.hush.enable) && contributed name
       ) itemOrder
     );
 
@@ -1055,7 +1165,62 @@ lib.mkIf config.haus.sill.enable {
       # edge it was told, and neither knows the other is there.
       lib.optional (cfg.bottom.enable && cfg.position != "top") (
         "haus.sill.bottom.enable is on while haus.sill.position = \"${cfg.position}\"; the two bars share the bottom edge and will draw on top of each other (position = \"auto\" only when an external display is attached)."
+      )
+    ++
+      # A github pill with nothing to count. It hides itself rather than drawing
+      # a permanent zero (github.sh's first exit), so without this the symptom
+      # is a pill you asked for that never appears — and the cause is one option
+      # away, in an owner nobody set.
+      lib.optional (builtins.elem "github" (topItems ++ bottomItems) && ghSources == [ ]) (
+        "haus.sill.items.github is on but haus.sill.github.sources is empty, so the pill draws nothing at all."
+        +
+          lib.optionalString (gitOrg == "")
+            " The default sources are the owner's red default branches and its open PRs, and they are empty because haus.git.org names no owner."
       );
+
+  # ---- the github pill's hard requirements -----------------------------------
+  # Assertions rather than warnings: each of these is a pill that cannot work,
+  # as opposed to one that merely won't draw. A mixed-kind source in particular
+  # would be silently interpreted as one of the kinds it named, which is the
+  # class of bug this whole option shape exists to avoid.
+  assertions =
+    let
+      indexed = lib.imap0 (i: s: { inherit i s; }) ghSources;
+      wrongKinds = lib.filter (e: builtins.length (ghKindsSet e.s) != 1) indexed;
+      orgless = lib.filter (e: e.s.ci && ghOrg e.s == "") indexed;
+      drawn = builtins.elem "github" (topItems ++ bottomItems);
+    in
+    map (e: {
+      assertion = false;
+      message = "haus.sill.github.sources[${toString e.i}] names ${toString (builtins.length (ghKindsSet e.s))} kinds (${lib.concatStringsSep ", " (ghKindsSet e.s)}); each source sets exactly one of search, ci or command.";
+    }) wrongKinds
+    ++ map (e: {
+      assertion = false;
+      message = "haus.sill.github.sources[${toString e.i}] is a ci source with no owner to ask about: set haus.git.org, or that source's own `org`.";
+    }) orgless
+    ++ [
+      {
+        assertion = !(drawn && !config.haus.developer.git.enable);
+        message = "haus.sill.items.github is on but haus.developer.git.enable is off. The pill queries GitHub through `gh`, which that pack is what installs.";
+      }
+    ];
+
+  # The pill's default sources, set here rather than in options.nix because they
+  # are built from haus.git.org and an option's `default` cannot read config.
+  # mkDefault so naming any source replaces the pair wholesale — there is no
+  # merge of two source lists that isn't a guess about order, and order is what
+  # breaks a severity tie.
+  haus.sill.github.sources = lib.mkDefault (
+    lib.optionals (gitOrg != "") [
+      # Red default branches first: it is the only entry here that can be an
+      # emergency, and the pill speaks for the highest severity it has.
+      { ci = true; }
+      {
+        search = "org:${gitOrg} is:pr is:open";
+        title = "open PRs";
+      }
+    ]
+  );
 
   # SketchyBar (brew) + its tap. sketchybar-app-font renders the workspace pill
   # glyphs (an icon ligature font: `:ghostty:` → that app's logo).
@@ -1104,15 +1269,14 @@ lib.mkIf config.haus.sill.enable {
   # in its closure for a sampler nothing calls. Both plugins reach it by its
   # /run/current-system/sw/bin path, since they run from launchd's PATH where
   # nothing nix-shaped is on it.
-  environment.systemPackages =
-    [ sillpop ]
-    ++ lib.optional cfg.bottom.enable sillBottom
-    ++ lib.optional (
-      lib.any (name: builtins.elem name (topItems ++ bottomItems)) [
-        "cpu"
-        "memory"
-      ]
-    ) sillvitals;
+  environment.systemPackages = [
+    sillpop
+  ]
+  ++ lib.optional cfg.bottom.enable sillBottom
+  ++ lib.optional (lib.any (name: builtins.elem name (topItems ++ bottomItems)) [
+    "cpu"
+    "memory"
+  ]) sillvitals;
 
   launchd.user.agents = {
     sketchybar = {
@@ -1264,7 +1428,9 @@ lib.mkIf config.haus.sill.enable {
         # GENERATED from haus.sill.logo.* by modules/sill/default.nix — do not edit.
         SILL_LOGO_ICON=${lib.escapeShellArg cfg.logo.icon}
         SILL_LOGO_SIZE="${toString cfg.logo.size}"
-        SILL_LOGO_COLOR="''$${lib.toUpper (if cfg.logo.color != null then cfg.logo.color else config.haus.theme.accent)}"
+        SILL_LOGO_COLOR="''$${
+          lib.toUpper (if cfg.logo.color != null then cfg.logo.color else config.haus.theme.accent)
+        }"
         SILL_LOGO_STATUS="${if cfg.logo.status then "1" else "0"}"
         SILL_LOGO_UPDATE_CHECK="${if cfg.logo.updateCheck then "1" else "0"}"
         SILL_LOGO_SWEEP="${if cfg.logo.sweep then "1" else "0"}"
@@ -1272,9 +1438,7 @@ lib.mkIf config.haus.sill.enable {
         # when the option says so: with no pounce there is nothing for a click to
         # open, and a pill that swallows clicks silently is worse than one that
         # is plainly not a button.
-        SILL_LOGO_GESTURES="${
-          if cfg.logo.gestures && config.haus.pounce.enable then "1" else "0"
-        }"
+        SILL_LOGO_GESTURES="${if cfg.logo.gestures && config.haus.pounce.enable then "1" else "0"}"
         SILL_LOGO_SWEEP_COLORS="$MAUVE $TEAL $GREEN $YELLOW $PEACH $PINK"
         # This rice's pounce commands, so the menu's rows can RUN rebuild.sh and
         # reload-bar.sh rather than carry a second implementation of either.
@@ -1352,6 +1516,7 @@ lib.mkIf config.haus.sill.enable {
           SILL_CALENDAR_ME="${lib.concatStringsSep "," cfg.calendar.me}"
           SILL_CALENDAR_JOIN_HOSTS="${lib.concatStringsSep "," cfg.calendar.joinHosts}"
         '';
+        ".config/sketchybar/github_config.sh".text = githubConfigSh;
         ".config/sketchybar/ai_usage_config.sh".text = ''
           #!/bin/bash
           # GENERATED from haus.sill.aiUsage.* by modules/sill/default.nix — do not edit.

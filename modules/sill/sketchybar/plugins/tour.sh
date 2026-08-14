@@ -209,7 +209,7 @@ hide() { sketchybar --set tour drawing=off; }
 mute() {
     touch "$MUTED"
     local it
-    for it in weather media battery wifi hush agents elgato harvest; do
+    for it in weather media battery wifi hush agents elgato harvest github; do
         [ "$(sketchybar --query "$it" 2>/dev/null | jq -r '.geometry.drawing')" = on ] || continue
         grep -qxF "$it" "$MUTED" || echo "$it" >> "$MUTED"
         sketchybar --set "$it" drawing=off
