@@ -96,6 +96,23 @@ let
   processesToRestart = lib.unique (
     builtins.filter (p: !(builtins.elem p notProcesses) && !(lib.hasPrefix "notify:" p)) actionsWritten
   );
+  # The verb with nothing to run: domains macOS re-reads only at login. They are
+  # subtracted from `processesToRestart` above and then vanish — which is exactly
+  # the silence §5.6 refuses to ship a settings GROUP into, and it was still the
+  # behaviour for a domain arriving the other way, through `haus capture` into a
+  # host's own `CustomUserPreferences`. Those writes land, do nothing visible,
+  # and nothing anywhere says why.
+  #
+  # So activation announces them, and `haus plan` reads that announcement back
+  # out of the BUILT script rather than re-deriving it from this table — the same
+  # discipline `plan_restarts` already follows, and the reason a second copy of
+  # the map can't drift into existence. Empty on every configuration today (no
+  # haus.* option is backed by a logout-only domain, on purpose), so this is the
+  # signal waiting for the first one, not noise on anybody's rebuild.
+  logoutDomains = builtins.filter (
+    d: builtins.elem "logout" (lib.toList (restartMap.${d} or [ ]))
+  ) domainsWritten;
+
   # The third verb (see ../lib/restart-map.nix): domains whose consumers are
   # every running app rather than one daemon. `hausax post-notification` does
   # the posting; nothing else in the rice can reach DistributedNotificationCenter.
@@ -458,6 +475,14 @@ in
     # something starts writing into it, with no second fix needed here.
     (lib.optionalString (processesToRestart != [ ]) ''
       ${lib.concatMapStringsSep "\n" (proc: "killall -qu ${username} ${proc} || true") processesToRestart}
+    '')
+
+    # The other half of the same table: what this rebuild CANNOT make live. One
+    # line, matched by `haus plan`'s reader, and said out loud at rebuild time
+    # too — "your write landed and you will see it after a logout" is the only
+    # honest thing to say about a domain with no live-reload path on macOS 26.
+    (lib.optionalString (logoutDomains != [ ]) ''
+      echo "haus: waits-for-logout ${lib.concatStringsSep " " logoutDomains}" >&2
     '')
 
     # ---- make the preferences we just wrote LIVE, without a logout ----------

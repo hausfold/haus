@@ -911,7 +911,7 @@ plan_services() { # <new activate script> <the running system's activate script>
 # rather than "because a key changed": it is also the answer to why your Finder
 # windows close.
 plan_restarts() {
-  local procs posts bits=""
+  local procs posts waits bits=""
   procs="$(grep -oE '^killall -qu [^ ]+ [A-Za-z]+' "$1" 2>/dev/null | awk '{ print $4 }' | LC_ALL=C sort -u | paste -sd, - || true)"
   posts="$(grep -oE "post-notification '?[A-Za-z0-9._-]+'?" "$1" 2>/dev/null | sed -E "s/post-notification '?//; s/'\$//" | LC_ALL=C sort -u | paste -sd, - || true)"
   [ -z "$procs" ] || bits="restarts ${procs//,/, }"
@@ -920,6 +920,14 @@ plan_restarts() {
   fi
   [ -z "$posts" ] || bits="$bits${bits:+ · }posts ${posts//,/, }"
   [ -z "$bits" ] || info "every rebuild also $bits"
+
+  # And the half a restart CANNOT cover. den emits this line for any domain the
+  # built configuration writes that macOS re-reads only at login, so the reader
+  # stays "grep the built script" rather than a second copy of restart-map.nix.
+  # Its own warning, not appended to the line above, because it is the opposite
+  # kind of news: that one says what will happen, this one says what won't.
+  waits="$(grep -oE 'haus: waits-for-logout [^"]+' "$1" 2>/dev/null | sed -E 's/^haus: waits-for-logout //' | tr ' ' '\n' | grep . | LC_ALL=C sort -u | paste -sd, - || true)"
+  [ -z "$waits" ] || warn "waits for a logout — no live-reload path on macOS 26: ${waits//,/, }"
 }
 
 cmd_plan() {
@@ -2014,17 +2022,66 @@ cmd_doctor() {
     fi
   done
 
-  # Accessibility grant — pounce's auto-paste and emoji insertion need it, and a
-  # missing grant is the #1 "why won't paste work" gotcha. Only meaningful when
-  # pounce is enabled (its launchd plist exists).
+  # Every TCC grant this rice actually depends on, in ONE place, each with the
+  # System Settings pane that grants it. It was three grants reported in three
+  # different sections before, none of them linked — and a permission you can't
+  # find the pane for is the same as a permission you don't have.
+  #
+  # macOS has no API to ask "is <grant> given to <app>" for most of these, and
+  # the ones that exist answer only for the CALLING app. So this reports what it
+  # can measure, says plainly when it can't, and links the pane either way. The
+  # links are `x-apple.systempreferences:` URLs — not http, so `open` is the only
+  # thing that follows them, which is why they're printed as a command.
+  #
+  # Every row is per-APP, not per-machine: the answer legitimately differs
+  # between your terminal, an agent's pane and a shipped .app, and that
+  # asymmetry is itself the bug people hit (an agent-driven rebuild refusing
+  # where a hand-run one succeeds).
+  echo
+  say "Permissions"
+  local pane="x-apple.systempreferences:com.apple.preference.security"
+
+  # Accessibility — pounce's auto-paste and emoji insertion (the #1 "why won't
+  # paste work" gotcha), sill's popover monitor, and the media pill's tab reach
+  # on Firefox forks, which expose no scriptable tab list at all.
   if launchctl print "gui/$uid/com.hausfold.pounce" >/dev/null 2>&1; then
-    echo
-    say "Accessibility"
     if command -v pounce >/dev/null 2>&1 && [ "$(pounce --check-accessibility 2>/dev/null)" = "true" ]; then
-      ok "pounce has Accessibility (auto-paste + emoji work)"
+      ok "Accessibility — pounce has it (auto-paste + emoji work)"
     else
-      bad "pounce is missing Accessibility — grant once: pounce --request-accessibility"
+      bad "Accessibility — pounce is missing it. Grant once: pounce --request-accessibility"
+      info "  or by hand: open '$pane?Privacy_Accessibility'"
     fi
+  else
+    info "Accessibility — nothing here asks for it yet (pounce is off): open '$pane?Privacy_Accessibility'"
+  fi
+
+  # Full Disk Access — reported for the app running THIS command, because that
+  # is the identity `haus rebuild` will write universalaccess keys under.
+  if has_fda; then
+    ok "Full Disk Access — this app has it (system.defaults.universalaccess.* can be written from here)"
+  else
+    info "Full Disk Access — this app has none, so system.defaults.universalaccess.* can't be written from here, and 'haus rebuild' will refuse rather than half-activate (haus.accessibility.* is the safe route): open '$pane?Privacy_AllFiles'"
+  fi
+
+  # Automation — the one grant with NO readable state: every API for it prompts,
+  # and prompting from a health check is worse than not knowing. So this reports
+  # whether anything on this machine will ask, which is the actionable half.
+  # haus.theme.systemAppearance drives System Events, and the media pill drives
+  # the scriptable browsers; both degrade to a warning rather than failing.
+  local hmgen appearance=""
+  hmgen="$(hm_generations /run/current-system/activate | head -1 | cut -f2 || true)"
+  # `|| true` because this whole `&&` chain IS the statement: under this script's
+  # `set -euo pipefail` a chain that ends false aborts doctor partway through,
+  # printing nothing after it — the same trap `settings_diff` hit, and the common
+  # case here (appearance unmanaged) is the false one.
+  if [ -n "$hmgen" ] && [ -f "$hmgen/activate" ] &&
+    grep -q 'nebelhausSystemAppearance' "$hmgen/activate" 2>/dev/null; then
+    appearance=1
+  fi
+  if [ -n "$appearance" ]; then
+    info "Automation — haus.theme.systemAppearance drives System Events on every rebuild; without the grant the appearance silently stays put (the rebuild still succeeds): open '$pane?Privacy_Automation'"
+  else
+    info "Automation — nothing needs it unless you set haus.theme.systemAppearance, or ⌘-click the media pill to reach a browser tab: open '$pane?Privacy_Automation'"
   fi
 
   # Homebrew casks are declared in nix (homebrew.casks) but live OUTSIDE Nix
@@ -2084,8 +2141,8 @@ cmd_doctor() {
   # Agents — whether an AI agent can usefully and safely drive this machine.
   # Three separate questions, all of which have bitten someone: does it have the
   # knowledge (the skill), does the config repo orient it (an AGENTS.md), and can
-  # a rebuild from an agent pane actually complete (Full Disk Access vs the
-  # universalaccess trap that `haus rebuild` guards).
+  # a rebuild from an agent pane actually complete — that third one is Full Disk
+  # Access, and it moved to the Permissions section above with the other grants.
   #
   # AGENTS.md is the file that matters: Codex, OpenCode, Cursor, Copilot and
   # anything else that speaks agents.md read it, while Claude Code reads only
@@ -2125,13 +2182,10 @@ cmd_doctor() {
   else
     info "nothing orients an agent opened in your config, and the starter pair isn't here to copy — set haus.ai.skill = true, rebuild, then re-run 'haus doctor'"
   fi
-  # Reported for the app running THIS command — the grant is per-app, so the
-  # answer legitimately differs between your terminal and an agent's pane.
-  if has_fda; then
-    ok "this app has Full Disk Access (system.defaults.universalaccess.* can be written from here)"
-  else
-    info "this app has no Full Disk Access — system.defaults.universalaccess.* can't be written from here, and 'haus rebuild' will refuse rather than half-activate (haus.accessibility.* is the safe route)"
-  fi
+  # The third agent question — can a rebuild from an agent pane complete? — is
+  # Full Disk Access, and it is reported once, under Permissions above, rather
+  # than a second time here: a grant stated in two sections is two places to
+  # correct when the wording is wrong.
 
   # Secrets — the declaration (secretspec.toml) rebuilds with Nix, but the
   # VALUES live in the provider and may need entering once per machine.
