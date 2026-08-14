@@ -239,7 +239,14 @@ in
       size = lib.mkOption {
         type = lib.types.ints.positive;
         default = builtins.floor (config.haus.fonts.mono.baseSize * config.haus.ui.scale + 0.5);
-        defaultText = lib.literalExpression "round (haus.fonts.mono.baseSize * haus.ui.scale)";
+        # literalMD, not literalExpression: this SENTENCE describes the default,
+        # it isn't Nix you could paste anywhere (`round` is not a builtin). The
+        # distinction is load-bearing — host-template.jq copies a
+        # literalExpression straight into the generated host file as the
+        # option's value, and CI evaluates that file with every default
+        # uncommented. Prose ⇒ literalMD. See haus.developer.languages in
+        # modules/options.nix, which learned this the same way.
+        defaultText = lib.literalMD "fonts.mono.baseSize, scaled by haus.ui.scale and rounded";
         example = 24;
         description = ''
           Terminal font size in points. The single most useful knob for a

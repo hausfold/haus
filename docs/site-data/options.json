@@ -458,8 +458,8 @@
       "modules/den/options.nix"
     ],
     "default": {
-      "_type": "literalExpression",
-      "text": "round (haus.fonts.mono.baseSize * haus.ui.scale)"
+      "_type": "literalMD",
+      "text": "fonts.mono.baseSize, scaled by haus.ui.scale and rounded"
     },
     "description": "Terminal font size in points. The single most useful knob for a\nlarger-text machine, since it moves everything the rice actually\nlives in.\n\nnebelhaus's 19pt baseline exists for a reason worth knowing: the Ghostty window is\ntiled to a fixed pixel height by prowl, and sizes that don't divide\nthat height evenly used to leave a gap under zellij's status bar.\nThat's since been fixed properly (window-padding-balance +\n`extend-always`), so any size is safe now — 19 is simply the tuned\nstarting point.\n",
     "example": {
