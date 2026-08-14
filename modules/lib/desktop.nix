@@ -30,9 +30,9 @@
 let
   # Every classified public option, flattened out of the registry's namespaces:
   # "haus.theme.accent" -> { desktopSafe = true; }
-  options = builtins.foldl' (
-    acc: namespace: acc // registry.namespaces.${namespace}.options
-  ) { } (builtins.attrNames registry.namespaces);
+  options = builtins.foldl' (acc: namespace: acc // registry.namespaces.${namespace}.options) { } (
+    builtins.attrNames registry.namespaces
+  );
   names = builtins.attrNames options;
 
   metaOf = path: options.${path} or null;
@@ -45,9 +45,10 @@ let
   wildcardOf =
     path:
     let
-      found = builtins.filter (
-        w: builtins.elem "${path}.${w}" names || hasChildren "${path}.${w}"
-      ) [ "<name>" "*" ];
+      found = builtins.filter (w: builtins.elem "${path}.${w}" names || hasChildren "${path}.${w}") [
+        "<name>"
+        "*"
+      ];
     in
     if found == [ ] then null else builtins.head found;
 
@@ -77,7 +78,9 @@ let
       else
         [ (said path "is not a haus option") ]
     else if meta.desktopSafe == false then
-      [ (said path "is host-only — it belongs to a person or a machine, so a shared desktop may not set it") ]
+      [
+        (said path "is host-only — it belongs to a person or a machine, so a shared desktop may not set it")
+      ]
     else if meta.desktopSafe == "recursive" then
       validate meta.validator path value
     else if isBranch value && hasChildren path then
@@ -103,9 +106,7 @@ let
         # is exactly the inheritance the registry refuses to grant.
         if meta == null || meta.desktopSafe != "recursive" then
           [
-            (said path
-              "takes dynamic keys but has no recursive validator, so its payload cannot be trusted"
-            )
+            (said path "takes dynamic keys but has no recursive validator, so its payload cannot be trusted")
           ]
         else
           walk "${path}.${wildcard}" attrs.${key}
@@ -165,8 +166,15 @@ let
     # (notes/rooms-desktops.md). So a desktop may say "make the built-in panel
     # larger" and may not mention the monitor at the office.
     display-selectors = entries {
-      keyOk = key: builtins.elem key [ "internal" "main" ];
-      keySaid = _: "names a physical display, which is a fact about one machine — a desktop may only use the `internal` and `main` selectors";
+      keyOk =
+        key:
+        builtins.elem key [
+          "internal"
+          "main"
+        ];
+      keySaid =
+        _:
+        "names a physical display, which is a fact about one machine — a desktop may only use the `internal` and `main` selectors";
     };
     # A list of submodules (leader extras, snippets, tour steps). The list is
     # ONE definition — the module system concatenates lists rather than
@@ -191,8 +199,7 @@ let
         [ (said path "takes a set of strings") ]
       else
         lib.concatMap (
-          key:
-          lib.optional (!(builtins.isString value.${key})) (said "${path}.${key}" "must be a string")
+          key: lib.optional (!(builtins.isString value.${key})) (said "${path}.${key}" "must be a string")
         ) (builtins.attrNames value);
   };
 
@@ -260,7 +267,8 @@ in
   prioritize =
     priority: body:
     let
-      go = value: if isBranch value then builtins.mapAttrs (_: go) value else lib.mkOverride priority value;
+      go =
+        value: if isBranch value then builtins.mapAttrs (_: go) value else lib.mkOverride priority value;
     in
     if builtins.isAttrs body then builtins.mapAttrs (_: go) body else body;
 }

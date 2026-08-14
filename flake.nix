@@ -1862,53 +1862,52 @@
               hostname = "example";
             in
             inputs.nix-darwin.lib.darwinSystem {
-                inherit system;
-                specialArgs = { inherit inputs username hostname; };
-                modules = [
-                  {
-                    nixpkgs.hostPlatform = system;
-                    nixpkgs.config.allowUnfree = true;
-                    system.primaryUser = username;
-                    system.stateVersion = 7;
-                  }
-                  {
-                    nixpkgs.overlays = [
-                      pounce.overlays.default
-                      perch.overlays.default
-                      holt.overlays.default
-                    ];
-                  }
-                  home-manager.darwinModules.home-manager
-                  {
-                    users.users.${username} = {
-                      name = username;
-                      home = "/Users/${username}";
+              inherit system;
+              specialArgs = { inherit inputs username hostname; };
+              modules = [
+                {
+                  nixpkgs.hostPlatform = system;
+                  nixpkgs.config.allowUnfree = true;
+                  system.primaryUser = username;
+                  system.stateVersion = 7;
+                }
+                {
+                  nixpkgs.overlays = [
+                    pounce.overlays.default
+                    perch.overlays.default
+                    holt.overlays.default
+                  ];
+                }
+                home-manager.darwinModules.home-manager
+                {
+                  users.users.${username} = {
+                    name = username;
+                    home = "/Users/${username}";
+                  };
+                  home-manager.useGlobalPkgs = true;
+                  home-manager.useUserPackages = true;
+                  home-manager.users.${username}.home.stateVersion = "24.11";
+                  home-manager.extraSpecialArgs = {
+                    inherit username inputs;
+                    nebelung = {
+                      themes = nebelung.packages.${system}.default;
+                      palette = nebelung.palette;
+                      palettes = nebelung.palettes;
+                      ports = nebelung.ports or { };
                     };
-                    home-manager.useGlobalPkgs = true;
-                    home-manager.useUserPackages = true;
-                    home-manager.users.${username}.home.stateVersion = "24.11";
-                    home-manager.extraSpecialArgs = {
-                      inherit username inputs;
-                      nebelung = {
-                        themes = nebelung.packages.${system}.default;
-                        palette = nebelung.palette;
-                        palettes = nebelung.palettes;
-                        ports = nebelung.ports or { };
-                      };
-                    };
-                    home-manager.sharedModules = [
-                      catppuccin.homeModules.catppuccin
-                      nix-index-database.homeModules.nix-index
-                    ];
-                  }
-                ]
-                ++ extraModules;
+                  };
+                  home-manager.sharedModules = [
+                    catppuccin.homeModules.catppuccin
+                    nix-index-database.homeModules.nix-index
+                  ];
+                }
+              ]
+              ++ extraModules;
             };
           standaloneEvaluated = map (
             name:
             "${name} ${
-              builtins.unsafeDiscardStringContext
-                (standaloneSystem [ self.darwinModules.${name} ]).system.drvPath
+              builtins.unsafeDiscardStringContext (standaloneSystem [ self.darwinModules.${name} ]).system.drvPath
             }"
           ) registeredExports;
 
@@ -2001,10 +2000,11 @@
           # refusal has to be an assertion, and it has to name both files or it
           # tells you nothing you can act on.
           desktopTwoAssertions = map (a: desktopHere a.message) (
-            builtins.filter (a: !a.assertion) (desktopConfig {
-              desktop = desktopFixture "valid-sample.nix";
-              extraModules = [ (riceLib.desktop (desktopFixture "valid-other.nix")) ];
-            }).assertions
+            builtins.filter (a: !a.assertion)
+              (desktopConfig {
+                desktop = desktopFixture "valid-sample.nix";
+                extraModules = [ (riceLib.desktop (desktopFixture "valid-other.nix")) ];
+              }).assertions
           );
           expectedDesktopTwoAssertions = [
             (
@@ -2236,13 +2236,9 @@
               exit 1''}
 
             diff -u ${
-              pkgs.writeText "expected" (
-                builtins.concatStringsSep "\n" expectedDesktopTwoAssertions + "\n"
-              )
+              pkgs.writeText "expected" (builtins.concatStringsSep "\n" expectedDesktopTwoAssertions + "\n")
             } \
-                    ${
-                      pkgs.writeText "actual" (builtins.concatStringsSep "\n" desktopTwoAssertions + "\n")
-                    }
+                    ${pkgs.writeText "actual" (builtins.concatStringsSep "\n" desktopTwoAssertions + "\n")}
 
             diff -u ${pkgs.writeText "expected" expectedDesktopDiagnostics} \
                     ${pkgs.writeText "actual" (desktopDiagnostics + "\n")}
