@@ -398,12 +398,12 @@ in
       nebelhaus: fonts.mono.name is "${fontsCfg.mono.name}" but neither
       fonts.mono.package nor fonts.mono.packageName is set.
 
-      The rice only installs the font it's given, so unless that family is already
-      on the machine Ghostty will fall back silently — and the fallback won't be a
-      Nerd Font, so starship's prompt, lsd's icons and yazi previews render as
+      haus only installs the font it's given, so unless that family is already
+      on the machine Ghostty will fall back silently — and the fallback won't be
+      a Nerd Font, so starship's prompt, lsd's icons and yazi previews render as
       tofu. Name the matching package: fonts.mono.packageName =
       "nerd-fonts.fira-code" (or fonts.mono.package = pkgs.nerd-fonts.fira-code,
-      outside a data-only rice).
+      outside a data-only desktop).
     ''
     ++ lib.optional (universalaccessSet != [ ]) ''
       nebelhaus: system.defaults.universalaccess is set (${lib.concatStringsSep ", " universalaccessSet}).
@@ -415,9 +415,9 @@ in
 
       Without that grant the write exits 1, and because nix-darwin emits it
       unguarded into an activation script running under `set -e`, activation
-      ABORTS there and skips the rest — including every launchd service the rice
-      installs (awake, aerospace, hush-watcher, pounce, sketchybar). If a rebuild
-      ever half-completes, this is the first thing to check.
+      ABORTS there and skips the rest — including every launchd service haus
+      installs (awake, aerospace, hush-watcher, pounce, sketchybar). If a
+      rebuild ever half-completes, this is the first thing to check.
 
       haus.accessibility.* reaches every key in this domain MEASURED TO WORK:
 
@@ -458,11 +458,11 @@ in
       modules/lib/restart-map.nix: ${lib.concatStringsSep ", " undeclaredDomains}.
 
       A domain with no declared restart silently waits for the user to log out
-      to take effect. In the rice's own modules this is a bug — add the domain
-      to restart-map.nix. If you got here from `haus capture <domain>` on your
-      own host file, this is just a heads-up: that domain isn't a plist this
-      rice ships a restart for, so if it doesn't take effect right away, log
-      out once and it will.
+      to take effect. In haus's own modules this is a bug — add the domain to
+      restart-map.nix. If you got here from `haus capture <domain>` on your own
+      host file, this is just a heads-up: that domain isn't a plist haus ships
+      a restart for, so if it doesn't take effect right away, log out once and
+      it will.
     '';
 
   # Two ways to say the same thing, and no way to rank them: `package` is a
@@ -474,8 +474,9 @@ in
       assertion = !(fontsCfg.mono.package != null && fontsCfg.mono.packageName != null);
       message = ''
         nebelhaus: fonts.mono.package and fonts.mono.packageName are both set.
-        They are the same setting written two ways — `package` for a module that
-        has `pkgs`, `packageName` for a data-only rice that doesn't. Keep one.
+        They are the same setting written two ways — `package` for a module
+        that has `pkgs`, `packageName` for a data-only desktop that doesn't.
+        Keep one.
       '';
     }
     {

@@ -254,15 +254,15 @@
           in
           if !isData then
             throw (
-              "checkRice: ${toString path} is a function, so it is not a data-only rice. "
-              + "A data-only rice takes no arguments — no pkgs, no lib, no config — and evaluates "
-              + "to { haus = { … }; }. A rice that genuinely needs pkgs is a power module: "
+              "checkRice: ${toString path} is a function, so it is not a data-only pack. "
+              + "A data-only pack takes no arguments — no pkgs, no lib, no config — and evaluates "
+              + "to { haus = { … }; }. A pack that genuinely needs pkgs is a power module: "
               + "an ordinary nix-darwin module, with the trust that implies."
             )
           else if stray != [ ] then
             throw (
               "checkRice: ${toString path} sets ${builtins.concatStringsSep ", " stray} outside "
-              + "`haus`. A data-only rice may set nothing else — that boundary is the whole "
+              + "`haus`. A data-only pack may set nothing else — that boundary is the whole "
               + "reason one can be read and trusted at a glance. (`nebelhaus` is still accepted "
               + "as the pre-rename spelling of the same namespace.)"
             )
@@ -2288,7 +2288,7 @@
           data-only-surface = pkgs.runCommand "nebelhaus-data-only-surface-ok" { } ''
             ${nixpkgs.lib.optionalString (unnamedPackageOptions != [ ]) ''
               cat >&2 <<'OFFENDERS'
-              These options take a package, so a data-only rice or app pack cannot
+              These options take a package, so a data-only desktop or app pack cannot
               set them — reaching `pkgs` is exactly what that format forbids:
 
               ${builtins.concatStringsSep "\n" unnamedPackageOptions}

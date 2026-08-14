@@ -183,7 +183,7 @@
                 echo "Fix it whichever way is yours:" >&2
                 echo "  · drop haus.roster.${id}, if you don't need the app themed" >&2
                 echo "  · haus.theme.ports.enable = false, to turn the whole pass off" >&2
-                echo "  · (rice authors) nix flake update nebelung — the port's" >&2
+                echo "  · (haus authors) nix flake update nebelung — the port's" >&2
                 echo "    metadata path may have moved upstream" >&2
                 exit 1
               fi

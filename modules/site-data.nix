@@ -51,7 +51,7 @@ pkgs.runCommand "nebelhaus-site-data"
     # the only threshold that means "the filter no longer matches anything".
     if [ "$(jq -r 'length' "$out/options.json")" -eq 0 ]; then
       echo "site-data: options.json has no \`haus.*\` keys." >&2
-      echo "That is a broken filter, not a rice with no options — most likely the" >&2
+      echo "That is a broken filter, not haus with no options — most likely the" >&2
       echo "option namespace moved and modules/site-data.nix still says \`haus.\`." >&2
       exit 1
     fi

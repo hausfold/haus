@@ -260,13 +260,13 @@ let
     all of them at once.
 
     The same goes for `~/${agentHomes.${client}.skills}/haus/`, generated from
-    the rice revision this machine pins (`haus update` regenerates it). It does
+    the haus revision this machine pins (`haus update` regenerates it). It does
     NOT go for everything beside them: ${clientScopeNote.${client}} that you can
     edit live with no rebuild. `ls -l` the path before assuming which kind it is.
 
     # Agent worktrees & the `holt` tool
 
-    `holt` (shipped by this rice, on PATH) manages **agent worktrees** for any
+    `holt` (shipped by haus, on PATH) manages **agent worktrees** for any
     git repo. `Super a` (⌘A) spawns each agent into its own isolated checkout on
     a `worktree-<name>` branch, so parallel agents never fight over a single
     checkout. Closing a pane never loses work — uncommitted edits are parked as
@@ -437,8 +437,9 @@ let
   thisMachine = ''
     # This machine
 
-    Rendered from `${hostname}`'s own evaluated configuration when the rice was
-    built. Where this disagrees with something you remember, this file is right.
+    Rendered from `${hostname}`'s own evaluated configuration when that
+    configuration was built. Where this disagrees with something you remember,
+    this file is right.
 
     | | |
     |---|---|
@@ -446,7 +447,7 @@ let
     | user | `${username}` |
     | host file | `~/.config/nix/hosts/${hostname}/default.nix` |
     | config flake | `~/.config/nix` (unless `HAUS_CONSUMER` says otherwise) |
-    | rice version | `${lib.fileContents ../../VERSION}` |
+    | haus version | `${lib.fileContents ../../VERSION}` |
 
     Run `haus status` for the pinned revision and whether it's behind upstream.
 
@@ -501,7 +502,7 @@ let
     ## Also declared, without a leader key
 
     Same `haus.roster`, no keyboard binding — apps reached another way,
-    the rice's own (installed by a module rather than a package manager), and
+    haus's own (installed by a module rather than a package manager), and
     the fonts and command-line tools that live in the one list too. Adding a
     `key` to any of these is what puts it on the launcher.
 
@@ -513,7 +514,7 @@ let
           e:
           "- `${e.id}`"
           + (if e.app.name == null then "" else " → ${e.app.name}")
-          + (if sourceOf e.app == "" then " · not installed by the rice" else sourceOf e.app)
+          + (if sourceOf e.app == "" then " · not installed by haus" else sourceOf e.app)
         ) installOnlyRoster
     }
 
@@ -529,7 +530,7 @@ let
           That domain is TCC-protected, nix-darwin writes it unguarded, and the
           write needs Full Disk Access on whichever app your session runs under.
           A failure there aborts activation partway and skips every background
-          service the rice installs.
+          service haus installs.
 
           So on this host `haus rebuild` checks first, and refuses if this
           session can't write that domain — for anyone, not just an agent, since
@@ -921,7 +922,7 @@ in
         [ -f "${glowStyle}" ] || {
           echo "hearth: nebelung has no glamour port at ${glowStyle}" >&2
           echo "  (haus.theme.flavor/accent moved past what the pinned nebelung ships)" >&2
-          echo "  Pick another accent, or — if you author this rice — nix flake update nebelung." >&2
+          echo "  Pick another accent, or — if you author haus — nix flake update nebelung." >&2
           exit 1
         }
         cp -r ${./yazi/plugins/glow.yazi} $out

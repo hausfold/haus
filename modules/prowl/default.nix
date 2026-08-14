@@ -341,7 +341,7 @@ lib.mkMerge [
     # saying so. Same call as the universalaccess warning (nebelhaus#89).
     warnings = lib.optional (config.haus.tour.enable && k.leader == null) (
       "haus.tour.enable is on with haus.keys.leader = \"none\": three of "
-      + "the tour's four steps teach leader moves this rice doesn't bind. Set a "
+      + "the tour's four steps teach leader moves this desktop doesn't bind. Set a "
       + "leader, or turn the tour off."
     );
 
@@ -371,10 +371,10 @@ lib.mkMerge [
         message =
           "haus.roster leader keys must not reuse a built-in launch-mode key; conflicting: "
           + lib.concatStringsSep ", " rosterBuiltinCollisions
-          + ". Those letters are leader actions the rice already binds (v clipboard, e emoji, "
+          + ". Those letters are leader actions haus already binds (v clipboard, e emoji, "
           + "z reopen-last-app, , settings, ` resort, - / = resize, digits and arrows for "
           + "workspaces). Pick another letter for the app, or set its key to null and reach it "
-          + "from the palette. If the entry came from a shared rice or app pack, override just "
+          + "from the palette. If the entry came from a shared desktop or app pack, override just "
           + "the key in your host file: haus.roster.<id>.key = \"…\";";
       }
       {
