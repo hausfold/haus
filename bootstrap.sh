@@ -18,7 +18,10 @@
 #                                            skips the interview, prints the build
 #   NEBELHAUS_DRY_RUN=1                       touch nothing: write the generated
 #                                            config to a scratch dir and echo every
-#                                            mutating step (for developing this script)
+#                                            mutating step (for developing this
+#                                            script). Still interviews you when
+#                                            there's a terminal — add --defaults
+#                                            for a silent one.
 #   NEBELHAUS_DIR=<path>                      where the config lands (default ~/.config/nix)
 #
 # Idempotent: safe to re-run; it leaves an existing config alone.
@@ -51,19 +54,53 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 
-# Dry-run can't prompt and mustn't touch the real config, so it's non-interactive
-# and writes to a scratch dir.
+# Dry-run mustn't touch the real config, so it writes to a scratch dir. It DOES
+# still interview you when there's a terminal — that's the only way to exercise
+# the interview without a real install, and it's how this script gets tested.
 if [ -n "$DRY_RUN" ]; then
-  NONINTERACTIVE=1
   DEST="${NEBELHAUS_DIR:-$(mktemp -d)/nix}"
 else
   DEST="${NEBELHAUS_DIR:-$HOME/.config/nix}"
 fi
 
-# Interactive only with a real TTY and no "stay quiet" flag — otherwise a piped
-# `curl | bash` would hang waiting on stdin.
+# fd 3 is the QUESTION channel — the terminal itself, kept apart from stdin.
+#
+# Under the documented one-liner — `curl … | bash` — bash is reading THIS SCRIPT on
+# stdin, which has two consequences that have to be handled separately:
+#
+#   * `[ -t 0 ]` is false for every normal install, so testing stdin to decide
+#     whether to interview skipped the interview for everyone. The terminal is
+#     still there; /dev/tty is how you reach it.
+#   * fd 0 must keep pointing at the script. Hand a prompt fd 0 — or redirect the
+#     shell's own stdin to the tty — and gum reads the remaining bytes of this
+#     file as keystrokes; the install then just stops, silently, mid-run.
+#
+# So: open the terminal once, on a spare descriptor, and point each prompt at it
+# (`<&3`). A run with no controlling terminal at all — CI, a container,
+# `< /dev/null` — can't open /dev/tty, gets /dev/null instead, and takes the
+# defaults rather than hanging on a prompt, which is what the old stdin test was
+# really protecting.
+#
+# The output test matters as much as the tty one: gum draws on STDERR, so a run
+# whose output is captured (`curl … | bash > install.log 2>&1`, a provisioning
+# wrapper, `| tee`) still has a terminal to read from but no terminal to draw on
+# — it would sit at an invisible prompt forever. Under the plain one-liner fd 1
+# and fd 2 are both still the terminal; only fd 0 is the pipe. If NEITHER is,
+# nobody is watching, so take the defaults.
+#
+# The probe runs in a subshell on purpose: `set -e` makes a failed redirection on
+# the `exec` builtin exit a non-interactive shell outright, so the one-line
+# `exec 3</dev/tty || exec 3</dev/null` never reaches its fallback.
+if { [ -t 1 ] || [ -t 2 ]; } && (exec 3</dev/tty) 2>/dev/null; then
+  exec 3</dev/tty
+  HAVE_TTY=1
+else
+  exec 3</dev/null
+  HAVE_TTY=
+fi
+
 INTERACTIVE=1
-{ [ -n "$NONINTERACTIVE" ] || [ ! -t 0 ]; } && INTERACTIVE=
+if [ -n "$NONINTERACTIVE" ] || [ -z "$HAVE_TTY" ]; then INTERACTIVE=; fi
 
 # dflt — read a macOS default (read-only), or "unset" if it has no value yet.
 dflt() { /usr/bin/defaults read "$1" "$2" 2>/dev/null || echo "unset"; }
@@ -288,8 +325,12 @@ if [ -n "$INTERACTIVE" ]; then
   if [ -n "$GUM" ]; then
     printf '\n'; say "A few questions to make it yours (Enter takes the default):"
 
-    GIT_NAME="$("$GUM"  input --prompt "Git name › "  --value "$GIT_NAME"  --placeholder "Ada Lovelace")"
-    GIT_EMAIL="$("$GUM" input --prompt "Git email › " --value "$GIT_EMAIL" --placeholder "ada@example.com")"
+    # `<&3` on every prompt that doesn't already have its own stdin: fd 0 is the
+    # script under `curl | bash`, and gum would eat it. The `choose` calls below
+    # take their ITEMS on stdin, so they keep the pipe and reach the terminal
+    # themselves — leave those alone or they lose their list.
+    GIT_NAME="$("$GUM"  input --prompt "Git name › "  --value "$GIT_NAME"  --placeholder "Ada Lovelace" <&3)"
+    GIT_EMAIL="$("$GUM" input --prompt "Git email › " --value "$GIT_EMAIL" --placeholder "ada@example.com" <&3)"
 
     # A desktop seeds the optional rooms; only "Custom" opens the per-room
     # picker. It's pure sugar over the same ROOM_* toggles the NEBELHAUS_ROOMS
@@ -355,7 +396,7 @@ if [ -n "$INTERACTIVE" ]; then
     if command -v brew >/dev/null 2>&1; then
       CASKS="$(brew list --cask 2>/dev/null | tr '\n' ' ')"
       if [ -n "${CASKS// /}" ] \
-        && "$GUM" confirm "Adopt your $(echo "$CASKS" | wc -w | tr -d ' ') existing Homebrew casks into the config?"; then
+        && "$GUM" confirm "Adopt your $(echo "$CASKS" | wc -w | tr -d ' ') existing Homebrew casks into the config?" <&3; then
         ADOPT_CASKS="$CASKS"
       fi
     fi
@@ -437,7 +478,7 @@ preflight_audit
 
 # Nothing has been written yet — this is the last read-only moment. Require an
 # explicit yes before scaffolding (interactive only; --defaults just proceeds).
-if [ -n "$INTERACTIVE" ] && [ -n "${GUM:-}" ] && ! "$GUM" confirm "Write this config to $DEST and continue?"; then
+if [ -n "$INTERACTIVE" ] && [ -n "${GUM:-}" ] && ! "$GUM" confirm "Write this config to $DEST and continue?" <&3; then
   printf '\n'; say "OK — nothing was written. Re-run any time."
   exit 0
 fi
@@ -610,12 +651,21 @@ if [ -n "$DRY_RUN" ]; then
 fi
 
 # ---- optional: raise it right now ------------------------------------------
-# One more consent gate turns the two-command install into one. Interactive
-# only — scripted/--defaults runs keep the old contract (scaffold, print the
-# command, stop), and declining changes nothing: the command is already on
-# screen above. Build first; a failed build activates nothing.
+# One more consent gate turns the two-command install into one. Asked only when
+# there's a terminal to ask on — scripted/--defaults runs keep the old contract
+# (scaffold, print the command, stop), and declining changes nothing: the command
+# is already on screen above. Build first; a failed build activates nothing.
+RAISE=
 if [ -n "$INTERACTIVE" ] && [ -z "$DRY_RUN" ] && [ -n "${GUM:-}" ] \
-  && "$GUM" confirm "Raise the house now? (build first — nothing activates if the build fails)"; then
+  && "$GUM" confirm "Raise the house now? (build first — nothing activates if the build fails)" <&3; then
+  RAISE=1
+fi
+# Last question asked — close the terminal channel before the long-running
+# children below, so `nix build` and `darwin-rebuild switch` don't inherit an
+# open read handle on it.
+exec 3<&-
+
+if [ -n "$RAISE" ]; then
   say "Building $HOSTNAME — the first build downloads the world; later ones are fast…"
   if (cd "$DEST" && nix build ".#darwinConfigurations.$HOSTNAME.system"); then
     say "Build OK — switching (sudo will ask once)…"
