@@ -16,6 +16,14 @@ choice="$({
   printf '%s\t%s\t%s\n' 'High contrast on' 'haus.theme.contrast → high' 'circle.lefthalf.filled'
 } | pounce -p 'Haus Settings' -i 'slider.horizontal.3')"
 
+# A generic stdin picker's row commit is "<action>\t<raw-row>", not the raw row
+# alone (State.swift's buildCommit, .plain case) — action is enter/cmd/opt/ctrl
+# depending which key committed it. Drop that verb before matching on the row's
+# own first field, or every row here compares against "enter", falls through to
+# the `*)` arm, and the menu silently does nothing. Same rule, same fix as
+# modules/sill/sketchybar/plugins/haus_menu.sh.
+choice="${choice#*$'\t'}"
+
 # Each action is a list of `haus set` PAIRS. Light mode needs two of them, and
 # needs them in one `haus set`: theme.flavor alone recolours the rice's own tools
 # and leaves System Settings ▸ Appearance dark, which is the half-done state

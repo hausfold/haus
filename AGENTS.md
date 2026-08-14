@@ -473,6 +473,16 @@ it silently.
   self-describing script each (metadata in a `# pounce: key = value` header),
   layered onto the palette via `pounce-commands.override { extraCommandDirs … }`.
   No registry to edit in either repo; drop the script and rebuild.
+  - **A script that draws its own list with `pounce` over stdin gets back
+    `<action>\t<raw-row>`, not the row** (pounce's `State.swift`,
+    `buildCommit`'s `.plain` case) — `action` is `enter`/`cmd`/`opt`/`ctrl`,
+    whichever key committed. So the row's own name is field **2**, and a `case`
+    on field 1 matches the literal `enter` every time, falls through the
+    catch-all arm, and the menu does nothing at all — no error, no log, just a
+    row that shrugs. Either strip the verb first (`choice="${choice#*$'\t'}"`,
+    what `haus_menu.sh` and `settings.sh` do) or index past it (`field "$sel"
+    2`, what `add-app.sh` and `spawn-agent.sh` do). It has cost two silent menus
+    so far (#310, and the Haus Settings submenu after it).
 - **The haus tour** (first-run tutor): ONE state machine,
   `modules/sill/sketchybar/plugins/tour.sh`, drives a single bar pill. The
   leader-mode scripts + `aerospace-notify.sh` feed it `tour.sh event <name>`
