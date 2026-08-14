@@ -49,14 +49,14 @@ let
 
         null (the default) writes nothing at all, which is not the same as
         "disabled": corners are a setting people have usually already made by
-        hand, and a rice that names one it doesn't care about would silently
+        hand, and a desktop that names one it doesn't care about would silently
         erase it. Use `"disabled"` to explicitly claim a corner and make it inert.
 
         Setting a corner also clears its MODIFIER key. macOS stores "hold ⌘ for
         this corner" separately (`wvous-*-modifier`), and a leftover modifier from
-        an earlier setup makes a corner the rice just declared look broken —
+        an earlier setup makes a corner you just declared look broken —
         nothing happens, because you weren't holding the key nobody told you
-        about. Corners the rice leaves at null keep whatever modifier they have.
+        about. Corners left at null keep whatever modifier they have.
 
         Worth knowing if you also run tiling: `mission-control` and `desktop` are
         macOS's own window and Space management, which prowl replaces. They still
@@ -103,7 +103,7 @@ in
               ${desc}
 
               null (the default) leaves whatever you have alone — this is a
-              personal setting, so the rice never picks a value for you.
+              personal setting, so haus never picks a value for you.
 
               REACHABILITY — `${a11yDomain}` is TCC-protected, and this is
               the one property in the whole option surface that can differ
@@ -116,12 +116,12 @@ in
               agent-driven rebuild in a pane of a terminal that has it works
               fine, and the same agent under a different app does not.
 
-              Without the grant the rice warns and carries on: you lose this
+              Without the grant haus warns and carries on: you lose this
               setting and nothing else. That containment is the whole reason
               `${a11yDomain}` has options here at all — written the
               other way, through `system.defaults.universalaccess.*`, a missing
               grant aborts the rest of activation and takes every background
-              service the rice installs with it.
+              service haus installs with it.
 
               `haus plan` says up front when a rebuild needs the grant, and
               `haus doctor`'s Permissions section says whether this app has it.
@@ -141,7 +141,7 @@ in
           differentiateWithoutColor = ''
             macOS's "Differentiate without colour" — native UI adds shapes and
             text where it would otherwise rely on hue alone. The setting to pair
-            with a rice built for colour-blind readability.
+            with a desktop built for colour-blind readability.
           '';
           reduceTransparency = ''
             macOS's "Reduce transparency" — the menu bar, Control Center, sheets
@@ -229,7 +229,7 @@ in
 
         `"system"` (the default) writes NOTHING — not the macOS values, nothing
         at all — so whatever your Dock does today, it keeps doing. Same policy
-        as `haus.hotCorners`: the rice doesn't overwrite a setting you didn't
+        as `haus.hotCorners`: haus doesn't overwrite a setting you didn't
         ask it about.
 
         `"fast"` writes five keys, all `mkDefault`, so any one of them can be
@@ -247,7 +247,7 @@ in
         that can surprise you and the reason it isn't on by default. Setting
         `"system"` again means STOP WRITING, not RESTORE: a `defaults` write is
         sticky and macOS keeps no memory of what was there before, so once
-        you've rebuilt on `"fast"`, the five keys keep the rice's numbers.
+        you've rebuilt on `"fast"`, the five keys keep haus's numbers.
         Undoing it means naming the values you want back in your host file
         (they're `mkDefault`, so a plain value wins), or a `defaults delete`.
         Worth knowing before you try `"fast"` on a Dock you tuned by hand.
@@ -272,12 +272,12 @@ in
 
         WHEN YOU'LL FEEL IT. The four Dock keys are live the moment activation
         finishes — nix-darwin restarts the Dock whenever anything in its domain
-        is written, and the rice always writes `autohide`. The NSGlobalDomain
+        is written, and haus always writes `autohide`. The NSGlobalDomain
         one is read by each app AT LAUNCH, so apps you already have open keep
         animating their windows until you relaunch them; `activateSettings`
         can't reach back into a running `NSApplication`.
 
-        These are timings, not a state the rice can prove from a plist — unlike
+        These are timings, not a state haus can prove from a plist — unlike
         the `haus.accessibility` keys, there's no oracle for "did the Dock
         slide faster". They're felt, not measured. The one measurable claim
         here is the negative one above.
@@ -303,7 +303,7 @@ in
         default = "JetBrainsMono Nerd Font Mono";
         example = "Berkeley Mono";
         description = ''
-          The rice's type family, as Ghostty's `font-family` names it.
+          haus's type family, as Ghostty's `font-family` names it.
 
           It reaches the terminal AND the menu bar: every pill label and icon
           sill draws is in this family, at sizes of its own (see
@@ -313,7 +313,7 @@ in
           This should be a NERD FONT patched build: starship's prompt, lsd's
           icons, yazi previews and half the bar's icons draw with glyphs a stock
           font renders as tofu. If you change this, set `package` (or
-          `packageName`) too — the rice can only install a font it's been given,
+          `packageName`) too — haus can only install a font it's been given,
           and it warns when you name a family without one.
 
           The name is taken verbatim, so a "… Nerd Font Mono" family is drawn in
@@ -351,7 +351,7 @@ in
         example = 24;
         description = ''
           Terminal font size in points. The single most useful knob for a
-          larger-text machine, since it moves everything the rice actually
+          larger-text machine, since it moves everything haus actually
           lives in.
 
           nebelhaus's 19pt baseline exists for a reason worth knowing: the Ghostty window is
@@ -367,15 +367,15 @@ in
         default = null;
         example = lib.literalExpression "pkgs.nerd-fonts.fira-code";
         description = ''
-          The package providing `name`. null (the default) installs the rice's
+          The package providing `name`. null (the default) installs haus's
           own JetBrains Mono Nerd Font, which is what `name` defaults to.
 
           Set this whenever you change `name`, or the family simply won't exist
-          on the machine and Ghostty will silently fall back — the rice warns if
+          on the machine and Ghostty will silently fall back — haus warns if
           it spots that combination.
 
-          A shared rice can't set this one — it needs `pkgs`, and a data-only
-          rice has no arguments. Use `packageName` there.
+          A shared desktop can't set this one — it needs `pkgs`, and a data-only
+          desktop has no arguments. Use `packageName` there.
         '';
       };
       packageName = lib.mkOption {
@@ -411,8 +411,8 @@ in
           How `darwin-rebuild switch` treats Homebrew casks/brews that are
           installed but NOT declared anywhere in your config.
 
-          - "none" (default, safe): leave undeclared formulae/casks alone. The
-            rice never deletes apps you installed yourself.
+          - "none" (default, safe): leave undeclared formulae/casks alone.
+            haus never deletes apps you installed yourself.
           - "uninstall": remove undeclared formulae/casks (keeps their data).
           - "zap": remove undeclared formulae/casks AND their app data. Fully
             declarative, but a stray cask you forgot to list is deleted — with
@@ -465,7 +465,7 @@ in
           Where ⇧⌘3 / ⇧⌘4 / ⇧⌘5 write their files. null (the default) leaves
           macOS's own choice alone, which is the Desktop.
 
-          Absolute, or starting with `~/` — the rice expands the `~` for you and
+          Absolute, or starting with `~/` — haus expands the `~` for you and
           CREATES the directory during activation. Both halves matter: macOS
           stores this string verbatim and expands nothing, and if the path does
           not exist screencapture silently falls back to the Desktop, so a
@@ -779,7 +779,7 @@ in
           Settings ▸ Sound reads. null (the default) leaves macOS's own choice
           alone.
 
-          The rice converts to the exponential value macOS actually stores
+          haus converts to the exponential value macOS actually stores
           (`e^(v/100 − 1)`, with 0 meaning silence), because that key is not a
           fraction: writing the obvious `0.5` gets you 31%.
 
@@ -804,8 +804,8 @@ in
           An enum rather than a path on purpose. macOS stores an absolute path
           here and validates nothing, and a path that doesn't resolve does not
           fall back to the default beep — it goes SILENT (measured by ear,
-          2026-08-08), while the plist still reads like a working setting. The
-          rice builds the path from the name and skips the write with a warning
+          2026-08-08), while the plist still reads like a working setting.
+          haus builds the path from the name and skips the write with a warning
           if that file is missing, so a macOS release retiring a sound can't
           quietly mute you.
         '';
@@ -877,7 +877,7 @@ in
 
           TAKES EFFECT ON RELAUNCH: an app picks its language when it starts.
           Already-open apps keep the old one until you quit and reopen them,
-          and the login window follows at next login. Nothing the rice can post
+          and the login window follows at next login. Nothing haus can post
           changes that — it is how bundle resources load.
         '';
       };
@@ -969,14 +969,14 @@ in
           THIS ONE OWNS THE LIST. Unlike every other option in §5.6's groups, a
           non-null value here is exhaustive: layouts you don't name get
           disabled, because "add these and keep whatever else was there" makes
-          a rice that can never remove a layout it once added. Non-keyboard
+          a machine that can never remove a layout it once added. Non-keyboard
           input methods (emoji picker, press-and-hold) are never touched.
 
           Applied through the documented Text Input Sources API rather than by
           writing `com.apple.HIToolbox` directly. The plist route does work, but
           it resolves a layout by an English display name (`Swiss French`, not
           `SwissFrench`) next to a numeric id that is required and never
-          validated — a table the rice would have to hardcode and would get
+          validated — a table haus would have to hardcode and would get
           wrong for exactly the layouts nobody here tests.
         '';
       };

@@ -14,7 +14,7 @@
         type = lib.types.bool;
         default = false;
         description = ''
-          Install IINA — the rice's video player — as the roster entry `iina`.
+          Install IINA — haus's video player — as the roster entry `iina`.
           A nixpkgs build, so it lands in ~/Applications/Home Manager Apps
           rather than /Applications.
 
@@ -49,7 +49,7 @@
           not everything IINA can decode. Dead, professional and DRM'd
           containers (qt, divx, asf, f4v, 3g2, ogm, rm, rmvb, mxf, dv, …) are
           left alone — they still play via Open With, they just don't get the
-          default, and every extension the rice claims is a binding it
+          default, and every extension haus claims is a binding it
           re-asserts on every rebuild.
 
           Video only. Audio (mp3, flac, m4a, wav, …), `.gif` and playlists

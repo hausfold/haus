@@ -21,7 +21,7 @@ in
       default = "mocha";
       example = "latte";
       description = ''
-        Light or dark. "mocha" (the default) is the rice as it has always been;
+        Light or dark. "mocha" (the default) is haus's own dark palette;
         "latte" is light mode.
 
         Not an inversion of the dark palette — a different SOURCE palette. Nebelung
@@ -36,7 +36,7 @@ in
 
         Honest scope, in two parts.
 
-        What follows it: every tool the rice injects colours into or points at a
+        What follows it: every tool haus injects colours into or points at a
         rendered theme — Ghostty, bat, delta, lsd, yazi, fzf, glow, starship,
         lazygit, zellij, opencode, the bar, Zen and Obsidian, plus helix
         whenever it is the editor `haus.hearth.editorName` selects (Nebelung
@@ -51,14 +51,14 @@ in
           - pounce and perch, by default. Both read their palette at runtime and
             can pick per polarity, so haus.pounce.followSystemAppearance
             and haus.perch.followSystemAppearance (default true) hand that
-            choice to macOS Light/Dark instead: the rice installs every rendered
+            choice to macOS Light/Dark instead: haus installs every rendered
             variant into ~/.config/{pounce,perch}/themes/ and writes the
             dark/light PAIR at your `contrast`. Set either option false to pin
             that app to this flavor like everything else.
           - macOS's own Light/Dark appearance, unless you opt in with
-            haus.theme.systemAppearance = "flavor". Left at its default the
-            rice does not touch system appearance in either direction, so a
-            latte rice on a dark macOS looks half-done and that half is yours —
+            haus.theme.systemAppearance = "flavor". Left at its default haus
+            does not touch system appearance in either direction, so latte on
+            a dark macOS looks half-done and that half is yours —
             except in pounce and perch, which read the appearance themselves.
           - three of the six desktops (haus.wallpaper.style). The hand-made
             "orbits", "constellation" and "flow" have the dark palette baked into
@@ -78,9 +78,9 @@ in
       default = "unmanaged";
       example = "flavor";
       description = ''
-        Whether the rice also sets macOS's OWN Light/Dark appearance — the one
+        Whether haus also sets macOS's OWN Light/Dark appearance — the one
         in System Settings ▸ Appearance, which paints Finder, the menu bar and
-        every native app the rice can't reach.
+        every native app haus can't reach.
 
           unmanaged  (default) leave it alone, in both directions. Your Mac's
                      appearance stays yours; nothing about a rebuild moves it.
@@ -92,7 +92,7 @@ in
 
         Default "unmanaged" on purpose: a managed default would silently revert
         an appearance you picked in System Settings on the next rebuild, which
-        is a worse surprise than a half-light rice.
+        is a worse surprise than a half-light machine.
 
         How it is applied, and why it is not a `system.defaults` key. Measured
         on macOS 26.6 (2026-08-08), NOT recalled from docs:
@@ -101,7 +101,7 @@ in
         one does nothing; `activateSettings -u` does not help; a process launched
         fresh afterwards still reports the old appearance, and no
         AppleInterfaceThemeChangedNotification is posted. That key is a mirror
-        the appearance system writes, not a lever. So the rice drives appearance
+        the appearance system writes, not a lever. So haus drives appearance
         through System Events (AppleScript) at each home-manager activation,
         which does flip it live in ~0.3s — and confirms the result with `hausax`
         (AppKit's effective appearance), never by reading the key back.
@@ -113,14 +113,14 @@ in
         — the appearance just doesn't move, and nothing else is affected.
 
         One more thing macOS can undo: System Settings ▸ Appearance ▸ **Auto**
-        switches polarity on its own schedule. The rice sets the appearance at
+        switches polarity on its own schedule. haus sets the appearance at
         rebuild time and does not fight it afterwards, so on an Auto machine
         this option holds only until the next scheduled switch. Pick Light or
         Dark there if you want it to stick.
 
         Interaction worth knowing: haus.{pounce,perch}.followSystemAppearance
         hand polarity to macOS. Set this to "flavor" and macOS's polarity is in
-        turn the rice's, so those two end up following `flavor` transitively —
+        turn haus's, so those two end up following `flavor` transitively —
         which is usually what you wanted, but it does mean `followSystemAppearance`
         stops being an independent axis on this machine.
       '';
@@ -148,7 +148,7 @@ in
         Both keep all twelve ramp steps distinct, which is the property nebelung's
         tests actually assert.
 
-        Honest scope. This recolours what the rice injects colours into:
+        Honest scope. This recolours what haus injects colours into:
         Ghostty, bat, delta, lsd, yazi, zellij, glow, starship, lazygit, the
         bar, pounce and perch (at runtime, via ~/.config/{pounce,perch}/themes/ —
         and unlike `flavor`, contrast reaches both on BOTH halves of their
@@ -200,12 +200,12 @@ in
         colour and don't follow this option. The base palette stays the same
         Nebelung grey either way — only the accent hue changes.
 
-        Zen means Zen's own UI, and the web is a separate story. The rice places
+        Zen means Zen's own UI, and the web is a separate story. haus places
         the Nebelung userChrome/userContent pair, but userContent only styles
         `about:` pages — github.com and youtube.com are themed by the Stylus
         extension, whose Catppuccin-derived styles carry their OWN `accentColor`
         var (default mauve) inside the extension's storage, where no stylesheet
-        can reach it. Declare `haus.zen.extensions.stylus` and the rice
+        can reach it. Declare `haus.zen.extensions.stylus` and haus
         stamps that var with this accent and tells you, once, when there's a new
         bundle to import; the import itself stays a click, because Stylus has no
         file interface. Until you make it, the web keeps the accent you last
@@ -228,7 +228,7 @@ in
         Theme the apps in your roster (`haus.roster`) that Nebelung ships a
         port for, without wiring each one by hand.
 
-        The rice already themes every tool it installs itself — the shell, the
+        haus already themes every tool it installs itself — the shell, the
         terminal, the git stack, Zen, Obsidian. This covers the other direction:
         an app YOU added to the roster that Nebelung happens to have a theme for.
         Add `zed`, `warp` or `xcode` to `haus.roster` and its Nebelung theme
@@ -256,7 +256,7 @@ in
       default = [ ];
       internal = true;
       description = ''
-        Nebelung port ids the rice already wires by hand, contributed by whichever
+        Nebelung port ids haus already wires by hand, contributed by whichever
         room does the wiring (hearth themes the shell toolbelt; theme and sill read
         the palette directly). Rooms append to this the way they contribute Homebrew
         entries, so the roster pass leaves them alone rather than dropping a second,

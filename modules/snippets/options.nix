@@ -20,7 +20,7 @@
 
           Off by default: it installs the Espanso.app cask and needs a one-time
           macOS Accessibility grant (System Settings → Privacy & Security →
-          Accessibility → enable Espanso) the first time it runs. The rice runs
+          Accessibility → enable Espanso) the first time it runs. haus runs
           the SIGNED app bundle rather than a nix-store binary on purpose, so
           that grant is keyed to a stable identity and survives reboots and
           nixpkgs bumps — you grant it once, not on every rebuild (and so the

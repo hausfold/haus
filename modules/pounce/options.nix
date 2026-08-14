@@ -39,7 +39,7 @@ in
     pounce.enable = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      description = "The pounce command palette daemon (⌘Space) + its rice commands.";
+      description = "The pounce command palette daemon (⌘Space) + the palette commands haus ships.";
     };
 
     pounce.windowSwitcher = lib.mkOption {
@@ -96,7 +96,7 @@ in
 
         Unlike the rest of pounce's config, the auto-quit settings are read once
         — when the daemon arms them — rather than per open. So a rebuild that
-        touches any of the three restarts the pounce daemon, which the rice does
+        touches any of the three restarts the pounce daemon, which haus does
         for you; nothing here needs a log-out to land.
       '';
     };
@@ -161,7 +161,7 @@ in
       default = "compact";
       description = ''
         The palette's proportions. `compact` is narrower with tighter rows and
-        keeps its list hidden until you type — the rice's tuned look, and what it
+        keeps its list hidden until you type — haus's tuned look, and what it
         shipped before this option existed. `default` is pounce's roomier layout,
         which shows the top results the moment it opens.
 
@@ -185,10 +185,10 @@ in
 
         Follows haus.ui.scale by default, so you rarely set this directly.
         It exists as its own option for the case where the palette wants a
-        different size from the rest of the rice — the launcher is read at arm's
+        different size from the rest of haus — the launcher is read at arm's
         length for a second, not lived in like the terminal.
 
-        pounce's own range is narrower than ui.scale's, so a rice at
+        pounce's own range is narrower than ui.scale's, so a machine at
         `ui.scale = 2.5` gets a palette at 2.0 rather than an evaluation error.
 
         Two things adapt on their own, which is why one number is enough: the
@@ -212,7 +212,7 @@ in
         Honest scope: this makes pounce the one themed tool that does NOT follow
         haus.theme.flavor — a flavor pin is a *palette* choice, and asking
         to follow the system says the polarity is macOS's call. The contrast
-        axis still applies to both halves. Everything else on the rice keeps
+        axis still applies to both halves. Every other themed tool keeps
         whatever flavor pins.
 
         false pins pounce to the flavor like every other port, which is exactly
@@ -253,10 +253,10 @@ in
         The modifier-only laptop Fn/Globe key is the one special single-step
         value: hotkey = "fn". It needs Pounce's Accessibility grant, unlike a
         Carbon chord or leader sequence, and fires only when Fn is tapped alone.
-        The rice uses it for mode:emoji by default; set that item's hotkey to
+        haus uses it for mode:emoji by default; set that item's hotkey to
         null to leave the Globe key to macOS.
 
-        Sequences are worth knowing about on a tiling rice: they open a namespace
+        Sequences are worth knowing about on a tiling desktop: they open a namespace
         that structurally can't collide with the ⌥/⌘ chords prowl already claims,
         and they need no Accessibility grant (pounce grabs the second step as an
         ordinary global hotkey for a couple of seconds rather than tapping events).
@@ -311,8 +311,8 @@ in
                 enough to leave alone: `mode:clipboard` becomes "Clipboard
                 history", `app:/Applications/Ghostty.app` becomes "Ghostty", and
                 `cmd:brew-services` becomes "Brew services". Set this when the
-                derived name isn't what the palette actually calls the row — the
-                rice can't read a command's own `# pounce: name` header at
+                derived name isn't what the palette actually calls the row —
+                haus can't read a command's own `# pounce: name` header at
                 evaluation time, so that one is a guess.
               '';
             };
@@ -385,7 +385,7 @@ in
       type = lib.types.str;
       internal = true;
       default = "";
-      description = "Store path of this rice's pounce commands, for rooms that invoke one directly.";
+      description = "Store path of haus's own pounce commands, for rooms that invoke one directly.";
     };
   };
 }

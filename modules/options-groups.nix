@@ -513,7 +513,7 @@ let
     };
     apps = {
       order = 23;
-      blurb = "The apps the rice picks for you, the saved collections you can switch on in one line, and the file types they claim — the ones a finished machine has rather than the ones a room needs to work. Each is one switch you can turn off; what it installs is a roster entry like any other, so you can retune or replace it by app id.";
+      blurb = "The apps haus picks for you, the saved collections you can switch on in one line, and the file types they claim — the ones a finished machine has rather than the ones a room needs to work. Each is one switch you can turn off; what it installs is a roster entry like any other, so you can retune or replace it by app id.";
     };
 
     # ---- how it looks ---------------------------------------------------------
@@ -535,7 +535,7 @@ let
     };
     ui = {
       order = 50;
-      blurb = "One number for \"make the interface bigger\", applied across the rice's own surfaces.";
+      blurb = "One number for \"make the interface bigger\", applied across haus's own surfaces.";
     };
     displays = {
       order = 60;
@@ -553,7 +553,7 @@ let
     };
     ai = {
       order = 80;
-      blurb = "The AI room: whether this machine runs coding agents at all, which clients it installs, which one the agent keybinding spawns, and the two files the rice ships into every one of their homes — your instructions, and the `haus` skill. Spelled `haus.agents.*` before 2026-08-13, with the switch under `haus.developer.agents`; both are gone rather than aliased.";
+      blurb = "The AI room: whether this machine runs coding agents at all, which clients it installs, which one the agent keybinding spawns, and the two files haus ships into every one of their homes — your instructions, and the `haus` skill. Spelled `haus.agents.*` before 2026-08-13, with the switch under `haus.developer.agents`; both are gone rather than aliased.";
     };
     # 90 was `claude`, folded into `agents` on 2026-08-11: both of its options
     # describe a file EVERY client reads, at its own path. Left free rather than
@@ -562,11 +562,11 @@ let
     # ---- reach ----------------------------------------------------------------
     accessibility = {
       order = 100;
-      blurb = "macOS accessibility keys the rice can actually apply. These write to a TCC-protected domain, so they take effect only when the app you run the rebuild from holds Full Disk Access — otherwise the rice warns and moves on.";
+      blurb = "macOS accessibility keys haus can actually apply. These write to a TCC-protected domain, so they take effect only when the app you run the rebuild from holds Full Disk Access — otherwise haus warns and moves on.";
     };
     keys = {
       order = 110;
-      blurb = "The keys the rice owns — the leader, the palette, the window-chord modifier — and anything extra you hang off the leader.";
+      blurb = "The keys haus owns — the leader, the palette, the window-chord modifier — and anything extra you hang off the leader.";
     };
     # ---- macOS settings groups (options-roadmap §5.6) -------------------------
     # Dense on purpose: this block ran out of the file's usual ten-wide spacing
@@ -580,7 +580,7 @@ let
     };
     hotCorners = {
       order = 112;
-      blurb = "What each corner of the screen does when the pointer reaches it. Every corner is unset by default, so the rice never overwrites one you set yourself.";
+      blurb = "What each corner of the screen does when the pointer reaches it. Every corner is unset by default, so haus never overwrites one you set yourself.";
     };
     screenshots = {
       order = 113;
@@ -600,11 +600,11 @@ let
     };
     sound = {
       order = 117;
-      blurb = "Alert volume and sound, interface sound effects, and the boot chime. Volume is 0–100 the way the slider reads it — macOS stores a curve, and the rice does the conversion.";
+      blurb = "Alert volume and sound, interface sound effects, and the boot chime. Volume is 0–100 the way the slider reads it — macOS stores a curve, and haus does the conversion.";
     };
     locale = {
       order = 118;
-      blurb = "Language, region, units and keyboard layouts. What a rice in any language other than English needs — and the one room whose settings reach apps you already have open, because the rice posts the change notification macOS itself posts.";
+      blurb = "Language, region, units and keyboard layouts. What a machine in any language other than English needs — and the one room whose settings reach apps you already have open, because haus posts the change notification macOS itself posts.";
     };
     power = {
       order = 119;

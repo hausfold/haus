@@ -78,8 +78,8 @@ let
 
           Some apps' windows report their title only AFTER AeroSpace has
           already detected and tiled them once (a race, not a bug this
-          option can fix) — Ghostty is the known case, which is why this
-          rice's own Ghostty float rule is hand-written in aerospace.toml
+          option can fix) — Ghostty is the known case, which is why
+          haus's own Ghostty float rule is hand-written in aerospace.toml
           rather than generated from the roster. If a title rule flaps,
           that race is almost certainly why. Ignored when `float` is false.
         '';
@@ -124,8 +124,8 @@ let
           Nixpkgs package that installs this entry. Where it lands is
           `scope`'s call.
 
-          A shared rice or app pack can't set this one — it needs `pkgs`, and a
-          data-only rice has no arguments. Use `packageName` there.
+          A shared desktop or app pack can't set this one — it needs `pkgs`, and
+          a data-only desktop has no arguments. Use `packageName` there.
         '';
       };
       packageName = lib.mkOption {
@@ -198,9 +198,9 @@ let
           notarized bundle into /Applications from their own activation
           step, which is neither a cask nor a package you can list.
 
-          Set BY the rice, not by you. It exists so the roster can still
+          Set BY haus, not by you. It exists so the roster can still
           answer "who installed this?" for those apps — without it, a host
-          adding a leader key for Perch had to KNOW the rice already ships
+          adding a leader key for Perch had to KNOW haus already ships
           it, leave every source field null, and leave a comment explaining
           the hole. This is that comment, as data.
         '';
@@ -211,7 +211,7 @@ let
         internal = true;
         description = ''
           The roster key this entry was declared under. Set BY ../roster
-          from the attribute name — the same "set by the rice, not by you"
+          from the attribute name — the same "set by haus, not by you"
           pattern as `installedBy` — so a resolved entry can be looked up
           in a `haus.workspaces` entry's `apps` membership list
           without roster and workspaces having to re-derive each other's
@@ -267,12 +267,12 @@ let
           member app owns it. An app id may belong to at most one
           workspace.
 
-          A plain list, not wrapped in `lib.mkDefault` even where the rice
+          A plain list, not wrapped in `lib.mkDefault` even where haus
           itself contributes to it (ghostty → workspace `T`, say) — list
           options MERGE across modules at equal priority but a `mkDefault`
           list is dropped whole rather than merged the moment anything else
           defines the same option, so a host adding a second app to `T`
-          would silently lose ghostty's membership if the rice's own
+          would silently lose ghostty's membership if haus's own
           contribution used `mkDefault` here. Override a single membership
           by dropping the app's id from your own list instead.
         '';
@@ -325,7 +325,7 @@ in
         what the entry means. Set `key` and it joins the launcher; set none
         of the launcher/workspace/install fields and it's install-only —
         which is how a font or a command-line tool lives in the same list as
-        Slack instead of in a second one beside it. The rice's own
+        Slack instead of in a second one beside it. haus's own
         `homebrew.casks` / `home.packages` still work and still merge; you
         just shouldn't need them for an app.
 
@@ -464,7 +464,7 @@ in
       default = 1.0;
       example = 1.35;
       description = ''
-        One number for "make the interface bigger". 1.0 is the rice as tuned;
+        One number for "make the interface bigger". 1.0 is haus as tuned;
         1.35 is a comfortable large-print setting; below 1.0 tightens things up.
 
         It sets the DEFAULT of the sizes it drives, so anything you pin by hand
@@ -484,7 +484,7 @@ in
           - the Dock icon size (system.defaults.dock.tilesize)
           - Finder's sidebar rows (NSTableViewDefaultSizeMode) — a threshold
             rather than a multiplier, and it is set at every scale: at or below
-            1.0 the rice picks SMALL rows (more fits in a tiled window), above
+            1.0 haus picks SMALL rows (more fits in a tiled window), above
             1.0 it picks Apple's large ones
           - prowl's window gaps
 
@@ -499,7 +499,7 @@ in
             taller pills poke out below it. That band is macOS's, fixed, and has
             no setting behind it — measured, not assumed. So the bar's type
             follows this option up to the largest that still fits a pill
-            (1.25x) and then stops, silently: past that a rice simply gets the
+            (1.25x) and then stops, silently: past that a machine simply gets the
             ceiling. The only way to make the whole bar bigger is to change what
             a point MEANS — the display's scaled resolution, below.
           - perch, the notch shelf. It sizes itself from the SCREEN — a fraction
@@ -507,7 +507,7 @@ in
             thing hanging off the notch, and it means NEITHER lever moves it: a
             scaled display shrinks the shelf's width in points by the same
             factor that makes a point bigger, so it stays the same physical
-            size while everything around it grows. A large-print rice gets a
+            size while everything around it grows. A large-print machine gets a
             normal-sized shelf, and there is no option here that changes that.
           - anything outside nebelhaus. macOS has no system-wide UI scale, so
             third-party apps follow only a display-resolution change.
@@ -548,11 +548,11 @@ in
           resizes.
 
             - "caps" (default): Caps Lock. AeroSpace can't bind Caps Lock itself,
-              so the rice remaps it to F18 with hidutil and binds that.
+              so haus remaps it to F18 with hidutil and binds that.
             - "alt-space": the leader without giving up Caps Lock. No remap at all.
             - "none": no leader. Caps Lock stays Caps Lock, launch mode is
               unreachable, and nothing is remapped — the setting for a mouse-first
-              rice, or for a Mac you are handing to someone else. What the leader
+              machine, or for a Mac you are handing to someone else. What the leader
               fronted is still reachable: apps through the palette, window moves
               through service mode's join-with and the palette's own commands.
               Workspace focus and the workspace throws go away with it — they
@@ -581,7 +581,7 @@ in
           "cmd-space" (default) is the one value that also DISABLES Spotlight's
           own ⌘Space, because the two can't share it. Every other value leaves
           Spotlight alone — including "none", which hands the palette's job back
-          to Spotlight entirely. That's a fix as much as an option: the rice used
+          to Spotlight entirely. That's a fix as much as an option: haus used
           to take Spotlight's ⌘Space away unconditionally, even where nothing
           claimed it.
 
@@ -609,7 +609,7 @@ in
           this option.
 
           "alt" (default) is ⌥. The alternatives are for **non-US keyboard
-          layouts**, where ⌥+letter types accented characters — a rice that owns
+          layouts**, where ⌥+letter types accented characters — a keymap that owns
           ⌥+letter is unusable on those, which is the concrete reason this option
           exists.
 
@@ -626,7 +626,7 @@ in
           are input-source switching (⌃⌥Space, off by default) and hyper-F13.
 
           "none" drops the modifier chords entirely: no focus/layout chords, no
-          service mode. Combined with `leader = "none"` that's a rice where the
+          service mode. Combined with `leader = "none"` that's a machine where the
           tiler tiles and the keyboard is left alone — mouse-first. The cheatsheet
           follows, so it never advertises a key that does nothing.
 
@@ -761,7 +761,7 @@ in
         description = ''
           The terminal toolbelt: bat, fzf, fd, ripgrep, yazi, zoxide, lsd,
           glow, jq, tree, chafa, ttyd and fastfetch — the themed replacements
-          for cat, find, grep, ls and friends that the rice's shell is built
+          for cat, find, grep, ls and friends that haus's shell is built
           around.
 
           Off leaves a plain shell. The prompt (starship) and the colour scheme
