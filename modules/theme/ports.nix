@@ -169,11 +169,22 @@
             # unquoted `[ -e ]` reads as two arguments.
             lib.mapAttrsToList (id: p: ''
               if [ ! -e "${p.file}" ]; then
+                # The port's own metadata reaches this message, so it goes through
+                # escapeShellArg rather than into a double-quoted string: a `$` or a
+                # `"` in some future port's title would otherwise expand or garble
+                # the one line explaining why the build stopped.
                 echo "haus.theme.ports: the pinned nebelung renders no port file at" >&2
                 echo "  ${p.file}" >&2
-                echo "for ${p.title} (haus.roster.${id}) at flavor ${nb.flavor}, accent ${accent}." >&2
-                echo "Either nebelung stopped rendering that combination — run" >&2
-                echo "\`nix flake update nebelung\` — or the port's metadata path moved." >&2
+                echo "for" ${lib.escapeShellArg p.title} "(haus.roster.${id}) at flavor ${nb.flavor}, accent ${accent}." >&2
+                # Three remedies, because they belong to three different people.
+                # The rice AUTHOR bumps the pin; a CONSUMER of a rice can't — they
+                # hold the flake input transitively — so name the two levers that
+                # are theirs. The rice#249 question: who can this check fail on?
+                echo "Fix it whichever way is yours:" >&2
+                echo "  · drop haus.roster.${id}, if you don't need the app themed" >&2
+                echo "  · haus.theme.ports.enable = false, to turn the whole pass off" >&2
+                echo "  · (rice authors) nix flake update nebelung — the port's" >&2
+                echo "    metadata path may have moved upstream" >&2
                 exit 1
               fi
               mkdir -p "$out/${id}"

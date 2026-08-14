@@ -911,7 +911,7 @@ plan_services() { # <new activate script> <the running system's activate script>
 # rather than "because a key changed": it is also the answer to why your Finder
 # windows close.
 plan_restarts() {
-  local procs posts bits=""
+  local procs posts waits bits=""
   procs="$(grep -oE '^killall -qu [^ ]+ [A-Za-z]+' "$1" 2>/dev/null | awk '{ print $4 }' | LC_ALL=C sort -u | paste -sd, - || true)"
   posts="$(grep -oE "post-notification '?[A-Za-z0-9._-]+'?" "$1" 2>/dev/null | sed -E "s/post-notification '?//; s/'\$//" | LC_ALL=C sort -u | paste -sd, - || true)"
   [ -z "$procs" ] || bits="restarts ${procs//,/, }"
@@ -920,6 +920,14 @@ plan_restarts() {
   fi
   [ -z "$posts" ] || bits="$bits${bits:+ · }posts ${posts//,/, }"
   [ -z "$bits" ] || info "every rebuild also $bits"
+
+  # And the half a restart CANNOT cover. den emits this line for any domain the
+  # built configuration writes that macOS re-reads only at login, so the reader
+  # stays "grep the built script" rather than a second copy of restart-map.nix.
+  # Its own warning, not appended to the line above, because it is the opposite
+  # kind of news: that one says what will happen, this one says what won't.
+  waits="$(grep -oE 'haus: waits-for-logout [^"]+' "$1" 2>/dev/null | sed -E 's/^haus: waits-for-logout //' | tr ' ' '\n' | grep . | LC_ALL=C sort -u | paste -sd, - || true)"
+  [ -z "$waits" ] || warn "waits for a logout — no live-reload path on macOS 26: ${waits//,/, }"
 }
 
 cmd_plan() {

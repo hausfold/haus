@@ -914,6 +914,7 @@ in
         [ -f "${glowStyle}" ] || {
           echo "hearth: nebelung has no glamour port at ${glowStyle}" >&2
           echo "  (haus.theme.flavor/accent moved past what the pinned nebelung ships)" >&2
+          echo "  Pick another accent, or — if you author this rice — nix flake update nebelung." >&2
           exit 1
         }
         cp -r ${./yazi/plugins/glow.yazi} $out
