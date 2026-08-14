@@ -2,6 +2,13 @@
 # description and a docs link, all commented out. A fresh install is scaffolded
 # with it beside `default.nix`; `haus options` regenerates it after an update.
 #
+# It also emits the OPTIONS CATALOGUE (`options.json`) beside it — the same
+# option list, as data rather than as prose, for `haus set`'s picker and the
+# zsh completion. One derivation for both because they are the same query, and
+# because the count self-check at the bottom then guards both files at once:
+# the failure that check exists to catch (a jq edit that silently halves the
+# list) is exactly as invisible in the catalogue as in the template.
+#
 # WHY THIS EXISTS. The option surface used to be discoverable in exactly one
 # place — the docs site — and a person editing their host file had to know an
 # option existed before they could look it up. AeroSpace solves that by shipping
@@ -41,6 +48,7 @@ pkgs.runCommand "nebelhaus-host-template-${version}"
   ''
     mkdir -p "$out/share/nebelhaus"
     tmpl="$out/share/nebelhaus/host-options.nix"
+    catalogue="$out/share/nebelhaus/options.json"
 
     jq -r \
       --slurpfile groups ${optionsJSON}/share/doc/nixos/groups.json \
@@ -48,6 +56,14 @@ pkgs.runCommand "nebelhaus-host-template-${version}"
       -f ${./host-template.jq} \
       ${optionsJSON}/share/doc/nixos/options.json \
       > "$tmpl"
+
+    # The same list as data: type, default, and one line of prose per path, for
+    # anything that has to answer "what can I set?" without evaluating the
+    # config. See options-catalogue.jq's header.
+    jq \
+      -f ${./options-catalogue.jq} \
+      ${optionsJSON}/share/doc/nixos/options.json \
+      > "$catalogue"
 
     # A template that rendered empty would be worse than none: someone would
     # conclude the rice has no options rather than that the render broke.
@@ -98,4 +114,27 @@ pkgs.runCommand "nebelhaus-host-template-${version}"
     got=$(grep -c '^  haus\.' uncommented.nix || true)
     [ "$got" = "$want" ] \
       || { echo "host template has $got settable options, expected $want" >&2; exit 1; }
+
+    # Same guard on the catalogue, and for a sharper reason: nothing READS it
+    # top-to-bottom, so a filter that quietly dropped half the options would
+    # surface as a picker that simply doesn't list your option — indistinguish-
+    # able from that option not existing at your pin, which is a thing this file
+    # is otherwise designed to tell you truthfully.
+    got=$(jq 'length' "$catalogue")
+    [ "$got" = "$want" ] \
+      || { echo "options catalogue has $got entries, expected $want" >&2; exit 1; }
+
+    # Every entry must carry the facts a picker prompts from, WITH THE RIGHT
+    # SHAPE. `has()` is not the check to make here: it is true for a key whose
+    # value is null, so an entry of four nulls would pass it while the value
+    # prompt silently degraded to a free-text box for an enum — the exact
+    # failure this is for, and it looks like it worked until the rebuild rejects
+    # the value. `default` is the one that legitimately may be null (an option
+    # with no default at all), so it is the one checked by presence.
+    jq -e 'all(.[]; (.type | type == "string")
+                    and (.summary | type == "string")
+                    and (.literal | type == "boolean")
+                    and has("default"))' \
+      "$catalogue" >/dev/null \
+      || { echo "options catalogue has entries with a missing or mistyped type/literal/summary" >&2; exit 1; }
   ''
