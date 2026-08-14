@@ -319,10 +319,13 @@
     "hearth": {
       "blurb": "The shell and terminal experience.",
       "kind": "room",
-      "optionCount": 7,
+      "optionCount": 8,
       "options": {
         "haus.hearth.editor": {
           "desktopSafe": false
+        },
+        "haus.hearth.editorName": {
+          "desktopSafe": true
         },
         "haus.hearth.floatBorder": {
           "desktopSafe": true
@@ -1300,7 +1303,7 @@
         "zen",
         "developer"
       ],
-      "optionCount": 19,
+      "optionCount": 20,
       "order": 40,
       "title": "Development"
     },

@@ -10,6 +10,11 @@
     sill.enable = true;
     # A SEMANTIC display selector — "the built-in panel", true on any Mac.
     displays.internal.uiScale = "larger-text";
+    # A choice about what gets INSTALLED, and the only leaf of the editor pair
+    # a desktop may touch — `hearth.editor` is a command this layer executes
+    # and is host-only forever. The readback prints both, so this row also
+    # pins that the command followed the name across the seam.
+    hearth.editorName = "neovim";
     # A list, so the check can read back what a host override does to one.
     pounce.autoQuit.exclude = [
       "from-desktop-a"

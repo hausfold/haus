@@ -29,7 +29,7 @@
 # `theme.ports.handled`, which is internal WITHOUT the underscore and so escapes
 # any naming heuristic too. Those five are ours; they were renamed in place
 # rather than aliased, and are the reason this file had 105 entries for the
-# 110-leaf tree the rename found. The tree is 111 leaves now — see the
+# 110-leaf tree the rename found. The tree is 112 leaves now — see the
 # paragraph above for why that gap is the healthy direction.
 #
 # What the aliases buy: `haus.*` is canonical today, a host or rice still

@@ -21,6 +21,7 @@
     "haus.fonts.mono.name": "JetBrainsMono Nerd Font Mono",
     "haus.fonts.mono.size": 19,
     "haus.hearth.editor": "hx",
+    "haus.hearth.editorName": "helix",
     "haus.hearth.floatBorder": "accent",
     "haus.hearth.rightClickFullscreen": true,
     "haus.hearth.zellijStartLocked": true,

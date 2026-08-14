@@ -286,7 +286,9 @@ GIT_NAME="${NEBELHAUS_GIT_NAME:-$(git config --global user.name  2>/dev/null || 
 GIT_EMAIL="${NEBELHAUS_GIT_EMAIL:-$(git config --global user.email 2>/dev/null || true)}"
 GIT_SIGNING=""
 ACCENT="${NEBELHAUS_ACCENT:-mauve}"
-EDITOR_CHOICE="${NEBELHAUS_EDITOR:-hx}"
+# An editor NAME (helix, neovim, vim, nano), not a command — see the prompt
+# below and modules/lib/editors.nix.
+EDITOR_CHOICE="${NEBELHAUS_EDITOR:-helix}"
 # Wallpaper: the generated `minimal` haus look (default, matching the rice's own
 # haus.wallpaper.style), one of the inherited Nebelung ones, or `none` to leave
 # whatever you already have exactly where it is.
@@ -376,8 +378,13 @@ if [ -n "$INTERACTIVE" ]; then
       | "$GUM" choose --header 'Desktop wallpaper — minimal is the haus mark on your palette · bold follows your accent · none keeps yours:')"
     WALLPAPER="${WALLPAPER:-minimal}"
 
-    EDITOR_CHOICE="$(printf 'hx\nnvim\nvim\nnano' | "$GUM" choose --header 'Default $EDITOR:')"
-    EDITOR_CHOICE="${EDITOR_CHOICE:-hx}"
+    # The editors haus can INSTALL, spelled the way `haus.hearth.editorName`
+    # takes them (modules/lib/editors.nix). This used to offer COMMANDS —
+    # hx/nvim/vim/nano — and write the answer into `haus.hearth.editor`, which
+    # only ever pointed at a binary: answering `nvim` gave a fresh machine
+    # $EDITOR=nvim and no neovim. Name the editor and the room installs it.
+    EDITOR_CHOICE="$(printf 'helix\nneovim\nvim\nnano' | "$GUM" choose --header 'Editor:')"
+    EDITOR_CHOICE="${EDITOR_CHOICE:-helix}"
 
     # macOS settings: keep your own, or let the rice restyle them. Nothing
     # selected (the default) = the rice sets its tidy defaults, as before.
@@ -529,7 +536,10 @@ opt_lines=""
 # omitting the line on a "keep mine" answer would hand that machine the generated
 # desktop, which is the opposite of what was asked for.
 [ "$WALLPAPER" != "minimal" ] && opt_lines+="  haus.wallpaper.style = \"$WALLPAPER\";"$'\n'
-[ "$EDITOR_CHOICE" != "hx" ] && opt_lines+="  haus.hearth.editor = \"$EDITOR_CHOICE\";"$'\n'
+# `editorName`, not `editor`: the first names an editor the room then installs,
+# the second is a command it merely points at. A generated host must always
+# write the installing one.
+[ "$EDITOR_CHOICE" != "helix" ] && opt_lines+="  haus.hearth.editorName = \"$EDITOR_CHOICE\";"$'\n'
 [ -n "$opt_lines" ] && opt_lines=$'\n'"$opt_lines"
 cask_lines=""
 for c in $ADOPT_CASKS; do cask_lines+="    \"$c\""$'\n'; done

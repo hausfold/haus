@@ -38,7 +38,9 @@ in
 
         What follows it: every tool the rice injects colours into or points at a
         rendered theme — Ghostty, bat, delta, lsd, yazi, fzf, glow, starship,
-        lazygit, helix, zellij, opencode, the bar, Zen and Obsidian.
+        lazygit, zellij, opencode, the bar, Zen and Obsidian, plus helix
+        whenever it is the editor `haus.hearth.editorName` selects (Nebelung
+        has a port for helix and none for the alternatives).
         These are genuinely re-rendered for the flavor, not recoloured in place:
         whiskers takes different branches for a light flavor (terminal ANSI
         0/7/8/15 swap, Zen switches its prefers-color-scheme block, delta sets

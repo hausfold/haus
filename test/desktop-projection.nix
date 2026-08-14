@@ -74,6 +74,14 @@ let
       "hearth"
       "editor"
     ]
+    # Both halves of the editor pair, deliberately. `editor` alone would go
+    # blind exactly where it matters: a host that pins the command while a
+    # desktop moves the NAME still changes which editor is installed, and the
+    # projection would report no difference at all.
+    [
+      "hearth"
+      "editorName"
+    ]
     [
       "hearth"
       "rightClickFullscreen"

@@ -964,6 +964,70 @@
             if oldDrv == newDrv then "${name} old == new" else "${name} DIFFER old=${oldDrv} new=${newDrv}";
           compatRows = map compatRow (builtins.attrNames compatPairs);
 
+          # ---- editor-choice ---------------------------------------------------
+          # `haus.hearth.editorName` is the desktop-safe half of the editor pair
+          # (modules/lib/editors.nix). What makes it worth a check rather than a
+          # type is that ONE assignment has to move four unrelated things at
+          # once: the package that lands in the profile, $EDITOR/$VISUAL, the
+          # Nebelung theme file, and whether this room claims the `helix` port
+          # for `haus doctor`. Three of the four fail SILENTLY when they drift
+          # — you get an editor with no theme, or a doctor that says a tool is
+          # handled on a machine that never installed it — so the table reads
+          # all four back off a fully evaluated machine, once per enum value.
+          #
+          # The last row is the escape hatch: `editor` is host-only and still
+          # the last word, so a host naming a command the layer never installs
+          # keeps the enum's PACKAGE and overrides only what runs.
+          editorHome =
+            mods:
+            (mkNebelhaus {
+              inherit system;
+              username = "you";
+              hostname = "example";
+              extraModules = mods;
+            }).config;
+          editorRow =
+            name:
+            let
+              full = editorHome [ { haus.hearth.editorName = name; } ];
+              home = full.home-manager.users.you;
+              hasPkg = want: builtins.any (p: (p.pname or "") == want) home.home.packages;
+              installed = hasPkg name;
+              # Read separately from `installed`, because the drift worth
+              # catching is the one where nothing goes MISSING: drop the
+              # `lib.mkIf` from `programs.helix` and every row still says
+              # installed=yes while helix rides along on all four machines.
+              helixPkg = hasPkg "helix";
+              themed = home.home.file ? ".config/helix/themes/nebelung.toml";
+              port = builtins.elem "helix" full.haus.theme.ports.handled;
+              yn = b: if b then "yes" else "no";
+            in
+            "${name} EDITOR=${home.home.sessionVariables.EDITOR} installed=${yn installed} "
+            + "helix-pkg=${yn helixPkg} helix-theme=${yn themed} helix-port=${yn port}";
+          editorOverrideRow =
+            let
+              full = editorHome [
+                {
+                  haus.hearth.editorName = "neovim";
+                  haus.hearth.editor = "code -w";
+                }
+              ];
+              home = full.home-manager.users.you;
+              installed = builtins.any (p: (p.pname or "") == "neovim") home.home.packages;
+            in
+            "host override EDITOR=${home.home.sessionVariables.EDITOR} "
+            + "installed=${if installed then "neovim" else "NOTHING"}";
+          editorTable = builtins.concatStringsSep "\n" (
+            map editorRow (builtins.attrNames (import ./modules/lib/editors.nix)) ++ [ editorOverrideRow ]
+          );
+          expectedEditorTable = ''
+            helix EDITOR=hx installed=yes helix-pkg=yes helix-theme=yes helix-port=yes
+            nano EDITOR=nano installed=yes helix-pkg=no helix-theme=no helix-port=no
+            neovim EDITOR=nvim installed=yes helix-pkg=no helix-theme=no helix-port=no
+            vim EDITOR=vim installed=yes helix-pkg=no helix-theme=no helix-port=no
+            host override EDITOR=code -w installed=neovim
+          '';
+
           composedConfig =
             mods:
             (nixpkgs.lib.evalModules {
@@ -1924,6 +1988,11 @@
                else
                  builtins.concatStringsSep "+" cfg.haus.pounce.autoQuit.exclude
              }"
+            # Both halves of the editor pair. The desktop may only set the NAME,
+            # so a row reading `neovim/nvim` is the derived command arriving
+            # through the seam — and `helix/hx` everywhere else is the room's
+            # own default, unmoved.
+            + " editor=${cfg.haus.hearth.editorName}/${cfg.haus.hearth.editor}"
             + " desktop=${desktopSelection cfg}";
           desktopRows = {
             # The built-in from-scratch choice. It selects a desktop like every
@@ -1969,13 +2038,13 @@
             map (name: "${name} ${desktopReadback desktopRows.${name}}") (builtins.attrNames desktopRows)
           );
           expectedDesktopTable = ''
-            blank scale=1.000000 sill=no internal=(unset) list=(unset) desktop=desktops/blank.nix
-            builder-default scale=1.000000 sill=yes internal=(unset) list=(unset) desktop=desktops/nebelhaus.nix
-            by-hand scale=1.100000 sill=no internal=(unset) list=(unset) desktop=test/desktops/valid-other.nix
-            host-override scale=1.500000 sill=yes internal=larger-text list=from-desktop-a+from-desktop-b desktop=test/desktops/valid-sample.nix
-            list-override scale=1.350000 sill=yes internal=larger-text list=from-host desktop=test/desktops/valid-sample.nix
-            no-desktop scale=1.000000 sill=no internal=(unset) list=(unset) desktop=(none)
-            one-desktop scale=1.350000 sill=yes internal=larger-text list=from-desktop-a+from-desktop-b desktop=test/desktops/valid-sample.nix
+            blank scale=1.000000 sill=no internal=(unset) list=(unset) editor=helix/hx desktop=desktops/blank.nix
+            builder-default scale=1.000000 sill=yes internal=(unset) list=(unset) editor=helix/hx desktop=desktops/nebelhaus.nix
+            by-hand scale=1.100000 sill=no internal=(unset) list=(unset) editor=helix/hx desktop=test/desktops/valid-other.nix
+            host-override scale=1.500000 sill=yes internal=larger-text list=from-desktop-a+from-desktop-b editor=neovim/nvim desktop=test/desktops/valid-sample.nix
+            list-override scale=1.350000 sill=yes internal=larger-text list=from-host editor=neovim/nvim desktop=test/desktops/valid-sample.nix
+            no-desktop scale=1.000000 sill=no internal=(unset) list=(unset) editor=helix/hx desktop=(none)
+            one-desktop scale=1.350000 sill=yes internal=larger-text list=from-desktop-a+from-desktop-b editor=neovim/nvim desktop=test/desktops/valid-sample.nix
           '';
 
           blankConfig = desktopRows.blank;
@@ -2347,6 +2416,12 @@
           fragment-compat = pkgs.runCommand "haus-fragment-compat-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedFragmentCompatTable} \
                     ${pkgs.writeText "actual" (fragmentCompatTable + "\n")}
+            touch $out
+          '';
+
+          editor-choice = pkgs.runCommand "haus-editor-choice-ok" { } ''
+            diff -u ${pkgs.writeText "expected" expectedEditorTable} \
+                    ${pkgs.writeText "actual" (editorTable + "\n")}
             touch $out
           '';
 
