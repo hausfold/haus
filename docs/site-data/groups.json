@@ -1232,6 +1232,200 @@
     "blurb": "Tiling window management and the Caps-Lock leader launcher.",
     "order": 120
   },
+  "rooms": {
+    "ai": {
+      "blurb": "Coding agents: which clients this machine installs, the worktree lifecycle around them, and the instructions and `haus` skill every client reads.",
+      "exports": [],
+      "kind": "room",
+      "namespaces": [
+        "ai"
+      ],
+      "optionCount": 5,
+      "order": 100,
+      "title": "AI"
+    },
+    "appearance": {
+      "blurb": "How the machine looks: the palette and its accent, the wallpaper, the fonts, and the macOS surfaces that follow them — motion, screenshots, sound and the accessibility keys. The interface scale every room reads is `haus.ui`, a shared surface below.",
+      "exports": [],
+      "kind": "room",
+      "namespaces": [
+        "appearance",
+        "theme",
+        "wallpaper",
+        "fonts",
+        "accessibility",
+        "animations",
+        "screenshots",
+        "sound"
+      ],
+      "optionCount": 43,
+      "order": 20,
+      "title": "Appearance"
+    },
+    "apps": {
+      "blurb": "The apps a finished machine has: the curated picks, the packs that switch a whole set on in one line, the file types they claim, App Store policy, and what a rebuild does to anything you installed by hand. The list they all land in is `haus.roster`, a shared surface below.",
+      "exports": [],
+      "kind": "room",
+      "namespaces": [
+        "appStore",
+        "apps",
+        "homebrew"
+      ],
+      "optionCount": 7,
+      "order": 10,
+      "title": "Apps"
+    },
+    "bar": {
+      "blurb": "The menu bar: where it draws, which pills it carries, and what each one reads.",
+      "exports": [
+        "sill"
+      ],
+      "kind": "room",
+      "namespaces": [
+        "menuBar",
+        "sill"
+      ],
+      "optionCount": 84,
+      "order": 60,
+      "title": "Bar"
+    },
+    "development": {
+      "blurb": "The terminal stack — terminal, shell, multiplexer, editor — plus the browser, the CLI toolbelt, Git tooling and language runtimes. Your commit identity itself is a fact about you rather than this room's, and stays in your host. The terminal lives here because a terminal with no tools in it is not a separate thing anyone wants.",
+      "exports": [
+        "hearth"
+      ],
+      "kind": "room",
+      "namespaces": [
+        "hearth",
+        "zen",
+        "developer"
+      ],
+      "optionCount": 19,
+      "order": 40,
+      "title": "Development"
+    },
+    "displays": {
+      "blurb": "Resolution and per-display behaviour, addressed by which screen you mean rather than by a panel's serial number.",
+      "exports": [],
+      "kind": "room",
+      "namespaces": [
+        "displays"
+      ],
+      "optionCount": 2,
+      "order": 30,
+      "title": "Displays"
+    },
+    "focus": {
+      "blurb": "One quiet switch: Do Not Disturb, an optional status somewhere else, and your own hooks on both edges.",
+      "exports": [
+        "hush"
+      ],
+      "kind": "room",
+      "namespaces": [
+        "hush"
+      ],
+      "optionCount": 7,
+      "order": 90,
+      "title": "Focus"
+    },
+    "haus": {
+      "blurb": "Surfaces more than one room reads: the app roster, the workspaces, the keys haus owns, the interface scale, the first-run tour. They belong to no single room because moving one into a room would make the others depend on it.",
+      "exports": [
+        "default",
+        "den"
+      ],
+      "kind": "shared",
+      "namespaces": [
+        "roster",
+        "workspaces",
+        "ui",
+        "keys",
+        "tour"
+      ],
+      "optionCount": 32,
+      "order": 200,
+      "title": "Shared surfaces"
+    },
+    "host": {
+      "blurb": "The facts that are about you or this Mac rather than about a room — your commit identity, your region, this laptop's power behaviour. A shared desktop may not set them.",
+      "exports": [],
+      "kind": "host",
+      "namespaces": [
+        "git",
+        "locale",
+        "power"
+      ],
+      "optionCount": 19,
+      "order": 210,
+      "title": "Your machine"
+    },
+    "launcher": {
+      "blurb": "Pounce — the command palette, its daemon, its commands, and every Pounce setting haus exposes.",
+      "exports": [
+        "pounce"
+      ],
+      "kind": "room",
+      "namespaces": [
+        "pounce"
+      ],
+      "optionCount": 14,
+      "order": 70,
+      "title": "Launcher"
+    },
+    "security": {
+      "blurb": "Touch ID for sudo, lock behaviour, the firewall, and where secret values come from.",
+      "exports": [
+        "collar",
+        "secrets"
+      ],
+      "kind": "room",
+      "namespaces": [
+        "lock",
+        "security",
+        "collar",
+        "secrets"
+      ],
+      "optionCount": 10,
+      "order": 120,
+      "title": "Security"
+    },
+    "shelf": {
+      "blurb": "Perch — the file shelf that grows out of the notch to catch what you drag at it.",
+      "exports": [],
+      "kind": "room",
+      "namespaces": [
+        "perch"
+      ],
+      "optionCount": 2,
+      "order": 80,
+      "title": "Shelf"
+    },
+    "text-expansion": {
+      "blurb": "Snippets, and the engine that types them out for you.",
+      "exports": [],
+      "kind": "room",
+      "namespaces": [
+        "snippets"
+      ],
+      "optionCount": 4,
+      "order": 110,
+      "title": "Text expansion"
+    },
+    "windows": {
+      "blurb": "Tiling, window navigation, hot corners, and the leader key that launches an app or throws it somewhere. The workspaces themselves (`haus.workspaces`) and the keys haus claims (`haus.keys`) are shared surfaces below, because the bar and the launcher read them too.",
+      "exports": [
+        "prowl"
+      ],
+      "kind": "room",
+      "namespaces": [
+        "hotCorners",
+        "prowl"
+      ],
+      "optionCount": 5,
+      "order": 50,
+      "title": "Windows"
+    }
+  },
   "roster": {
     "blurb": "One list of everything this machine has — apps, fonts, command-line tools. Each entry drives its launcher key, cheatsheet row, and installs it from whichever source it names: a Homebrew cask or formula, a Nixpkgs package, or the Mac App Store.",
     "order": 20
