@@ -92,6 +92,7 @@ let
       "floatBorder"
       "ghDash.enable"
       "hijackFileAssociations"
+      "lanes.backend"
       "obsidianVaults"
       "rightClickFullscreen"
       "zellijStartLocked"

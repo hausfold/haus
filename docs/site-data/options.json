@@ -768,6 +768,24 @@
     "readOnly": false,
     "type": "boolean"
   },
+  "haus.hearth.lanes.backend": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"zellij\""
+    },
+    "description": "Where an agent lane's terminal actually lives.\n\n`zellij` (the default) is the behaviour this rice has always had: a\nlane is a pane in the `main` zellij session, and `holt` execs the\nclient in the pane you ran it from. Panes are cheap, but a lane's\nidentity is then a (session, pane-id) pair that only zellij\nunderstands — which is why the bar keeps a state file per pane and\njoins it back to a checkout path to work out which window to raise.\n\n`zmx` makes the lane its own zmx session, viewed through its own\nGhostty window, tiled by prowl — all three named\n`holt.<repo>.<lane>`. Three consequences, in the order you'd feel\nthem:\n\n- **Closing the window stops meaning parking the work.** A zmx\n  session outlives every client attached to it, so ⌘W detaches and\n  the agent keeps thinking; `holt <name>` reopens a window onto the\n  live conversation instead of resuming a transcript.\n- **The name is the join.** `zmx ls --where state=waiting`,\n  AeroSpace's `window-title-regex`, and the lane in `holt --json`\n  all key off one string.\n- **Splits are gone**, because zmx has none by design. Prowl tiles\n  the windows instead, which is the trade: a real window manager\n  rather than a second one nested inside a terminal.\n\nBoth backends can be installed at once — this only picks which one\n`holt` opens into, through the `[hooks] open`/`resume` seam in\n`~/.config/holt/config.toml`. If zmx is somehow missing at runtime\nthe hook defers (exit 3) and holt falls back to its built-in, so the\nworst case is the zellij behaviour you already had.\n",
+    "loc": [
+      "haus",
+      "hearth",
+      "lanes",
+      "backend"
+    ],
+    "readOnly": false,
+    "type": "one of \"zellij\", \"zmx\""
+  },
   "haus.hearth.obsidianVaults": {
     "declarations": [
       "modules/hearth/options.nix"

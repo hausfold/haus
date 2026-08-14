@@ -6,14 +6,21 @@
 # land here, and each popup row is marked with the client sitting in it.
 #
 # State is written by agents-hook.sh from each client's own lifecycle hooks
-# (authoritative — no screen-scraping), one file per pane under
-# /tmp/nebelhaus-agents/*.state, each:
-#     <state>\t<session>\t<pane-id>\t<label>\t<epoch>\t<client>
-# <client> is the newest field: a file written before it existed reads as empty,
-# which provider_style draws as the generic mark rather than lying about a client.
-# A `.cwd` sibling (same base name) carries the pane's checkout path, which the
-# popup joins against `holt --json`'s lane `.path` to pull in repo/branch/PR
-# context — see "the holt join" below.
+# (authoritative — no screen-scraping) into one of TWO stores, depending on where
+# the agent sits. Both are normalised into one record by zellij_records /
+# zmx_records below, and nothing after that point knows the difference.
+#
+#   • a zellij pane → one file per pane under /tmp/nebelhaus-agents/*.state:
+#       <state>\t<session>\t<pane-id>\t<label>\t<epoch>\t<client>
+#     <client> is the newest field: a file written before it existed reads as
+#     empty, which provider_style draws as the generic mark rather than lying
+#     about a client. A `.cwd` sibling (same base name) carries the pane's
+#     checkout path, which the popup joins against `holt --json`'s lane `.path`
+#     — see "the holt join" below.
+#   • a zmx lane (haus.hearth.lanes.backend = "zmx") → labels on its own zmx
+#     session, which has no pane and needs none of the pruning below: labels are
+#     in-memory and die with the session. Its holt join is by NAME, not cwd,
+#     because the session is named `holt.<repo>.<lane>`.
 #
 # Four entry paths:
 #   • agent_update / system_woke / periodic  → recount, repaint icon+label
@@ -122,9 +129,110 @@ state_style() {
   esac
 }
 
+# ── the two sources, in one shape ────────────────────────────────────────────
+# Both emit the same 8-field record so everything downstream — the sort, the
+# counts, the popup — reads one format and never asks where a row came from:
+#
+#   <priority> <since> <kind> <state> <target> <label> <client> <cwd>
+#
+# `kind` is `zellij` or `zmx`, and `target` is whatever that kind's row-click
+# handler needs to find the agent again: "<session> <pane>" for zellij (two
+# words, which is why target is the LAST positional in the `row` sub-command),
+# the zmx session name for zmx.
+#
+# zmx_records — lanes under haus.hearth.lanes.backend = "zmx". Their state
+# lives as labels on the session (agents-hook.sh), which zmx holds in memory for
+# the session's lifetime. So there is nothing here matching prune_dead_panes or
+# the 12h sweep below: a lane that dies takes its labels with it, and a session
+# that never reported (an ordinary `zmx attach` you opened yourself) has no
+# `state` label and is skipped.
+#
+# Parsed out of plain `zmx ls`, not `zmx ls --where state=…`: in zmx 0.7.0
+# `--where` does not filter — it returns every session, labelled or not — so
+# doing it here is the honest version rather than a missed optimisation.
+zmx_records() {
+  command -v zmx >/dev/null 2>&1 || return 0
+  zmx ls 2>/dev/null | awk -F'\t' '
+    {
+      split("", f)
+      for (i = 1; i <= NF; i++) {
+        p = index($i, "=")
+        if (p == 0) continue
+        k = substr($i, 1, p - 1)
+        gsub(/^[ \t]+|[ \t]+$/, "", k)
+        # Only up to the FIRST "=", because a value carries its own: cwd is a
+        # URL, and a label is whatever the client wrote.
+        f[k] = substr($i, p + 1)
+      }
+      if (f["state"] == "" || f["name"] == "") next
+      pr = 3
+      if      (f["state"] == "waiting") pr = 0
+      else if (f["state"] == "working") pr = 1
+      else if (f["state"] == "idle")    pr = 2
+      since = (f["since"] == "" ? f["created"] : f["since"])
+      # zmx reports the session cwd as a file:// URL with the host in it
+      # ("file://Mac/Users/…"); the holt join below wants the plain path. This
+      # is not a label — zmx rejects any label value containing a slash — it is
+      # a field zmx keeps itself, which is why the hook does not have to.
+      cwd = f["cwd"]
+      sub(/^file:\/\/[^\/]*/, "", cwd)
+      printf "%s\t%s\tzmx\t%s\t%s\t%s\t%s\t%s\n",
+        pr, (since == "" ? 0 : since), f["state"], f["name"],
+        (f["label"] == "" ? f["name"] : f["label"]), f["client"], cwd
+    }'
+}
+
+# zellij_records — the /tmp state files, unchanged in every respect but shape.
+zellij_records() {
+  local f st sess pane label epoch client pr cwd cf
+  for f in "$DIR"/*.state; do
+    [ -e "$f" ] || continue
+    IFS=$'\t' read -r st sess pane label epoch client < "$f"
+    case "$st" in waiting) pr=0 ;; working) pr=1 ;; idle) pr=2 ;; *) pr=3 ;; esac
+    cwd=""
+    cf="${f%.state}.cwd"
+    [ -s "$cf" ] && cwd="$(cat "$cf")"
+    printf '%s\t%s\tzellij\t%s\t%s\t%s\t%s\t%s\n' \
+      "$pr" "${epoch:-0}" "$st" "$sess $pane" "$label" "$client" "$cwd"
+  done
+}
+
 # ── popup-row click: go to the agent (left) or peek it (⌥/right) ──────────────
+# `agents.sh row <kind> <target…>` — the target is last because zellij's is two
+# words (session, pane) and zmx's is one (the session name).
+if [ "${1:-}" = "row" ] && [ "${2:-}" = "zmx" ]; then
+  zsess="$3"
+  if [ "${BUTTON:-left}" = "right" ] || [ "${MODIFIER:-none}" != "none" ]; then
+    # peek: `zmx tail` FOLLOWS the session's output, so this is a live view
+    # rather than the one-shot dump agents-peek.sh does for a pane — and it
+    # needs no attach, so it can never steal the lane's keyboard or count as a
+    # client on it.
+    "$HOME/.config/zellij/float-term.sh" spawn --title "peek" \
+      --w 900 --h 560 --pin \
+      --command "zmx tail $zsess" >/dev/null
+  else
+    # go-to: raise the lane's window. An EXACT title match, not the substring
+    # search the zellij path below has to do — hearth/lanes/lane-open.sh gives
+    # the window a forced `--title` equal to the session name, so the join is a
+    # string equality. No window means the lane is detached and still running
+    # (the whole point of the zmx backend), so reopen one on the live session
+    # rather than pretending nothing is there.
+    win=$(aerospace list-windows --all --format '%{window-id}|%{app-name}|%{window-title}' 2>/dev/null \
+          | awk -F'|' -v t="$zsess" '$2 == "Ghostty" && $3 == t { print $1; exit }')
+    if [ -n "$win" ]; then
+      aerospace focus --window-id "$win" 2>/dev/null
+    else
+      open -na Ghostty.app --args --title="$zsess" --initial-command="zmx attach $zsess"
+    fi
+  fi
+  "$SB" --set agents popup.drawing=off
+  exit 0
+fi
+
 if [ "${1:-}" = "row" ]; then
-  sess="$2"; pane="$3"
+  # `row zellij <session> <pane>` — $2 is the kind, kept positional so both
+  # handlers share one click contract.
+  sess="$3"; pane="$4"
   # A plain click sends MODIFIER=none (not empty), so test against "none" — any
   # real modifier (alt/cmd/shift/ctrl) or a right-click means "peek instead".
   if [ "${BUTTON:-left}" = "right" ] || [ "${MODIFIER:-none}" != "none" ]; then
@@ -287,14 +395,12 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
 
   # Build the sort key up front: priority (waiting=0 … idle=2), then epoch
   # ascending — within a tier, the one that's been sitting longest is the one
-  # that most needs a glance.
+  # that most needs a glance. Both backends land in one array, already in the
+  # shape the render loop reads (see zmx_records above).
   files=()
-  for f in "$DIR"/*.state; do
-    [ -e "$f" ] || continue
-    IFS=$'\t' read -r st _ _ _ epoch _ < "$f"
-    case "$st" in waiting) pr=0 ;; working) pr=1 ;; idle) pr=2 ;; *) pr=3 ;; esac
-    files+=("$pr"$'\t'"${epoch:-0}"$'\t'"$f")
-  done
+  while IFS= read -r rec; do
+    [ -n "$rec" ] && files+=("$rec")
+  done < <(zellij_records; zmx_records)
 
   if [ ${#files[@]} -eq 0 ]; then
     "$SB" --add item agents.popup.0 popup.agents 2>/dev/null \
@@ -338,24 +444,42 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
     fi
 
     now=$(date +%s)
-    while IFS=$'\t' read -r _pr _epoch f; do
-      [ -n "$f" ] || continue
-      IFS=$'\t' read -r st sess pane label epoch client < "$f"
+    while IFS=$'\t' read -r _pr epoch kind st target label client cwd; do
+      [ -n "$kind" ] || continue
       state_style "$st"
 
-      cwd=""
-      cf="${f%.state}.cwd"
-      [ -s "$cf" ] && cwd="$(cat "$cf")"
-
-      lane="{}"
-      if [ -n "$cwd" ] && [ "$lanes_json" != "{}" ]; then
-        lane="$(printf '%s' "$lanes_json" | jq -c --arg p "$cwd" \
-          '(.lanes // [])[] | select(.path == $p)' 2>/dev/null | head -1)"
-        [ -n "$lane" ] || lane="{}"
+      lane=""
+      if [ "$lanes_json" != "{}" ]; then
+        if [ "$kind" = zmx ]; then
+          # The session name IS the lane, qualified by repo:
+          # `holt.<repo>.<lane>` (hearth/lanes/lane-open.sh). Joining on that
+          # rather than on the cwd is the whole reason it carries the repo —
+          # `holt child` gives a child lane its parent's NAME, so two live
+          # lanes in different repos share one, and a cwd join sends a child
+          # to the parent's row. Anything not named that way falls back to the
+          # cwd join every zellij pane uses.
+          case "$target" in
+            holt.*.*)
+              zrepo="${target#holt.}"; zrepo="${zrepo%%.*}"
+              zname="${target##*.}"
+              lane="$(printf '%s' "$lanes_json" | jq -c --arg r "$zrepo" --arg n "$zname" \
+                '(.lanes // [])[] | select(.name == $n and (.main | split("/") | last) == $r)' \
+                2>/dev/null | head -1)"
+              ;;
+          esac
+        fi
+        # The cwd join: every zellij pane's answer, and the fallback for a zmx
+        # session this rice did not name (a plain `zmx attach` of your own that
+        # happens to run a client).
+        if [ -z "$lane" ] && [ -n "$cwd" ]; then
+          lane="$(printf '%s' "$lanes_json" | jq -c --arg p "$cwd" \
+            '(.lanes // [])[] | select(.path == $p)' 2>/dev/null | head -1)"
+        fi
       fi
+      [ -n "$lane" ] || lane="{}"
 
       provider_style "${client:-}" "" "$FS_LABEL"
-      ROW_CLICK="$PLUGINS/agents.sh row $sess $pane"
+      ROW_CLICK="$PLUGINS/agents.sh row $kind $target"
 
       header "$P_ICON" "$P_FONT" "$P_COLOR" "$label"
       row "" "$TAG  ·  $(ago $((now - ${epoch:-now})))" "$COL" Bold
@@ -414,16 +538,16 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
 fi
 
 # ── update: count states, paint the pill by the most-urgent one present ───────
+# Same two sources as the popup, through the same records — a pill that counted
+# only panes would read "2 working" while a third lane sat waiting on you.
 working=0 waiting=0 idle=0
-for f in "$DIR"/*.state; do
-  [ -e "$f" ] || continue
-  IFS=$'\t' read -r st _ < "$f"
+while IFS=$'\t' read -r _pr _epoch _kind st _rest; do
   case "$st" in
     working) working=$((working + 1)) ;;
     waiting) waiting=$((waiting + 1)) ;;
     idle)    idle=$((idle + 1)) ;;
   esac
-done
+done < <(zellij_records; zmx_records)
 
 if [ $((working + waiting + idle)) -eq 0 ]; then
   "$SB" --set agents drawing=off   # nothing running → no clutter

@@ -325,7 +325,7 @@
     "hearth": {
       "blurb": "The shell and terminal experience.",
       "kind": "room",
-      "optionCount": 8,
+      "optionCount": 9,
       "options": {
         "haus.hearth.editor": {
           "desktopSafe": false
@@ -340,6 +340,9 @@
           "desktopSafe": true
         },
         "haus.hearth.hijackFileAssociations": {
+          "desktopSafe": true
+        },
+        "haus.hearth.lanes.backend": {
           "desktopSafe": true
         },
         "haus.hearth.obsidianVaults": {
@@ -1309,7 +1312,7 @@
         "zen",
         "developer"
       ],
-      "optionCount": 20,
+      "optionCount": 21,
       "order": 40,
       "title": "Development"
     },
