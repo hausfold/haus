@@ -21,6 +21,12 @@
 #                    of its panes — agents.sh drops rows whose zellij pane is
 #                    gone instead, which covers every client that dies quietly.
 #
+# TWO STORES, picked by where the agent is sitting. A zellij pane files its
+# state under /tmp keyed by (session, pane-id); a zmx lane
+# (haus.hearth.lanes.backend = "zmx") has no pane, so it sets LABELS on its own
+# session instead — see the zmx branch below for why that is the better half of
+# the pair and not just the other one.
+#
 # The two readers, drawing agent state in the same three colours:
 #   • sill's `agents` menu-bar pill — reads the /tmp state files below
 #     (modules/sill/default.nix → agents.sh). It also reads the CLIENT written
@@ -48,9 +54,14 @@ DIR=/tmp/nebelhaus-agents
 export USER="${USER:-$(id -un)}"
 export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:$PATH"
 
-# Only track agent panes that live in zellij — a bare-terminal agent has no
-# pane to peek and no place on the bar, so stay invisible there.
-[ -n "${ZELLIJ_PANE_ID:-}" ] || exit 0
+# Only track agents the rice can actually take you to. That is a zellij pane,
+# or — since haus.hearth.lanes.backend = "zmx" — a zmx session, whose name
+# ($ZMX_SESSION, injected into every process in it) is a lane's window title
+# and its holt lane all at once. A bare-terminal agent is neither: no pane to
+# peek, no window to raise, so it stays invisible here as it always has.
+if [ -z "${ZELLIJ_PANE_ID:-}" ] && [ -z "${ZMX_SESSION:-}" ]; then
+  exit 0
+fi
 
 st="${1:-working}"
 
@@ -66,6 +77,52 @@ if [ -z "$agent" ]; then
   elif [ -n "${CODEX_HOME:-}${CODEX_SANDBOX:-}" ];      then agent=codex
   else agent=agent
   fi
+fi
+
+# ── the zmx lane path ────────────────────────────────────────────────────────
+# A lane under haus.hearth.lanes.backend = "zmx" has no pane, so there is no
+# ${sess}__${pane} key to file it under — and nothing to sweep either. Its state
+# goes on the session itself as LABELS, which zmx keeps in memory for exactly as
+# long as the session lives. That is the whole reason this branch exists: the
+# state file protocol needs pruning (agents.sh shells `zellij action list-panes`
+# on a tick, plus a 12h backstop for clients like Codex that have no
+# session-end event) precisely because a file outlives what it describes. A
+# label cannot. A lane that dies takes its row with it, in every failure mode,
+# with no reaper.
+#
+# `zmx set .` — "." is the current session, so the hook never has to know or
+# quote the name. `k=` with an empty value unsets, which is what `remove` wants.
+if [ -n "${ZMX_SESSION:-}" ]; then
+  command -v zmx >/dev/null 2>&1 || exit 0
+  if [ "$st" = remove ]; then
+    zmx set . state= client= label= since= >/dev/null 2>&1
+    exit 0
+  fi
+  # The lane name, not the cwd's basename. `holt child` runs a child lane's
+  # CONVERSATION in the parent's checkout (holt's HOLT_CHAT), so for those the
+  # cwd basename names the wrong lane — while the session name is
+  # `holt.<repo>.<lane>` by construction (hearth/lanes/lane-open.sh). Anything
+  # not opened by that hook keeps the old cwd-basename answer.
+  label="${ZMX_SESSION##*.}"
+  case "$ZMX_SESSION" in holt.*.*) ;; *) label=$(basename "${CLAUDE_PROJECT_DIR:-$PWD}") ;; esac
+  # zmx rejects a label value containing anything outside [a-zA-Z0-9-_.], and it
+  # rejects the WHOLE `set` when one value is bad — so an exotic directory name
+  # would silently cost this lane its state, not just its label. Fold the rest
+  # to `-`. Nothing needs the pane's cwd as a label for the same reason: `zmx
+  # ls` already reports the session's own `cwd=`, unrestricted, which is the
+  # checkout the launcher cd'd into.
+  label=$(printf '%s' "$label" | tr -c 'a-zA-Z0-9._-' '-')
+  zmx set . \
+    "state=$st" \
+    "client=$agent" \
+    "label=$label" \
+    "since=$(date +%s)" >/dev/null 2>&1
+  # No zellij tab-bar to broadcast to (there is no tab), so go straight to
+  # repainting the bar — the same call the file path makes at the bottom.
+  reader="$(dirname "$0")/agents.sh"
+  [ -x "$reader" ] || reader="$HOME/.config/sketchybar/plugins/agents.sh"
+  [ -x "$reader" ] && SENDER=refresh NAME=agents "$reader" >/dev/null 2>&1
+  exit 0
 fi
 
 sess="${ZELLIJ_SESSION_NAME:-nosession}"
