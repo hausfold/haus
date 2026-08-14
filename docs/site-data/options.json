@@ -629,13 +629,13 @@
       "modules/hearth/options.nix"
     ],
     "default": {
-      "_type": "literalExpression",
-      "text": "\"hx\""
+      "_type": "literalMD",
+      "text": "the command for haus.hearth.editorName — hx for helix"
     },
-    "description": "The ONE editor the rice uses everywhere. It's the shell command for\n$EDITOR / $VISUAL (git, etc.) AND what every \"open in an editor\" action\nlaunches — the \"Nix Config\" palette command, the bar's nix-open item,\nand the file-association hijack. Those open the target in a new zellij\ntab running this command, so a terminal editor (hx, nvim, vim, nano) is\nthe natural fit for the rice; a GUI editor's CLI works too (e.g. \"code\"\nor \"code -w\" to block).\n\nThe rice installs helix, which is why the default is `hx`. Naming\nanything else here assumes that editor is already on the machine — this\noption points at an editor, it does not install one.\n",
+    "description": "The ONE editor command the rice uses everywhere. It's the shell command\nfor $EDITOR / $VISUAL (git, etc.) AND what every \"open in an editor\"\naction launches — the \"Nix Config\" palette command, the bar's nix-open\nitem, and the file-association hijack. Those open the target in a new\nzellij tab running this command, so a terminal editor is the natural\nfit for the rice; a GUI editor's CLI works too (e.g. \"code\" or\n\"code -w\" to block).\n\nIt defaults to the command for `haus.hearth.editorName`, so choosing an\neditor there is enough. Set this only for the case that option cannot\nexpress: pointing the rice at something it does not install. Naming a\ncommand here does NOT install it — that machine has to already have it.\n",
     "example": {
       "_type": "literalExpression",
-      "text": "\"nvim\""
+      "text": "\"code -w\""
     },
     "loc": [
       "haus",
@@ -644,6 +644,27 @@
     ],
     "readOnly": false,
     "type": "string"
+  },
+  "haus.hearth.editorName": {
+    "declarations": [
+      "modules/hearth/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"helix\""
+    },
+    "description": "Which editor this room installs. `helix` (the default) is the one the\nrice is themed around; `neovim`, `vim` and `nano` are installed as-is,\nwith no Nebelung theme — Nebelung has a port for helix and not for\nthem.\n\nSetting this also moves `haus.hearth.editor`, since that defaults to\nwhatever the chosen editor answers to on PATH (`hx`, `nvim`, `vim`,\n`nano`). Choosing here is the whole gesture: the editor is installed\nAND every \"open in an editor\" action follows it.\n\nA desktop may set this. To point the rice at an editor it does not\ninstall — a GUI one, or something from your own host file — leave this\nalone and set `haus.hearth.editor` instead.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"neovim\""
+    },
+    "loc": [
+      "haus",
+      "hearth",
+      "editorName"
+    ],
+    "readOnly": false,
+    "type": "one of \"helix\", \"nano\", \"neovim\", \"vim\""
   },
   "haus.hearth.floatBorder": {
     "declarations": [
@@ -4382,7 +4403,7 @@
       "_type": "literalExpression",
       "text": "\"mocha\""
     },
-    "description": "Light or dark. \"mocha\" (the default) is the rice as it has always been;\n\"latte\" is light mode.\n\nNot an inversion of the dark palette — a different SOURCE palette. Nebelung\nis \"Catppuccin with the blue stripped out\", and those rules say nothing\nabout dark, so they apply to Catppuccin Latte just as well: same warm-grey\nneutral ramp, same calmed accents, the other polarity. Light mode lands at\n7.0:1 for body text on its own, so it's legible before you reach for\ncontrast = \"high\" (which takes it to 9.9:1).\n\nIt composes with `contrast`: the two axes give four palettes, and nebelung's\nCI measures each one's contrast ratio rather than eyeballing it.\n\nHonest scope, in two parts.\n\nWhat follows it: every tool the rice injects colours into or points at a\nrendered theme — Ghostty, bat, delta, lsd, yazi, fzf, glow, starship,\nlazygit, helix, zellij, opencode, the bar, Zen and Obsidian.\nThese are genuinely re-rendered for the flavor, not recoloured in place:\nwhiskers takes different branches for a light flavor (terminal ANSI\n0/7/8/15 swap, Zen switches its prefers-color-scheme block, delta sets\n`light = true`).\n\nWhat does NOT follow it:\n\n  - pounce and perch, by default. Both read their palette at runtime and\n    can pick per polarity, so haus.pounce.followSystemAppearance\n    and haus.perch.followSystemAppearance (default true) hand that\n    choice to macOS Light/Dark instead: the rice installs every rendered\n    variant into ~/.config/{pounce,perch}/themes/ and writes the\n    dark/light PAIR at your `contrast`. Set either option false to pin\n    that app to this flavor like everything else.\n  - macOS's own Light/Dark appearance, unless you opt in with\n    haus.theme.systemAppearance = \"flavor\". Left at its default the\n    rice does not touch system appearance in either direction, so a\n    latte rice on a dark macOS looks half-done and that half is yours —\n    except in pounce and perch, which read the appearance themselves.\n  - three of the six desktops (haus.wallpaper.style). The hand-made\n    \"orbits\", \"constellation\" and \"flow\" have the dark palette baked into\n    their pixels; \"bold\" is generated but follows theme.accent rather\n    than the flavor. \"minimal\" DOES follow it, in every part — field,\n    mark, glow and debug band.\n",
+    "description": "Light or dark. \"mocha\" (the default) is the rice as it has always been;\n\"latte\" is light mode.\n\nNot an inversion of the dark palette — a different SOURCE palette. Nebelung\nis \"Catppuccin with the blue stripped out\", and those rules say nothing\nabout dark, so they apply to Catppuccin Latte just as well: same warm-grey\nneutral ramp, same calmed accents, the other polarity. Light mode lands at\n7.0:1 for body text on its own, so it's legible before you reach for\ncontrast = \"high\" (which takes it to 9.9:1).\n\nIt composes with `contrast`: the two axes give four palettes, and nebelung's\nCI measures each one's contrast ratio rather than eyeballing it.\n\nHonest scope, in two parts.\n\nWhat follows it: every tool the rice injects colours into or points at a\nrendered theme — Ghostty, bat, delta, lsd, yazi, fzf, glow, starship,\nlazygit, zellij, opencode, the bar, Zen and Obsidian, plus helix\nwhenever it is the editor `haus.hearth.editorName` selects (Nebelung\nhas a port for helix and none for the alternatives).\nThese are genuinely re-rendered for the flavor, not recoloured in place:\nwhiskers takes different branches for a light flavor (terminal ANSI\n0/7/8/15 swap, Zen switches its prefers-color-scheme block, delta sets\n`light = true`).\n\nWhat does NOT follow it:\n\n  - pounce and perch, by default. Both read their palette at runtime and\n    can pick per polarity, so haus.pounce.followSystemAppearance\n    and haus.perch.followSystemAppearance (default true) hand that\n    choice to macOS Light/Dark instead: the rice installs every rendered\n    variant into ~/.config/{pounce,perch}/themes/ and writes the\n    dark/light PAIR at your `contrast`. Set either option false to pin\n    that app to this flavor like everything else.\n  - macOS's own Light/Dark appearance, unless you opt in with\n    haus.theme.systemAppearance = \"flavor\". Left at its default the\n    rice does not touch system appearance in either direction, so a\n    latte rice on a dark macOS looks half-done and that half is yours —\n    except in pounce and perch, which read the appearance themselves.\n  - three of the six desktops (haus.wallpaper.style). The hand-made\n    \"orbits\", \"constellation\" and \"flow\" have the dark palette baked into\n    their pixels; \"bold\" is generated but follows theme.accent rather\n    than the flavor. \"minimal\" DOES follow it, in every part — field,\n    mark, glow and debug band.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"latte\""

@@ -23,6 +23,12 @@ let
   accent = config.haus.theme.accent; # a Catppuccin accent name, e.g. "mauve"
   devCfg = config.haus.developer;
 
+  # The chosen editor's row: what to install, whether Nebelung themes it, and
+  # the command it answers to (which is `hearth.editor`'s default, so anything
+  # that OPENS a file keeps reading `hearthCfg.editor` and never this).
+  # modules/lib/editors.nix carries the table and the reasoning.
+  editor = (import ../lib/editors.nix).${hearthCfg.editorName};
+
   # What the AI room contributes to the terminal, through the extension point
   # this room declares (modules/hearth/options.nix, modules/lib/contrib.nix).
   # The chords, the `c` alias and the cheatsheet rows read THIS, never
@@ -820,12 +826,16 @@ in
   # sometimes wires would tell the roster pass "handled" on a machine where
   # nothing wires it — so a host that installed gh-dash itself would get no
   # theme AND no manual-step nudge from `haus doctor`.
+  #
+  # The chosen editor's port is the second one, for the same reason: on a
+  # neovim machine this room installs no helix, so claiming helix here would
+  # promise a theme for a tool that is not there. `editor.port` is null for
+  # every editor Nebelung has no port for, which is all of them but helix.
   haus.theme.ports.handled = [
     "bat"
     "delta"
     "ghostty"
     "glow"
-    "helix"
     "lsd"
     "obsidian"
     "opencode"
@@ -837,6 +847,7 @@ in
     "fzf"
     "lazygit"
   ]
+  ++ lib.optional (editor.port != null) editor.port
   ++ lib.optional ghDashCfg.enable "gh-dash";
 
   home-manager.users.${username} =
@@ -1245,6 +1256,9 @@ in
           bun
           fnm # node version manager (used by the initContent below)
         ]
+        # The chosen editor, unless it is helix — that one arrives through
+        # `programs.helix` below, which carries its settings and theme too.
+        ++ lib.optional (editor.package != null) pkgs.${editor.package}
         # The coding-agent clients, one package per `ai.clients` entry.
         # Unlisted means uninstalled, and `ai.default` is asserted to be a
         # member — so the client the palette is about to spawn is on PATH by
@@ -1685,7 +1699,10 @@ in
         };
       };
 
-      programs.helix = {
+      # helix is installed by its own home-manager module rather than as a bare
+      # package, because the settings and the Nebelung theme below ride with
+      # it. Every other editor in the table is a package in `home.packages`.
+      programs.helix = lib.mkIf (hearthCfg.editorName == "helix") {
         enable = true;
         settings = {
           theme = "nebelung";
@@ -1901,17 +1918,22 @@ in
           builtins.replaceStrings [ "@AGENT_STATE@" ] [ "/run/current-system/sw/bin/agent-state" ]
             (builtins.readFile ./opencode/agent-state.js);
       }
-      // {
-
-        # Helix nebelung theme, from the nebelung flake. This used to be a
-        # hand-written [palette] block inheriting helix's BUILT-IN
-        # catppuccin_<flavor>; nebelung now carries the real catppuccin/helix
-        # port, so the theme comes rendered like every other tool here and the
-        # syntax scopes track upstream instead of whatever helix ships.
-        # Kept under the `nebelung` name that programs.helix.settings.theme
-        # points at (the port also renders a no_italics/ sibling).
+      # Helix nebelung theme, from the nebelung flake. This used to be a
+      # hand-written [palette] block inheriting helix's BUILT-IN
+      # catppuccin_<flavor>; nebelung now carries the real catppuccin/helix
+      # port, so the theme comes rendered like every other tool here and the
+      # syntax scopes track upstream instead of whatever helix ships.
+      # Kept under the `nebelung` name that programs.helix.settings.theme
+      # points at (the port also renders a no_italics/ sibling).
+      #
+      # Conditional for the same reason the helix PORT is: on a machine whose
+      # `haus.hearth.editorName` is not helix, this room installs no helix, and
+      # a theme file for an editor that is not there is just litter in ~.
+      // lib.optionalAttrs (hearthCfg.editorName == "helix") {
         ".config/helix/themes/nebelung.toml".source =
           "${nebelungRoot}/helix/themes/default/catppuccin_${nbFlavor}.toml";
+      }
+      // {
 
         # ghostty (config lives in Application Support; theme lookup is XDG)
         # ghostty's `command` runs the zellij launcher by absolute path; render

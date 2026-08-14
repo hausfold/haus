@@ -4,7 +4,11 @@
 #
 # hearth's options — git identity, the one editor, shell/terminal behaviour,
 # Zen's extensions, and Claude Code's global memory file.
-{ lib, ... }:
+#
+# `config` is in scope for one reason: `hearth.editor`'s default is read off
+# `hearth.editorName` (see there), the same way `fonts.mono.size` is read off
+# `fonts.mono.baseSize` in den's options.
+{ lib, config, ... }:
 
 let
   # Every Nebelung accent name, so floatBorder can take a colour of its own
@@ -31,6 +35,11 @@ let
   };
 
   contrib = import ../lib/contrib.nix { inherit lib; };
+
+  # The editors this room can install, and what each answers to on PATH.
+  # modules/lib/editors.nix explains why the CHOICE is an enum while the
+  # COMMAND stays a free string.
+  editors = import ../lib/editors.nix;
 in
 
 {
@@ -143,31 +152,64 @@ in
       };
     };
 
+    hearth.editorName = lib.mkOption {
+      type = lib.types.enum (builtins.attrNames editors);
+      # The desktop-safe half of the pair, and the one that actually INSTALLS
+      # something. helix is the room's own default rather than a nebelhaus
+      # opinion carried in the desktop: a terminal room with no editor is not
+      # unopinionated, it is broken — git alone would drop you into whatever
+      # $EDITOR the machine happened to have. Same reasoning as
+      # `fonts.mono.name`, which keeps supplying a patched family.
+      default = "helix";
+      example = "neovim";
+      description = ''
+        Which editor this room installs. `helix` (the default) is the one the
+        rice is themed around; `neovim`, `vim` and `nano` are installed as-is,
+        with no Nebelung theme — Nebelung has a port for helix and not for
+        them.
+
+        Setting this also moves `haus.hearth.editor`, since that defaults to
+        whatever the chosen editor answers to on PATH (`hx`, `nvim`, `vim`,
+        `nano`). Choosing here is the whole gesture: the editor is installed
+        AND every "open in an editor" action follows it.
+
+        A desktop may set this. To point the rice at an editor it does not
+        install — a GUI one, or something from your own host file — leave this
+        alone and set `haus.hearth.editor` instead.
+      '';
+    };
+
     hearth.editor = lib.mkOption {
       type = lib.types.str;
-      # NOT carved out into the desktop, though the inventory lists it as a
-      # nebelhaus opinion. Two reasons, and the second is the load-bearing one:
-      # this leaf is host-only (it is executed as a shell command), and the
-      # layer INSTALLS helix unconditionally, so `hx` is what the terminal room
-      # actually ships rather than a preference laid over it. A desktop-safe
-      # enum was tried and removed: every value in it other than `hx` names an
-      # editor nothing installs, which is a broken $EDITOR dressed as a choice.
-      # Making this genuinely selectable means letting a desktop choose which
-      # editor is INSTALLED, which is step 5's vocabulary work, not step 4's.
-      default = "hx";
-      example = "nvim";
+      # Host-only, and permanently so: this value is EXECUTED — baked into the
+      # zellij opener, the palette command and the bar's nix-open item. That is
+      # the reason a desktop chooses with `editorName` above rather than here.
+      # It is still the last word, though: a host naming "code -w" beats the
+      # enum's command, which is what makes the enum a closed set without
+      # making it a cage.
+      default = editors.${config.haus.hearth.editorName}.command;
+      # literalMD, not literalExpression: host-template.jq copies a
+      # literalExpression into the generated host file verbatim, and this is a
+      # sentence rather than pasteable Nix (see fonts.mono.size, which learned
+      # it the same way). No backticks and under 60 characters, for the two
+      # things that read it after: hausfold.co's generator wraps the whole
+      # string in a code span (nested backticks come out as broken markdown)
+      # and moves anything longer into the body as "see below".
+      defaultText = lib.literalMD "the command for haus.hearth.editorName — hx for helix";
+      example = "code -w";
       description = ''
-        The ONE editor the rice uses everywhere. It's the shell command for
-        $EDITOR / $VISUAL (git, etc.) AND what every "open in an editor" action
-        launches — the "Nix Config" palette command, the bar's nix-open item,
-        and the file-association hijack. Those open the target in a new zellij
-        tab running this command, so a terminal editor (hx, nvim, vim, nano) is
-        the natural fit for the rice; a GUI editor's CLI works too (e.g. "code"
-        or "code -w" to block).
+        The ONE editor command the rice uses everywhere. It's the shell command
+        for $EDITOR / $VISUAL (git, etc.) AND what every "open in an editor"
+        action launches — the "Nix Config" palette command, the bar's nix-open
+        item, and the file-association hijack. Those open the target in a new
+        zellij tab running this command, so a terminal editor is the natural
+        fit for the rice; a GUI editor's CLI works too (e.g. "code" or
+        "code -w" to block).
 
-        The rice installs helix, which is why the default is `hx`. Naming
-        anything else here assumes that editor is already on the machine — this
-        option points at an editor, it does not install one.
+        It defaults to the command for `haus.hearth.editorName`, so choosing an
+        editor there is enough. Set this only for the case that option cannot
+        express: pointing the rice at something it does not install. Naming a
+        command here does NOT install it — that machine has to already have it.
       '';
     };
 
@@ -218,9 +260,10 @@ in
     hearth.zellijStartLocked = lib.mkOption {
       type = lib.types.bool;
       # In-room taste: it only describes how the multiplexer this room already
-      # ships behaves once you are in it. Kept out of the desktop for the same
-      # reason `hearth.editor` is — the terminal is part of the layer here, not
-      # something a desktop switches on.
+      # ships behaves once you are in it, so there is no room to switch on and
+      # nothing to install — unlike the editor above, whose desktop-safe half is
+      # a choice about what lands on the machine. (nebelhaus's desktop does set
+      # this one, since it is a claim on a keyboard rather than a package.)
       default = true;
       description = ''
         When true (the default), zellij boots into Locked input mode instead of

@@ -84,6 +84,7 @@ let
     ];
     hearth = [
       "editor"
+      "editorName"
       "floatBorder"
       "ghDash.enable"
       "hijackFileAssociations"
@@ -357,6 +358,10 @@ let
     ai = [ "instructions" ];
     fonts = [ "mono.package" ];
     git = optionPaths.git;
+    # `editor` is a shell command this layer executes, so it stays here
+    # forever; `editorName` is the desktop-safe half of that pair — a closed
+    # enum over the editors the room installs, which is how a desktop says
+    # "this is a neovim Mac" without ever naming a command.
     hearth = [
       "editor"
       "obsidianVaults"
