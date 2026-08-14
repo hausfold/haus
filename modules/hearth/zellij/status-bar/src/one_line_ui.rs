@@ -884,7 +884,7 @@ fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usi
     // (a = a new agent worktree, p = new pane, t = new tab, y = yazi peek,
     // l = pounce links, f = find, ⏎ = fullscreen toggle): keys only, no
     // word-labels and no powerline ribbons.
-    // What each key does lives in the web docs / cheatsheet (hausfold.co), not
+    // What each key does lives in the web docs / cheatsheet (nebelhaus.com), not
     // spelled out on the bar. Keys are still resolved from the live binds (via
     // run_bind_key / action_key), so a rebind re-letters the block; only the
     // labels and the Floating/Focus/Resize hints were dropped versus upstream.

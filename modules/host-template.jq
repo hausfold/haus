@@ -73,10 +73,11 @@ def commented($indent):
   split("\n")
   | map(if (. | test("^[ \t]*$")) then ($indent + "#") else ($indent + "# " + .) end);
 
-# Starlight slugifies `### \`haus.theme.accent\`` by lowercasing and
+# The docs site slugifies `### \`haus.theme.accent\`` by lowercasing and
 # dropping everything that isn't alphanumeric — so the dots and the backticks
-# vanish. Verified against the links already in the docs site
-# (/reference/options/#nebelhauspouncewindowswitcher).
+# vanish. Held across the Starlight → Fumadocs move; verified against the links
+# on the live page
+# (hausfold.co/docs/haus/reference/options/#hauspouncewindowswitcher).
 def slug: ascii_downcase | gsub("[^a-z0-9]"; "");
 
 def room: .key | split(".")[1];

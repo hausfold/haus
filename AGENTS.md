@@ -40,10 +40,15 @@ via `mkNebelhaus` and adds only its own host (identity, private apps, secrets).
 > `nebelhaus.desktops.everyday`,
 > `nebelhaus.lib.checkRice` and `inputs.nebelhaus.url` are all correct as
 > written — flake outputs and an input name, not options. Same for
-> `org.nebelhaus.*` launchd labels, `share/nebelhaus/`, the state dirs
-> (`~/.local/state/nebelhaus`, `~/.config/nebelhaus/`) and nebelhaus.com
-> links; each has its own phase in workshop `notes/hausfold-rename.md`, none
-> of them is this one.
+> `org.nebelhaus.*` launchd labels, `share/nebelhaus/` and the state dirs
+> (`~/.local/state/nebelhaus`, `~/.config/nebelhaus/`); each has its own phase
+> in workshop `notes/hausfold-rename.md`, none of them is this one.
+>
+> ⚠️ **nebelhaus.com links were on that list and no longer are.** §5.2 ran on
+> 2026-08-14: the domain is a 301 map and every URL this repo prints now points
+> at hausfold.co. A restored `nebelhaus.com` link is drift, not a spelling to
+> preserve — the only ones left are the bare-domain test fixtures in the zellij
+> link-handler, where the string is example input to a parser.
 >
 > The agent skill **used to be on that list and no longer is.** It installs as
 > `haus/` inside each client's skills directory (`~/.claude/skills/`,

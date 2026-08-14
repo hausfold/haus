@@ -57,5 +57,5 @@ here. The rice installs one copy per client it manages — `~/.claude/skills/`,
 `~/.codex/skills/`, `~/.config/opencode/skills/` — and they are ordinary
 markdown, so read whichever one is on disk even if it isn't yours.
 
-`haus doctor` checks the machine's health. <https://hausfold.co/docs> has the
+`haus doctor` checks the machine's health. <https://hausfold.co/docs/> has the
 guides — it documents the *latest* rice, which may be ahead of this pin.

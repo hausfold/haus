@@ -36,7 +36,7 @@ machine, run one command, and the house stands again exactly as it was.
 > ships from — the maker, and the name on the receipt. So the repo is
 > `hausfold/haus`: the layer names the repo, the org owns it.
 
-📖 **Full docs & guides: [hausfold.co/docs](https://hausfold.co/docs)** — start with
+📖 **Full docs & guides: [hausfold.co/docs](https://hausfold.co/docs/)** — start with
 [Install](https://hausfold.co/docs/haus/install/) and
 [First run](https://hausfold.co/docs/nebelhaus/first-run/).
 
