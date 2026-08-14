@@ -163,8 +163,8 @@ in
       default = "helix";
       example = "neovim";
       description = ''
-        Which editor this room installs. `helix` (the default) is the one the
-        rice is themed around; `neovim`, `vim` and `nano` are installed as-is,
+        Which editor this room installs. `helix` (the default) is the one haus
+        is themed around; `neovim`, `vim` and `nano` are installed as-is,
         with no Nebelung theme — Nebelung has a port for helix and not for
         them.
 
@@ -173,7 +173,7 @@ in
         `nano`). Choosing here is the whole gesture: the editor is installed
         AND every "open in an editor" action follows it.
 
-        A desktop may set this. To point the rice at an editor it does not
+        A desktop may set this. To point haus at an editor it does not
         install — a GUI one, or something from your own host file — leave this
         alone and set `haus.hearth.editor` instead.
       '';
@@ -198,17 +198,17 @@ in
       defaultText = lib.literalMD "the command for haus.hearth.editorName — hx for helix";
       example = "code -w";
       description = ''
-        The ONE editor command the rice uses everywhere. It's the shell command
+        The ONE editor command haus uses everywhere. It's the shell command
         for $EDITOR / $VISUAL (git, etc.) AND what every "open in an editor"
         action launches — the "Nix Config" palette command, the bar's nix-open
         item, and the file-association hijack. Those open the target in a new
         zellij tab running this command, so a terminal editor is the natural
-        fit for the rice; a GUI editor's CLI works too (e.g. "code" or
+        fit for haus; a GUI editor's CLI works too (e.g. "code" or
         "code -w" to block).
 
         It defaults to the command for `haus.hearth.editorName`, so choosing an
         editor there is enough. Set this only for the case that option cannot
-        express: pointing the rice at something it does not install. Naming a
+        express: pointing haus at something it does not install. Naming a
         command here does NOT install it — that machine has to already have it.
       '';
     };
@@ -269,7 +269,7 @@ in
       description = ''
         Where an agent lane's terminal actually lives.
 
-        `zellij` (the default) is the behaviour this rice has always had: a
+        `zellij` (the default) is the behaviour haus has always had: a
         lane is a pane in the `main` zellij session, and `holt` execs the
         client in the pane you ran it from. Panes are cheap, but a lane's
         identity is then a (session, pane-id) pair that only zellij
@@ -417,7 +417,7 @@ in
               enable = lib.mkOption {
                 type = lib.types.bool;
                 default = true;
-                description = "Whether to deploy this extension. Set false to remove one an imported rice added.";
+                description = "Whether to deploy this extension. Set false to remove one an imported desktop added.";
               };
 
               id = lib.mkOption {
@@ -465,9 +465,9 @@ in
                   Mozilla, and Zen refuses an unsigned add-on
                   (`ERROR_SIGNEDSTATE_REQUIRED`) unless
                   `xpinstall.signatures.required` is off. So naming one makes
-                  the rice lock that pref off **for the whole browser** — the
+                  haus lock that pref off **for the whole browser** — the
                   same switch `haus.zen.tabBridge.enable` documents, since the
-                  bridge is the rice's own `file://` install. An `https://` AMO
+                  bridge is haus's own `file://` install. An `https://` AMO
                   url never turns it on.
                 '';
               };
@@ -482,7 +482,7 @@ in
                 default = "force_installed";
                 description = ''
                   Firefox's `installation_mode`. `force_installed` installs it
-                  and stops the user removing it (the point, for a rice that
+                  and stops the user removing it (the point, for a desktop that
                   wants an extension present); `normal_installed` installs it
                   but leaves it removable.
                 '';
@@ -494,7 +494,7 @@ in
       default = { };
       example = lib.literalExpression ''
         {
-          # Known to the rice — id and slug are filled in.
+          # Known to haus — id and slug are filled in.
           stylus = { };
           # Anything else: bring the id.
           ublock-origin = {
@@ -506,7 +506,7 @@ in
       description = ''
         Browser extensions to deploy into Zen, by a stable id of your choosing.
 
-        The mechanism is Firefox's enterprise policies — the rice renders an
+        The mechanism is Firefox's enterprise policies — haus renders an
         `ExtensionSettings` block — so it reaches Zen the way an IT department
         reaches Firefox, without a profile to hand-edit. `haus.roster`
         deliberately cannot do this: a roster entry installs from a cask, a
@@ -515,16 +515,16 @@ in
 
         Two consequences of HOW the policies are delivered, both visible.
         Firefox only ever looks for a `policies.json` inside the app bundle,
-        which a rice has no business writing into (it breaks the code signature
-        and a cask upgrade wipes it), so the rice uses the other route macOS
+        which haus has no business writing into (it breaks the code signature
+        and a cask upgrade wipes it), so haus uses the other route macOS
         offers: a managed preference at
         `/Library/Preferences/app.zen-browser.zen.plist`. That file is
         root-owned, so it's written during system activation and a `haus
         rebuild` that can't reach it warns instead of installing anything. And
         because enterprise policies are on, Zen will tell you it is "managed by
-        your organization" — that organization is this rice.
+        your organization" — that organization is haus.
 
-        The rice knows the id and slug of the extensions it themes
+        haus knows the id and slug of the extensions it themes
         (${lib.concatStringsSep ", " (builtins.attrNames knownZenExtensions)}),
         so those need only be named. Everything else needs `id` — see that
         option for where to find it.
@@ -532,7 +532,7 @@ in
         Naming `stylus` here also turns on the stamped userstyle bundle (see
         haus.theme.accent): the Catppuccin-derived styles Stylus imports
         carry their own accent and flavor variables, which no palette file can
-        reach, so the rice stamps the bundle from your theme — accent, flavor,
+        reach, so haus stamps the bundle from your theme — accent, flavor,
         and the contrast it's rendered for — and tells you when there's a new
         one to import.
       '';
@@ -542,7 +542,7 @@ in
       type = lib.types.bool;
       default = false;
       description = ''
-        Deploy the rice's own tiny extension into Zen, so the bar can find and
+        Deploy haus's own tiny extension into Zen, so the bar can find and
         switch to the tab that is making noise.
 
         This is what makes the media pill's ⌘ click land on the **tab** rather
@@ -555,23 +555,23 @@ in
         sounds.
 
         Off by default because it force-installs an add-on into your browser,
-        which is not a thing a rice should do to you unasked. Turning it on
-        costs one derivation, a native-messaging manifest, and two keys in the
-        rice's root-owned policy plist — one of which is the signature switch
-        below. Turning it back off stops the rice deploying it — what Zen then
+        which is not a thing haus should do to you unasked. Turning it on
+        costs one derivation, a native-messaging manifest, and two keys in
+        haus's root-owned policy plist — one of which is the signature switch
+        below. Turning it back off stops haus deploying it — what Zen then
         does with the add-on already installed is Firefox's policy engine's
-        business, not the rice's, so check `about:addons` and remove it there if
+        business, not haus's, so check `about:addons` and remove it there if
         it outstays the option.
 
         **Zen only, and that's a signing constraint rather than a choice.**
         Release Firefox refuses an extension Mozilla hasn't signed, and it is
         built so that no pref and no policy can say otherwise. Zen is built the
-        other way (`MOZ_REQUIRE_SIGNING = false`), which is the whole reason the
-        rice can build the `.xpi` itself and install it out of the nix store.
+        other way (`MOZ_REQUIRE_SIGNING = false`), which is the whole reason
+        haus can build the `.xpi` itself and install it out of the nix store.
 
         It still costs a switch. Zen carries Firefox's own preference defaults,
         which turn signature enforcement back on, so turning this option on also
-        makes the rice lock `xpinstall.signatures.required = false` — for the
+        makes haus lock `xpinstall.signatures.required = false` — for the
         browser, not just for its own add-on. Without it Zen refuses the bridge
         with `ERROR_SIGNEDSTATE_REQUIRED` and the option quietly does nothing;
         with it, an unsigned add-on from anywhere would also install if
@@ -588,11 +588,11 @@ in
       example = lib.literalExpression "{ DisableTelemetry = true; }";
       description = ''
         Anything else to put in Zen's policy set, merged beside the
-        `ExtensionSettings` block `haus.zen.extensions` renders. The rice OWNS
+        `ExtensionSettings` block `haus.zen.extensions` renders. haus OWNS
         the file these land in — `/Library/Preferences/app.zen-browser.zen.plist`,
         written as root — so this is the escape hatch for the rest of the policy
         surface rather than a reason to take the file back by hand. Keys here
-        win over the rice's on a collision.
+        win over haus's on a collision.
 
         Write the policy names as Firefox documents them, nested: this becomes
         the top level of a plist beside `EnterprisePoliciesEnabled`, so
@@ -602,7 +602,7 @@ in
         down again on the next rebuild.
 
         The merge is one level deep, so naming a policy takes that policy over
-        WHOLE. Two of them the rice writes itself: `ExtensionSettings` (from
+        WHOLE. Two of them haus writes itself: `ExtensionSettings` (from
         `haus.zen.extensions`) and `Preferences` (which is where the signature
         switch a `file://` install needs ends up). Restate what you still want
         if you set either — dropping the signature switch this way is invisible

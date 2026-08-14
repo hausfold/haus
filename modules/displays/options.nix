@@ -25,13 +25,13 @@
       office can't fail a rebuild on the train.
 
       Why this option exists at all: display scaling is the only lever macOS 26
-      gives us for "make EVERYTHING bigger", system-wide, including apps the rice
+      gives us for "make EVERYTHING bigger", system-wide, including apps haus
       knows nothing about. macOS's own text-size setting writes a value no running
       app re-reads, while the accessibility scalars that do work affect contrast
       or motion rather than system-wide size — measured, not assumed (the
       workshop's notes/macos-settings-matrix.md records the sweep). So
-      `haus.ui.scale` and `haus.fonts` make the *rice* bigger, and this
-      makes the *Mac* bigger.
+      `haus.ui.scale` and `haus.fonts` make *haus's own tools* bigger, and
+      this makes the *Mac* bigger.
     '';
     type = lib.types.attrsOf (
       lib.types.submodule {
@@ -72,7 +72,7 @@
             `haus.appearance.largePrint` without depending on activation order.
 
             Honest scope: this is a real, system-wide size change — every app gets
-            bigger, not just the rice's own tools — and the cost is desk space,
+            bigger, not just haus's own tools — and the cost is desk space,
             because a larger UI means less of it. It also can't run from a rebuild
             with no GUI session attached (over SSH, say); the setting applies at
             the next activation you run while logged in.

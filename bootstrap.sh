@@ -481,8 +481,8 @@ preflight_audit() {
 
   # Dotfiles — haus writes these as single files; an existing REAL one is
   # renamed to <file>.backup on the first switch (kept, never deleted). Files
-  # already symlinked into the Nix store are managed, so they don't count. (The
-  # haus's directory-based configs — zellij, sketchybar, … — are managed
+  # already symlinked into the Nix store are managed, so they don't count.
+  # (haus's directory-based configs — zellij, sketchybar, … — are managed
   # per-file, so only a conflicting file *inside* them is ever backed up.)
   local managed=(
     "$HOME/.zshrc" "$HOME/.zshenv" "$HOME/.config/starship.toml" "$HOME/.config/git/config"

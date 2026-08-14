@@ -32,7 +32,7 @@ let
     volume = "Output volume / mute state.";
     calendar = "The one meeting you have to be at next, and one gesture to join it. It reads \"in 12m · Design review\" — countdown first, because a label is clipped from the END and the number is the part you must never lose; below `haus.sill.calendar.preciseUnder` hours it carries minutes, above it just \"in 14h\" or \"in 2d\", and while an event is running it says \"now · …\" instead of going blank. For `haus.sill.calendar.imminent` minutes either side of the start the whole pill FILLS with the accent — a shape change rather than a colour change, so it catches the eye you aren't pointing at it. RIGHT-CLICK joins: it opens the event's conferencing link, found in the invite's url, location or notes (Meet, Zoom, Teams, Webex, Jitsi, Whereby and friends out of the box; `haus.sill.calendar.joinHosts` adds your own). LEFT-CLICK opens the day as a timeline — what's DONE in the last `haus.sill.calendar.past` hours, what's on NOW, and what's NEXT — each event carrying its day, clock time, length and who it's with, the next one boxed, and a `Join` affordance on every row that has a link. Your own address is dropped from the \"with\" line automatically: a CalDAV calendar is named for the account it syncs, so the pill can work out which attendee is you with no configuration (`haus.sill.calendar.me` for the cases where it can't). A name too long for the pill sweeps past only while you HOVER it — nothing here starts a marquee on its own — and `haus.sill.calendar.width` sets how much room it gets before that applies. Pulls in `ical-buddy` automatically and reads Calendar, so macOS prompts for Calendar access on first run.";
     caffeinate = "A coffee pill that prevents idle system sleep for 1/2/4/8 hours, a custom whole-hour duration, or indefinitely. The display may still turn off; closing a MacBook lid still sleeps it. Uses macOS's built-in `caffeinate`, so there is no extra package.";
-    agents = "A paw pill tracking your agent-worktree panes. The label always names the state worth interrupting you for — \"2 ready\" outranks \"5 working\", which outranks \"1 done\" — never a bare count you'd have to click to decode. Click for the per-agent breakdown, sorted the same way (waiting first, then working, then idle, longest-elapsed first within each), each block showing the client, how long it's sat in that state, and — when the pane's checkout is a `holt` lane — its repo and PR status: merged, `+N unshipped` (exactly what `holt reship` fixes), not yet landed, or a dirty-tree footnote. A summary header totals the counts once more than one agent is running. Left-click a row to jump to that pane, ⌥/right-click for a live `zellij subscribe` peek. Fed by each client's own lifecycle hooks, which all call `agent-state` (also installed as ~/.config/sketchybar/plugins/agents-hook.sh): Opencode's plugin and Codex's ~/.codex/hooks.json are written for you (Codex asks you to trust its hooks the first time it sees them), while Claude Code's four agent-state hooks stay yours to point at it in ~/.claude/settings.json — Claude owns that file and rewrites it, so the rice merges in only the keys it must and never touches those four. (The two worktree hooks ARE declared, in hearth: they point at a rice-controlled path and self-heal on rebuild.) A row whose zellij pane is gone drops off by itself, which is what stands in for the session-end event Codex doesn't have. Dormant until a client fires.";
+    agents = "A paw pill tracking your agent-worktree panes. The label always names the state worth interrupting you for — \"2 ready\" outranks \"5 working\", which outranks \"1 done\" — never a bare count you'd have to click to decode. Click for the per-agent breakdown, sorted the same way (waiting first, then working, then idle, longest-elapsed first within each), each block showing the client, how long it's sat in that state, and — when the pane's checkout is a `holt` lane — its repo and PR status: merged, `+N unshipped` (exactly what `holt reship` fixes), not yet landed, or a dirty-tree footnote. A summary header totals the counts once more than one agent is running. Left-click a row to jump to that pane, ⌥/right-click for a live `zellij subscribe` peek. Fed by each client's own lifecycle hooks, which all call `agent-state` (also installed as ~/.config/sketchybar/plugins/agents-hook.sh): Opencode's plugin and Codex's ~/.codex/hooks.json are written for you (Codex asks you to trust its hooks the first time it sees them), while Claude Code's four agent-state hooks stay yours to point at it in ~/.claude/settings.json — Claude owns that file and rewrites it, so haus merges in only the keys it must and never touches those four. (The two worktree hooks ARE declared, in hearth: they point at a haus-controlled path and self-heal on rebuild.) A row whose zellij pane is gone drops off by itself, which is what stands in for the session-end event Codex doesn't have. Dormant until a client fires.";
     aiUsage = "A gauge pill showing AI usage (Claude Code/Codex subscription rate limits as %, or Opencode API token cost as daily $). Automatically shows whichever provider reported most recently. Click for expanded session/weekly limits and daily/monthly API costs with model breakdowns. Claude and Opencode are read off disk; Codex has no local usage data, so its row is polled from your ChatGPT account with the OAuth token in ~/.codex/auth.json (refreshed and rewritten in place) — no Codex login on the machine, no call is made. Claude's row is pushed by its statusline; the Codex and Opencode rows are pulled by the pill itself on a 3-minute TTL, so they stay current on a machine that never opens Claude at all. Claude and Opencode also get a `tokens` block in the dropdown — raw tokens moved today, this week, this month and all time (cache reads and all), two periods to a line so a full set reads as a 2×2, purely for the fun of watching the number climb. A period with nothing in it is left out rather than printed as a zero, so the block simply gets smaller, and a closing `∑ Everything` adds every provider up when more than one is reporting. It is a score, not a limit: nothing acts on it, and it never reaches the pill's own label. Claude's is summed from your transcripts on a 15-minute TTL behind an index, so only sessions that grew since the last pass are re-read; Codex has no row because it keeps no local history to count.";
     claudeUsage = "Deprecated alias for `aiUsage`.";
     github = "One number from GitHub, and the rows behind it. The pill is configured as a list of typed SOURCES (`haus.sill.github.sources`) — a `search` filter, the `ci` board, or your own `command` — and its label is whichever source is worth interrupting you for: the highest-severity one with a nonzero count, earliest in the list on a tie. With nothing to report it draws no number at all rather than a zero, because a number you never act on is a number you stop seeing. LEFT-CLICK opens the dropdown, one section per source, each row clicking through to the PR or repo on github.com; RIGHT-CLICK refreshes now, as does the `Refresh` row at the bottom of the dropdown, which also says how old the numbers are. The `ci` source is the one thing gh-dash cannot show you: GitHub's search index carries no workflow runs, so \"did main's last run pass\" is only reachable as the check rollup of the default branch's head commit, in GraphQL — which is exactly what that source asks for, in one query for the whole owner. Needs `haus.developer.git.enable` (an assertion enforces it) for the `gh` it queries through, and a `gh auth login` you have run: not logged in, the pill says `auth` and its dropdown hands you that command rather than drawing a silent zero. Never fetches on the bar's tick — the tick renders a cache and detaches the network call — so a slow GitHub costs a stale number, never a stalled bar.";
@@ -306,7 +306,7 @@ in
         draws a `background.image` left-anchored, at a scale you have to
         hand-tune per asset, and applies no tint to it — so a picture here can
         follow neither `haus.theme.accent` nor the state colours below, and
-        cannot sweep on hover. The rice drew this pill as a PNG for a while and
+        cannot sweep on hover. haus drew this pill as a PNG for a while and
         every one of those was a real limitation of it.
       '';
     };
@@ -358,7 +358,7 @@ in
       description = ''
         The logo's resting colour, by Catppuccin name. `null` (the default)
         follows `haus.theme.accent`, which is almost always what you want — the
-        pill is the rice's own mark, so it wearing the rice's own accent is the
+        pill is haus's own mark, so it wearing haus's own accent is the
         point.
 
         This is only the RESTING colour. `haus.sill.logo.status` paints over it
@@ -376,9 +376,9 @@ in
 
         | colour | meaning |
         |---|---|
-        | accent | everything the rice runs is up |
-        | `yellow` | a newer rice is pinned upstream (needs `haus.sill.logo.updateCheck`) |
-        | `red` | something the rice runs is enabled but not running |
+        | accent | everything haus runs is up |
+        | `yellow` | a newer haus is pinned upstream (needs `haus.sill.logo.updateCheck`) |
+        | `red` | something haus runs is enabled but not running |
 
         Red is the one that matters. It is the same check `haus doctor` opens
         with — `nix-daemon`, plus each of AeroSpace / SketchyBar / pounce whose
@@ -398,9 +398,9 @@ in
       default = false;
       example = true;
       description = ''
-        Add the yellow "a newer rice is available" state to the logo pill. Off
+        Add the yellow "a newer haus is available" state to the logo pill. Off
         by default because it is the one part of the pill that leaves the
-        machine: it asks GitHub for the rice's current head (the same
+        machine: it asks GitHub for haus's current head (the same
         `git ls-remote` behind `haus status`) once every half hour, and a bar
         that phones home should be something you turned on.
 
@@ -584,8 +584,8 @@ in
         Colour the media pill's glyph from the current cover art instead of from
         what kind of thing is playing.
 
-        The colour is the cover's average, SNAPPED to the nearest member of the
-        rice's palette — so the pill picks up the mood of a record without ever
+        The colour is the cover's average, SNAPPED to the nearest member of
+        haus's palette — so the pill picks up the mood of a record without ever
         drawing a colour that isn't in the theme. Off by default because it
         trades a stable meaning (pink is Music, green is Spotify, red is video)
         for a colour that changes every three minutes.
@@ -791,7 +791,7 @@ in
         live as each move is detected. It never opens a window or steals
         focus: a fresh machine just shows a dormant "new here?" hint, clicking
         it (or `haus tour`, or ⌘Space → tour) starts the lap, right-click
-        hides it forever. Detection reuses signals the rice already fires (the
+        hides it forever. Detection reuses signals haus already fires (the
         leader-mode scripts) — no key logging, no Accessibility.
 
         Needs prowl + sill (it silently stays out of the bar without them);
@@ -814,7 +814,7 @@ in
                   Name keys with the placeholders `{palette}`, `{leader}` and
                   `{leaderName}` rather than typing a chord: they expand to what
                   THIS machine resolved, so a tour written once still teaches the
-                  right keys on a rice that moved `keys.palette` or `keys.leader`.
+                  right keys on a machine that moved `keys.palette` or `keys.leader`.
                   A hardcoded "⌘Space" is wrong on that machine and the author
                   never sees it — the consumer does.
                 '';
@@ -830,7 +830,7 @@ in
                 ];
                 example = "palette";
                 description = ''
-                  The existing rice signal that completes this step: entering launch,
+                  The existing haus signal that completes this step: entering launch,
                   navigate or resize mode; changing workspace; or running the Haus Tour
                   command from Pounce (`palette`). The tour observes outcomes, never
                   keystrokes. Clicking the pill still skips a step that cannot be
@@ -850,11 +850,11 @@ in
       ];
       description = ''
         A community-authored tour, in order. null keeps the built-in four-move
-        nebelhaus tour unchanged; supplying a list replaces it, so a shared rice can
-        teach its own workflow without shipping scripts or reaching outside the
+        nebelhaus tour unchanged; supplying a list replaces it, so a shared desktop
+        can teach its own workflow without shipping scripts or reaching outside the
         `haus.*` option surface.
 
-        Detection reuses signals the rice already emits. `launch`, `workspace`,
+        Detection reuses signals haus already emits. `launch`, `workspace`,
         `navigate` and `resize` need prowl; `palette` needs Pounce and its palette
         binding. The module warns when a chosen detector's room is disabled.
 

@@ -17,7 +17,7 @@
         multiplexer (tmux/zellij/screen), where it otherwise beachballs.
 
         Off means macOS's stock password prompt everywhere, including for the
-        rebuild below. Nothing else in the rice depends on it.
+        rebuild below. Nothing else in haus depends on it.
       '';
     };
 

@@ -61,7 +61,7 @@ in
         DESKTOP says which look it wants, and nebelhaus picks `minimal`.
 
         That is the second change of mind on this option, and the reasoning
-        survives both: `minimal` was made the default so a rice wouldn't ship
+        survives both: `minimal` was made the default so a desktop wouldn't ship
         looking like nothing in particular, which is still true of nebelhaus
         and is why its desktop sets it. What changed is that a desktop is now
         the thing making that choice, rather than every install of the layer.
@@ -107,7 +107,7 @@ in
 
         Nebelung's background tones are a ladder of six, ordered here from the
         end nearest the polarity's extreme inwards, so the SAME number means the
-        same distance from black in a dark rice and from white in a light one:
+        same distance from black in a dark flavour and from white in a light one:
 
           depth  dark (mocha)          light (latte)
           0      crust    #121212      base     #f1f1f1
@@ -121,7 +121,7 @@ in
         white. The default of 1 lands exactly one rung inside that extreme in
         EITHER polarity, which is what keeps the desktop reading as material
         rather than as a hole cut in the screen while still being properly dark
-        in a dark rice — a full screen of `base` reads as a big terminal window,
+        in a dark flavour — a full screen of `base` reads as a big terminal window,
         not as a wall behind one.
 
         The two columns are NOT symmetric, and the asymmetry is the palette's
@@ -129,11 +129,11 @@ in
         two tones are darker than it, while latte's canvas is the LIGHTEST tone
         it has, so it sits at depth 0. So the ONE number moves the two flavours
         in opposite directions relative to their canvas — the default puts a
-        dark rice one step BELOW the colour its terminal draws on (#191919) and
+        dark flavour one step BELOW the colour its terminal draws on (#191919) and
         a light one one step below the canvas too (#e9e9e9), which is the
         agreement worth having, since a full screen of near-white is the one
         field size where latte's canvas stops being comfortable. `depth = 0` is
-        the way to match the terminal exactly in a light rice; `depth = 2` is
+        the way to match the terminal exactly in a light flavour; `depth = 2` is
         the way to match it in a dark one.
 
         Which flavour's column applies follows haus.theme.flavor, like every
@@ -148,7 +148,7 @@ in
       example = "#0b0b0e";
       description = ''
         The field colour, as a literal hex — an escape hatch out of the palette
-        for a desktop that wants a colour the rice doesn't have.
+        for a desktop that wants a colour Nebelung doesn't have.
 
         Null (the default) resolves it from haus.wallpaper.depth against the
         flavour's ladder, which is the arrangement that keeps following the
@@ -300,7 +300,7 @@ in
                      looks with a pointer on it on hausfold.co, held still.
 
         `spectrum` is the default, and follows the flavour like everything
-        else: the six are the Nebelung pastels in a dark rice and their darker
+        else: the six are the Nebelung pastels in a dark flavour and their darker
         counterparts in a light one, because a pastel sheen on a white wall is
         invisible. It is the loudest of the four on purpose — one small piece of
         colour is the whole of what this desktop says out loud, and it says the
@@ -370,8 +370,8 @@ in
       ];
       description = ''
         Which flake inputs the band names, in the order it prints them. `self`
-        is the rice itself and prints as `haus`; every other entry is an input
-        name out of the rice's own flake, and one that isn't there is skipped
+        is haus itself and prints as `haus`; every other entry is an input
+        name out of haus's own flake, and one that isn't there is skipped
         rather than failing the build.
 
         The default is the family chain, which is the one thing a rev is worth
