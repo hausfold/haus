@@ -30,7 +30,7 @@ ITEM=haus.logo
 SB="${SKETCHYBAR_BIN:-sketchybar}"
 
 STATE_FILE=/tmp/sketchybar_logo_state        # ok | update | alert
-UPSTREAM_CACHE=/tmp/sketchybar_logo_upstream # 1 == a newer rice is pinned upstream
+UPSTREAM_CACHE=/tmp/sketchybar_logo_upstream # 1 == a newer haus is pinned upstream
 SWEEP_PID=/tmp/sketchybar_logo_sweep.pid
 SWEEP_RUN=/tmp/sketchybar_logo_sweep.run  # exists == the sweep may draw
 # Written by launch_mode.sh while the leader is armed; its presence is the one
@@ -43,8 +43,8 @@ armed() { [ -f "$LAUNCH_SNAP" ]; }
 # Three values, worst-first, because the pill has one colour and has to spend it
 # on the worst thing that is true:
 #
-#   alert   something the rice runs is enabled but not running
-#   update  a newer rice is pinned upstream (haus.sill.logo.updateCheck)
+#   alert   something haus runs is enabled but not running
+#   update  a newer haus is pinned upstream (haus.sill.logo.updateCheck)
 #   ok      neither
 #
 # `alert` is the one that earns the feature. A wedged GUI agent is otherwise
@@ -72,7 +72,7 @@ health() {
     return 0
 }
 
-# Is the rice this machine pins behind its upstream? The same question, and the
+# Is the haus this machine pins behind its upstream? The same question, and the
 # same answer, as `haus status`'s last block: read the pinned rev out of the
 # consumer's lock and ask GitHub for the ref's head.
 #

@@ -404,7 +404,7 @@ cmd_ui() {
     if [ -n "$missing" ]; then
         printf '\n  find is missing:%s\n\n' "$missing"
         printf '  These resolve off this script'\''s own PATH, not your shell'\''s,\n'
-        printf '  so a shell alias will not do. Install via the rice:\n'
+        printf '  so a shell alias will not do. Install via haus:\n'
         printf '    haus.developer.toolbelt.enable = true;  (then haus rebuild)\n\n'
         printf '  press any key to close '
         { read -r -n 1 -s </dev/tty; } 2>/dev/null || sleep 10
@@ -464,7 +464,7 @@ cmd_ui() {
     #   - COLOURS ARE ANSI INDICES, NOT HEX, on purpose: 0-15 resolve against
     #     the terminal's own palette, which ghostty themes from nebelung. So the
     #     overlay follows a flavour change for free, and no colour literal has to
-    #     be smuggled into the rice (they belong in the nebelung repo). 8 is the
+    #     be smuggled into haus (they belong in the nebelung repo). 8 is the
     #     grey the border/footer want; 5 is the mauve accent.
     #   - `${scoped_label}…`, braced. Zellij execs this command directly rather
     #     than through a login shell, so LANG can be unset — and in the C locale

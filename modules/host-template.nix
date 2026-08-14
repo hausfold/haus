@@ -52,7 +52,7 @@ pkgs.runCommand "nebelhaus-host-template-${version}"
 
     jq -r \
       --slurpfile groups ${optionsJSON}/share/doc/nixos/groups.json \
-      --arg riceVersion ${lib.escapeShellArg version} \
+      --arg hausVersion ${lib.escapeShellArg version} \
       -f ${./host-template.jq} \
       ${optionsJSON}/share/doc/nixos/options.json \
       > "$tmpl"
@@ -66,7 +66,7 @@ pkgs.runCommand "nebelhaus-host-template-${version}"
       > "$catalogue"
 
     # A template that rendered empty would be worse than none: someone would
-    # conclude the rice has no options rather than that the render broke.
+    # conclude haus has no options rather than that the render broke.
     grep -q '^  # haus\.' "$tmpl" \
       || { echo "host template rendered no haus.* options — the render is broken" >&2; exit 1; }
 

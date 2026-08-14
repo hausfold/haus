@@ -12,7 +12,7 @@ export PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/etc/p
 
 choice="$({
   printf '%s\t%s\t%s\n' 'Make text bigger' 'haus.ui.scale → 1.35' 'textformat.size.larger'
-  printf '%s\t%s\t%s\n' 'Switch to light mode' 'the rice AND macOS → light' 'sun.max.fill'
+  printf '%s\t%s\t%s\n' 'Switch to light mode' 'haus AND macOS → light' 'sun.max.fill'
   printf '%s\t%s\t%s\n' 'High contrast on' 'haus.theme.contrast → high' 'circle.lefthalf.filled'
 } | pounce -p 'Haus Settings' -i 'slider.horizontal.3')"
 
@@ -25,7 +25,7 @@ choice="$({
 choice="${choice#*$'\t'}"
 
 # Each action is a list of `haus set` PAIRS. Light mode needs two of them, and
-# needs them in one `haus set`: theme.flavor alone recolours the rice's own tools
+# needs them in one `haus set`: theme.flavor alone recolours haus's own tools
 # and leaves System Settings ▸ Appearance dark, which is the half-done state
 # this row exists to avoid — and two `haus set` calls would be two rebuilds with
 # the machine sitting in exactly that state in between.

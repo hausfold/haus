@@ -42,7 +42,7 @@ set -euo pipefail
 export PATH="/etc/profiles/per-user/$(id -un)/bin:/run/current-system/sw/bin:/opt/homebrew/bin:/usr/bin:/bin:${PATH:-}"
 
 ZDIR="$HOME/.config/zellij"                       # the live, activated config
-FLOAT="$ZDIR/float-term.sh"                        # the rice's ONE Ghostty spawner
+FLOAT="$ZDIR/float-term.sh"                        # haus's ONE Ghostty spawner
 PERMS="$HOME/Library/Caches/org.Zellij-Contributors.Zellij/permissions.kdl"
 
 say() { printf '\033[38;5;103m🌫  %s\033[0m\n' "$*" >&2; }
@@ -75,7 +75,7 @@ plugin_perms() { # NAME -> space-separated permission list
   esac
 }
 
-# Expand the rice's render tokens in-place. Harmless when the tokens are absent
+# Expand haus's render tokens in-place. Harmless when the tokens are absent
 # (an already-rendered file just passes through unchanged).
 expand_tokens() { # <file>
   local f="$1" user6="${USER:0:6}" mode="$DEFAULT_MODE"
@@ -141,7 +141,7 @@ scratch_dir() { echo "${TMPDIR:-/tmp}/zellij-scratch-$1"; }
 cmd_clean() {
   local dir; dir="$(scratch_dir "$NAME")"
   say "killing session '$NAME' and removing $dir"
-  # Cleanup must still reap the temp dir if the rice (and thus zellij) is no
+  # Cleanup must still reap the temp dir if haus (and thus zellij) is no
   # longer installed. `delete-session` is best-effort; removing the scratch
   # files and their permission grants is the part only this command can do.
   if command -v zellij >/dev/null; then
@@ -152,8 +152,8 @@ cmd_clean() {
 }
 
 cmd_run() {
-  [ -d "$ZDIR" ] || die "no live zellij config at $ZDIR — activate the rice first (this is a dev tool for an installed machine)"
-  [ -x "$FLOAT" ] || [ "$PRINT" = 1 ] || die "missing $FLOAT — is the rice activated?"
+  [ -d "$ZDIR" ] || die "no live zellij config at $ZDIR — activate haus first (this is a dev tool for an installed machine)"
+  [ -x "$FLOAT" ] || [ "$PRINT" = 1 ] || die "missing $FLOAT — is haus activated?"
 
   local dir; dir="$(scratch_dir "$NAME")"
   rm -rf "$dir"
@@ -270,7 +270,7 @@ case "$ACTION" in
       [ -x "$BIN_SRC" ] || die "--bin is not executable: $BIN_SRC"
       ZELLIJ_BIN="$(cd "$(dirname "$BIN_SRC")" && pwd -P)/$(basename "$BIN_SRC")"
     else
-      ZELLIJ_BIN="$(command -v zellij)" || die "zellij is not on PATH — activate the rice first"
+      ZELLIJ_BIN="$(command -v zellij)" || die "zellij is not on PATH — activate haus first"
     fi
     cmd_run
     ;;

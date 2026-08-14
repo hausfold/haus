@@ -6,9 +6,9 @@
 #
 # It installs the prerequisites (Xcode CLT, Determinate Nix), runs a short
 # interview, and scaffolds a THIN PERSONAL CONFIG at ~/.config/nix — a tiny flake
-# of your own that consumes the nebelhaus rice as an input. You never edit (or
-# even clone) the rice itself: your machine's identity, apps, and secrets live in
-# your config; the rice stays upstream where `nix flake update nebelhaus` pulls it.
+# of your own that consumes haus as an input. You never edit (or
+# even clone) haus itself: your machine's identity, apps, and secrets live in
+# your config; haus stays upstream where `nix flake update nebelhaus` pulls it.
 #
 # Flags / env:
 #   --defaults, NEBELHAUS_NONINTERACTIVE=1   skip the interview, take smart defaults
@@ -126,7 +126,7 @@ dflt() { /usr/bin/defaults read "$1" "$2" 2>/dev/null || echo "unset"; }
 # nix_default DOMAIN KEY TYPE [FALLBACK] — read a macOS default and print it as a
 # nix literal for the host file. TYPE is bool|int|str. If the key is unset, print
 # FALLBACK (itself a nix literal, e.g. false or '"bottom"') when given, else print
-# nothing — so the rice's own default (a lib.mkDefault in modules/den) stays. This
+# nothing — so the desktop's own default (a lib.mkDefault in modules/den) stays. This
 # is how "keep my settings" turns your live macOS state into declarative config.
 nix_default() {
   local raw
@@ -160,9 +160,9 @@ emit() { [ -n "$2" ] && printf '  system.defaults.%s = %s;\n' "$1" "$2"; }
 # settings_overrides — assemble the system.defaults block for the categories the
 # user chose to KEEP (KEEP_DOCK / KEEP_KBD / KEEP_FINDER). Bool/string keys carry
 # the macOS stock default as a fallback so an untouched knob is still captured
-# faithfully; integer repeat rates fall back to the rice's default when unset
+# faithfully; integer repeat rates fall back to the desktop's default when unset
 # (no reliable stock value to assume). AppleShowAllExtensions lives in both the
-# finder and NSGlobalDomain option sets in the rice, so pin both to one read.
+# finder and NSGlobalDomain option sets in haus, so pin both to one read.
 settings_overrides() {
   if [ -n "$KEEP_DOCK" ]; then
     emit dock.autohide     "$(nix_default com.apple.dock autohide bool false)"
@@ -209,12 +209,12 @@ settings_overrides() {
       PfCm) nwt='"Computer"'    ;; PfVo) nwt='"OS volume"' ;;
       PfHm) nwt='"Home"'        ;; PfDe) nwt='"Desktop"'   ;;
       PfDo) nwt='"Documents"'   ;; PfID) nwt='"iCloud Drive"' ;;
-      PfLo) nwt=                ;; # "Other" needs NewWindowTargetPath too — leave both to the rice
+      PfLo) nwt=                ;; # "Other" needs NewWindowTargetPath too — leave both to haus
       *)    nwt='"Recents"'     ;;
     esac
     emit finder.NewWindowTarget "$nwt"
     # The Finder-shaped half of NSGlobalDomain (see modules/den). Not captured:
-    # the .DS_Store and empty-trash keys the rice sets through
+    # the .DS_Store and empty-trash keys haus sets through
     # CustomUserPreferences — those are litter/nag policy, not how Finder looks.
     emit NSGlobalDomain.NSTableViewDefaultSizeMode          "$(nix_default -g NSTableViewDefaultSizeMode int 3)"
     emit NSGlobalDomain.NSNavPanelExpandedStateForSaveMode  "$(nix_default -g NSNavPanelExpandedStateForSaveMode bool false)"
@@ -307,7 +307,7 @@ ACCENT="${NEBELHAUS_ACCENT:-mauve}"
 # An editor NAME (helix, neovim, vim, nano), not a command — see the prompt
 # below and modules/lib/editors.nix.
 EDITOR_CHOICE="${NEBELHAUS_EDITOR:-helix}"
-# Wallpaper: the generated `minimal` haus look (default, matching the rice's own
+# Wallpaper: the generated `minimal` haus look (default, matching the desktop's own
 # haus.wallpaper.style), one of the inherited Nebelung ones, or `none` to leave
 # whatever you already have exactly where it is.
 WALLPAPER="${NEBELHAUS_WALLPAPER:-minimal}"
@@ -346,8 +346,8 @@ case ",$ROOMS," in *,sill,*)   ROOM_SILL=1   ;; *) ROOM_SILL=   ;; esac
 case ",$ROOMS," in *,prowl,*)  ROOM_PROWL=1  ;; *) ROOM_PROWL=  ;; esac
 case ",$ROOMS," in *,pounce,*) ROOM_POUNCE=1 ;; *) ROOM_POUNCE= ;; esac
 
-# macOS settings to KEEP as your own instead of letting the rice restyle them —
-# a comma list of dock,keyboard,finder. Empty (the default) means the rice sets
+# macOS settings to KEEP as your own instead of letting haus restyle them —
+# a comma list of dock,keyboard,finder. Empty (the default) means haus sets
 # all of them, exactly as before. Each kept category has its current values read
 # and pinned into your host config (see settings_overrides above).
 KEEP="${NEBELHAUS_KEEP:-}"
@@ -438,15 +438,15 @@ if [ -n "$INTERACTIVE" ]; then
     EDITOR_CHOICE="$(printf 'helix\nneovim\nvim\nnano' | "$GUM" choose --header 'Editor:')"
     EDITOR_CHOICE="${EDITOR_CHOICE:-helix}"
 
-    # macOS settings: keep your own, or let the rice restyle them. Nothing
-    # selected (the default) = the rice sets its tidy defaults, as before.
+    # macOS settings: keep your own, or let haus restyle them. Nothing
+    # selected (the default) = haus sets its tidy defaults, as before.
     # Selected = your current values are read now and pinned into your config,
-    # overriding the rice — so your feel carries over to a fresh install.
+    # overriding haus — so your feel carries over to a fresh install.
     # The ’ below is a deliberate curly apostrophe: a plain ' would close the
     # single-quoted --header string. shellcheck SC1112 flags it either way.
     # shellcheck disable=SC1112
     KEPT="$(printf 'dock\nkeyboard\nfinder' | "$GUM" choose --no-limit \
-      --header 'Keep your CURRENT macOS settings for (space toggles; none = use the rice’s):')"
+      --header 'Keep your CURRENT macOS settings for (space toggles; none = use haus’s):')"
     echo "$KEPT" | grep -qx dock     && KEEP_DOCK=1
     echo "$KEPT" | grep -qx keyboard && KEEP_KBD=1
     echo "$KEPT" | grep -qx finder   && KEEP_FINDER=1
@@ -476,13 +476,13 @@ preflight_audit() {
     [ -n "$ADOPT_CASKS" ] && printf '            %s adopted into your config so a rebuild keeps them.\n' \
       "$(echo "$ADOPT_CASKS" | wc -w | tr -d ' ')"
   else
-    printf '  apps      no Homebrew yet — the rice installs it; nothing to remove.\n'
+    printf '  apps      no Homebrew yet — haus installs it; nothing to remove.\n'
   fi
 
-  # Dotfiles — the rice writes these as single files; an existing REAL one is
+  # Dotfiles — haus writes these as single files; an existing REAL one is
   # renamed to <file>.backup on the first switch (kept, never deleted). Files
   # already symlinked into the Nix store are managed, so they don't count. (The
-  # rice's directory-based configs — zellij, sketchybar, … — are managed
+  # haus's directory-based configs — zellij, sketchybar, … — are managed
   # per-file, so only a conflicting file *inside* them is ever backed up.)
   local managed=(
     "$HOME/.zshrc" "$HOME/.zshenv" "$HOME/.config/starship.toml" "$HOME/.config/git/config"
@@ -502,7 +502,7 @@ preflight_audit() {
 
   # macOS settings the chosen rooms will change (current -> new), or that you
   # chose to KEEP (your current value pinned into the config). Read-only.
-  printf '  settings  the rice will set these macOS defaults (reversible via the snapshot):\n'
+  printf '  settings  haus will set these macOS defaults (reversible via the snapshot):\n'
   if [ -n "$KEEP_DOCK" ]; then
     printf '              Dock:                 kept as yours (autohide/orientation/recents pinned)\n'
   else
@@ -561,7 +561,7 @@ cat >"$DEST/flake.nix" <<EOF
 {
   description = "$USERNAME's machine — a nebelhaus";
 
-  # The whole rice (system + shell + pounce + nebelung) comes from the public
+  # The whole of haus (system + shell + pounce + nebelung) comes from the public
   # nebelhaus flake. This config holds only what's personal: the host.
   # Update everything with:  nix flake update nebelhaus
   inputs.nebelhaus.url = "github:hausfold/haus";
@@ -578,13 +578,13 @@ cat >"$DEST/flake.nix" <<EOF
 }
 EOF
 
-# Assemble the optional host lines (omit anything left at the rice default).
+# Assemble the optional host lines (omit anything left at the desktop default).
 opt_lines=""
 [ -z "$ROOM_SILL" ]   && opt_lines+="  haus.sill.enable = false;"$'\n'
 [ -z "$ROOM_PROWL" ]  && opt_lines+="  haus.prowl.enable = false;"$'\n'
 [ -z "$ROOM_POUNCE" ] && opt_lines+="  haus.pounce.enable = false;"$'\n'
 [ "$ACCENT" != "mauve" ] && opt_lines+="  haus.theme.accent = \"$ACCENT\";"$'\n'
-# `minimal` is the rice default now, so it's `none` that has to be written out —
+# `minimal` is the desktop default now, so it's `none` that has to be written out —
 # omitting the line on a "keep mine" answer would hand that machine the generated
 # desktop, which is the opposite of what was asked for.
 [ "$WALLPAPER" != "minimal" ] && opt_lines+="  haus.wallpaper.style = \"$WALLPAPER\";"$'\n'
@@ -597,7 +597,7 @@ cask_lines=""
 for c in $ADOPT_CASKS; do cask_lines+="    \"$c\""$'\n'; done
 
 # Kept macOS settings — your current values, read now (read-only) and pinned so
-# they win over the rice's lib.mkDefault opinions. Empty unless you chose to keep
+# they win over haus's lib.mkDefault opinions. Empty unless you chose to keep
 # a category, so a default install writes no system.defaults and behaves as before.
 settings_lines="$(settings_overrides)"
 settings_block=""
@@ -608,10 +608,10 @@ settings_block=""
 # docs-linked, and commented out. It's how you find out an option exists without
 # leaving your editor — read it, uncomment what you want, delete the rest.
 #
-# Rendered from the rice's own module system (`nix build .#host-template`), so
+# Rendered from haus's own module system (`nix build .#host-template`), so
 # it lists the options that exist at the revision you're about to pin, not
 # upstream's latest. That's a real flake fetch, so it's best-effort: a machine
-# that's offline, or pinning a rice older than the output, gets a config that
+# that's offline, or pinning a haus older than the output, gets a config that
 # works exactly as before and a pointer to `haus options`.
 say "Rendering the option catalogue (every haus.* option, annotated)"
 IMPORTS_LINE=""
@@ -627,8 +627,8 @@ else
 fi
 
 cat >"$DEST/hosts/$HOSTNAME/default.nix" <<EOF
-# $HOSTNAME — your machine. The personal layer on top of the nebelhaus rice:
-# identity, apps, secrets. A plain nix-darwin module; everything else is the rice.
+# $HOSTNAME — your machine. The personal layer on top of haus:
+# identity, apps, secrets. A plain nix-darwin module; everything else is haus.
 { ... }:
 
 {

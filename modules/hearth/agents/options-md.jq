@@ -32,9 +32,9 @@ def room: .key | split(".") | .[1];
 # so there's deliberately no second filter here to drift out of step with it.
 [ to_entries[] | select(.key | startswith("haus.")) ] | sort_by(.key) as $opts
 
-| "# haus.* — every option on this machine's rice\n\n"
+| "# haus.* — every option this machine has\n\n"
 
-+ "Generated from the rice's own module system at build time, so this file "
++ "Generated from haus's own module system at build time, so this file "
 + "describes the EXACT revision this machine is pinned to — not the latest "
 + "upstream. If an option you expect isn't here, it landed after this pin: say "
 + "so and offer `haus update`. Never set an option that isn't listed below.\n\n"

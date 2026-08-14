@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# haus — the everyday CLI for a nebelhaus machine, so you never memorise the Nix
-# incantations. This is the END-USER haus that ships in the rice (den puts it on
+# haus — the everyday CLI for a haus machine, so you never memorise the Nix
+# incantations. This is the END-USER haus that ships with haus itself (den puts it on
 # PATH). It drives your OWN machine only — it knows nothing about the workshop
 # family repos or agent worktrees (that's the workshop's developer CLI, `bench`).
 #
 #   haus rebuild        build + switch this machine from your config  (-v for raw output) (the usual day)
-#   haus update         pull the latest rice + nebelhaus apps, then rebuild
+#   haus update         pull the latest haus + its apps, then rebuild
 #   haus rollback [N]    go back a generation (or to generation N)
 #   haus generations     list the generations you can roll back to
-#   haus status          current generation + how old your pinned rice is
+#   haus status          current generation + how old your pinned haus is
 #   haus edit            open your host config (identity, apps) in $EDITOR
 #   haus options         refresh hosts/<host>/options.nix — every haus.* option, annotated
 #   haus set             write + apply haus.* options in the machine overlay (pairs; bare = pick one)
@@ -167,13 +167,13 @@ brew_prefetch() {
 
 usage() {
   cat <<'EOF'
-haus — the everyday CLI for a nebelhaus machine.
+haus — the everyday CLI for a haus machine.
 
   haus rebuild        build + switch this machine from your config  (-v for raw output)
-  haus update         pull the latest rice + nebelhaus apps, then rebuild
+  haus update         pull the latest haus + its apps, then rebuild
   haus rollback [N]   go back a generation (or to generation N)
   haus generations    list the generations you can roll back to
-  haus status         current generation + how old your pinned rice is
+  haus status         current generation + how old your pinned haus is
   haus edit           open your host config in $EDITOR
   haus options        refresh the annotated catalogue of every haus.* option
                       (--force replaces your copy instead of writing options.nix.new)
@@ -183,14 +183,14 @@ haus — the everyday CLI for a nebelhaus machine.
                       Several pairs land in ONE rebuild, all-or-nothing — which is
                       what an intent spanning two options needs (light mode is
                       theme.flavor + theme.systemAppearance)
-  haus set            with no arguments: search every option this rice has, then
+  haus set            with no arguments: search every option this machine has, then
                       pick or type the value — the list of values comes from the
                       option's own type
   haus get [path]     print a declared value, or list values in the writable overlay
   haus unset <path> [<path>…]
                       force nullable options to null
   haus reset <path> [<path>…]
-                      remove writable overrides and inherit the host/rice default.
+                      remove writable overrides and inherit the host/desktop default.
                       unset and reset take a LIST the way set takes pairs: several
                       paths land in ONE rebuild, all-or-nothing, so an intent that
                       took two options to make takes one command to undo
@@ -269,7 +269,7 @@ heal() { # run "$@"; on the cache-corruption signature, wipe the caches and retr
 # Access. nix-darwin emits it unguarded into an activation script running under
 # `set -e`, two thirds of the way in — so without the grant activation aborts
 # there and skips everything after it, including every launchd daemon and agent
-# the rice installs. The machine comes back with no bar, no tiling, no palette,
+# haus installs. The machine comes back with no bar, no tiling, no palette,
 # and a symptom nowhere near its cause.
 #
 # THIS GUARD USED TO ASK THE WRONG QUESTION. It began with `under_agent ||
@@ -316,7 +316,7 @@ has_fda() {
 # there are none). It costs an evaluation of the darwin system, so it runs only
 # on the guard's slow path — which, since the guard stopped short-circuiting on
 # "is this an agent", is every `haus rebuild` from an app WITHOUT the grant. On
-# a machine whose terminal holds FDA (the common case, and the one the rice's
+# a machine whose terminal holds FDA (the common case, and the one the desktop's
 # own install steers you to) it never runs at all. It can't be read out of the
 # built script the way `haus plan`'s verdicts are: the guard has to answer
 # before anything is built.
@@ -351,7 +351,7 @@ guard_unguarded_fda() {
 
   macOS only lets an app holding Full Disk Access write that domain. The failure
   would not be contained: nix-darwin runs the write unguarded partway through
-  activation, so it would abort there and skip every background service the rice
+  activation, so it would abort there and skip every background service haus
   installs — the bar, the tiling, the palette.
 
   The grant follows the APP, not you and not root, so this is not about who is
@@ -591,7 +591,7 @@ settings_diff() {
 # cleanup defaults to "none", so an uninstall is never silent either way.
 plan_homebrew() {
   command -v brew >/dev/null 2>&1 || {
-    info "no Homebrew on this machine yet — the rice installs it on first activation"
+    info "no Homebrew on this machine yet — haus installs it on first activation"
     return 0
   }
   local sys="$1" brewfile declared installed toinstall
@@ -1056,7 +1056,7 @@ cmd_plan() {
   plan_restarts "$sys/activate"
   plan_permissions "$sys/activate"
 
-  # Everything home-manager writes into $HOME, which is most of the rice and
+  # Everything home-manager writes into $HOME, which is most of haus and
   # none of the two sections above. See plan_files's header for why neither the
   # closure diff nor the settings diff can see a bar pill being switched on.
   echo
@@ -1151,7 +1151,7 @@ capture_finder() {
     PfCm) nwt='"Computer"' ;; PfVo) nwt='"OS volume"' ;;
     PfHm) nwt='"Home"' ;; PfDe) nwt='"Desktop"' ;;
     PfDo) nwt='"Documents"' ;; PfID) nwt='"iCloud Drive"' ;;
-    PfLo) : ;; # "Other" needs NewWindowTargetPath too — leave both to the rice
+    PfLo) : ;; # "Other" needs NewWindowTargetPath too — leave both to haus
     Recents | "") : ;;
     *) nwt='"Recents"' ;;
   esac
@@ -1227,7 +1227,7 @@ cmd_capture() {
   echo
   printf '%s' "$lines"
   echo
-  info "paste what you want into your host file — a line you don't paste means 'use the rice's default'."
+  info "paste what you want into your host file — a line you don't paste means 'use the desktop's default'."
   info "the snapshot above is what 'haus revert-settings' puts back if you don't like where a rebuild takes this."
 }
 
@@ -1384,7 +1384,7 @@ cmd_rebuild() {
 }
 
 # Family apps (pounce, perch…) ship as CI-published casks/formulae in
-# hausfold/tap, released on their OWN cadence — a rice flake bump never carries
+# hausfold/tap, released on their OWN cadence — a haus flake bump never carries
 # them. Worse, activation's `brew bundle` leans on Homebrew's auto-update, which
 # is THROTTLED: a rebuild can run against a stale tap clone and never see a fresh
 # release (the "released but not installed" trap). So do an explicit, unthrottled
@@ -1441,11 +1441,11 @@ update_brew_job() { refresh_family_apps; brew_prefetch; }
 cmd_update() {
   local old new owner repo logfile
   old="$(jq -r '.nodes.nebelhaus.locked.rev // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
-  say "pulling the latest nebelhaus rice …"
+  say "pulling the latest haus …"
   ( cd "$CONSUMER" && heal nix flake update nebelhaus )
   new="$(jq -r '.nodes.nebelhaus.locked.rev // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
   if [ -n "$old" ] && [ "$old" = "$new" ]; then
-    say "already at the latest rice (${new:0:12}) — rebuilding anyway."
+    say "already at the latest haus (${new:0:12}) — rebuilding anyway."
   elif [ -n "$old" ] && [ -n "$new" ]; then
     # What's about to land. Best-effort via the GitHub compare API — offline,
     # rate-limited, or non-GitHub upstreams just skip the list. Fetched in the
@@ -1462,7 +1462,7 @@ cmd_update() {
   if [ -n "${logfile:-}" ]; then
     if [ -s "$logfile" ]; then
       echo
-      say "new in the rice (${old:0:7} → ${new:0:7}):"
+      say "new in haus (${old:0:7} → ${new:0:7}):"
       sed 's/^/  · /' "$logfile"
     fi
     rm -f "$logfile"
@@ -1509,7 +1509,7 @@ cmd_status() {
   else warn "  (none yet — haus rebuild)"; fi
 
   echo
-  say "pinned nebelhaus rice"
+  say "pinned haus"
   if [ -f "$CONSUMER/flake.lock" ]; then
     lockrev="$(jq -r '.nodes.nebelhaus.locked.rev // "?"' "$CONSUMER/flake.lock")"
     lockdate="$(jq -r '.nodes.nebelhaus.locked.lastModified // 0' "$CONSUMER/flake.lock")"
@@ -1518,14 +1518,14 @@ cmd_status() {
     else
       printf '  %s\n' "${lockrev:0:12}"
     fi
-    # Is the upstream rice ahead of what you've pinned? Best-effort, offline-safe.
+    # Is upstream haus ahead of what you've pinned? Best-effort, offline-safe.
     owner="$(jq -r '.nodes.nebelhaus.original.owner // "hausfold"' "$CONSUMER/flake.lock")"
     repo="$(jq -r '.nodes.nebelhaus.original.repo // "haus"' "$CONSUMER/flake.lock")"
     ref="$(jq -r '.nodes.nebelhaus.original.ref // "HEAD"' "$CONSUMER/flake.lock")"
     url="https://github.com/$owner/$repo.git"
     remoterev="$(git ls-remote "$url" "$ref" 2>/dev/null | awk 'NR==1{print $1}')"
     if [ -n "$remoterev" ] && [ "$remoterev" != "$lockrev" ]; then
-      warn "  a newer rice is available upstream (${remoterev:0:12}) — haus update"
+      warn "  a newer haus is available upstream (${remoterev:0:12}) — haus update"
     elif [ -n "$remoterev" ]; then
       ok "up to date with upstream"
     fi
@@ -1565,7 +1565,7 @@ settings_path() {
     *) path="haus.$raw" ;;
   esac
   # A component may start with a digit: the keys of an `attrsOf` option are the
-  # user's, not the rice's, and `haus.displays.<uuid>.uiScale` is the worked
+  # user's, not haus's, and `haus.displays.<uuid>.uiScale` is the worked
   # example — display UUIDs begin with a hex digit as often as not.
   [[ "$path" =~ ^haus(\.[A-Za-z0-9_][A-Za-z0-9_-]*)+$ ]] \
     || die "only haus.* option paths are writable (got '$raw')"
@@ -1655,7 +1655,7 @@ settings_option_exists() {
           else descend attrs.\${h} (builtins.tail ps);
       in descend cfg.options.haus [ $parts ]" 2>"$err"
   )" || {
-    # A failure here is the host file or the pinned rice not evaluating at all,
+    # A failure here is the host file or the pinned haus not evaluating at all,
     # never this walk — so show nix's own words rather than a shrug.
     warn "could not evaluate this machine's option surface:"
     tail -n 12 "$err" >&2
@@ -1664,7 +1664,7 @@ settings_option_exists() {
   }
   rm -f "$err"
   [ "$result" = "true" ] \
-    || die "'$path' is not a settable option on this machine's pinned rice"
+    || die "'$path' is not a settable option on this machine's pinned haus"
 }
 
 # One override per path is the model, and a path plus one of its ancestors is
@@ -1802,7 +1802,7 @@ settings_tx_rollback() {
 }
 
 # The offline options catalogue — every settable `haus.*` path with its type,
-# its default and one line of prose, rendered from THIS machine's pinned rice by
+# its default and one line of prose, rendered from THIS machine's pinned haus by
 # the same derivation as the annotated host file (modules/options-catalogue.jq).
 #
 # It is READ, never evaluated, and that is the whole point. `settings_option_
@@ -2114,7 +2114,7 @@ cmd_reset() {
     seen="$seen|$path|"
     target="$(settings_file "$path")"
     if [ ! -e "$target" ]; then
-      inherited+=("${path#haus.} already inherits the host/rice value ($(settings_eval_json "$host" "$path" 2>/dev/null | settings_print_json))")
+      inherited+=("${path#haus.} already inherits the host/desktop value ($(settings_eval_json "$host" "$path" 2>/dev/null | settings_print_json))")
       shift; continue
     fi
     grep -q '^# Managed by haus set\.' "$target" \
@@ -2170,7 +2170,7 @@ cmd_reset() {
 # Refresh hosts/<host>/options.nix — the annotated catalogue of every
 # haus.* option at its default, all commented out. The bootstrap writes it
 # once at install; this is how it gets refreshed when `haus update` moves the
-# pin and the rice grows options that weren't in your copy.
+# pin and haus grows options that weren't in your copy.
 #
 # Read from the SYSTEM PROFILE, not built on demand: den ships it (see
 # den/default.nix), so what you get is exactly the option surface this machine
@@ -2186,7 +2186,7 @@ cmd_options() {
   [ "${1:-}" = "--force" ] && force=1
 
   [ -f "$HOST_TEMPLATE" ] \
-    || die "no option template at $HOST_TEMPLATE — this machine's rice predates it; run 'haus update' first."
+    || die "no option template at $HOST_TEMPLATE — this machine's haus predates it; run 'haus update' first."
 
   host="$(host_name)"
   dir="$CONSUMER/hosts/$host"
@@ -2203,7 +2203,7 @@ cmd_options() {
   else
     cp -f "$HOST_TEMPLATE" "$dest.new"
     chmod u+w "$dest.new"
-    say "your options.nix differs from this rice's — wrote $dest.new instead."
+    say "your options.nix differs from this haus's — wrote $dest.new instead."
     diff -u "$dest" "$dest.new" | sed -n '1,40p' | sed 's/^/  /' || true
     info "merge what you want, then: rm $dest.new   (or: haus options --force to replace)"
   fi
@@ -2251,7 +2251,7 @@ cmd_doctor() {
     fi
   done
 
-  # Every TCC grant this rice actually depends on, in ONE place, each with the
+  # Every TCC grant haus actually depends on, in ONE place, each with the
   # System Settings pane that grants it. It was three grants reported in three
   # different sections before, none of them linked — and a permission you can't
   # find the pane for is the same as a permission you don't have.
@@ -2430,7 +2430,7 @@ cmd_doctor() {
     # store, whose files are r--r--r--. A plain `cp` preserves that mode, so the
     # user lands on an AGENTS.md their editor refuses to save — on the one file
     # the whole point of copying is to then edit.
-    info "nothing orients an agent opened in your config — start from the rice's pair: install -m 644 $skilldir/consumer-AGENTS.md $CONSUMER/AGENTS.md && install -m 644 $skilldir/consumer-CLAUDE.md $CONSUMER/CLAUDE.md"
+    info "nothing orients an agent opened in your config — start from haus's pair: install -m 644 $skilldir/consumer-AGENTS.md $CONSUMER/AGENTS.md && install -m 644 $skilldir/consumer-CLAUDE.md $CONSUMER/CLAUDE.md"
   else
     info "nothing orients an agent opened in your config, and the starter pair isn't here to copy — set haus.ai.skill = true, rebuild, then re-run 'haus doctor'"
   fi

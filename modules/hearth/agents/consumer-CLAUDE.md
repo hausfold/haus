@@ -16,5 +16,5 @@ Only Claude-specific wiring belongs below.
 | Thing | Where | Notes |
 |---|---|---|
 | Instructions | `AGENTS.md`, imported above | Claude Code reads only `CLAUDE.md`, so this file exists purely to import it. |
-| The nebelhaus skill | `~/.claude/skills/haus/` | Installed by `haus.ai.skill`, generated from the rice revision this machine has pinned — so it describes the options that exist *here*. Codex and OpenCode get the same skill at their own paths. |
+| The nebelhaus skill | `~/.claude/skills/haus/` | Installed by `haus.ai.skill`, generated from the haus revision this machine has pinned — so it describes the options that exist *here*. Codex and OpenCode get the same skill at their own paths. |
 | Global memory | `~/.claude/CLAUDE.md` | Written by `haus.ai.instructions` if the host sets it; left alone if not. The other clients get the same text as their `AGENTS.md`, so write it for all of them, not for Claude. |
