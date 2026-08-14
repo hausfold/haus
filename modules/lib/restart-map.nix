@@ -136,19 +136,42 @@
   "com.apple.desktopservices" = "Finder"; # .DS_Store behaviour; Finder reads it at launch same as its own domain
 
   # ---- §5.6 behaviour groups (options-roadmap.md) ---------------------------
-  # haus.lock and haus.menuBar, added the same pass this comment was
-  # written. Neither restart action has been measured against NSWorkspace or an
-  # equivalent effective-state oracle the way dock/finder/universalaccess were —
-  # there is no cheap observable for "did the clock re-render" the way
-  # reduceMotion has one. Both rest on documented, widely-relied-on macOS
-  # behaviour (screensaver re-reads its own domain per invocation, same
-  # reasoning as screencapture; SystemUIServer/ControlCenter re-read their
-  # domains at launch, same as Finder) rather than a spike on this machine.
-  # Treat as "wired, not independently verified" until someone confirms by eye
-  # — see options-roadmap.md §5.6's status note.
+  # haus.lock and haus.menuBar. Neither has an NSWorkspace-style oracle — there
+  # is no cheap observable for "did the clock re-render" the way reduceMotion
+  # has one — so both were wired from documented macOS behaviour (screensaver
+  # re-reads its own domain per invocation, same reasoning as screencapture;
+  # SystemUIServer/ControlCenter re-read their domains at launch, same as
+  # Finder) rather than from a spike.
+  #
+  # WATCHED BY EYE 2026-08-14 on 26.6.1 (25G76), which is what this comment used
+  # to say it was waiting for: `haus.menuBar.clock.showSeconds` + a 60s
+  # `haus.lock.requirePasswordDelay`, one `bench try switch`, NO logout — the
+  # clock ticked seconds immediately and waking inside the grace period went
+  # straight to the desktop. So the claim these rows now carry is **"no logout
+  # needed, measured 26.6.1"**, and deliberately not `support =
+  # "tested-macos-26"` for the entries themselves — and the difference between
+  # the two rows is worth knowing before anyone strengthens either:
+  #
+  #   screensaver  genuinely confirmed. No persistent process, nothing else
+  #                firing on its behalf, and the live worry is answered: Apple
+  #                moving this setting to `sysadminctl -screenLock` on 26 has
+  #                NOT made the plist key inert.
+  #   the other two  NOT confirmed, and structurally can't be by watching a
+  #                rebuild. Both domains sit in den's `typedDomainsWritten`
+  #                UNCONDITIONALLY (only com.apple.universalaccess has a
+  #                `restartDeclaredBy` gate), so SystemUIServer and
+  #                ControlCenter are killed on every rebuild of every machine
+  #                whether or not a clock option is set — and 26 draws the clock
+  #                from ControlCenter. The kill that re-rendered the clock was
+  #                never provably these rows'. The only experiment that isolates
+  #                them is REMOVING the entry and seeing what stops, which
+  #                generalises: an always-fired entry in a table of triggers is
+  #                falsifiable only by deletion.
+  #
+  # Detail in options-roadmap.md §5.6.
   "com.apple.screensaver" = "none"; # haus.lock — no persistent process to restart; read at next lock
   "com.apple.menuExtraClock" = "SystemUIServer"; # haus.menuBar.clock
-  "com.apple.controlcenter" = "ControlCenter"; # haus.menuBar.controlCenter — first actual write into this domain; restartProcesses has carried "ControlCenter" unused since rice#249
+  "com.apple.controlcenter" = "ControlCenter"; # haus.menuBar.controlCenter — the first actual write into this domain; the old `restartProcesses` list had carried "ControlCenter" unused since rice#249 (that list is gone, #255)
 
   # ---- not written yet — declared ahead of use ------------------------------
   # The day the rice (or a host) writes into this, the warning in den/default.nix
