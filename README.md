@@ -16,7 +16,10 @@ was, down to the [fog-grey](https://github.com/hausfold/nebelung).
 **`haus`** is the layer: nix-darwin modules, the `haus.*` options you set, the
 `haus` CLI you run. A **desktop** is one complete set of answers to those
 options. **nebelhaus** is the first desktop — grey, quiet, developer-shaped.
-This repo ships both.
+This repo ships both; **hausfold** is the org that makes them, which is why the
+repo is `hausfold/haus`.
+
+📖 [hausfold.co/docs](https://hausfold.co/docs/) — [installing](https://hausfold.co/docs/haus/install/), the rooms, and [pounce](https://hausfold.co/docs/pounce/), the palette
 
 ## install
 
@@ -24,29 +27,26 @@ This repo ships both.
 curl -fsSL https://hausfold.co/haus.sh | bash
 ```
 
-That asks which desktop you want. Typing the URL answers it instead —
-`hausfold.co/nebelhaus.sh`, `/everyday.sh` or `/minimal.sh`:
+That asks which desktop you want. Swapping the URL answers it instead:
 
 | | |
 |---|---|
-| **nebelhaus** | the whole house — tiling, bar, palette, shelf, agents |
-| **everyday** | a Mac for someone who doesn't write code |
-| **minimal** | just the themed shell, on otherwise stock macOS |
+| `curl -fsSL https://hausfold.co/nebelhaus.sh \| bash` | the whole house — tiling, bar, palette, shelf, agents |
+| `curl -fsSL https://hausfold.co/everyday.sh \| bash` | a Mac for someone who doesn't write code |
+| `curl -fsSL https://hausfold.co/minimal.sh \| bash` | just the themed shell, on otherwise stock macOS |
 
 Already have Nix? `nix run github:hausfold/haus#bootstrap -- --desktop=minimal`.
 → [choosing a desktop](https://hausfold.co/docs/haus/desktops/choosing/)
 
-It installs the prerequisites (Xcode CLT, Determinate Nix), then scaffolds a
-**thin config of your own** at `~/.config/nix` — an ~18-line flake that consumes
-this repo, plus one host file for the bits that are personal to you: git
-identity, signing keys, secrets, your private apps. You never edit this repo to
-use it, and `haus update` pulls new fog whenever you like.
+The installer puts the prerequisites in place (Xcode CLT, Determinate Nix), then
+scaffolds a **thin config of your own** at `~/.config/nix`: an ~18-line flake
+consuming this repo, plus one host file for what's personal — git identity,
+signing keys, secrets, your private apps. You never edit this repo to use it.
 
-Beside that host file it writes `hosts/<host>/options.nix` — **every `haus.*`
-option there is, at its default, with its type and a docs link, all commented
-out.** You find out an option exists by reading your own config. It's rendered
-from this repo's module system at the revision you pinned, so it can't offer you
-one you don't have.
+Beside it lands `hosts/<host>/options.nix` — **every `haus.*` option there is, at
+its default, with its type and a docs link, all commented out.** You discover
+options by reading your own config, and it's rendered from the revision you
+pinned, so it can't offer you one you don't have.
 
 ## the CLI
 
@@ -55,6 +55,7 @@ haus rebuild                # build, then switch — a bad edit never reaches th
 haus update                 # pull the latest desktop and apps, then rebuild
 haus rollback               # back one generation, atomically
 haus edit                   # open your host file
+haus options                # re-render that catalogue against the revision you're on
 haus set                    # search every option this Mac has, then pick the value
 haus set theme.accent teal  # or say it outright: type-checked, then one rebuild
 haus plan                   # what the next rebuild would change, without building it
@@ -69,24 +70,24 @@ haus doctor                 # Nix, the CLT, the GUI agents, Homebrew drift
 Twelve capabilities, each a switch: **Apps · Appearance · Displays ·
 Development · Windows · Bar · Launcher · Shelf · Focus · AI · Text expansion ·
 Security**. Your desktop decides which are on; one line in your host overrules
-it. Or take a single room into a flake of your own.
+it. Six of them are also exported as standalone nix-darwin modules, so you can
+take the tiling or the bar into a flake of your own and leave the house behind.
 
 → [what each room does](https://hausfold.co/docs/haus/) · [stealing one](docs/modules.md)
 
 ## ask an agent to change it
 
-A declarative machine is the one kind an agent can safely reconfigure: `haus
-rebuild` builds before it switches, so a bad edit never reaches the running
-system, and `haus rollback` undoes an applied one atomically. What was missing
-was knowledge — left to guess, a model reaches for `brew install` and dotfiles
-the next rebuild overwrites.
+A declarative machine is the one kind an agent can safely reconfigure — the
+rebuild builds before it switches, so a bad edit never reaches the running
+system. What was missing was knowledge: left to guess, a model reaches for `brew
+install` and dotfiles the next rebuild overwrites.
 
-So the layer ships it. `haus.ai.skill` installs a `haus` skill for every client
-you name, in the directory that client reads (`~/.claude/skills/haus`,
-`~/.codex/skills/haus`, `~/.config/opencode/skills/haus`), and its option
-reference is **generated from the revision you're pinned to** — it can only
-describe options you actually have. "Install Slack" or "make everything bigger"
-becomes an edit to your host file, applied and verifiable.
+So the layer ships it. `haus.ai.skill` writes a `haus` skill into the directory
+each client you named actually reads (`~/.claude/skills/haus`,
+`~/.codex/skills/haus`, `~/.config/opencode/skills/haus`), with an option
+reference **generated from the revision you're pinned to** — it can only
+describe options you have. "Install Slack" or "make everything bigger" becomes
+an edit to your host file, applied and verifiable.
 → [coding agents](https://hausfold.co/docs/haus/rooms/ai/)
 
 ## more
