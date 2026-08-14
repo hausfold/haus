@@ -532,7 +532,29 @@ in
       # System-wide (not home-manager) so sudo and non-login shells see it too.
       # (The workshop's developer CLI is `bench` — a different name on purpose,
       # so the two never shadow each other.)
-      (writeShellScriptBin "haus" (builtins.readFile ./haus.sh))
+      #
+      # Wrapped rather than bare because two of its tools have to be THERE, not
+      # merely usually there. `gum` draws `haus set`'s picker and is in nixpkgs
+      # but in nobody's profile — bootstrap.sh fetches it ad-hoc with `nix build
+      # nixpkgs#gum`, which is exactly the sort of thing an end-user command must
+      # not need. `jq` parses every value `haus set` writes and reads the options
+      # catalogue, and it ships only with the developer toolbelt below, so a
+      # machine with `haus.developer.toolbelt.enable = false` had a `haus set` that
+      # died on `jq: command not found`. A suffix, not a prefix: this guarantees
+      # the tools resolve, it doesn't shadow the ones you chose.
+      (symlinkJoin {
+        name = "haus";
+        paths = [ (writeShellScriptBin "haus" (builtins.readFile ./haus.sh)) ];
+        nativeBuildInputs = [ makeWrapper ];
+        postBuild = ''
+          wrapProgram "$out/bin/haus" --suffix PATH : ${
+            lib.makeBinPath [
+              gum
+              jq
+            ]
+          }
+        '';
+      })
 
       # `haus-activate <system>` — the privileged half of a rebuild, split out
       # so the config is evaluated ONCE. `darwin-rebuild switch --flake` builds

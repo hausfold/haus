@@ -79,6 +79,7 @@ haus rollback        # go back a generation (haus generations lists them)
 haus status          # current generation + how old your pinned rice is
 haus options         # refresh the annotated catalogue of every haus.* option
 haus set theme.accent teal # write + apply options in the machine overlay (pairs)
+haus set                   # ...or with no arguments: search every option, then pick the value
 haus get theme.accent      # read the declared value (or omit the path to list overrides)
 haus unset lock.requirePassword # explicitly set nullable options to null
 haus reset theme.accent    # remove overrides and inherit the desktop's value again

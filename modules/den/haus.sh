@@ -11,7 +11,7 @@
 #   haus status          current generation + how old your pinned rice is
 #   haus edit            open your host config (identity, apps) in $EDITOR
 #   haus options         refresh hosts/<host>/options.nix — every haus.* option, annotated
-#   haus set             write + apply haus.* options in the machine overlay (pairs)
+#   haus set             write + apply haus.* options in the machine overlay (pairs; bare = pick one)
 #   haus get             read one option, or list the machine overlay
 #   haus unset           force nullable options to null (variadic)
 #   haus reset           remove machine overrides and inherit config again (variadic)
@@ -183,6 +183,9 @@ haus — the everyday CLI for a nebelhaus machine.
                       Several pairs land in ONE rebuild, all-or-nothing — which is
                       what an intent spanning two options needs (light mode is
                       theme.flavor + theme.systemAppearance)
+  haus set            with no arguments: search every option this rice has, then
+                      pick or type the value — the list of values comes from the
+                      option's own type
   haus get [path]     print a declared value, or list values in the writable overlay
   haus unset <path> [<path>…]
                       force nullable options to null
@@ -1702,6 +1705,137 @@ settings_tx_rollback() {
   settings_drop_backups ${TX_BACKUPS[@]+"${TX_BACKUPS[@]}"}
 }
 
+# The offline options catalogue — every settable `haus.*` path with its type,
+# its default and one line of prose, rendered from THIS machine's pinned rice by
+# the same derivation as the annotated host file (modules/options-catalogue.jq).
+#
+# It is READ, never evaluated, and that is the whole point. `settings_option_
+# exists` answers "is this settable?" by evaluating the entire darwin config,
+# which is seconds — right for accepting a value, hopeless for drawing a menu of
+# 200 rows or answering a Tab. So the picker and the zsh completion read this
+# file and leave cmd_set's eval as the one authority on what is actually legal.
+HAUS_CATALOGUE="${HAUS_CATALOGUE:-/run/current-system/sw/share/nebelhaus/options.json}"
+
+# The value prompt's shape, read off the module system's own type prose.
+#
+# A type names a CLOSED set exactly when, after peeling a leading `null or ` and
+# a leading `boolean or `, what's left is `boolean` or an `one of "…"` list. That
+# peeling is not pedantry — it is what keeps the three real shapes apart:
+#
+#   boolean                                    → true / false
+#   null or one of "12h", "24h"                → null / 12h / 24h
+#   boolean or one of "left", "center", …      → true / false / left / center / …
+#   null or positive integer, …, or value "never"
+#                                              → OPEN. Has quoted tokens and is
+#                                                still mostly a number, so a list
+#                                                would take away every value the
+#                                                option is mainly for.
+#
+# Prints one candidate per line, nothing at all when the set is open.
+settings_type_choices() {
+  local type="$1" rest
+  rest="${type#null or }"
+  rest="${rest#boolean or }"
+  case "$rest" in
+    boolean | 'one of "'*) ;;
+    *) return 0 ;;
+  esac
+  case "$type" in "null or"*) printf 'null\n' ;; esac
+  case "$type" in *boolean*) printf 'true\nfalse\n' ;; esac
+  # Quotes exist in these type strings only around enum members, and `haus set`
+  # takes a bare token as the string form, so strip them. A plain `boolean` has
+  # none, and grep finding nothing is not a failure here.
+  case "$type" in
+    *'one of "'*) printf '%s' "$type" | grep -o '"[^"]*"' | tr -d '"' ;;
+  esac
+}
+
+# `haus set` with nothing to set: pick the option, then the value. Fills PICK
+# with the pair; returns non-zero when the user backs out of either prompt.
+#
+# Two prompts, and the second one's shape comes from the type — a closed set is a
+# list you arrow through, everything else a text box holding the current default.
+# Nothing here validates. It hands a pair to cmd_set, which owns the write, the
+# type-check, the backups and the rollback; a picker that pre-judged any of that
+# would be a second, weaker authority that disagrees with the first one on
+# exactly the machines where it matters.
+settings_pick() {
+  local usage="$1" sel path type default literal prefill value line
+  local -a choices=()
+  PICK=()
+
+  [ -t 0 ] && [ -t 1 ] || die "$usage"
+  command -v gum >/dev/null 2>&1 || die "picking an option needs gum — $usage"
+  [ -r "$HAUS_CATALOGUE" ] \
+    || die "no options catalogue at $HAUS_CATALOGUE (haus rebuild installs it) — $usage"
+
+  # Path AND prose in the row, because the filter matches the whole line: you
+  # can search for `flavor` or for `light mode` and land on the same option.
+  sel="$(
+    jq -r 'to_entries[] | "\(.key[5:])\t\(.value.summary)"' "$HAUS_CATALOGUE" \
+      | awk -F'\t' '{ printf "%-38s %s\n", $1, $2 }' \
+      | gum filter --height 20 --placeholder 'which option?' --prompt 'haus set '
+  )" || return 1
+  # Padded columns, and no `haus.*` path contains a space — so the first field
+  # is the path however long it ran.
+  path="${sel%% *}"
+  [ -n "$path" ] || return 1
+
+  type="$(jq -r --arg p "haus.$path" '.[$p].type' "$HAUS_CATALOGUE")"
+  default="$(jq -r --arg p "haus.$path" '.[$p].default // ""' "$HAUS_CATALOGUE")"
+  literal="$(jq -r --arg p "haus.$path" '.[$p].literal' "$HAUS_CATALOGUE")"
+  say "$path"
+  info "type: $type"
+  [ -n "$default" ] && info "default: $default"
+
+  while IFS= read -r line; do choices+=("$line"); done < <(settings_type_choices "$type")
+
+  if [ "${#choices[@]}" -gt 0 ]; then
+    # --selected puts the cursor on the current default rather than the top of
+    # the list, so the first thing you see is what the machine does today. Only
+    # when the default is actually one of the choices, though: gum takes it as a
+    # comma-separated list of items to pre-select, and rather than find out per
+    # gum release what an unknown one does, don't hand it one. Every option's
+    # default type-checks, so this holds for all of today's; it's the option with
+    # no default at all that this is here for.
+    local bare
+    local -a selected=()
+    bare="$(printf '%s' "$default" | tr -d '"')"
+    for line in "${choices[@]}"; do
+      if [ "$line" = "$bare" ]; then selected=(--selected "$line"); fi
+    done
+    value="$(printf '%s\n' "${choices[@]}" | gum choose ${selected[@]+"${selected[@]}"})" \
+      || return 1
+  else
+    # Prefill only a default that would round-trip. `haus set` reads its value as
+    # JSON (settings_literal), and a Nix-only default like `[ "self" "nebelung" ]`
+    # is not JSON — handing it back as the starting text would quietly turn the
+    # whole list into one string the moment someone pressed Enter. Those get an
+    # empty box, with the default still on screen above it.
+    prefill=""
+    if [ "$literal" = true ] && printf '%s' "$default" | jq . >/dev/null 2>&1; then
+      prefill="$default"
+    fi
+    value="$(gum input --value "$prefill" --placeholder "${default:-value}" \
+                       --prompt "$path = ")" || return 1
+  fi
+  # Every way out of here says so. Backing out of a prompt is a perfectly normal
+  # thing to do, and the alternative — cmd_set exiting 0 with nothing printed —
+  # is indistinguishable from the command having quietly failed. An empty text
+  # box counts as backing out: pressing Enter on nothing is how people leave a
+  # prompt they opened by accident, and the empty STRING is still reachable as
+  # `""`, which is also how you write it on the command line.
+  if [ -z "$value" ]; then
+    info "nothing entered — $path is unchanged"
+    return 1
+  fi
+  if ! gum confirm "set $path = $value, then rebuild?"; then
+    info "left $path alone"
+    return 1
+  fi
+  PICK=("$path" "$value")
+}
+
 # `haus set` takes PAIRS: `haus set theme.flavor latte theme.systemAppearance flavor`.
 #
 # Not ergonomics — arithmetic. settings_apply is a full rebuild, so N calls is N
@@ -1728,6 +1862,13 @@ cmd_set() {
   # cmd_unset delegates here, and quoting `haus set`'s pair syntax at someone who
   # typed `haus unset` names a command they didn't run — so it may override this.
   local usage="${TX_USAGE:-usage: haus set <haus.path|relative.path> <value> [<path> <value>…]}"
+  # No arguments is not a usage error any more — it's the picker. `haus unset`
+  # can't land here with none (it dies on its own usage first), so TX_USAGE
+  # being set is enough to keep this out of a delegated call's way.
+  if [ "$#" -eq 0 ] && [ -z "${TX_USAGE:-}" ]; then
+    settings_pick "$usage" || exit 0
+    set -- "${PICK[@]}"
+  fi
   [ "$#" -ge 2 ] && [ $(( $# % 2 )) -eq 0 ] || die "$usage"
   local host dir path target backup clash seen="" i err
   local -a paths=() values=() results=()
