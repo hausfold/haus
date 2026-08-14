@@ -119,6 +119,13 @@ modules/
                           #   another room without reaching into its config, or
                           #   switching it on. The receiver declares the point
                           #   (haus._contrib.<room>.<feature>), the source writes it
+  lib/desktop.nix         # the DESKTOP SEAM's validator: the closed shape a desktop
+                          #   file has to have, and the per-leaf desktop-safety walk
+                          #   it runs off the room registry. Returns failures rather
+                          #   than throwing, so the check can diff the diagnostics
+  desktop/                # that seam in the module system: haus._desktop.sources
+                          #   (which desktop this machine selected) + the assertion
+                          #   that refuses a second one, naming both files
   apps/                   # the EDITORIAL picks: apps the rice chooses for a finished
                           #   machine (IINA today) + the file types they claim. Roster
                           #   entries, so a cask of the same app still collides loudly
@@ -156,12 +163,49 @@ modules/
   perch/                  # the perch notch file shelf, installed via the perch flake input
   hush/                   # Focus/DND one-switch: declarative hotkey 175 + Slack + hooks
   secrets/                # secretspec: declarative secrets, provider chosen per host
+desktops/                 # the desktops this flake ships. nebelhaus is the one the
+                          #   builder selects by default, and it is EMPTY until step 4
+                          #   of the rooms plan moves the rice's values into it
+test/desktops/            # one fixture per rule the desktop seam enforces, valid and
+                          #   invalid; `desktop-seam` diffs the diagnostics they produce
 hosts/example/            # the template a consumer copies
 ```
 
 Each `modules/<room>` is a nix-darwin module; ones that need home config write into
 `home-manager.users.${username}`. `den` and `hearth` split system vs shell; Homebrew
 is contributed per-room (den owns the framework, prowl/sill add their own cask/brew).
+
+### Desktops
+
+A **desktop** is a complete, data-only answer to "what should this Mac feel like?",
+and a finished configuration runs **exactly one** (the model is the workshop's
+`notes/rooms-desktops.md`). `mkNebelhaus` takes a `desktop` argument, defaulting to
+`./desktops/nebelhaus.nix`, so every existing consumer's call means what it always
+meant. `desktop = null` is the low-level composition escape hatch: by itself it
+selects the bare haus foundation, or it makes room for one `lib.desktop` passed
+through `extraModules`. A standalone `darwinModules.<room>` import still selects
+none by construction.
+
+Three rules, all enforced rather than documented:
+
+- **closed shape** — a desktop is an attrset whose only top-level key is `haus`. No
+  module function, no `imports`, no `_module`, no `system.*`/`home-manager.*`. That is
+  what makes reading the file enough to know what it can do.
+- **desktop-safe leaves only** — every leaf it sets must be a public `haus.*` option
+  the room registry marked desktop-safe, transitively: `haus.roster` is a container a
+  desktop may fill, `haus.roster.<app>.package` is host-only, and
+  `haus.displays.internal` is a desktop value while `haus.displays.<uuid>` is a
+  hardware fact. `modules/lib/desktop.nix` is where the registry's named validators
+  mean something.
+- **the host wins** — a desktop's leaves arrive at priority 900, between an ordinary
+  host assignment (100) and a room's own `mkDefault` (1000). Overriding your desktop
+  never needs `lib.mkForce`. A list-valued option follows the same rule: when the host
+  names that list, its list replaces the desktop's rather than appending to it.
+
+Adding a rule means adding a fixture in `test/desktops/` and its expected diagnostic
+in `flake.nix`; a rule with no fixture is a comment. `haus.lib.checkDesktop` /
+`haus.lib.desktopFailures` are public so a third party can self-test a desktop before
+publishing it.
 
 ## Build / test
 

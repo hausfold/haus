@@ -38,10 +38,11 @@ jobs:
       #
       # Keep this census honest when a check is added: it is this repo's only
       # record of what CI actually covers, and it went one stale before anyone
-      # noticed. The darwin-only checks (presets, accent-reach,
-      # scale-reach, font-reach) fingerprint a real evaluated system, so they
-      # stay guarded and don't run here — they fire on a Mac, by hand, or not at
-      # all.
+      # noticed. The darwin-only checks fingerprint a real evaluated system, so
+      # they stay guarded and don't run here — they fire on a Mac, by hand, or
+      # not at all. Today that is: presets, accent-reach, scale-reach,
+      # font-reach, standalone-modules, ai-room, desktop-seam, sill-rc-executable,
+      # sill-bottom-hush and sill-bottom-groups.
       - run: nix flake check
       # The annotated host template (hosts/<host>/options.nix) ships every
       # option's DEFAULT as a line you can uncomment. host-template.nix's own

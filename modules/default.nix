@@ -15,6 +15,10 @@
   # neither file: absent from this one, a real system loses the option; absent
   # from that one, only the option-surface evals do.
   imports = (import ./options-modules.nix) ++ [
+    # The desktop seam: exactly one desktop per host. Nothing but an assertion
+    # over what `lib.desktop` recorded — first because it is about the whole
+    # selection rather than about any room's values.
+    ./desktop
     # Named workspaces: resolves haus.workspaces into the internal lookup
     # ./roster folds into each app's resolved workspace membership. Comes
     # first because roster depends on it, though the module system's laziness
