@@ -1,145 +1,77 @@
-<div align="center">
+# ⌂ haus
 
-<!-- identity banner — pink-on-gray wordmark (assets/nebelhaus-banner-gray-bg-rounded.png) -->
-<img src="./assets/nebelhaus-banner-gray-bg-rounded.png" alt="nebelhaus" width="520">
+**One flake raises the whole Mac.**
+*Think omarchy, on macOS instead of Arch.*
 
-**an opinionated macOS, raised in the fog**
-
-the house — the `haus` layer and the nebelhaus rice, one Nix flake. start here.
-
-![part of hausfold](https://img.shields.io/badge/part_of-hausfold-f2c4e5?labelColor=202020)
-![themed by nebelung](https://img.shields.io/badge/themed_by-nebelung-c9a8f1?labelColor=202020)
-![license](https://img.shields.io/badge/license-MIT-d7d7d7?labelColor=202020)
-
-<sub>**pre-release** · nothing here changes your Mac without a way back — every rebuild is a Nix generation `haus rollback` returns to, and macOS's own settings are the one exception a rollback can't reach, which is what `haus capture` and `haus revert-settings` are for. that's the intent, not a warranty — run it on a machine you can afford to rebuild, and tell us what breaks.</sub>
-
-<!-- assets/hero.png — the whole desktop: Sill bar, Prowl tiling, Pounce open, Nebelung everywhere -->
-![the nebelhaus desktop](./assets/hero.png)
-
-</div>
+<sub>**pre-release** · Nothing here changes your Mac without a way back: every rebuild is a Nix generation `haus rollback` returns to, and macOS's own settings — the one thing a rollback can't reach — are what `haus capture` and `haus revert-settings` are for. That's the intent, not a warranty: run it on a machine you can afford to rebuild, and tell us what breaks.</sub>
 
 ---
 
-macOS, arranged like a tiling Linux rig but native to the grain of the Mac — one
-Nix flake raises the whole house. Fog-grey, quiet, and reproducible: wipe the
-machine, run one command, and the house stands again exactly as it was.
+Tiling windows, a status bar, a ⌘Space palette, the terminal, Touch ID for
+`sudo`, and every app you actually use — declared in one file, applied by one
+command, native to the grain of the Mac rather than a Linux desktop bolted onto
+it. Wipe the machine, run one line, and the house stands again exactly as it
+was, down to the [fog-grey](https://github.com/hausfold/nebelung).
 
-> [!TIP]
-> Think *omarchy*, but for macOS instead of Arch.
+**`haus`** is the layer: nix-darwin modules, the `haus.*` options you set, the
+`haus` CLI you run. A **desktop** is one complete set of answers to those
+options. **nebelhaus** is the first desktop — grey, quiet, developer-shaped.
+This repo ships both.
 
-> [!NOTE]
-> **`haus` is the layer; nebelhaus is the rice.** This one flake ships both.
-> `haus` is the nix-darwin layer — the modules, the `haus.*` options you set and
-> the `haus` CLI you run — and any rice can be built on it. **nebelhaus** is the
-> rice this repo dresses it in: the fog-grey defaults, the first one, and the
-> one you get from the install command below. **hausfold** is the org it all
-> ships from — the maker, and the name on the receipt. So the repo is
-> `hausfold/haus`: the layer names the repo, the org owns it.
-
-📖 **Full docs & guides: [hausfold.co/docs](https://hausfold.co/docs/)** — start with
-[Install](https://hausfold.co/docs/haus/install/) and
-[First run](https://hausfold.co/docs/nebelhaus/first-run/).
-
-## raise the whole house
+## install
 
 ```sh
 curl -fsSL https://hausfold.co/haus.sh | bash
-# or name the desktop and skip that question:
-curl -fsSL https://hausfold.co/nebelhaus.sh | bash   # the full desktop
-curl -fsSL https://hausfold.co/everyday.sh  | bash   # for someone who doesn't write code
-curl -fsSL https://hausfold.co/minimal.sh   | bash   # just the themed shell
-# or straight from the flake, once nix is installed:
-nix run github:hausfold/haus#bootstrap -- --desktop=minimal
 ```
+
+That asks which desktop you want. Typing the URL answers it instead —
+`hausfold.co/nebelhaus.sh`, `/everyday.sh` or `/minimal.sh`:
+
+| | |
+|---|---|
+| **nebelhaus** | the whole house — tiling, bar, palette, shelf, agents |
+| **everyday** | a Mac for someone who doesn't write code |
+| **minimal** | just the themed shell, on otherwise stock macOS |
+
+Already have Nix? `nix run github:hausfold/haus#bootstrap -- --desktop=minimal`.
+→ [choosing a desktop](https://hausfold.co/docs/haus/desktops/choosing/)
 
 It installs the prerequisites (Xcode CLT, Determinate Nix), then scaffolds a
-**thin config of your own** at `~/.config/nix` — a ~18-line flake that consumes
-this repo as an input, plus one host file for the personal bits. You never edit
-this repo to use it; your machine stays yours, the rice stays upstream, and `nix
-flake update nebelhaus` pulls new fog whenever you like.
+**thin config of your own** at `~/.config/nix` — an ~18-line flake that consumes
+this repo, plus one host file for the bits that are personal to you: git
+identity, signing keys, secrets, your private apps. You never edit this repo to
+use it, and `haus update` pulls new fog whenever you like.
 
-Beside that host file it writes **`hosts/<host>/options.nix`** — every
-`haus.*` option there is, at its default, with its description, its type and
-a docs link, **all commented out**. You find out an option exists by reading your
-own config: uncomment the lines you want, delete the ones you never touched. It's
-rendered from this repo's module system at the revision you pinned, so it can't
-list an option your rice doesn't have; `haus options` refreshes it after an
-update. (Commented rather than spelled out on purpose — the rice's defaults are
-`mkDefault`s, so a host file stating them all would silently override every
-choice the desktop it selected made.)
+Beside that host file it writes `hosts/<host>/options.nix` — **every `haus.*`
+option there is, at its default, with its type and a docs link, all commented
+out.** You find out an option exists by reading your own config. It's rendered
+from this repo's module system at the revision you pinned, so it can't offer you
+one you don't have.
 
-It won't switch a config that isn't yours — personalize the generated host file
-first, then rebuild.
-
-## the taste
-
-That first switch puts **`haus`** on your PATH, so you never type the
-incantation again:
+## the CLI
 
 ```sh
-haus rebuild         # build + switch this machine
-haus update          # pull the latest rice, then rebuild
-haus rollback        # go back a generation (haus generations lists them)
-haus status          # current generation + how old your pinned rice is
-haus options         # refresh the annotated catalogue of every haus.* option
-haus set theme.accent teal # write + apply options in the machine overlay (pairs)
-haus set                   # ...or with no arguments: search every option, then pick the value
-haus get theme.accent      # read the declared value (or omit the path to list overrides)
-haus unset lock.requirePassword # explicitly set nullable options to null
-haus reset theme.accent    # remove overrides and inherit the desktop's value again
-haus plan            # preview the next rebuild — packages, macOS settings, the files
-                     # home-manager writes into your home, launchd jobs, casks — read-only
-haus diff            # declared config vs what macOS actually has right now
-haus capture         # turn this Mac's current settings into config lines + a snapshot
-haus revert-settings # put back a 'haus capture' snapshot — undoes what haus rollback can't
-haus doctor          # check Nix, the CLT, the GUI agents, and Homebrew cask drift
-haus tour            # a guided lap of the four moves, right in the bar
+haus rebuild                # build, then switch — a bad edit never reaches the running system
+haus update                 # pull the latest desktop and apps, then rebuild
+haus rollback               # back one generation, atomically
+haus edit                   # open your host file
+haus set                    # search every option this Mac has, then pick the value
+haus set theme.accent teal  # or say it outright: type-checked, then one rebuild
+haus plan                   # what the next rebuild would change, without building it
+haus diff                   # what you declared vs what macOS actually has right now
+haus doctor                 # Nix, the CLT, the GUI agents, Homebrew drift
 ```
 
-`haus set` writes one ordinary module per value under
-`hosts/<host>/settings/`, stages it so the flake can see it, type-checks it, then
-rebuilds. Pass several `<path> <value>` pairs and they land together, in one
-rebuild, all-or-nothing —
-`haus set theme.flavor latte theme.systemAppearance flavor` is light mode in a
-single command. `haus unset` and `haus reset` take a list of paths the same way,
-so the way back out is also one command and one rebuild —
-`haus reset theme.flavor theme.systemAppearance`. Only `haus.*` options
-cross this boundary; the short form above is expanded to
-`haus.theme.accent`. A path may address one key *inside* an option —
-`haus set sill.items.aiUsage true` switches a single pill, where naming the whole
-set would send every other pill back to its default. There is no separate
-settings database: the generated file is the config, and `haus reset` removes it.
-
-On a fresh machine the bar shows a small "new here?" paw — click it and **haus
-tour** walks you through the four moves (launch, navigate, resize, palette) live,
-advancing as it detects each one. Right-click hides it forever.
+→ [every command](https://hausfold.co/docs/haus/reference/haus/) · [every option](https://hausfold.co/docs/haus/reference/options/)
 
 ## the rooms
 
-The house is built from composable nix-darwin modules. Take the whole thing, or
-[import one room](docs/modules.md) into your own config.
+Twelve capabilities, each a switch: **Apps · Appearance · Displays ·
+Development · Windows · Bar · Launcher · Shelf · Focus · AI · Text expansion ·
+Security**. Your desktop decides which are on; one line in your host overrules
+it. Or take a single room into a flake of your own.
 
-- 🛖 **den** — the foundation — macOS defaults (dock/finder/trackpad/keyboard), the Homebrew framework + tap-trust, core CLI tools, fonts, weekly GC
-- 🐈 **prowl** — opinionated [AeroSpace](https://github.com/nikitabobko/AeroSpace) tiling, launched via launchd (survives cold boot), Caps→F18 leader, wake-time window re-sort
-- 🪟 **sill** — a [SketchyBar](https://github.com/FelixKratz/SketchyBar) setup perched on the top edge, with stray-agent eviction
-- 🔥 **hearth** — the terminal — zsh, a Nebelung-tinted starship prompt, git, an editor (helix by default, themed; `haus.hearth.editorName` also takes neovim, vim or nano), and a themed toolbelt (bat, delta, lazygit, lsd, yazi, zoxide, fzf), plus the ghostty / zellij / yazi dotfiles
-- 🔖 **collar** — identity & auth — Touch ID for sudo (with `reattach`, so it works inside tmux/zellij), and passwordless activation so a rebuild never stops for a fingerprint you already gave (`haus.collar.passwordlessRebuild`)
-- 🗝️ **secrets** — declarative secrets via [secretspec](https://secretspec.dev) — projects commit *which* secrets they need, never values; values live in the provider you pick per host
-- 🐾 **pounce** — the [Pounce](https://github.com/hausfold/pounce) palette, wired in as a self-signing daemon that holds its Accessibility grant across rebuilds, and ⌘Space freed for it
-- 🪺 **perch** — the [Perch](https://github.com/hausfold/perch) notch file shelf, installed through Nix and copied to a fixed `/Applications/Perch.app` (`haus.perch.enable`)
-- 🤫 **hush** — a one-switch Focus/DND: a declarative global hotkey, plus optional Slack status and shell hooks
-- 🎨 **theme** — the palette's flavour and contrast, and the accent every themed tool spends
-- 🏠 **wallpaper** — the desktop, generated here: a flat field at the depth you pick out of the palette, the haus mark ⌂ at its centre, a bloom in your accent, grain so none of it bands, and — off by default — this machine's lock edges tucked exactly under where a tiled window lands (`haus.wallpaper.*`)
-- 📼 **apps** — the picks a finished machine gets rather than the ones a room needs: [IINA](https://iina.io) as the video player, and the video types it takes over from QuickTime. One switch each (`haus.apps.*`), installed as roster entries you can retune
-
-## identity is the only thing that's yours
-
-nebelhaus ships everything — system *and* shell. The only blanks are the bits
-personal to you: git name/email/signing key, the pounce signing identity, your
-secrets, and your private app list. All of it lives in
-`hosts/<hostname>/default.nix`, so the rice is complete out of the box and you
-layer *you* on top. [Making it
-yours](https://hausfold.co/docs/haus/desktops/customizing/) is the cookbook.
+→ [what each room does](https://hausfold.co/docs/haus/) · [stealing one](docs/modules.md)
 
 ## ask an agent to change it
 
@@ -147,50 +79,22 @@ A declarative machine is the one kind an agent can safely reconfigure: `haus
 rebuild` builds before it switches, so a bad edit never reaches the running
 system, and `haus rollback` undoes an applied one atomically. What was missing
 was knowledge — left to guess, a model reaches for `brew install` and dotfiles
-the next rebuild overwrites, or invents an option that doesn't exist.
+the next rebuild overwrites.
 
-So the rice ships it. `haus.ai.skill` (on by default) installs a `haus`
-skill for every client in `haus.ai.clients`, each in the directory that
-client reads (`~/.claude/skills/haus`, `~/.codex/skills/haus`,
-`~/.config/opencode/skills/haus`). Its option reference is **generated from the
-revision you're pinned to** — it can only ever describe options you actually
-have, and `haus update` refreshes it with the rice. "Install Slack" or
-"make everything bigger" becomes an edit to your host file, applied and
-verifiable. `haus doctor` reports whether it's installed.
-
-`haus.ai.instructions` is the other half: your own cross-project operating
-context, written to each client's instructions file (`~/.claude/CLAUDE.md`,
-`~/.codex/AGENTS.md`, `~/.config/opencode/AGENTS.md`) with the rice's `holt`
-worktree etiquette prepended. Write it client-neutrally — the same text is what
-every pane you open starts from.
+So the layer ships it. `haus.ai.skill` installs a `haus` skill for every client
+you name, in the directory that client reads (`~/.claude/skills/haus`,
+`~/.codex/skills/haus`, `~/.config/opencode/skills/haus`), and its option
+reference is **generated from the revision you're pinned to** — it can only
+describe options you actually have. "Install Slack" or "make everything bigger"
+becomes an edit to your host file, applied and verifiable.
+→ [coding agents](https://hausfold.co/docs/haus/rooms/ai/)
 
 ## more
 
-- [Modules](docs/modules.md) — stealing one room, `mkNebelhaus`, and the identity knobs
-- [Adding apps](https://hausfold.co/docs/haus/rooms/apps/) · [Window management](https://hausfold.co/docs/haus/rooms/windows/) · [Keeping it current](https://hausfold.co/docs/haus/keeping-it-current/) — moving to a new Mac and staying in sync are one page now
-- [Coding agents](https://hausfold.co/docs/haus/rooms/ai/) — `holt`, the worktree tool this rice puts on your PATH, for Claude Code, Codex or OpenCode
-- [`AGENTS.md`](./AGENTS.md) — hacking on the house, including `zscratch`
+- [Modules](docs/modules.md) — one room in your own flake, `mkNebelhaus`, the identity knobs
+- [Making it yours](https://hausfold.co/docs/haus/desktops/customizing/) · [Keeping it current](https://hausfold.co/docs/haus/keeping-it-current/) · [Leaving](https://hausfold.co/docs/haus/leaving/)
+- [`AGENTS.md`](./AGENTS.md) — hacking on the house
 
-## the family
+---
 
-- 🏠 [**nebelhaus**](https://github.com/hausfold/haus) — the house. the `haus` layer and the nebelhaus rice, one Nix flake. start here. *(you are here)*
-- 🐾 [**pounce**](https://github.com/hausfold/pounce) — the palette. keyboard-first launcher; every command a file.
-- 🪺 [**perch**](https://github.com/hausfold/perch) — the shelf. files, caught in the notch.
-- 🌫️ [**nebelung**](https://github.com/hausfold/nebelung) — the theme. the silver-mist palette.
-- 🧰 [**workshop**](https://github.com/hausfold/workshop) — the bench. where the family is built.
-
-Each one stands alone. Together they're a house.
-
-## the fog
-
-Grey is the point. Nebelung is a low-contrast, muted palette for people who find
-Mocha too loud — a cat breed the colour of high fog, hence the name.
-
-## license
-
-MIT · built on [Nix](https://nixos.org),
-[nix-darwin](https://github.com/LnL7/nix-darwin),
-[home-manager](https://github.com/nix-community/home-manager),
-[AeroSpace](https://github.com/nikitabobko/AeroSpace),
-[SketchyBar](https://github.com/FelixKratz/SketchyBar), and
-[Catppuccin](https://github.com/catppuccin).
+<p align="center"><a href="https://hausfold.co">⌂ hausfold</a></p>
