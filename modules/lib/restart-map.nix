@@ -149,11 +149,29 @@
   # clock ticked seconds immediately and waking inside the grace period went
   # straight to the desktop. So the claim these rows now carry is **"no logout
   # needed, measured 26.6.1"**, and deliberately not `support =
-  # "tested-macos-26"` for the entries themselves: see each row for which half
-  # that run actually isolated. Detail in options-roadmap.md §5.6.
-  "com.apple.screensaver" = "none"; # haus.lock — no persistent process to restart; read at next lock. CONFIRMED 2026-08-14: the grace period was honoured with no logout, so Apple moving this setting to `sysadminctl -screenLock` on 26 has NOT made the plist key inert (the live worry when this row was written)
-  "com.apple.menuExtraClock" = "SystemUIServer"; # haus.menuBar.clock — the write is confirmed felt without a logout, but this ENTRY is not independently confirmed, and structurally can't be from a normal rebuild: this domain sits in den's `typedDomainsWritten` unconditionally, so SystemUIServer (and ControlCenter, which is what 26 actually draws the clock from) are killed on every rebuild whether or not any clock option is set. The kill that re-rendered the clock was never provably THIS row's. Isolating it needs a build with those unconditional entries removed, which nobody needs today
-  "com.apple.controlcenter" = "ControlCenter"; # haus.menuBar.controlCenter — first actual write into this domain; restartProcesses has carried "ControlCenter" unused since rice#249. Same non-isolation caveat as the row above — ControlCenter is restarted on every rebuild anyway
+  # "tested-macos-26"` for the entries themselves — and the difference between
+  # the two rows is worth knowing before anyone strengthens either:
+  #
+  #   screensaver  genuinely confirmed. No persistent process, nothing else
+  #                firing on its behalf, and the live worry is answered: Apple
+  #                moving this setting to `sysadminctl -screenLock` on 26 has
+  #                NOT made the plist key inert.
+  #   the other two  NOT confirmed, and structurally can't be by watching a
+  #                rebuild. Both domains sit in den's `typedDomainsWritten`
+  #                UNCONDITIONALLY (only com.apple.universalaccess has a
+  #                `restartDeclaredBy` gate), so SystemUIServer and
+  #                ControlCenter are killed on every rebuild of every machine
+  #                whether or not a clock option is set — and 26 draws the clock
+  #                from ControlCenter. The kill that re-rendered the clock was
+  #                never provably these rows'. The only experiment that isolates
+  #                them is REMOVING the entry and seeing what stops, which
+  #                generalises: an always-fired entry in a table of triggers is
+  #                falsifiable only by deletion.
+  #
+  # Detail in options-roadmap.md §5.6.
+  "com.apple.screensaver" = "none"; # haus.lock — no persistent process to restart; read at next lock
+  "com.apple.menuExtraClock" = "SystemUIServer"; # haus.menuBar.clock
+  "com.apple.controlcenter" = "ControlCenter"; # haus.menuBar.controlCenter — the first actual write into this domain; the old `restartProcesses` list had carried "ControlCenter" unused since rice#249 (that list is gone, #255)
 
   # ---- not written yet — declared ahead of use ------------------------------
   # The day the rice (or a host) writes into this, the warning in den/default.nix
