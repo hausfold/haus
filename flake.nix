@@ -768,6 +768,60 @@
             ) registeredOptionNames
           ) registeredOptionNames;
 
+          # ---- rooms ----------------------------------------------------------
+          # A room is what a person meets; a namespace is how they spell it.
+          # `roomOwners` in the registry maps one to the other, and the rooms
+          # table gives each room its name and sentence. Both halves have to
+          # stay whole: an owner with no room entry renders as a bucket with no
+          # title, and a room with no members is a page about nothing. Neither
+          # fails on its own — the docs just quietly get worse — so they fail
+          # here instead.
+          registeredRooms = builtins.attrNames registry.rooms;
+          usedOwners = nixpkgs.lib.unique (
+            map (namespace: registry.namespaces.${namespace}.owner) registeredNamespaces
+            ++ map (name: registry.exports.${name}.owner) registeredExports
+          );
+          unnamedOwners = builtins.filter (owner: !(builtins.elem owner registeredRooms)) usedOwners;
+          emptyRooms = builtins.filter (
+            room: registry.rooms.${room}.namespaces == [ ] && registry.rooms.${room}.exports == [ ]
+          ) registeredRooms;
+          uneditedRooms = builtins.filter (
+            room:
+            let
+              meta = registry.rooms.${room};
+            in
+            (meta.title or "") == "" || (meta.blurb or "") == ""
+          ) registeredRooms;
+          # The catalogue is the twelve rooms of the product model. The other
+          # two entries exist so every bucket has a title, and they are marked
+          # `kind` rather than being told apart by name in each renderer.
+          miskindedRooms = builtins.filter (
+            room:
+            !(builtins.elem registry.rooms.${room}.kind [
+              "room"
+              "shared"
+              "host"
+            ])
+          ) registeredRooms;
+          # The one way this fails OPEN rather than closed: `ownerOf` answers
+          # `haus` for a namespace nobody put in `roomOwners`, and `haus` IS a
+          # room key, so the rule above sees nothing wrong. A namespace that is
+          # a room's by kind and shared by owner is a namespace someone forgot,
+          # and it would render under "Shared surfaces" with a green check.
+          homelessNamespaces = builtins.filter (
+            namespace:
+            registry.namespaces.${namespace}.kind == "room" && registry.namespaces.${namespace}.owner == "haus"
+          ) registeredNamespaces;
+          # And the fix someone reaches for on meeting that message: naming the
+          # room in `roomOwners` while leaving the namespace in `shared`/`host`.
+          # It evaluates, and produces a namespace labelled shared that renders
+          # inside a room. The two lists have to agree.
+          misclassedNamespaces = builtins.filter (
+            namespace:
+            registry.namespaces.${namespace}.kind != "room"
+            && registry.rooms.${registry.namespaces.${namespace}.owner}.kind == "room"
+          ) registeredNamespaces;
+
           registryFailures =
             nixpkgs.lib.optional (registry.schemaVersion != 1) "unsupported schemaVersion"
             ++ map (x: "unmapped option: ${x}") missingOptions
@@ -781,7 +835,13 @@
             ++ map (x: "duplicate option path in namespace: ${x}") duplicateInventory
             ++ map (x: "unsafe dynamic subtree: ${x}") unsafeDynamicRoots
             ++ map (x: "open attrset has no recursive validator: ${x}") unsafeOpenAttrsets
-            ++ map (x: "desktop-safe parent contains a host-only leaf: ${x}") unsafeParents;
+            ++ map (x: "desktop-safe parent contains a host-only leaf: ${x}") unsafeParents
+            ++ map (x: "owner with no room in the catalogue: ${x}") unnamedOwners
+            ++ map (x: "room with no namespaces and no exports: ${x}") emptyRooms
+            ++ map (x: "room with no title or no blurb: ${x}") uneditedRooms
+            ++ map (x: "room with an unknown kind: ${x}") miskindedRooms
+            ++ map (x: "namespace in no room — add it to roomOwners: ${x}") homelessNamespaces
+            ++ map (x: "namespace owned by a room but listed as shared or host: ${x}") misclassedNamespaces;
 
           # ---- packs ----------------------------------------------------------
           # Three rules about packs that are all invisible until a STRANGER hits
@@ -901,10 +961,7 @@
               oldDrv = exampleDrv { extraModules = pair.old; };
               newDrv = exampleDrv { extraModules = pair.new; };
             in
-            if oldDrv == newDrv then
-              "${name} old == new"
-            else
-              "${name} DIFFER old=${oldDrv} new=${newDrv}";
+            if oldDrv == newDrv then "${name} old == new" else "${name} DIFFER old=${oldDrv} new=${newDrv}";
           compatRows = map compatRow (builtins.attrNames compatPairs);
 
           composedConfig =
