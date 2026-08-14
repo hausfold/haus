@@ -232,6 +232,87 @@ has 'posts AppleDatePreferencesChangedNotification' "$res"
 test -z "$(plan_restarts "$tmp/bare-activate")" \
   || fail "plan_restarts announced restarts for a script that has none"
 
+# ---- what the settings NEED before they can land (§5.12) --------------------
+# The reachability announcement den renders beside the restart calls. Same
+# discipline as above — the parser reads the built script, so what's worth
+# pinning is that it still reads the shape den emits.
+#
+# `has_fda` is redefined per case rather than mocked through a flag, because the
+# whole point of these four lines is that the verdict is the SAME table read
+# crossed with a per-app capability: the fixtures below are one configuration
+# seen from two apps, which is exactly the asymmetry §5.12 exists to make
+# visible. (Redefining it is also what keeps this hermetic — a real read would
+# answer differently on CI's Linux and on a granted Mac.)
+{
+  printf 'echo "haus: needs-full-disk-access com.apple.universalaccess" >&2\n'
+  printf 'echo "haus: writes-but-does-nothing com.apple.Accessibility" >&2\n'
+} >"$tmp/fda-guarded-activate"
+printf 'echo "haus: aborts-without-full-disk-access com.apple.universalaccess" >&2\n' \
+  >"$tmp/fda-unguarded-activate"
+
+eval "real_has_fda() $(declare -f has_fda | tail -n +2)"   # put it back afterwards
+has_fda() { return 1; }
+res="$(plan_permissions "$tmp/fda-guarded-activate" 2>&1)"
+has 'com.apple.universalaccess' "$res"
+has 'will be skipped' "$res"
+has 'writes and changes nothing' "$res"
+res="$(plan_permissions "$tmp/fda-unguarded-activate" 2>&1)"
+has 'would ABORT activation' "$res"
+
+has_fda() { return 0; }
+res="$(plan_permissions "$tmp/fda-guarded-activate" 2>&1)"
+has 'this app has it' "$res"
+lacks 'will be skipped' "$res"
+res="$(plan_permissions "$tmp/fda-unguarded-activate" 2>&1)"
+lacks 'would ABORT activation' "$res"
+
+# The common case: a configuration that declares nothing protected says nothing
+# at all. A permission line on every rebuild of every machine is noise, and
+# noise is what makes the one that matters unreadable.
+test -z "$(plan_permissions "$tmp/bare-activate" 2>&1)" \
+  || fail "plan_permissions announced a grant for a script that needs none"
+
+# ---- the guard the announcement is the front door for -----------------------
+# `guard_unguarded_fda` is what stops the one failure that costs the machine
+# rather than the setting, and its whole history is having asked the wrong
+# question: it used to begin `under_agent || return 0`, which let every non-Claude
+# agent through and refused an FDA-holding Claude pane that was always going to
+# work. So the cases worth pinning are the ones that shape has no answer for —
+# a HUMAN without the grant must be refused, and an agent WITH it must not be.
+# There is deliberately no client/persona input to assert about.
+#
+# `universalaccess_keys` is stubbed because the real one evaluates a darwin
+# system; what's under test is the decision, not the query.
+guard_says() { # <fda: yes|no> <raw keys> [VAR=VAL…] -> "refused" | "proceeded"
+  # `stub_keys`, not `keys`: bash scopes dynamically, and the function under test
+  # declares `local keys` of its own — a stub reading `$keys` would see THAT one,
+  # empty, and every case would come back "proceeded" for the wrong reason.
+  local fda="$1" stub_keys="$2" kv
+  shift 2
+  ( set +e
+    if [ "$fda" = yes ]; then has_fda() { return 0; }; else has_fda() { return 1; }; fi
+    universalaccess_keys() { printf '%s' "$stub_keys"; }
+    for kv in "$@"; do export "${kv?}"; done
+    # One more subshell: the refusal path is `exit 1`, which would take this
+    # whole helper with it rather than becoming a status to report.
+    ( guard_unguarded_fda probe ) >/dev/null 2>&1
+    if [ $? = 0 ]; then echo proceeded; else echo refused; fi
+  )
+}
+
+test "$(guard_says no reduceTransparency)" = refused \
+  || fail "guard let an unguarded universalaccess write through without the grant"
+test "$(guard_says yes reduceTransparency)" = proceeded \
+  || fail "guard refused a rebuild the app could actually complete"
+test "$(guard_says no '')" = proceeded \
+  || fail "guard refused a config that writes nothing TCC-protected"
+test "$(guard_says no reduceTransparency HAUS_FDA_ANYWAY=1)" = proceeded \
+  || fail "guard ignored its escape hatch"
+test "$(guard_says no reduceTransparency HAUS_AGENT_REBUILD=1)" = proceeded \
+  || fail "guard dropped the escape hatch's previous name"
+
+eval "has_fda() $(declare -f real_has_fda | tail -n +2)"
+
 # ---- the worktree it was reading all along ----------------------------------
 # The original bug: `haus plan` run from an agent lane previewed main, silently.
 git init -q "$tmp/cfg"

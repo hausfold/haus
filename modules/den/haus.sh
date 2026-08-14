@@ -262,32 +262,48 @@ heal() { # run "$@"; on the cache-corruption signature, wipe the caches and retr
   return "$rc"
 }
 
-# ---- the agent guard --------------------------------------------------------
-# An agent can drive this CLI — that's the point of the nebelhaus skill, and a
-# declarative machine is exactly the kind an agent may safely reconfigure: the
-# build gates the switch, and a bad switch rolls back atomically.
+# ---- the Full Disk Access guard ---------------------------------------------
+# §5.12 of the workshop's notes/options-roadmap.md, and the sharpest edge in the
+# whole option surface: `system.defaults.universalaccess.*` is TCC-protected, and
+# the write succeeds only if the app RESPONSIBLE for the rebuild holds Full Disk
+# Access. nix-darwin emits it unguarded into an activation script running under
+# `set -e`, two thirds of the way in — so without the grant activation aborts
+# there and skips everything after it, including every launchd daemon and agent
+# the rice installs. The machine comes back with no bar, no tiling, no palette,
+# and a symptom nowhere near its cause.
 #
-# One config shape breaks that promise. `system.defaults.universalaccess.*` is
-# TCC-protected: the write succeeds only if the app RESPONSIBLE for the rebuild
-# holds Full Disk Access. nix-darwin emits it unguarded into an activation
-# script running under `set -e`, two thirds of the way in — so without the grant
-# activation aborts there and skips everything after it, including every launchd
-# daemon and agent the rice installs. The machine comes back with no bar, no
-# tiling, no palette, and a symptom nowhere near its cause.
+# THIS GUARD USED TO ASK THE WRONG QUESTION. It began with `under_agent ||
+# return 0` — refuse an agent, wave a human through — and that is wrong in both
+# directions, which is precisely what "must be impossible to hit by accident"
+# rules out:
 #
-# The grant belongs to the RESPONSIBLE APP, which is why this tests the
-# capability rather than guessing from who's driving: a Claude Code pane running
-# inside a terminal that holds Full Disk Access inherits that grant and can
-# rebuild perfectly well, while the same agent under Claude.app — or a cloud
-# session, or a fresh terminal nobody has granted — cannot. Assuming "agent
-# means no access" would refuse rebuilds that were always going to work; testing
-# the read means we only ever refuse the combination that actually breaks, and
-# hand it back to a human who can run the very same command. Everything else an
-# agent asks for goes straight through.
-
-# Claude Code exports CLAUDECODE=1 into the shells it runs.
-under_agent() { [ -n "${CLAUDECODE:-}" ]; }
-
+#   - It let two of the three clients through. `under_agent` tested CLAUDECODE,
+#     and ⌘A spawns whichever client haus.ai.default names: Codex and OpenCode
+#     set no such variable, so the one config shape that breaks a machine sailed
+#     past the check written to catch it.
+#   - It waved through the human it was protecting. A person in a terminal
+#     nobody has granted FDA to hits the identical abort, and got no warning at
+#     all — while a Claude pane INSIDE an FDA-holding terminal, which was always
+#     going to work, was the case it stopped.
+#
+# The predicate that actually matters names no client and no persona: does this
+# configuration write an unguarded TCC-protected domain, and can this process
+# write it? Agent or human, terminal or .app, the answer is the same one, and
+# it is the same answer the machine is about to give. `has_fda` tests the
+# capability rather than guessing from who's driving — a Claude Code pane inside
+# a terminal that holds the grant inherits it and rebuilds perfectly well, while
+# the same agent under Claude.app, a cloud session, or a fresh terminal cannot.
+#
+# What makes strictness affordable is the other half of §5.12: every key in that
+# domain measured to work now has a guarded `haus.accessibility.*` option, so
+# refusing the raw form never refuses a setting that had no safer way to be
+# said. Before that it would have.
+#
+# `under_agent()` lived here and is gone with the condition it served. Nothing
+# else in this script needs to know who is driving, and leaving a
+# who-is-driving predicate lying about is how the next guard gets written the
+# same wrong way.
+#
 # Full Disk Access, for whichever app is responsible for THIS process. It must
 # be a strict read of a protected file: the containing directory lists fine
 # without the grant, so an `ls`-shaped test reports success on a machine that
@@ -297,8 +313,17 @@ has_fda() {
 }
 
 # The TCC-protected keys this config actually sets, comma-separated (empty when
-# there are none). Only ever called on the guard's slow path, since it costs an
-# evaluation of the darwin system.
+# there are none). It costs an evaluation of the darwin system, so it runs only
+# on the guard's slow path — which, since the guard stopped short-circuiting on
+# "is this an agent", is every `haus rebuild` from an app WITHOUT the grant. On
+# a machine whose terminal holds FDA (the common case, and the one the rice's
+# own install steers you to) it never runs at all. It can't be read out of the
+# built script the way `haus plan`'s verdicts are: the guard has to answer
+# before anything is built.
+#
+# The raw typed opt-ins ONLY — not haus.accessibility's, which reach the same
+# domain through den's guarded writer and cost nothing worse than a skipped
+# setting. This is the list of writes that would take the machine down with them.
 universalaccess_keys() {
   ( cd "$CONSUMER" && nix eval --raw \
       ".#darwinConfigurations.$1.config.system.defaults.universalaccess" \
@@ -306,35 +331,50 @@ universalaccess_keys() {
       2>/dev/null ) || true
 }
 
-guard_agent_rebuild() {
+guard_unguarded_fda() {
   local keys
-  under_agent || return 0
-  [ -n "${HAUS_AGENT_REBUILD:-}" ] && return 0   # escape hatch: the human said go
-  has_fda && return 0                            # this pane can write the domain
+  # Escape hatch: you said go. HAUS_AGENT_REBUILD is the name this had while the
+  # guard was about agents — still honoured, since anything scripted against it
+  # meant exactly this, and a silently-ignored override is the one failure an
+  # escape hatch cannot have.
+  [ -n "${HAUS_FDA_ANYWAY:-}${HAUS_AGENT_REBUILD:-}" ] && return 0
+  has_fda && return 0                            # this app can write the domain
   keys="$(universalaccess_keys "$1")"
   [ -n "$keys" ] || return 0
 
-  warn "refusing to rebuild from an agent session."
+  warn "refusing to rebuild — this config needs Full Disk Access and this app hasn't got it."
   cat >&2 <<EOF
 
   This config sets system.defaults.universalaccess:
 
       $keys
 
-  macOS only lets an app holding Full Disk Access write that domain, and this
-  session doesn't have it. The failure would not be contained: nix-darwin runs
-  the write unguarded partway through activation, so it would abort there and
-  skip every background service the rice installs — the bar, the tiling, the
-  palette.
+  macOS only lets an app holding Full Disk Access write that domain. The failure
+  would not be contained: nix-darwin runs the write unguarded partway through
+  activation, so it would abort there and skip every background service the rice
+  installs — the bar, the tiling, the palette.
 
-  Nothing has been changed. Any edit already made is still on disk. Run the
-  rebuild yourself, from a terminal that holds Full Disk Access:
+  The grant follows the APP, not you and not root, so this is not about who is
+  typing: an agent pane inside a terminal that has it rebuilds fine, and a human
+  in a terminal that hasn't hits this same wall.
 
-      haus rebuild
+  Nothing has been changed. Any edit already made is still on disk. Two ways on:
 
-  For contrast or reduced motion, haus.accessibility.* reaches the useful
-  keys in that domain with a guarded write, and works from anywhere.
-  (Really meant it? HAUS_AGENT_REBUILD=1 haus rebuild.)
+    1. Move those keys to haus.accessibility.* — it reaches every key in that
+       domain MEASURED to take effect, through a guarded write that degrades to
+       "setting skipped" instead of a half-activated Mac, and it rebuilds from
+       anywhere. This is the fix; the option exists for exactly this. (The keys
+       it doesn't reach are the ones nobody has watched work — cursor size and
+       the closeView pair. For those, route 2 is the only route.)
+
+    2. Rebuild from an app that holds the grant (System Settings ▸ Privacy &
+       Security ▸ Full Disk Access — on macOS 26 a stale entry often needs
+       removing and re-adding with (+), then restarting the terminal):
+
+           haus rebuild
+
+  'haus doctor' reports whether this app has it. (Really meant it, and want the
+  abort? HAUS_FDA_ANYWAY=1 haus rebuild.)
 EOF
   exit 1
 }
@@ -933,6 +973,53 @@ plan_restarts() {
   [ -z "$waits" ] || warn "waits for a logout — no live-reload path on macOS 26: ${waits//,/, }"
 }
 
+# The announcement den renders from modules/lib/reachability.nix — read the same
+# way plan_restarts reads the restart map's, out of the BUILT script rather than
+# from a second copy of the table.
+#
+# This is the front door §5.12 asked for. Full Disk Access is the one property
+# that makes byte-identical config behave differently on two machines, and the
+# only honest moment to say so is BEFORE the rebuild: `haus plan` never runs the
+# script it greps, so it can report a grant this app hasn't got without paying
+# for finding out the hard way. Each verdict is a different kind of news, so each
+# gets its own line and its own severity.
+plan_permissions() {
+  local guarded unguarded noop
+  guarded="$(_haus_verdict needs-full-disk-access "$1")"
+  unguarded="$(_haus_verdict aborts-without-full-disk-access "$1")"
+  noop="$(_haus_verdict writes-but-does-nothing "$1")"
+
+  if [ -n "$unguarded" ]; then
+    # The only one that can break the machine rather than the setting, so it
+    # says which way it goes on THIS app rather than describing the hazard in
+    # the abstract. `haus rebuild` refuses this combination outright.
+    if has_fda; then
+      info "needs Full Disk Access, unguarded — this app has it, so it will apply: ${unguarded//,/, }"
+    else
+      bad "would ABORT activation — ${unguarded//,/, } is written unguarded and this app has no Full Disk Access; every service after it would be skipped. Move those keys to haus.accessibility.*, or rebuild from an app that holds the grant."
+    fi
+  fi
+
+  if [ -n "$guarded" ]; then
+    if has_fda; then
+      info "needs Full Disk Access — this app has it: ${guarded//,/, }"
+    else
+      warn "needs Full Disk Access, which this app hasn't got — these settings will be skipped and nothing else is affected: ${guarded//,/, }"
+    fi
+  fi
+
+  [ -z "$noop" ] || warn "writes and changes nothing on macOS 26 — the plist will read back correct anyway: ${noop//,/, }"
+}
+
+# One `haus: <verdict> <domain>…` line out of a built activation script, as a
+# comma-separated list. Shared by plan_permissions and doctor so the grep shape
+# is written once; `|| true` throughout because a configuration with no such
+# line is the common case, not an error, under this script's `set -e`.
+_haus_verdict() {
+  grep -oE "haus: $1 [^\"]+" "$2" 2>/dev/null \
+    | sed -E "s/^haus: $1 //" | tr ' ' '\n' | grep . | LC_ALL=C sort -u | paste -sd, - || true
+}
+
 cmd_plan() {
   local host drvfile drvpath sysfile sys difffile
   host="$(host_name)"
@@ -967,6 +1054,7 @@ cmd_plan() {
   say "settings"
   settings_diff "$sys/activate"
   plan_restarts "$sys/activate"
+  plan_permissions "$sys/activate"
 
   # Everything home-manager writes into $HOME, which is most of the rice and
   # none of the two sections above. See plan_files's header for why neither the
@@ -1211,7 +1299,7 @@ cmd_revert_settings() {
 cmd_rebuild() {
   local host drv sys old gen_before drvfile outfile difffile bt0
   host="$(host_name)"
-  guard_agent_rebuild "$host"
+  guard_unguarded_fda "$host"
 
   old="$(cd /run/current-system 2>/dev/null && pwd -P || true)"
   gen_before="$(current_gen || echo '?')"
@@ -2196,12 +2284,35 @@ cmd_doctor() {
     info "Accessibility — nothing here asks for it yet (pounce is off): open '$pane?Privacy_Accessibility'"
   fi
 
-  # Full Disk Access — reported for the app running THIS command, because that
-  # is the identity `haus rebuild` will write universalaccess keys under.
+  # Full Disk Access — reported for the app running THIS command, because that is
+  # the identity `haus rebuild` writes TCC-protected domains under.
+  #
+  # The grant alone was never the actionable half: on a machine that declares
+  # nothing in a protected domain it costs nothing to lack it, and on one that
+  # declares an UNGUARDED key it costs the whole activation. So this crosses the
+  # capability with what the RUNNING system actually asks for, read out of the
+  # same announcement `haus plan` reads (den renders it from
+  # modules/lib/reachability.nix). A checklist that knows both can say which of
+  # the four combinations you are in instead of leaving you to work it out.
+  local fda_guarded fda_unguarded fda_all
+  fda_guarded="$(_haus_verdict needs-full-disk-access /run/current-system/activate)"
+  fda_unguarded="$(_haus_verdict aborts-without-full-disk-access /run/current-system/activate)"
+  # `paste -sd,` and not `-sd', '`: -d takes a LIST of delimiters and cycles
+  # through it, so a two-character one joins three items as "a,b c". Only one
+  # domain can appear today, which is exactly why this would have gone unseen.
+  fda_all="$(printf '%s\n%s\n' "$fda_unguarded" "$fda_guarded" | tr ',' '\n' | grep . | LC_ALL=C sort -u | paste -sd, - || true)"
   if has_fda; then
-    ok "Full Disk Access — this app has it (system.defaults.universalaccess.* can be written from here)"
+    if [ -n "$fda_all" ]; then
+      ok "Full Disk Access — this app has it, and this config needs it (${fda_all//,/, })"
+    else
+      ok "Full Disk Access — this app has it (nothing in this config needs it today)"
+    fi
+  elif [ -n "$fda_unguarded" ]; then
+    bad "Full Disk Access — this app hasn't got it and this config writes ${fda_unguarded//,/, } UNGUARDED, so 'haus rebuild' refuses rather than half-activate. Move those keys to haus.accessibility.*, or rebuild from an app that holds the grant: open '$pane?Privacy_AllFiles'"
+  elif [ -n "$fda_guarded" ]; then
+    warn "Full Disk Access — this app hasn't got it, so ${fda_guarded//,/, } is skipped on every rebuild from here (nothing else is affected; a rebuild from an app that has it applies them): open '$pane?Privacy_AllFiles'"
   else
-    info "Full Disk Access — this app has none, so system.defaults.universalaccess.* can't be written from here, and 'haus rebuild' will refuse rather than half-activate (haus.accessibility.* is the safe route): open '$pane?Privacy_AllFiles'"
+    info "Full Disk Access — this app has none, and nothing in this config needs it. It is what haus.accessibility.* wants; without it those settings are skipped and nothing else: open '$pane?Privacy_AllFiles'"
   fi
 
   # Automation — the one grant with NO readable state: every API for it prompts,

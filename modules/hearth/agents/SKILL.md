@@ -104,15 +104,28 @@ change with a message naming what it does. Don't push unless asked.
 If `haus rebuild` stops with a Full Disk Access message, **do not work around it
 and do not retry.** The config sets `system.defaults.universalaccess.*`, a
 TCC-protected domain that can only be written by an app holding Full Disk Access.
-That grant belongs to whichever app is responsible for the session — this one
-doesn't have it, though the user's own terminal very likely does. Worse, when the
-write fails it fails mid-activation and aborts the rest, skipping every
-background service the rice installs, with a symptom nowhere near the cause.
+That grant belongs to whichever app is responsible for the process — not to you,
+and not to root. So this is **not** "agents are refused": a human in a terminal
+nobody has granted is refused identically, and a session running inside a
+terminal that HAS the grant is not refused at all. When the write fails it fails
+mid-activation and aborts the rest, skipping every background service the rice
+installs, with a symptom nowhere near the cause. That is what is being prevented.
 
-So: tell the user to run `haus rebuild` themselves in their terminal. The edit is
-already written; nothing is lost. (`haus.accessibility.*` reaches the useful
-keys in that domain without the hazard — prefer it if the goal is contrast or
-motion, and mention that to the user.)
+Two ways on, in this order:
+
+1. **Move those keys to `haus.accessibility.*`.** It reaches every key in that
+   domain measured to take effect — `increaseContrast`,
+   `differentiateWithoutColor`, `reduceMotion`, `reduceTransparency` — through a
+   guarded write, so without the grant you lose that setting and nothing else,
+   and the rebuild runs from anywhere. This is usually the real fix, and it is
+   an edit you can make.
+2. **Only if the key is not one of those four** — cursor size and the closeView
+   pair have no option, because nobody has confirmed they do anything — tell the
+   user to run `haus rebuild` themselves in a terminal that holds the grant. The
+   edit is already written; nothing is lost.
+
+`haus doctor` reports whether this app has the grant; `haus plan` says which
+grant a rebuild wants before it runs.
 
 ## What a rollback does and doesn't undo
 

@@ -7,6 +7,17 @@
 { lib, config, ... }:
 
 let
+  # §5.12's designation table — the same "read the fact, don't retype it" shape
+  # the restart map already has. This file uses it for two things: the list of
+  # keys `haus.accessibility` is allowed to expose (the `effective` class, and
+  # nothing else), and the REACHABILITY paragraph every one of those options
+  # carries, which is generated from the domain's entry rather than pasted.
+  # An option can therefore not describe a reachability it doesn't have.
+  reachability = import ../lib/reachability.nix;
+  a11yDomain = "com.apple.universalaccess";
+  a11yEntry = reachability.${a11yDomain};
+  a11yEffectiveKeys = lib.attrNames (lib.filterAttrs (_: e: e == "effective") a11yEntry.keys);
+
   # One table for the enum and for the path den/default.nix writes — see
   # alert-sounds.nix, the same shape hot-corners.nix uses.
   alertSoundNames = import ./alert-sounds.nix;
@@ -57,13 +68,29 @@ in
 {
   options.haus = {
     # ---- accessibility ----
-    # Deliberately TWO options, not a family. These are the only keys in
-    # com.apple.universalaccess measured to write AND actually take effect on
-    # macOS 26 (verified against NSWorkspace, not just a plist read-back — that
-    # distinction matters: com.apple.Accessibility accepts writes and changes
-    # nothing, and universalaccess's own FontSizeCategory writes without ever
-    # notifying a running app). Everything else in that domain stays a System
-    # Settings job until it's been measured the same way.
+    # ../lib/reachability.nix's `effective` class, one option per key, and
+    # deliberately NOTHING else: these are the keys in com.apple.universalaccess
+    # measured to write AND actually take effect on macOS 26 (verified against
+    # NSWorkspace, not just a plist read-back — that distinction matters:
+    # com.apple.Accessibility accepts writes and changes nothing, and
+    # universalaccess's own FontSizeCategory writes without ever notifying a
+    # running app). Everything else in that domain stays a System Settings job
+    # until it's been measured the same way. The table GENERATES this surface
+    # rather than being checked against it — `lib.genAttrs` over the `effective`
+    # keys — so the two cannot disagree, in either direction: a key promoted to
+    # `effective` with no description here fails at eval saying so, and a
+    # description for a key the table doesn't call effective is refused the same
+    # way. The one thing left by hand is the prose, which is the one thing a
+    # table can't hold.
+    #
+    # It grew from two options to four on purpose, and the reason is a safety
+    # one rather than a completeness one. `reduceMotion` and `reduceTransparency`
+    # are nix-darwin-TYPED, so before this the documented way to set them was
+    # `system.defaults.universalaccess.*` — the unguarded route that aborts
+    # activation partway through on any machine whose rebuilding app lacks Full
+    # Disk Access. Every key that works now has a guarded option, so reaching for
+    # the hazardous form is never the only way to say what you meant, and
+    # `haus rebuild` can refuse it outright (see modules/den/haus.sh's guard).
     accessibility =
       let
         mkA11y =
@@ -78,37 +105,108 @@ in
               null (the default) leaves whatever you have alone — this is a
               personal setting, so the rice never picks a value for you.
 
-              REACHABILITY: `com.apple.universalaccess` is TCC-protected. It writes
-              only when the app that runs the rebuild holds Full Disk Access
-              (System Settings ▸ Privacy & Security ▸ Full Disk Access; on macOS 26
-              a stale grant often needs removing and re-adding with (+)). Without
-              that grant the rice logs a warning and moves on — it does NOT fail
-              the rebuild. Worth knowing: an agent-driven `haus rebuild` runs under
-              a different app than your terminal, so it may skip this while your
-              own rebuild applies it.
+              REACHABILITY — `${a11yDomain}` is TCC-protected, and this is
+              the one property in the whole option surface that can differ
+              between two machines running byte-identical config, so it is worth
+              reading once. The write lands only when the app that runs the
+              rebuild holds Full Disk Access (System Settings ▸ Privacy &
+              Security ▸ Full Disk Access; on macOS 26 a stale grant often needs
+              removing and re-adding with (+), then restarting the terminal).
+              The grant follows the APP, not you and not root — so an
+              agent-driven rebuild in a pane of a terminal that has it works
+              fine, and the same agent under a different app does not.
+
+              Without the grant the rice warns and carries on: you lose this
+              setting and nothing else. That containment is the whole reason
+              `${a11yDomain}` has options here at all — written the
+              other way, through `system.defaults.universalaccess.*`, a missing
+              grant aborts the rest of activation and takes every background
+              service the rice installs with it.
+
+              `haus plan` says up front when a rebuild needs the grant, and
+              `haus doctor`'s Permissions section says whether this app has it.
             '';
           };
+        # Prose only — the key names are the table's, above. Both directions are
+        # errors on purpose: an `effective` key with nothing written about it is
+        # an option nobody could use, and prose for a key the table doesn't back
+        # is a description of a setting that would never be written.
+        descriptions = {
+          increaseContrast = ''
+            macOS's "Increase contrast" — stronger borders and reduced use of
+            colour alone to convey state, across native apps. This is the
+            system-level companion to a high-contrast nebelhaus theme: the theme
+            restyles the tools nebelhaus colours, this reaches everything else.
+          '';
+          differentiateWithoutColor = ''
+            macOS's "Differentiate without colour" — native UI adds shapes and
+            text where it would otherwise rely on hue alone. The setting to pair
+            with a rice built for colour-blind readability.
+          '';
+          reduceTransparency = ''
+            macOS's "Reduce transparency" — the menu bar, Control Center, sheets
+            and sidebars stop sampling what is behind them and go opaque. The
+            setting to reach for if Liquid Glass costs you more legibility than
+            it buys, and it pairs naturally with `increaseContrast`.
+
+            Worth knowing if you run the bar: sill paints its own background, so
+            its pills look the same either way — what changes is the macOS menu
+            bar band behind them, which stops being translucent.
+          '';
+          reduceMotion = ''
+            macOS's "Reduce motion" — Spaces cross-fade instead of sliding,
+            Mission Control and the Dock drop their zoom animations, and window
+            minimise/restore is stripped back.
+
+            BIGGER THAN IT LOOKS, which is why it is here rather than inside
+            `haus.animations`. This is the single flag every browser maps to the
+            `prefers-reduced-motion: reduce` CSS media query, through
+            `NSWorkspace.accessibilityDisplayShouldReduceMotion` — `hausax` reads
+            that exact property, so `hausax | jq .reduceMotion` is how you check
+            it landed. Turning it on rewrites the web: mostly for the better,
+            except on sites whose scroll-reveal animation is what makes the
+            content visible in the first place, which then never appears at all.
+
+            If what you want is a snappier Dock and nothing else,
+            `haus.animations = "fast"` is five plain timing keys in two ordinary
+            domains, moves no accessibility flag, and needs no TCC grant.
+          '';
+        };
+
+        undescribed = builtins.filter (k: !(descriptions ? ${k})) a11yEffectiveKeys;
+        unbacked = builtins.filter (k: !(builtins.elem k a11yEffectiveKeys)) (
+          lib.attrNames descriptions
+        );
       in
-      {
-        increaseContrast = mkA11y ''
-          macOS's "Increase contrast" — stronger borders and reduced use of
-          colour alone to convey state, across native apps. This is the
-          system-level companion to a high-contrast nebelhaus theme: the theme
-          restyles the tools nebelhaus colours, this reaches everything else.
-        '';
-        differentiateWithoutColor = mkA11y ''
-          macOS's "Differentiate without colour" — native UI adds shapes and
-          text where it would otherwise rely on hue alone. The setting to pair
-          with a rice built for colour-blind readability.
-        '';
-      };
+      if undescribed != [ ] then
+        throw ''
+          haus.accessibility: ../lib/reachability.nix marks ${lib.concatStringsSep ", " undescribed}
+          as `effective` in ${a11yDomain}, but this file has no description for it.
+          An option surface is generated from that table — write the prose here and
+          the option appears. (If the key is not actually measured effective, it
+          does not belong in the table.)
+        ''
+      else if unbacked != [ ] then
+        throw ''
+          haus.accessibility: this file describes ${lib.concatStringsSep ", " unbacked},
+          which ../lib/reachability.nix does not mark `effective` in ${a11yDomain}.
+          Only measured-effective keys get options — everything else in that domain
+          either persists unmeasured or writes and lies, and an option is not the
+          place to find out which. Measure it first, then promote it in the table.
+        ''
+      else
+        lib.genAttrs a11yEffectiveKeys (k: mkA11y descriptions.${k});
 
     # ---- animations ----
     # macOS's own motion: five keys that are just numbers and switches in a
     # plist. Deliberately NOT `com.apple.universalaccess reduceMotion`, which is
     # the setting anyone reaches for first and is a much wider blast radius than
     # it looks — the description says why, because that reasoning is the whole
-    # point of the group existing separately.
+    # point of the group existing separately. That switch now HAS an option
+    # (`haus.accessibility.reduceMotion`, §5.12), which changes nothing here:
+    # the point was never that it should be unreachable, it was that these five
+    # timing keys are not it, and reaching one by asking for the other is the
+    # mistake worth making impossible.
     #
     # Default "system" = write nothing, the same policy every other curated
     # macOS settings group follows ("a group is a place to make an opinion
@@ -164,10 +262,13 @@ in
         place, which then never appears at all. These five keys are in two
         entirely different domains and move no accessibility flag — `hausax`
         reads that exact `NSWorkspace` property, so `hausax | jq .reduceMotion`
-        stays `false` with this set to `"fast"` — that's the whole reason this
-        group exists as five curated keys instead of one switch. If you DO want the
-        accessibility switch, that's `System Settings ▸ Accessibility ▸
-        Display`, deliberately not a rice option.
+        stays `false` with this set to `"fast"` (on a machine that hasn't also
+        set `haus.accessibility.reduceMotion`, which is the option that DOES move
+        it) — that's the whole reason this
+        group exists as five curated keys instead of one switch. If you DO want
+        the accessibility switch, it is `haus.accessibility.reduceMotion`: a
+        separate option, in a TCC-protected domain, with that blast radius spelled
+        out on it. Setting both is coherent and neither implies the other.
 
         WHEN YOU'LL FEEL IT. The four Dock keys are live the moment activation
         finishes — nix-darwin restarts the Dock whenever anything in its domain
