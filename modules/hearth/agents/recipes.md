@@ -227,8 +227,13 @@ this session has it; say so rather than retrying.
 
 Never reach past these into raw `system.defaults.universalaccess.*`. That path is
 unguarded upstream: without Full Disk Access it aborts activation partway and
-skips every background service the rice installs. `haus rebuild` refuses to run
-under an agent when the config sets it.
+skips every background service the rice installs. `haus rebuild` refuses outright
+when the config sets it and the current app can't write it — agent or human alike,
+because the grant follows the app and not the person. Every key in that domain
+measured to take effect has a `haus.accessibility.*` option, so the guarded route
+costs nothing worth having; the three it doesn't cover (cursor size, the
+closeView pair) are exactly the ones nobody has confirmed do anything, and they
+need the user's own FDA-holding terminal.
 
 ## "Update everything"
 

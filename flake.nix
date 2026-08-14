@@ -1229,6 +1229,50 @@
             100 -> 1.000000
           '';
 
+          # ---- accessibility-surface -------------------------------------------
+          # modules/lib/reachability.nix names which com.apple.universalaccess
+          # keys are measured to actually take effect, and that one fact has to be
+          # true in three places at once. Two are pinned by construction —
+          # modules/den/options.nix GENERATES haus.accessibility from the table
+          # with `genAttrs` and throws in both directions if the descriptions and
+          # the table disagree — so an option cannot drift from it silently.
+          #
+          # The third can, and this is it. `classify_key` in modules/den/haus.sh
+          # decides how `haus diff`/`haus plan` VERIFY a declared key, and its
+          # `effective` arm is a hand-typed copy of the same names. A shell script
+          # can't import a Nix table, so the copy is unavoidable; what's avoidable
+          # is nobody noticing when it goes stale. A key promoted in the table and
+          # forgotten here would get an option, get written, and then be verified
+          # against the PLIST instead of against NSWorkspace — reintroducing the
+          # exact read-back-looks-fine failure this whole area exists to catch,
+          # inside the checker meant to catch it.
+          #
+          # So: sed the arm out of the script at eval time and diff it, the same
+          # shape `_bench`'s completion uses to stay in step with `bench`. If
+          # `classify_key` is ever reshaped so the marker line is gone, this fails
+          # loudly rather than passing on an empty comparison — the one failure
+          # mode a grep-shaped pin can have.
+          a11yTable = import ./modules/lib/reachability.nix;
+          a11yTableKeys = nixpkgs.lib.sort (a: b: a < b) (
+            nixpkgs.lib.attrNames (
+              nixpkgs.lib.filterAttrs (_: e: e == "effective") a11yTable."com.apple.universalaccess".keys
+            )
+          );
+          a11yArmLine = nixpkgs.lib.findFirst (l: nixpkgs.lib.hasInfix ") echo effective ;;" l) null (
+            nixpkgs.lib.splitString "\n" (builtins.readFile ./modules/den/haus.sh)
+          );
+          a11yShellKeys =
+            if a11yArmLine == null then
+              [ ]
+            else
+              nixpkgs.lib.sort (a: b: a < b) (
+                builtins.filter (s: s != "") (
+                  map (s: nixpkgs.lib.replaceStrings [ " " ] [ "" ] s) (
+                    nixpkgs.lib.splitString "|" (builtins.head (nixpkgs.lib.splitString ")" a11yArmLine))
+                  )
+                )
+              );
+
           expectedKeymapTable = ''
             caps/cmd-space/alt leader=f18 ⇪ caps=yes palette=cmd-space ⌘ Space spotlight=yes nav=alt ⌥ conflicts=0
             alt-space/ctrl-space/ctrl-alt leader=alt-space ⌥␣ caps=no palette=ctrl-space ⌃ Space spotlight=no nav=ctrl-alt ⌃⌥ conflicts=0
@@ -2237,6 +2281,22 @@
           alert-volume = pkgs.runCommand "nebelhaus-alert-volume-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedAlertVolumeTable} \
                     ${pkgs.writeText "actual" (alertVolumeTable + "\n")}
+            touch $out
+          '';
+
+          accessibility-surface = pkgs.runCommand "haus-accessibility-surface-ok" { } ''
+            ${nixpkgs.lib.optionalString (a11yArmLine == null) ''
+              cat >&2 <<'GONE'
+              modules/den/haus.sh's classify_key no longer has a line matching
+              ") echo effective ;;", so this check can't find the copy it exists to
+              pin. Either restore that shape, or replace this check with whatever
+              keeps classify_key's universalaccess arm in step with
+              modules/lib/reachability.nix — do not simply delete it.
+              GONE
+              exit 1''}
+            diff -u ${pkgs.writeText "table" (builtins.concatStringsSep "\n" a11yTableKeys + "\n")} \
+                    ${pkgs.writeText "classify_key" (builtins.concatStringsSep "\n" a11yShellKeys + "\n")} \
+              || { echo >&2; echo "left: modules/lib/reachability.nix's \`effective\` keys · right: classify_key in modules/den/haus.sh" >&2; exit 1; }
             touch $out
           '';
 

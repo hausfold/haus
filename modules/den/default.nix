@@ -30,9 +30,11 @@ let
 
   # The haus.accessibility.* keys the host actually set. Same domain as
   # above, deliberately NOT the same mechanism — see the block that writes them.
-  a11ySet = lib.filterAttrs (_: v: v != null) {
-    inherit (config.haus.accessibility) increaseContrast differentiateWithoutColor;
-  };
+  # Read whole rather than key by key: ../lib/reachability.nix generates that
+  # option set (modules/den/options.nix), so naming its members here would be a
+  # third copy of a list the table already owns, and a key promoted tomorrow
+  # would silently stop being written.
+  a11ySet = lib.filterAttrs (_: v: v != null) config.haus.accessibility;
 
   # haus.animations — one predicate, read by the two domains that carry the
   # group (the Dock's four keys and NSGlobalDomain's one). "system" writes
@@ -112,6 +114,77 @@ let
   logoutDomains = builtins.filter (
     d: builtins.elem "logout" (lib.toList (restartMap.${d} or [ ]))
   ) domainsWritten;
+
+  # ---- reachability map (§5.12) ---------------------------------------------
+  # The other table, over the same `domainsWritten` list: restart-map answers
+  # "what makes this write felt", ../lib/reachability.nix answers "can this write
+  # land, and does it mean anything". An unlisted domain is open and plain, which
+  # is nearly all of them.
+  reachMap = import ../lib/reachability.nix;
+  reachOf = d: reachMap.${d} or { };
+
+  # The keys the guarded route deliberately does NOT reach — read from the table
+  # so the warning below can't claim a coverage it hasn't got. nix-darwin types
+  # three of these, so the raw form genuinely reaches something the options
+  # don't; saying otherwise would be the exact kind of confident-and-wrong
+  # sentence this whole section is about.
+  # Tagged with the table's own verdict rather than lumped together: "persists
+  # but nobody watched it" and "lands in the plist and lies" are different news,
+  # and only the first is worth reaching for the raw form over.
+  a11yUncoveredKeys = lib.concatStringsSep ", " (
+    lib.mapAttrsToList (k: e: "${k} (${e})") (
+      lib.filterAttrs (_: e: e != "effective") reachMap."com.apple.universalaccess".keys
+    )
+  );
+
+  # Which `needs-fda` domains this configuration actually DECLARES into — and,
+  # like the locale notification's trigger a few lines up, it cannot come from the
+  # table, for the same reason: domain membership isn't the question.
+  # `com.apple.universalaccess` sits in `typedDomainsWritten` above so the restart
+  # lookup finds an answer for it, but the rice writes it only when something opts
+  # in, so keying on membership alone would announce a Full Disk Access
+  # requirement on every machine — including the overwhelming majority with no
+  # accessibility opinion at all, which is exactly the "signal that fires always
+  # and therefore says nothing" the logout announcement was careful to avoid.
+  # nix-darwin's attribute names are not its domain names (`universalaccess`,
+  # `menuExtraClock`, `controlcenter`…) and no mapping exists to derive this
+  # from, which is why the typed list above is hand-written too. A domain not
+  # named here falls back to "declared iff a CustomUserPreferences block names
+  # it", which is the only other way one can arrive.
+  fdaDeclaredBy = {
+    "com.apple.universalaccess" = a11ySet != { } || universalaccessSet != [ ];
+  };
+  needsFdaDomains = builtins.filter (
+    d: fdaDeclaredBy.${d} or (builtins.elem d customPrefDomainsWritten)
+  ) (builtins.filter (d: (reachOf d).reachability or "open" == "needs-fda") domainsWritten);
+
+  # The distinction the whole section turns on, and the reason this is two lists
+  # rather than one. Both need the grant; only one of them is dangerous.
+  #
+  #   GUARDED   — the rice writes the domain itself, through a shell writer that
+  #               tolerates a refusal (nebelhausAccessibility, below). No grant
+  #               costs you the setting and nothing else.
+  #   UNGUARDED — the domain reaches activation only through nix-darwin's own
+  #               generator, whose `defaults write` is emitted bare into a script
+  #               running under `set -e`. No grant aborts activation there and
+  #               skips every launchd service after it.
+  #
+  # A domain is unguarded here when the table names no `guardedBy` route for it,
+  # OR when the host reached past that route into `system.defaults.<domain>`
+  # anyway — which is why `universalaccessSet` (the raw typed opt-ins, not
+  # haus.accessibility's) is what decides it for com.apple.universalaccess.
+  # Both lists are announced into the built script, because the reader that
+  # matters most (`haus plan`) never runs it.
+  fdaGuardedDomains = builtins.filter (
+    d: (reachOf d).guardedBy or null != null && !(d == "com.apple.universalaccess" && universalaccessSet != [ ])
+  ) needsFdaDomains;
+  fdaUnguardedDomains = builtins.filter (d: !(builtins.elem d fdaGuardedDomains)) needsFdaDomains;
+
+  # Domains whose writes are known to land and do nothing. Nothing in the rice
+  # writes one; a host's own `haus capture` can, and a plist that reads back
+  # correct on a machine that never moved is the one failure `haus diff` cannot
+  # catch by comparison alone.
+  noopDomains = builtins.filter (d: (reachOf d).effect or null == "noop") domainsWritten;
 
   # The third verb (see ../lib/restart-map.nix): domains whose consumers are
   # every running app rather than one daemon. `hausax post-notification` does
@@ -285,9 +358,34 @@ in
       installs (awake, aerospace, hush-watcher, pounce, sketchybar). If a rebuild
       ever half-completes, this is the first thing to check.
 
-      haus.accessibility.* reaches the two useful keys in this domain
-      (increaseContrast, differentiateWithoutColor) WITHOUT that hazard — it
-      guards the write, so a missing grant costs you the setting and nothing else.
+      haus.accessibility.* reaches every key in this domain MEASURED TO WORK:
+
+          ${lib.concatStringsSep ", " (lib.attrNames options.haus.accessibility)}
+
+      It guards the write, so a missing grant costs you that setting and nothing
+      else — which is why 'haus rebuild' now refuses the raw form outright rather
+      than warning, on any machine whose rebuilding app lacks the grant. Move
+      these across.
+
+      The keys it does NOT cover, and why (modules/lib/reachability.nix):
+
+          ${a11yUncoveredKeys}
+
+      "unconfirmed" persists in the plist with its effect never watched — no
+      oracle exists for it — and "gui-only" is measured to land and change
+      nothing at all. Neither gets an option on purpose. If you want an
+      unconfirmed one anyway, the raw form is the only route: run the rebuild
+      from an app that holds Full Disk Access.
+    ''
+    ++ lib.optional (noopDomains != [ ]) ''
+      nebelhaus: this configuration writes ${lib.concatStringsSep ", " noopDomains}, which is
+      measured to write and change NOTHING (modules/lib/reachability.nix).
+
+      The plist will hold whatever you set and macOS will keep behaving exactly as
+      before — a read-back check reports "applied" either way, which is what makes
+      this worse than a write that fails. If you got here from 'haus capture', the
+      settings you meant are in com.apple.universalaccess, and haus.accessibility.*
+      writes the ones that work.
     ''
     ++ lib.optional (undeclaredDomains != [ ]) ''
       nebelhaus: these plist domains are written but have no entry in
@@ -332,8 +430,9 @@ in
   ];
 
   # ---- haus.accessibility → com.apple.universalaccess -------------------
-  # Writes the two keys in that domain measured to write AND take effect on
-  # macOS 26 (checked against NSWorkspace, not a plist read-back).
+  # Writes whichever keys in that domain are measured to write AND take effect on
+  # macOS 26 — checked against NSWorkspace, not a plist read-back, and enumerated
+  # once in ../lib/reachability.nix, which is also what generates the options.
   #
   # NOT via system.defaults.CustomUserPreferences, which would be the obvious
   # route: that funnels through the exact same generator as the typed options
@@ -483,6 +582,28 @@ in
     # honest thing to say about a domain with no live-reload path on macOS 26.
     (lib.optionalString (logoutDomains != [ ]) ''
       echo "haus: waits-for-logout ${lib.concatStringsSep " " logoutDomains}" >&2
+    '')
+
+    # ---- §5.12: what this rebuild needs a TCC grant for ---------------------
+    # The reachability table's half of the same idea, and the same discipline:
+    # one line per verdict, rendered into the BUILT script, so `haus plan` and
+    # `haus doctor` read what a rebuild actually contains instead of re-deriving
+    # ../lib/reachability.nix a second and third time.
+    #
+    # These lines matter most to a reader who never executes them. Full Disk
+    # Access is the one property that makes byte-identical config behave
+    # differently on two machines — an agent pane and the terminal around it can
+    # disagree — so the honest place to say "this rebuild wants a grant you may
+    # not have" is BEFORE the rebuild, in `haus plan`, which greps this script
+    # without running it. `haus rebuild`'s guard reads the same two verdicts.
+    (lib.optionalString (fdaGuardedDomains != [ ]) ''
+      echo "haus: needs-full-disk-access ${lib.concatStringsSep " " fdaGuardedDomains}" >&2
+    '')
+    (lib.optionalString (fdaUnguardedDomains != [ ]) ''
+      echo "haus: aborts-without-full-disk-access ${lib.concatStringsSep " " fdaUnguardedDomains}" >&2
+    '')
+    (lib.optionalString (noopDomains != [ ]) ''
+      echo "haus: writes-but-does-nothing ${lib.concatStringsSep " " noopDomains}" >&2
     '')
 
     # ---- make the preferences we just wrote LIVE, without a logout ----------

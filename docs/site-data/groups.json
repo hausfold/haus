@@ -126,12 +126,18 @@
     "accessibility": {
       "blurb": "macOS accessibility keys the rice can actually apply. These write to a TCC-protected domain, so they take effect only when the app you run the rebuild from holds Full Disk Access — otherwise the rice warns and moves on.",
       "kind": "room",
-      "optionCount": 2,
+      "optionCount": 4,
       "options": {
         "haus.accessibility.differentiateWithoutColor": {
           "desktopSafe": true
         },
         "haus.accessibility.increaseContrast": {
+          "desktopSafe": true
+        },
+        "haus.accessibility.reduceMotion": {
+          "desktopSafe": true
+        },
+        "haus.accessibility.reduceTransparency": {
           "desktopSafe": true
         }
       },
@@ -1261,7 +1267,7 @@
         "screenshots",
         "sound"
       ],
-      "optionCount": 43,
+      "optionCount": 45,
       "order": 20,
       "title": "Appearance"
     },

@@ -532,9 +532,16 @@ let
           service the rice installs.
 
           So on this host `haus rebuild` checks first, and refuses if this
-          session can't write that domain. If it refuses: make the edit, then
-          ask the user to run `haus rebuild` in their own terminal. `haus doctor`
-          reports whether the grant is present here.
+          session can't write that domain — for anyone, not just an agent, since
+          the grant follows the app rather than the person.
+
+          The fix is usually to move those keys to `haus.accessibility.*`, which
+          reaches every key in that domain measured to work and writes them
+          guarded: a missing grant costs the setting and nothing else, and the
+          rebuild runs from anywhere. Otherwise: make the edit, then ask the user
+          to run `haus rebuild` in their own terminal. `haus doctor` reports
+          whether the grant is present here, and `haus plan` says so before a
+          rebuild rather than after.
         ''
     }
   '';

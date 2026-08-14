@@ -40,6 +40,8 @@ let
     accessibility = [
       "differentiateWithoutColor"
       "increaseContrast"
+      "reduceMotion"
+      "reduceTransparency"
     ];
     ai = [
       "clients"

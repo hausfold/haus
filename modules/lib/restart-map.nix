@@ -93,6 +93,17 @@
   # `hausax`'s NSWorkspace read (`haus diff`/`haus plan`), not by a restart.
   "com.apple.universalaccess" = "none";
 
+  # Nothing here writes this domain and nothing ever should (./reachability.nix
+  # marks it `effect = "noop"` — it accepts writes and moves nothing, measured).
+  # Declared anyway, for the one way it can still arrive: `haus capture` naming
+  # it into a host's own CustomUserPreferences. Without an entry that host got
+  # TWO warnings — the honest "this writes and changes nothing", and den's
+  # undeclared-domain warning telling it to add a restart, which is nonsense
+  # advice for a domain no restart can help. "none" is true here for a reason
+  # this table hasn't needed before: not "it takes effect immediately" but
+  # "there is no effect to wait for".
+  "com.apple.Accessibility" = "none";
+
   # ---- CustomUserPreferences domains actually written today ----------------
   "com.apple.commerce" = "none"; # App Store auto-update pref, read on demand
   "com.apple.desktopservices" = "Finder"; # .DS_Store behaviour; Finder reads it at launch same as its own domain
