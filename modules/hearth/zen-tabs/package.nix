@@ -34,7 +34,7 @@ rec {
     '';
 
     meta = {
-      description = "Native-messaging host publishing Zen's tabs to the rice";
+      description = "Native-messaging host publishing Zen's tabs to haus";
       platforms = lib.platforms.darwin;
       mainProgram = "haustabs";
     };

@@ -173,7 +173,7 @@ in
     message = ''
       haus.zen.extensions.${name} needs an `id` (and a `slug` or `url`).
       Firefox's policy engine matches the extension's OWN id, not its AMO slug,
-      and a wrong or missing one installs nothing without an error — so the rice
+      and a wrong or missing one installs nothing without an error — so haus
       refuses to write a policy it can't tell you is correct. Read the id off
       about:debugging ▸ This Firefox with the add-on installed.
     '';

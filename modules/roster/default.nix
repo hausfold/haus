@@ -220,7 +220,7 @@ in
       message =
         "haus.roster entries set both `package` and `packageName`. They are one "
         + "source written two ways — a derivation for a module that has `pkgs`, a "
-        + "nixpkgs attribute path for a data-only rice that doesn't. Keep one, on: "
+        + "nixpkgs attribute path for a data-only desktop that doesn't. Keep one, on: "
         + lib.concatStringsSep ", " bothPackageFields;
     }
   ];
