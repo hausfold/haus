@@ -46,10 +46,10 @@
       "modules/ai/options.nix"
     ],
     "default": {
-      "_type": "literalMD",
-      "text": "[ \"claude\" \"opencode\" ] when ai.enable is true, else [ ]"
+      "_type": "literalExpression",
+      "text": "[ ]"
     },
-    "description": "Which coding-agent clients to install. `claude` is Claude Code, `codex`\nis OpenAI Codex, `opencode` is OpenCode. The ⌘A terminal binding starts\nwhichever one `ai.default` names — Claude Code through its own\n`--worktree` hook, the others through `holt new`.\n\nA list rather than one bool per client, matching `developer.languages`\n— a fourth client later doesn't change this option's shape.\n\nThis is the option that makes `ai.default` honest. Naming a client\nyou have not installed used to fail *at spawn time*, inside the pane,\nafter the worktree already existed: a flash of\n`codex is unavailable`, and litter to reap. `ai.default` must now\nbe a member of this list, so the same mistake fails the rebuild\ninstead, with both values named.\n\nOverride the package for a client the usual Nix way — an overlay on\n`claude-code`, `codex` or `opencode` — rather than dropping the client\nhere and installing your own copy alongside; two derivations shipping\nthe same `bin/` name collide in one profile.\n",
+    "description": "Which coding-agent clients to install. `claude` is Claude Code, `codex`\nis OpenAI Codex, `opencode` is OpenCode. The ⌘A terminal binding starts\nwhichever one `ai.default` names — Claude Code through its own\n`--worktree` hook, the others through `holt new`.\n\nA list rather than one bool per client, matching `developer.languages`\n— a fourth client later doesn't change this option's shape.\n\nThis is the option that makes `ai.default` honest. Naming a client\nyou have not installed used to fail *at spawn time*, inside the pane,\nafter the worktree already existed: a flash of\n`codex is unavailable`, and litter to reap. `ai.default` must now\nbe a member of this list, so the same mistake fails the rebuild\ninstead, with both values named.\n\nOverride the package for a client the usual Nix way — an overlay on\n`claude-code`, `codex` or `opencode` — rather than dropping the client\nhere and installing your own copy alongside; two derivations shipping\nthe same `bin/` name collide in one profile.\n\nIgnored entirely when `ai.enable` is off — see `haus._ai.clients`, the\nresolved list every room actually installs from. Before step 4 this was\nan assertion instead (\"clients are set but the room is off\"), which was\nright while the list defaulted from the room's own switch and wrong\nafterwards: a desktop names the clients, so a host turning the room off\nwould have had to blank the desktop's list as well to get a rebuild at\nall. One switch now removes the room, which is what \"clean removal when\ndisabled\" means.\n",
     "example": {
       "_type": "literalExpression",
       "text": "[\n  \"claude\"\n  \"codex\"\n]"
@@ -89,9 +89,9 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "config.haus.developer.enable"
+      "text": "false"
     },
-    "description": "The AI room: coding-agent *tooling*. `holt` (agent worktrees),\n`agent-state` (the pane-status writer behind the `agents` bar pill and\nthe zellij tab badge), the agent-worktree statusline, and the client\nconfig hearth writes (Claude Code's settings.json keys, opencode's\nagent-state plugin). Which clients get installed is `ai.clients`.\n\nOn, this room brings its clients, `holt` and the lifecycle wiring on its\nown. What it adds to OTHER rooms it adds only when they are present: the\n⌘A terminal binds and the `c` alias arrive with the terminal, the\n`agents` pill with the bar, the agent commands with the launcher. None\nof those rooms is switched on by turning this one on.\n\nOff is right for any machine not running coding agents — it's a large\nsurface a non-developer never sees. It also empties `ai.clients`,\nsince a client with no `holt` to park it is not the deal on offer.\n\nWas `haus.developer.agents.enable`, and the rest of this namespace was\n`haus.agents.*`, until 2026-08-13. Neither spelling is aliased — see\nmodules/moved.nix for why.\n",
+    "description": "The AI room: coding-agent *tooling*. `holt` (agent worktrees),\n`agent-state` (the pane-status writer behind the `agents` bar pill and\nthe zellij tab badge), the agent-worktree statusline, and the client\nconfig hearth writes (Claude Code's settings.json keys, opencode's\nagent-state plugin). Which clients get installed is `ai.clients`.\n\nOn, this room brings its clients, `holt` and the lifecycle wiring on its\nown. What it adds to OTHER rooms it adds only when they are present: the\n⌘A terminal binds and the `c` alias arrive with the terminal, the\n`agents` pill with the bar, the agent commands with the launcher. None\nof those rooms is switched on by turning this one on.\n\nOff is right for any machine not running coding agents — it's a large\nsurface a non-developer never sees. The neutral default installs no\nclients; a desktop that selects this room names both `ai.clients` and\n`ai.default`.\n\nWas `haus.developer.agents.enable`, and the rest of this namespace was\n`haus.agents.*`, until 2026-08-13. Neither spelling is aliased — see\nmodules/moved.nix for why.\n",
     "loc": [
       "haus",
       "ai",
@@ -199,9 +199,9 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "true"
+      "text": "false"
     },
-    "description": "Install IINA — the rice's video player — as the roster entry `iina`.\nA nixpkgs build, so it lands in ~/Applications/Home Manager Apps\nrather than /Applications.\n\nOn by default: macOS ships QuickTime Player, which refuses most of\nwhat you actually double-click (mkv, webm, and anything not in\nApple's codec list), so \"a video player that plays videos\" is part\nof what the rice considers a finished machine.\n\nSet false and nothing is installed or rebound — bring your own\nplayer via the pounce \"Install App\" palette command or a roster\nentry. Once on it is a roster entry like any other: give it a leader\nletter with `haus.roster.iina.key`, or pin a different build\nwith `haus.roster.iina.package`.\n",
+    "description": "Install IINA — the rice's video player — as the roster entry `iina`.\nA nixpkgs build, so it lands in ~/Applications/Home Manager Apps\nrather than /Applications.\n\nThe nebelhaus desktop turns this on, because macOS ships QuickTime\nPlayer, which refuses most of what you actually double-click (mkv,\nwebm, and anything not in Apple's codec list) — so \"a video player\nthat plays videos\" is part of what that desktop considers a finished\nmachine. The bare layer installs nothing you didn't ask for.\n\nSet false and nothing is installed or rebound — bring your own\nplayer via the pounce \"Install App\" palette command or a roster\nentry. Once on it is a roster entry like any other: give it a leader\nletter with `haus.roster.iina.key`, or pin a different build\nwith `haus.roster.iina.package`.\n",
     "loc": [
       "haus",
       "apps",
@@ -217,7 +217,7 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "true"
+      "text": "false"
     },
     "description": "The collar room: Touch ID for `sudo`, with `reattach` — the PAM shim\nthat keeps the prompt working when sudo runs inside a terminal\nmultiplexer (tmux/zellij/screen), where it otherwise beachballs.\n\nOff means macOS's stock password prompt everywhere, including for the\nrebuild below. Nothing else in the rice depends on it.\n",
     "loc": [
@@ -234,7 +234,7 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "true"
+      "text": "false"
     },
     "description": "Exempt system activation from authenticating at all: a sudoers rule\ngranting NOPASSWD to `darwin-rebuild` and `haus-activate` at their\nstable /run/current-system paths. This is what makes `haus rebuild`,\n`haus rollback` and `bench try switch` a single uninterrupted command\nrather than one that stops for a fingerprint you already gave.\n\nHonest scope: this is a real root grant, and both commands take a path\nor flake ref you choose — so it means \"anything I can build, I can\nactivate as root, unprompted\". That is the whole point (you already\nauthenticated to build it), but on a shared or managed machine it's the\nknob to turn off. With it off, activation prompts via Touch ID (or a\npassword when `enable` is false) and nothing else changes.\n",
     "loc": [
@@ -251,12 +251,12 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "true"
+      "text": "false"
     },
-    "description": "The developer pack: the CLI toolbelt, Git tooling and language\nruntimes. On (the default) is the rice as it has always been.\n\nCoding agents left this pack on 2026-08-13 and are their own room\nnow (`haus.ai.*`). Its switch still DEFAULTS to this one, so\nturning the pack off still takes the agents with it — but the two\nare separable, which they were not before.\n\n`false` is what makes a non-developer nebelhaus possible — it strips\nthose tools rather than merely hiding them. What remains is the\nproduct: `haus`, `awake`, the theme, the terminal, the bar, the tiler\nand the palette.\n\nThe sub-options below — and `haus.ai.enable`, next door — each\ndefault to THIS value, so turning it off turns everything off and you\ncan then re-enable one piece:\n\n  haus.developer.enable = false;\n  haus.developer.git.enable = true;  # …but keep git\n",
+    "description": "The Development room: the CLI toolbelt, Git tooling and language\nruntimes. The neutral catalogue leaves it off; nebelhaus selects it\nin its desktop.\n\nCoding agents left this pack on 2026-08-13 and are their own room\nnow (`haus.ai.*`). The two rooms are independent: a desktop or host\nselects each one explicitly.\n\n`false` is what makes a non-developer nebelhaus possible — it strips\nthose tools rather than merely hiding them. What remains is the\nproduct: `haus`, `awake`, the theme, the terminal, the bar, the tiler\nand the palette.\n\nThe Git and toolbelt sub-options below default to this value, so a\nhost can turn the room on and then remove one piece:\n\n  haus.developer.enable = true;\n  haus.developer.git.enable = false;  # …but leave Git tooling out\n",
     "example": {
       "_type": "literalExpression",
-      "text": "false"
+      "text": "true"
     },
     "loc": [
       "haus",
@@ -289,8 +289,8 @@
       "modules/options.nix"
     ],
     "default": {
-      "_type": "literalMD",
-      "text": "[ \"node\" ] when developer.enable is true, else [ ]"
+      "_type": "literalExpression",
+      "text": "[ ]"
     },
     "description": "Language runtimes to install. Currently only \"node\" (bun + fnm, with\nfnm's `--use-on-cd` shell hook).\n\nDeliberately a list rather than one bool per language, so adding\n\"rust\" or \"python\" later doesn't change this option's shape.\n",
     "example": {
@@ -365,6 +365,28 @@
     "readOnly": false,
     "type": "null or one of \"more-space\", \"default\", \"larger-text\", \"largest-text\""
   },
+  "haus.fonts.mono.baseSize": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "13"
+    },
+    "description": "The terminal-font baseline, before `haus.ui.scale` multiplies it.\nThe neutral room uses 13pt; nebelhaus selects 19pt in its desktop.\n\nThis exists so a desktop can carry that tuned baseline WITHOUT\nbreaking the scale relationship. Setting `size` directly pins an\nabsolute number, which would make `haus.ui.scale` (and the\nlarge-print preset built on it) stop moving the terminal font at\nall — a silent regression, since everything else would still grow.\nSay the baseline here; say the exception with `size`.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "19"
+    },
+    "loc": [
+      "haus",
+      "fonts",
+      "mono",
+      "baseSize"
+    ],
+    "readOnly": false,
+    "type": "positive integer, meaning >0"
+  },
   "haus.fonts.mono.name": {
     "declarations": [
       "modules/den/options.nix"
@@ -437,9 +459,9 @@
     ],
     "default": {
       "_type": "literalMD",
-      "text": "19, scaled by haus.ui.scale"
+      "text": "fonts.mono.baseSize, scaled by haus.ui.scale and rounded"
     },
-    "description": "Terminal font size in points. The single most useful knob for a\nlarger-text machine, since it moves everything the rice actually\nlives in.\n\n19 (at ui.scale = 1.0) is the base for a reason worth knowing: the Ghostty window is\ntiled to a fixed pixel height by prowl, and sizes that don't divide\nthat height evenly used to leave a gap under zellij's status bar.\nThat's since been fixed properly (window-padding-balance +\n`extend-always`), so any size is safe now — 19 is simply the tuned\nstarting point.\n",
+    "description": "Terminal font size in points. The single most useful knob for a\nlarger-text machine, since it moves everything the rice actually\nlives in.\n\nnebelhaus's 19pt baseline exists for a reason worth knowing: the Ghostty window is\ntiled to a fixed pixel height by prowl, and sizes that don't divide\nthat height evenly used to leave a gap under zellij's status bar.\nThat's since been fixed properly (window-padding-balance +\n`extend-always`), so any size is safe now — 19 is simply the tuned\nstarting point.\n",
     "example": {
       "_type": "literalExpression",
       "text": "24"
@@ -566,7 +588,7 @@
       "_type": "literalExpression",
       "text": "\"hx\""
     },
-    "description": "The ONE editor the rice uses everywhere. It's the shell command for\n$EDITOR / $VISUAL (git, etc.) AND what every \"open in an editor\" action\nlaunches — the \"Nix Config\" palette command, the bar's nix-open item,\nand the file-association hijack. Those open the target in a new zellij\ntab running this command, so a terminal editor (hx, nvim, vim, nano) is\nthe natural fit for the rice; a GUI editor's CLI works too (e.g. \"code\"\nor \"code -w\" to block).\n",
+    "description": "The ONE editor the rice uses everywhere. It's the shell command for\n$EDITOR / $VISUAL (git, etc.) AND what every \"open in an editor\" action\nlaunches — the \"Nix Config\" palette command, the bar's nix-open item,\nand the file-association hijack. Those open the target in a new zellij\ntab running this command, so a terminal editor (hx, nvim, vim, nano) is\nthe natural fit for the rice; a GUI editor's CLI works too (e.g. \"code\"\nor \"code -w\" to block).\n\nThe rice installs helix, which is why the default is `hx`. Naming\nanything else here assumes that editor is already on the machine — this\noption points at an editor, it does not install one.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"nvim\""
@@ -835,7 +857,7 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "true"
+      "text": "false"
     },
     "description": "The hush room: one quiet switch — bar pill, palette command, and a\n`hush` CLI — that turns macOS Do Not Disturb on/off (via the\ndeclaratively-bound symbolic hotkey 175, pressed synthetically),\noptionally sets your Slack status, and runs your hooks.\n\nHonest scope: hush flips the built-in Do Not Disturb, not named Focus\nmodes, and it doesn't manage which apps break through — curate that\nonce in System Settings. The keypress needs an Accessibility grant on\nwhatever app invokes hush (palette runs inherit pounce's; grant\nsketchybar once for the pill). `hush doctor` walks the one-time steps.\n",
     "loc": [
@@ -967,7 +989,7 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "\"caps\""
+      "text": "\"none\""
     },
     "description": "What enters the launcher/leader mode — tap it, then a letter opens an\napp, a digit focuses a workspace, ⇧+either throws the focused window\nto that workspace and follows it there, an arrow navigates, `-`/`=`\nresizes.\n\n  - \"caps\" (default): Caps Lock. AeroSpace can't bind Caps Lock itself,\n    so the rice remaps it to F18 with hidutil and binds that.\n  - \"alt-space\": the leader without giving up Caps Lock. No remap at all.\n  - \"none\": no leader. Caps Lock stays Caps Lock, launch mode is\n    unreachable, and nothing is remapped — the setting for a mouse-first\n    rice, or for a Mac you are handing to someone else. What the leader\n    fronted is still reachable: apps through the palette, window moves\n    through service mode's join-with and the palette's own commands.\n    Workspace focus and the workspace throws go away with it — they\n    live only in launch mode.\n\nThe remap is re-applied at every activation and does not survive a\nreboot, so moving off \"caps\" ends it — at the latest, at next boot.\n\nOnly meaningful with haus.prowl.enable (AeroSpace owns the modes).\n",
     "example": {
@@ -1070,7 +1092,7 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "\"cmd-space\""
+      "text": "\"none\""
     },
     "description": "What opens the pounce command palette. Registered in-process by the\ndaemon, so it's near-instant and doesn't go through AeroSpace.\n\n\"cmd-space\" (default) is the one value that also DISABLES Spotlight's\nown ⌘Space, because the two can't share it. Every other value leaves\nSpotlight alone — including \"none\", which hands the palette's job back\nto Spotlight entirely. That's a fix as much as an option: the rice used\nto take Spotlight's ⌘Space away unconditionally, even where nothing\nclaimed it.\n\nOnly meaningful with haus.pounce.enable.\n",
     "example": {
@@ -1091,7 +1113,7 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "\"alt\""
+      "text": "\"none\""
     },
     "description": "The modifier vocabulary for prowl's window chords — one setting rather\nthan a bind-per-action, because what people need to move is the\nmodifier, not the letters. It drives focus (`<mod>` + hjkl), layouts\n(`<mod>` + `/` `,`), fullscreen, moving a workspace to the next\nmonitor (`<mod>⇧⇥`), and entering service mode\n(`<mod>⇧;`). Anything that names a workspace — focusing one, or\nthrowing the focused window there — hangs off `leader` instead, not\nthis option.\n\n\"alt\" (default) is ⌥. The alternatives are for **non-US keyboard\nlayouts**, where ⌥+letter types accented characters — a rice that owns\n⌥+letter is unusable on those, which is the concrete reason this option\nexists.\n\nWhatever you pick, AeroSpace claims those chords **globally**, so they\nstop reaching whatever owned them inside a terminal. The surface is\nsmall now that the workspace throws moved to the leader: only hjkl,\n`/` `,`, `f`, `⇧⇥` and `⇧;`, none of which a roster letter can land\non — and `<mod>⇥` is free again, since workspace back-and-forth\nretired in favour of pounce's cross-workspace ⌘⇥ switcher. (Under\n\"ctrl-alt\" that used to bite — the throws were `⌃⌥⇧` + an app's roster\nletter, so an app on `a` silently ate hearth's zellij\n`Ctrl Alt Shift a` in-place-agent bind. That collision is gone.)\nNothing on a stock macOS collides either: the only ⌃⌥ system hotkeys\nare input-source switching (⌃⌥Space, off by default) and hyper-F13.\n\n\"none\" drops the modifier chords entirely: no focus/layout chords, no\nservice mode. Combined with `leader = \"none\"` that's a rice where the\ntiler tiles and the keyboard is left alone — mouse-first. The cheatsheet\nfollows, so it never advertises a key that does nothing.\n\nOnly meaningful with haus.prowl.enable.\n",
     "example": {
@@ -1544,7 +1566,7 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "true"
+      "text": "false"
     },
     "description": "The perch notch file shelf, installed via the perch flake (copied to /Applications).",
     "loc": [
@@ -1640,7 +1662,7 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "true"
+      "text": "false"
     },
     "description": "The pounce command palette daemon (⌘Space) + its rice commands.",
     "loc": [
@@ -2035,7 +2057,7 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "true"
+      "text": "false"
     },
     "description": "AeroSpace tiling window management + the leader-key launcher.\n\nThis is the room switch: off drops AeroSpace, its launch agent, the\nwake-time window re-sort and the key remap entirely. To keep the tiler but\nleave the keyboard alone, use haus.keys.leader = \"none\" and\nhaus.keys.windowNav = \"none\" instead of turning the room off.\n",
     "loc": [
@@ -3259,7 +3281,7 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "true"
+      "text": "false"
     },
     "description": "The SketchyBar menu bar. When off, the native macOS menu bar is kept\n(nebelhaus stops hiding it) and no bar is drawn.\n",
     "loc": [
@@ -3591,7 +3613,7 @@
       "_type": "literalExpression",
       "text": "true"
     },
-    "description": "What the logo pill does when clicked:\n\n| gesture | what it opens |\n|---|---|\n| left click | the **haus menu** — System Settings, Activity Monitor, Lock Screen, Nix Config, Haus Settings, Rebuild System, Reload SketchyBar |\n| ⌘ left click | `haus rebuild`, straight into a floating terminal |\n| right click | the full pounce palette (⌘Space), which is what a bare click on this pill used to do |\n\nAll three are drawn by **pounce**, so all three need\n`haus.pounce.enable` (on by default). With pounce off they are silent\nno-ops and this option is the switch that says so out loud — turn it off\nand the pill stops responding to clicks entirely, rather than looking\nlike an affordance that does nothing.\n\nThe menu's rows are not reimplemented here: each one runs the palette\ncommand of the same name, so fixing one fixes both places. That is the\nwhole reason the popup dropdown this replaces is gone — it was a second\ncopy of five of these rows, and (having never been openable at all) a\nsecond copy nobody could check.\n",
+    "description": "What the logo pill does when clicked:\n\n| gesture | what it opens |\n|---|---|\n| left click | the **haus menu** — System Settings, Activity Monitor, Lock Screen, Nix Config, Haus Settings, Rebuild System, Reload SketchyBar |\n| ⌘ left click | `haus rebuild`, straight into a floating terminal |\n| right click | the full pounce palette (⌘Space), which is what a bare click on this pill used to do |\n\nAll three are drawn by **pounce**, so all three need\n`haus.pounce.enable` (which the nebelhaus desktop turns on). With pounce\noff they are silent no-ops and this option is the switch that says so out\nloud — turn it off and the pill stops responding to clicks entirely,\nrather than looking like an affordance that does nothing.\n\nThe menu's rows are not reimplemented here: each one runs the palette\ncommand of the same name, so fixing one fixes both places. That is the\nwhole reason the popup dropdown this replaces is gone — it was a second\ncopy of five of these rows, and (having never been openable at all) a\nsecond copy nobody could check.\n",
     "loc": [
       "haus",
       "sill",
@@ -4062,7 +4084,7 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "true"
+      "text": "false"
     },
     "description": "Theme the apps in your roster (`haus.roster`) that Nebelung ships a\nport for, without wiring each one by hand.\n\nThe rice already themes every tool it installs itself — the shell, the\nterminal, the git stack, Zen, Obsidian. This covers the other direction:\nan app YOU added to the roster that Nebelung happens to have a theme for.\nAdd `zed`, `warp` or `xcode` to `haus.roster` and its Nebelung theme\nlands where that app looks for themes, in the flavor and contrast you\nselected, following them on every rebuild. Matching is by roster id, so\nthe entry has to be named after the port (`zed`, not `zed-editor`).\n\nHonest scope, and it is the whole point of the option: this drops the\ntheme FILE. Whether that alone makes the theme *active* is the app's\nchoice, not ours, and Nebelung records which is which per port. Ghostty\nreads a config key we own, so it just works. Xcode, Warp, OBS and friends\noffer no file interface for picking a theme — the file is put where they\nlook, and the one click that selects it stays yours. `haus doctor` lists\nexactly which apps are waiting on that click, so the difference is\nvisible rather than something you discover months later.\n\nPorts whose install is a merge into an existing config file, or that need\na compile step first, are reported but never written: silently\nhalf-applying someone's config is worse than saying so.\n",
     "loc": [
@@ -4101,7 +4123,7 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "true"
+      "text": "false"
     },
     "description": "The haus tour — a first-run tutor that walks the four moves (launch /\nnavigate / resize / palette) as ONE quiet pill in the bar, advancing\nlive as each move is detected. It never opens a window or steals\nfocus: a fresh machine just shows a dormant \"new here?\" hint, clicking\nit (or `haus tour`, or ⌘Space → tour) starts the lap, right-click\nhides it forever. Detection reuses signals the rice already fires (the\nleader-mode scripts) — no key logging, no Accessibility.\n\nNeeds prowl + sill (it silently stays out of the bar without them);\nthe ⌘Space step is dropped when pounce is off. Progress lives in\n~/.local/state/nebelhaus — `haus tour reset` re-arms a finished tour.\n",
     "loc": [
@@ -4582,12 +4604,12 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "\"minimal\""
+      "text": "\"none\""
     },
-    "description": "Which desktop this machine wears, set at each home-manager activation\n(osascript, every desktop on the current Space).\n\n  minimal        GENERATED here — a flat field in your palette, the\n                 haus mark ⌂ at its centre, and nothing else. The one\n                 haus-themed look, and the one every option below tunes.\n  orbits         hand-made Nebelung PNGs, the palette baked into their\n  constellation  pixels — they do not follow haus.theme.flavor.\n  flow\n  bold           generated from haus.theme.accent alone (a diagonal\n                 accent→crust sweep), which predates `minimal`.\n\nThe default is `minimal`, so a machine that says nothing about its\ndesktop wears the haus one. That is a change of mind: this defaulted to\n\"none\" while the generated look was new, on the grounds that the desktop\nis visible and personal. It is — but a rice whose own desktop is opt-in\nships looking like nothing in particular, and `minimal` is drawn from\nthe palette, accent and gaps this machine already chose, so it is the\none look that can't clash with the rest of the install.\n\n\"none\" is the way back, and it is a real value rather than an absence:\nset it and nothing here runs, leaving whatever wallpaper you already\nhave exactly where it was (the bootstrap interview still offers the\nchoice, and writes this line when you take it).\n",
+    "description": "Which desktop this machine wears, set at each home-manager activation\n(osascript, every desktop on the current Space).\n\n  minimal        GENERATED here — a flat field in your palette, the\n                 haus mark ⌂ at its centre, and nothing else. The one\n                 haus-themed look, and the one every option below tunes.\n  orbits         hand-made Nebelung PNGs, the palette baked into their\n  constellation  pixels — they do not follow haus.theme.flavor.\n  flow\n  bold           generated from haus.theme.accent alone (a diagonal\n                 accent→crust sweep), which predates `minimal`.\n\nThe default is `none`, and it is a real value rather than an absence:\nnothing here runs and whatever wallpaper you already have stays exactly\nwhere it was. Replacing someone's desktop picture is the most visible\nthing this layer can do, so the bare room does not do it uninvited — a\nDESKTOP says which look it wants, and nebelhaus picks `minimal`.\n\nThat is the second change of mind on this option, and the reasoning\nsurvives both: `minimal` was made the default so a rice wouldn't ship\nlooking like nothing in particular, which is still true of nebelhaus\nand is why its desktop sets it. What changed is that a desktop is now\nthe thing making that choice, rather than every install of the layer.\n\nEvery option below tunes `minimal`, and all of them keep their tuned\nvalues — the choice being opt-in is not a reason for the look to be\nworse once chosen.\n",
     "example": {
       "_type": "literalExpression",
-      "text": "\"none\""
+      "text": "\"minimal\""
     },
     "loc": [
       "haus",

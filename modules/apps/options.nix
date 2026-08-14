@@ -12,16 +12,17 @@
     videoPlayer = {
       enable = lib.mkOption {
         type = lib.types.bool;
-        default = true;
+        default = false;
         description = ''
           Install IINA — the rice's video player — as the roster entry `iina`.
           A nixpkgs build, so it lands in ~/Applications/Home Manager Apps
           rather than /Applications.
 
-          On by default: macOS ships QuickTime Player, which refuses most of
-          what you actually double-click (mkv, webm, and anything not in
-          Apple's codec list), so "a video player that plays videos" is part
-          of what the rice considers a finished machine.
+          The nebelhaus desktop turns this on, because macOS ships QuickTime
+          Player, which refuses most of what you actually double-click (mkv,
+          webm, and anything not in Apple's codec list) — so "a video player
+          that plays videos" is part of what that desktop considers a finished
+          machine. The bare layer installs nothing you didn't ask for.
 
           Set false and nothing is installed or rebound — bring your own
           player via the pounce "Install App" palette command or a roster
@@ -33,6 +34,10 @@
 
       claimFileTypes = lib.mkOption {
         type = lib.types.bool;
+        # In-room taste: it is ignored unless the player is installed, so it
+        # only ever acts on a machine that already asked for IINA. Installing a
+        # video player that doesn't open videos is the useless-when-enabled
+        # shape the room contract rules out.
         default = true;
         description = ''
           Make IINA the default handler for the everyday video extensions —

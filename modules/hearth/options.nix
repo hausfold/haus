@@ -145,6 +145,15 @@ in
 
     hearth.editor = lib.mkOption {
       type = lib.types.str;
+      # NOT carved out into the desktop, though the inventory lists it as a
+      # nebelhaus opinion. Two reasons, and the second is the load-bearing one:
+      # this leaf is host-only (it is executed as a shell command), and the
+      # layer INSTALLS helix unconditionally, so `hx` is what the terminal room
+      # actually ships rather than a preference laid over it. A desktop-safe
+      # enum was tried and removed: every value in it other than `hx` names an
+      # editor nothing installs, which is a broken $EDITOR dressed as a choice.
+      # Making this genuinely selectable means letting a desktop choose which
+      # editor is INSTALLED, which is step 5's vocabulary work, not step 4's.
       default = "hx";
       example = "nvim";
       description = ''
@@ -155,6 +164,10 @@ in
         tab running this command, so a terminal editor (hx, nvim, vim, nano) is
         the natural fit for the rice; a GUI editor's CLI works too (e.g. "code"
         or "code -w" to block).
+
+        The rice installs helix, which is why the default is `hx`. Naming
+        anything else here assumes that editor is already on the machine — this
+        option points at an editor, it does not install one.
       '';
     };
 
@@ -204,6 +217,10 @@ in
 
     hearth.zellijStartLocked = lib.mkOption {
       type = lib.types.bool;
+      # In-room taste: it only describes how the multiplexer this room already
+      # ships behaves once you are in it. Kept out of the desktop for the same
+      # reason `hearth.editor` is — the terminal is part of the layer here, not
+      # something a desktop switches on.
       default = true;
       description = ''
         When true (the default), zellij boots into Locked input mode instead of
@@ -221,6 +238,8 @@ in
 
     hearth.rightClickFullscreen = lib.mkOption {
       type = lib.types.bool;
+      # Same as zellijStartLocked above: in-room behaviour of a terminal the
+      # layer installs unconditionally.
       default = true;
       description = ''
         When true (the default), a bare right-click on any pane zooms it
@@ -246,6 +265,9 @@ in
         ]
         ++ accentNames
       );
+      # Follows haus.theme.accent, so it is already whatever the desktop chose
+      # — neutralising it to "off" would make the bare room worse without
+      # making it less opinionated.
       default = "accent";
       example = "grey";
       description = ''

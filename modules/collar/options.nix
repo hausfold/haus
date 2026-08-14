@@ -10,7 +10,7 @@
   options.haus = {
     collar.enable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = ''
         The collar room: Touch ID for `sudo`, with `reattach` — the PAM shim
         that keeps the prompt working when sudo runs inside a terminal
@@ -23,7 +23,11 @@
 
     collar.passwordlessRebuild = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      # NOT in-room taste, despite reading like it: this is an ungated root
+      # grant (modules/collar/default.nix writes the sudoers drop-in whatever
+      # `collar.enable` says), so the bare layer must not hand it out. A
+      # desktop asks for it explicitly; nebelhaus does.
+      default = false;
       description = ''
         Exempt system activation from authenticating at all: a sudoers rule
         granting NOPASSWD to `darwin-rebuild` and `haus-activate` at their

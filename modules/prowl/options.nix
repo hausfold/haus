@@ -25,7 +25,7 @@
     # hausfold.co#23's fact-check pass. Don't put it back.
     prowl.enable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = ''
         AeroSpace tiling window management + the leader-key launcher.
 

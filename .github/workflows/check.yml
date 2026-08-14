@@ -22,15 +22,19 @@ jobs:
       # example left to eval (see flake.nix `allSystems`).
       - run: nix eval .#darwinConfigurations.example.system.drvPath
       # The platform-independent checks are declared for Linux too precisely so
-      # they can run HERE — eight of them now: theme-variants and keymap pin the
+      # they can run HERE — nine of them now: theme-variants and keymap pin the
       # flavor/contrast → themes-subdir and keys.* → chord/glyph tables,
       # alert-volume pins the beep-volume ladder, data-only-surface fails on a
       # package-typed option a data-only rice cannot set, packs /
       # preset-composition pin what happens when two rices MEET (a pack against
-      # a host, every pair of the presets), and site-data-current pins
-      # docs/site-data/ against the derivation the docs site reads. Those seven
-      # mirror a rule that lives in another repo, in a generated dotfile, or in a
-      # README — where drift is silent. The eighth, `wallpaper`, is the odd one
+      # a host, every pair of the presets), site-data-current pins
+      # docs/site-data/ against the derivation the docs site reads, and
+      # desktop-projection pins the example host's 54 carved values against the
+      # committed projection — the one thing that can notice the nebelhaus
+      # desktop quietly stopping short of what the module defaults used to give.
+      # Those eight mirror a rule that lives in another repo, in a generated
+      # dotfile, or in a README — where drift is silent. The ninth,
+      # `wallpaper`, is the odd one
       # out: it BUILDS the generated desktop and asserts its size and its colour
       # count, which is the only automated thing that can notice the dither
       # stopped reaching the 8-bit reduction and the gradient started banding.

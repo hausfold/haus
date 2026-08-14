@@ -217,7 +217,11 @@ in
 
     theme.ports.enable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      # Carved out, unlike the accent/flavor/contrast above it: those decide how
+      # the rice draws ITSELF, while this one writes theme files into apps you
+      # installed. A side effect reaching outside the layer is a choice a
+      # desktop makes, not one the bare catalogue makes for you.
+      default = false;
       description = ''
         Theme the apps in your roster (`haus.roster`) that Nebelung ships a
         port for, without wiring each one by hand.

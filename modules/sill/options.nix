@@ -107,7 +107,11 @@ in
 
     sill.enable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      # Rooms are opt-in: the neutral catalogue selects none, and a desktop
+      # (or a host) turns this one on. Everything BELOW this switch keeps its
+      # tuned value — a bar that is drawn is drawn properly, which is the
+      # "neutral, useful configuration when enabled" half of the room contract.
+      default = false;
       description = ''
         The SketchyBar menu bar. When off, the native macOS menu bar is kept
         (nebelhaus stops hiding it) and no bar is drawn.
@@ -201,10 +205,10 @@ in
         | right click | the full pounce palette (⌘Space), which is what a bare click on this pill used to do |
 
         All three are drawn by **pounce**, so all three need
-        `haus.pounce.enable` (on by default). With pounce off they are silent
-        no-ops and this option is the switch that says so out loud — turn it off
-        and the pill stops responding to clicks entirely, rather than looking
-        like an affordance that does nothing.
+        `haus.pounce.enable` (which the nebelhaus desktop turns on). With pounce
+        off they are silent no-ops and this option is the switch that says so out
+        loud — turn it off and the pill stops responding to clicks entirely,
+        rather than looking like an affordance that does nothing.
 
         The menu's rows are not reimplemented here: each one runs the palette
         command of the same name, so fixing one fixes both places. That is the
@@ -600,7 +604,9 @@ in
 
     tour.enable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      # A first-run tutor is an opinion about how a machine introduces itself,
+      # not a property of the bar — nebelhaus selects it in its desktop.
+      default = false;
       description = ''
         The haus tour — a first-run tutor that walks the four moves (launch /
         navigate / resize / palette) as ONE quiet pill in the bar, advancing

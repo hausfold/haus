@@ -538,7 +538,7 @@ in
           "alt-space"
           "none"
         ];
-        default = "caps";
+        default = "none";
         example = "none";
         description = ''
           What enters the launcher/leader mode — tap it, then a letter opens an
@@ -571,7 +571,7 @@ in
           "ctrl-space"
           "none"
         ];
-        default = "cmd-space";
+        default = "none";
         example = "none";
         description = ''
           What opens the pounce command palette. Registered in-process by the
@@ -595,7 +595,7 @@ in
           "cmd-alt"
           "none"
         ];
-        default = "alt";
+        default = "none";
         example = "ctrl-alt";
         description = ''
           The modifier vocabulary for prowl's window chords — one setting rather
@@ -717,28 +717,27 @@ in
     developer = {
       enable = lib.mkOption {
         type = lib.types.bool;
-        default = true;
-        example = false;
+        default = false;
+        example = true;
         description = ''
-          The developer pack: the CLI toolbelt, Git tooling and language
-          runtimes. On (the default) is the rice as it has always been.
+          The Development room: the CLI toolbelt, Git tooling and language
+          runtimes. The neutral catalogue leaves it off; nebelhaus selects it
+          in its desktop.
 
           Coding agents left this pack on 2026-08-13 and are their own room
-          now (`haus.ai.*`). Its switch still DEFAULTS to this one, so
-          turning the pack off still takes the agents with it — but the two
-          are separable, which they were not before.
+          now (`haus.ai.*`). The two rooms are independent: a desktop or host
+          selects each one explicitly.
 
           `false` is what makes a non-developer nebelhaus possible — it strips
           those tools rather than merely hiding them. What remains is the
           product: `haus`, `awake`, the theme, the terminal, the bar, the tiler
           and the palette.
 
-          The sub-options below — and `haus.ai.enable`, next door — each
-          default to THIS value, so turning it off turns everything off and you
-          can then re-enable one piece:
+          The Git and toolbelt sub-options below default to this value, so a
+          host can turn the room on and then remove one piece:
 
-            haus.developer.enable = false;
-            haus.developer.git.enable = true;  # …but keep git
+            haus.developer.enable = true;
+            haus.developer.git.enable = false;  # …but leave Git tooling out
         '';
       };
 
@@ -777,14 +776,8 @@ in
 
       languages = lib.mkOption {
         type = lib.types.listOf (lib.types.enum [ "node" ]);
-        default = lib.optionals config.haus.developer.enable [ "node" ];
-        # literalMD, not literalExpression: this SENTENCE describes the default,
-        # it isn't Nix you could paste anywhere. The distinction is load-bearing
-        # now — host-template.jq copies a literalExpression straight into the
-        # generated host file as the option's value, and would have emitted
-        # `haus.developer.languages = [ "node" ] when developer.enable …;`,
-        # a syntax error the moment someone uncommented it. Prose ⇒ literalMD.
-        defaultText = lib.literalMD ''[ "node" ] when developer.enable is true, else [ ]'';
+        default = [ ];
+        defaultText = lib.literalExpression "[ ]";
         example = [ ];
         description = ''
           Language runtimes to install. Currently only "node" (bun + fnm, with

@@ -1,20 +1,76 @@
 # nebelhaus — the first desktop, and the one `mkNebelhaus` selects when a
-# consumer names none.
+# consumer names none. Data only: every line is a desktop-safe public `haus`
+# option, and identity, secrets and hardware stay in the host.
 #
-# It is EMPTY on purpose, and only for now. Every value that makes a machine
-# feel like nebelhaus — the fog-grey, prowl and sill and hearth turned on the
-# way this desktop likes them — is still a module default one layer down, so
-# writing them here today would define each of them twice and change what every
-# existing install gets. Moving them is step 4 of the workshop's
-# notes/rooms-desktops.md, which is deliberately indivisible: the neutral room
-# defaults, the values that replace them here, and the compatibility selection
-# have to land in one commit or there is a commit on `main` where an install
-# silently loses a room.
-#
-# What this file already does, empty, is make the SEAM real: a full builder
-# selects one desktop, its name reaches diagnostics, a second one is refused,
-# and a host still wins by plain assignment. Filling it in is then a data
-# change against a boundary that already works.
+# What is here, and what deliberately isn't. This file says which ROOMS this
+# desktop wants and which machine-wide CLAIMS it makes (the global hotkeys, the
+# root grant, the desktop picture, writing themes into other people's apps).
+# It does NOT restate the tuned values inside a room it turned on: a bar that
+# is drawn is drawn properly by the Bar room itself, and duplicating those here
+# would mean every retune had to be made twice and would drift the first time
+# it wasn't. The rooms plan's "neutral, useful configuration when enabled" is
+# what makes that split hold.
 {
-  haus = { };
+  haus = {
+    ai = {
+      enable = true;
+      clients = [
+        "claude"
+        "opencode"
+      ];
+      default = "claude";
+    };
+
+    apps.videoPlayer.enable = true;
+
+    collar = {
+      enable = true;
+      passwordlessRebuild = true;
+    };
+
+    developer = {
+      enable = true;
+      languages = [ "node" ];
+    };
+
+    # Only the SIZE. The family stays a layer concern: a patched Nerd Font is
+    # what makes the terminal render at all, so it is a requirement rather than
+    # this desktop's taste (modules/den/options.nix says so at the option).
+    fonts.mono.baseSize = 19;
+
+    hearth = {
+      floatBorder = "accent";
+      rightClickFullscreen = true;
+      zellijStartLocked = true;
+    };
+
+    hush.enable = true;
+
+    keys = {
+      leader = "caps";
+      palette = "cmd-space";
+      windowNav = "alt";
+    };
+
+    perch.enable = true;
+
+    pounce.enable = true;
+
+    prowl.enable = true;
+
+    sill = {
+      enable = true;
+    };
+
+    theme = {
+      accent = "mauve";
+      ports.enable = true;
+    };
+
+    tour.enable = true;
+
+    wallpaper = {
+      style = "minimal";
+    };
+  };
 }

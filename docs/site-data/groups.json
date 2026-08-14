@@ -252,8 +252,11 @@
     "fonts": {
       "blurb": "The terminal font. The bar keeps its own font at its own tuned sizes.",
       "kind": "room",
-      "optionCount": 4,
+      "optionCount": 5,
       "options": {
+        "haus.fonts.mono.baseSize": {
+          "desktopSafe": true
+        },
         "haus.fonts.mono.name": {
           "desktopSafe": true
         },
