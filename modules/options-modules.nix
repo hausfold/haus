@@ -25,6 +25,11 @@
   # are fed rice files written against the old address too.
   ./moved.nix
   ./options.nix
+  # The desktop seam's own record (`haus._desktop.sources`). Internal, so it
+  # never reaches the rendered surface — it is in this list because a STANDALONE
+  # export declares its options from here too, and the seam's assertion reads
+  # that option on every entry point, not only the full builder's.
+  ./desktop/options.nix
   ./ai/options.nix
   ./apps/options.nix
   ./den/options.nix

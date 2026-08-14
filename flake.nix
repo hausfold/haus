@@ -86,6 +86,13 @@
           host ? ./hosts/example,
           system ? "aarch64-darwin",
           extraModules ? [ ],
+          # Which desktop this machine runs — exactly one, and nebelhaus unless
+          # you say otherwise, which is what keeps every existing consumer
+          # building unchanged (the full builder has always meant "the nebelhaus
+          # machine"; now it says so). `null` selects none: the bare haus
+          # foundation plus whatever your host turns on, which is what the
+          # built-in blank desktop will name in step 4 of the rooms plan.
+          desktop ? ./desktops/nebelhaus.nix,
         }:
         let
           # Machine-written config stays ordinary Nix. Pounce "Install App"
@@ -161,6 +168,12 @@
               ];
             }
             self.darwinModules.default
+          ]
+          # Before the host, though the ladder is what actually decides: the
+          # desktop's leaves arrive at `desktopPriority`, so a plain assignment
+          # in the host below wins no matter which order they are imported in.
+          ++ nixpkgs.lib.optional (desktop != null) (riceLib.desktop desktop)
+          ++ [
             host
           ]
           ++ hostWrittenModules
@@ -326,6 +339,91 @@
               _: entry: builtins.mapAttrs (_: value: nixpkgs.lib.mkDefault value) entry
             ) ((riceBody path).roster or { });
           };
+
+        # ---- desktops ---------------------------------------------------------
+        # A DESKTOP is a complete answer to "what should this Mac feel like?",
+        # and a host selects exactly one (the workshop's
+        # notes/rooms-desktops.md). Where a pack is a rice narrowed to the app
+        # roster, a desktop is the whole selection — which is why it gets a
+        # closed schema and a trust boundary rather than a stray-key check.
+        #
+        # The rules it is held to live in modules/lib/desktop.nix and are read
+        # off the room registry, so "may a desktop set this?" has exactly one
+        # answer per option, in one file, for the docs, the check and this seam.
+
+        # Where the desktop's values sit in the priority ladder, and the reason
+        # a host can override its desktop with a PLAIN assignment:
+        #
+        #   100   the host — an ordinary line in your own host file
+        #   900   the desktop  ← here
+        #   1000  a room's own mkDefault
+        #   1500  an option's declared default
+        #
+        # Lower wins. Sitting between the host and the rooms is the whole
+        # requirement: a desktop must outrank the generic defaults it exists to
+        # replace, and must lose to the person who chose it — without anyone
+        # having to write `lib.mkForce` for ordinary customization.
+        desktopPriority = 900;
+
+        # Every reason `path` is not a desktop; `[ ]` means it is one. Public
+        # because a third party publishing a desktop should be able to self-test
+        # it, and because a LIST is what lets the flake check diff the exact
+        # diagnostics rather than prove only that something refused.
+        desktopFailures =
+          path:
+          desktopLib.failures {
+            source = toString path;
+            value = import path;
+          };
+
+        # `haus.lib.checkDesktop ./my-desktop.nix` — true, or throws naming the
+        # file and every rule it broke.
+        checkDesktop =
+          path:
+          let
+            failures = desktopFailures path;
+          in
+          if failures == [ ] then
+            true
+          else
+            throw ("checkDesktop:\n" + builtins.concatStringsSep "\n" failures);
+
+        # The import seam. Validate, carry each LEAF in at the desktop priority
+        # (per leaf for the same reason `pack` does it — a priority at or above
+        # an option replaces the definition rather than deprioritising it), and
+        # record the filename so "you selected two desktops" can name both.
+        #
+        # `mkNebelhaus` passes its `desktop` argument through here; a consumer
+        # composing by hand uses it directly:
+        #   extraModules = [ (haus.lib.desktop ./their-desktop.nix) ];
+        desktop =
+          path:
+          assert checkDesktop path;
+          {
+            # Same debt `pack` pays: this builds a NEW attrset, so without a
+            # `_file` the module system would report a conflict against the
+            # desktop as `<unknown-file>`.
+            _file = toString path;
+
+            haus = desktopLib.prioritize desktopPriority ((import path).haus or { }) // {
+              # Plainly, at normal priority: the entries have to CONCATENATE so
+              # two desktops produce a two-entry list for the assertion to
+              # refuse. A prioritised definition would collide instead, and the
+              # error would name neither file.
+              _desktop.sources = [ (toString path) ];
+            };
+          };
+      };
+
+      # The desktops this flake ships. One today; `blank` — the from-scratch
+      # choice — arrives with step 4 of notes/rooms-desktops.md, in the same
+      # commit that gives this one its values.
+      desktopFiles = {
+        nebelhaus = ./desktops/nebelhaus.nix;
+      };
+      desktopLib = import ./modules/lib/desktop.nix {
+        lib = nixpkgs.lib;
+        registry = import ./modules/options-groups.nix;
       };
 
       # A pack as it actually ships: wrapped. `riceFiles` is what the format
@@ -354,6 +452,11 @@
       # is active. This is the current pre-Blank equivalent of “Blank + room”.
       standaloneModule = implementation: {
         imports = (import ./modules/options-modules.nix) ++ [
+          # The desktop seam's assertion. A standalone import selects NO desktop
+          # and must keep evaluating that way — what this adds is only the
+          # refusal of a second one, which a consumer can reach from here too by
+          # passing `lib.desktop` through their own module list.
+          ./modules/desktop
           ./modules/workspaces
           ./modules/roster
           # The AI room's wiring. In the foundation rather than a room of its own
@@ -423,6 +526,18 @@
       # `packs.<name>` used to be these paths; it is a module now, and a path is
       # still the right thing to hand a checker.
       inherit packFiles;
+
+      # `nebelhaus.desktops.nebelhaus` — the desktop FILES, unwrapped, the way
+      # `packFiles` is. A path is the right thing to hand `lib.checkDesktop`,
+      # and it is what `mkNebelhaus`'s `desktop` argument takes:
+      #
+      #   mkNebelhaus { … desktop = nebelhaus.desktops.nebelhaus; }
+      #
+      # Wrapping happens at the seam (`lib.desktop`), not here, because the
+      # wrapper is what applies the priority that makes a host win — a
+      # pre-wrapped module would look importable anywhere and quietly bypass the
+      # one-desktop assertion when it wasn't.
+      desktops = desktopFiles;
 
       lib = riceLib;
 
@@ -1735,12 +1850,18 @@
             (aiPillWarning "haus.sill.bottom.items.agents")
           ];
 
-          standaloneEvaluated = map (
-            name:
+          # A standalone `darwinModules` import, as a consumer would make it:
+          # nix-darwin plus home-manager plus the one exported partial, with NO
+          # builder and therefore no desktop. A function rather than an inline
+          # map because the desktop-seam check below evaluates one of these too,
+          # to prove that entry point still needs no desktop selection.
+          standaloneSystem =
+            extraModules:
             let
               username = "you";
               hostname = "example";
-              cfg = inputs.nix-darwin.lib.darwinSystem {
+            in
+            inputs.nix-darwin.lib.darwinSystem {
                 inherit system;
                 specialArgs = { inherit inputs username hostname; };
                 modules = [
@@ -1780,12 +1901,162 @@
                       nix-index-database.homeModules.nix-index
                     ];
                   }
-                  self.darwinModules.${name}
-                ];
-              };
-            in
-            "${name} ${builtins.unsafeDiscardStringContext cfg.system.drvPath}"
+                ]
+                ++ extraModules;
+            };
+          standaloneEvaluated = map (
+            name:
+            "${name} ${
+              builtins.unsafeDiscardStringContext
+                (standaloneSystem [ self.darwinModules.${name} ]).system.drvPath
+            }"
           ) registeredExports;
+
+          # ---- desktop-seam ----------------------------------------------------
+          # Step 3 of the workshop's notes/rooms-desktops.md: a host selects
+          # EXACTLY ONE desktop, a desktop is data with a closed shape, and the
+          # person who chose it still wins with a plain assignment.
+          #
+          # Two halves, because the seam has two failure modes that look nothing
+          # alike. The first table is behavioural — real evaluated machines,
+          # read back through the options a desktop set, so "the desktop won
+          # over the room's default and lost to the host" is measured rather
+          # than reasoned about. The second is the diagnostics: every way a file
+          # can fail to be a desktop, with the message it actually produces.
+          # That one exists because a refusal nobody can read is a refusal that
+          # gets worked around — and because the FILENAME inside it is the thing
+          # a wrapper drops first (`lib.pack` learned that the hard way).
+          desktopDir = ./test/desktops;
+          desktopFixtures = builtins.filter (n: nixpkgs.lib.hasSuffix ".nix" n) (
+            builtins.attrNames (builtins.readDir desktopDir)
+          );
+          desktopFixture = name: desktopDir + "/${name}";
+          # Under `nix flake check` these paths are /nix/store paths that change
+          # with every commit, so the tables would rot on contents they don't
+          # test. Root-relative keeps the part that matters — which file.
+          desktopHere = builtins.replaceStrings [ "${toString ./.}/" ] [ "" ];
+          desktopValidNames = builtins.filter (nixpkgs.lib.hasPrefix "valid-") desktopFixtures;
+          desktopBadNames = builtins.filter (n: !(nixpkgs.lib.hasPrefix "valid-" n)) desktopFixtures;
+
+          desktopConfig =
+            args:
+            (mkNebelhaus (
+              {
+                inherit system;
+                username = "you";
+                hostname = "example";
+              }
+              // args
+            )).config;
+          desktopSelection =
+            cfg:
+            let
+              sources = map desktopHere cfg.haus._desktop.sources;
+            in
+            if sources == [ ] then "(none)" else builtins.concatStringsSep "+" sources;
+          desktopReadback =
+            cfg:
+            "scale=${toString cfg.haus.ui.scale}"
+            + " sill=${if cfg.haus.sill.enable then "yes" else "no"}"
+            + " internal=${toString (cfg.haus.displays.internal.uiScale or "(unset)")}"
+            + " desktop=${desktopSelection cfg}";
+          desktopRows = {
+            # No `desktop` argument at all: every existing consumer's call, which
+            # has always meant "the nebelhaus machine" and now says so.
+            builder-default = desktopConfig { };
+            # One desktop, through the full builder. Its three values have to
+            # reach the evaluated system.
+            one-desktop = desktopConfig { desktop = desktopFixture "valid-sample.nix"; };
+            # The same desktop, plus a host that disagrees — with a PLAIN
+            # assignment, no `lib.mkForce`. This row is the whole priority
+            # ladder: 1.5 means the host won, and `sill=no` means the rest of
+            # the desktop survived the override rather than being replaced by it.
+            host-override = desktopConfig {
+              desktop = desktopFixture "valid-sample.nix";
+              extraModules = [ { haus.ui.scale = 1.5; } ];
+            };
+            # No desktop at all. The values fall back to what the rooms
+            # themselves default to, which is what proves the row above was the
+            # desktop's doing.
+            no-desktop = desktopConfig { desktop = null; };
+          };
+          desktopTable = builtins.concatStringsSep "\n" (
+            map (name: "${name} ${desktopReadback desktopRows.${name}}") (builtins.attrNames desktopRows)
+          );
+          expectedDesktopTable = ''
+            builder-default scale=1.000000 sill=yes internal=(unset) desktop=desktops/nebelhaus.nix
+            host-override scale=1.500000 sill=no internal=larger-text desktop=test/desktops/valid-sample.nix
+            no-desktop scale=1.000000 sill=yes internal=(unset) desktop=(none)
+            one-desktop scale=1.350000 sill=no internal=larger-text desktop=test/desktops/valid-sample.nix
+          '';
+
+          # The OTHER entry point, and the one this step could most easily have
+          # broken: a standalone export selects no desktop and must keep
+          # evaluating exactly that way — the bare foundation plus one room,
+          # with none of nebelhaus's opinions and nothing to select.
+          desktopStandalone = desktopSelection (standaloneSystem [ self.darwinModules.sill ]).config;
+
+          # Two desktops. Not a type error and not a conflict — both files are
+          # valid, and the module system would happily merge them — so the
+          # refusal has to be an assertion, and it has to name both files or it
+          # tells you nothing you can act on.
+          desktopTwoAssertions = map (a: desktopHere a.message) (
+            builtins.filter (a: !a.assertion) (desktopConfig {
+              desktop = desktopFixture "valid-sample.nix";
+              extraModules = [ (riceLib.desktop (desktopFixture "valid-other.nix")) ];
+            }).assertions
+          );
+          expectedDesktopTwoAssertions = [
+            (
+              "This machine selected 2 desktops:\n"
+              + "  test/desktops/valid-other.nix\n"
+              + "  test/desktops/valid-sample.nix\n"
+              + "A host runs exactly one. Whole desktops do not stack — pick the one that "
+              + "answers what this Mac should feel like, and say the rest in your host file, "
+              + "which wins over the desktop by plain assignment."
+            )
+          ];
+
+          # Every way a file fails to be a desktop, with the diagnostic it
+          # produces. One fixture per rule (test/desktops/README.md); the list is
+          # read off the directory, so a rule added with no fixture — or a
+          # fixture added with no expected message — shows up here as a diff.
+          desktopDiagnostics = builtins.concatStringsSep "\n" (
+            nixpkgs.lib.concatMap (
+              name: map desktopHere (riceLib.desktopFailures (desktopFixture name))
+            ) desktopBadNames
+          );
+          expectedDesktopDiagnostics = ''
+            test/desktops/activation.nix: may not set `system.*` (activation scripts, macOS defaults nothing declares) — those are a host's, or a room's
+            test/desktops/dynamic-host-only.nix: haus.roster.<name>.package is host-only — it belongs to a person or a machine, so a shared desktop may not set it
+            test/desktops/dynamic-unknown.nix: haus.roster.<name>.postInstall is not a haus option
+            test/desktops/extra-key.nix: may not set `environment.*` — installing something is a room's job, and `haus.roster` is how a desktop asks for one
+            test/desktops/function.nix: is a function, so it is not a desktop. A desktop takes no arguments — no pkgs, no lib, no config — and evaluates to { haus = { … }; }. Something that genuinely needs pkgs is a room, with the trust that implies.
+            test/desktops/group-not-option.nix: haus.theme is a group of options, not an option — name one of the settings under it
+            test/desktops/host-only-command.nix: haus.keys.leaderExtras.*.command is host-only — it belongs to a person or a machine, so a shared desktop may not set it
+            test/desktops/host-only-hardware.nix: haus.displays.37D8832A-2D66-02CA-B9F7-8F30A301B230 names a physical display, which is a fact about one machine — a desktop may only use the `internal` and `main` selectors
+            test/desktops/host-only-identity.nix: haus.git.email is host-only — it belongs to a person or a machine, so a shared desktop may not set it
+            test/desktops/host-only-package.nix: haus.fonts.mono.package is host-only — it belongs to a person or a machine, so a shared desktop may not set it
+            test/desktops/host-only-path.nix: haus.hearth.obsidianVaults is host-only — it belongs to a person or a machine, so a shared desktop may not set it
+            test/desktops/host-only-secret.nix: haus.hush.slack.tokenCommand is host-only — it belongs to a person or a machine, so a shared desktop may not set it
+            test/desktops/host-only-secret.nix: haus.secrets.provider is host-only — it belongs to a person or a machine, so a shared desktop may not set it
+            test/desktops/host-only-signing.nix: haus.pounce.signingIdentity is host-only — it belongs to a person or a machine, so a shared desktop may not set it
+            test/desktops/imports.nix: may not import modules — a desktop is one file's worth of values, and what it can reach has to be readable from that file alone
+            test/desktops/internal-wiring.nix: haus._contrib is internal wiring between rooms, not a setting a desktop may write
+            test/desktops/legacy-namespace.nix: spells the namespace the pre-rename way; a desktop is new enough to have no legacy spelling — write `haus`
+            test/desktops/module-internals.nix: may not set module-system internals
+            test/desktops/unknown-option.nix: haus.theme.accentColour is not a haus option
+          '';
+
+          # And the throwing half of the same seam: `checkDesktop` is what
+          # `lib.desktop` asserts on, so a bad desktop has to stop the
+          # evaluation rather than merely being listed somewhere.
+          desktopThrows = builtins.filter (
+            name: (builtins.tryEval (riceLib.checkDesktop (desktopFixture name))).success
+          ) desktopBadNames;
+          desktopAccepts = builtins.filter (
+            name: !(builtins.tryEval (riceLib.checkDesktop (desktopFixture name))).success
+          ) desktopValidNames;
         in
         {
           room-registry = pkgs.runCommand "haus-room-registry-ok" { } ''
@@ -1954,6 +2225,35 @@
             cat > $out <<'MODULES'
             ${builtins.concatStringsSep "\n" standaloneEvaluated}
             MODULES
+          '';
+
+          desktop-seam = pkgs.runCommand "haus-desktop-seam-ok" { } ''
+            diff -u ${pkgs.writeText "expected" expectedDesktopTable} \
+                    ${pkgs.writeText "actual" (desktopTable + "\n")}
+
+            ${nixpkgs.lib.optionalString (desktopStandalone != "(none)") ''
+              echo 'a standalone darwinModules import selected a desktop (${desktopStandalone}) — those exports are the bare foundation plus one room and must need no desktop selection' >&2
+              exit 1''}
+
+            diff -u ${
+              pkgs.writeText "expected" (
+                builtins.concatStringsSep "\n" expectedDesktopTwoAssertions + "\n"
+              )
+            } \
+                    ${
+                      pkgs.writeText "actual" (builtins.concatStringsSep "\n" desktopTwoAssertions + "\n")
+                    }
+
+            diff -u ${pkgs.writeText "expected" expectedDesktopDiagnostics} \
+                    ${pkgs.writeText "actual" (desktopDiagnostics + "\n")}
+
+            ${nixpkgs.lib.optionalString (desktopThrows != [ ]) ''
+              echo 'checkDesktop accepted a file that is not a desktop: ${builtins.concatStringsSep ", " desktopThrows}' >&2
+              exit 1''}
+            ${nixpkgs.lib.optionalString (desktopAccepts != [ ]) ''
+              echo 'checkDesktop refused a valid desktop: ${builtins.concatStringsSep ", " desktopAccepts}' >&2
+              exit 1''}
+            touch $out
           '';
 
           ai-room = pkgs.runCommand "haus-ai-room-ok" { } ''
