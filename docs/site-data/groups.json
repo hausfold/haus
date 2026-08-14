@@ -126,12 +126,21 @@
     "accessibility": {
       "blurb": "macOS accessibility keys haus can actually apply. These write to a TCC-protected domain, so they take effect only when the app you run the rebuild from holds Full Disk Access — otherwise haus warns and moves on.",
       "kind": "room",
-      "optionCount": 4,
+      "optionCount": 7,
       "options": {
+        "haus.accessibility.closeViewScrollWheelToggle": {
+          "desktopSafe": true
+        },
+        "haus.accessibility.closeViewZoomFollowsFocus": {
+          "desktopSafe": true
+        },
         "haus.accessibility.differentiateWithoutColor": {
           "desktopSafe": true
         },
         "haus.accessibility.increaseContrast": {
+          "desktopSafe": true
+        },
+        "haus.accessibility.mouseDriverCursorSize": {
           "desktopSafe": true
         },
         "haus.accessibility.reduceMotion": {
@@ -1270,7 +1279,7 @@
         "screenshots",
         "sound"
       ],
-      "optionCount": 45,
+      "optionCount": 48,
       "order": 20,
       "title": "Appearance"
     },

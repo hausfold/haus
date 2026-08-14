@@ -59,12 +59,24 @@
 # FDA-holding Ghostty, run twice with byte-identical results and a clean restore
 # both times (workshop notes/macos-settings-matrix.md).
 #   "effective"   — the write lands AND `NSWorkspace` confirms macOS honours it.
-#                   This is the only class an option may be built on, and `hausax`
-#                   is the oracle that keeps it honest (`haus diff` compares
-#                   against the NSWorkspace read, not the plist).
+#                   `hausax` is the oracle that keeps it honest (`haus diff`
+#                   compares against the NSWorkspace read, not the plist).
+#   "by-eye"      — the write lands and a HUMAN watched it take effect on real
+#                   hardware; no programmatic oracle exists, so nothing can
+#                   re-check it on your machine. Added 2026-08-14, and it is a
+#                   separate class rather than a second `effective` for one
+#                   reason: `haus diff` must not claim to have verified these.
+#                   It compares the plist and says that is all it did.
+#                   Options MAY be built on this — an eyeball on real hardware is
+#                   evidence, and refusing to ship what only a human can confirm
+#                   is how three working keys sat unusable for three weeks. What
+#                   it costs is per-machine confirmation, which is a real cost:
+#                   `effective` proves it on YOUR Mac, `by-eye` proves it on the
+#                   one it was watched on. Say which in the option's description.
 #   "unconfirmed" — the plist holds the value; the effect was never measured,
 #                   because no programmatic oracle exists for it. Needs an eyeball
 #                   before it becomes an option. Not a synonym for "probably fine".
+#                   The difference from `by-eye` is only that somebody looked.
 #   "gui-only"    — the write lands in the plist and posts no change notification,
 #                   so no running app ever re-reads it and System Settings renders
 #                   a desynced view of its own rows. Only the slider works.
@@ -91,12 +103,20 @@
   # `reduceTransparency` are nix-darwin-TYPED — so before they had guarded options
   # the documented way to set them was the one that aborts activation. Closing the
   # gap is what lets `haus rebuild`'s guard be strict without refusing a config
-  # that had no safer way to say what it meant — with one deliberate exception,
-  # worth stating plainly rather than glossing: nix-darwin also types the three
-  # `unconfirmed` keys below, so the raw form does still reach something the
-  # options don't, and the guard does still refuse it. That friction is in the
-  # right place. It costs a rebuild from a granted terminal, and it is bought by
-  # never shipping an option whose only claim is that the plist held the value.
+  # that had no safer way to say what it meant.
+  #
+  # ★ That used to carry one deliberate exception — nix-darwin also types the
+  # three keys this table left `unconfirmed`, so the raw, activation-aborting
+  # form genuinely reached settings the safe form didn't, and the guard refused
+  # it anyway. **The exception is gone as of 2026-08-14.** nix-darwin types
+  # exactly five keys here (`mouseDriverCursorSize`, `reduceMotion`,
+  # `reduceTransparency`, `closeViewScrollWheelToggle`,
+  # `closeViewZoomFollowsFocus`); `haus.accessibility` now covers all five and
+  # two more. So the guard no longer costs anyone a setting — there is nothing
+  # left that only the dangerous route can say. Worth noticing HOW that
+  # happened: nobody removed the exception, somebody watched a cursor. The
+  # friction was never really about the guard's strictness, it was about three
+  # unmeasured keys, and it went away when they stopped being unmeasured.
   "com.apple.universalaccess" = {
     reachability = "needs-fda";
     guardedBy = "haus.accessibility";
@@ -106,12 +126,26 @@
       increaseContrast = "effective";
       differentiateWithoutColor = "effective";
 
-      # Persist at the value you write; nobody has watched the screen afterwards.
-      # `ui.cursorScale` waits on the first of these — an option is not a place to
-      # find out whether a key does anything.
-      mouseDriverCursorSize = "unconfirmed";
-      closeViewScrollWheelToggle = "unconfirmed";
-      closeViewZoomFollowsFocus = "unconfirmed";
+      # Watched 2026-08-14 on 26.6.1, after three weeks at `unconfirmed`: all
+      # three work, and all three do nothing until `universalaccessd` restarts —
+      # which is why they looked dead. ./restart-map.nix carries that half; the
+      # kill and these three promotions have to ship together or the options
+      # write a plist their user sees nothing come of until the next logout.
+      #
+      # `by-eye` rather than `effective` because there is no oracle for any of
+      # them and there is not going to be one: NSWorkspace exposes no pointer
+      # size and no zoom state. What was watched, precisely, so a re-check knows
+      # what to reproduce:
+      #   mouseDriverCursorSize      3.0 → pointer visibly larger
+      #   closeViewScrollWheelToggle ⌃+scroll magnifies the display
+      #   closeViewZoomFollowsFocus  ⇥ to an input outside the zoomed viewport
+      #                              snaps the view to it. Isolating this one
+      #                              needs the POINTER parked — pushing the
+      #                              pointer at a screen edge pans the view with
+      #                              this key off, which is not evidence.
+      mouseDriverCursorSize = "by-eye";
+      closeViewScrollWheelToggle = "by-eye";
+      closeViewZoomFollowsFocus = "by-eye";
 
       # The dict-valued one, and the heuristic it produced: in this domain the
       # SCALAR keys work and notify, the STRUCTURED one lands and lies. It also
@@ -119,6 +153,31 @@
       # so even working it would have under-delivered. Treat any future
       # dict-valued accessibility key as GUI-only until measured otherwise.
       FontSizeCategory = "gui-only";
+    };
+
+    # ---- value type, for the keys that aren't booleans ----------------------
+    # Every key above was a bool until `mouseDriverCursorSize` became shippable,
+    # and both consumers had that assumption baked in: den's writer emitted
+    # `defaults write … -bool` unconditionally, and den/options.nix generated
+    # `nullOr bool`. A float key promoted without this would have produced an
+    # option that accepts `true` and writes `-bool true` into a size field.
+    #
+    # Kept BESIDE `keys` rather than folded into it so a class stays one string:
+    # `haus diff`'s shell copy, the option generator and this table all read the
+    # class, and only the two Nix-side consumers care about the type. Absent
+    # means bool, which is what the domain mostly is.
+    #
+    # `range` is documentation with teeth — den/options.nix builds the option's
+    # type from it, so macOS's "1 for normal, 4 for maximum" is enforced at eval
+    # instead of being a sentence someone can write 40 past.
+    keyTypes = {
+      mouseDriverCursorSize = {
+        type = "float";
+        range = {
+          min = 1.0;
+          max = 4.0;
+        };
+      };
     };
   };
 

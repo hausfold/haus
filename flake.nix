@@ -1273,25 +1273,46 @@
           # loudly rather than passing on an empty comparison — the one failure
           # mode a grep-shaped pin can have.
           a11yTable = import ./modules/lib/reachability.nix;
-          a11yTableKeys = nixpkgs.lib.sort (a: b: a < b) (
-            nixpkgs.lib.attrNames (
-              nixpkgs.lib.filterAttrs (_: e: e == "effective") a11yTable."com.apple.universalaccess".keys
-            )
-          );
-          a11yArmLine = nixpkgs.lib.findFirst (l: nixpkgs.lib.hasInfix ") echo effective ;;" l) null (
-            nixpkgs.lib.splitString "\n" (builtins.readFile ./modules/den/haus.sh)
-          );
-          a11yShellKeys =
-            if a11yArmLine == null then
+          # Two classes may back an option, and each has its OWN arm in
+          # classify_key, so both need pinning — and the reason is sharper than
+          # "twice as much coverage". A key in the wrong arm is worse than a key
+          # in no arm: put a `by-eye` key in the `effective` arm and `haus diff`
+          # asks `hausax` for a field that does not exist (there is no
+          # NSWorkspace property for pointer size), gets null, and reports a
+          # mismatch on a correctly-applied setting forever. The classes are
+          # listed here rather than derived from the table's values because
+          # `unconfirmed`/`gui-only`/`noop` are deliberately NOT option-backed;
+          # this list is "may back an option", which is a decision, not data.
+          a11yClasses = [
+            "effective"
+            "by-eye"
+          ];
+          a11yScriptLines = nixpkgs.lib.splitString "\n" (builtins.readFile ./modules/den/haus.sh);
+          a11yTableKeysOf =
+            class:
+            nixpkgs.lib.sort (a: b: a < b) (
+              nixpkgs.lib.attrNames (
+                nixpkgs.lib.filterAttrs (_: e: e == class) a11yTable."com.apple.universalaccess".keys
+              )
+            );
+          a11yArmLineOf =
+            class: nixpkgs.lib.findFirst (l: nixpkgs.lib.hasInfix ") echo ${class} ;;" l) null a11yScriptLines;
+          a11yShellKeysOf =
+            class:
+            let
+              armLine = a11yArmLineOf class;
+            in
+            if armLine == null then
               [ ]
             else
               nixpkgs.lib.sort (a: b: a < b) (
                 builtins.filter (s: s != "") (
                   map (s: nixpkgs.lib.replaceStrings [ " " ] [ "" ] s) (
-                    nixpkgs.lib.splitString "|" (builtins.head (nixpkgs.lib.splitString ")" a11yArmLine))
+                    nixpkgs.lib.splitString "|" (builtins.head (nixpkgs.lib.splitString ")" armLine))
                   )
                 )
               );
+          a11yArmsMissing = builtins.filter (c: a11yArmLineOf c == null) a11yClasses;
 
           expectedKeymapTable = ''
             caps/cmd-space/alt leader=f18 ⇪ caps=yes palette=cmd-space ⌘ Space spotlight=yes nav=alt ⌥ conflicts=0
@@ -2306,18 +2327,31 @@
           '';
 
           accessibility-surface = pkgs.runCommand "haus-accessibility-surface-ok" { } ''
-            ${nixpkgs.lib.optionalString (a11yArmLine == null) ''
+            ${nixpkgs.lib.optionalString (a11yArmsMissing != [ ]) ''
               cat >&2 <<'GONE'
-              modules/den/haus.sh's classify_key no longer has a line matching
-              ") echo effective ;;", so this check can't find the copy it exists to
-              pin. Either restore that shape, or replace this check with whatever
-              keeps classify_key's universalaccess arm in step with
-              modules/lib/reachability.nix — do not simply delete it.
+              modules/den/haus.sh's classify_key no longer has a line matching:
+
+              ${builtins.concatStringsSep "\n              " (map (c: ''") echo ${c} ;;"'') a11yArmsMissing)}
+
+              so this check can't find the copy it exists to pin. Either restore that
+              shape, or replace this check with whatever keeps classify_key's
+              universalaccess arms in step with modules/lib/reachability.nix — do not
+              simply delete it.
               GONE
               exit 1''}
-            diff -u ${pkgs.writeText "table" (builtins.concatStringsSep "\n" a11yTableKeys + "\n")} \
-                    ${pkgs.writeText "classify_key" (builtins.concatStringsSep "\n" a11yShellKeys + "\n")} \
-              || { echo >&2; echo "left: modules/lib/reachability.nix's \`effective\` keys · right: classify_key in modules/den/haus.sh" >&2; exit 1; }
+            ${builtins.concatStringsSep "\n" (
+              map (class: ''
+                diff -u ${
+                  pkgs.writeText "table-${class}" (builtins.concatStringsSep "\n" (a11yTableKeysOf class) + "\n")
+                } \
+                        ${
+                          pkgs.writeText "classify_key-${class}" (
+                            builtins.concatStringsSep "\n" (a11yShellKeysOf class) + "\n"
+                          )
+                        } \
+                  || { echo >&2; echo "left: modules/lib/reachability.nix's \`${class}\` keys · right: classify_key's \`${class}\` arm in modules/den/haus.sh" >&2; exit 1; }
+              '') a11yClasses
+            )}
             touch $out
           '';
 

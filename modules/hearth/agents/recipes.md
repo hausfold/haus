@@ -231,9 +231,11 @@ skips every background service haus installs. `haus rebuild` refuses outright
 when the config sets it and the current app can't write it — agent or human alike,
 because the grant follows the app and not the person. Every key in that domain
 measured to take effect has a `haus.accessibility.*` option, so the guarded route
-costs nothing worth having; the three it doesn't cover (cursor size, the
-closeView pair) are exactly the ones nobody has confirmed do anything, and they
-need the user's own FDA-holding terminal.
+costs nothing worth having — and since 2026-08-14 that includes cursor size and
+the closeView pair, which were watched working by hand and promoted. The raw form
+now reaches strictly less than the options do. (Those three need a
+`universalaccessd` restart to be visible at all; haus fires it for whichever
+route wrote them, which is more than nix-darwin does on its own.)
 
 ## "Update everything"
 

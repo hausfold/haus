@@ -354,6 +354,37 @@ git -C "$tmp/dots" worktree add -q -b outer-lane "$tmp/dots-lane"
 CONSUMER="$tmp/dots/nix"
 has 'this is a worktree of your config' "$(cd "$tmp/dots-lane/nix" && consumer_worktree_warning)"
 
+# ---- the guarded accessibility writer ----------------------------------------
+# den emits `haus.accessibility.*` as its OWN shell calls rather than as typed
+# `defaults write` lines (the write has to survive a missing FDA grant), so
+# `haus diff` can only see those keys through this parser. Its failure mode is
+# silence: a declared key it can't match is reported as undeclared, which reads
+# exactly like a key nobody set.
+#
+# Two shapes, one of which is new as of 2026-08-14: the call carries `defaults
+# write`'s type flag now, because `mouseDriverCursorSize` is a float and every
+# other key here is a bool. The float also needs canonicalising — Nix stringifies
+# 3.0 as "3.000000" while `defaults read` prints "3", and without %g every diff
+# would report that key as changed forever, on a machine where it is correct.
+{
+  printf 'nebelhausAccessibility reduceMotion -bool true\n'
+  printf 'nebelhausAccessibility mouseDriverCursorSize -float 3.000000\n'
+  printf 'nebelhausAccessibility closeViewScrollWheelToggle -bool false\n'
+  # Not a call den generates — the function DEFINITION, which contains the same
+  # word and must not be parsed as a declared key.
+  printf 'nebelhausAccessibility() {\n'
+} >"$tmp/a11y-activate"
+#
+# Compared WHOLE and exactly, not with `has`: a substring assertion for
+# "mouseDriverCursorSize<TAB>3" passes on the un-canonicalised "3.000000" too,
+# so the only check that can actually see the %g is an equality one. (Found by
+# mutating the parser and watching the substring version stay green.)
+a11y="$(declared_a11y_calls "$tmp/a11y-activate")"
+test "$a11y" = "$(printf 'com.apple.universalaccess\treduceMotion\ttrue
+com.apple.universalaccess\tmouseDriverCursorSize\t3
+com.apple.universalaccess\tcloseViewScrollWheelToggle\tfalse')" \
+  || fail "declared_a11y_calls read the writer's calls wrong: $a11y"
+
 # The library hook must not brick a normally-executed haus: `return` outside a
 # sourced script is fatal, so keying only on the variable would make one
 # exported HAUS_LIB turn every later `haus` in that shell into exit 2.

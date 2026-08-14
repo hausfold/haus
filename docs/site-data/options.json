@@ -1,4 +1,46 @@
 {
+  "haus.accessibility.closeViewScrollWheelToggle": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Hold ⌃ (Control) and scroll to magnify the whole display.\nmacOS calls it \"Use scroll gesture with modifier keys to zoom\";\nscroll the other way to come back.\n\nThe fastest zoom on the Mac and the one people forget exists. Worth\nhaving on a machine you demo, present or pair from, where the\nalternative is asking everyone to lean in.\n\n\nnull (the default) leaves whatever you have alone — this is a\npersonal setting, so haus never picks a value for you.\n\nHOW THIS ONE WAS VERIFIED — by a person looking at the screen on\nreal hardware (macOS 26.6.1, 2026-08-14), because no API reports\nit: `NSWorkspace` exposes no pointer size and no zoom state, so\n`hausax` cannot read it back and `haus diff` will tell you it\ncompared the plist and nothing more. haus's other\naccessibility options are checked against macOS's own answer on\nYOUR Mac; this one carries evidence from one Mac. That is a real\ndifference and it is worth knowing which kind you are getting —\nit is written here rather than in a changelog because the option\nis where you will be standing when it matters.\n\nNEEDS A DAEMON RESTART, which the rebuild does for you: the write\nalone changes nothing on screen until `universalaccessd`\nrestarts, which is exactly why this key spent three weeks\nlooking dead. `haus rebuild` kills it whenever this option\nfamily is set, so you should never meet the stale state; set the\nkey by hand with `defaults write` and you will, with\n`killall universalaccessd` as the fix.\n\nREACHABILITY — `com.apple.universalaccess` is TCC-protected, and this is\nthe one property in the whole option surface that can differ\nbetween two machines running byte-identical config, so it is worth\nreading once. The write lands only when the app that runs the\nrebuild holds Full Disk Access (System Settings ▸ Privacy &\nSecurity ▸ Full Disk Access; on macOS 26 a stale grant often needs\nremoving and re-adding with (+), then restarting the terminal).\nThe grant follows the APP, not you and not root — so an\nagent-driven rebuild in a pane of a terminal that has it works\nfine, and the same agent under a different app does not.\n\nWithout the grant haus warns and carries on: you lose this\nsetting and nothing else. That containment is the whole reason\n`com.apple.universalaccess` has options here at all — written the\nother way, through `system.defaults.universalaccess.*`, a missing\ngrant aborts the rest of activation and takes every background\nservice haus installs with it.\n\n`haus plan` says up front when a rebuild needs the grant, and\n`haus doctor`'s Permissions section says whether this app has it.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "accessibility",
+      "closeViewScrollWheelToggle"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.accessibility.closeViewZoomFollowsFocus": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Keep a zoomed display on whatever has keyboard focus.\n⇥ into a field outside the magnified area and the view goes to it —\nKEYBOARD focus specifically, not the pointer.\n\nNeeds a zoom to follow, so it does nothing on its own: pair it with\n`closeViewScrollWheelToggle` (or turn on Zoom in System Settings ▸\nAccessibility). nix-darwin's own option says the same, and it is the\nfirst thing to check if this appears to do nothing.\n\nExpect it to SNAP rather than glide — the view jumps to the focused\ncontrol in one step. That is the feature behaving, not a rendering\nfault, and it is the first thing anyone reports as one. Note also\nthat pushing the POINTER at a screen edge pans the zoomed view\nwhether or not this is set: that behaviour is not this option, which\nmatters if you are trying to tell whether it took.\n\n\nnull (the default) leaves whatever you have alone — this is a\npersonal setting, so haus never picks a value for you.\n\nHOW THIS ONE WAS VERIFIED — by a person looking at the screen on\nreal hardware (macOS 26.6.1, 2026-08-14), because no API reports\nit: `NSWorkspace` exposes no pointer size and no zoom state, so\n`hausax` cannot read it back and `haus diff` will tell you it\ncompared the plist and nothing more. haus's other\naccessibility options are checked against macOS's own answer on\nYOUR Mac; this one carries evidence from one Mac. That is a real\ndifference and it is worth knowing which kind you are getting —\nit is written here rather than in a changelog because the option\nis where you will be standing when it matters.\n\nNEEDS A DAEMON RESTART, which the rebuild does for you: the write\nalone changes nothing on screen until `universalaccessd`\nrestarts, which is exactly why this key spent three weeks\nlooking dead. `haus rebuild` kills it whenever this option\nfamily is set, so you should never meet the stale state; set the\nkey by hand with `defaults write` and you will, with\n`killall universalaccessd` as the fix.\n\nREACHABILITY — `com.apple.universalaccess` is TCC-protected, and this is\nthe one property in the whole option surface that can differ\nbetween two machines running byte-identical config, so it is worth\nreading once. The write lands only when the app that runs the\nrebuild holds Full Disk Access (System Settings ▸ Privacy &\nSecurity ▸ Full Disk Access; on macOS 26 a stale grant often needs\nremoving and re-adding with (+), then restarting the terminal).\nThe grant follows the APP, not you and not root — so an\nagent-driven rebuild in a pane of a terminal that has it works\nfine, and the same agent under a different app does not.\n\nWithout the grant haus warns and carries on: you lose this\nsetting and nothing else. That containment is the whole reason\n`com.apple.universalaccess` has options here at all — written the\nother way, through `system.defaults.universalaccess.*`, a missing\ngrant aborts the rest of activation and takes every background\nservice haus installs with it.\n\n`haus plan` says up front when a rebuild needs the grant, and\n`haus doctor`'s Permissions section says whether this app has it.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "accessibility",
+      "closeViewZoomFollowsFocus"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
   "haus.accessibility.differentiateWithoutColor": {
     "declarations": [
       "modules/den/options.nix"
@@ -40,6 +82,27 @@
     ],
     "readOnly": false,
     "type": "null or boolean"
+  },
+  "haus.accessibility.mouseDriverCursorSize": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "How big the mouse pointer is — 1.0 normal, 4.0 the biggest.\nThat range is macOS's own, and the scale is linear: 2.0 is twice\nthe normal pointer, 4.0 is the largest System Settings offers.\n\nThe one accessibility key here that is useful with no accessibility\nneed at all: on a 5K display, or from across a desk, or in a\nscreen recording someone else has to follow, the default pointer is\nsimply too small to find. Set it to 1.5 and you keep noticing you\ncan see it.\n\nDeliberately NOT wired to `haus.ui.scale`, which would be the\nobvious thing and is the wrong thing. `ui.scale` is the foundation\nevery machine gets; this domain needs Full Disk Access. Deriving\none from the other would make `ui.scale = 1.4` start warning about\na TCC grant on machines that never asked for a bigger pointer, for\na write that would then be skipped. Reach for this key when you\nwant it — it sharpens a large-text desktop, it does not underpin\none.\n\n\nnull (the default) leaves whatever you have alone — this is a\npersonal setting, so haus never picks a value for you.\n\nHOW THIS ONE WAS VERIFIED — by a person looking at the screen on\nreal hardware (macOS 26.6.1, 2026-08-14), because no API reports\nit: `NSWorkspace` exposes no pointer size and no zoom state, so\n`hausax` cannot read it back and `haus diff` will tell you it\ncompared the plist and nothing more. haus's other\naccessibility options are checked against macOS's own answer on\nYOUR Mac; this one carries evidence from one Mac. That is a real\ndifference and it is worth knowing which kind you are getting —\nit is written here rather than in a changelog because the option\nis where you will be standing when it matters.\n\nNEEDS A DAEMON RESTART, which the rebuild does for you: the write\nalone changes nothing on screen until `universalaccessd`\nrestarts, which is exactly why this key spent three weeks\nlooking dead. `haus rebuild` kills it whenever this option\nfamily is set, so you should never meet the stale state; set the\nkey by hand with `defaults write` and you will, with\n`killall universalaccessd` as the fix.\n\nREACHABILITY — `com.apple.universalaccess` is TCC-protected, and this is\nthe one property in the whole option surface that can differ\nbetween two machines running byte-identical config, so it is worth\nreading once. The write lands only when the app that runs the\nrebuild holds Full Disk Access (System Settings ▸ Privacy &\nSecurity ▸ Full Disk Access; on macOS 26 a stale grant often needs\nremoving and re-adding with (+), then restarting the terminal).\nThe grant follows the APP, not you and not root — so an\nagent-driven rebuild in a pane of a terminal that has it works\nfine, and the same agent under a different app does not.\n\nWithout the grant haus warns and carries on: you lose this\nsetting and nothing else. That containment is the whole reason\n`com.apple.universalaccess` has options here at all — written the\nother way, through `system.defaults.universalaccess.*`, a missing\ngrant aborts the rest of activation and takes every background\nservice haus installs with it.\n\n`haus plan` says up front when a rebuild needs the grant, and\n`haus doctor`'s Permissions section says whether this app has it.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "4.0"
+    },
+    "loc": [
+      "haus",
+      "accessibility",
+      "mouseDriverCursorSize"
+    ],
+    "readOnly": false,
+    "type": "null or integer or floating point number between 1.0 and 4.0 (both inclusive)"
   },
   "haus.accessibility.reduceMotion": {
     "declarations": [

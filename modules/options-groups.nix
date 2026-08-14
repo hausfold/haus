@@ -38,8 +38,11 @@ let
   # inventory, rather than glob rules, is what makes an added leaf fail closed.
   optionPaths = {
     accessibility = [
+      "closeViewScrollWheelToggle"
+      "closeViewZoomFollowsFocus"
       "differentiateWithoutColor"
       "increaseContrast"
+      "mouseDriverCursorSize"
       "reduceMotion"
       "reduceTransparency"
     ];

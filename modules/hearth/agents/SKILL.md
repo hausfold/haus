@@ -115,14 +115,17 @@ Two ways on, in this order:
 
 1. **Move those keys to `haus.accessibility.*`.** It reaches every key in that
    domain measured to take effect — `increaseContrast`,
-   `differentiateWithoutColor`, `reduceMotion`, `reduceTransparency` — through a
-   guarded write, so without the grant you lose that setting and nothing else,
-   and the rebuild runs from anywhere. This is usually the real fix, and it is
-   an edit you can make.
-2. **Only if the key is not one of those four** — cursor size and the closeView
-   pair have no option, because nobody has confirmed they do anything — tell the
-   user to run `haus rebuild` themselves in a terminal that holds the grant. The
-   edit is already written; nothing is lost.
+   `differentiateWithoutColor`, `reduceMotion`, `reduceTransparency`,
+   `mouseDriverCursorSize`, `closeViewScrollWheelToggle`,
+   `closeViewZoomFollowsFocus` — through a guarded write, so without the grant
+   you lose that setting and nothing else, and the rebuild runs from anywhere.
+   This is usually the real fix, and it is an edit you can make. Since
+   2026-08-14 that list covers **every key nix-darwin types here**, so a config
+   using the raw form has no key that needs it.
+2. **If the grant is genuinely wanted anyway** — say the user set some other key
+   in this domain through `system.defaults.CustomUserPreferences` — tell them to
+   run `haus rebuild` themselves in a terminal that holds it. The edit is
+   already written; nothing is lost.
 
 `haus doctor` reports whether this app has the grant; `haus plan` says which
 grant a rebuild wants before it runs.

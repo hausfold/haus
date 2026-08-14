@@ -26,8 +26,10 @@
 # one-element list.
 #
 # Values, per the matrix:
-#   "Dock" / "Finder" / "ControlCenter" / "SystemUIServer"
-#     — killall that process; it re-reads its domain at launch.
+#   "Dock" / "Finder" / "ControlCenter" / "SystemUIServer" / "universalaccessd"
+#     — killall that process; it re-reads its domain at launch. The first four
+#       are UI processes whose windows close as the cost; the fifth is a daemon,
+#       added 2026-08-14, and its cost is different in kind — see its entry.
 #   "activateSettings"
 #     — no process restart. `activateSettings -u` (den's postActivation,
 #       mkAfter) is the private binary System Settings itself calls to
@@ -89,9 +91,34 @@
   # den's `nebelhausAccessibility` block writes this domain itself, guarded
   # against the missing-FDA failure the matrix found (an unguarded write here
   # aborts the rest of activation under `set -e`). A failed write already
-  # degrades to "setting skipped"; a successful one is confirmed live by
-  # `hausax`'s NSWorkspace read (`haus diff`/`haus plan`), not by a restart.
-  "com.apple.universalaccess" = "none";
+  # degrades to "setting skipped".
+  #
+  # ★ This said `"none"` until 2026-08-14, and it was wrong for exactly the keys
+  # nobody could check. The four keys with an NSWorkspace oracle
+  # (`reduceMotion`, `reduceTransparency`, `increaseContrast`,
+  # `differentiateWithoutColor`) are live the instant the write lands — measured,
+  # and still true. `"none"` was generalised from them to the domain. It doesn't
+  # hold: `mouseDriverCursorSize`, `closeViewScrollWheelToggle` and
+  # `closeViewZoomFollowsFocus` were watched by eye on 26.6.1 (2026-08-14) and
+  # every one of them changed NOTHING on screen until `universalaccessd` was
+  # restarted — after which all three were live, with the plist unchanged across
+  # the restart. Those three are precisely the keys that have no oracle, which is
+  # why the domain looked settled: **an oracle doesn't only tell you whether a
+  # key works, it selects which keys you ever learn from, so a domain-level fact
+  # read off the measurable subset is a fact about the subset.**
+  #
+  # The kill is harmless to the oracle-backed four (they were already live before
+  # it), so this is one verb for the domain rather than a per-key table. It is
+  # NOT free, though, which is why den gates it: `universalaccessd` owns the
+  # running accessibility features, so restarting it interrupts VoiceOver or a
+  # live Zoom session for as long as launchd takes to bring it back. Domain
+  # membership can't express that gate — `com.apple.universalaccess` sits in den's
+  # `typedDomainsWritten` unconditionally so the lookups here find an answer,
+  # while the rice writes the domain only when something opts in. Same split
+  # NSGlobalDomain's locale notification already needed, and the same rule:
+  # **"which restart" is data; "does this rebuild need one" sometimes isn't.**
+  # den's `restartDeclaredBy` holds the trigger.
+  "com.apple.universalaccess" = "universalaccessd";
 
   # Nothing here writes this domain and nothing ever should (./reachability.nix
   # marks it `effect = "noop"` — it accepts writes and moves nothing, measured).
