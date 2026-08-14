@@ -77,18 +77,35 @@ let
       ''$DRY_RUN_CMD "${pkgs.duti}/bin/duti" -s com.colliderli.iina "${ext}" all 2>/dev/null || true''
     ) iinaVideoExts
   );
+
+  # ---- packs ----------------------------------------------------------------
+  # A pack file is data — `{ haus.roster = { … }; }` and nothing else — so this
+  # room can import one and lower it, which is all `haus.lib.pack` does for a
+  # third party's file. The priority is applied PER LEAF, and that detail is the
+  # whole trick: `mkDefault` on the whole `roster` attrset attaches to the entire
+  # definition, so one normal-priority field in a host would outrank the pack's
+  # WHOLE roster — measured at three of four apps silently not installed. Below
+  # the option leaf you set a priority; at or above it you replace a value.
+  packEntries =
+    path:
+    lib.mapAttrs (_: entry: lib.mapAttrs (_: value: lib.mkDefault value) entry) (
+      (import path).haus.roster
+    );
 in
 {
   # A roster entry, not `home.packages`: it shows up in `this-machine.md`, a host
   # can retune it by app id, and naming the same app from two sources trips the
   # roster's one-source assertion instead of quietly installing IINA twice (which
   # is exactly what happened for months — see modules/roster).
-  haus.roster = lib.mkIf videoCfg.enable {
-    iina = {
-      name = lib.mkDefault "IINA";
-      package = lib.mkDefault pkgs.iina;
-    };
-  };
+  haus.roster = lib.mkMerge [
+    (lib.mkIf videoCfg.enable {
+      iina = {
+        name = lib.mkDefault "IINA";
+        package = lib.mkDefault pkgs.iina;
+      };
+    })
+    (lib.mkIf cfg.packs.writing.enable (packEntries ./packs/writing.nix))
+  ];
 
   home-manager.users.${username} =
     # A module function so the inner `lib` is home-manager's (carries `lib.hm`);

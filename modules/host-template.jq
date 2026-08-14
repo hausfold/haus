@@ -11,11 +11,11 @@
 # and it is load-bearing. A file that spelled out every option at its default
 # would cost you both of the things a host file is for:
 #
-#   - It would COLLIDE with every preset. Import order carries no priority in
-#     the module system (presets/README.md), so a stated default and a preset's
-#     value are two definitions at the same priority, and the build stops with
-#     a conflict per field. `extraModules = [ nebelhaus.presets.large-print ]`
-#     would fail on `haus.ui.scale` — an option you never meant to set.
+#   - It would OVERRIDE your whole desktop, silently. A host's plain assignment
+#     outranks the desktop it selected (that is the point of the ladder), so a
+#     file restating every default would beat every choice the desktop made —
+#     `haus.appearance.largePrint = true` would still leave `ui.scale` at the
+#     1.0 this file spelled out, on an option you never meant to set.
 #   - It would FREEZE the defaults it states. The rice's own defaults are
 #     `lib.mkDefault`s, so a plain restatement wins over them permanently: a
 #     later rice that retunes that default can never reach you, and nothing
@@ -120,15 +120,14 @@ def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
 + "# meant. Apply with `haus rebuild`; undo with `haus rollback`.\n"
 + "#\n"
 + "# WHY COMMENTED OUT rather than spelled out like AeroSpace's default config: a\n"
-+ "# file that stated every default explicitly would collide with every preset and\n"
-+ "# freeze every default. Import order carries no priority here, so a stated\n"
-+ "# default and a preset's value are a CONFLICT, not an override — uncomment\n"
-+ "# `ui.scale` and `extraModules = [ nebelhaus.presets.large-print ]` stops the\n"
-+ "# build. And a plain value outranks the rice's own `lib.mkDefault`s for good, so\n"
-+ "# a later rice that retunes that default could never reach you.\n"
++ "# file that stated every default explicitly would silently override your whole\n"
++ "# desktop and freeze every default. A line here outranks the desktop you\n"
++ "# selected — uncomment `ui.scale` and `haus.appearance.largePrint = true` stops\n"
++ "# reaching it. And a plain value outranks the rice's own `lib.mkDefault`s for\n"
++ "# good, so a later rice that retunes that default could never reach you.\n"
 + "#\n"
-+ "# If you DO mean to override something a preset sets, say so: take `lib` in the\n"
-+ "# args below and write `lib.mkForce <value>`.\n"
++ "# Overriding your desktop is a PLAIN assignment, no `lib.mkForce` needed —\n"
++ "# that is what the priority ladder is for. Uncomment the one line you mean.\n"
 + "#\n"
 + "# Your identity, apps and secrets live NEXT DOOR in default.nix, which imports\n"
 + "# this file. Both are yours to edit; only this one is safe to regenerate.\n"

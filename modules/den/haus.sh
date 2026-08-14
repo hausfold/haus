@@ -1449,8 +1449,8 @@ cmd_edit() {
 # Pounce's packages/ modules. There is no second settings database to drift.
 #
 # These files use mkForce because this layer is the machine owner's explicit
-# answer and must be able to override a preset. `haus reset` removes that answer
-# entirely, revealing the host/preset/rice value underneath. `haus unset` is a
+# answer and must be able to override its desktop. `haus reset` removes that answer
+# entirely, revealing the host/desktop/room value underneath. `haus unset` is a
 # different operation: it explicitly writes null, and therefore only succeeds
 # for nullable options.
 settings_path() {
@@ -1851,7 +1851,7 @@ cmd_unset() {
 # Removing a file can fail validation exactly like writing one — not because
 # some other option breaks (nix is lazy; phase 3 only forces the path being
 # withdrawn, so it would never see that), but because the definition underneath
-# is the one the override was masking: two host/preset modules that conflict on
+# is the one the override was masking: two host/desktop modules that conflict on
 # this option evaluate fine while mkForce sits on top of them and stop doing so
 # the moment it is removed. So the removals are a transaction too, under the same
 # EXIT trap — settings_restore puts a backed-up file back, which is all

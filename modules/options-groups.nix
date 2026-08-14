@@ -44,8 +44,10 @@ let
       "skill"
     ];
     animations = [ "" ];
+    appearance = [ "largePrint" ];
     appStore = [ "install" ];
     apps = [
+      "packs.writing.enable"
       "videoPlayer.claimFileTypes"
       "videoPlayer.enable"
     ];
@@ -408,6 +410,7 @@ let
     accessibility = "appearance";
     ai = "ai";
     animations = "appearance";
+    appearance = "appearance";
     appStore = "apps";
     apps = "apps";
     collar = "security";
@@ -497,10 +500,14 @@ let
     };
     apps = {
       order = 23;
-      blurb = "The apps the rice picks for you, and the file types they claim — the ones a finished machine has rather than the ones a room needs to work. Each is one switch you can turn off; what it installs is a roster entry like any other, so you can retune or replace it by app id.";
+      blurb = "The apps the rice picks for you, the saved collections you can switch on in one line, and the file types they claim — the ones a finished machine has rather than the ones a room needs to work. Each is one switch you can turn off; what it installs is a roster entry like any other, so you can retune or replace it by app id.";
     };
 
     # ---- how it looks ---------------------------------------------------------
+    appearance = {
+      order = 25;
+      blurb = "The Appearance room's own profile — one named answer to a whole-machine question, where the groups below are the individual dials. `largePrint` sets the interface scale, the high-contrast palette, macOS's own contrast lift and the screen's scaled resolution together, each as a default you can still pin by hand.";
+    };
     theme = {
       order = 30;
       blurb = "Colour: the palette's flavour and contrast, the accent every themed tool spends, and whether macOS's own Light/Dark follows it.";

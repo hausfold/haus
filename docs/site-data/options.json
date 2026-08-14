@@ -175,6 +175,50 @@
     "readOnly": false,
     "type": "boolean"
   },
+  "haus.appearance.largePrint": {
+    "declarations": [
+      "modules/appearance/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Make everything haus controls bigger and sharper, in one line. Deliberately\nNARROW: it is about seeing, not about who you are, so it says nothing about\nwhich rooms you run — set it in any desktop, or in your host on top of one.\n\nIt moves four things, each as a DEFAULT, so pinning any single one by hand\nstill wins — with one asymmetry worth knowing: a DESKTOP that sets one of\nthe four beats this profile even when the profile was switched on in your\nhost, because the desktop's values sit above a room's defaults in the\npriority ladder. Set the value itself in your host to settle it:\n\n  haus.ui.scale = 1.4              the terminal font (19 → 27 pt), the whole\n                                   command palette, the bar's type (to its\n                                   ceiling, see below), Dock icons 48 → 67,\n                                   Finder's large sidebar rows, prowl's gaps\n  haus.theme.contrast = \"high\"     body text 11.3:1 → 19.9:1 against the\n                                   background, across every tool haus\n                                   colours. Measured in nebelung's CI.\n  haus.accessibility.increaseContrast = true\n                                   the same lift for NATIVE macOS apps, which\n                                   the palette cannot reach. FDA-gated at the\n                                   option, so it sharpens the result where it\n                                   applies and is skipped where it doesn't.\n  haus.displays.main.uiScale = \"larger-text\"\n                                   one step of the screen's scaled resolution\n                                   toward larger text. The only line here that\n                                   reaches apps haus has never heard of,\n                                   because it changes what a point MEANS.\n\n`main` rather than `internal` on purpose: on a laptop they are the same\npanel, but on a Mac mini or a clamshelled MacBook `internal` matches\nnothing — so keying on the built-in panel would quietly do nothing on the\ndesk setup most likely to need this. Name a specific monitor by UUID in\nyour host file for per-display control; `hausdisp list` prints them.\n\nWhat it does NOT move, stated here because a large-print machine that\nquietly under-delivers is worse than one that says where it stops:\n\n  - macOS's own text-size setting. `universalaccess`'s FontSizeCategory\n    key stores a value and posts no change notification, so apps never\n    re-read it. Display scaling is the lever that works.\n  - Third-party apps' own font settings. Nothing outside haus follows\n    `ui.scale` — they follow the display, which is why the line above\n    matters.\n  - The perch shelf, which sizes itself from the screen because it hangs\n    off the notch. Scaling the display shrinks its width in points by\n    exactly the factor that makes a point bigger.\n  - The menu bar's HEIGHT. Its type grows to a 1.25x ceiling and stops:\n    36pt of bar with 28pt pills is what keeps them inside the 32pt band\n    macOS's own hover-reveal covers, and that band is macOS's. The lever\n    that does move it is the display scaling above.\n  - A more legible FONT FAMILY, which is a choice rather than a limit.\n    A typeface is taste and a legibility profile should not decide yours;\n    Atkynson Mono is Atkinson Hyperlegible's monospaced sibling, drawn by\n    the Braille Institute for exactly this problem:\n\n      haus.fonts.mono.packageName = \"nerd-fonts.atkynson-mono\";\n      haus.fonts.mono.name        = \"AtkynsonMono Nerd Font\";\n\n  - Light mode, if it reads better for you: `haus.theme.flavor = \"latte\"`.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "appearance",
+      "largePrint"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.apps.packs.writing.enable": {
+    "declarations": [
+      "modules/apps/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Install the **writing** collection: Obsidian, Zotero, Anki and calibre —\na Mac that reads and writes rather than compiles.\n\nThese arrive as ordinary roster entries at `mkDefault`, so anything you\nsay about one of them in your own host file wins per FIELD and the rest\nof the entry survives:\n\n  haus.roster.zotero.key = \"y\";      # a letter of your own\n  haus.roster.obsidian.appId = \"…\";  # osascript -e 'id of app \"Obsidian\"'\n\nTwo of them claim a leader letter (`o`, `l`, `k`) and none claims a\nworkspace — a workspace names its own members, so give one to Obsidian\nin your host with `haus.workspaces`. The file is\n`modules/apps/packs/writing.nix`, and it is readable data: four casks\nand the keys to reach them.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "apps",
+      "packs",
+      "writing",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
   "haus.apps.videoPlayer.claimFileTypes": {
     "declarations": [
       "modules/apps/options.nix"
@@ -351,7 +395,7 @@
       "_type": "literalExpression",
       "text": "null"
     },
-    "description": "The scaled resolution, as an intent rather than a pixel count — the\nsame four positions System Settings ▸ Displays offers, named:\n\n  more-space     the largest resolution the panel offers (smallest UI)\n  default        the panel's own default mode\n  larger-text    between the default and the smallest resolution\n  largest-text   the smallest resolution the panel offers (biggest UI)\n\nResolved per panel from the modes that panel actually reports, so the\nsame value means the same *thing* on a 14\" laptop and a 27\" monitor\nrather than the same number of pixels. On the 14\" MacBook Pro this was\ndeveloped on that resolves to 1800x1169 · 1512x982 · 1147x745 ·\n1024x665.\n\nApplied at each home-manager activation and set permanently, so it\nsurvives a reboot; re-applying an already-current mode is a no-op, so\na rebuild doesn't flash your screen. null (the default) leaves the\ndisplay alone.\n\nWhen more than one selector names the same attached panel, the more\nspecific setting wins: UUID over internal over main. This lets a\nhost-specific display setting refine a broad preset such as\nlarge-print without depending on activation order.\n\nHonest scope: this is a real, system-wide size change — every app gets\nbigger, not just the rice's own tools — and the cost is desk space,\nbecause a larger UI means less of it. It also can't run from a rebuild\nwith no GUI session attached (over SSH, say); the setting applies at\nthe next activation you run while logged in.\n",
+    "description": "The scaled resolution, as an intent rather than a pixel count — the\nsame four positions System Settings ▸ Displays offers, named:\n\n  more-space     the largest resolution the panel offers (smallest UI)\n  default        the panel's own default mode\n  larger-text    between the default and the smallest resolution\n  largest-text   the smallest resolution the panel offers (biggest UI)\n\nResolved per panel from the modes that panel actually reports, so the\nsame value means the same *thing* on a 14\" laptop and a 27\" monitor\nrather than the same number of pixels. On the 14\" MacBook Pro this was\ndeveloped on that resolves to 1800x1169 · 1512x982 · 1147x745 ·\n1024x665.\n\nApplied at each home-manager activation and set permanently, so it\nsurvives a reboot; re-applying an already-current mode is a no-op, so\na rebuild doesn't flash your screen. null (the default) leaves the\ndisplay alone.\n\nWhen more than one selector names the same attached panel, the more\nspecific setting wins: UUID over internal over main. This lets a\nhost-specific display setting refine a broad profile such as\n`haus.appearance.largePrint` without depending on activation order.\n\nHonest scope: this is a real, system-wide size change — every app gets\nbigger, not just the rice's own tools — and the cost is desk space,\nbecause a larger UI means less of it. It also can't run from a rebuild\nwith no GUI session attached (over SSH, say); the setting applies at\nthe next activation you run while logged in.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"larger-text\""
@@ -373,7 +417,7 @@
       "_type": "literalExpression",
       "text": "13"
     },
-    "description": "The terminal-font baseline, before `haus.ui.scale` multiplies it.\nThe neutral room uses 13pt; nebelhaus selects 19pt in its desktop.\n\nThis exists so a desktop can carry that tuned baseline WITHOUT\nbreaking the scale relationship. Setting `size` directly pins an\nabsolute number, which would make `haus.ui.scale` (and the\nlarge-print preset built on it) stop moving the terminal font at\nall — a silent regression, since everything else would still grow.\nSay the baseline here; say the exception with `size`.\n",
+    "description": "The terminal-font baseline, before `haus.ui.scale` multiplies it.\nThe neutral room uses 13pt; nebelhaus selects 19pt in its desktop.\n\nThis exists so a desktop can carry that tuned baseline WITHOUT\nbreaking the scale relationship. Setting `size` directly pins an\nabsolute number, which would make `haus.ui.scale` (and\n`haus.appearance.largePrint`, built on it) stop moving the terminal font at\nall — a silent regression, since everything else would still grow.\nSay the baseline here; say the exception with `size`.\n",
     "example": {
       "_type": "literalExpression",
       "text": "19"
@@ -439,7 +483,7 @@
       "_type": "literalExpression",
       "text": "null"
     },
-    "description": "The same thing as `package`, NAMED rather than evaluated: an\nattribute path into nixpkgs, so \"nerd-fonts.fira-code\" means\n`pkgs.nerd-fonts.fira-code`.\n\nThis exists so a data-only rice (presets/README.md) can change the\nfont FAMILY and not just its size — reaching `pkgs` is precisely what\nthat format forbids, which made `fonts.mono.package` unreachable to\nevery shared rice. A name is data; a package is code.\n\nSet one or the other, never both. A name that resolves to nothing, or\nto a set of packages rather than a package, fails at eval with the\nspelling to try instead.\n",
+    "description": "The same thing as `package`, NAMED rather than evaluated: an\nattribute path into nixpkgs, so \"nerd-fonts.fira-code\" means\n`pkgs.nerd-fonts.fira-code`.\n\nThis exists so a data-only desktop or app pack can change the font\nFAMILY and not just its size — reaching `pkgs` is precisely what those\nformats forbid, which made `fonts.mono.package` unreachable to every\nshared file. A name is data; a package is code.\n\nSet one or the other, never both. A name that resolves to nothing, or\nto a set of packages rather than a package, fails at eval with the\nspelling to try instead.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"nerd-fonts.fira-code\""
@@ -2348,7 +2392,7 @@
       "_type": "literalExpression",
       "text": "null"
     },
-    "description": "The same source as `package`, NAMED rather than evaluated: an\nattribute path into nixpkgs, so \"orbstack\" means `pkgs.orbstack` and\n\"python3Packages.black\" means what it says. `scope` applies to it\nidentically.\n\nThis is the source a shared app pack can use (packs/README.md).\nWithout it a pack could install from Homebrew and the App Store but\nnever from Nixpkgs, because reaching `pkgs` is exactly what the\ndata-only format forbids — the one gap in the four sources.\n\nSet this or `package`, never both; and it counts as a source like any\nother, so pairing it with `cask` is the same mistake as pairing\n`cask` with `brew`.\n",
+    "description": "The same source as `package`, NAMED rather than evaluated: an\nattribute path into nixpkgs, so \"orbstack\" means `pkgs.orbstack` and\n\"python3Packages.black\" means what it says. `scope` applies to it\nidentically.\n\nThis is the source a shared app pack can use — see\n`haus.apps.packs`, and `modules/apps/packs/writing.nix` for one.\nWithout it a pack could install from Homebrew and the App Store but\nnever from Nixpkgs, because reaching `pkgs` is exactly what the\ndata-only format forbids — the one gap in the four sources.\n\nSet this or `package`, never both; and it counts as a source like any\nother, so pairing it with `cask` is the same mistake as pairing\n`cask` with `brew`.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"orbstack\""
@@ -4415,7 +4459,7 @@
       "_type": "literalExpression",
       "text": "null"
     },
-    "description": "A community-authored tour, in order. null keeps the built-in four-move\nnebelhaus tour unchanged; supplying a list replaces it, so a shared rice can\nteach its own workflow without shipping scripts or reaching outside the\n`haus.*` option surface.\n\nDetection reuses signals the rice already emits. `launch`, `workspace`,\n`navigate` and `resize` need prowl; `palette` needs Pounce and its palette\nbinding. The module warns when a chosen detector's room is disabled.\n\nAuthoring a tour is also the ONLY way to have one without prowl: the\nbuilt-in lap is three leader moves plus the palette, so `tour.enable` on a\nrice with `prowl.enable = false` draws nothing at all. `presets/everyday.nix`\nis the worked example — one step, the launcher.\n",
+    "description": "A community-authored tour, in order. null keeps the built-in four-move\nnebelhaus tour unchanged; supplying a list replaces it, so a shared rice can\nteach its own workflow without shipping scripts or reaching outside the\n`haus.*` option surface.\n\nDetection reuses signals the rice already emits. `launch`, `workspace`,\n`navigate` and `resize` need prowl; `palette` needs Pounce and its palette\nbinding. The module warns when a chosen detector's room is disabled.\n\nAuthoring a tour is also the ONLY way to have one without prowl: the\nbuilt-in lap is three leader moves plus the palette, so `tour.enable` on a\nmachine with `prowl.enable = false` draws nothing at all.\n`desktops/everyday.nix` is the worked example — one step, the launcher.\n",
     "example": {
       "_type": "literalExpression",
       "text": "[\n  {\n    detect = \"palette\";\n    hint = \"Press {palette}, type tour, then hit ↵\";\n  }\n]"

@@ -68,8 +68,8 @@
 
             When more than one selector names the same attached panel, the more
             specific setting wins: UUID over internal over main. This lets a
-            host-specific display setting refine a broad preset such as
-            large-print without depending on activation order.
+            host-specific display setting refine a broad profile such as
+            `haus.appearance.largePrint` without depending on activation order.
 
             Honest scope: this is a real, system-wide size change — every app gets
             bigger, not just the rice's own tools — and the cost is desk space,

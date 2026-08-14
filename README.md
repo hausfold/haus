@@ -59,8 +59,8 @@ own config: uncomment the lines you want, delete the ones you never touched. It'
 rendered from this repo's module system at the revision you pinned, so it can't
 list an option your rice doesn't have; `haus options` refreshes it after an
 update. (Commented rather than spelled out on purpose — the rice's defaults are
-`mkDefault`s, so a host file stating them all would silently override any preset
-it imports.)
+`mkDefault`s, so a host file stating them all would silently override every
+choice the desktop it selected made.)
 
 It won't switch a config that isn't yours — personalize the generated host file
 first, then rebuild.
@@ -79,7 +79,7 @@ haus options         # refresh the annotated catalogue of every haus.* option
 haus set theme.accent teal # write + apply options in the machine overlay (pairs)
 haus get theme.accent      # read the declared value (or omit the path to list overrides)
 haus unset lock.requirePassword # explicitly set nullable options to null
-haus reset theme.accent    # remove overrides and inherit the rice/preset again
+haus reset theme.accent    # remove overrides and inherit the desktop's value again
 haus plan            # preview the next rebuild — packages, macOS settings, the files
                      # home-manager writes into your home, launchd jobs, casks — read-only
 haus diff            # declared config vs what macOS actually has right now

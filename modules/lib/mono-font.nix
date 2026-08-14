@@ -9,7 +9,7 @@
 #
 # THREE ways to say it and one answer, which is why this isn't a let-binding in
 # den any more: `package` is a package (code), `packageName` is an attribute path
-# into nixpkgs (data, so a data-only preset can change the family too), and
+# into nixpkgs (data, so a data-only desktop can change the family too), and
 # neither set means the rice's own JetBrains Mono Nerd Font. den INSTALLS the
 # result; wallpaper reads the font FILE out of it to set the debug band in.
 # Getting a different answer in the two rooms would put the desktop in one

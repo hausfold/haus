@@ -860,8 +860,8 @@ in
 
         Authoring a tour is also the ONLY way to have one without prowl: the
         built-in lap is three leader moves plus the palette, so `tour.enable` on a
-        rice with `prowl.enable = false` draws nothing at all. `presets/everyday.nix`
-        is the worked example — one step, the launcher.
+        machine with `prowl.enable = false` draws nothing at all.
+        `desktops/everyday.nix` is the worked example — one step, the launcher.
       '';
     };
 
