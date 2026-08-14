@@ -2059,6 +2059,14 @@
                 extraModules = [ (riceLib.desktop (desktopFixture "valid-sample.nix")) ];
               }).assertions
           );
+          expectedDesktopSameAssertions = [
+            (
+              "This machine selected the same desktop more than once:\n"
+              + "  test/desktops/valid-sample.nix\n"
+              + "Import it once. Repeating a desktop can duplicate list-valued settings even "
+              + "when its scalar values are identical."
+            )
+          ];
 
           # Every way a file fails to be a desktop, with the diagnostic it
           # produces. One fixture per rule (test/desktops/README.md); the list is
@@ -2089,6 +2097,7 @@
             test/desktops/imports.nix: may not import modules — a desktop is one file's worth of values, and what it can reach has to be readable from that file alone
             test/desktops/internal-wiring.nix: haus._contrib is internal wiring between rooms, not a setting a desktop may write
             test/desktops/legacy-namespace.nix: spells the namespace the pre-rename way; a desktop is new enough to have no legacy spelling — write `haus`
+            test/desktops/missing-haus.nix: has no `haus` settings — a desktop is { haus = { … }; }
             test/desktops/module-internals.nix: may not set module-system internals
             test/desktops/nixpkgs.nix: may not set `nixpkgs.*`
             test/desktops/non-attrset.nix: does not evaluate to a set of settings — a desktop is { haus = { … }; }
@@ -2290,10 +2299,10 @@
             } \
                     ${pkgs.writeText "actual" (builtins.concatStringsSep "\n" desktopTwoAssertions + "\n")}
 
-            ${nixpkgs.lib.optionalString (desktopSameAssertions != [ ]) ''
-              echo 'selecting the same desktop file twice was treated as two desktops:' >&2
-              printf '%s\n' ${nixpkgs.lib.escapeShellArgs desktopSameAssertions} >&2
-              exit 1''}
+            diff -u ${
+              pkgs.writeText "expected" (builtins.concatStringsSep "\n" expectedDesktopSameAssertions + "\n")
+            } \
+                    ${pkgs.writeText "actual" (builtins.concatStringsSep "\n" desktopSameAssertions + "\n")}
 
             diff -u ${pkgs.writeText "expected" expectedDesktopDiagnostics} \
                     ${pkgs.writeText "actual" (desktopDiagnostics + "\n")}

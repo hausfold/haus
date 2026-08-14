@@ -178,11 +178,13 @@ is contributed per-room (den owns the framework, prowl/sill add their own cask/b
 ### Desktops
 
 A **desktop** is a complete, data-only answer to "what should this Mac feel like?",
-and a host runs **exactly one** (the model is the workshop's
+and a finished configuration runs **exactly one** (the model is the workshop's
 `notes/rooms-desktops.md`). `mkNebelhaus` takes a `desktop` argument, defaulting to
 `./desktops/nebelhaus.nix`, so every existing consumer's call means what it always
-meant; `desktop = null` selects none, and a standalone `darwinModules.<room>` import
-still selects none by construction.
+meant. `desktop = null` is the low-level composition escape hatch: by itself it
+selects the bare haus foundation, or it makes room for one `lib.desktop` passed
+through `extraModules`. A standalone `darwinModules.<room>` import still selects
+none by construction.
 
 Three rules, all enforced rather than documented:
 

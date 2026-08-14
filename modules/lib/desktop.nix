@@ -294,6 +294,9 @@ in
         strayFailures = map (
           k: at "${bannedKeys.${k} or "sets `${k}` outside `haus`, and a desktop may set nothing else"}"
         ) stray;
+        missingHausFailures = lib.optional (!(value ? haus) && !(value ? nebelhaus)) (
+          at "has no `haus` settings — a desktop is { haus = { … }; }"
+        );
         body = value.haus or { };
         bodyFailures =
           if !(builtins.isAttrs body) then
@@ -301,7 +304,7 @@ in
           else
             map at (descend "haus" null body);
       in
-      strayFailures ++ bodyFailures;
+      strayFailures ++ missingHausFailures ++ bodyFailures;
 
   # The desktop's values, each leaf carried in at `priority`. Per LEAF, which is
   # the same trick `lib.pack` turns for packs and for the same reason: a

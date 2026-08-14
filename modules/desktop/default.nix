@@ -19,27 +19,28 @@ let
   # module system's business and not a fact worth reporting: the builder's
   # desktop and an `extraModules` one land either way round, and a message that
   # changes with it reads as if it knew something it doesn't.
-  # Unique, because selecting the SAME file twice is one desktop said twice —
-  # harmless, and refusing it would print the same path in both rows of a
-  # message about two desktops. Sorted, because the order two definitions of one
-  # option arrive in is the module system's business and not a fact worth
-  # reporting: the builder's desktop and an `extraModules` one land either way
-  # round, and a message that changes with it reads as if it knew something it
-  # doesn't.
-  sources = builtins.sort (a: b: a < b) (lib.unique config.haus._desktop.sources);
+  sources = builtins.sort (a: b: a < b) config.haus._desktop.sources;
+  distinctSources = lib.unique sources;
+  repeatedOne = builtins.length sources > 1 && builtins.length distinctSources == 1;
 in
 {
   assertions = [
     {
       assertion = builtins.length sources <= 1;
       message =
-        "This machine selected ${toString (builtins.length sources)} desktops:\n"
-        + "  ${builtins.concatStringsSep "\n  " sources}\n"
-        + "A host runs exactly one. Whole desktops do not stack — pick the one that "
-        + "answers what this Mac should feel like, and say the rest in your host file, "
-        + "which wins over the desktop by plain assignment. To select one through "
-        + "`extraModules` instead of the builder's own `desktop` argument, pass "
-        + "`desktop = null` alongside it.";
+        if repeatedOne then
+          "This machine selected the same desktop more than once:\n"
+          + "  ${builtins.head distinctSources}\n"
+          + "Import it once. Repeating a desktop can duplicate list-valued settings even "
+          + "when its scalar values are identical."
+        else
+          "This machine selected ${toString (builtins.length sources)} desktops:\n"
+          + "  ${builtins.concatStringsSep "\n  " sources}\n"
+          + "A host runs exactly one. Whole desktops do not stack — pick the one that "
+          + "answers what this Mac should feel like, and say the rest in your host file, "
+          + "which wins over the desktop by plain assignment. To select one through "
+          + "`extraModules` instead of the builder's own `desktop` argument, pass "
+          + "`desktop = null` alongside it.";
     }
   ];
 }
