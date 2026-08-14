@@ -5,5 +5,10 @@
     sill.enable = false;
     # A SEMANTIC display selector — "the built-in panel", true on any Mac.
     displays.internal.uiScale = "larger-text";
+    # A list, so the check can read back what a host override does to one.
+    pounce.autoQuit.exclude = [
+      "from-desktop-a"
+      "from-desktop-b"
+    ];
   };
 }

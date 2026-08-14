@@ -13,13 +13,20 @@
 # the bare foundation plus one room, and it acquires no desktop's opinions —
 # that is what those exports have always meant, and the desktop seam does not
 # get to make them stop evaluating.
-{ config, ... }:
+{ config, lib, ... }:
 let
   # Sorted, because the order two definitions of one option arrive in is the
   # module system's business and not a fact worth reporting: the builder's
   # desktop and an `extraModules` one land either way round, and a message that
   # changes with it reads as if it knew something it doesn't.
-  sources = builtins.sort (a: b: a < b) config.haus._desktop.sources;
+  # Unique, because selecting the SAME file twice is one desktop said twice —
+  # harmless, and refusing it would print the same path in both rows of a
+  # message about two desktops. Sorted, because the order two definitions of one
+  # option arrive in is the module system's business and not a fact worth
+  # reporting: the builder's desktop and an `extraModules` one land either way
+  # round, and a message that changes with it reads as if it knew something it
+  # doesn't.
+  sources = builtins.sort (a: b: a < b) (lib.unique config.haus._desktop.sources);
 in
 {
   assertions = [
@@ -30,7 +37,9 @@ in
         + "  ${builtins.concatStringsSep "\n  " sources}\n"
         + "A host runs exactly one. Whole desktops do not stack — pick the one that "
         + "answers what this Mac should feel like, and say the rest in your host file, "
-        + "which wins over the desktop by plain assignment.";
+        + "which wins over the desktop by plain assignment. To select one through "
+        + "`extraModules` instead of the builder's own `desktop` argument, pass "
+        + "`desktop = null` alongside it.";
     }
   ];
 }

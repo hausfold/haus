@@ -22,6 +22,14 @@
 # semantic display selector (`main`) from a physical panel UUID, which is the
 # textbook case of one namespace holding both a desktop value and a host fact.
 #
+# What this is NOT: an escaping story. It stops a desktop from DECLARING code —
+# no function, no activation script, no `imports` — and it keeps the leaves that
+# are later executed as commands host-only. It does not sanitise every string on
+# its way into a generated config; the one place a desktop-safe option takes
+# free-form keys (`attrs-of-string`) is narrowed here for exactly that reason,
+# and any option that later grows the same shape has to say so by naming that
+# validator.
+#
 # Everything here returns a LIST OF FAILURES rather than throwing. The seam in
 # flake.nix (`lib.checkDesktop`) is what throws; a list is what lets
 # `nix flake check` diff the exact diagnostics a bad desktop produces, filename
@@ -67,7 +75,16 @@ let
     let
       meta = metaOf path;
     in
-    if meta == null then
+    if builtins.isAttrs value && value ? _type then
+      # `mkForce`, `mkIf`, `mkMerge` — hand-rolled, since a data file has no
+      # `lib`. Refused before anything else looks at the path: the payload of
+      # one of these is an attrset the walk below would step straight over, and
+      # a desktop that could raise its own priority would not lose to the host
+      # that chose it.
+      [
+        (said path "may not carry a merge or priority instruction — a desktop states values, and the host is what outranks them")
+      ]
+    else if meta == null then
       if hasChildren path then
         if isBranch value then
           descend path null value
@@ -144,8 +161,17 @@ let
 
   # An id a person picked for an app, a workspace or a palette row. Not a fact
   # about the machine, so any ordinary name is fine — the rule exists to keep a
-  # key that is really a path or a shell fragment out of a generated file.
-  plainId = key: builtins.match "[A-Za-z][A-Za-z0-9_-]*" key != null;
+  # key that is really a path or a shell fragment out of a generated file. A
+  # LEADING DIGIT is ordinary here and the first version of this refused it:
+  # `workspaces."1"` is AeroSpace's most common naming, and `1password` is a
+  # real app id.
+  plainId = key: builtins.match "[A-Za-z0-9][A-Za-z0-9_-]*" key != null;
+
+  # No quote, backslash, dollar, backtick, newline or tab. Not a general
+  # escaping story — a desktop's strings reach generated shell and JSON in
+  # several rooms — but the characters that turn a value into syntax wherever
+  # it lands.
+  shellSafe = s: builtins.match "[^\"'\\$`\n\t]*" s != null;
 
   validators = {
     roster-entries = entries {
@@ -177,8 +203,9 @@ let
         "names a physical display, which is a fact about one machine — a desktop may only use the `internal` and `main` selectors";
     };
     # A list of submodules (leader extras, snippets, tour steps). The list is
-    # ONE definition — the module system concatenates lists rather than
-    # colliding on them — so the fields are what get walked.
+    # ONE value as far as this walk is concerned — the fields inside its
+    # elements are what get checked. (What a HOST then does to that list is
+    # `prioritize`'s business, and it replaces rather than appends; see there.)
     submodule-list =
       path: value:
       if !(builtins.isList value) then
@@ -191,15 +218,31 @@ let
           else
             lib.concatMap (field: walk "${path}.*.${field}" element.${field}) (builtins.attrNames element)
         ) value;
-    # A free attrset of strings: no options underneath, so the payload is
-    # checked here or not at all.
+    # A free attrset of strings: no options underneath, so BOTH halves are
+    # checked here or not at all — and the keys are the half that is easy to
+    # forget. `haus.sill.media.icons` is written out as a double-quoted shell
+    # assignment in a generated file the bar's plugins source, so a key holding
+    # a quote or a `$( )` would be code, arriving from a file whose whole
+    # promise is that it holds none. Nothing else in the desktop-safe surface
+    # takes free-form keys today; when something does, it inherits this rule by
+    # naming this validator.
     attrs-of-string =
       path: value:
       if !(builtins.isAttrs value) then
         [ (said path "takes a set of strings") ]
       else
         lib.concatMap (
-          key: lib.optional (!(builtins.isString value.${key})) (said "${path}.${key}" "must be a string")
+          key:
+          if !(shellSafe key) then
+            [ (said "${path}.${key}" "may not contain quotes, backslashes, `$`, backticks or newlines") ]
+          else if !(builtins.isString value.${key}) then
+            [ (said "${path}.${key}" "must be a string") ]
+          else if !(shellSafe value.${key}) then
+            [
+              (said "${path}.${key}" "may not contain quotes, backslashes, `$`, backticks or newlines")
+            ]
+          else
+            [ ]
         ) (builtins.attrNames value);
   };
 
@@ -239,10 +282,12 @@ in
     let
       at = message: "${source}: ${message}";
     in
-    if !(builtins.isAttrs value) then
+    if builtins.isFunction value then
       [
         (at "is a function, so it is not a desktop. A desktop takes no arguments — no pkgs, no lib, no config — and evaluates to { haus = { … }; }. Something that genuinely needs pkgs is a room, with the trust that implies.")
       ]
+    else if !(builtins.isAttrs value) then
+      [ (at "does not evaluate to a set of settings — a desktop is { haus = { … }; }") ]
     else
       let
         stray = builtins.filter (k: k != "haus") (builtins.attrNames value);
@@ -264,6 +309,17 @@ in
   # normal-priority line in a host would outrank the desktop's whole `roster`
   # rather than its one field. Below the leaf you set a priority; at or above it
   # you set a value.
+  #
+  # A LIST is one leaf, and that is a decision rather than an accident. Two
+  # definitions of a list-valued option normally CONCATENATE — so an untouched
+  # desktop list would be un-removable, and a host that wanted three of the
+  # desktop's four leader extras would have no way to say so. Priced against
+  # each other, "the host restates the list it wants" beats "the host cannot
+  # drop an entry", and it is the same rule as every other option here: the host
+  # says something, the host's value is what you get. So a host that names
+  # `keys.leaderExtras` at all REPLACES the desktop's, rather than appending to
+  # it — worth knowing before step 4 moves real lists into a desktop, and
+  # pinned by a row in `desktop-seam`.
   prioritize =
     priority: body:
     let

