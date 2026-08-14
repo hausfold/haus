@@ -12,6 +12,16 @@
 #
 # Flags / env:
 #   --defaults, NEBELHAUS_NONINTERACTIVE=1   skip the interview, take smart defaults
+#   --desktop <name>, HAUS_DESKTOP=<name>    pick the desktop up front — one of
+#                                            nebelhaus, everyday, minimal, blank
+#                                            — and SKIP that question, in an
+#                                            interactive run too. This is what
+#                                            hausfold.co/<name>.sh sets for you:
+#                                            typing the URL is answering the
+#                                            question, so being asked it again
+#                                            reads as the installer not
+#                                            listening. Every other answer is
+#                                            still asked for.
 #   --from <url>, NEBELHAUS_FROM=<url>       RESTORE a config you already have in
 #                                            git (a new/wiped Mac) instead of
 #                                            scaffolding a fresh one — clones it,
@@ -44,12 +54,20 @@ DRY_RUN="${NEBELHAUS_DRY_RUN:-}"
 # --from <url> / NEBELHAUS_FROM restores an existing config instead of scaffolding
 # (see Phase 1b). Parse args here so --defaults still gates INTERACTIVE below.
 FROM_URL="${NEBELHAUS_FROM:-}"
+# --desktop <name> picks the desktop up front. Parsed here rather than beside
+# DESKTOP_NAME below because the flag has to be seen before the interview is
+# assembled, and because "was it given at all?" is the thing we need to know —
+# DESKTOP_NAME defaults to `nebelhaus`, so its value alone can't distinguish a
+# choice from a default.
+DESKTOP_ARG="${HAUS_DESKTOP:-${NEBELHAUS_DESKTOP:-${NEBELHAUS_PRESET:-}}}"
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --defaults) NONINTERACTIVE=1 ;;
-    --from)     shift; FROM_URL="${1:-}"; [ -n "$FROM_URL" ] || die "--from needs a git URL (e.g. --from https://github.com/you/nix-config)" ;;
-    --from=*)   FROM_URL="${1#--from=}" ;;
-    *)          : ;;
+    --defaults)  NONINTERACTIVE=1 ;;
+    --from)      shift; FROM_URL="${1:-}"; [ -n "$FROM_URL" ] || die "--from needs a git URL (e.g. --from https://github.com/you/nix-config)" ;;
+    --from=*)    FROM_URL="${1#--from=}" ;;
+    --desktop)   shift; DESKTOP_ARG="${1:-}"; [ -n "$DESKTOP_ARG" ] || die "--desktop needs a name (nebelhaus, everyday, minimal or blank)" ;;
+    --desktop=*) DESKTOP_ARG="${1#--desktop=}" ;;
+    *)           : ;;
   esac
   shift
 done
@@ -305,8 +323,25 @@ ROOMS="${NEBELHAUS_ROOMS:-sill,prowl,pounce}"
 #
 # `NEBELHAUS_PRESET` is the pre-rooms spelling and still read: `full` names the
 # nebelhaus desktop now, and `everyday`/`minimal` are desktops of their own.
-DESKTOP_NAME="${NEBELHAUS_DESKTOP:-${NEBELHAUS_PRESET:-nebelhaus}}"
+# All three spellings, plus `--desktop`, land in DESKTOP_ARG up in the flag
+# block; DESKTOP_EXPLICIT is the bit that matters here, because it is what lets
+# the interview below skip a question it already has the answer to.
+DESKTOP_EXPLICIT=""
+DESKTOP_NAME="${DESKTOP_ARG:-nebelhaus}"
 if [ "$DESKTOP_NAME" = "full" ]; then DESKTOP_NAME=nebelhaus; fi
+if [ -n "$DESKTOP_ARG" ]; then
+  DESKTOP_EXPLICIT=1
+  # Checked against a list rather than against the repo, because nothing is
+  # cloned yet at this point. A typo has to fail HERE, loudly: an unknown name
+  # would otherwise reach the generated flake as
+  # `desktop = nebelhaus.desktops.<typo>;` and surface as a Nix eval error
+  # after the download, which is a long way to walk to be told you misspelled
+  # a word.
+  case "$DESKTOP_NAME" in
+    nebelhaus|everyday|minimal|blank) : ;;
+    *) die "unknown desktop '$DESKTOP_NAME' — pick one of: nebelhaus, everyday, minimal, blank" ;;
+  esac
+fi
 case ",$ROOMS," in *,sill,*)   ROOM_SILL=1   ;; *) ROOM_SILL=   ;; esac
 case ",$ROOMS," in *,prowl,*)  ROOM_PROWL=1  ;; *) ROOM_PROWL=  ;; esac
 case ",$ROOMS," in *,pounce,*) ROOM_POUNCE=1 ;; *) ROOM_POUNCE= ;; esac
@@ -334,6 +369,22 @@ if [ -n "$INTERACTIVE" ]; then
     GIT_NAME="$("$GUM"  input --prompt "Git name › "  --value "$GIT_NAME"  --placeholder "Ada Lovelace" <&3)"
     GIT_EMAIL="$("$GUM" input --prompt "Git email › " --value "$GIT_EMAIL" --placeholder "ada@example.com" <&3)"
 
+    # Already answered — by `--desktop`, by HAUS_DESKTOP, or by the URL the
+    # person typed, which is how hausfold.co/minimal.sh works. Say what was
+    # chosen and how to change it, then move on. Asking anyway would read as
+    # the installer not listening, and it is the one question here whose
+    # answer arrives before the interview starts.
+    #
+    # The rooms are deliberately NOT seeded on this path, unlike the branches
+    # below. ROOM_* only ever writes `haus.<room>.enable = false;` into the
+    # HOST file, which sits above the desktop in the priority ladder — so
+    # seeding them here would hard-code a subtraction the desktop already
+    # makes, and freeze this machine's answer to a question the desktop should
+    # keep owning. Leaving them alone lets `desktops/<name>.nix` decide, which
+    # is the whole point of selecting one.
+    if [ -n "$DESKTOP_EXPLICIT" ]; then
+      say "Desktop: $DESKTOP_NAME (you asked for this one — change it any time in your host file)"
+    else
     # A desktop seeds the optional rooms; only "Custom" opens the per-room
     # picker. It's pure sugar over the same ROOM_* toggles the NEBELHAUS_ROOMS
     # env var drives, so a scripted install stays a one-liner.
@@ -366,6 +417,7 @@ if [ -n "$INTERACTIVE" ]; then
         ROOM_SILL=1; ROOM_PROWL=1; ROOM_POUNCE=1
         ;;
     esac
+    fi
 
     ACCENT="$(printf 'mauve\nblue\nsapphire\nsky\nteal\ngreen\nyellow\npeach\nmaroon\nred\npink\nflamingo\nrosewater\nlavender' \
       | "$GUM" choose --header 'Accent colour:')"; ACCENT="${ACCENT:-mauve}"
