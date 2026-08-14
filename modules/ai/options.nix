@@ -24,15 +24,10 @@ in
   options.haus = {
     ai.enable = lib.mkOption {
       type = lib.types.bool;
-      # Unchanged behaviour, deliberately: this option was
-      # `haus.developer.agents.enable`, whose default was the developer pack's
-      # switch, and step 2 of the rooms plan moves ownership without moving
-      # values. A room defaulting to another room's switch is exactly the
-      # "rooms do not silently enable each other" rule that the desktop carve-out
-      # (step 4) exists to fix — the neutral default and the nebelhaus value that
-      # replaces it have to land together or an install silently loses the room.
-      default = config.haus.developer.enable;
-      defaultText = lib.literalExpression "config.haus.developer.enable";
+      # Rooms are independent. nebelhaus selects AI in its desktop; the neutral
+      # room catalogue leaves it off until a desktop or host asks for it.
+      default = false;
+      defaultText = lib.literalExpression "false";
       description = ''
         The AI room: coding-agent *tooling*. `holt` (agent worktrees),
         `agent-state` (the pane-status writer behind the `agents` bar pill and
@@ -47,8 +42,9 @@ in
         of those rooms is switched on by turning this one on.
 
         Off is right for any machine not running coding agents — it's a large
-        surface a non-developer never sees. It also empties `ai.clients`,
-        since a client with no `holt` to park it is not the deal on offer.
+        surface a non-developer never sees. The neutral default installs no
+        clients; a desktop that selects this room names both `ai.clients` and
+        `ai.default`.
 
         Was `haus.developer.agents.enable`, and the rest of this namespace was
         `haus.agents.*`, until 2026-08-13. Neither spelling is aliased — see
@@ -58,12 +54,8 @@ in
 
     ai.clients = lib.mkOption {
       type = lib.types.listOf (lib.types.enum agentClients);
-      default = lib.optionals config.haus.ai.enable [
-        "claude"
-        "opencode"
-      ];
-      # Prose, so literalMD — see developer.languages for why that matters.
-      defaultText = lib.literalMD ''[ "claude" "opencode" ] when ai.enable is true, else [ ]'';
+      default = [ ];
+      defaultText = lib.literalExpression "[ ]";
       example = [
         "claude"
         "codex"
@@ -88,7 +80,29 @@ in
         `claude-code`, `codex` or `opencode` — rather than dropping the client
         here and installing your own copy alongside; two derivations shipping
         the same `bin/` name collide in one profile.
+
+        Ignored entirely when `ai.enable` is off — see `haus._ai.clients`, the
+        resolved list every room actually installs from. Before step 4 this was
+        an assertion instead ("clients are set but the room is off"), which was
+        right while the list defaulted from the room's own switch and wrong
+        afterwards: a desktop names the clients, so a host turning the room off
+        would have had to blank the desktop's list as well to get a rebuild at
+        all. One switch now removes the room, which is what "clean removal when
+        disabled" means.
       '';
+    };
+
+    # The list as the rest of the rice must read it. `ai.clients` is what
+    # somebody WROTE; this is what this machine actually installs, which is the
+    # same thing gated on the room being on at all. Internal, because it is a
+    # resolution rather than a setting — see modules/lib/contrib.nix for the
+    # same reasoning applied to cross-room wiring.
+    _ai.clients = lib.mkOption {
+      internal = true;
+      readOnly = true;
+      type = lib.types.listOf (lib.types.enum agentClients);
+      default = lib.optionals config.haus.ai.enable config.haus.ai.clients;
+      description = "Resolved coding-agent clients: `ai.clients` when the AI room is on, else none.";
     };
 
     ai.default = lib.mkOption {

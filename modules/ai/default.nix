@@ -28,6 +28,12 @@ let
   cfg = config.haus.ai;
   agentPackages = import ../lib/agent-packages.nix pkgs;
 
+  # What this machine actually installs: the written list, gated on the room.
+  # Every check below is about the machine rather than about the text, so they
+  # all read this — a desktop naming three clients with the room switched off
+  # installs none, and must not be refused for it.
+  clients = config.haus._ai.clients;
+
   # nixpkgs ships all three for aarch64-darwin only. That is the whole rice's
   # platform since 26.11 dropped x86_64-darwin, so this never fires today — but
   # it is the difference between a named refusal and an install that silently
@@ -35,14 +41,14 @@ let
   # to end. (The `lib.meta.availableOn` guard it replaces did skip silently.)
   unavailableClients = lib.filter (
     c: !lib.meta.availableOn pkgs.stdenv.hostPlatform agentPackages.${c}
-  ) cfg.clients;
+  ) clients;
 
   # Whether this machine actually SPAWNS agents. The room being on is not enough:
   # `ai.clients = [ ]` is a machine the rice installs no client on, and a
   # chord that spawns nothing is the dead-pane failure again, one layer up. So
   # this is what the terminal's chords and the launcher's Spawn Agent follow —
   # the same gate both used before this room existed.
-  spawnable = cfg.enable && cfg.clients != [ ];
+  spawnable = cfg.enable && clients != [ ];
 
   # The bar is a different question, and answering it with `spawnable` was
   # wrong: `ai.clients = [ ]` means the RICE installs no client, not that no
@@ -70,20 +76,13 @@ in
   # and they must fail the rebuild on a machine that has no terminal room at all.
   assertions = [
     {
-      assertion = lib.elem cfg.default cfg.clients || cfg.clients == [ ];
+      assertion = lib.elem cfg.default clients || clients == [ ];
       message =
         "haus.ai.default = \"${cfg.default}\" is not in haus.ai.clients "
-        + "(${lib.concatStringsSep ", " cfg.clients}). Pounce's Spawn Agent would create the "
+        + "(${lib.concatStringsSep ", " clients}). Pounce's Spawn Agent would create the "
         + "worktree, open the pane, and only then find no ${cfg.default} on PATH — leaving a "
         + "dead pane and a worktree to reap. Add it to ai.clients, or point ai.default "
         + "at one you install.";
-    }
-    {
-      assertion = cfg.clients == [ ] || cfg.enable;
-      message =
-        "haus.ai.clients is set (${lib.concatStringsSep ", " cfg.clients}) but "
-        + "haus.ai.enable is off, so there is no `holt` to make a worktree, park it, or "
-        + "resume it. Turn the room on, or empty ai.clients.";
     }
     {
       assertion = unavailableClients == [ ];

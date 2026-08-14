@@ -191,6 +191,14 @@ in
     fonts.mono = {
       name = lib.mkOption {
         type = lib.types.str;
+        # NOT carved out into the desktop, though the inventory lists it as an
+        # opinion. Which patched family is taste; being a PATCHED family is a
+        # requirement — starship, lsd, yazi and half the bar draw glyphs a stock
+        # font renders as tofu (see below). A neutral "Menlo" would make the
+        # bare terminal room actively broken rather than merely unopinionated,
+        # which is the opposite of "a neutral, useful configuration when
+        # enabled". So the layer keeps supplying one that works, and a desktop
+        # that wants a different family names it and its package together.
         default = "JetBrainsMono Nerd Font Mono";
         example = "Berkeley Mono";
         description = ''
@@ -212,18 +220,33 @@ in
           the same reason the terminal wants a patched font.
         '';
       };
+      baseSize = lib.mkOption {
+        type = lib.types.ints.positive;
+        default = 13;
+        example = 19;
+        description = ''
+          The terminal-font baseline, before `haus.ui.scale` multiplies it.
+          The neutral room uses 13pt; nebelhaus selects 19pt in its desktop.
+
+          This exists so a desktop can carry that tuned baseline WITHOUT
+          breaking the scale relationship. Setting `size` directly pins an
+          absolute number, which would make `haus.ui.scale` (and the
+          large-print preset built on it) stop moving the terminal font at
+          all — a silent regression, since everything else would still grow.
+          Say the baseline here; say the exception with `size`.
+        '';
+      };
       size = lib.mkOption {
         type = lib.types.ints.positive;
-        default = builtins.floor (19 * config.haus.ui.scale + 0.5);
-        # Prose, so literalMD — see haus.developer.languages in modules/options.nix.
-        defaultText = lib.literalMD "19, scaled by haus.ui.scale";
+        default = builtins.floor (config.haus.fonts.mono.baseSize * config.haus.ui.scale + 0.5);
+        defaultText = lib.literalExpression "round (haus.fonts.mono.baseSize * haus.ui.scale)";
         example = 24;
         description = ''
           Terminal font size in points. The single most useful knob for a
           larger-text machine, since it moves everything the rice actually
           lives in.
 
-          19 (at ui.scale = 1.0) is the base for a reason worth knowing: the Ghostty window is
+          nebelhaus's 19pt baseline exists for a reason worth knowing: the Ghostty window is
           tiled to a fixed pixel height by prowl, and sizes that don't divide
           that height evenly used to leave a gap under zellij's status bar.
           That's since been fixed properly (window-padding-balance +

@@ -64,6 +64,7 @@ let
       "<name>.uiScale"
     ];
     fonts = [
+      "mono.baseSize"
       "mono.name"
       "mono.package"
       "mono.packageName"

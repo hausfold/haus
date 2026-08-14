@@ -10,7 +10,7 @@
     # ---- hush ----
     hush.enable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = ''
         The hush room: one quiet switch — bar pill, palette command, and a
         `hush` CLI — that turns macOS Do Not Disturb on/off (via the

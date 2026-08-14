@@ -9,7 +9,7 @@
   options.haus = {
     perch.enable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "The perch notch file shelf, installed via the perch flake (copied to /Applications).";
     };
 

@@ -39,8 +39,8 @@ in
         "flow"
         "bold"
       ];
-      default = "minimal";
-      example = "none";
+      default = "none";
+      example = "minimal";
       description = ''
         Which desktop this machine wears, set at each home-manager activation
         (osascript, every desktop on the current Space).
@@ -54,18 +54,21 @@ in
           bold           generated from haus.theme.accent alone (a diagonal
                          accent→crust sweep), which predates `minimal`.
 
-        The default is `minimal`, so a machine that says nothing about its
-        desktop wears the haus one. That is a change of mind: this defaulted to
-        "none" while the generated look was new, on the grounds that the desktop
-        is visible and personal. It is — but a rice whose own desktop is opt-in
-        ships looking like nothing in particular, and `minimal` is drawn from
-        the palette, accent and gaps this machine already chose, so it is the
-        one look that can't clash with the rest of the install.
+        The default is `none`, and it is a real value rather than an absence:
+        nothing here runs and whatever wallpaper you already have stays exactly
+        where it was. Replacing someone's desktop picture is the most visible
+        thing this layer can do, so the bare room does not do it uninvited — a
+        DESKTOP says which look it wants, and nebelhaus picks `minimal`.
 
-        "none" is the way back, and it is a real value rather than an absence:
-        set it and nothing here runs, leaving whatever wallpaper you already
-        have exactly where it was (the bootstrap interview still offers the
-        choice, and writes this line when you take it).
+        That is the second change of mind on this option, and the reasoning
+        survives both: `minimal` was made the default so a rice wouldn't ship
+        looking like nothing in particular, which is still true of nebelhaus
+        and is why its desktop sets it. What changed is that a desktop is now
+        the thing making that choice, rather than every install of the layer.
+
+        Every option below tunes `minimal`, and all of them keep their tuned
+        values — the choice being opt-in is not a reason for the look to be
+        worse once chosen.
       '';
     };
 

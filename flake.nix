@@ -420,10 +420,10 @@
           };
       };
 
-      # The desktops this flake ships. One today; `blank` — the from-scratch
-      # choice — arrives with step 4 of notes/rooms-desktops.md, in the same
-      # commit that gives this one its values.
+      # The desktops this flake ships: the opinionated default and the explicit
+      # from-scratch choice.
       desktopFiles = {
+        blank = ./desktops/blank.nix;
         nebelhaus = ./desktops/nebelhaus.nix;
       };
       desktopLib = import ./modules/lib/desktop.nix {
@@ -455,41 +455,67 @@
       # normalized roster/workspace foundation its implementation may consume.
       # Den is the safe foundation; beyond it only the named room implementation
       # is active. This is the current pre-Blank equivalent of “Blank + room”.
-      standaloneModule = implementation: {
-        imports = (import ./modules/options-modules.nix) ++ [
-          # The desktop seam's assertion. A standalone import selects NO desktop
-          # and must keep evaluating that way — what this adds is only the
-          # refusal of a second one, which a consumer can reach from here too by
-          # passing `lib.desktop` through their own module list.
-          ./modules/desktop
-          ./modules/workspaces
-          ./modules/roster
-          # The AI room's wiring. In the foundation rather than a room of its own
-          # because it publishes the extension points the rooms below read
-          # (modules/lib/contrib.nix), and a partial that imported only `sill`
-          # would otherwise draw its agents pill off an unwritten seam. What that
-          # costs is honest and temporary: the room adds no packages, only
-          # assertions and contributions, and step 3 of the rooms plan is what
-          # decides whether Blank carries it.
-          ./modules/ai
-          ./modules/den
-          implementation
-        ];
-      };
+      standaloneModule =
+        {
+          implementation,
+          activation ? null,
+        }:
+        {
+          imports =
+            (import ./modules/options-modules.nix)
+            ++ nixpkgs.lib.optional (activation != null) activation
+            ++ [
+              # The desktop seam's assertion. A standalone import selects NO desktop
+              # and must keep evaluating that way — what this adds is only the
+              # refusal of a second one, which a consumer can reach from here too by
+              # passing `lib.desktop` through their own module list.
+              ./modules/desktop
+              ./modules/workspaces
+              ./modules/roster
+              # The AI room's wiring. In the foundation rather than a room of its own
+              # because it publishes the extension points the rooms below read
+              # (modules/lib/contrib.nix), and a partial that imported only `sill`
+              # would otherwise draw its agents pill off an unwritten seam. What that
+              # costs is honest and temporary: the room adds no packages, only
+              # assertions and contributions, and step 3 of the rooms plan is what
+              # decides whether Blank carries it.
+              ./modules/ai
+              ./modules/den
+              implementation
+            ];
+        };
     in
     {
       # Import the whole house, or one self-contained implementation partial.
       # Named exports carry the declaration + shared-data foundation above;
       # they do not activate any other room implementation.
       darwinModules = {
-        den = standaloneModule ./modules/den;
-        hearth = standaloneModule ./modules/hearth;
-        prowl = standaloneModule ./modules/prowl;
-        sill = standaloneModule ./modules/sill;
-        collar = standaloneModule ./modules/collar;
-        pounce = standaloneModule ./modules/pounce;
-        hush = standaloneModule ./modules/hush;
-        secrets = standaloneModule ./modules/secrets;
+        den = standaloneModule { implementation = ./modules/den; };
+        hearth = standaloneModule {
+          implementation = ./modules/hearth;
+          activation = { lib, ... }: { haus.developer.enable = lib.mkDefault true; };
+        };
+        prowl = standaloneModule {
+          implementation = ./modules/prowl;
+          activation = { lib, ... }: { haus.prowl.enable = lib.mkDefault true; };
+        };
+        sill = standaloneModule {
+          implementation = ./modules/sill;
+          activation = { lib, ... }: { haus.sill.enable = lib.mkDefault true; };
+        };
+        collar = standaloneModule {
+          implementation = ./modules/collar;
+          activation = { lib, ... }: { haus.collar.enable = lib.mkDefault true; };
+        };
+        pounce = standaloneModule {
+          implementation = ./modules/pounce;
+          activation = { lib, ... }: { haus.pounce.enable = lib.mkDefault true; };
+        };
+        hush = standaloneModule {
+          implementation = ./modules/hush;
+          activation = { lib, ... }: { haus.hush.enable = lib.mkDefault true; };
+        };
+        secrets = standaloneModule { implementation = ./modules/secrets; };
         default = ./modules;
       };
 
@@ -1971,6 +1997,9 @@
              }"
             + " desktop=${desktopSelection cfg}";
           desktopRows = {
+            # The built-in from-scratch choice. It selects a desktop like every
+            # finished host does, but that desktop asks for no optional room.
+            blank = desktopConfig { desktop = desktopFiles.blank; };
             # No `desktop` argument at all: every existing consumer's call, which
             # has always meant "the nebelhaus machine" and now says so.
             builder-default = desktopConfig { };
@@ -1979,7 +2008,7 @@
             one-desktop = desktopConfig { desktop = desktopFixture "valid-sample.nix"; };
             # The same desktop, plus a host that disagrees — with a PLAIN
             # assignment, no `lib.mkForce`. This row is the whole priority
-            # ladder: 1.5 means the host won, and `sill=no` means the rest of
+            # ladder: 1.5 means the host won, and `sill=yes` means the rest of
             # the desktop survived the override rather than being replaced by it.
             host-override = desktopConfig {
               desktop = desktopFixture "valid-sample.nix";
@@ -2011,13 +2040,58 @@
             map (name: "${name} ${desktopReadback desktopRows.${name}}") (builtins.attrNames desktopRows)
           );
           expectedDesktopTable = ''
+            blank scale=1.000000 sill=no internal=(unset) list=(unset) desktop=desktops/blank.nix
             builder-default scale=1.000000 sill=yes internal=(unset) list=(unset) desktop=desktops/nebelhaus.nix
-            by-hand scale=1.100000 sill=yes internal=(unset) list=(unset) desktop=test/desktops/valid-other.nix
-            host-override scale=1.500000 sill=no internal=larger-text list=from-desktop-a+from-desktop-b desktop=test/desktops/valid-sample.nix
-            list-override scale=1.350000 sill=no internal=larger-text list=from-host desktop=test/desktops/valid-sample.nix
-            no-desktop scale=1.000000 sill=yes internal=(unset) list=(unset) desktop=(none)
-            one-desktop scale=1.350000 sill=no internal=larger-text list=from-desktop-a+from-desktop-b desktop=test/desktops/valid-sample.nix
+            by-hand scale=1.100000 sill=no internal=(unset) list=(unset) desktop=test/desktops/valid-other.nix
+            host-override scale=1.500000 sill=yes internal=larger-text list=from-desktop-a+from-desktop-b desktop=test/desktops/valid-sample.nix
+            list-override scale=1.350000 sill=yes internal=larger-text list=from-host desktop=test/desktops/valid-sample.nix
+            no-desktop scale=1.000000 sill=no internal=(unset) list=(unset) desktop=(none)
+            one-desktop scale=1.350000 sill=yes internal=larger-text list=from-desktop-a+from-desktop-b desktop=test/desktops/valid-sample.nix
           '';
+
+          blankConfig = desktopRows.blank;
+          blankSelections =
+            builtins.filter
+              (
+                name:
+                {
+                  ai = blankConfig.haus.ai.enable || blankConfig.haus.ai.clients != [ ];
+                  apps = blankConfig.haus.apps.videoPlayer.enable;
+                  collar = blankConfig.haus.collar.enable;
+                  development = blankConfig.haus.developer.enable;
+                  focus = blankConfig.haus.hush.enable;
+                  launcher = blankConfig.haus.pounce.enable;
+                  shelf = blankConfig.haus.perch.enable;
+                  bar = blankConfig.haus.sill.enable;
+                  themePorts = blankConfig.haus.theme.ports.enable;
+                  tour = blankConfig.haus.tour.enable;
+                  wallpaper = blankConfig.haus.wallpaper.style != "none";
+                  windows = blankConfig.haus.prowl.enable;
+                }
+                .${name}
+              )
+              [
+                "ai"
+                "apps"
+                "bar"
+                "collar"
+                "development"
+                "focus"
+                "launcher"
+                "shelf"
+                "themePorts"
+                "tour"
+                "wallpaper"
+                "windows"
+              ];
+
+          desktopProjection = import ./test/desktop-projection.nix {
+            inherit pkgs;
+            lib = nixpkgs.lib;
+          };
+          exampleProjection = builtins.toJSON (
+            desktopProjection.project self.darwinConfigurations.example.config
+          );
 
           # The OTHER entry point, and the one this step could most easily have
           # broken: a standalone export selects no desktop and must keep
@@ -2313,8 +2387,20 @@
             ${nixpkgs.lib.optionalString (desktopWronglyRefused != [ ]) ''
               echo 'checkDesktop refused a valid desktop: ${builtins.concatStringsSep ", " desktopWronglyRefused}' >&2
               exit 1''}
+            ${nixpkgs.lib.optionalString (blankSelections != [ ]) ''
+              echo 'Blank selected optional rooms: ${builtins.concatStringsSep ", " blankSelections}' >&2
+              exit 1''}
             touch $out
           '';
+
+          desktop-projection =
+            pkgs.runCommand "haus-desktop-projection-ok" { nativeBuildInputs = [ pkgs.jq ]; }
+              ''
+                jq -S . ${./test/projections/example.json} > expected.json
+                jq -S . ${pkgs.writeText "actual-projection.json" exampleProjection} > actual.json
+                diff -u expected.json actual.json
+                touch $out
+              '';
 
           ai-room = pkgs.runCommand "haus-ai-room-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedAiRoomTable} \

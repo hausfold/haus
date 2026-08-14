@@ -107,7 +107,11 @@ in
 
     sill.enable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      # Rooms are opt-in: the neutral catalogue selects none, and a desktop
+      # (or a host) turns this one on. Everything BELOW this switch keeps its
+      # tuned value — a bar that is drawn is drawn properly, which is the
+      # "neutral, useful configuration when enabled" half of the room contract.
+      default = false;
       description = ''
         The SketchyBar menu bar. When off, the native macOS menu bar is kept
         (nebelhaus stops hiding it) and no bar is drawn.
@@ -600,7 +604,9 @@ in
 
     tour.enable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      # A first-run tutor is an opinion about how a machine introduces itself,
+      # not a property of the bar — nebelhaus selects it in its desktop.
+      default = false;
       description = ''
         The haus tour — a first-run tutor that walks the four moves (launch /
         navigate / resize / palette) as ONE quiet pill in the bar, advancing

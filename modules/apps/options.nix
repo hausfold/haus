@@ -12,7 +12,7 @@
     videoPlayer = {
       enable = lib.mkOption {
         type = lib.types.bool;
-        default = true;
+        default = false;
         description = ''
           Install IINA — the rice's video player — as the roster entry `iina`.
           A nixpkgs build, so it lands in ~/Applications/Home Manager Apps
@@ -33,6 +33,10 @@
 
       claimFileTypes = lib.mkOption {
         type = lib.types.bool;
+        # In-room taste: it is ignored unless the player is installed, so it
+        # only ever acts on a machine that already asked for IINA. Installing a
+        # video player that doesn't open videos is the useless-when-enabled
+        # shape the room contract rules out.
         default = true;
         description = ''
           Make IINA the default handler for the everyday video extensions —

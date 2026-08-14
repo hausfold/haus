@@ -38,7 +38,7 @@ in
 
     pounce.enable = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "The pounce command palette daemon (⌘Space) + its rice commands.";
     };
 
@@ -156,6 +156,8 @@ in
         "default"
         "compact"
       ];
+      # In-room taste, so it stays: it is only visible once `pounce.enable` is
+      # on, and a launcher that is drawn should be drawn the tuned way.
       default = "compact";
       description = ''
         The palette's proportions. `compact` is narrower with tighter rows and

@@ -49,7 +49,7 @@ let
   # the AI room asserts each named client is buildable here, and this is where a
   # home profile installs it.
   agentPackages = import ../lib/agent-packages.nix pkgs;
-  agentClients = agentsCfg.clients;
+  agentClients = config.haus._ai.clients;
 
   # One client id → where that client keeps the two files the rice ships into a
   # home: the always-on instructions (`haus.ai.instructions`) and the `haus`
