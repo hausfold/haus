@@ -2878,6 +2878,25 @@
     "readOnly": false,
     "type": "boolean or one of \"left\", \"center\", \"right\""
   },
+  "haus.sill.bottom.items.github": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "One number from GitHub, and the rows behind it. The pill is configured as a list of typed SOURCES (`haus.sill.github.sources`) — a `search` filter, the `ci` board, or your own `command` — and its label is whichever source is worth interrupting you for: the highest-severity one with a nonzero count, earliest in the list on a tie. With nothing to report it draws no number at all rather than a zero, because a number you never act on is a number you stop seeing. LEFT-CLICK opens the dropdown, one section per source, each row clicking through to the PR or repo on github.com; RIGHT-CLICK refreshes now, as does the `Refresh` row at the bottom of the dropdown, which also says how old the numbers are. The `ci` source is the one thing gh-dash cannot show you: GitHub's search index carries no workflow runs, so \"did main's last run pass\" is only reachable as the check rollup of the default branch's head commit, in GraphQL — which is exactly what that source asks for, in one query for the whole owner. Needs `haus.developer.git.enable` (an assertion enforces it) for the `gh` it queries through, and a `gh auth login` you have run: not logged in, the pill says `auth` and its dropdown hands you that command rather than drawing a silent zero. Never fetches on the bar's tick — the tick renders a cache and detaches the network call — so a slow GitHub costs a stale number, never a stalled bar.",
+    "loc": [
+      "haus",
+      "sill",
+      "bottom",
+      "items",
+      "github"
+    ],
+    "readOnly": false,
+    "type": "boolean or one of \"left\", \"center\", \"right\""
+  },
   "haus.sill.bottom.items.harvest": {
     "declarations": [
       "modules/sill/options.nix"
@@ -3292,6 +3311,242 @@
     "readOnly": false,
     "type": "boolean"
   },
+  "haus.sill.github.refresh": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "300"
+    },
+    "description": "How often, in seconds, the `github` pill re-asks GitHub. The floor is\n60 and it is enforced by the type rather than written down: this is the\nfirst pill in the bar that crosses the network, and GitHub's authed\nbudget is 30 search requests a minute and 5000 GraphQL points an hour —\nshared with every other `gh` on the machine, `gh-dash` included.\n\nThe pill never fetches on the bar's tick. The tick renders a cache and,\nif it has gone stale, detaches the fetch; so this is how old a number\nmay be, not how long anything waits.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "900"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "github",
+      "refresh"
+    ],
+    "readOnly": false,
+    "type": "integer between 60 and 3600 (both inclusive)"
+  },
+  "haus.sill.github.sources": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalMD",
+      "text": "the owner's red default branches, then its open PRs — but only when\n`haus.git.org` names an owner. Empty otherwise, since neither\nquestion can be asked without one.\n"
+    },
+    "description": "What the `github` pill counts, in the order it prefers to speak about\nthem. Each entry names exactly ONE kind — `search`, `ci` or `command` —\nand the pill owns the query for that kind.\n\nIt is typed rather than one free-form query string because the two\nquestions have no common shape. A `search` is a GitHub search filter and\ncomes back as a count plus rows with a title, a repo and a URL; the CI\nboard does not exist in that index at all — GitHub's search carries no\nworkflow runs — and is only reachable as the `statusCheckRollup` of a\ndefault branch's head commit, in GraphQL. Handing the option a raw\nGraphQL query instead would move the problem rather than solve it: the\nresult is an arbitrary tree, so the pill would also need paired jq paths\nfor the count, the rows and the state, and every one of them would fail\nat runtime inside a bar plugin, where the only symptom is a pill that\ndraws nothing. `command` is the escape hatch, and it is a command rather\nthan a query for the same reason: it can do the fetching AND the\nshaping, and you can run it in a terminal to see why it is wrong.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  { ci = true; }                                            # red default branches\n  { search = \"org:hausfold is:pr is:open\"; }                 # the working queue\n  {\n    search = \"org:hausfold is:pr is:open status:failure\";    # …and the red half of it\n    title = \"red PRs\";\n    severity = \"bad\";\n  }\n]\n"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "github",
+      "sources"
+    ],
+    "readOnly": false,
+    "type": "list of (submodule)"
+  },
+  "haus.sill.github.sources.*.ci": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Every repo the owner has, its default branch, and whether that branch's\nhead commit is green — one GraphQL query for the whole owner, counting\nthe ones that came back FAILURE or ERROR. Archived repos are skipped; a\nrepo with no checks at all is not a failure and is not counted.\n\nThis is the source that exists because search cannot answer it. It is\nalso why the pill is a pill: it is the one GitHub question with no\n`gh-dash` tab, since a dashboard section IS a search filter.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "github",
+      "sources",
+      "*",
+      "ci"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.github.sources.*.command": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "A command run through `bash -c`, printing one row per line as\n`<state>\\t<text>` or `<state>\\t<text>\\t<url>`, where state is `ok`,\n`warn` or `bad`. The count is the number of rows; a line that doesn't\nmatch the shape is dropped rather than drawn mangled.\n\nIt runs from the bar's detached fetch, i.e. under launchd's environment\nand not your interactive shell: name binaries by absolute path or expect\nthem missing. Host-only — a desktop may not set it, since it is\narbitrary code rather than data.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"gh api /notifications --jq '.[] | \\\"warn\\\\t\\\" + .subject.title'\""
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "github",
+      "sources",
+      "*",
+      "command"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.sill.github.sources.*.icon": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "The glyph beside that section's heading, in the bar's Nerd Font. Empty\ntakes a default for the kind.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "github",
+      "sources",
+      "*",
+      "icon"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.sill.github.sources.*.limit": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "8"
+    },
+    "description": "How many rows this source may put in the dropdown. Also what a `search`\nasks GitHub for per page — there is no point paging in a hundred hits to\ndraw eight of them. The count is unaffected: it is the real total, and\nthe dropdown says how many rows it left out.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "5"
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "github",
+      "sources",
+      "*",
+      "limit"
+    ],
+    "readOnly": false,
+    "type": "integer between 1 and 100 (both inclusive)"
+  },
+  "haus.sill.github.sources.*.org": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "Which owner the `ci` source asks about. Empty (the default) follows\n`haus.git.org`, which is where it should normally come from — an owner\nthat renames is then one word for the whole machine. Set it only to\npoint one source at a second owner.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"hausfold\""
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "github",
+      "sources",
+      "*",
+      "org"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.sill.github.sources.*.search": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "A GitHub issue/PR search filter, exactly as you would type it into\ngithub.com's search box. The count is the search's own `total_count`,\nwhich can be larger than the rows shown — the dropdown says how many it\nleft out rather than letting a truncated list read as a complete one.\n\nThe string is literal: nothing interpolates `haus.git.org` into it for\nyou, because a machine that reads several owners is the reason that\noption is allowed to be empty. Write the `org:` in.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"org:hausfold is:pr is:open\""
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "github",
+      "sources",
+      "*",
+      "search"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.sill.github.sources.*.severity": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalMD",
+      "text": "`bad` for a `ci` source, `info` for the others"
+    },
+    "description": "How much this source's count matters, which decides both its colour\n(`info` neutral, `warn` peach, `bad` red) and which source the PILL\nspeaks for when more than one has something to say — highest severity\nfirst, then list order.\n\nIt is per-source rather than global because the same kind means\ndifferent things in two entries: `is:pr is:open` is a work queue and\n`is:pr is:open status:failure` is an alarm, and both are searches.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"bad\""
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "github",
+      "sources",
+      "*",
+      "severity"
+    ],
+    "readOnly": false,
+    "type": "null or one of \"info\", \"warn\", \"bad\""
+  },
+  "haus.sill.github.sources.*.title": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "The dropdown section's heading. Empty derives one: the owner and\n\"default branches\" for `ci`, the filter itself for `search`.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"red on main\""
+    },
+    "loc": [
+      "haus",
+      "sill",
+      "github",
+      "sources",
+      "*",
+      "title"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
   "haus.sill.items": {
     "declarations": [
       "modules/sill/options.nix"
@@ -3471,6 +3726,24 @@
       "sill",
       "items",
       "elgato"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.sill.items.github": {
+    "declarations": [
+      "modules/sill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "One number from GitHub, and the rows behind it. The pill is configured as a list of typed SOURCES (`haus.sill.github.sources`) — a `search` filter, the `ci` board, or your own `command` — and its label is whichever source is worth interrupting you for: the highest-severity one with a nonzero count, earliest in the list on a tie. With nothing to report it draws no number at all rather than a zero, because a number you never act on is a number you stop seeing. LEFT-CLICK opens the dropdown, one section per source, each row clicking through to the PR or repo on github.com; RIGHT-CLICK refreshes now, as does the `Refresh` row at the bottom of the dropdown, which also says how old the numbers are. The `ci` source is the one thing gh-dash cannot show you: GitHub's search index carries no workflow runs, so \"did main's last run pass\" is only reachable as the check rollup of the default branch's head commit, in GraphQL — which is exactly what that source asks for, in one query for the whole owner. Needs `haus.developer.git.enable` (an assertion enforces it) for the `gh` it queries through, and a `gh auth login` you have run: not logged in, the pill says `auth` and its dropdown hands you that command rather than drawing a silent zero. Never fetches on the bar's tick — the tick renders a cache and detaches the network call — so a slow GitHub costs a stale number, never a stalled bar.",
+    "loc": [
+      "haus",
+      "sill",
+      "items",
+      "github"
     ],
     "readOnly": false,
     "type": "boolean"

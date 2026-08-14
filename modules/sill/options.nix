@@ -35,6 +35,7 @@ let
     agents = "A paw pill tracking your agent-worktree panes. The label always names the state worth interrupting you for — \"2 ready\" outranks \"5 working\", which outranks \"1 done\" — never a bare count you'd have to click to decode. Click for the per-agent breakdown, sorted the same way (waiting first, then working, then idle, longest-elapsed first within each), each block showing the client, how long it's sat in that state, and — when the pane's checkout is a `holt` lane — its repo and PR status: merged, `+N unshipped` (exactly what `holt reship` fixes), not yet landed, or a dirty-tree footnote. A summary header totals the counts once more than one agent is running. Left-click a row to jump to that pane, ⌥/right-click for a live `zellij subscribe` peek. Fed by each client's own lifecycle hooks, which all call `agent-state` (also installed as ~/.config/sketchybar/plugins/agents-hook.sh): Opencode's plugin and Codex's ~/.codex/hooks.json are written for you (Codex asks you to trust its hooks the first time it sees them), while Claude Code's four agent-state hooks stay yours to point at it in ~/.claude/settings.json — Claude owns that file and rewrites it, so the rice merges in only the keys it must and never touches those four. (The two worktree hooks ARE declared, in hearth: they point at a rice-controlled path and self-heal on rebuild.) A row whose zellij pane is gone drops off by itself, which is what stands in for the session-end event Codex doesn't have. Dormant until a client fires.";
     aiUsage = "A gauge pill showing AI usage (Claude Code/Codex subscription rate limits as %, or Opencode API token cost as daily $). Automatically shows whichever provider reported most recently. Click for expanded session/weekly limits and daily/monthly API costs with model breakdowns. Claude and Opencode are read off disk; Codex has no local usage data, so its row is polled from your ChatGPT account with the OAuth token in ~/.codex/auth.json (refreshed and rewritten in place) — no Codex login on the machine, no call is made. Claude's row is pushed by its statusline; the Codex and Opencode rows are pulled by the pill itself on a 3-minute TTL, so they stay current on a machine that never opens Claude at all. Claude and Opencode also get a `tokens` block in the dropdown — raw tokens moved today, this week, this month and all time (cache reads and all), two periods to a line so a full set reads as a 2×2, purely for the fun of watching the number climb. A period with nothing in it is left out rather than printed as a zero, so the block simply gets smaller, and a closing `∑ Everything` adds every provider up when more than one is reporting. It is a score, not a limit: nothing acts on it, and it never reaches the pill's own label. Claude's is summed from your transcripts on a 15-minute TTL behind an index, so only sessions that grew since the last pass are re-read; Codex has no row because it keeps no local history to count.";
     claudeUsage = "Deprecated alias for `aiUsage`.";
+    github = "One number from GitHub, and the rows behind it. The pill is configured as a list of typed SOURCES (`haus.sill.github.sources`) — a `search` filter, the `ci` board, or your own `command` — and its label is whichever source is worth interrupting you for: the highest-severity one with a nonzero count, earliest in the list on a tie. With nothing to report it draws no number at all rather than a zero, because a number you never act on is a number you stop seeing. LEFT-CLICK opens the dropdown, one section per source, each row clicking through to the PR or repo on github.com; RIGHT-CLICK refreshes now, as does the `Refresh` row at the bottom of the dropdown, which also says how old the numbers are. The `ci` source is the one thing gh-dash cannot show you: GitHub's search index carries no workflow runs, so \"did main's last run pass\" is only reachable as the check rollup of the default branch's head commit, in GraphQL — which is exactly what that source asks for, in one query for the whole owner. Needs `haus.developer.git.enable` (an assertion enforces it) for the `gh` it queries through, and a `gh auth login` you have run: not logged in, the pill says `auth` and its dropdown hands you that command rather than drawing a silent zero. Never fetches on the bar's tick — the tick renders a cache and detaches the network call — so a slow GitHub costs a stale number, never a stalled bar.";
     elgato = "Toggles an Elgato Key Light on the local network. The light is found over mDNS (or pinned with `haus.sill.elgato.host`), and the pill draws dim when it can't be reached at all — a light that dropped off the wifi is not the same thing as a light that's switched off.";
     harvest = "A Harvest time-tracking pill; needs a ~/.config/sketchybar/harvest_secrets.sh you provide.";
   };
@@ -78,6 +79,126 @@ let
       default = false;
       description = desc;
     };
+
+  # ---- one source of the github pill -----------------------------------------
+  # Exactly one of `search`, `ci` and `command` per entry; modules/sill asserts
+  # it by index rather than the type doing it, because "you set two of three on
+  # sources[1]" is a sentence a type error cannot write.
+  #
+  # The kinds are separate fields rather than a `kind` enum plus a payload, so
+  # the common case stays one line — `{ ci = true; }`, `{ search = "…"; }` — and
+  # so the option reference documents each kind where it is declared instead of
+  # in a paragraph under an enum.
+  githubSource = {
+    search = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "org:hausfold is:pr is:open";
+      description = ''
+        A GitHub issue/PR search filter, exactly as you would type it into
+        github.com's search box. The count is the search's own `total_count`,
+        which can be larger than the rows shown — the dropdown says how many it
+        left out rather than letting a truncated list read as a complete one.
+
+        The string is literal: nothing interpolates `haus.git.org` into it for
+        you, because a machine that reads several owners is the reason that
+        option is allowed to be empty. Write the `org:` in.
+      '';
+    };
+    ci = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      example = true;
+      description = ''
+        Every repo the owner has, its default branch, and whether that branch's
+        head commit is green — one GraphQL query for the whole owner, counting
+        the ones that came back FAILURE or ERROR. Archived repos are skipped; a
+        repo with no checks at all is not a failure and is not counted.
+
+        This is the source that exists because search cannot answer it. It is
+        also why the pill is a pill: it is the one GitHub question with no
+        `gh-dash` tab, since a dashboard section IS a search filter.
+      '';
+    };
+    command = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "gh api /notifications --jq '.[] | \"warn\\t\" + .subject.title'";
+      description = ''
+        A command run through `bash -c`, printing one row per line as
+        `<state>\t<text>` or `<state>\t<text>\t<url>`, where state is `ok`,
+        `warn` or `bad`. The count is the number of rows; a line that doesn't
+        match the shape is dropped rather than drawn mangled.
+
+        It runs from the bar's detached fetch, i.e. under launchd's environment
+        and not your interactive shell: name binaries by absolute path or expect
+        them missing. Host-only — a desktop may not set it, since it is
+        arbitrary code rather than data.
+      '';
+    };
+    org = lib.mkOption {
+      type = lib.types.str;
+      default = "";
+      example = "hausfold";
+      description = ''
+        Which owner the `ci` source asks about. Empty (the default) follows
+        `haus.git.org`, which is where it should normally come from — an owner
+        that renames is then one word for the whole machine. Set it only to
+        point one source at a second owner.
+      '';
+    };
+    title = lib.mkOption {
+      type = lib.types.str;
+      default = "";
+      example = "red on main";
+      description = ''
+        The dropdown section's heading. Empty derives one: the owner and
+        "default branches" for `ci`, the filter itself for `search`.
+      '';
+    };
+    icon = lib.mkOption {
+      type = lib.types.str;
+      default = "";
+      example = "";
+      description = ''
+        The glyph beside that section's heading, in the bar's Nerd Font. Empty
+        takes a default for the kind.
+      '';
+    };
+    severity = lib.mkOption {
+      type = lib.types.nullOr (
+        lib.types.enum [
+          "info"
+          "warn"
+          "bad"
+        ]
+      );
+      default = null;
+      defaultText = lib.literalMD "`bad` for a `ci` source, `info` for the others";
+      example = "bad";
+      description = ''
+        How much this source's count matters, which decides both its colour
+        (`info` neutral, `warn` peach, `bad` red) and which source the PILL
+        speaks for when more than one has something to say — highest severity
+        first, then list order.
+
+        It is per-source rather than global because the same kind means
+        different things in two entries: `is:pr is:open` is a work queue and
+        `is:pr is:open status:failure` is an alarm, and both are searches.
+      '';
+    };
+    limit = lib.mkOption {
+      type = lib.types.ints.between 1 100;
+      default = 8;
+      example = 5;
+      description = ''
+        How many rows this source may put in the dropdown. Also what a `search`
+        asks GitHub for per page — there is no point paging in a hundred hits to
+        draw eight of them. The count is unaffected: it is the real total, and
+        the dropdown says how many rows it left out.
+      '';
+    };
+  };
 
   contrib = import ../lib/contrib.nix { inherit lib; };
 in
@@ -360,6 +481,63 @@ in
         spawn: a provider reports here whenever it has data for your account —
         Codex notably does so from a ChatGPT login alone, with no CLI installed
         — so it is deliberately not tied to `haus.ai.clients`.
+      '';
+    };
+
+    sill.github.sources = lib.mkOption {
+      type = lib.types.listOf (lib.types.submodule { options = githubSource; });
+      default = [ ];
+      defaultText = lib.literalMD ''
+        the owner's red default branches, then its open PRs — but only when
+        `haus.git.org` names an owner. Empty otherwise, since neither
+        question can be asked without one.
+      '';
+      example = lib.literalExpression ''
+        [
+          { ci = true; }                                            # red default branches
+          { search = "org:hausfold is:pr is:open"; }                 # the working queue
+          {
+            search = "org:hausfold is:pr is:open status:failure";    # …and the red half of it
+            title = "red PRs";
+            severity = "bad";
+          }
+        ]
+      '';
+      description = ''
+        What the `github` pill counts, in the order it prefers to speak about
+        them. Each entry names exactly ONE kind — `search`, `ci` or `command` —
+        and the pill owns the query for that kind.
+
+        It is typed rather than one free-form query string because the two
+        questions have no common shape. A `search` is a GitHub search filter and
+        comes back as a count plus rows with a title, a repo and a URL; the CI
+        board does not exist in that index at all — GitHub's search carries no
+        workflow runs — and is only reachable as the `statusCheckRollup` of a
+        default branch's head commit, in GraphQL. Handing the option a raw
+        GraphQL query instead would move the problem rather than solve it: the
+        result is an arbitrary tree, so the pill would also need paired jq paths
+        for the count, the rows and the state, and every one of them would fail
+        at runtime inside a bar plugin, where the only symptom is a pill that
+        draws nothing. `command` is the escape hatch, and it is a command rather
+        than a query for the same reason: it can do the fetching AND the
+        shaping, and you can run it in a terminal to see why it is wrong.
+      '';
+    };
+
+    sill.github.refresh = lib.mkOption {
+      type = lib.types.ints.between 60 3600;
+      default = 300;
+      example = 900;
+      description = ''
+        How often, in seconds, the `github` pill re-asks GitHub. The floor is
+        60 and it is enforced by the type rather than written down: this is the
+        first pill in the bar that crosses the network, and GitHub's authed
+        budget is 30 search requests a minute and 5000 GraphQL points an hour —
+        shared with every other `gh` on the machine, `gh-dash` included.
+
+        The pill never fetches on the bar's tick. The tick renders a cache and,
+        if it has gone stale, detaches the fetch; so this is how old a number
+        may be, not how long anything waits.
       '';
     };
 

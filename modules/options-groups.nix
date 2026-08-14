@@ -218,6 +218,7 @@ let
       "bottom.items.clock"
       "bottom.items.cpu"
       "bottom.items.elgato"
+      "bottom.items.github"
       "bottom.items.harvest"
       "bottom.items.hush"
       "bottom.items.media"
@@ -238,6 +239,16 @@ let
       "clock.monoFont"
       "elgato.host"
       "enable"
+      "github.refresh"
+      "github.sources"
+      "github.sources.*.ci"
+      "github.sources.*.command"
+      "github.sources.*.icon"
+      "github.sources.*.limit"
+      "github.sources.*.org"
+      "github.sources.*.search"
+      "github.sources.*.severity"
+      "github.sources.*.title"
       "items"
       "items.agents"
       "items.aiUsage"
@@ -248,6 +259,7 @@ let
       "items.clock"
       "items.cpu"
       "items.elgato"
+      "items.github"
       "items.harvest"
       "items.media"
       "items.memory"
@@ -361,6 +373,10 @@ let
     sill = [
       "calendar.me"
       "elgato.host"
+      # Arbitrary shell, not data: a desktop is a file you can read to know what
+      # it can do, and a source that runs a command is exactly the leaf that
+      # would stop being true of. `search` and `ci` beside it stay desktop-safe.
+      "github.sources.*.command"
     ];
     zen = [
       "extensions"
@@ -381,6 +397,7 @@ let
     keys.leaderExtras = "submodule-list";
     pounce.items = "pounce-items";
     roster."" = "roster-entries";
+    sill."github.sources" = "submodule-list";
     sill."media.icons" = "attrs-of-string";
     snippets.matches = "submodule-list";
     tour.steps = "submodule-list";

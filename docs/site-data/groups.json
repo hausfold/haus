@@ -747,7 +747,7 @@
     "sill": {
       "blurb": "The menu bar, and which pills it draws.",
       "kind": "room",
-      "optionCount": 60,
+      "optionCount": 72,
       "options": {
         "haus.sill.aiUsage.provider": {
           "desktopSafe": true
@@ -783,6 +783,9 @@
           "desktopSafe": true
         },
         "haus.sill.bottom.items.elgato": {
+          "desktopSafe": true
+        },
+        "haus.sill.bottom.items.github": {
           "desktopSafe": true
         },
         "haus.sill.bottom.items.harvest": {
@@ -845,6 +848,37 @@
         "haus.sill.enable": {
           "desktopSafe": true
         },
+        "haus.sill.github.refresh": {
+          "desktopSafe": true
+        },
+        "haus.sill.github.sources": {
+          "desktopSafe": "recursive",
+          "validator": "submodule-list"
+        },
+        "haus.sill.github.sources.*.ci": {
+          "desktopSafe": true
+        },
+        "haus.sill.github.sources.*.command": {
+          "desktopSafe": false
+        },
+        "haus.sill.github.sources.*.icon": {
+          "desktopSafe": true
+        },
+        "haus.sill.github.sources.*.limit": {
+          "desktopSafe": true
+        },
+        "haus.sill.github.sources.*.org": {
+          "desktopSafe": true
+        },
+        "haus.sill.github.sources.*.search": {
+          "desktopSafe": true
+        },
+        "haus.sill.github.sources.*.severity": {
+          "desktopSafe": true
+        },
+        "haus.sill.github.sources.*.title": {
+          "desktopSafe": true
+        },
         "haus.sill.items": {
           "desktopSafe": true
         },
@@ -873,6 +907,9 @@
           "desktopSafe": true
         },
         "haus.sill.items.elgato": {
+          "desktopSafe": true
+        },
+        "haus.sill.items.github": {
           "desktopSafe": true
         },
         "haus.sill.items.harvest": {
