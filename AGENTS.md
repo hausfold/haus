@@ -40,10 +40,15 @@ via `mkNebelhaus` and adds only its own host (identity, private apps, secrets).
 > `nebelhaus.desktops.everyday`,
 > `nebelhaus.lib.checkRice` and `inputs.nebelhaus.url` are all correct as
 > written — flake outputs and an input name, not options. Same for
-> `org.nebelhaus.*` launchd labels, `share/nebelhaus/`, the state dirs
-> (`~/.local/state/nebelhaus`, `~/.config/nebelhaus/`) and nebelhaus.com
-> links; each has its own phase in workshop `notes/hausfold-rename.md`, none
-> of them is this one.
+> `org.nebelhaus.*` launchd labels, `share/nebelhaus/` and the state dirs
+> (`~/.local/state/nebelhaus`, `~/.config/nebelhaus/`); each has its own phase
+> in workshop `notes/hausfold-rename.md`, none of them is this one.
+>
+> ⚠️ **nebelhaus.com links were on that list and no longer are.** §5.2 ran on
+> 2026-08-14: the domain is a 301 map and every URL this repo prints now points
+> at hausfold.co. A restored `nebelhaus.com` link is drift, not a spelling to
+> preserve — the only ones left are the bare-domain test fixtures in the zellij
+> link-handler, where the string is example input to a parser.
 >
 > The agent skill **used to be on that list and no longer is.** It installs as
 > `haus/` inside each client's skills directory (`~/.claude/skills/`,
@@ -66,23 +71,32 @@ stopped writing Claude's copy alone.)
 
 ## Am I in the right repo? (routing)
 
-**This repo (`~/code/workshop/hausfold`) owns THE LAYER AND THE RICE** — `haus`,
+**This repo (`~/code/workshop/haus`) owns THE LAYER AND THE RICE** — `haus`,
 the generic, no-identity system + shell modules, and nebelhaus's default values
 on top of them. Personal machine config and the pounce/theme sources live
-elsewhere.
+elsewhere. *(The checkout was `~/code/workshop/hausfold` until 2026-08-11 and
+`~/code/workshop/nebelhaus` before that — it follows the repo, which is
+`hausfold/haus`. The **rice** is still called nebelhaus.)*
 
 | Want to change… | Repo |
 |---|---|
-| the rice: macOS defaults, tiling (prowl), bar (sill), shell (hearth), security (collar), secrets plumbing (secrets), pounce wiring (pounce), notch shelf install (perch), Focus/DND (hush), accent + Light/Dark (theme), the generated desktop (wallpaper), the apps every machine gets + what opens which file type (apps) | `~/code/workshop/hausfold` ← **you are here** |
+| the rice: macOS defaults, tiling (prowl), bar (sill), shell (hearth), security (collar), secrets plumbing (secrets), pounce wiring (pounce), notch shelf install (perch), Focus/DND (hush), accent + Light/Dark (theme), the generated desktop (wallpaper), the apps every machine gets + what opens which file type (apps) | `~/code/workshop/haus` ← **you are here** |
 | the pounce palette app or its command scripts | `~/code/workshop/pounce` |
 | colors / the theme palette | `~/code/workshop/nebelung` |
 | one machine's personal apps / identity / secrets | `~/.config/nix` (or that machine's own config) |
-| user-facing docs / guides (nebelhaus.com) | `~/code/workshop` (`web/`, Astro Starlight) |
+| user-facing docs / guides (hausfold.co) | `~/code/workshop/hausfold.co` (`content/docs/`, Fumadocs) |
 
-> **Docs live downstream.** The how-to guides users read are the Astro site in
-> the `workshop` repo (`web/src/content/docs/`), served at nebelhaus.com. When a
-> change here alters user-facing behavior (a new option, a changed keybinding, a
-> workflow), update the matching guide there too, or it silently drifts.
+> **Docs live downstream, and since 2026-08-14 that means `hausfold.co`.** The
+> how-to guides users read are `content/docs/` in the
+> [hausfold.co repo](https://github.com/hausfold/hausfold.co) — two trees,
+> `haus/` for this layer and `nebelhaus/` for the desktop. When a change here
+> alters user-facing behavior (a new option, a changed keybinding, a workflow),
+> update the matching page there too, or it silently drifts.
+>
+> ⚠️ **Not the workshop's `web/`.** That was the answer until the docs were
+> rebuilt on Fumadocs; the Astro/Starlight tree is **deleted** and `web/` is
+> nebelhaus.com's 301 map now, so a fix routed there edits nothing and reports
+> success. Rooms, not guides: `haus/rooms/bar.mdx` is what `guides/the-bar` became.
 
 > **Whatever agent you are, enforce this.** If a request targets a different repo
 > than the one whose files you're in, STOP and say so before editing — e.g.
@@ -254,7 +268,8 @@ transcript, not your summary of it. The full checklist is the workshop ship skil
 
 a hex that belongs in nebelung or app logic that belongs in pounce landing in a
 module here; a `haus.*` option added or renamed with no matching edit in
-`reference/options.md` or the guides in the workshop's `web/src/content/docs/`; a new
+hausfold.co's `content/docs/` — its `haus/reference/options.mdx` (generated from
+this repo's committed `docs/site-data/`) or the matching room; a new
 keybind colliding across zellij / AeroSpace (prowl) / pounce / macOS symbolic hotkeys —
 collisions are silent, the loser just stops firing; a breaking option rename whose
 consumer edit didn't ride in the same PR, leaving `main` broken mid-ripple; and
@@ -479,8 +494,8 @@ it silently.
   to roll back to. `haus` and the workshop's `bench` are named apart on purpose
   so they never shadow each other — `haus` = your machine, `bench` = the family
   repos, `holt`/`zscratch` = dev tools the rice puts on `PATH` regardless.
-  (User-facing docs: the [agent worktree guide](https://nebelhaus.com/guides/claude-agents/)
-  and [haus reference](https://nebelhaus.com/reference/haus/) on nebelhaus.com.)
+  (User-facing docs: the [AI room](https://hausfold.co/docs/haus/rooms/ai/) and the
+  [haus reference](https://hausfold.co/docs/haus/reference/haus/) on hausfold.co.)
 - **New pounce command**: generic ones live in the
   [pounce repo](https://github.com/hausfold/pounce) (`pkgs/pounce-commands/commands`);
   rice/machine-specific ones live HERE in `modules/pounce/commands/` — one

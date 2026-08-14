@@ -3,7 +3,7 @@
 #
 # Evaluates ONLY the per-room options files (see options-modules.nix) — not a
 # darwin system — so it needs no host, no username, and no macOS. That's what
-# lets nebelhaus.com's Linux CI render the options reference from it, and it
+# lets hausfold.co's Linux CI render the options reference from it, and it
 # works only because those files are pure `{ lib, ... }` modules with no
 # config/pkgs dependencies. Keep them that way.
 #

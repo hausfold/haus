@@ -3,7 +3,7 @@
 # with it beside `default.nix`; `haus options` regenerates it after an update.
 #
 # WHY THIS EXISTS. The option surface used to be discoverable in exactly one
-# place — nebelhaus.com — and a person editing their host file had to know an
+# place — the docs site — and a person editing their host file had to know an
 # option existed before they could look it up. AeroSpace solves that by shipping
 # a default config with every setting present at its default and a comment above
 # it: you learn the surface by reading your own config, and you make it minimal
@@ -23,7 +23,7 @@
 let
   version = lib.fileContents ../VERSION;
 
-  # The same metadata nebelhaus.com's reference and the agent skill are rendered
+  # The same metadata hausfold.co's reference and the agent skill are rendered
   # from, carrying groups.json (the room/export/safety registry) beside it.
   optionsJSON = import ./options-doc.nix { inherit pkgs lib; };
 in

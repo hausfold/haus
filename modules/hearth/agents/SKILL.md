@@ -145,7 +145,7 @@ user the extra step: `brew uninstall --zap <cask>`.
 - `haus doctor` — health check. Run it before blaming your own change for
   something being broken.
 - `haus generations` / `haus rollback [N]` — the undo history.
-- <https://nebelhaus.com> — guides and reference. Note it documents the **latest**
+- <https://hausfold.co/docs/> — guides and reference. Note it documents the **latest**
   rice; this machine is pinned to a specific revision, so it can describe options
   that are not in `references/options.md` yet. When they disagree, this skill's
   reference wins for what is settable *right now*.

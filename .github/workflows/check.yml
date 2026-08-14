@@ -83,12 +83,12 @@ jobs:
       # script here that isn't a nix template (@PLACEHOLDER@ substitution) or a
       # zsh sketchybar plugin, so it's the one we can lint as-is. Warning level
       # catches real bugs (undefined vars, bad quoting) without failing on
-      # info-level style nits. It's what nebelhaus.com/init.sh serves, so a
+      # info-level style nits. It's what hausfold.co/nebelhaus.sh serves, so a
       # regression here reaches every new installer.
       - name: shellcheck
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck bats
-          # bootstrap.sh reaches every new installer via nebelhaus.com/init.sh;
+          # bootstrap.sh reaches every new installer via hausfold.co/nebelhaus.sh;
           # haus.sh + awake.sh ship onto every machine as end-user CLIs.
           # statusline-refresh.sh is linted for a different reason: it runs
           # DETACHED with its output discarded, so a non-zero anywhere in it is

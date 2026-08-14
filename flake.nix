@@ -445,7 +445,7 @@
       # gets.
       packModules = builtins.mapAttrs (_: riceLib.pack) packFiles;
       # Linux is in here for the pure-evaluation outputs only (options-json, the
-      # theme-variants check) — that's what lets nebelhaus.com's Linux CI render the
+      # theme-variants check) — that's what lets hausfold.co's Linux CI render the
       # options reference. Anything needing a darwin system is guarded per-output.
       #
       # Darwin is aarch64 only: nixpkgs 26.11 dropped x86_64-darwin (Apple's own
@@ -2612,7 +2612,7 @@
       );
 
       # `nix run github:hausfold/haus#pounce`
-      # Linux is in allSystems for options-json alone: nebelhaus.com's CI renders
+      # Linux is in allSystems for options-json alone: hausfold.co's CI renders
       # the options reference there. Nothing else in this set is buildable on
       # Linux, but option metadata is pure evaluation.
       packages = nixpkgs.lib.genAttrs allSystems (
@@ -2664,7 +2664,7 @@
 
           # `nix build .#options-json` — machine-readable metadata for every
           # haus.* option: type, default, example, description, and the
-          # file that declares it. nebelhaus.com's options reference is
+          # file that declares it. hausfold.co's options reference is
           # RENDERED from this instead of hand-maintained, so the page cannot
           # drift from the module system (as prose, it drifted for months).
           options-json = import ./modules/options-doc.nix { inherit pkgs; };

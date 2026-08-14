@@ -13,8 +13,10 @@
 #   host-template.jq            the annotated host file a fresh install gets
 #   hausfold.co's gen-options.mjs   the options reference, laid out BY ROOM,
 #                               read out of the committed docs/site-data/
-#   workshop web/'s gen-options.mjs  nebelhaus.com's older page, still built
-#                               and still drift-checked until §5.2's 301s land
+#
+# (There were three until 2026-08-14: the workshop's `web/` built an older,
+# flat page for nebelhaus.com. That tree is deleted and the zone is a 301 map
+# now, so there is exactly one renderer of this data for the web again.)
 #
 # It used to live inside the web renderer alone, where it covered 16 of the 23
 # rooms — the other seven (agents, collar, developer, displays, keys, perch, ui)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # nebelhaus bootstrap — raise the house on a fresh Mac.
 #
-#   curl -fsSL https://nebelhaus.com/init.sh | bash        (or the github raw URL)
+#   curl -fsSL https://hausfold.co/nebelhaus.sh | bash     (or the github raw URL)
 #   nix run github:hausfold/haus#bootstrap             (once nix exists)
 #
 # It installs the prerequisites (Xcode CLT, Determinate Nix), runs a short

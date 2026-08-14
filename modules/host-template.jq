@@ -25,7 +25,7 @@
 # exactly the "delete what you didn't change" ergonomics without either cost.
 #
 # Two renderings of the same JSON exist beside this one and are deliberately
-# different: nebelhaus.com's page (workshop's gen-options.mjs, for reading
+# different: hausfold.co's page (its own gen-options.mjs, for reading
 # top-to-bottom) and the agent skill's reference (hearth/agents/options-md.jq,
 # for grepping). This one is for a file you EDIT.
 #
@@ -73,10 +73,11 @@ def commented($indent):
   split("\n")
   | map(if (. | test("^[ \t]*$")) then ($indent + "#") else ($indent + "# " + .) end);
 
-# Starlight slugifies `### \`haus.theme.accent\`` by lowercasing and
+# The docs site slugifies `### \`haus.theme.accent\`` by lowercasing and
 # dropping everything that isn't alphanumeric — so the dots and the backticks
-# vanish. Verified against the links already in the docs site
-# (/reference/options/#nebelhauspouncewindowswitcher).
+# vanish. Held across the Starlight → Fumadocs move; verified against the links
+# on the live page
+# (hausfold.co/docs/haus/reference/options/#hauspouncewindowswitcher).
 def slug: ascii_downcase | gsub("[^a-z0-9]"; "");
 
 def room: .key | split(".")[1];
@@ -132,7 +133,7 @@ def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
 + "# Your identity, apps and secrets live NEXT DOOR in default.nix, which imports\n"
 + "# this file. Both are yours to edit; only this one is safe to regenerate.\n"
 + "#\n"
-+ "# Full reference: https://nebelhaus.com/reference/options/\n"
++ "# Full reference: https://hausfold.co/docs/haus/reference/options/\n"
 + "{ ... }:\n"
 + "\n"
 + "{\n"
@@ -183,7 +184,7 @@ def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
                  | to_entries
                  | map(if .key == 0 then "  # type: " + .value else "  #       " + .value end)
                  | join("\n")) + "\n"
-              + "  # docs: https://nebelhaus.com/reference/options/#\($o.key | slug)\n"
+              + "  # docs: https://hausfold.co/docs/haus/reference/options/#\($o.key | slug)\n"
               + "  # desktop data: "
               + (if $safety.desktopSafe == true then "safe"
                  elif $safety.desktopSafe == false then "host-only"
