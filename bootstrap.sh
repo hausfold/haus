@@ -6,9 +6,9 @@
 #
 # It installs the prerequisites (Xcode CLT, Determinate Nix), runs a short
 # interview, and scaffolds a THIN PERSONAL CONFIG at ~/.config/nix — a tiny flake
-# of your own that consumes haus as an input. You never edit (or
-# even clone) haus itself: your machine's identity, apps, and secrets live in
-# your config; haus stays upstream where `nix flake update nebelhaus` pulls it.
+# of your own that consumes haus as an input. You never edit (or even clone)
+# haus itself: your machine's identity, apps and secrets live in your config;
+# haus stays upstream, where `nix flake update nebelhaus` pulls it.
 #
 # Flags / env:
 #   --defaults, NEBELHAUS_NONINTERACTIVE=1   skip the interview, take smart defaults
@@ -126,7 +126,7 @@ dflt() { /usr/bin/defaults read "$1" "$2" 2>/dev/null || echo "unset"; }
 # nix_default DOMAIN KEY TYPE [FALLBACK] — read a macOS default and print it as a
 # nix literal for the host file. TYPE is bool|int|str. If the key is unset, print
 # FALLBACK (itself a nix literal, e.g. false or '"bottom"') when given, else print
-# nothing — so the desktop's own default (a lib.mkDefault in modules/den) stays. This
+# nothing — so haus's own default (a lib.mkDefault in modules/den) stays. This
 # is how "keep my settings" turns your live macOS state into declarative config.
 nix_default() {
   local raw
@@ -160,7 +160,7 @@ emit() { [ -n "$2" ] && printf '  system.defaults.%s = %s;\n' "$1" "$2"; }
 # settings_overrides — assemble the system.defaults block for the categories the
 # user chose to KEEP (KEEP_DOCK / KEEP_KBD / KEEP_FINDER). Bool/string keys carry
 # the macOS stock default as a fallback so an untouched knob is still captured
-# faithfully; integer repeat rates fall back to the desktop's default when unset
+# faithfully; integer repeat rates fall back to haus's default when unset
 # (no reliable stock value to assume). AppleShowAllExtensions lives in both the
 # finder and NSGlobalDomain option sets in haus, so pin both to one read.
 settings_overrides() {

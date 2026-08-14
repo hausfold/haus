@@ -4,7 +4,7 @@
 #
 # Two things it knows: the subcommands (from haus.sh's own dispatch), and — for
 # the four commands that name an option — every settable `haus.*` path on THIS
-# machine's pinned rice, with one line of prose each.
+# machine's pinned haus, with one line of prose each.
 #
 # WHERE THE PATHS COME FROM, and where they emphatically don't. The authority on
 # whether a path is settable is the module system, and asking it costs a full
@@ -49,16 +49,16 @@ _haus() {
   # longer exists is a command that fails after you completed it.
   subcommands=(
     'rebuild:build + switch this machine from your config'
-    'update:pull the latest rice + nebelhaus apps, then rebuild'
+    'update:pull the latest haus + its apps, then rebuild'
     'rollback:go back a generation (or to generation N)'
     'generations:list the generations you can roll back to'
-    'status:current generation + how old your pinned rice is'
+    'status:current generation + how old your pinned haus is'
     'edit:open your host config in $EDITOR'
     'options:refresh the annotated catalogue of every haus.* option'
     'set:write + apply haus.* options (with no arguments, pick one)'
     'get:print a declared value, or list the writable overlay'
     'unset:force nullable options to null'
-    'reset:remove writable overrides and inherit the host/rice value again'
+    'reset:remove writable overrides and inherit the host/desktop/room value again'
     'plan:preview what a rebuild would change, without building it'
     'diff:declared config vs what macOS actually has right now'
     'capture:turn this Mac'\''s current settings into config lines'

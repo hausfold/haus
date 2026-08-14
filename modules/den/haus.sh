@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # haus — the everyday CLI for a haus machine, so you never memorise the Nix
-# incantations. This is the END-USER haus that ships with haus itself (den puts it on
+# incantations. This is the END-USER CLI haus ships (den puts it on
 # PATH). It drives your OWN machine only — it knows nothing about the workshop
 # family repos or agent worktrees (that's the workshop's developer CLI, `bench`).
 #
@@ -190,7 +190,7 @@ haus — the everyday CLI for a haus machine.
   haus unset <path> [<path>…]
                       force nullable options to null
   haus reset <path> [<path>…]
-                      remove writable overrides and inherit the host/desktop default.
+                      remove writable overrides and inherit the host/desktop/room value.
                       unset and reset take a LIST the way set takes pairs: several
                       paths land in ONE rebuild, all-or-nothing, so an intent that
                       took two options to make takes one command to undo
@@ -316,8 +316,8 @@ has_fda() {
 # there are none). It costs an evaluation of the darwin system, so it runs only
 # on the guard's slow path — which, since the guard stopped short-circuiting on
 # "is this an agent", is every `haus rebuild` from an app WITHOUT the grant. On
-# a machine whose terminal holds FDA (the common case, and the one the desktop's
-# own install steers you to) it never runs at all. It can't be read out of the
+# a machine whose terminal holds FDA (the common case, and the one haus's own
+# installer steers you to) it never runs at all. It can't be read out of the
 # built script the way `haus plan`'s verdicts are: the guard has to answer
 # before anything is built.
 #
@@ -1227,7 +1227,7 @@ cmd_capture() {
   echo
   printf '%s' "$lines"
   echo
-  info "paste what you want into your host file — a line you don't paste means 'use the desktop's default'."
+  info "paste what you want into your host file — a line you don't paste means 'use haus's default'."
   info "the snapshot above is what 'haus revert-settings' puts back if you don't like where a rebuild takes this."
 }
 
@@ -2114,7 +2114,7 @@ cmd_reset() {
     seen="$seen|$path|"
     target="$(settings_file "$path")"
     if [ ! -e "$target" ]; then
-      inherited+=("${path#haus.} already inherits the host/desktop value ($(settings_eval_json "$host" "$path" 2>/dev/null | settings_print_json))")
+      inherited+=("${path#haus.} already inherits the host/desktop/room value ($(settings_eval_json "$host" "$path" 2>/dev/null | settings_print_json))")
       shift; continue
     fi
     grep -q '^# Managed by haus set\.' "$target" \
@@ -2203,7 +2203,7 @@ cmd_options() {
   else
     cp -f "$HOST_TEMPLATE" "$dest.new"
     chmod u+w "$dest.new"
-    say "your options.nix differs from this haus's — wrote $dest.new instead."
+    say "your options.nix differs from this pin's — wrote $dest.new instead."
     diff -u "$dest" "$dest.new" | sed -n '1,40p' | sed 's/^/  /' || true
     info "merge what you want, then: rm $dest.new   (or: haus options --force to replace)"
   fi

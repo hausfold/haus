@@ -72,7 +72,7 @@ health() {
     return 0
 }
 
-# Is the haus this machine pins behind its upstream? The same question, and the
+# Is the haus revision this machine pins behind its upstream? The same question, and the
 # same answer, as `haus status`'s last block: read the pinned rev out of the
 # consumer's lock and ask GitHub for the ref's head.
 #

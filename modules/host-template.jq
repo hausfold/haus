@@ -16,7 +16,7 @@
 #     file restating every default would beat every choice the desktop made —
 #     `haus.appearance.largePrint = true` would still leave `ui.scale` at the
 #     1.0 this file spelled out, on an option you never meant to set.
-#   - It would FREEZE the defaults it states. The desktop's own defaults are
+#   - It would FREEZE the defaults it states. A room's own defaults are
 #     `lib.mkDefault`s, so a plain restatement wins over them permanently: a
 #     later haus that retunes that default can never reach you, and nothing
 #     says so.
@@ -124,7 +124,7 @@ def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
 + "# file that stated every default explicitly would silently override your whole\n"
 + "# desktop and freeze every default. A line here outranks the desktop you\n"
 + "# selected — uncomment `ui.scale` and `haus.appearance.largePrint = true` stops\n"
-+ "# reaching it. And a plain value outranks the desktop's own `lib.mkDefault`s for\n"
++ "# reaching it. And a plain value outranks the ROOMS' own `lib.mkDefault`s for\n"
 + "# good, so a later haus that retunes that default could never reach you.\n"
 + "#\n"
 + "# Overriding your desktop is a PLAIN assignment, no `lib.mkForce` needed —\n"

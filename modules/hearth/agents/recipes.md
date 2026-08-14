@@ -145,7 +145,7 @@ haus.theme.accent = "sapphire";
 ```
 
 The value must be one of the fourteen Catppuccin names — `options.md` lists them.
-Note the honest scope in that option's description: it recolours the tools the
+Note the honest scope in that option's description: it recolours the tools
 haus injects colour into, not literally everything.
 
 ## "Use a different terminal font"
