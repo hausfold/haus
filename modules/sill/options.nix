@@ -205,10 +205,10 @@ in
         | right click | the full pounce palette (⌘Space), which is what a bare click on this pill used to do |
 
         All three are drawn by **pounce**, so all three need
-        `haus.pounce.enable` (on by default). With pounce off they are silent
-        no-ops and this option is the switch that says so out loud — turn it off
-        and the pill stops responding to clicks entirely, rather than looking
-        like an affordance that does nothing.
+        `haus.pounce.enable` (which the nebelhaus desktop turns on). With pounce
+        off they are silent no-ops and this option is the switch that says so out
+        loud — turn it off and the pill stops responding to clicks entirely,
+        rather than looking like an affordance that does nothing.
 
         The menu's rows are not reimplemented here: each one runs the palette
         command of the same name, so fixing one fixes both places. That is the

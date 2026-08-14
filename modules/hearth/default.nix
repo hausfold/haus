@@ -333,12 +333,12 @@ let
   # instructions file is never clobbered just to inject the rice's note.
   # Who the two files below are written for. Normally `ai.clients` — but an
   # EMPTY list doesn't mean "no agent ever runs here", it means the rice installs
-  # none: `developer.enable = false` empties the list, and `ai.clients` can't
-  # be set without `haus.ai.enable` (the AI room asserts it). A machine like
-  # that can still have Claude Code from npm or Codex from brew, and before this
-  # room existed both files were written unconditionally. So with nothing named,
-  # write for every client we know — they are inert markdown, and a skill nothing
-  # reads is much cheaper than an agent inventing option names.
+  # none — either nothing named any client, or the AI room is switched off, which
+  # empties the resolved list whatever a desktop wrote (`haus._ai.clients`). A
+  # machine like that can still have Claude Code from npm or Codex from brew, and
+  # before this room existed both files were written unconditionally. So with
+  # nothing named, write for every client we know — they are inert markdown, and
+  # a skill nothing reads is much cheaper than an agent inventing option names.
   fileClients = if agentClients == [ ] then lib.attrNames agentHomes else agentClients;
 
   agentInstructionFiles = lib.optionalAttrs (agentsCfg.instructions != "") (
