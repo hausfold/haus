@@ -52,7 +52,7 @@ pinned, so it can't offer you one you don't have.
 
 ```sh
 haus rebuild                # build, then switch — a bad edit never reaches the running system
-haus update                 # pull the latest desktop and apps, then rebuild
+haus update                 # pull the latest haus and its apps, then rebuild
 haus rollback               # back one generation, atomically
 haus edit                   # open your host file
 haus options                # re-render that catalogue against the revision you're on

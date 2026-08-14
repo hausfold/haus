@@ -1,11 +1,11 @@
 # AGENTS.md
 
 This repo is a **nebelhaus consumer** — one Mac's configuration in text. The
-rice itself (every module, every default) comes from the pinned `nebelhaus`
+layer and the desktop it selects (every module, every default) come from the pinned `nebelhaus`
 flake input; what lives here is only what's personal to this machine.
 
 ```
-flake.nix                        pins the rice — change with `haus update`, not by hand
+flake.nix                        pins haus — change with `haus update`, not by hand
 flake.lock                       the pinned revision — never hand-edited
 hosts/<hostname>/default.nix     THE file you edit by hand
 hosts/<hostname>/settings/*.nix  one ordinary module per `haus set` override
@@ -52,10 +52,10 @@ The `CLAUDE.md` beside it is that pointer and holds no rules of its own.
 
 The `haus` skill carries the full option reference, worked recipes, and this
 machine's current state. Read it before making changes; it is generated from
-this machine's pinned rice, so it can't drift from what's actually settable
-here. The rice installs one copy per client it manages — `~/.claude/skills/`,
+this machine's pinned haus, so it can't drift from what's actually settable
+here. haus installs one copy per client it manages — `~/.claude/skills/`,
 `~/.codex/skills/`, `~/.config/opencode/skills/` — and they are ordinary
 markdown, so read whichever one is on disk even if it isn't yours.
 
 `haus doctor` checks the machine's health. <https://hausfold.co/docs/> has the
-guides — it documents the *latest* rice, which may be ahead of this pin.
+guides — it documents the *latest* haus, which may be ahead of this pin.

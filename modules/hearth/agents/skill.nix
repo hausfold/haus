@@ -15,7 +15,7 @@
 # default and description — is RENDERED from the module system, the same source
 # the hausfold.co reference is rendered from.
 #
-# Because it's a derivation, it's built from the rice revision the machine has
+# Because it's a derivation, it's built from the haus revision the machine has
 # actually pinned. The skill on disk therefore describes the options that exist
 # HERE, not the ones on upstream main — which is the whole point: an agent that
 # reads latest-main docs will offer a user options their pin doesn't have.
@@ -47,7 +47,7 @@ pkgs.runCommand "nebelhaus-agent-skill-${version}"
   ''
     mkdir -p "$out/references"
 
-    substitute ${./SKILL.md} "$out/SKILL.md" --subst-var-by riceVersion ${lib.escapeShellArg version}
+    substitute ${./SKILL.md} "$out/SKILL.md" --subst-var-by hausVersion ${lib.escapeShellArg version}
     cp ${./recipes.md}          "$out/references/recipes.md"
 
     # The starter pair for a consumer repo: the rules in AGENTS.md, which every
@@ -63,7 +63,7 @@ pkgs.runCommand "nebelhaus-agent-skill-${version}"
       > "$out/references/options.md"
 
     # A skill whose option reference silently rendered empty would be worse than
-    # no skill: the agent would conclude the rice has no options rather than
+    # no skill: the agent would conclude haus has no options rather than
     # that the render broke. Fail the build instead.
     grep -q '^haus\.' "$out/references/options.md" \
       || { echo "options.md rendered no haus.* options — the render is broken" >&2; exit 1; }

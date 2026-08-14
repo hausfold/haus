@@ -1,6 +1,6 @@
 ---
 name: haus
-description: Change this Mac's setup on a machine managed by haus — the nebelhaus rice, or any other rice built on it. Install or remove apps, change the theme, fonts, keybindings, window management, the bar, the shell, or macOS settings. Use whenever the user asks you to change how their Mac looks or behaves, or mentions nebelhaus, haus, their host file, or ~/.config/nix. Covers finding the right haus.* option, editing the host file, applying with `haus rebuild`, and undoing with `haus rollback`.
+description: Change this Mac's setup on a machine managed by haus — the nebelhaus desktop, or any other desktop built on it. Install or remove apps, change the theme, fonts, keybindings, window management, the bar, the shell, or macOS settings. Use whenever the user asks you to change how their Mac looks or behaves, or mentions nebelhaus, haus, a "rice" (the older word for a desktop), their host file, or ~/.config/nix. Covers finding the right haus.* option, editing the host file, applying with `haus rebuild`, and undoing with `haus rollback`.
 ---
 
 # Changing a nebelhaus machine
@@ -15,7 +15,7 @@ It also means the usual moves are wrong. Do not edit dotfiles in `$HOME`, do not
 `brew install`, do not `defaults write`. Nearly all of it would be overwritten by
 the next rebuild anyway. There is exactly one file you edit.
 
-Skill version: @riceVersion@ (matches the rice revision this machine is pinned to).
+Skill version: @hausVersion@ (matches the haus revision this machine is pinned to).
 
 ## The one file you edit
 
@@ -24,11 +24,11 @@ Skill version: @riceVersion@ (matches the rice revision this machine is pinned t
 ```
 
 That is the user's **host file** — the thin personal layer (identity, apps,
-preferences) on top of the rice. `haus edit` opens it; `references/this-machine.md`
+preferences) on top of haus. `haus edit` opens it; `references/this-machine.md`
 in this skill names the exact path and what is currently enabled.
 
 Everything else in `~/.config/nix` is the scaffolding around it: `flake.nix`
-pins the rice, `flake.lock` pins the revision. Both are managed by commands, not
+pins haus, `flake.lock` pins the revision. Both are managed by commands, not
 by hand.
 
 ## The loop
@@ -36,7 +36,7 @@ by hand.
 1. **Orient.** Read `references/this-machine.md`, then the host file. Run
    `haus status` if the machine's freshness is relevant.
 2. **Find the option.** Grep `references/options.md` in this skill. That file is
-   rendered from the exact rice revision this machine is pinned to, so it is
+   rendered from the exact haus revision this machine is pinned to, so it is
    authoritative — if an option is not in it, it does not exist here.
 3. **Edit the host file.** Smallest change that does the job; keep the file's
    existing comment style.
@@ -52,12 +52,12 @@ it is not settable on this revision. Say so, and offer `haus update` — the
 option may exist upstream and simply be newer than this machine's pin.
 
 **Never hand-edit `flake.lock`, `flake.nix`, or anything under `/nix/store`.**
-Pulling a newer rice is `haus update`, which bumps the pin and rebuilds in one
+Pulling a newer haus is `haus update`, which bumps the pin and rebuilds in one
 step. The store is read-only by design.
 
-**Never edit the rice itself.** The `haus.*` options are the entire supported
+**Never edit haus itself.** The `haus.*` options are the entire supported
 surface. If the user wants something the options cannot express, say that plainly —
-it is a change to the rice (a different repo, upstream), not to their machine.
+it is a change to haus (a different repo, upstream), not to their machine.
 
 For a value, prefer `haus set <path> <value>`: it writes an ordinary
 module under `hosts/<host>/settings/`, type-checks it, and rebuilds. It takes as
@@ -88,7 +88,7 @@ anything under `haus.secrets.*`, and the pounce signing identity are the
 user's, not yours.
 
 **Prefer a `haus.*` option to a raw nix-darwin setting.** Both work — the
-host file is an ordinary nix-darwin module — but the rice's options are the ones
+host file is an ordinary nix-darwin module — but haus's options are the ones
 that are documented, checked, and safe. Reach for `system.defaults.*` or
 `homebrew.*` directly only when nothing in `haus.*` covers it, and say that
 you did.
@@ -108,7 +108,7 @@ That grant belongs to whichever app is responsible for the process — not to yo
 and not to root. So this is **not** "agents are refused": a human in a terminal
 nobody has granted is refused identically, and a session running inside a
 terminal that HAS the grant is not refused at all. When the write fails it fails
-mid-activation and aborts the rest, skipping every background service the rice
+mid-activation and aborts the rest, skipping every background service haus
 installs, with a symptom nowhere near the cause. That is what is being prevented.
 
 Two ways on, in this order:
@@ -131,7 +131,7 @@ grant a rebuild wants before it runs.
 
 `haus rollback` returns to the previous generation instantly and atomically. It
 rewinds **everything Nix manages**: packages, services, shell config, PATH,
-dotfiles the rice writes.
+dotfiles haus writes.
 
 It does **not** rewind:
 
@@ -159,7 +159,7 @@ user the extra step: `brew uninstall --zap <cask>`.
   something being broken.
 - `haus generations` / `haus rollback [N]` — the undo history.
 - <https://hausfold.co/docs/> — guides and reference. Note it documents the **latest**
-  rice; this machine is pinned to a specific revision, so it can describe options
+  haus; this machine is pinned to a specific revision, so it can describe options
   that are not in `references/options.md` yet. When they disagree, this skill's
   reference wins for what is settable *right now*.
 

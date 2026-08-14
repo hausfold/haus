@@ -3,7 +3,7 @@
 Every edit below goes in the host file (`~/.config/nix/hosts/<hostname>/default.nix`)
 and is applied with `haus rebuild`. Check the option in `options.md` before using
 it: this file is hand-written, so it shows the *shape* of a change, while
-`options.md` is generated from this machine's own rice and is the authority on
+`options.md` is generated from this machine's own pin and is the authority on
 what exists and what values are allowed.
 
 ---
@@ -84,7 +84,7 @@ brew uninstall --zap slack
 
 ## "Videos open in the wrong app" / "I don't want IINA"
 
-The rice ships IINA as the video player and hands it the video types macOS gives
+haus ships IINA as the video player and hands it the video types macOS gives
 QuickTime, TV and your browser. Both halves are switches:
 
 ```nix
@@ -134,9 +134,9 @@ haus.theme.flavor = "latte";            # "mocha" is the dark default
 haus.theme.systemAppearance = "flavor"; # …and move macOS itself with it
 ```
 
-Suggest both lines together. The first recolours the tools the rice themes; the
-second moves System Settings ▸ Appearance, which the rice leaves alone by
-default — without it a light rice looks half-done on a dark Mac.
+Suggest both lines together. The first recolours the tools haus themes; the
+second moves System Settings ▸ Appearance, which haus leaves alone by
+default — without it a light desktop looks half-done on a dark Mac.
 
 ## "Change the accent colour"
 
@@ -145,8 +145,8 @@ haus.theme.accent = "sapphire";
 ```
 
 The value must be one of the fourteen Catppuccin names — `options.md` lists them.
-Note the honest scope in that option's description: it recolours the tools the
-rice injects colour into, not literally everything.
+Note the honest scope in that option's description: it recolours the tools
+haus injects colour into, not literally everything.
 
 ## "Use a different terminal font"
 
@@ -214,20 +214,20 @@ haus.snippets.matches = [
 Two different layers, and the difference matters:
 
 ```nix
-haus.theme.contrast = "high";                # the rice's own palette — always safe
+haus.theme.contrast = "high";                # haus's own palette — always safe
 haus.accessibility.increaseContrast = true;  # macOS's system-wide setting
 ```
 
 Prefer the theme axis. The `haus.accessibility.*` options write a
 TCC-protected macOS domain that needs Full Disk Access on whichever app runs the
-rebuild. The rice guards those writes, so a missing grant costs the setting and
+rebuild. haus guards those writes, so a missing grant costs the setting and
 nothing else — but the grant follows the app your session runs under, so they may
 simply not apply when *you* are the one rebuilding. `haus doctor` reports whether
 this session has it; say so rather than retrying.
 
 Never reach past these into raw `system.defaults.universalaccess.*`. That path is
 unguarded upstream: without Full Disk Access it aborts activation partway and
-skips every background service the rice installs. `haus rebuild` refuses outright
+skips every background service haus installs. `haus rebuild` refuses outright
 when the config sets it and the current app can't write it — agent or human alike,
 because the grant follows the app and not the person. Every key in that domain
 measured to take effect has a `haus.accessibility.*` option, so the guarded route
@@ -238,7 +238,7 @@ need the user's own FDA-holding terminal.
 ## "Update everything"
 
 ```sh
-haus update      # bump the rice pin, refresh the family apps, rebuild
+haus update      # bump the haus pin, refresh the family apps, rebuild
 ```
 
 Never a hand edit of `flake.lock`. Afterwards this skill is regenerated from the
@@ -256,7 +256,7 @@ homebrew.casks = [ "some-cask" ];   # but for an APP, use haus.roster
 ```
 
 Do that only when no `haus.*` option covers the request, and say that you
-did — the rice's options are the surface that's documented, checked, and carried
-across upgrades. If the user is asking for something the rice *should* express as
+did — haus's options are the surface that's documented, checked, and carried
+across upgrades. If the user is asking for something haus *should* express as
 an option, name it: that's a change upstream, not something to bolt onto their
 machine.

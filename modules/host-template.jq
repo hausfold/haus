@@ -16,9 +16,9 @@
 #     file restating every default would beat every choice the desktop made —
 #     `haus.appearance.largePrint = true` would still leave `ui.scale` at the
 #     1.0 this file spelled out, on an option you never meant to set.
-#   - It would FREEZE the defaults it states. The rice's own defaults are
+#   - It would FREEZE the defaults it states. A room's own defaults are
 #     `lib.mkDefault`s, so a plain restatement wins over them permanently: a
-#     later rice that retunes that default can never reach you, and nothing
+#     later haus that retunes that default can never reach you, and nothing
 #     says so.
 #
 # Commented out, the same file is inert until you uncomment a line, which is
@@ -32,7 +32,7 @@
 # Inputs:
 #   options.json          on stdin / as the file argument
 #   --slurpfile groups    groups.json (options-groups.nix registry)
-#   --arg riceVersion     the rice VERSION, stamped into the header
+#   --arg hausVersion     the haus VERSION, stamped into the header
 
 def lit:
   if type == "object" and has("_type") then (.text // (.value | tojson))
@@ -109,9 +109,9 @@ def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
 # option before this renderer runs.
 | ($opts | group_by(room) | sort_by([ $g[.[0] | room].order, (.[0] | room) ])) as $rooms
 
-| "# Every haus.* option on this machine's rice, at its default.\n"
+| "# Every haus.* option this machine has, at its default.\n"
 + "#\n"
-+ "# GENERATED at install time from rice \($riceVersion)'s own module system, so it\n"
++ "# GENERATED at install time from haus \($hausVersion)'s own module system, so it\n"
 + "# describes the options that exist at the revision you pinned — not upstream's\n"
 + "# latest. Regenerate it after `haus update` with:  haus options\n"
 + "#\n"
@@ -124,8 +124,8 @@ def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
 + "# file that stated every default explicitly would silently override your whole\n"
 + "# desktop and freeze every default. A line here outranks the desktop you\n"
 + "# selected — uncomment `ui.scale` and `haus.appearance.largePrint = true` stops\n"
-+ "# reaching it. And a plain value outranks the rice's own `lib.mkDefault`s for\n"
-+ "# good, so a later rice that retunes that default could never reach you.\n"
++ "# reaching it. And a plain value outranks the ROOMS' own `lib.mkDefault`s for\n"
++ "# good, so a later haus that retunes that default could never reach you.\n"
 + "#\n"
 + "# Overriding your desktop is a PLAIN assignment, no `lib.mkForce` needed —\n"
 + "# that is what the priority ladder is for. Uncomment the one line you mean.\n"
