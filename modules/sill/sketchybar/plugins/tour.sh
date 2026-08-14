@@ -65,6 +65,11 @@ LOCK="/tmp/sketchybar_tour.lock"
 
 source "$HOME/.config/sketchybar/colors.sh"
 source "$HOME/.config/sketchybar/workspaces.sh"
+# Not for $SB — the tour pill itself never moves off the menu bar and addresses
+# it directly. This is for the TABLE bar.sh generates (SILL_BOTTOM_ITEMS and the
+# two client paths): mute() hides pills that CAN have moved, and it has to know
+# which instance owns each one. See bar_of().
+source "$HOME/.config/sketchybar/bar.sh"
 
 # GENERATED gates, authored steps + glyphs (modules/sill/default.nix).
 # TOUR_CUSTOM=1 replaces the built-in lap. Otherwise TOUR_HAS_PALETTE=0 when
@@ -206,13 +211,29 @@ hide() { sketchybar --set tour drawing=off; }
 # while pills are already hidden (start over a mid-flight tour, init after a
 # partial repaint) would otherwise record nothing and orphan every hidden
 # pill — the restore list must survive until unmute actually runs.
+#
+# Every pill in the list is MOVABLE (haus.sill.bottom.items), so none of them can
+# be addressed with a bare `sketchybar`: that name is the menu bar's instance
+# alone, and a --set aimed at the wrong one is silent — the pill just stays
+# visible through the whole lap, over the step labels, with nothing in any log.
+# bar_of() routes per item off the same SILL_BOTTOM_ITEMS table bar.sh generates,
+# which is the one place that knows where each pill ended up. The tour pill
+# itself never moves and keeps talking to the top bar directly.
+bar_of() { # bar_of <item> — the SketchyBar client that owns this pill
+    case " ${SILL_BOTTOM_ITEMS:-} " in
+        *" $1 "*) printf '%s' "${SILL_BAR_BOTTOM:-sketchybar}" ;;
+        *) printf '%s' "${SILL_BAR_TOP:-sketchybar}" ;;
+    esac
+}
+
 mute() {
     touch "$MUTED"
-    local it
+    local it bar
     for it in weather media battery wifi hush agents elgato harvest github; do
-        [ "$(sketchybar --query "$it" 2>/dev/null | jq -r '.geometry.drawing')" = on ] || continue
+        bar="$(bar_of "$it")"
+        [ "$("$bar" --query "$it" 2>/dev/null | jq -r '.geometry.drawing')" = on ] || continue
         grep -qxF "$it" "$MUTED" || echo "$it" >> "$MUTED"
-        sketchybar --set "$it" drawing=off
+        "$bar" --set "$it" drawing=off
     done
 }
 
@@ -220,7 +241,7 @@ unmute() {
     [ -f "$MUTED" ] || return 0
     local it
     while IFS= read -r it; do
-        sketchybar --set "$it" drawing=on
+        "$(bar_of "$it")" --set "$it" drawing=on
     done < "$MUTED"
     rm -f "$MUTED"
 }

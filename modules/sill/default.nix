@@ -1188,6 +1188,21 @@ lib.mkIf config.haus.sill.enable {
       indexed = lib.imap0 (i: s: { inherit i s; }) ghSources;
       wrongKinds = lib.filter (e: builtins.length (ghKindsSet e.s) != 1) indexed;
       orgless = lib.filter (e: e.s.ci && ghOrg e.s == "") indexed;
+      # The source table is LINE-delimited, so a newline inside any field is not
+      # a formatting quirk — it ends the record. A `command` written as a Nix
+      # `''\'''\''…''\'''\''` block is the way this happens: the payload truncates at its
+      # first line and every line after it is parsed as a whole extra source,
+      # taking that entry's title for its org and its icon for its severity. It
+      # evaluates, it builds, and the pill grows a phantom row.
+      multiline = lib.filter (
+        e:
+        lib.any (f: lib.hasInfix "\n" f) [
+          (ghPayload e.s)
+          (ghOrg e.s)
+          e.s.title
+          (ghIcon e.s)
+        ]
+      ) indexed;
       drawn = builtins.elem "github" (topItems ++ bottomItems);
     in
     map (e: {
@@ -1198,6 +1213,10 @@ lib.mkIf config.haus.sill.enable {
       assertion = false;
       message = "haus.sill.github.sources[${toString e.i}] is a ci source with no owner to ask about: set haus.git.org, or that source's own `org`.";
     }) orgless
+    ++ map (e: {
+      assertion = false;
+      message = "haus.sill.github.sources[${toString e.i}] holds a newline. The pill reads one source per line, so a multi-line command (a Nix ''…'' block) would be truncated at its first line and the rest parsed as extra sources. Write it as one line, or put it in a script and name that.";
+    }) multiline
     ++ [
       {
         assertion = !(drawn && !config.haus.developer.git.enable);

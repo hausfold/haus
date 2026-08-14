@@ -82,6 +82,13 @@ now=$(date +%s)
 # draw eight of them.
 DEFAULT_LIMIT=8
 
+# How long a fetch may claim to be running before the next caller assumes it
+# died and takes over. Longer than any of these calls can take (a hung `gh` on a
+# dead connection is the slow case, and it gives up well inside this), shorter
+# than the shortest legal refresh, so a sweep can never race a live fetch or
+# delay a healthy one.
+STALE_INFLIGHT=300
+
 # ── source table ──────────────────────────────────────────────────────────────
 # SILL_GITHUB_SOURCES is one line per source, unit-separated (see the note on
 # the cache format above for why not tabs):
@@ -178,6 +185,7 @@ fetch_search() { # fetch_search <index> <query> <limit>
       "\u001f" + .html_url'
   } > "$out"
   mv -f "$out" "$STATE/src-$i.tsv"
+  rm -f "$err"
 }
 
 fetch_ci() { # fetch_ci <index> <org> <limit>
@@ -229,6 +237,7 @@ fetch_ci() { # fetch_ci <index> <org> <limit>
     [ "$count" -gt 0 ] && printf '%s\n' "$rows" | head -n "$limit"
   } > "$out"
   mv -f "$out" "$STATE/src-$i.tsv"
+  rm -f "$err"
 }
 
 fetch_command() { # fetch_command <index> <command> <limit>
@@ -292,7 +301,7 @@ do_fetch() {
     if [ -d "$LOCK" ]; then
       local age
       age=$(( now - $(stat -f %m "$LOCK" 2>/dev/null || echo "$now") ))
-      [ "$age" -lt 300 ] && return 0
+      [ "$age" -lt "$STALE_INFLIGHT" ] && return 0
       rmdir "$LOCK" 2>/dev/null
       mkdir "$LOCK" 2>/dev/null || return 0
     fi
@@ -324,41 +333,69 @@ do_fetch() {
 # Detach a fetch. `setsid`-less on macOS, so a subshell with its own stdio is
 # what keeps it alive past this script's exit — the same shape media_stream.sh
 # and ai_usage.sh use for their background work.
+#
+# The in-flight flag is AGE-SWEPT, not merely tested. It is only removed by a
+# do_fetch that ran to completion, so anything that kills one mid-flight — sleep,
+# a reboot, `launchctl bootout`, a rebuild restarting the bar, a `gh` that hangs
+# on a dead connection — leaves it behind, and a bare `[ -f ]` guard would then
+# refuse every future fetch: the tick, the Refresh row and the right-click all
+# come through here. The pill would sit on a frozen number (or, on a machine
+# whose FIRST fetch was interrupted, on `…`) until someone deleted a file they
+# have no reason to know about. Same deadline and same reasoning as the lock.
 spawn_fetch() {
-  [ -f "$FETCHING" ] && return 0
+  if [ -f "$FETCHING" ]; then
+    local age
+    age=$(( now - $(stat -f %m "$FETCHING" 2>/dev/null || echo "$now") ))
+    [ "$age" -lt "$STALE_INFLIGHT" ] && return 0
+    rm -f "$FETCHING"
+  fi
   ("$HOME/.config/sketchybar/plugins/github.sh" fetch >/dev/null 2>&1 &)
 }
 
 # ── read the cache ────────────────────────────────────────────────────────────
 # Sets LEAD_* to the source the pill speaks for: the highest-severity one with a
-# nonzero count, earliest in the configured order on a tie. `auth` and `error`
-# outrank everything — a pill claiming "0 failing" when it could not ask is the
-# one failure mode worth being loud about.
+# nonzero count, earliest in the configured order on a tie.
+#
+# The two failure states do NOT simply outrank a real count, and the asymmetry is
+# deliberate.
+#
+#   auth  wins outright. It is a fact about the whole machine rather than about
+#         one source — nothing that talks to GitHub is answering — so every count
+#         beside it is stale by definition, and it is the one failure with a
+#         command that fixes it.
+#   error is a FALLBACK: it leads only when no source has a live count. One
+#         source failing is not evidence about the others, and letting it win
+#         would mean a `command` source ending in a `grep` that matched nothing
+#         (exit 1, entirely normal) blanks a ci count that is sitting there
+#         correct and red. A transient 502 on one call would do the same.
 LEAD_STATE=ok
 LEAD_COUNT=0
 LEAD_SEV=info
 read_cache() {
-  local i rank best=0 line kind sev count
+  local i rank best=0 kind sev count saw_error=0
   LEAD_STATE=ok; LEAD_COUNT=0; LEAD_SEV=info
   for ((i = 0; i < n_sources; i++)); do
     [ -f "$STATE/src-$i.tsv" ] || continue
     IFS=$'\037' read -r kind sev count _ < "$STATE/src-$i.tsv"
     [ "$kind" = meta ] || continue
     case "$sev" in
-      auth | error)
-        # First one wins; auth beats error, since it is the one you can act on.
-        if [ "$LEAD_STATE" = ok ] || { [ "$LEAD_STATE" = error ] && [ "$sev" = auth ]; }; then
-          LEAD_STATE="$sev"; LEAD_COUNT=0
-        fi
+      auth)
+        LEAD_STATE=auth; LEAD_COUNT=0
+        return ;;
+      error)
+        saw_error=1
         continue ;;
     esac
-    [ "$LEAD_STATE" = ok ] || continue
     [ "${count:-0}" -gt 0 ] || continue
     rank=$(sev_rank "$sev")
     if [ "$rank" -gt "$best" ]; then
       best="$rank"; LEAD_SEV="$sev"; LEAD_COUNT="$count"
     fi
   done
+  # Nothing to say AND something went wrong: say so, rather than drawing the
+  # quiet nothing-to-report pill over a number nobody managed to fetch.
+  [ "$best" -eq 0 ] && [ "$saw_error" -eq 1 ] && LEAD_STATE=error
+  return 0
 }
 
 # ── paint the pill ────────────────────────────────────────────────────────────
@@ -368,7 +405,7 @@ render() {
   # other leaves a window where this is unset — and under `set -u` that is not a
   # missing glyph, it is a pill that stops drawing until the next tick.
   local icon="${SILL_GITHUB_ICON:-}" color label ldraw=on
-  if [ -f "$FETCHING" ] && [ ! -f "$STAMP" ]; then
+  if [ -f "$FETCHING" ] && [ "$(stamp_epoch)" -eq 0 ]; then
     # Only on the very first fetch, when there is genuinely nothing to show. A
     # refresh over a populated cache keeps drawing the old number instead of
     # blanking a pill you were reading.
@@ -394,6 +431,20 @@ render() {
   "$SB" --set "$ITEM" drawing="$(tour_drawing)" \
     icon="$icon" icon.color="$color" \
     label="$label" label.color="$color" label.drawing="$ldraw"
+}
+
+# The last completed fetch, as an epoch, or 0. `cat` alone is not enough: a
+# stamp that exists but is EMPTY — a fetch killed between the create and the
+# write, a full disk — turns every `$((now - last))` below into an arithmetic
+# syntax error, which under a bar plugin means the popup or the tick simply dies
+# mid-run. Anything that isn't all digits reads as "never fetched".
+stamp_epoch() {
+  local v
+  v=$(cat "$STAMP" 2>/dev/null)
+  case "$v" in
+    "" | *[!0-9]*) echo 0 ;;
+    *) echo "$v" ;;
+  esac
 }
 
 # ── the dropdown ──────────────────────────────────────────────────────────────
@@ -438,6 +489,9 @@ open_popup() {
       [ -f "$STATE/src-$s.tsv" ] || continue
       IFS=$'\037' read -r kind sev count title < "$STATE/src-$s.tsv"
       [ "$kind" = meta ] || continue
+      # Kept aside because the row loop below reuses `sev` for each row's own
+      # state — the section's verdict has to survive that.
+      local msev="$sev"
       local hcolor="$OVERLAY1"
       [ "${count:-0}" -gt 0 ] && hcolor="$(sev_color "$sev")"
       pop_add icon="${S_ICON[$s]}" icon.color="$hcolor" \
@@ -463,7 +517,12 @@ open_popup() {
       done < "$STATE/src-$s.tsv"
 
       if [ "$rows_drawn" -eq 0 ]; then
-        pop_add icon="" label="nothing" label.color="$OVERLAY0" \
+        # A source that FAILED and a source with genuinely nothing in it are the
+        # same empty section otherwise, and only one of them is good news.
+        local empty="nothing"
+        [ "$msev" = error ] && empty="couldn't fetch this one"
+        [ "$msev" = auth ] && empty="not logged in"
+        pop_add icon="" label="$empty" label.color="$OVERLAY0" \
           label.font="${BAR_FONT}:Italic:${FS_TINY}" background.height="$H_META"
       elif [ "${count:-0}" -gt "$rows_drawn" ]; then
         # Never let a truncated list read as a complete one.
@@ -476,9 +535,10 @@ open_popup() {
   # The refresh row, always last. Right-clicking the pill does the same thing —
   # two doors on the same action, because the pill is the obvious place to reach
   # for and the row is the discoverable one.
-  local age="never"
-  if [ -f "$STAMP" ]; then
-    local secs=$((now - $(cat "$STAMP" 2>/dev/null || echo "$now")))
+  local age="never" last secs
+  last=$(stamp_epoch)
+  if [ "$last" -gt 0 ]; then
+    secs=$((now - last))
     if [ "$secs" -lt 60 ]; then age="${secs}s ago"
     elif [ "$secs" -lt 3600 ]; then age="$((secs / 60))m ago"
     else age="$((secs / 3600))h ago"; fi
@@ -533,10 +593,8 @@ esac
 # have, then top the cache up if it has gone stale — in that order, so the
 # repaint never waits on a decision about the network.
 render
-if [ ! -f "$STAMP" ]; then
+last=$(stamp_epoch)
+if [ "$last" -eq 0 ] || [ $((now - last)) -ge "${SILL_GITHUB_REFRESH:-300}" ]; then
   spawn_fetch
-else
-  last=$(cat "$STAMP" 2>/dev/null || echo 0)
-  [ $((now - last)) -ge "${SILL_GITHUB_REFRESH:-300}" ] && spawn_fetch
 fi
 exit 0

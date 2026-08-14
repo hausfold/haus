@@ -2312,6 +2312,34 @@
             touch $out
           '';
 
+          # The same trap, one directory down, and it bites harder there. A
+          # plugin is named in a `script=` or a `click_script=`, which SketchyBar
+          # runs through the shell — so a source file committed 0644 lands in the
+          # store as r--r--r--, every invocation exits 126, and the ONLY symptom
+          # is a pill that never draws and never logs. It survives evaluation,
+          # the build, and `nix flake check` as it stood; the github pill shipped
+          # exactly that way and was caught by hand.
+          #
+          # Two plugins are LIBRARIES — sourced by their siblings, never exec'd —
+          # and are legitimately 0644, so they are named rather than pattern-
+          # matched: a new library adds a line here, which is the moment to be
+          # sure it really is one.
+          sill-plugins-executable = pkgs.runCommand "nebelhaus-sill-plugins-executable-ok" { } ''
+            libs="ai-provider.sh media_lib.sh vitals_lib.sh"
+            bad=
+            for f in ${./modules/sill/sketchybar/plugins}/*.sh; do
+              base=$(basename "$f")
+              case " $libs " in *" $base "*) continue ;; esac
+              test -x "$f" || bad="$bad $base"
+            done
+            if [ -n "$bad" ]; then
+              echo "not executable, so SketchyBar can only fail with exit 126:$bad" >&2
+              echo "fix: git update-index --chmod=+x modules/sill/sketchybar/plugins/<name>" >&2
+              exit 1
+            fi
+            touch $out
+          '';
+
           # ---- wallpaper --------------------------------------------------
           # Renders the `minimal` desktop and asserts the two things about it
           # that nobody would notice going wrong.
