@@ -115,9 +115,17 @@ It sets *defaults*, so anything pinned by hand still wins — if the host file a
 sets `haus.fonts.mono.size`, the terminal keeps that size. Read the option's
 description in `options.md`: it lists exactly what scale does and doesn't move.
 
-For a genuinely large-print machine the rice ships a preset (`large-print`), but
-it's imported in `flake.nix` via `extraModules`, so suggest it rather than
-editing `flake.nix` unprompted.
+For a genuinely large-print machine, say that instead of tuning `ui.scale` by
+hand — it also lifts the palette's contrast, macOS's own contrast setting and the
+screen's scaled resolution, which is the only lever that reaches apps haus never
+installed:
+
+```nix
+haus.appearance.largePrint = true;
+```
+
+An ordinary host line, no `flake.nix` edit. It sets defaults too, so any single
+value pinned in the host still wins.
 
 ## "Switch to light mode"
 

@@ -17,7 +17,7 @@
 [
   # The `nebelhaus.*` -> `haus.*` aliases. In this list rather than only in
   # modules/default.nix because the pure-lib evals above are ALSO consumers of
-  # the old names: flake.nix's pack and preset checks feed rice files written
+  # the old names: flake.nix's pack and compat checks feed data files written
   # against `nebelhaus.*` into a bare evalModules of exactly this list.
   ./renamed.nix
   # Options that moved room WITHIN `haus.*` (today: the `claude` room folding
@@ -31,6 +31,7 @@
   # that option on every entry point, not only the full builder's.
   ./desktop/options.nix
   ./ai/options.nix
+  ./appearance/options.nix
   ./apps/options.nix
   ./den/options.nix
   ./displays/options.nix

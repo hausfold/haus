@@ -1,16 +1,18 @@
-# writing — a pack for a Mac that reads and writes rather than compiles.
+# writing — a saved app collection for a Mac that reads and writes rather than
+# compiles. The Apps room owns it, and one line turns it on:
 #
-# A PACK, not a preset. Same data-only rule (`checkRice` runs over this file too),
-# but it deliberately touches ONE option family: `haus.roster`. A preset
-# answers "what kind of machine is this"; a pack answers "what's on it". So a
-# pack composes with any preset and with any other pack, and none of them have to
-# know about each other:
+#   haus.apps.packs.writing.enable = true;
 #
-#   extraModules = [
-#     haus.presets.everyday      # a Mac for someone who doesn't write code
-#     haus.presets.large-print   # …that you can read
-#     haus.packs.writing         # …with these four apps on it
-#   ];
+# A PACK is a data-only file that touches ONE option family, `haus.roster`. It
+# used to be a top-level concept stacked beside a whole rice; it is something
+# the Apps room OFFERS now (the workshop's notes/rooms-desktops.md, step 5),
+# because "what's on this machine" is the question that room already answers,
+# and a saved collection is not a peer of a room or a desktop.
+#
+# The FORMAT is unchanged and still public: `haus.lib.pack ./their-pack.nix`
+# imports a stranger's file exactly the way the Apps room imports this one, and
+# `haus.lib.checkPack` is how they self-test before publishing. Same data-only
+# rule (`checkRice` runs over this file too), same per-leaf priority.
 #
 # Declaring an app in the roster is what installs it, so this file is both the
 # app list and the install instruction. Nothing here is nebelhaus-specific
@@ -33,18 +35,19 @@
 #   haus.roster.obsidian.appId = "…";   # osascript -e 'id of app "Obsidian"'
 #
 # A plain assignment — and it stays plain for the fields this file DOES set, too.
-# `packs.writing` reaches you through `haus.lib.pack`, which lowers every
-# field here to `mkDefault` on the way in, so your host outranks it per field
-# while the rest of the entry survives. Import order still carries no priority in
-# the module system; the SEAM does. This same file imported as a bare path gets
-# none of that and conflicts the old way.
+# Whichever way it reaches you — the Apps room's switch, or `haus.lib.pack` for
+# a third-party file — every field here arrives at `mkDefault`, so your host
+# outranks it PER FIELD while the rest of the entry survives. Import order still
+# carries no priority in the module system; the seam does. This same file
+# imported as a bare path gets none of that and conflicts the old way.
 #
 # So a letter of yours that clashes with one below is one line, no `mkForce`:
 #
 #   haus.roster.zotero.key = "y";   # or null, for ⌘Space only
 #
-# See bite 2 in packs/README.md for the whole rule, including the two cases that
-# still stop the build: two PACKS naming one app, and two roster entries in the
+# Two things still stop the build, and should: two PACKS naming one app (two
+# authors are equals, and only you can settle it — name the app in your own
+# host and a plain assignment outranks both), and two roster entries in the
 # same layer claiming one letter.
 #
 # ---- all four sources, including the one that used to be missing -------------

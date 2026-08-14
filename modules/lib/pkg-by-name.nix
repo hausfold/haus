@@ -4,8 +4,8 @@
 #               name = "nerd-fonts.fira-code"; }
 #
 # Why a string at all, when `types.package` exists and is more precise: a
-# community rice is DATA (presets/README.md — an attrset, no arguments, so
-# `nebelhaus.lib.checkRice` can read it at a glance), and a data file cannot
+# shared desktop or app pack is DATA (an attrset, no arguments, so
+# `haus.lib.checkDesktop`/`checkRice` can read it at a glance), and a data file cannot
 # reach `pkgs`. So every `types.package` option in the surface is invisible to
 # the format the whole rice-sharing story is built on: a shared rice could make
 # the terminal font bigger but not change its family, and a pack could install

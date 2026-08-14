@@ -112,7 +112,7 @@ in
     #
     # Default "system" = write nothing, the same policy every other curated
     # macOS settings group follows ("a group is a place to make an opinion
-    # available, not to impose one; a preset is where an opinion belongs" —
+    # available, not to impose one; a desktop is where an opinion belongs" —
     # notes/options-roadmap.md §5.6). It was briefly drafted the other way
     # round, defaulting to "fast", and the argument against that is the one hot
     # corners already made: these keys land on machines that have been running
@@ -230,8 +230,8 @@ in
 
           This exists so a desktop can carry that tuned baseline WITHOUT
           breaking the scale relationship. Setting `size` directly pins an
-          absolute number, which would make `haus.ui.scale` (and the
-          large-print preset built on it) stop moving the terminal font at
+          absolute number, which would make `haus.ui.scale` (and
+          `haus.appearance.largePrint`, built on it) stop moving the terminal font at
           all — a silent regression, since everything else would still grow.
           Say the baseline here; say the exception with `size`.
         '';
@@ -286,10 +286,10 @@ in
           attribute path into nixpkgs, so "nerd-fonts.fira-code" means
           `pkgs.nerd-fonts.fira-code`.
 
-          This exists so a data-only rice (presets/README.md) can change the
-          font FAMILY and not just its size — reaching `pkgs` is precisely what
-          that format forbids, which made `fonts.mono.package` unreachable to
-          every shared rice. A name is data; a package is code.
+          This exists so a data-only desktop or app pack can change the font
+          FAMILY and not just its size — reaching `pkgs` is precisely what those
+          formats forbid, which made `fonts.mono.package` unreachable to every
+          shared file. A name is data; a package is code.
 
           Set one or the other, never both. A name that resolves to nothing, or
           to a set of packages rather than a package, fails at eval with the

@@ -138,7 +138,8 @@ let
           "python3Packages.black" means what it says. `scope` applies to it
           identically.
 
-          This is the source a shared app pack can use (packs/README.md).
+          This is the source a shared app pack can use — see
+          `haus.apps.packs`, and `modules/apps/packs/writing.nix` for one.
           Without it a pack could install from Homebrew and the App Store but
           never from Nixpkgs, because reaching `pkgs` is exactly what the
           data-only format forbids — the one gap in the four sources.

@@ -9,8 +9,9 @@
 #
 # Display scaling is what's left, and it works: public CoreGraphics, no Homebrew
 # dependency, effective for every app on the machine because it changes what a
-# point means. That makes this room the missing half of `presets/large-print.nix`
-# — the preset could describe how the rice looks, but not how big the Mac is.
+# point means. That makes this room the missing half of
+# `haus.appearance.largePrint` — the rest of that profile says how the rice
+# looks, and only this line says how big the Mac is.
 #
 # Two deliberate choices:
 #

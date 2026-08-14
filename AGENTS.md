@@ -37,7 +37,7 @@ via `mkNebelhaus` and adds only its own host (identity, private apps, secrets).
 > The repo left the name at the 2026-08-09 org migration and is `hausfold/haus`
 > since 2026-08-11 — and none of the three examples below was ever a repo
 > name.)*
-> `nebelhaus.presets.everyday`,
+> `nebelhaus.desktops.everyday`,
 > `nebelhaus.lib.checkRice` and `inputs.nebelhaus.url` are all correct as
 > written — flake outputs and an input name, not options. Same for
 > `org.nebelhaus.*` launchd labels, `share/nebelhaus/`, the state dirs
@@ -129,6 +129,14 @@ modules/
   apps/                   # the EDITORIAL picks: apps the rice chooses for a finished
                           #   machine (IINA today) + the file types they claim. Roster
                           #   entries, so a cask of the same app still collides loudly
+    packs/                #   saved app collections, one switch each
+                          #   (haus.apps.packs.<name>.enable). Data files in the same
+                          #   format lib.pack takes for a stranger's; `pack` stopped
+                          #   being a top-level concept in step 5 of the rooms plan
+  appearance/             # the Appearance room's own PROFILE and nothing else:
+                          #   haus.appearance.largePrint sets four other rooms'
+                          #   options at once, each at mkDefault. Was
+                          #   presets/large-print.nix
   ai/                     # the AI room: haus.ai.* + the coding-agent capability.
                           #   Pure wiring — its assertions, and what it CONTRIBUTES to
                           #   the terminal, the bar and the launcher through the
@@ -163,9 +171,13 @@ modules/
   perch/                  # the perch notch file shelf, installed via the perch flake input
   hush/                   # Focus/DND one-switch: declarative hotkey 175 + Slack + hooks
   secrets/                # secretspec: declarative secrets, provider chosen per host
-desktops/                 # the desktops this flake ships. nebelhaus is the one the
-                          #   builder selects by default, and it is EMPTY until step 4
-                          #   of the rooms plan moves the rice's values into it
+desktops/                 # the desktops this flake ships: nebelhaus (the one the
+                          #   builder selects by default), blank, everyday, minimal.
+                          #   Data only, one per host, no stacking
+compat/presets.nix        # the RETIRED preset format as warning-emitting aliases —
+                          #   the old values at the old priority, so an existing
+                          #   `extraModules = [ presets.x ]` still builds. Never grow
+                          #   it; delete it and the `presets` output together
 test/desktops/            # one fixture per rule the desktop seam enforces, valid and
                           #   invalid; `desktop-seam` diffs the diagnostics they produce
 hosts/example/            # the template a consumer copies

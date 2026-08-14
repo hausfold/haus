@@ -10,7 +10,7 @@
   #
   # The list itself lives in ./options-modules.nix, which is also what the
   # pure-lib option-surface evaluations import (options-json, the claude skill,
-  # flake.nix's pack/preset checks). It used to be written out again here, and a
+  # flake.nix's pack and compat checks). It used to be written out again here, and a
   # module added to one copy and not the other fails in a way that names
   # neither file: absent from this one, a real system loses the option; absent
   # from that one, only the option-surface evals do.
@@ -38,6 +38,12 @@
     # installed by ./den and ./hearth, gated on its switch; see modules/ai.
     # Early, like ./roster, because rooms below read what it publishes.
     ./ai
+    # Appearance's own profile, and nothing else — it sets four other rooms'
+    # options at once (`largePrint`). BEFORE them, though the module system's
+    # laziness means the order changes nothing: every value it writes is a
+    # `mkDefault`, so a room that sets its own, a desktop and a host all still
+    # outrank it. It was presets/large-print.nix.
+    ./appearance
     ./den
     ./displays
     ./theme

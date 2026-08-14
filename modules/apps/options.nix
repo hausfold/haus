@@ -68,5 +68,40 @@
         '';
       };
     };
+
+    # ---- packs ----------------------------------------------------------
+    # A saved app collection, named. `pack` used to be a top-level concept a
+    # consumer stacked beside a whole rice; it is something this room offers
+    # now, because "what's on this machine" is the question the Apps room
+    # already answers (the workshop's notes/rooms-desktops.md, step 5).
+    #
+    # One switch per shipped pack rather than a list of names: the switch is
+    # then an ordinary desktop-safe boolean the registry can classify, the
+    # options reference documents each collection where a person will look for
+    # it, and a typo is an unknown-option error instead of a silently ignored
+    # string. A stranger's pack file still arrives through `haus.lib.pack`,
+    # which is the same seam at the same priority.
+    packs.writing.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      example = true;
+      description = ''
+        Install the **writing** collection: Obsidian, Zotero, Anki and calibre —
+        a Mac that reads and writes rather than compiles.
+
+        These arrive as ordinary roster entries at `mkDefault`, so anything you
+        say about one of them in your own host file wins per FIELD and the rest
+        of the entry survives:
+
+          haus.roster.zotero.key = "y";      # a letter of your own
+          haus.roster.obsidian.appId = "…";  # osascript -e 'id of app "Obsidian"'
+
+        Two of them claim a leader letter (`o`, `l`, `k`) and none claims a
+        workspace — a workspace names its own members, so give one to Obsidian
+        in your host with `haus.workspaces`. The file is
+        `modules/apps/packs/writing.nix`, and it is readable data: four casks
+        and the keys to reach them.
+      '';
+    };
   };
 }

@@ -15,8 +15,12 @@
     "blurb": "Whether a rebuild may install the roster's `appStoreId` entries. Off by default: it reaches the network and acts on your Apple Account, and it can never be complete — `mas` cannot sign in, and cannot buy a paid app.",
     "order": 22
   },
+  "appearance": {
+    "blurb": "The Appearance room's own profile — one named answer to a whole-machine question, where the groups below are the individual dials. `largePrint` sets the interface scale, the high-contrast palette, macOS's own contrast lift and the screen's scaled resolution together, each as a default you can still pin by hand.",
+    "order": 25
+  },
   "apps": {
-    "blurb": "The apps the rice picks for you, and the file types they claim — the ones a finished machine has rather than the ones a room needs to work. Each is one switch you can turn off; what it installs is a roster entry like any other, so you can retune or replace it by app id.",
+    "blurb": "The apps the rice picks for you, the saved collections you can switch on in one line, and the file types they claim — the ones a finished machine has rather than the ones a room needs to work. Each is one switch you can turn off; what it installs is a roster entry like any other, so you can retune or replace it by app id.",
     "order": 23
   },
   "collar": {
@@ -182,11 +186,26 @@
       "order": 22,
       "owner": "apps"
     },
-    "apps": {
-      "blurb": "The apps the rice picks for you, and the file types they claim — the ones a finished machine has rather than the ones a room needs to work. Each is one switch you can turn off; what it installs is a roster entry like any other, so you can retune or replace it by app id.",
+    "appearance": {
+      "blurb": "The Appearance room's own profile — one named answer to a whole-machine question, where the groups below are the individual dials. `largePrint` sets the interface scale, the high-contrast palette, macOS's own contrast lift and the screen's scaled resolution together, each as a default you can still pin by hand.",
       "kind": "room",
-      "optionCount": 2,
+      "optionCount": 1,
       "options": {
+        "haus.appearance.largePrint": {
+          "desktopSafe": true
+        }
+      },
+      "order": 25,
+      "owner": "appearance"
+    },
+    "apps": {
+      "blurb": "The apps the rice picks for you, the saved collections you can switch on in one line, and the file types they claim — the ones a finished machine has rather than the ones a room needs to work. Each is one switch you can turn off; what it installs is a roster entry like any other, so you can retune or replace it by app id.",
+      "kind": "room",
+      "optionCount": 3,
+      "options": {
+        "haus.apps.packs.writing.enable": {
+          "desktopSafe": true
+        },
         "haus.apps.videoPlayer.claimFileTypes": {
           "desktopSafe": true
         },

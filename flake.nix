@@ -179,25 +179,28 @@
           ++ hostWrittenModules
           ++ extraModules;
         };
-      presetFiles = {
-        full = ./presets/full.nix;
-        minimal = ./presets/minimal.nix;
-        everyday = ./presets/everyday.nix;
-        # Narrow and composable on purpose — it describes seeing, not the person,
-        # so it stacks onto any of the above rather than replacing one.
-        large-print = ./presets/large-print.nix;
-      };
-      # Packs are presets that touch ONE option family: `haus.roster`. Same
-      # data-only rule, same import path, same check — a separate name only
-      # because "what kind of machine is this" and "what's on it" are different
-      # questions, and keeping them apart is what lets a pack compose with any
-      # preset and with any other pack. See packs/README.md.
+      # The retired preset format, as compatibility aliases. Each one is a
+      # MODULE that warns and carries the old file's values at the old priority,
+      # so a consumer's `extraModules = [ haus.presets.everyday ]` still builds
+      # the machine it always did. What each became is in compat/presets.nix;
+      # the new spellings are `desktops/*` and `haus.appearance.largePrint`.
+      presetModules = import ./compat/presets.nix;
+
+      # A PACK is a data-only file that touches ONE option family,
+      # `haus.roster` — the apps on a machine, not the kind of machine it is.
+      # The format stays public (`lib.pack` imports a stranger's file, and
+      # `lib.checkPack` self-tests one), but it is no longer a top-level concept
+      # a consumer stacks: the collections this repo SHIPS belong to the Apps
+      # room and are switched on there. This list is what the format's rules are
+      # checked against, and what `packs` below keeps exporting for the length
+      # of the migration window.
       packFiles = {
-        writing = ./packs/writing.nix;
+        writing = ./modules/apps/packs/writing.nix;
       };
-      # What checkRice and `nix flake check` treat identically. The distinction
-      # above is for the reader; there is only one format underneath.
-      riceFiles = presetFiles // packFiles;
+      # What checkRice and `nix flake check` treat as data files. Presets used to
+      # be in here too; they are modules now, so a pack file is the only shape
+      # left that the rice rules can be read off.
+      riceFiles = packFiles;
 
       # The public helpers, hoisted out of the `lib` output so `packs` below can
       # use them — a pack is a file PLUS the seam that imports it, and the seam
@@ -420,10 +423,14 @@
           };
       };
 
-      # The desktops this flake ships: the opinionated default and the explicit
-      # from-scratch choice.
+      # The desktops this flake ships. `blank` is the explicit from-scratch
+      # choice and `nebelhaus` the opinionated default; `everyday` and `minimal`
+      # are the two whole rices that used to be presets, written out as the
+      # complete selections they always implied.
       desktopFiles = {
         blank = ./desktops/blank.nix;
+        everyday = ./desktops/everyday.nix;
+        minimal = ./desktops/minimal.nix;
         nebelhaus = ./desktops/nebelhaus.nix;
       };
       desktopLib = import ./modules/lib/desktop.nix {
@@ -431,13 +438,12 @@
         registry = import ./modules/options-groups.nix;
       };
 
-      # A pack as it actually ships: wrapped. `riceFiles` is what the format
-      # RULES are checked against (they're rules about files); `riceModules` is
-      # what a consumer imports, and what the evaluate-a-real-system half of
+      # A pack as it actually ships: wrapped. `packFiles` is what the format
+      # RULES are checked against (they're rules about files); this is what a
+      # consumer imports, and what the evaluate-a-real-system half of
       # `nix flake check` has to use, or the check would prove a shape nobody
       # gets.
       packModules = builtins.mapAttrs (_: riceLib.pack) packFiles;
-      riceModules = presetFiles // packModules;
       # Linux is in here for the pure-evaluation outputs only (options-json, the
       # theme-variants check) — that's what lets nebelhaus.com's Linux CI render the
       # options reference. Anything needing a darwin system is guarded per-output.
@@ -521,44 +527,43 @@
 
       inherit mkNebelhaus;
 
-      # ---- presets: the shared-rice format, dogfooded --------------------------
-      # A preset is a DATA-ONLY rice: a file evaluating to an attrset whose only
-      # top-level key is `haus` (`nebelhaus` is still accepted as its pre-rename
-      # spelling — see riceNamespaces). No pkgs, no lib, no config — so it cannot
-      # add a package, run an activation script, or reach anything outside the
-      # rice's own options. That boundary is what makes importing a stranger's
-      # rice a different act from running their code.
+      # ---- presets: retired, aliased ------------------------------------------
+      # `haus.presets.<name>` still resolves, warns, and produces the machine it
+      # always did. It is no longer a format: a preset was a data-only rice you
+      # STACKED beside another one, and the rooms model has exactly one desktop
+      # per host, because two whole selections that disagree about an option
+      # stop the build with nothing able to arbitrate them.
       #
-      # The repo's own presets go through the same check and the same import
-      # path a stranger's would, deliberately: if the option surface can't
-      # express `everyday` without reaching around haus.*, it can't express
-      # a community rice either — better to learn that here than after
-      # publishing a format. See presets/README.md.
-      presets = presetFiles;
+      #   presets.full         →  the nebelhaus desktop (the builder's default)
+      #   presets.minimal      →  desktops.minimal
+      #   presets.everyday     →  desktops.everyday
+      #   presets.large-print  →  haus.appearance.largePrint = true
+      #
+      # The data-only TRUST boundary these dogfooded did not retire with them:
+      # it is a desktop's now, enforced leaf by leaf against the room registry
+      # (`lib.checkDesktop`) rather than by a top-level stray-key rule, and a
+      # pack file is still checked by `checkRice`/`checkPack`. See
+      # compat/presets.nix, and delete both together.
+      presets = presetModules;
 
-      # `nebelhaus.packs.writing` — the same format aimed at one family. A pack
-      # only sets `haus.roster.*`: the apps on a machine, not the kind of
-      # machine it is. Separate output from `presets` so composing reads as what
-      # it is — a rice, plus what's installed on it:
+      # `haus.packs.writing` — the shipped collection, pre-wrapped, kept for the
+      # same migration window. Say `haus.apps.packs.writing.enable = true`
+      # instead: the Apps room owns the collections this repo ships, and that
+      # switch is a desktop-safe option a desktop can name.
       #
-      #   extraModules = [ nebelhaus.presets.everyday nebelhaus.packs.writing ];
-      #
-      # This is the roadmap's Phase 0 "publish one shareable app pack": the piece
-      # that needed no new mechanism, only a file someone can point at.
-      #
-      # Each one is PRE-WRAPPED by `lib.pack`, so it arrives at a lower priority
-      # than the consumer's own host and their `roster.obsidian.key` wins instead
-      # of colliding with the pack's. That is a property of the seam, not of the
-      # file — see `lib.pack`. The unwrapped files stay reachable as `packFiles`
-      # for tooling that wants the path (`checkRice`, `checkPack`, a diff).
+      # What is NOT deprecated is the FORMAT. `lib.pack ./their-pack.nix` is how
+      # a third party's file arrives, and it is the same seam at the same
+      # priority: every field lands at `mkDefault`, so a consumer's
+      # `roster.obsidian.key` wins per field instead of colliding, and the rest
+      # of the pack's entry survives.
       packs = packModules;
 
-      # The pack FILES, unwrapped: `nebelhaus.lib.checkRice nebelhaus.packFiles.writing`.
-      # `packs.<name>` used to be these paths; it is a module now, and a path is
-      # still the right thing to hand a checker.
+      # The pack FILES, unwrapped: `haus.lib.checkRice haus.packFiles.writing`.
+      # A path is the right thing to hand a checker, and this is what a pack
+      # author points at to self-test before publishing.
       inherit packFiles;
 
-      # `nebelhaus.desktops.nebelhaus` — the desktop FILES, unwrapped, the way
+      # `haus.desktops.nebelhaus` — the desktop FILES, unwrapped, the way
       # `packFiles` is. A path is the right thing to hand `lib.checkDesktop`,
       # and it is what `mkNebelhaus`'s `desktop` argument takes:
       #
@@ -572,52 +577,63 @@
 
       lib = riceLib;
 
-      # `nix flake check` — the presets are the community format, so the rule
-      # that defines that format has to be enforced, not merely documented.
+      # `nix flake check` — the shareable catalogue. Everything a consumer can
+      # point at by name has to actually raise a machine, which is a different
+      # property from being well-formed and is the one that reaches a stranger:
+      # a desktop that is beautifully closed-schema and doesn't build is worse
+      # than no desktop. Evaluation only — the drv paths are stripped of
+      # context, so this checks the catalogue rather than building nixpkgs.
       #
-      # Two properties, and both matter. Data-only (checkRice) is the TRUST
-      # half: a preset can't reach outside haus.*. Evaluating a real system
-      # with each is the USEFULNESS half — a preset that is beautifully
-      # data-only and doesn't build is worse than no preset. Evaluation only:
-      # the drv paths are stripped of context, so this checks the presets rather
-      # than building nixpkgs.
+      # Three shapes, one check, because they fail the same way:
       #
-      # checkRice THROWS rather than returning false, so a stray key fails this
-      # check during evaluation, with its own message. The `dataOnly` guard
-      # below is belt-and-braces for a future checkRice that returns a bool.
+      #   desktops   selected the way a host selects one, through the builder
+      #   packs      composed onto the default, which is where a roster entry's
+      #              assertions bite — a leader key another entry or a built-in
+      #              launch action already owns type-checks fine and then stops
+      #              the build. Data-only would not have caught that; evaluating
+      #              does.
+      #   presets    the retired aliases (compat/presets.nix). They are here so
+      #              "still works" is a fact rather than a promise in a comment.
       #
-      # `theme-variants` is the second check and runs on EVERY system, Linux
-      # included: it's pure lib, the same property that lets options-json build on
-      # Linux CI. `presets` stays darwin-only — it evaluates a real system.
+      # `checkRice` is the pack format's TRUST half and still applies to pack
+      # FILES: no pkgs, no lib, no config, nothing outside `haus.*`. It THROWS
+      # rather than returning false, so a stray key fails during evaluation with
+      # its own message; the `dataOnly` guard below is belt-and-braces for a
+      # future checkRice that returns a bool. A desktop's equivalent boundary is
+      # stricter and lives in `lib.checkDesktop`, checked by `desktop-seam`.
       #
-      # PACKS go through this check too (riceFiles = presets ++ packs), and the
-      # evaluate-a-real-system half is what earns its keep there: a pack's whole
-      # content is roster entries, and a roster entry is exactly the kind of thing
-      # that type-checks and then fails an assertion — a leader key another entry
-      # or a built-in launch action already owns. Data-only would not have caught
-      # that; evaluating does.
+      # `theme-variants` runs on EVERY system, Linux included: it's pure lib, the
+      # same property that lets options-json build on Linux CI. `catalogue` stays
+      # darwin-only — it evaluates real systems.
       checks = nixpkgs.lib.genAttrs allSystems (
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
           names = builtins.attrNames riceFiles;
           dataOnly = builtins.all (n: self.lib.checkRice riceFiles.${n}) names;
-          evaluated = map (
-            n:
-            "${n} ${
-              builtins.unsafeDiscardStringContext
-                (mkNebelhaus {
+          exampleDrv =
+            args:
+            builtins.unsafeDiscardStringContext
+              (mkNebelhaus (
+                {
                   inherit system;
                   username = "you";
                   hostname = "example";
-                  extraModules = [ riceModules.${n} ];
-                }).system.drvPath
-            }"
-          ) names;
+                }
+                // args
+              )).system.drvPath;
+          evaluated =
+            map (n: "desktop ${n} ${exampleDrv { desktop = desktopFiles.${n}; }}") (
+              builtins.attrNames desktopFiles
+            )
+            ++ map (n: "pack ${n} ${exampleDrv { extraModules = [ packModules.${n} ]; }}") names
+            ++ map (n: "preset ${n} ${exampleDrv { extraModules = [ presetModules.${n} ]; }}") (
+              builtins.attrNames presetModules
+            );
 
           # ---- data-only-surface ----------------------------------------------
-          # A community rice is DATA: an attrset, no arguments, so `checkRice` can
-          # read it and so can a person (presets/README.md). Which means the option
+          # A shared desktop or app pack is DATA: an attrset, no arguments, so a
+          # checker can read it and so can a person. Which means the option
           # surface itself carries a rule nothing was enforcing — an option typed
           # `package` is INVISIBLE to that format, because setting one needs the
           # single thing a data file cannot have, `pkgs`.
@@ -848,57 +864,48 @@
           packFailures =
             builtins.concatMap packCompose (builtins.attrNames packFiles) ++ packFileAttrFailures;
 
-          # ---- preset-composition ---------------------------------------------
-          # `packs` above pins how a pack meets a HOST. This pins how a rice meets
-          # another RICE, which is the thing a gallery is made of and the thing
-          # nothing here could see until it was measured.
+          # ---- fragment-compat -------------------------------------------------
+          # Step 5 of the rooms plan moved two top-level fragments into the rooms
+          # that own them: `presets/large-print.nix` became
+          # `haus.appearance.largePrint`, and `packs/writing.nix` became
+          # `haus.apps.packs.writing.enable`. Both are the same claim — a
+          # SPELLING changed and a machine did not — and both fail quietly when
+          # it is wrong: a profile carrying three of its four values, a pack
+          # switch installing three of its four apps. Nothing errors; you find
+          # out on the machine, weeks later, wondering why the display never got
+          # scaled.
           #
-          # presets/README.md makes four checkable claims about that, and every one
-          # of them is a claim about a RELATIONSHIP between two files that both
-          # pass every other check in this repo on their own:
+          # So each pair is evaluated as two whole systems and the derivations
+          # compared. That is the technique the desktop seam used to prove it had
+          # changed nothing (step 3), and it is not a sample: a drv path is every
+          # value that reached the machine.
           #
-          #   1. `everyday` + `large-print` compose — that pair is the documented
-          #      way to stack a layer onto a whole rice, and it is the example a
-          #      stranger copies first;
-          #   2. `everyday` + `minimal` do not — "they share five options and
-          #      disagree about four", a sentence with NUMBERS in it that nothing
-          #      was keeping true;
-          #   3. overlap is not collision: restating a value a preset already
-          #      holds merges, and only a disagreement stops the build (which is
-          #      why the pair above shares five and stops on four, not five);
-          #   4. a list- or set-valued option never conflicts at all — those
-          #      definitions are COMBINED, silently, which is the failure mode
-          #      with no error message and therefore the one worth pinning most.
-          #
-          # The table is generated from `presetFiles`, so a fifth preset can't be
-          # added without its four new pairs appearing here and someone having to
-          # state what they do. That is the point: the failure this catches is a
-          # preset growing one field and quietly breaking the pair the README
-          # tells people to use — no error anywhere, just a stranger's first
-          # `extraModules` line refusing to build.
-          #
-          # Pure lib over the option surface, like `packs` — seconds, no darwin
-          # system, runs on Linux CI.
-          presetNames = builtins.attrNames presetFiles;
-          presetData = n: import presetFiles.${n};
-
-          # The option paths a rice actually defines. Stops at anything that is
-          # not a plain attrset, so a list-valued option (everyday's tour.steps)
-          # is ONE path rather than a walk into its elements, and an already
-          # -prioritised value (`mkForce`, which carries `_type`) stays a leaf.
-          defPaths =
-            prefix: v:
-            if builtins.isAttrs v && !(v ? _type) then
-              nixpkgs.lib.concatMap (n: defPaths (prefix ++ [ n ]) v.${n}) (builtins.attrNames v)
+          # The OLD spelling is taken from the compatibility alias rather than
+          # from a copy of the deleted file, so this pins the second half of the
+          # promise too — that `haus.presets.large-print` and `haus.packs.writing`
+          # still resolve to what they always did.
+          compatPairs = {
+            large-print = {
+              old = [ presetModules.large-print ];
+              new = [ { haus.appearance.largePrint = true; } ];
+            };
+            writing = {
+              old = [ packModules.writing ];
+              new = [ { haus.apps.packs.writing.enable = true; } ];
+            };
+          };
+          compatRow =
+            name:
+            let
+              pair = compatPairs.${name};
+              oldDrv = exampleDrv { extraModules = pair.old; };
+              newDrv = exampleDrv { extraModules = pair.new; };
+            in
+            if oldDrv == newDrv then
+              "${name} old == new"
             else
-              [ prefix ];
-          pathsOf = data: defPaths [ ] data;
-          # Rows read better without the prefix every path shares.
-          showPath =
-            p:
-            nixpkgs.lib.concatStringsSep "." (
-              if builtins.elem (builtins.head p) riceLib.riceNamespaces then builtins.tail p else p
-            );
+              "${name} DIFFER old=${oldDrv} new=${newDrv}";
+          compatRows = map compatRow (builtins.attrNames compatPairs);
 
           composedConfig =
             mods:
@@ -906,139 +913,14 @@
               specialArgs.lib = nixpkgs.lib;
               modules = import ./modules/options-modules.nix ++ mods;
             }).config;
-          # Per path rather than one deepSeq of the whole config: the failures ARE
-          # the answer, and a single boolean would say "it broke" without saying
-          # which option the two rices disagreed about.
-          stopsOn =
-            mods: paths:
-            map showPath (
-              builtins.filter (
-                p:
-                !(builtins.tryEval (
-                  let
-                    v = nixpkgs.lib.getAttrFromPath p (composedConfig mods);
-                  in
-                  builtins.deepSeq v v
-                )).success
-              ) (nixpkgs.lib.unique paths)
-            );
-          verdict =
-            stopped:
-            if stopped == [ ] then "composes" else "stops on ${builtins.concatStringsSep ", " stopped}";
 
-          presetPairRow =
-            a: b:
-            let
-              da = presetData a;
-              db = presetData b;
-              paths = pathsOf da ++ pathsOf db;
-              shared = builtins.filter (p: builtins.elem p (pathsOf db)) (pathsOf da);
-              # `disagree` compares the two FILES; `stops on` asks the module
-              # system. They match today only because every option two presets
-              # currently share holds a single value. The first time two presets
-              # both set a list — `tour.steps` — a row will read `disagree 1` and
-              # stop on nothing, because those definitions merge instead of
-              # colliding. That divergence is the point of rule 4 above, not a
-              # bug in this table.
-              disagree = builtins.filter (
-                p: nixpkgs.lib.getAttrFromPath p da != nixpkgs.lib.getAttrFromPath p db
-              ) shared;
-            in
-            "[ ${a} ${b} ] overlap ${toString (builtins.length shared)}"
-            + " disagree ${toString (builtins.length disagree)}"
-            + " ${verdict (stopsOn [ da db ] paths)}";
-          presetPairRows = nixpkgs.lib.concatMap (
-            a: map (b: presetPairRow a b) (builtins.filter (b: a < b) presetNames)
-          ) presetNames;
-
-          # The consumer half. The option under test is DERIVED from `full` rather
-          # than named here, so this can never quietly stop testing a restatement
-          # because a preset dropped the field it was written against — and the
-          # row records which option it used. `firstOr` is what makes that safe to
-          # derive: a filter that comes back empty means the rice this row was
-          # written against changed shape, and the check should say so rather than
-          # die on `head: empty list`.
-          firstOr =
-            what: xs:
-            if xs == [ ] then
-              throw "preset-composition: no ${what}, so that row would test nothing — pick a new subject"
-            else
-              builtins.head xs;
-          hostSubject = firstOr "boolean option in presets/full.nix" (
-            builtins.filter (p: builtins.isBool (nixpkgs.lib.getAttrFromPath p (presetData "full"))) (
-              pathsOf (presetData "full")
-            )
-          );
-          hostHeld = nixpkgs.lib.getAttrFromPath hostSubject (presetData "full");
-          hostSays = v: nixpkgs.lib.setAttrByPath hostSubject v;
-          # The one option `everyday` and `minimal` both set to the same value —
-          # the single thing those two rices are NOT arguing about.
-          agreedSubject = firstOr "option everyday and minimal agree on" (
-            builtins.filter (
-              p:
-              builtins.elem p (pathsOf (presetData "minimal"))
-              &&
-                nixpkgs.lib.getAttrFromPath p (presetData "everyday")
-                == nixpkgs.lib.getAttrFromPath p (presetData "minimal")
-            ) (pathsOf (presetData "everyday"))
-          );
-          hostRows = [
-            "a host restating full's ${showPath hostSubject} ${
-              verdict (stopsOn [ (presetData "full") (hostSays hostHeld) ] [ hostSubject ])
-            }"
-            "a host contradicting full's ${showPath hostSubject} ${
-              verdict (
-                stopsOn
-                  [
-                    (presetData "full")
-                    (hostSays (!hostHeld))
-                  ]
-                  [ hostSubject ]
-              )
-            }"
-            "the same, with lib.mkForce ${
-              verdict (
-                stopsOn
-                  [
-                    (presetData "full")
-                    (hostSays (nixpkgs.lib.mkForce (!hostHeld)))
-                  ]
-                  [ hostSubject ]
-              )
-            }, host wins (${showPath hostSubject} = ${
-              nixpkgs.lib.boolToString (
-                nixpkgs.lib.getAttrFromPath hostSubject (composedConfig [
-                  (presetData "full")
-                  (hostSays (nixpkgs.lib.mkForce (!hostHeld)))
-                ])
-              )
-            })"
-            # rice#222 found that a plain host assignment settles a pack-vs-pack
-            # collision, because both packs sit at mkDefault and a normal
-            # definition outranks them. Between two PRESETS the same line is a
-            # THIRD normal definition and the build still stops — on one option
-            # more than before, because the host has now joined an argument the
-            # two presets weren't having. The escape hatch does not transfer, and
-            # this is the row that says so. The subject is the option those two
-            # presets AGREE on, derived rather than named, so the row can't
-            # degrade into "the host contradicted something already broken".
-            "[ everyday minimal ] plus a plain host contradicting the ${showPath agreedSubject} they agree on ${
-              verdict (
-                stopsOn [
-                  (presetData "everyday")
-                  (presetData "minimal")
-                  (nixpkgs.lib.setAttrByPath agreedSubject (
-                    !(nixpkgs.lib.getAttrFromPath agreedSubject (presetData "everyday"))
-                  ))
-                ] (pathsOf (presetData "everyday") ++ pathsOf (presetData "minimal"))
-              )
-            }"
-          ];
-
-          # And the quiet half: no error, no warning, two rices' definitions
-          # combined into a machine neither of them describes. `tour.steps` is
-          # §5.13's whole community-tour mechanism, so this is the one that would
-          # actually reach a stranger.
+          # And the quiet half, which outlives the preset format that found it:
+          # no error, no warning, two data files' definitions combined into a
+          # machine neither of them describes. A list- or set-valued option never
+          # conflicts — those definitions are COMBINED — so two packs that each
+          # add an app, or two files that each author a first-run tour step, give
+          # you both in an order neither chose. That is the failure mode with no
+          # message, and therefore the one worth pinning most.
           riceTour = hint: {
             haus.tour.steps = [
               {
@@ -1054,7 +936,7 @@
             };
           };
           mergeRows = [
-            "two rices, one tour step each: ${
+            "two data files, one tour step each: ${
               builtins.concatStringsSep ", " (
                 map (s: s.hint)
                   (composedConfig [
@@ -1063,7 +945,7 @@
                   ]).haus.tour.steps
               )
             } (merged, no error)"
-            "two rices, one app each: ${
+            "two data files, one app each: ${
               builtins.concatStringsSep ", " (
                 builtins.attrNames
                   (composedConfig [
@@ -1074,22 +956,12 @@
             } (merged, no error)"
           ];
 
-          presetCompositionTable = builtins.concatStringsSep "\n" (presetPairRows ++ hostRows ++ mergeRows);
-          # Pairs first, in `attrNames` order, so a new preset's rows can't be
-          # added somewhere that hides them.
-          expectedPresetCompositionTable = ''
-            [ everyday full ] overlap 5 disagree 2 stops on developer.enable, prowl.enable
-            [ everyday large-print ] overlap 0 disagree 0 composes
-            [ everyday minimal ] overlap 5 disagree 4 stops on developer.enable, pounce.enable, sill.enable, tour.enable
-            [ full large-print ] overlap 0 disagree 0 composes
-            [ full minimal ] overlap 5 disagree 4 stops on pounce.enable, prowl.enable, sill.enable, tour.enable
-            [ large-print minimal ] overlap 0 disagree 0 composes
-            a host restating full's developer.enable composes
-            a host contradicting full's developer.enable stops on developer.enable
-            the same, with lib.mkForce composes, host wins (developer.enable = false)
-            [ everyday minimal ] plus a plain host contradicting the prowl.enable they agree on stops on developer.enable, pounce.enable, prowl.enable, sill.enable, tour.enable
-            two rices, one tour step each: B, A (merged, no error)
-            two rices, one app each: obsidian, zotero (merged, no error)
+          fragmentCompatTable = builtins.concatStringsSep "\n" (compatRows ++ mergeRows);
+          expectedFragmentCompatTable = ''
+            large-print old == new
+            writing old == new
+            two data files, one tour step each: B, A (merged, no error)
+            two data files, one app each: obsidian, zotero (merged, no error)
           '';
 
           # ---- theme-variants -------------------------------------------------
@@ -2230,12 +2102,6 @@
             touch $out
           '';
 
-          preset-composition = pkgs.runCommand "nebelhaus-preset-composition-ok" { } ''
-            diff -u ${pkgs.writeText "expected" expectedPresetCompositionTable} \
-                    ${pkgs.writeText "actual" (presetCompositionTable + "\n")}
-            touch $out
-          '';
-
           keymap = pkgs.runCommand "nebelhaus-keymap-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedKeymapTable} \
                     ${pkgs.writeText "actual" (keymapTable + "\n")}
@@ -2390,6 +2256,12 @@
             ${nixpkgs.lib.optionalString (blankSelections != [ ]) ''
               echo 'Blank selected optional rooms: ${builtins.concatStringsSep ", " blankSelections}' >&2
               exit 1''}
+            touch $out
+          '';
+
+          fragment-compat = pkgs.runCommand "haus-fragment-compat-ok" { } ''
+            diff -u ${pkgs.writeText "expected" expectedFragmentCompatTable} \
+                    ${pkgs.writeText "actual" (fragmentCompatTable + "\n")}
             touch $out
           '';
 
@@ -2570,11 +2442,11 @@
               touch $out
             '';
 
-          presets = pkgs.runCommand "nebelhaus-presets-ok" { } ''
-            ${nixpkgs.lib.optionalString (!dataOnly) "echo 'a preset is not data-only' >&2; exit 1"}
-            cat > $out <<'PRESETS'
+          catalogue = pkgs.runCommand "haus-catalogue-ok" { } ''
+            ${nixpkgs.lib.optionalString (!dataOnly) "echo 'a pack file is not data-only' >&2; exit 1"}
+            cat > $out <<'CATALOGUE'
             ${builtins.concatStringsSep "\n" evaluated}
-            PRESETS
+            CATALOGUE
           '';
         }
       );

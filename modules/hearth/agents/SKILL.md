@@ -68,7 +68,7 @@ half-switched in between. Reach for the host file when the change is structural,
 not merely multi-valued. `haus get
 [path]` reads the declared result, `haus unset <path> [<path>…]` writes null for
 nullable options, and `haus reset <path> [<path>…]` removes machine overrides so
-the host, preset, or rice value wins again. Those two take a LIST the way `set`
+the host, desktop, or room value wins again. Those two take a LIST the way `set`
 takes pairs, with the same all-or-nothing single rebuild — so undoing light mode
 is one `haus reset theme.flavor theme.systemAppearance`, not two rebuilds with
 the machine half-undone in between. The commands only accept `haus.*` paths (the

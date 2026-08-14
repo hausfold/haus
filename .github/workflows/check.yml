@@ -25,16 +25,15 @@ jobs:
       # they can run HERE — nine of them now: theme-variants and keymap pin the
       # flavor/contrast → themes-subdir and keys.* → chord/glyph tables,
       # alert-volume pins the beep-volume ladder, data-only-surface fails on a
-      # package-typed option a data-only rice cannot set, packs /
-      # preset-composition pin what happens when two rices MEET (a pack against
-      # a host, every pair of the presets), site-data-current pins
-      # docs/site-data/ against the derivation the docs site reads, and
-      # desktop-projection pins the example host's 54 carved values against the
-      # committed projection — the one thing that can notice the nebelhaus
-      # desktop quietly stopping short of what the module defaults used to give.
-      # Those eight mirror a rule that lives in another repo, in a generated
-      # dotfile, or in a README — where drift is silent. The ninth,
-      # `wallpaper`, is the odd one
+      # package-typed option a data-only file cannot set, packs pins what happens
+      # when a pack MEETS a host, room-registry compares the registry to the
+      # evaluated option tree, site-data-current pins docs/site-data/ against the
+      # derivation the docs site reads, and desktop-projection pins the example
+      # host's carved values against the committed projection — the one thing
+      # that can notice the nebelhaus desktop quietly stopping short of what the
+      # module defaults used to give. Those eight mirror a rule that lives in
+      # another repo, in a generated dotfile, or in a README — where drift is
+      # silent. The ninth, `wallpaper`, is the odd one
       # out: it BUILDS the generated desktop and asserts its size and its colour
       # count, which is the only automated thing that can notice the dither
       # stopped reaching the 8-bit reduction and the gradient started banding.
@@ -44,9 +43,11 @@ jobs:
       # record of what CI actually covers, and it went one stale before anyone
       # noticed. The darwin-only checks fingerprint a real evaluated system, so
       # they stay guarded and don't run here — they fire on a Mac, by hand, or
-      # not at all. Today that is: presets, accent-reach, scale-reach,
-      # font-reach, standalone-modules, ai-room, desktop-seam, sill-rc-executable,
-      # sill-bottom-hush and sill-bottom-groups.
+      # not at all. Today that is: catalogue (every desktop, pack and compat
+      # alias raised as a real system), fragment-compat (the retired top-level
+      # fragments' old spelling against their new one), accent-reach,
+      # scale-reach, font-reach, standalone-modules, ai-room, desktop-seam,
+      # sill-rc-executable, sill-bottom-hush and sill-bottom-groups.
       - run: nix flake check
       # The annotated host template (hosts/<host>/options.nix) ships every
       # option's DEFAULT as a line you can uncomment. host-template.nix's own

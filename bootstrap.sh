@@ -257,11 +257,17 @@ WALLPAPER="${NEBELHAUS_WALLPAPER:-minimal}"
 ADOPT_CASKS=""
 # Rooms: a comma list of the ones ON (default all three); omit one to disable it.
 ROOMS="${NEBELHAUS_ROOMS:-sill,prowl,pounce}"
-# Which named preset the generated config imports. A preset is a data-only rice
-# (see the rice's presets/README.md) — the SAME mechanism a community rice uses,
-# which is the point: the installer isn't a privileged path. Empty = none, which
-# is what "Custom" picks, since a hand-chosen room set isn't a named thing.
-PRESET_NAME="${NEBELHAUS_PRESET:-full}"
+# Which DESKTOP the generated config selects — the one complete answer to "what
+# should this Mac feel like?", chosen exactly once and overridable line by line
+# from your host. The same mechanism a published desktop uses, which is the
+# point: the installer isn't a privileged path. Empty selects none explicitly,
+# which is what "Custom" picks (a hand-chosen room set isn't a named thing) and
+# leaves the builder's own default, the nebelhaus desktop, in place.
+#
+# `NEBELHAUS_PRESET` is the pre-rooms spelling and still read: `full` names the
+# nebelhaus desktop now, and `everyday`/`minimal` are desktops of their own.
+DESKTOP_NAME="${NEBELHAUS_DESKTOP:-${NEBELHAUS_PRESET:-nebelhaus}}"
+if [ "$DESKTOP_NAME" = "full" ]; then DESKTOP_NAME=nebelhaus; fi
 case ",$ROOMS," in *,sill,*)   ROOM_SILL=1   ;; *) ROOM_SILL=   ;; esac
 case ",$ROOMS," in *,prowl,*)  ROOM_PROWL=1  ;; *) ROOM_PROWL=  ;; esac
 case ",$ROOMS," in *,pounce,*) ROOM_POUNCE=1 ;; *) ROOM_POUNCE= ;; esac
@@ -285,25 +291,26 @@ if [ -n "$INTERACTIVE" ]; then
     GIT_NAME="$("$GUM"  input --prompt "Git name › "  --value "$GIT_NAME"  --placeholder "Ada Lovelace")"
     GIT_EMAIL="$("$GUM" input --prompt "Git email › " --value "$GIT_EMAIL" --placeholder "ada@example.com")"
 
-    # A preset seeds the optional rooms; only "Custom" opens the per-room
+    # A desktop seeds the optional rooms; only "Custom" opens the per-room
     # picker. It's pure sugar over the same ROOM_* toggles the NEBELHAUS_ROOMS
     # env var drives, so a scripted install stays a one-liner.
-    PRESET="$(printf '%s\n%s\n%s\n%s' \
-      'Full rice — menu bar, tiling, and the ⌘Space palette' \
+    DESKTOP="$(printf '%s\n%s\n%s\n%s' \
+      'nebelhaus — the full desktop: menu bar, tiling, and the ⌘Space palette' \
       'Everyday — the same Mac without the developer tooling' \
       'Minimal — just the themed shell (add rooms later)' \
       'Custom — choose each room yourself' \
-      | "$GUM" choose --header 'How much of the rice do you want?')"
-    case "${PRESET:-Full}" in
+      | "$GUM" choose --header 'Which desktop do you want?')"
+    case "${DESKTOP:-nebelhaus}" in
       Everyday*)
-        PRESET_NAME=everyday
+        DESKTOP_NAME=everyday
+        ROOM_PROWL=
         ;;
       Minimal*)
-        PRESET_NAME=minimal
+        DESKTOP_NAME=minimal
         ROOM_SILL=; ROOM_PROWL=; ROOM_POUNCE=
         ;;
       Custom*)
-        PRESET_NAME=
+        DESKTOP_NAME=
         SELECTED="$(printf 'sill\nprowl\npounce' | "$GUM" choose --no-limit \
           --selected sill,prowl,pounce \
           --header 'Optional rooms (space toggles) — sill=menu bar · prowl=tiling · pounce=⌘Space palette:')"
@@ -311,8 +318,8 @@ if [ -n "$INTERACTIVE" ]; then
         echo "$SELECTED" | grep -qx prowl  || ROOM_PROWL=
         echo "$SELECTED" | grep -qx pounce || ROOM_POUNCE=
         ;;
-      *)  # Full rice — every optional room on.
-        PRESET_NAME=full
+      *)  # The nebelhaus desktop — every optional room on.
+        DESKTOP_NAME=nebelhaus
         ROOM_SILL=1; ROOM_PROWL=1; ROOM_POUNCE=1
         ;;
     esac
@@ -440,13 +447,15 @@ say "Scaffolding your config at $DEST"
 run mkdir -p "$DEST/hosts/$HOSTNAME"
 mkdir -p "$DEST/hosts/$HOSTNAME"   # for real even in dry-run, so we can write into it
 
-# A named preset is imported as an ordinary extra module — exactly how someone
-# would import a rice they found online. Import order carries no priority, so an
-# option the preset SETS is a conflict until the host says `lib.mkForce`; an
-# option it leaves alone the host sets outright (presets/README.md).
-PRESET_LINE=""
-[ -n "$PRESET_NAME" ] && PRESET_LINE="
-        extraModules = [ nebelhaus.presets.$PRESET_NAME ];"
+# A named desktop is SELECTED, not imported — exactly how someone would select a
+# desktop they found online. Exactly one per host, and it sits between the rooms
+# and you in the priority ladder: an option the desktop sets, your host file
+# overrides with a plain assignment, no `lib.mkForce` anywhere.
+DESKTOP_LINE=""
+if [ -n "$DESKTOP_NAME" ]; then
+  DESKTOP_LINE="
+        desktop = nebelhaus.desktops.$DESKTOP_NAME;"
+fi
 
 cat >"$DEST/flake.nix" <<EOF
 {
@@ -463,7 +472,7 @@ cat >"$DEST/flake.nix" <<EOF
       darwinConfigurations.$HOSTNAME = nebelhaus.mkNebelhaus {
         username = "$USERNAME";
         hostname = "$HOSTNAME";
-        host = ./hosts/$HOSTNAME;$PRESET_LINE
+        host = ./hosts/$HOSTNAME;$DESKTOP_LINE
       };
     };
 }
