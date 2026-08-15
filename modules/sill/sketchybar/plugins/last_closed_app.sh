@@ -14,8 +14,8 @@
 
 export PATH="/run/current-system/sw/bin:/opt/homebrew/bin:/usr/bin:/bin:$PATH"
 
-STATE=/tmp/nebelhaus_last_app.state     # "<pid>|<bundleid>" of last frontmost app
-STACK=/tmp/nebelhaus_closed_apps.stack  # quit apps' bundle ids, most recent LAST
+STATE=/tmp/haus_last_app.state     # "<pid>|<bundleid>" of last frontmost app
+STACK=/tmp/haus_closed_apps.stack  # quit apps' bundle ids, most recent LAST
 MAX=20                                   # cap the stack depth
 
 # Frontmost app's pid + bundle id, the cheap way (mirrors empty_workspace.sh).

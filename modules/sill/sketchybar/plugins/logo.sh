@@ -95,11 +95,11 @@ upstream_behind() {
     consumer="${HAUS_CONSUMER:-$HOME/.config/nix}"
     lock="$consumer/flake.lock"
     [ -f "$lock" ] || return 1
-    rev="$(jq -r '.nodes.nebelhaus.locked.rev // ""' "$lock" 2>/dev/null)"
+    rev="$(jq -r '(.nodes.haus // .nodes.nebelhaus).locked.rev // ""' "$lock" 2>/dev/null)"
     [ -n "$rev" ] || return 1
-    owner="$(jq -r '.nodes.nebelhaus.original.owner // "hausfold"' "$lock" 2>/dev/null)"
-    repo="$(jq -r '.nodes.nebelhaus.original.repo // "hausfold"' "$lock" 2>/dev/null)"
-    ref="$(jq -r '.nodes.nebelhaus.original.ref // "HEAD"' "$lock" 2>/dev/null)"
+    owner="$(jq -r '(.nodes.haus // .nodes.nebelhaus).original.owner // "hausfold"' "$lock" 2>/dev/null)"
+    repo="$(jq -r '(.nodes.haus // .nodes.nebelhaus).original.repo // "haus"' "$lock" 2>/dev/null)"
+    ref="$(jq -r '(.nodes.haus // .nodes.nebelhaus).original.ref // "HEAD"' "$lock" 2>/dev/null)"
 
     remote="$(GIT_TERMINAL_PROMPT=0 \
         git -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=8 \

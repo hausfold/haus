@@ -595,7 +595,7 @@ let
     };
     menuBar = {
       order = 115;
-      blurb = "The stock menu bar: what the clock shows, and which Control Center glyphs sit beside it. (The nebelhaus bar itself is `sill`.)";
+      blurb = "The stock menu bar: what the clock shows, and which Control Center glyphs sit beside it. (The hacker bar itself is `sill`.)";
     };
     security = {
       order = 116;
@@ -647,7 +647,7 @@ let
     # ---- policy ---------------------------------------------------------------
     developer = {
       order = 200;
-      blurb = "The developer pack: the CLI toolbelt, Git tooling and language runtimes. Coding agents left this pack on 2026-08-13 and are their own room now (`haus.ai.*`). Off is a nebelhaus machine for someone who never opens a terminal by choice.";
+      blurb = "The developer pack: the CLI toolbelt, Git tooling and language runtimes. Coding agents left this pack on 2026-08-13 and are their own room now (`haus.ai.*`). Off is a hacker machine for someone who never opens a terminal by choice.";
     };
     collar = {
       order = 210;

@@ -1,4 +1,4 @@
-# Part of the nebelhaus option surface. Split per room so each room's public API
+# Part of the haus option surface. Split per room so each room's public API
 # lives next to the code that implements it; modules/default.nix imports them all.
 # Cross-cutting options (the app roster) stay in modules/options.nix.
 #
@@ -102,7 +102,7 @@ in
       org = lib.mkOption {
         type = lib.types.str;
         default = "";
-        example = "nebelhaus";
+        example = "hausfold";
         description = ''
           The GitHub owner whose repos this machine works on. An organisation,
           or your own account: GitHub's issue search treats `org:<user>` the
@@ -155,7 +155,7 @@ in
     hearth.editorName = lib.mkOption {
       type = lib.types.enum (builtins.attrNames editors);
       # The desktop-safe half of the pair, and the one that actually INSTALLS
-      # something. helix is the room's own default rather than a nebelhaus
+      # something. helix is the room's own default rather than a hacker
       # opinion carried in the desktop: a terminal room with no editor is not
       # unopinionated, it is broken — git alone would drop you into whatever
       # $EDITOR the machine happened to have. Same reasoning as
@@ -305,7 +305,7 @@ in
       # In-room taste: it only describes how the multiplexer this room already
       # ships behaves once you are in it, so there is no room to switch on and
       # nothing to install — unlike the editor above, whose desktop-safe half is
-      # a choice about what lands on the machine. (nebelhaus's desktop does set
+      # a choice about what lands on the machine. (hacker's desktop does set
       # this one, since it is a claim on a keyboard rather than a package.)
       default = true;
       description = ''

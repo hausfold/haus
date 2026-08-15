@@ -10,7 +10,7 @@
 #
 # What each one became:
 #
-#   presets.full         →  the nebelhaus desktop (the builder's default)
+#   presets.full         →  the hacker desktop (the builder's default)
 #   presets.minimal      →  desktops/minimal.nix
 #   presets.everyday     →  desktops/everyday.nix
 #   presets.large-print  →  haus.appearance.largePrint = true
@@ -53,16 +53,14 @@ let
     };
 in
 {
-  full =
-    deprecated "select the nebelhaus desktop, which `mkNebelhaus` already does when you name none"
-      {
-        sill.enable = true;
-        prowl.enable = true;
-        pounce.enable = true;
-        tour.enable = true;
+  full = deprecated "select the hacker desktop, which `mkHaus` already does when you name none" {
+    sill.enable = true;
+    prowl.enable = true;
+    pounce.enable = true;
+    tour.enable = true;
 
-        developer.enable = true;
-      };
+    developer.enable = true;
+  };
 
   minimal = deprecated "pass `desktop = haus.desktops.minimal`" {
     sill.enable = false;

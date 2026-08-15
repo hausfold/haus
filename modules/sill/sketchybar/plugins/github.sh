@@ -31,7 +31,7 @@
 # Every other pill here reads something local. This one is the first that has to
 # cross the network, and a SketchyBar plugin is synchronous: a 1-2s `gh` call on
 # the update tick would stall the whole bar for as long as GitHub takes. So the
-# tick NEVER fetches. It renders the cache under ~/.local/state/nebelhaus/github
+# tick NEVER fetches. It renders the cache under ~/.local/state/haus/github
 # and, if that cache is older than SILL_GITHUB_REFRESH, detaches a `fetch` run
 # that writes the cache and then --triggers github_update to repaint. Which
 # means the pill is always drawing something it already had, and the network
@@ -71,7 +71,7 @@ source "$HOME/.config/sketchybar/github_config.sh"
 # there is indistinguishable from an empty org.
 GH=/run/current-system/sw/bin/gh
 
-STATE="$HOME/.local/state/nebelhaus/github"
+STATE="$HOME/.local/state/haus/github"
 STAMP="$STATE/stamp"
 FETCHING="$STATE/fetching"
 LOCK="$STATE/lock"
@@ -127,7 +127,7 @@ fi
 # the tour's `drawing=off` would pop the pill back over the step labels. Read
 # right before each --set, never cached, so a mute that lands mid-fetch wins.
 tour_drawing() {
-  local muted="$HOME/.local/state/nebelhaus/tour-muted"
+  local muted="$HOME/.local/state/haus/tour-muted"
   if [ -f "$muted" ] && grep -qxF github "$muted" 2>/dev/null; then
     echo off
   else

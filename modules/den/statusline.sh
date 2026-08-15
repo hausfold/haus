@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# statusline.sh — nebelhaus agent-worktree statusline for Claude Code.
+# statusline.sh — haus agent-worktree statusline for Claude Code.
 #
 # Row 1  : THIS session's git-status token as the leading glyph (⏏/N^/+A-D, or a
 #          muted ● when clean) + its own PR number (left of the name, colored by
@@ -7,7 +7,7 @@
 #          the child-PR cluster (bare clickable numbers for every worktree this
 #          session spawned — there so they survive the row-2+ list being capped
 #          or clipped in a short pane) ·
-#          rice-nag (⇡N — commits your pinned nebelhaus is behind, `haus update`)
+#          rice-nag (⇡N — commits your pinned haus is behind, `haus update`)
 #          · ctx% (green <100k tokens, yellow <200k, red beyond — banded on
 #          absolute tokens, not the percentage) · cost · permission-mode icon
 #          (blank auto, ⏵ default, ⏵⏵ accept,
@@ -463,7 +463,7 @@ case "$mode" in
   bypassPermissions) mseg="${DEL}⏵⏵⏵${R}";;    # red    — no gates at all
 esac
 
-# Stale-rice nag: "⇡6" = your pinned nebelhaus is 6 commits behind upstream, i.e.
+# Stale-rice nag: "⇡6" = your pinned haus is 6 commits behind upstream, i.e.
 # what `haus update` would bring in. Nix has no "latest" — an input is whatever
 # flake.lock pinned — so this chip is the only place the drift is visible without
 # running a command. The count is computed DETACHED by the refresher (one cached

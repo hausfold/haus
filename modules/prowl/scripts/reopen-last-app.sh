@@ -10,7 +10,7 @@
 export PATH="/run/current-system/sw/bin:/usr/bin:/bin:$PATH"
 set -u
 
-STACK=/tmp/nebelhaus_closed_apps.stack
+STACK=/tmp/haus_closed_apps.stack
 
 bid=$(tail -1 "$STACK" 2>/dev/null)
 [ -n "$bid" ] || exit 0

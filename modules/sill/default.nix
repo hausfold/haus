@@ -658,8 +658,8 @@ let
     # files the old marquee kept are dead state now, and nothing else would ever
     # reap them off a machine that has been drawing this pill for months.
     calendar = ''
-      rm -f "$HOME/.local/state/nebelhaus/calendar/hover" \
-            "$HOME/.local/state/nebelhaus/calendar/last-event" 2>/dev/null || true
+      rm -f "$HOME/.local/state/haus/calendar/hover" \
+            "$HOME/.local/state/haus/calendar/last-event" 2>/dev/null || true
       ${sb} --add item calendar ${side} \
           --set calendar \
               update_freq=${toString cfg.calendar.refresh} \
@@ -1438,7 +1438,7 @@ lib.mkIf config.haus.sill.enable {
       #
       # SILL_LOGO_SWEEP_COLORS is the six hausfold accents in the order the
       # conic gradient on hausfold.co runs them (nebelung → holt → perch →
-      # trill → pounce → nebelhaus, i.e. mauve → teal → green → yellow → peach
+      # trill → pounce → hacker, i.e. mauve → teal → green → yellow → peach
       # → pink). Those are dark-mode's `--a-*` tokens, and every one of them
       # resolves to a nebelung palette key, which is the whole reason the bar
       # can reproduce the site's mark without an asset.
@@ -1551,7 +1551,7 @@ lib.mkIf config.haus.sill.enable {
         ".config/sketchybar/bottom_items.sh".text = bottomItemsSh;
       }
       // {
-        # No image asset for the logo pill any more. It carried the nebelhaus
+        # No image asset for the logo pill any more. It carried the hacker
         # ears here as a PINK-tinted PNG until the pill became a glyph
         # (haus.sill.logo.icon): SketchyBar's background.image takes no tint, so
         # every colour the pill now says something with — the accent, the state,

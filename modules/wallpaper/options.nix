@@ -58,11 +58,11 @@ in
         nothing here runs and whatever wallpaper you already have stays exactly
         where it was. Replacing someone's desktop picture is the most visible
         thing this layer can do, so the bare room does not do it uninvited — a
-        DESKTOP says which look it wants, and nebelhaus picks `minimal`.
+        DESKTOP says which look it wants, and hacker picks `minimal`.
 
         That is the second change of mind on this option, and the reasoning
         survives both: `minimal` was made the default so a desktop wouldn't ship
-        looking like nothing in particular, which is still true of nebelhaus
+        looking like nothing in particular, which is still true of hacker
         and is why its desktop sets it. What changed is that a desktop is now
         the thing making that choice, rather than every install of the layer.
 
@@ -296,7 +296,7 @@ in
           accent     haus.theme.accent's hex, flat.
           spectrum   the whole family at once: a conic sweep through the six
                      product accents — nebelung, holt, perch, trill, pounce,
-                     nebelhaus — clipped to the stroke. This is the ⌂ as it
+                     hacker — clipped to the stroke. This is the ⌂ as it
                      looks with a pointer on it on hausfold.co, held still.
 
         `spectrum` is the default, and follows the flavour like everything

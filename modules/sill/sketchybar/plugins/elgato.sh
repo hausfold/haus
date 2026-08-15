@@ -4,7 +4,7 @@
 # The light's address is NOT baked in. haus.sill.elgato.host pins it when
 # you want it pinned (a static lease, several lights, flaky mDNS); left empty —
 # the default — the pill discovers the light over mDNS (_elg._tcp) and caches
-# what it found in ~/.local/state/nebelhaus/elgato-host. A rice can't ship one
+# what it found in ~/.local/state/haus/elgato-host. A rice can't ship one
 # person's device hostname, and a light that DHCPs a new address shouldn't need
 # a rebuild to come back.
 #
@@ -26,7 +26,7 @@ source "$HOME/.config/sketchybar/bar.sh"
 ELGATO_CONFIG="$HOME/.config/sketchybar/elgato_config.sh"
 [ -f "$ELGATO_CONFIG" ] && source "$ELGATO_CONFIG"
 
-STATE_DIR="$HOME/.local/state/nebelhaus"
+STATE_DIR="$HOME/.local/state/haus"
 CACHE="$STATE_DIR/elgato-host"
 STAMP="$STATE_DIR/elgato-discover"
 DISCOVER_TTL=60 # seconds between mDNS sweeps while the light is missing

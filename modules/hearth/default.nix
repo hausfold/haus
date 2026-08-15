@@ -128,7 +128,7 @@ let
   # `bench` (and the whole hausfold family workshop) is a family-DEVELOPER
   # tool that lives at a fixed, hardcoded path — `~/code/workshop` — on the
   # rice author's own machines, never on an end-user install (this module
-  # ships to real consumers via mkNebelhaus; see the "workshop repo end users
+  # ships to real consumers via mkHaus; see the "workshop repo end users
   # don't have" note a few hundred lines down). Gate the whole bind — kdl AND
   # the ghostty release — behind haus.developer.enable, same shape as
   # ghDashBind above, so a plain end-user rice never renders a chord that
@@ -310,7 +310,7 @@ let
 
   '';
 
-  # ---- the nebelhaus skill: an agent that can change this machine safely -----
+  # ---- the haus skill: an agent that can change this machine safely -----
   # A Mac whose config is declarative is the one kind of machine an agent can
   # reconfigure without it being reckless: `haus rebuild` builds before it
   # switches, so a broken edit never reaches the running system, and `haus
@@ -1016,7 +1016,7 @@ in
       );
 
       # The accent colour (haus.theme.accent, default mauve) as the hex the
-      # tools nebelhaus injects colours into use for their accent.
+      # tools haus injects colours into use for their accent.
       accentColor = nebelungPalette.${accent};
       # Zen browser accent. The nebelung zen port renders every accent under
       # themes/<Flavor>/<Accent>/ (both capitalised); yazi uses lowercase for both.
@@ -1248,6 +1248,12 @@ in
         HOMEBREW_NO_ENV_HINTS = "1";
         EDITOR = hearthCfg.editor;
         VISUAL = hearthCfg.editor;
+        HAUS_AGENT_DEFAULT = agentDefault;
+        # 🚨 Both spellings, and the old one is not decoration: `holt` reads
+        # `NEBELHAUS_AGENT_DEFAULT` and only that (its `internal/commands/env.go`),
+        # and holt is a SEPARATE repo on its own release cadence — this repo
+        # cannot rename a variable another binary reads. Drop this line only
+        # once a released holt knows the new name.
         NEBELHAUS_AGENT_DEFAULT = agentDefault;
       };
 
@@ -1940,14 +1946,14 @@ in
           # pointing at a store path from a rebuild ago" as a way for this to
           # break, and home.file below keeps this one current.
           [hooks]
-          open = "${config.home.homeDirectory}/.config/nebelhaus/lanes/lane-open.sh"
-          resume = "${config.home.homeDirectory}/.config/nebelhaus/lanes/lane-open.sh"
+          open = "${config.home.homeDirectory}/.config/haus/lanes/lane-open.sh"
+          resume = "${config.home.homeDirectory}/.config/haus/lanes/lane-open.sh"
         '';
 
         # The lane opener itself. Shipped whatever the backend is — it is inert
         # unless holt's config points at it, and having it on disk is what makes
         # flipping the option a rebuild rather than a rebuild plus a relaunch.
-        ".config/nebelhaus/lanes/lane-open.sh" = {
+        ".config/haus/lanes/lane-open.sh" = {
           source = ./lanes/lane-open.sh;
           executable = true;
         };
@@ -1960,7 +1966,7 @@ in
         # paws for opencode panes with nothing to configure.
         # @AGENT_STATE@ → den's `agent-state` by absolute path: a plugin runs
         # inside opencode's server process, which is given no PATH guarantees.
-        ".config/opencode/plugin/nebelhaus-agent-state.js".text =
+        ".config/opencode/plugin/haus-agent-state.js".text =
           builtins.replaceStrings [ "@AGENT_STATE@" ] [ "/run/current-system/sw/bin/agent-state" ]
             (builtins.readFile ./opencode/agent-state.js);
       }

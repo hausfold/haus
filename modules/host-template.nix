@@ -34,7 +34,7 @@ let
   # from, carrying groups.json (the room/export/safety registry) beside it.
   optionsJSON = import ./options-doc.nix { inherit pkgs lib; };
 in
-pkgs.runCommand "nebelhaus-host-template-${version}"
+pkgs.runCommand "haus-host-template-${version}"
   {
     nativeBuildInputs = [
       pkgs.jq
@@ -46,9 +46,9 @@ pkgs.runCommand "nebelhaus-host-template-${version}"
     };
   }
   ''
-    mkdir -p "$out/share/nebelhaus"
-    tmpl="$out/share/nebelhaus/host-options.nix"
-    catalogue="$out/share/nebelhaus/options.json"
+    mkdir -p "$out/share/haus"
+    tmpl="$out/share/haus/host-options.nix"
+    catalogue="$out/share/haus/options.json"
 
     jq -r \
       --slurpfile groups ${optionsJSON}/share/doc/nixos/groups.json \

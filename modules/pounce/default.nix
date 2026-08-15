@@ -117,7 +117,7 @@ let
     }
   ];
 
-  popularAppsCatalog = pkgs.writeText "nebelhaus-popular-apps.tsv" (
+  popularAppsCatalog = pkgs.writeText "haus-popular-apps.tsv" (
     lib.concatMapStringsSep "\n" (
       app:
       lib.concatStringsSep "\t" [
@@ -188,7 +188,7 @@ let
   # This rice's palette commands (see ./commands — one self-describing script
   # each, metadata in a `# pounce:` header). The generated app-font lookup is
   # private command data, not self-describing, so pounce ignores it.
-  riceCommands = pkgs.runCommand "nebelhaus-pounce-commands" { } ''
+  riceCommands = pkgs.runCommand "haus-pounce-commands" { } ''
     mkdir -p $out
     cp ${./commands}/*.sh $out/
     substituteInPlace $out/add-app.sh --replace-fail '@hostname@' '${hostname}'
@@ -348,7 +348,7 @@ let
 
   # key = what you TYPE, not the full name: the palette fuzzy-matches, so the
   # shortest thing that gets you there is the row, and a full name ("Report
-  # Nebelhaus Issue") in a monospace key box would eat the column the caption
+  # haus Issue") in a monospace key box would eat the column the caption
   # needs. The name's first word by default; a command whose first word is the
   # generic half of the pair ("Toggle Hush", the two "Reload …"s) declares the
   # useful word itself with a `# pounce: cheat = …` header. pounce ignores
@@ -778,6 +778,9 @@ lib.mkIf config.haus.pounce.enable {
         # The Spawn Agent command runs underneath this launchd environment, not
         # an interactive shell. Keep the selected client explicit here so a
         # palette spawn and a later `holt <name>` agree on its default.
+        HAUS_AGENT_DEFAULT = agentContrib.default;
+        # Both spellings — `holt` reads only the old one, and it ships from its
+        # own repo on its own cadence. See modules/hearth/default.nix's note.
         NEBELHAUS_AGENT_DEFAULT = agentContrib.default;
         # Where the ssh plugin (and any command that respects the hook) opens a
         # terminal: a new tab in the `main` zellij session instead of stock

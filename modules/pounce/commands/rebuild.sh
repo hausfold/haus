@@ -8,7 +8,7 @@
 # rice hands people (and that add-app.sh already reuses), so the palette and the
 # terminal agree on exactly one rebuild path. haus resolves the flake's host attr
 # at runtime, so this command no longer bakes in a `@hostname@`. The flake lives
-# at ~/.config/nix by convention; override with $NEBELHAUS_FLAKE (mapped to
+# at ~/.config/nix by convention; override with $HAUS_FLAKE (mapped to
 # haus's own $HAUS_CONSUMER below) if yours is elsewhere.
 #
 # The floating window is spawned by the shared float-term helper
@@ -29,7 +29,7 @@ export PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:$PATH"
 
 # Bridge the plugin's documented flake override onto haus's own env var, so a
 # host that relocated its config still rebuilds the right flake.
-export HAUS_CONSUMER="${NEBELHAUS_FLAKE:-$HOME/.config/nix}"
+export HAUS_CONSUMER="${HAUS_FLAKE:-$HOME/.config/nix}"
 
 haus rebuild
 

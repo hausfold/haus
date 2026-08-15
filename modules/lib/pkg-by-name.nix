@@ -44,7 +44,7 @@ let
 in
 if !found then
   throw ''
-    nebelhaus: ${option} = "${name}" names no package.
+    haus: ${option} = "${name}" names no package.
 
     It is read as an attribute path into nixpkgs, so "fira-code" means
     pkgs.fira-code and "nerd-fonts.fira-code" means pkgs.nerd-fonts.fira-code.
@@ -52,7 +52,7 @@ if !found then
   ''
 else if !(lib.isDerivation drv) then
   throw ''
-    nebelhaus: ${option} = "${name}" exists in nixpkgs but is not a package.
+    haus: ${option} = "${name}" exists in nixpkgs but is not a package.
 
     It resolves to ${builtins.typeOf drv} — usually a set of packages rather
     than one of them (pkgs.nerd-fonts is the set, pkgs.nerd-fonts.fira-code is

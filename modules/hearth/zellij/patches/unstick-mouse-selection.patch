@@ -6,7 +6,7 @@ index 97f4ce2..94bd49e 100644
              (None, None)
          };
  
-+        // nebelhaus: a drag-selection whose pane has since closed is not a
++        // haus: a drag-selection whose pane has since closed is not a
 +        // drag-selection. `selecting_with_mouse_in_pane` is only ever cleared
 +        // by a Release that reaches `execute_end_selection` AND finds that
 +        // pane still alive; if the pane went away while the button was held
@@ -37,7 +37,7 @@ index 97f4ce2..94bd49e 100644
          let mut leave_clipboard_message = false;
          let copy_on_release = tab.copy_on_select;
  
-+        // nebelhaus: `take`, not a read — the button is up, so the drag is over
++        // haus: `take`, not a read — the button is up, so the drag is over
 +        // no matter which branch below runs or whether one of their `?`s bails
 +        // out first. Upstream clears this field in exactly ONE place: the
 +        // `else` that ends a *text* selection. The other branch — the pane's

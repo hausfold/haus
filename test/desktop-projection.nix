@@ -1,6 +1,6 @@
 # The behavioural projection for the rooms plan's desktop carve-out.
 #
-# Step 4 moves nebelhaus's choices from option defaults into a data-only
+# Step 4 moves hacker's choices from option defaults into a data-only
 # desktop. A derivation-path comparison is useful, but too opaque to explain a
 # mismatch and unsafe to paste for a real consumer. This projection names the
 # complete public surface whose effective values the move is allowed to affect.

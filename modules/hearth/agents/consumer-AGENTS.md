@@ -1,7 +1,7 @@
 # AGENTS.md
 
-This repo is a **nebelhaus consumer** — one Mac's configuration in text. The
-layer and the desktop it selects (every module, every default) come from the pinned `nebelhaus`
+This repo is a **haus consumer** — one Mac's configuration in text. The
+layer and the desktop it selects (every module, every default) come from the pinned `haus`
 flake input; what lives here is only what's personal to this machine.
 
 ```

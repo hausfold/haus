@@ -15,7 +15,7 @@
 # rule (`checkRice` runs over this file too), same per-leaf priority.
 #
 # Declaring an app in the roster is what installs it, so this file is both the
-# app list and the install instruction. Nothing here is nebelhaus-specific
+# app list and the install instruction. Nothing here is desktop-specific
 # beyond the option names — it's four casks and the keys to reach them.
 #
 # ---- what's deliberately missing, and why -----------------------------------

@@ -22,7 +22,7 @@
 #     ships no coding tools is the room enabling itself for nobody.
 #
 # Where this differs from what the old `presets/everyday.nix` produced when it
-# was layered on nebelhaus, stated in full because a consumer moving from that
+# was layered on hacker, stated in full because a consumer moving from that
 # preset to this desktop is following an instruction we wrote:
 #
 #   ai.enable            true → FALSE, on purpose; see above. Say
@@ -32,7 +32,7 @@
 #                        way — stated here so the diff isn't mistaken for a loss.
 #   developer.languages  ["node"] → empty, which follows from the room being off.
 #
-# Everything else the preset inherited from nebelhaus is restated below,
+# Everything else the preset inherited from hacker is restated below,
 # including the two that would otherwise be quiet losses on exactly the machine
 # least able to diagnose them: `collar.passwordlessRebuild` (without it every
 # `haus rebuild` stops for a sudo password) and `hush` (the Focus switch).

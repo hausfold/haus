@@ -98,7 +98,7 @@ sketchybar --default \
 # left-side pills. A GLYPH, not an image: haus.sill.logo.icon picks it,
 # haus.sill.logo.size sizes it, and everything else this pill does (the state
 # colour, the hover sweep, leader mode) is a colour change — which SketchyBar
-# can only apply to text. A `background.image`, which is how the nebelhaus
+# can only apply to text. A `background.image`, which is how the hacker
 # cat-ears mark was drawn here until now, takes no tint at all, so it could
 # follow neither haus.theme.accent nor any state. That is why there is no
 # option to point this at a file: every one of the four things below would

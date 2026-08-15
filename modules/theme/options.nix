@@ -1,4 +1,4 @@
-# Part of the nebelhaus option surface. Split per room so each room's public API
+# Part of the haus option surface. Split per room so each room's public API
 # lives next to the code that implements it; modules/default.nix imports them all.
 # Cross-cutting options (the app roster) stay in modules/options.nix.
 #
@@ -169,7 +169,7 @@ in
         The accent colour, by Catppuccin name (the Nebelung palette is a
         grey-tinted Catppuccin, so the fourteen names are the same in both
         flavors — the hue you pick follows haus.theme.flavor). It recolours
-        the tools nebelhaus injects colours into — lazygit, fzf, yazi (including
+        the tools hacker injects colours into — lazygit, fzf, yazi (including
         glow-rendered Markdown headings), and the Zen browser — via the matching
         Nebelung per-accent ports.
 

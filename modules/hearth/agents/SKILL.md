@@ -1,11 +1,11 @@
 ---
 name: haus
-description: Change this Mac's setup on a machine managed by haus — the nebelhaus desktop, or any other desktop built on it. Install or remove apps, change the theme, fonts, keybindings, window management, the bar, the shell, or macOS settings. Use whenever the user asks you to change how their Mac looks or behaves, or mentions nebelhaus, haus, a "rice" (the older word for a desktop), their host file, or ~/.config/nix. Covers finding the right haus.* option, editing the host file, applying with `haus rebuild`, and undoing with `haus rollback`.
+description: Change this Mac's setup on a machine managed by haus — the hacker desktop, or any other desktop built on it. Install or remove apps, change the theme, fonts, keybindings, window management, the bar, the shell, or macOS settings. Use whenever the user asks you to change how their Mac looks or behaves, or mentions haus, nebelhaus (the desktop's old name), a "rice" (the older word for a desktop), their host file, or ~/.config/nix. Covers finding the right haus.* option, editing the host file, applying with `haus rebuild`, and undoing with `haus rollback`.
 ---
 
-# Changing a nebelhaus machine
+# Changing a haus machine
 
-This Mac runs **nebelhaus** — its setup is a declarative Nix configuration, not
+This Mac runs **haus** — its setup is a declarative Nix configuration, not
 settings clicked into System Settings. That is good news for you: every change
 you make is built before it is applied, and every applied change is a generation
 the user can atomically roll back. A mistake here costs one command, not an
@@ -152,7 +152,7 @@ rollback will actually undo it.
 
 ## The Homebrew trap
 
-Removing an app from `haus.roster` (or `homebrew.casks`) stops nebelhaus from
+Removing an app from `haus.roster` (or `homebrew.casks`) stops haus from
 *managing* it — it does **not** uninstall it. The app stays on disk. Tell the
 user the extra step: `brew uninstall --zap <cask>`.
 

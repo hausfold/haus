@@ -1,9 +1,9 @@
 // agent-state.js — Opencode's half of the rice's agent-pane status.
 //
-// Installed by hearth as ~/.config/opencode/plugin/nebelhaus-agent-state.js,
+// Installed by hearth as ~/.config/opencode/plugin/haus-agent-state.js,
 // with BIN below rendered to den's `agent-state` by absolute path (a plugin gets
 // no PATH guarantees). It is the Opencode equivalent of the four Claude Code
-// hooks a nebelhaus host wires into ~/.claude/settings.json, mapping this
+// hooks a haus host wires into ~/.claude/settings.json, mapping this
 // client's lifecycle onto the same four words agent-state understands:
 //
 //     chat.message    → working    a turn just started
@@ -24,7 +24,7 @@
 // somewhere else, so its state is filed under THAT server's pane, not the pane
 // you attached from. Rare enough not to warp the design for.
 
-export const NebelhausAgentState = async ({ directory }) => {
+export const HausAgentState = async ({ directory }) => {
   const BIN = "@AGENT_STATE@"
 
   // The conversation this pane is showing. `chat.message` is the only hook that

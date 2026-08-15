@@ -10,9 +10,9 @@ git -C "$tmp" init -q
 
 cat >"$tmp/flake.nix" <<EOF
 {
-  inputs.nebelhaus.url = "path:$repo";
-  outputs = { self, nebelhaus }: {
-    darwinConfigurations.test = nebelhaus.mkNebelhaus {
+  inputs.haus.url = "path:$repo";
+  outputs = { self, haus }: {
+    darwinConfigurations.test = haus.mkHaus {
       username = "you";
       hostname = "test";
       host = ./hosts/test;

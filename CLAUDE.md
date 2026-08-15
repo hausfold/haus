@@ -19,7 +19,7 @@ Only Claude-specific wiring belongs below.
 | Worktree hooks | `~/.claude/settings.json` (yours, not the repo's) → `holt hook create` / `holt hook remove` | Claude owns that file and rewrites it, so the rice never touches it — that's why `holt new` exists for the clients with no such flag. |
 
 **Not to be confused with the rice's product surface.** This table is about
-*hacking on nebelhaus*. What nebelhaus **ships to a user's machine** —
+*hacking on haus*. What haus **ships to a user's machine** —
 `haus.ai.instructions`, `haus.ai.skill`, the generated `haus/` skill in
 each client's skills directory and its `consumer-AGENTS.md`/`consumer-CLAUDE.md`
 starter pair, the per-client agent-state hooks in `modules/hearth` — is a

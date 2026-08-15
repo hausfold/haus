@@ -11,7 +11,7 @@
 #   • Claude Code  — hooks in ~/.claude/settings.json (wired by your host):
 #                    UserPromptSubmit→working, Notification→waiting, Stop→idle,
 #                    SessionEnd→remove. Passes no client id; detected from env.
-#   • OpenCode     — ~/.config/opencode/plugin/nebelhaus-agent-state.js (written
+#   • OpenCode     — ~/.config/opencode/plugin/haus-agent-state.js (written
 #                    by hearth), which maps chat.message/permission.ask/
 #                    session.idle/dispose onto the same four words.
 #   • Codex        — ~/.codex/hooks.json (seeded by hearth when codex is in
@@ -48,7 +48,7 @@
 #
 #   usage: agents-hook.sh <working|waiting|idle|remove> [claude|codex|opencode] [session-id]
 set -u
-DIR=/tmp/nebelhaus-agents
+DIR=/tmp/haus-agents
 # An agent hook can arrive with a bare PATH, and the zellij broadcast below needs
 # the nix profile on it (agents.sh fixes up its own — see its header).
 export USER="${USER:-$(id -un)}"
@@ -70,7 +70,7 @@ st="${1:-working}"
 # pass only the state (the wiring predates this argument and lives in the user's
 # own settings.json), so fall back to sniffing the environment the client exports
 # into its hook children, and finally to a neutral "agent" rather than guessing.
-agent="${2:-${NEBELHAUS_AGENT:-}}"
+agent="${2:-${HAUS_AGENT:-}}"
 if [ -z "$agent" ]; then
   if   [ -n "${CLAUDECODE:-}${CLAUDE_PROJECT_DIR:-}" ]; then agent=claude
   elif [ -n "${OPENCODE:-}${OPENCODE_BIN_PATH:-}" ];    then agent=opencode
@@ -178,7 +178,7 @@ fi
 #     seed until the session is bounced). A stalled hook stalls the agent, so
 #     fire and forget in a background subshell.
 if command -v zellij >/dev/null 2>&1; then
-  ( zellij --session "$sess" pipe --name nebelhaus-agent-status \
+  ( zellij --session "$sess" pipe --name haus-agent-status \
       "state=$st pane=$ZELLIJ_PANE_ID agent=$agent" >/dev/null 2>&1 & )
 fi
 

@@ -67,7 +67,7 @@ in
           #     move", never abort activation and take every launchd service with
           #     it — the same failure shape den's FDA-guarded accessibility block
           #     exists to avoid.
-          home.activation.nebelhausSystemAppearance = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+          home.activation.hausSystemAppearance = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
             appearanceHave="$(${hausax}/bin/hausax 2>/dev/null | ${pkgs.jq}/bin/jq -r '.appearance // empty' || true)"
             if [ "$appearanceHave" = "${appearanceWanted}" ]; then
               verboseEcho "system appearance: already ${appearanceWanted}"

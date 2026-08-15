@@ -39,7 +39,7 @@
 # file's whole argument is that a guess you can't make everywhere is a guess you
 # shouldn't make. Worth revisiting the day the bridge covers more than Zen.
 
-SILL_MEDIA_STATE_DIR="$HOME/.local/state/nebelhaus/media"
+SILL_MEDIA_STATE_DIR="$HOME/.local/state/haus/media"
 SILL_MEDIA_NOW="$SILL_MEDIA_STATE_DIR/now"
 
 # The field separator for both of those files, and it is deliberately NOT a tab.
@@ -398,7 +398,7 @@ media_focus_tab_bridge() {
     # and then raise Firefox. The bridge is Zen-only for a signing reason (see
     # modules/hearth/zen-tabs); widen this the day that stops being true.
     [ "$bundle" = "app.zen-browser.zen" ] || return 1
-    state="$HOME/.local/state/nebelhaus/zen-tabs"
+    state="$HOME/.local/state/haus/zen-tabs"
     [ -r "$state/tabs.json" ] && [ -w "$state/cmd" ] || return 1
     pid="$(cat "$state/pid" 2>/dev/null)"
     [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null || return 1

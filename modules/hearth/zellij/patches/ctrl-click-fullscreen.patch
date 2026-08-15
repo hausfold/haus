@@ -4,7 +4,7 @@
      FrameIntercepted {
          pane_id: PaneId,
      },
-+    /// nebelhaus: ctrl+click inside a pane body toggles that pane fullscreen.
++    /// haus: ctrl+click inside a pane body toggles that pane fullscreen.
 +    /// See `determine_mouse_action`.
 +    ToggleFullscreen {
 +        position: Position,
@@ -18,7 +18,7 @@
                  tab.set_force_render();
 +                Ok(MouseEffect::state_changed())
 +            },
-+            // nebelhaus: focus first, so ctrl+clicking an UNfocused pane zooms
++            // haus: focus first, so ctrl+clicking an UNfocused pane zooms
 +            // the one under the pointer rather than the one that had focus.
 +            // `state_changed` is what makes screen.rs re-render and re-report
 +            // session state, which is exactly the bookkeeping the Super Enter
@@ -34,7 +34,7 @@
                      });
                  }
 +            } else {
-+                // nebelhaus: ctrl+click anywhere in a pane's BODY zooms that
++                // haus: ctrl+click anywhere in a pane's BODY zooms that
 +                // pane, the same thing Super Enter does — but without leaving
 +                // the pointer. Upstream reaches this branch with nothing to
 +                // do: ctrl+left is claimed for frame drags (resize) and every

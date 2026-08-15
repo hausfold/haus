@@ -97,7 +97,7 @@ in
 # Copied rather than symlinked so `groups.json` lands in the SAME directory as
 # `options.json` — every consumer already knows that path, and a renderer that
 # has one file has the other without a second store path to plumb through.
-pkgs.runCommand "nebelhaus-options-json"
+pkgs.runCommand "haus-options-json"
   {
     groupsJSON = builtins.toJSON publishedRegistry;
     passAsFile = [ "groupsJSON" ];

@@ -1,4 +1,4 @@
-# perch — the nebelhaus notch file shelf, installed through Nix (the `perch` flake
+# perch — the haus notch file shelf, installed through Nix (the `perch` flake
 # input's overlay puts `pkgs.perch` in scope) instead of a Homebrew cask, so it
 # rides the same flake-lock chain as the rest of the family. The flake wraps
 # perch's CI-built, Developer-ID-signed, notarized release .app (macOS 26 blocks a
@@ -137,7 +137,7 @@ lib.mkIf config.haus.perch.enable {
     # --- perch: install the notarized app at a fixed /Applications path -------
     perchStore="${pkgs.perch}/Applications/Perch.app"
     perchDest="/Applications/Perch.app"
-    perchMarker="/Library/Application Support/nebelhaus/perch.installed-from"
+    perchMarker="/Library/Application Support/haus/perch.installed-from"
     if [ "$(/bin/cat "$perchMarker" 2>/dev/null)" != "${pkgs.perch}" ]; then
       echo "perch: installing ${pkgs.perch} → $perchDest" >&2
       if /usr/bin/ditto "$perchStore" "$perchDest.new"; then

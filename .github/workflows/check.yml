@@ -35,7 +35,7 @@ jobs:
       # diff` verify a new option against the PLIST instead of against
       # NSWorkspace — and desktop-projection pins the example
       # host's carved values against the committed projection — the one thing
-      # that can notice the nebelhaus desktop quietly stopping short of what the
+      # that can notice the hacker desktop quietly stopping short of what the
       # module defaults used to give. Those nine mirror a rule that lives in
       # another repo, in a generated dotfile, in a shell script, or in a README —
       # where drift is silent. The tenth, `wallpaper`, is the odd one
@@ -71,13 +71,13 @@ jobs:
           # The ` =` is load-bearing — see modules/host-template.nix, which runs
           # the same substitution: a description line that wraps to start with
           # `haus.` is not an assignment and uncommenting it breaks the parse.
-          sed -E 's/^  # (haus\.[A-Za-z0-9._-]+ =)/  \1/' "$tmpl/share/nebelhaus/host-options.nix" \
+          sed -E 's/^  # (haus\.[A-Za-z0-9._-]+ =)/  \1/' "$tmpl/share/haus/host-options.nix" \
             | grep -v '= …;$' > "$host/options.nix"
           # A prefix that no longer matches would uncomment NOTHING and this
           # step would pass on an empty host — the one failure it can't see.
           grep -q '^  haus\.' "$host/options.nix"
           nix eval --impure --apply 'x: x.system.drvPath' --expr \
-            "(builtins.getFlake \"path:$PWD\").mkNebelhaus { username = \"ada\"; hostname = \"lovelace\"; host = $host; }"
+            "(builtins.getFlake \"path:$PWD\").mkHaus { username = \"ada\"; hostname = \"lovelace\"; host = $host; }"
 
   shellcheck:
     name: shell scripts
@@ -88,12 +88,12 @@ jobs:
       # script here that isn't a nix template (@PLACEHOLDER@ substitution) or a
       # zsh sketchybar plugin, so it's the one we can lint as-is. Warning level
       # catches real bugs (undefined vars, bad quoting) without failing on
-      # info-level style nits. It's what hausfold.co/nebelhaus.sh serves, so a
+      # info-level style nits. It's what hausfold.co/hacker.sh serves, so a
       # regression here reaches every new installer.
       - name: shellcheck
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck bats
-          # bootstrap.sh reaches every new installer via hausfold.co/nebelhaus.sh;
+          # bootstrap.sh reaches every new installer via hausfold.co/hacker.sh;
           # haus.sh + awake.sh ship onto every machine as end-user CLIs.
           # statusline-refresh.sh is linted for a different reason: it runs
           # DETACHED with its output discarded, so a non-zero anywhere in it is

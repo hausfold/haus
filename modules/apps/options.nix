@@ -1,4 +1,4 @@
-# Part of the nebelhaus option surface. Split per room so each room's public API
+# Part of the haus option surface. Split per room so each room's public API
 # lives next to the code that implements it; modules/default.nix imports them all.
 # Cross-cutting options (the app roster) stay in modules/options.nix.
 #
@@ -18,7 +18,7 @@
           A nixpkgs build, so it lands in ~/Applications/Home Manager Apps
           rather than /Applications.
 
-          The nebelhaus desktop turns this on, because macOS ships QuickTime
+          The hacker desktop turns this on, because macOS ships QuickTime
           Player, which refuses most of what you actually double-click (mkv,
           webm, and anything not in Apple's codec list) — so "a video player
           that plays videos" is part of what that desktop considers a finished

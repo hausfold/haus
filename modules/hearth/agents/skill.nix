@@ -1,4 +1,4 @@
-# The nebelhaus agent skill, as a derivation.
+# The haus agent skill, as a derivation.
 #
 # ONE skill, installed into whichever clients this machine runs — Claude Code,
 # Codex and OpenCode all read a `<dir>/<name>/SKILL.md` of exactly this shape,
@@ -8,7 +8,7 @@
 #
 # WHY THIS IS GENERATED, NOT COMMITTED
 # ------------------------------------
-# The obvious shape for "teach an agent about nebelhaus" is a SKILL.md someone
+# The obvious shape for "teach an agent about haus" is a SKILL.md someone
 # writes and keeps up to date. That file is stale the first time an option is
 # added, and a confidently-wrong option name costs the user a failed rebuild and
 # a rollback. So the half that can drift — every `haus.*` name, type,
@@ -36,11 +36,11 @@ let
   # evaluation, so the page and the skill can't disagree about what an option is.
   optionsJSON = import ../../options-doc.nix { inherit pkgs lib; };
 in
-pkgs.runCommand "nebelhaus-agent-skill-${version}"
+pkgs.runCommand "haus-agent-skill-${version}"
   {
     nativeBuildInputs = [ pkgs.jq ];
     meta = {
-      description = "Agent skill teaching a coding agent to change a nebelhaus machine's config";
+      description = "Agent skill teaching a coding agent to change a haus machine's config";
       inherit version;
     };
   }

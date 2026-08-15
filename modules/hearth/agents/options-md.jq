@@ -1,5 +1,5 @@
 # Renders nixosOptionsDoc's options.json into the agent-facing option reference
-# that ships inside the nebelhaus agent skill.
+# that ships inside the haus agent skill.
 #
 # Deliberately NOT the same rendering as hausfold.co's options page (which is
 # rendered from the same JSON by that repo's scripts/gen-options.mjs).

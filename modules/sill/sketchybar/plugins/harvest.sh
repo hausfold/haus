@@ -45,7 +45,7 @@ format_duration() {
 # over the step labels for the rest of the tour. Evaluated right before each
 # --set (never cached up top) so a mute that lands during our curls still wins.
 tour_drawing() {
-  local muted="$HOME/.local/state/nebelhaus/tour-muted"
+  local muted="$HOME/.local/state/haus/tour-muted"
   if [ -f "$muted" ] && grep -qxF harvest "$muted" 2>/dev/null; then
     echo off
   else

@@ -4,7 +4,7 @@
              }
          }
  
-+        // nebelhaus: a bare right-click anywhere in a pane (frame or body)
++        // haus: a bare right-click anywhere in a pane (frame or body)
 +        // zooms it fullscreen — the same MouseAction::ToggleFullscreen the
 +        // Ctrl+Click zoom above already uses, just a different trigger.
 +        // Upstream's right-click has nothing standing in the way here: it

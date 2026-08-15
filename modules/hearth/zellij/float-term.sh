@@ -1,5 +1,5 @@
 #!/bin/bash
-# float-term.sh — the ONE way the nebelhaus rice throws up a floating, centered
+# float-term.sh — the ONE way the hacker desktop throws up a floating, centered
 # Ghostty window. Consolidates logic that used to be copy-pasted (and to drift)
 # across the Rebuild System pounce command, the Super-y yazi peek panel, and
 # the agent-peek popup.

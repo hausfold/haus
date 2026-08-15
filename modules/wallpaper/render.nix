@@ -73,7 +73,7 @@ let
     "green" # perch
     "yellow" # trill
     "peach" # pounce
-    "pink" # nebelhaus
+    "pink" # hacker
   ];
 
   size = builtins.match "([0-9]+)x([0-9]+)" cfg.size;

@@ -1,4 +1,4 @@
-# Part of the nebelhaus option surface. Split per room so each room's public API
+# Part of the haus option surface. Split per room so each room's public API
 # lives next to the code that implements it; modules/default.nix imports them all.
 # Cross-cutting options (the app roster) stay in modules/options.nix.
 #
@@ -26,7 +26,7 @@
       # NOT in-room taste, despite reading like it: this is an ungated root
       # grant (modules/collar/default.nix writes the sudoers drop-in whatever
       # `collar.enable` says), so the bare layer must not hand it out. A
-      # desktop asks for it explicitly; nebelhaus does.
+      # desktop asks for it explicitly; hacker does.
       default = false;
       description = ''
         Exempt system activation from authenticating at all: a sudoers rule

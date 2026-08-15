@@ -36,7 +36,7 @@ case "${choice%%$'\t'*}" in
   *) exit 0 ;;
 esac
 
-runner="$(mktemp "${TMPDIR:-/tmp}/nebelhaus-setting.XXXXXX")"
+runner="$(mktemp "${TMPDIR:-/tmp}/haus-setting.XXXXXX")"
 {
   printf '%s\n' '#!/bin/bash'
   # $0 belongs to the generated runner, not this script.

@@ -56,7 +56,7 @@
 
 export PATH="/run/current-system/sw/bin:/opt/homebrew/bin:/usr/bin:/bin:$PATH"
 
-STATE_DIR="$HOME/.local/state/nebelhaus"
+STATE_DIR="$HOME/.local/state/haus"
 STATE="$STATE_DIR/tour"        # built-in: 1a|1b|2|3|4; custom: c1|c2|...
 DONE="$STATE_DIR/tour-done"    # present == completed or dismissed
 MUTED="$STATE_DIR/tour-muted"  # right-side pills hidden while a tour runs

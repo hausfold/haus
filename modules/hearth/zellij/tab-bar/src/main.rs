@@ -89,7 +89,7 @@ impl AgentState {
 /// not a placeholder — sill's popup draws each row's client mark from the copy it
 /// writes to disk. This badge deliberately doesn't: a tab-bar cell is worth one
 /// glyph and a count, and "how many agents, how urgent" beats "which client".
-static AGENT_STATUS_PIPE: &str = "nebelhaus-agent-status";
+static AGENT_STATUS_PIPE: &str = "haus-agent-status";
 
 #[derive(Default, Debug)]
 struct State {
@@ -291,7 +291,7 @@ impl ZellijPlugin for State {
     /// path. So the name check below is the whole addressing scheme, and every
     /// other plugin's default `pipe()` ignores us right back.
     ///
-    /// Note we never read sill's /tmp/nebelhaus-agents/*.state files: a plugin is
+    /// Note we never read sill's /tmp/haus-agents/*.state files: a plugin is
     /// WASI-sandboxed to its own /host, /data and /cache. Pushing beats polling
     /// here anyway — a tab bar has no business running a timer.
     fn pipe(&mut self, pipe_message: PipeMessage) -> bool {

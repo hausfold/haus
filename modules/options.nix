@@ -193,7 +193,7 @@ let
         default = null;
         example = "haus.perch";
         description = ''
-          The nebelhaus module that puts this app on disk, when none of the
+          The haus module that puts this app on disk, when none of the
           four sources above describes it: pounce and perch copy a
           notarized bundle into /Applications from their own activation
           step, which is neither a cask nor a package you can list.
@@ -348,7 +348,7 @@ in
       type = lib.types.listOf appType;
       internal = true;
       readOnly = true;
-      description = "Resolved, enabled app roster used internally by nebelhaus modules.";
+      description = "Resolved, enabled app roster used internally by haus modules.";
     };
 
     workspaces = lib.mkOption {
@@ -451,7 +451,7 @@ in
     # and tuning every size by hand in a different file each time.
     #
     # Honest scope, and it is narrower than "everything": this scales the things
-    # nebelhaus itself controls and macOS lets it control — the terminal font,
+    # haus itself controls and macOS lets it control — the terminal font,
     # the command palette, the Dock, Finder's sidebar rows, the bar's type, and
     # the tiling gaps (the full list, with what it does NOT reach, is in the
     # option's own description below, and pinned by `scale-reach`). The one
@@ -509,7 +509,7 @@ in
             factor that makes a point bigger, so it stays the same physical
             size while everything around it grows. A large-print machine gets a
             normal-sized shelf, and there is no option here that changes that.
-          - anything outside nebelhaus. macOS has no system-wide UI scale, so
+          - anything outside haus. macOS has no system-wide UI scale, so
             third-party apps follow only a display-resolution change.
 
         Worth knowing if you set both: this and
@@ -722,14 +722,14 @@ in
         example = true;
         description = ''
           The Development room: the CLI toolbelt, Git tooling and language
-          runtimes. The neutral catalogue leaves it off; nebelhaus selects it
+          runtimes. The neutral catalogue leaves it off; hacker selects it
           in its desktop.
 
           Coding agents left this pack on 2026-08-13 and are their own room
           now (`haus.ai.*`). The two rooms are independent: a desktop or host
           selects each one explicitly.
 
-          `false` is what makes a non-developer nebelhaus possible — it strips
+          `false` is what makes a non-developer haus possible — it strips
           those tools rather than merely hiding them. What remains is the
           product: `haus`, `awake`, the theme, the terminal, the bar, the tiler
           and the palette.
