@@ -22,37 +22,57 @@ jobs:
       # example left to eval (see flake.nix `allSystems`).
       - run: nix eval .#darwinConfigurations.example.system.drvPath
       # The platform-independent checks are declared for Linux too precisely so
-      # they can run HERE — ten of them now: theme-variants and keymap pin the
-      # flavor/contrast → themes-subdir and keys.* → chord/glyph tables,
-      # alert-volume pins the beep-volume ladder, data-only-surface fails on a
-      # package-typed option a data-only file cannot set, packs pins what happens
-      # when a pack MEETS a host, room-registry compares the registry to the
-      # evaluated option tree, site-data-current pins docs/site-data/ against the
-      # derivation the docs site reads, accessibility-surface seds classify_key's
-      # `effective` arm out of modules/den/haus.sh and diffs it against
-      # modules/lib/reachability.nix — the one copy of those key names a shell
-      # script cannot import, and the one whose going stale would make `haus
-      # diff` verify a new option against the PLIST instead of against
-      # NSWorkspace — and desktop-projection pins the example
-      # host's carved values against the committed projection — the one thing
-      # that can notice the hacker desktop quietly stopping short of what the
-      # module defaults used to give. Those nine mirror a rule that lives in
-      # another repo, in a generated dotfile, in a shell script, or in a README —
-      # where drift is silent. The tenth, `wallpaper`, is the odd one
-      # out: it BUILDS the generated desktop and asserts its size and its colour
-      # count, which is the only automated thing that can notice the dither
-      # stopped reaching the 8-bit reduction and the gradient started banding.
+      # they can run HERE — TWELVE of them, everything in flake.nix's `checks`
+      # before the `optionalAttrs (hasSuffix "-darwin" system)` line, which is
+      # the only thing that decides the split and the only place to re-derive
+      # this list from:
+      #
+      #   room-registry            registry vs the evaluated option tree
+      #   data-only-surface        a package-typed option a data-only file can't set
+      #   packs                    what happens when a pack MEETS a host
+      #   pounce-item-grammar      modules/pounce/item-grammar.nix vs the LOCKED
+      #                            pounce's ItemSettings.swift, so a prefix that
+      #                            app learns can't spend a day being refused
+      #                            here as a typo
+      #   keymap                   keys.* → chord/glyph tables
+      #   alert-volume             the beep-volume ladder
+      #   accessibility-surface    classify_key's `effective` arm, sed'd out of
+      #                            modules/den/haus.sh, vs modules/lib/reachability.nix
+      #                            — the one copy of those key names a shell script
+      #                            cannot import, and the one whose going stale
+      #                            would make `haus diff` verify a new option
+      #                            against the PLIST instead of NSWorkspace
+      #   theme-variants           flavor/contrast → themes-subdir
+      #   site-data-current        docs/site-data/ vs the derivation the site reads
+      #   sill-rc-executable       the rc files' +x bit
+      #   sill-plugins-executable  the plugins' +x bit
+      #   wallpaper                the odd one out: it BUILDS the generated
+      #                            desktop and asserts its size and colour count,
+      #                            the only automated thing that can notice the
+      #                            dither stopped reaching the 8-bit reduction
+      #
+      # All but the last mirror a rule that lives in another repo, in a generated
+      # dotfile, in a shell script, or in a README — where drift is silent.
       # Without this line they were declared and never executed.
       #
       # Keep this census honest when a check is added: it is this repo's only
       # record of what CI actually covers, and it went one stale before anyone
-      # noticed. The darwin-only checks fingerprint a real evaluated system, so
-      # they stay guarded and don't run here — they fire on a Mac, by hand, or
-      # not at all. Today that is: catalogue (every desktop, pack and compat
-      # alias raised as a real system), fragment-compat (the retired top-level
-      # fragments' old spelling against their new one), accent-reach,
-      # scale-reach, font-reach, standalone-modules, ai-room, desktop-seam,
-      # sill-rc-executable, sill-bottom-hush and sill-bottom-groups.
+      # noticed — then, checked properly on 2026-08-15, turned out to be four
+      # wrong at once (it said ten, filed sill-rc-executable as darwin-only and
+      # desktop-projection as portable, and had never heard of
+      # sill-plugins-executable). A prose census of a machine-readable fact rots
+      # in every direction, so re-derive both lists from that `optionalAttrs`
+      # line rather than editing the sentence you're standing next to.
+      #
+      # The darwin-only twelve fingerprint a real evaluated system, so they stay
+      # guarded and don't run here — they fire on a Mac, by hand, or not at all:
+      # catalogue (every desktop, pack and compat alias raised as a real system),
+      # fragment-compat (the retired top-level fragments' old spelling against
+      # their new one), desktop-projection (the example host's carved values vs
+      # the committed projection — the one thing that can notice the hacker
+      # desktop quietly stopping short of what the module defaults used to give),
+      # accent-reach, scale-reach, font-reach, standalone-modules, ai-room,
+      # desktop-seam, editor-choice, sill-bottom-hush and sill-bottom-groups.
       - run: nix flake check
       # The annotated host template (hosts/<host>/options.nix) ships every
       # option's DEFAULT as a line you can uncomment. host-template.nix's own

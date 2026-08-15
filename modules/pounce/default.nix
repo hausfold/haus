@@ -445,18 +445,14 @@ let
   # wrong for a generated one: here the config comes from a Nix expression, so a
   # mistake should stop the build rather than leave a key that does nothing.
 
-  # Mirrors ItemTarget.modes in pounce (ItemSettings.swift). Six strings, so it's
-  # the size of mirror that's worth its risk: a "mode:" name pounce doesn't know
-  # binds NOTHING at all, with no error anywhere, and pounce validates the shape
-  # only when something actually fires.
-  builtinModes = [
-    "launcher"
-    "clipboard"
-    "emoji"
-    "screenshots"
-    "camera"
-    "filesearch"
-  ];
+  # pounce's own address space, mirrored in ./item-grammar.nix and pinned to the
+  # LOCKED pounce by `nix flake check`'s `pounce-item-grammar`. Both halves are
+  # mirrors and both fail in the user's face rather than ours: a "mode:" name
+  # pounce doesn't know binds NOTHING at all, with no error anywhere, while a
+  # PREFIX pounce has learned since we last looked is rejected here as a typo.
+  # The second half is the one that actually drifted — see the file's header.
+  grammar = import ./item-grammar.nix;
+  builtinModes = grammar.modes;
 
   itemKeyProblem =
     key:
@@ -467,6 +463,15 @@ let
         null
       else
         "\"${key}\" should be an absolute path to a .app bundle (app:/Applications/Foo.app)"
+    else if lib.hasPrefix "shortcut:" key then
+      # As lenient as `ItemTarget.parse`, on purpose: a stricter mirror (a UUID
+      # regex) would refuse keys the daemon accepts, which is this file's own
+      # bug in the other direction. Whether the library still holds that entry
+      # is pounce's question, at fire time — the same rule `cmd:` gets.
+      if lib.stringLength key > 9 then
+        null
+      else
+        "\"${key}\" names no shortcut (shortcut:<uuid>, from `shortcuts list --show-identifiers`)"
     else if lib.hasPrefix "mode:" key then
       let
         mode = lib.removePrefix "mode:" key;
@@ -478,9 +483,20 @@ let
         + lib.concatMapStringsSep ", " (m: "mode:${m}") builtinModes
         + ")"
     else
-      "\"${key}\" is not an item key (expected cmd:<id>, app:<path> or mode:<name>)";
+      "\"${key}\" is not an item key ${grammar.expectedText}";
 
   keyProblems = lib.filter (p: p != null) (map itemKeyProblem (lib.attrNames items));
+
+  # The half `pounce-item-grammar` structurally cannot check: that the shapes
+  # this repo CLAIMS to accept are the shapes the chain above actually accepts.
+  # Without it, the next prefix pounce adds is "fixed" by appending one string to
+  # item-grammar.nix — the check goes green while `itemKeyProblem` still rejects
+  # the key, with an error message that now lists the very shape it refused. So
+  # every shape needs a sample, and every sample has to survive the validator.
+  grammarUnsampled = lib.subtractLists (lib.attrNames grammar.samples) grammar.shapes;
+  grammarRejected = lib.filter (s: itemKeyProblem grammar.samples.${s} != null) (
+    lib.attrNames grammar.samples
+  );
 
   # Modifier synonyms, from pounce's HotKey.swift. Canonicalized so "opt+space"
   # and "alt+space" compare equal — otherwise the clash assertion below would miss
@@ -677,6 +693,12 @@ let
       modeCaptions.${lib.removePrefix "mode:" itemKey} or itemKey
     else if lib.hasPrefix "app:" itemKey then
       lib.removeSuffix ".app" (baseNameOf itemKey)
+    else if lib.hasPrefix "shortcut:" itemKey then
+      # The only key whose name is unknowable here: it lives in the user's
+      # Shortcuts library, not in anything this repo can read. A bare "Shortcut"
+      # is a poor cheatsheet row and deliberately not an error — a build that
+      # fails over a label would be worse — so `caption` says so out loud.
+      "Shortcut"
     else
       humanize (lib.removePrefix "cmd:" itemKey);
 
@@ -717,6 +739,25 @@ lib.mkIf config.haus.pounce.enable {
     {
       assertion = keyProblems == [ ];
       message = "haus.pounce.items: " + lib.concatStringsSep "; " keyProblems;
+    }
+    {
+      assertion = grammarUnsampled == [ ] && grammarRejected == [ ];
+      message =
+        "modules/pounce/item-grammar.nix lists "
+        + lib.concatStringsSep ", " (grammarUnsampled ++ grammarRejected)
+        + " but modules/pounce/default.nix's itemKeyProblem "
+        + (if grammarUnsampled != [ ] then "has no sample key for it" else "still rejects its sample")
+        + ". The grammar file says what this layer accepts and the if-chain is what "
+        + "does the accepting; a shape in one and not the other refuses a key while "
+        + "the error message advertises it.";
+    }
+    {
+      assertion = lib.subtractLists (lib.attrNames modeCaptions) grammar.modes == [ ];
+      message =
+        "modules/pounce/default.nix: modeCaptions has no entry for "
+        + lib.concatStringsSep ", " (lib.subtractLists (lib.attrNames modeCaptions) grammar.modes)
+        + " — the cheatsheet falls back to printing the raw key, which is a wrong "
+        + "row rather than a missing one.";
     }
     {
       assertion = unknownModifiers == [ ];
