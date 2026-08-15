@@ -81,6 +81,7 @@ let
       "mono.package"
       "mono.packageName"
       "mono.size"
+      "sans.name"
     ];
     git = [
       "email"
@@ -534,7 +535,7 @@ let
     };
     fonts = {
       order = 40;
-      blurb = "The terminal font. The bar keeps its own font at its own tuned sizes.";
+      blurb = "The machine's type. One mono family drives the terminal AND the bar — the bar stopped keeping a hardcoded font of its own, though it keeps its own tuned sizes. The proportional family is one label's: the clock pill, when it opts out of mono.";
     };
     ui = {
       order = 50;

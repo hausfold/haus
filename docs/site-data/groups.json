@@ -83,7 +83,7 @@
     }
   },
   "fonts": {
-    "blurb": "The terminal font. The bar keeps its own font at its own tuned sizes.",
+    "blurb": "The machine's type. One mono family drives the terminal AND the bar — the bar stopped keeping a hardcoded font of its own, though it keeps its own tuned sizes. The proportional family is one label's: the clock pill, when it opts out of mono.",
     "order": 40
   },
   "git": {
@@ -284,9 +284,9 @@
       "owner": "displays"
     },
     "fonts": {
-      "blurb": "The terminal font. The bar keeps its own font at its own tuned sizes.",
+      "blurb": "The machine's type. One mono family drives the terminal AND the bar — the bar stopped keeping a hardcoded font of its own, though it keeps its own tuned sizes. The proportional family is one label's: the clock pill, when it opts out of mono.",
       "kind": "room",
-      "optionCount": 5,
+      "optionCount": 6,
       "options": {
         "haus.fonts.mono.baseSize": {
           "desktopSafe": true
@@ -301,6 +301,9 @@
           "desktopSafe": true
         },
         "haus.fonts.mono.size": {
+          "desktopSafe": true
+        },
+        "haus.fonts.sans.name": {
           "desktopSafe": true
         }
       },
@@ -1279,7 +1282,7 @@
         "screenshots",
         "sound"
       ],
-      "optionCount": 48,
+      "optionCount": 49,
       "order": 20,
       "title": "Appearance"
     },

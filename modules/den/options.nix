@@ -392,6 +392,10 @@ in
     # bar stopped hardcoding one of its own) sill's. `size` is the terminal's
     # alone: the bar's sizes come from ui.scale against the menu-bar band's
     # ceiling, because its pill geometry is built around them (../lib/bar.nix).
+    #
+    # `sans` below is the proportional half and is deliberately tiny — see its
+    # own comment. The asymmetry is the point: `mono` is what this machine is
+    # drawn in, `sans` is one label's fallback given a name.
     fonts.mono = {
       name = lib.mkOption {
         type = lib.types.str;
@@ -500,6 +504,47 @@ in
           spelling to try instead.
         '';
       };
+    };
+
+    # The PROPORTIONAL family, and it reaches exactly one label: the clock
+    # pill's, and only when `haus.sill.clock.monoFont` is false. That is not a
+    # first version — it is every proportional string this layer emits. Ghostty,
+    # the whole bar and the wallpaper's debug band are mono on purpose, macOS
+    # exposes no supported knob for the system UI font, and haus's own apps draw
+    # SwiftUI's `.system(…)` — a design token, not a family name — through a
+    # config seam that exists for pounce and does not exist for trill at all.
+    #
+    # So this option exists for one reason: the family that label falls back to
+    # used to be WELDED into modules/sill/default.nix as ".AppleSystemUIFont",
+    # which made `sill.clock.monoFont` a family switch with its second value
+    # hardcoded — an option surface is not the same thing as an option list.
+    # Naming the literal makes the second consumer a line rather than a design
+    # conversation. Deliberately no `size`: nothing here sizes proportional text
+    # by name (`haus.ui.scale` and `haus.pounce.scale` do), and a field with no
+    # reader is drift with a default value.
+    fonts.sans.name = lib.mkOption {
+      type = lib.types.str;
+      default = ".AppleSystemUIFont";
+      example = "Atkinson Hyperlegible";
+      description = ''
+        The proportional family for the one surface haus draws in proportional
+        type: the clock pill's date and time, when `haus.sill.clock.monoFont`
+        is false. Everything else this layer draws — the terminal, every other
+        pill, the wallpaper — is mono, and names `haus.fonts.mono` instead.
+
+        The default is macOS's own system UI font, whose zero has no dot and is
+        easier to tell from an 8 at a glance. That legibility is the entire
+        reason the clock has an opt-out, so the default is also the answer for
+        almost everybody.
+
+        Two things this does NOT do, both worth knowing before you set it.
+        It does not change the system UI font: macOS has no supported knob for
+        that, so menus, Finder and Safari keep drawing in SF Pro whatever this
+        says. And haus installs nothing for it — there is no `package` here the
+        way there is for `mono`, so name a family the machine already has, or
+        install one through `haus.roster` first. A family that isn't installed
+        falls back silently; there is no tofu to warn you.
+      '';
     };
 
     homebrew = {
