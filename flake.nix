@@ -1748,14 +1748,15 @@
                   builtins.concatStringsSep "/" (builtins.head hits);
               # Five pills in modules/sill/default.nix can write `label.font=`
               # into this file once `sill.items` names them, so a first-hit
-              # capture would be measuring whichever one sill emits first. The
-              # example system enables only the clock, so today the anchor is
-              # NOT load-bearing — measured, by widening it to `.*` and watching
-              # the row still pass, and for a weaker reason than ordering: no
-              # rival `:Bold` line exists in the sampled system at all. It stays
-              # because both of those are properties of the sample, not of the
-              # bar: one more enabled item, or one reorder, and an unanchored
-              # row measures another pill while staying green.
+              # capture would be measuring whichever one sill emits first. Today
+              # the anchor is NOT load-bearing — measured, by widening it to `.*`
+              # and watching the row still pass — and for a weaker reason than
+              # ordering: the example system does emit a second `label.font=`
+              # (weather's popup) but it is `:Regular`, so this row's pattern has
+              # exactly one candidate. It stays anchored because that is a
+              # property of the SAMPLE, not of the bar: one more enabled item
+              # with a Bold label, or one reorder, and an unanchored row measures
+              # another pill while staying green.
               captureAfter =
                 target: anchor: pat:
                 let
