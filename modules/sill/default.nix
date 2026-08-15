@@ -158,7 +158,13 @@ let
   # invent a family for anything not following Nerd Font's naming (Berkeley
   # Mono → "Berkeley", which does not exist).
   barFont = config.haus.fonts.mono.name;
-  clockLabelFont = if cfg.clock.monoFont then barFont else ".AppleSystemUIFont";
+  # The one proportional string the layer draws, and both of its values are now
+  # NAMED. `clock.monoFont = false` used to weld ".AppleSystemUIFont" in right
+  # here, which made this line a family switch whose second family no option
+  # could reach and no check could see — font-reach evaluates two systems that
+  # differ in fonts.mono.name and both of them leave clock.monoFont at `true`,
+  # so this branch was never taken in either.
+  clockLabelFont = if cfg.clock.monoFont then barFont else config.haus.fonts.sans.name;
 
   bashArray = xs: lib.concatMapStringsSep " " (x: ''"${x}"'') xs;
   appWorkspaces = map (ws: ws.id) workspaces;

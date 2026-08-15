@@ -1692,8 +1692,22 @@
           # are sketchybar-app-font, sill's own, and must not follow the rice —
           # and the two halves of that sentence coming from the same generated
           # file.
+          #
+          # ★ And the second story, which is about this check rather than the
+          # bar: A REACH TABLE THAT VARIES ONE OPTION IS BLIND TO ANYTHING BEHIND
+          # A SECOND ONE. The clock pill's label has two branches
+          # (modules/sill/default.nix), and every system below leaves
+          # `sill.clock.monoFont` at its `true` default — so the other branch was
+          # never evaluated here, and a hardcoded ".AppleSystemUIFont" landed in
+          # it (#330) without this check noticing, which is the one check whose
+          # entire job is finding hardcoded families. The literal was a day old
+          # when it was found, so the cost was luck rather than time: nothing
+          # here would have reported it in a year.
+          # No pattern would have caught it; the fix is a THIRD PAIR of
+          # systems with the second key flipped (`sansAt`). Ask it of every
+          # golden table here: which conditional does my sample never enter?
           fontAt =
-            name:
+            extra:
             let
               cfg =
                 (mkNebelhaus {
@@ -1702,11 +1716,14 @@
                   hostname = "example";
                   extraModules = [
                     {
-                      haus.fonts.mono.name = name;
                       # Named, not evaluated: a family with no package warns, and
                       # a check that evaluates a warning is measuring the warning.
                       haus.fonts.mono.packageName = "nerd-fonts.fira-code";
                     }
+                    # A module, not `//`: a shallow merge of two nested attrsets
+                    # would drop the packageName above rather than combine with
+                    # it, silently measuring the warning this check avoids.
+                    extra
                   ];
                 }).config;
               hm = cfg.home-manager.users.you;
@@ -1729,6 +1746,33 @@
                   throw "font-reach: nothing in ${target} matches ${pat} — that row has no subject"
                 else
                   builtins.concatStringsSep "/" (builtins.head hits);
+              # Five pills in modules/sill/default.nix can write `label.font=`
+              # into this file once `sill.items` names them, so a first-hit
+              # capture would be measuring whichever one sill emits first. Today
+              # the anchor is NOT load-bearing — measured, by widening it to `.*`
+              # and watching the row still pass — and for a weaker reason than
+              # ordering: the example system does emit a second `label.font=`
+              # (weather's popup) but it is `:Regular`, so this row's pattern has
+              # exactly one candidate. It stays anchored because that is a
+              # property of the SAMPLE, not of the bar: one more enabled item
+              # with a Bold label, or one reorder, and an unanchored row measures
+              # another pill while staying green.
+              captureAfter =
+                target: anchor: pat:
+                let
+                  lines = nixpkgs.lib.splitString "\n" (text target);
+                  anchored = builtins.filter (i: builtins.match anchor (builtins.elemAt lines i) != null) (
+                    nixpkgs.lib.range 0 (builtins.length lines - 1)
+                  );
+                  from = if anchored == [ ] then [ ] else nixpkgs.lib.drop (builtins.head anchored) lines;
+                  hits = builtins.filter (m: m != null) (map (builtins.match pat) from);
+                in
+                if from == [ ] then
+                  throw "font-reach: no line in ${target} matches the anchor ${anchor}"
+                else if hits == [ ] then
+                  throw "font-reach: nothing after ${anchor} in ${target} matches ${pat}"
+                else
+                  builtins.concatStringsSep "/" (builtins.head hits);
             in
             {
               files = builtins.mapAttrs (target: _: text target) (reachFiles hm.home.file);
@@ -1739,6 +1783,9 @@
                 "gen sill workspace letter" = capture ".config/sketchybar/workspaces.sh" ".*IFONT=\"([^:]+):Bold.*";
                 "gen sill workspace logo" =
                   capture ".config/sketchybar/workspaces.sh" ".*IFONT=(sketchybar-app-font):Regular.*";
+                "gen sill clock label" =
+                  captureAfter ".config/sketchybar/top_items.sh" ".*--set clock.*"
+                    ".*label\\.font=\"([^:]+):Bold.*";
               };
             };
           # The generated half of the bar can only be measured by evaluating it.
@@ -1756,8 +1803,20 @@
               lines = builtins.concatLists (map (f: nixpkgs.lib.splitString "\n" (builtins.readFile f)) files);
             in
             builtins.length (builtins.filter (l: builtins.match ".*[A-Za-z] Nerd Font:.*" l != null) lines);
-          fontA = fontAt "JetBrainsMono Nerd Font Mono";
-          fontB = fontAt "FiraCode Nerd Font";
+          fontA = fontAt { haus.fonts.mono.name = "JetBrainsMono Nerd Font Mono"; };
+          fontB = fontAt { haus.fonts.mono.name = "FiraCode Nerd Font"; };
+          # The third pair: the branch the two above never enter. Both keys move
+          # together on purpose — `fonts.sans.name` has exactly one reader and it
+          # is behind `clock.monoFont = false`, so a pair that varied only the
+          # family would produce two identical machines and call that a reach.
+          sansAt =
+            name:
+            fontAt {
+              haus.sill.clock.monoFont = false;
+              haus.fonts.sans.name = name;
+            };
+          sansA = sansAt ".AppleSystemUIFont";
+          sansB = sansAt "Atkinson Hyperlegible";
           fontFileRows = builtins.filter (r: r != null) (
             map (
               target:
@@ -1771,14 +1830,34 @@
           fontNameRows = map (name: "${name} ${fontA.names.${name}} | ${fontB.names.${name}}") (
             builtins.attrNames fontA.names
           );
+          sansFileRows = builtins.filter (r: r != null) (
+            map (
+              target:
+              let
+                a = sansA.files.${target} or "(absent)";
+                b = sansB.files.${target} or "(absent)";
+              in
+              if a == b then null else "sans file ${target} moves"
+            ) (builtins.attrNames (sansA.files // sansB.files))
+          );
+          # One name row and the file rows under it: the family the clock draws,
+          # and the complete list of files a proportional family reaches. That
+          # list being short IS the claim — `fonts.sans` is one label, and the
+          # option's own description says so.
+          sansNameRow = "sans gen sill clock label ${sansA.names."gen sill clock label"} | ${
+            sansB.names."gen sill clock label"
+          }";
           fontTable = builtins.concatStringsSep "\n" (
             fontNameRows
             ++ [ "static sill hardcoded-family-literals ${toString sillStaticHardcodedFonts}" ]
             ++ fontFileRows
+            ++ [ sansNameRow ]
+            ++ sansFileRows
           );
           expectedFontTable = ''
             gen ghostty font-family JetBrainsMono Nerd Font Mono | FiraCode Nerd Font
             gen sill BAR_FONT JetBrainsMono Nerd Font Mono | FiraCode Nerd Font
+            gen sill clock label JetBrainsMono Nerd Font Mono | FiraCode Nerd Font
             gen sill workspace letter JetBrainsMono Nerd Font Mono | FiraCode Nerd Font
             gen sill workspace logo sketchybar-app-font | sketchybar-app-font
             static sill hardcoded-family-literals 0
@@ -1789,6 +1868,8 @@
             file .config/sketchybar/tour_item.sh moves
             file .config/sketchybar/workspaces.sh moves
             file Library/Application Support/com.mitchellh.ghostty/config moves
+            sans gen sill clock label .AppleSystemUIFont | Atkinson Hyperlegible
+            sans file .config/sketchybar/top_items.sh moves
           '';
 
           # ---- ai-room ---------------------------------------------------------

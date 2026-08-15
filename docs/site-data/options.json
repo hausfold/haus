@@ -624,6 +624,28 @@
     "readOnly": false,
     "type": "positive integer, meaning >0"
   },
+  "haus.fonts.sans.name": {
+    "declarations": [
+      "modules/den/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\".AppleSystemUIFont\""
+    },
+    "description": "The proportional family the clock pill draws its date and time in.\nIt applies only when `haus.sill.clock.monoFont` is false, and that pill\nis the whole of this layer's proportional type: everything else it\ndraws — the terminal, every other pill, the wallpaper — is mono, and\nnames `haus.fonts.mono` instead.\n\nThe default is macOS's own system UI font, whose zero has no dot and is\neasier to tell from an 8 at a glance. That legibility is the entire\nreason the clock has an opt-out, so the default is also the answer for\nalmost everybody.\n\nTwo things this does NOT do, both worth knowing before you set it.\nIt does not change the system UI font: macOS has no supported knob for\nthat, so menus, Finder and Safari keep drawing in SF Pro whatever this\nsays. And haus installs nothing for it — there is no `package` here the\nway there is for `mono`, so name a family the machine already has, or\ninstall one through `haus.roster` first. A family that isn't installed\nfalls back silently; there is no tofu to warn you.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"Atkinson Hyperlegible\""
+    },
+    "loc": [
+      "haus",
+      "fonts",
+      "sans",
+      "name"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
   "haus.git.email": {
     "declarations": [
       "modules/hearth/options.nix"
@@ -3446,7 +3468,7 @@
       "_type": "literalExpression",
       "text": "true"
     },
-    "description": "Whether the clock pill's date and time use `haus.fonts.mono.name`, like\nthe rest of Sill. Disable this to use macOS's system UI font, whose zero\nhas no dot and is easier to distinguish from an 8 at a glance. The\ncalendar icon remains in the Nerd Font either way.\n",
+    "description": "Whether the clock pill's date and time use `haus.fonts.mono.name`, like\nthe rest of Sill. Disable this to draw them in `haus.fonts.sans.name`\ninstead — macOS's system UI font by default, whose zero has no dot and\nis easier to distinguish from an 8 at a glance. The calendar icon\nremains in the Nerd Font either way.\n\nThis pill is the only place `haus.fonts.sans.name` is read, so the two\noptions are really one switch: this one chooses the family, that one\nsays which.\n",
     "example": {
       "_type": "literalExpression",
       "text": "false"

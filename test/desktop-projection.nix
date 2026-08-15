@@ -66,6 +66,15 @@ let
       "mono"
       "size"
     ]
+    # The proportional half, for the same reason the editor pair is here in
+    # full: it is desktop-safe, so a desktop can move it, and a projection that
+    # names one family and not the other reports "no difference" for a machine
+    # whose clock changed face.
+    [
+      "fonts"
+      "sans"
+      "name"
+    ]
     [
       "hearth"
       "floatBorder"
