@@ -527,10 +527,11 @@ in
       default = ".AppleSystemUIFont";
       example = "Atkinson Hyperlegible";
       description = ''
-        The proportional family for the one surface haus draws in proportional
-        type: the clock pill's date and time, when `haus.sill.clock.monoFont`
-        is false. Everything else this layer draws — the terminal, every other
-        pill, the wallpaper — is mono, and names `haus.fonts.mono` instead.
+        The proportional family the clock pill draws its date and time in.
+        It applies only when `haus.sill.clock.monoFont` is false, and that pill
+        is the whole of this layer's proportional type: everything else it
+        draws — the terminal, every other pill, the wallpaper — is mono, and
+        names `haus.fonts.mono` instead.
 
         The default is macOS's own system UI font, whose zero has no dot and is
         easier to tell from an 8 at a glance. That legibility is the entire

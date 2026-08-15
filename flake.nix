@@ -1698,9 +1698,12 @@
           # A SECOND ONE. The clock pill's label has two branches
           # (modules/sill/default.nix), and every system below leaves
           # `sill.clock.monoFont` at its `true` default — so the other branch was
-          # never evaluated here, and a hardcoded ".AppleSystemUIFont" sat in it
-          # for months inside the one check whose entire job is finding hardcoded
-          # families. No pattern would have caught it; the fix is a THIRD PAIR of
+          # never evaluated here, and a hardcoded ".AppleSystemUIFont" landed in
+          # it (#330) without this check noticing, which is the one check whose
+          # entire job is finding hardcoded families. The literal was a day old
+          # when it was found, so the cost was luck rather than time: nothing
+          # here would have reported it in a year.
+          # No pattern would have caught it; the fix is a THIRD PAIR of
           # systems with the second key flipped (`sansAt`). Ask it of every
           # golden table here: which conditional does my sample never enter?
           fontAt =
@@ -1743,14 +1746,16 @@
                   throw "font-reach: nothing in ${target} matches ${pat} — that row has no subject"
                 else
                   builtins.concatStringsSep "/" (builtins.head hits);
-              # Six pills set `label.font=` in the same generated file, so a
-              # first-hit capture would be measuring whichever item sill happens
-              # to emit first. Today that IS the clock — measured, by running
-              # this row with the anchor widened to `.*` and watching it still
-              # pass — so the anchor is not currently load-bearing, and that is
-              # exactly why it is here: a row that passes for a reason it does
-              # not state is one bar reorder away from silently measuring the
-              # wrong pill, and it would still be green when it did.
+              # Five pills in modules/sill/default.nix can write `label.font=`
+              # into this file once `sill.items` names them, so a first-hit
+              # capture would be measuring whichever one sill emits first. The
+              # example system enables only the clock, so today the anchor is
+              # NOT load-bearing — measured, by widening it to `.*` and watching
+              # the row still pass, and for a weaker reason than ordering: no
+              # rival `:Bold` line exists in the sampled system at all. It stays
+              # because both of those are properties of the sample, not of the
+              # bar: one more enabled item, or one reorder, and an unanchored
+              # row measures another pill while staying green.
               captureAfter =
                 target: anchor: pat:
                 let
