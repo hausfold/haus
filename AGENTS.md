@@ -195,7 +195,9 @@ modules/
   sill/                   # SketchyBar + sillpop (Swift, xcrun-compiled): the pill
                           #   dropdowns' click-outside dismissal
   collar/                 # auth policy: Touch ID sudo + passwordless activation
-  pounce/                 # the palette daemon (launchd + self-signing)
+  pounce/                 # the palette daemon (launchd + self-signing);
+                          #   item-grammar.nix mirrors pounce's item-key grammar,
+                          #   pinned to the LOCKED pounce by `pounce-item-grammar`
   perch/                  # the perch notch file shelf, installed via the perch flake input
   hush/                   # Focus/DND one-switch: declarative hotkey 175 + Slack + hooks
   secrets/                # secretspec: declarative secrets, provider chosen per host

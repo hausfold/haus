@@ -22,7 +22,7 @@ jobs:
       # example left to eval (see flake.nix `allSystems`).
       - run: nix eval .#darwinConfigurations.example.system.drvPath
       # The platform-independent checks are declared for Linux too precisely so
-      # they can run HERE — ten of them now: theme-variants and keymap pin the
+      # they can run HERE — eleven of them now: theme-variants and keymap pin the
       # flavor/contrast → themes-subdir and keys.* → chord/glyph tables,
       # alert-volume pins the beep-volume ladder, data-only-surface fails on a
       # package-typed option a data-only file cannot set, packs pins what happens
@@ -36,9 +36,12 @@ jobs:
       # NSWorkspace — and desktop-projection pins the example
       # host's carved values against the committed projection — the one thing
       # that can notice the hacker desktop quietly stopping short of what the
-      # module defaults used to give. Those nine mirror a rule that lives in
+      # module defaults used to give, and pounce-item-grammar diffs
+      # modules/pounce/item-grammar.nix against the LOCKED pounce's own
+      # ItemSettings.swift, so a prefix that app learns can't spend a day being
+      # refused here as a typo. Those ten mirror a rule that lives in
       # another repo, in a generated dotfile, in a shell script, or in a README —
-      # where drift is silent. The tenth, `wallpaper`, is the odd one
+      # where drift is silent. The eleventh, `wallpaper`, is the odd one
       # out: it BUILDS the generated desktop and asserts its size and its colour
       # count, which is the only automated thing that can notice the dither
       # stopped reaching the 8-bit reduction and the gradient started banding.

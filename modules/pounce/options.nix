@@ -229,6 +229,7 @@ in
         };
         "cmd:brew-services".listed = false;
         "app:/Applications/Ghostty.app".hotkey = "opt+t";
+        "shortcut:0ECC8F7A-3A52-467A-84C0-511CCE1CB9B7".alias = "shelf";
         "mode:clipboard".hotkey = "cmd+shift+v";
       };
       description = ''
@@ -237,6 +238,8 @@ in
 
           "cmd:<id>"                       a command, by script name without .sh
           "app:/Applications/Foo.app"      an application, by path
+          "shortcut:<uuid>"                a Shortcuts-library entry, by the id
+                                           `shortcuts list --show-identifiers` prints
           "mode:<name>"                    a built-in window — launcher, clipboard,
                                            emoji, screenshots, camera, filesearch
 
@@ -314,6 +317,10 @@ in
                 derived name isn't what the palette actually calls the row —
                 haus can't read a command's own `# pounce: name` header at
                 evaluation time, so that one is a guess.
+
+                A `shortcut:<uuid>` key derives nothing better than "Shortcut":
+                the name lives in your Shortcuts library, which no build can
+                read. Give any shortcut you bind a key a caption.
               '';
             };
 

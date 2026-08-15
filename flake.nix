@@ -2410,6 +2410,79 @@
             touch $out
           '';
 
+          # modules/pounce/item-grammar.nix is a copy of pounce's `ItemTarget`,
+          # and copies rot. This one rotted in the expensive direction: pounce
+          # learned `shortcut:<uuid>` (pounce#80), the LOCK moved to it the same
+          # day, and the layer went on asserting that a key its own daemon
+          # accepts "is not an item key" — a user's build failing over a valid
+          # key, with the error naming the user.
+          #
+          # So this reads the pounce the lock actually pins, not pounce's main:
+          # the question is never "what does pounce do now", it is "does the
+          # grammar we validate against match the binary we install". A lock
+          # bump is mechanical and this mirror is prose, which is exactly the
+          # asymmetry that let it drift for a day without anyone noticing.
+          pounce-item-grammar =
+            let
+              grammar = import ./modules/pounce/item-grammar.nix;
+            in
+            pkgs.runCommand "haus-pounce-item-grammar-ok" { } ''
+              src=${pounce}/pkgs/pounce/ItemSettings.swift
+              test -f "$src" || {
+                echo "pounce's ItemSettings.swift has moved — find ItemTarget and repoint" >&2
+                echo "this check. Do not delete it: modules/pounce/item-grammar.nix is a" >&2
+                echo "copy of that enum, and this is the only thing that reads both." >&2
+                exit 1
+              }
+
+              # Every extraction ends in `|| true`: the builder runs `set -e -o
+              # pipefail`, so a pattern that stops matching would abort the build
+              # here and the guard below — the part that says DON'T DELETE THIS
+              # CHECK — would never print. An empty file is what makes it speak.
+
+              # `static let modes = ["launcher", "clipboard", …]` → one per line.
+              sed -n 's/.*static let modes = \[\(.*\)\].*/\1/p' "$src" \
+                | tr -d ' "' | tr ',' '\n' | grep . > theirs-modes || true
+              # The fallback text of ItemTarget.problem. The `mode:` error also
+              # starts "(expected", but its literal has no closing paren before
+              # the quote, so this pattern takes only the shape list.
+              grep -o '(expected [^"]*)' "$src" > theirs-shapes || true
+              # …and the parser itself, because the line above mirrors pounce's
+              # ERROR TEXT, which is a hand-written literal beside `parse` rather
+              # than something derived from it. A prefix added to `parse` and left
+              # out of that string would leave both this repo and pounce's own
+              # message wrong, agreeing with each other — this repo's exact bug,
+              # recurring green. `sort -u` because `problem` tests "mode:" again.
+              grep -o 'hasPrefix("[a-z]*:")' "$src" \
+                | sed 's/.*("\(.*\)")/\1/' | sort -u > theirs-prefixes || true
+
+              test -s theirs-modes && test -s theirs-shapes && test -s theirs-prefixes || {
+                echo "found ItemSettings.swift but not ItemTarget's modes/error text/parse —" >&2
+                echo "the shapes this check greps for are gone. Restore them, or replace" >&2
+                echo "this check with whatever keeps modules/pounce/item-grammar.nix in" >&2
+                echo "step with the locked pounce — do not simply delete it." >&2
+                exit 1
+              }
+
+              diff -u ${pkgs.writeText "ours-modes" (builtins.concatStringsSep "\n" grammar.modes + "\n")} \
+                      theirs-modes \
+                || { echo >&2; echo "left: modules/pounce/item-grammar.nix's \`modes\` · right: ItemTarget.modes in the locked pounce" >&2; exit 1; }
+
+              diff -u ${pkgs.writeText "ours-shapes" (grammar.expectedText + "\n")} \
+                      theirs-shapes \
+                || { echo >&2; echo "left: item-grammar.nix's \`shapes\` · right: ItemTarget.problem's text in the locked pounce — a prefix was added or renamed" >&2; exit 1; }
+
+              diff -u ${
+                pkgs.writeText "ours-prefixes" (
+                  builtins.concatStringsSep "\n" (builtins.sort (a: b: a < b) grammar.prefixes) + "\n"
+                )
+              } \
+                      theirs-prefixes \
+                || { echo >&2; echo "left: item-grammar.nix's \`shapes\`, as prefixes · right: what ItemTarget.parse in the locked pounce actually accepts" >&2; exit 1; }
+
+              touch $out
+            '';
+
           keymap = pkgs.runCommand "haus-keymap-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedKeymapTable} \
                     ${pkgs.writeText "actual" (keymapTable + "\n")}
