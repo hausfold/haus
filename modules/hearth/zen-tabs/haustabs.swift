@@ -30,7 +30,7 @@
 import Foundation
 
 let fm = FileManager.default
-let stateDir = ("~/.local/state/nebelhaus/zen-tabs" as NSString).expandingTildeInPath
+let stateDir = ("~/.local/state/haus/zen-tabs" as NSString).expandingTildeInPath
 let tabsPath = stateDir + "/tabs.json"
 let cmdPath = stateDir + "/cmd"
 let pidPath = stateDir + "/pid"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# statusline-refresh.sh — the EXPENSIVE half of the nebelhaus statusline.
+# statusline-refresh.sh — the EXPENSIVE half of the haus statusline.
 #
 # Enumerates every in-flight agent worktree across ALL repos (via `holt`'s
 # registry) and, per repo, asks GitHub once for PR state. Writes a raw-field TSV
@@ -80,7 +80,7 @@ if ! mkdir "$LOCK" 2>/dev/null; then
 fi
 trap 'rmdir "$LOCK" 2>/dev/null || true' EXIT
 
-# --- stale-rice nag: how far this machine's pinned nebelhaus is behind --------
+# --- stale-rice nag: how far this machine's pinned haus is behind --------
 # There is no "latest" in Nix — a flake input is whatever flake.lock pinned, and
 # it only moves when `haus update` moves it. So the bar carries the one number
 # that makes that pin visible: how many commits `haus update` would bring in.
@@ -104,11 +104,11 @@ if [ "$nag_fresh" = 0 ] && [ -f "$NAG" ]; then
   [ "$age" -lt "$NAG_TTL" ] && nag_fresh=1
 fi
 if [ "$nag_fresh" = 0 ] && [ -f "$CONSUMER/flake.lock" ]; then
-  lk() { jq -r ".nodes.nebelhaus.$1 // \"$2\"" "$CONSUMER/flake.lock" 2>/dev/null || echo "$2"; }
+  lk() { jq -r "(.nodes.haus // .nodes.nebelhaus).$1 // \"$2\"" "$CONSUMER/flake.lock" 2>/dev/null || echo "$2"; }
   lockrev=$(lk 'locked.rev' '')
   lockdate=$(lk 'locked.lastModified' 0)
-  owner=$(lk 'original.owner' nebelhaus)
-  repo=$(lk 'original.repo' nebelhaus)
+  owner=$(lk 'original.owner' hausfold)
+  repo=$(lk 'original.repo' haus)
   ref=$(lk 'original.ref' HEAD)          # unset ref => compare against HEAD (default branch)
   behind=""
   if [ -n "$lockrev" ]; then

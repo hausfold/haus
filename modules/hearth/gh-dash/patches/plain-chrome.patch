@@ -30,7 +30,7 @@ index f8ca6a0..26b969b 100644
 -			Underline(true).
 -			Render(fmt.Sprintf("%s donate", constants.DonateIcon)))
 -		viewSwitcher := m.renderViewSwitcher(m.ctx)
-+		// nebelhaus: the footer BAR is gone — the view switcher, repo/user
++		// haus: the footer BAR is gone — the view switcher, repo/user
 +		// pills, the donate link and the help hint were chrome, and the hint
 +		// now lives in the header's right slot (tabs.go viewHelpHint). The row
 +		// itself survives, unstyled, because it is also where prompt
@@ -112,7 +112,7 @@ index b1f66cf..095941d 100644
 -	} else {
 -		version = lipgloss.PlaceVertical(2, lipgloss.Bottom, version)
 -	}
-+// nebelhaus: the header's right slot used to hold the gh-dash logo and the
++// haus: the header's right slot used to hold the gh-dash logo and the
 +// version string. Neither earns its width in a full-window overlay, so the
 +// slot carries the "? help" hint instead — the one thing worth keeping from
 +// the footer bar, which this rice blanks out (see footer.go).

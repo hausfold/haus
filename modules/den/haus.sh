@@ -55,7 +55,7 @@ SYSPROFILES=/nix/var/nix/profiles
 # The rule, so nothing important can go missing: we only hide what we WRITE
 # DOWN, we hide nothing on failure, and anything that isn't a human watching a
 # terminal (an agent pane, CI, a pipe) gets the raw stream instead.
-HAUS_LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/nebelhaus"
+HAUS_LOG_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/haus"
 HAUS_LOG="$HAUS_LOG_DIR/rebuild.log"
 
 # Verbose = raw, unsummarised, exactly what the old haus printed. Deliberately
@@ -438,11 +438,11 @@ declared_defaults() {
 }
 
 # TSV domain\tkey\tvalue for den's own guarded accessibility writer (see
-# modules/den/default.nix's `nebelhausAccessibility` postActivation block) — a
+# modules/den/default.nix's `hausAccessibility` postActivation block) — a
 # raw `defaults write` shell call carrying its own type flag, not the typed
 # XML-plist shape declared_defaults parses, so it needs its own extraction.
 declared_a11y_calls() {
-  grep -E '^[[:space:]]*nebelhausAccessibility [A-Za-z]+ -(bool|float) [^[:space:]]+[[:space:]]*$' "$1" 2>/dev/null \
+  grep -E '^[[:space:]]*hausAccessibility [A-Za-z]+ -(bool|float) [^[:space:]]+[[:space:]]*$' "$1" 2>/dev/null \
     | while read -r _ key flag value; do
         # The writer carries `defaults write`'s own type flag since this domain
         # stopped being all-booleans (mouseDriverCursorSize, 2026-08-14). Only
@@ -689,7 +689,7 @@ consumer_worktree_warning() {
 }
 
 # ---- what a rebuild would write into $HOME ----------------------------------
-# The other half of a nebelhaus rebuild, and the half `plan` was blind to until
+# The other half of a haus rebuild, and the half `plan` was blind to until
 # workshop#307: every file home-manager manages — the bar's items and plugins,
 # the shell, the tiling config, the agent skills. None of it is a
 # `system.defaults` key, so settings_diff cannot see it, and `nix store
@@ -1119,8 +1119,8 @@ cmd_diff() {
 }
 
 # ---- haus capture ------------------------------------------------------------
-# Turn THIS Mac's current settings into pasteable nebelhaus host-config lines —
-# the general form of bootstrap.sh's NEBELHAUS_KEEP (which only ever runs once,
+# Turn THIS Mac's current settings into pasteable haus host-config lines —
+# the general form of bootstrap.sh's HAUS_KEEP (which only ever runs once,
 # at install). bootstrap.sh keeps its own copy of this logic rather than
 # depending on `haus`: it runs before the first switch, when `haus` isn't on
 # PATH yet.
@@ -1129,7 +1129,7 @@ cmd_diff() {
 # later `haus revert-settings` can put the exact bytes back — this is the
 # "pre-activation preference snapshot" §5.11 asks for: run `haus capture`
 # before a rebuild that's about to change settings you might want to keep.
-SNAP_BASE="${XDG_STATE_HOME:-$HOME/.local/state}/nebelhaus/settings-snapshots"
+SNAP_BASE="${XDG_STATE_HOME:-$HOME/.local/state}/haus/settings-snapshots"
 
 cap_bool() { case "$(defaults read "$1" "$2" 2>/dev/null || true)" in 1) echo true ;; 0) echo false ;; esac; }
 cap_int() {
@@ -1479,11 +1479,21 @@ fetch_changelog() { # <owner> <repo> <old> <new> <outfile>
 update_brew_job() { refresh_family_apps; brew_prefetch; }
 
 cmd_update() {
-  local old new owner repo logfile
-  old="$(jq -r '.nodes.nebelhaus.locked.rev // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
+  local old new owner repo logfile input
+  old="$(jq -r '(.nodes.haus // .nodes.nebelhaus).locked.rev // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
+  # 🚨 The input NAME belongs to the consumer's flake, not to us — and
+  # `nix flake update <name that isn't in the lock>` WARNS AND EXITS 0 without
+  # touching anything. So a hardcoded name here doesn't fail loudly, it turns
+  # `haus update` into a permanent no-op that then reports "already at the
+  # latest". Scaffolded configs said `nebelhaus` until 2026-08-14 and say `haus`
+  # since (rename note §11.2), so read the name back out of the lock.
+  input="$(jq -r 'if (.nodes[.root].inputs.haus? // null) != null then "haus"
+                  elif (.nodes[.root].inputs.nebelhaus? // null) != null then "nebelhaus"
+                  else "" end' "$CONSUMER/flake.lock" 2>/dev/null || true)"
+  [ -n "$input" ] || input=haus
   say "pulling the latest haus …"
-  ( cd "$CONSUMER" && heal nix flake update nebelhaus )
-  new="$(jq -r '.nodes.nebelhaus.locked.rev // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
+  ( cd "$CONSUMER" && heal nix flake update "$input" )
+  new="$(jq -r '(.nodes.haus // .nodes.nebelhaus).locked.rev // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
   if [ -n "$old" ] && [ "$old" = "$new" ]; then
     say "already at the latest haus (${new:0:12}) — rebuilding anyway."
   elif [ -n "$old" ] && [ -n "$new" ]; then
@@ -1491,8 +1501,8 @@ cmd_update() {
     # rate-limited, or non-GitHub upstreams just skip the list. Fetched in the
     # background: it's a 5-second timeout on a network you may not have, and
     # nothing downstream waits on it.
-    owner="$(jq -r '.nodes.nebelhaus.original.owner // "hausfold"' "$CONSUMER/flake.lock")"
-    repo="$(jq -r '.nodes.nebelhaus.original.repo // "haus"' "$CONSUMER/flake.lock")"
+    owner="$(jq -r '(.nodes.haus // .nodes.nebelhaus).original.owner // "hausfold"' "$CONSUMER/flake.lock")"
+    repo="$(jq -r '(.nodes.haus // .nodes.nebelhaus).original.repo // "haus"' "$CONSUMER/flake.lock")"
     logfile="$(mktemp)"
     bg fetch_changelog "$owner" "$repo" "$old" "$new" "$logfile"
   fi
@@ -1551,17 +1561,17 @@ cmd_status() {
   echo
   say "pinned haus"
   if [ -f "$CONSUMER/flake.lock" ]; then
-    lockrev="$(jq -r '.nodes.nebelhaus.locked.rev // "?"' "$CONSUMER/flake.lock")"
-    lockdate="$(jq -r '.nodes.nebelhaus.locked.lastModified // 0' "$CONSUMER/flake.lock")"
+    lockrev="$(jq -r '(.nodes.haus // .nodes.nebelhaus).locked.rev // "?"' "$CONSUMER/flake.lock")"
+    lockdate="$(jq -r '(.nodes.haus // .nodes.nebelhaus).locked.lastModified // 0' "$CONSUMER/flake.lock")"
     if [ "$lockdate" != "0" ]; then
       printf '  %s  (%s)\n' "${lockrev:0:12}" "$(date -r "$lockdate" '+%Y-%m-%d' 2>/dev/null || echo '?')"
     else
       printf '  %s\n' "${lockrev:0:12}"
     fi
     # Is upstream haus ahead of what you've pinned? Best-effort, offline-safe.
-    owner="$(jq -r '.nodes.nebelhaus.original.owner // "hausfold"' "$CONSUMER/flake.lock")"
-    repo="$(jq -r '.nodes.nebelhaus.original.repo // "haus"' "$CONSUMER/flake.lock")"
-    ref="$(jq -r '.nodes.nebelhaus.original.ref // "HEAD"' "$CONSUMER/flake.lock")"
+    owner="$(jq -r '(.nodes.haus // .nodes.nebelhaus).original.owner // "hausfold"' "$CONSUMER/flake.lock")"
+    repo="$(jq -r '(.nodes.haus // .nodes.nebelhaus).original.repo // "haus"' "$CONSUMER/flake.lock")"
+    ref="$(jq -r '(.nodes.haus // .nodes.nebelhaus).original.ref // "HEAD"' "$CONSUMER/flake.lock")"
     url="https://github.com/$owner/$repo.git"
     remoterev="$(git ls-remote "$url" "$ref" 2>/dev/null | awk 'NR==1{print $1}')"
     if [ -n "$remoterev" ] && [ "$remoterev" != "$lockrev" ]; then
@@ -1584,7 +1594,7 @@ cmd_edit() {
 
 # ---- haus set / get / unset / reset ----------------------------------------
 # The machine-writable overlay is deliberately ordinary Nix: one tiny module
-# per option under hosts/<host>/settings/, auto-imported by mkNebelhaus beside
+# per option under hosts/<host>/settings/, auto-imported by mkHaus beside
 # Pounce's packages/ modules. There is no second settings database to drift.
 #
 # These files use mkForce because this layer is the machine owner's explicit
@@ -1850,7 +1860,7 @@ settings_tx_rollback() {
 # which is seconds — right for accepting a value, hopeless for drawing a menu of
 # 200 rows or answering a Tab. So the picker and the zsh completion read this
 # file and leave cmd_set's eval as the one authority on what is actually legal.
-HAUS_CATALOGUE="${HAUS_CATALOGUE:-/run/current-system/sw/share/nebelhaus/options.json}"
+HAUS_CATALOGUE="${HAUS_CATALOGUE:-/run/current-system/sw/share/haus/options.json}"
 
 # The value prompt's shape, read off the module system's own type prose.
 #
@@ -2219,7 +2229,7 @@ cmd_reset() {
 # It never silently overwrites. Once you've uncommented lines in your copy that
 # file is yours, so a re-run writes options.nix.new beside it and shows the
 # diff — you merge what you want. --force is the "I never edited it" shortcut.
-HOST_TEMPLATE="${HAUS_HOST_TEMPLATE:-/run/current-system/sw/share/nebelhaus/host-options.nix}"
+HOST_TEMPLATE="${HAUS_HOST_TEMPLATE:-/run/current-system/sw/share/haus/host-options.nix}"
 
 cmd_options() {
   local force="" host dir dest
@@ -2259,7 +2269,7 @@ cmd_options() {
 
 cmd_doctor() {
   local uid; uid="$(id -u)"
-  say "nebelhaus doctor"
+  say "haus doctor"
 
   # On macOS 26 Tahoe+, a "stopped agent" is often BTM gating the /bin/sh-invoked
   # nix login item rather than a cold-boot wedge — point at `haus btm` when so.
@@ -2269,7 +2279,7 @@ cmd_doctor() {
 
   # Determinate Nix (den assumes it owns the daemon: nix.enable = false).
   if [ -f /nix/receipt.json ]; then ok "Determinate Nix installed"
-  elif [ -d /nix ]; then bad "/nix exists but not Determinate — nebelhaus expects the Determinate installer"
+  elif [ -d /nix ]; then bad "/nix exists but not Determinate — haus expects the Determinate installer"
   else bad "Nix not installed"; fi
   pgrep -qx nix-daemon && ok "nix-daemon running" || bad "nix-daemon not running"
 
@@ -2367,7 +2377,7 @@ cmd_doctor() {
   # printing nothing after it — the same trap `settings_diff` hit, and the common
   # case here (appearance unmanaged) is the false one.
   if [ -n "$hmgen" ] && [ -f "$hmgen/activate" ] &&
-    grep -q 'nebelhausSystemAppearance' "$hmgen/activate" 2>/dev/null; then
+    grep -q 'hausSystemAppearance' "$hmgen/activate" 2>/dev/null; then
     appearance=1
   fi
   if [ -n "$appearance" ]; then
@@ -2416,7 +2426,7 @@ cmd_doctor() {
   # that read a fixed path. The ones needing a click are exactly what a health
   # check is for: they look like "the theme didn't work" and are otherwise
   # invisible. Absent file = the room is off (or predates this), so stay quiet.
-  local portsreport="$HOME/.config/nebelhaus/nebelung-ports.tsv"
+  local portsreport="$HOME/.config/haus/nebelung-ports.tsv"
   if [ -s "$portsreport" ]; then
     echo
     say "Nebelung theme"
@@ -2455,9 +2465,9 @@ cmd_doctor() {
     fi
   done
   if [ -n "$skilldir" ]; then
-    ok "the nebelhaus skill is installed ($skilldir)"
+    ok "the haus skill is installed ($skilldir)"
   else
-    info "no nebelhaus skill — set haus.ai.skill = true to let an agent change this machine"
+    info "no haus skill — set haus.ai.skill = true to let an agent change this machine"
   fi
   if [ -f "$CONSUMER/AGENTS.md" ] && [ -f "$CONSUMER/CLAUDE.md" ]; then
     ok "$CONSUMER/AGENTS.md orients any agent opened there (+ CLAUDE.md imports it)"

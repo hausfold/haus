@@ -1,7 +1,7 @@
 # The desktop seam. A person chooses EXACTLY ONE desktop, and this is where
 # that "exactly one" is a rule rather than a sentence in a note.
 #
-# The selection itself happens in flake.nix (`lib.desktop`, and `mkNebelhaus`'s
+# The selection itself happens in flake.nix (`lib.desktop`, and `mkHaus`'s
 # `desktop` argument): a desktop file is validated, its leaves are carried in at
 # the desktop priority, and its filename is appended to `haus._desktop.sources`.
 # All this module does is read that list back and refuse a second entry — which

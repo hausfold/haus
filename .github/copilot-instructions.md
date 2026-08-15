@@ -7,8 +7,8 @@ duplication below; if the two ever disagree, `AGENTS.md` wins.)
 
 The short version:
 
-- nebelhaus is an opinionated **macOS rice as composable nix-darwin modules** —
-  the "distro". A personal machine consumes it via `mkNebelhaus` and adds only
+- haus is a **macOS desktop layer as composable nix-darwin modules** —
+  the "distro". A personal machine consumes it via `mkHaus` and adds only
   its own host.
 - **Never hardcode identity.** Anything personal — git name/email, signing keys,
   a signing cert — is a `haus.*` option the host sets. A literal name or

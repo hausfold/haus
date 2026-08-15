@@ -1,12 +1,12 @@
 #!/bin/bash
-# pounce: name = Report Nebelhaus Issue
+# pounce: name = Report haus Issue
 # pounce: description = Open a pre-filled bug report for haus
 # pounce: icon = ladybug
 
 # The haus counterpart to pounce's built-in "Report Pounce Issue": opens
 # github.com/hausfold/haus with a new-issue form pre-filled from a
 # template. Shipped by haus (modules/pounce/commands, layered in via
-# extraCommandDirs), so it only appears when pounce is used with nebelhaus.
+# extraCommandDirs), so it only appears when pounce is used with haus.
 # Same URL-query approach as the pounce built-in — nothing hosted needed.
 
 repo="hausfold/haus"

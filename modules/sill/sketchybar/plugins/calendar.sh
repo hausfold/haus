@@ -76,7 +76,7 @@ ICALBUDDY=/opt/homebrew/bin/icalBuddy
 # `who` variable and draw "with https://acme.zoom.us/j/1234". A control byte is
 # also the one thing a meeting name cannot contain.
 US=$'\037'
-STATE_DIR="$HOME/.local/state/nebelhaus/calendar"
+STATE_DIR="$HOME/.local/state/haus/calendar"
 JOIN_CACHE="$STATE_DIR/join-url"   # the shown event's link, so right-click is instant
 ME_CACHE="$STATE_DIR/me"           # which addresses are this machine's own
 mkdir -p "$STATE_DIR" 2>/dev/null

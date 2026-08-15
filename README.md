@@ -15,7 +15,7 @@ was, down to the [fog-grey](https://github.com/hausfold/nebelung).
 
 **`haus`** is the layer: nix-darwin modules, the `haus.*` options you set, the
 `haus` CLI you run. A **desktop** is one complete set of answers to those
-options. **nebelhaus** is the first desktop — grey, quiet, developer-shaped.
+options. **hacker** is the first desktop — grey, quiet, developer-shaped.
 This repo ships both; **hausfold** is the org that makes them, which is why the
 repo is `hausfold/haus`.
 
@@ -92,7 +92,7 @@ an edit to your host file, applied and verifiable.
 
 ## more
 
-- [Modules](docs/modules.md) — one room in your own flake, `mkNebelhaus`, the identity knobs
+- [Modules](docs/modules.md) — one room in your own flake, `mkHaus`, the identity knobs
 - [Making it yours](https://hausfold.co/docs/haus/desktops/customizing/) · [Keeping it current](https://hausfold.co/docs/haus/keeping-it-current/) · [Leaving](https://hausfold.co/docs/haus/leaving/)
 - [`AGENTS.md`](./AGENTS.md) — hacking on the house
 

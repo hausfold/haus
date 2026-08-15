@@ -33,7 +33,7 @@ case "$1" in
         : > "$STATE"
         rm -f "$SIBLING"
         # Haus-tour hook — one stat when no tour is mid-flight (plugins/tour.sh).
-        { [ -f "$HOME/.local/state/nebelhaus/tour" ] && "$HOME/.config/sketchybar/plugins/tour.sh" event resize; } >/dev/null 2>&1 &
+        { [ -f "$HOME/.local/state/haus/tour" ] && "$HOME/.config/sketchybar/plugins/tour.sh" event resize; } >/dev/null 2>&1 &
         sketchybar --set front_app background.color=$YELLOW label.color=$BASE \
                                     label="$(front_app) $GLYPH"
         ;;

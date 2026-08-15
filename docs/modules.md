@@ -1,4 +1,4 @@
-# nebelhaus modules
+# haus modules
 
 How to take the whole house, or just one room.
 
@@ -22,26 +22,26 @@ pounce, hush, secrets. Pull just what you want into your own flake:
 
 ```nix
 {
-  inputs.nebelhaus.url = "github:hausfold/haus";
+  inputs.haus.url = "github:hausfold/haus";
 
   # in your darwinSystem modules list:
   modules = [
-    inputs.nebelhaus.darwinModules.prowl   # just the tiling
-    inputs.nebelhaus.darwinModules.sill    # just the bar
+    inputs.haus.darwinModules.prowl   # just the tiling
+    inputs.haus.darwinModules.sill    # just the bar
     { nixpkgs.hostPlatform = "aarch64-darwin"; }  # rooms don't pick a platform for you
   ];
 }
 ```
 
 **theme, wallpaper, perch, snippets and apps aren't standalone modules** — they ride
-along with the full `mkNebelhaus` house. (apps needs the roster resolver next to
+along with the full `mkHaus` house. (apps needs the roster resolver next to
 it to install anything, which is the same reason the roster isn't exported
 either.)
 
 ## Or take the whole house
 
 ```nix
-darwinConfigurations.mymac = inputs.nebelhaus.mkNebelhaus {
+darwinConfigurations.mymac = inputs.haus.mkHaus {
   username = "ada";
   hostname = "mymac";
   host = ./hosts/mymac;

@@ -53,7 +53,7 @@
 
         # Several ports render the whole accent matrix and leave the choice to
         # the consumer — nebelung spells that `<accent>` in the path (`<Accent>`
-        # where the port title-cases the directory, as Zen does). nebelhaus HAS
+        # where the port title-cases the directory, as Zen does). hacker HAS
         # an answer: haus.theme.accent. Filling it in here is what keeps Zed
         # and friends installable instead of falling through to "do it yourself"
         # over a placeholder we could resolve. Anything still holding a
@@ -221,7 +221,7 @@
           # "nothing in your roster has a port" apart from "this rice predates the
           # feature" and say the right thing for each.
           // {
-            ".config/nebelhaus/nebelung-ports.tsv".text =
+            ".config/haus/nebelung-ports.tsv".text =
               lib.optionalString (report != "") (report + "\n");
           };
       };

@@ -1,4 +1,4 @@
-# Part of the nebelhaus option surface. Split per room so each room's public API
+# Part of the haus option surface. Split per room so each room's public API
 # lives next to the code that implements it; modules/default.nix imports them all.
 # Cross-cutting options (the app roster) stay in modules/options.nix.
 #
@@ -235,7 +235,7 @@ in
       default = false;
       description = ''
         The SketchyBar menu bar. When off, the native macOS menu bar is kept
-        (nebelhaus stops hiding it) and no bar is drawn.
+        (hacker stops hiding it) and no bar is drawn.
       '';
     };
 
@@ -279,7 +279,7 @@ in
       example = "⌂";
       description = ''
         The glyph in the far-left logo pill — the one that was an Apple menu
-        until it was the nebelhaus cat-ears mark. Any single character your bar
+        until it was the hacker cat-ears mark. Any single character your bar
         font can draw; the default is Nerd Font's `nf-fa-home` (`U+F015`), a
         solid house.
 
@@ -326,7 +326,7 @@ in
         | right click | the full pounce palette (⌘Space), which is what a bare click on this pill used to do |
 
         All three are drawn by **pounce**, so all three need
-        `haus.pounce.enable` (which the nebelhaus desktop turns on). With pounce
+        `haus.pounce.enable` (which the hacker desktop turns on). With pounce
         off they are silent no-ops and this option is the switch that says so out
         loud — turn it off and the pill stops responding to clicks entirely,
         rather than looking like an affordance that does nothing.
@@ -414,7 +414,7 @@ in
       description = ''
         Sweep the logo through the six hausfold accents — mauve, teal, green,
         yellow, peach, pink, the order the site runs them (nebelung → holt →
-        perch → trill → pounce → nebelhaus) — while the pointer is over it,
+        perch → trill → pounce → hacker) — while the pointer is over it,
         then settle back.
         It is the bar's copy of the mark on hausfold.co, where hovering the `⌂`
         turns a conic gradient of those same six through the glyph. SketchyBar
@@ -777,7 +777,7 @@ in
 
         Empty (the default) means discover it: the pill browses mDNS for
         `_elg._tcp`, caches what it found in
-        `~/.local/state/nebelhaus/elgato-host`, and re-browses at most once a
+        `~/.local/state/haus/elgato-host`, and re-browses at most once a
         minute whenever the light stops answering — so a light that took a new
         DHCP address comes back on its own, without a rebuild. Pin this when
         you have more than one light, when the light has a static lease, or
@@ -788,7 +788,7 @@ in
     tour.enable = lib.mkOption {
       type = lib.types.bool;
       # A first-run tutor is an opinion about how a machine introduces itself,
-      # not a property of the bar — nebelhaus selects it in its desktop.
+      # not a property of the bar — hacker selects it in its desktop.
       default = false;
       description = ''
         The haus tour — a first-run tutor that walks the four moves (launch /
@@ -801,7 +801,7 @@ in
 
         Needs prowl + sill (it silently stays out of the bar without them);
         the ⌘Space step is dropped when pounce is off. Progress lives in
-        ~/.local/state/nebelhaus — `haus tour reset` re-arms a finished tour.
+        ~/.local/state/haus — `haus tour reset` re-arms a finished tour.
       '';
     };
 
@@ -855,7 +855,7 @@ in
       ];
       description = ''
         A community-authored tour, in order. null keeps the built-in four-move
-        nebelhaus tour unchanged; supplying a list replaces it, so a shared desktop
+        hacker tour unchanged; supplying a list replaces it, so a shared desktop
         can teach its own workflow without shipping scripts or reaching outside the
         `haus.*` option surface.
 

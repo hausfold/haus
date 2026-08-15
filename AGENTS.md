@@ -1,27 +1,33 @@
 # AGENTS.md
 
-**nebelhaus** — an opinionated macOS rice, built on `haus`, a set of composable
-nix-darwin modules. This repo is the "distro": a personal machine consumes it
-via `mkNebelhaus` and adds only its own host (identity, private apps, secrets).
+**`haus`** — a set of composable nix-darwin modules, plus the desktops built on
+them. This repo is the "distro": a personal machine consumes it via `mkHaus` and
+adds only its own host (identity, private apps, secrets).
 
-> **This repo holds two things, and only one of them is nebelhaus.** **`haus`**
-> is the **layer** — the nix-darwin modules, the `haus.*` options and the `haus`
-> CLI — and it is what *any* rice builds on, not just this one. **nebelhaus** is
-> one rice on that layer: the default *values* those modules ship with
-> (nebelung's fog-grey, prowl/sill/hearth turned on the way this desktop likes
-> them), the first rice and the developer-focused one. **hausfold** is neither —
-> it is the org, the maker and the seller, which is why the repo is
-> `hausfold/haus`: the layer names the repo, the org names the owner. That is
-> **decision 8** in the workshop's `notes/hausfold-rename.md` (2026-08-10),
-> applied to the slug by **decision 9** (2026-08-11) — this repo was
-> `hausfold/hausfold` until then, and every old URL still redirects.
+> **This repo holds two things.** **`haus`** is the **layer** — the nix-darwin
+> modules, the `haus.*` options and the `haus` CLI — and it is what *any* desktop
+> builds on. A **desktop** is one set of values for those modules, and this repo
+> ships four: `blank`, `minimal`, `everyday` and **`hacker`** (nebelung's
+> fog-grey, prowl/sill/hearth turned on the way a developer likes them — the
+> first one written, and the one `mkHaus` selects when a consumer names none).
+> **hausfold** is neither — it is the org, the maker and the seller, which is why
+> the repo is `hausfold/haus`: the layer names the repo, the org names the owner.
+> That is **decision 8** in the workshop's `notes/hausfold-rename.md`
+> (2026-08-10), applied to the slug by **decision 9** (2026-08-11) — this repo
+> was `hausfold/hausfold` until then, and every old URL still redirects.
 >
-> Today the two are interleaved in the same files, because the plan's decision 4
-> renames first and neutralizes the defaults later (its §7). So the distinction
-> is a **writing** rule right now, not a directory boundary: when you touch a
-> module, know whether you're changing what every rice gets or only what this
-> one looks like, and say which in the commit. The rice's own name never moves —
-> §6, and `flake.nix`'s description with it.
+> 🔄 **`hacker` was called `nebelhaus` until 2026-08-14** — **decision 10**, and
+> the note's **§11** is the walkthrough. Nothing about what it configures
+> changed. Read a surviving `nebelhaus` against §11.0's table before touching
+> it: the desktop is `hacker`, the *layer's* leftovers are `haus`, and the dead
+> org, holt's Go module path, `nebelhaus.com` and `modules/renamed.nix` all keep
+> the word on purpose.
+>
+> Layer and desktop are still interleaved in the same files, because the plan's
+> decision 4 renames first and neutralizes the defaults later (its §7). So the
+> distinction is a **writing** rule right now, not a directory boundary: when you
+> touch a module, know whether you're changing what every desktop gets or only
+> what `hacker` looks like, and say which in the commit.
 
 > 🚨 **The option namespace is `haus.*`.** Declare every new option under
 > `haus.`, in one of the files `modules/options-modules.nix` lists — that list
@@ -32,17 +38,23 @@ via `mkNebelhaus` and adds only its own host (identity, private apps, secrets).
 > not a second namespace to add to — a declaration under `nebelhaus.` would
 > collide with its own alias.
 >
-> **Three things stay `nebelhaus`, and they are not drift**: the rice, the
-> flake outputs, and the flake input. *(This said "the repo" until 2026-08-10.
-> The repo left the name at the 2026-08-09 org migration and is `hausfold/haus`
-> since 2026-08-11 — and none of the three examples below was ever a repo
-> name.)*
-> `nebelhaus.desktops.everyday`,
-> `nebelhaus.lib.checkRice` and `inputs.nebelhaus.url` are all correct as
-> written — flake outputs and an input name, not options. Same for
-> `org.nebelhaus.*` launchd labels, `share/nebelhaus/` and the state dirs
-> (`~/.local/state/nebelhaus`, `~/.config/nebelhaus/`); each has its own phase
-> in workshop `notes/hausfold-rename.md`, none of them is this one.
+> 🔄 **This box used to list three things that "stay `nebelhaus`" — the desktop,
+> the flake outputs, and the flake input. Decision 10 took all three.** The
+> desktop is `hacker`; `haus.desktops.hacker`, `haus.lib.checkRice` and
+> `inputs.haus.url` are the current spellings, and the builder is `mkHaus`
+> (`mkNebelhaus` survives as a plain alias so a consumer can move on its own
+> schedule, and `desktopFiles.nebelhaus` survives so `hausfold.co/nebelhaus.sh`
+> keeps installing). `share/haus/` and the state dirs — `~/.local/state/haus`,
+> `~/.config/haus/`, `~/.cache/haus/`, `/Library/Application Support/haus/` —
+> moved with them, each leaving a **symlink** at the old path so anything
+> compiled against the old spelling still resolves (§11.3).
+>
+> **What genuinely does still hold the word**, and is not drift:
+> `org.nebelhaus.*` launchd labels and the `org.nebelhaus.editoropen` bundle id
+> (a LaunchServices/TCC identity — renaming it drops grants, so it is §4's
+> ruling and deliberately not §11's), `modules/renamed.nix`'s namespace aliases,
+> the `Library/Taps/nebelhaus/` probe for the pre-migration Homebrew tap, and
+> `nebelhaus#NNN` PR citations.
 >
 > ⚠️ **nebelhaus.com links were on that list and no longer are.** §5.2 ran on
 > 2026-08-14: the domain is a 301 map and every URL this repo prints now points
@@ -72,11 +84,11 @@ stopped writing Claude's copy alone.)
 ## Am I in the right repo? (routing)
 
 **This repo (`~/code/workshop/haus`) owns THE LAYER AND THE RICE** — `haus`,
-the generic, no-identity system + shell modules, and nebelhaus's default values
+the generic, no-identity system + shell modules, and hacker's default values
 on top of them. Personal machine config and the pounce/theme sources live
 elsewhere. *(The checkout was `~/code/workshop/hausfold` until 2026-08-11 and
 `~/code/workshop/nebelhaus` before that — it follows the repo, which is
-`hausfold/haus`. The **rice** is still called nebelhaus.)*
+`hausfold/haus`. The desktop is `hacker` since 2026-08-14 — decision 10, the note's §11.)*
 
 | Want to change… | Repo |
 |---|---|
@@ -89,7 +101,7 @@ elsewhere. *(The checkout was `~/code/workshop/hausfold` until 2026-08-11 and
 > **Docs live downstream, and since 2026-08-14 that means `hausfold.co`.** The
 > how-to guides users read are `content/docs/` in the
 > [hausfold.co repo](https://github.com/hausfold/hausfold.co) — two trees,
-> `haus/` for this layer and `nebelhaus/` for the desktop. When a change here
+> `haus/` for this layer and `hacker/` for the desktop. When a change here
 > alters user-facing behavior (a new option, a changed keybinding, a workflow),
 > update the matching page there too, or it silently drifts.
 >
@@ -107,7 +119,7 @@ elsewhere. *(The checkout was `~/code/workshop/hausfold` until 2026-08-11 and
 ## Architecture
 
 ```
-flake.nix                 # mkNebelhaus builder + darwinModules outputs + example host
+flake.nix                 # mkHaus builder + darwinModules outputs + example host
 modules/
   default.nix             # imports all rooms
   options.nix             # all host-set knobs: git.*, theme.accent, wallpaper.*, hearth.*,
@@ -171,7 +183,7 @@ modules/
   hearth/                 # shell: zsh, starship, git, yazi, zellij, ghostty + theming
                           #   + floatring (Swift, xcrun-compiled): the outline every
                           #   window float-term.sh spawns wears (haus.hearth.floatBorder)
-    agents/               # the nebelhaus agent skill (haus.ai.skill): hand-written
+    agents/               # the haus agent skill (haus.ai.skill): hand-written
                           #   SKILL.md + recipes, plus an option reference rendered
                           #   per-revision — see skill.nix for why it's a package. ONE
                           #   skill, installed into every client in haus.ai.clients
@@ -187,7 +199,7 @@ modules/
   perch/                  # the perch notch file shelf, installed via the perch flake input
   hush/                   # Focus/DND one-switch: declarative hotkey 175 + Slack + hooks
   secrets/                # secretspec: declarative secrets, provider chosen per host
-desktops/                 # the desktops this flake ships: nebelhaus (the one the
+desktops/                 # the desktops this flake ships: hacker (the one the
                           #   builder selects by default), blank, everyday, minimal.
                           #   Data only, one per host, no stacking
 compat/presets.nix        # the RETIRED preset format as warning-emitting aliases —
@@ -207,8 +219,8 @@ is contributed per-room (den owns the framework, prowl/sill add their own cask/b
 
 A **desktop** is a complete, data-only answer to "what should this Mac feel like?",
 and a finished configuration runs **exactly one** (the model is the workshop's
-`notes/rooms-desktops.md`). `mkNebelhaus` takes a `desktop` argument, defaulting to
-`./desktops/nebelhaus.nix`, so every existing consumer's call means what it always
+`notes/rooms-desktops.md`). `mkHaus` takes a `desktop` argument, defaulting to
+`./desktops/hacker.nix`, so every existing consumer's call means what it always
 meant. `desktop = null` is the low-level composition escape hatch: by itself it
 selects the bare haus foundation, or it makes room for one `lib.desktop` passed
 through `extraModules`. A standalone `darwinModules.<room>` import still selects
@@ -248,7 +260,7 @@ meaningful — real testing happens in a consumer (e.g. `~/.config/nix`, host `m
 The workshop's `bench try` (from `~/code/workshop`) builds the consumer against
 this **local checkout** — uncommitted edits included — so nothing needs pushing
 to test. Once committed, `bench ship` pushes and ripples the downstream lock
-updates; hand-rolled alternative: push here, then `nix flake update nebelhaus`
+updates; hand-rolled alternative: push here, then `nix flake update haus`
 in the consumer. CI evaluates the example host on every push.
 
 When you open the PR for a `worktree-*` branch, give it a **What / Why / Verify / Watch-out**
@@ -515,7 +527,7 @@ it silently.
 - **The haus tour** (first-run tutor): ONE state machine,
   `modules/sill/sketchybar/plugins/tour.sh`, drives a single bar pill. The
   leader-mode scripts + `aerospace-notify.sh` feed it `tour.sh event <name>`
-  behind a `[ -f ~/.local/state/nebelhaus/tour ]` guard — one stat when idle;
+  behind a `[ -f ~/.local/state/haus/tour ]` guard — one stat when idle;
   keep it that cheap. `haus tour` and the pounce `tour` command are just doors
   into it. Gated by `haus.tour.enable` via the generated
   `tour_item.sh` / `tour_config.sh` (see `modules/sill/default.nix`).

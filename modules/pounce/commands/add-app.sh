@@ -13,7 +13,7 @@
 #
 # Every selection becomes an ordinary Nix module under hosts/<host>/packages/,
 # and always the SAME shape: one `haus.roster` entry naming its source
-# (cask / brew / package / appStoreId). mkNebelhaus auto-imports those files, so
+# (cask / brew / package / appStoreId). mkHaus auto-imports those files, so
 # this command writes exactly what a person writes by hand.
 #
 # Mac App Store INSTALLATION stays imperative — `mas get` needs root (macOS 13+)
@@ -23,19 +23,19 @@
 # haus.appStore.install can then fetch it unattended.
 #
 # The flake lives at ~/.config/nix by convention (override with
-# $NEBELHAUS_FLAKE or $HAUS_CONSUMER). The host is baked in by mkNebelhaus and
+# $HAUS_FLAKE or $HAUS_CONSUMER). The host is baked in by mkHaus and
 # can be overridden with $HAUS_HOST.
 
 # A launchd GUI agent's PATH is bare; resolve our tools (jq, brew, mas, nix,
 # git, osascript, pounce) explicitly — same set prowl bakes into AeroSpace.
 export PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/etc/profiles/per-user/$USER/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-FLAKE_DIR="${NEBELHAUS_FLAKE:-${HAUS_CONSUMER:-$HOME/.config/nix}}"
+FLAKE_DIR="${HAUS_FLAKE:-${HAUS_CONSUMER:-$HOME/.config/nix}}"
 HOST="${HAUS_HOST:-@hostname@}"
 PACKAGES_DIR="$FLAKE_DIR/hosts/$HOST/packages"
 CHEATSHEET="$HOME/.config/pounce/cheatsheet.json"
 AEROSPACE_TOML="$HOME/.config/aerospace/aerospace.toml"
-BREW_INDEX="$HOME/.cache/nebelhaus/brew-index.tsv"
+BREW_INDEX="$HOME/.cache/haus/brew-index.tsv"
 BREW_API="$HOME/Library/Caches/Homebrew/api"
 FLOAT_TERM="$HOME/.config/zellij/float-term.sh"
 APP_ICON_MAP="$(dirname "$0")/app-icon-map"
@@ -323,7 +323,7 @@ while :; do
   # ── Mac App Store catalog ───────────────────────────────────────────────
   if [ "$source_name" = "Mac App Store" ]; then
     if ! command -v mas >/dev/null 2>&1; then
-      notice "mas is unavailable" "Rebuild nebelhaus to install its Mac App Store helper"
+      notice "mas is unavailable" "Rebuild haus to install its Mac App Store helper"
       exit 0
     fi
     # --chain: Enter here starts a network search, so pounce holds the window
@@ -379,13 +379,18 @@ $(again_row "Not what you wanted? Search the App Store again")"
       [ -z "$query" ] && continue
     fi
 
-    # Follow root → nebelhaus → nixpkgs in the consumer lock, then search that
+    # Follow root → haus → nixpkgs in the consumer lock, then search that
     # exact revision. A direct root nixpkgs input is accepted as a fallback.
+    #
+    # Either input NAME is accepted: the scaffolded consumer called this input
+    # `nebelhaus` until 2026-08-14 and calls it `haus` since, and an input name
+    # is the consumer's to choose in any case (the rename note's §11.2). Look
+    # for the new spelling first so a consumer that has both can't be read wrong.
     nixpkgs_ref="$(jq -r '
       def node:
         if type == "array" then .[-1] else . end;
       . as $lock
-      | ($lock.nodes[$lock.root].inputs.nebelhaus? // "" | node) as $haus
+      | (($lock.nodes[$lock.root].inputs.haus? // $lock.nodes[$lock.root].inputs.nebelhaus? // "") | node) as $haus
       | (
           if $haus == "" then
             ($lock.nodes[$lock.root].inputs.nixpkgs? // "" | node)
@@ -568,7 +573,7 @@ write_app_module "$target.tmp"
 mv "$target.tmp" "$target"
 
 # ── install/rebuild in a floating terminal, rollback on failure ───────────
-REBUILD_TMP="/tmp/nebelhaus-install-run.sh"
+REBUILD_TMP="/tmp/haus-install-run.sh"
 {
   printf 'FLAKE_DIR=%q\n' "$FLAKE_DIR"
   printf 'PACKAGES_DIR=%q\n' "$PACKAGES_DIR"

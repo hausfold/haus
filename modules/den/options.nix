@@ -1,4 +1,4 @@
-# Part of the nebelhaus option surface. Split per room so each room's public API
+# Part of the haus option surface. Split per room so each room's public API
 # lives next to the code that implements it; modules/default.nix imports them all.
 # Cross-cutting options (the app roster) stay in modules/options.nix.
 #
@@ -189,8 +189,8 @@ in
           increaseContrast = ''
             macOS's "Increase contrast" — stronger borders and reduced use of
             colour alone to convey state, across native apps. This is the
-            system-level companion to a high-contrast nebelhaus theme: the theme
-            restyles the tools nebelhaus colours, this reaches everything else.
+            system-level companion to a high-contrast haus theme: the theme
+            restyles the tools haus colours, this reaches everything else.
           '';
           differentiateWithoutColor = ''
             macOS's "Differentiate without colour" — native UI adds shapes and
@@ -434,7 +434,7 @@ in
         example = 19;
         description = ''
           The terminal-font baseline, before `haus.ui.scale` multiplies it.
-          The neutral room uses 13pt; nebelhaus selects 19pt in its desktop.
+          The neutral room uses 13pt; hacker selects 19pt in its desktop.
 
           This exists so a desktop can carry that tuned baseline WITHOUT
           breaking the scale relationship. Setting `size` directly pins an
@@ -461,7 +461,7 @@ in
           larger-text machine, since it moves everything haus actually
           lives in.
 
-          nebelhaus's 19pt baseline exists for a reason worth knowing: the Ghostty window is
+          hacker's 19pt baseline exists for a reason worth knowing: the Ghostty window is
           tiled to a fixed pixel height by prowl, and sizes that don't divide
           that height evenly used to leave a gap under zellij's status bar.
           That's since been fixed properly (window-padding-balance +

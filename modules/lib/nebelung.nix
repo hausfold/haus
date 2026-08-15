@@ -98,7 +98,7 @@ in
 
   palette =
     nebelung.palettes.${variant} or (throw ''
-      nebelhaus: the pinned `nebelung` input renders no "${variant}" palette.
+      haus: the pinned `nebelung` input renders no "${variant}" palette.
       haus.theme.flavor = "${theme.flavor}" with contrast = "${theme.contrast}"
       needs a newer nebelung — run `nix flake update nebelung` (or `bench ship`,
       which ripples it) and rebuild.

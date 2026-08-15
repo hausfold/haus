@@ -1,5 +1,5 @@
 {
-  description = "nebelhaus — an opinionated macOS, raised in the fog";
+  description = "haus — an opinionated macOS, raised in the fog";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -92,21 +92,21 @@
     }:
     let
       # The house builder. Point it at a host file and it raises a full system.
-      #   mkNebelhaus { username = "ada"; hostname = "lovelace"; host = ./hosts/ada; }
-      mkNebelhaus =
+      #   mkHaus { username = "ada"; hostname = "lovelace"; host = ./hosts/ada; }
+      mkHaus =
         {
           username,
           hostname,
           host ? ./hosts/example,
           system ? "aarch64-darwin",
           extraModules ? [ ],
-          # Which desktop this machine runs — exactly one, and nebelhaus unless
+          # Which desktop this machine runs — exactly one, and `hacker` unless
           # you say otherwise, which is what keeps every existing consumer
-          # building unchanged (the full builder has always meant "the nebelhaus
-          # machine"; now it says so). `null` selects none: the bare haus
-          # foundation plus whatever your host turns on, which is what the
-          # built-in blank desktop will name in step 4 of the rooms plan.
-          desktop ? ./desktops/nebelhaus.nix,
+          # building unchanged: this default has always meant "the opinionated
+          # developer machine", and only its name changed. `null` selects none:
+          # the bare haus foundation plus whatever your host turns on, which is
+          # what the built-in blank desktop names.
+          desktop ? ./desktops/hacker.nix,
         }:
         let
           # Machine-written config stays ordinary Nix. Pounce "Install App"
@@ -226,7 +226,7 @@
       # use them — a pack is a file PLUS the seam that imports it, and the seam
       # is what gives it its priority.
       riceLib = rec {
-        # `nebelhaus.lib.checkRice ./my-rice.nix` — true, or throws naming the
+        # `haus.lib.checkRice ./my-rice.nix` — true, or throws naming the
         # stray key. Exposed so a third party can self-test before publishing
         # rather than learning the rule from a rejected PR.
         #
@@ -290,7 +290,7 @@
           in
           m.haus or m.nebelhaus or { };
 
-        # `nebelhaus.lib.checkPack ./my-pack.nix` — checkRice, one level in. A
+        # `haus.lib.checkPack ./my-pack.nix` — checkRice, one level in. A
         # pack is a rice narrowed to `haus.roster`, and that narrowing used
         # to be a comment at the top of packs/writing.nix. It has to be a rule
         # now, because `pack` below only carries `roster` through: anything else
@@ -312,7 +312,7 @@
           else
             true;
 
-        # `nebelhaus.lib.pack ./their-pack.nix` — the import seam for a pack,
+        # `haus.lib.pack ./their-pack.nix` — the import seam for a pack,
         # and the reason a consumer's own host wins instead of colliding with it.
         #
         # Import order carries NO priority in the module system: a host and a
@@ -341,7 +341,7 @@
         #     the right way round for a format strangers publish into.
         #
         # Consume a third-party pack through this, not as a bare path:
-        #   extraModules = [ (nebelhaus.lib.pack ./writer-pack.nix) ];
+        #   extraModules = [ (haus.lib.pack ./writer-pack.nix) ];
         # A bare path still works and still conflicts — same file, different
         # behaviour, which is why `packs.<name>` is pre-wrapped below.
         pack =
@@ -416,10 +416,10 @@
         # an option replaces the definition rather than deprioritising it), and
         # record the filename so "you selected two desktops" can name both.
         #
-        # `mkNebelhaus` passes its `desktop` argument through here; a consumer
+        # `mkHaus` passes its `desktop` argument through here; a consumer
         # composing by hand uses it directly — and passes `desktop = null`
         # alongside, or the builder's own default is the second desktop:
-        #   mkNebelhaus {
+        #   mkHaus {
         #     …
         #     desktop = null;
         #     extraModules = [ (haus.lib.desktop ./their-desktop.nix) ];
@@ -444,14 +444,21 @@
       };
 
       # The desktops this flake ships. `blank` is the explicit from-scratch
-      # choice and `nebelhaus` the opinionated default; `everyday` and `minimal`
-      # are the two whole rices that used to be presets, written out as the
+      # choice and `hacker` the opinionated default; `everyday` and `minimal`
+      # are the two whole desktops that used to be presets, written out as the
       # complete selections they always implied.
+      #
+      # ⚠️ `hacker` was called `nebelhaus` until 2026-08-14 (the rename note's
+      # §11). The old key is kept below as an alias, deliberately and not
+      # forever: `hausfold.co/nebelhaus.sh` is a published install command, and
+      # the pin it passes has to name a desktop this flake still answers to.
+      # Drop the alias only once that row leaves the site.
       desktopFiles = {
         blank = ./desktops/blank.nix;
         everyday = ./desktops/everyday.nix;
+        hacker = ./desktops/hacker.nix;
         minimal = ./desktops/minimal.nix;
-        nebelhaus = ./desktops/nebelhaus.nix;
+        nebelhaus = ./desktops/hacker.nix;
       };
       desktopLib = import ./modules/lib/desktop.nix {
         lib = nixpkgs.lib;
@@ -545,7 +552,15 @@
         default = ./modules;
       };
 
-      inherit mkNebelhaus;
+      inherit mkHaus;
+
+      # `mkNebelhaus` was this builder's name until 2026-08-14 (the rename
+      # note's §11). It is kept as a plain alias rather than a warning shim on
+      # purpose: a consumer's `flake.nix` is a 👤 file outside this repo, and a
+      # rename that breaks evaluation would couple that edit to a lock bump in
+      # one atomic change — which is exactly the shape `bench ship` cannot
+      # split. With the alias, the consumer moves whenever it likes.
+      mkNebelhaus = mkHaus;
 
       # ---- presets: retired, aliased ------------------------------------------
       # `haus.presets.<name>` still resolves, warns, and produces the machine it
@@ -554,7 +569,7 @@
       # per host, because two whole selections that disagree about an option
       # stop the build with nothing able to arbitrate them.
       #
-      #   presets.full         →  the nebelhaus desktop (the builder's default)
+      #   presets.full         →  the hacker desktop (the builder's default)
       #   presets.minimal      →  desktops.minimal
       #   presets.everyday     →  desktops.everyday
       #   presets.large-print  →  haus.appearance.largePrint = true
@@ -583,11 +598,11 @@
       # author points at to self-test before publishing.
       inherit packFiles;
 
-      # `haus.desktops.nebelhaus` — the desktop FILES, unwrapped, the way
+      # `haus.desktops.hacker` — the desktop FILES, unwrapped, the way
       # `packFiles` is. A path is the right thing to hand `lib.checkDesktop`,
-      # and it is what `mkNebelhaus`'s `desktop` argument takes:
+      # and it is what `mkHaus`'s `desktop` argument takes:
       #
-      #   mkNebelhaus { … desktop = nebelhaus.desktops.nebelhaus; }
+      #   mkHaus { … desktop = haus.desktops.hacker; }
       #
       # Wrapping happens at the seam (`lib.desktop`), not here, because the
       # wrapper is what applies the priority that makes a host win — a
@@ -634,7 +649,7 @@
           exampleDrv =
             args:
             builtins.unsafeDiscardStringContext
-              (mkNebelhaus (
+              (mkHaus (
                 {
                   inherit system;
                   username = "you";
@@ -1000,7 +1015,7 @@
           # keeps the enum's PACKAGE and overrides only what runs.
           editorHome =
             mods:
-            (mkNebelhaus {
+            (mkHaus {
               inherit system;
               username = "you";
               hostname = "example";
@@ -1346,7 +1361,7 @@
             accent:
             let
               cfg =
-                (mkNebelhaus {
+                (mkHaus {
                   inherit system;
                   username = "you";
                   hostname = "example";
@@ -1398,13 +1413,13 @@
               lazygit = file "Library/Application Support/lazygit/config.yml";
               yazi = file ".config/yazi/theme.toml";
               zen = hm.home.activation.zenNebelung.data;
-              wallpaper = hm.home.activation.nebelhausWallpaper.data;
+              wallpaper = hm.home.activation.hausWallpaper.data;
               zed-roster-port = targetsUnder ".config/zed/themes/";
               # The WEB, via Stylus — the one surface here that isn't an app's
               # own config. A path rather than contents on purpose: the bundle
               # is 3 MB and its derivation is named for the accent, so the path
               # IS the fingerprint and nothing has to be realised to compare it.
-              stylus = file ".config/nebelhaus/nebelung-stylus.json";
+              stylus = file ".config/haus/nebelung-stylus.json";
               # perch takes the accent by catppuccin ROLE NAME rather than by
               # hex — it resolves the name against whichever half of its
               # dark/light pair macOS is showing — so the fingerprint that moves
@@ -1529,7 +1544,7 @@
             scale:
             let
               cfg =
-                (mkNebelhaus {
+                (mkHaus {
                   inherit system;
                   username = "you";
                   hostname = "example";
@@ -1710,7 +1725,7 @@
             extra:
             let
               cfg =
-                (mkNebelhaus {
+                (mkHaus {
                   inherit system;
                   username = "you";
                   hostname = "example";
@@ -1890,7 +1905,7 @@
             extraModules:
             let
               cfg =
-                (mkNebelhaus {
+                (mkHaus {
                   inherit system extraModules;
                   username = "you";
                   hostname = "example";
@@ -1930,7 +1945,7 @@
           aiRoomFixtures = {
             # The rice as shipped: every receiver present, so every contribution
             # should be drawn.
-            nebelhaus = [ ];
+            hacker = [ ];
             # The room ALONE. No bar, no launcher — the clients and `holt` must
             # still arrive, and nothing may fail for want of a receiver. It ASKS
             # for the pill: a request whose receiving room is absent has to be
@@ -1996,7 +2011,7 @@
               "${name} holt=${r.holt} zscratch=${r.zscratch} client=${r.client} alias=${r.alias} pill=${r.pill} cards=${r.cards}"
             ) (builtins.attrNames aiRoomFixtures)
           );
-          # `nebelhaus pill=no` is not a miss: the rice ships the agents pill OFF
+          # `hacker pill=no` is not a miss: the rice ships the agents pill OFF
           # (it is an extra, like every personal readout), and a host turns it on.
           # The fixtures that exercise the seam ask for it explicitly.
           expectedAiRoomTable = ''
@@ -2005,7 +2020,7 @@
             ai-with-bar holt=yes zscratch=yes client=yes alias=claude pill=yes cards=no
             ai-with-launcher holt=yes zscratch=yes client=yes alias=claude pill=no cards=yes
             bottom-pill-without-ai holt=no zscratch=yes client=no alias=(none) pill=no cards=no
-            nebelhaus holt=yes zscratch=yes client=yes alias=claude pill=no cards=yes
+            hacker holt=yes zscratch=yes client=yes alias=claude pill=no cards=yes
             no-rice-clients holt=yes zscratch=yes client=no alias=(none) pill=yes cards=no
             pill-without-ai holt=no zscratch=yes client=no alias=(none) pill=no cards=no
           '';
@@ -2130,7 +2145,7 @@
 
           desktopConfig =
             args:
-            (mkNebelhaus (
+            (mkHaus (
               {
                 inherit system;
                 username = "you";
@@ -2166,7 +2181,7 @@
             # finished host does, but that desktop asks for no optional room.
             blank = desktopConfig { desktop = desktopFiles.blank; };
             # No `desktop` argument at all: every existing consumer's call, which
-            # has always meant "the nebelhaus machine" and now says so.
+            # has always meant "the hacker machine" and now says so.
             builder-default = desktopConfig { };
             # One desktop, through the full builder. Every value it sets has to
             # reach the evaluated system.
@@ -2206,7 +2221,7 @@
           );
           expectedDesktopTable = ''
             blank scale=1.000000 sill=no internal=(unset) list=(unset) editor=helix/hx desktop=desktops/blank.nix
-            builder-default scale=1.000000 sill=yes internal=(unset) list=(unset) editor=helix/hx desktop=desktops/nebelhaus.nix
+            builder-default scale=1.000000 sill=yes internal=(unset) list=(unset) editor=helix/hx desktop=desktops/hacker.nix
             by-hand scale=1.100000 sill=no internal=(unset) list=(unset) editor=helix/hx desktop=test/desktops/valid-other.nix
             host-override scale=1.500000 sill=yes internal=larger-text list=from-desktop-a+from-desktop-b editor=neovim/nvim desktop=test/desktops/valid-sample.nix
             list-override scale=1.350000 sill=yes internal=larger-text list=from-host editor=neovim/nvim desktop=test/desktops/valid-sample.nix
@@ -2261,7 +2276,7 @@
           # The OTHER entry point, and the one this step could most easily have
           # broken: a standalone export selects no desktop and must keep
           # evaluating exactly that way — the bare foundation plus one room,
-          # with none of nebelhaus's opinions and nothing to select.
+          # with none of hacker's opinions and nothing to select.
           desktopStandalone = desktopSelection (standaloneSystem [ self.darwinModules.sill ]).config;
 
           # Two desktops. Not a type error and not a conflict — both files are
@@ -2366,7 +2381,7 @@
             touch $out
           '';
 
-          data-only-surface = pkgs.runCommand "nebelhaus-data-only-surface-ok" { } ''
+          data-only-surface = pkgs.runCommand "haus-data-only-surface-ok" { } ''
             ${nixpkgs.lib.optionalString (unnamedPackageOptions != [ ]) ''
               cat >&2 <<'OFFENDERS'
               These options take a package, so a data-only desktop or app pack cannot
@@ -2383,7 +2398,7 @@
             touch $out
           '';
 
-          packs = pkgs.runCommand "nebelhaus-packs-ok" { } ''
+          packs = pkgs.runCommand "haus-packs-ok" { } ''
             ${nixpkgs.lib.optionalString (
               !packSurfaceOk
             ) "echo 'a pack sets something outside haus.roster' >&2; exit 1"}
@@ -2395,13 +2410,13 @@
             touch $out
           '';
 
-          keymap = pkgs.runCommand "nebelhaus-keymap-ok" { } ''
+          keymap = pkgs.runCommand "haus-keymap-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedKeymapTable} \
                     ${pkgs.writeText "actual" (keymapTable + "\n")}
             touch $out
           '';
 
-          alert-volume = pkgs.runCommand "nebelhaus-alert-volume-ok" { } ''
+          alert-volume = pkgs.runCommand "haus-alert-volume-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedAlertVolumeTable} \
                     ${pkgs.writeText "actual" (alertVolumeTable + "\n")}
             touch $out
@@ -2436,7 +2451,7 @@
             touch $out
           '';
 
-          theme-variants = pkgs.runCommand "nebelhaus-theme-variants-ok" { } ''
+          theme-variants = pkgs.runCommand "haus-theme-variants-ok" { } ''
             ${nixpkgs.lib.optionalString (
               !staleLockThrows
             ) "echo 'a missing palette variant did not throw' >&2; exit 1"}
@@ -2467,7 +2482,7 @@
           #
           # When this goes red the fix is mechanical and never prose: nothing in
           # docs/site-data/ is hand-written, so regenerate and commit.
-          site-data-current = pkgs.runCommand "nebelhaus-site-data-current-ok" { } ''
+          site-data-current = pkgs.runCommand "haus-site-data-current-ok" { } ''
             if ! diff -ru -x README.md \
                  ${./docs/site-data} ${self.packages.${system}.site-data}; then
               cat >&2 <<'STALE'
@@ -2494,7 +2509,7 @@
           # and therefore passed every evaluation/build check but never populated
           # the live process. Pin both source modes before another rc ships with
           # the same silent startup failure.
-          sill-rc-executable = pkgs.runCommand "nebelhaus-sill-rc-executable-ok" { } ''
+          sill-rc-executable = pkgs.runCommand "haus-sill-rc-executable-ok" { } ''
             test -x ${./modules/sill/sketchybar/sketchybarrc}
             test -x ${./modules/sill/sketchybar/sill-bottomrc}
             touch $out
@@ -2512,7 +2527,7 @@
           # and are legitimately 0644, so they are named rather than pattern-
           # matched: a new library adds a line here, which is the moment to be
           # sure it really is one.
-          sill-plugins-executable = pkgs.runCommand "nebelhaus-sill-plugins-executable-ok" { } ''
+          sill-plugins-executable = pkgs.runCommand "haus-sill-plugins-executable-ok" { } ''
             libs="ai-provider.sh media_lib.sh vitals_lib.sh"
             bad=
             for f in ${./modules/sill/sketchybar/plugins}/*.sh; do
@@ -2556,18 +2571,16 @@
           # above were re-measured when the default depth went to 1.
           #
           # 🚨 Like site-data-current, it only runs when it is BUILT.
-          wallpaper =
-            pkgs.runCommand "nebelhaus-wallpaper-ok" { nativeBuildInputs = [ pkgs.imagemagick ]; }
-              ''
-                pic=${self.packages.${system}.wallpaper}
-                geom=$(magick identify -format '%wx%h' "$pic")
-                [ "$geom" = "3456x2234" ] \
-                  || { echo "wallpaper rendered $geom, expected the option's 3456x2234" >&2; exit 1; }
-                colours=$(magick identify -format '%k' "$pic")
-                [ "$colours" -gt 160 ] \
-                  || { echo "wallpaper has only $colours distinct colours — the grain that dithers the bloom is not reaching the 8-bit reduction, so it will band" >&2; exit 1; }
-                touch $out
-              '';
+          wallpaper = pkgs.runCommand "haus-wallpaper-ok" { nativeBuildInputs = [ pkgs.imagemagick ]; } ''
+            pic=${self.packages.${system}.wallpaper}
+            geom=$(magick identify -format '%wx%h' "$pic")
+            [ "$geom" = "3456x2234" ] \
+              || { echo "wallpaper rendered $geom, expected the option's 3456x2234" >&2; exit 1; }
+            colours=$(magick identify -format '%k' "$pic")
+            [ "$colours" -gt 160 ] \
+              || { echo "wallpaper has only $colours distinct colours — the grain that dithers the bloom is not reaching the 8-bit reduction, so it will band" >&2; exit 1; }
+            touch $out
+          '';
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-darwin" system) {
           standalone-modules = pkgs.runCommand "haus-standalone-modules-ok" { } ''
@@ -2647,7 +2660,7 @@
             touch $out
           '';
 
-          accent-reach = pkgs.runCommand "nebelhaus-accent-reach-ok" { } ''
+          accent-reach = pkgs.runCommand "haus-accent-reach-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedAccentTable}                     ${
               pkgs.writeText "actual" (accentTable + "
 ")
@@ -2655,13 +2668,13 @@
             touch $out
           '';
 
-          font-reach = pkgs.runCommand "nebelhaus-font-reach-ok" { } ''
+          font-reach = pkgs.runCommand "haus-font-reach-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedFontTable} \
                     ${pkgs.writeText "actual" (fontTable + "\n")}
             touch $out
           '';
 
-          scale-reach = pkgs.runCommand "nebelhaus-scale-reach-ok" { } ''
+          scale-reach = pkgs.runCommand "haus-scale-reach-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedScaleTable} \
                     ${pkgs.writeText "actual" (scaleTable + "\n")}
             touch $out
@@ -2670,7 +2683,7 @@
           sill-bottom-hush =
             let
               cfg =
-                (mkNebelhaus {
+                (mkHaus {
                   inherit system;
                   username = "you";
                   hostname = "example";
@@ -2688,7 +2701,7 @@
               bottom = pkgs.writeText "bottom_items.sh" cfg.home.file.".config/sketchybar/bottom_items.sh".text;
               routing = pkgs.writeText "bar.sh" cfg.home.file.".config/sketchybar/bar.sh".text;
             in
-            pkgs.runCommand "nebelhaus-sill-bottom-hush-ok" { } ''
+            pkgs.runCommand "haus-sill-bottom-hush-ok" { } ''
               if grep -q -- '--add item hush' ${top}; then
                 echo 'hush was duplicated on the top bar after moving to bottom.items' >&2
                 exit 1
@@ -2711,7 +2724,7 @@
             let
               mkBottom =
                 items:
-                (mkNebelhaus {
+                (mkHaus {
                   inherit system;
                   username = "you";
                   hostname = "example";
@@ -2760,7 +2773,7 @@
               );
               left = pkgs.writeText "bottom_items.sh" allLeft.home.file.".config/sketchybar/bottom_items.sh".text;
             in
-            pkgs.runCommand "nebelhaus-sill-bottom-groups-ok" { } ''
+            pkgs.runCommand "haus-sill-bottom-groups-ok" { } ''
               grep -q -- '\$SB --add item agents left' ${bottom}
               grep -q -- '\$SB --add item calendar center' ${bottom}
               grep -q -- '\$SB --add item clock right' ${bottom}
@@ -2901,7 +2914,7 @@
           # described, docs-linked, and commented out (see host-template.nix for
           # why commented). Two consumers, both needing it built from a SPECIFIC
           # revision rather than committed: bootstrap.sh, on a Mac that has no
-          # nebelhaus yet, and `haus options` on one that does — den installs it
+          # haus yet, and `haus options` on one that does — den installs it
           # into the system profile so that second path costs nothing.
           host-template = import ./modules/host-template.nix { inherit pkgs; };
 
@@ -2959,10 +2972,10 @@
         bootstrap = {
           type = "app";
           program = "${
-            nixpkgs.legacyPackages.${system}.writeShellScriptBin "nebelhaus-bootstrap" (
+            nixpkgs.legacyPackages.${system}.writeShellScriptBin "haus-bootstrap" (
               builtins.readFile ./bootstrap.sh
             )
-          }/bin/nebelhaus-bootstrap";
+          }/bin/haus-bootstrap";
         };
       });
 
@@ -2973,7 +2986,7 @@
 
       # The template others copy. Build with:
       #   nix build .#darwinConfigurations.example.system
-      darwinConfigurations.example = mkNebelhaus {
+      darwinConfigurations.example = mkHaus {
         username = "you";
         hostname = "example";
       };

@@ -27,7 +27,7 @@
 # toolbelt-off machine would look like the option list being empty.
 
 _haus_option_paths() {
-  local catalogue=${HAUS_CATALOGUE:-/run/current-system/sw/share/nebelhaus/options.json}
+  local catalogue=${HAUS_CATALOGUE:-/run/current-system/sw/share/haus/options.json}
   [[ -r $catalogue ]] || return 1
 
   # `haus.theme.flavor` and `theme.flavor` are the same option to haus set, so

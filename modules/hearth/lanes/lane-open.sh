@@ -74,7 +74,7 @@ sess="holt.${repo}.${HOLT_NAME}"
 # `zmx attach … bash -lc '…'` through `open --args` means three levels of
 # quoting over a $HOLT_COMMAND we don't control. A throwaway script is one
 # level, and deletes itself the moment it has run.
-run_dir="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/nebelhaus-lanes"
+run_dir="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/haus-lanes"
 mkdir -p "$run_dir" 2>/dev/null || exit 3
 launcher="$(mktemp "$run_dir/open.XXXXXX")" || exit 3
 

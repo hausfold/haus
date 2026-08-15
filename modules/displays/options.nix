@@ -1,4 +1,4 @@
-# Part of the nebelhaus option surface. Split per room so each room's public API
+# Part of the haus option surface. Split per room so each room's public API
 # lives next to the code that implements it; modules/default.nix imports them all.
 #
 # displays' options — the scaled resolution of each screen, by intent.

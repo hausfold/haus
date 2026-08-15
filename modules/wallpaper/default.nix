@@ -55,7 +55,7 @@
         # Re-applied on every switch. osascript sets the picture for every
         # desktop on the current Space; a wallpaper set must never be able to
         # fail the whole activation, so it's guarded.
-        home.activation.nebelhausWallpaper = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        home.activation.hausWallpaper = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
           run /usr/bin/osascript -e \
             'tell application "System Events" to tell every desktop to set picture to "${wallpaper}"' \
             || run true

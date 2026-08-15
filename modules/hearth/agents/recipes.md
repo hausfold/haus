@@ -75,7 +75,7 @@ haus.roster.slack.enable = false;
 ```
 
 That un-declares it: the launcher key, the pill and the cask entry go away. **The
-app itself stays on disk** — nebelhaus never deletes apps behind your back
+app itself stays on disk** — haus never deletes apps behind your back
 (`haus.homebrew.cleanup` defaults to `"none"`). Tell the user the second step:
 
 ```sh

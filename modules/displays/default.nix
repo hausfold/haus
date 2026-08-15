@@ -50,7 +50,7 @@ let
   validSelector = name: name == "internal" || name == "main" || isUUID name;
   badSelectors = lib.filter (name: !validSelector name) (lib.attrNames displays);
 
-  activationName = selector: "nebelhausDisplay-${lib.replaceStrings [ ":" ] [ "-" ] selector}";
+  activationName = selector: "hausDisplay-${lib.replaceStrings [ ":" ] [ "-" ] selector}";
 
   # Broad selectors run before specific ones. `large-print` sets `main`, while a
   # host may add `internal` or a UUID for the panel it actually owns; without DAG

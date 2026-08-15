@@ -207,11 +207,11 @@ log, which is a project.
 `haus.hearth.zellijStartLocked` is public and desktop-safe
 (`modules/hearth/options.nix:218`, registered `modules/options-groups.nix:92`,
 aliased `modules/renamed.nix:124-125`) and **both shipped desktops set it** —
-`desktops/nebelhaus.nix:44` and `desktops/minimal.nix:39` — with pins in
+`desktops/hacker.nix:44` and `desktops/minimal.nix:39` — with pins in
 `test/desktop-projection.nix:83` and `test/projections/example.json:26` and
 publication in `docs/site-data/options.json`. `haus.hearth.rightClickFullscreen`
 is the same story one notch down (`options.nix:239`, `options-groups.nix:91`,
-`desktops/nebelhaus.nix:43`, consumed by `modules/pounce/default.nix:324` →
+`desktops/hacker.nix:43`, consumed by `modules/pounce/default.nix:324` →
 `term-bindings.nix:210` to conditionally draw a cheatsheet row). Deleting a
 leaf the rice's *default* desktop names needs a `moved.nix`/`renamed.nix`
 decision, a desktop-projection golden regen, and a `site-data` regen or

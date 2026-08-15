@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# nebelhaus bootstrap — raise the house on a fresh Mac.
+# haus bootstrap — raise the house on a fresh Mac.
 #
 #   curl -fsSL https://hausfold.co/nebelhaus.sh | bash     (or the github raw URL)
 #   nix run github:hausfold/haus#bootstrap             (once nix exists)
@@ -8,12 +8,12 @@
 # interview, and scaffolds a THIN PERSONAL CONFIG at ~/.config/nix — a tiny flake
 # of your own that consumes haus as an input. You never edit (or even clone)
 # haus itself: your machine's identity, apps and secrets live in your config;
-# haus stays upstream, where `nix flake update nebelhaus` pulls it.
+# haus stays upstream, where `nix flake update haus` pulls it.
 #
 # Flags / env:
-#   --defaults, NEBELHAUS_NONINTERACTIVE=1   skip the interview, take smart defaults
+#   --defaults, HAUS_NONINTERACTIVE=1   skip the interview, take smart defaults
 #   --desktop <name>, HAUS_DESKTOP=<name>    pick the desktop up front — one of
-#                                            nebelhaus, everyday, minimal, blank
+#                                            hacker, everyday, minimal, blank
 #                                            — and SKIP that question, in an
 #                                            interactive run too. This is what
 #                                            hausfold.co/<name>.sh sets for you:
@@ -22,17 +22,17 @@
 #                                            reads as the installer not
 #                                            listening. Every other answer is
 #                                            still asked for.
-#   --from <url>, NEBELHAUS_FROM=<url>       RESTORE a config you already have in
+#   --from <url>, HAUS_FROM=<url>       RESTORE a config you already have in
 #                                            git (a new/wiped Mac) instead of
 #                                            scaffolding a fresh one — clones it,
 #                                            skips the interview, prints the build
-#   NEBELHAUS_DRY_RUN=1                       touch nothing: write the generated
+#   HAUS_DRY_RUN=1                       touch nothing: write the generated
 #                                            config to a scratch dir and echo every
 #                                            mutating step (for developing this
 #                                            script). Still interviews you when
 #                                            there's a terminal — add --defaults
 #                                            for a silent one.
-#   NEBELHAUS_DIR=<path>                      where the config lands (default ~/.config/nix)
+#   HAUS_DIR=<path>                      where the config lands (default ~/.config/nix)
 #
 # Idempotent: safe to re-run; it leaves an existing config alone.
 set -euo pipefail
@@ -48,24 +48,45 @@ run() { if [ -n "$DRY_RUN" ]; then printf '\033[2m   [dry-run] %s\033[0m\n' "$*"
 USERNAME="$(id -un)"
 HOSTNAME="$(scutil --get LocalHostName 2>/dev/null || hostname -s)"
 
-NONINTERACTIVE="${NEBELHAUS_NONINTERACTIVE:-}"
-DRY_RUN="${NEBELHAUS_DRY_RUN:-}"
+# 🚨 Every knob below is spelled `HAUS_*`. It was `NEBELHAUS_*` until 2026-08-14
+# (the rename note's §11.2), and that spelling is the DOCUMENTED unattended-
+# install API — someone's provisioning script has it written down. An unknown
+# env var is the worst kind of break: the installer doesn't fail, it silently
+# takes defaults and hands back a machine that isn't the one that was asked for.
+#
+# So promote the old spelling into the new one here, once, before anything reads
+# it — everything downstream keeps saying `HAUS_*` and none of it has to know.
+# The new name wins if both are set. Keep this list in step with the flags block
+# in the header above.
+for _haus_knob in NONINTERACTIVE DRY_RUN FROM DIR DESKTOP PRESET GIT_NAME \
+                  GIT_EMAIL ACCENT EDITOR WALLPAPER ROOMS KEEP FLAKE \
+                  AGENT AGENT_DEFAULT AGENT_IMAGE REPO_ROOTS ZELLIJ_SESSION; do
+  _haus_new="HAUS_$_haus_knob"
+  _haus_old="NEBELHAUS_$_haus_knob"
+  if [ -z "${!_haus_new:-}" ] && [ -n "${!_haus_old:-}" ]; then
+    export "$_haus_new=${!_haus_old}"
+  fi
+done
+unset _haus_knob _haus_new _haus_old
 
-# --from <url> / NEBELHAUS_FROM restores an existing config instead of scaffolding
+NONINTERACTIVE="${HAUS_NONINTERACTIVE:-}"
+DRY_RUN="${HAUS_DRY_RUN:-}"
+
+# --from <url> / HAUS_FROM restores an existing config instead of scaffolding
 # (see Phase 1b). Parse args here so --defaults still gates INTERACTIVE below.
-FROM_URL="${NEBELHAUS_FROM:-}"
+FROM_URL="${HAUS_FROM:-}"
 # --desktop <name> picks the desktop up front. Parsed here rather than beside
 # DESKTOP_NAME below because the flag has to be seen before the interview is
 # assembled, and because "was it given at all?" is the thing we need to know —
-# DESKTOP_NAME defaults to `nebelhaus`, so its value alone can't distinguish a
+# DESKTOP_NAME defaults to `hacker`, so its value alone can't distinguish a
 # choice from a default.
-DESKTOP_ARG="${HAUS_DESKTOP:-${NEBELHAUS_DESKTOP:-${NEBELHAUS_PRESET:-}}}"
+DESKTOP_ARG="${HAUS_DESKTOP:-${HAUS_PRESET:-}}"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --defaults)  NONINTERACTIVE=1 ;;
     --from)      shift; FROM_URL="${1:-}"; [ -n "$FROM_URL" ] || die "--from needs a git URL (e.g. --from https://github.com/you/nix-config)" ;;
     --from=*)    FROM_URL="${1#--from=}" ;;
-    --desktop)   shift; DESKTOP_ARG="${1:-}"; [ -n "$DESKTOP_ARG" ] || die "--desktop needs a name (nebelhaus, everyday, minimal or blank)" ;;
+    --desktop)   shift; DESKTOP_ARG="${1:-}"; [ -n "$DESKTOP_ARG" ] || die "--desktop needs a name (hacker, everyday, minimal or blank)" ;;
     --desktop=*) DESKTOP_ARG="${1#--desktop=}" ;;
     *)           : ;;
   esac
@@ -76,9 +97,9 @@ done
 # still interview you when there's a terminal — that's the only way to exercise
 # the interview without a real install, and it's how this script gets tested.
 if [ -n "$DRY_RUN" ]; then
-  DEST="${NEBELHAUS_DIR:-$(mktemp -d)/nix}"
+  DEST="${HAUS_DIR:-$(mktemp -d)/nix}"
 else
-  DEST="${NEBELHAUS_DIR:-$HOME/.config/nix}"
+  DEST="${HAUS_DIR:-$HOME/.config/nix}"
 fi
 
 # fd 3 is the QUESTION channel — the terminal itself, kept apart from stdin.
@@ -225,7 +246,7 @@ settings_overrides() {
   fi
 }
 
-[ "$(uname)" = "Darwin" ] || die "nebelhaus is macOS-only."
+[ "$(uname)" = "Darwin" ] || die "haus is macOS-only."
 
 # ---- Phase 0: prerequisites ----------------------------------------------
 
@@ -252,7 +273,7 @@ fi
 # stock/Lix daemon rather than silently conflict with it.
 if command -v nix >/dev/null 2>&1 || [ -x /nix/var/nix/profiles/default/bin/nix ]; then
   { [ -e /nix ] && [ ! -e /nix/receipt.json ] && [ -z "$DRY_RUN" ]; } \
-    && die "Found a Nix at /nix that isn't Determinate (no /nix/receipt.json). nebelhaus expects the Determinate installer to own the daemon — uninstall the existing Nix first, then re-run."
+    && die "Found a Nix at /nix that isn't Determinate (no /nix/receipt.json). haus expects the Determinate installer to own the daemon — uninstall the existing Nix first, then re-run."
   say "Nix already installed."
 elif [ -e /nix ] && [ ! -e /nix/receipt.json ] && [ -z "$DRY_RUN" ]; then
   die "Found /nix without a Determinate receipt — uninstall the existing Nix first, then re-run."
@@ -298,48 +319,53 @@ fi
 # ---- Phase 1: interview ---------------------------------------------------
 # Defaults double as the non-interactive answers, and each is env-overridable so
 # an unattended install can be scripted (and so --dry-run can exercise every
-# branch): NEBELHAUS_GIT_NAME / _GIT_EMAIL / _ACCENT / _EDITOR / _ROOMS /
+# branch): HAUS_GIT_NAME / _GIT_EMAIL / _ACCENT / _EDITOR / _ROOMS /
 # _WALLPAPER.
-GIT_NAME="${NEBELHAUS_GIT_NAME:-$(git config --global user.name  2>/dev/null || true)}"
-GIT_EMAIL="${NEBELHAUS_GIT_EMAIL:-$(git config --global user.email 2>/dev/null || true)}"
+GIT_NAME="${HAUS_GIT_NAME:-$(git config --global user.name  2>/dev/null || true)}"
+GIT_EMAIL="${HAUS_GIT_EMAIL:-$(git config --global user.email 2>/dev/null || true)}"
 GIT_SIGNING=""
-ACCENT="${NEBELHAUS_ACCENT:-mauve}"
+ACCENT="${HAUS_ACCENT:-mauve}"
 # An editor NAME (helix, neovim, vim, nano), not a command — see the prompt
 # below and modules/lib/editors.nix.
-EDITOR_CHOICE="${NEBELHAUS_EDITOR:-helix}"
+EDITOR_CHOICE="${HAUS_EDITOR:-helix}"
 # Wallpaper: the generated `minimal` haus look (default, matching the desktop's own
 # haus.wallpaper.style), one of the inherited Nebelung ones, or `none` to leave
 # whatever you already have exactly where it is.
-WALLPAPER="${NEBELHAUS_WALLPAPER:-minimal}"
+WALLPAPER="${HAUS_WALLPAPER:-minimal}"
 ADOPT_CASKS=""
 # Rooms: a comma list of the ones ON (default all three); omit one to disable it.
-ROOMS="${NEBELHAUS_ROOMS:-sill,prowl,pounce}"
+ROOMS="${HAUS_ROOMS:-sill,prowl,pounce}"
 # Which DESKTOP the generated config selects — the one complete answer to "what
 # should this Mac feel like?", chosen exactly once and overridable line by line
 # from your host. The same mechanism a published desktop uses, which is the
 # point: the installer isn't a privileged path. Empty selects none explicitly,
 # which is what "Custom" picks (a hand-chosen room set isn't a named thing) and
-# leaves the builder's own default, the nebelhaus desktop, in place.
+# leaves the builder's own default, the hacker desktop, in place.
 #
-# `NEBELHAUS_PRESET` is the pre-rooms spelling and still read: `full` names the
-# nebelhaus desktop now, and `everyday`/`minimal` are desktops of their own.
-# All three spellings, plus `--desktop`, land in DESKTOP_ARG up in the flag
+# `HAUS_PRESET` (and its pre-2026-08-14 spelling `NEBELHAUS_PRESET`, promoted up
+# in the config block) is the pre-rooms name for the same thing and still read:
+# `full` names the hacker desktop now, and `everyday`/`minimal` are desktops of
+# their own.
+# All of those spellings, plus `--desktop`, land in DESKTOP_ARG up in the flag
 # block; DESKTOP_EXPLICIT is the bit that matters here, because it is what lets
 # the interview below skip a question it already has the answer to.
 DESKTOP_EXPLICIT=""
-DESKTOP_NAME="${DESKTOP_ARG:-nebelhaus}"
-if [ "$DESKTOP_NAME" = "full" ]; then DESKTOP_NAME=nebelhaus; fi
+DESKTOP_NAME="${DESKTOP_ARG:-hacker}"
+# `full` is the pre-rooms spelling and `nebelhaus` the pre-2026-08-14 name of
+# this same desktop (the rename note's §11). Both resolve here rather than in
+# the case below, so a published `hausfold.co/nebelhaus.sh` keeps installing.
+if [ "$DESKTOP_NAME" = "full" ] || [ "$DESKTOP_NAME" = "nebelhaus" ]; then DESKTOP_NAME=hacker; fi
 if [ -n "$DESKTOP_ARG" ]; then
   DESKTOP_EXPLICIT=1
   # Checked against a list rather than against the repo, because nothing is
   # cloned yet at this point. A typo has to fail HERE, loudly: an unknown name
   # would otherwise reach the generated flake as
-  # `desktop = nebelhaus.desktops.<typo>;` and surface as a Nix eval error
+  # `desktop = haus.desktops.<typo>;` and surface as a Nix eval error
   # after the download, which is a long way to walk to be told you misspelled
   # a word.
   case "$DESKTOP_NAME" in
-    nebelhaus|everyday|minimal|blank) : ;;
-    *) die "unknown desktop '$DESKTOP_NAME' — pick one of: nebelhaus, everyday, minimal, blank" ;;
+    hacker|everyday|minimal|blank) : ;;
+    *) die "unknown desktop '$DESKTOP_NAME' — pick one of: hacker, everyday, minimal, blank" ;;
   esac
 fi
 case ",$ROOMS," in *,sill,*)   ROOM_SILL=1   ;; *) ROOM_SILL=   ;; esac
@@ -350,7 +376,7 @@ case ",$ROOMS," in *,pounce,*) ROOM_POUNCE=1 ;; *) ROOM_POUNCE= ;; esac
 # a comma list of dock,keyboard,finder. Empty (the default) means haus sets
 # all of them, exactly as before. Each kept category has its current values read
 # and pinned into your host config (see settings_overrides above).
-KEEP="${NEBELHAUS_KEEP:-}"
+KEEP="${HAUS_KEEP:-}"
 case ",$KEEP," in *,dock,*)     KEEP_DOCK=1   ;; *) KEEP_DOCK=   ;; esac
 case ",$KEEP," in *,keyboard,*) KEEP_KBD=1    ;; *) KEEP_KBD=    ;; esac
 case ",$KEEP," in *,finder,*)   KEEP_FINDER=1 ;; *) KEEP_FINDER= ;; esac
@@ -386,15 +412,15 @@ if [ -n "$INTERACTIVE" ]; then
       say "Desktop: $DESKTOP_NAME (you asked for this one — change it any time in your host file)"
     else
     # A desktop seeds the optional rooms; only "Custom" opens the per-room
-    # picker. It's pure sugar over the same ROOM_* toggles the NEBELHAUS_ROOMS
+    # picker. It's pure sugar over the same ROOM_* toggles the HAUS_ROOMS
     # env var drives, so a scripted install stays a one-liner.
     DESKTOP="$(printf '%s\n%s\n%s\n%s' \
-      'nebelhaus — the full desktop: menu bar, tiling, and the ⌘Space palette' \
+      'Hacker — the full desktop: menu bar, tiling, and the ⌘Space palette' \
       'Everyday — the same Mac without the developer tooling' \
       'Minimal — just the themed shell (add rooms later)' \
       'Custom — choose each room yourself' \
       | "$GUM" choose --header 'Which desktop do you want?')"
-    case "${DESKTOP:-nebelhaus}" in
+    case "${DESKTOP:-Hacker}" in
       Everyday*)
         DESKTOP_NAME=everyday
         ROOM_PROWL=
@@ -412,8 +438,8 @@ if [ -n "$INTERACTIVE" ]; then
         echo "$SELECTED" | grep -qx prowl  || ROOM_PROWL=
         echo "$SELECTED" | grep -qx pounce || ROOM_POUNCE=
         ;;
-      *)  # The nebelhaus desktop — every optional room on.
-        DESKTOP_NAME=nebelhaus
+      *)  # The hacker desktop — every optional room on.
+        DESKTOP_NAME=hacker
         ROOM_SILL=1; ROOM_PROWL=1; ROOM_POUNCE=1
         ;;
     esac
@@ -554,22 +580,22 @@ mkdir -p "$DEST/hosts/$HOSTNAME"   # for real even in dry-run, so we can write i
 DESKTOP_LINE=""
 if [ -n "$DESKTOP_NAME" ]; then
   DESKTOP_LINE="
-        desktop = nebelhaus.desktops.$DESKTOP_NAME;"
+        desktop = haus.desktops.$DESKTOP_NAME;"
 fi
 
 cat >"$DEST/flake.nix" <<EOF
 {
-  description = "$USERNAME's machine — a nebelhaus";
+  description = "$USERNAME's machine — a haus";
 
   # The whole of haus (system + shell + pounce + nebelung) comes from the public
-  # nebelhaus flake. This config holds only what's personal: the host.
-  # Update everything with:  nix flake update nebelhaus
-  inputs.nebelhaus.url = "github:hausfold/haus";
+  # haus flake. This config holds only what's personal: the host.
+  # Update everything with:  nix flake update haus
+  inputs.haus.url = "github:hausfold/haus";
 
   outputs =
-    { nebelhaus, ... }:
+    { haus, ... }:
     {
-      darwinConfigurations.$HOSTNAME = nebelhaus.mkNebelhaus {
+      darwinConfigurations.$HOSTNAME = haus.mkHaus {
         username = "$USERNAME";
         hostname = "$HOSTNAME";
         host = ./hosts/$HOSTNAME;$DESKTOP_LINE
@@ -616,9 +642,9 @@ settings_block=""
 say "Rendering the option catalogue (every haus.* option, annotated)"
 IMPORTS_LINE=""
 if tmpl="$(nix build --no-link --print-out-paths \
-             "${NEBELHAUS_FLAKE:-github:hausfold/haus}#host-template" 2>/dev/null)" \
-   && [ -f "$tmpl/share/nebelhaus/host-options.nix" ]; then
-  cp -f "$tmpl/share/nebelhaus/host-options.nix" "$DEST/hosts/$HOSTNAME/options.nix"
+             "${HAUS_FLAKE:-github:hausfold/haus}#host-template" 2>/dev/null)" \
+   && [ -f "$tmpl/share/haus/host-options.nix" ]; then
+  cp -f "$tmpl/share/haus/host-options.nix" "$DEST/hosts/$HOSTNAME/options.nix"
   chmod u+w "$DEST/hosts/$HOSTNAME/options.nix"   # it comes out of the store read-only
   IMPORTS_LINE="  imports = [ ./options.nix ]; # every haus.* option, annotated — read it
 "
@@ -655,7 +681,7 @@ printf 'result\nresult-*\n' >"$DEST/.gitignore"
 if [ ! -d "$DEST/.git" ]; then
   run git -C "$DEST" init -q -b main
   run git -C "$DEST" add -A
-  run git -C "$DEST" commit -qm "Scaffold a nebelhaus consumer for $HOSTNAME"
+  run git -C "$DEST" commit -qm "Scaffold a haus consumer for $HOSTNAME"
 fi
 
 # ---- closing: how to raise it, and the honest undo card -------------------
@@ -687,7 +713,7 @@ EOF
 
 cat <<EOF
 
-$(say "Before you switch — what nebelhaus can and can't undo:")
+$(say "Before you switch — what haus can and can't undo:")
 
   CAN undo     everything Nix manages (packages, agents, shell config, PATH):
                  sudo darwin-rebuild --rollback        instant, atomic

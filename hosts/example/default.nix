@@ -1,7 +1,7 @@
 # Your machine. Copy this to hosts/<hostname>/ and make it yours, then wire it
 # up in flake.nix:
 #
-#   darwinConfigurations.<hostname> = mkNebelhaus {
+#   darwinConfigurations.<hostname> = mkHaus {
 #     username = "you";
 #     hostname = "<hostname>";
 #     host = ./hosts/<hostname>;

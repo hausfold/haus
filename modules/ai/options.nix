@@ -24,7 +24,7 @@ in
   options.haus = {
     ai.enable = lib.mkOption {
       type = lib.types.bool;
-      # Rooms are independent. nebelhaus selects AI in its desktop; the neutral
+      # Rooms are independent. hacker selects AI in its desktop; the neutral
       # room catalogue leaves it off until a desktop or host asks for it.
       default = false;
       defaultText = lib.literalExpression "false";

@@ -88,7 +88,7 @@
   "com.apple.screencapture" = "none"; # screencapture re-reads its prefs on every capture
 
   # ---- FDA-gated, guarded separately -----------------------------------
-  # den's `nebelhausAccessibility` block writes this domain itself, guarded
+  # den's `hausAccessibility` block writes this domain itself, guarded
   # against the missing-FDA failure the matrix found (an unguarded write here
   # aborts the rest of activation under `set -e`). A failed write already
   # degrades to "setting skipped".

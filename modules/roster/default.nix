@@ -191,7 +191,7 @@ in
   assertions = [
     {
       assertion = duplicateKeys == [ ];
-      message = "nebelhaus app leader keys must be unique; duplicated: ${lib.concatStringsSep ", " duplicateKeys}";
+      message = "haus app leader keys must be unique; duplicated: ${lib.concatStringsSep ", " duplicateKeys}";
     }
     {
       assertion = keyedWithoutName == [ ];

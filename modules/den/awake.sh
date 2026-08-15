@@ -8,7 +8,7 @@
 # indefinite assertion resumes until explicitly stopped.
 set -euo pipefail
 
-STATE_DIR="${AWAKE_STATE_DIR:-$HOME/.local/state/nebelhaus/awake}"
+STATE_DIR="${AWAKE_STATE_DIR:-$HOME/.local/state/haus/awake}"
 STATE_FILE="$STATE_DIR/state"
 LABEL="${AWAKE_LAUNCHD_LABEL:-org.nebelhaus.awake}"
 LAUNCHCTL="${AWAKE_LAUNCHCTL_BIN:-/bin/launchctl}"

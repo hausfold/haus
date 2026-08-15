@@ -12,7 +12,7 @@
 -                        return Ok(MouseAction::ResizeScrollDown { pane_id });
 -                    }
 -                }
-+                // nebelhaus: ctrl+wheel used to resize the pane under the
++                // haus: ctrl+wheel used to resize the pane under the
 +                // pointer (MouseAction::ResizeScrollUp/Down). Removed — it is
 +                // an accidental gesture, not a chosen one: ctrl is held for
 +                // half the shortcuts a terminal app owns, and one wheel notch

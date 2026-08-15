@@ -158,8 +158,8 @@ let
 
   # Records that the plist at that path is OURS, so turning every policy off can
   # remove it again without a rice ever deleting a file it didn't write. Under
-  # the held `nebelhaus` state dir, like perch's install marker beside it.
-  policyMarker = "/Library/Application Support/nebelhaus/zen-policies.source";
+  # the held `haus` state dir, like perch's install marker beside it.
+  policyMarker = "/Library/Application Support/haus/zen-policies.source";
 in
 {
   # The roster pass places ports for roster apps the rice hasn't wired properly.
@@ -309,7 +309,7 @@ in
       # the same path, while the symlink underneath moves with the accent, the
       # flavor and the contrast — which is what the announcement below compares.
       home.file = lib.optionalAttrs stylusWanted {
-        ".config/nebelhaus/nebelung-stylus.json".source = stylusBundle;
+        ".config/haus/nebelung-stylus.json".source = stylusBundle;
       };
 
       # A one-time instruction, announced only when there's genuinely something
@@ -319,10 +319,10 @@ in
       # instruction turns into wallpaper.
       home.activation.stylusNebelung = lib.mkIf stylusWanted (
         lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-          stylusStamp="$HOME/.local/state/nebelhaus/stylus-announced"
+          stylusStamp="$HOME/.local/state/haus/stylus-announced"
           if [ "$(cat "$stylusStamp" 2>/dev/null || true)" != "${stylusBundle}" ]; then
             echo "→ Stylus (Zen): your userstyles are one import behind (${nb.variant}, ${accent})."
-            echo "   Stylus ▸ Manage ▸ Import:  $HOME/.config/nebelhaus/nebelung-stylus.json"
+            echo "   Stylus ▸ Manage ▸ Import:  $HOME/.config/haus/nebelung-stylus.json"
             $DRY_RUN_CMD mkdir -p "$(dirname "$stylusStamp")"
             printf '%s\n' "${stylusBundle}" | $DRY_RUN_CMD tee "$stylusStamp" >/dev/null
           fi

@@ -223,7 +223,7 @@ let
   # rather than one. Both need the grant; only one of them is dangerous.
   #
   #   GUARDED   — the rice writes the domain itself, through a shell writer that
-  #               tolerates a refusal (nebelhausAccessibility, below). No grant
+  #               tolerates a refusal (hausAccessibility, below). No grant
   #               costs you the setting and nothing else.
   #   UNGUARDED — the domain reaches activation only through nix-darwin's own
   #               generator, whose `defaults write` is emitted bare into a script
@@ -395,7 +395,7 @@ in
   #   https://github.com/nix-darwin/nix-darwin/issues/1049
   warnings =
     lib.optional fontFamilyUnprovided ''
-      nebelhaus: fonts.mono.name is "${fontsCfg.mono.name}" but neither
+      haus: fonts.mono.name is "${fontsCfg.mono.name}" but neither
       fonts.mono.package nor fonts.mono.packageName is set.
 
       haus only installs the font it's given, so unless that family is already
@@ -406,7 +406,7 @@ in
       outside a data-only desktop).
     ''
     ++ lib.optional (universalaccessSet != [ ]) ''
-      nebelhaus: system.defaults.universalaccess is set (${lib.concatStringsSep ", " universalaccessSet}).
+      haus: system.defaults.universalaccess is set (${lib.concatStringsSep ", " universalaccessSet}).
 
       That domain is TCC-protected. It writes only if the app you run the rebuild
       FROM holds Full Disk Access (System Settings ▸ Privacy & Security ▸ Full
@@ -444,7 +444,7 @@ in
       without the grant.
     ''
     ++ lib.optional (noopDomains != [ ]) ''
-      nebelhaus: this configuration writes ${lib.concatStringsSep ", " noopDomains}, which is
+      haus: this configuration writes ${lib.concatStringsSep ", " noopDomains}, which is
       measured to write and change NOTHING (modules/lib/reachability.nix).
 
       The plist will hold whatever you set and macOS will keep behaving exactly as
@@ -454,7 +454,7 @@ in
       writes the ones that work.
     ''
     ++ lib.optional (undeclaredDomains != [ ]) ''
-      nebelhaus: these plist domains are written but have no entry in
+      haus: these plist domains are written but have no entry in
       modules/lib/restart-map.nix: ${lib.concatStringsSep ", " undeclaredDomains}.
 
       A domain with no declared restart silently waits for the user to log out
@@ -473,7 +473,7 @@ in
     {
       assertion = !(fontsCfg.mono.package != null && fontsCfg.mono.packageName != null);
       message = ''
-        nebelhaus: fonts.mono.package and fonts.mono.packageName are both set.
+        haus: fonts.mono.package and fonts.mono.packageName are both set.
         They are the same setting written two ways — `package` for a module
         that has `pkgs`, `packageName` for a data-only desktop that doesn't.
         Keep one.
@@ -486,7 +486,7 @@ in
       # none" — a Mac you cannot type on. Nothing downstream would look wrong.
       assertion = localeCfg.inputSources != [ ];
       message = ''
-        nebelhaus: haus.locale.inputSources is an empty list.
+        haus: haus.locale.inputSources is an empty list.
 
         That option is EXHAUSTIVE — a list is the whole set of keyboard layouts,
         so an empty one asks for a Mac with no way to type. Use `null` (the
@@ -514,8 +514,51 @@ in
   # and carry on. Degrading to "the setting didn't apply" is the correct
   # failure; a half-activated Mac is not.
   system.activationScripts.postActivation.text = lib.mkMerge [
+    # ---- the nebelhaus → haus state move, system half (rename note §11.3) ----
+    # `/Library/Application Support/nebelhaus` holds perch's install marker and
+    # zen's policy marker. Both are read by SHIPPED, SIGNED apps that update on
+    # their own cadence — perch reads `perch.installed-from` to decide whether
+    # it may offer to update itself — so this is the one of the four locations
+    # where a plain rename would be a genuine two-repo, multi-release contract.
+    #
+    # The symlink defeats that outright: a perch binary compiled against the old
+    # path resolves through it and still reports "installed by the desktop",
+    # while a new one reads the `haus` path directly. Neither repo has to land
+    # before the other, and nobody in the field is broken in between.
+    # 🚨 Every step is guarded, and the whole call ends in `|| true`. This block
+    # is `mkBefore`, so it runs FIRST in postActivation — an unguarded `mv` or
+    # `rm` that hits one root-owned or locked child would abort activation under
+    # `set -e` at step zero and take the perch install, the accessibility writes
+    # and every later block with it. Degrading to "the directory didn't move" is
+    # the correct failure; a half-activated Mac is not. Same doctrine as the
+    # a11y block below.
+    (lib.mkBefore ''
+      hausStateDirMigration() {
+        old="/Library/Application Support/nebelhaus"
+        new="/Library/Application Support/haus"
+        [ -e "$old" ] || return 0
+        [ -L "$old" ] && return 0
+        if [ -e "$new" ]; then
+          # Both exist. Merge rather than clobber — and do NOT delete the source
+          # unless the copy actually succeeded, or a permission error on one
+          # child silently takes the whole directory with it.
+          if cp -R "$old/." "$new/"; then
+            rm -rf "$old" || { echo "warning: haus: copied $old into $new but could not remove the original; left both in place." >&2; return 0; }
+          else
+            echo "warning: haus: could not merge $old into $new — left both in place, nothing was deleted." >&2
+            return 0
+          fi
+        else
+          mv "$old" "$new" || { echo "warning: haus: could not move $old to $new; left it alone." >&2; return 0; }
+        fi
+        ln -sfn "$new" "$old" || echo "warning: haus: moved $old to $new but could not leave a compatibility symlink — an older perch will stop recognising this as a desktop install." >&2
+        echo "haus: moved $old to $new, leaving a symlink behind" >&2
+      }
+      hausStateDirMigration || true
+    '')
+
     (lib.optionalString (a11ySet != { }) ''
-      nebelhausAccessibility() {
+      hausAccessibility() {
         if launchctl asuser "$(id -u -- ${username})" sudo --user=${username} -- \
              defaults write com.apple.universalaccess "$1" "$2" "$3" 2>/dev/null; then
           echo "accessibility: $1 = $3" >&2
@@ -524,9 +567,7 @@ in
         fi
       }
       ${lib.concatStringsSep "\n" (
-        lib.mapAttrsToList (
-          k: v: "nebelhausAccessibility ${k} ${a11yWriteFlag k} ${a11yWriteValue k v}"
-        ) a11ySet
+        lib.mapAttrsToList (k: v: "hausAccessibility ${k} ${a11yWriteFlag k} ${a11yWriteValue k v}") a11ySet
       )}
     '')
 
@@ -736,14 +777,14 @@ in
   # yours to add in your host file; these are the baseline binaries the rice and
   # its commands lean on.
   # Split by the developer pack. What stays unconditional is the PRODUCT — the
-  # tools a nebelhaus machine needs to be a nebelhaus machine even if its owner
+  # tools a haus machine needs to be a haus machine even if its owner
   # never opens a terminal by choice. Everything else is gated, because
   # "minimal" used to install the whole dev toolbelt regardless.
   environment.systemPackages =
     with pkgs;
     [
       # The everyday end-user CLI: haus rebuild / update / rollback / status /
-      # edit / doctor — so a nebelhaus machine never needs raw nix incantations.
+      # edit / doctor — so a haus machine never needs raw nix incantations.
       # System-wide (not home-manager) so sudo and non-login shells see it too.
       # (The workshop's developer CLI is `bench` — a different name on purpose,
       # so the two never shadow each other.)
@@ -803,7 +844,7 @@ in
 
       # The annotated host file — every haus.* option at its default, with
       # its description and a docs link, all commented out — installed at
-      # share/nebelhaus/host-options.nix. `haus options` copies it beside your
+      # share/haus/host-options.nix. `haus options` copies it beside your
       # host file; nothing reads it at runtime.
       #
       # Shipped in the system profile rather than fetched on demand so `haus
@@ -814,9 +855,9 @@ in
       # has no system to read it out of yet.
       #
       # It needs the pathsToLink line below to actually appear: system-path is a
-      # buildEnv that links a FIXED list of subdirectories, and share/nebelhaus
+      # buildEnv that links a FIXED list of subdirectories, and share/haus
       # isn't on it — the package built, went into the closure, and left nothing
-      # at /run/current-system/sw/share/nebelhaus.
+      # at /run/current-system/sw/share/haus.
       (import ../host-template.nix { inherit pkgs; })
 
       # `awake 3h` / `awake indefinitely` — a durable controller around macOS's
@@ -910,9 +951,9 @@ in
   # environment.systemPackages — /bin, /share/man, /share/zsh and a handful more.
   # Anything else a package installs is in the closure but reachable at no path,
   # which is exactly what happened to the host template above: it built, it was
-  # a dependency of the system, and /run/current-system/sw/share/nebelhaus did
+  # a dependency of the system, and /run/current-system/sw/share/haus did
   # not exist. `haus options` reads it from there, so the directory has to be linked.
-  environment.pathsToLink = [ "/share/nebelhaus" ];
+  environment.pathsToLink = [ "/share/haus" ];
 
   # The job is intentionally always present, even when the opt-in Sill pill is
   # hidden: `awake` is a rice-level capability usable from any shell. RunAtLoad
@@ -928,8 +969,8 @@ in
       ];
       RunAtLoad = true;
       ProcessType = "Background";
-      StandardOutPath = "/tmp/nebelhaus-awake.out.log";
-      StandardErrorPath = "/tmp/nebelhaus-awake.err.log";
+      StandardOutPath = "/tmp/haus-awake.out.log";
+      StandardErrorPath = "/tmp/haus-awake.err.log";
       EnvironmentVariables.HOME = "/Users/${username}";
     };
   };
@@ -1047,7 +1088,7 @@ in
     }
     # ---- hot corners -------------------------------------------------------
     # Emitted ONLY for the corners the host actually named. Not mkDefault and
-    # not a rice opinion: nebelhaus ships every corner at null, so this block is
+    # not a rice opinion: hacker ships every corner at null, so this block is
     # empty on a stock rice and the corners you set in System Settings years ago
     # survive a rebuild untouched. Naming one is the whole opt-in.
     #
@@ -1347,7 +1388,7 @@ in
   };
 
   nixpkgs.config.allowUnfree = true;
-  # hostPlatform is set by mkNebelhaus (from its `system` arg) — hardcoding it
+  # hostPlatform is set by mkHaus (from its `system` arg) — hardcoding it
   # here silently forced aarch64 on every consumer. Standalone room users set
   # nixpkgs.hostPlatform themselves, as in any nix-darwin config.
   system.stateVersion = 5;
@@ -1373,10 +1414,76 @@ in
       # costs nothing on the rebuilds where it already exists; it never removes
       # or touches a folder after you change `location` away from it, since
       # deleting a directory full of screenshots is not a rebuild's business.
-      home.activation = lib.mkIf (shotsLocation != null) {
-        nebelhausScreenshotDir = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-          run mkdir -p ${lib.escapeShellArg shotsLocation}
-        '';
-      };
+      home.activation = lib.mkMerge [
+        (lib.mkIf (shotsLocation != null) {
+          hausScreenshotDir = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+            run mkdir -p ${lib.escapeShellArg shotsLocation}
+          '';
+        })
+
+        # ---- the nebelhaus → haus state move (rename note §11.3) -------------
+        # These three directories were `nebelhaus` until 2026-08-14 and hold
+        # live state: the tour stamp, media and zen-tab caches, the elgato host,
+        # the stylus announcement, `nebelung-ports.tsv`, the lane opener and the
+        # find cache. A rename that only changed the writers would silently
+        # orphan every one of them — a finished tour would re-arm, a rebuild
+        # would re-announce the stylus import.
+        #
+        # 🚨 The old path becomes a SYMLINK to the new one rather than
+        # disappearing, and that is the load-bearing half. Anything still
+        # compiled against the old spelling — an older perch in the field, a
+        # sill plugin from a generation you haven't garbage-collected, a script
+        # of your own — resolves through the link and keeps working. Without it
+        # this is a flag day; with it, nothing has to ship in any order.
+        #
+        # Runs `entryBefore [ "writeBoundary" ]` — before home-manager writes any
+        # of this generation's files, so nothing this generation creates under
+        # the new path is copied back over by the merge branch below.
+        #
+        # Three things the loop has to get right, each found the hard way:
+        #
+        #   1. **Both paths existing is the NORMAL case, not the exception.**
+        #      `haus.sh` points `HAUS_LOG_DIR` at `.local/state/haus` and
+        #      `mkdir -p`s it before it drives the rebuild — so by the time this
+        #      runs, the very first `haus rebuild` has already made `$new`.
+        #      Merge, never clobber.
+        #   2. **Never delete the source unless the copy succeeded.** One
+        #      unreadable child would otherwise take the whole directory.
+        #   3. **The symlink is the load-bearing half**, so it is created even
+        #      when the directory turns out to have been moved by an earlier run
+        #      that died before linking. Testing `-e "$old"` first and returning
+        #      would leave that machine permanently without the compat path.
+        {
+          hausStateMigration = lib.hm.dag.entryBefore [ "writeBoundary" ] ''
+            for pair in \
+              ".local/state/nebelhaus:.local/state/haus" \
+              ".config/nebelhaus:.config/haus" \
+              ".cache/nebelhaus:.cache/haus"; do
+              old="$HOME/''${pair%%:*}"
+              new="$HOME/''${pair##*:}"
+              [ -L "$old" ] && continue
+              if [ -e "$old" ]; then
+                if [ -e "$new" ]; then
+                  if run cp -R "$old/." "$new/"; then
+                    run rm -rf "$old" || true
+                  else
+                    echo "warning: haus: could not merge $old into $new — left both in place." >&2
+                    continue
+                  fi
+                else
+                  run mkdir -p "$(dirname "$new")"
+                  run mv "$old" "$new" || { echo "warning: haus: could not move $old to $new." >&2; continue; }
+                fi
+              fi
+              # Reached with $old gone: either we just moved it, or a previous
+              # run did and was interrupted before it linked. Either way the
+              # compat path is owed, and only if the destination is really there.
+              [ -e "$old" ] && continue
+              [ -d "$new" ] || continue
+              run ln -sfn "$new" "$old" || true
+            done
+          '';
+        }
+      ];
     };
 }

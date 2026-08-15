@@ -167,7 +167,7 @@ reconcile() {
 case "$1" in
     on)  echo on  > "$STATE"
          # Haus-tour hook — one stat when no tour is mid-flight (plugins/tour.sh).
-         { [ -f "$HOME/.local/state/nebelhaus/tour" ] && "$HOME/.config/sketchybar/plugins/tour.sh" event launch; } >/dev/null 2>&1 &
+         { [ -f "$HOME/.local/state/haus/tour" ] && "$HOME/.config/sketchybar/plugins/tour.sh" event launch; } >/dev/null 2>&1 &
          reconcile ;;
     off) echo off > "$STATE"; reconcile ;;
     *)   echo "usage: $0 on|off" >&2; exit 1 ;;

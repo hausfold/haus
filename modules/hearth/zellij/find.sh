@@ -123,7 +123,7 @@ CACHE_DIR="${CLAUDE_STATUSLINE_CACHE:-$HOME/.cache/claude-statusline}"
 MAP="$CACHE_DIR/pane-transcripts.tsv"
 # Rendered transcripts are cached by (size, mtime) so a repeat search on a
 # multi-megabyte conversation is instant instead of another full jq pass.
-RENDER_CACHE="$HOME/.cache/nebelhaus/find/transcripts"
+RENDER_CACHE="$HOME/.cache/haus/find/transcripts"
 # Opencode's history db. The filename moved between releases (`opencode.db` →
 # `opencode-stable.db`), so take whichever exists rather than pinning one and
 # silently degrading every opencode pane to scrollback after an upgrade.
@@ -281,7 +281,7 @@ opencode_session() {
     local id="$1" cwd="$2" sf sid
     [ -n "$OPENCODE_DB" ] || return 1
 
-    sf="/tmp/nebelhaus-agents/${SESSION}__terminal_${id}.session"
+    sf="/tmp/haus-agents/${SESSION}__terminal_${id}.session"
     if [ -f "$sf" ]; then
         sid=$(cat "$sf" 2>/dev/null)
         [ -n "$sid" ] && printf '%s' "$sid" && return 0

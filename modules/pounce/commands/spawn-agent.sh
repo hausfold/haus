@@ -21,7 +21,7 @@
 # session (see holt's Spawn). Claude is then started in that checkout like any
 # other directory — no hook fires, nothing else to keep in sync.
 #
-# Repos come from $NEBELHAUS_REPO_ROOTS (colon-separated, default ~/code and the
+# Repos come from $HAUS_REPO_ROOTS (colon-separated, default ~/code and the
 # usual siblings), scanned one and two levels deep for a main checkout — two so a
 # workshop-style parent dir full of repos resolves to its children — plus every
 # repo `holt` already knows, so a repo outside those roots that you have agent'd
@@ -60,13 +60,13 @@
 # open, osascript, pounce) explicitly — the same prelude add-app.sh uses.
 export PATH="/etc/profiles/per-user/$USER/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-ROOTS="${NEBELHAUS_REPO_ROOTS:-$HOME/code:$HOME/src:$HOME/Developer:$HOME/Projects}"
+ROOTS="${HAUS_REPO_ROOTS:-$HOME/code:$HOME/src:$HOME/Developer:$HOME/Projects}"
 WT_REGISTRY="${CLAUDE_WT_BASE:-$HOME/.cache/claude-worktrees}/registry.tsv"
-SESSION="${NEBELHAUS_ZELLIJ_SESSION:-main}"
+SESSION="${HAUS_ZELLIJ_SESSION:-main}"
 # One drafts store for the command, not one per repo: you often start typing
 # before you have decided which repo it belongs to.
 DRAFT_KEY="spawn-agent"
-SHOTS="$HOME/.cache/nebelhaus-agent-screenshots"
+SHOTS="$HOME/.cache/haus-agent-screenshots"
 
 field() { printf '%s' "$1" | cut -f"$2"; }
 # A free-text commit is "<action>\t<text>" where the TEXT may now contain
@@ -82,7 +82,7 @@ notice() {
 
 for tool in holt zellij; do
   command -v "$tool" >/dev/null 2>&1 && continue
-  notice "$tool is unavailable" "Rebuild nebelhaus, then try again"
+  notice "$tool is unavailable" "Rebuild haus, then try again"
   exit 1
 done
 
@@ -124,7 +124,7 @@ list="$(
 )"
 
 if [ -z "$list" ]; then
-  notice "No repositories found" "Set NEBELHAUS_REPO_ROOTS, or clone something under ~/code"
+  notice "No repositories found" "Set HAUS_REPO_ROOTS, or clone something under ~/code"
   exit 0
 fi
 
@@ -332,9 +332,9 @@ name="$(basename "$dir")"
 # and `luminous-twirling-codd` or `claude` is not a tab you can find later.
 osascript -e 'tell application "Ghostty" to activate' >/dev/null 2>&1
 agent_args=(agent start "$agent")
-# NEBELHAUS_AGENT_IMAGE is still honoured so an external caller can pre-attach a
+# HAUS_AGENT_IMAGE is still honoured so an external caller can pre-attach a
 # file; ⌘↵ above is the in-palette way to the same argument.
-[ -n "${image:-}" ] || image="${NEBELHAUS_AGENT_IMAGE:-}"
+[ -n "${image:-}" ] || image="${HAUS_AGENT_IMAGE:-}"
 [ -n "$image" ] && agent_args+=(--image "$image")
 # The prompt is ONE argv element even when it spans lines — holt joins argv with
 # spaces, so splitting it here is what would flatten a list back into a sentence.

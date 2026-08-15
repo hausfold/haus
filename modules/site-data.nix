@@ -29,7 +29,7 @@
   wmBindingsJson,
 }:
 
-pkgs.runCommand "nebelhaus-site-data"
+pkgs.runCommand "haus-site-data"
   {
     nativeBuildInputs = [ pkgs.jq ];
   }

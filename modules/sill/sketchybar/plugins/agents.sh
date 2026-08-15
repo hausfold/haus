@@ -10,7 +10,7 @@
 # the agent sits. Both are normalised into one record by zellij_records /
 # zmx_records below, and nothing after that point knows the difference.
 #
-#   • a zellij pane → one file per pane under /tmp/nebelhaus-agents/*.state:
+#   • a zellij pane → one file per pane under /tmp/haus-agents/*.state:
 #       <state>\t<session>\t<pane-id>\t<label>\t<epoch>\t<client>
 #     <client> is the newest field: a file written before it existed reads as
 #     empty, which provider_style draws as the generic mark rather than lying
@@ -79,7 +79,7 @@ source "$HOME/.config/sketchybar/sizes.sh"
 # shellcheck source=./ai-provider.sh
 source "$HOME/.config/sketchybar/plugins/ai-provider.sh"
 
-DIR=/tmp/nebelhaus-agents
+DIR=/tmp/haus-agents
 PLUGINS="$HOME/.config/sketchybar/plugins"
 PAW=$(printf '\xEF\x86\xB0')   # nf-fa-paw (U+F1B0) — on-theme for the cat rice
 HOLT_CACHE_DIR="${CLAUDE_STATUSLINE_CACHE:-$HOME/.cache/claude-statusline}"

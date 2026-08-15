@@ -367,12 +367,12 @@ has 'this is a worktree of your config' "$(cd "$tmp/dots-lane/nix" && consumer_w
 # 3.0 as "3.000000" while `defaults read` prints "3", and without %g every diff
 # would report that key as changed forever, on a machine where it is correct.
 {
-  printf 'nebelhausAccessibility reduceMotion -bool true\n'
-  printf 'nebelhausAccessibility mouseDriverCursorSize -float 3.000000\n'
-  printf 'nebelhausAccessibility closeViewScrollWheelToggle -bool false\n'
+  printf 'hausAccessibility reduceMotion -bool true\n'
+  printf 'hausAccessibility mouseDriverCursorSize -float 3.000000\n'
+  printf 'hausAccessibility closeViewScrollWheelToggle -bool false\n'
   # Not a call den generates — the function DEFINITION, which contains the same
   # word and must not be parsed as a declared key.
-  printf 'nebelhausAccessibility() {\n'
+  printf 'hausAccessibility() {\n'
 } >"$tmp/a11y-activate"
 #
 # Compared WHOLE and exactly, not with `has`: a substring assertion for
