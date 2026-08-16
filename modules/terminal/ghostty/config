@@ -114,11 +114,15 @@ confirm-close-surface = false
 
 #zellij overwrites
 keybind = cmd+t=unbind
+# cmd+p / cmd+shift+p → zellij "Super p" / "Super Shift p": a new pane
+# inheriting the focused pane's cwd / one that STAYS there even inside an agent
+# worktree (the no-hop sibling). Ghostty binds cmd+shift+p to its command
+# palette by default — unbind it so the chord reaches zellij instead of popping
+# the palette. Under haus.terminal.lanes.backend = "zmx" neither chord gets
+# this far: pounce's Ghostty-scoped hotkeys consume both while Ghostty is
+# frontmost and spawn a shell WINDOW instead (cmd:shell-here[-stay]), so these
+# unbinds are then inert rather than wrong.
 keybind = cmd+p=unbind
-# cmd+shift+p → zellij "Super Shift p": a new pane that STAYS in the focused
-# pane's cwd, even inside an agent worktree (the no-hop sibling of cmd+p).
-# Ghostty binds cmd+shift+p to its command palette by default — unbind it so the
-# chord reaches zellij instead of popping the palette.
 keybind = cmd+shift+p=unbind
 keybind = cmd+y=unbind
 keybind = cmd+shift+y=unbind
@@ -188,7 +192,11 @@ keybind = cmd+shift+d=unbind
 # even unbound, macOS AppKit swallows ctrl+tab for focus navigation before
 # the terminal core sees it. So bind it to SEND the kitty-keyboard-protocol
 # encoding explicitly (CSI 9;5u / 9;6u = ctrl+Tab / ctrl+shift+Tab); zellij's
-# config.kdl binds those to the tab-history plugin (MRU back/forward).
+# config.kdl binds those to the tab-history plugin (MRU back/forward). Under
+# haus.terminal.lanes.backend = "zmx" the chord never reaches ghostty at all:
+# pounce's Ghostty-scoped tap consumes it first and walks the T/* lane PAGES
+# by recency instead — the same swallowed-by-AppKit fact is why that walk has
+# to live in pounce's event tap rather than in AeroSpace's bindings.
 keybind = ctrl+tab=text:\x1b[9;5u
 keybind = ctrl+shift+tab=text:\x1b[9;6u
 

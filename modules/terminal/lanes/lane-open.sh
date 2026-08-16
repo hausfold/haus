@@ -8,7 +8,7 @@
 #
 #   zmx session   holt.<repo>.<lane>   the PTY the client actually runs in
 #   Ghostty       --title=<same>       a window looking at that PTY
-#   AeroSpace     window-title-regex   a tile, placed by on-window-detected
+#   AeroSpace     workspace T/<repo>   a tile on that repo's own page
 #
 # One name across all three is the whole point. Everything the rice does to a
 # lane from outside — the bar's go-to, a peek, "which window is this branch" —
@@ -129,7 +129,12 @@ exit "$rc"'
   printf '    sleep 0.05\n'
   printf '  done\n'
   printf '  [ -n "${WID:-}" ] || exit 0\n'
-  printf '  aerospace move-node-to-workspace --window-id "$WID" T\n'
+  # T/<repo>, not a single shared T: every lane of one repo tiles on its own
+  # workspace page, so five agents across three repos stop fighting over one
+  # tree. Workspace names may contain "/" (checked by hand against AeroSpace);
+  # the pages are deliberately NOT in persistent-workspaces, so an emptied page
+  # evaporates instead of accreting. Plain terminal windows stay on T.
+  printf '  aerospace move-node-to-workspace --window-id "$WID" %q\n' "T/$repo"
   printf '  aerospace layout --window-id "$WID" tiling\n'
   printf ') >/dev/null 2>&1 &\n'
   printf 'cd %q || exit 1\n' "$chat"
@@ -142,13 +147,23 @@ chmod +x "$launcher"
 
 # ── the window ───────────────────────────────────────────────────────────────
 # `--title` is a FORCED title in Ghostty, not a starting value: the client
-# inside can't clobber it with OSC 2. Nothing in the rice depends on that yet —
-# the window places itself, above — but it is what lets anything outside find
-# this lane later (`aerospace list-windows | grep '^holt\.'`) without the
-# per-pane state files the bar keeps today.
+# inside can't clobber it with OSC 2. That is not a nicety, it is the whole
+# join: everything outside finds this lane by its window name
+# (`aerospace list-windows | grep '^holt\.'`), without the per-pane state files
+# the bar keeps today.
+#
+# The AppleScript spawn (`new window with configuration`, 252 ms vs 366 ms here,
+# and no second Ghostty process per lane) was tried and REJECTED 2026-08-16:
+# `set_surface_title` via `perform action` does set a title AeroSpace reads, but
+# it is a starting value — the next OSC 2 out of the client overwrites it, and
+# OSC 2 passes straight through zmx (measured, both facts). Claude Code retitles
+# constantly, so the machine-readable name survived only until the client's
+# first thought. The extra process is the price of a title nothing inside the
+# window can take away. (The AppleScript path still spawns the PLAIN shell
+# windows — ⌘P/⌘⇧P — which carry no name anything joins on.)
 #
 # `open -na` rather than `ghostty +new-window`, which refuses on macOS
-# ("+new-window is not supported on this platform").
+# ("not supported on this platform").
 pgrep -x Ghostty >/dev/null 2>&1 || open -a Ghostty
 open -na Ghostty.app --args \
   --title="$sess" \

@@ -18,5 +18,14 @@ ws="$2"
 [ -x "$HOME/.config/sketchybar/plugins/launch_mode.sh" ] \
     && "$HOME/.config/sketchybar/plugins/launch_mode.sh" off 2>/dev/null
 
+# A workspace with lane PAGES under it (T → T/<repo>, since lane-open.sh gives
+# every repo's lanes their own page) resolves to the most recently used
+# non-empty page, so `caps t` returns to the page you were last working, not to
+# a bare T that may hold nothing. workspace-mru.sh falls back to the base name
+# when no page is live, which is also the answer on a machine with no pages at
+# all — plain workspaces pass through unchanged.
+if [ -n "$ws" ] && [ -x "$HOME/.config/aerospace/workspace-mru.sh" ]; then
+    ws="$("$HOME/.config/aerospace/workspace-mru.sh" resolve "$ws")"
+fi
 [ -n "$ws" ] && aerospace workspace "$ws"
 open -a "$app"

@@ -168,6 +168,10 @@ let
   #             when it REGISTERS the binding, so switching modes needs the
   #             daemon to re-register. Flipping remap → tap also has to reach a
   #             running daemon, since the daemon is what gives the Fn key back.
+  #   lanesZmx  whether the appHotkeys/pages blocks are written at all (they
+  #             follow haus.terminal.lanes.backend): pounce arms both taps once
+  #             at startup, so flipping the backend has to bounce the daemon or
+  #             ⌘P/⌃⇥ keep last boot's meaning until the next log-in.
   #
   # Hashed rather than inlined so the marker is one short line whatever the
   # exclude list grows to, and prefixed so an absent or empty marker (a machine
@@ -177,6 +181,7 @@ let
       builtins.toJSON {
         autoQuit = config.haus.launcher.autoQuit;
         fnKey = config.haus.launcher.fnKey;
+        lanesZmx = lanesAreWindows;
       }
     )
   }";
@@ -251,6 +256,17 @@ let
     exec "$HOME/.local/bin/focus" scene off
   '';
 
+  # The lane commands ride haus.terminal.lanes.backend: they only make sense
+  # where a lane is a window. ONE list, read by both the install below and the
+  # cheatsheet rows above, so a row can't survive a command that wasn't
+  # installed — the same rule the focus.sh filter and the scene rows follow.
+  lanesAreWindows = config.haus.terminal.lanes.backend == "zmx";
+  laneCommands = [
+    "lanes.sh"
+    "shell-here.sh"
+    "shell-here-stay.sh"
+  ];
+
   # This rice's palette commands (see ./commands — one self-describing script
   # each, metadata in a `# pounce:` header). The generated app-font lookup is
   # private command data, not self-describing, so pounce ignores it.
@@ -264,6 +280,12 @@ let
     # nested so the catalog cannot appear in the launcher and be run as Bash.
     install -Dm444 ${popularAppsCatalog} $out/data/popular-apps.tsv
     ${lib.optionalString (!config.haus.focus.enable) "rm $out/focus.sh"}
+    # The lane picker and the ⌘P/⌘⇧P window spawns only make sense where a lane
+    # is a window: under the zellij lane backend those chords are zellij binds
+    # and the picker's `zmx ls` half doesn't exist, so the commands go too.
+    ${lib.optionalString (
+      !lanesAreWindows
+    ) "rm ${lib.concatMapStringsSep " " (f: "$out/${f}") laneCommands}"}
     # The scene commands (see the let-block above). `scene-` can't collide
     # with a static command — none is named that way — and `off` is a name
     # focus reserves, so scene-off.sh is always ours to claim.
@@ -479,7 +501,9 @@ let
         action = commandField file "description";
       })
       (
-        lib.filter (f: f != "focus.sh" || config.haus.focus.enable) (
+        lib.filter (
+          f: (f != "focus.sh" || config.haus.focus.enable) && (lanesAreWindows || !(lib.elem f laneCommands))
+        ) (
           lib.naturalSort (
             lib.attrNames (
               lib.filterAttrs (n: t: t == "regular" && lib.hasSuffix ".sh" n) (builtins.readDir ./commands)
@@ -1147,6 +1171,55 @@ lib.mkIf config.haus.launcher.enable {
             maxEntries = 200;
             blacklistBundleIds = [ "com.apple.Passwords" ];
             autoPaste = true; # synthesize ⌘V into the prior app; needs Accessibility
+          };
+        }
+        # The zmx lane backend's window-layer chords, both riding the same
+        # consuming event tap the ⌘⇥ switcher already runs (and the same
+        # Accessibility gate — ungranted installs simply keep the chords' stock
+        # meanings). Both are APP-SCOPED to Ghostty: consumed only while it is
+        # frontmost, passed through untouched everywhere else, so ⌘P stays
+        # print and ⌃⇥ stays next-tab in every other app. An older pounce that
+        # predates the keys ignores both blocks — the same lenient parse as
+        # `themeLight`.
+        // lib.optionalAttrs lanesAreWindows {
+          # ⌘P / ⌘⇧P — the zellij NewPane chords' heirs: a shell WINDOW in the
+          # focused window's directory (cmd:shell-here[-stay], this rice's own
+          # command scripts). Targets are pounce's one dispatch grammar, so a
+          # scoped chord and a palette row are the same address.
+          appHotkeys = {
+            enabled = true;
+            scopes = [
+              {
+                bundleId = "com.mitchellh.ghostty";
+                keys = [
+                  {
+                    key = "p";
+                    modifiers = [ "cmd" ];
+                    target = "cmd:shell-here";
+                  }
+                  {
+                    key = "p";
+                    modifiers = [
+                      "cmd"
+                      "shift"
+                    ];
+                    target = "cmd:shell-here-stay";
+                  }
+                ];
+              }
+            ];
+          };
+          # ⌃⇥ / ⌃⇧⇥ — the MRU walk over the non-empty T/* lane pages
+          # (lane-open.sh tiles every repo's lanes onto T/<repo>). Recency
+          # comes from the file windows' exec-on-workspace-change hook keeps,
+          # so the walk and page-aware `caps t` agree about "last used".
+          pages = {
+            enabled = true;
+            key = "tab";
+            modifiers = [ "ctrl" ];
+            prefix = "T";
+            bundleId = "com.mitchellh.ghostty";
+            mruFile = "/Users/${username}/.local/state/haus/workspace-mru";
           };
         }
         # haus.launcher.items — hidden rows, aliases and per-item hotkeys (see the

@@ -121,13 +121,23 @@ rec {
     }
     {
       title = "Terminal · Panes & Tabs";
+      # Two rows change CAPTION with the lane backend while their chords stay:
+      # under zmx, pounce consumes ⌘P/⌘⇧P and ⌃⇥/⌃⇧⇥ while Ghostty is frontmost
+      # (Ghostty-scoped, via its event tap), so the kdl binds below them never
+      # see the keys — the binds stay in config.kdl (the file is one file for
+      # both backends, and the assertion demands bind↔row parity), but what the
+      # MACHINE does is the pounce behaviour, and the cheatsheet teaches that.
       items = [
         {
           chords = [
             "Super p"
             "Super Shift p"
           ];
-          action = "New pane — hop out of a worktree / stay in it";
+          action =
+            if laneBackend == "zmx" then
+              "New shell window — hop out of a worktree / stay"
+            else
+              "New pane — hop out of a worktree / stay in it";
         }
         {
           chords = [ "Super w" ];
@@ -145,7 +155,11 @@ rec {
             "Ctrl Tab"
             "Ctrl Shift Tab"
           ];
-          action = "Walk tabs by recency, back / forward";
+          action =
+            if laneBackend == "zmx" then
+              "Walk lane pages by recency, back / forward"
+            else
+              "Walk tabs by recency, back / forward";
         }
         {
           chords = [ "Super Enter" ];

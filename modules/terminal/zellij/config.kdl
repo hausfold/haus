@@ -147,11 +147,11 @@ keybinds {
         // Super Shift p — New pane that STAYS in the focused pane's cwd, hop and
         //            all suppressed: the no-hop sibling of Super p, for when you
         //            DO want a shell inside an agent's worktree checkout. Runs
-        //            the login shell with ZJ_STAY=1 set, which terminal's zshrc
+        //            the login shell with HAUS_STAY=1 set, which terminal's zshrc
         //            reads to skip the ~/.cache/claude-worktrees → main-checkout
         //            hop (see modules/terminal default.nix). Reaches zellij because
         //            ghostty/config unbinds cmd+shift+p (its command palette).
-        bind "Super Shift p" { Run "sh" "-c" "ZJ_STAY=1 exec \"$SHELL\""; }
+        bind "Super Shift p" { Run "sh" "-c" "HAUS_STAY=1 exec \"$SHELL\""; }
 
         // Super w — Close the focused pane, without unlocking into pane mode
         //            first. The missing counterpart to Super p: until now every

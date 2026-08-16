@@ -57,7 +57,7 @@ spawn_tab() {
         gen="${TMPDIR:-/tmp}/zellij-peek-tab-$USER.kdl"
         # Two substitutions into a clone of the live layout: the tab-level cwd
         # (always), and — under --stay only — the template's bare `pane` swapped
-        # for the ZJ_STAY=1 login shell, the same incantation Super Shift p
+        # for the HAUS_STAY=1 login shell, the same incantation Super Shift p
         # runs. Both target the `tab name="~" { pane }` template custom.kdl
         # flags as pattern-matched; we edit our COPY, never that file.
         awk -v cwd="$esc" -v stay="$STAY" '
@@ -68,7 +68,7 @@ spawn_tab() {
                 at_pane=0
                 if (stay == "1" && $0 == "        pane") {
                     print "        pane command=\"sh\" {"
-                    print "            args \"-c\" \"ZJ_STAY=1 exec \\\"$SHELL\\\"\""
+                    print "            args \"-c\" \"HAUS_STAY=1 exec \\\"$SHELL\\\"\""
                     print "        }"
                     next
                 }

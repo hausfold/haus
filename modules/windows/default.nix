@@ -579,6 +579,12 @@ lib.mkMerge [
       source = ./scripts/launch.sh;
       executable = true;
     };
+    # Workspace recency: pushed by exec-on-workspace-change, read back by
+    # launch.sh (page-aware `caps t`) and by pounce's ⌃⇥ page walk.
+    ".config/aerospace/workspace-mru.sh" = {
+      source = ./scripts/workspace-mru.sh;
+      executable = true;
+    };
   };
   })
 ]
