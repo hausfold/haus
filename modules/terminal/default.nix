@@ -1599,28 +1599,33 @@ in
             zstyle ':completion:*' list-colors "''${(s.:.)LS_COLORS}"
             zstyle ':completion:*' menu no
 
+            # New shells inherit the spawning surface's cwd — zellij panes
+            # (Super p) and the cwd-injecting new-tab spawns (Super Shift t,
+            # the peek Enter-on-dir tab), but equally the plain Ghostty windows
+            # ⌘P spawns under the zmx lane backend, which is why this sits
+            # OUTSIDE the $ZELLIJ block below (it used to live inside it, and a
+            # zmx window's shell sailed straight past the hop). Next to an
+            # agent's pane or window that cwd is the agent's throwaway checkout
+            # under ~/.cache/claude-worktrees, and a fresh interactive shell
+            # has no business starting there: hop to the repo the worktree
+            # belongs to (the parent of the shared .git).
+            # $CLAUDECODE spares the agent's own subshells, and $HAUS_STAY
+            # spares the deliberate "stay here" spawns — Super Shift p / ⌘⇧P,
+            # and the Enter-on-dir tab of a Super-Shift-y (--stay) peek, which
+            # bakes HAUS_STAY=1 into the layout it generates. Those must stay
+            # in the worktree; the Super-y peek's Enter tab is NOT spared,
+            # because that peek was rooted at the main checkout to begin with.
+            # Both fire once at shell birth, so unset HAUS_STAY afterward to
+            # keep it out of child processes and later cd's.
+            if [[ -z "$CLAUDECODE" && -z "$HAUS_STAY" && "$PWD" == "$HOME/.cache/claude-worktrees/"* ]]; then
+              _wt_main="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+              [[ -n "$_wt_main" ]] && cd "''${_wt_main:h}"
+              unset _wt_main
+            fi
+            unset HAUS_STAY
+
             # Auto-name the current zellij tab after the repo whenever you cd.
             if [[ -n "$ZELLIJ" ]]; then
-              # New panes inherit the focused pane's cwd (Super p), as do the
-              # cwd-injecting new-tab spawns (Super Shift t, the peek Enter-on-dir
-              # tab) — which, next to a claude --worktree pane, is the agent's
-              # throwaway checkout under ~/.cache/claude-worktrees. A fresh
-              # interactive shell has no business starting there: hop to the repo
-              # the worktree belongs to (the parent of the shared .git).
-              # $CLAUDECODE spares the agent's own subshells, and $ZJ_STAY spares
-              # the deliberate "stay here" spawns — Super Shift p, and the
-              # Enter-on-dir tab of a Super-Shift-y (--stay) peek, which bakes
-              # ZJ_STAY=1 into the layout it generates. Those must stay in the
-              # worktree; the Super-y peek's Enter tab is NOT spared, because
-              # that peek was rooted at the main checkout to begin with. Both
-              # fire once at shell birth, so unset ZJ_STAY afterward to keep it
-              # out of child processes and later cd's.
-              if [[ -z "$CLAUDECODE" && -z "$ZJ_STAY" && "$PWD" == "$HOME/.cache/claude-worktrees/"* ]]; then
-                _wt_main="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
-                [[ -n "$_wt_main" ]] && cd "''${_wt_main:h}"
-                unset _wt_main
-              fi
-              unset ZJ_STAY
 
               # "~" is what fresh tabs are born as (custom.kdl) — cd-ing back
               # to ~ returns the tab to that name instead of the login name.
@@ -2167,6 +2172,15 @@ in
         # Inert on a zellij machine, where nothing binds it.
         ".config/haus/lanes/lane-spawn.sh" = {
           source = ./lanes/lane-spawn.sh;
+          executable = true;
+        };
+
+        # The shared "which directory is the focused window looking at?"
+        # resolver — lane-spawn.sh's cwd half, split out so the launcher's
+        # shell-here command (⌘P/⌘⇧P under zmx) asks the identical question
+        # instead of drifting a copy of the awk.
+        ".config/haus/lanes/lane-cwd.sh" = {
+          source = ./lanes/lane-cwd.sh;
           executable = true;
         };
 

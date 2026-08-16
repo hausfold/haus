@@ -17,7 +17,7 @@
 # stamped from here before that shell exists, so without the pre-hop the tab
 # kept the agent's throwaway checkout name while its shell sat in the main
 # repo. The "stay in the worktree" spawns are Super-Shift-p and the Enter-on-dir
-# tab of a Super-Shift-y (--stay) peek, which set $ZJ_STAY; this one
+# tab of a Super-Shift-y (--stay) peek, which set $HAUS_STAY; this one
 # deliberately does not.
 set -u
 export PATH="/etc/profiles/per-user/$USER/bin:/run/current-system/sw/bin:$PATH"

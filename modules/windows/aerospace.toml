@@ -21,8 +21,13 @@ after-login-command = []
 
 after-startup-command = []
 
+# Two hooks: the bar's trigger, and the workspace-MRU push (the recency file
+# behind page-aware `caps t` and pounce's ⌃⇥ page walk). AeroSpace runs the
+# entries as ONE argv, not two commands, so they ride a shell -c.
 exec-on-workspace-change = [
-    '@HOME@/.config/sketchybar/aerospace-notify.sh',
+    '/bin/bash',
+    '-c',
+    '@HOME@/.config/sketchybar/aerospace-notify.sh; @HOME@/.config/aerospace/workspace-mru.sh push',
 ]
 
 start-at-login = false

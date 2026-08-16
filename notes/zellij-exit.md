@@ -14,6 +14,21 @@
 > the plan had listed as open, so they are recorded in place below:
 > **decision 4** (the chord layer, forced sooner than Phase 4 expected) and
 > **the spawn measurement** that open question 1 asks for.
+>
+> **The lane FLOW followed on 2026-08-16** — the pieces that make many lanes
+> livable, all behind the same backend option: lanes tile per-repo on
+> **`T/<repo>` pages** (lane-open.sh) with a workspace-MRU file pushed from
+> AeroSpace's `exec-on-workspace-change` making `caps t` page-aware
+> (windows/scripts/workspace-mru.sh); **⌃⇥/⌃⇧⇥** walk those pages by recency
+> and **⌘P/⌘⇧P** spawn a shell WINDOW in the focused window's directory —
+> both hosted by **pounce's event tap, app-scoped to Ghostty** (consume when
+> frontmost, pass through everywhere else: ⌘P stays print and ⌃⇥ stays
+> next-tab elsewhere — the mechanism the whole Phase 4 keymap needs, landed
+> for the two chords that needed it first); a **lane picker** palette command
+> (`lanes.sh`: `holt --json` ⋈ `zmx ls`, `/term` greps `zmx history`); and
+> the worktree-hop's stay-flag renamed **`ZJ_STAY` → `HAUS_STAY`**, with the
+> hop itself moved out of the zshrc's `$ZELLIJ` block so window shells get it
+> too.
 
 ## Three decisions, settled 2026-08-14
 
@@ -135,8 +150,20 @@ either an OSC 2 the client can clobber, or a spawn-time
 `window-id ↔ session` map — which is the per-pane state file the zmx design
 set out to abolish.
 
-**Not decided.** Phase 1 owns it; both halves are now measured rather than
-assumed.
+**Decided 2026-08-16, and measured twice over: lanes stay on `open -na`;
+everything else spawns by AppleScript.** `set_surface_title` via
+`perform action` does set a title AeroSpace reads — which briefly made the
+AppleScript path look free — but it is a **starting value, not a lock**: the
+next OSC 2 out of the client overwrites it, and OSC 2 passes straight through
+zmx (both measured on 1.3.1, a scripted window retitled by an inner
+`printf '\033]2;…'` behind `zmx attach`). Claude Code retitles constantly, so
+the machine-readable `holt.*` name would survive only until the client's first
+thought. The forced `--title` — and the second Ghostty process it drags in,
+since `title` is instance-global config — is therefore the price of the join
+itself, paid only by lane windows. The plain shell windows ⌘P/⌘⇧P spawn carry
+no name anything joins on, so they take the fast path: AppleScript
+`new window with configuration`, cwd and (for ⌘⇧P) `HAUS_STAY=1` in the
+surface configuration.
 
 ## Why
 
@@ -417,9 +444,14 @@ any point before Phase 8.
    366 ms via `open -na` (plus a whole second Ghostty process per lane),
    252 ms via AppleScript into the running instance. See "The spawn
    measurement" above. Both are over risk 1's ~250 ms line as measured,
-   though the poll loop is inside both numbers. What is now open is narrower:
-   **does the AppleScript path's lack of a forced window title cost more than
-   the 114 ms and the extra process it saves?** (Phase 1.)
+   though the poll loop is inside both numbers. The narrower follow-up —
+   does losing the forced title cost more than the 114 ms and the extra
+   process? — ~~is open~~ **answered the same day: yes, for lanes.**
+   `set_surface_title` turned out to be clobbered by the client's next OSC 2
+   (which zmx forwards), so the forced `--title` is the only title nothing
+   inside the window can take away, and lane windows keep `open -na`.
+   Windows that carry no joinable name (⌘P/⌘⇧P shells) use the AppleScript
+   path.
 2. **How much Mission Control noise is too much?** Phase 0 answers it by
    feel, not by argument.
 3. **Do the six patches have Ghostty equivalents?** Unknown per-patch until

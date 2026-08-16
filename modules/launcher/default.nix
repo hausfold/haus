@@ -264,6 +264,12 @@ let
     # nested so the catalog cannot appear in the launcher and be run as Bash.
     install -Dm444 ${popularAppsCatalog} $out/data/popular-apps.tsv
     ${lib.optionalString (!config.haus.focus.enable) "rm $out/focus.sh"}
+    # The lane picker and the ⌘P/⌘⇧P window spawns only make sense where a lane
+    # is a window: under the zellij lane backend those chords are zellij binds
+    # and the picker's `zmx ls` half doesn't exist, so the commands go too.
+    ${lib.optionalString (
+      config.haus.terminal.lanes.backend != "zmx"
+    ) "rm $out/lanes.sh $out/shell-here.sh $out/shell-here-stay.sh"}
     # The scene commands (see the let-block above). `scene-` can't collide
     # with a static command — none is named that way — and `off` is a name
     # focus reserves, so scene-off.sh is always ours to claim.
@@ -1147,6 +1153,55 @@ lib.mkIf config.haus.launcher.enable {
             maxEntries = 200;
             blacklistBundleIds = [ "com.apple.Passwords" ];
             autoPaste = true; # synthesize ⌘V into the prior app; needs Accessibility
+          };
+        }
+        # The zmx lane backend's window-layer chords, both riding the same
+        # consuming event tap the ⌘⇥ switcher already runs (and the same
+        # Accessibility gate — ungranted installs simply keep the chords' stock
+        # meanings). Both are APP-SCOPED to Ghostty: consumed only while it is
+        # frontmost, passed through untouched everywhere else, so ⌘P stays
+        # print and ⌃⇥ stays next-tab in every other app. An older pounce that
+        # predates the keys ignores both blocks — the same lenient parse as
+        # `themeLight`.
+        // lib.optionalAttrs (config.haus.terminal.lanes.backend == "zmx") {
+          # ⌘P / ⌘⇧P — the zellij NewPane chords' heirs: a shell WINDOW in the
+          # focused window's directory (cmd:shell-here[-stay], this rice's own
+          # command scripts). Targets are pounce's one dispatch grammar, so a
+          # scoped chord and a palette row are the same address.
+          appHotkeys = {
+            enabled = true;
+            scopes = [
+              {
+                bundleId = "com.mitchellh.ghostty";
+                keys = [
+                  {
+                    key = "p";
+                    modifiers = [ "cmd" ];
+                    target = "cmd:shell-here";
+                  }
+                  {
+                    key = "p";
+                    modifiers = [
+                      "cmd"
+                      "shift"
+                    ];
+                    target = "cmd:shell-here-stay";
+                  }
+                ];
+              }
+            ];
+          };
+          # ⌃⇥ / ⌃⇧⇥ — the MRU walk over the non-empty T/* lane pages
+          # (lane-open.sh tiles every repo's lanes onto T/<repo>). Recency
+          # comes from the file windows' exec-on-workspace-change hook keeps,
+          # so the walk and page-aware `caps t` agree about "last used".
+          pages = {
+            enabled = true;
+            key = "tab";
+            modifiers = [ "ctrl" ];
+            prefix = "T";
+            bundleId = "com.mitchellh.ghostty";
+            mruFile = "/Users/${username}/.local/state/haus/workspace-mru";
           };
         }
         # haus.launcher.items — hidden rows, aliases and per-item hotkeys (see the
