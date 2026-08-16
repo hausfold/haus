@@ -1253,13 +1253,10 @@ in
         HOMEBREW_NO_ENV_HINTS = "1";
         EDITOR = terminalCfg.editor;
         VISUAL = terminalCfg.editor;
+        # 🚨 `holt` reads this as a fallback rung in `defaultAgent` (its
+        # `internal/commands/env.go`), so the name is a cross-repo contract —
+        # don't rename it here alone.
         HAUS_AGENT_DEFAULT = agentDefault;
-        # 🚨 Both spellings, and the old one is not decoration: `holt` reads
-        # `NEBELHAUS_AGENT_DEFAULT` and only that (its `internal/commands/env.go`),
-        # and holt is a SEPARATE repo on its own release cadence — this repo
-        # cannot rename a variable another binary reads. Drop this line only
-        # once a released holt knows the new name.
-        NEBELHAUS_AGENT_DEFAULT = agentDefault;
       };
 
       # A lean terminal/dev toolbelt, gated by the developer pack. Personal

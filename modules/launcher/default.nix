@@ -898,9 +898,6 @@ lib.mkIf config.haus.launcher.enable {
         # an interactive shell. Keep the selected client explicit here so a
         # palette spawn and a later `holt <name>` agree on its default.
         HAUS_AGENT_DEFAULT = agentContrib.default;
-        # Both spellings — `holt` reads only the old one, and it ships from its
-        # own repo on its own cadence. See modules/terminal/default.nix's note.
-        NEBELHAUS_AGENT_DEFAULT = agentContrib.default;
         # Where the ssh plugin (and any command that respects the hook) opens a
         # terminal: a new tab in the `main` zellij session instead of stock
         # Terminal. See modules/terminal/zellij/pounce-terminal.sh.
