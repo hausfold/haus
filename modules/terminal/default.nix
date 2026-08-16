@@ -368,7 +368,16 @@ let
   # before this room existed both files were written unconditionally. So with
   # nothing named, write for every client we know — they are inert markdown, and
   # a skill nothing reads is much cheaper than an agent inventing option names.
-  fileClients = if agentClients == [ ] then lib.attrNames agentHomes else agentClients;
+  #
+  # Every client we know EXCEPT jcode, and that exception is the exception that
+  # proves the rule: these files are inert for the other three, but creating
+  # `~/.jcode/skills` is itself an action — it is what tells jcode not to run
+  # its first-run import of `~/.claude/skills` and `~/.codex/skills`. Speculating
+  # a directory into existence on a machine that named no client would silently
+  # cancel that import for a jcode the rice didn't install. Named clients still
+  # get it, where the trade is deliberate (see agentHomes).
+  speculativeFileClients = lib.filter (c: c != "jcode") (lib.attrNames agentHomes);
+  fileClients = if agentClients == [ ] then speculativeFileClients else agentClients;
 
   agentInstructionFiles = lib.optionalAttrs (agentsCfg.instructions != "") (
     lib.listToAttrs (

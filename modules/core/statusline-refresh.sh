@@ -535,7 +535,10 @@ if [ "$jcode_fresh" = 0 ] && [ -f "$JCODE_AUTH" ] \
     openai | chatgpt)   jc_want="openai" ;;
     gemini | google)    jc_want="gemini" ;;
     copilot)            jc_want="copilot" ;;
-    "")                 jc_want="anthropic" ;;   # the rice's own default client
+    # Unset means jcode auto-detects per session, so there is no configured
+    # answer to read. Prefer Anthropic and let the jq fall through to the first
+    # provider that reports limits if this machine has no Claude login.
+    "")                 jc_want="anthropic" ;;
   esac
 
   jc_row=$(jcode usage --json 2>/dev/null | jq -r --arg want "$jc_want" '
@@ -560,7 +563,12 @@ if [ "$jcode_fresh" = 0 ] && [ -f "$JCODE_AUTH" ] \
       end' 2>/dev/null || true)
 
   if [ -n "$jc_row" ]; then
-    printf '%s\t%s\tjcode\n' "$jc_row" "$now" >"$JCODE_TSV.tmp"
+    # Fields 7 and 8 (model, provider_id) carry WHICH account this row is
+    # about, so the dropdown can draw that provider's brand mark instead of a
+    # generic one — the same slot opencode's cost rows use. Without them
+    # provider_style's jcode cases would be unreachable and every row would
+    # draw the bare client mark.
+    printf '%s\t%s\tjcode\t%s\t%s\n' "$jc_row" "$now" "$jc_want" "$jc_want" >"$JCODE_TSV.tmp"
     mv "$JCODE_TSV.tmp" "$JCODE_TSV"
     fed=1
   else

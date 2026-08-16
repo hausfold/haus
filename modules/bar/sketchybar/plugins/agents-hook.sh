@@ -170,15 +170,22 @@ else
   if [ -n "$sid" ] && [ "$(cat "$sf" 2>/dev/null)" != "$sid" ]; then
     printf '%s\n' "$sid" >"$sf.$$" && mv -f "$sf.$$" "$sf"
   fi
-  cwd="${CLAUDE_PROJECT_DIR:-$PWD}"
+  # $JCODE_HOOK_CWD before $PWD for the same reason $CLAUDE_PROJECT_DIR comes
+  # first: it is the client TELLING us, rather than us inferring. jcode does
+  # chdir its hook processes into the session's directory (hooks.rs sets
+  # current_dir from the event), so $PWD is right today — but only while the
+  # session HAS a recorded working dir, and the hooks run in a shared server
+  # process whose own cwd is some other lane's. Reading the field closes that
+  # tail instead of relying on it staying empty.
+  cwd="${CLAUDE_PROJECT_DIR:-${JCODE_HOOK_CWD:-$PWD}}"
   if [ "$(cat "$cf" 2>/dev/null)" != "$cwd" ]; then
     printf '%s\n' "$cwd" >"$cf.$$" && mv -f "$cf.$$" "$cf"
   fi
   # Label the agent by its checkout (worktree/repo basename) — far more useful in
   # the popup than the shared "main" session name every agent pane reports.
-  # $CLAUDE_PROJECT_DIR is Claude's; every other client runs its hooks in the
-  # session cwd, which is the same checkout.
-  label=$(basename "${CLAUDE_PROJECT_DIR:-$PWD}")
+  # Same resolution as the .cwd sibling above, so the row's label and the path
+  # agents.sh joins on can never disagree.
+  label=$(basename "$cwd")
   printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$st" "$sess" "$pane" "$label" "$(date +%s)" "$agent" > "$f"
 fi
 

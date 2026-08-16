@@ -48,14 +48,18 @@ let
     c: agentPackages.${c} != null && !lib.meta.availableOn pkgs.stdenv.hostPlatform agentPackages.${c}
   ) clients;
 
-  # The clients that come from Homebrew instead of nixpkgs, as roster entries.
-  # Fully-qualified formulae, so declaring one taps its tap — the same trick
-  # bar's `FelixKratz/formulae/sketchybar` uses, and the reason this room needs
-  # no `homebrew.taps` line of its own. mkDefault so a host that already spells
-  # the formula its own way (a pinned tap, a local build) keeps its version
-  # rather than colliding with this one.
+  # The clients that come from Homebrew instead of nixpkgs, as roster entries —
+  # the same shape bar uses for SketchyBar: a fully-qualified formula, plus the
+  # tap declared beside it. Both halves, because `brew bundle` resolving a
+  # qualified name is not the same thing as the tap being present, and the
+  # rebuild that finds out is a fresh machine's. mkDefault on the formula so a
+  # host that spells it its own way (a pinned tap, a local build) keeps its
+  # version rather than colliding with this one.
   brewedClients = {
     jcode.brew = lib.mkDefault "1jehuang/jcode/jcode";
+  };
+  brewedClientTaps = {
+    jcode = "1jehuang/jcode";
   };
 
   # Whether this machine actually SPAWNS agents. The room being on is not enough:
@@ -127,6 +131,7 @@ in
   # installing it twice. Keyed off the resolved client list, so a machine that
   # doesn't name jcode never taps a tap for it.
   haus.roster = lib.filterAttrs (id: _: lib.elem id clients) brewedClients;
+  homebrew.taps = lib.attrValues (lib.filterAttrs (id: _: lib.elem id clients) brewedClientTaps);
 
   # ---- what the room contributes to other rooms -------------------------------
   # One write per extension point. Every value here is a fact about the AI room;

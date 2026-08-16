@@ -171,11 +171,16 @@ in
         slot every client has under a different name. Written once per client
         in `ai.clients`, to the path that client actually reads:
         `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`,
-        `~/.config/opencode/AGENTS.md`.
+        `~/.config/opencode/AGENTS.md`, `~/.jcode/prompt-overlay.md`.
+
+        That last one is jcode's system-prompt APPENDIX rather than an
+        instructions file, which is the closest thing it has to the slot and
+        the only one that is jcode's alone: the `~/AGENTS.md` it also reads is
+        a shared convention other clients read too, so haus leaves it to you.
 
         Write it client-neutrally: the same text reaches whichever agent the ⌘A
         pane spawns, so a line about a Claude-only skill or file path is noise
-        to the other two. When set, haus prepends two short sections of its
+        to the others. When set, haus prepends two short sections of its
         own — a note that the file is generated and where to actually edit it
         (with THAT client's path), and the `holt` worktree etiquette, since
         haus ships `holt` and that rule is what keeps it working — then your
@@ -190,7 +195,9 @@ in
 
         With `ai.clients` empty (a machine haus installs no client on)
         every known client's path is written instead of none: the list being
-        empty means haus installs none, not that no agent runs here.
+        empty means haus installs none, not that no agent runs here. jcode is
+        the one exception — creating `~/.jcode/` there would cancel its
+        first-run skill import for a client haus never installed.
       '';
     };
 
@@ -205,10 +212,14 @@ in
 
         One copy per client, in the directory that client scans:
         `~/.claude/skills/haus`, `~/.codex/skills/haus`,
-        `~/.config/opencode/skills/haus`. OpenCode also scans `~/.claude/skills`
+        `~/.config/opencode/skills/haus`, `~/.jcode/skills/haus`. OpenCode also
+        scans `~/.claude/skills`
         for Claude Code compatibility, and prefers its own copy when both
         exist — so a machine running both clients sees the skill once, not
-        twice.
+        twice. jcode scans the same shared directories, and its own copy is
+        also what stops it copying `~/.claude/skills` into `~/.jcode/skills` on
+        first run — a copy that would freeze this skill at the revision it was
+        taken on, where `haus update` could never move it again.
 
         The skill's option reference is GENERATED from the haus revision this
         machine is pinned to, so it can only ever describe options that
