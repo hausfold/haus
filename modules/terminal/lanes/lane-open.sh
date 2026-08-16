@@ -78,6 +78,36 @@ run_dir="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/haus-lanes"
 mkdir -p "$run_dir" 2>/dev/null || exit 3
 launcher="$(mktemp "$run_dir/open.XXXXXX")" || exit 3
 
+# ── holding a failed lane open ───────────────────────────────────────────────
+# A zellij lane that dies leaves its pane sitting there with the error in it. A
+# zmx lane's window is the client's own process tree: the client exits, the
+# session ends, `zmx attach` returns, and Ghostty closes the window it was the
+# initial-command of — so a one-line failure ("No conversation found to
+# continue") flashes for a frame and takes the evidence with it. That is the
+# single worst thing about this backend to debug, so a NON-ZERO exit holds the
+# window instead of closing it, and offers a shell in the checkout the lane was
+# going to open in. A clean exit still closes, which is the point of ⌘W being
+# detach rather than quit.
+#
+# The hold clears the session's labels first, and that is load-bearing rather
+# than tidy. The bar's zmx rows have no reaper — agents.sh says so in as many
+# words ("a lane that dies takes its labels with it"), because a dead session
+# takes its own row with it. A held session is alive, so a client that died
+# mid-thought would otherwise leave `state=working` on the bar forever, and the
+# agents pill would show an agent that is in fact sitting at a prompt. Clearing
+# them drops the row (agents.sh skips a session with no `state`), which is the
+# truth: this window is now a held error, not an agent. `zmx set .` is the same
+# "." = current session idiom agents-hook.sh uses, so the hold needs no name.
+held="$HOLT_COMMAND"'
+rc=$?
+[ "$rc" -eq 0 ] && exit 0
+zmx set . state= client= label= since= >/dev/null 2>&1
+printf "\n\033[1;31m▲ the lane exited %s\033[0m — window held so you can read why.\n" "$rc"
+printf "  enter → close · s + enter → shell in %s\n" "$PWD"
+read -r _ans || _ans=
+[ "$_ans" = s ] && exec bash -l
+exit "$rc"'
+
 # printf %q, not bash 5's ${var@Q}: /bin/bash on macOS is still 3.2, and this
 # script has no guarantee about which bash holt found first.
 #
@@ -106,7 +136,7 @@ launcher="$(mktemp "$run_dir/open.XXXXXX")" || exit 3
   # `zmx attach` creates the session if it is not there and ignores the trailing
   # command if it is — so open and resume are the same call, and a resume can
   # never restart a client that is already running.
-  printf 'exec zmx attach %q bash -lc %q\n' "$sess" "$HOLT_COMMAND"
+  printf 'exec zmx attach %q bash -lc %q\n' "$sess" "$held"
 } >"$launcher"
 chmod +x "$launcher"
 

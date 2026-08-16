@@ -2953,6 +2953,11 @@
                 import ./modules/windows/wm-bindings.nix {
                   inherit (pkgs) lib;
                   inherit k;
+                  # `agents` is deliberately NOT passed. It is a per-machine
+                  # contribution from the terminal room — whether a lane is a
+                  # window rather than a pane — and the shipped default is a
+                  # pane. Its own default leaves that section out, which is the
+                  # honest answer to "what does a default install bind".
                 }
               )
             );

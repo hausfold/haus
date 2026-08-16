@@ -65,7 +65,8 @@ in
         is OpenAI Codex, `opencode` is OpenCode, `jcode` is
         [jcode](https://jcode.sh). The ⌘A terminal binding starts
         whichever one `ai.default` names — Claude Code through its own
-        `--worktree` hook, the others through `holt new`.
+        `--worktree` hook, the others through `holt new`, and every one of them
+        through `holt new` under `haus.terminal.lanes.backend = "zmx"`.
 
         A list rather than one bool per client, matching `developer.languages`
         — the fourth client, when it came, didn't change this option's shape.
@@ -134,7 +135,11 @@ in
         Only `claude` can make its own worktree (its native `--worktree` flag,
         which fires `holt hook create`); for the others ⌘A runs
         `holt new` instead, producing the same checkout, branch and registry
-        entry from the outside. Resuming follows the client too: `codex` reopens
+        entry from the outside. `haus.terminal.lanes.backend = "zmx"` puts
+        `claude` on that same outside path, because the client's own flag never
+        reaches the hook the zmx backend is wired into — so on a zmx machine
+        this option chooses the client and nothing else about how a lane opens.
+        Resuming follows the client too: `codex` reopens
         its cwd-filtered `codex resume` picker, `opencode` continues its latest
         session for that cwd, `jcode` opens its own session picker. They share one
         `holt` branch/parking/reap

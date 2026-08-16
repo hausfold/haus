@@ -32,6 +32,14 @@
 {
   lib,
   k,
+  # haus._contrib.windows.agents — the terminal room's "a lane is a window now"
+  # fact, as `{ enable, spawn }`. See modules/windows/options.nix for why this
+  # chord can live neither in zellij nor in Ghostty. Defaulted off so a caller
+  # that predates the seam still evaluates.
+  agents ? {
+    enable = false;
+    spawn = "";
+  },
 }:
 
 let
@@ -177,6 +185,28 @@ lib.optionals hasNav [
     ];
   }
 ]
+++
+  lib.optionals agents.enable [
+    {
+      # ⌃⌘A, and not ⌘A. ⌘A only ever reached zellij because ghostty/config
+      # unbinds cmd+a and lets it fall through to the terminal app — a global
+      # bind on it would take select-all away from every other application on
+      # the machine, which is not a trade worth one keystroke. ⌃⌘A is free in
+      # ⌘-land, and leaves ⌃A alone as beginning-of-line inside a terminal.
+      #
+      # It is a main-mode chord rather than a leader letter because starting an
+      # agent is the single most-pressed action in this setup, and because the
+      # leader's `a` is already an app.
+      title = "Agents";
+      items = [
+        {
+          keys = "⌃ ⌘ A";
+          action = "New agent in its own worktree + window";
+          binds.ctrl-cmd-a = "exec-and-forget ${agents.spawn}";
+        }
+      ];
+    }
+  ]
 ++
   lib.optionals (k.palette != null) [
     {

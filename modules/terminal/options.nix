@@ -297,6 +297,17 @@ in
         `~/.config/holt/config.toml`. If zmx is somehow missing at runtime
         the hook defers (exit 3) and holt falls back to its built-in, so the
         worst case is the zellij behaviour you already had.
+
+        Choosing `zmx` also changes what ⌘A runs. Claude Code's own
+        `--worktree` makes the checkout through the WorktreeCreate hook and
+        then runs in the pane it was launched from — it never calls `holt
+        new`, so it never reaches the seam above, and the chord would keep
+        opening a pane on a machine that had asked for windows. Under `zmx`
+        the chord is `holt new` for every client, which builds the identical
+        checkout from the outside. The side benefit is that the lane becomes
+        resumable: Claude keys a transcript to the directory it started in,
+        so a `holt new` lane's conversation lives at the lane's own path,
+        which is where `holt <name>` goes looking for it.
       '';
     };
 

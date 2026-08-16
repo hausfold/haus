@@ -889,10 +889,12 @@ fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usi
     // run_bind_key / action_key), so a rebind re-letters the block; only the
     // labels and the Floating/Focus/Resize hints were dropped versus upstream.
     // The `a` launcher is "start an agent", not "start Claude": terminal renders
-    // that bind from haus.ai.default, so it is `claude --worktree` on a
-    // Claude machine and `holt new` on a Codex/Opencode one. Try each spelling
-    // and take the first that resolves — matching only the Claude one used to
-    // blank the whole hint block's first key the moment the default changed.
+    // that bind from haus.ai.default AND haus.terminal.lanes.backend, so it is
+    // `claude --worktree` only on a Claude machine still on the zellij lane
+    // backend, and `holt new` on a Codex/Opencode one or on any machine that
+    // chose zmx. Try each spelling and take the first that resolves — matching
+    // only the Claude one used to blank the whole hint block's first key the
+    // moment the default changed.
     let agent_key = [("claude", Some("--worktree")), ("holt", Some("new"))]
         .into_iter()
         .map(|(cmd, arg)| run_bind_key(binds, cmd, arg))

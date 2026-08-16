@@ -71,7 +71,19 @@ let
   # A function of the keymap now, and it returns NO window sections when
   # keys.windowNav = "none" — so the toml and the cheatsheet both go quiet
   # together instead of one advertising what the other didn't bind.
-  wmBindings = import ./wm-bindings.nix { inherit lib k; };
+  #
+  # The agent-spawn section is the exception, and deliberately: it sits OUTSIDE
+  # the windowNav gate because ⌃⌘A is not a navigation chord and doesn't hang
+  # off `k.nav`. `windowNav = "none"` therefore still emits it, under an
+  # otherwise-empty [mode.main.binding] — which is right. Someone who wants no
+  # directional window keys has not thereby asked to lose the way they start
+  # agents.
+  wmBindings = import ./wm-bindings.nix {
+    inherit lib k;
+    # The terminal room's contribution: whether a lane is a window (and so needs
+    # a chord that isn't inside a multiplexer) and what to run when it is.
+    agents = config.haus._contrib.windows.agents;
+  };
   renderCmd = c: if lib.isList c then "[" + lib.concatMapStringsSep ", " (x: "'${x}'") c + "]" else "'${c}'";
   renderBinds =
     binds: lib.concatStrings (lib.mapAttrsToList (chord: cmd: "${chord} = ${renderCmd cmd}\n") binds);
