@@ -64,7 +64,7 @@ assert_contains() {
 out=$("$AWAKE" 2h)
 assert_eq "$out" "awake for 2h 00m"
 assert_eq "$("$AWAKE" status --raw)" "$(printf 'timed\t7200\t1007200')"
-assert_contains "$TMP/log" "kickstart -k gui/$(id -u)/org.nebelhaus.awake"
+assert_contains "$TMP/log" "kickstart -k gui/$(id -u)/com.hausfold.awake"
 assert_contains "$TMP/log" "sketchybar --trigger caffeinate_change"
 assert_contains "$TMP/log" "bar-bottom --trigger caffeinate_change"
 
@@ -75,7 +75,7 @@ assert_eq "$("$AWAKE" status --raw)" "$(printf 'indefinite\t0\t0')"
 out=$("$AWAKE" off)
 assert_eq "$out" "idle sleep is allowed"
 assert_eq "$("$AWAKE" status --raw)" "$(printf 'off\t0\t0')"
-assert_contains "$TMP/log" "kill TERM gui/$(id -u)/org.nebelhaus.awake"
+assert_contains "$TMP/log" "kill TERM gui/$(id -u)/com.hausfold.awake"
 
 "$AWAKE" 90m >/dev/null
 "$AWAKE" _run

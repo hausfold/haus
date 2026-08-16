@@ -4422,7 +4422,7 @@
       "_type": "literalExpression",
       "text": "false"
     },
-    "description": "When true, build a small opener app and make it the default handler\nfor ~80 text/code extensions (json, md, ts, nix, rs, go, kdl, …), so\nopening or clicking those files opens them in haus.terminal.editor in\na terminal tab. The app declares the types itself (not just `duti`) so\nextensions nothing else on the machine declares still bind. Off by\ndefault: silently rewriting your file associations is a jarring,\nhard-to-undo change, so it's strictly opt-in. (Extensionless executables\nlike `bench` are NOT covered — macOS gates the public.unix-executable\nhandler behind an interactive dialog; set it by hand once if wanted:\n`duti -s org.nebelhaus.editoropen public.unix-executable all`.)\n",
+    "description": "When true, build a small opener app and make it the default handler\nfor ~80 text/code extensions (json, md, ts, nix, rs, go, kdl, …), so\nopening or clicking those files opens them in haus.terminal.editor in\na terminal tab. The app declares the types itself (not just `duti`) so\nextensions nothing else on the machine declares still bind. Off by\ndefault: silently rewriting your file associations is a jarring,\nhard-to-undo change, so it's strictly opt-in. (Extensionless executables\nlike `bench` are NOT covered — macOS gates the public.unix-executable\nhandler behind an interactive dialog; set it by hand once if wanted:\n`duti -s com.hausfold.editoropen public.unix-executable all`.)\n",
     "loc": [
       "haus",
       "terminal",

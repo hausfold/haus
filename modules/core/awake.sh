@@ -10,7 +10,7 @@ set -euo pipefail
 
 STATE_DIR="${AWAKE_STATE_DIR:-$HOME/.local/state/haus/awake}"
 STATE_FILE="$STATE_DIR/state"
-LABEL="${AWAKE_LAUNCHD_LABEL:-org.nebelhaus.awake}"
+LABEL="${AWAKE_LAUNCHD_LABEL:-com.hausfold.awake}"
 LAUNCHCTL="${AWAKE_LAUNCHCTL_BIN:-/bin/launchctl}"
 CAFFEINATE="${AWAKE_CAFFEINATE_BIN:-/usr/bin/caffeinate}"
 SKETCHYBAR="${AWAKE_SKETCHYBAR_BIN:-/opt/homebrew/opt/sketchybar/bin/sketchybar}"

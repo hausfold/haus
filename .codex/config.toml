@@ -1,4 +1,4 @@
-# Project-scoped Codex config for the nebelhaus rice.
+# Project-scoped Codex config for the haus layer.
 #
 # Instructions: AGENTS.md at the repo root — Codex reads it natively, no wiring.
 # Flows: none repo-local yet; when there are, .agents/skills/ is what Codex

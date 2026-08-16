@@ -1,18 +1,13 @@
-# Options that moved ROOM inside `haus.*` — not the namespace rename.
+# Options that moved ROOM inside `haus.*`.
 #
-# `./renamed.nix` is the `nebelhaus.*` -> `haus.*` alias set: generated, one
-# entry per leaf, and deleted whole once the last consumer has moved. This file
-# is the other kind of alias — an option that kept its namespace and changed its
-# address — and it is hand-written on purpose, because each entry has a reason
-# worth writing down and no enumeration can produce it.
+# Hand-written on purpose: each entry has a reason worth writing down and no
+# enumeration can produce it. There is no deletion condition for the file
+# itself — a room move can happen again. Entries do age out: drop one when no
+# consumer can plausibly still be pinned to a revision that predates the move.
 #
-# Unlike renamed.nix there is no deletion condition for the file itself: a room
-# move can happen again. Entries do age out — drop one when no consumer can
-# plausibly still be pinned to a revision that predates the move.
-#
-# What an alias buys, both times: the old name keeps evaluating (with an
-# obsolete-option warning naming the new one), so `~/.config/nix` moves on its
-# own schedule instead of in a lockstep PR pair with the rice.
+# What an alias buys: the old name keeps evaluating (with an obsolete-option
+# warning naming the new one), so `~/.config/nix` moves on its own schedule
+# instead of in a lockstep PR pair with the layer.
 { lib, ... }:
 {
   imports = [
@@ -43,18 +38,12 @@
     # has one consumer, its host moved in the same sweep, and an alias set here
     # would be permanent furniture protecting nobody. It would also defeat the
     # point — the whole change is that those words stop appearing.
-    #
-    # `./renamed.nix` next door is untouched by this: its LEFT sides are the
-    # frozen `nebelhaus.*` spellings and only their `haus.*` targets followed.
-    # So `nebelhaus.sill.position` still resolves — to `haus.bar.position`.
 
     # 2026-08-13 — the whole coding-agent capability became `haus.ai.*`, and
     # deliberately got NO alias here. `haus.agents.*` and
     # `haus.developer.agents.enable` are gone rather than deprecated: the rice
     # has one consumer, its host moved in the same change, and an alias set for
     # a five-day-old spelling would be permanent furniture bought to protect
-    # nobody. The `nebelhaus.*` entries next door still resolve — they point at
-    # `haus.ai.*` now, because an alias follows its option rather than being
-    # re-created at each address it passes through.
+    # nobody.
   ];
 }

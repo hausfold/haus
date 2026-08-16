@@ -7,7 +7,7 @@ The workshop's `assets/SHOTLIST.md` still calls it a placeholder; a real one
 replaces it here.
 
 **Nothing in this repo renders any of these.** The README carried `hero.png` and
-`nebelhaus-banner-gray-bg-rounded.png` until 2026-08-14 and now leads with words
+`hacker-banner-gray-bg-rounded.png` until 2026-08-14 and now leads with words
 alone; `tap-to-launch.webp` was already unreferenced. They stay because
 hausfold.co and the workshop draw from them — not because GitHub does. Putting
 an image back in the README is a decision, not a refresh.

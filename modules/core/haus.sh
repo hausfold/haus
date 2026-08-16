@@ -1430,21 +1430,12 @@ cmd_rebuild() {
 # release (the "released but not installed" trap). So do an explicit, unthrottled
 # `brew update` + a targeted upgrade of just the hausfold/tap packages here —
 # third-party casks keep whatever upgrade policy the host set (autoUpdate/upgrade).
-#
-# Both tap directories are probed: the tap was `nebelhaus/tap` until the org
-# migration, and a machine that tapped it before then still has the old dir on
-# disk. Homebrew keys a tap by the directory, not by where it redirects to, so
-# looking only at the new path would turn this into a silent no-op — which is
-# indistinguishable from "nothing to upgrade", the exact trap above.
 refresh_family_apps() {
   command -v brew >/dev/null 2>&1 || return 0
-  local root tap="" cand
+  local root tap
   root="$(brew --repository 2>/dev/null)" || return 0
-  for cand in "$root/Library/Taps/hausfold/homebrew-tap" \
-              "$root/Library/Taps/nebelhaus/homebrew-tap"; do
-    [ -d "$cand" ] && { tap="$cand"; break; }
-  done
-  [ -n "$tap" ] || return 0
+  tap="$root/Library/Taps/hausfold/homebrew-tap"
+  [ -d "$tap" ] || return 0
   brew update --quiet >/dev/null 2>&1 || warn "brew update failed — family apps may be stale"
   local kind dir f name
   for kind in Casks Formula; do
@@ -1480,20 +1471,19 @@ update_brew_job() { refresh_family_apps; brew_prefetch; }
 
 cmd_update() {
   local old new owner repo logfile input
-  old="$(jq -r '(.nodes.haus // .nodes.nebelhaus).locked.rev // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
+  old="$(jq -r '.nodes.haus.locked.rev // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
   # 🚨 The input NAME belongs to the consumer's flake, not to us — and
   # `nix flake update <name that isn't in the lock>` WARNS AND EXITS 0 without
   # touching anything. So a hardcoded name here doesn't fail loudly, it turns
   # `haus update` into a permanent no-op that then reports "already at the
-  # latest". Scaffolded configs said `nebelhaus` until 2026-08-14 and say `haus`
-  # since (rename note §11.2), so read the name back out of the lock.
+  # latest". `bootstrap.sh` scaffolds `haus`, but nothing stops a consumer
+  # naming it something else, so read the name back out of the lock.
   input="$(jq -r 'if (.nodes[.root].inputs.haus? // null) != null then "haus"
-                  elif (.nodes[.root].inputs.nebelhaus? // null) != null then "nebelhaus"
                   else "" end' "$CONSUMER/flake.lock" 2>/dev/null || true)"
   [ -n "$input" ] || input=haus
   say "pulling the latest haus …"
   ( cd "$CONSUMER" && heal nix flake update "$input" )
-  new="$(jq -r '(.nodes.haus // .nodes.nebelhaus).locked.rev // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
+  new="$(jq -r '.nodes.haus.locked.rev // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
   if [ -n "$old" ] && [ "$old" = "$new" ]; then
     say "already at the latest haus (${new:0:12}) — rebuilding anyway."
   elif [ -n "$old" ] && [ -n "$new" ]; then
@@ -1501,8 +1491,8 @@ cmd_update() {
     # rate-limited, or non-GitHub upstreams just skip the list. Fetched in the
     # background: it's a 5-second timeout on a network you may not have, and
     # nothing downstream waits on it.
-    owner="$(jq -r '(.nodes.haus // .nodes.nebelhaus).original.owner // "hausfold"' "$CONSUMER/flake.lock")"
-    repo="$(jq -r '(.nodes.haus // .nodes.nebelhaus).original.repo // "haus"' "$CONSUMER/flake.lock")"
+    owner="$(jq -r '.nodes.haus.original.owner // "hausfold"' "$CONSUMER/flake.lock")"
+    repo="$(jq -r '.nodes.haus.original.repo // "haus"' "$CONSUMER/flake.lock")"
     logfile="$(mktemp)"
     bg fetch_changelog "$owner" "$repo" "$old" "$new" "$logfile"
   fi
@@ -1561,17 +1551,17 @@ cmd_status() {
   echo
   say "pinned haus"
   if [ -f "$CONSUMER/flake.lock" ]; then
-    lockrev="$(jq -r '(.nodes.haus // .nodes.nebelhaus).locked.rev // "?"' "$CONSUMER/flake.lock")"
-    lockdate="$(jq -r '(.nodes.haus // .nodes.nebelhaus).locked.lastModified // 0' "$CONSUMER/flake.lock")"
+    lockrev="$(jq -r '.nodes.haus.locked.rev // "?"' "$CONSUMER/flake.lock")"
+    lockdate="$(jq -r '.nodes.haus.locked.lastModified // 0' "$CONSUMER/flake.lock")"
     if [ "$lockdate" != "0" ]; then
       printf '  %s  (%s)\n' "${lockrev:0:12}" "$(date -r "$lockdate" '+%Y-%m-%d' 2>/dev/null || echo '?')"
     else
       printf '  %s\n' "${lockrev:0:12}"
     fi
     # Is upstream haus ahead of what you've pinned? Best-effort, offline-safe.
-    owner="$(jq -r '(.nodes.haus // .nodes.nebelhaus).original.owner // "hausfold"' "$CONSUMER/flake.lock")"
-    repo="$(jq -r '(.nodes.haus // .nodes.nebelhaus).original.repo // "haus"' "$CONSUMER/flake.lock")"
-    ref="$(jq -r '(.nodes.haus // .nodes.nebelhaus).original.ref // "HEAD"' "$CONSUMER/flake.lock")"
+    owner="$(jq -r '.nodes.haus.original.owner // "hausfold"' "$CONSUMER/flake.lock")"
+    repo="$(jq -r '.nodes.haus.original.repo // "haus"' "$CONSUMER/flake.lock")"
+    ref="$(jq -r '.nodes.haus.original.ref // "HEAD"' "$CONSUMER/flake.lock")"
     url="https://github.com/$owner/$repo.git"
     remoterev="$(git ls-remote "$url" "$ref" 2>/dev/null | awk 'NR==1{print $1}')"
     if [ -n "$remoterev" ] && [ "$remoterev" != "$lockrev" ]; then
@@ -1605,13 +1595,10 @@ cmd_edit() {
 settings_path() {
   local raw="$1" path
   [ -n "$raw" ] || die "an option path is required (for example: theme.accent)"
-  # `nebelhaus.` is accepted as the pre-rename spelling of the same namespace
-  # (modules/renamed.nix), but the canonical prefix is what gets WRITTEN — an
-  # overlay file is regenerated on every `haus set`, so this upgrades old ones
-  # in place without a migration.
+  # The `haus.` prefix is optional on the command line and always present in
+  # what gets WRITTEN — an overlay file is regenerated on every `haus set`.
   case "$raw" in
     haus.*) path="$raw" ;;
-    nebelhaus.*) path="haus.${raw#nebelhaus.}" ;;
     *) path="haus.$raw" ;;
   esac
   # A component may start with a digit: the keys of an `attrsOf` option are the

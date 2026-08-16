@@ -226,7 +226,7 @@ in
         hard-to-undo change, so it's strictly opt-in. (Extensionless executables
         like `bench` are NOT covered — macOS gates the public.unix-executable
         handler behind an interactive dialog; set it by hand once if wanted:
-        `duti -s org.nebelhaus.editoropen public.unix-executable all`.)
+        `duti -s com.hausfold.editoropen public.unix-executable all`.)
       '';
     };
 

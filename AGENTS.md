@@ -12,61 +12,29 @@ adds only its own host (identity, private apps, secrets).
 > first one written, and the one `mkHaus` selects when a consumer names none).
 > **hausfold** is neither — it is the org, the maker and the seller, which is why
 > the repo is `hausfold/haus`: the layer names the repo, the org names the owner.
-> That is **decision 8** in the workshop's `notes/hausfold-rename.md`
-> (2026-08-10), applied to the slug by **decision 9** (2026-08-11) — this repo
-> was `hausfold/hausfold` until then, and every old URL still redirects.
->
-> 🔄 **`hacker` was called `nebelhaus` until 2026-08-14** — **decision 10**, and
-> the note's **§11** is the walkthrough. Nothing about what it configures
-> changed. Read a surviving `nebelhaus` against §11.0's table before touching
-> it: the desktop is `hacker`, the *layer's* leftovers are `haus`, and the dead
-> org, holt's Go module path, `nebelhaus.com` and `modules/renamed.nix` all keep
-> the word on purpose.
+> That is **decision 8** (2026-08-10), applied to the slug by **decision 9**
+> (2026-08-11) — this repo was `hausfold/hausfold` until then, and every old URL
+> still redirects.
 >
 > Layer and desktop are still interleaved in the same files, because the plan's
-> decision 4 renames first and neutralizes the defaults later (its §7). So the
+> decision 4 renames first and neutralizes the defaults later. So the
 > distinction is a **writing** rule right now, not a directory boundary: when you
 > touch a module, know whether you're changing what every desktop gets or only
 > what `hacker` looks like, and say which in the commit.
 
-> 🚨 **The option namespace is `haus.*`.** Declare every new option under
-> `haus.`, in one of the files `modules/options-modules.nix` lists — that list
-> is the single source (`modules/default.nix` imports it; don't write the paths
-> out again). `nebelhaus.*` still works for CONSUMERS: `modules/renamed.nix`
-> generates one `lib.mkRenamedOptionModule` per leaf, so a host or a
-> third-party rice on the old spelling keeps evaluating, with a warning. It is
-> not a second namespace to add to — a declaration under `nebelhaus.` would
-> collide with its own alias.
+> 🚨 **The option namespace is `haus.*`, and it is the only one.** Declare every
+> new option under `haus.`, in one of the files `modules/options-modules.nix`
+> lists — that list is the single source (`modules/default.nix` imports it;
+> don't write the paths out again). There is no second namespace and no alias
+> set: `modules/moved.nix` carries only options that changed ADDRESS *inside*
+> `haus.*`.
 >
-> 🔄 **This box used to list three things that "stay `nebelhaus`" — the desktop,
-> the flake outputs, and the flake input. Decision 10 took all three.** The
-> desktop is `hacker`; `haus.desktops.hacker`, `haus.lib.checkRice` and
-> `inputs.haus.url` are the current spellings, and the builder is `mkHaus`
-> (`mkNebelhaus` survives as a plain alias so a consumer can move on its own
-> schedule, and `desktopFiles.nebelhaus` survives so `hausfold.co/nebelhaus.sh`
-> keeps installing). `share/haus/` and the state dirs — `~/.local/state/haus`,
-> `~/.config/haus/`, `~/.cache/haus/`, `/Library/Application Support/haus/` —
-> moved with them, each leaving a **symlink** at the old path so anything
-> compiled against the old spelling still resolves (§11.3).
->
-> **What genuinely does still hold the word**, and is not drift:
-> `org.nebelhaus.*` launchd labels and the `org.nebelhaus.editoropen` bundle id
-> (a LaunchServices/TCC identity — renaming it drops grants, so it is §4's
-> ruling and deliberately not §11's), `modules/renamed.nix`'s namespace aliases,
-> the `Library/Taps/nebelhaus/` probe for the pre-migration Homebrew tap, and
-> `nebelhaus#NNN` PR citations.
->
-> ⚠️ **nebelhaus.com links were on that list and no longer are.** §5.2 ran on
-> 2026-08-14: the domain is a 301 map and every URL this repo prints now points
-> at hausfold.co. A restored `nebelhaus.com` link is drift, not a spelling to
-> preserve — the only ones left are the bare-domain test fixtures in the zellij
-> link-handler, where the string is example input to a parser.
->
-> The agent skill **used to be on that list and no longer is.** It installs as
-> `haus/` inside each client's skills directory (`~/.claude/skills/`,
-> `~/.codex/skills/`, `~/.config/opencode/skills/`) and its frontmatter `name:`
-> is `haus`, so a `skills/nebelhaus` path anywhere is drift now, not a
-> deliberate hold-out.
+> The current spellings, everywhere: `haus.desktops.hacker`,
+> `haus.lib.checkRice`, `inputs.haus.url`, the builder `mkHaus`, `share/haus/`,
+> and the state dirs `~/.local/state/haus`, `~/.config/haus/`, `~/.cache/haus/`,
+> `/Library/Application Support/haus/`. The agent skill installs as `haus/`
+> inside each client's skills directory (`~/.claude/skills/`, `~/.codex/skills/`,
+> `~/.config/opencode/skills/`) and its frontmatter `name:` is `haus`.
 
 **This file is the one set of instructions, for every agent.** Claude Code,
 Codex, OpenCode, Cursor, Copilot — TUI or GUI — all read *this*, directly or
@@ -86,9 +54,9 @@ stopped writing Claude's copy alone.)
 **This repo (`~/code/workshop/haus`) owns THE LAYER AND THE RICE** — `haus`,
 the generic, no-identity system + shell modules, and hacker's default values
 on top of them. Personal machine config and the pounce/theme sources live
-elsewhere. *(The checkout was `~/code/workshop/hausfold` until 2026-08-11 and
-`~/code/workshop/nebelhaus` before that — it follows the repo, which is
-`hausfold/haus`. The desktop is `hacker` since 2026-08-14 — decision 10, the note's §11.)*
+elsewhere. *(The checkout was `~/code/workshop/hausfold` until 2026-08-11 — it
+follows the repo, which is `hausfold/haus`. The desktop is `hacker` since
+2026-08-14 — decision 10.)*
 
 | Want to change… | Repo |
 |---|---|
@@ -106,9 +74,9 @@ elsewhere. *(The checkout was `~/code/workshop/hausfold` until 2026-08-11 and
 > update the matching page there too, or it silently drifts.
 >
 > ⚠️ **Not the workshop's `web/`.** That was the answer until the docs were
-> rebuilt on Fumadocs; the Astro/Starlight tree is **deleted** and `web/` is
-> nebelhaus.com's 301 map now, so a fix routed there edits nothing and reports
-> success. Rooms, not guides: `haus/rooms/bar.mdx` is what `guides/the-bar` became.
+> rebuilt on Fumadocs; that tree is **deleted** and there is nothing to route a
+> docs fix to but hausfold.co. Rooms, not guides: `haus/rooms/bar.mdx` is what
+> `guides/the-bar` became.
 
 > **Whatever agent you are, enforce this.** If a request targets a different repo
 > than the one whose files you're in, STOP and say so before editing — e.g.
@@ -133,8 +101,7 @@ modules/
                           #   `room-registry` fails on anything unmapped or unnamed
   moved.nix               # aliases for options that changed ADDRESS inside haus.* (today:
                           #   the claude room → ai). The 2026-08-13 agents → ai move got
-                          #   NO alias on purpose — read the file for why. renamed.nix next
-                          #   door is the generated nebelhaus.* → haus.* set; don't grow it
+                          #   NO alias on purpose — read the file for why
   options-doc.nix         # nixosOptionsDoc over them → the metadata the docs site
                           #   (.#options-json) and the agent skill are both RENDERED from
   site-data.nix           # .#site-data: that metadata + the binding table, filtered to

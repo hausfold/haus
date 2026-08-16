@@ -118,7 +118,7 @@ sketchybar --default \
 # There is no popup dropdown. One hung off this item from the scaffold until
 # now — Preferences / Activity / Lock Screen / Nix Config / Reload SketchyBar —
 # and NOTHING ever set `popup.drawing` on it, so not one of those five rows was
-# ever clickable, and the two that were fixed over the years (nebelhaus#291's
+# ever clickable, and the two that were fixed over the years (haus#291's
 # both-bars reload, the hardcoded-hostname rebuild before it) were fixes to
 # dead code. They live in the palette, and in the haus menu, instead: written
 # once, and searchable there.

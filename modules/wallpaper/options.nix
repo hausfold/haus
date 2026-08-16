@@ -20,11 +20,8 @@ let
 in
 {
   # `haus.theme.wallpaper` was this option until `minimal` landed. The alias
-  # lives here rather than in ../renamed.nix, which is GENERATED and covers one
-  # rename only (`nebelhaus.*` -> `haus.*`) with a deletion condition of its own
-  # — an entry hand-added there would outlive the file. Chaining works: a rice
-  # still saying `nebelhaus.theme.wallpaper` lands on `haus.theme.wallpaper`
-  # there and arrives here.
+  # lives beside the option it renames rather than in ../moved.nix, because it
+  # is a rename within one room and reads best where the new name is declared.
   imports = [
     (lib.mkRenamedOptionModule [ "haus" "theme" "wallpaper" ] [ "haus" "wallpaper" "style" ])
   ];

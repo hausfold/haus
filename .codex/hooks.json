@@ -7,7 +7,7 @@
           {
             "type": "command",
             "command": "bash .agents/setup.sh",
-            "statusMessage": "nebelhaus: bootstrapping Nix"
+            "statusMessage": "haus: bootstrapping Nix"
           }
         ]
       }

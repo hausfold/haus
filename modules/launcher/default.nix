@@ -617,7 +617,7 @@ let
   ) itemBindings;
 
   # The rice's own GLOBAL chords, in the same normalized shape. keys.nix already
-  # asserts leader-vs-palette (nebelhaus#108); item hotkeys are the third
+  # asserts leader-vs-palette (haus#108); item hotkeys are the third
   # claimant, and the failure mode is identical: whoever registers first wins,
   # silently. Terminal chords count too: Pounce registers item hotkeys globally,
   # so a cmd+g item would swallow Zellij's Super-g before Ghostty ever saw it.

@@ -433,7 +433,7 @@ fn swap_layout_status(
         Some(swap_layout_name) => {
             // The keys come from the CURRENT mode's keybinds, so the hint is
             // self-truthing: in a mode where the layout can't be cycled it
-            // renders empty and only the pill shows. (Until nebelhaus#143 that
+            // renders empty and only the pill shows. (Until haus#143 that
             // was every Locked-mode session.) `with_keys = false` is the
             // responsive shrink — see the ladder in tab_line().
             let mut text = if with_keys {

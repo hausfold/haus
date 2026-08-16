@@ -15,14 +15,11 @@
 # rendered-docs approach exists to prevent. Add a room's options.nix here and
 # every surface picks it up.
 [
-  # The `nebelhaus.*` -> `haus.*` aliases. In this list rather than only in
-  # modules/default.nix because the pure-lib evals above are ALSO consumers of
-  # the old names: flake.nix's pack and compat checks feed data files written
-  # against `nebelhaus.*` into a bare evalModules of exactly this list.
-  ./renamed.nix
   # Options that moved room WITHIN `haus.*` (today: the `claude` room folding
-  # into `ai`). Listed here for the same reason renamed.nix is — the evals above
-  # are fed rice files written against the old address too.
+  # into `ai`). In this list rather than only in modules/default.nix because the
+  # pure-lib evals above are ALSO consumers of the old addresses: flake.nix's
+  # pack and compat checks feed rice files written against them into a bare
+  # evalModules of exactly this list.
   ./moved.nix
   ./options.nix
   # The desktop seam's own record (`haus._desktop.sources`). Internal, so it

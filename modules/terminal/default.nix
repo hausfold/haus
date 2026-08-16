@@ -2360,7 +2360,7 @@ in
             # `darwin-rebuild switch` can't answer (and neither declaration nor
             # lsregister overrides Terminal's claim). To send them to the editor,
             # run once by hand and click through the prompt:
-            #   duti -s org.nebelhaus.editoropen public.unix-executable all
+            #   duti -s com.hausfold.editoropen public.unix-executable all
             plistBuddy = "/usr/libexec/PlistBuddy";
             lsregister = "/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister";
             # One PlistBuddy "Add …:CFBundleTypeExtensions:<i> string <ext>" per
@@ -2370,7 +2370,7 @@ in
               ''$DRY_RUN_CMD ${plistBuddy} -c "Add :CFBundleDocumentTypes:0:CFBundleTypeExtensions:${toString i} string ${ext}" "$PL"''
             ) editorExts);
             dutiPins = lib.concatStringsSep "\n" (map (
-              t: ''$DRY_RUN_CMD "${pkgs.duti}/bin/duti" -s org.nebelhaus.editoropen "${t}" all 2>/dev/null || true''
+              t: ''$DRY_RUN_CMD "${pkgs.duti}/bin/duti" -s com.hausfold.editoropen "${t}" all 2>/dev/null || true''
             ) editorExts);
           in
           ''
@@ -2378,7 +2378,7 @@ in
             $DRY_RUN_CMD mkdir -p "$appDir"
             $DRY_RUN_CMD /usr/bin/osacompile -o "$appDir/EditorOpen.app" -e 'on open theFiles' -e 'repeat with theFile in theFiles' -e 'set file_path to POSIX path of theFile' -e 'do shell script "$HOME/.config/zellij/editor-open-pane.sh " & quoted form of file_path' -e 'end repeat' -e 'end open'
             PL="$appDir/EditorOpen.app/Contents/Info.plist"
-            $DRY_RUN_CMD /usr/bin/plutil -replace CFBundleIdentifier -string "org.nebelhaus.editoropen" "$PL"
+            $DRY_RUN_CMD /usr/bin/plutil -replace CFBundleIdentifier -string "com.hausfold.editoropen" "$PL"
 
             # Declare the file types EditorOpen.app owns IN THE APP ITSELF — not
             # just via duti. This is load-bearing: `duti -s <ext>` can only bind an
