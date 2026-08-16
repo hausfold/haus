@@ -1255,6 +1255,16 @@
   },
   "rooms": {
     "ai": {
+      "agent": {
+        "asks": [
+          "install claude code",
+          "install codex",
+          "which agent does the agent key spawn",
+          "change my agent instructions",
+          "what worktrees are open"
+        ],
+        "cli": "holt"
+      },
       "blurb": "Coding agents: which clients this machine installs, the worktree lifecycle around them, and the instructions and `haus` skill every client reads.",
       "exports": [],
       "kind": "room",
@@ -1266,6 +1276,17 @@
       "title": "AI"
     },
     "appearance": {
+      "agent": {
+        "asks": [
+          "change my theme",
+          "switch to light mode",
+          "make the text bigger",
+          "change my font",
+          "set my wallpaper",
+          "change the accent colour"
+        ],
+        "cli": null
+      },
       "blurb": "How the machine looks: the palette and its accent, the wallpaper, the fonts, and the macOS surfaces that follow them — motion, screenshots, sound and the accessibility keys. The interface scale every room reads is `haus.ui`, a shared surface below.",
       "exports": [],
       "kind": "room",
@@ -1284,6 +1305,15 @@
       "title": "Appearance"
     },
     "apps": {
+      "agent": {
+        "asks": [
+          "turn on the writing pack",
+          "install the apps haus picks for me",
+          "open markdown files with something else",
+          "stop homebrew auto-updating"
+        ],
+        "cli": null
+      },
       "blurb": "The apps a finished machine has: the curated picks, the packs that switch a whole set on in one line, the file types they claim, App Store policy, and what a rebuild does to anything you installed by hand. The list they all land in is `haus.roster`, a shared surface below.",
       "exports": [],
       "kind": "room",
@@ -1297,6 +1327,15 @@
       "title": "Apps"
     },
     "bar": {
+      "agent": {
+        "asks": [
+          "change my menu bar",
+          "add a pill to the bar",
+          "show battery in the bar",
+          "hide the bar"
+        ],
+        "cli": "sketchybar (top bar) · bar-bottom (the second one, same binary)"
+      },
       "blurb": "The menu bar: where it draws, which pills it carries, and what each one reads.",
       "exports": [
         "bar"
@@ -1311,6 +1350,15 @@
       "title": "Bar"
     },
     "development": {
+      "agent": {
+        "asks": [
+          "install a language runtime",
+          "change my editor",
+          "configure my terminal",
+          "add a command-line tool"
+        ],
+        "cli": null
+      },
       "blurb": "The terminal stack — terminal, shell, multiplexer, editor — plus the browser, the CLI toolbelt, Git tooling and language runtimes. Your commit identity itself is a fact about you rather than this room's, and stays in your host. The terminal lives here because a terminal with no tools in it is not a separate thing anyone wants.",
       "exports": [
         "terminal"
@@ -1326,6 +1374,14 @@
       "title": "Development"
     },
     "displays": {
+      "agent": {
+        "asks": [
+          "change my resolution",
+          "make my external monitor bigger",
+          "scale my second screen"
+        ],
+        "cli": null
+      },
       "blurb": "Resolution and per-display behaviour, addressed by which screen you mean rather than by a panel's serial number.",
       "exports": [],
       "kind": "room",
@@ -1337,6 +1393,15 @@
       "title": "Displays"
     },
     "focus": {
+      "agent": {
+        "asks": [
+          "make my mac quiet",
+          "turn on do not disturb",
+          "hush",
+          "am I in do not disturb"
+        ],
+        "cli": "focus on|off|toggle|status"
+      },
       "blurb": "One quiet switch: Do Not Disturb, an optional status somewhere else, and your own hooks on both edges.",
       "exports": [
         "focus"
@@ -1350,6 +1415,17 @@
       "title": "Focus"
     },
     "haus": {
+      "agent": {
+        "asks": [
+          "install an app",
+          "add slack",
+          "remove an app",
+          "what apps are on this machine",
+          "rename a workspace",
+          "make the whole interface bigger"
+        ],
+        "cli": null
+      },
       "blurb": "Surfaces more than one room reads: the app roster, the workspaces, the keys haus owns, the interface scale, the first-run tour. They belong to no single room because moving one into a room would make the others depend on it.",
       "exports": [
         "core",
@@ -1368,6 +1444,15 @@
       "title": "Shared surfaces"
     },
     "host": {
+      "agent": {
+        "asks": [
+          "change my git identity",
+          "change my timezone",
+          "set my region",
+          "stop my laptop sleeping so fast"
+        ],
+        "cli": null
+      },
       "blurb": "The facts that are about you or this Mac rather than about a room — your commit identity, your region, this laptop's power behaviour. A shared desktop may not set them.",
       "exports": [],
       "kind": "host",
@@ -1381,6 +1466,14 @@
       "title": "Your machine"
     },
     "launcher": {
+      "agent": {
+        "asks": [
+          "change what cmd-space opens",
+          "add a command to my palette",
+          "what opens when I hit cmd-space"
+        ],
+        "cli": "pounce"
+      },
       "blurb": "Pounce — the command palette, its daemon, its commands, and every Pounce setting haus exposes.",
       "exports": [
         "launcher"
@@ -1394,6 +1487,15 @@
       "title": "Launcher"
     },
     "security": {
+      "agent": {
+        "asks": [
+          "touch id for sudo",
+          "turn on the firewall",
+          "lock my screen faster",
+          "where does haus get my secrets"
+        ],
+        "cli": null
+      },
       "blurb": "Touch ID for sudo, lock behaviour, the firewall, and where secret values come from.",
       "exports": [
         "secrets",
@@ -1410,6 +1512,14 @@
       "title": "Security"
     },
     "shelf": {
+      "agent": {
+        "asks": [
+          "turn the notch shelf on",
+          "turn perch off",
+          "stop the shelf appearing in the notch"
+        ],
+        "cli": null
+      },
       "blurb": "Perch — the file shelf that grows out of the notch to catch what you drag at it.",
       "exports": [],
       "kind": "room",
@@ -1421,6 +1531,14 @@
       "title": "Shelf"
     },
     "text-expansion": {
+      "agent": {
+        "asks": [
+          "add a snippet",
+          "set up text expansion",
+          "type my email automatically"
+        ],
+        "cli": "espanso"
+      },
       "blurb": "Snippets, and the engine that types them out for you.",
       "exports": [],
       "kind": "room",
@@ -1432,6 +1550,16 @@
       "title": "Text expansion"
     },
     "windows": {
+      "agent": {
+        "asks": [
+          "tile my windows",
+          "change my window keybindings",
+          "move this window to another workspace",
+          "set up hot corners",
+          "what does my leader key do"
+        ],
+        "cli": "aerospace"
+      },
       "blurb": "Tiling, window navigation, hot corners, and the leader key that launches an app or throws it somewhere. The workspaces themselves (`haus.workspaces`) and the keys haus claims (`haus.keys`) are shared surfaces below, because the bar and the launcher read them too.",
       "exports": [
         "windows"

@@ -32,6 +32,28 @@
 # flattens `[text](link)` down to `text` on its way into a Nix comment. Written
 # the other way round (plain text plus a separate link field) the page would
 # have lost sentences it already had, for a link the comment can't click anyway.
+#
+# `agent` is a fourth renderer's worth of editorial, added 2026-08-16 to the
+# ROOMS (not the namespaces): the haus skill's `references/rooms.md`. Two
+# fields, and both answer a question the option tree can't:
+#
+#   cli   the room's RUNTIME verb — what you run to make it *do* something now,
+#         as opposed to `haus set`, which changes what it does next rebuild.
+#         `null` for a room that is configuration only. Nothing else in this
+#         repo connects a room to a command: the focus room's behaviour lives in
+#         `pounce focus`, the shelf's in `perch`, and an agent reading option
+#         names alone would never find either.
+#   asks  the sentences a PERSON says that should land in this room. Not option
+#         names and not a feature summary — the words someone actually uses, in
+#         their spelling ("make my mac quiet", not "toggle Do Not Disturb").
+#         This is the routing half: an agent handed "make my mac quiet" and a
+#         flat list of option leaves has no way to reach `haus.focus.*`.
+#
+# The family standard these serve is the workshop's `notes/agent-surface.md`.
+# `room-registry` requires both on every room, for the same reason it already
+# requires a title and a blurb: a room that shipped without them is a room the
+# agent silently can't route to, which reads to the user as haus not supporting
+# the thing at all.
 let
   # Exact relative paths in the generated public surface. `""` names the
   # namespace option itself (for example `haus.displays`). Keeping these as an
@@ -699,61 +721,177 @@ let
       title = "Apps";
       order = 10;
       blurb = "The apps a finished machine has: the curated picks, the packs that switch a whole set on in one line, the file types they claim, App Store policy, and what a rebuild does to anything you installed by hand. The list they all land in is `haus.roster`, a shared surface below.";
+      agent = {
+        cli = null;
+        # Deliberately NOT "install an app" / "add slack": those are
+        # `haus.roster.<name>`, and roster belongs to the shared bucket below.
+        # An ask routed to the room that owns none of the options points the
+        # agent away from the answer, which is worse than no routing at all.
+        asks = [
+          "turn on the writing pack"
+          "install the apps haus picks for me"
+          "open markdown files with something else"
+          "stop homebrew auto-updating"
+        ];
+      };
     };
     appearance = {
       title = "Appearance";
       order = 20;
       blurb = "How the machine looks: the palette and its accent, the wallpaper, the fonts, and the macOS surfaces that follow them — motion, screenshots, sound and the accessibility keys. The interface scale every room reads is `haus.ui`, a shared surface below.";
+      agent = {
+        cli = null;
+        asks = [
+          "change my theme"
+          "switch to light mode"
+          "make the text bigger"
+          "change my font"
+          "set my wallpaper"
+          "change the accent colour"
+        ];
+      };
     };
     displays = {
       title = "Displays";
       order = 30;
       blurb = "Resolution and per-display behaviour, addressed by which screen you mean rather than by a panel's serial number.";
+      agent = {
+        cli = null;
+        asks = [
+          "change my resolution"
+          "make my external monitor bigger"
+          "scale my second screen"
+        ];
+      };
     };
     development = {
       title = "Development";
       order = 40;
       blurb = "The terminal stack — terminal, shell, multiplexer, editor — plus the browser, the CLI toolbelt, Git tooling and language runtimes. Your commit identity itself is a fact about you rather than this room's, and stays in your host. The terminal lives here because a terminal with no tools in it is not a separate thing anyone wants.";
+      agent = {
+        cli = null;
+        asks = [
+          "install a language runtime"
+          "change my editor"
+          "configure my terminal"
+          "add a command-line tool"
+        ];
+      };
     };
     windows = {
       title = "Windows";
       order = 50;
       blurb = "Tiling, window navigation, hot corners, and the leader key that launches an app or throws it somewhere. The workspaces themselves (`haus.workspaces`) and the keys haus claims (`haus.keys`) are shared surfaces below, because the bar and the launcher read them too.";
+      agent = {
+        cli = "aerospace";
+        asks = [
+          "tile my windows"
+          "change my window keybindings"
+          "move this window to another workspace"
+          "set up hot corners"
+          "what does my leader key do"
+        ];
+      };
     };
     bar = {
       title = "Bar";
       order = 60;
       blurb = "The menu bar: where it draws, which pills it carries, and what each one reads.";
+      agent = {
+        cli = "sketchybar (top bar) · bar-bottom (the second one, same binary)";
+        asks = [
+          "change my menu bar"
+          "add a pill to the bar"
+          "show battery in the bar"
+          "hide the bar"
+        ];
+      };
     };
     launcher = {
       title = "Launcher";
       order = 70;
       blurb = "Pounce — the command palette, its daemon, its commands, and every Pounce setting haus exposes.";
+      agent = {
+        cli = "pounce";
+        asks = [
+          "change what cmd-space opens"
+          "add a command to my palette"
+          "what opens when I hit cmd-space"
+        ];
+      };
     };
     shelf = {
       title = "Shelf";
       order = 80;
       blurb = "Perch — the file shelf that grows out of the notch to catch what you drag at it.";
+      agent = {
+        # NOT `perch`. This room dittos Perch.app into /Applications and puts no
+        # binary on PATH — its roster entry has no `package`, so `packagesFor`
+        # skips it. `perch add` exists in perch's own repo and reaches a machine
+        # through perch's cask, not through here.
+        cli = null;
+        asks = [
+          "turn the notch shelf on"
+          "turn perch off"
+          "stop the shelf appearing in the notch"
+        ];
+      };
     };
     focus = {
       title = "Focus";
       order = 90;
       blurb = "One quiet switch: Do Not Disturb, an optional status somewhere else, and your own hooks on both edges.";
+      agent = {
+        cli = "focus on|off|toggle|status";
+        asks = [
+          "make my mac quiet"
+          "turn on do not disturb"
+          "hush"
+          "am I in do not disturb"
+        ];
+      };
     };
     ai = {
       title = "AI";
       order = 100;
       blurb = "Coding agents: which clients this machine installs, the worktree lifecycle around them, and the instructions and `haus` skill every client reads.";
+      agent = {
+        cli = "holt";
+        asks = [
+          "install claude code"
+          "install codex"
+          "which agent does the agent key spawn"
+          "change my agent instructions"
+          "what worktrees are open"
+        ];
+      };
     };
     text-expansion = {
       title = "Text expansion";
       order = 110;
       blurb = "Snippets, and the engine that types them out for you.";
+      agent = {
+        cli = "espanso";
+        asks = [
+          "add a snippet"
+          "set up text expansion"
+          "type my email automatically"
+        ];
+      };
     };
     security = {
       title = "Security";
       order = 120;
       blurb = "Touch ID for sudo, lock behaviour, the firewall, and where secret values come from.";
+      agent = {
+        cli = null;
+        asks = [
+          "touch id for sudo"
+          "turn on the firewall"
+          "lock my screen faster"
+          "where does haus get my secrets"
+        ];
+      };
     };
 
     haus = {
@@ -761,12 +899,36 @@ let
       kind = "shared";
       order = 200;
       blurb = "Surfaces more than one room reads: the app roster, the workspaces, the keys haus owns, the interface scale, the first-run tour. They belong to no single room because moving one into a room would make the others depend on it.";
+      agent = {
+        # `haus set` is not a runtime verb by this field's own definition — it
+        # writes the host file and still needs a rebuild — and it is available
+        # for every room, so hanging it on this one implies the other thirteen
+        # lack it.
+        cli = null;
+        asks = [
+          "install an app"
+          "add slack"
+          "remove an app"
+          "what apps are on this machine"
+          "rename a workspace"
+          "make the whole interface bigger"
+        ];
+      };
     };
     host = {
       title = "Your machine";
       kind = "host";
       order = 210;
       blurb = "The facts that are about you or this Mac rather than about a room — your commit identity, your region, this laptop's power behaviour. A shared desktop may not set them.";
+      agent = {
+        cli = null;
+        asks = [
+          "change my git identity"
+          "change my timezone"
+          "set my region"
+          "stop my laptop sleeping so fast"
+        ];
+      };
     };
   };
 

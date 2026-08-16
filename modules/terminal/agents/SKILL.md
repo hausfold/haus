@@ -35,9 +35,16 @@ by hand.
 
 1. **Orient.** Read `references/this-machine.md`, then the host file. Run
    `haus status` if the machine's freshness is relevant.
-2. **Find the option.** Grep `references/options.md` in this skill. That file is
-   rendered from the exact haus revision this machine is pinned to, so it is
-   authoritative — if an option is not in it, it does not exist here.
+2. **Find the room, then the option.** `references/rooms.md` maps what the user
+   said onto one room, and tells you whether that room has a **runtime verb** as
+   well as options — `focus on` makes the Mac quiet *now*, where
+   `haus.focus.*` decides what quiet means from the next rebuild on. Get that
+   fork right before you edit anything, and when a room has a runtime verb use
+   **that** rather than the tool underneath it. Then grep `references/options.md` for
+   the leaf: it is rendered from the exact haus revision this machine is pinned
+   to, so it is authoritative — if an option is not in it, it does not exist
+   here. Going straight to the flat option search is how an agent ends up
+   inventing a plausible name.
 3. **Edit the host file.** Smallest change that does the job; keep the file's
    existing comment style.
 4. **Apply.** `haus rebuild` — it builds first and only switches if the build
@@ -170,6 +177,7 @@ user the extra step: `brew uninstall --zap <cask>`.
 
 | File | What it is |
 |---|---|
+| `references/rooms.md` | Which room a sentence belongs to, and whether that room has a runtime verb as well as options — generated. **Read this before options.md**, not after. |
 | `references/options.md` | Every `haus.*` option on this machine's revision — generated, authoritative. Grep it. |
 | `references/recipes.md` | Worked examples for the common asks (install an app, change the theme, resize the UI…). |
 | `references/this-machine.md` | This host: name, paths, which rooms are enabled. |
