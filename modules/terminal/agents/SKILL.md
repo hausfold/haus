@@ -35,9 +35,15 @@ by hand.
 
 1. **Orient.** Read `references/this-machine.md`, then the host file. Run
    `haus status` if the machine's freshness is relevant.
-2. **Find the option.** Grep `references/options.md` in this skill. That file is
-   rendered from the exact haus revision this machine is pinned to, so it is
-   authoritative — if an option is not in it, it does not exist here.
+2. **Find the room, then the option.** `references/rooms.md` maps what the user
+   said onto one room, and tells you whether that room has a **runtime verb** as
+   well as options — `pounce focus on` makes the Mac quiet *now*, where
+   `haus.focus.*` decides what quiet means from the next rebuild on. Get that
+   fork right before you edit anything. Then grep `references/options.md` for
+   the leaf: it is rendered from the exact haus revision this machine is pinned
+   to, so it is authoritative — if an option is not in it, it does not exist
+   here. Going straight to the flat option search is how an agent ends up
+   inventing a plausible name.
 3. **Edit the host file.** Smallest change that does the job; keep the file's
    existing comment style.
 4. **Apply.** `haus rebuild` — it builds first and only switches if the build

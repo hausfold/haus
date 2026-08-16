@@ -827,6 +827,20 @@
             in
             (meta.title or "") == "" || (meta.blurb or "") == ""
           ) registeredRooms;
+          # The same rule, one renderer further along. `agent.asks` is what the
+          # haus skill's `references/rooms.md` routes a user's sentence on, and
+          # a room without it is not a room with a thinner docs page — it is a
+          # room an agent silently cannot reach, which the user reads as haus
+          # not supporting the thing at all. `agent.cli` is legitimately null
+          # for a configuration-only room, so only its PRESENCE is required;
+          # `asks` has to be non-empty. See modules/options-groups.nix's header.
+          unroutedRooms = builtins.filter (
+            room:
+            let
+              meta = registry.rooms.${room};
+            in
+            !(meta ? agent) || !(meta.agent ? cli) || (meta.agent.asks or [ ]) == [ ]
+          ) registeredRooms;
           # The catalogue is the twelve rooms of the product model. The other
           # two entries exist so every bucket has a title, and they are marked
           # `kind` rather than being told apart by name in each renderer.
@@ -874,6 +888,7 @@
             ++ map (x: "owner with no room in the catalogue: ${x}") unnamedOwners
             ++ map (x: "room with no namespaces and no exports: ${x}") emptyRooms
             ++ map (x: "room with no title or no blurb: ${x}") uneditedRooms
+            ++ map (x: "room with no agent routing (agent.cli / agent.asks): ${x}") unroutedRooms
             ++ map (x: "room with an unknown kind: ${x}") miskindedRooms
             ++ map (x: "namespace in no room — add it to roomOwners: ${x}") homelessNamespaces
             ++ map (x: "namespace owned by a room but listed as shared or host: ${x}") misclassedNamespaces;

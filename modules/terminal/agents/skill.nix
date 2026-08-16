@@ -35,6 +35,59 @@ let
   # The same option metadata hausfold.co's reference is rendered from — one
   # evaluation, so the page and the skill can't disagree about what an option is.
   optionsJSON = import ../../options-doc.nix { inherit pkgs lib; };
+
+  # ---- references/rooms.md: the routing layer above options.md --------------
+  # `options.md` is a flat list of every leaf, and it is authoritative — but it
+  # answers "what can I set" rather than "where does THIS SENTENCE go". An agent
+  # handed "make my mac quiet" and 237 leaves has to reconstruct that focus is
+  # a room and that the room exists at all; and nothing in the option tree says
+  # the room's *behaviour* is reached through `pounce focus` rather than through
+  # a setting. Both gaps are editorial, so both are answered from the registry
+  # (modules/options-groups.nix) rather than from the module system, and both
+  # are required there — `room-registry` fails the build on a room with no
+  # `agent` block, so this page can never quietly go stale by omission.
+  registry = import ../../options-groups.nix;
+
+  roomsByOrder = lib.sort (a: b: a.order < b.order) (
+    lib.mapAttrsToList (name: room: room // { inherit name; }) registry.rooms
+  );
+
+  roomSection =
+    room:
+    let
+      ns = lib.concatMapStringsSep " · " (n: "`haus.${n}`") room.namespaces;
+    in
+    ''
+      ## ${room.title}${lib.optionalString (room.kind != "room") " (${room.kind})"}
+
+      ${room.blurb}
+
+      - **Says:** ${lib.concatMapStringsSep " · " (a: "“${a}”") room.agent.asks}
+      - **Options:** ${if room.namespaces == [ ] then "none" else ns} — grep `references/options.md`
+      - **Runtime:** ${
+        if room.agent.cli == null then
+          "none — this room is configuration only, so every change is an option plus `haus rebuild`"
+        else
+          "`${room.agent.cli}`"
+      }
+    '';
+
+  roomsMD = pkgs.writeText "haus-rooms.md" ''
+    # The rooms, and which sentence goes where
+
+    haus is a set of **rooms** — one capability each, with its own `haus.<room>.*`
+    options. Route the user's request to a room FIRST, then grep
+    `references/options.md` for the leaf inside it. Going straight to a flat
+    option search is how an agent ends up inventing a plausible name.
+
+    **Options change what the machine does next rebuild. A runtime verb changes
+    what it is doing now.** They are not interchangeable: `haus set
+    haus.focus.enable true` does not turn Do Not Disturb on, and `pounce focus
+    on` does not survive a reboot into a machine that never enabled the room.
+    Read the room's two lines and pick the one the user actually asked for.
+
+    ${lib.concatMapStringsSep "\n" roomSection roomsByOrder}
+  '';
 in
 pkgs.runCommand "haus-agent-skill-${version}"
   {
@@ -58,6 +111,8 @@ pkgs.runCommand "haus-agent-skill-${version}"
     cp ${./consumer-AGENTS.md}  "$out/consumer-AGENTS.md"
     cp ${./consumer-CLAUDE.md}  "$out/consumer-CLAUDE.md"
 
+    cp ${roomsMD} "$out/references/rooms.md"
+
     jq -r -f ${./options-md.jq} \
       ${optionsJSON}/share/doc/nixos/options.json \
       > "$out/references/options.md"
@@ -67,4 +122,14 @@ pkgs.runCommand "haus-agent-skill-${version}"
     # that the render broke. Fail the build instead.
     grep -q '^haus\.' "$out/references/options.md" \
       || { echo "options.md rendered no haus.* options — the render is broken" >&2; exit 1; }
+
+    # Same rule for the routing page, and it needs its own check: rooms.md is
+    # rendered from a different source (the registry, not the module system), so
+    # options.md can be perfect while this one is empty. A rooms page with no
+    # rooms would send every request straight back to the flat option search
+    # this file exists to stop.
+    grep -q '^## Focus$' "$out/references/rooms.md" \
+      || { echo "rooms.md rendered no Focus room — the render is broken" >&2; exit 1; }
+    grep -q 'pounce focus' "$out/references/rooms.md" \
+      || { echo "rooms.md rendered no runtime verbs — agent.cli is not reaching the page" >&2; exit 1; }
   ''
