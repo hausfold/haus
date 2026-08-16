@@ -413,9 +413,9 @@ in
           haus's type family, as Ghostty's `font-family` names it.
 
           It reaches the terminal AND the menu bar: every pill label and icon
-          bar draws is in this family, at sizes of its own (see
+          the bar draws is in this family, at sizes of its own (see
           `haus.ui.scale`). The workspace-logo glyphs are the one exception
-          — those are sketchybar-app-font, which bar installs itself.
+          — those are sketchybar-app-font, which the bar installs itself.
 
           This should be a NERD FONT patched build: starship's prompt, lsd's
           icons, yazi previews and half the bar's icons draw with glyphs a stock

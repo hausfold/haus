@@ -32,7 +32,7 @@ in
         The AI room: coding-agent *tooling*. `holt` (agent worktrees),
         `agent-state` (the pane-status writer behind the `agents` bar pill and
         the zellij tab badge), the agent-worktree statusline, and the client
-        config terminal writes (Claude Code's settings.json keys, opencode's
+        config the Terminal room writes (Claude Code's settings.json keys, opencode's
         agent-state plugin). Which clients get installed is `ai.clients`.
 
         On, this room brings its clients, `holt` and the lifecycle wiring on its
