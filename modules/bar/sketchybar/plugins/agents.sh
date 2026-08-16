@@ -37,13 +37,19 @@
 # just the count: a bare "3" makes you open the popup to learn what kind of 3.
 #
 # ── the popup: same grammar as ai_usage.sh's dropdown ─────────────────────────
-# Borrowed wholesale from the aiUsage pill (see its header comment for the full
-# rationale) rather than reinvented: a brand-coloured mark identifies WHO, a
-# ladder-coloured value says WHAT STATE, dim descriptors on the left never
-# carry colour themselves, and italic footnotes are for staleness/hints, never
-# data. One thing this popup adds that aiUsage's doesn't need: every row in an
-# agent's block shares one click target (go-to/peek), not just one — a header a
-# few pixels tall is a bad target for "this is the pane I meant".
+# Borrowed from the aiUsage pill (see its header comment for the full
+# rationale) rather than reinvented: a brand-coloured mark identifies WHO and a
+# ladder-coloured value says WHAT STATE. One thing this popup adds that
+# aiUsage's doesn't need: every row in an agent's block shares one click target
+# (go-to/peek), not just one — a header a few pixels tall is a bad target for
+# "this is the pane I meant".
+#
+# TWO of aiUsage's rules this popup deliberately drops, because an agent block
+# is two rows and aiUsage's is many. Its "dim descriptors never carry colour"
+# assumes a descriptor column; there is none here — the detail line IS the
+# value, so it takes the state's colour, repo and all. And its "footnotes are
+# for staleness, never data" yields to the overflow count, which is the one
+# number that has to be legible as an aside rather than as another agent.
 #
 # ── the holt join ──────────────────────────────────────────────────────────────
 # `agents-hook.sh` only ever knew state + a checkout basename, which is NOT
@@ -54,9 +60,9 @@
 # maps 1:1 to a `holt --json` lane's `.path`. That command can spend seconds on
 # landed-verdict network checks, so the update path refreshes a TTL cache in the
 # background and the click path only reads the last valid result. When the cache
-# is still empty, or a pane's cwd isn't a holt lane at all, the block just skips
-# the repo/PR rows — degrading to what the pill showed before this existed, not
-# an error or a blocked popup.
+# is still empty, or a pane's cwd isn't a holt lane at all, the block just draws
+# no repo and no PR verdict — degrading to what the pill showed before this
+# existed, not an error or a blocked popup.
 set -u
 # Work whether we're run by the bar (rich env) or invoked from a bare env (an
 # agent's hook, or a popup click needing zellij/aerospace): guarantee the nix
@@ -122,7 +128,10 @@ refresh_holt_cache() {
 # which is the reading that actually matters when you glance at the bar.
 state_style() {
   case "$1" in
-    waiting) COL=$PEACH; TAG="ready"   ;;
+    # RED, not PEACH. This is the one state on the whole bar that is asking
+    # you to stop what you are doing, and peach was reading as a warning about
+    # the agent rather than a request from it.
+    waiting) COL=$RED;   TAG="ready"   ;;
     working) COL=$SKY;   TAG="working" ;;
     idle)    COL=$GREEN; TAG="done"    ;;
     *)       COL=$TEXT;  TAG="$1"      ;;
@@ -321,9 +330,11 @@ ago() { # ago <seconds> — "4m" / "1h 12m" / "2d", how long an agent has sat in
 # a label can't be indented with leading spaces (sketchybar trims on size and
 # draws untrimmed, so a leading run of spaces buys a clipped row, not a margin).
 ROW_INDENT=22                    # left margin of a value row, under its header
-DESC_COLS=4                      # widest descriptor: `repo` (the state row's own
-                                  # descriptor is empty — its value is the state
-                                  # word itself, so it just gets the full margin)
+DESC_COLS=4                      # widest descriptor still in use. Only the
+                                  # summary row has one now (and it is empty),
+                                  # so this buys that row its left margin; the
+                                  # per-agent rows lost their descriptors with
+                                  # the two-row block below.
 DESC_GAP=12                      # descriptor → value gutter
 ADV_M=$(awk -v s="${FS_SMALL:-13}" 'BEGIN { printf "%.0f", s * 602 }')
 px() { printf '%s' $((($1 + 500) / 1000)); }
@@ -341,8 +352,8 @@ H_HEADER=32
 H_ROW=25
 H_META=20
 
-# Every agent's block gets one click target across ALL its rows (header, state,
-# repo, PR) — a taller hit area than aiUsage needs, since aiUsage's rows all
+# Every agent's block gets one click target across BOTH its rows (name and
+# detail) — a taller hit area than aiUsage needs, since aiUsage's rows all
 # close the popup while these route to go-to/peek. pop_add's default falls
 # back to closing, for the summary header and the footer hint, which belong to
 # no single agent.
@@ -377,6 +388,124 @@ meta() { # meta <text> — a footnote. Smallest, dimmest, shortest row there is.
   pop_add label="$1" label.color="$OVERLAY0" \
     label.font="${BAR_FONT}:Italic:${FS_TINY}" \
     label.padding_left="$ROW_INDENT" background.height="$H_META"
+}
+
+# ── the two-row block ─────────────────────────────────────────────────────────
+# An agent is a NAME line and a DETAIL line, and nothing else. It used to be
+# four rows (five when dirty), each repeating a `repo` or `PR` descriptor down
+# the left margin — which put eleven agents well off the top of a screen and
+# made it genuinely hard to see which detail belonged to which name. Now the
+# descriptors are gone (a lane name and a state word don't need labelling), the
+# PR verdict is right-locked on the detail line instead of owning a row, and a
+# lane with nothing landed says NOTHING rather than "no PR yet".
+#
+# Right-locking is done with the file's own advance-width math rather than
+# sketchybar's `align`: `px`/`ADV_M` are already how this popup builds columns,
+# and they need no property this bar hasn't been drawing with for months.
+BLOCK_COLS=58                    # the column the right-hand text ends on —
+                                  # wide enough for the longest real row
+                                  # (`ready · 12m · qnap-mediastack ●` beside
+                                  # ` +2 unshipped` is 50), since anything
+                                  # past it silently falls back to the
+                                  # minimum gutter and reads as ragged next to
+                                  # the rows that did lock.
+rlock() { # rlock <left-text> <right-text> → the gutter between them
+  # Nothing on the right means no column to reach: pad the minimum instead, or
+  # every lane with nothing landed pays the full width in whitespace and the
+  # popup stays as wide as the rows it just stopped drawing.
+  if [ -z "$2" ]; then px $((DESC_GAP * 1000)); return; fi
+  local gap=$(((BLOCK_COLS - ${#1} - ${#2}) * ADV_M))
+  [ "$gap" -lt $((DESC_GAP * 1000)) ] && gap=$((DESC_GAP * 1000))
+  px "$gap"
+}
+
+detail() { # detail <left> <left-color> <right> <right-color>
+  pop_add icon="$1" icon.color="$2" \
+    icon.font="${BAR_FONT}:Bold:${FS_SMALL}" \
+    icon.padding_left="$ROW_INDENT" icon.padding_right="$(rlock "$1" "$3")" \
+    label="$3" label.color="$4" label.font="${BAR_FONT}:Regular:${FS_SMALL}"
+}
+
+# ── the holt join, in ONE jq ──────────────────────────────────────────────────
+# This used to be five `jq` invocations per agent — lane lookup, repo, verdict,
+# ahead, dirty. At ~7 ms a spawn against a 24 KB registry that is ~385 ms of
+# the half-second it took an eleven-agent popup to open, all of it spent
+# re-parsing the same JSON. Now: one pass, flattened to a TSV table, and the
+# per-agent lookup is a pure-bash scan that spawns nothing at all.
+#
+# Two keys per lane, because there are two joins (see the render loop): the
+# checkout `path` a zellij pane reports, and `<repo>.<name>` for a zmx session
+# named `holt.<repo>.<lane>`.
+LANE_TABLE=""
+lane_table() { # lane_table <lanes-json>
+  LANE_TABLE="$(printf '%s' "$1" | jq -r '
+    (.lanes // [])[] |
+    [ (.path // ""),
+      (((.main // "") | split("/") | last) + "." + (.name // "")),
+      (.repo // ""),
+      (.landed.verdict // "no"),
+      (.post_merge_ahead.commits // 0),
+      (.post_merge_ahead.pr // 0),
+      (if .dirty == true then "dirty" else "" end)
+    ] | @tsv' 2>/dev/null)"
+}
+
+L_REPO="" L_VERDICT="" L_AHEAD=0 L_PR=0 L_DIRTY=""
+lane_scan() { # lane_scan <name|path> <key> → 0 and sets L_* on the first hit
+  local lpath lname repo verdict ahead pr dirty
+  while IFS=$'\t' read -r lpath lname repo verdict ahead pr dirty; do
+    case "$1" in
+      name) [ "$lname" = "$2" ] || continue ;;
+      *) [ "$lpath" = "$2" ] || continue ;;
+    esac
+    L_REPO="$repo" L_VERDICT="$verdict" L_DIRTY="$dirty"
+    case "$ahead" in '' | *[!0-9]*) L_AHEAD=0 ;; *) L_AHEAD="$ahead" ;; esac
+    case "$pr" in '' | *[!0-9]*) L_PR=0 ;; *) L_PR="$pr" ;; esac
+    return 0
+  done <<<"$LANE_TABLE"
+  return 1
+}
+
+lane_lookup() { # lane_lookup <path-key> <name-key> → 0 and sets L_* on a hit
+  L_REPO="" L_VERDICT="" L_AHEAD=0 L_PR=0 L_DIRTY=""
+  [ -n "$LANE_TABLE" ] || return 1
+  # NAME FIRST, PATH SECOND, and the order is the whole correctness of the
+  # join — testing both keys in one pass would hand the row to whichever lane
+  # `holt --json` happens to list first. For a `holt child` zmx lane BOTH keys
+  # match, and they match DIFFERENT lanes: the cwd is the PARENT's checkout
+  # (lane-open.sh's HOLT_CHAT contract), while the session name is this lane's
+  # own. Path-wins there draws a child under its parent's repo, PR verdict and
+  # dirty flag — the exact confusion the name key exists to prevent.
+  [ -n "$2" ] && lane_scan name "$2" && return 0
+  [ -n "$1" ] && lane_scan path "$1" && return 0
+  return 1
+}
+
+# ── what a lane's PR is doing, as a glyph and a word ──────────────────────────
+# Sets PR_TEXT (empty = draw nothing) and PR_COL. The ladder colours mean here
+# what they mean everywhere else on the bar: PEACH is the one that wants you.
+GIT_PR=$(printf '\xEF\x90\x87')     # nf-oct-git_pull_request
+GIT_MERGE=$(printf '\xEF\x90\x99')  # nf-oct-git_merge
+PR_TEXT="" PR_COL=""
+pr_style() {
+  PR_TEXT="" PR_COL="$OVERLAY1"
+  # `+N unshipped` is keyed on the AHEAD COUNT, not on the landed verdict, and
+  # that is the whole point of the row. A lane that genuinely outran its merged
+  # PR has diverged from main, so its verdict is "no" — the old `verdict == yes`
+  # gate meant this case could never draw, and the single most actionable state
+  # holt knows about rendered as its exact opposite, "no PR yet".
+  if [ "$L_AHEAD" -gt 0 ] && [ "$L_PR" -gt 0 ]; then
+    PR_TEXT="$GIT_PR +$L_AHEAD unshipped"; PR_COL="$PEACH"; return
+  fi
+  case "$L_VERDICT" in
+    yes) PR_TEXT="$GIT_MERGE merged"; PR_COL="$GREEN" ;;
+    # holt's own advisory verdict (merge-tree-empty): the tree matches main,
+    # but that can't tell a squash-merge from a branch that never diverged.
+    contained) PR_TEXT="$GIT_MERGE maybe merged"; PR_COL="$OVERLAY1" ;;
+    # Nothing landed and nothing to ship. Drawing "no PR yet" on every fresh
+    # lane was a row per agent that said only "this is a normal branch".
+    *) PR_TEXT="" ;;
+  esac
 }
 
 # ── click: rebuild the popup as one block per agent, then toggle it ───────────
@@ -443,84 +572,64 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
       [ -n "$summary" ] && row "" "$summary" "$TEXT" Regular
     fi
 
+    lane_table "$lanes_json"
+
+    # Even at two rows an agent, a busy day runs off the screen edge — and a
+    # popup that overflows can't be scrolled, only truncated by the display.
+    # Show the most urgent MAX_BLOCKS (the sort below is already priority-then-
+    # longest-waiting) and SAY what was dropped: a silent cut reads as "that's
+    # everyone", which is the one thing this pill must never imply.
+    MAX_BLOCKS=8
+    shown=0
+    dropped=$(( ${#files[@]} - MAX_BLOCKS ))
+    [ "$dropped" -lt 0 ] && dropped=0
+
     now=$(date +%s)
     while IFS=$'\t' read -r _pr epoch kind st target label client cwd; do
       [ -n "$kind" ] || continue
+      [ "$shown" -lt "$MAX_BLOCKS" ] || break
+      shown=$((shown + 1))
       state_style "$st"
 
-      lane=""
-      if [ "$lanes_json" != "{}" ]; then
-        if [ "$kind" = zmx ]; then
-          # The session name IS the lane, qualified by repo:
-          # `holt.<repo>.<lane>` (terminal/lanes/lane-open.sh). Joining on that
-          # rather than on the cwd is the whole reason it carries the repo —
-          # `holt child` gives a child lane its parent's NAME, so two live
-          # lanes in different repos share one, and a cwd join sends a child
-          # to the parent's row. Anything not named that way falls back to the
-          # cwd join every zellij pane uses.
-          case "$target" in
-            holt.*.*)
-              zrepo="${target#holt.}"; zrepo="${zrepo%%.*}"
-              zname="${target##*.}"
-              lane="$(printf '%s' "$lanes_json" | jq -c --arg r "$zrepo" --arg n "$zname" \
-                '(.lanes // [])[] | select(.name == $n and (.main | split("/") | last) == $r)' \
-                2>/dev/null | head -1)"
-              ;;
-          esac
-        fi
-        # The cwd join: every zellij pane's answer, and the fallback for a zmx
-        # session this rice did not name (a plain `zmx attach` of your own that
-        # happens to run a client).
-        if [ -z "$lane" ] && [ -n "$cwd" ]; then
-          lane="$(printf '%s' "$lanes_json" | jq -c --arg p "$cwd" \
-            '(.lanes // [])[] | select(.path == $p)' 2>/dev/null | head -1)"
-        fi
+      # Two joins, one table (see lane_lookup). A zmx session named
+      # `holt.<repo>.<lane>` (terminal/lanes/lane-open.sh) joins on that name
+      # QUALIFIED BY REPO, which is why it carries the repo at all: `holt
+      # child` gives a child lane its parent's NAME, so two live lanes in
+      # different repos share one and a cwd join would send a child to the
+      # parent's row. Everything else joins on the checkout path.
+      # `holt.<repo>.<lane>` minus its prefix IS the table's name key
+      # (`<repo>.<name>`, built the same way), so no splitting — and that is
+      # not just brevity: splitting on the FIRST dot read `hausfold.co` as
+      # `hausfold`, so every lane in this family's dotted repo missed the name
+      # join entirely and silently fell through to the cwd one.
+      namekey=""
+      if [ "$kind" = zmx ]; then
+        case "$target" in holt.*.*) namekey="${target#holt.}" ;; esac
       fi
-      [ -n "$lane" ] || lane="{}"
 
       provider_style "${client:-}" "" "$FS_LABEL"
       ROW_CLICK="$PLUGINS/agents.sh row $kind $target"
 
       header "$P_ICON" "$P_FONT" "$P_COLOR" "$label"
-      row "" "$TAG  ·  $(ago $((now - ${epoch:-now})))" "$COL" Bold
 
-      if [ "$lane" != "{}" ]; then
-        repo="$(printf '%s' "$lane" | jq -r '.repo // ""')"
-        row "repo" "${repo##*/}" "$OVERLAY1" Regular
-
-        verdict="$(printf '%s' "$lane" | jq -r '.landed.verdict // "no"')"
-        ahead="$(printf '%s' "$lane" | jq -r '.post_merge_ahead.commits // 0')"
-        case "$ahead" in ''|*[!0-9]*) ahead=0 ;; esac
-        case "$verdict" in
-          yes)
-            if [ "$ahead" -gt 0 ]; then
-              # Exactly the state `holt reship` exists to fix: the PR merged,
-              # but commits landed after it, so nothing carries them forward
-              # on its own.
-              row "PR" "+$ahead unshipped" "$PEACH" Bold
-            else
-              row "PR" "merged" "$GREEN" Regular
-            fi
-            ;;
-          contained)
-            # holt's own "advisory only" verdict (merge-tree-empty): the tree
-            # matches main, but that can't tell a squash-merge from a branch
-            # that never diverged, so `holt reap` itself won't act on it
-            # without --contained. Worded to match that uncertainty rather
-            # than asserting either "merged" or "no PR yet".
-            row "PR" "maybe merged" "$OVERLAY1" Regular
-            ;;
-          *)
-            row "PR" "no PR yet" "$OVERLAY1" Regular
-            ;;
-        esac
-
-        dirty="$(printf '%s' "$lane" | jq -r '.dirty // false')"
-        [ "$dirty" = "true" ] && meta "uncommitted changes"
+      # The detail line: what this agent is doing, then where. The repo joins
+      # the state word rather than owning a row — at one repo per lane it was
+      # never worth a descriptor and a line of its own.
+      left="$TAG  ·  $(ago $((now - ${epoch:-now})))"
+      if lane_lookup "$cwd" "$namekey"; then
+        [ -n "$L_REPO" ] && left="$left  ·  ${L_REPO##*/}"
+        # A dot, not a footnote row. It sits with the state because that is
+        # what it qualifies: this agent, right now, has uncommitted work.
+        [ -n "$L_DIRTY" ] && left="$left  ●"
+        pr_style
+      else
+        PR_TEXT="" PR_COL="$OVERLAY1"
       fi
+      detail "$left" "$COL" "$PR_TEXT" "$PR_COL"
     done < <(printf '%s\n' "${files[@]}" | sort -t $'\t' -k1,1n -k2,2n)
 
     ROW_CLICK=""
+    [ "$dropped" -gt 0 ] && meta "… $dropped more, quieter than these"
     meta "click: go to  ·  ⌥/right-click: peek"
   fi
 
