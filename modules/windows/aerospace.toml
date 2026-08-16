@@ -19,7 +19,12 @@ persistent-workspaces = [@PERSISTENT_WS@]
 
 after-login-command = []
 
-after-startup-command = []
+# Re-sort once the daemon is up: the startup on-window-detected rule below can
+# only say 'T' (TOML can't derive a workspace from a title), so zmx lane
+# windows — whose page is T/<repo>, read off their forced holt.* title — land
+# on bare T at every AeroSpace (re)start until resort-windows.sh puts them
+# back. The same script the leader's ` runs by hand.
+after-startup-command = ['exec-and-forget @HOME@/.config/aerospace/resort-windows.sh']
 
 # Two hooks: the bar's trigger, and the workspace-MRU push (the recency file
 # behind page-aware `caps t` and pounce's ⌃⇥ page walk). AeroSpace runs the

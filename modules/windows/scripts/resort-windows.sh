@@ -25,6 +25,15 @@ while IFS='|' read -r id bundle title; do
         com.mitchellh.ghostty)
             case "$title" in
                 quick-terminal*) continue ;;
+                # A zmx lane window: its page is derivable from the forced
+                # title (holt.<repo>.<lane> → T/<repo>, the same join
+                # lane-open.sh tiles by), so a re-sort HEALS a lane that a wake
+                # event dumped on the wrong workspace instead of collapsing
+                # every page back onto bare T.
+                holt.*.*)
+                    repo="${title#holt.}"
+                    target="T/${repo%%.*}"
+                    ;;
                 *) target="T" ;;
             esac
             ;;
