@@ -201,8 +201,10 @@ Four decisions worth keeping, because each had a plausible other answer:
 2. **`quiet` is reserved rather than declared.** It is what `focus on`, the
    pill and the palette command already enter, and its state is read from the
    OS, not from a state file. A host-declared `scenes.quiet` would be a second
-   thing with that name that no surface but the CLI could reach, so the module
-   asserts on it.
+   thing with that name — one the pill could never reach, and whose generated
+   `Scene: quiet` palette row (since 2026-08-16 a scene gets one) would
+   silently enter built-in quiet instead, since `focus scene quiet` is an
+   alias of `focus on`. So the module asserts on it.
 3. **A scene is data, read at runtime** (`focus-scenes.json`), not a generated
    shell fragment. Every field would otherwise be a place where a desktop's
    string becomes code, and a desktop is a file whose whole promise is that it
@@ -246,10 +248,10 @@ against the running process before anything is signalled.
 - **Timed focus**: `focus 25` writes an until-timestamp to
   `~/.local/state/focus/`; the poll auto-offs past expiry and the pill label
   shows minutes remaining. Palette grows "Focus 25m / 60m" commands.
-- A windows leader/binding for focus. (A scene needs one more than quiet does —
-  quiet has a pill and a palette row; a scene has neither, and today it is
-  reachable only from a terminal or a `haus.keys.leaderExtras` chord the host
-  writes.)
+- A windows leader/binding for focus. (Narrowed 2026-08-16: a scene now has a
+  generated palette row and a cheatsheet line — the launcher builds both from
+  `haus.focus.scenes` — so what remains of this bullet is a *key*: a
+  `haus.keys.leaderExtras` chord is still hand-written by the host.)
 
 ## What focus honestly won't do
 

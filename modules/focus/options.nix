@@ -206,13 +206,17 @@
         here is an error. Shape quiet through `haus.focus.slack` and
         `haus.focus.hooks` instead.
 
-        Scope, and both halves are deliberate. **A scene has no surface but the
-        CLI** — quiet has a bar pill and a palette row, a scene has `focus scene
-        <name>` and whatever `haus.keys.leaderExtras` chord you give it. And
-        **nothing enters a scene for you**: no clock, no Wi-Fi network, no
-        display appearing. Declaring the states is the cheap half and this is
-        it; a daemon that decides *when* is a separate piece of work, and not
-        one to pay for before a single scene has proved useful.
+        With the launcher room on, every scene is a palette row too — a
+        generated `Scene: <name>` command, plus `Leave Scene`, each with a line
+        on the cheatsheet's Palette Commands page — so entering one doesn't
+        mean remembering its name in a terminal. A `haus.keys.leaderExtras`
+        chord remains the way to give one a key.
+
+        The half that is still deliberate scope: **nothing enters a scene for
+        you** — no clock, no Wi-Fi network, no display appearing. Declaring
+        the states is the cheap half and this is it; a daemon that decides
+        *when* is a separate piece of work, and not one to pay for before a
+        single scene has proved useful.
       '';
     };
   };

@@ -205,6 +205,52 @@ let
         chmod 555 "$out"
   '';
 
+  # ---- scenes → palette commands + cheatsheet rows ---------------------------
+  #
+  # A declared scene used to have no surface but the CLI (its option's own
+  # wording, since amended): quiet had a pill and a palette row while `focus
+  # scene recording` had a terminal. These commands are generated from
+  # `config.haus.focus.scenes` — NOT read from ./commands — so the installed
+  # script and its cheatsheet row exist exactly when the scene does, and
+  # nothing here reads a generated file at eval (the IFD trap the static-dir
+  # comment below riceCommandRows describes). A scene name is a safe filename
+  # and a safe shell word by construction: focus's own assertion pins it to
+  # one word of [A-Za-z0-9_-], never starting with `-`.
+  scenes = lib.optionalAttrs config.haus.focus.enable config.haus.focus.scenes;
+
+  # The `# pounce:` header is line-based, so a description must stay one line —
+  # a newline in a host's string would end the header early and turn the rest
+  # into script body.
+  oneLine = s: lib.replaceStrings [ "\n" ] [ " " ] s;
+  sceneDescription =
+    name: s: if s.description != "" then oneLine s.description else "Enter the ${name} scene";
+
+  sceneCommand =
+    name: s:
+    pkgs.writeText "pounce-scene-${name}.sh" ''
+      #!/bin/bash
+      # pounce: name = Scene: ${name}
+      # pounce: description = ${sceneDescription name s}
+      # pounce: icon = theatermasks.fill
+      # Generated from haus.focus.scenes.${name} — the palette surface a scene
+      # doesn't get from the static ./commands dir. Absolute path: the
+      # daemon's environment has no user PATH.
+      exec "$HOME/.local/bin/focus" scene ${name}
+    '';
+
+  # `focus scene off` beside them, so the palette can end what it started.
+  # A no-op when no scene is on, so shipping it whenever scenes exist is safe.
+  # One string for the header and the cheatsheet row — same rule as the scene
+  # rows: the two surfaces read one source, so they can't drift.
+  sceneOffDescription = "Exit the active scene, reversing what it took";
+  sceneOffCommand = pkgs.writeText "pounce-scene-off.sh" ''
+    #!/bin/bash
+    # pounce: name = Leave Scene
+    # pounce: description = ${sceneOffDescription}
+    # pounce: icon = theatermasks
+    exec "$HOME/.local/bin/focus" scene off
+  '';
+
   # This rice's palette commands (see ./commands — one self-describing script
   # each, metadata in a `# pounce:` header). The generated app-font lookup is
   # private command data, not self-describing, so pounce ignores it.
@@ -218,6 +264,13 @@ let
     # nested so the catalog cannot appear in the launcher and be run as Bash.
     install -Dm444 ${popularAppsCatalog} $out/data/popular-apps.tsv
     ${lib.optionalString (!config.haus.focus.enable) "rm $out/focus.sh"}
+    # The scene commands (see the let-block above). `scene-` can't collide
+    # with a static command — none is named that way — and `off` is a name
+    # focus reserves, so scene-off.sh is always ours to claim.
+    ${lib.concatStrings (
+      lib.mapAttrsToList (name: s: "install -m555 ${sceneCommand name s} $out/scene-${name}.sh\n") scenes
+    )}
+    ${lib.optionalString (scenes != { }) "install -m555 ${sceneOffCommand} $out/scene-off.sh"}
   '';
 
   # The built-in command set exposed by the pounce-commands package. The daemon
@@ -434,6 +487,22 @@ let
           )
         )
       );
+
+  # The scene commands' rows, from the SAME config the scripts above are
+  # generated from — not from their headers, which would be reading a generated
+  # file at eval. Key = the scene's name, which is both what you type to
+  # fuzzy-match the row and what `focus scene <name>` takes, so the palette row
+  # and the CLI teach each other. mapAttrsToList is attr-sorted, so the page
+  # order is stable.
+  sceneCommandRows =
+    lib.mapAttrsToList (name: s: {
+      key = name;
+      action = sceneDescription name s;
+    }) scenes
+    ++ lib.optional (scenes != { }) {
+      key = "leave";
+      action = sceneOffDescription;
+    };
 
   # Wait for the GUI session (→ the /nix volume + an unlocked login keychain)
   # before touching the store path or codesign. Exec'ing via /bin/bash (boot
@@ -1230,7 +1299,10 @@ lib.mkIf config.haus.launcher.enable {
           {
             title = "Palette Commands [${if k.palette != null then k.palette.glyph else "haus"}]";
             page = "Tips";
-            items = riceCommandRows;
+            # The static commands' rows, then the generated scene rows — the
+            # same split riceCommands installs, so a row exists iff its command
+            # does.
+            items = riceCommandRows ++ sceneCommandRows;
           }
         ]
       );
