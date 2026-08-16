@@ -27,6 +27,7 @@
   pkgs,
   optionsJson,
   wmBindingsJson,
+  launchKeysJson,
 }:
 
 pkgs.runCommand "haus-site-data"
@@ -58,4 +59,7 @@ pkgs.runCommand "haus-site-data"
 
     jq -S . ${optionsJson}/share/doc/nixos/groups.json > "$out/groups.json"
     jq -S . ${wmBindingsJson} > "$out/wm-bindings.json"
+    # NOT -S: this one is a list, and its order is the order the keys are bound
+    # in. Sorting it would be sorting the answer.
+    jq . ${launchKeysJson} > "$out/launch-keys.json"
   ''

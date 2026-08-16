@@ -225,22 +225,13 @@ let
   # resize, clipboard/emoji, reopen, settings, resort, cheatsheet, exit) plus
   # the numbered workspaces' three chords each. Split out of reservedLaunchKeys
   # because TWO different things can collide with it and only one of them was
-  # ever checked. The digit half is derived rather than listed, since
+  # ever checked; split into ./launch-keys.nix because the docs repo's
+  # keybinding tripwire renders the same list from the same file (see its
+  # header). The digit half is derived rather than listed, since
   # haus.prowl.numberedWorkspaces decides how many digits are spoken for — a
-  # literal 1-4 here would have let a roster letter or a workspace key take "7"
-  # on a machine that raised the count.
-  builtinLaunchKeys =
-    [
-      "esc" "slash"
-      "v" "e" "z" "comma" "backtick" "minus" "equal"
-      "left" "down" "up" "right"
-      "shift-left" "shift-down" "shift-up" "shift-right"
-    ]
-    ++ lib.concatMap (n: [
-      n.key
-      "shift-${n.key}"
-      "alt-shift-${n.key}"
-    ]) numbered;
+  # literal 1-4 would have let a roster letter or a workspace key take "7" on a
+  # machine that raised the count.
+  builtinLaunchKeys = import ./launch-keys.nix { inherit lib numbered; };
 
   # Keys already spoken for in launch mode, from leaderExtras' point of view:
   # the fixed actions above, the roster letters (appKeys, plain), and the
@@ -331,15 +322,20 @@ let
     edge:
     ''[{ monitor."Built-in Retina Display" = ${toString edge.builtin} }, ${toString edge.external}]'';
 
-  # haus.prowl.mouseFollowsFocus, as AeroSpace spells it. `monitor-lazy-center`
-  # rather than plain `center` on purpose: lazy leaves the pointer alone if it
-  # is already on the monitor focus landed on, so the setting only fires when
-  # the cursor is genuinely on the wrong screen.
+  # haus.prowl.mouseFollowsFocus, as AeroSpace spells it. BOTH of its hooks,
+  # because the option's name is a promise about focus and not about screens: a
+  # monitor hook alone leaves the pointer behind when focus moves between two
+  # windows on the same display, which is most of the time.
+  #
+  # `*-lazy-center` rather than plain `center` in both: lazy leaves the pointer
+  # alone when it is already inside the thing that took focus, so the setting
+  # fires on the jumps that lose the cursor and not on the ones that don't.
+  focusChanged = lib.optionalString cfg.mouseFollowsFocus "'move-mouse window-lazy-center'";
   monitorChanged = lib.optionalString cfg.mouseFollowsFocus "'move-mouse monitor-lazy-center'";
 
   aerospaceToml = builtins.replaceStrings
-    [ "@HOME@" "@BIN@" "@MAIN_STATIC@" "@SERVICE_STATIC@" "@LAUNCH_DIGITS@" "@LAUNCH_MOVES@" "@LEADER_ENTRY@" "@SERVICE_ENTRY@" "@LAUNCH_LETTERS@" "@WINDOW_RULES@" "@FLOAT_RULES@" "@PERSISTENT_WS@" "@DEFAULT_LAYOUT@" "@DEFAULT_ORIENTATION@" "@ACCORDION_PADDING@" "@MONITOR_CHANGED@" "@GAP_BUILTIN@" "@GAP_EXTERNAL@" "@GAP_OUTER_TOP@" "@GAP_OUTER_BOTTOM@" ]
-    [ homeDir binDir mainStatic serviceStatic launchDigits launchMoves (subTokens leaderEntry) serviceEntry (launchLetters + launchExtras) windowRules floatRules persistentWorkspaces cfg.defaultLayout cfg.defaultOrientation (toString cfg.accordionPadding) monitorChanged (toString gaps.inner.builtin) (toString gaps.inner.external) (monLine gaps.outer.top) (monLine gaps.outer.bottom) ]
+    [ "@HOME@" "@BIN@" "@MAIN_STATIC@" "@SERVICE_STATIC@" "@LAUNCH_DIGITS@" "@LAUNCH_MOVES@" "@LEADER_ENTRY@" "@SERVICE_ENTRY@" "@LAUNCH_LETTERS@" "@WINDOW_RULES@" "@FLOAT_RULES@" "@PERSISTENT_WS@" "@DEFAULT_LAYOUT@" "@DEFAULT_ORIENTATION@" "@ACCORDION_PADDING@" "@FOCUS_CHANGED@" "@MONITOR_CHANGED@" "@GAP_BUILTIN@" "@GAP_EXTERNAL@" "@GAP_OUTER_TOP@" "@GAP_OUTER_BOTTOM@" ]
+    [ homeDir binDir mainStatic serviceStatic launchDigits launchMoves (subTokens leaderEntry) serviceEntry (launchLetters + launchExtras) windowRules floatRules persistentWorkspaces cfg.defaultLayout cfg.defaultOrientation (toString cfg.accordionPadding) focusChanged monitorChanged (toString gaps.inner.builtin) (toString gaps.inner.external) (monLine gaps.outer.top) (monLine gaps.outer.bottom) ]
     (builtins.readFile ./aerospace.toml);
 
   resortScript = builtins.replaceStrings [ "@RESORT_CASES@" ] [ resortCases ] (

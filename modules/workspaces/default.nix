@@ -25,23 +25,10 @@ let
   sorted = lib.sort (a: b: a.id < b.id) named;
 
   # The numbered workspaces, from the count rather than from a literal list.
-  # Left in NATURAL order rather than sorted: sill draws the bar pills in this
-  # order, and a string sort would put workspace 10 between 1 and 2.
-  #
-  # id vs key is the one subtlety, and it only appears at ten. A workspace is
-  # named by its number, but the leader reaches it by pressing a DIGIT and there
-  # is no ten key — so the tenth is id "10" reached by `0`, the wrap a browser's
-  # tab shortcuts use. Below ten, id == key.
-  numbered = lib.genList (
-    i:
-    let
-      id = toString (i + 1);
-    in
-    {
-      inherit id;
-      key = if i == 9 then "0" else id;
-    }
-  ) config.haus.prowl.numberedWorkspaces;
+  # The arithmetic (and the id-vs-key note that goes with it) is in
+  # ../lib/numbered.nix, because flake.nix resolves the same list for the
+  # default count with no darwin config in reach.
+  numbered = import ../lib/numbered.nix { inherit lib; } config.haus.prowl.numberedWorkspaces;
 
   # A named workspace whose id is already a numbered one is not a second
   # workspace: AeroSpace has one workspace per name, so the two declarations are

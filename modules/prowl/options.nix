@@ -55,8 +55,9 @@
         `0` is legal and means no numbered workspaces at all: a machine where
         every workspace is a NAMED one out of haus.workspaces. Raising the
         count never renames an existing workspace, so windows stay where they
-        are; lowering it leaves whatever was on the workspaces that went
-        unreachable from the keyboard.
+        are. Lowering it takes the digit AND the bar pill, so whatever was on
+        the workspaces that went is reachable only through the launcher's ⌘⇥
+        window switcher until you raise the count again.
 
         The digits are reserved in launch mode, so a haus.workspaces key or a
         haus.keys.leaderExtras key that collides with one is refused at eval.
@@ -130,14 +131,15 @@
       type = lib.types.bool;
       default = false;
       description = ''
-        Move the pointer to the centre of a monitor when keyboard focus lands
-        on it.
+        Move the pointer to whatever keyboard focus just landed on.
 
         Off by default, because it moves something you did not move. On a
         multi-monitor desk it is the setting that answers "I focused that
-        window and my cursor is still on the other screen", and it fires only
-        on a MONITOR change: focusing another window on the display the
-        pointer is already on leaves it where it is.
+        window and my cursor is still on the other screen".
+
+        Both halves are lazy: the pointer is left alone whenever it is already
+        inside the window (or on the monitor) that took focus, so it moves on
+        the jumps that lose it and not on the ones that don't.
 
         Only meaningful with haus.prowl.enable.
       '';
