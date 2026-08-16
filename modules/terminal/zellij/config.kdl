@@ -88,15 +88,21 @@ keybinds {
         // now starts whichever client haus.ai.default names, and ⌘C is
         // back to being copy in ghostty (see terminal's ghostty/config).
         //
-        // @AGENT_NEW@ is rendered by terminal from haus.ai.default:
+        // @AGENT_NEW@ is rendered by terminal from haus.ai.default AND
+        // haus.terminal.lanes.backend:
         //   claude   → `claude --worktree`, its NATIVE flag, which fires the
         //              `holt` WorktreeCreate hook in ~/.claude/settings.json.
         //   every    → `holt new`: no client-side equivalent exists, so Holt
         //   other      makes the same worktree from the outside and opens the
         //   client     configured client. Holt reads its persisted config, not
         //              Zellij's launch-time environment, so it keeps following
-        //              haus.ai.default after a rebuild.
-        //              in it. Same path, branch, registry, parking and reaping.
+        //              haus.ai.default after a rebuild. Same path, branch,
+        //              registry, parking and reaping either way.
+        //   lanes.   → `holt new` for EVERY client, Claude included. Claude's
+        //   backend    own flag runs the client in this pane and never calls
+        //   = "zmx"    `holt new`, so it never asks holt's `open` seam — the
+        //              one place the zmx backend is wired. Left on the native
+        //              flag, choosing zmx would silently still give you a pane.
         // Either way the checkout is ~/.cache/claude-worktrees/<repo>/<name> on
         // branch worktree-<name>, branched from this checkout's local HEAD.
         //
@@ -104,7 +110,16 @@ keybinds {
         // permissions.defaultMode = "auto" in ~/.claude/settings.json (the
         // claudeCodePermissionMode activation), so agents run unattended with
         // background safety checks rather than the old blanket bypass.
-        bind "Super a" { Run @AGENT_NEW@; }
+        //
+        // @AGENT_NEW_SOLO@ is @AGENT_NEW@ plus close_on_exit under zmx, and
+        // this is the one Run bind in the file that does NOT take that flag
+        // unconditionally. Under zellij the command IS the lane — it never
+        // returns, so there is nothing to close and close_on_exit would only
+        // change what happens when you quit the client (today the pane stays,
+        // with its scrollback). Under zmx `holt new` hands off to
+        // lanes/lane-open.sh, which opens a Ghostty window and RETURNS — so
+        // without the flag every ⌘A would leave a spent pane behind.
+        bind "Super a" { Run @AGENT_NEW_SOLO@; }
         // Super Shift a — the same isolated agent, but IN PLACE of the focused
         // pane instead of splitting beside it: for when the tab is already as
         // subdivided as you want it and this pane's job is done. Zellij
@@ -115,6 +130,11 @@ keybinds {
         // from the pane being replaced, same as Super a. Reaches zellij with no
         // ghostty change needed (ghostty binds nothing to cmd+shift+a), but
         // ghostty/config unbinds it anyway so a future default can't steal it.
+        //
+        // Under lanes.backend = "zmx" this collapses into Super a: the lane is
+        // a window, not a pane, so there is no pane to replace — `holt new`
+        // opens the window and exits, close_on_exit restores the shell that was
+        // suppressed, and you are back where you started with a lane beside you.
         bind "Super Shift a" {
             Run @AGENT_NEW@ {
                 in_place true

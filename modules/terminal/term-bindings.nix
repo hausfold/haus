@@ -52,6 +52,10 @@
   # haus.terminal.rightClickFullscreen — the mouse row only appears when the
   # zellij patch that implements it is actually compiled in.
   rightClickFullscreenEnabled,
+  # haus.terminal.lanes.backend — the agent rows describe where a lane LANDS,
+  # and under "zmx" that is a window rather than a pane. ⌘⇧A's whole caption is
+  # about replacing a pane, which is a distinction that backend removes.
+  laneBackend,
 }:
 
 let
@@ -91,11 +95,22 @@ rec {
       items = [
         {
           chords = [ "Super a" ];
-          action = "New agent in its own worktree (${agentDefault})";
+          action =
+            if laneBackend == "zmx" then
+              "New agent in its own worktree + window (${agentDefault})"
+            else
+              "New agent in its own worktree (${agentDefault})";
         }
         {
           chords = [ "Super Shift a" ];
-          action = "Same, replacing this pane (it comes back)";
+          # Under zmx the lane is a window, so there is no pane to replace and
+          # this chord does what ⌘A does. Say that rather than teach a
+          # distinction the machine no longer makes.
+          action =
+            if laneBackend == "zmx" then
+              "Same — no pane to replace, lanes are windows"
+            else
+              "Same, replacing this pane (it comes back)";
         }
         {
           chords = [ "Ctrl Alt Shift a" ];

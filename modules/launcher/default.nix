@@ -372,6 +372,7 @@ let
     ghDashEnabled = config.haus.terminal.ghDash.enable;
     benchLaneEnabled = config.haus.developer.enable;
     rightClickFullscreenEnabled = config.haus.terminal.rightClickFullscreen;
+    laneBackend = config.haus.terminal.lanes.backend;
   };
   termPages = termBindings.pages;
 

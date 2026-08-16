@@ -49,7 +49,37 @@ let
   # persisted default rendered below, rather than the Zellij server's
   # launch-time environment. Rendered into config.kdl's @AGENT_NEW@
   # (@AGENT_HERE@ is just agentDefault).
-  agentNewRun = if agentDefault == "claude" then ''"claude" "--worktree"'' else ''"holt" "new"'';
+  #
+  # `lanes.backend = "zmx"` takes the client's own flag away even from Claude,
+  # because `claude --worktree` does not go through the seam the backend is
+  # wired into. Claude's flag makes the checkout via the WorktreeCreate hook
+  # (`holt hook create`) and then runs the client in the pane it was launched
+  # from — it never calls `holt new`, so `[hooks] open` is never asked, and the
+  # chord would silently keep opening a zellij pane on a machine that had
+  # chosen zmx. `holt new` makes the identical checkout from the outside and
+  # DOES ask, which is the whole point of the option: pick the backend and the
+  # chord follows. It is also what makes the lane resumable, because Claude
+  # keys a transcript to the directory it started in — a `holt new` lane's
+  # conversation lives at the lane's own path, where `holt <name>` looks for it.
+  agentNewRun =
+    if agentDefault == "claude" && terminalCfg.lanes.backend != "zmx" then
+      ''"claude" "--worktree"''
+    else
+      ''"holt" "new"'';
+
+  # Super a's spelling of the same thing, and the only Run bind in config.kdl
+  # that doesn't take close_on_exit unconditionally. Under zellij the command IS
+  # the lane and never returns, so the flag would only decide what happens when
+  # you quit the client — today the pane stays, scrollback intact, which is the
+  # behaviour that predates this and is not this change's to alter. Under zmx
+  # `holt new` hands off to lanes/lane-open.sh, which opens a window and RETURNS
+  # in well under a second, so without the flag every ⌘A leaves a spent pane.
+  #
+  # Super Shift a already carries close_on_exit for its own reason (it replaces
+  # a suppressed pane that has to come back), so it keeps taking @AGENT_NEW@.
+  agentNewSolo =
+    agentNewRun
+    + lib.optionalString (terminalCfg.lanes.backend == "zmx") " { close_on_exit true; }";
 
   # One client id → one package, from the one table (modules/lib/agent-packages.nix):
   # the AI room asserts each named client is buildable here, and this is where a
@@ -130,6 +160,7 @@ let
     ghDashEnabled = ghDashCfg.enable;
     benchLaneEnabled = devCfg.enable;
     rightClickFullscreenEnabled = terminalCfg.rightClickFullscreen;
+    laneBackend = terminalCfg.lanes.backend;
   };
   ghDashBind = lib.optionalString ghDashCfg.enable ''
     // Super g — GitHub's review queue in a borderless, full-window
@@ -1239,7 +1270,17 @@ in
       # copy_command / Run / layout), so render @HOME@ → the user's home.
       zellijConfigFile = pkgs.writeText "zellij-config.kdl" (
         builtins.replaceStrings
-          [ "@HOME@" "@DEFAULT_MODE@" "@BASE_MODE@" "@AGENT_NEW@" "@AGENT_HERE@" ]
+          [
+            "@HOME@"
+            "@DEFAULT_MODE@"
+            "@BASE_MODE@"
+            # Before "@AGENT_NEW@", though replaceStrings would get this right
+            # either way: at the "@AGENT_NEW_SOLO@" position the shorter pattern
+            # cannot match, since it wants "@" where the longer one has "_".
+            "@AGENT_NEW_SOLO@"
+            "@AGENT_NEW@"
+            "@AGENT_HERE@"
+          ]
           [
             config.home.homeDirectory
             (if terminalCfg.zellijStartLocked then "locked" else "normal")
@@ -1248,6 +1289,7 @@ in
             # through it, because upstream's all exit to Normal — which on a
             # locked host silently leaves every submode leader hot afterwards.
             (if terminalCfg.zellijStartLocked then "Locked" else "Normal")
+            agentNewSolo
             agentNewRun
             ''"${agentDefault}"''
           ]
