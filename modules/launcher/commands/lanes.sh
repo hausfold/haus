@@ -63,8 +63,13 @@ focus_session() {
 # it is reconstructed from the pick.
 states="$(zmx_states)"
 
+# Bounded, never bare: agents.sh warns in as many words that `holt --json`'s
+# landed-verdict checks can block on the network for seconds, and this runs on
+# the palette's interactive path. Ten seconds is generous next to the bar's 60
+# because a human is waiting; past it the picker simply comes up empty.
 rows="$(
-  holt --json 2>/dev/null | jq -r --arg states "$states" '
+  /usr/bin/perl -e 'alarm shift; exec @ARGV' 10 holt --json 2>/dev/null |
+    jq -r --arg states "$states" '
     # state precedence: the agent'\''s own label (working/waiting/done) beats
     # holt'\''s registry state (live/parked) — the label is what the paw pill
     # shows, and the picker should agree with the bar.
@@ -124,8 +129,13 @@ EOF
     # Reply is "<action>\t<raw row>", and the row's own first field is the
     # session name — so field 2 of the whole reply.
     sess="$(printf '%s' "$selected" | cut -f2)"
-    [ -n "$sess" ] && focus_session "$sess"
-    exit 0
+    [ -n "$sess" ] || exit 0
+    focus_session "$sess" && exit 0
+    # Session alive but its window ⌘W'd: same wake-up the lane rows get. The
+    # session name is holt.<repo>.<lane> with a dot-free lane, so repo is
+    # everything between the first and last dot.
+    rest="${sess#holt.}"
+    exec holt "${rest%.*}/${rest##*.}"
     ;;
 esac
 

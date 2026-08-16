@@ -1617,7 +1617,12 @@ in
             # because that peek was rooted at the main checkout to begin with.
             # Both fire once at shell birth, so unset HAUS_STAY afterward to
             # keep it out of child processes and later cd's.
-            if [[ -z "$CLAUDECODE" && -z "$HAUS_STAY" && "$PWD" == "$HOME/.cache/claude-worktrees/"* ]]; then
+            # Gated to the surfaces this rice spawns — a zellij pane or a
+            # Ghostty window — because the hop is about THEIR cwd inheritance.
+            # A third-party terminal (an editor's integrated one, ssh) opened
+            # deliberately inside a worktree must not be teleported out of it.
+            if [[ -n "$ZELLIJ" || "$TERM_PROGRAM" == ghostty ]] &&
+               [[ -z "$CLAUDECODE" && -z "$HAUS_STAY" && "$PWD" == "$HOME/.cache/claude-worktrees/"* ]]; then
               _wt_main="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
               [[ -n "$_wt_main" ]] && cd "''${_wt_main:h}"
               unset _wt_main

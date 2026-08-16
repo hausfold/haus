@@ -308,6 +308,19 @@ in
         resumable: Claude keys a transcript to the directory it started in,
         so a `holt new` lane's conversation lives at the lane's own path,
         which is where `holt <name>` goes looking for it.
+
+        And it changes what living with several lanes feels like. Each
+        repo's lanes tile on their own workspace page (`T/<repo>`), with
+        the leader's `t` returning to whichever page you used last; ⌃⇥/⌃⇧⇥
+        walk the non-empty pages by recency, and ⌘P/⌘⇧P open a shell
+        WINDOW in the focused window's directory (⇧ staying inside an
+        agent worktree instead of hopping to the main checkout). Those
+        three chords are consumed by pounce only while Ghostty is
+        frontmost — everywhere else ⌘P still prints and ⌃⇥ still switches
+        the app's own tabs — and the launcher gains a `Lanes` palette
+        command: fuzzy over every lane with its state, Enter focusing (or
+        waking) its window, `/term` switching to a content search across
+        the lanes' transcripts.
       '';
     };
 

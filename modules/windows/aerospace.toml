@@ -32,7 +32,7 @@ after-startup-command = ['exec-and-forget @HOME@/.config/aerospace/resort-window
 exec-on-workspace-change = [
     '/bin/bash',
     '-c',
-    '@HOME@/.config/sketchybar/aerospace-notify.sh; @HOME@/.config/aerospace/workspace-mru.sh push',
+    '"@HOME@/.config/sketchybar/aerospace-notify.sh"; "@HOME@/.config/aerospace/workspace-mru.sh" push',
 ]
 
 start-at-login = false

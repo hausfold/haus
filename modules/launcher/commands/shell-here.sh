@@ -30,7 +30,17 @@ export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/s
 stay=""
 [ "${1:-}" = "--stay" ] && stay=1
 
-cwd="$("$HOME/.config/haus/lanes/lane-cwd.sh")"
+# Failing silently is the one sin a global chord can't afford — the classic
+# cause here is the Automation (Apple Events) grant: the pounce daemon needs
+# System Settings → Privacy & Security → Automation → Pounce → Ghostty, and a
+# denied grant makes osascript error while the chord looks simply dead.
+say() { osascript -e "display notification \"$1\" with title \"haus · shell here\"" >/dev/null 2>&1; }
+
+# The resolver is installed by the terminal room's agents block; without it
+# (exotic: zmx backend with the AI room off) fall back to $HOME rather than
+# dying on a missing file.
+cwd=""
+[ -x "$HOME/.config/haus/lanes/lane-cwd.sh" ] && cwd="$("$HOME/.config/haus/lanes/lane-cwd.sh")"
 [ -n "$cwd" ] && [ -d "$cwd" ] || cwd="$HOME"
 
 # An explicit login shell, NOT the ghostty-config default command: that default
@@ -43,7 +53,7 @@ shell="${SHELL:-/bin/zsh}"
 before="$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)"
 
 if [ -n "$stay" ]; then
-  osascript - "$cwd" "$shell" <<'OSA' >/dev/null 2>&1 || exit 0
+  osascript - "$cwd" "$shell" <<'OSA' >/dev/null 2>&1
 on run argv
     tell application "Ghostty"
         new window with configuration {initial working directory:item 1 of argv, command:(item 2 of argv) & " --login", environment variables:{"HAUS_STAY=1"}}
@@ -51,7 +61,7 @@ on run argv
 end run
 OSA
 else
-  osascript - "$cwd" "$shell" <<'OSA' >/dev/null 2>&1 || exit 0
+  osascript - "$cwd" "$shell" <<'OSA' >/dev/null 2>&1
 on run argv
     tell application "Ghostty"
         new window with configuration {initial working directory:item 1 of argv, command:(item 2 of argv) & " --login"}
@@ -59,12 +69,19 @@ on run argv
 end run
 OSA
 fi
+if [ $? -ne 0 ]; then
+  say "couldn't ask Ghostty for a window — grant Pounce → Ghostty under Privacy & Security → Automation."
+  exit 0
+fi
 
 # windows floats every runtime-spawned ghostty window (the on-window-detected
 # title race — see aerospace.toml), so tile this one by hand once it has focus.
 # Same poll as lane-open.sh's self-tile, from outside the window: wait for
 # focus to land on a DIFFERENT window id than the one the chord started in.
 # No move-node — a shell window belongs on the workspace it was asked for.
+# (Until the next resort, that is: resort-windows.sh's catch-all sends plain
+# Ghostty windows home to T, and a shell window carries no title to say
+# otherwise. Accepted — a resort is an explicit "re-sort everything".)
 for _ in $(seq 1 20); do
   wid="$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)"
   [ -n "$wid" ] && [ "$wid" != "$before" ] && break
