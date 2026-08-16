@@ -1,0 +1,1 @@
+{"data":{"a":null,"b":{"login":"JulienMartel"}},"errors":[{"type":"NOT_FOUND","path":["a"],"locations":[{"line":1,"column":8}],"message":"Could not resolve to a Repository with the name 'github/definitely-not-a-repo-xyz-999'."}]}

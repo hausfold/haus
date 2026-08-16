@@ -746,6 +746,15 @@ let
     # rows before revealing them, so it owns the whole gesture and arms barpop
     # itself once the popup is up. Subscribing to mouse.clicked as well would
     # run the plugin twice per click.
+    #
+    # `iconWide` rather than `icon`, and symmetric padding rather than the bar's
+    # 8/4 default, because this is the rice's one SQUARE glyph and its one pill
+    # that spends most of its life with no label. See lib/bar.nix for the first
+    # (Nerd Font Mono fits by width, so a square mark comes out ~12% shorter
+    # than the tall glyphs beside it at the same point size) and github.sh's
+    # render() for the second — the plugin re-sets the padding on every paint,
+    # since the label appears and disappears with the count, and these two lines
+    # are what the pill looks like before the first one lands.
     github = ''
       ${sb} --add event github_update
       ${sb} --add item github ${side} \
@@ -753,6 +762,9 @@ let
               update_freq=60 \
               icon="" \
               icon.color=$TEXT \
+              icon.font="${barFont}:Bold:${sizes.iconWide}" \
+              icon.padding_left=10 \
+              icon.padding_right=10 \
               background.color=$SURFACE0 \
               popup.background.border_width=2 \
               popup.background.corner_radius=10 \
