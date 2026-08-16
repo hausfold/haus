@@ -2558,6 +2558,36 @@
             touch $out
           '';
 
+          # 🚨 The agent skill is the one flake output whose failure takes a
+          # machine's whole rebuild with it, and until 2026-08-16 nothing here
+          # built it. `haus.ai.skill` installs it as a home-manager file, so a
+          # red `.#agent-skill` fails `home-manager-files`, then
+          # `activation-<user>`, then the darwin system — every `haus rebuild`
+          # on every machine, from a derivation `nix flake check` never touched.
+          #
+          # That is exactly how it happened: haus#376 extended one room's
+          # `agent.cli`, the renderer's own end-anchored guard rejected the
+          # longer string, CI went green because no check built the package, and
+          # the breakage surfaced only when a machine tried to rebuild against
+          # the new pin. haus#379 fixed the guard; this is what would have caught
+          # it in the PR.
+          #
+          # Building it IS the check — `skill.nix`'s builder carries the render
+          # assertions. The extra lines below are the shape a rebuild depends on:
+          # the six files terminal actually installs, each non-empty, so a
+          # renderer that silently produced nothing fails here rather than
+          # landing an empty skill on someone's machine.
+          agent-skill = pkgs.runCommand "haus-agent-skill-ok" { } ''
+            skill=${self.packages.${system}.agent-skill}
+            for f in SKILL.md consumer-AGENTS.md consumer-CLAUDE.md \
+                     references/options.md references/rooms.md \
+                     references/recipes.md; do
+              test -s "$skill/$f" \
+                || { echo "agent skill is missing or empty: $f" >&2; exit 1; }
+            done
+            touch $out
+          '';
+
           # SketchyBar executes each rc directly. When an rc is not executable it
           # tries to chmod it first; Home Manager's source link resolves into the
           # immutable Nix store, so that chmod fails and the bar starts empty.
