@@ -9,7 +9,7 @@
 # display string next to `alt-shift-left` as a chord, in a table whose whole reason for
 # existing was that a binding and its cheatsheet caption must not drift — the
 # modifier was the one part of the row still duplicated by hand. Four consumers
-# read this: prowl (aerospace.toml), pounce (the cheatsheet + its hotkey), sill
+# read this: windows (aerospace.toml), pounce (the cheatsheet + its hotkey), bar
 # (the tour's prompts), and the assertions that catch a chord claimed twice.
 #
 # `null` means "this rice doesn't have that key at all" — a mouse-first or
@@ -60,7 +60,7 @@ let
   };
 
   # The palette hotkey. Registered IN-PROCESS by the pounce daemon (see
-  # modules/pounce), so this becomes its config.json `hotkey` block rather than an
+  # modules/launcher), so this becomes its config.json `hotkey` block rather than an
   # AeroSpace binding — binding it in AeroSpace too made AeroSpace win the race and
   # spawn the palette under its own TCC identity.
   paletteVocab = {

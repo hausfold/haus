@@ -57,7 +57,7 @@
           means "and my music library too". The transport-stream extensions
           `.ts`, `.mts` and `.m2ts` are excluded too: on a developer's machine
           they are TypeScript far more often than video, and
-          `haus.hearth.hijackFileAssociations` claims them for the editor.
+          `haus.terminal.hijackFileAssociations` claims them for the editor.
           Claiming them here as well made macOS stop and ask which app should
           win on every single rebuild, because `.mts` and `.m2ts` share one
           UTI.

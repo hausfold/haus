@@ -18,7 +18,7 @@
 # module system so it can't drift.
 #
 # WHY A DERIVATION rather than a checked-in file, for the same reason as the
-# agent skill next to it (hearth/agents/skill.nix): built from the revision a
+# agent skill next to it (terminal/agents/skill.nix): built from the revision a
 # machine actually pinned, it can only describe options that exist THERE. A
 # committed file would offer people options their pin doesn't have — a failed
 # rebuild for the least experienced user we have, on their first day.

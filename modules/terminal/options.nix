@@ -1,0 +1,619 @@
+# Part of the haus option surface. Split per room so each room's public API
+# lives next to the code that implements it; modules/default.nix imports them all.
+# Cross-cutting options (the app roster) stay in modules/options.nix.
+#
+# terminal's options — git identity, the one editor, shell/terminal behaviour,
+# Zen's extensions, and Claude Code's global memory file.
+#
+# `config` is in scope for one reason: `terminal.editor`'s default is read off
+# `terminal.editorName` (see there), the same way `fonts.mono.size` is read off
+# `fonts.mono.baseSize` in core's options.
+{ lib, config, ... }:
+
+let
+  # Every Nebelung accent name, so floatBorder can take a colour of its own
+  # rather than only "the accent" — the same courtesy haus.bar.logo.color pays.
+  # Shared with theme's own option, one list, one place (modules/lib/accents.nix).
+  accentNames = import ../lib/accents.nix;
+
+  # The extensions the rice itself has an opinion about, so naming one in
+  # haus.zen.extensions is enough. Stylus is here because it's the Nebelung
+  # port whose theme lives inside the extension rather than in a file — the one
+  # thing standing between the rice's palette and the actual web.
+  #
+  # An id is unguessable, and a wrong one fails SILENTLY (the policy just
+  # installs nothing), so this table only holds ids read off a real installed
+  # add-on — never one inferred from a slug. That's why it's short: growing it
+  # is a favour to the next person, not a requirement, and anything absent still
+  # works with an explicit `id`. Dark Reader, the other browser-side Nebelung
+  # port, is deliberately NOT here — nobody has read its id off a live profile.
+  knownZenExtensions = {
+    stylus = {
+      id = "{7a7a4a92-a2a0-41d1-9fd7-1e92480d612d}";
+      slug = "styl-us";
+    };
+  };
+
+  contrib = import ../lib/contrib.nix { inherit lib; };
+
+  # The editors this room can install, and what each answers to on PATH.
+  # modules/lib/editors.nix explains why the CHOICE is an enum while the
+  # COMMAND stays a free string.
+  editors = import ../lib/editors.nix;
+in
+
+{
+  options.haus = {
+    # ---- the Development room's extension points ------------------------------
+    # Declared here because terminal is the terminal, which is what a contributed
+    # binding lands in. See modules/lib/contrib.nix for the contract, and
+    # modules/ai for today's only writer.
+    _contrib.development.agents = contrib.mkExtensionPoint {
+      description = ''
+        The AI room's agent lifecycle bindings, as the terminal renders them:
+        the ⌘A / Super-a chords that spawn an agent (in a fresh `holt` worktree,
+        or in this pane), the `c` alias, and the cheatsheet cards pounce draws
+        from the same table.
+
+        Off leaves the terminal exactly as it is without agents — no dead chord
+        teaching a client this machine never installed. It never installs an
+        agent client itself: that is the AI room's own payload.
+      '';
+      options = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+          description = "Whether the terminal binds and teaches the agent chords.";
+        };
+        default = lib.mkOption {
+          type = lib.types.str;
+          default = "claude";
+          description = "The client the chords spawn — `haus.ai.default`.";
+        };
+        # No `clients` field on purpose. The list matters to what gets INSTALLED,
+        # which is the AI room's own payload, not a contribution — a field here
+        # that nothing reads would invite a future reader to trust it.
+      };
+    };
+
+    git = {
+      name = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        example = "Ada Lovelace";
+        description = "Git user.name for commits (terminal wires it into home-manager).";
+      };
+      email = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        example = "ada@example.com";
+        description = "Git user.email for commits.";
+      };
+      signingKey = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        example = "6F7BD6F43A7C1420";
+        description = ''
+          GPG key id for signing commits/tags. Empty disables commit signing.
+          Key material + any YubiKey/smartcard setup live outside Nix
+          (gpg-agent + pinentry-mac).
+        '';
+      };
+      org = lib.mkOption {
+        type = lib.types.str;
+        default = "";
+        example = "hausfold";
+        description = ''
+          The GitHub owner whose repos this machine works on. An organisation,
+          or your own account: GitHub's issue search treats `org:<user>` the
+          same as `user:<user>`, so one option covers both (measured against
+          both qualifiers, 2026-08-08 — the counts match).
+
+          It exists because a gh-dash PR section is a GitHub search filter
+          scoped by `org:`. Set this **and** `haus.terminal.ghDash.enable` and
+          Terminal renders four PR tabs for that owner — the open / green / red /
+          just-shipped work. On its own it does nothing: it is the dashboard's
+          scope, not a feature of its own.
+
+          Leave it empty (the default) and Terminal writes no PR tabs at all, so
+          gh-dash keeps its own and a host composing a queue in
+          `programs.gh-dash.settings` never fights one. Empty is the right
+          answer for a machine that reads several owners at once: there is no
+          single owner to render. The issue and notification tabs are unaffected
+          either way — they ask who you are (`@me`, `is:unread`) rather than
+          where you work, so the dashboard ships them regardless.
+
+          Where it earns its keep is a rename: an org that changes name, or a
+          repo set that moves between orgs, is one word here rather than one per
+          tab. A host's `repoPaths` can follow the same word instead of
+          repeating it — read it as `config.haus.git.org` from a darwin-level
+          module, or as `osConfig.haus.git.org` from inside
+          `home-manager.users.<user>`, where `config` is home-manager's and
+          carries no `haus.*` at all.
+        '';
+      };
+      shellAliases = lib.mkOption {
+        type = lib.types.attrsOf (lib.types.nullOr lib.types.str);
+        default = { };
+        example = lib.literalExpression ''
+          {
+            gst = "git status --short --branch"; # replace a built-in
+            gsync = "git pull --rebase --autostash"; # add one
+            gco = null; # remove one
+          }
+        '';
+        description = ''
+          Per-host additions and overrides for Terminal's built-in Git shell
+          aliases. Values are shell command strings; null removes a built-in.
+          Terminal deliberately owns a compact, framework-independent default
+          set, so this changes only Git shortcuts and does not require a shell
+          plugin manager.
+        '';
+      };
+    };
+
+    terminal.editorName = lib.mkOption {
+      type = lib.types.enum (builtins.attrNames editors);
+      # The desktop-safe half of the pair, and the one that actually INSTALLS
+      # something. helix is the room's own default rather than a hacker
+      # opinion carried in the desktop: a terminal room with no editor is not
+      # unopinionated, it is broken — git alone would drop you into whatever
+      # $EDITOR the machine happened to have. Same reasoning as
+      # `fonts.mono.name`, which keeps supplying a patched family.
+      default = "helix";
+      example = "neovim";
+      description = ''
+        Which editor this room installs. `helix` (the default) is the one haus
+        is themed around; `neovim`, `vim` and `nano` are installed as-is,
+        with no Nebelung theme — Nebelung has a port for helix and not for
+        them.
+
+        Setting this also moves `haus.terminal.editor`, since that defaults to
+        whatever the chosen editor answers to on PATH (`hx`, `nvim`, `vim`,
+        `nano`). Choosing here is the whole gesture: the editor is installed
+        AND every "open in an editor" action follows it.
+
+        A desktop may set this. To point haus at an editor it does not
+        install — a GUI one, or something from your own host file — leave this
+        alone and set `haus.terminal.editor` instead.
+      '';
+    };
+
+    terminal.editor = lib.mkOption {
+      type = lib.types.str;
+      # Host-only, and permanently so: this value is EXECUTED — baked into the
+      # zellij opener, the palette command and the bar's nix-open item. That is
+      # the reason a desktop chooses with `editorName` above rather than here.
+      # It is still the last word, though: a host naming "code -w" beats the
+      # enum's command, which is what makes the enum a closed set without
+      # making it a cage.
+      default = editors.${config.haus.terminal.editorName}.command;
+      # literalMD, not literalExpression: host-template.jq copies a
+      # literalExpression into the generated host file verbatim, and this is a
+      # sentence rather than pasteable Nix (see fonts.mono.size, which learned
+      # it the same way). No backticks and under 60 characters, for the two
+      # things that read it after: hausfold.co's generator wraps the whole
+      # string in a code span (nested backticks come out as broken markdown)
+      # and moves anything longer into the body as "see below".
+      defaultText = lib.literalMD "the command for haus.terminal.editorName — hx for helix";
+      example = "code -w";
+      description = ''
+        The ONE editor command haus uses everywhere. It's the shell command
+        for $EDITOR / $VISUAL (git, etc.) AND what every "open in an editor"
+        action launches — the "Nix Config" palette command, the bar's nix-open
+        item, and the file-association hijack. Those open the target in a new
+        zellij tab running this command, so a terminal editor is the natural
+        fit for haus; a GUI editor's CLI works too (e.g. "code" or
+        "code -w" to block).
+
+        It defaults to the command for `haus.terminal.editorName`, so choosing an
+        editor there is enough. Set this only for the case that option cannot
+        express: pointing haus at something it does not install. Naming a
+        command here does NOT install it — that machine has to already have it.
+      '';
+    };
+
+    terminal.hijackFileAssociations = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        When true, build a small opener app and make it the default handler
+        for ~80 text/code extensions (json, md, ts, nix, rs, go, kdl, …), so
+        opening or clicking those files opens them in haus.terminal.editor in
+        a terminal tab. The app declares the types itself (not just `duti`) so
+        extensions nothing else on the machine declares still bind. Off by
+        default: silently rewriting your file associations is a jarring,
+        hard-to-undo change, so it's strictly opt-in. (Extensionless executables
+        like `bench` are NOT covered — macOS gates the public.unix-executable
+        handler behind an interactive dialog; set it by hand once if wanted:
+        `duti -s org.nebelhaus.editoropen public.unix-executable all`.)
+      '';
+    };
+
+    terminal.obsidianVaults = lib.mkOption {
+      type = lib.types.listOf (
+        lib.types.addCheck lib.types.str (
+          path:
+          path != ""
+          && !(lib.hasPrefix "/" path)
+          && !(lib.any (component: component == "..") (lib.splitString "/" path))
+        )
+      );
+      default = [ ];
+      apply = lib.unique;
+      example = [
+        "Library/Mobile Documents/iCloud~md~obsidian/Documents/notes"
+      ];
+      description = ''
+        Home-relative paths to existing Obsidian vaults that should use the
+        Nebelung theme. On each activation, Terminal copies the rendered
+        theme.css + manifest.json into each vault's .obsidian/themes/Nebelung/
+        directory, selects Nebelung's dark appearance in appearance.json, and
+        removes the obsolete "nebelung" CSS snippet from the enabled list.
+
+        Empty (the default) leaves every vault untouched. Paths must be
+        relative to the user's home, may not contain "..", and are skipped
+        with a warning unless their .obsidian directory already exists.
+      '';
+    };
+
+    terminal.lanes.backend = lib.mkOption {
+      type = lib.types.enum [
+        "zellij"
+        "zmx"
+      ];
+      # In-room taste, like zellijStartLocked below: both backends ship with
+      # the room either way, and this only decides which one a `holt` lane
+      # opens into. A desktop may set it.
+      default = "zellij";
+      description = ''
+        Where an agent lane's terminal actually lives.
+
+        `zellij` (the default) is the behaviour haus has always had: a
+        lane is a pane in the `main` zellij session, and `holt` execs the
+        client in the pane you ran it from. Panes are cheap, but a lane's
+        identity is then a (session, pane-id) pair that only zellij
+        understands — which is why the bar keeps a state file per pane and
+        joins it back to a checkout path to work out which window to raise.
+
+        `zmx` makes the lane its own zmx session, viewed through its own
+        Ghostty window, tiled by windows — all three named
+        `holt.<repo>.<lane>`. Three consequences, in the order you'd feel
+        them:
+
+        - **Closing the window stops meaning parking the work.** A zmx
+          session outlives every client attached to it, so ⌘W detaches and
+          the agent keeps thinking; `holt <name>` reopens a window onto the
+          live conversation instead of resuming a transcript.
+        - **The name is the join.** `zmx ls --where state=waiting`,
+          AeroSpace's `window-title-regex`, and the lane in `holt --json`
+          all key off one string.
+        - **Splits are gone**, because zmx has none by design. Windows tiles
+          the windows instead, which is the trade: a real window manager
+          rather than a second one nested inside a terminal.
+
+        Both backends can be installed at once — this only picks which one
+        `holt` opens into, through the `[hooks] open`/`resume` seam in
+        `~/.config/holt/config.toml`. If zmx is somehow missing at runtime
+        the hook defers (exit 3) and holt falls back to its built-in, so the
+        worst case is the zellij behaviour you already had.
+      '';
+    };
+
+    terminal.zellijStartLocked = lib.mkOption {
+      type = lib.types.bool;
+      # In-room taste: it only describes how the multiplexer this room already
+      # ships behaves once you are in it, so there is no room to switch on and
+      # nothing to install — unlike the editor above, whose desktop-safe half is
+      # a choice about what lands on the machine. (hacker's desktop does set
+      # this one, since it is a claim on a keyboard rather than a package.)
+      default = true;
+      description = ''
+        When true (the default), zellij boots into Locked input mode instead of
+        Normal — its single-key submode leaders (pane, tab, resize, …) stay
+        inert until you unlock with Ctrl-g, so a stray keystroke can't jump you
+        into a submode. The `Super`-prefixed launchers (claude / pane / tab /
+        yazi-peek / fullscreen) are bound in `shared` and keep working while
+        locked, as do `Alt [` / `Alt ]` (cycle swap layouts) — the rest of
+        zellij's `Alt` row stays inert while locked, since those keys are
+        readline/vim word motions the pane's app wants. The bar's bottom-right
+        quick-hint block only shows in Locked mode. Set false to start in Normal
+        mode (zellij's own default).
+      '';
+    };
+
+    terminal.rightClickFullscreen = lib.mkOption {
+      type = lib.types.bool;
+      # Same as zellijStartLocked above: in-room behaviour of a terminal the
+      # layer installs unconditionally.
+      default = true;
+      description = ''
+        When true (the default), a bare right-click on any pane zooms it
+        fullscreen — the same MouseAction::ToggleFullscreen Ctrl+Click already
+        triggers, just a different, easier-to-reach trigger. It's a whole
+        zellij-unwrapped patch, not a config toggle (mouse buttons still
+        aren't bindable in config.kdl — see naked-click-links.patch's header
+        for why link gestures hit the same wall), so flipping this rebuilds
+        zellij; it does not take effect on a running server. The real cost:
+        right-click stops reaching the pane's own program, so a TUI's own
+        right-click context menu (lazygit, vim, mc, …) goes with it. Set
+        false to leave right-click alone and keep zooming with Ctrl+Click or
+        Super Enter.
+      '';
+    };
+
+    terminal.floatBorder = lib.mkOption {
+      type = lib.types.enum (
+        [
+          "accent"
+          "grey"
+          "off"
+        ]
+        ++ accentNames
+      );
+      # Follows haus.theme.accent, so it is already whatever the desktop chose
+      # — neutralising it to "off" would make the bare room worse without
+      # making it less opinionated.
+      default = "accent";
+      example = "grey";
+      description = ''
+        The outline drawn around every floating terminal `float-term.sh` spawns:
+        the Super-y yazi peek panel, the bar's agent peek, and the palette's
+        Rebuild System / Install App / Settings and `zscratch` windows. They all
+        land on top of a tiled desktop, where a dark terminal over a dark window
+        behind it has no edge at all.
+
+        - `accent` (the default) — `haus.theme.accent`, so a summoned window
+          announces itself and the whole desktop keeps one accent.
+        - `grey` — Nebelung's `surface0`, one step off the terminal's own
+          background: the same relationship the bar's dropdowns wear
+          (`popup.background.border_color` in modules/bar), for an edge that
+          defines the window without drawing the eye.
+        - `off` — no outline; the look before this option existed. It also keeps
+          floatring out of the closure entirely, so nothing is compiled for it.
+        - any Nebelung accent name (`lavender`, `sapphire`, …) — one colour for
+          these popups that ISN'T `haus.theme.accent`, the same escape hatch
+          `haus.bar.logo.color` offers.
+
+        2pt, following the window's own corner curve. Drawn by a tiny overlay
+        window (modules/terminal/floatring.swift) that lives and dies with the
+        popup, because Ghostty has no border setting of its own and aerospace
+        draws none — that file's header has the rest, including why it isn't
+        JankyBorders. Switch it with
+        `haus set terminal.floatBorder grey && haus rebuild`; to compare colours
+        first, without a rebuild, outline any window by hand (the process name is
+        lower-case — `pgrep -x Ghostty` matches nothing and rings nothing):
+        `~/.config/zellij/float-term.sh ring "$(pgrep -x ghostty | head -1)" '#cba6f7'`
+      '';
+    };
+
+    terminal.ghDash.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      example = true;
+      description = ''
+        Whether to enable the themed gh-dash GitHub dashboard and its Cmd-G
+        fullscreen Zellij overlay.
+
+        Enabling it gets you the issue and notification tabs (yours, assigned,
+        unread, participating). The four PR tabs — open / green / red /
+        shipped — need `haus.git.org` as well, since a PR section is a search
+        filter scoped to an owner. A host can compose or replace any of it
+        through home-manager's `programs.gh-dash.settings`: every section list
+        Terminal writes is a `mkDefault`, per list.
+
+        Needs `haus.developer.git.enable` (an assertion enforces it): gh-dash
+        authenticates out of `gh`'s own credentials, so the Git pack is where
+        its login comes from.
+      '';
+    };
+
+    zen.extensions = lib.mkOption {
+      type = lib.types.attrsOf (
+        lib.types.submodule (
+          { name, config, ... }:
+          {
+            options = {
+              enable = lib.mkOption {
+                type = lib.types.bool;
+                default = true;
+                description = "Whether to deploy this extension. Set false to remove one an imported desktop added.";
+              };
+
+              id = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = knownZenExtensions.${name}.id or null;
+                example = "{7a7a4a92-a2a0-41d1-9fd7-1e92480d612d}";
+                description = ''
+                  The extension's own id — the key Firefox's policy engine
+                  matches on, NOT its AMO slug. Usually a brace-wrapped UUID,
+                  sometimes an email-shaped string (`addon@example.org`).
+
+                  Find it by installing the add-on once and reading `Extension
+                  ID` under about:debugging ▸ This Firefox, or from the
+                  `browser_specific_settings` block of its source. Wrong id and
+                  the policy silently installs nothing — which is why this has
+                  no guessable default.
+                '';
+              };
+
+              slug = lib.mkOption {
+                type = lib.types.nullOr lib.types.str;
+                default = knownZenExtensions.${name}.slug or null;
+                example = "styl-us";
+                description = ''
+                  The add-on's AMO slug — the last path segment of its
+                  addons.mozilla.org URL. Only used to build the default
+                  `url`; set `url` directly and this is ignored.
+                '';
+              };
+
+              url = lib.mkOption {
+                type = lib.types.str;
+                default =
+                  if config.slug == null then
+                    ""
+                  else
+                    "https://addons.mozilla.org/firefox/downloads/latest/${config.slug}/latest.xpi";
+                description = ''
+                  Where the .xpi comes from. Defaults to AMO's "latest" endpoint
+                  for `slug`, so the add-on updates itself; point it at a pinned
+                  version or a self-hosted file to freeze it.
+
+                  A `file://` url has a second effect, and it is not local to
+                  this extension: a file on disk cannot have been signed by
+                  Mozilla, and Zen refuses an unsigned add-on
+                  (`ERROR_SIGNEDSTATE_REQUIRED`) unless
+                  `xpinstall.signatures.required` is off. So naming one makes
+                  haus lock that pref off **for the whole browser** — the
+                  same switch `haus.zen.tabBridge.enable` documents, since the
+                  bridge is haus's own `file://` install. An `https://` AMO
+                  url never turns it on.
+                '';
+              };
+
+              mode = lib.mkOption {
+                type = lib.types.enum [
+                  "force_installed"
+                  "normal_installed"
+                  "allowed"
+                  "blocked"
+                ];
+                default = "force_installed";
+                description = ''
+                  Firefox's `installation_mode`. `force_installed` installs it
+                  and stops the user removing it (the point, for a desktop that
+                  wants an extension present); `normal_installed` installs it
+                  but leaves it removable.
+                '';
+              };
+            };
+          }
+        )
+      );
+      default = { };
+      example = lib.literalExpression ''
+        {
+          # Known to haus — id and slug are filled in.
+          stylus = { };
+          # Anything else: bring the id.
+          ublock-origin = {
+            id = "uBlock0@raymondhill.net";
+            slug = "ublock-origin";
+          };
+        }
+      '';
+      description = ''
+        Browser extensions to deploy into Zen, by a stable id of your choosing.
+
+        The mechanism is Firefox's enterprise policies — haus renders an
+        `ExtensionSettings` block — so it reaches Zen the way an IT department
+        reaches Firefox, without a profile to hand-edit. `haus.roster`
+        deliberately cannot do this: a roster entry installs from a cask, a
+        brew, a nixpkgs package or the App Store, and a browser add-on is none
+        of those.
+
+        Two consequences of HOW the policies are delivered, both visible.
+        Firefox only ever looks for a `policies.json` inside the app bundle,
+        which haus has no business writing into (it breaks the code signature
+        and a cask upgrade wipes it), so haus uses the other route macOS
+        offers: a managed preference at
+        `/Library/Preferences/app.zen-browser.zen.plist`. That file is
+        root-owned, so it's written during system activation and a `haus
+        rebuild` that can't reach it warns instead of installing anything. And
+        because enterprise policies are on, Zen will tell you it is "managed by
+        your organization" — that organization is haus.
+
+        haus knows the id and slug of the extensions it themes
+        (${lib.concatStringsSep ", " (builtins.attrNames knownZenExtensions)}),
+        so those need only be named. Everything else needs `id` — see that
+        option for where to find it.
+
+        Naming `stylus` here also turns on the stamped userstyle bundle (see
+        haus.theme.accent): the Catppuccin-derived styles Stylus imports
+        carry their own accent and flavor variables, which no palette file can
+        reach, so haus stamps the bundle from your theme — accent, flavor,
+        and the contrast it's rendered for — and tells you when there's a new
+        one to import.
+      '';
+    };
+
+    zen.tabBridge.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Deploy haus's own tiny extension into Zen, so the bar can find and
+        switch to the tab that is making noise.
+
+        This is what makes the media pill's ⌘ click land on the **tab** rather
+        than just bringing Zen forward. Safari and the Chromium browsers need
+        nothing here — they hand their tab list to AppleScript and the pill uses
+        that. Firefox and its forks hand out nothing at all, to AppleScript or
+        to accessibility, so without this the pill falls back to driving
+        Firefox's own address-bar tab search with synthetic keystrokes, which
+        needs the Accessibility permission and is exactly as pleasant as it
+        sounds.
+
+        Off by default because it force-installs an add-on into your browser,
+        which is not a thing haus should do to you unasked. Turning it on
+        costs one derivation, a native-messaging manifest, and two keys in
+        haus's root-owned policy plist — one of which is the signature switch
+        below. Turning it back off stops haus deploying it — what Zen then
+        does with the add-on already installed is Firefox's policy engine's
+        business, not haus's, so check `about:addons` and remove it there if
+        it outstays the option.
+
+        **Zen only, and that's a signing constraint rather than a choice.**
+        Release Firefox refuses an extension Mozilla hasn't signed, and it is
+        built so that no pref and no policy can say otherwise. Zen is built the
+        other way (`MOZ_REQUIRE_SIGNING = false`), which is the whole reason
+        haus can build the `.xpi` itself and install it out of the nix store.
+
+        It still costs a switch. Zen carries Firefox's own preference defaults,
+        which turn signature enforcement back on, so turning this option on also
+        makes haus lock `xpinstall.signatures.required = false` — for the
+        browser, not just for its own add-on. Without it Zen refuses the bridge
+        with `ERROR_SIGNEDSTATE_REQUIRED` and the option quietly does nothing;
+        with it, an unsigned add-on from anywhere would also install if
+        something asked. That is the second reason this is off by default.
+
+        Firefox support would mean an AMO account and unlisted self-distribution
+        signing — packaging, not a code change — and would drop the pref.
+      '';
+    };
+
+    zen.extraPolicies = lib.mkOption {
+      type = lib.types.attrs;
+      default = { };
+      example = lib.literalExpression "{ DisableTelemetry = true; }";
+      description = ''
+        Anything else to put in Zen's policy set, merged beside the
+        `ExtensionSettings` block `haus.zen.extensions` renders. haus OWNS
+        the file these land in — `/Library/Preferences/app.zen-browser.zen.plist`,
+        written as root — so this is the escape hatch for the rest of the policy
+        surface rather than a reason to take the file back by hand. Keys here
+        win over haus's on a collision.
+
+        Write the policy names as Firefox documents them, nested: this becomes
+        the top level of a plist beside `EnterprisePoliciesEnabled`, so
+        `{ Extensions.Install = [ "…" ]; }` is an `Extensions` dict with an
+        `Install` array in it, not a key called `Extensions.Install`. Setting
+        every policy back to `{ }` (and naming no extensions) takes the file
+        down again on the next rebuild.
+
+        The merge is one level deep, so naming a policy takes that policy over
+        WHOLE. Two of them haus writes itself: `ExtensionSettings` (from
+        `haus.zen.extensions`) and `Preferences` (which is where the signature
+        switch a `file://` install needs ends up). Restate what you still want
+        if you set either — dropping the signature switch this way is invisible
+        until you notice the add-on isn't there.
+
+        Values are passed to a plist writer, so `null` is not a value: it
+        renders as a key with nothing under it, which makes the whole file
+        invalid and drops **every** policy, not just that one. Omit the key
+        instead.
+      '';
+    };
+
+  };
+}

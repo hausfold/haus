@@ -8,12 +8,12 @@
 #
 # The judgement calls, which are the interesting part:
 #
-#   - Windows (prowl) OFF. Tiling is good; remapping Caps Lock to a leader key
+#   - Windows (windows) OFF. Tiling is good; remapping Caps Lock to a leader key
 #     on someone else's Mac is not. They keep the window behaviour they know,
 #     which is also why this desktop claims no leader.
 #   - Launcher (pounce) ON. A search box that opens things is legible to
 #     anyone — the one power feature that needs no explanation.
-#   - Bar (sill) ON. A clock, battery and weather is a better menu bar, not a
+#   - Bar (bar) ON. A clock, battery and weather is a better menu bar, not a
 #     different paradigm.
 #   - Development OFF, and AI with it. Before `haus.developer` existed, turning
 #     the rooms off still installed bun, fnm, opencode, lazygit and the
@@ -28,14 +28,14 @@
 #   ai.enable            true → FALSE, on purpose; see above. Say
 #                        `haus.ai.enable = true` in your host if you want them.
 #   keys.leader          "caps" → unset, and keys.windowNav with it. Both are
-#                        prowl's, and prowl is off, so they moved nothing either
+#                        the tiler's, and that room is off, so they moved nothing either
 #                        way — stated here so the diff isn't mistaken for a loss.
 #   developer.languages  ["node"] → empty, which follows from the room being off.
 #
 # Everything else the preset inherited from hacker is restated below,
 # including the two that would otherwise be quiet losses on exactly the machine
-# least able to diagnose them: `collar.passwordlessRebuild` (without it every
-# `haus rebuild` stops for a sudo password) and `hush` (the Focus switch).
+# least able to diagnose them: `security.touchId.passwordlessRebuild` (without it every
+# `haus rebuild` stops for a sudo password) and `focus` (the Focus switch).
 #   - Tour ON, and AUTHORED. The one that needed a second look: the built-in lap
 #     is three leader moves plus the palette, so with Windows off it had nothing
 #     left to teach and drew no pill at all — a tutor for the person who most
@@ -46,22 +46,22 @@
   haus = {
     apps.videoPlayer.enable = true;
 
-    collar = {
+    security.touchId = {
       enable = true;
       passwordlessRebuild = true;
     };
 
     fonts.mono.baseSize = 19;
 
-    hush.enable = true;
+    focus.enable = true;
 
     keys.palette = "cmd-space";
 
-    perch.enable = true;
+    shelf.enable = true;
 
-    pounce.enable = true;
+    launcher.enable = true;
 
-    sill.enable = true;
+    bar.enable = true;
 
     theme = {
       accent = "mauve";

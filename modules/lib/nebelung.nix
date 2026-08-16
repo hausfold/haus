@@ -8,7 +8,7 @@
 #   nb.flavor    # the catppuccin flavor whiskers rendered it as ("mocha" | "latte")
 #   nb.title     # that flavor, capitalised — some ports title-case it in a path
 #
-# This exists because three modules (hearth, sill, theme) each read the palette
+# This exists because three modules (terminal, bar, theme) each read the palette
 # and each source rendered files, so the selection was duplicated three times the
 # moment `contrast` landed. Adding the `flavor` axis would have made that six
 # near-identical blocks, and flavor is the axis where getting it subtly wrong is
@@ -17,7 +17,7 @@
 # `flavor` is load-bearing beyond picking colours: whiskers names its output after
 # the flavor it rendered (catppuccin-latte.conf, "Catppuccin Latte.tmTheme",
 # zen/themes/Latte/), and templates branch on `flavor.dark`. So callers must build
-# paths from nb.flavor rather than writing "mocha" — see modules/hearth.
+# paths from nb.flavor rather than writing "mocha" — see modules/terminal.
 {
   lib,
   nebelung,
@@ -59,7 +59,7 @@ let
   # — catppuccin-latte.conf, "Catppuccin Latte.tmTheme", zen/themes/Latte/ — so
   # a metadata path has to be re-spelled for the selected flavor before it means
   # anything. This is the same substitution the hand-written wiring in
-  # modules/hearth does inline (`catppuccin-${nbFlavor}.conf`); doing it here
+  # modules/terminal does inline (`catppuccin-${nbFlavor}.conf`); doing it here
   # means a port's path comes FROM nebelung instead of being retyped next to it.
   resolveFlavor =
     p: builtins.replaceStrings [ "mocha" "Mocha" ] [ theme.flavor (capitalise theme.flavor) ] p;

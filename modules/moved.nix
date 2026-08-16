@@ -32,6 +32,22 @@
     (lib.mkRenamedOptionModule [ "haus" "claude" "globalMd" ] [ "haus" "ai" "instructions" ])
     (lib.mkRenamedOptionModule [ "haus" "claude" "skill" ] [ "haus" "ai" "skill" ])
 
+    # 2026-08-16 — the room code names are GONE rather than deprecated:
+    # `hearth` -> `terminal`, `prowl` -> `windows`, `sill` -> `bar`,
+    # `pounce` -> `launcher`, `perch` -> `shelf`, `hush` -> `focus`, and
+    # `collar` -> `security.touchId.*` (folding into the namespace the firewall
+    # already had, so the one Security room has one address). `den` was never a
+    # namespace; its module and export are `core`.
+    #
+    # No aliases, for the reason the agents -> ai move gives below: the layer
+    # has one consumer, its host moved in the same sweep, and an alias set here
+    # would be permanent furniture protecting nobody. It would also defeat the
+    # point — the whole change is that those words stop appearing.
+    #
+    # `./renamed.nix` next door is untouched by this: its LEFT sides are the
+    # frozen `nebelhaus.*` spellings and only their `haus.*` targets followed.
+    # So `nebelhaus.sill.position` still resolves — to `haus.bar.position`.
+
     # 2026-08-13 — the whole coding-agent capability became `haus.ai.*`, and
     # deliberately got NO alias here. `haus.agents.*` and
     # `haus.developer.agents.enable` are gone rather than deprecated: the rice

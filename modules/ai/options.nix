@@ -15,7 +15,7 @@
 
 let
   # Every coding-agent client the rice knows how to install, spawn and resume —
-  # read by ai.clients, ai.default, and sill's aiUsage.provider, so none
+  # read by ai.clients, ai.default, and bar's aiUsage.provider, so none
   # of the three can drift apart. modules/lib/agents.nix says why it lives there
   # rather than here, and names the one copy that can't be folded in.
   agentClients = import ../lib/agents.nix;
@@ -32,7 +32,7 @@ in
         The AI room: coding-agent *tooling*. `holt` (agent worktrees),
         `agent-state` (the pane-status writer behind the `agents` bar pill and
         the zellij tab badge), the agent-worktree statusline, and the client
-        config hearth writes (Claude Code's settings.json keys, opencode's
+        config terminal writes (Claude Code's settings.json keys, opencode's
         agent-state plugin). Which clients get installed is `ai.clients`.
 
         On, this room brings its clients, `holt` and the lifecycle wiring on its
@@ -127,7 +127,7 @@ in
         lifecycle, and all three light up the `agents` bar pill and the zellij
         tab-bar badge — the opencode plugin and the codex hooks are written for
         you; only Claude Code's stay yours to wire, because Claude owns its own
-        settings.json (see `haus.sill.items.agents`).
+        settings.json (see `haus.bar.items.agents`).
       '';
     };
 
@@ -136,7 +136,7 @@ in
     # which made `ai.default = "codex"` a half-truth: the client spawned,
     # with none of the operating context or the option knowledge the same
     # machine hands Claude. They are named for the ROOM, not the client, and
-    # hearth writes one copy per entry in `ai.clients` (renamed.nix keeps
+    # terminal writes one copy per entry in `ai.clients` (renamed.nix keeps
     # the old names working, with a warning).
     ai.instructions = lib.mkOption {
       type = lib.types.lines;

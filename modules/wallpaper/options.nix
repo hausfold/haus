@@ -400,7 +400,7 @@ in
         PIXELS.
 
         Null derives it from the tiling gaps — the widest outer reservation any
-        attached display could be using (../lib/gaps.nix, the same numbers prowl
+        attached display could be using (../lib/gaps.nix, the same numbers windows
         writes into aerospace.toml), doubled for a Retina display's two pixels
         per point. That lands the band exactly at a tiled window's bottom-left
         corner, which is the whole trick: the text is under the windows, not

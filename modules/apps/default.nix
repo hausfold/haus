@@ -1,12 +1,12 @@
 # Apps — the picks the rice makes for you, and which of them owns a file type.
 #
-# Every other room installs an app because it needs one: prowl brings AeroSpace
-# because it IS the tiler, sill brings SketchyBar because it IS the bar. This
+# Every other room installs an app because it needs one: windows brings AeroSpace
+# because it IS the tiler, bar brings SketchyBar because it IS the bar. This
 # room is the other kind — the editorial ones. A machine the rice calls finished
 # should play a video you double-click, and macOS out of the box does not (
 # QuickTime declines mkv, webm, and most of what isn't Apple's codec list). So
 # the pick lives here rather than wherever it happened to get installed: IINA
-# spent months in hearth, the SHELL room, purely because hearth's file-
+# spent months in terminal, the SHELL room, purely because terminal's file-
 # association code was next door.
 #
 # The shape each pick takes: one `haus.apps.<thing>.enable` knob, a roster
@@ -45,7 +45,7 @@ let
   #     and IINA's own plugin types — "open videos in IINA" shouldn't quietly
   #     take the music library, or the gif the zellij previewer shows inline.
   #   - `ts`, `mts`, `m2ts`: transport streams by name, TypeScript by practice.
-  #     hearth's hijackFileAssociations claims all three for the editor (`.mts`
+  #     terminal's hijackFileAssociations claims all three for the editor (`.mts`
   #     is an ESM TypeScript module). `mts` used to sit in BOTH lists, and since
   #     `.mts` and `.m2ts` resolve to ONE shared AVCHD UTI, every activation
   #     re-ran both claims against that single type and macOS stopped to ask
@@ -58,10 +58,10 @@ let
   #   - `dat`, `swf`, `yuv`, `wv`, `mcf`, `mks`: junk drawer, WavPack audio, or
   #     Matroska subtitles — nothing you double-click expecting a player.
   #
-  # Grouped by family and left hand-wrapped, like hearth's editorExts: nixfmt
+  # Grouped by family and left hand-wrapped, like terminal's editorExts: nixfmt
   # would put each on its own line and bury the shape.
   #
-  # Adding one back? Check it against hearth's `editorExts` FIRST — and against
+  # Adding one back? Check it against terminal's `editorExts` FIRST — and against
   # the UTI, not just the spelling, since one UTI can carry several extensions.
   iinaVideoExts = [
     "mp4" "m4v" "mov" "mpg" "mpeg"
@@ -117,7 +117,7 @@ in
       # lsregister first, every activation, and that ordering is the whole
       # trick: binding a handler LaunchServices hasn't seen yet fails with a
       # silent -50. IINA's store path moves on every version bump, so the
-      # registration is exactly as perishable as the binding — hearth
+      # registration is exactly as perishable as the binding — terminal
       # re-registers the whole Home Manager Apps directory for the same reason,
       # and this names both plausible bundles so the room works whether the
       # player came from nixpkgs or a cask.

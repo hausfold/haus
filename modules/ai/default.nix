@@ -11,9 +11,9 @@
 # switches a bar on.
 #
 # What is deliberately NOT here yet: the payload. `holt`, `agent-state` and the
-# statusline are still installed by modules/den (a system profile), and the
+# statusline are still installed by modules/core (a system profile), and the
 # client packages, instructions/skill files and per-client hook wiring by
-# modules/hearth (a home profile) — both now gated on THIS room's switch. Those
+# modules/terminal (a home profile) — both now gated on THIS room's switch. Those
 # are two different profiles with two different plumbings, and moving a package
 # between them is an install change, not a refactor. Ownership moved; the code
 # follows when there is a projection comparison to prove it moved for free.
@@ -53,25 +53,25 @@ let
   # The bar is a different question, and answering it with `spawnable` was
   # wrong: `ai.clients = [ ]` means the RICE installs no client, not that no
   # agent runs here. `agent-state` — the pill's only writer — follows
-  # `ai.enable` alone (modules/den), and hearth writes every client's
+  # `ai.enable` alone (modules/core), and terminal writes every client's
   # instructions and hooks on exactly that machine, by name, for exactly this
   # case. A Claude Code from npm reports its panes there and the pill works, so
   # dropping it would be the dead-pill failure with the sign flipped.
   reportable = cfg.enable;
 
   # Every address that asked for the agents pill, on either bar. Both are read
-  # because `contributed` filters both (modules/sill/default.nix), and a warning
+  # because `contributed` filters both (modules/bar/default.nix), and a warning
   # that only knew about the menu bar would leave the second one silent — the
   # exact failure this warning exists to end.
   pillAsks =
-    lib.optional config.haus.sill.items.agents "haus.sill.items.agents"
+    lib.optional config.haus.bar.items.agents "haus.bar.items.agents"
     ++ lib.optional (
-      config.haus.sill.bottom.enable && config.haus.sill.bottom.items.agents != false
-    ) "haus.sill.bottom.items.agents";
+      config.haus.bar.bottom.enable && config.haus.bar.bottom.items.agents != false
+    ) "haus.bar.bottom.items.agents";
 in
 {
   # ---- what the room asks of itself -----------------------------------------
-  # These were hearth's, because hearth was where the agent options happened to
+  # These were terminal's, because terminal was where the agent options happened to
   # be read. They are the AI room's invariants: they name only `haus.ai.*`,
   # and they must fail the rebuild on a machine that has no terminal room at all.
   assertions = [
@@ -118,7 +118,7 @@ in
       inherit (cfg) default;
     };
 
-    # Bar — the `agents` paw. Still opt-in per host (`haus.sill.items.agents`);
+    # Bar — the `agents` paw. Still opt-in per host (`haus.bar.items.agents`);
     # this only says whether anything on this machine writes pane state for it.
     bar.agents.enable = reportable;
 

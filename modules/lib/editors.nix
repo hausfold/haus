@@ -4,7 +4,7 @@
 #
 #   editors = import ../lib/editors.nix;
 #
-# Why a table instead of a free string. `haus.hearth.editor` is a shell command
+# Why a table instead of a free string. `haus.terminal.editor` is a shell command
 # that this layer executes ($EDITOR, the palette's "Nix Config", the bar's
 # nix-open item, the file-association opener), so it is host-only and always
 # will be. That left a real gap: a DESKTOP could not say "this Mac is a neovim
@@ -20,7 +20,7 @@
 #
 # `port` is the Nebelung port name, or null for "we install it, we do not theme
 # it". Only helix has one today (nebelung's ports.conf themes helix and emacs;
-# neither vim nor neovim is a port at all), and hearth reads this rather than
+# neither vim nor neovim is a port at all), and terminal reads this rather than
 # claiming the port unconditionally — the same trap gh-dash's entry in
 # `haus.theme.ports.handled` documents, where claiming a port nothing wires
 # tells `haus doctor` "handled" on a machine where it is not.

@@ -27,7 +27,7 @@ The short version:
 - Two traps worth knowing at review time: the **launchd GUI race**
   (`modules/lib/gui-wait.nix` is load-bearing — don't simplify it away, and don't
   drop its 60 s deadline: unbounded, it wedges the agent forever), and
-  **pounce self-signing** in `modules/pounce`, which is what keeps a TCC grant
+  **pounce self-signing** in `modules/launcher`, which is what keeps a TCC grant
   alive across rebuilds. `AGENTS.md` has the rest.
 
 For review comments, the same bar applies as anywhere in the family:

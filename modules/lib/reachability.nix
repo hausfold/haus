@@ -10,12 +10,12 @@
 # than the one the user is thinking about*.
 #
 # Why it is a table and not a comment: the answer had SIX hand-copies before this
-# file existed — den's warning, den's typed-domain list, hearth's skill section,
+# file existed — core's warning, core's typed-domain list, terminal's skill section,
 # `haus rebuild`'s guard, `haus doctor`'s permission row, and the REACHABILITY
 # paragraph pasted into each option's description. Six copies of one fact is the
 # fourteenth pass's "a table plus a filter over that table is two sources of truth
-# wearing one name", six times over. den derives from this; everything downstream
-# reads what den rendered into the BUILT activation script (the §5.11 discipline:
+# wearing one name", six times over. core derives from this; everything downstream
+# reads what core rendered into the BUILT activation script (the §5.11 discipline:
 # grep what a rebuild actually runs, never a second copy of the map).
 #
 # Keyed by the plist domain exactly as `defaults write DOMAIN …` (and
@@ -89,9 +89,9 @@
   # work, three are unmeasured and one lies.
   #
   # The `effective` four are exactly `haus.accessibility`'s option surface, and
-  # that is not a coincidence anyone maintains by hand: modules/den/options.nix
+  # that is not a coincidence anyone maintains by hand: modules/core/options.nix
   # GENERATES those options from this list. The third place the same names appear
-  # — `classify_key` in modules/den/haus.sh, which decides how `haus diff`
+  # — `classify_key` in modules/core/haus.sh, which decides how `haus diff`
   # verifies a declared key — genuinely is a hand copy, because a shell script
   # can't import a Nix table; flake.nix's `accessibility-surface` check seds that
   # arm out of the script and diffs it against this list, so a fifth key measured
@@ -157,8 +157,8 @@
 
     # ---- value type, for the keys that aren't booleans ----------------------
     # Every key above was a bool until `mouseDriverCursorSize` became shippable,
-    # and both consumers had that assumption baked in: den's writer emitted
-    # `defaults write … -bool` unconditionally, and den/options.nix generated
+    # and both consumers had that assumption baked in: core's writer emitted
+    # `defaults write … -bool` unconditionally, and core/options.nix generated
     # `nullOr bool`. A float key promoted without this would have produced an
     # option that accepts `true` and writes `-bool true` into a size field.
     #
@@ -167,7 +167,7 @@
     # class, and only the two Nix-side consumers care about the type. Absent
     # means bool, which is what the domain mostly is.
     #
-    # `range` is documentation with teeth — den/options.nix builds the option's
+    # `range` is documentation with teeth — core/options.nix builds the option's
     # type from it, so macOS's "1 for normal, 4 for maximum" is enforced at eval
     # instead of being a sentence someone can write 40 past.
     keyTypes = {

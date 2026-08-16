@@ -8,7 +8,7 @@
  *
  * This is the plugin for people HACKING on the rice. The agent-state plugin the
  * rice writes into a user's ~/.config/opencode/plugin/ is a different thing —
- * a product feature, see modules/hearth.
+ * a product feature, see modules/terminal.
  *
  * Deliberately unfailing: a bootstrap that breaks the client is worse than no
  * bootstrap. The script itself is idempotent and no-ops on macOS.

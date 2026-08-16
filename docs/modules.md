@@ -17,8 +17,8 @@ After the first switch, `haus rebuild` does this for you.
 
 ## Steal one room
 
-Most rooms are exported as a `darwinModule` — den, hearth, prowl, sill, collar,
-pounce, hush, secrets. Pull just what you want into your own flake:
+Most rooms are exported as a `darwinModule` — core, terminal, windows, bar, security,
+launcher, focus, secrets. Pull just what you want into your own flake:
 
 ```nix
 {
@@ -26,14 +26,14 @@ pounce, hush, secrets. Pull just what you want into your own flake:
 
   # in your darwinSystem modules list:
   modules = [
-    inputs.haus.darwinModules.prowl   # just the tiling
-    inputs.haus.darwinModules.sill    # just the bar
+    inputs.haus.darwinModules.windows   # just the tiling
+    inputs.haus.darwinModules.bar       # just the bar
     { nixpkgs.hostPlatform = "aarch64-darwin"; }  # rooms don't pick a platform for you
   ];
 }
 ```
 
-**theme, wallpaper, perch, snippets and apps aren't standalone modules** — they ride
+**theme, wallpaper, shelf, snippets and apps aren't standalone modules** — they ride
 along with the full `mkHaus` house. (apps needs the roster resolver next to
 it to install anything, which is the same reason the roster isn't exported
 either.)
@@ -50,7 +50,7 @@ darwinConfigurations.mymac = inputs.haus.mkHaus {
 
 ## Identity knobs
 
-- **pounce signing** — set `haus.pounce.signingIdentity` to a codesigning
+- **pounce signing** — set `haus.launcher.signingIdentity` to a codesigning
   identity's **full common name** (`security find-identity -v -p codesigning`,
   e.g. `Developer ID Application: Jane Doe (ABCDE12345)`) so the palette's
   Accessibility grant survives rebuilds. Prefer the name over a SHA-1: the
@@ -64,10 +64,10 @@ darwinConfigurations.mymac = inputs.haus.mkHaus {
   home-manager block; key material and any smartcard/YubiKey setup live outside
   Nix (gpg-agent + pinentry-mac).
 
-- **perch** — `haus.perch.enable` installs through Nix via its flake
+- **perch** — `haus.shelf.enable` installs through Nix via its flake
   input and copies to a fixed `/Applications/Perch.app` path.
 
-- **hush** — `haus.hush.*` for the Focus/DND hotkey, Slack status, and
+- **focus** — `haus.focus.*` for the Focus/DND hotkey, Slack status, and
   shell hooks.
 
 - **theme** — `haus.theme.{flavor,contrast,accent,systemAppearance}`.
@@ -98,10 +98,10 @@ you never push to find out whether something works.
 Iterating on a **zellij** edit splits in two. A `config.kdl` change (a keybind, a
 theme colour, an option) needs nothing special — `bench try switch`, and zellij's
 own config watcher applies it to the running server in about a second, tabs and
-panes intact, because hearth installs that file with a live mtime rather than as
+panes intact, because terminal installs that file with a live mtime rather than as
 a store symlink. A plugin `.wasm`, a patched zellij binary, or a layout change to
 a tab that already exists can't hot-reload at all; for those there's `zscratch` —
-a dev CLI shipped in this repo's `modules/den` — which boots your candidate in a
+a dev CLI shipped in this repo's `modules/core` — which boots your candidate in a
 throwaway session in its own Ghostty window, so you feel the change without a
 rebuild or losing your working session's tabs. See [`AGENTS.md`](../AGENTS.md)
 for the full flag set and the mtime gotcha behind the split.

@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Hermetic tests for the statusline refresher (modules/den/statusline-refresh.sh)
+# Hermetic tests for the statusline refresher (modules/core/statusline-refresh.sh)
 # — the detached half of the agent-worktree bar.
 #
 # Why this suite exists, in one paragraph. The refresher runs under
@@ -20,7 +20,7 @@
 bats_require_minimum_version 1.5.0
 
 setup() {
-  REFRESH="${REFRESH_UNDER_TEST:-$BATS_TEST_DIRNAME/../modules/den/statusline-refresh.sh}"
+  REFRESH="${REFRESH_UNDER_TEST:-$BATS_TEST_DIRNAME/../modules/core/statusline-refresh.sh}"
   TMP="$(cd "$BATS_TEST_TMPDIR" && pwd -P)"   # /var → /private/var, as git resolves it
 
   export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
@@ -471,7 +471,7 @@ USAGE_BOTH='{"rate_limit":{"primary_window":{"used_percent":12,"limit_window_sec
 }
 
 @test "usage-only: refreshes the pulled feeds and leaves the panel untouched" {
-  # The mode sill's aiUsage pill runs on a machine with no Claude session to kick
+  # The mode bar's aiUsage pill runs on a machine with no Claude session to kick
   # the refresher. It must do the two pulled feeds and NOTHING else: no panel
   # rewrite, and — the part that matters for a pill ticking every few minutes —
   # not one `gh` call.

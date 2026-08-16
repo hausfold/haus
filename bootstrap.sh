@@ -147,7 +147,7 @@ dflt() { /usr/bin/defaults read "$1" "$2" 2>/dev/null || echo "unset"; }
 # nix_default DOMAIN KEY TYPE [FALLBACK] — read a macOS default and print it as a
 # nix literal for the host file. TYPE is bool|int|str. If the key is unset, print
 # FALLBACK (itself a nix literal, e.g. false or '"bottom"') when given, else print
-# nothing — so haus's own default (a lib.mkDefault in modules/den) stays. This
+# nothing — so haus's own default (a lib.mkDefault in modules/core) stays. This
 # is how "keep my settings" turns your live macOS state into declarative config.
 nix_default() {
   local raw
@@ -234,7 +234,7 @@ settings_overrides() {
       *)    nwt='"Recents"'     ;;
     esac
     emit finder.NewWindowTarget "$nwt"
-    # The Finder-shaped half of NSGlobalDomain (see modules/den). Not captured:
+    # The Finder-shaped half of NSGlobalDomain (see modules/core). Not captured:
     # the .DS_Store and empty-trash keys haus sets through
     # CustomUserPreferences — those are litter/nag policy, not how Finder looks.
     emit NSGlobalDomain.NSTableViewDefaultSizeMode          "$(nix_default -g NSTableViewDefaultSizeMode int 3)"
@@ -269,7 +269,7 @@ if ! /usr/bin/xcode-select -p >/dev/null 2>&1; then
   [ -n "$DRY_RUN" ] || exit 0
 fi
 
-# Nix. den sets nix.enable=false and assumes Determinate owns /nix, so refuse a
+# Nix. core sets nix.enable=false and assumes Determinate owns /nix, so refuse a
 # stock/Lix daemon rather than silently conflict with it.
 if command -v nix >/dev/null 2>&1 || [ -x /nix/var/nix/profiles/default/bin/nix ]; then
   { [ -e /nix ] && [ ! -e /nix/receipt.json ] && [ -z "$DRY_RUN" ]; } \
@@ -334,7 +334,7 @@ EDITOR_CHOICE="${HAUS_EDITOR:-helix}"
 WALLPAPER="${HAUS_WALLPAPER:-minimal}"
 ADOPT_CASKS=""
 # Rooms: a comma list of the ones ON (default all three); omit one to disable it.
-ROOMS="${HAUS_ROOMS:-sill,prowl,pounce}"
+ROOMS="${HAUS_ROOMS:-bar,windows,launcher}"
 # Which DESKTOP the generated config selects — the one complete answer to "what
 # should this Mac feel like?", chosen exactly once and overridable line by line
 # from your host. The same mechanism a published desktop uses, which is the
@@ -368,9 +368,19 @@ if [ -n "$DESKTOP_ARG" ]; then
     *) die "unknown desktop '$DESKTOP_NAME' — pick one of: hacker, everyday, minimal, blank" ;;
   esac
 fi
-case ",$ROOMS," in *,sill,*)   ROOM_SILL=1   ;; *) ROOM_SILL=   ;; esac
-case ",$ROOMS," in *,prowl,*)  ROOM_PROWL=1  ;; *) ROOM_PROWL=  ;; esac
-case ",$ROOMS," in *,pounce,*) ROOM_POUNCE=1 ;; *) ROOM_POUNCE= ;; esac
+# Every token has to BE a room. The case tests below only ever look for a name
+# they know, so an unrecognised one reads as "that room is off" — which is how
+# a stale `HAUS_ROOMS=sill,prowl,pounce` would quietly build a machine with no
+# bar and no tiling rather than say the names had moved.
+for _room in $(printf '%s' "$ROOMS" | tr ',' ' '); do
+  case "$_room" in
+    bar | windows | launcher) : ;;
+    *) die "unknown room '$_room' in HAUS_ROOMS — pick from: bar, windows, launcher" ;;
+  esac
+done
+case ",$ROOMS," in *,bar,*)      ROOM_BAR=1      ;; *) ROOM_BAR=      ;; esac
+case ",$ROOMS," in *,windows,*)  ROOM_WINDOWS=1  ;; *) ROOM_WINDOWS=  ;; esac
+case ",$ROOMS," in *,launcher,*) ROOM_LAUNCHER=1 ;; *) ROOM_LAUNCHER= ;; esac
 
 # macOS settings to KEEP as your own instead of letting haus restyle them —
 # a comma list of dock,keyboard,finder. Empty (the default) means haus sets
@@ -423,24 +433,24 @@ if [ -n "$INTERACTIVE" ]; then
     case "${DESKTOP:-Hacker}" in
       Everyday*)
         DESKTOP_NAME=everyday
-        ROOM_PROWL=
+        ROOM_WINDOWS=
         ;;
       Minimal*)
         DESKTOP_NAME=minimal
-        ROOM_SILL=; ROOM_PROWL=; ROOM_POUNCE=
+        ROOM_BAR=; ROOM_WINDOWS=; ROOM_LAUNCHER=
         ;;
       Custom*)
         DESKTOP_NAME=
-        SELECTED="$(printf 'sill\nprowl\npounce' | "$GUM" choose --no-limit \
-          --selected sill,prowl,pounce \
-          --header 'Optional rooms (space toggles) — sill=menu bar · prowl=tiling · pounce=⌘Space palette:')"
-        echo "$SELECTED" | grep -qx sill   || ROOM_SILL=
-        echo "$SELECTED" | grep -qx prowl  || ROOM_PROWL=
-        echo "$SELECTED" | grep -qx pounce || ROOM_POUNCE=
+        SELECTED="$(printf 'bar\nwindows\nlauncher' | "$GUM" choose --no-limit \
+          --selected bar,windows,launcher \
+          --header 'Optional rooms (space toggles) — bar=menu bar · windows=tiling · launcher=⌘Space palette:')"
+        echo "$SELECTED" | grep -qx bar      || ROOM_BAR=
+        echo "$SELECTED" | grep -qx windows  || ROOM_WINDOWS=
+        echo "$SELECTED" | grep -qx launcher || ROOM_LAUNCHER=
         ;;
       *)  # The hacker desktop — every optional room on.
         DESKTOP_NAME=hacker
-        ROOM_SILL=1; ROOM_PROWL=1; ROOM_POUNCE=1
+        ROOM_BAR=1; ROOM_WINDOWS=1; ROOM_LAUNCHER=1
         ;;
     esac
     fi
@@ -456,9 +466,9 @@ if [ -n "$INTERACTIVE" ]; then
       | "$GUM" choose --header 'Desktop wallpaper — minimal is the haus mark on your palette · bold follows your accent · none keeps yours:')"
     WALLPAPER="${WALLPAPER:-minimal}"
 
-    # The editors haus can INSTALL, spelled the way `haus.hearth.editorName`
+    # The editors haus can INSTALL, spelled the way `haus.terminal.editorName`
     # takes them (modules/lib/editors.nix). This used to offer COMMANDS —
-    # hx/nvim/vim/nano — and write the answer into `haus.hearth.editor`, which
+    # hx/nvim/vim/nano — and write the answer into `haus.terminal.editor`, which
     # only ever pointed at a binary: answering `nvim` gave a fresh machine
     # $EDITOR=nvim and no neovim. Name the editor and the room installs it.
     EDITOR_CHOICE="$(printf 'helix\nneovim\nvim\nnano' | "$GUM" choose --header 'Editor:')"
@@ -544,9 +554,9 @@ preflight_audit() {
   else
     printf '              Show file extensions: %s -> true\n'          "$(dflt -g AppleShowAllExtensions)"
   fi
-  [ -n "$ROOM_SILL" ]   && printf '              Hide native menu bar: %s -> true (Sill draws its own)\n' "$(dflt -g _HIHideMenuBar)"
-  [ -n "$ROOM_PROWL" ]  && printf '              Caps Lock -> a leader key for tiling + the app launcher\n'
-  [ -n "$ROOM_POUNCE" ] && printf '              ⌘Space   -> the pounce palette (disabled for Spotlight)\n'
+  [ -n "$ROOM_BAR" ]   && printf '              Hide native menu bar: %s -> true (Bar draws its own)\n' "$(dflt -g _HIHideMenuBar)"
+  [ -n "$ROOM_WINDOWS" ]  && printf '              Caps Lock -> a leader key for tiling + the app launcher\n'
+  [ -n "$ROOM_LAUNCHER" ] && printf '              ⌘Space   -> the pounce palette (disabled for Spotlight)\n'
   # Both branches print. Now that `minimal` is the default, "keep mine" is the
   # answer that needs echoing back — silence there would read as "nothing will
   # touch my desktop" whichever way you answered.
@@ -606,9 +616,9 @@ EOF
 
 # Assemble the optional host lines (omit anything left at the desktop default).
 opt_lines=""
-[ -z "$ROOM_SILL" ]   && opt_lines+="  haus.sill.enable = false;"$'\n'
-[ -z "$ROOM_PROWL" ]  && opt_lines+="  haus.prowl.enable = false;"$'\n'
-[ -z "$ROOM_POUNCE" ] && opt_lines+="  haus.pounce.enable = false;"$'\n'
+[ -z "$ROOM_BAR" ]   && opt_lines+="  haus.bar.enable = false;"$'\n'
+[ -z "$ROOM_WINDOWS" ]  && opt_lines+="  haus.windows.enable = false;"$'\n'
+[ -z "$ROOM_LAUNCHER" ] && opt_lines+="  haus.launcher.enable = false;"$'\n'
 [ "$ACCENT" != "mauve" ] && opt_lines+="  haus.theme.accent = \"$ACCENT\";"$'\n'
 # `minimal` is the desktop default now, so it's `none` that has to be written out —
 # omitting the line on a "keep mine" answer would hand that machine the generated
@@ -617,7 +627,7 @@ opt_lines=""
 # `editorName`, not `editor`: the first names an editor the room then installs,
 # the second is a command it merely points at. A generated host must always
 # write the installing one.
-[ "$EDITOR_CHOICE" != "helix" ] && opt_lines+="  haus.hearth.editorName = \"$EDITOR_CHOICE\";"$'\n'
+[ "$EDITOR_CHOICE" != "helix" ] && opt_lines+="  haus.terminal.editorName = \"$EDITOR_CHOICE\";"$'\n'
 [ -n "$opt_lines" ] && opt_lines=$'\n'"$opt_lines"
 cask_lines=""
 for c in $ADOPT_CASKS; do cask_lines+="    \"$c\""$'\n'; done
@@ -666,7 +676,7 @@ $IMPORTS_LINE
 
   # pounce code-signing identity (SHA-1 from: security find-identity -v -p codesigning).
   # "" runs pounce unsigned — the palette works, Accessibility features stay off.
-  haus.pounce.signingIdentity = "";
+  haus.launcher.signingIdentity = "";
 $opt_lines$settings_block
   # Homebrew never deletes an undeclared cask by default (cleanup = "none"); set
   # haus.homebrew.cleanup = "zap" only once every app you keep is listed.

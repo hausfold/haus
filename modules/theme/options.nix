@@ -7,7 +7,7 @@
 { lib, ... }:
 
 let
-  # Shared with haus.sill.logo.color, which defaults to whatever this is set to
+  # Shared with haus.bar.logo.color, which defaults to whatever this is set to
   # — see modules/lib/accents.nix for why the list isn't written out twice.
   accentNames = import ../lib/accents.nix;
 in
@@ -39,7 +39,7 @@ in
         What follows it: every tool haus injects colours into or points at a
         rendered theme — Ghostty, bat, delta, lsd, yazi, fzf, glow, starship,
         lazygit, zellij, opencode, the bar, Zen and Obsidian, plus helix
-        whenever it is the editor `haus.hearth.editorName` selects (Nebelung
+        whenever it is the editor `haus.terminal.editorName` selects (Nebelung
         has a port for helix and none for the alternatives).
         These are genuinely re-rendered for the flavor, not recoloured in place:
         whiskers takes different branches for a light flavor (terminal ANSI
@@ -49,8 +49,8 @@ in
         What does NOT follow it:
 
           - pounce and perch, by default. Both read their palette at runtime and
-            can pick per polarity, so haus.pounce.followSystemAppearance
-            and haus.perch.followSystemAppearance (default true) hand that
+            can pick per polarity, so haus.launcher.followSystemAppearance
+            and haus.shelf.followSystemAppearance (default true) hand that
             choice to macOS Light/Dark instead: haus installs every rendered
             variant into ~/.config/{pounce,perch}/themes/ and writes the
             dark/light PAIR at your `contrast`. Set either option false to pin
@@ -188,11 +188,11 @@ in
         app's own `theme` key points at — re-pick it in the app, or it falls
         back to stock.
 
-        The bar is the newest and the narrowest of the three: `haus.sill.logo`
+        The bar is the newest and the narrowest of the three: `haus.bar.logo`
         is the ONLY pill that follows this option. Every other colour on the bar
         is a fixed palette key, and the palette itself doesn't move — so a
         machine that changes its accent sees exactly one pill change hue, unless
-        `haus.sill.logo.color` names one of its own.
+        `haus.bar.logo.color` names one of its own.
 
         Honest scope: this moves the accent on those tools, NOT literally
         everything. Single-file dotfiles that bake the palette at their own
@@ -257,7 +257,7 @@ in
       internal = true;
       description = ''
         Nebelung port ids haus already wires by hand, contributed by whichever
-        room does the wiring (hearth themes the shell toolbelt; theme and sill read
+        room does the wiring (terminal themes the shell toolbelt; theme and bar read
         the palette directly). Rooms append to this the way they contribute Homebrew
         entries, so the roster pass leaves them alone rather than dropping a second,
         blunter copy of a theme a room has already integrated properly.

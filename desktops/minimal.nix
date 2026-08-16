@@ -20,11 +20,11 @@
 #   apps.videoPlayer  an editorial app pick, and the one thing here you may miss
 #                   from haus: `haus.apps.videoPlayer.enable = true` brings
 #                   IINA back in one host line
-#   hush, tour      a Focus switch and a tutor both teach moves this
+#   focus, tour      a Focus switch and a tutor both teach moves this
 #                   selection doesn't ship
 {
   haus = {
-    collar = {
+    security.touchId = {
       enable = true;
       passwordlessRebuild = true;
     };
@@ -36,7 +36,7 @@
 
     fonts.mono.baseSize = 19;
 
-    hearth.zellijStartLocked = true;
+    terminal.zellijStartLocked = true;
 
     theme.accent = "mauve";
   };

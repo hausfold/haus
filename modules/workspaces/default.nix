@@ -5,19 +5,19 @@
 # next to the app roster it pairs with). This module does what ../roster does
 # for the app list: NORMALIZE it into `haus._workspaces` (sorted, each
 # entry carrying its id) and `haus._appWorkspace` (the reverse lookup,
-# roster app id -> workspace id) that prowl, sill and the doc generator all
+# roster app id -> workspace id) that windows, bar and the doc generator all
 # read instead of each re-deriving membership from `haus.workspaces`
 # themselves.
 #
 # It resolves the NUMBERED half here too (`haus._numberedWorkspaces`), even
-# though the count that drives it is prowl's option. The digits were a literal
+# though the count that drives it is windows's option. The digits were a literal
 # ["1" "2" "3" "4"] in five places across two rooms while there was no option to
 # read; one resolution is what makes the count changeable without a sixth copy
 # appearing the next time something needs the list.
 #
 # Ungated on purpose, same reasoning as ../roster: a workspace's pill and
 # persistent-workspace declaration shouldn't need the tiler evaluated to
-# exist, since sill reads the resolved output too.
+# exist, since bar reads the resolved output too.
 { config, lib, ... }:
 
 let
@@ -28,7 +28,7 @@ let
   # The arithmetic (and the id-vs-key note that goes with it) is in
   # ../lib/numbered.nix, because flake.nix resolves the same list for the
   # default count with no darwin config in reach.
-  numbered = import ../lib/numbered.nix { inherit lib; } config.haus.prowl.numberedWorkspaces;
+  numbered = import ../lib/numbered.nix { inherit lib; } config.haus.windows.numberedWorkspaces;
 
   # A named workspace whose id is already a numbered one is not a second
   # workspace: AeroSpace has one workspace per name, so the two declarations are
@@ -45,7 +45,7 @@ let
 
   # An app id claimed by two workspaces has no defensible reading — its
   # window can only ever auto-move to ONE of them, and whichever
-  # on-window-detected rule prowl renders last would silently win.
+  # on-window-detected rule windows renders last would silently win.
   duplicateMembers = lib.unique (
     let
       appIds = map (m: m.appId) allMemberships;
@@ -95,8 +95,8 @@ in
       + "`apps`, so they have no effect: " + lib.concatStringsSep ", " emptyWorkspaces
     )
     ++ lib.optional (shadowedNumbers != [ ]) (
-      "haus.workspaces names workspaces that haus.prowl.numberedWorkspaces "
-      + "(${toString config.haus.prowl.numberedWorkspaces}) already declares, so each is "
+      "haus.workspaces names workspaces that haus.windows.numberedWorkspaces "
+      + "(${toString config.haus.windows.numberedWorkspaces}) already declares, so each is "
       + "one workspace with two bar pills: "
       + lib.concatStringsSep ", " shadowedNumbers
       + ". Rename them, or lower the count."

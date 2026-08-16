@@ -26,7 +26,7 @@ let
   cfg = config.haus.secrets;
 in
 {
-  # System-wide (like the rest of den's baseline CLI) so haus doctor, sudo, and
+  # System-wide (like the rest of core's baseline CLI) so haus doctor, sudo, and
   # non-login shells all resolve it.
   environment.systemPackages = [ pkgs.secretspec ];
 

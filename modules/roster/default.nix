@@ -6,21 +6,21 @@
 #
 #   1. NORMALIZE — resolve the attrset into `haus._roster` (enabled entries,
 #      in `order`) and `haus._launchers` (the subset with a leader key).
-#      prowl renders the keymap from those, sill the pills, pounce the
+#      windows renders the keymap from those, bar the pills, pounce the
 #      cheatsheet; one resolution, so the three can't disagree.
 #   2. INSTALL — hand each entry's `cask` / `brew` / `package` (or the named
 #      `packageName`) / `appStoreId` to the right package manager.
 #
-# Why installing lives HERE and not in prowl, where it started: a roster entry
+# Why installing lives HERE and not in windows, where it started: a roster entry
 # that only wants to exist on disk — a font, a CLI tool, an app you never launch
 # by keyboard — has nothing to do with tiling, and gating its install on
-# `prowl.enable` meant turning the window manager off silently uninstalled
-# things. Normalization moved along with it for the same reason: sill and pounce
+# `windows.enable` meant turning the window manager off silently uninstalled
+# things. Normalization moved along with it for the same reason: bar and pounce
 # read the resolved list too, and neither should need the tiler evaluated to get
-# it. prowl keeps exactly what is prowl's: aerospace.toml.
+# it. windows keeps exactly what is windows's: aerospace.toml.
 #
-# The rice's OWN apps are entries too — den declares ghostty's cask here, prowl
-# aerospace's, sill sketchybar's, pounce/perch their bundles. That's what
+# The rice's OWN apps are entries too — core declares ghostty's cask here, windows
+# aerospace's, bar sketchybar's, pounce/perch their bundles. That's what
 # makes this list complete rather than "the apps the host happened to add", and
 # it's what removes the trap it replaces: a host used to have to KNOW that the
 # rice already installs Ghostty and Perch, and write `cask = null` plus a comment
@@ -124,7 +124,7 @@ let
   # Homebrew list options concatenate and `brew bundle` is idempotent, so naming
   # the same cask from two places has never produced an error — it produces two
   # copies of the truth and no warning. (Real case that motivated this: a pounce
-  # -generated `homebrew.casks = [ "iina" ]` alongside hearth's `pkgs.iina`, so
+  # -generated `homebrew.casks = [ "iina" ]` alongside terminal's `pkgs.iina`, so
   # IINA sat in BOTH /Applications and ~/Applications/Home Manager Apps.)
   #
   # Reading the FINAL merged lists is what makes this catch the interesting
@@ -166,7 +166,7 @@ let
   );
 
   # App Store entries, as "<id> <name>" pairs for the activation loop. `mas` is
-  # den's (it installs it unconditionally); this just drives it.
+  # core's (it installs it unconditionally); this just drives it.
   appStoreEntries = lib.filter (e: e.app.appStoreId != null) orderedNamedEntries;
   appStoreCmds = lib.concatMapStrings (
     e:
@@ -184,7 +184,7 @@ let
   ) appStoreEntries;
 in
 {
-  # One resolved view for prowl, sill, pounce and the theme ports.
+  # One resolved view for windows, bar, pounce and the theme ports.
   haus._roster = apps;
   haus._launchers = launchers;
 
@@ -245,8 +245,8 @@ in
       + "roster (one entry, one source) and delete the other."
     );
 
-  # Declaring an app is what installs it. These merge with whatever den, prowl
-  # and sill declare and with the plain `homebrew.*` lists a host still has.
+  # Declaring an app is what installs it. These merge with whatever core, windows
+  # and bar declare and with the plain `homebrew.*` lists a host still has.
   homebrew.casks = rosterCasks;
   homebrew.brews = rosterBrews;
 

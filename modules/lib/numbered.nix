@@ -11,7 +11,7 @@
 # tab shortcuts use. Below ten they are the same string, which is why nothing
 # needed this distinction until the count stopped being four.
 #
-# Order is natural, never sorted: sill draws the bar pills in it, and a string
+# Order is natural, never sorted: bar draws the bar pills in it, and a string
 # sort files "10" between "1" and "2".
 { lib }:
 

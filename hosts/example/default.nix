@@ -19,11 +19,11 @@
   # GPG key id for commit signing; leave "" to disable signing.
   haus.git.signingKey = "";
   # The GitHub owner your work lives under — an org, or your own account. Only
-  # gh-dash reads it today: with haus.hearth.ghDash.enable it fills ⌘G's PR tabs
+  # gh-dash reads it today: with haus.terminal.ghDash.enable it fills ⌘G's PR tabs
   # with that owner's open / green / red / just-shipped work. Leave "" and those
   # tabs aren't written at all.
   # haus.git.org = "your-org";
-  # Hearth ships a compact, framework-independent set of Git shell aliases
+  # Terminal ships a compact, framework-independent set of Git shell aliases
   # (gst, gco, gp, grbi, gwt, …). Extend/override them here, or set one to null
   # to remove it:
   # haus.git.shellAliases = {
@@ -35,7 +35,7 @@
   # pounce signing. Find your identity's SHA-1 with:
   #   security find-identity -v -p codesigning
   # Leave "" to run pounce unsigned (palette works; Accessibility features off).
-  haus.pounce.signingIdentity = "";
+  haus.launcher.signingIdentity = "";
 
   # Where secretspec finds secret VALUES on this machine. Default "keyring" is
   # the local macOS keychain (no accounts, values re-entered once per Mac —
@@ -60,7 +60,7 @@
   # Obsidian keeps appearance per vault. List home-relative vault paths here to
   # install/select the full Nebelung theme on every rebuild; empty leaves all
   # vaults untouched. The vault must already contain a .obsidian directory.
-  # haus.hearth.obsidianVaults = [
+  # haus.terminal.obsidianVaults = [
   #   "Library/Mobile Documents/iCloud~md~obsidian/Documents/notes"
   # ];
 
@@ -105,7 +105,7 @@
   # an app at all:
   #   homebrew.casks = [ "some-cask" ];
 
-  # The shell/terminal layer ships in the `hearth` module (zsh, starship, git,
+  # The shell/terminal layer ships in the `terminal` module (zsh, starship, git,
   # yazi, zellij, ghostty — all Nebelung-themed). To add YOUR personal bits on
   # top (extra packages, private aliases, the rare env var every shell needs),
   # extend home-manager — per-project secrets belong in secretspec instead:

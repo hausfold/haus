@@ -4,17 +4,17 @@
 #
 #   bar = import ../lib/bar.nix { inherit lib; scale = config.haus.ui.scale; };
 #
-# TWO rooms read this, which is why it isn't just a let-binding in sill: sill
-# draws the bar (its fonts), and prowl reserves the screen edge the bar sits on
+# TWO rooms read this, which is why it isn't just a let-binding in bar: bar
+# draws the bar (its fonts), and windows reserves the screen edge the bar sits on
 # (its gaps). Those two numbers have to move together — a bar whose type grew and
 # a window that didn't step back is exactly the cramped look this exists to avoid
-# — and the previous arrangement had prowl reserving a magic `40` with no link to
-# what sill actually drew.
+# — and the previous arrangement had windows reserving a magic `40` with no link to
+# what bar actually drew.
 #
 # THE CEILING, and why there is one at all. The bar is the one rice surface that
 # cannot grow proportionally, and the limit is macOS's rather than ours:
 # sketchybarrc pins 36pt of bar with 28pt pills so the pills sit inside the 32pt
-# menu-bar band that macOS's own hover-reveal covers (den forces that reveal
+# menu-bar band that macOS's own hover-reveal covers (core forces that reveal
 # opaque; taller pills poke out below it). Measured on a notched MacBook rather
 # than assumed: safe-area inset 32pt, NSStatusBar.thickness 22pt, menu-bar font
 # 13pt — and none of the three is a preference. There is no menu-bar-size setting
@@ -54,12 +54,12 @@ rec {
   barHeight = 36;
   pillHeight = 28;
 
-  # The SECOND bar (haus.sill.bottom.enable) is the one bar that does NOT belong
+  # The SECOND bar (haus.bar.bottom.enable) is the one bar that does NOT belong
   # to the band, so it doesn't pay for it. `barHeight`'s 36 is 28pt of pill plus
   # the 4pt of slack above and below that SketchyBar's centring needs to land the
   # pill at y=4..32 — inside the 32pt strip macOS's hover-reveal covers. At the
   # bottom of a display there is no strip and no reveal: macOS reserves nothing
-  # there, so every point of this bar is a point prowl has to take out of the
+  # there, so every point of this bar is a point windows has to take out of the
   # tiled windows, and 4pt of it was buying clearance from a band that isn't
   # there.
   #
@@ -84,7 +84,7 @@ rec {
   };
 
   # Extra separation between the bar and the tiled windows beside it, in points,
-  # added by prowl to whichever outer edge the bar sits on.
+  # added by windows to whichever outer edge the bar sits on.
   #
   # It exists because of the ceiling rather than in spite of it. The pill cannot
   # get taller, so everything the type gains it gains INSIDE a box the same size:
@@ -99,7 +99,7 @@ rec {
   # strip. That shadow is offset downward, though, and measures flat above a
   # window. The reasoning and the measurement (and its one caveat: the probe is
   # the built-in's strip, not the flush external's) are at `barEdge` in
-  # ./gaps.nix, which owns every number in prowl's [gaps] block.
+  # ./gaps.nix, which owns every number in windows's [gaps] block.
   #
   # 0 at scale 1.0 (nothing grew, nothing to compensate) rising to 10pt at the
   # ceiling, which is a third of a pill — enough to read as deliberate, small

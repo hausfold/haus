@@ -25,7 +25,7 @@
         haus.ui.scale = 1.4              the terminal font (19 → 27 pt), the whole
                                          command palette, the bar's type (to its
                                          ceiling, see below), Dock icons 48 → 67,
-                                         Finder's large sidebar rows, prowl's gaps
+                                         Finder's large sidebar rows, windows's gaps
         haus.theme.contrast = "high"     body text 11.3:1 → 19.9:1 against the
                                          background, across every tool haus
                                          colours. Measured in nebelung's CI.
