@@ -492,7 +492,10 @@ lib.mkMerge [
   # someone else and one that takes their Caps Lock. hidutil mappings are
   # re-applied at each activation and don't survive a reboot, so dropping this
   # ends the remap rather than stranding it.
-  system.keyboard.enableKeyMapping = k.leader != null && k.leader.capsRemap;
+  # mkDefault because the Launcher room can also want key mapping on
+  # (haus.launcher.fnKey = "remap" adds Fn → F19 to the same list): a plain
+  # definition in both rooms is a conflict the moment the two disagree.
+  system.keyboard.enableKeyMapping = lib.mkDefault (k.leader != null && k.leader.capsRemap);
   system.keyboard.userKeyMapping = lib.optionals (k.leader != null && k.leader.capsRemap) [
     {
       HIDKeyboardModifierMappingSrc = 30064771129; # 0x700000039 caps lock

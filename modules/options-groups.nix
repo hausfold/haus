@@ -194,6 +194,7 @@ let
       "autoQuit.enable"
       "autoQuit.exclude"
       "enable"
+      "fnKey"
       "followSystemAppearance"
       "items"
       "items.<name>.alias"

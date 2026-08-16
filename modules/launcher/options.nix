@@ -220,6 +220,64 @@ in
       '';
     };
 
+    launcher.fnKey = lib.mkOption {
+      type = lib.types.enum [
+        "tap"
+        "remap"
+      ];
+      # Defaults to the SHARING mechanism, even though it is the one that loses
+      # races: `remap` takes the physical Fn key away from every app on the
+      # machine, and haus wires mode:emoji to Fn by default (see default.nix) —
+      # turning that into "my Fn+arrows stopped working" for someone who never
+      # asked is not a default's job.
+      default = "tap";
+      example = "remap";
+      description = ''
+        How pounce gets the Fn/Globe key when an item binds it — which haus does
+        by default, with haus.launcher.items."mode:emoji".hotkey = "fn".
+
+        `tap` reads Fn with an event tap. It needs Pounce's Accessibility grant,
+        and it SHARES the key with macOS: HIToolbox carries its own Globe handler
+        inside every process, below the event stream a tap can see, so macOS's
+        Emoji & Symbols picker can still open alongside pounce's. Setting System
+        Settings ▸ Keyboard ▸ "Press 🌐 key to" to Do Nothing helps, but that
+        value is read from login-session state — it wants a full logout, and even
+        then the two handlers are racing rather than one owning the key.
+
+        `remap` takes Fn away at the HID layer instead: it becomes F19, which
+        pounce binds like any ordinary key. No Accessibility grant for this
+        binding, and nothing left for macOS to race, because there is no Fn key
+        in the system any more. That last part is also the cost — Fn stops being
+        Fn EVERYWHERE, so no Fn+arrows (Home/End/PageUp/PageDown), no Fn+Delete,
+        no Fn+F1–F12. Worth it on a Mac where Fn is only ever the emoji key; a
+        bad trade on one where Fn+arrows is muscle memory.
+
+        Three things `remap` does not promise:
+
+        - F19 is a real key on the full-size Magic Keyboard (the one with a
+          numeric keypad), where pressing it fires the binding too.
+        - A keyboard that re-enumerates — an external one replugged, some
+          sleep/wake cycles — drops the mapping, and the binding stays dead
+          until the pounce daemon restarts. `pounce doctor` reports it.
+        - If F19 is already taken, or the keyboard doesn't expose Fn to IOHID,
+          pounce undoes the remap and falls back to the tap — Accessibility
+          grant and all.
+
+        On haus the mapping is declared rather than left to the daemon
+        (modules/launcher/default.nix says why: nix-darwin writes IOKit's
+        UserKeyMapping whole, so a rebuild would otherwise drop a mapping pounce
+        installed). It shares that list with the Caps Lock leader's remap, is
+        re-applied at each activation, and does not survive a reboot — but it
+        DOES outlive the daemon, so Fn stays remapped and inert while pounce is
+        stopped. `pounce doctor` reports which of the two mechanisms is actually
+        carrying the key.
+
+        Inert unless something binds `fn`: with no such item, this is a key
+        pounce reads and does nothing with.
+      '';
+    };
+
+
     launcher.items = lib.mkOption {
       default = { };
       example = {
@@ -254,10 +312,14 @@ in
           hotkey = [ "cmd+k" "cmd+c" ];    # the same thing, step by step
 
         The modifier-only laptop Fn/Globe key is the one special single-step
-        value: hotkey = "fn". It needs Pounce's Accessibility grant, unlike a
-        Carbon chord or leader sequence, and fires only when Fn is tapped alone.
-        haus uses it for mode:emoji by default; set that item's hotkey to
-        null to leave the Globe key to macOS.
+        value: hotkey = "fn". By default it is read with an event tap, which
+        needs Pounce's Accessibility grant (unlike a Carbon chord or leader
+        sequence) and fires only when Fn is tapped alone — and which SHARES the
+        key with macOS's own Globe action, so the system emoji picker can still
+        open alongside pounce's. haus.launcher.fnKey = "remap" is the way to own
+        the key outright; read that option before reaching for it, because it
+        costs Fn's other jobs. haus uses Fn for mode:emoji by default; set that
+        item's hotkey to null to leave the Globe key to macOS.
 
         Sequences are worth knowing about on a tiling desktop: they open a namespace
         that structurally can't collide with the ⌥/⌘ chords windows already claims,
@@ -338,9 +400,11 @@ in
                 (that vocabulary lives in the app); a chord it can't register is
                 reported by `pounce doctor` rather than silently dropped.
 
-                `fn` is the modifier-only exception: it uses Pounce's
-                Accessibility-gated event tap, fires only on a lone tap, and
-                suppresses macOS's stock Globe action while armed.
+                `fn` is the modifier-only exception, and how it is carried is
+                haus.launcher.fnKey: by default an Accessibility-gated event tap
+                that fires on a lone tap and SHARES the key with macOS's own
+                Globe action, or `remap`, which takes the key away from macOS
+                entirely at the cost of Fn's other jobs.
               '';
             };
           };

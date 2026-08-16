@@ -148,18 +148,38 @@ let
     "${pkgs.pounce}/Applications/Pounce.app"
     + lib.optionalString (identity != "") "@@${identity}@@com.hausfold.pounce";
 
-  # The auto-quit settings as one opaque word, the activation marker's whole
-  # content — see home.activation.kickstartPounce. The WHOLE block, not just the
-  # flag: pounce's AutoQuit captures delay and exclude when it arms and never
-  # re-reads them (pkgs/pounce/AutoQuit.swift's init), which is why its own docs
-  # list `autoQuit` alongside `windows` among the startup-only keys. A marker
-  # that tracked `enable` alone would let a rebuild that adds a bundle id to
-  # `exclude` report success while the daemon kept quitting that app until the
-  # next login.
+  # Whether Fn is taken away from macOS at the HID layer rather than read with
+  # an event tap — haus.launcher.fnKey. Named once: it decides both the key
+  # written into config.json and the mapping declared below.
+  fnRemap = config.haus.launcher.fnKey == "remap";
+
+  # Every pounce setting the daemon reads ONCE at startup, as one opaque word —
+  # the activation marker's whole content, see home.activation.kickstartPounce.
+  # A rebuild that moves any of them bounces the daemon, because the alternative
+  # is a rebuild that reports success while the running daemon keeps the old
+  # behaviour until the next log-in.
+  #
+  #   autoQuit  the WHOLE block, not just the flag: pounce's AutoQuit captures
+  #             delay and exclude when it arms and never re-reads them
+  #             (pkgs/pounce/AutoQuit.swift's init). A marker tracking `enable`
+  #             alone would let a rebuild that adds a bundle id to `exclude`
+  #             report success while the daemon kept quitting that app.
+  #   fnKey     which mechanism carries a `hotkey = "fn"` item: pounce picks it
+  #             when it REGISTERS the binding, so switching modes needs the
+  #             daemon to re-register. Flipping remap → tap also has to reach a
+  #             running daemon, since the daemon is what gives the Fn key back.
+  #
   # Hashed rather than inlined so the marker is one short line whatever the
   # exclude list grows to, and prefixed so an absent or empty marker (a machine
   # that predates this) can never collide with a real state.
-  autoQuitState = "v1-${builtins.hashString "sha256" (builtins.toJSON config.haus.launcher.autoQuit)}";
+  startupState = "v2-${
+    builtins.hashString "sha256" (
+      builtins.toJSON {
+        autoQuit = config.haus.launcher.autoQuit;
+        fnKey = config.haus.launcher.fnKey;
+      }
+    )
+  }";
 
   # The app font's package installs only the TTF, but its pinned source also
   # carries the authoritative app-name → ligature mappings. Generate the same
@@ -757,13 +777,41 @@ lib.mkIf config.haus.launcher.enable {
     installedBy = lib.mkDefault "haus.launcher";
   };
 
-  # A bare laptop Fn/Globe tap opens Pounce's emoji grid. Pounce handles this
-  # modifier-only key through the same Accessibility-gated session event tap as
-  # its window switcher: granted machines replace the stock Globe action, while
-  # an ungranted/stopped daemon leaves macOS's native action untouched. mkDefault
-  # keeps the opinion easy to undo with
+  # A bare laptop Fn/Globe tap opens Pounce's emoji grid. By default that runs
+  # through the same Accessibility-gated session event tap as the window
+  # switcher, which SHARES the key with macOS's own Globe action rather than
+  # replacing it — HIToolbox carries that action inside every process, below the
+  # event stream a tap can see, so the stock emoji picker can still open
+  # alongside Pounce's. haus.launcher.fnKey = "remap" is the way to own the key
+  # outright. An ungranted or stopped daemon leaves macOS's action untouched
+  # either way. mkDefault keeps the opinion easy to undo with
   #   haus.launcher.items."mode:emoji".hotkey = null;
   haus.launcher.items."mode:emoji".hotkey = lib.mkDefault "fn";
+
+  # haus.launcher.fnKey = "remap": Fn → F19 at the HID layer, declared HERE and
+  # not left to the daemon, even though pounce can install it itself.
+  #
+  # UserKeyMapping is one list and nix-darwin's keyboard activation writes it
+  # WHOLE — including the Caps Lock leader's entry (modules/windows). A mapping
+  # pounce installed at daemon start would therefore be dropped by the next
+  # `haus rebuild`, leaving the emoji key dead until the daemon next restarted:
+  # the rebuild breaks the key it just configured. Declaring it means activation
+  # and pounce agree, pounce finds it already in place, and neither clobbers the
+  # other.
+  #
+  # The consequence is deliberate and is the one difference from standalone
+  # pounce: here the remap belongs to the machine's keyboard rather than to the
+  # daemon's lifetime, so Fn stays remapped — and inert — while the daemon is
+  # stopped. Like the Caps leader, it is re-applied each activation and does not
+  # survive a reboot, so dropping the option ends the remap rather than
+  # stranding it.
+  system.keyboard.enableKeyMapping = lib.mkIf fnRemap true;
+  system.keyboard.userKeyMapping = lib.optionals fnRemap [
+    {
+      HIDKeyboardModifierMappingSrc = 1095216660483; # 0xFF00000003 fn/globe
+      HIDKeyboardModifierMappingDst = 30064771182; # 0x70000006E F19
+    }
+  ];
 
   assertions = [
     {
@@ -987,6 +1035,15 @@ lib.mkIf config.haus.launcher.enable {
             key = if k.palette != null then k.palette.key else "space";
             modifiers = if k.palette != null then k.palette.modifiers else [ "cmd" ];
           };
+          # How an item's `hotkey = "fn"` is carried — haus.launcher.fnKey. `tap`
+          # (the default) shares the key with macOS's own Globe handler, which
+          # lives inside every process below the event stream and therefore wins
+          # races a tap can't even see; `remap` takes Fn away at the HID layer,
+          # at the cost of Fn's other jobs. Written unconditionally: it is inert
+          # without an `fn` binding, and an older pounce that predates the key
+          # ignores it rather than failing on it — the same lenient parse as
+          # `themeLight`.
+          fnKey = config.haus.launcher.fnKey;
           # ⌘Tab → the MRU window switcher (the last stock macOS keybinding the rice
           # retires). Gated on Accessibility inside the daemon: unsigned/ungranted
           # installs keep stock ⌘Tab, so shipping this on is safe. The option exists
@@ -1220,7 +1277,11 @@ lib.mkIf config.haus.launcher.enable {
         if [ "$(/bin/cat "$HOME/.local/state/pounce/.signed-from" 2>/dev/null)" != "${signedFrom}" ]; then
           pounceBounce=1
         fi
-        if [ "$(/bin/cat "$HOME/.local/state/pounce/.auto-quit" 2>/dev/null)" != "${autoQuitState}" ]; then
+        # Named .auto-quit for what it used to track alone; it now holds every
+        # startup-only setting (see startupState). Kept under the old name so an
+        # existing machine isn't left with a stranded file — the v2- prefix is
+        # what forces the one migration bounce.
+        if [ "$(/bin/cat "$HOME/.local/state/pounce/.auto-quit" 2>/dev/null)" != "${startupState}" ]; then
           pounceBounce=1
         fi
         if [ "$pounceBounce" = 1 ]; then
@@ -1234,7 +1295,7 @@ lib.mkIf config.haus.launcher.enable {
             # `|| true` like every sibling here: activation runs under `set -eu`,
             # and a bookkeeping file must never be able to fail a rebuild. Losing
             # the write just means one redundant bounce next time.
-            $DRY_RUN_CMD /bin/sh -c '/bin/mkdir -p "$HOME/.local/state/pounce" && /usr/bin/printf "%s" "${autoQuitState}" > "$HOME/.local/state/pounce/.auto-quit"' || true
+            $DRY_RUN_CMD /bin/sh -c '/bin/mkdir -p "$HOME/.local/state/pounce" && /usr/bin/printf "%s" "${startupState}" > "$HOME/.local/state/pounce/.auto-quit"' || true
           fi
         fi
       '';
