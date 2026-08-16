@@ -423,6 +423,19 @@ it silently.
     ~200 ms and closing the 16-row usage pill over a second. Now the toggle runs
     first and alone, the rects are read once at arm time, and the dismissing call
     is fired without waiting: ~12 ms to open, ~30 ms from click to closed.
+  - **The arming gate WAITS for the bar to answer, and an unanswered `--query`
+    is not a closed popup.** A pill that REBUILDS its rows before toggling
+    (`--remove`, then one `--add` per row — 44 of them on a busy agents popup)
+    leaves sketchybar's mach service unable to answer for ~150 ms, and in that
+    window `--query <item>` returns an EMPTY STRING rather than
+    `drawing: off`. Reading that as "nothing opened" is how the tallest
+    dropdowns on the bar became the only ones a click outside never dismissed —
+    the guard exited before it ever armed. So `popupDrawing` returns
+    `Bool?` with `nil` meaning "no answer", the gate polls (backing off, since
+    each retry is a spawn aimed into the busy window) up to 600 ms for a real
+    one, and the click path and watchdog test `== false` so a busy bar can't
+    reap a guard for a popup still on screen. None of the numbers above move:
+    arming is still backgrounded, so the wait is never on the open path.
 - **Theme**: `haus.theme.{flavor,contrast}` are the single source of truth, and
   **`modules/lib/nebelung.nix` is the only place that resolves them.** It returns the
   themes-package `root` to source rendered files from, the `palette` (name → hex),

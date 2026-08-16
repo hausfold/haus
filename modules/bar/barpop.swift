@@ -113,9 +113,19 @@ func popupDrawing(_ item: String) -> Bool? {
 /// read — closing a dropdown stays as fast as it was.
 func popupIsOpen(_ item: String, settleFor: TimeInterval = 0) -> Bool {
     let deadline = Date().addingTimeInterval(settleFor)
+    // Backing off rather than hammering: every retry is a posix_spawn of
+    // `sketchybar --query` aimed INTO the busy window we're waiting on, so a
+    // tight poll would be contending with the very batch whose completion is
+    // the thing we want. First read is immediate — a settled pill answers at
+    // once and never sleeps — then 30 ms growing to 120 ms, ~8 queries across
+    // the full budget instead of ~30.
+    var wait: useconds_t = 30_000
     repeat {
         if let drawing = popupDrawing(item) { return drawing }
-        if settleFor > 0 { usleep(20_000) }
+        if settleFor > 0 {
+            usleep(wait)
+            wait = min(wait * 3 / 2, 120_000)
+        }
     } while Date() < deadline
     return false
 }
@@ -180,6 +190,18 @@ func localPoint(_ point: NSPoint) -> (point: CGPoint, screenHeight: CGFloat)? {
 // ── the guard ────────────────────────────────────────────────────────────────
 
 func arm(item: String) -> Never {
+    // Our caller is a click_script that has already returned; leave its session
+    // so nothing downstream can take this process with it. Children are reaped by
+    // the kernel, since the fire-and-forget sketchybar calls are never waited on.
+    //
+    // FIRST, before the gate below — that gate can now spend up to 600 ms
+    // waiting for the bar, and every millisecond of it used to be time spent
+    // still inside the click_script's process group. Anything that signals that
+    // group in the window (a bar reload, a script timeout) would take the guard
+    // with it and leave the dropdown un-dismissable again, intermittently.
+    setsid()
+    signal(SIGCHLD, SIG_IGN)
+
     // Nothing opened (the pill's toggle just CLOSED its popup), so there's
     // nothing to guard. Whatever guard was running notices the same thing.
     // The wait is for the OTHER answer — see popupIsOpen: a pill that rebuilds
@@ -187,12 +209,6 @@ func arm(item: String) -> Never {
     // ~150 ms, and taking that silence for "closed" left the biggest dropdowns
     // on the bar as the only ones a click outside never dismissed.
     if !popupIsOpen(item, settleFor: 0.6) { exit(0) }
-
-    // Our caller is a click_script that has already returned; leave its session
-    // so nothing downstream can take this process with it. Children are reaped by
-    // the kernel, since the fire-and-forget sketchybar calls are never waited on.
-    setsid()
-    signal(SIGCHLD, SIG_IGN)
 
     // Opening one dropdown closes every other: menu behaviour, and it keeps this
     // one-guard-at-a-time. One sketchybar call, and it runs after the popup is
