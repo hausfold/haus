@@ -95,7 +95,8 @@
   # several apps (a "comms" role: Slack + Mail + Messages) can share one pill
   # and one leader throw instead of "one app, one workspace":
   # haus.workspaces.S = {
-  #   key = "s";                     # leader, then ⇧s throws a window here
+  #   key = "s";                     # leader ⇧s throws a window here and follows;
+  #                                  # leader ⌥⇧s throws it and stays
   #   icon = ":slack:";              # falls back to the workspace id ("S")
   #   apps = [ "slack" ];            # roster ids that herd here
   # };

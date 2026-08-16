@@ -9,6 +9,12 @@
 # read instead of each re-deriving membership from `haus.workspaces`
 # themselves.
 #
+# It resolves the NUMBERED half here too (`haus._numberedWorkspaces`), even
+# though the count that drives it is prowl's option. The digits were a literal
+# ["1" "2" "3" "4"] in five places across two rooms while there was no option to
+# read; one resolution is what makes the count changeable without a sixth copy
+# appearing the next time something needs the list.
+#
 # Ungated on purpose, same reasoning as ../roster: a workspace's pill and
 # persistent-workspace declaration shouldn't need the tiler evaluated to
 # exist, since sill reads the resolved output too.
@@ -17,6 +23,20 @@
 let
   named = lib.mapAttrsToList (id: ws: ws // { inherit id; }) config.haus.workspaces;
   sorted = lib.sort (a: b: a.id < b.id) named;
+
+  # The numbered workspaces, from the count rather than from a literal list.
+  # The arithmetic (and the id-vs-key note that goes with it) is in
+  # ../lib/numbered.nix, because flake.nix resolves the same list for the
+  # default count with no darwin config in reach.
+  numbered = import ../lib/numbered.nix { inherit lib; } config.haus.prowl.numberedWorkspaces;
+
+  # A named workspace whose id is already a numbered one is not a second
+  # workspace: AeroSpace has one workspace per name, so the two declarations are
+  # the same place described twice, and it gets two pills in the bar. Nobody
+  # writes this at four; it is reachable the moment someone raises the count
+  # past an id they were already using.
+  numberedIds = map (n: n.id) numbered;
+  shadowedNumbers = lib.filter (id: lib.elem id numberedIds) (map (ws: ws.id) sorted);
 
   allMemberships = lib.concatMap (
     ws: map (appId: { inherit appId; wsId = ws.id; }) ws.apps
@@ -52,6 +72,7 @@ in
 {
   haus._workspaces = sorted;
   haus._appWorkspace = appWorkspace;
+  haus._numberedWorkspaces = numbered;
 
   assertions = [
     {
@@ -72,5 +93,12 @@ in
     ++ lib.optional (emptyWorkspaces != [ ]) (
       "haus.workspaces entries declare no leader `key` and no member "
       + "`apps`, so they have no effect: " + lib.concatStringsSep ", " emptyWorkspaces
+    )
+    ++ lib.optional (shadowedNumbers != [ ]) (
+      "haus.workspaces names workspaces that haus.prowl.numberedWorkspaces "
+      + "(${toString config.haus.prowl.numberedWorkspaces}) already declares, so each is "
+      + "one workspace with two bar pills: "
+      + lib.concatStringsSep ", " shadowedNumbers
+      + ". Rename them, or lower the count."
     );
 }

@@ -219,6 +219,22 @@ let
     tab = "⇥";
   };
 
+  # The numbered workspaces, as a cheatsheet caption. One row per workspace
+  # would be a wall of near-identical lines, so the three digit rows below name
+  # the RANGE — which is not just "1-N", because the tenth workspace is reached
+  # by `0`. `null` when the count is 0, and then the digit rows don't render at
+  # all rather than teaching a key nothing binds.
+  numberedKeys = map (n: n.key) config.haus._numberedWorkspaces;
+  digitRange =
+    if numberedKeys == [ ] then
+      null
+    else if lib.length numberedKeys == 1 then
+      "1"
+    else if lib.last numberedKeys == "0" then
+      "1-9 0"
+    else
+      "1-${lib.last numberedKeys}";
+
   launchModeItems =
     # _launchers, not _roster: an install-only roster entry has no leader key, so
     # there is no row to teach.
@@ -233,24 +249,38 @@ let
       key = launchKeyGlyphs.${e.key} or e.key;
       action = if e.caption != null then e.caption else e.command;
     }) config.haus.keys.leaderExtras)
-    ++ [
+    # The numbered workspaces: focus, throw-and-follow, throw-and-stay. Nothing
+    # to teach when haus.prowl.numberedWorkspaces is 0, and a page that names an
+    # unbound key is worse than a page that doesn't mention it.
+    ++ lib.optionals (digitRange != null) [
       {
-        key = "1-4";
-        action = "Focus workspace 1-4";
+        key = digitRange;
+        action = "Focus that workspace";
       }
-      # The workspace THROWS. Both halves used to be main-mode <mod>⇧ chords;
-      # they're leader actions now, so "go there" and "take this there" differ
-      # by ⇧ on the same key — and both leave you ON that workspace, since the
-      # throw follows the window. The letter row is a pattern, not a binding —
+      # The workspace THROWS. All three used to be main-mode <mod>⇧ chords;
+      # they're leader actions now, so "go there", "take this there" and "send
+      # this there" differ only by the modifier on one key. ⇧ follows the window
+      # because you usually moved it to be with it; ⌥⇧ stays, which used to cost
+      # a throw plus a ⌘⇥ back. The letter row is a pattern, not a binding —
       # the per-app chords are generated from the roster into
       # [mode.launch.binding] (the rows above already name every letter).
       {
-        key = "⇧ 1-4";
-        action = "Throw window to workspace 1-4 and follow it";
+        key = "⇧ ${digitRange}";
+        action = "Throw window there and follow it";
       }
+      {
+        key = "⌥ ⇧ ${digitRange}";
+        action = "Throw window there and stay";
+      }
+    ]
+    ++ [
       {
         key = "⇧ [Letter]";
         action = "Throw window to that app's workspace and follow it";
+      }
+      {
+        key = "⌥ ⇧ [Letter]";
+        action = "Throw window to that app's workspace and stay";
       }
       {
         key = "←↓↑→";

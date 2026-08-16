@@ -127,6 +127,12 @@ let
   # roster subset still drives the leader picker.
   launchers = config.haus._launchers;
   workspaces = config.haus._workspaces;
+  # The numbered workspaces, resolved from haus.prowl.numberedWorkspaces by
+  # ../workspaces. `id` is what AeroSpace calls the workspace, `key` is the
+  # digit the leader reaches it by — the same at every number except ten, which
+  # is id "10" on the `0` key. The bar needs both: the pill is named by id, the
+  # leader picker's bubble by key.
+  numbered = config.haus._numberedWorkspaces;
   appWorkspaceId = a: config.haus._appWorkspace.${a.id} or null;
 
   # ---- type sizes: ui.scale, up to the menu bar's own ceiling -----------------
@@ -181,17 +187,12 @@ let
     )
   ) workspaces;
   # Leader-key -> workspace map for launch_mode.sh, same colon-joined shape it
-  # used to hardcode. Digits 1-4 focus the numbered workspaces; each app key maps
+  # used to hardcode. A digit focuses its numbered workspace; each app key maps
   # to the workspace it belongs to (haus._appWorkspace, populated from
   # haus.workspaces.*.apps); no membership renders as "<key>:" (always
-  # closed/grey).
+  # closed/grey). The digit half is where key and id can differ — `0:10`.
   launchersStr = lib.concatStringsSep " " (
-    [
-      "1:1"
-      "2:2"
-      "3:3"
-      "4:4"
-    ]
+    map (n: "${n.key}:${n.id}") numbered
     ++ map (a: "${a.key}:${lib.optionalString (appWorkspaceId a != null) (appWorkspaceId a)}") launchers
   );
 
@@ -200,30 +201,16 @@ let
   workspacesSh = ''
     #!/bin/bash
     # GENERATED from haus._roster by modules/sill/default.nix — do not edit.
-    WORKSPACES=(${
-      bashArray (
-        [
-          "1"
-          "2"
-          "3"
-          "4"
-        ]
-        ++ appWorkspaces
-      )
-    })
-    # Leader picker bubbles: the digits 1-4 (focus a numbered workspace) plus one
-    # per app key (jump to its workspace) — mirrors [mode.launch.binding].
-    LAUNCHER_KEYS=(${
-      bashArray (
-        [
-          "1"
-          "2"
-          "3"
-          "4"
-        ]
-        ++ map (a: a.key) launchers
-      )
-    })
+    WORKSPACES=(${bashArray (map (n: n.id) numbered ++ appWorkspaces)})
+    # Leader picker bubbles: one digit per numbered workspace (focus it) plus one
+    # per app key (jump to its workspace) — mirrors [mode.launch.binding]. Keys,
+    # not ids, which is why ten's bubble reads `0`.
+    LAUNCHER_KEYS=(${bashArray (map (n: n.key) numbered ++ map (a: a.key) launchers)})
+    # Just the numbered half of the line above. The tour needs to tell a
+    # workspace digit from an app letter, and testing for "is it a digit" is
+    # wrong twice over: a roster app may legitimately claim a digit the numbered
+    # workspaces don't, and ten's key is `0` rather than `10`.
+    NUMBERED_KEYS=(${bashArray (map (n: n.key) numbered)})
     # Leader hotkey -> assigned workspace, parsed by launch_mode.sh (bash 3.2 has
     # no associative arrays, so a plain space-separated "<key>:<ws>" string). An
     # empty <ws> means no assigned space (always shown closed/grey).

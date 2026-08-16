@@ -33,7 +33,7 @@ and Messages):
 
 ```nix
 haus.workspaces.S = {
-  key = "s";                      # leader ⇧s throws a window here
+  key = "s";                      # leader ⇧s throws + follows; ⌥⇧s throws + stays
   icon = ":slack:";               # falls back to the workspace id ("S")
   apps = [ "slack" ];             # roster ids that herd here — needs appId set
 };

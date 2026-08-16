@@ -2944,6 +2944,40 @@
               )
             );
 
+          # `nix build .#launch-keys-json` — the launch-mode keys the leader
+          # owns before any roster letter, resolved for the DEFAULT number of
+          # numbered workspaces.
+          #
+          # Second half of the tripwire above, and it exists because the first
+          # half stopped covering it. Launch mode's digit rows were literal
+          # lines in modules/prowl/aerospace.toml, so the docs repo read them by
+          # parsing that file; haus.prowl.numberedWorkspaces turned them into a
+          # generated block, and a parser looking for `1 = [...]` found a token
+          # and reported no change. Published rather than parsed, for the same
+          # reason the option reference is rendered rather than written.
+          #
+          # Pure evaluation of one plain file, so it builds on Linux CI.
+          launch-keys-json =
+            let
+              # The SHIPPED default count, read off the option rather than
+              # retyped — a literal 4 here would be a second copy of
+              # modules/prowl/options.nix's default, and the copy that goes
+              # stale is the one nothing evaluates. An options-only module
+              # evaluates on its own, which is the same purity that lets the
+              # option reference be rendered at all.
+              default =
+                (pkgs.lib.evalModules { modules = [ ./modules/prowl/options.nix ]; })
+                .config.haus.prowl.numberedWorkspaces;
+            in
+            pkgs.writeText "launch-keys.json" (
+              builtins.toJSON (
+                import ./modules/prowl/launch-keys.nix {
+                  inherit (pkgs) lib;
+                  numbered = import ./modules/lib/numbered.nix { inherit (pkgs) lib; } default;
+                }
+              )
+            );
+
           # `nix build .#options-json` — machine-readable metadata for every
           # haus.* option: type, default, example, description, and the
           # file that declares it. hausfold.co's options reference is
@@ -2951,8 +2985,8 @@
           # drift from the module system (as prose, it drifted for months).
           options-json = import ./modules/options-doc.nix { inherit pkgs; };
 
-          # `nix build .#site-data` — the two outputs above, filtered and
-          # pretty-printed into three plain JSON files a docs site can read with
+          # `nix build .#site-data` — the outputs above, filtered and
+          # pretty-printed into plain JSON files a docs site can read with
           # NO Nix at all. `docs/site-data/` is the committed copy of this, and
           # the `site-data-current` check is what keeps the two equal.
           #
@@ -2963,6 +2997,7 @@
             inherit pkgs;
             optionsJson = self.packages.${system}.options-json;
             wmBindingsJson = self.packages.${system}.wm-bindings-json;
+            launchKeysJson = self.packages.${system}.launch-keys-json;
           };
 
           # `nix build .#agent-skill` — the skill that teaches an agent to change

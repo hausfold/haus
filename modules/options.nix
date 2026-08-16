@@ -22,8 +22,10 @@ let
         description = ''
           The leader letter for this app: tap Caps Lock then this key to
           launch/focus it. Must be unique across the roster, and not one of
-          launch mode's own: `v` `e` `z` `,` `` ` `` `-` `=` `/` `1`-`4` `esc`
-          and the arrows are taken, and a rebuild refuses them.
+          launch mode's own: `v` `e` `z` `,` `` ` `` `-` `=` `/` `esc`, the
+          arrows and one digit per numbered workspace (`1`-`4` out of the box;
+          see haus.prowl.numberedWorkspaces) are taken, and a rebuild refuses
+          them.
 
           null (the default) means the entry is INSTALL-ONLY: it still
           brings its cask/formula/package, but claims no leader key, no
@@ -237,7 +239,9 @@ let
           workspace is reachable only by launching an app that belongs to
           it (or not by keyboard at all). Must be unique across workspaces,
           and ⇧<key> must not collide with a built-in launch-mode binding
-          (⇧1-4 are taken).
+          (the numbered workspaces take one digit each — how many is
+          haus.prowl.numberedWorkspaces). ⌥⇧<key> throws the window here
+          WITHOUT following it, and is bound alongside.
         '';
       };
       icon = lib.mkOption {
@@ -377,10 +381,10 @@ in
         workspace literally unrepresentable. Here, a workspace lists its own
         members instead.
 
-        The four fixed numbered workspaces (1-4, leader/⇧+digit) are not
-        part of this option — they always exist, independent of what any
-        app claims. This option is for the NAMED workspaces app windows get
-        herded onto.
+        The numbered workspaces (leader + a digit) are not part of this
+        option — they always exist, independent of what any app claims, and
+        how many there are is haus.prowl.numberedWorkspaces. This option is
+        for the NAMED workspaces app windows get herded onto.
 
         An entry with no `key` and no `apps` does nothing (a warning says
         so); one with `apps` but no `key` still gets a persistent workspace,
@@ -408,6 +412,31 @@ in
         (from haus.workspaces.*.apps). An id absent here belongs to no
         workspace.
       '';
+    };
+    # The numbered half, resolved the same way and for the same reason: the
+    # digits were written out as a literal ["1" "2" "3" "4"] in prowl (twice)
+    # and in sill (three times), so making the count an option meant either one
+    # `genList` in five places or one here. The id/key split is the whole
+    # subtlety — workspace TEN is reached by the `0` key, because the leader
+    # names a workspace by digit and there is no ten key.
+    _numberedWorkspaces = lib.mkOption {
+      type = lib.types.listOf (
+        lib.types.submodule {
+          options = {
+            id = lib.mkOption {
+              type = lib.types.str;
+              description = "The workspace id AeroSpace uses: \"1\" through \"10\".";
+            };
+            key = lib.mkOption {
+              type = lib.types.str;
+              description = "The launch-mode digit that reaches it: \"1\"-\"9\", then \"0\" for ten.";
+            };
+          };
+        }
+      );
+      internal = true;
+      readOnly = true;
+      description = "Resolved numbered workspaces, in order, from haus.prowl.numberedWorkspaces.";
     };
 
     # The launcher subset: entries that claim a leader key. Its own list rather
@@ -601,12 +630,13 @@ in
         description = ''
           The modifier vocabulary for prowl's window chords — one setting rather
           than a bind-per-action, because what people need to move is the
-          modifier, not the letters. It drives focus (`<mod>` + hjkl), layouts
-          (`<mod>` + `/` `,`), fullscreen, moving a workspace to the next
-          monitor (`<mod>⇧⇥`), and entering service mode
-          (`<mod>⇧;`). Anything that names a workspace — focusing one, or
-          throwing the focused window there — hangs off `leader` instead, not
-          this option.
+          modifier, not the letters. It drives layouts (`<mod>` + `/` `,`),
+          fullscreen, moving a workspace to the next monitor (`<mod>⇧⇥`),
+          entering service mode (`<mod>⇧;`) and joining a neighbour inside it
+          (`<mod>⇧` + an arrow). Anything that names a workspace — focusing
+          one, or throwing the focused window there — hangs off `leader`
+          instead, not this option. So does focusing by DIRECTION, which is the
+          leader then an arrow.
 
           "alt" (default) is ⌥. The alternatives are for **non-US keyboard
           layouts**, where ⌥+letter types accented characters — a machine that owns
@@ -615,8 +645,9 @@ in
 
           Whatever you pick, AeroSpace claims those chords **globally**, so they
           stop reaching whatever owned them inside a terminal. The surface is
-          small now that the workspace throws moved to the leader: only hjkl,
-          `/` `,`, `f`, `⇧⇥` and `⇧;`, none of which a roster letter can land
+          small now that the workspace throws moved to the leader and the
+          hjkl focus chords were dropped: only `/` `,`, `f`, `⇧⇥`, `⇧;` and
+          `⇧`+the arrows, none of which a roster letter can land
           on — and `<mod>⇥` is free again, since workspace back-and-forth
           retired in favour of pounce's cross-workspace ⌘⇥ switcher. (Under
           "ctrl-alt" that used to bite — the throws were `⌃⌥⇧` + an app's roster
@@ -625,7 +656,7 @@ in
           Nothing on a stock macOS collides either: the only ⌃⌥ system hotkeys
           are input-source switching (⌃⌥Space, off by default) and hyper-F13.
 
-          "none" drops the modifier chords entirely: no focus/layout chords, no
+          "none" drops the modifier chords entirely: no layout chords, no
           service mode. Combined with `leader = "none"` that's a machine where the
           tiler tiles and the keyboard is left alone — mouse-first. The cheatsheet
           follows, so it never advertises a key that does nothing.
@@ -654,12 +685,14 @@ in
                 description = ''
                   The AeroSpace key name pressed after the leader (e.g. "enter",
                   "space", "period", or a letter). Must not collide with a roster
-                  app's key or a built-in launch-mode key (the digits 1-4, the
-                  arrows, `-`/`=`, `v`/`e`/`z`, `,`, `` ` ``, `/`, esc) — nor with
-                  the workspace throws, which are ⇧ + any of those digits or a
-                  roster letter ("shift-1", "shift-b", …). An assertion in
-                  modules/prowl catches a clash rather than letting one binding
-                  silently shadow another.
+                  app's key or a built-in launch-mode key (one digit per
+                  numbered workspace — see haus.prowl.numberedWorkspaces — plus
+                  the arrows, `-`/`=`, `v`/`e`/`z`, `,`, `` ` ``, `/`, esc) —
+                  nor with the workspace throws, which are ⇧ (follow) or ⌥⇧
+                  (stay) + any of those digits or a roster letter ("shift-1",
+                  "alt-shift-b", …). An assertion in modules/prowl catches a
+                  clash rather than letting one binding silently shadow
+                  another.
                 '';
               };
               command = lib.mkOption {

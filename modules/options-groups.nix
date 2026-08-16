@@ -186,7 +186,14 @@ let
       "lowPowerMode.battery"
       "lowPowerMode.charger"
     ];
-    prowl = [ "enable" ];
+    prowl = [
+      "accordionPadding"
+      "defaultLayout"
+      "defaultOrientation"
+      "enable"
+      "mouseFollowsFocus"
+      "numberedWorkspaces"
+    ];
     roster = [
       ""
       "<name>.appId"
