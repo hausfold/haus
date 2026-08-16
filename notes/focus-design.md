@@ -6,6 +6,21 @@
 > silences notifications (real macOS Focus, so it syncs to your iPhone) and
 > sets your Slack status. Declarative where macOS allows; honest where it
 > doesn't.
+>
+> ★ **v2's first piece shipped 2026-08-16: `haus.focus.scenes`** — quiet
+> generalised into named states (`focus scene recording`), with quiet itself as
+> the built-in one. The trigger half is deliberately still unbuilt; see "Scenes"
+> below.
+>
+> ⚠️ **This note did not know that was coming, and that is worth a line.** The
+> plan of record for it lived in the *workshop's* `notes/options-roadmap.md`
+> §5.8, one repo over, from that file's first commit on 2026-07-25 until today —
+> three weeks — while the "v2 candidates" list below,
+> the file sitting next to the code, named two other things and not this one.
+> Two plans for one room in two repos is exactly the drift §5.14 of that file
+> describes (*the work happens in four repos and the doc lives in a fifth*), and
+> a reader here would have concluded scenes were nobody's idea. When a roadmap
+> item names a room, the room's own note is where it has to be written down.
 
 ## Shape
 
@@ -165,12 +180,76 @@ haus.focus = {
   `# pounce:` header ("Toggle Focus", icon `moon.fill`), filtered out of
   `riceCommands` when the room is off.
 
+## Scenes — shipped 2026-08-16
+
+`focus` was always a scene with one member: it has hooks, an external
+integration, a bar pill, a CLI and transient state. `haus.focus.scenes.<name>`
+is the same machinery with the member list opened up — `dnd`, `preventSleep`,
+`audio.input`, `apps.open`, `hooks`, `restorePreviousState` — entered with
+`focus scene <name>` and left with `focus scene off`. One at a time.
+
+Four decisions worth keeping, because each had a plausible other answer:
+
+1. **Scenes live INSIDE the focus room, not in a `haus.scenes` room of their
+   own.** The roadmap sketched the second shape and it stopped being available
+   on 2026-08-16, when every room was renamed for what it does and `hush`
+   became **`focus`**: a `scenes` room beside a `focus` room would be two rooms
+   for one job, and the sketch's own fix for that — demote `focus.*` to an alias
+   — would retire a room name on the day it was given. Apple's word for a
+   named machine state is *Focus*, so the room was already called the right
+   thing.
+2. **`quiet` is reserved rather than declared.** It is what `focus on`, the
+   pill and the palette command already enter, and its state is read from the
+   OS, not from a state file. A host-declared `scenes.quiet` would be a second
+   thing with that name that no surface but the CLI could reach, so the module
+   asserts on it.
+3. **A scene is data, read at runtime** (`focus-scenes.json`), not a generated
+   shell fragment. Every field would otherwise be a place where a desktop's
+   string becomes code, and a desktop is a file whose whole promise is that it
+   holds none.
+4. **No trigger engine, on purpose.** Wi-Fi SSID, time of day, power source and
+   display-attach are all real triggers and all need a daemon; the declarative
+   half costs one option and one subcommand. Build the daemon after one
+   hand-written scene has proved useful — which is why this repo ships the
+   mechanism and no desktop ships a scene.
+
+And two the assurance pass pulled out of the first draft, both about the same
+mistake — **reading the exit off the scene table**, which is a file that can
+change while a scene is running:
+
+5. **A scene reverses the levers it TOOK, not the ones it declares**, and what
+   it took is written to `scene-prev.json` on entry. Two consequences, one of
+   which was a bug: entering a quiet scene while already quiet takes nothing,
+   so the Slack leg doesn't re-stash your (already-quiet) status as the one to
+   restore later — and leaving a scene the host has since deleted from the
+   table still puts DND and the input device back, because nothing on the exit
+   path asks the table anything. That second case is a rebuild between entering
+   and leaving, which is an ordinary afternoon here.
+   `restorePreviousState` keeps exactly one job under that rule: `false` makes
+   leaving end quiet-off even when you were quiet before.
+6. **`focus off` and `focus toggle` release an active scene.** Both are what the
+   bar pill and the palette command call, and a pill that un-quiets while a
+   caffeinate hold and a switched microphone stay behind is a pill lying about
+   what it just did — the failure mode this room's whole state-reading design
+   exists to avoid, arriving through the one door nobody had shut.
+
+Honest scope, all of it in the option descriptions too: exiting a scene never
+closes the apps it opened; `audio.input` needs `SwitchAudioSource` (pulled in
+only when some scene names a device, since macOS ships no CLI for it); and a
+`preventSleep` assertion is a `caffeinate` process, so its pid file is checked
+against the running process before anything is signalled.
+
 ## v2 candidates (explicitly not v1)
 
+- **Triggers for scenes**: Pounce command, time, Wi-Fi SSID, power source,
+  display attach. The daemon half of the item above.
 - **Timed focus**: `focus 25` writes an until-timestamp to
   `~/.local/state/focus/`; the poll auto-offs past expiry and the pill label
   shows minutes remaining. Palette grows "Focus 25m / 60m" commands.
-- A windows leader/binding for focus.
+- A windows leader/binding for focus. (A scene needs one more than quiet does —
+  quiet has a pill and a palette row; a scene has neither, and today it is
+  reachable only from a terminal or a `haus.keys.leaderExtras` chord the host
+  writes.)
 
 ## What focus honestly won't do
 

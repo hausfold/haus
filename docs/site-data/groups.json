@@ -83,7 +83,7 @@
     }
   },
   "focus": {
-    "blurb": "One quiet switch: Do Not Disturb, optional Slack status, and your hooks.",
+    "blurb": "One quiet switch: Do Not Disturb, optional Slack status, and your hooks — plus the named scenes around it.",
     "order": 170
   },
   "fonts": {
@@ -496,15 +496,40 @@
       "owner": "displays"
     },
     "focus": {
-      "blurb": "One quiet switch: Do Not Disturb, optional Slack status, and your hooks.",
+      "blurb": "One quiet switch: Do Not Disturb, optional Slack status, and your hooks — plus the named scenes around it.",
       "kind": "room",
-      "optionCount": 7,
+      "optionCount": 15,
       "options": {
         "haus.focus.enable": {
           "desktopSafe": true
         },
         "haus.focus.hooks": {
           "desktopSafe": false
+        },
+        "haus.focus.scenes": {
+          "desktopSafe": "recursive",
+          "validator": "scene-entries"
+        },
+        "haus.focus.scenes.<name>.apps.open": {
+          "desktopSafe": true
+        },
+        "haus.focus.scenes.<name>.audio.input": {
+          "desktopSafe": true
+        },
+        "haus.focus.scenes.<name>.description": {
+          "desktopSafe": true
+        },
+        "haus.focus.scenes.<name>.dnd": {
+          "desktopSafe": true
+        },
+        "haus.focus.scenes.<name>.hooks": {
+          "desktopSafe": false
+        },
+        "haus.focus.scenes.<name>.preventSleep": {
+          "desktopSafe": true
+        },
+        "haus.focus.scenes.<name>.restorePreviousState": {
+          "desktopSafe": true
         },
         "haus.focus.slack.enable": {
           "desktopSafe": true
@@ -1398,11 +1423,13 @@
           "make my mac quiet",
           "turn on do not disturb",
           "hush",
-          "am I in do not disturb"
+          "am I in do not disturb",
+          "set my mac up for recording",
+          "stop the screen sleeping while I present"
         ],
-        "cli": "focus on|off|toggle|status"
+        "cli": "focus on|off|toggle|status · focus scene <name>|off|list"
       },
-      "blurb": "One quiet switch: Do Not Disturb, an optional status somewhere else, and your own hooks on both edges.",
+      "blurb": "One quiet switch: Do Not Disturb, an optional status somewhere else, and your own hooks on both edges — plus the named states (`scenes`) around it, of which quiet is the built-in one.",
       "exports": [
         "focus"
       ],
@@ -1410,7 +1437,7 @@
       "namespaces": [
         "focus"
       ],
-      "optionCount": 7,
+      "optionCount": 15,
       "order": 90,
       "title": "Focus"
     },

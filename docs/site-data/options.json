@@ -1957,7 +1957,7 @@
       "_type": "literalExpression",
       "text": "false"
     },
-    "description": "The focus room: one quiet switch — bar pill, palette command, and a\n`focus` CLI — that turns macOS Do Not Disturb on/off (via the\ndeclaratively-bound symbolic hotkey 175, pressed synthetically),\noptionally sets your Slack status, and runs your hooks.\n\nHonest scope: focus flips the built-in Do Not Disturb, not named Focus\nmodes, and it doesn't manage which apps break through — curate that\nonce in System Settings. The keypress needs an Accessibility grant on\nwhatever app invokes focus (palette runs inherit pounce's; grant\nsketchybar once for the pill). `focus doctor` walks the one-time steps.\n",
+    "description": "The focus room: one quiet switch — bar pill, palette command, and a\n`focus` CLI — that turns macOS Do Not Disturb on/off (via the\ndeclaratively-bound symbolic hotkey 175, pressed synthetically),\noptionally sets your Slack status, and runs your hooks.\n\nThe same switch generalises: `haus.focus.scenes.<name>` declares other\nnamed states (stay awake, this microphone, these apps, these hooks) and\n`focus scene <name>` enters one. Quiet is the built-in scene, and the\none every surface above already means.\n\nHonest scope: focus flips the built-in Do Not Disturb, not named Focus\nmodes, and it doesn't manage which apps break through — curate that\nonce in System Settings. The keypress needs an Accessibility grant on\nwhatever app invokes focus (palette runs inherit pounce's; grant\nsketchybar once for the pill). `focus doctor` walks the one-time steps.\n",
     "loc": [
       "haus",
       "focus",
@@ -1986,6 +1986,178 @@
     ],
     "readOnly": false,
     "type": "list of (absolute path or string)"
+  },
+  "haus.focus.scenes": {
+    "declarations": [
+      "modules/focus/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "{ }"
+    },
+    "description": "Named machine states, entered with `focus scene <name>` and left with\n`focus scene off`. One at a time: entering a scene leaves whichever was\nrunning, so the Mac is only ever in one.\n\n`quiet` is the built-in — it is what `focus on`, the bar pill and the\npalette command already enter — so the name is reserved and defining it\nhere is an error. Shape quiet through `haus.focus.slack` and\n`haus.focus.hooks` instead.\n\nScope, and both halves are deliberate. **A scene has no surface but the\nCLI** — quiet has a bar pill and a palette row, a scene has `focus scene\n<name>` and whatever `haus.keys.leaderExtras` chord you give it. And\n**nothing enters a scene for you**: no clock, no Wi-Fi network, no\ndisplay appearing. Declaring the states is the cheap half and this is\nit; a daemon that decides *when* is a separate piece of work, and not\none to pay for before a single scene has proved useful.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "{\n  recording = {\n    description = \"camera on, nothing interrupts\";\n    preventSleep = true;\n    audio.input = \"Studio Mic\";\n    apps.open = [ \"OBS\" ];\n  };\n}\n"
+    },
+    "loc": [
+      "haus",
+      "focus",
+      "scenes"
+    ],
+    "readOnly": false,
+    "type": "attribute set of (submodule)"
+  },
+  "haus.focus.scenes.<name>.apps.open": {
+    "declarations": [
+      "modules/focus/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ ]"
+    },
+    "description": "Apps to launch on entry, by the name or bundle id `open -a`\ntakes. Honest scope: exiting a scene never closes them. Quitting\nan app you were mid-sentence in is not a decision a config file\nshould make, so that reversal stays yours.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"OBS\"\n  \"Reminders\"\n]"
+    },
+    "loc": [
+      "haus",
+      "focus",
+      "scenes",
+      "<name>",
+      "apps",
+      "open"
+    ],
+    "readOnly": false,
+    "type": "list of string"
+  },
+  "haus.focus.scenes.<name>.audio.input": {
+    "declarations": [
+      "modules/focus/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "Switch the system input device on entry, by the exact name\n`SwitchAudioSource -a -t input` prints. Put back by `focus scene\noff` when the scene is what changed it — unlike DND there is no\n\"off\" for an input device, so `restorePreviousState` doesn't\ngovern it. Naming a device that isn't plugged in logs and moves\non; the rest of the scene still applies.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"Studio Mic\""
+    },
+    "loc": [
+      "haus",
+      "focus",
+      "scenes",
+      "<name>",
+      "audio",
+      "input"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.focus.scenes.<name>.description": {
+    "declarations": [
+      "modules/focus/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "One line, shown by `focus scene list`. The scene's own name is the address.",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"camera on, nothing interrupts\""
+    },
+    "loc": [
+      "haus",
+      "focus",
+      "scenes",
+      "<name>",
+      "description"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.focus.scenes.<name>.dnd": {
+    "declarations": [
+      "modules/focus/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Turn Do Not Disturb on while this scene is. `false` means the\nscene leaves DND exactly as it found it — not that it turns it\noff.\n\nEntering a DND scene runs the Slack leg and `haus.focus.hooks`\ntoo, because it is the same quiet the bar pill and `focus on`\nmean — but only when the scene is what makes the Mac quiet.\nEntering one while already quiet changes nothing, so nothing\nfires, and leaving it fires nothing either: the two edges stay\npaired.\n",
+    "loc": [
+      "haus",
+      "focus",
+      "scenes",
+      "<name>",
+      "dnd"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.focus.scenes.<name>.hooks": {
+    "declarations": [
+      "modules/focus/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ ]"
+    },
+    "description": "Scripts run on entry and exit, each called with \"on\" or \"off\" —\nthe same contract as `haus.focus.hooks`, scoped to this scene.\nFailures are logged, never fatal.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[ ./key-light.sh ]"
+    },
+    "loc": [
+      "haus",
+      "focus",
+      "scenes",
+      "<name>",
+      "hooks"
+    ],
+    "readOnly": false,
+    "type": "list of (absolute path or string)"
+  },
+  "haus.focus.scenes.<name>.preventSleep": {
+    "declarations": [
+      "modules/focus/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Hold a `caffeinate` assertion (display, disk, idle and system)\nfor as long as the scene is on. Released on exit. A reboot kills\nthe assertion and leaves only a stale pid file behind, which the\nnext entry clears — and the release checks the pid is still a\ncaffeinate before signalling it, so a reused pid is never the\none that gets killed.\n",
+    "loc": [
+      "haus",
+      "focus",
+      "scenes",
+      "<name>",
+      "preventSleep"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.focus.scenes.<name>.restorePreviousState": {
+    "declarations": [
+      "modules/focus/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "On exit, put Do Not Disturb back the way it was before the scene\nstarted rather than always turning it off. It has exactly one\ncase: you were **already quiet** when you entered. Left true,\nleaving the scene keeps you quiet, because nothing asked to be\nun-quieted. Set false, leaving always ends quiet-off.\n\nIt doesn't govern anything else — a scene only ever reverses a\nlever it actually moved, so there is nothing else for \"restore\"\nand \"off\" to disagree about.\n",
+    "loc": [
+      "haus",
+      "focus",
+      "scenes",
+      "<name>",
+      "restorePreviousState"
+    ],
+    "readOnly": false,
+    "type": "boolean"
   },
   "haus.focus.slack.enable": {
     "declarations": [
