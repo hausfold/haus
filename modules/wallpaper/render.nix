@@ -19,13 +19,13 @@
   theme, # haus.theme
   cfg, # haus.wallpaper
   ui, # haus.ui
-  sill, # haus.sill
+  bar, # haus.bar
   fonts, # haus.fonts
 }:
 
 let
   # haus.theme.{flavor,contrast} select which rendered variant this reads —
-  # ../lib/nebelung.nix owns that resolution for hearth, sill and wallpaper
+  # ../lib/nebelung.nix owns that resolution for terminal, bar and wallpaper
   # alike. Only the palette is needed here.
   #
   # It reaches `minimal` and `bold` and stops there: the three hand-made PNGs
@@ -81,13 +81,13 @@ let
   height = lib.toInt (builtins.elemAt size 1);
 
   # The inset a tiled window's bottom-left corner lands on. ../lib/gaps.nix is
-  # the same arithmetic prowl writes into aerospace.toml, so the band can't
+  # the same arithmetic windows writes into aerospace.toml, so the band can't
   # drift out from under the windows when a gap is retuned. `outermost` is the
   # widest reservation any attached display could be using — inset by the
   # built-in's narrower gap instead and the band peeks out from under an
   # external's wider one.
   gaps = import ../lib/gaps.nix {
-    inherit lib sill;
+    inherit lib bar;
     scale = ui.scale;
   };
   # Gaps are points; a picture is pixels. Two per point on every Retina display,
@@ -171,7 +171,7 @@ let
           # light.
           keyColor = palette.surface1;
           valueColor = palette.surface2;
-          # den's resolution, not the raw option: `package` is null on a rice
+          # core's resolution, not the raw option: `package` is null on a rice
           # that named its font as `packageName` or left the default.
           fontPackage = import ../lib/mono-font.nix { inherit lib pkgs fonts; };
         }

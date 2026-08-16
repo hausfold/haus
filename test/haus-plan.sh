@@ -31,7 +31,7 @@ mkdir -p "$tmp/consumer"
 printf '{ }\n' >"$tmp/consumer/flake.nix"
 export HAUS_CONSUMER="$tmp/consumer" HAUS_LIB=1
 # shellcheck disable=SC1090,SC1091
-source "$repo/modules/den/haus.sh"
+source "$repo/modules/core/haus.sh"
 
 # ---- fixtures ----------------------------------------------------------------
 # Store paths are matched by SHAPE (a 32-char hash plus a known suffix), not by
@@ -120,7 +120,7 @@ printf 'dropped\n' >"$store/job-dropped.plist"
 printf 'dropped\n' >"$tmp/installed/job-dropped.plist"
 
 # The darwin activate scripts themselves: the launchd guards, the restart-map
-# calls den renders, and the hop to the per-user wrapper.
+# calls core renders, and the hop to the per-user wrapper.
 {
   printf 'if ! diff %s/job-same.plist %s/installed/job-same.plist &> /dev/null; then\n' "$store" "$tmp"
   printf 'fi\n'
@@ -233,9 +233,9 @@ test -z "$(plan_restarts "$tmp/bare-activate")" \
   || fail "plan_restarts announced restarts for a script that has none"
 
 # ---- what the settings NEED before they can land (§5.12) --------------------
-# The reachability announcement den renders beside the restart calls. Same
+# The reachability announcement core renders beside the restart calls. Same
 # discipline as above — the parser reads the built script, so what's worth
-# pinning is that it still reads the shape den emits.
+# pinning is that it still reads the shape core emits.
 #
 # `has_fda` is redefined per case rather than mocked through a flag, because the
 # whole point of these four lines is that the verdict is the SAME table read
@@ -355,7 +355,7 @@ CONSUMER="$tmp/dots/nix"
 has 'this is a worktree of your config' "$(cd "$tmp/dots-lane/nix" && consumer_worktree_warning)"
 
 # ---- the guarded accessibility writer ----------------------------------------
-# den emits `haus.accessibility.*` as its OWN shell calls rather than as typed
+# core emits `haus.accessibility.*` as its OWN shell calls rather than as typed
 # `defaults write` lines (the write has to survive a missing FDA grant), so
 # `haus diff` can only see those keys through this parser. Its failure mode is
 # silence: a declared key it can't match is reported as undeclared, which reads
@@ -370,7 +370,7 @@ has 'this is a worktree of your config' "$(cd "$tmp/dots-lane/nix" && consumer_w
   printf 'hausAccessibility reduceMotion -bool true\n'
   printf 'hausAccessibility mouseDriverCursorSize -float 3.000000\n'
   printf 'hausAccessibility closeViewScrollWheelToggle -bool false\n'
-  # Not a call den generates — the function DEFINITION, which contains the same
+  # Not a call core generates — the function DEFINITION, which contains the same
   # word and must not be parsed as a declared key.
   printf 'hausAccessibility() {\n'
 } >"$tmp/a11y-activate"
@@ -388,7 +388,7 @@ com.apple.universalaccess\tcloseViewScrollWheelToggle\tfalse')" \
 # The library hook must not brick a normally-executed haus: `return` outside a
 # sourced script is fatal, so keying only on the variable would make one
 # exported HAUS_LIB turn every later `haus` in that shell into exit 2.
-HAUS_LIB=1 bash "$repo/modules/den/haus.sh" --help >"$tmp/help.out" 2>&1 \
+HAUS_LIB=1 bash "$repo/modules/core/haus.sh" --help >"$tmp/help.out" 2>&1 \
   || fail "HAUS_LIB in the environment broke a normally-run haus"
 grep -q 'haus plan' "$tmp/help.out" || fail "haus --help printed no usage under HAUS_LIB"
 

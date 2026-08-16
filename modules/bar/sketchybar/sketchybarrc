@@ -1,0 +1,291 @@
+#!/bin/bash
+
+# Nebelung palette — the silver-mist theme. Generated from the nebelung flake
+# input (see modules/bar/default.nix); sourced here and by every plugin so the
+# colours stay single-sourced. Exports BASE, SURFACE0, MAUVE, … as 0xAARRGGBB.
+source "$HOME/.config/sketchybar/colors.sh"
+
+# Type sizes (FS_ICON, FS_LABEL, …) — GENERATED from haus.ui.scale, capped at
+# the largest type that still fits a 28pt pill — plus both bars' HEIGHTS
+# ($BAR_HEIGHT, $BAR_BOTTOM_HEIGHT), which are in there for a different reason:
+# they do NOT follow ui.scale (they belong to the macOS menu-bar band, see
+# below), but windows reserves them as window gaps, so they have to be stated once.
+# Nothing in this tree should carry a bar height of its own.
+source "$HOME/.config/sketchybar/sizes.sh"
+
+# Workspace roster (WORKSPACES, LAUNCHER_KEYS, ws_icon) — GENERATED from
+# haus._apps by modules/bar/default.nix so the bar's pills stay in
+# lockstep with AeroSpace's launcher.
+source "$HOME/.config/sketchybar/workspaces.sh"
+
+# Bar position (top/bottom/auto) — GENERATED from haus.bar.position. Defines
+# bar_position() and bar_topmost() (both used on --bar below) and
+# BAR_POSITION_MODE (gates the auto hook near the end of this file).
+source "$HOME/.config/sketchybar/position.sh"
+
+# The far-left logo pill — GENERATED from haus.bar.logo.*. Defines
+# BAR_LOGO_ICON/SIZE/COLOR/STATUS/UPDATE_CHECK/SWEEP, read here and by
+# plugins/logo.sh (the state tick, the hover sweep and every click) and
+# plugins/launch_mode.sh (which fills the pill while the leader is armed).
+source "$HOME/.config/sketchybar/logo_config.sh"
+
+# General bar appearance
+# Floating-pill look: the bar background is fully transparent so there's no solid
+# band separating the menu bar from the wallpaper — each item floats on its own
+# opaque pill (SURFACE0/MANTLE/LAVENDER), which keeps fg legible over any
+# wallpaper region. blur_radius frosts whatever shows through the gaps between
+# pills. (A solid `color=$BASE` here is what created the old hard-edged strip.)
+#
+# height=36, not taller: the native menu bar auto-reveals on hover even while
+# hidden, and on notched displays it's only 32pt tall. core forces it opaque
+# (SLSMenuBarUseBlurredAppearance) so that reveal fully covers us — but that
+# only works if our 28pt pills stay within the 32pt band. At height=36 the
+# centered pills span y=4..32, tucked exactly under the revealed bar; height=40
+# pushed them to y=6..34, so 2px poked out below Tahoe's translucent bar.
+#
+# This is also why haus.ui.scale does NOT reach these two numbers, only the
+# $FS_* type sizes inside them: the band is macOS's, fixed, and has no setting
+# behind it — the only way to make the whole bar bigger is to change what a point
+# means, i.e. the display's scaled resolution (haus.displays).
+#
+# $BAR_HEIGHT rather than a literal 36 for the same reason as the $FS_* sizes:
+# modules/lib/bar.nix owns it, and windows reserves that exact number as a window
+# gap at whichever edge the bar sits on. A literal here could drift from the
+# reservation, and the drift is invisible in either file alone — it shows up as a
+# strip of dead wallpaper along the edge (which is what windows's hardcoded 40 left
+# behind when this bar went 40 -> 36) or as tiled windows under the pills.
+#
+# topmost is mode-dependent and set once here: only a fixed `bottom` bar is
+# lifted above the windows, so their drop-shadows stop painting the strip.
+# `auto` is deliberately excluded even though it resolves to bottom while
+# docked — see bar_topmost() in the generated position.sh for why (windows can't
+# reserve the room on the built-in in that mode, so a lifted bar would cover
+# windows there rather than merely be shadowed by them).
+sketchybar --bar \
+    height=$BAR_HEIGHT \
+    blur_radius=30 \
+    position=$(bar_position) \
+    topmost=$(bar_topmost) \
+    padding_left=10 \
+    padding_right=10 \
+    margin=0 \
+    corner_radius=0 \
+    color=0x00000000 \
+    shadow=off \
+    sticky=on \
+    notch_width=0
+
+# Default item settings
+sketchybar --default \
+    updates=when_shown \
+    icon.font="${BAR_FONT}:Bold:$FS_ICON" \
+    icon.color=$TEXT \
+    icon.padding_left=8 \
+    icon.padding_right=4 \
+    label.font="${BAR_FONT}:Bold:$FS_LABEL" \
+    label.color=$TEXT \
+    label.padding_left=4 \
+    label.padding_right=8 \
+    background.color=$SURFACE0 \
+    background.corner_radius=12 \
+    background.height=28 \
+    background.padding_left=4 \
+    background.padding_right=4
+
+##### LEFT SIDE #####
+
+# The haus logo — the rice's own mark, on a SURFACE0 pill matching the other
+# left-side pills. A GLYPH, not an image: haus.bar.logo.icon picks it,
+# haus.bar.logo.size sizes it, and everything else this pill does (the state
+# colour, the hover sweep, leader mode) is a colour change — which SketchyBar
+# can only apply to text. A `background.image`, which is how the hacker
+# cat-ears mark was drawn here until now, takes no tint at all, so it could
+# follow neither haus.theme.accent nor any state. That is why there is no
+# option to point this at a file: every one of the four things below would
+# have to be dropped to keep the ability.
+#
+# The item id is `haus.logo`. It was `apple.logo` from the original scaffold
+# right through the ears, long after the last Apple glyph left it; the three
+# readers are this file, plugins/logo.sh and plugins/launch_mode.sh.
+#
+# One item, five gestures, all of them in plugins/logo.sh (see there):
+#   left click        the haus menu — a prefilled pounce list of system rows
+#   ⌘ left click      haus rebuild, in a floating terminal
+#   right click       the full pounce palette (what a bare click used to do)
+#   hover             the six-accent sweep, when the state is clear
+#   update_freq tick  the state colour itself
+#
+# There is no popup dropdown. One hung off this item from the scaffold until
+# now — Preferences / Activity / Lock Screen / Nix Config / Reload SketchyBar —
+# and NOTHING ever set `popup.drawing` on it, so not one of those five rows was
+# ever clickable, and the two that were fixed over the years (nebelhaus#291's
+# both-bars reload, the hardcoded-hostname rebuild before it) were fixes to
+# dead code. They live in the palette, and in the haus menu, instead: written
+# once, and searchable there.
+#
+# `updates=on` rather than the default `when_shown`: the state tick has to keep
+# running while leader mode has the left side of the bar swapped out, or the
+# pill comes back wearing whatever colour it wore when the leader was armed.
+#
+# A sweep loop belongs to the SketchyBar instance that started it, and does not
+# die with it: it is a backgrounded subshell, so a `launchctl kickstart -k`, a
+# crash, or the stray-`brew services` eviction below reparents it to launchd
+# with its guard file still on disk — and it goes on writing icon.color to the
+# NEW instance every 0.75s forever. Clearing it here, at the one moment a fresh
+# instance is known to be starting, is the same fix and the same reason as the
+# media pill's own hover flag, which media_stream.sh clears for itself because it
+# has a long-lived process to do it from. (The calendar pill carried a third copy
+# of this until its marquee became hover-only; with no self-arming timer left,
+# there is no flag there to strand.) `sweep-stop` rather
+# than a bare `rm` so an orphan that is still running is also killed, not just
+# told to stop at its next frame; run AFTER the item exists so its settling
+# --set has something to address.
+sketchybar --add item haus.logo left \
+    --set haus.logo \
+        icon="$BAR_LOGO_ICON" \
+        icon.font="${BAR_FONT}:Bold:$BAR_LOGO_SIZE" \
+        icon.color="$BAR_LOGO_COLOR" \
+        label.drawing=off \
+        icon.padding_left=10 \
+        icon.padding_right=10 \
+        background.padding_left=4 \
+        background.padding_right=4 \
+        background.color=$SURFACE0 \
+        updates=on \
+        update_freq=300 \
+        script="$HOME/.config/sketchybar/plugins/logo.sh" \
+        click_script="$HOME/.config/sketchybar/plugins/logo.sh" \
+    --subscribe haus.logo mouse.clicked mouse.entered mouse.exited mouse.exited.global system_woke
+
+"$HOME/.config/sketchybar/plugins/logo.sh" sweep-stop
+
+# Spaces - All AeroSpace workspaces. WORKSPACES + ws_icon come from the
+# generated workspaces.sh (sourced above); app-workspaces show the app's logo
+# (sketchybar-app-font ligature), numbered workspaces keep their digit.
+sketchybar --add event aerospace_workspace_change
+
+for workspace in "${WORKSPACES[@]}"
+do
+    ws_icon "$workspace"   # sets ICON + IFONT
+    sketchybar --add item space.$workspace left \
+        --set space.$workspace \
+            icon="$ICON" \
+            icon.font="$IFONT" \
+            icon.drawing=on \
+            icon.padding_left=10 \
+            icon.padding_right=10 \
+            icon.highlight_color=$YELLOW \
+            background.color=$SURFACE0 \
+            background.drawing=on \
+            background.corner_radius=12 \
+            background.height=28 \
+            label.drawing=off \
+            script="$HOME/.config/sketchybar/plugins/space.sh" \
+            click_script="aerospace workspace $workspace" \
+        --subscribe space.$workspace aerospace_workspace_change
+done
+
+# Aerospace workspace watcher - polls + listens for app changes to catch missed updates
+sketchybar --add item aerospace_watcher left \
+    --set aerospace_watcher \
+        drawing=off \
+        updates=on \
+        update_freq=2 \
+        script="$HOME/.config/sketchybar/plugins/aerospace_watcher.sh" \
+    --subscribe aerospace_watcher front_app_switched space_change
+
+# Empty-workspace reaction — when a ⌘Q leaves the focused workspace empty, pull
+# back to the most recent populated workspace ("gravity"). Non-drawing; see
+# plugins/empty_workspace.sh for the quit-vs-switch detection and the
+# quit-in-place guard that keeps it off a workspace you merely navigated to.
+sketchybar --add item empty_workspace left \
+    --set empty_workspace \
+        drawing=off \
+        updates=on \
+        script="$HOME/.config/sketchybar/plugins/empty_workspace.sh" \
+    --subscribe empty_workspace front_app_switched
+
+# Reopen-last-closed-app recorder — pushes a quit app's bundle id onto a stack
+# that the caps→z leader (reopen-last-app.sh) pops to relaunch it, the browser
+# ⌘⇧T analog. Non-drawing; see plugins/last_closed_app.sh for the quit detection.
+sketchybar --add item last_closed_app left \
+    --set last_closed_app \
+        drawing=off \
+        updates=on \
+        script="$HOME/.config/sketchybar/plugins/last_closed_app.sh" \
+    --subscribe last_closed_app front_app_switched
+
+# Front app name
+sketchybar --add item front_app left \
+    --set front_app \
+        icon.drawing=off \
+        background.color=$LAVENDER \
+        label.color=$BASE \
+        label.font="${BAR_FONT}:Bold:$FS_LABEL" \
+        label.padding_left=8 \
+        label.padding_right=8 \
+        script="$HOME/.config/sketchybar/plugins/front_app.sh" \
+    --subscribe front_app front_app_switched
+
+# Launch-mode picker — one bubble per leader hotkey, hidden until `launch` mode.
+# plugins/launch_mode.sh shows + colors these (focused=mauve / open=green /
+# closed=grey), hides the workspace + front_app pills, and FILLS the haus.logo
+# pill — same glyph, accent background, BASE glyph — so the lead reads as the
+# same object in a different state rather than a different object.
+# LAUNCHER_KEYS comes from the generated workspaces.sh, so it always mirrors
+# [mode.launch.binding] in aerospace.toml.
+for key in "${LAUNCHER_KEYS[@]}"; do
+    GLYPH=$(echo "$key" | tr '[:lower:]' '[:upper:]')
+    sketchybar --add item launcher.$key left \
+        --set launcher.$key \
+            drawing=off \
+            icon="$GLYPH" \
+            icon.padding_left=10 \
+            icon.padding_right=10 \
+            label.drawing=off \
+            background.color=$MANTLE \
+            background.corner_radius=12 \
+            background.height=28
+done
+
+# Leader-mode ("launch") feedback is handled by plugins/launch_mode.sh, which
+# dims the bar, swaps the left side for the picker above, and glows the → lead.
+
+##### RIGHT SIDE #####
+
+# Right-side pills — GENERATED by modules/bar/default.nix from one block table.
+# Core and extra pills are emitted only into the bar that owns them; focus stays
+# here because it rides haus.focus.enable rather than either items table.
+source "$HOME/.config/sketchybar/top_items.sh"
+
+# The haus-tour pill — GENERATED gate (haus.tour.enable); empty when the
+# tour isn't wired. On the right because launch mode takes over the left side
+# (exactly when the user is mid-step), but --move'd next to the clock so a
+# MacBook notch can't cover it; sourced last so its `init` sees every
+# right-side pill (mid-tour it hides them to make room). plugins/tour.sh owns
+# all its state, labels, and colors.
+source "$HOME/.config/sketchybar/tour_item.sh"
+
+##### Finalizing Setup #####
+
+# Auto-position hook — only in `auto` mode (haus.bar.position). A hidden
+# item subscribed to display_change re-runs bar_position() and flips the bar
+# top/bottom whenever an external display attaches or detaches; system_woke
+# re-checks after sleep (e.g. docking while the lid was shut). A no-op in fixed
+# top/bottom mode, so it's not even added there. display_change is a built-in
+# SketchyBar event, so no --add event is needed.
+#
+# updates=on is load-bearing: the item is drawing=off (headless — it draws no
+# pill), and the bar default is updates=when_shown, under which a hidden item
+# never processes events. Without this the display_change hook silently never
+# fires. (verified: a hidden when_shown item ignores triggered events.)
+if [ "$BAR_POSITION_MODE" = "auto" ]; then
+    sketchybar --add item bar_position left \
+        --set bar_position drawing=off updates=on script="$HOME/.config/sketchybar/plugins/position.sh" \
+        --subscribe bar_position display_change system_woke
+fi
+
+# Force all scripts to run at startup
+sketchybar --update
+
+echo "sketchybar configuration loaded.."

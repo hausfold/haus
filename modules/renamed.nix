@@ -70,10 +70,10 @@
     # still on `nebelhaus.*` gets one warning naming where the option lives now.
     (lib.mkRenamedOptionModule [ "nebelhaus" "claude" "globalMd" ] [ "haus" "ai" "instructions" ])
     (lib.mkRenamedOptionModule [ "nebelhaus" "claude" "skill" ] [ "haus" "ai" "skill" ])
-    (lib.mkRenamedOptionModule [ "nebelhaus" "collar" "enable" ] [ "haus" "collar" "enable" ])
+    (lib.mkRenamedOptionModule [ "nebelhaus" "collar" "enable" ] [ "haus" "security" "touchId" "enable" ])
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "collar" "passwordlessRebuild" ]
-      [ "haus" "collar" "passwordlessRebuild" ]
+      [ "haus" "security" "touchId" "passwordlessRebuild" ]
     )
     # Another two-hop alias, like the `claude` pair above: renamed to
     # `haus.developer.agents.enable` here, then moved again when coding agents
@@ -107,22 +107,22 @@
     (lib.mkRenamedOptionModule [ "nebelhaus" "git" "name" ] [ "haus" "git" "name" ])
     (lib.mkRenamedOptionModule [ "nebelhaus" "git" "shellAliases" ] [ "haus" "git" "shellAliases" ])
     (lib.mkRenamedOptionModule [ "nebelhaus" "git" "signingKey" ] [ "haus" "git" "signingKey" ])
-    (lib.mkRenamedOptionModule [ "nebelhaus" "hearth" "editor" ] [ "haus" "hearth" "editor" ])
+    (lib.mkRenamedOptionModule [ "nebelhaus" "hearth" "editor" ] [ "haus" "terminal" "editor" ])
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "hearth" "ghDash" "enable" ]
-      [ "haus" "hearth" "ghDash" "enable" ]
+      [ "haus" "terminal" "ghDash" "enable" ]
     )
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "hearth" "hijackFileAssociations" ]
-      [ "haus" "hearth" "hijackFileAssociations" ]
+      [ "haus" "terminal" "hijackFileAssociations" ]
     )
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "hearth" "obsidianVaults" ]
-      [ "haus" "hearth" "obsidianVaults" ]
+      [ "haus" "terminal" "obsidianVaults" ]
     )
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "hearth" "zellijStartLocked" ]
-      [ "haus" "hearth" "zellijStartLocked" ]
+      [ "haus" "terminal" "zellijStartLocked" ]
     )
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "homebrew" "autoUpdate" ]
@@ -143,27 +143,27 @@
       [ "nebelhaus" "hotCorners" "topRight" ]
       [ "haus" "hotCorners" "topRight" ]
     )
-    (lib.mkRenamedOptionModule [ "nebelhaus" "hush" "enable" ] [ "haus" "hush" "enable" ])
-    (lib.mkRenamedOptionModule [ "nebelhaus" "hush" "hooks" ] [ "haus" "hush" "hooks" ])
+    (lib.mkRenamedOptionModule [ "nebelhaus" "hush" "enable" ] [ "haus" "focus" "enable" ])
+    (lib.mkRenamedOptionModule [ "nebelhaus" "hush" "hooks" ] [ "haus" "focus" "hooks" ])
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "hush" "slack" "enable" ]
-      [ "haus" "hush" "slack" "enable" ]
+      [ "haus" "focus" "slack" "enable" ]
     )
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "hush" "slack" "snooze" ]
-      [ "haus" "hush" "slack" "snooze" ]
+      [ "haus" "focus" "slack" "snooze" ]
     )
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "hush" "slack" "statusEmoji" ]
-      [ "haus" "hush" "slack" "statusEmoji" ]
+      [ "haus" "focus" "slack" "statusEmoji" ]
     )
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "hush" "slack" "statusText" ]
-      [ "haus" "hush" "slack" "statusText" ]
+      [ "haus" "focus" "slack" "statusText" ]
     )
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "hush" "slack" "tokenCommand" ]
-      [ "haus" "hush" "slack" "tokenCommand" ]
+      [ "haus" "focus" "slack" "tokenCommand" ]
     )
     (lib.mkRenamedOptionModule [ "nebelhaus" "keys" "leader" ] [ "haus" "keys" "leader" ])
     (lib.mkRenamedOptionModule [ "nebelhaus" "keys" "leaderExtras" ] [ "haus" "keys" "leaderExtras" ])
@@ -225,28 +225,28 @@
       [ "nebelhaus" "menuBar" "controlCenter" "sound" ]
       [ "haus" "menuBar" "controlCenter" "sound" ]
     )
-    (lib.mkRenamedOptionModule [ "nebelhaus" "perch" "enable" ] [ "haus" "perch" "enable" ])
+    (lib.mkRenamedOptionModule [ "nebelhaus" "perch" "enable" ] [ "haus" "shelf" "enable" ])
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "perch" "followSystemAppearance" ]
-      [ "haus" "perch" "followSystemAppearance" ]
+      [ "haus" "shelf" "followSystemAppearance" ]
     )
-    (lib.mkRenamedOptionModule [ "nebelhaus" "pounce" "enable" ] [ "haus" "pounce" "enable" ])
+    (lib.mkRenamedOptionModule [ "nebelhaus" "pounce" "enable" ] [ "haus" "launcher" "enable" ])
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "pounce" "followSystemAppearance" ]
-      [ "haus" "pounce" "followSystemAppearance" ]
+      [ "haus" "launcher" "followSystemAppearance" ]
     )
-    (lib.mkRenamedOptionModule [ "nebelhaus" "pounce" "items" ] [ "haus" "pounce" "items" ])
-    (lib.mkRenamedOptionModule [ "nebelhaus" "pounce" "scale" ] [ "haus" "pounce" "scale" ])
+    (lib.mkRenamedOptionModule [ "nebelhaus" "pounce" "items" ] [ "haus" "launcher" "items" ])
+    (lib.mkRenamedOptionModule [ "nebelhaus" "pounce" "scale" ] [ "haus" "launcher" "scale" ])
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "pounce" "signingIdentity" ]
-      [ "haus" "pounce" "signingIdentity" ]
+      [ "haus" "launcher" "signingIdentity" ]
     )
-    (lib.mkRenamedOptionModule [ "nebelhaus" "pounce" "windowMode" ] [ "haus" "pounce" "windowMode" ])
+    (lib.mkRenamedOptionModule [ "nebelhaus" "pounce" "windowMode" ] [ "haus" "launcher" "windowMode" ])
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "pounce" "windowSwitcher" ]
-      [ "haus" "pounce" "windowSwitcher" ]
+      [ "haus" "launcher" "windowSwitcher" ]
     )
-    (lib.mkRenamedOptionModule [ "nebelhaus" "prowl" "enable" ] [ "haus" "prowl" "enable" ])
+    (lib.mkRenamedOptionModule [ "nebelhaus" "prowl" "enable" ] [ "haus" "windows" "enable" ])
     (lib.mkRenamedOptionModule [ "nebelhaus" "roster" ] [ "haus" "roster" ])
     (lib.mkRenamedOptionModule [ "nebelhaus" "screenshots" "format" ] [ "haus" "screenshots" "format" ])
     (lib.mkRenamedOptionModule
@@ -285,17 +285,17 @@
     )
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "sill" "aiUsage" "provider" ]
-      [ "haus" "sill" "aiUsage" "provider" ]
+      [ "haus" "bar" "aiUsage" "provider" ]
     )
     (lib.mkRenamedOptionModule
       [ "nebelhaus" "sill" "battery" "hideOver" ]
-      [ "haus" "sill" "battery" "hideOver" ]
+      [ "haus" "bar" "battery" "hideOver" ]
     )
-    (lib.mkRenamedOptionModule [ "nebelhaus" "sill" "clock" "mode" ] [ "haus" "sill" "clock" "mode" ])
-    (lib.mkRenamedOptionModule [ "nebelhaus" "sill" "elgato" "host" ] [ "haus" "sill" "elgato" "host" ])
-    (lib.mkRenamedOptionModule [ "nebelhaus" "sill" "enable" ] [ "haus" "sill" "enable" ])
-    (lib.mkRenamedOptionModule [ "nebelhaus" "sill" "items" ] [ "haus" "sill" "items" ])
-    (lib.mkRenamedOptionModule [ "nebelhaus" "sill" "position" ] [ "haus" "sill" "position" ])
+    (lib.mkRenamedOptionModule [ "nebelhaus" "sill" "clock" "mode" ] [ "haus" "bar" "clock" "mode" ])
+    (lib.mkRenamedOptionModule [ "nebelhaus" "sill" "elgato" "host" ] [ "haus" "bar" "elgato" "host" ])
+    (lib.mkRenamedOptionModule [ "nebelhaus" "sill" "enable" ] [ "haus" "bar" "enable" ])
+    (lib.mkRenamedOptionModule [ "nebelhaus" "sill" "items" ] [ "haus" "bar" "items" ])
+    (lib.mkRenamedOptionModule [ "nebelhaus" "sill" "position" ] [ "haus" "bar" "position" ])
     (lib.mkRenamedOptionModule [ "nebelhaus" "snippets" "enable" ] [ "haus" "snippets" "enable" ])
     (lib.mkRenamedOptionModule [ "nebelhaus" "snippets" "matches" ] [ "haus" "snippets" "matches" ])
     (lib.mkRenamedOptionModule [ "nebelhaus" "theme" "accent" ] [ "haus" "theme" "accent" ])

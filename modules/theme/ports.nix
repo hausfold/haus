@@ -1,6 +1,6 @@
 # Nebelung ports for roster apps — the other half of theming.
 #
-# hearth themes the tools the rice INSTALLS: it knows those tools intimately, owns
+# terminal themes the tools the rice INSTALLS: it knows those tools intimately, owns
 # their config files, and wires each rendered theme by hand. That covers the shell,
 # the terminal, the git stack, Zen, Obsidian. It cannot cover an app YOU added to
 # `haus.roster`, because the rice has never heard of it.
@@ -156,7 +156,7 @@
         # neither side validates stand between the metadata and a real file.
         #
         # Copying through one runCommand makes the referent a build DEPENDENCY
-        # rather than a promise: the same move hearth makes for the glamour port in
+        # rather than a promise: the same move terminal makes for the glamour port in
         # its `glowPlugin`, which is the other place a nebelung path is spelled
         # rather than resolved.
         checked = pkgs.runCommand "nebelung-ports" { } (
@@ -195,7 +195,7 @@
       in
       {
         # Every id a room claims to handle must be a port nebelung still ships,
-        # or the roster pass silently starts double-wiring a tool hearth already
+        # or the roster pass silently starts double-wiring a tool terminal already
         # integrated properly. Skipped wholesale on an old lock, where `ports` is
         # empty and nothing is being decided from it anyway.
         assertions = lib.optional (ports != { }) {

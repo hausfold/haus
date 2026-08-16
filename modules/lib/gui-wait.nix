@@ -18,7 +18,7 @@
 # EVERY wait here is bounded by ONE shared 60 s deadline. That bound is the
 # whole point: the loops answer "is the session up *yet*", and an unbounded
 # `until pgrep -x Finder` can't tell "not booted yet" from "you pressed ⌘Q in
-# Finder" (Finder is quittable — den sets QuitMenuItem). With no bound, a
+# Finder" (Finder is quittable — core sets QuitMenuItem). With no bound, a
 # KeepAlive restart while Finder is closed parks the agent in the loop forever:
 # pounce stops answering its hotkey until the next reboot, with a live pid and
 # nothing in the log. Past the deadline we launch anyway — a GUI agent starting
@@ -46,8 +46,8 @@ in
   # `exec "$0" "$@"` with the target passed as bash's $0 rather than folded into
   # the -c string, because ARGV[0] IS LOAD-BEARING for at least one caller:
   # SketchyBar names its instance after `basename(argv[0])` and keys both its
-  # lock file and its mach service on that, which is how sill draws a second bar
-  # (a `sill-bottom` symlink to the same binary — see modules/sill).
+  # lock file and its mach service on that, which is how bar draws a second bar
+  # (a `bar-bottom` symlink to the same binary — see modules/bar).
   wrapArgs =
     target: args:
     [

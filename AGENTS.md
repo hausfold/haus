@@ -8,7 +8,7 @@ adds only its own host (identity, private apps, secrets).
 > modules, the `haus.*` options and the `haus` CLI — and it is what *any* desktop
 > builds on. A **desktop** is one set of values for those modules, and this repo
 > ships four: `blank`, `minimal`, `everyday` and **`hacker`** (nebelung's
-> fog-grey, prowl/sill/hearth turned on the way a developer likes them — the
+> fog-grey, windows/bar/terminal turned on the way a developer likes them — the
 > first one written, and the one `mkHaus` selects when a consumer names none).
 > **hausfold** is neither — it is the org, the maker and the seller, which is why
 > the repo is `hausfold/haus`: the layer names the repo, the org names the owner.
@@ -76,7 +76,7 @@ client's own file and the *content* stays here or in `.agents/`. The map of
 which tool reads which file is [`.agents/README.md`](./.agents/README.md).
 (That's the rule for this repo's *own* files. The rice also **ships** agent
 config to end users — `haus.ai.instructions`, `haus.ai.skill`, the
-`hearth/agents` skill — and that's a product surface, not this layer. It obeys
+`terminal/agents` skill — and that's a product surface, not this layer. It obeys
 the same rule one layer out: one body, written once per client at the path that
 client reads. Both options were `haus.claude.*` until 2026-08-11, when they
 stopped writing Claude's copy alone.)
@@ -92,7 +92,7 @@ elsewhere. *(The checkout was `~/code/workshop/hausfold` until 2026-08-11 and
 
 | Want to change… | Repo |
 |---|---|
-| the rice: macOS defaults, tiling (prowl), bar (sill), shell (hearth), security (collar), secrets plumbing (secrets), pounce wiring (pounce), notch shelf install (perch), Focus/DND (hush), accent + Light/Dark (theme), the generated desktop (wallpaper), the apps every machine gets + what opens which file type (apps) | `~/code/workshop/haus` ← **you are here** |
+| the desktop: macOS defaults, tiling (windows), the menu bar (bar), the shell (terminal), Touch ID + firewall (security), secrets plumbing (secrets), Pounce wiring (launcher), the notch shelf (shelf), Focus/DND (focus), accent + Light/Dark (theme), the generated desktop (wallpaper), the apps every machine gets + what opens which file type (apps) | `~/code/workshop/haus` ← **you are here** |
 | the pounce palette app or its command scripts | `~/code/workshop/pounce` |
 | colors / the theme palette | `~/code/workshop/nebelung` |
 | one machine's personal apps / identity / secrets | `~/.config/nix` (or that machine's own config) |
@@ -122,9 +122,9 @@ elsewhere. *(The checkout was `~/code/workshop/hausfold` until 2026-08-11 and
 flake.nix                 # mkHaus builder + darwinModules outputs + example host
 modules/
   default.nix             # imports all rooms
-  options.nix             # all host-set knobs: git.*, theme.accent, wallpaper.*, hearth.*,
-                          #   roster (the shared app list), prowl.*, sill.*, pounce.*,
-                          #   hush.*, perch.*, tour.enable, homebrew.*, secrets.provider
+  options.nix             # all host-set knobs: git.*, theme.accent, wallpaper.*, terminal.*,
+                          #   roster (the shared app list), windows.*, bar.*, launcher.*,
+                          #   focus.*, shelf.*, tour.enable, homebrew.*, secrets.provider
   options-modules.nix     # the per-room options.nix list — shared by both renderers below
   options-groups.nix      # the ROOM REGISTRY: every public namespace and darwinModules
                           #   export, its owning room, and whether desktop data may set
@@ -169,9 +169,9 @@ modules/
                           #   Pure wiring — its assertions, and what it CONTRIBUTES to
                           #   the terminal, the bar and the launcher through the
                           #   extension points those rooms declare (lib/contrib.nix).
-                          #   Its payload is still installed by den (system) and hearth
+                          #   Its payload is still installed by core (system) and terminal
                           #   (home), gated on haus.ai.enable
-  den/                    # system: macOS defaults, Homebrew framework, core CLI, GC
+  core/                   # system: macOS defaults, Homebrew framework, core CLI, GC
                           #   + on-PATH CLIs: haus / awake / zscratch / statusline
   displays/               # haus.displays: scaled resolution by intent + the
                           #   hausdisp helper (Swift, xcrun-compiled like pounce's)
@@ -180,26 +180,26 @@ modules/
                           #   package.nix renders it (resvg for the vector layer,
                           #   ImageMagick for the 16-bit field), looks/ holds the
                           #   hand-made Nebelung PNGs
-  hearth/                 # shell: zsh, starship, git, yazi, zellij, ghostty + theming
+  terminal/               # shell: zsh, starship, git, yazi, zellij, ghostty + theming
                           #   + floatring (Swift, xcrun-compiled): the outline every
-                          #   window float-term.sh spawns wears (haus.hearth.floatBorder)
+                          #   window float-term.sh spawns wears (haus.terminal.floatBorder)
     agents/               # the haus agent skill (haus.ai.skill): hand-written
                           #   SKILL.md + recipes, plus an option reference rendered
                           #   per-revision — see skill.nix for why it's a package. ONE
                           #   skill, installed into every client in haus.ai.clients
-                          #   (hearth's agentHomes has the paths; was hearth/claude/ and
+                          #   (terminal's agentHomes has the paths; was terminal/claude/ and
                           #   Claude-only until 2026-08-11). Also ships the consumer
                           #   starter pair (consumer-AGENTS.md + its consumer-CLAUDE.md
                           #   pointer) `haus doctor` offers to copy
-  prowl/                  # AeroSpace tiling
-  sill/                   # SketchyBar + sillpop (Swift, xcrun-compiled): the pill
+  windows/                # AeroSpace tiling
+  bar/                    # SketchyBar + barpop (Swift, xcrun-compiled): the pill
                           #   dropdowns' click-outside dismissal
-  collar/                 # auth policy: Touch ID sudo + passwordless activation
-  pounce/                 # the palette daemon (launchd + self-signing);
+  security/               # auth policy: Touch ID sudo + passwordless activation
+  launcher/               # the palette daemon (launchd + self-signing);
                           #   item-grammar.nix mirrors pounce's item-key grammar,
                           #   pinned to the LOCKED pounce by `pounce-item-grammar`
-  perch/                  # the perch notch file shelf, installed via the perch flake input
-  hush/                   # Focus/DND one-switch: declarative hotkey 175 + Slack + hooks
+  shelf/                  # the perch notch file shelf, installed via the perch flake input
+  focus/                  # Focus/DND one-switch: declarative hotkey 175 + Slack + hooks
   secrets/                # secretspec: declarative secrets, provider chosen per host
 desktops/                 # the desktops this flake ships: hacker (the one the
                           #   builder selects by default), blank, everyday, minimal.
@@ -214,8 +214,8 @@ hosts/example/            # the template a consumer copies
 ```
 
 Each `modules/<room>` is a nix-darwin module; ones that need home config write into
-`home-manager.users.${username}`. `den` and `hearth` split system vs shell; Homebrew
-is contributed per-room (den owns the framework, prowl/sill add their own cask/brew).
+`home-manager.users.${username}`. `core` and `terminal` split system vs shell; Homebrew
+is contributed per-room (core owns the framework, windows/bar add their own cask/brew).
 
 ### Desktops
 
@@ -284,7 +284,7 @@ a hex that belongs in nebelung or app logic that belongs in pounce landing in a
 module here; a `haus.*` option added or renamed with no matching edit in
 hausfold.co's `content/docs/` — its `haus/reference/options.mdx` (generated from
 this repo's committed `docs/site-data/`) or the matching room; a new
-keybind colliding across zellij / AeroSpace (prowl) / pounce / macOS symbolic hotkeys —
+keybind colliding across zellij / AeroSpace (windows) / pounce / macOS symbolic hotkeys —
 collisions are silent, the loser just stops firing; a breaking option rename whose
 consumer edit didn't ride in the same PR, leaving `main` broken mid-ripple; and
 hardcoded identity that should be a `haus.*` option.
@@ -314,61 +314,61 @@ it silently.
   boot before the Aqua session is ready park with exit 78 (EX_CONFIG) and wedge.
   `modules/lib/gui-wait.nix` polls for Dock/Finder/SystemUIServer and runs from
   `/bin/bash` (boot volume, not the /nix APFS volume that isn't mounted yet). It
-  exports `.wrap` (wrap an executable — prowl, sill) and `.script` (the snippet alone
+  exports `.wrap` (wrap an executable — windows, bar) and `.script` (the snippet alone
   — pounce, which re-signs before exec'ing). Don't "simplify" it away, and **keep the
   60 s deadline**: the polls answer "is the session up *yet*", and unbounded they
   can't tell a cold boot from a GUI process that is simply absent, so a KeepAlive
   restart parks the agent forever with a live pid and nothing in the log. (That is
-  why `den` leaves Finder's `QuitMenuItem` off.) Recover a wedged agent: `launchctl
+  why `core` leaves Finder's `QuitMenuItem` off.) Recover a wedged agent: `launchctl
   bootout` then `bootstrap`.
-- **pounce self-signing** (`modules/pounce`): macOS keys an Accessibility (TCC) grant
+- **pounce self-signing** (`modules/launcher`): macOS keys an Accessibility (TCC) grant
   to a code-signing identity, but a store build is adhoc-signed (cdhash changes every
-  rebuild). When `haus.pounce.signingIdentity` is set, the daemon wrapper copies
+  rebuild). When `haus.launcher.signingIdentity` is set, the daemon wrapper copies
   `Pounce.app` to `~/.local/state/pounce` and re-signs it with a stable identity so the
   grant survives rebuilds. Don't repoint the agent at the store path. One-time on a new
   machine: `pounce --request-accessibility`, approve the prompt (and the keychain
   "Always Allow" dialog the first time `codesign` runs).
-- **Homebrew tap-trust** (`modules/den`): `HOMEBREW_NO_REQUIRE_TAP_TRUST=1` via
+- **Homebrew tap-trust** (`modules/core`): `HOMEBREW_NO_REQUIRE_TAP_TRUST=1` via
   `/etc/homebrew/brew.env` — third-party taps fail trust checks under sudo activation.
   That file is also the only place a `HOMEBREW_*` setting reaches the *rebuild's*
   `brew bundle` (activation runs it under a `sudo … env …` that resets everything
   else), so the API-refresh window and the env-hint silencing live there too — an
-  export in hearth or bench only ever reaches your interactive shell.
-- **Touch ID + zellij** (`modules/collar`): `reattach = true` is required because sudo
+  export in terminal or bench only ever reaches your interactive shell.
+- **Touch ID + zellij** (`modules/security`): `reattach = true` is required because sudo
   runs inside zellij; without pam_reattach the Touch ID prompt beachballs.
 - **secretspec + keychain ACLs** (`modules/secrets`): with the default "keyring"
   provider, macOS keys each item's "Always Allow" to the exact binary — a rebuild that
   changes secretspec's store path re-prompts once per secret. Harmless (approve again);
   cloud providers (gcsm/awssm/bws/…) have no per-item ACL. Login-keychain items do NOT
   sync via iCloud — a clean wipe means `secretspec check` + re-entering values.
-- **Determinate owns the nix daemon** (`modules/den`): `nix.enable = false`; config
+- **Determinate owns the nix daemon** (`modules/core`): `nix.enable = false`; config
   lives in `/etc/nix/nix.custom.conf`. GC is our own weekly launchd job.
 - **The pounce build shells out to `/usr/bin/xcrun swiftc`** — needs Xcode CLT + the
   macOS build sandbox relaxed (Determinate's default). See the pounce repo. So do the
   rice's own four one-file Swift helpers, for the same reason (compiling a Swift
   toolchain from source to build a few hundred lines against AppKit costs hours):
-  `hausax` (den), `hausdisp` (displays), `sillpop` (sill), `floatring` (hearth).
+  `hausax` (core), `hausdisp` (displays), `barpop` (bar), `floatring` (terminal).
 
 ## Patterns
 
-- **New SketchyBar plugin**: add `modules/sill/sketchybar/plugins/<name>.sh`, wire it
-  into `modules/sill/sketchybar/sketchybarrc`. Follow an existing plugin.
+- **New SketchyBar plugin**: add `modules/bar/sketchybar/plugins/<name>.sh`, wire it
+  into `modules/bar/sketchybar/sketchybarrc`. Follow an existing plugin.
 - **A plugin that can end up on the SECOND bar must never write `sketchybar`.**
-  `haus.sill.bottom.enable` draws a second bar along the bottom of the screen,
+  `haus.bar.bottom.enable` draws a second bar along the bottom of the screen,
   and SketchyBar has no two-bars-in-one-process mode: an instance is named
   `basename(argv[0])` and keys BOTH its lock file and its mach service on that
-  name, so the bottom bar is the same binary under a second name (`sill-bottom`,
+  name, so the bottom bar is the same binary under a second name (`bar-bottom`,
   a symlink — `BAR_NAME` is exported TO plugins, never read, so setting it on the
   way in does nothing). The consequence is that a bare `sketchybar --set` in a
   plugin ALWAYS means the top bar: same syntax, no error, and a pill that moved
   down just silently stops updating. So `source ~/.config/sketchybar/bar.sh` and
-  use `"$SB"` — it routes on `$BAR_NAME`, falling back to `SILL_ITEM`/`$NAME` for
+  use `"$SB"` — it routes on `$BAR_NAME`, falling back to `BAR_ITEM`/`$NAME` for
   the HOOK path (agents-hook.sh, the statusline's usage push), which has no bar
   and so no `$BAR_NAME`. Same rule in Nix: `mkPluginBlocks` takes the bar command
   AND the group as its two arguments — a block that hardcodes `right` rather than
   writing `${side}` still evaluates, still builds, and quietly piles its pill back
   into the corner, so thread both through — and **anything that pokes or reloads
-  a bar pokes both**, whether it sits outside sill (den's `awake` and its
+  a bar pokes both**, whether it sits outside the bar room (core's `awake` and its
   `caffeinate_change`, the `Reload SketchyBar` palette command) or inside it
   (the logo pill's own `Reload SketchyBar` row — which now runs the palette's
   `reload-bar.sh` rather than carrying a second copy of it — and the
@@ -376,27 +376,27 @@ it silently.
   reloads on rebuild). A bare `sketchybar --reload` reaches one mach service and
   leaves the other bar a generation behind, silently — this list has gained a
   member every time that was forgotten. And **every reload names its rc**
-  (`--reload ~/.config/sketchybar/sill-bottomrc`), which is a second, separate
+  (`--reload ~/.config/sketchybar/bar-bottomrc`), which is a second, separate
   trap: `--reload` with no path re-runs the config path the instance resolved AT
   STARTUP, and SketchyBar resolves it through the symlink to `/nix/store`, so a
   bar launched with `--config` replays the generation it BOOTED on — every
-  reload, exit 0, `configuration loaded..` in the log. That is `sill-bottom` and
-  only `sill-bottom` (the menu bar carries no `--config`, so it re-resolves the
+  reload, exit 0, `configuration loaded..` in the log. That is `bar-bottom` and
+  only `bar-bottom` (the menu bar carries no `--config`, so it re-resolves the
   live path by accident), and it cost a day of hausfold#279's `topmost=window`
   never reaching the screen. Which bar is exposed is `ps -o command= -p <pid>` —
   a `--config` in the argv is the whole risk, and `lsof -p <pid> -a -d cwd`
   showing `/nix/store` says the same thing (SketchyBar chdir'd to the resolved
   rc). Neither tells you whether it's *currently* stale, because both stay true
   after a correct reload; for that, read the bar against the generation —
-  `sill-bottom --query bar` vs `~/.config/sketchybar/sizes.sh`. Every
+  `bar-bottom --query bar` vs `~/.config/sketchybar/sizes.sh`. Every
   movable pill is emitted from that one table; the coupled left-side
   workspace/leader group and the tour stay on the menu bar. On the MENU bar those
   pills are all `right` (its left and center are spoken for); the bottom bar
-  hands out all three of SketchyBar's groups from `haus.sill.bottom.items`, whose
-  sides list lives in `modules/sill/sides.nix` — imported by both `options.nix`
+  hands out all three of SketchyBar's groups from `haus.bar.bottom.items`, whose
+  sides list lives in `modules/bar/sides.nix` — imported by both `options.nix`
   and `default.nix` so the enum and the emission can't disagree.
   macOS reserves the top strip of a display and
-  reserves NOTHING at the bottom, so prowl's `outerBottom` carves the room instead.
+  reserves NOTHING at the bottom, so windows's `outerBottom` carves the room instead.
 - **A new default app pick** (an app the rice thinks a finished machine has, not one a
   room needs to do its job): it goes in `modules/apps` — one
   `haus.apps.<thing>.enable` knob in its `options.nix`, one roster entry (never a
@@ -404,15 +404,15 @@ it silently.
   activation that `lsregister`s the bundle — binding a type LaunchServices hasn't seen
   yet is a silent `-50`. An app a room NEEDS (AeroSpace, SketchyBar, espanso) still
   belongs to that room.
-- **A pill with a dropdown toggles it as usual, then arms `sillpop` in the
-  background** — `sketchybar --set <item> popup.drawing=toggle; sillpop arm
-  <item> &` (the `popToggle` helper in `modules/sill/default.nix` writes exactly
+- **A pill with a dropdown toggles it as usual, then arms `barpop` in the
+  background** — `sketchybar --set <item> popup.drawing=toggle; barpop arm
+  <item> &` (the `popToggle` helper in `modules/bar/default.nix` writes exactly
   that; plugin scripts spell it out with the literal
-  `/run/current-system/sw/bin/sillpop`). SketchyBar hears clicks on its own items
+  `/run/current-system/sw/bin/barpop`). SketchyBar hears clicks on its own items
   and nothing else, so a popup it opened could otherwise only be closed by
   clicking that pill again, while every other dropdown on the Mac closes on a
-  click anywhere. `sillpop` (`modules/sill/sillpop.swift`, built by
-  `sillpop.nix`) is the missing half: it holds an AppKit global mouse-down monitor
+  click anywhere. `barpop` (`modules/bar/barpop.swift`, built by
+  `barpop.nix`) is the missing half: it holds an AppKit global mouse-down monitor
   (Accessibility-gated for KEY events only, so no TCC prompt) and closes the popup
   on the first click outside the bar and outside the popup's own rows. One
   process, alive only while a dropdown is; opening one dropdown closes any other.
@@ -429,7 +429,7 @@ it silently.
   and the `flavor` — which is load-bearing, not decoration: whiskers names its output
   after the flavor it rendered (`catppuccin-latte.conf`, `Catppuccin Latte.tmTheme`,
   `zen/themes/Latte/`), so paths are built from `nb.flavor`, never the literal
-  `"mocha"`. hearth, sill and theme all import it; `catppuccin.flavor` in hearth
+  `"mocha"`. terminal, bar and theme all import it; `catppuccin.flavor` in terminal
   follows it. Getting a path wrong here is INVISIBLE at eval (it's just a store path
   that doesn't exist), which is why `nix flake check`'s `theme-variants` pins the
   flavor/contrast → variant/subdir table as a golden file — and why the same rule
@@ -451,7 +451,7 @@ it silently.
   - **config.kdl (keybinds, theme, options) hot-reloads. Just
     `bench try switch`.** zellij watches the active config and applies most
     fields to the *running* server in about a second; your tabs, panes and live
-    Claude sessions stay exactly where they are. This works because hearth
+    Claude sessions stay exactly where they are. This works because terminal
     installs `~/.config/zellij/config.kdl` as a real file with a live mtime
     (`home.activation.zellijLiveConfig`) instead of a home-manager symlink —
     every `/nix/store` file carries mtime = epoch 1, so a symlinked config makes
@@ -462,7 +462,7 @@ it silently.
     command are gone.)
   - **Plugin `.wasm`, a patched zellij binary, and layout changes to tabs that
     already exist do NOT hot-reload** — a running server caches plugin wasm in
-    memory for its lifetime. That's what **`zscratch`** (`modules/den`) is for:
+    memory for its lifetime. That's what **`zscratch`** (`modules/core`) is for:
     it renders your candidate over a copy of the live `~/.config/zellij` into a
     temp `--config-dir` and boots a throwaway session in its own Ghostty window,
     so the working multiplexer is untouched. `zscratch --config FILE` /
@@ -470,13 +470,13 @@ it silently.
     /path/to/zellij`; `zscratch clean` reaps it. A brand-new session name = a new
     zellij *server*, which recompiles plugin wasm from disk. Feel it there, then
     `bench try switch` once, already knowing it works.
-- **The four zellij plugin forks** (`modules/hearth/zellij/{tab-bar,status-bar,
-  link-handler,tab-history}`) are Rust → wasm32-wasip1, and hearth builds them
+- **The four zellij plugin forks** (`modules/terminal/zellij/{tab-bar,status-bar,
+  link-handler,tab-history}`) are Rust → wasm32-wasip1, and terminal builds them
   **from source** on every rebuild (`zellijPlugins`, via `pkgsCross.wasi32`) —
   there is no checked-in `.wasm` to re-vendor, so editing `src/` is the whole
   job. Each dir's `build.sh` is only the dev shortcut: it prints a candidate
   `.wasm` path to feed `zscratch --plugin <name>="$(./build.sh)"`.
-- **The den CLIs** (`modules/den`, each on `PATH` via `writeShellScriptBin`, source
+- **The core CLIs** (`modules/core`, each on `PATH` via `writeShellScriptBin`, source
   beside `default.nix`): the rice ships six dev/user CLIs — **`haus.sh`** (the
   end-user machine driver: rebuild/update/rollback/doctor/status — knows nothing of
   the family repos), **`haus-activate.sh`** (the privileged half of a rebuild:
@@ -486,21 +486,21 @@ it silently.
   config a SECOND time — `darwin-rebuild switch --flake` builds again, against
   root's separate caches under `/var/root/.cache/nix`, costing ~3 s after a host
   edit and ~15 s whenever a flake input moved. Its stable
-  `/run/current-system/sw/bin` path is load-bearing: collar's NOPASSWD rule must
+  `/run/current-system/sw/bin` path is load-bearing: security's NOPASSWD rule must
   name a literal path), **`awake.sh`** (launchd-owned timed/indefinite macOS
-  caffeinate assertions; Sill's optional coffee pill is only its controller),
+  caffeinate assertions; Bar's optional coffee pill is only its controller),
   **`zscratch.sh`** (above), **`statusline.sh`** / `statusline-refresh.sh` (the
   agent HUD, reading `holt`'s registry), and **`agent-state`** — the one writer of
-  agent-pane state behind sill's paw pill and the zellij tab badge. That last one
-  has no source file of its own here: den `readFile`s
-  `modules/sill/sketchybar/plugins/agents-hook.sh`, the same script sill installs
+  agent-pane state behind bar's paw pill and the zellij tab badge. That last one
+  has no source file of its own here: core `readFile`s
+  `modules/bar/sketchybar/plugins/agents-hook.sh`, the same script bar installs
   into the bar's plugin dir, so the PATH copy and the bar copy can never drift.
   Every client's hooks call it (`agent-state <working|waiting|idle|remove>
-  <client>`) — which is why the wirings hearth writes for opencode and codex never
+  <client>`) — which is why the wirings terminal writes for opencode and codex never
   need to know where a bar keeps its plugins. They're plain bash embedded via
   `builtins.readFile`, so a rebuild re-installs them on `PATH`. Agent worktrees
   themselves are **`holt`** — [its own repo](https://github.com/hausfold/holt),
-  taken as a flake input rather than a den-sourced script, ejected from the
+  taken as a flake input rather than a core-sourced script, ejected from the
   incubator 2026-08-03 with all 79 acceptance tests green. It replaces the old
   bash `wt.sh`, which has been retired entirely — its registry format, hooks,
   and every caller (Claude Code's `WorktreeCreate`/`WorktreeRemove`, pounce's
@@ -512,7 +512,7 @@ it silently.
   [haus reference](https://hausfold.co/docs/haus/reference/haus/) on hausfold.co.)
 - **New pounce command**: generic ones live in the
   [pounce repo](https://github.com/hausfold/pounce) (`pkgs/pounce-commands/commands`);
-  rice/machine-specific ones live HERE in `modules/pounce/commands/` — one
+  rice/machine-specific ones live HERE in `modules/launcher/commands/` — one
   self-describing script each (metadata in a `# pounce: key = value` header),
   layered onto the palette via `pounce-commands.override { extraCommandDirs … }`.
   No registry to edit in either repo; drop the script and rebuild.
@@ -527,9 +527,9 @@ it silently.
     2`, what `add-app.sh` and `spawn-agent.sh` do). It has cost two silent menus
     so far (#310, and the Haus Settings submenu after it).
 - **The haus tour** (first-run tutor): ONE state machine,
-  `modules/sill/sketchybar/plugins/tour.sh`, drives a single bar pill. The
+  `modules/bar/sketchybar/plugins/tour.sh`, drives a single bar pill. The
   leader-mode scripts + `aerospace-notify.sh` feed it `tour.sh event <name>`
   behind a `[ -f ~/.local/state/haus/tour ]` guard — one stat when idle;
   keep it that cheap. `haus tour` and the pounce `tour` command are just doors
   into it. Gated by `haus.tour.enable` via the generated
-  `tour_item.sh` / `tour_config.sh` (see `modules/sill/default.nix`).
+  `tour_item.sh` / `tour_config.sh` (see `modules/bar/default.nix`).

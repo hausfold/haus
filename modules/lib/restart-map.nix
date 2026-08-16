@@ -7,7 +7,7 @@
 # and wait for a logout unless something restarts them.
 #
 # This is that something, as DATA rather than one-off fixes scattered through
-# postActivation. rice#181 hand-rolled the Finder case alone; den/default.nix
+# postActivation. rice#181 hand-rolled the Finder case alone; core/default.nix
 # now derives every restart it fires from this table instead, and WARNS if any
 # plist domain it actually writes into has no entry here — a rice module
 # missing a domain is a bug worth fixing in this file, but a host's own
@@ -22,7 +22,7 @@
 # name it, so a domain never needs two spellings.
 #
 # A value is one verb, or a LIST of verbs when a domain genuinely needs more
-# than one (NSGlobalDomain does — see its entry). den treats a bare string as a
+# than one (NSGlobalDomain does — see its entry). core treats a bare string as a
 # one-element list.
 #
 # Values, per the matrix:
@@ -31,11 +31,11 @@
 #       are UI processes whose windows close as the cost; the fifth is a daemon,
 #       added 2026-08-14, and its cost is different in kind — see its entry.
 #   "activateSettings"
-#     — no process restart. `activateSettings -u` (den's postActivation,
+#     — no process restart. `activateSettings -u` (core's postActivation,
 #       mkAfter) is the private binary System Settings itself calls to
 #       broadcast a preference change, and covers everything measured in this
 #       domain: key repeat, the trackpad trio, _HIHideMenuBar and
-#       SLSMenuBarUseBlurredAppearance (both of which Sill depends on).
+#       SLSMenuBarUseBlurredAppearance (both of which Bar depends on).
 #   "notify:<DistributedNotificationName>"
 #     — post that distributed notification. The third verb, added 2026-08-08
 #       for the locale family, which has no process to kill: EVERY app is the
@@ -56,7 +56,7 @@
 #       a silent gap — see the matrix's `com.apple.WindowManager` row.
 {
   # ---- always written (mkDefault, every rebuild) ---------------------------
-  "com.apple.dock" = "Dock"; # nix-darwin restarts Dock itself whenever this domain is set — see den's postActivation, which skips it to avoid bouncing the Dock twice
+  "com.apple.dock" = "Dock"; # nix-darwin restarts Dock itself whenever this domain is set — see core's postActivation, which skips it to avoid bouncing the Dock twice
   "com.apple.finder" = "Finder";
   # activateSettings covers every NSGlobalDomain key the rice writes — with ONE
   # measured exception, and no value in this table can express it, because the
@@ -88,7 +88,7 @@
   "com.apple.screencapture" = "none"; # screencapture re-reads its prefs on every capture
 
   # ---- FDA-gated, guarded separately -----------------------------------
-  # den's `hausAccessibility` block writes this domain itself, guarded
+  # core's `hausAccessibility` block writes this domain itself, guarded
   # against the missing-FDA failure the matrix found (an unguarded write here
   # aborts the rest of activation under `set -e`). A failed write already
   # degrades to "setting skipped".
@@ -109,22 +109,22 @@
   #
   # The kill is harmless to the oracle-backed four (they were already live before
   # it), so this is one verb for the domain rather than a per-key table. It is
-  # NOT free, though, which is why den gates it: `universalaccessd` owns the
+  # NOT free, though, which is why core gates it: `universalaccessd` owns the
   # running accessibility features, so restarting it interrupts VoiceOver or a
   # live Zoom session for as long as launchd takes to bring it back. Domain
-  # membership can't express that gate — `com.apple.universalaccess` sits in den's
+  # membership can't express that gate — `com.apple.universalaccess` sits in core's
   # `typedDomainsWritten` unconditionally so the lookups here find an answer,
   # while the rice writes the domain only when something opts in. Same split
   # NSGlobalDomain's locale notification already needed, and the same rule:
   # **"which restart" is data; "does this rebuild need one" sometimes isn't.**
-  # den's `restartDeclaredBy` holds the trigger.
+  # core's `restartDeclaredBy` holds the trigger.
   "com.apple.universalaccess" = "universalaccessd";
 
   # Nothing here writes this domain and nothing ever should (./reachability.nix
   # marks it `effect = "noop"` — it accepts writes and moves nothing, measured).
   # Declared anyway, for the one way it can still arrive: `haus capture` naming
   # it into a host's own CustomUserPreferences. Without an entry that host got
-  # TWO warnings — the honest "this writes and changes nothing", and den's
+  # TWO warnings — the honest "this writes and changes nothing", and core's
   # undeclared-domain warning telling it to add a restart, which is nonsense
   # advice for a domain no restart can help. "none" is true here for a reason
   # this table hasn't needed before: not "it takes effect immediately" but
@@ -157,7 +157,7 @@
   #                moving this setting to `sysadminctl -screenLock` on 26 has
   #                NOT made the plist key inert.
   #   the other two  NOT confirmed, and structurally can't be by watching a
-  #                rebuild. Both domains sit in den's `typedDomainsWritten`
+  #                rebuild. Both domains sit in core's `typedDomainsWritten`
   #                UNCONDITIONALLY (only com.apple.universalaccess has a
   #                `restartDeclaredBy` gate), so SystemUIServer and
   #                ControlCenter are killed on every rebuild of every machine
@@ -174,7 +174,7 @@
   "com.apple.controlcenter" = "ControlCenter"; # haus.menuBar.controlCenter — the first actual write into this domain; the old `restartProcesses` list had carried "ControlCenter" unused since rice#249 (that list is gone, #255)
 
   # ---- not written yet — declared ahead of use ------------------------------
-  # The day the rice (or a host) writes into this, the warning in den/default.nix
+  # The day the rice (or a host) writes into this, the warning in core/default.nix
   # already has a correct answer instead of another rice#181.
   "com.apple.WindowManager" = "logout"; # matrix: 12 typed keys, no live-reload path exists on macOS 26 — no haus.* option is backed by this domain yet, on purpose (§5.6: a group that silently needs a logout is worse than no group)
 }

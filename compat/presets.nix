@@ -54,26 +54,26 @@ let
 in
 {
   full = deprecated "select the hacker desktop, which `mkHaus` already does when you name none" {
-    sill.enable = true;
-    prowl.enable = true;
-    pounce.enable = true;
+    bar.enable = true;
+    windows.enable = true;
+    launcher.enable = true;
     tour.enable = true;
 
     developer.enable = true;
   };
 
   minimal = deprecated "pass `desktop = haus.desktops.minimal`" {
-    sill.enable = false;
-    prowl.enable = false;
-    pounce.enable = false;
+    bar.enable = false;
+    windows.enable = false;
+    launcher.enable = false;
     tour.enable = false;
 
     developer.enable = true;
   };
 
   everyday = deprecated "pass `desktop = haus.desktops.everyday`" {
-    sill.enable = true;
-    pounce.enable = true;
+    bar.enable = true;
+    launcher.enable = true;
     tour.enable = true;
     tour.steps = [
       {
@@ -82,7 +82,7 @@ in
       }
     ];
 
-    prowl.enable = false;
+    windows.enable = false;
 
     developer.enable = false;
   };

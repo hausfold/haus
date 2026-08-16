@@ -41,11 +41,13 @@ let
       "claimFileTypes"
     ]
     [
-      "collar"
+      "security"
+      "touchId"
       "enable"
     ]
     [
-      "collar"
+      "security"
+      "touchId"
       "passwordlessRebuild"
     ]
     [
@@ -76,11 +78,11 @@ let
       "name"
     ]
     [
-      "hearth"
+      "terminal"
       "floatBorder"
     ]
     [
-      "hearth"
+      "terminal"
       "editor"
     ]
     # Both halves of the editor pair, deliberately. `editor` alone would go
@@ -88,19 +90,19 @@ let
     # desktop moves the NAME still changes which editor is installed, and the
     # projection would report no difference at all.
     [
-      "hearth"
+      "terminal"
       "editorName"
     ]
     [
-      "hearth"
+      "terminal"
       "rightClickFullscreen"
     ]
     [
-      "hearth"
+      "terminal"
       "zellijStartLocked"
     ]
     [
-      "hush"
+      "focus"
       "enable"
     ]
     [
@@ -116,81 +118,81 @@ let
       "windowNav"
     ]
     [
-      "perch"
+      "shelf"
       "enable"
     ]
     [
-      "pounce"
+      "launcher"
       "enable"
     ]
     [
-      "pounce"
+      "launcher"
       "windowMode"
     ]
     [
-      "prowl"
+      "windows"
       "enable"
     ]
     [
-      "sill"
+      "bar"
       "enable"
     ]
     [
-      "sill"
+      "bar"
       "position"
     ]
     [
-      "sill"
+      "bar"
       "clock"
       "mode"
     ]
     [
-      "sill"
+      "bar"
       "items"
       "battery"
     ]
     [
-      "sill"
+      "bar"
       "items"
       "clock"
     ]
     [
-      "sill"
+      "bar"
       "items"
       "media"
     ]
     [
-      "sill"
+      "bar"
       "items"
       "weather"
     ]
     [
-      "sill"
+      "bar"
       "items"
       "wifi"
     ]
     [
-      "sill"
+      "bar"
       "logo"
       "gestures"
     ]
     [
-      "sill"
+      "bar"
       "logo"
       "icon"
     ]
     [
-      "sill"
+      "bar"
       "logo"
       "size"
     ]
     [
-      "sill"
+      "bar"
       "logo"
       "status"
     ]
     [
-      "sill"
+      "bar"
       "logo"
       "sweep"
     ]

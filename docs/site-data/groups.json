@@ -23,9 +23,9 @@
     "blurb": "The apps haus picks for you, the saved collections you can switch on in one line, and the file types they claim — the ones a finished machine has rather than the ones a room needs to work. Each is one switch you can turn off; what it installs is a roster entry like any other, so you can retune or replace it by app id.",
     "order": 23
   },
-  "collar": {
-    "blurb": "Touch ID for sudo — including inside a terminal multiplexer — and the passwordless-rebuild rule.",
-    "order": 210
+  "bar": {
+    "blurb": "The menu bar, and which pills it draws.",
+    "order": 130
   },
   "developer": {
     "blurb": "The developer pack: the CLI toolbelt, Git tooling and language runtimes. Coding agents left this pack on 2026-08-13 and are their own room now (`haus.ai.*`). Off is a hacker machine for someone who never opens a terminal by choice.",
@@ -36,51 +36,55 @@
     "order": 60
   },
   "exports": {
-    "collar": {
+    "bar": {
       "kind": "room",
-      "owner": "security",
-      "source": "modules/collar"
+      "owner": "bar",
+      "source": "modules/bar"
+    },
+    "core": {
+      "kind": "foundation",
+      "owner": "haus",
+      "source": "modules/core"
     },
     "default": {
       "kind": "aggregate",
       "owner": "haus",
       "source": "modules"
     },
-    "den": {
-      "kind": "foundation",
-      "owner": "haus",
-      "source": "modules/den"
-    },
-    "hearth": {
-      "kind": "room",
-      "owner": "development",
-      "source": "modules/hearth"
-    },
-    "hush": {
+    "focus": {
       "kind": "room",
       "owner": "focus",
-      "source": "modules/hush"
+      "source": "modules/focus"
     },
-    "pounce": {
+    "launcher": {
       "kind": "room",
       "owner": "launcher",
-      "source": "modules/pounce"
-    },
-    "prowl": {
-      "kind": "room",
-      "owner": "windows",
-      "source": "modules/prowl"
+      "source": "modules/launcher"
     },
     "secrets": {
       "kind": "room",
       "owner": "security",
       "source": "modules/secrets"
     },
-    "sill": {
+    "security": {
       "kind": "room",
-      "owner": "bar",
-      "source": "modules/sill"
+      "owner": "security",
+      "source": "modules/security"
+    },
+    "terminal": {
+      "kind": "room",
+      "owner": "development",
+      "source": "modules/terminal"
+    },
+    "windows": {
+      "kind": "room",
+      "owner": "windows",
+      "source": "modules/windows"
     }
+  },
+  "focus": {
+    "blurb": "One quiet switch: Do Not Disturb, optional Slack status, and your hooks.",
+    "order": 170
   },
   "fonts": {
     "blurb": "The machine's type. One mono family drives the terminal AND the bar — the bar stopped keeping a hardcoded font of its own, though it keeps its own tuned sizes. The proportional family is one label's: the clock pill, when it opts out of mono.",
@@ -90,10 +94,6 @@
     "blurb": "Your commit identity, plus the GitHub owner this machine's work lives under — set your own. It stays in [your host file](/internals/flakes/#your-config-is-a-thin-consumer).",
     "order": 10
   },
-  "hearth": {
-    "blurb": "The shell and terminal experience.",
-    "order": 70
-  },
   "homebrew": {
     "blurb": "How rebuilds treat Homebrew packages you did not declare.",
     "order": 230
@@ -102,13 +102,13 @@
     "blurb": "What each corner of the screen does when the pointer reaches it. Every corner is unset by default, so haus never overwrites one you set yourself.",
     "order": 112
   },
-  "hush": {
-    "blurb": "One quiet switch: Do Not Disturb, optional Slack status, and your hooks.",
-    "order": 170
-  },
   "keys": {
     "blurb": "The keys haus owns — the leader, the palette, the window-chord modifier — and anything extra you hang off the leader.",
     "order": 110
+  },
+  "launcher": {
+    "blurb": "The ⌘Space command palette. Pounce is the app behind it.",
+    "order": 140
   },
   "locale": {
     "blurb": "Language, region, units and keyboard layouts. What a machine in any language other than English needs — and the one room whose settings reach apps you already have open, because haus posts the change notification macOS itself posts.",
@@ -119,7 +119,7 @@
     "order": 114
   },
   "menuBar": {
-    "blurb": "The stock menu bar: what the clock shows, and which Control Center glyphs sit beside it. (The hacker bar itself is `sill`.)",
+    "blurb": "The stock menu bar: what the clock shows, and which Control Center glyphs sit beside it. (The hacker bar itself is `bar`.)",
     "order": 115
   },
   "namespaces": {
@@ -231,20 +231,232 @@
       "order": 23,
       "owner": "apps"
     },
-    "collar": {
-      "blurb": "Touch ID for sudo — including inside a terminal multiplexer — and the passwordless-rebuild rule.",
+    "bar": {
+      "blurb": "The menu bar, and which pills it draws.",
       "kind": "room",
-      "optionCount": 2,
+      "optionCount": 72,
       "options": {
-        "haus.collar.enable": {
+        "haus.bar.aiUsage.provider": {
           "desktopSafe": true
         },
-        "haus.collar.passwordlessRebuild": {
+        "haus.bar.battery.hideOver": {
+          "desktopSafe": true
+        },
+        "haus.bar.bottom.enable": {
+          "desktopSafe": true
+        },
+        "haus.bar.bottom.items": {
+          "desktopSafe": true
+        },
+        "haus.bar.bottom.items.agents": {
+          "desktopSafe": true
+        },
+        "haus.bar.bottom.items.aiUsage": {
+          "desktopSafe": true
+        },
+        "haus.bar.bottom.items.battery": {
+          "desktopSafe": true
+        },
+        "haus.bar.bottom.items.caffeinate": {
+          "desktopSafe": true
+        },
+        "haus.bar.bottom.items.calendar": {
+          "desktopSafe": true
+        },
+        "haus.bar.bottom.items.clock": {
+          "desktopSafe": true
+        },
+        "haus.bar.bottom.items.cpu": {
+          "desktopSafe": true
+        },
+        "haus.bar.bottom.items.elgato": {
+          "desktopSafe": true
+        },
+        "haus.bar.bottom.items.focus": {
+          "desktopSafe": true
+        },
+        "haus.bar.bottom.items.github": {
+          "desktopSafe": true
+        },
+        "haus.bar.bottom.items.harvest": {
+          "desktopSafe": true
+        },
+        "haus.bar.bottom.items.media": {
+          "desktopSafe": true
+        },
+        "haus.bar.bottom.items.memory": {
+          "desktopSafe": true
+        },
+        "haus.bar.bottom.items.volume": {
+          "desktopSafe": true
+        },
+        "haus.bar.bottom.items.weather": {
+          "desktopSafe": true
+        },
+        "haus.bar.bottom.items.wifi": {
+          "desktopSafe": true
+        },
+        "haus.bar.calendar.horizon": {
+          "desktopSafe": true
+        },
+        "haus.bar.calendar.imminent": {
+          "desktopSafe": true
+        },
+        "haus.bar.calendar.joinHosts": {
+          "desktopSafe": true
+        },
+        "haus.bar.calendar.me": {
+          "desktopSafe": false
+        },
+        "haus.bar.calendar.past": {
+          "desktopSafe": true
+        },
+        "haus.bar.calendar.preciseUnder": {
+          "desktopSafe": true
+        },
+        "haus.bar.calendar.refresh": {
+          "desktopSafe": true
+        },
+        "haus.bar.calendar.upcoming": {
+          "desktopSafe": true
+        },
+        "haus.bar.calendar.width": {
+          "desktopSafe": true
+        },
+        "haus.bar.clock.mode": {
+          "desktopSafe": true
+        },
+        "haus.bar.clock.monoFont": {
+          "desktopSafe": true
+        },
+        "haus.bar.elgato.host": {
+          "desktopSafe": false
+        },
+        "haus.bar.enable": {
+          "desktopSafe": true
+        },
+        "haus.bar.github.refresh": {
+          "desktopSafe": true
+        },
+        "haus.bar.github.sources": {
+          "desktopSafe": "recursive",
+          "validator": "submodule-list"
+        },
+        "haus.bar.github.sources.*.ci": {
+          "desktopSafe": true
+        },
+        "haus.bar.github.sources.*.command": {
+          "desktopSafe": false
+        },
+        "haus.bar.github.sources.*.icon": {
+          "desktopSafe": true
+        },
+        "haus.bar.github.sources.*.limit": {
+          "desktopSafe": true
+        },
+        "haus.bar.github.sources.*.org": {
+          "desktopSafe": true
+        },
+        "haus.bar.github.sources.*.search": {
+          "desktopSafe": true
+        },
+        "haus.bar.github.sources.*.severity": {
+          "desktopSafe": true
+        },
+        "haus.bar.github.sources.*.title": {
+          "desktopSafe": true
+        },
+        "haus.bar.items": {
+          "desktopSafe": true
+        },
+        "haus.bar.items.agents": {
+          "desktopSafe": true
+        },
+        "haus.bar.items.aiUsage": {
+          "desktopSafe": true
+        },
+        "haus.bar.items.battery": {
+          "desktopSafe": true
+        },
+        "haus.bar.items.caffeinate": {
+          "desktopSafe": true
+        },
+        "haus.bar.items.calendar": {
+          "desktopSafe": true
+        },
+        "haus.bar.items.claudeUsage": {
+          "desktopSafe": true
+        },
+        "haus.bar.items.clock": {
+          "desktopSafe": true
+        },
+        "haus.bar.items.cpu": {
+          "desktopSafe": true
+        },
+        "haus.bar.items.elgato": {
+          "desktopSafe": true
+        },
+        "haus.bar.items.github": {
+          "desktopSafe": true
+        },
+        "haus.bar.items.harvest": {
+          "desktopSafe": true
+        },
+        "haus.bar.items.media": {
+          "desktopSafe": true
+        },
+        "haus.bar.items.memory": {
+          "desktopSafe": true
+        },
+        "haus.bar.items.volume": {
+          "desktopSafe": true
+        },
+        "haus.bar.items.weather": {
+          "desktopSafe": true
+        },
+        "haus.bar.items.wifi": {
+          "desktopSafe": true
+        },
+        "haus.bar.logo.color": {
+          "desktopSafe": true
+        },
+        "haus.bar.logo.gestures": {
+          "desktopSafe": true
+        },
+        "haus.bar.logo.icon": {
+          "desktopSafe": true
+        },
+        "haus.bar.logo.size": {
+          "desktopSafe": true
+        },
+        "haus.bar.logo.status": {
+          "desktopSafe": true
+        },
+        "haus.bar.logo.sweep": {
+          "desktopSafe": true
+        },
+        "haus.bar.logo.updateCheck": {
+          "desktopSafe": true
+        },
+        "haus.bar.media.artworkTint": {
+          "desktopSafe": true
+        },
+        "haus.bar.media.collapse": {
+          "desktopSafe": true
+        },
+        "haus.bar.media.icons": {
+          "desktopSafe": "recursive",
+          "validator": "attrs-of-string"
+        },
+        "haus.bar.media.width": {
+          "desktopSafe": true
+        },
+        "haus.bar.position": {
           "desktopSafe": true
         }
       },
-      "order": 210,
-      "owner": "security"
+      "order": 130,
+      "owner": "bar"
     },
     "developer": {
       "blurb": "The developer pack: the CLI toolbelt, Git tooling and language runtimes. Coding agents left this pack on 2026-08-13 and are their own room now (`haus.ai.*`). Off is a hacker machine for someone who never opens a terminal by choice.",
@@ -282,6 +494,36 @@
       },
       "order": 60,
       "owner": "displays"
+    },
+    "focus": {
+      "blurb": "One quiet switch: Do Not Disturb, optional Slack status, and your hooks.",
+      "kind": "room",
+      "optionCount": 7,
+      "options": {
+        "haus.focus.enable": {
+          "desktopSafe": true
+        },
+        "haus.focus.hooks": {
+          "desktopSafe": false
+        },
+        "haus.focus.slack.enable": {
+          "desktopSafe": true
+        },
+        "haus.focus.slack.snooze": {
+          "desktopSafe": true
+        },
+        "haus.focus.slack.statusEmoji": {
+          "desktopSafe": true
+        },
+        "haus.focus.slack.statusText": {
+          "desktopSafe": true
+        },
+        "haus.focus.slack.tokenCommand": {
+          "desktopSafe": false
+        }
+      },
+      "order": 170,
+      "owner": "focus"
     },
     "fonts": {
       "blurb": "The machine's type. One mono family drives the terminal AND the bar — the bar stopped keeping a hardcoded font of its own, though it keeps its own tuned sizes. The proportional family is one label's: the clock pill, when it opts out of mono.",
@@ -334,42 +576,6 @@
       "order": 10,
       "owner": "host"
     },
-    "hearth": {
-      "blurb": "The shell and terminal experience.",
-      "kind": "room",
-      "optionCount": 9,
-      "options": {
-        "haus.hearth.editor": {
-          "desktopSafe": false
-        },
-        "haus.hearth.editorName": {
-          "desktopSafe": true
-        },
-        "haus.hearth.floatBorder": {
-          "desktopSafe": true
-        },
-        "haus.hearth.ghDash.enable": {
-          "desktopSafe": true
-        },
-        "haus.hearth.hijackFileAssociations": {
-          "desktopSafe": true
-        },
-        "haus.hearth.lanes.backend": {
-          "desktopSafe": true
-        },
-        "haus.hearth.obsidianVaults": {
-          "desktopSafe": false
-        },
-        "haus.hearth.rightClickFullscreen": {
-          "desktopSafe": true
-        },
-        "haus.hearth.zellijStartLocked": {
-          "desktopSafe": true
-        }
-      },
-      "order": 70,
-      "owner": "development"
-    },
     "homebrew": {
       "blurb": "How rebuilds treat Homebrew packages you did not declare.",
       "kind": "room",
@@ -409,36 +615,6 @@
       "order": 112,
       "owner": "windows"
     },
-    "hush": {
-      "blurb": "One quiet switch: Do Not Disturb, optional Slack status, and your hooks.",
-      "kind": "room",
-      "optionCount": 7,
-      "options": {
-        "haus.hush.enable": {
-          "desktopSafe": true
-        },
-        "haus.hush.hooks": {
-          "desktopSafe": false
-        },
-        "haus.hush.slack.enable": {
-          "desktopSafe": true
-        },
-        "haus.hush.slack.snooze": {
-          "desktopSafe": true
-        },
-        "haus.hush.slack.statusEmoji": {
-          "desktopSafe": true
-        },
-        "haus.hush.slack.statusText": {
-          "desktopSafe": true
-        },
-        "haus.hush.slack.tokenCommand": {
-          "desktopSafe": false
-        }
-      },
-      "order": 170,
-      "owner": "focus"
-    },
     "keys": {
       "blurb": "The keys haus owns — the leader, the palette, the window-chord modifier — and anything extra you hang off the leader.",
       "kind": "shared",
@@ -469,6 +645,58 @@
       },
       "order": 110,
       "owner": "haus"
+    },
+    "launcher": {
+      "blurb": "The ⌘Space command palette. Pounce is the app behind it.",
+      "kind": "room",
+      "optionCount": 14,
+      "options": {
+        "haus.launcher.autoQuit.delay": {
+          "desktopSafe": true
+        },
+        "haus.launcher.autoQuit.enable": {
+          "desktopSafe": true
+        },
+        "haus.launcher.autoQuit.exclude": {
+          "desktopSafe": true
+        },
+        "haus.launcher.enable": {
+          "desktopSafe": true
+        },
+        "haus.launcher.followSystemAppearance": {
+          "desktopSafe": true
+        },
+        "haus.launcher.items": {
+          "desktopSafe": "recursive",
+          "validator": "launcher-items"
+        },
+        "haus.launcher.items.<name>.alias": {
+          "desktopSafe": true
+        },
+        "haus.launcher.items.<name>.caption": {
+          "desktopSafe": true
+        },
+        "haus.launcher.items.<name>.hotkey": {
+          "desktopSafe": true
+        },
+        "haus.launcher.items.<name>.listed": {
+          "desktopSafe": true
+        },
+        "haus.launcher.scale": {
+          "desktopSafe": true
+        },
+        "haus.launcher.signingIdentity": {
+          "desktopSafe": false
+        },
+        "haus.launcher.windowMode": {
+          "desktopSafe": true
+        },
+        "haus.launcher.windowSwitcher": {
+          "desktopSafe": true
+        }
+      },
+      "order": 140,
+      "owner": "launcher"
     },
     "locale": {
       "blurb": "Language, region, units and keyboard layouts. What a machine in any language other than English needs — and the one room whose settings reach apps you already have open, because haus posts the change notification macOS itself posts.",
@@ -513,7 +741,7 @@
       "owner": "security"
     },
     "menuBar": {
-      "blurb": "The stock menu bar: what the clock shows, and which Control Center glyphs sit beside it. (The hacker bar itself is `sill`.)",
+      "blurb": "The stock menu bar: what the clock shows, and which Control Center glyphs sit beside it. (The hacker bar itself is `bar`.)",
       "kind": "room",
       "optionCount": 12,
       "options": {
@@ -557,73 +785,6 @@
       "order": 115,
       "owner": "bar"
     },
-    "perch": {
-      "blurb": "The notch file shelf.",
-      "kind": "room",
-      "optionCount": 2,
-      "options": {
-        "haus.perch.enable": {
-          "desktopSafe": true
-        },
-        "haus.perch.followSystemAppearance": {
-          "desktopSafe": true
-        }
-      },
-      "order": 160,
-      "owner": "shelf"
-    },
-    "pounce": {
-      "blurb": "The ⌘Space command palette.",
-      "kind": "room",
-      "optionCount": 14,
-      "options": {
-        "haus.pounce.autoQuit.delay": {
-          "desktopSafe": true
-        },
-        "haus.pounce.autoQuit.enable": {
-          "desktopSafe": true
-        },
-        "haus.pounce.autoQuit.exclude": {
-          "desktopSafe": true
-        },
-        "haus.pounce.enable": {
-          "desktopSafe": true
-        },
-        "haus.pounce.followSystemAppearance": {
-          "desktopSafe": true
-        },
-        "haus.pounce.items": {
-          "desktopSafe": "recursive",
-          "validator": "pounce-items"
-        },
-        "haus.pounce.items.<name>.alias": {
-          "desktopSafe": true
-        },
-        "haus.pounce.items.<name>.caption": {
-          "desktopSafe": true
-        },
-        "haus.pounce.items.<name>.hotkey": {
-          "desktopSafe": true
-        },
-        "haus.pounce.items.<name>.listed": {
-          "desktopSafe": true
-        },
-        "haus.pounce.scale": {
-          "desktopSafe": true
-        },
-        "haus.pounce.signingIdentity": {
-          "desktopSafe": false
-        },
-        "haus.pounce.windowMode": {
-          "desktopSafe": true
-        },
-        "haus.pounce.windowSwitcher": {
-          "desktopSafe": true
-        }
-      },
-      "order": 140,
-      "owner": "launcher"
-    },
     "power": {
       "blurb": "Sleep timers and Low Power Mode, said separately for battery and charger — which is the whole point, and why this is built on `pmset` rather than on nix-darwin's own power options.",
       "kind": "host",
@@ -656,33 +817,6 @@
       },
       "order": 119,
       "owner": "host"
-    },
-    "prowl": {
-      "blurb": "Tiling window management and the Caps-Lock leader launcher.",
-      "kind": "room",
-      "optionCount": 6,
-      "options": {
-        "haus.prowl.accordionPadding": {
-          "desktopSafe": true
-        },
-        "haus.prowl.defaultLayout": {
-          "desktopSafe": true
-        },
-        "haus.prowl.defaultOrientation": {
-          "desktopSafe": true
-        },
-        "haus.prowl.enable": {
-          "desktopSafe": true
-        },
-        "haus.prowl.mouseFollowsFocus": {
-          "desktopSafe": true
-        },
-        "haus.prowl.numberedWorkspaces": {
-          "desktopSafe": true
-        }
-      },
-      "order": 120,
-      "owner": "windows"
     },
     "roster": {
       "blurb": "One list of everything this machine has — apps, fonts, command-line tools. Each entry drives its launcher key, cheatsheet row, and installs it from whichever source it names: a Homebrew cask or formula, a Nixpkgs package, or the Mac App Store.",
@@ -779,9 +913,9 @@
       "owner": "security"
     },
     "security": {
-      "blurb": "Security posture: the built-in application firewall and how strict it is. Off on a fresh Mac; the setting to turn on for a laptop that joins networks you don't own.",
+      "blurb": "Security posture: the built-in application firewall and how strict it is (off on a fresh Mac — the setting to turn on for a laptop that joins networks you don't own), plus Touch ID for `sudo`, including inside a terminal multiplexer, and the passwordless-rebuild rule.",
       "kind": "room",
-      "optionCount": 5,
+      "optionCount": 7,
       "options": {
         "haus.security.firewall.allowSigned": {
           "desktopSafe": true
@@ -797,237 +931,31 @@
         },
         "haus.security.firewall.stealthMode": {
           "desktopSafe": true
+        },
+        "haus.security.touchId.enable": {
+          "desktopSafe": true
+        },
+        "haus.security.touchId.passwordlessRebuild": {
+          "desktopSafe": true
         }
       },
       "order": 116,
       "owner": "security"
     },
-    "sill": {
-      "blurb": "The menu bar, and which pills it draws.",
+    "shelf": {
+      "blurb": "The notch file shelf. Perch is the app behind it.",
       "kind": "room",
-      "optionCount": 72,
+      "optionCount": 2,
       "options": {
-        "haus.sill.aiUsage.provider": {
+        "haus.shelf.enable": {
           "desktopSafe": true
         },
-        "haus.sill.battery.hideOver": {
-          "desktopSafe": true
-        },
-        "haus.sill.bottom.enable": {
-          "desktopSafe": true
-        },
-        "haus.sill.bottom.items": {
-          "desktopSafe": true
-        },
-        "haus.sill.bottom.items.agents": {
-          "desktopSafe": true
-        },
-        "haus.sill.bottom.items.aiUsage": {
-          "desktopSafe": true
-        },
-        "haus.sill.bottom.items.battery": {
-          "desktopSafe": true
-        },
-        "haus.sill.bottom.items.caffeinate": {
-          "desktopSafe": true
-        },
-        "haus.sill.bottom.items.calendar": {
-          "desktopSafe": true
-        },
-        "haus.sill.bottom.items.clock": {
-          "desktopSafe": true
-        },
-        "haus.sill.bottom.items.cpu": {
-          "desktopSafe": true
-        },
-        "haus.sill.bottom.items.elgato": {
-          "desktopSafe": true
-        },
-        "haus.sill.bottom.items.github": {
-          "desktopSafe": true
-        },
-        "haus.sill.bottom.items.harvest": {
-          "desktopSafe": true
-        },
-        "haus.sill.bottom.items.hush": {
-          "desktopSafe": true
-        },
-        "haus.sill.bottom.items.media": {
-          "desktopSafe": true
-        },
-        "haus.sill.bottom.items.memory": {
-          "desktopSafe": true
-        },
-        "haus.sill.bottom.items.volume": {
-          "desktopSafe": true
-        },
-        "haus.sill.bottom.items.weather": {
-          "desktopSafe": true
-        },
-        "haus.sill.bottom.items.wifi": {
-          "desktopSafe": true
-        },
-        "haus.sill.calendar.horizon": {
-          "desktopSafe": true
-        },
-        "haus.sill.calendar.imminent": {
-          "desktopSafe": true
-        },
-        "haus.sill.calendar.joinHosts": {
-          "desktopSafe": true
-        },
-        "haus.sill.calendar.me": {
-          "desktopSafe": false
-        },
-        "haus.sill.calendar.past": {
-          "desktopSafe": true
-        },
-        "haus.sill.calendar.preciseUnder": {
-          "desktopSafe": true
-        },
-        "haus.sill.calendar.refresh": {
-          "desktopSafe": true
-        },
-        "haus.sill.calendar.upcoming": {
-          "desktopSafe": true
-        },
-        "haus.sill.calendar.width": {
-          "desktopSafe": true
-        },
-        "haus.sill.clock.mode": {
-          "desktopSafe": true
-        },
-        "haus.sill.clock.monoFont": {
-          "desktopSafe": true
-        },
-        "haus.sill.elgato.host": {
-          "desktopSafe": false
-        },
-        "haus.sill.enable": {
-          "desktopSafe": true
-        },
-        "haus.sill.github.refresh": {
-          "desktopSafe": true
-        },
-        "haus.sill.github.sources": {
-          "desktopSafe": "recursive",
-          "validator": "submodule-list"
-        },
-        "haus.sill.github.sources.*.ci": {
-          "desktopSafe": true
-        },
-        "haus.sill.github.sources.*.command": {
-          "desktopSafe": false
-        },
-        "haus.sill.github.sources.*.icon": {
-          "desktopSafe": true
-        },
-        "haus.sill.github.sources.*.limit": {
-          "desktopSafe": true
-        },
-        "haus.sill.github.sources.*.org": {
-          "desktopSafe": true
-        },
-        "haus.sill.github.sources.*.search": {
-          "desktopSafe": true
-        },
-        "haus.sill.github.sources.*.severity": {
-          "desktopSafe": true
-        },
-        "haus.sill.github.sources.*.title": {
-          "desktopSafe": true
-        },
-        "haus.sill.items": {
-          "desktopSafe": true
-        },
-        "haus.sill.items.agents": {
-          "desktopSafe": true
-        },
-        "haus.sill.items.aiUsage": {
-          "desktopSafe": true
-        },
-        "haus.sill.items.battery": {
-          "desktopSafe": true
-        },
-        "haus.sill.items.caffeinate": {
-          "desktopSafe": true
-        },
-        "haus.sill.items.calendar": {
-          "desktopSafe": true
-        },
-        "haus.sill.items.claudeUsage": {
-          "desktopSafe": true
-        },
-        "haus.sill.items.clock": {
-          "desktopSafe": true
-        },
-        "haus.sill.items.cpu": {
-          "desktopSafe": true
-        },
-        "haus.sill.items.elgato": {
-          "desktopSafe": true
-        },
-        "haus.sill.items.github": {
-          "desktopSafe": true
-        },
-        "haus.sill.items.harvest": {
-          "desktopSafe": true
-        },
-        "haus.sill.items.media": {
-          "desktopSafe": true
-        },
-        "haus.sill.items.memory": {
-          "desktopSafe": true
-        },
-        "haus.sill.items.volume": {
-          "desktopSafe": true
-        },
-        "haus.sill.items.weather": {
-          "desktopSafe": true
-        },
-        "haus.sill.items.wifi": {
-          "desktopSafe": true
-        },
-        "haus.sill.logo.color": {
-          "desktopSafe": true
-        },
-        "haus.sill.logo.gestures": {
-          "desktopSafe": true
-        },
-        "haus.sill.logo.icon": {
-          "desktopSafe": true
-        },
-        "haus.sill.logo.size": {
-          "desktopSafe": true
-        },
-        "haus.sill.logo.status": {
-          "desktopSafe": true
-        },
-        "haus.sill.logo.sweep": {
-          "desktopSafe": true
-        },
-        "haus.sill.logo.updateCheck": {
-          "desktopSafe": true
-        },
-        "haus.sill.media.artworkTint": {
-          "desktopSafe": true
-        },
-        "haus.sill.media.collapse": {
-          "desktopSafe": true
-        },
-        "haus.sill.media.icons": {
-          "desktopSafe": "recursive",
-          "validator": "attrs-of-string"
-        },
-        "haus.sill.media.width": {
-          "desktopSafe": true
-        },
-        "haus.sill.position": {
+        "haus.shelf.followSystemAppearance": {
           "desktopSafe": true
         }
       },
-      "order": 130,
-      "owner": "bar"
+      "order": 160,
+      "owner": "shelf"
     },
     "snippets": {
       "blurb": "Text expansion via espanso.",
@@ -1074,6 +1002,42 @@
       },
       "order": 117,
       "owner": "appearance"
+    },
+    "terminal": {
+      "blurb": "The shell and terminal experience.",
+      "kind": "room",
+      "optionCount": 9,
+      "options": {
+        "haus.terminal.editor": {
+          "desktopSafe": false
+        },
+        "haus.terminal.editorName": {
+          "desktopSafe": true
+        },
+        "haus.terminal.floatBorder": {
+          "desktopSafe": true
+        },
+        "haus.terminal.ghDash.enable": {
+          "desktopSafe": true
+        },
+        "haus.terminal.hijackFileAssociations": {
+          "desktopSafe": true
+        },
+        "haus.terminal.lanes.backend": {
+          "desktopSafe": true
+        },
+        "haus.terminal.obsidianVaults": {
+          "desktopSafe": false
+        },
+        "haus.terminal.rightClickFullscreen": {
+          "desktopSafe": true
+        },
+        "haus.terminal.zellijStartLocked": {
+          "desktopSafe": true
+        }
+      },
+      "order": 70,
+      "owner": "development"
     },
     "theme": {
       "blurb": "Colour: the palette's flavour and contrast, the accent every themed tool spends, and whether macOS's own Light/Dark follows it.",
@@ -1199,6 +1163,33 @@
       "order": 35,
       "owner": "appearance"
     },
+    "windows": {
+      "blurb": "Tiling window management and the Caps-Lock leader launcher.",
+      "kind": "room",
+      "optionCount": 6,
+      "options": {
+        "haus.windows.accordionPadding": {
+          "desktopSafe": true
+        },
+        "haus.windows.defaultLayout": {
+          "desktopSafe": true
+        },
+        "haus.windows.defaultOrientation": {
+          "desktopSafe": true
+        },
+        "haus.windows.enable": {
+          "desktopSafe": true
+        },
+        "haus.windows.mouseFollowsFocus": {
+          "desktopSafe": true
+        },
+        "haus.windows.numberedWorkspaces": {
+          "desktopSafe": true
+        }
+      },
+      "order": 120,
+      "owner": "windows"
+    },
     "workspaces": {
       "blurb": "The named AeroSpace workspaces this machine declares, and which roster apps live on each. A workspace, not an app, owns its bar pill and leader throw — so several apps (a whole \"comms\" role) can share one.",
       "kind": "shared",
@@ -1255,21 +1246,9 @@
       "owner": "development"
     }
   },
-  "perch": {
-    "blurb": "The notch file shelf.",
-    "order": 160
-  },
-  "pounce": {
-    "blurb": "The ⌘Space command palette.",
-    "order": 140
-  },
   "power": {
     "blurb": "Sleep timers and Low Power Mode, said separately for battery and charger — which is the whole point, and why this is built on `pmset` rather than on nix-darwin's own power options.",
     "order": 119
-  },
-  "prowl": {
-    "blurb": "Tiling window management and the Caps-Lock leader launcher.",
-    "order": 120
   },
   "rooms": {
     "ai": {
@@ -1317,12 +1296,12 @@
     "bar": {
       "blurb": "The menu bar: where it draws, which pills it carries, and what each one reads.",
       "exports": [
-        "sill"
+        "bar"
       ],
       "kind": "room",
       "namespaces": [
         "menuBar",
-        "sill"
+        "bar"
       ],
       "optionCount": 84,
       "order": 60,
@@ -1331,11 +1310,11 @@
     "development": {
       "blurb": "The terminal stack — terminal, shell, multiplexer, editor — plus the browser, the CLI toolbelt, Git tooling and language runtimes. Your commit identity itself is a fact about you rather than this room's, and stays in your host. The terminal lives here because a terminal with no tools in it is not a separate thing anyone wants.",
       "exports": [
-        "hearth"
+        "terminal"
       ],
       "kind": "room",
       "namespaces": [
-        "hearth",
+        "terminal",
         "zen",
         "developer"
       ],
@@ -1357,11 +1336,11 @@
     "focus": {
       "blurb": "One quiet switch: Do Not Disturb, an optional status somewhere else, and your own hooks on both edges.",
       "exports": [
-        "hush"
+        "focus"
       ],
       "kind": "room",
       "namespaces": [
-        "hush"
+        "focus"
       ],
       "optionCount": 7,
       "order": 90,
@@ -1370,8 +1349,8 @@
     "haus": {
       "blurb": "Surfaces more than one room reads: the app roster, the workspaces, the keys haus owns, the interface scale, the first-run tour. They belong to no single room because moving one into a room would make the others depend on it.",
       "exports": [
-        "default",
-        "den"
+        "core",
+        "default"
       ],
       "kind": "shared",
       "namespaces": [
@@ -1401,11 +1380,11 @@
     "launcher": {
       "blurb": "Pounce — the command palette, its daemon, its commands, and every Pounce setting haus exposes.",
       "exports": [
-        "pounce"
+        "launcher"
       ],
       "kind": "room",
       "namespaces": [
-        "pounce"
+        "launcher"
       ],
       "optionCount": 14,
       "order": 70,
@@ -1414,14 +1393,13 @@
     "security": {
       "blurb": "Touch ID for sudo, lock behaviour, the firewall, and where secret values come from.",
       "exports": [
-        "collar",
-        "secrets"
+        "secrets",
+        "security"
       ],
       "kind": "room",
       "namespaces": [
         "lock",
         "security",
-        "collar",
         "secrets"
       ],
       "optionCount": 10,
@@ -1433,7 +1411,7 @@
       "exports": [],
       "kind": "room",
       "namespaces": [
-        "perch"
+        "shelf"
       ],
       "optionCount": 2,
       "order": 80,
@@ -1453,12 +1431,12 @@
     "windows": {
       "blurb": "Tiling, window navigation, hot corners, and the leader key that launches an app or throws it somewhere. The workspaces themselves (`haus.workspaces`) and the keys haus claims (`haus.keys`) are shared surfaces below, because the bar and the launcher read them too.",
       "exports": [
-        "prowl"
+        "windows"
       ],
       "kind": "room",
       "namespaces": [
         "hotCorners",
-        "prowl"
+        "windows"
       ],
       "optionCount": 10,
       "order": 50,
@@ -1479,12 +1457,12 @@
     "order": 220
   },
   "security": {
-    "blurb": "Security posture: the built-in application firewall and how strict it is. Off on a fresh Mac; the setting to turn on for a laptop that joins networks you don't own.",
+    "blurb": "Security posture: the built-in application firewall and how strict it is (off on a fresh Mac — the setting to turn on for a laptop that joins networks you don't own), plus Touch ID for `sudo`, including inside a terminal multiplexer, and the passwordless-rebuild rule.",
     "order": 116
   },
-  "sill": {
-    "blurb": "The menu bar, and which pills it draws.",
-    "order": 130
+  "shelf": {
+    "blurb": "The notch file shelf. Perch is the app behind it.",
+    "order": 160
   },
   "snippets": {
     "blurb": "Text expansion via espanso.",
@@ -1493,6 +1471,10 @@
   "sound": {
     "blurb": "Alert volume and sound, interface sound effects, and the boot chime. Volume is 0–100 the way the slider reads it — macOS stores a curve, and haus does the conversion.",
     "order": 117
+  },
+  "terminal": {
+    "blurb": "The shell and terminal experience.",
+    "order": 70
   },
   "theme": {
     "blurb": "Colour: the palette's flavour and contrast, the accent every themed tool spends, and whether macOS's own Light/Dark follows it.",
@@ -1509,6 +1491,10 @@
   "wallpaper": {
     "blurb": "The desktop behind everything. `minimal` is generated on this machine — a flat field at whatever depth you pick out of the palette, the haus mark ⌂ at its centre, a bloom in your accent, and enough grain that none of it bands. The other looks are the hand-made Nebelung ones.",
     "order": 35
+  },
+  "windows": {
+    "blurb": "Tiling window management and the Caps-Lock leader launcher.",
+    "order": 120
   },
   "workspaces": {
     "blurb": "The named AeroSpace workspaces this machine declares, and which roster apps live on each. A workspace, not an app, owns its bar pill and leader throw — so several apps (a whole \"comms\" role) can share one.",

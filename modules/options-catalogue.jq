@@ -52,7 +52,7 @@ def pasteable:
 # One SHORT line, because this ends up in a menu row next to the path, and a row
 # that wraps stops being a row. The first paragraph is what host-template.jq
 # keeps; the first line is less than that, and even that is not always short —
-# several descriptions (the sill pills) are authored as one 800-character line,
+# several descriptions (the bar pills) are authored as one 800-character line,
 # so the hard cut is doing the real work here, not the split. Cut on a word
 # boundary at 78, which leaves a 38-column path and a row inside 120.
 def summary:

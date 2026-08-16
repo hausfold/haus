@@ -1,6 +1,6 @@
 # Theme — the whole-desktop surface the per-tool palette wiring doesn't touch.
 # The accent (haus.theme.accent) lives in options.nix and is consumed per-tool
-# by hearth/sill/pounce; this room owns macOS's own Light/Dark appearance.
+# by terminal/bar/pounce; this room owns macOS's own Light/Dark appearance.
 #
 # The desktop picture used to live here too, as `haus.theme.wallpaper`. It moved
 # to a room of its own (../wallpaper) when the generated `minimal` look landed:
@@ -36,10 +36,10 @@ in
       home-manager.users.${username} =
         { lib, pkgs, ... }:
         let
-          # Same derivation den installs system-wide; asking for it again is
+          # Same derivation core installs system-wide; asking for it again is
           # free (identical inputs → identical store path) and keeps this room
-          # from depending on den's let-block.
-          hausax = pkgs.callPackage ../den/package-hausax.nix { };
+          # from depending on core's let-block.
+          hausax = pkgs.callPackage ../core/package-hausax.nix { };
         in
         {
           # macOS appearance is NOT a `defaults` key you can write, however much
@@ -65,7 +65,7 @@ in
           #   - Driving System Events needs an Automation grant for whichever app
           #     runs the rebuild. Refusal must degrade to "the appearance didn't
           #     move", never abort activation and take every launchd service with
-          #     it — the same failure shape den's FDA-guarded accessibility block
+          #     it — the same failure shape core's FDA-guarded accessibility block
           #     exists to avoid.
           home.activation.hausSystemAppearance = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
             appearanceHave="$(${hausax}/bin/hausax 2>/dev/null | ${pkgs.jq}/bin/jq -r '.appearance // empty' || true)"

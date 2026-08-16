@@ -9,7 +9,7 @@
 #
 # Note this is Codex config for people HACKING on the rice. The agent-state
 # hooks the rice writes into a user's ~/.codex/hooks.json are a different thing
-# entirely — a product feature, see modules/hearth.
+# entirely — a product feature, see modules/terminal.
 
 [hooks]
 file = ".codex/hooks.json"

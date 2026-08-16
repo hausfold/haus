@@ -30,22 +30,22 @@ jobs:
       #   room-registry            registry vs the evaluated option tree
       #   data-only-surface        a package-typed option a data-only file can't set
       #   packs                    what happens when a pack MEETS a host
-      #   pounce-item-grammar      modules/pounce/item-grammar.nix vs the LOCKED
+      #   pounce-item-grammar      modules/launcher/item-grammar.nix vs the LOCKED
       #                            pounce's ItemSettings.swift, so a prefix that
       #                            app learns can't spend a day being refused
       #                            here as a typo
       #   keymap                   keys.* → chord/glyph tables
       #   alert-volume             the beep-volume ladder
       #   accessibility-surface    classify_key's `effective` arm, sed'd out of
-      #                            modules/den/haus.sh, vs modules/lib/reachability.nix
+      #                            modules/core/haus.sh, vs modules/lib/reachability.nix
       #                            — the one copy of those key names a shell script
       #                            cannot import, and the one whose going stale
       #                            would make `haus diff` verify a new option
       #                            against the PLIST instead of NSWorkspace
       #   theme-variants           flavor/contrast → themes-subdir
       #   site-data-current        docs/site-data/ vs the derivation the site reads
-      #   sill-rc-executable       the rc files' +x bit
-      #   sill-plugins-executable  the plugins' +x bit
+      #   bar-rc-executable       the rc files' +x bit
+      #   bar-plugins-executable  the plugins' +x bit
       #   wallpaper                the odd one out: it BUILDS the generated
       #                            desktop and asserts its size and colour count,
       #                            the only automated thing that can notice the
@@ -58,9 +58,9 @@ jobs:
       # Keep this census honest when a check is added: it is this repo's only
       # record of what CI actually covers, and it went one stale before anyone
       # noticed — then, checked properly on 2026-08-15, turned out to be four
-      # wrong at once (it said ten, filed sill-rc-executable as darwin-only and
+      # wrong at once (it said ten, filed bar-rc-executable as darwin-only and
       # desktop-projection as portable, and had never heard of
-      # sill-plugins-executable). A prose census of a machine-readable fact rots
+      # bar-plugins-executable). A prose census of a machine-readable fact rots
       # in every direction, so re-derive both lists from that `optionalAttrs`
       # line rather than editing the sentence you're standing next to.
       #
@@ -72,7 +72,7 @@ jobs:
       # the committed projection — the one thing that can notice the hacker
       # desktop quietly stopping short of what the module defaults used to give),
       # accent-reach, scale-reach, font-reach, standalone-modules, ai-room,
-      # desktop-seam, editor-choice, sill-bottom-hush and sill-bottom-groups.
+      # desktop-seam, editor-choice, bar-bottom-focus and bar-bottom-groups.
       - run: nix flake check
       # The annotated host template (hosts/<host>/options.nix) ships every
       # option's DEFAULT as a line you can uncomment. host-template.nix's own
@@ -124,7 +124,7 @@ jobs:
           # that nothing at all touches until someone remembers it by hand.
           # test/haus-plan.sh is linted here and also RUN below: its subject is
           # pure parsing over fixture files, so it needs neither Nix nor a Mac.
-          shellcheck --severity=warning bootstrap.sh modules/den/haus.sh modules/den/awake.sh modules/den/statusline-refresh.sh test/awake.sh test/haus-settings.sh test/haus-plan.sh
+          shellcheck --severity=warning bootstrap.sh modules/core/haus.sh modules/core/awake.sh modules/core/statusline-refresh.sh test/awake.sh test/haus-settings.sh test/haus-plan.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
       # `haus plan`'s parsers, and the only part of plan CI can execute: they

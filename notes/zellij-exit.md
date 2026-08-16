@@ -26,7 +26,7 @@ simplify it:
    written here. They teach a multiplexer that is going away, and they are
    bound to an API that goes with it. The other half of that plugin, the
    bottom-right quick-hint block, exists only to tell you you are in Locked
-   mode and how to leave (`modules/hearth/options.nix:233`); without
+   mode and how to leave (`modules/terminal/options.nix:233`); without
    zellij there are no input modes, so it has nothing left to hint. The
    pounce cheatsheet keeps the "what does this key do" job on its own.
 
@@ -34,13 +34,13 @@ Decision 2 pays for itself three times over: pane enumeration becomes
 `aerospace list-windows` (a fast CLI, not an osascript round trip), pane
 focus becomes `aerospace focus --window-id`, and the navigation chords
 already exist and are already on the cheatsheet in
-`modules/prowl/wm-bindings.nix`. Most of the keybind work becomes deletion
+`modules/windows/wm-bindings.nix`. Most of the keybind work becomes deletion
 rather than translation.
 
 Decision 3 collapses what looked like this plan's hardest problem into
 nothing: **5,991 of the 8,617 forked Rust lines are the status-bar**, and
 they now leave with no replacement work at all. What remains needing a home
-is the agent-count badge alone, and sill already has the pill for it.
+is the agent-count badge alone, and bar already has the pill for it.
 
 ## Why
 
@@ -58,7 +58,7 @@ Concretely, for zellij:
   with artifacts that survive a clear. Moot now anyway (decision 1).
 - no passthrough mode, so no way to route around it.
 
-`modules/hearth/zellij/image-preview.sh:7` already documents the dead end in
+`modules/terminal/zellij/image-preview.sh:7` already documents the dead end in
 its own header: zellij's VTE parser drops kitty APC outright, and forwards
 sixel only when the host terminal advertises it in DA1 — which Ghostty
 doesn't. That file renders half-block chafa art *because* of the
@@ -69,8 +69,8 @@ Four things come along for free once the multiplexer is gone:
 
 | | |
 |---|---|
-| **The patch treadmill** | Six patches against `zellij-unwrapped` (`modules/hearth/default.nix:781`). Any nixpkgs bump that moves zellij or its deps can break the build, as the file's own comment at `:772` says. |
-| **The permission-cache hack** | Four `home.activation` blocks seeding grants straight into zellij's plugin permission cache (`:2178`–`:2208`), plus a fifth site in `modules/den/zscratch.sh:65`, because the real path is an interactive y/n prompt a background plugin can never answer. |
+| **The patch treadmill** | Six patches against `zellij-unwrapped` (`modules/terminal/default.nix:781`). Any nixpkgs bump that moves zellij or its deps can break the build, as the file's own comment at `:772` says. |
+| **The permission-cache hack** | Four `home.activation` blocks seeding grants straight into zellij's plugin permission cache (`:2178`–`:2208`), plus a fifth site in `modules/core/zscratch.sh:65`, because the real path is an interactive y/n prompt a background plugin can never answer. |
 | **8,617 lines of Rust** | Four plugin forks we maintain against a moving `zellij-tile` API — 5,991 of them the status-bar, which decision 3 retires outright. |
 | **Latency** | One fewer VTE parse + reflow per keystroke, and no wasm plugin tick. |
 
@@ -79,7 +79,7 @@ Four things come along for free once the multiplexer is gone:
 ```
 Ghostty 1.3+          the terminal. One window per pane, kitty graphics,
                       config hot-reload. Splits unused.
-├── prowl (AeroSpace) LAYOUT + ENUMERATION + FOCUS.
+├── windows (AeroSpace) LAYOUT + ENUMERATION + FOCUS.
 │                     `list-windows`, `focus --window-id`, workspace T.
 │                     Already installed, already bound, already on the cheatsheet.
 ├── zmx               IDENTITY + PERSISTENCE + READ. One session per pane.
@@ -87,7 +87,7 @@ Ghostty 1.3+          the terminal. One window per pane, kitty graphics,
 │                     No windows, no tabs, no splits, deliberately.
 ├── AppleScript       SPAWN only. `new window` with a surface configuration
 │                     carrying cwd/command/env, plus `perform action`.
-└── sill              absorbs every status surface the plugins used to draw
+└── bar              absorbs every status surface the plugins used to draw
 ```
 
 Two things landed in 2026 that make this newly possible:
@@ -111,7 +111,7 @@ features depend on reading a pane:
 | Feature | Today | After |
 |---|---|---|
 | ⌘F find overlay | `zellij action dump-screen --full -p <id>` (`find.sh:33`) | `zmx history <session>` |
-| ⌘L links picker | same (`modules/pounce/commands/links.sh:88`) | `zmx history <session>` |
+| ⌘L links picker | same (`modules/launcher/commands/links.sh:88`) | `zmx history <session>` |
 | agents peek popup | `zellij … subscribe --pane-id --ansi -s 300` (`agents-peek.sh:17`) | `zmx tail <session>` / `history --vt` |
 
 `zmx history` takes `--vt`, which preserves the escape sequences
@@ -128,12 +128,12 @@ we're neither — but its AppleScript layer is worth reading before Phase 1.
 ## The keystone: pane identity
 
 Everything agent-related in the rice is keyed on `$ZELLIJ_PANE_ID`, and
-the gate is harder than it looks. `modules/sill/sketchybar/plugins/agents-hook.sh:53`
+the gate is harder than it looks. `modules/bar/sketchybar/plugins/agents-hook.sh:53`
 is a bare `[ -n "${ZELLIJ_PANE_ID:-}" ] || exit 0` — so under
 `multiplexer = "none"` **every agent lifecycle hook from every client exits
 at that line**, and the paw pill, the statusline HUD and the tab badge all
-go dark at once. That file is also what den `readFile`s to put `agent-state`
-on `PATH` (`modules/den/default.nix:647`), so it is one edit with three
+go dark at once. That file is also what core `readFile`s to put `agent-state`
+on `PATH` (`modules/core/default.nix:647`), so it is one edit with three
 consumers.
 
 The replacement is a zmx session name per pane, with labels
@@ -149,31 +149,31 @@ its own phase (Phase 3) ahead of everything that depends on it:
 |---|---|---|
 | `holt` | worktree registry + hooks | **survives untouched** — worktrees, not panes |
 | `float-term.sh` + `floatring` | spawns Ghostty windows already | **survives** — zero zellij references |
-| prowl / AeroSpace | tiles Ghostty windows | **survives and grows**: layout + enumeration + focus |
-| `modules/prowl/wm-bindings.nix` | the WM chord table + cheatsheet cards | **survives**, absorbs the pane-navigation rows |
+| windows / AeroSpace | tiles Ghostty windows | **survives and grows**: layout + enumeration + focus |
+| `modules/windows/wm-bindings.nix` | the WM chord table + cheatsheet cards | **survives**, absorbs the pane-navigation rows |
 | `launch.sh` | attach-or-create `main`, self-tile onto workspace T | shrinks to `zmx attach --create` + the same self-tile |
 | `image-preview.sh` | chafa `symbols` half-blocks | delete the symbols branch, keep `fmt=kitty`; real pixels |
 | 6× `zellij-unwrapped` patches | right-click zoom, naked-click links, selection autoscroll, … | **die** — audit each against Ghostty's native behaviour (Phase 4) |
 | `config.kdl` + `custom.kdl` (750 lines) | keybinds, layout, theme | mostly **deleted**; chords move to AeroSpace, not to Ghostty |
-| `modules/hearth/ghostty/config` | ~15 `unbind` entries exist to let chords **fall through to zellij** (`:108-186`); `:174-179` refuses `new_split` on purpose; `:18` `command = …/launch.sh`; `:70-87` padding tuned to seat zellij's status row | **highest-churn single file.** Most unbinds survive but now feed AeroSpace's global hotkeys; `command` and the padding change |
+| `modules/terminal/ghostty/config` | ~15 `unbind` entries exist to let chords **fall through to zellij** (`:108-186`); `:174-179` refuses `new_split` on purpose; `:18` `command = …/launch.sh`; `:70-87` padding tuned to seat zellij's status row | **highest-churn single file.** Most unbinds survive but now feed AeroSpace's global hotkeys; `command` and the padding change |
 | `term-bindings.nix` + its assertion (in `default.nix:190-193`, message `:546`) | cross-checks the chord table against `config.kdl` | retarget at the ghostty config; the table and the pounce cheatsheet **survive** |
 | `zellijLiveConfig` activation (the mtime hack, `:2126`) | forces a live-mtime real file so zellij's watcher reloads | **dies** — Ghostty reloads its own config |
 | 5× permission seeds | `:2178`–`:2208` + `zscratch.sh:65` | **die** |
-| **tab-bar** fork | agent-count badge beside the tab name | **sill only.** `macos-titlebar-style = hidden` (`ghostty/config:20`) means there is no visible window title to hang a badge on |
+| **tab-bar** fork | agent-count badge beside the tab name | **bar only.** `macos-titlebar-style = hidden` (`ghostty/config:20`) means there is no visible window title to hang a badge on |
 | **status-bar** fork (5,991 lines) | quick-hint block + 11 tip data files | **retires wholesale — decision 3.** Tips are upstream zellij's, teaching zellij; the quick-hint block only ever explained Locked mode |
 | **link-handler** fork | click an image path → floating preview pane | Ghostty's own OSC 8 + `link` regex; preview becomes a real kitty render in a floated window |
 | **tab-history** fork | MRU tab switching | **dies for free** — AeroSpace already has focus history |
 | `find.sh` (⌘F) | `list-panes` + `dump-screen --full` | `aerospace list-windows` + `zmx history` |
 | `links.sh` (⌘L, pounce) | `list-sessions` / `list-clients` / `dump-screen` (`:62`, `:69`, `:88`) | `zmx ls` + `zmx history`; moves **with** `statusline.sh`'s map |
-| `agents.sh` (sill pill) | `action focus-pane-id` (`:143`), `action list-panes` liveness reaper (`:175`) | `aerospace focus --window-id`; reaper → `zmx ls`. The reaper is what stops the pill accreting ghosts (`modules/sill/options.nix:35`) |
+| `agents.sh` (bar pill) | `action focus-pane-id` (`:143`), `action list-panes` liveness reaper (`:175`) | `aerospace focus --window-id`; reaper → `zmx ls`. The reaper is what stops the pill accreting ghosts (`modules/bar/options.nix:35`) |
 | `agents-peek.sh` | `subscribe --pane-id --ansi -s 300` (`:17`) | `zmx tail` / `history --vt` |
 | `agents-hook.sh` | `$ZELLIJ_PANE_ID` gate (`:53`), `zellij pipe` broadcast (`:123`) | zmx session id; broadcast drops (no plugin to feed) |
 | `statusline.sh` | keys rows on `$ZELLIJ_PANE_ID` (`:179`), writes the transcript map (`:177-192`) | zmx session id — **same PR as `links.sh`** |
 | `spawn-agent.sh` (pounce) | `holt` + a zellij tab for the repo (`:83`) | AppleScript `new window` + surface configuration |
 | `new-tab-here.sh` (⌘⇧T) | new zellij tab, cwd inherited | AppleScript `new window`, cwd in the surface config |
-| `peek.sh` / `peek-run.sh` (Super-y) | yazi peek in a tab; `modules/hearth/yazi/plugins/peek-open.yazi/main.lua:8` depends on the tab spawn | new window; the yazi plugin moves with it |
-| `pounce-terminal.sh` | `POUNCE_TERMINAL_LAUNCHER` (`modules/pounce/default.nix:785`) | new window |
-| `nix-config-open.sh` | called by `pounce/commands/nix-config.sh:8` and `sill/…/nix_open.sh:5` | new window |
+| `peek.sh` / `peek-run.sh` (Super-y) | yazi peek in a tab; `modules/terminal/yazi/plugins/peek-open.yazi/main.lua:8` depends on the tab spawn | new window; the yazi plugin moves with it |
+| `pounce-terminal.sh` | `POUNCE_TERMINAL_LAUNCHER` (`modules/launcher/default.nix:785`) | new window |
+| `nix-config-open.sh` | called by `pounce/commands/nix-config.sh:8` and `bar/…/nix_open.sh:5` | new window |
 | `editor-open-pane.sh` + `EditorOpen.app` | new zellij tab running `$EDITOR` | AppleScript `new window` with a surface configuration |
 | `gh-dash.sh` | `new-pane --borderless true` fullscreen overlay | its own Ghostty window, floated fullscreen by AeroSpace |
 | `copy-clean.pl` | a zellij `copy_command` filter | **lost, not ported.** Ghostty has no copy hook. See risk 4 |
@@ -204,14 +204,14 @@ zmx fails us the fallback is writing the read path ourselves against a PTY
 log, which is a project.
 
 **3 · Removing the options is a bigger ripple than removing the code. 3/5.**
-`haus.hearth.zellijStartLocked` is public and desktop-safe
-(`modules/hearth/options.nix:218`, registered `modules/options-groups.nix:92`,
+`haus.terminal.zellijStartLocked` is public and desktop-safe
+(`modules/terminal/options.nix:218`, registered `modules/options-groups.nix:92`,
 aliased `modules/renamed.nix:124-125`) and **both shipped desktops set it** —
 `desktops/hacker.nix:44` and `desktops/minimal.nix:39` — with pins in
 `test/desktop-projection.nix:83` and `test/projections/example.json:26` and
-publication in `docs/site-data/options.json`. `haus.hearth.rightClickFullscreen`
+publication in `docs/site-data/options.json`. `haus.terminal.rightClickFullscreen`
 is the same story one notch down (`options.nix:239`, `options-groups.nix:91`,
-`desktops/hacker.nix:43`, consumed by `modules/pounce/default.nix:324` →
+`desktops/hacker.nix:43`, consumed by `modules/launcher/default.nix:324` →
 `term-bindings.nix:210` to conditionally draw a cheatsheet row). Deleting a
 leaf the rice's *default* desktop names needs a `moved.nix`/`renamed.nix`
 decision, a desktop-projection golden regen, and a `site-data` regen or
@@ -230,7 +230,7 @@ Ghostty has no plugin system and won't, and `macos-titlebar-style = hidden`
 (`ghostty/config:20`) means there is no window title to fall back on either.
 But after decision 3 the list is short: status-bar retires, tab-history dies
 free (AeroSpace has focus history), link-handler has a native replacement
-(OSC 8 + `link` regex). That leaves the **agent-count badge**, and sill
+(OSC 8 + `link` regex). That leaves the **agent-count badge**, and bar
 already draws the paw pill it belongs on — a count is an increment, not a
 port.
 
@@ -257,7 +257,7 @@ against what `find.sh` and `agents-peek.sh` actually need. If either fails,
 the plan stops here rather than at Phase 5.
 
 **Phase 2 — the seam. ~1 session.**
-`haus.hearth.multiplexer = "zellij" | "none"`, defaulting to `zellij`.
+`haus.terminal.multiplexer = "zellij" | "none"`, defaulting to `zellij`.
 Everything after this lands behind it, so `main` is never half-migrated and
 a bad day is one option flip back. Room-registry entry + desktop-safety
 decision in the same PR (`modules/options-groups.nix`).
@@ -284,7 +284,7 @@ one at a time and record the verdicts in this file.
 Mechanical once Phase 1 settled the idiom and Phase 3 settled the ids.
 
 **Phase 6 — the one remaining plugin surface. ~1 session.**
-Agent badge → a count on sill's existing paw pill. Image preview → delete
+Agent badge → a count on bar's existing paw pill. Image preview → delete
 the chafa branch. link-handler → Ghostty OSC 8 + `link` regex. status-bar
 and tab-history need nothing (decision 3; AeroSpace has focus history).
 

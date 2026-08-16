@@ -35,7 +35,7 @@
     # The AI room. Pure wiring — its assertions, and the contributions it makes
     # to the terminal, the bar and the launcher through the extension points
     # those rooms declare (modules/lib/contrib.nix). Its payload is still
-    # installed by ./den and ./hearth, gated on its switch; see modules/ai.
+    # installed by ./core and ./terminal, gated on its switch; see modules/ai.
     # Early, like ./roster, because rooms below read what it publishes.
     ./ai
     # Appearance's own profile, and nothing else — it sets four other rooms'
@@ -44,7 +44,7 @@
     # `mkDefault`, so a room that sets its own, a desktop and a host all still
     # outrank it. It was presets/large-print.nix.
     ./appearance
-    ./den
+    ./core
     ./displays
     ./theme
     # Split out of ./theme rather than folded into it: it's gated on its own
@@ -52,23 +52,23 @@
     ./theme/ports.nix
     # The desktop picture. Its own room rather than a value on ./theme because
     # `minimal` is generated from four other rooms at once — the palette, the
-    # accent, prowl's gaps and the flake's lock edges.
+    # accent, windows's gaps and the flake's lock edges.
     ./wallpaper
-    ./hearth
-    # Split out of ./hearth for the same reason ./theme/ports.nix is split out
+    ./terminal
+    # Split out of ./terminal for the same reason ./theme/ports.nix is split out
     # of ./theme: it's gated on its own option, and what's INSTALLED in the
     # browser is a different job from theming the browser's chrome.
-    ./hearth/zen.nix
+    ./terminal/zen.nix
     # And split out of THAT, one level further down: zen.nix deploys add-ons
     # other people wrote, this one BUILDS the rice's own — a Swift host, an .xpi
     # and a native-messaging manifest — and is gated on its own option again.
-    ./hearth/zen-tabs
-    ./prowl
-    ./sill
-    ./collar
-    ./pounce
-    ./perch
-    ./hush
+    ./terminal/zen-tabs
+    ./windows
+    ./bar
+    ./security
+    ./launcher
+    ./shelf
+    ./focus
     ./secrets
     ./snippets
   ];

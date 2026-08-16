@@ -8,7 +8,7 @@
 #
 # `minimal` is the haus-themed one, the default, and the reason this stopped
 # being a value on the theme and became a room. It is generated from this machine: the palette and
-# flavour pick the field, the accent lights it, prowl's gaps place the debug
+# flavour pick the field, the accent lights it, windows's gaps place the debug
 # band, and the flake's own lock edges are what that band says. ./render.nix
 # resolves all five rooms into the picture's arguments and ./package.nix renders
 # it — this file is only the option gate and the osascript that hangs it.
@@ -45,7 +45,7 @@
           inherit (osConfig.haus)
             theme
             ui
-            sill
+            bar
             fonts
             ;
           cfg = osConfig.haus.wallpaper;

@@ -1,7 +1,7 @@
 # Appearance — the room's own profile, and nothing else.
 #
 # The room itself is spread across the modules that own each surface (theme,
-# wallpaper, fonts in den, the accessibility keys in den, `ui.scale` in
+# wallpaper, fonts in core, the accessibility keys in core, `ui.scale` in
 # modules/options.nix). What lives HERE is the one thing none of them owns: a
 # named profile that answers a whole-machine question — "make this readable" —
 # by setting four of their options at once.

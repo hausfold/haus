@@ -24,7 +24,7 @@ let
           launch/focus it. Must be unique across the roster, and not one of
           launch mode's own: `v` `e` `z` `,` `` ` `` `-` `=` `/` `esc`, the
           arrows and one digit per numbered workspace (`1`-`4` out of the box;
-          see haus.prowl.numberedWorkspaces) are taken, and a rebuild refuses
+          see haus.windows.numberedWorkspaces) are taken, and a rebuild refuses
           them.
 
           null (the default) means the entry is INSTALL-ONLY: it still
@@ -193,7 +193,7 @@ let
       installedBy = lib.mkOption {
         type = lib.types.nullOr lib.types.str;
         default = null;
-        example = "haus.perch";
+        example = "haus.shelf";
         description = ''
           The haus module that puts this app on disk, when none of the
           four sources above describes it: pounce and perch copy a
@@ -240,7 +240,7 @@ let
           it (or not by keyboard at all). Must be unique across workspaces,
           and ⇧<key> must not collide with a built-in launch-mode binding
           (the numbered workspaces take one digit each — how many is
-          haus.prowl.numberedWorkspaces). ⌥⇧<key> throws the window here
+          haus.windows.numberedWorkspaces). ⌥⇧<key> throws the window here
           WITHOUT following it, and is bound alongside.
         '';
       };
@@ -383,7 +383,7 @@ in
 
         The numbered workspaces (leader + a digit) are not part of this
         option — they always exist, independent of what any app claims, and
-        how many there are is haus.prowl.numberedWorkspaces. This option is
+        how many there are is haus.windows.numberedWorkspaces. This option is
         for the NAMED workspaces app windows get herded onto.
 
         An entry with no `key` and no `apps` does nothing (a warning says
@@ -394,8 +394,8 @@ in
     };
 
     # Normalized by modules/workspaces. Same shape as _roster/_launchers: one
-    # resolution (sorted list + the reverse app→workspace lookup) so prowl,
-    # sill and the doc generator can't compute it three different ways and
+    # resolution (sorted list + the reverse app→workspace lookup) so windows,
+    # bar and the doc generator can't compute it three different ways and
     # disagree.
     _workspaces = lib.mkOption {
       type = lib.types.listOf workspaceType;
@@ -414,8 +414,8 @@ in
       '';
     };
     # The numbered half, resolved the same way and for the same reason: the
-    # digits were written out as a literal ["1" "2" "3" "4"] in prowl (twice)
-    # and in sill (three times), so making the count an option meant either one
+    # digits were written out as a literal ["1" "2" "3" "4"] in windows (twice)
+    # and in bar (three times), so making the count an option meant either one
     # `genList` in five places or one here. The id/key split is the whole
     # subtlety — workspace TEN is reached by the `0` key, because the leader
     # names a workspace by digit and there is no ten key.
@@ -436,11 +436,11 @@ in
       );
       internal = true;
       readOnly = true;
-      description = "Resolved numbered workspaces, in order, from haus.prowl.numberedWorkspaces.";
+      description = "Resolved numbered workspaces, in order, from haus.windows.numberedWorkspaces.";
     };
 
     # The launcher subset: entries that claim a leader key. Its own list rather
-    # than a `key != null` filter repeated in prowl, sill and pounce — every one
+    # than a `key != null` filter repeated in windows, bar and pounce — every one
     # of those renders `a.key` into a string, so a missed filter isn't a wrong
     # binding, it's the literal word "null" in a keymap.
     _launchers = lib.mkOption {
@@ -505,17 +505,17 @@ in
         What it currently moves:
 
           - the terminal font size (haus.fonts.mono.size)
-          - the command palette, whole (haus.pounce.scale) — its rows,
+          - the command palette, whole (haus.launcher.scale) — its rows,
             text and icons, and the emoji / clipboard / screenshots / camera /
             Find Files / cheatsheet panels behind it
-          - the type in Sill's menu bar — pill labels, icons and popup rows —
+          - the type in Bar's menu bar — pill labels, icons and popup rows —
             up to a ceiling; see below
           - the Dock icon size (system.defaults.dock.tilesize)
           - Finder's sidebar rows (NSTableViewDefaultSizeMode) — a threshold
             rather than a multiplier, and it is set at every scale: at or below
             1.0 haus picks SMALL rows (more fits in a tiled window), above
             1.0 it picks Apple's large ones
-          - prowl's window gaps
+          - windows's window gaps
 
         That list is pinned by `nix flake check`'s `scale-reach`, which
         fingerprints every surface it names at four scales — so a wire dropped
@@ -523,7 +523,7 @@ in
 
         Where it stops, and why it isn't a gap waiting to be filled:
 
-          - Sill's bar HEIGHT. The bar is 36pt with 28pt pills so the pills sit
+          - Bar's bar HEIGHT. The bar is 36pt with 28pt pills so the pills sit
             inside the 32pt menu-bar band that macOS's own hover-reveal covers;
             taller pills poke out below it. That band is macOS's, fixed, and has
             no setting behind it — measured, not assumed. So the bar's type
@@ -550,7 +550,7 @@ in
     };
 
     # ---- keys: the keymap, opened up ----
-    # Cross-cutting because the keymap is: `leader` and `windowNav` are prowl's
+    # Cross-cutting because the keymap is: `leader` and `windowNav` are windows's
     # (AeroSpace chords + the Caps Lock remap), `palette` is pounce's (an
     # in-process hotkey), and the cheatsheet + the first-run tour describe all
     # three. Resolved once in modules/lib/keys.nix so a chord and the caption
@@ -590,7 +590,7 @@ in
           The remap is re-applied at every activation and does not survive a
           reboot, so moving off "caps" ends it — at the latest, at next boot.
 
-          Only meaningful with haus.prowl.enable (AeroSpace owns the modes).
+          Only meaningful with haus.windows.enable (AeroSpace owns the modes).
         '';
       };
 
@@ -614,7 +614,7 @@ in
           to take Spotlight's ⌘Space away unconditionally, even where nothing
           claimed it.
 
-          Only meaningful with haus.pounce.enable.
+          Only meaningful with haus.launcher.enable.
         '';
       };
 
@@ -628,7 +628,7 @@ in
         default = "none";
         example = "ctrl-alt";
         description = ''
-          The modifier vocabulary for prowl's window chords — one setting rather
+          The modifier vocabulary for windows's window chords — one setting rather
           than a bind-per-action, because what people need to move is the
           modifier, not the letters. It drives layouts (`<mod>` + `/` `,`),
           fullscreen, moving a workspace to the next monitor (`<mod>⇧⇥`),
@@ -651,7 +651,7 @@ in
           on — and `<mod>⇥` is free again, since workspace back-and-forth
           retired in favour of pounce's cross-workspace ⌘⇥ switcher. (Under
           "ctrl-alt" that used to bite — the throws were `⌃⌥⇧` + an app's roster
-          letter, so an app on `a` silently ate hearth's zellij
+          letter, so an app on `a` silently ate terminal's zellij
           `Ctrl Alt Shift a` in-place-agent bind. That collision is gone.)
           Nothing on a stock macOS collides either: the only ⌃⌥ system hotkeys
           are input-source switching (⌃⌥Space, off by default) and hyper-F13.
@@ -661,7 +661,7 @@ in
           tiler tiles and the keyboard is left alone — mouse-first. The cheatsheet
           follows, so it never advertises a key that does nothing.
 
-          Only meaningful with haus.prowl.enable.
+          Only meaningful with haus.windows.enable.
         '';
       };
 
@@ -673,7 +673,7 @@ in
       # roster gives. Kept a flat list rather than nested under an app entry on
       # purpose: a leader action is not an attribute of any one app (the target may
       # be no app at all), and launch-mode keys must be globally unique — an
-      # assertion in modules/prowl catches a key that collides with a roster letter
+      # assertion in modules/windows catches a key that collides with a roster letter
       # or a built-in launch key.
       leaderExtras = lib.mkOption {
         type = lib.types.listOf (
@@ -686,11 +686,11 @@ in
                   The AeroSpace key name pressed after the leader (e.g. "enter",
                   "space", "period", or a letter). Must not collide with a roster
                   app's key or a built-in launch-mode key (one digit per
-                  numbered workspace — see haus.prowl.numberedWorkspaces — plus
+                  numbered workspace — see haus.windows.numberedWorkspaces — plus
                   the arrows, `-`/`=`, `v`/`e`/`z`, `,`, `` ` ``, `/`, esc) —
                   nor with the workspace throws, which are ⇧ (follow) or ⌥⇧
                   (stay) + any of those digits or a roster letter ("shift-1",
-                  "alt-shift-b", …). An assertion in modules/prowl catches a
+                  "alt-shift-b", …). An assertion in modules/windows catches a
                   clash rather than letting one binding silently shadow
                   another.
                 '';
@@ -733,19 +733,19 @@ in
           then `key`, to run `command`. Use it for leader actions that aren't
           "launch an app" — a script, an AppleScript, opening a URL.
 
-          Only meaningful with haus.prowl.enable and keys.leader != "none"
+          Only meaningful with haus.windows.enable and keys.leader != "none"
           (with no leader there is no launch mode to bind into).
         '';
       };
     };
 
     # ---- the developer pack ----
-    # Lives here rather than in a room because it cuts across two: den's CLI
-    # tools and hearth's shell programs.
+    # Lives here rather than in a room because it cuts across two: core's CLI
+    # tools and terminal's shell programs.
     #
-    # Until this existed, "minimal" was a lie — turning off prowl, sill and
+    # Until this existed, "minimal" was a lie — turning off windows, bar and
     # pounce still installed bun, fnm, nixfmt, opencode, lazygit, delta, gh and
-    # the agent-worktree tooling, because den and hearth are imported
+    # the agent-worktree tooling, because core and terminal are imported
     # unconditionally. A Mac for someone who doesn't write code could not be
     # expressed at all.
     developer = {

@@ -1,7 +1,7 @@
 # assets
 
 `hero.png` is the family's one desktop capture — it should show, in a single
-frame: **Sill** (bar) at the top, **Prowl** tiling a couple of windows,
+frame: **Bar** (bar) at the top, **Windows** tiling a couple of windows,
 **Pounce** open mid-search, and **Nebelung**'s silver-grey across everything.
 The workshop's `assets/SHOTLIST.md` still calls it a placeholder; a real one
 replaces it here.

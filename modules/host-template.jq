@@ -26,7 +26,7 @@
 #
 # Two renderings of the same JSON exist beside this one and are deliberately
 # different: hausfold.co's page (its own gen-options.mjs, for reading
-# top-to-bottom) and the agent skill's reference (hearth/agents/options-md.jq,
+# top-to-bottom) and the agent skill's reference (terminal/agents/options-md.jq,
 # for grepping). This one is for a file you EDIT.
 #
 # Inputs:
@@ -58,7 +58,7 @@ def wrap($w):
 
 # Re-wrap only prose that needs it. Most descriptions are hand-wrapped in their
 # .nix source at a sensible width and some of them lay out lists or tables that
-# a blind re-wrap would destroy; a few (the sill pills) are authored as one
+# a blind re-wrap would destroy; a few (the bar pills) are authored as one
 # 800-character line. So: leave a paragraph alone unless it has a line that's
 # actually too long, and only then reflow the whole thing.
 def softwrap($w):

@@ -23,7 +23,7 @@ EOF
 printf '%s\n' '{ ... }: { }' >"$tmp/hosts/test/default.nix"
 git -C "$tmp" add flake.nix hosts/test/default.nix
 
-haus=(env HAUS_CONSUMER="$tmp" HAUS_HOST=test HAUS_NO_REBUILD=1 bash "$repo/modules/den/haus.sh")
+haus=(env HAUS_CONSUMER="$tmp" HAUS_HOST=test HAUS_NO_REBUILD=1 bash "$repo/modules/core/haus.sh")
 
 "${haus[@]}" set theme.accent teal >/dev/null
 test "$("${haus[@]}" get theme.accent)" = "teal"
@@ -174,29 +174,29 @@ if "${haus[@]}" set theme.accent chartreuse >/dev/null 2>&1; then
 fi
 
 # A sub-path of a submodule is an ordinary definition site, and the options tree
-# doesn't say so — `options.haus.sill.items` is an option, `…items.aiUsage` is not
+# doesn't say so — `options.haus.bar.items` is an option, `…items.aiUsage` is not
 # an attribute of anything. Setting ONE pill has to work without the whole-attrset
 # form, which resets every key it doesn't name.
-"${haus[@]}" set sill.items.aiUsage true >/dev/null
-test "$("${haus[@]}" get sill.items.aiUsage)" = "true"
-grep -q '^  haus\.sill\.items\.aiUsage = lib\.mkForce (builtins\.fromJSON "true");$' \
-  "$tmp/hosts/test/settings/sill.items.aiUsage.nix"
-test "$("${haus[@]}" get sill.items.weather)" = "true"   # untouched, still its own default
-"${haus[@]}" reset sill.items.aiUsage >/dev/null
-test "$("${haus[@]}" get sill.items.aiUsage)" = "false"
+"${haus[@]}" set bar.items.aiUsage true >/dev/null
+test "$("${haus[@]}" get bar.items.aiUsage)" = "true"
+grep -q '^  haus\.bar\.items\.aiUsage = lib\.mkForce (builtins\.fromJSON "true");$' \
+  "$tmp/hosts/test/settings/bar.items.aiUsage.nix"
+test "$("${haus[@]}" get bar.items.weather)" = "true"   # untouched, still its own default
+"${haus[@]}" reset bar.items.aiUsage >/dev/null
+test "$("${haus[@]}" get bar.items.aiUsage)" = "false"
 
 # …and a typo underneath one is still refused, which is the half of the old guard
 # worth keeping.
-if "${haus[@]}" set sill.items.nosuchpill true >/dev/null 2>&1; then
+if "${haus[@]}" set bar.items.nosuchpill true >/dev/null 2>&1; then
   echo "haus set accepted an undeclared submodule sub-option" >&2
   exit 1
 fi
 
-# Running out of path components has to land on an OPTION. `theme` and `sill` are
+# Running out of path components has to land on an OPTION. `theme` and `bar` are
 # namespaces — a whole-room mkForce there evaluates fine and then scatters over
 # every option in the room, and with the overlap guard it would lock all of them
 # out of `haus set` until someone found the file.
-for ns in theme sill; do
+for ns in theme bar; do
   if "${haus[@]}" set "$ns" '{}' >/dev/null 2>&1; then
     echo "haus set accepted the namespace '$ns' as if it were an option" >&2
     exit 1

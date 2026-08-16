@@ -1,0 +1,118 @@
+#!/bin/bash
+#
+# bar's SECOND bar — the strip along the bottom of the screen, drawn by a
+# separate SketchyBar process running at the same time as the menu bar one.
+# Deployed (and this whole file only exists on disk) when haus.bar.bottom.enable
+# is on; modules/bar/default.nix launches it as the `bar-bottom` launchd agent
+# with `--config` pointed here.
+#
+# Why a second PROCESS: SketchyBar draws exactly one bar per instance, and an
+# instance is named after basename(argv[0]) — that name keys both its lock file
+# and its mach service, so two bars is the same binary under two names. See the
+# `barBottom` comment in ../default.nix.
+#
+# THE ONE RULE IN THIS FILE: never write `sketchybar`. A bare invocation resolves
+# to the top bar's client and silently builds this strip's items on the MENU BAR
+# — same syntax, no error, nothing drawn down here. Everything below goes through
+# $SB, and so does every click_script string the generated items carry.
+
+source "$HOME/.config/sketchybar/colors.sh"
+source "$HOME/.config/sketchybar/sizes.sh"
+
+# $SB — this bar's own client. bar.sh routes on $BAR_NAME, which SketchyBar
+# exports into everything it runs; setting it here rather than trusting the
+# export means this file also works when run by hand (`bash bar-bottomrc`), and
+# exporting it hands the same answer to the plugins and warm-up kicks that the
+# generated items launch as children.
+export BAR_NAME="${BAR_NAME:-bar-bottom}"
+source "$HOME/.config/sketchybar/bar.sh"
+
+# Same pills as the menu bar, one edge down — and the SAME SIZE, because the
+# pills are what anyone sees and they're the same 28pt on both bars. The strip
+# around them is not the same, on purpose: $BAR_BOTTOM_HEIGHT is 32 where the
+# menu bar's $BAR_HEIGHT is 36.
+#
+# The top bar's extra 4pt is the price of the band. SketchyBar centres a pill in
+# the bar, so 36 is what lands a 28pt pill at y=4..32 — inside the 32pt strip
+# macOS's hover-reveal covers (see sketchybarrc). Down here there is no strip and
+# no reveal: macOS reserves nothing at the bottom of a display, so every point of
+# this bar is a point windows takes out of the tiled windows, and 4 of them were
+# buying clearance from a band that isn't there. 32 = the same pill, 2pt of
+# centring slack, nothing else — which is also, exactly, the height of the band
+# the top bar's pills sit in.
+#
+# Both numbers come from modules/lib/bar.nix through the generated sizes.sh,
+# because windows reserves them as window gaps; see the $FS_* note in sketchybarrc.
+#
+# position=bottom is the whole point, and it is FIXED: haus.bar.position steers
+# the other bar, and this one has nowhere else to be. macOS reserves the top
+# strip of a display for the menu bar and reserves NOTHING at the bottom, so
+# windows would sit under this — windows carves the room out of its outer-bottom
+# gap whenever haus.bar.bottom.enable is on (modules/windows/default.nix).
+#
+# topmost=window follows from that gap, and it is NOT optional down here.
+# SketchyBar draws at kCGBackstopMenuLevel (-20) by default — below normal
+# windows — so the tiled window sitting directly above drops its macOS shadow
+# into the reserved gap and it composites straight over this strip, darkening
+# it into something that reads as recessed. An opaque `color=` does not help:
+# the shadow is painted on top of the bar, not seen through it. `window` is
+# kCGFloatingWindowLevel (3), just enough to outrank the window and its shadow
+# while leaving the transparent floating-pill look untouched.
+#
+# Safe to hardcode here because bottom.enable makes windows reserve bottomEdge —
+# this bar's own height — on EVERY display, unconditionally; a lifted bar with no
+# room under it covers windows instead. That reservation is exactly what
+# haus.bar.position = "auto" can't promise, which is why the main bar's own
+# lift is gated; bar_topmost() in
+# the generated position.sh is that gate, and the place to look when the OTHER
+# bar is docked down here too.
+#
+# Not a fullscreen risk: a bar is pulled off-screen on a fullscreen space by
+# space TYPE, not by window level (SLSSpaceGetType == 4, and show_in_fullscreen
+# is off), so the level can't leak the strip over a fullscreen app.
+"$SB" --bar \
+    height=$BAR_BOTTOM_HEIGHT \
+    blur_radius=30 \
+    position=bottom \
+    topmost=window \
+    padding_left=10 \
+    padding_right=10 \
+    margin=0 \
+    corner_radius=0 \
+    color=0x00000000 \
+    shadow=off \
+    sticky=on \
+    notch_width=0
+
+"$SB" --default \
+    updates=when_shown \
+    icon.font="${BAR_FONT}:Bold:$FS_ICON" \
+    icon.color=$TEXT \
+    icon.padding_left=8 \
+    icon.padding_right=4 \
+    label.font="${BAR_FONT}:Bold:$FS_LABEL" \
+    label.color=$TEXT \
+    label.padding_left=4 \
+    label.padding_right=8 \
+    background.color=$SURFACE0 \
+    background.corner_radius=12 \
+    background.height=28 \
+    background.padding_left=4 \
+    background.padding_right=4
+
+# The pills — GENERATED from haus.bar.bottom.items by modules/bar/default.nix,
+# from the same blocks the menu bar's top_items.sh is built from, emitted
+# against $SB instead of `sketchybar`. A pill named there is drawn here and NOT
+# up top: it moves, it doesn't duplicate.
+#
+# This strip uses all THREE of SketchyBar's regions — the file arrives as a left
+# run, then a center run, then a right run — which the menu bar can't: up there
+# the left is the workspace pills and the front app, and the center is the one
+# span a MacBook's notch covers. `notch_width=0` above is the same value the menu
+# bar sets; down here there is simply no notch for it to describe.
+source "$HOME/.config/sketchybar/bottom_items.sh"
+
+# Force all scripts to run at startup
+"$SB" --update
+
+echo "bar-bottom configuration loaded.."

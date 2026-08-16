@@ -19,7 +19,7 @@
 # now, so there is exactly one renderer of this data for the web again.)
 #
 # It used to live inside the web renderer alone, where it covered 16 of the 23
-# rooms — the other seven (agents, collar, developer, displays, keys, perch, ui)
+# rooms — the other seven (agents, security, developer, displays, keys, shelf, ui)
 # silently fell off the end of the page in alphabetical order with no blurb.
 #
 # A namespace or export missing from this file IS an error. `room-registry`
@@ -55,179 +55,13 @@ let
     ];
     animations = [ "" ];
     appearance = [ "largePrint" ];
-    appStore = [ "install" ];
     apps = [
       "packs.writing.enable"
       "videoPlayer.claimFileTypes"
       "videoPlayer.enable"
     ];
-    collar = [
-      "enable"
-      "passwordlessRebuild"
-    ];
-    developer = [
-      "enable"
-      "git.enable"
-      "languages"
-      "toolbelt.enable"
-    ];
-    displays = [
-      ""
-      "<name>.uiScale"
-    ];
-    fonts = [
-      "mono.baseSize"
-      "mono.name"
-      "mono.package"
-      "mono.packageName"
-      "mono.size"
-      "sans.name"
-    ];
-    git = [
-      "email"
-      "name"
-      "org"
-      "shellAliases"
-      "signingKey"
-    ];
-    hearth = [
-      "editor"
-      "editorName"
-      "floatBorder"
-      "ghDash.enable"
-      "hijackFileAssociations"
-      "lanes.backend"
-      "obsidianVaults"
-      "rightClickFullscreen"
-      "zellijStartLocked"
-    ];
-    homebrew = [
-      "autoUpdate"
-      "cleanup"
-      "upgrade"
-    ];
-    hotCorners = [
-      "bottomLeft"
-      "bottomRight"
-      "topLeft"
-      "topRight"
-    ];
-    hush = [
-      "enable"
-      "hooks"
-      "slack.enable"
-      "slack.snooze"
-      "slack.statusEmoji"
-      "slack.statusText"
-      "slack.tokenCommand"
-    ];
-    keys = [
-      "leader"
-      "leaderExtras"
-      "leaderExtras.*.caption"
-      "leaderExtras.*.command"
-      "leaderExtras.*.key"
-      "palette"
-      "windowNav"
-    ];
-    locale = [
-      "hourFormat"
-      "inputSources"
-      "language"
-      "metric"
-      "region"
-      "temperature"
-    ];
-    lock = [
-      "requirePassword"
-      "requirePasswordDelay"
-    ];
-    menuBar = [
-      "clock.analog"
-      "clock.format"
-      "clock.showDate"
-      "clock.showDayOfWeek"
-      "clock.showSeconds"
-      "controlCenter.airdrop"
-      "controlCenter.batteryPercentage"
-      "controlCenter.bluetooth"
-      "controlCenter.displayBrightness"
-      "controlCenter.focus"
-      "controlCenter.nowPlaying"
-      "controlCenter.sound"
-    ];
-    perch = [
-      "enable"
-      "followSystemAppearance"
-    ];
-    pounce = [
-      "autoQuit.delay"
-      "autoQuit.enable"
-      "autoQuit.exclude"
-      "enable"
-      "followSystemAppearance"
-      "items"
-      "items.<name>.alias"
-      "items.<name>.caption"
-      "items.<name>.hotkey"
-      "items.<name>.listed"
-      "scale"
-      "signingIdentity"
-      "windowMode"
-      "windowSwitcher"
-    ];
-    power = [
-      "computerSleep.battery"
-      "computerSleep.charger"
-      "diskSleep.battery"
-      "diskSleep.charger"
-      "displaySleep.battery"
-      "displaySleep.charger"
-      "lowPowerMode.battery"
-      "lowPowerMode.charger"
-    ];
-    prowl = [
-      "accordionPadding"
-      "defaultLayout"
-      "defaultOrientation"
-      "enable"
-      "mouseFollowsFocus"
-      "numberedWorkspaces"
-    ];
-    roster = [
-      ""
-      "<name>.appId"
-      "<name>.appStoreId"
-      "<name>.brew"
-      "<name>.cask"
-      "<name>.enable"
-      "<name>.float"
-      "<name>.installedBy"
-      "<name>.key"
-      "<name>.label"
-      "<name>.name"
-      "<name>.order"
-      "<name>.package"
-      "<name>.packageName"
-      "<name>.scope"
-      "<name>.titleRegex"
-    ];
-    screenshots = [
-      "format"
-      "includeDate"
-      "location"
-      "shadow"
-      "thumbnail"
-    ];
-    secrets = [ "provider" ];
-    security = [
-      "firewall.allowSigned"
-      "firewall.allowSignedApp"
-      "firewall.blockAllIncoming"
-      "firewall.enable"
-      "firewall.stealthMode"
-    ];
-    sill = [
+    appStore = [ "install" ];
+    bar = [
       "aiUsage.provider"
       "battery.hideOver"
       "bottom.enable"
@@ -240,9 +74,9 @@ let
       "bottom.items.clock"
       "bottom.items.cpu"
       "bottom.items.elgato"
+      "bottom.items.focus"
       "bottom.items.github"
       "bottom.items.harvest"
-      "bottom.items.hush"
       "bottom.items.media"
       "bottom.items.memory"
       "bottom.items.volume"
@@ -301,6 +135,151 @@ let
       "media.width"
       "position"
     ];
+    developer = [
+      "enable"
+      "git.enable"
+      "languages"
+      "toolbelt.enable"
+    ];
+    displays = [
+      ""
+      "<name>.uiScale"
+    ];
+    focus = [
+      "enable"
+      "hooks"
+      "slack.enable"
+      "slack.snooze"
+      "slack.statusEmoji"
+      "slack.statusText"
+      "slack.tokenCommand"
+    ];
+    fonts = [
+      "mono.baseSize"
+      "mono.name"
+      "mono.package"
+      "mono.packageName"
+      "mono.size"
+      "sans.name"
+    ];
+    git = [
+      "email"
+      "name"
+      "org"
+      "shellAliases"
+      "signingKey"
+    ];
+    homebrew = [
+      "autoUpdate"
+      "cleanup"
+      "upgrade"
+    ];
+    hotCorners = [
+      "bottomLeft"
+      "bottomRight"
+      "topLeft"
+      "topRight"
+    ];
+    keys = [
+      "leader"
+      "leaderExtras"
+      "leaderExtras.*.caption"
+      "leaderExtras.*.command"
+      "leaderExtras.*.key"
+      "palette"
+      "windowNav"
+    ];
+    launcher = [
+      "autoQuit.delay"
+      "autoQuit.enable"
+      "autoQuit.exclude"
+      "enable"
+      "followSystemAppearance"
+      "items"
+      "items.<name>.alias"
+      "items.<name>.caption"
+      "items.<name>.hotkey"
+      "items.<name>.listed"
+      "scale"
+      "signingIdentity"
+      "windowMode"
+      "windowSwitcher"
+    ];
+    locale = [
+      "hourFormat"
+      "inputSources"
+      "language"
+      "metric"
+      "region"
+      "temperature"
+    ];
+    lock = [
+      "requirePassword"
+      "requirePasswordDelay"
+    ];
+    menuBar = [
+      "clock.analog"
+      "clock.format"
+      "clock.showDate"
+      "clock.showDayOfWeek"
+      "clock.showSeconds"
+      "controlCenter.airdrop"
+      "controlCenter.batteryPercentage"
+      "controlCenter.bluetooth"
+      "controlCenter.displayBrightness"
+      "controlCenter.focus"
+      "controlCenter.nowPlaying"
+      "controlCenter.sound"
+    ];
+    power = [
+      "computerSleep.battery"
+      "computerSleep.charger"
+      "diskSleep.battery"
+      "diskSleep.charger"
+      "displaySleep.battery"
+      "displaySleep.charger"
+      "lowPowerMode.battery"
+      "lowPowerMode.charger"
+    ];
+    roster = [
+      ""
+      "<name>.appId"
+      "<name>.appStoreId"
+      "<name>.brew"
+      "<name>.cask"
+      "<name>.enable"
+      "<name>.float"
+      "<name>.installedBy"
+      "<name>.key"
+      "<name>.label"
+      "<name>.name"
+      "<name>.order"
+      "<name>.package"
+      "<name>.packageName"
+      "<name>.scope"
+      "<name>.titleRegex"
+    ];
+    screenshots = [
+      "format"
+      "includeDate"
+      "location"
+      "shadow"
+      "thumbnail"
+    ];
+    secrets = [ "provider" ];
+    security = [
+      "firewall.allowSigned"
+      "firewall.allowSignedApp"
+      "firewall.blockAllIncoming"
+      "firewall.enable"
+      "firewall.stealthMode"
+      "touchId.enable"
+      "touchId.passwordlessRebuild"
+    ];
+    shelf = [
+      "enable"
+      "followSystemAppearance"
+    ];
     snippets = [
       "enable"
       "matches"
@@ -313,6 +292,17 @@ let
       "startupChime"
       "uiSounds"
       "volumeFeedback"
+    ];
+    terminal = [
+      "editor"
+      "editorName"
+      "floatBorder"
+      "ghDash.enable"
+      "hijackFileAssociations"
+      "lanes.backend"
+      "obsidianVaults"
+      "rightClickFullscreen"
+      "zellijStartLocked"
     ];
     theme = [
       "accent"
@@ -349,6 +339,14 @@ let
       "size"
       "style"
     ];
+    windows = [
+      "accordionPadding"
+      "defaultLayout"
+      "defaultOrientation"
+      "enable"
+      "mouseFollowsFocus"
+      "numberedWorkspaces"
+    ];
     workspaces = [
       ""
       "<name>.apps"
@@ -372,23 +370,23 @@ let
   # never reaches this decision: the registry check rejects it first.
   hostOnly = {
     ai = [ "instructions" ];
-    fonts = [ "mono.package" ];
-    git = optionPaths.git;
-    # `editor` is a shell command this layer executes, so it stays here
-    # forever; `editorName` is the desktop-safe half of that pair — a closed
-    # enum over the editors the room installs, which is how a desktop says
-    # "this is a neovim Mac" without ever naming a command.
-    hearth = [
-      "editor"
-      "obsidianVaults"
+    bar = [
+      "calendar.me"
+      "elgato.host"
+      # Arbitrary shell, not data: a desktop is a file you can read to know what
+      # it can do, and a source that runs a command is exactly the leaf that
+      # would stop being true of. `search` and `ci` beside it stay desktop-safe.
+      "github.sources.*.command"
     ];
-    hush = [
+    focus = [
       "hooks"
       "slack.tokenCommand"
     ];
+    fonts = [ "mono.package" ];
+    git = optionPaths.git;
     keys = [ "leaderExtras.*.command" ];
+    launcher = [ "signingIdentity" ];
     locale = optionPaths.locale;
-    pounce = [ "signingIdentity" ];
     power = optionPaths.power;
     roster = [
       "<name>.installedBy"
@@ -396,13 +394,13 @@ let
     ];
     screenshots = [ "location" ];
     secrets = [ "provider" ];
-    sill = [
-      "calendar.me"
-      "elgato.host"
-      # Arbitrary shell, not data: a desktop is a file you can read to know what
-      # it can do, and a source that runs a command is exactly the leaf that
-      # would stop being true of. `search` and `ci` beside it stay desktop-safe.
-      "github.sources.*.command"
+    # `editor` is a shell command this layer executes, so it stays here
+    # forever; `editorName` is the desktop-safe half of that pair — a closed
+    # enum over the editors the room installs, which is how a desktop says
+    # "this is a neovim Mac" without ever naming a command.
+    terminal = [
+      "editor"
+      "obsidianVaults"
     ];
     zen = [
       "extensions"
@@ -421,10 +419,10 @@ let
   recursive = {
     displays."" = "display-selectors";
     keys.leaderExtras = "submodule-list";
-    pounce.items = "pounce-items";
+    launcher.items = "launcher-items";
     roster."" = "roster-entries";
-    sill."github.sources" = "submodule-list";
-    sill."media.icons" = "attrs-of-string";
+    bar."github.sources" = "submodule-list";
+    bar."media.icons" = "attrs-of-string";
     snippets.matches = "submodule-list";
     tour.steps = "submodule-list";
     workspaces."" = "workspace-entries";
@@ -437,27 +435,26 @@ let
     appearance = "appearance";
     appStore = "apps";
     apps = "apps";
-    collar = "security";
+    bar = "bar";
     developer = "development";
     displays = "displays";
+    focus = "focus";
     fonts = "appearance";
-    hearth = "development";
     homebrew = "apps";
     hotCorners = "windows";
-    hush = "focus";
+    launcher = "launcher";
     lock = "security";
     menuBar = "bar";
-    perch = "shelf";
-    pounce = "launcher";
-    prowl = "windows";
     screenshots = "appearance";
     secrets = "security";
     security = "security";
-    sill = "bar";
+    shelf = "shelf";
     snippets = "text-expansion";
     sound = "appearance";
+    terminal = "development";
     theme = "appearance";
     wallpaper = "appearance";
+    windows = "windows";
     zen = "development";
   };
   shared = [
@@ -554,7 +551,7 @@ let
     };
 
     # ---- the terminal, and who else drives this machine -----------------------
-    hearth = {
+    terminal = {
       order = 70;
       blurb = "The shell and terminal experience.";
     };
@@ -581,10 +578,10 @@ let
     };
     # ---- macOS settings groups (options-roadmap §5.6) -------------------------
     # Dense on purpose: this block ran out of the file's usual ten-wide spacing
-    # when the last three groups landed, and `prowl` at 120 is the next fixed
+    # when the last three groups landed, and `windows` at 120 is the next fixed
     # point. `animations` then took 111 — the last free slot, and the last
     # squeeze available: the block is now 111–119 with no gaps, so the NEXT group added
-    # here has to renumber it, from `prowl` at 120 downwards.
+    # here has to renumber it, from `windows` at 120 downwards.
     animations = {
       order = 111;
       blurb = "How much motion macOS spends on its own Dock and windows: the slide, the launch bounce, minimise, Mission Control, window open/close. Unset by default like the rest of this block — `\"fast\"` opts in, and going back only stops writing rather than restoring. Deliberately not the Accessibility \"Reduce motion\" switch, which every browser also reads as `prefers-reduced-motion`.";
@@ -603,11 +600,15 @@ let
     };
     menuBar = {
       order = 115;
-      blurb = "The stock menu bar: what the clock shows, and which Control Center glyphs sit beside it. (The hacker bar itself is `sill`.)";
+      blurb = "The stock menu bar: what the clock shows, and which Control Center glyphs sit beside it. (The hacker bar itself is `bar`.)";
     };
+    # One namespace since 2026-08-16, when the Touch ID half stopped being its
+    # own `collar` and folded in here. It sits in the macOS-settings block
+    # rather than down in policy because the firewall half is a macOS setting
+    # and the ordering follows the bigger half.
     security = {
       order = 116;
-      blurb = "Security posture: the built-in application firewall and how strict it is. Off on a fresh Mac; the setting to turn on for a laptop that joins networks you don't own.";
+      blurb = "Security posture: the built-in application firewall and how strict it is (off on a fresh Mac — the setting to turn on for a laptop that joins networks you don't own), plus Touch ID for `sudo`, including inside a terminal multiplexer, and the passwordless-rebuild rule.";
     };
     sound = {
       order = 117;
@@ -623,23 +624,23 @@ let
     };
 
     # ---- the rooms ------------------------------------------------------------
-    prowl = {
+    windows = {
       order = 120;
       blurb = "Tiling window management and the Caps-Lock leader launcher.";
     };
-    sill = {
+    bar = {
       order = 130;
       blurb = "The menu bar, and which pills it draws.";
     };
-    pounce = {
+    launcher = {
       order = 140;
-      blurb = "The ⌘Space command palette.";
+      blurb = "The ⌘Space command palette. Pounce is the app behind it.";
     };
-    perch = {
+    shelf = {
       order = 160;
-      blurb = "The notch file shelf.";
+      blurb = "The notch file shelf. Perch is the app behind it.";
     };
-    hush = {
+    focus = {
       order = 170;
       blurb = "One quiet switch: Do Not Disturb, optional Slack status, and your hooks.";
     };
@@ -657,10 +658,8 @@ let
       order = 200;
       blurb = "The developer pack: the CLI toolbelt, Git tooling and language runtimes. Coding agents left this pack on 2026-08-13 and are their own room now (`haus.ai.*`). Off is a hacker machine for someone who never opens a terminal by choice.";
     };
-    collar = {
-      order = 210;
-      blurb = "Touch ID for sudo — including inside a terminal multiplexer — and the passwordless-rebuild rule.";
-    };
+    # 210 was `collar` — Touch ID for sudo — until 2026-08-16. It is part of
+    # `security` above now, and the slot is left free rather than backfilled.
     secrets = {
       order = 220;
       blurb = "Where secret values come from on this machine.";
@@ -675,12 +674,12 @@ let
   # `roomOwners` above says which product room owns a namespace; this says what
   # that room is, in the order someone should meet the twelve of them. Both
   # halves are needed and neither implies the other: a room is a page, a
-  # namespace is an address, and `haus.sill` plus `haus.menuBar` are one room
+  # namespace is an address, and `haus.bar` plus `haus.menuBar` are one room
   # with two addresses.
   #
   # Without this table every renderer had to invent the room's name and
   # sentence for itself, which is how the docs ended up describing "35 rooms" —
-  # one per namespace, with module names (`den`, `hearth`, `prowl`) where a
+  # one per namespace, with module names (`core`, `terminal`, `windows`) where a
   # product name belongs. Rooms are the unit the product model names
   # (workshop's notes/rooms-desktops.md); namespaces are how they are spelled
   # in a host file.
@@ -778,40 +777,40 @@ let
       owner = "haus";
       source = "modules";
     };
-    den = {
+    core = {
       kind = "foundation";
       owner = "haus";
-      source = "modules/den";
+      source = "modules/core";
     };
-    hearth = {
+    terminal = {
       kind = "room";
       owner = "development";
-      source = "modules/hearth";
+      source = "modules/terminal";
     };
-    prowl = {
+    windows = {
       kind = "room";
       owner = "windows";
-      source = "modules/prowl";
+      source = "modules/windows";
     };
-    sill = {
+    bar = {
       kind = "room";
       owner = "bar";
-      source = "modules/sill";
+      source = "modules/bar";
     };
-    collar = {
+    security = {
       kind = "room";
       owner = "security";
-      source = "modules/collar";
+      source = "modules/security";
     };
-    pounce = {
+    launcher = {
       kind = "room";
       owner = "launcher";
-      source = "modules/pounce";
+      source = "modules/launcher";
     };
-    hush = {
+    focus = {
       kind = "room";
       owner = "focus";
-      source = "modules/hush";
+      source = "modules/focus";
     };
     secrets = {
       kind = "room";

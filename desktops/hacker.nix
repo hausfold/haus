@@ -30,7 +30,7 @@
 
     apps.videoPlayer.enable = true;
 
-    collar = {
+    security.touchId = {
       enable = true;
       passwordlessRebuild = true;
     };
@@ -42,16 +42,16 @@
 
     # Only the SIZE. The family stays a layer concern: a patched Nerd Font is
     # what makes the terminal render at all, so it is a requirement rather than
-    # this desktop's taste (modules/den/options.nix says so at the option).
+    # this desktop's taste (modules/core/options.nix says so at the option).
     fonts.mono.baseSize = 19;
 
-    hearth = {
+    terminal = {
       floatBorder = "accent";
       rightClickFullscreen = true;
       zellijStartLocked = true;
     };
 
-    hush.enable = true;
+    focus.enable = true;
 
     keys = {
       leader = "caps";
@@ -59,13 +59,13 @@
       windowNav = "alt";
     };
 
-    perch.enable = true;
+    shelf.enable = true;
 
-    pounce.enable = true;
+    launcher.enable = true;
 
-    prowl.enable = true;
+    windows.enable = true;
 
-    sill = {
+    bar = {
       enable = true;
     };
 

@@ -8,7 +8,7 @@
 #
 # It sits in modules/lib rather than in the room that installs them because two
 # rooms need it and the rule above only holds while there is exactly one table:
-# the AI room asserts every named client is BUILDABLE here, and hearth is where
+# the AI room asserts every named client is BUILDABLE here, and terminal is where
 # a home profile can actually install one. The keys are modules/lib/agents.nix's
 # client ids, which is the list the options are typed against.
 pkgs: {

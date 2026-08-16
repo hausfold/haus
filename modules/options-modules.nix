@@ -33,17 +33,17 @@
   ./ai/options.nix
   ./appearance/options.nix
   ./apps/options.nix
-  ./den/options.nix
+  ./core/options.nix
   ./displays/options.nix
   ./theme/options.nix
   ./wallpaper/options.nix
-  ./hearth/options.nix
-  ./prowl/options.nix
-  ./sill/options.nix
-  ./collar/options.nix
-  ./pounce/options.nix
-  ./perch/options.nix
-  ./hush/options.nix
+  ./terminal/options.nix
+  ./windows/options.nix
+  ./bar/options.nix
+  ./security/options.nix
+  ./launcher/options.nix
+  ./shelf/options.nix
+  ./focus/options.nix
   ./secrets/options.nix
   ./snippets/options.nix
 ]

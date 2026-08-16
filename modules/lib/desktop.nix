@@ -45,7 +45,7 @@ let
 
   metaOf = path: options.${path} or null;
   # Is this path an interior node — a group of options rather than one option?
-  # `haus.sill` is, `haus.sill.enable` is not.
+  # `haus.bar` is, `haus.bar.enable` is not.
   hasChildren = path: builtins.any (n: lib.hasPrefix "${path}." n) names;
   # The registry spells a dynamic segment `<name>` under an attrset-valued
   # container and `*` under a list-valued one. Which one a container uses is its
@@ -182,7 +182,7 @@ let
       keyOk = plainId;
       keySaid = _: "is not a plain workspace name";
     };
-    pounce-items = entries {
+    launcher-items = entries {
       keyOk = plainId;
       keySaid = _: "is not a plain item id";
     };
@@ -220,7 +220,7 @@ let
         ) value;
     # A free attrset of strings: no options underneath, so BOTH halves are
     # checked here or not at all — and the keys are the half that is easy to
-    # forget. `haus.sill.media.icons` is written out as a double-quoted shell
+    # forget. `haus.bar.media.icons` is written out as a double-quoted shell
     # assignment in a generated file the bar's plugins source, so a key holding
     # a quote or a `$( )` would be code, arriving from a file whose whole
     # promise is that it holds none. Nothing else in the desktop-safe surface
