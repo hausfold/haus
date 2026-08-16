@@ -202,18 +202,30 @@ func arm(item: String) -> Never {
     setsid()
     signal(SIGCHLD, SIG_IGN)
 
-    // Nothing opened (the pill's toggle just CLOSED its popup), so there's
-    // nothing to guard. Whatever guard was running notices the same thing.
-    // The wait is for the OTHER answer — see popupIsOpen: a pill that rebuilds
-    // a long popup before toggling it can't answer a query for the first
-    // ~150 ms, and taking that silence for "closed" left the biggest dropdowns
-    // on the bar as the only ones a click outside never dismissed.
-    if !popupIsOpen(item, settleFor: 0.6) { exit(0) }
+    // The pill's toggle just CLOSED its popup, so there's nothing to guard, and
+    // this has to stay the FIRST thing after setsid: the broadcast below would
+    // otherwise force a popup the user just dismissed straight back open. A
+    // settled `false` is the only answer that means that — `nil` is a bar too
+    // busy to answer (see popupDrawing), which is the opening case.
+    if popupDrawing(item) == false { exit(0) }
 
-    // Opening one dropdown closes every other: menu behaviour, and it keeps this
-    // one-guard-at-a-time. One sketchybar call, and it runs after the popup is
-    // already up, so nothing flickers.
+    // Opening one dropdown closes every other: menu behaviour, and it keeps
+    // this one-guard-at-a-time.
+    //
+    // BEFORE the settle wait, not after. `/.*/` matches the item we are arming
+    // for as well as its siblings, so this pair is a close-then-open of THIS
+    // popup — invisible while it runs within a few ms of the click, a plain
+    // flicker once it lands after the popup has painted. Waiting first and
+    // broadcasting second is exactly how the guard surviving its own gate
+    // turned a working dropdown into a flashing one.
     sb(["--set", "/.*/", "popup.drawing=off", "--set", item, "popup.drawing=on"])
+
+    // Now wait for the bar to confirm what it's drawing. See popupIsOpen: a
+    // pill that rebuilds a long popup before toggling it can't answer a query
+    // for the first ~150 ms, and taking that silence for "closed" left the
+    // biggest dropdowns on the bar as the only ones a click outside never
+    // dismissed.
+    if !popupIsOpen(item, settleFor: 0.6) { exit(0) }
 
     let app = NSApplication.shared
     app.setActivationPolicy(.accessory)
