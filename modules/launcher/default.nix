@@ -168,6 +168,10 @@ let
   #             when it REGISTERS the binding, so switching modes needs the
   #             daemon to re-register. Flipping remap → tap also has to reach a
   #             running daemon, since the daemon is what gives the Fn key back.
+  #   lanesZmx  whether the appHotkeys/pages blocks are written at all (they
+  #             follow haus.terminal.lanes.backend): pounce arms both taps once
+  #             at startup, so flipping the backend has to bounce the daemon or
+  #             ⌘P/⌃⇥ keep last boot's meaning until the next log-in.
   #
   # Hashed rather than inlined so the marker is one short line whatever the
   # exclude list grows to, and prefixed so an absent or empty marker (a machine
@@ -177,6 +181,7 @@ let
       builtins.toJSON {
         autoQuit = config.haus.launcher.autoQuit;
         fnKey = config.haus.launcher.fnKey;
+        lanesZmx = config.haus.terminal.lanes.backend == "zmx";
       }
     )
   }";
