@@ -67,6 +67,13 @@ macos-option-as-alt = true
 # whole link design keeps in reserve.
 mouse-shift-capture = never
 
+# No progress bar across the top of the window. Agent CLIs (Claude Code among
+# them) report task progress via ConEmu's OSC 9;4, and ghostty 1.3.1+ renders
+# it as a bar over the window's top edge — in the agent flow that's a strobe
+# on every response, in every window at once. The sequence is silently
+# ignored instead; the agent panes carry their own status.
+progress-style = false
+
 # Make zellij's bottom status bar sit flush along the window's bottom edge at
 # EVERY font size. The ghostty window is tiled at a fixed pixel height (windows /
 # AeroSpace), so when a font size doesn't divide the height evenly, ghostty
