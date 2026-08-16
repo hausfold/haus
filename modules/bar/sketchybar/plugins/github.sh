@@ -17,8 +17,9 @@
 #
 # So each source names its KIND and the plugin owns the query for it:
 #
-#   search   a GitHub issue/PR search filter. count = total_count (which can
-#            exceed the rows shown); rows are the first `limit` hits.
+#   search   a GitHub issue/PR search filter. count = the search's own hit
+#            total (which can exceed the rows shown); rows are the first
+#            `limit` hits, each carrying its own MERGE VERDICT — see below.
 #   ci       the owner's repos, each one's default branch, that branch's head
 #            commit's check rollup. count = how many are FAILURE/ERROR; rows are
 #            those repos. This is the one search cannot do.
@@ -26,6 +27,25 @@
 #            count = the number of lines. The escape hatch, and deliberately a
 #            command rather than a query: it can do the fetching AND the shaping,
 #            and you can run it in a terminal to see why it is wrong.
+#
+# ── the merge verdict, and why the pill is two-tone ───────────────────────────
+# A count of open PRs is a work queue; it says nothing about whether any of them
+# is stuck. So a `search` row is not just a title: the same GraphQL call that
+# counts the hits also asks each pull request whether it CONFLICTS, what its
+# head commit's checks came back as, and what the review landed on, and folds
+# those into one state — the same question GitHub's own merge box answers.
+#
+# That state colours the row's glyph, and the WORST state across every source
+# colours the pill's octocat, while the number keeps the colour of the source it
+# is counting. Two tones, because they are two different facts and collapsing
+# them loses one of them: painting the number red when one of five PRs conflicts
+# says "five bad things" when there is one, and leaving it neutral says nothing
+# is wrong at all. So the number is HOW MANY and the logo is HOW BAD.
+#
+# `mergeable` is computed lazily by GitHub: a PR nobody has asked about comes
+# back UNKNOWN, and asking is what schedules the merge-commit test. That reads
+# as the neutral "no verdict yet" state and resolves itself on the next refresh,
+# which is why UNKNOWN is deliberately not drawn as a problem.
 #
 # ── how it stays off the bar's critical path ──────────────────────────────────
 # Every other pill here reads something local. This one is the first that has to
@@ -39,8 +59,13 @@
 #
 # ── files ─────────────────────────────────────────────────────────────────────
 #   src-<i>.tsv   one per configured source, index-keyed. Line 1 is
-#                 `meta<US><state><US><count><US><title>`; every later line is
-#                 `row<US><state><US><text><US><url>`, where <US> is ASCII 0x1f.
+#                 `meta<US><state><US><count><US><title><US><worst>`; every
+#                 later line is `row<US><state><US><text><US><url><US><glyph>`,
+#                 where <US> is ASCII 0x1f. The two trailing fields are the
+#                 merge verdict (see above) and are the newest additions, which
+#                 is why they are LAST: a cache written by an older generation
+#                 parses under the current reader with those fields empty, and
+#                 empty is exactly the "no verdict" case both already handle.
 #                 NOT a tab: tab is an IFS *whitespace* character, so
 #                 `IFS=$'\t' read` folds a run of them into one delimiter and an
 #                 empty field simply vanishes — a source with no title would
@@ -136,13 +161,23 @@ tour_drawing() {
 }
 
 # ── severity ──────────────────────────────────────────────────────────────────
-# Three levels, ordered, so the pill can pick which source it is speaking for.
+# One ordered scale for two related jobs: which SOURCE the pill speaks for
+# (those are `info`/`warn`/`bad`, what a host writes in the option) and how bad
+# a ROW is (those are `mute`/`ok`/`warn`/`bad`, what the merge verdict resolves
+# to, and the three a `command` source is allowed to print).
+#
+# `mute` sits below `ok` on purpose. It is "no verdict" — a draft, an issue
+# rather than a PR, a mergeability GitHub has not computed yet — and a row with
+# nothing to say must never out-rank a row that came back green, or one draft in
+# the list would tint the pill for the whole queue.
+#
 # `auth` and `error` are states rather than severities: they mean the number is
 # unknown, which is a different thing from the number being zero.
 sev_rank() {
   case "$1" in
     bad) echo 3 ;;
     warn) echo 2 ;;
+    mute | none | '') echo 0 ;;
     *) echo 1 ;;
   esac
 }
@@ -150,8 +185,36 @@ sev_color() {
   case "$1" in
     bad) echo "$RED" ;;
     warn) echo "$PEACH" ;;
+    ok) echo "$GREEN" ;;
+    mute | none | '') echo "$OVERLAY0" ;;
     *) echo "$TEXT" ;;
   esac
+}
+
+# The glyph a row wears, by what the merge verdict found. Nerd Font MDI, the
+# same family every other pill draws in.
+G_CONFLICT="󰀩"  # md-alert_octagon — the merge itself is blocked
+G_FAILED="󰅚"    # md-close_circle_outline — checks came back red
+G_RUNNING="󰦖"   # md-progress_clock — checks still going
+G_CHANGES="󰅾"   # md-comment_alert_outline — a reviewer wants changes
+G_READY="󰄭"     # md-check_all — green AND approved: nothing left
+G_GREEN="󰗡"     # md-check_circle_outline — green, review still open
+G_DRAFT="󰲶"     # md-pencil_outline — a draft, deliberately not news
+G_NONE="󰝦"      # md-circle_outline — no checks, or no verdict yet
+
+# ASCII 0x1f, the field separator the cache is written in (see the header).
+US=$'\037'
+
+# The worst state among a block of already-formatted rows, as one word. Scanned
+# rather than tracked per-row because every producer builds its rows in one shot
+# — jq, a filter, a command's stdout — and re-walking a handful of lines is
+# cheaper than threading a running maximum through three different pipelines.
+rows_worst() { # rows_worst <rows>
+  local s
+  for s in bad warn ok; do
+    printf '%s\n' "$1" | grep -q "^row${US}${s}${US}" && { echo "$s"; return; }
+  done
+  echo none
 }
 
 # ── fetch ─────────────────────────────────────────────────────────────────────
@@ -162,29 +225,81 @@ fetch_search() { # fetch_search <index> <query> <limit>
   local i="$1" q="$2" limit="$3" out err json
   out="$STATE/src-$i.tsv.tmp"
   err="$STATE/src-$i.err"
+  # GraphQL rather than REST `search/issues`, and the merge verdict is the whole
+  # reason. The count is the same index either way (`issueCount` IS
+  # `total_count`), but a REST hit is an issue-shaped record: no mergeability,
+  # no check rollup, no review state on it. Getting those over REST would be a
+  # second call PER ROW, which is the rate limit gone in one tick. Here it is
+  # one request for the count, the rows and every row's verdict — and GraphQL
+  # charges by the nodes touched rather than per call, so a page of eight PRs
+  # costs about what the plain search did.
+  #
+  # It also steps off the `advanced_search=true` treadmill: that flag exists
+  # because GitHub is retiring REST's legacy issue-search behaviour, and the
+  # GraphQL `search` connection was never on the old path to begin with.
+  #
   # stderr to its own file rather than 2>&1 into the JSON: gh writes deprecation
   # notices and rate-limit warnings there on calls that SUCCEED, and folding
   # those into the body would leave jq parsing a message.
-  #
-  # advanced_search=true is not optional going forward: GitHub is retiring the
-  # legacy issue-search behaviour behind this flag, and a query that works today
-  # without it is one deprecation away from returning nothing.
-  json=$("$GH" api --method GET search/issues \
-    -f q="$q" -F per_page="$limit" -f advanced_search=true 2>"$err") || {
+  json=$("$GH" api graphql -f q="$q" -F n="$limit" -f query='
+    query($q:String!,$n:Int!){
+      search(query:$q, type:ISSUE, first:$n){
+        issueCount
+        nodes{
+          __typename
+          ... on PullRequest {
+            number title url isDraft mergeable reviewDecision
+            repository{ name }
+            commits(last:1){ nodes{ commit{ statusCheckRollup{ state } } } }
+          }
+          ... on Issue { number title url repository{ name } }
+        }
+      }
+    }' 2>"$err") || {
     classify_failure "$i" "$(cat "$err" 2>/dev/null)"
     return 0
   }
-  local count
-  count=$(printf '%s' "$json" | jq -r '.total_count // 0')
+  local rows count worst
+  count=$(printf '%s' "$json" | jq -r '.data.search.issueCount // 0')
+  # The verdict, in precedence order, and the order IS the design:
+  #
+  #   Draft first, above even a conflict. A draft is its author saying "not
+  #   ready" out loud; red checks on one are expected, and letting them reach
+  #   the pill would have it cry wolf for every work-in-progress on the machine.
+  #   Then the two states that BLOCK a merge, worse first — a conflict (nothing
+  #   about the PR can proceed) ahead of red checks (the code is the problem).
+  #   Then the two that merely delay it: checks still running, then a reviewer
+  #   asking for changes. Then the two good outcomes, of which green-and-
+  #   approved gets its own glyph because it is the one row in the list that
+  #   means "you can press the button". Everything else — an Issue rather than
+  #   a PR, a repo with no checks, a mergeability GitHub hasn't computed yet —
+  #   is `mute`: a row with no verdict, which must not tint the pill.
+  rows=$(printf '%s' "$json" | jq -r \
+    --arg conflict "$G_CONFLICT" --arg failed "$G_FAILED" --arg running "$G_RUNNING" \
+    --arg changes "$G_CHANGES" --arg ready "$G_READY" --arg green "$G_GREEN" \
+    --arg draft "$G_DRAFT" --arg none "$G_NONE" '
+    .data.search.nodes[]?
+    | select(.url != null)
+    | . as $n
+    | (.commits.nodes[0].commit.statusCheckRollup.state // "NONE") as $ci
+    | (if $n.__typename != "PullRequest"                        then ["mute", $none]
+       elif $n.isDraft                                          then ["mute", $draft]
+       elif $n.mergeable == "CONFLICTING"                       then ["bad",  $conflict]
+       elif $ci == "FAILURE" or $ci == "ERROR"                  then ["bad",  $failed]
+       elif $ci == "PENDING" or $ci == "EXPECTED"               then ["warn", $running]
+       elif $n.reviewDecision == "CHANGES_REQUESTED"            then ["warn", $changes]
+       elif $n.reviewDecision == "APPROVED" and $ci == "SUCCESS" then ["ok",  $ready]
+       elif $ci == "SUCCESS"                                    then ["ok",   $green]
+       else ["mute", $none] end) as [$state, $glyph]
+    | "row\u001f" + $state
+      + "\u001f" + (.repository.name + " #" + (.number|tostring) + "  " + .title)
+      + "\u001f" + .url
+      + "\u001f" + $glyph')
+  worst=$(rows_worst "$rows")
   {
-    printf 'meta\037%s\037%s\037%s\n' "${S_SEV[$i]}" "$count" "$(source_title "$i")"
-    # `repository_url` is the only place a search hit names its repo, and it is
-    # an API URL — the last two path components are owner/name.
-    printf '%s' "$json" | jq -r --arg sev "${S_SEV[$i]}" '
-      .items[]? |
-      "row\u001f" + $sev + "\u001f" +
-      ((.repository_url | split("/") | .[-1]) + " #" + (.number|tostring) + "  " + .title) +
-      "\u001f" + .html_url'
+    printf 'meta\037%s\037%s\037%s\037%s\n' \
+      "${S_SEV[$i]}" "$count" "$(source_title "$i")" "$worst"
+    [ -n "$rows" ] && printf '%s\n' "$rows"
   } > "$out"
   mv -f "$out" "$STATE/src-$i.tsv"
   rm -f "$err"
@@ -224,18 +339,25 @@ fetch_ci() { # fetch_ci <index> <org> <limit>
   local rows count
   # FAILURE and ERROR are both "it went red"; PENDING is a run still going and
   # NONE is a repo with no checks at all, neither of which is a thing to report.
-  rows=$(printf '%s' "$json" | jq -r '
+  # Every row this source draws is therefore red by construction, which is why
+  # it takes the glyph as a constant rather than deciding one per row.
+  rows=$(printf '%s' "$json" | jq -r --arg failed "$G_FAILED" '
     .data.repositoryOwner.repositories.nodes[]?
     | select(.isArchived | not)
     | select(.defaultBranchRef != null)
     | { name: .name, url: .url, br: .defaultBranchRef.name,
         st: (.defaultBranchRef.target.statusCheckRollup.state // "NONE") }
     | select(.st == "FAILURE" or .st == "ERROR")
-    | "row\u001fbad\u001f" + .name + "  " + .br + "\u001f" + .url')
+    | "row\u001fbad\u001f" + .name + "  " + .br + "\u001f" + .url
+      + "\u001f" + $failed')
   count=$(printf '%s' "$rows" | grep -c '^row' 2>/dev/null || true)
   count=${count:-0}
   {
-    printf 'meta\037bad\037%s\037%s\n' "$count" "$(source_title "$i")"
+    # `worst` is whatever the rows are, not a constant `bad`: a green board
+    # has no rows at all, and a source with nothing in it must not tint the
+    # pill's logo red for the whole time nothing is wrong.
+    printf 'meta\037bad\037%s\037%s\037%s\n' \
+      "$count" "$(source_title "$i")" "$(rows_worst "$rows")"
     [ "$count" -gt 0 ] && printf '%s\n' "$rows" | head -n "$limit"
   } > "$out"
   mv -f "$out" "$STATE/src-$i.tsv"
@@ -252,12 +374,20 @@ fetch_command() { # fetch_command <index> <command> <limit>
   # The contract is `<state>\t<text>[\t<url>]`; anything else is dropped rather
   # than drawn as a mangled row, because a plugin that renders garbage teaches
   # you to distrust the pill instead of fixing the script.
-  rows=$(printf '%s' "$rows" | awk -F'\t' -v US=$'\037' 'NF>=2 && ($1=="ok"||$1=="warn"||$1=="bad"){
-    printf "row%s%s%s%s%s%s\n", US, $1, US, $2, US, (NF>=3 ? $3 : "") }')
+  #
+  # The glyph comes from the state the script printed, so a `command` source
+  # gets the same three marks a search row wears without having to know they
+  # exist — its contract is still the two or three fields it always was.
+  rows=$(printf '%s' "$rows" | awk -F'\t' -v US=$'\037' \
+    -v GB="$G_FAILED" -v GW="$G_RUNNING" -v GO="$G_GREEN" \
+    'NF>=2 && ($1=="ok"||$1=="warn"||$1=="bad"){
+      glyph = ($1=="bad" ? GB : ($1=="warn" ? GW : GO))
+      printf "row%s%s%s%s%s%s%s%s\n", US, $1, US, $2, US, (NF>=3 ? $3 : ""), US, glyph }')
   count=$(printf '%s' "$rows" | grep -c '^row' 2>/dev/null || true)
   count=${count:-0}
   {
-    printf 'meta\037%s\037%s\037%s\n' "${S_SEV[$i]}" "$count" "$(source_title "$i")"
+    printf 'meta\037%s\037%s\037%s\037%s\n' \
+      "${S_SEV[$i]}" "$count" "$(source_title "$i")" "$(rows_worst "$rows")"
     [ "$count" -gt 0 ] && printf '%s\n' "$rows" | head -n "$limit"
   } > "$out"
   mv -f "$out" "$STATE/src-$i.tsv"
@@ -392,15 +522,25 @@ spawn_fetch() {
 #         would mean a `command` source ending in a `grep` that matched nothing
 #         (exit 1, entirely normal) blanks a ci count that is sitting there
 #         correct and red. A transient 502 on one call would do the same.
+#
+# LEAD_WORST is the other half of the two-tone pill (see the header): the worst
+# ROW state anywhere, across every source rather than only the leading one. It
+# is deliberately not tied to which source leads — a conflict in the open-PR
+# list is worth the same red whether or not that list happens to be the source
+# the number came from.
 LEAD_STATE=ok
 LEAD_COUNT=0
 LEAD_SEV=info
+LEAD_WORST=none
 read_cache() {
-  local i rank best=0 kind sev count saw_error=0
-  LEAD_STATE=ok; LEAD_COUNT=0; LEAD_SEV=info
+  local i rank best=0 wrank wbest=0 kind sev count title worst saw_error=0
+  LEAD_STATE=ok; LEAD_COUNT=0; LEAD_SEV=info; LEAD_WORST=none
   for ((i = 0; i < n_sources; i++)); do
     [ -f "$STATE/src-$i.tsv" ] || continue
-    IFS=$'\037' read -r kind sev count _ < "$STATE/src-$i.tsv"
+    # `worst` named rather than swallowed by a trailing `_`: with five fields
+    # and four variables, `read` folds the last two together and the title
+    # arrives with the verdict stuck to it.
+    IFS=$'\037' read -r kind sev count title worst < "$STATE/src-$i.tsv"
     [ "$kind" = meta ] || continue
     case "$sev" in
       auth)
@@ -410,6 +550,10 @@ read_cache() {
         saw_error=1
         continue ;;
     esac
+    wrank=$(sev_rank "${worst:-none}")
+    if [ "$wrank" -gt "$wbest" ]; then
+      wbest="$wrank"; LEAD_WORST="${worst:-none}"
+    fi
     [ "${count:-0}" -gt 0 ] || continue
     rank=$(sev_rank "$sev")
     if [ "$rank" -gt "$best" ]; then
@@ -428,12 +572,12 @@ render() {
   # are two separate home.file entries, so a rebuild that lands one before the
   # other leaves a window where this is unset — and under `set -u` that is not a
   # missing glyph, it is a pill that stops drawing until the next tick.
-  local icon="${BAR_GITHUB_ICON:-}" color label ldraw=on
+  local icon="${BAR_GITHUB_ICON:-}" color label ldraw=on icolor
   if [ -f "$FETCHING" ] && [ "$(stamp_epoch)" -eq 0 ]; then
     # Only on the very first fetch, when there is genuinely nothing to show. A
     # refresh over a populated cache keeps drawing the old number instead of
     # blanking a pill you were reading.
-    color="$OVERLAY0"; label="…"
+    color="$OVERLAY0"; label="…"; LEAD_WORST=none
   else
     read_cache
     case "$LEAD_STATE" in
@@ -452,8 +596,29 @@ render() {
         fi ;;
     esac
   fi
+
+  # The logo's own tone: the worst row anywhere, but ONLY when that is something
+  # to act on. `ok` deliberately doesn't paint it green — an all-clear that is
+  # true almost all the time is a colour you stop reading, and then the red one
+  # has to fight it for attention. So the octocat matches the number until
+  # something is actually wrong, and then it is the thing that moved.
+  icolor="$color"
+  case "$LEAD_WORST" in
+    bad | warn) icolor="$(sev_color "$LEAD_WORST")" ;;
+  esac
+
+  # An icon-only pill has to be padded symmetrically. The bar's defaults are
+  # 8 left / 4 right on the icon and 4 / 8 on the label, which reads centred
+  # while both are drawn and visibly left-heavy the moment the label goes away
+  # — which for this pill is its RESTING state, i.e. most of the time. Set with
+  # every paint rather than once at --add, because the label appears and
+  # disappears with the count.
+  local ipl=8 ipr=4
+  [ "$ldraw" = off ] && { ipl=10; ipr=10; }
+
   "$SB" --set "$ITEM" drawing="$(tour_drawing)" \
-    icon="$icon" icon.color="$color" \
+    icon="$icon" icon.color="$icolor" \
+    icon.padding_left="$ipl" icon.padding_right="$ipr" \
     label="$label" label.color="$color" label.drawing="$ldraw"
 }
 
@@ -481,7 +646,7 @@ open_popup() {
   "$SB" --remove "/${ITEM}\.popup\..*/" 2>/dev/null
   # Every row is accumulated and handed over in ONE call, so the popup appears
   # fully formed instead of growing a row at a time in front of you.
-  local ARGS=() i=0 s line kind sev count title rows_drawn
+  local ARGS=() i=0 s line kind sev count title worst glyph rows_drawn
   pop_add() {
     ARGS+=(--add item "${ITEM}.popup.$i" "popup.${ITEM}"
       --set "${ITEM}.popup.$i"
@@ -511,31 +676,49 @@ open_popup() {
   else
     for ((s = 0; s < n_sources; s++)); do
       [ -f "$STATE/src-$s.tsv" ] || continue
-      IFS=$'\037' read -r kind sev count title < "$STATE/src-$s.tsv"
+      IFS=$'\037' read -r kind sev count title worst < "$STATE/src-$s.tsv"
       [ "$kind" = meta ] || continue
-      # Kept aside because the row loop below reuses `sev` for each row's own
-      # state — the section's verdict has to survive that.
-      local msev="$sev"
+      # Kept aside because the row loop below reuses `sev` and `glyph` for each
+      # row's own state — the section's verdict has to survive that.
+      local msev="$sev" mworst="${worst:-none}"
+      # The heading takes the WORSE of what the source is worth and what its
+      # rows actually found, so an `info` queue holding one conflict reads red
+      # at the section level too rather than only on the one row.
+      local hsev="$msev"
+      [ "$(sev_rank "$mworst")" -gt "$(sev_rank "$msev")" ] && hsev="$mworst"
       local hcolor="$OVERLAY1"
-      [ "${count:-0}" -gt 0 ] && hcolor="$(sev_color "$sev")"
+      [ "${count:-0}" -gt 0 ] && hcolor="$(sev_color "$hsev")"
+      # The count in the heading, not just on the pill. A section that says
+      # "open PRs" over eight rows leaves you counting them to find out whether
+      # eight is all of them; "open PRs · 12" answers it before the `+4 more`.
+      local htitle="$title"
+      [ "${count:-0}" -gt 0 ] && htitle="$title · $count"
       pop_add icon="${S_ICON[$s]}" icon.color="$hcolor" \
-        label="$title" label.color="$TEXT" \
+        label="$htitle" label.color="$TEXT" \
         label.font="${BAR_FONT}:Bold:${FS_LABEL}" background.height="$H_HEADER"
 
       rows_drawn=0
-      while IFS=$'\037' read -r kind sev text url; do
+      while IFS=$'\037' read -r kind sev text url glyph; do
         [ "$kind" = row ] || continue
         rows_drawn=$((rows_drawn + 1))
+        # A `mute` row — a draft, an issue, a verdict GitHub hasn't computed —
+        # loses its text a shade too, not just its glyph colour. Otherwise a
+        # list of eight reads as eight equal claims on you when two of them are
+        # their author saying "not yet".
+        local lcolor="$SUBTEXT0"
+        [ "$sev" = mute ] && lcolor="$OVERLAY0"
         # A row with a URL opens it and closes the popup; one without just
-        # closes, which is the pop_add default.
+        # closes, which is the pop_add default. The glyph is the merge verdict
+        # (empty from a cache an older generation wrote, which draws as the
+        # blank the rows used to have).
         if [ -n "$url" ]; then
-          pop_add icon="" icon.color="$(sev_color "$sev")" \
-            label="$text" label.color="$SUBTEXT0" \
+          pop_add icon="$glyph" icon.color="$(sev_color "$sev")" \
+            label="$text" label.color="$lcolor" \
             label.font="${BAR_FONT}:Regular:${FS_SMALL}" \
             click_script="/usr/bin/open '$url'; $SB --set ${ITEM} popup.drawing=off"
         else
-          pop_add icon="" icon.color="$(sev_color "$sev")" \
-            label="$text" label.color="$SUBTEXT0" \
+          pop_add icon="$glyph" icon.color="$(sev_color "$sev")" \
+            label="$text" label.color="$lcolor" \
             label.font="${BAR_FONT}:Regular:${FS_SMALL}"
         fi
       done < "$STATE/src-$s.tsv"

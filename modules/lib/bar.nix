@@ -81,6 +81,15 @@ rec {
     small = fontSize 13; # tighter labels (harvest, tour, popup rows)
     tiny = fontSize 12; # the popup's italic note
     appIcon = fontSize 16; # sketchybar-app-font glyphs (workspace app logos)
+    # `icon`, for the handful of glyphs that are as WIDE as they are tall.
+    #
+    # Nerd Font's Mono builds fit every patched glyph into one cell, and the fit
+    # is by width — so a tall-and-narrow glyph (a calendar, a bolt) lands at
+    # ~0.67em of ink while a square one (the octocat, a logo mark) is squeezed
+    # to ~0.59em by its own width. Same point size, visibly smaller pill. Two
+    # points back is what makes the two read as one family; it costs nothing
+    # vertically, because the ink is what grew and the ink was the short part.
+    iconWide = fontSize 19;
   };
 
   # Extra separation between the bar and the tiled windows beside it, in points,
