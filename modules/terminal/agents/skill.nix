@@ -39,7 +39,7 @@ let
   # ---- references/rooms.md: the routing layer above options.md --------------
   # `options.md` is a flat list of every leaf, and it is authoritative — but it
   # answers "what can I set" rather than "where does THIS SENTENCE go". An agent
-  # handed "make my mac quiet" and 237 leaves has to reconstruct that focus is
+  # handed "make my mac quiet" and 267 leaves has to reconstruct that focus is
   # a room and that the room exists at all; and nothing in the option tree says
   # the room's *behaviour* is reached through `pounce focus` rather than through
   # a setting. Both gaps are editorial, so both are answered from the registry
@@ -80,11 +80,19 @@ let
     `references/options.md` for the leaf inside it. Going straight to a flat
     option search is how an agent ends up inventing a plausible name.
 
-    **Options change what the machine does next rebuild. A runtime verb changes
-    what it is doing now.** They are not interchangeable: `haus set
-    haus.focus.enable true` does not turn Do Not Disturb on, and `pounce focus
-    on` does not survive a reboot into a machine that never enabled the room.
-    Read the room's two lines and pick the one the user actually asked for.
+    **An option changes what the machine does from the next rebuild. A runtime
+    verb changes what it is doing right now.** They are not interchangeable, and
+    the focus room is the clearest case: `haus set haus.focus.enable true`
+    installs the switch and quiets nothing, while `focus on` quiets the Mac
+    immediately and only works because the room is already enabled. Read the
+    room's **Options** and **Runtime** lines and pick the one the user asked
+    for.
+
+    Where a room has a runtime verb, **prefer it over the tool it wraps.** haus's
+    `focus` presses the Do Not Disturb chord *and* writes the state file, sets
+    the user's Slack status, runs their hooks and repaints both bars; the
+    `pounce focus` underneath it does only the press. Reaching past the room's
+    verb makes you a surface that disagrees with the other three.
 
     ${lib.concatMapStringsSep "\n" roomSection roomsByOrder}
   '';
@@ -130,6 +138,12 @@ pkgs.runCommand "haus-agent-skill-${version}"
     # this file exists to stop.
     grep -q '^## Focus$' "$out/references/rooms.md" \
       || { echo "rooms.md rendered no Focus room — the render is broken" >&2; exit 1; }
-    grep -q 'pounce focus' "$out/references/rooms.md" \
-      || { echo "rooms.md rendered no runtime verbs — agent.cli is not reaching the page" >&2; exit 1; }
+    # Both of these must assert something DERIVED from the registry. An earlier
+    # version grepped for `pounce focus`, which the hand-written preamble also
+    # contained — so it passed with every `agent.cli` set to null, proving
+    # nothing about the field it was there to protect.
+    grep -q '^- \*\*Runtime:\*\* `focus on|off|toggle|status`$' "$out/references/rooms.md" \
+      || { echo "rooms.md rendered no room's agent.cli — the field is not reaching the page" >&2; exit 1; }
+    grep -q '^- \*\*Says:\*\* .*make my mac quiet' "$out/references/rooms.md" \
+      || { echo "rooms.md rendered no room's agent.asks — the routing half is missing" >&2; exit 1; }
   ''

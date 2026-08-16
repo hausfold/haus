@@ -383,9 +383,9 @@ let
           "${dir}/SKILL.md".source = "${hausSkill}/SKILL.md";
           "${dir}/references/options.md".source = "${hausSkill}/references/options.md";
           # The routing layer ABOVE options.md: which room a sentence belongs
-          # to, and whether that room has a runtime verb (`pounce focus on`) as
-          # well as options. Rendered from the room registry rather than the
-          # module system — see agents/skill.nix.
+          # to, and whether that room has a runtime verb (`focus on`) as well as
+          # options. Rendered from the room registry rather than the module
+          # system — see agents/skill.nix.
           "${dir}/references/rooms.md".source = "${hausSkill}/references/rooms.md";
           "${dir}/references/recipes.md".source = "${hausSkill}/references/recipes.md";
           "${dir}/references/this-machine.md".text = thisMachine;

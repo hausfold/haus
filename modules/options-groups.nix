@@ -723,12 +723,15 @@ let
       blurb = "The apps a finished machine has: the curated picks, the packs that switch a whole set on in one line, the file types they claim, App Store policy, and what a rebuild does to anything you installed by hand. The list they all land in is `haus.roster`, a shared surface below.";
       agent = {
         cli = null;
+        # Deliberately NOT "install an app" / "add slack": those are
+        # `haus.roster.<name>`, and roster belongs to the shared bucket below.
+        # An ask routed to the room that owns none of the options points the
+        # agent away from the answer, which is worse than no routing at all.
         asks = [
-          "install an app"
-          "remove an app"
-          "add slack"
-          "what apps do I have"
+          "turn on the writing pack"
+          "install the apps haus picks for me"
           "open markdown files with something else"
+          "stop homebrew auto-updating"
         ];
       };
     };
@@ -768,7 +771,6 @@ let
       agent = {
         cli = null;
         asks = [
-          "change my shell"
           "install a language runtime"
           "change my editor"
           "configure my terminal"
@@ -796,7 +798,7 @@ let
       order = 60;
       blurb = "The menu bar: where it draws, which pills it carries, and what each one reads.";
       agent = {
-        cli = "sketchybar";
+        cli = "sketchybar (top bar) · bar-bottom (the second one, same binary)";
         asks = [
           "change my menu bar"
           "add a pill to the bar"
@@ -814,8 +816,7 @@ let
         asks = [
           "change what cmd-space opens"
           "add a command to my palette"
-          "my launcher"
-          "my command palette"
+          "what opens when I hit cmd-space"
         ];
       };
     };
@@ -824,11 +825,15 @@ let
       order = 80;
       blurb = "Perch — the file shelf that grows out of the notch to catch what you drag at it.";
       agent = {
-        cli = "perch";
+        # NOT `perch`. This room dittos Perch.app into /Applications and puts no
+        # binary on PATH — its roster entry has no `package`, so `packagesFor`
+        # skips it. `perch add` exists in perch's own repo and reaches a machine
+        # through perch's cask, not through here.
+        cli = null;
         asks = [
           "turn the notch shelf on"
           "turn perch off"
-          "how long does my shelf keep things"
+          "stop the shelf appearing in the notch"
         ];
       };
     };
@@ -837,7 +842,7 @@ let
       order = 90;
       blurb = "One quiet switch: Do Not Disturb, an optional status somewhere else, and your own hooks on both edges.";
       agent = {
-        cli = "pounce focus on|off|status";
+        cli = "focus on|off|toggle|status";
         asks = [
           "make my mac quiet"
           "turn on do not disturb"
@@ -884,7 +889,7 @@ let
           "touch id for sudo"
           "turn on the firewall"
           "lock my screen faster"
-          "where do my secrets come from"
+          "where does haus get my secrets"
         ];
       };
     };
@@ -895,11 +900,17 @@ let
       order = 200;
       blurb = "Surfaces more than one room reads: the app roster, the workspaces, the keys haus owns, the interface scale, the first-run tour. They belong to no single room because moving one into a room would make the others depend on it.";
       agent = {
-        cli = "haus set";
+        # `haus set` is not a runtime verb by this field's own definition — it
+        # writes the host file and still needs a rebuild — and it is available
+        # for every room, so hanging it on this one implies the other thirteen
+        # lack it.
+        cli = null;
         asks = [
+          "install an app"
+          "add slack"
+          "remove an app"
           "what apps are on this machine"
           "rename a workspace"
-          "what keys does haus own"
           "make the whole interface bigger"
         ];
       };
@@ -914,8 +925,8 @@ let
         asks = [
           "change my git identity"
           "change my timezone"
-          "my region"
-          "this laptop's power behaviour"
+          "set my region"
+          "stop my laptop sleeping so fast"
         ];
       };
     };

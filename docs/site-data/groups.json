@@ -1307,11 +1307,10 @@
     "apps": {
       "agent": {
         "asks": [
-          "install an app",
-          "remove an app",
-          "add slack",
-          "what apps do I have",
-          "open markdown files with something else"
+          "turn on the writing pack",
+          "install the apps haus picks for me",
+          "open markdown files with something else",
+          "stop homebrew auto-updating"
         ],
         "cli": null
       },
@@ -1335,7 +1334,7 @@
           "show battery in the bar",
           "hide the bar"
         ],
-        "cli": "sketchybar"
+        "cli": "sketchybar (top bar) · bar-bottom (the second one, same binary)"
       },
       "blurb": "The menu bar: where it draws, which pills it carries, and what each one reads.",
       "exports": [
@@ -1353,7 +1352,6 @@
     "development": {
       "agent": {
         "asks": [
-          "change my shell",
           "install a language runtime",
           "change my editor",
           "configure my terminal",
@@ -1402,7 +1400,7 @@
           "hush",
           "am I in do not disturb"
         ],
-        "cli": "pounce focus on|off|status"
+        "cli": "focus on|off|toggle|status"
       },
       "blurb": "One quiet switch: Do Not Disturb, an optional status somewhere else, and your own hooks on both edges.",
       "exports": [
@@ -1419,12 +1417,14 @@
     "haus": {
       "agent": {
         "asks": [
+          "install an app",
+          "add slack",
+          "remove an app",
           "what apps are on this machine",
           "rename a workspace",
-          "what keys does haus own",
           "make the whole interface bigger"
         ],
-        "cli": "haus set"
+        "cli": null
       },
       "blurb": "Surfaces more than one room reads: the app roster, the workspaces, the keys haus owns, the interface scale, the first-run tour. They belong to no single room because moving one into a room would make the others depend on it.",
       "exports": [
@@ -1448,8 +1448,8 @@
         "asks": [
           "change my git identity",
           "change my timezone",
-          "my region",
-          "this laptop's power behaviour"
+          "set my region",
+          "stop my laptop sleeping so fast"
         ],
         "cli": null
       },
@@ -1470,8 +1470,7 @@
         "asks": [
           "change what cmd-space opens",
           "add a command to my palette",
-          "my launcher",
-          "my command palette"
+          "what opens when I hit cmd-space"
         ],
         "cli": "pounce"
       },
@@ -1493,7 +1492,7 @@
           "touch id for sudo",
           "turn on the firewall",
           "lock my screen faster",
-          "where do my secrets come from"
+          "where does haus get my secrets"
         ],
         "cli": null
       },
@@ -1517,9 +1516,9 @@
         "asks": [
           "turn the notch shelf on",
           "turn perch off",
-          "how long does my shelf keep things"
+          "stop the shelf appearing in the notch"
         ],
-        "cli": "perch"
+        "cli": null
       },
       "blurb": "Perch — the file shelf that grows out of the notch to catch what you drag at it.",
       "exports": [],
