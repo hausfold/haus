@@ -2974,7 +2974,7 @@
           #
           # It exists so the site repo's CI doesn't need Nix, a flake pin and a
           # nixpkgs fetch to check its own reference page — see
-          # modules/site-data.nix, and workshop's notes/hausfold-rename.md §5.1.
+          # modules/site-data.nix.
           site-data = import ./modules/site-data.nix {
             inherit pkgs;
             optionsJson = self.packages.${system}.options-json;

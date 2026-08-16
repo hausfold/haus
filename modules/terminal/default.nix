@@ -1253,9 +1253,13 @@ in
         HOMEBREW_NO_ENV_HINTS = "1";
         EDITOR = terminalCfg.editor;
         VISUAL = terminalCfg.editor;
-        # 🚨 `holt` reads this as a fallback rung in `defaultAgent` (its
-        # `internal/commands/env.go`), so the name is a cross-repo contract —
-        # don't rename it here alone.
+        # 🚨 The name is a cross-repo contract — don't rename it here alone.
+        # `holt` reads it as the LOWEST rung of `defaultAgent`
+        # (`internal/commands/env.go`), below `~/.config/holt/config.toml`'s
+        # `agent =` — which this module also writes, but only under
+        # `haus.ai.enable`. So this is what answers for a machine with the
+        # agent room off, and it is the only rung a standalone holt install
+        # gets for free.
         HAUS_AGENT_DEFAULT = agentDefault;
       };
 
