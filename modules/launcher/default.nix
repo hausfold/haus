@@ -181,7 +181,7 @@ let
       builtins.toJSON {
         autoQuit = config.haus.launcher.autoQuit;
         fnKey = config.haus.launcher.fnKey;
-        lanesZmx = config.haus.terminal.lanes.backend == "zmx";
+        lanesZmx = lanesAreWindows;
       }
     )
   }";
@@ -256,6 +256,17 @@ let
     exec "$HOME/.local/bin/focus" scene off
   '';
 
+  # The lane commands ride haus.terminal.lanes.backend: they only make sense
+  # where a lane is a window. ONE list, read by both the install below and the
+  # cheatsheet rows above, so a row can't survive a command that wasn't
+  # installed — the same rule the focus.sh filter and the scene rows follow.
+  lanesAreWindows = config.haus.terminal.lanes.backend == "zmx";
+  laneCommands = [
+    "lanes.sh"
+    "shell-here.sh"
+    "shell-here-stay.sh"
+  ];
+
   # This rice's palette commands (see ./commands — one self-describing script
   # each, metadata in a `# pounce:` header). The generated app-font lookup is
   # private command data, not self-describing, so pounce ignores it.
@@ -273,8 +284,8 @@ let
     # is a window: under the zellij lane backend those chords are zellij binds
     # and the picker's `zmx ls` half doesn't exist, so the commands go too.
     ${lib.optionalString (
-      config.haus.terminal.lanes.backend != "zmx"
-    ) "rm $out/lanes.sh $out/shell-here.sh $out/shell-here-stay.sh"}
+      !lanesAreWindows
+    ) "rm ${lib.concatMapStringsSep " " (f: "$out/${f}") laneCommands}"}
     # The scene commands (see the let-block above). `scene-` can't collide
     # with a static command — none is named that way — and `off` is a name
     # focus reserves, so scene-off.sh is always ours to claim.
@@ -490,7 +501,9 @@ let
         action = commandField file "description";
       })
       (
-        lib.filter (f: f != "focus.sh" || config.haus.focus.enable) (
+        lib.filter (
+          f: (f != "focus.sh" || config.haus.focus.enable) && (lanesAreWindows || !(lib.elem f laneCommands))
+        ) (
           lib.naturalSort (
             lib.attrNames (
               lib.filterAttrs (n: t: t == "regular" && lib.hasSuffix ".sh" n) (builtins.readDir ./commands)
@@ -1168,7 +1181,7 @@ lib.mkIf config.haus.launcher.enable {
         # print and ⌃⇥ stays next-tab in every other app. An older pounce that
         # predates the keys ignores both blocks — the same lenient parse as
         # `themeLight`.
-        // lib.optionalAttrs (config.haus.terminal.lanes.backend == "zmx") {
+        // lib.optionalAttrs lanesAreWindows {
           # ⌘P / ⌘⇧P — the zellij NewPane chords' heirs: a shell WINDOW in the
           # focused window's directory (cmd:shell-here[-stay], this rice's own
           # command scripts). Targets are pounce's one dispatch grammar, so a
