@@ -51,8 +51,11 @@ provider_style() {
   local nerd="${BAR_FONT}:Bold:$size"
   # The accents, and why each: FLAMINGO is the palette's warm clay, the nearest
   # neighbour to Anthropic's orange that isn't PEACH (a status colour); TEAL is
-  # OpenAI's green-teal; LAVENDER is Gemini's blue-violet; MAUVE is the
+  # OpenAI's green-teal; LAVENDER is Gemini's blue-violet; PINK is jcode, which
+  # fronts every provider and so borrows none of their hues; MAUVE is the
   # bring-your-own-key catch-all, which is also what an unknown client gets.
+  # SAPPHIRE is deliberately absent: ai_usage.sh spends it on money, and its
+  # claim to mean "a quantity, no verdict" only holds while no client wears it.
   P_COLOR="$MAUVE"
   case "$prov" in
     claude)
@@ -73,6 +76,24 @@ provider_style() {
         openai* | gpt*)       P_ICON=":openai:"; P_FONT="$appfont"; P_NAME="Opencode (${model:-gpt})";    P_COLOR="$TEAL" ;;
         "")                   P_ICON="󰏫";       P_FONT="$nerd";    P_NAME="Opencode" ;;
         *)                    P_ICON="󰏫";       P_FONT="$nerd";    P_NAME="Opencode (${model:-api})" ;;
+      esac
+      ;;
+    jcode)
+      # Same shape as Opencode and for the same reason — jcode fronts whichever
+      # subscription you logged it into. Its usage feed reports one block per
+      # logged-in provider and writes the chosen one into the row's model field
+      # (statusline-refresh.sh), so these cases are reachable rather than
+      # decorative: a jcode row on an Anthropic account draws the Claude mark.
+      # The bare client (an agent pane, which knows its client but not its
+      # provider) gets jcode's own mark in PINK — not SAPPHIRE, which this pill
+      # reserves for MONEY, on the stated grounds that it is the one accent
+      # belonging to no client at all.
+      case "$model" in
+        google* | gemini*)    P_ICON="✦";        P_FONT="$nerd";    P_NAME="jcode (${model:-gemini})"; P_COLOR="$LAVENDER" ;;
+        anthropic* | claude*) P_ICON=":claude:"; P_FONT="$appfont"; P_NAME="jcode (${model:-claude})"; P_COLOR="$FLAMINGO" ;;
+        openai* | gpt*)       P_ICON=":openai:"; P_FONT="$appfont"; P_NAME="jcode (${model:-gpt})";    P_COLOR="$TEAL" ;;
+        "")                   P_ICON="󱐋";        P_FONT="$nerd";    P_NAME="jcode";                   P_COLOR="$PINK" ;;
+        *)                    P_ICON="󱐋";        P_FONT="$nerd";    P_NAME="jcode (${model:-api})";   P_COLOR="$PINK" ;;
       esac
       ;;
     *)

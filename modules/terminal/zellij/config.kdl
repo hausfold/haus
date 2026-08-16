@@ -91,9 +91,9 @@ keybinds {
         // @AGENT_NEW@ is rendered by terminal from haus.ai.default:
         //   claude   → `claude --worktree`, its NATIVE flag, which fires the
         //              `holt` WorktreeCreate hook in ~/.claude/settings.json.
-        //   codex,   → `holt new`: no client-side equivalent exists, so Holt
-        //   opencode   makes the same worktree from the outside and opens the
-        //              configured client. Holt reads its persisted config, not
+        //   every    → `holt new`: no client-side equivalent exists, so Holt
+        //   other      makes the same worktree from the outside and opens the
+        //   client     configured client. Holt reads its persisted config, not
         //              Zellij's launch-time environment, so it keeps following
         //              haus.ai.default after a rebuild.
         //              in it. Same path, branch, registry, parking and reaping.

@@ -34,7 +34,7 @@ adds only its own host (identity, private apps, secrets).
 > and the state dirs `~/.local/state/haus`, `~/.config/haus/`, `~/.cache/haus/`,
 > `/Library/Application Support/haus/`. The agent skill installs as `haus/`
 > inside each client's skills directory (`~/.claude/skills/`, `~/.codex/skills/`,
-> `~/.config/opencode/skills/`) and its frontmatter `name:` is `haus`.
+> `~/.config/opencode/skills/`, `~/.jcode/skills/`) and its frontmatter `name:` is `haus`.
 
 **This file is the one set of instructions, for every agent.** Claude Code,
 Codex, OpenCode, Cursor, Copilot — TUI or GUI — all read *this*, directly or
@@ -479,8 +479,11 @@ it silently.
   `modules/bar/sketchybar/plugins/agents-hook.sh`, the same script bar installs
   into the bar's plugin dir, so the PATH copy and the bar copy can never drift.
   Every client's hooks call it (`agent-state <working|waiting|idle|remove>
-  <client>`) — which is why the wirings terminal writes for opencode and codex never
-  need to know where a bar keeps its plugins. They're plain bash embedded via
+  <client>`) — which is why the wirings terminal writes for opencode, codex and
+  jcode never need to know where a bar keeps its plugins. (jcode's is not a file
+  at all: its config.toml is a file the client rewrites, so the wiring is four
+  `JCODE_HOOK_*` session variables, which beat that file by jcode's own rule.)
+  They're plain bash embedded via
   `builtins.readFile`, so a rebuild re-installs them on `PATH`. Agent worktrees
   themselves are **`holt`** — [its own repo](https://github.com/hausfold/holt),
   taken as a flake input rather than a core-sourced script, ejected from the

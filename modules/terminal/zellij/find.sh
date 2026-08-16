@@ -34,6 +34,12 @@
 #     whole scrollback. That includes CODEX panes: it reports pane state through
 #     agent-state like the others, but passes no conversation id and this repo
 #     knows no on-disk history path for it, so there is nothing to join to.
+#     It also includes JCODE panes today, but for a different reason and not
+#     for long: the join already exists — agent-state reads
+#     `JCODE_HOOK_SESSION_ID` out of the hook environment and writes the same
+#     `.session` sibling opencode gets — and what is missing is the RENDERER for
+#     jcode's own session store under `~/.jcode`. Until one exists a jcode pane
+#     falls through to scrollback, which for an alt-screen TUI is one screenful.
 #
 # WHICH PANE DID THE USER MEAN (the non-obvious part)
 #
