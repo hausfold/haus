@@ -1,9 +1,19 @@
 # Leaving zellij — Ghostty windows + AeroSpace + zmx (architecture A)
 
-> Status: **plan only, nothing implemented.** zellij stays the shipped
-> multiplexer until Phase 7 flips the default. Every phase below is
+> Status: **mostly plan; two pieces are now shipped.** zellij stays the
+> shipped multiplexer until Phase 7 flips the default. Every phase below is
 > separately shippable and separately revertible; the seam in Phase 2 is
 > what makes that true.
+>
+> **What has landed early, and why it jumped the queue** (2026-08-16):
+> `haus.terminal.lanes.backend = "zmx"` ships a lane — one agent worktree —
+> as its own zmx session in its own Ghostty window, ahead of the
+> `multiplexer` seam Phase 2 describes. That is a narrower option than
+> Phase 2's (it moves *agent lanes* out of zellij, not *panes*), and it was
+> worth having on its own. Living on it immediately produced two findings
+> the plan had listed as open, so they are recorded in place below:
+> **decision 4** (the chord layer, forced sooner than Phase 4 expected) and
+> **the spawn measurement** that open question 1 asks for.
 
 ## Three decisions, settled 2026-08-14
 
@@ -41,6 +51,92 @@ Decision 3 collapses what looked like this plan's hardest problem into
 nothing: **5,991 of the 8,617 forked Rust lines are the status-bar**, and
 they now leave with no replacement work at all. What remains needing a home
 is the agent-count badge alone, and bar already has the pill for it.
+
+## Decision 4, forced by use, 2026-08-16 — a spawn chord cannot live in the terminal
+
+The plan says "chords move to AeroSpace, not to Ghostty" and files it under
+Phase 4. Running one lane backend on zmx brought it forward for a single
+chord, because **⌘A stopped working the moment a lane stopped being a pane**,
+in two ways that turn out to be the same way:
+
+- **zellij can only run a command by opening a pane for it.** `Run` is the
+  only action of its kind. Under the zellij backend that pane WAS the lane,
+  so it cost nothing; under zmx `holt new` returns as soon as it has asked
+  for a window, so the pane appeared, flashed and was torn down again. That
+  is not a bug in the bind. It is a pane being used as a process launcher.
+- **⌘A only ever reached zellij by falling through Ghostty.**
+  `ghostty/config` unbinds `cmd+a` so the multiplexer can see it — and a zmx
+  lane's own window has no multiplexer in it. So the chord worked in exactly
+  the windows that already had an agent, and not in the ones spawned from it.
+
+Ghostty cannot take it over: **`ghostty +list-actions` on 1.3.1 lists 85
+actions and none of them runs a command** (measured, not read). There is no
+`exec`, no shell action, nothing that shells out. This is worth recording
+because it closes off the obvious alternative for the whole Phase 4 keymap,
+not just this chord: every chord that *does something* — as opposed to
+something Ghostty itself implements — has to be an AeroSpace bind.
+
+So the chord is **⌃⌘A**, in `modules/windows/wm-bindings.nix`, running
+`modules/terminal/lanes/lane-spawn.sh`, wired through a new
+`haus._contrib.windows.agents` extension point. Not ⌘A: a *global* ⌘A would
+take select-all away from every application on the machine, which is the
+price of one keystroke and far too high. Rejected alongside it: AeroSpace
+`on-focus-changed` switching into a terminal-only binding mode so ⌘A could
+be app-scoped — AeroSpace modes do not inherit, so every main-mode bind
+would have to be duplicated into it, and the mode switch races the focus
+change, so a fast ⌘A right after clicking a window lands in the wrong mode.
+
+**The cost this pays, and how it is paid.** A zellij bind inherited the
+focused pane's directory for free; a window-layer chord has no directory at
+all. The window TITLE is the join in both worlds:
+
+| focused window | what the title is | where cwd comes from |
+|---|---|---|
+| a zmx lane | `holt.<repo>.<lane>`, forced by lane-open.sh's `--title` | `zmx ls` → that session's `cwd` (a `file://` URL, same strip `agents.sh` does) |
+| a zellij window | the zellij **session name** — verified, `aerospace list-windows` prints `Ghostty\|main` | `zellij action dump-layout` → the focused tab's focused pane |
+| anything else | — | falls back to `$HOME`; "⌘A from anywhere" beats a refusal |
+
+`dump-layout`'s pane `cwd` is **live, not launch-time** — measured: a pane
+whose client had chdir'd into a worktree reported the worktree. Exactly one
+tab carries `focus=true` and exactly one pane inside it does, so the parse is
+"the focused pane of the focused tab" with brace-depth tracking to stop a
+focused pane in another tab from winning.
+
+## The spawn measurement — open question 1, answered
+
+Measured 2026-08-16 on Ghostty 1.3.1, wall-clock from issuing the command to
+the window appearing in `aerospace list-windows` (so both numbers carry the
+poll loop's own overhead; the **difference** is the signal):
+
+| | time | processes |
+|---|---|---|
+| `open -na Ghostty.app --args --title=… --initial-command=…` | **366 ms** | spawns a SECOND Ghostty process per lane |
+| AppleScript `new window with configuration` | **252 ms** | reuses the running instance |
+
+Two things fall out of that, and the second matters more than the timing:
+
+1. **`ghostty +new-window` is still refused on macOS** ("not supported on
+   this platform", 1.3.1), so the CLI is not the third option.
+2. **`open -n` means one Ghostty *process* per lane.** `pgrep` during the
+   measurement shows the second instance running with the lane's `--title` on
+   its argv. That is also *why* the title trick works — `title` is
+   instance-global config, forced for every surface in that instance — so the
+   forced title and the extra process are the same fact.
+
+Which sets up the trade that risk 1 didn't anticipate. AppleScript is faster
+and shares one instance, and its `surface configuration` carries
+`initial working directory`, `command`, `environment variables` and
+`wait after command` natively — which would delete lane-open.sh's temp
+launcher script, its three levels of `printf %q` quoting, and its `bash -lc`
+(the login shell that currently drags a stale `~/.profile` into every lane
+window). But the record has **no title property, and window `name` is
+read-only**, so "the name is the join" would need a different mechanism:
+either an OSC 2 the client can clobber, or a spawn-time
+`window-id ↔ session` map — which is the per-pane state file the zmx design
+set out to abolish.
+
+**Not decided.** Phase 1 owns it; both halves are now measured rather than
+assumed.
 
 ## Why
 
@@ -317,8 +413,13 @@ any point before Phase 8.
 
 ## Open questions
 
-1. **What does a Ghostty window cost to spawn?** Unmeasured, and it sets
-   whether ⌘A still feels instant. (Risk 1, Phase 1.)
+1. ~~**What does a Ghostty window cost to spawn?**~~ **Answered 2026-08-16** —
+   366 ms via `open -na` (plus a whole second Ghostty process per lane),
+   252 ms via AppleScript into the running instance. See "The spawn
+   measurement" above. Both are over risk 1's ~250 ms line as measured,
+   though the poll loop is inside both numbers. What is now open is narrower:
+   **does the AppleScript path's lack of a forced window title cost more than
+   the 114 ms and the extra process it saves?** (Phase 1.)
 2. **How much Mission Control noise is too much?** Phase 0 answers it by
    feel, not by argument.
 3. **Do the six patches have Ghostty equivalents?** Unknown per-patch until

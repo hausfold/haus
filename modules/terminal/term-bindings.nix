@@ -88,35 +88,36 @@ rec {
   sections = [
     {
       title = "Terminal · Agents";
-      # The binds stay in config.kdl either way — they're static — but with no
-      # client installed they'd open a pane that dies on `command not found`,
-      # so the card goes quiet rather than teaching a dead key.
+      # With no client installed these would open a pane that dies on `command
+      # not found`, so the card goes quiet rather than teaching a dead key.
       show = agentsEnabled;
-      items = [
-        {
-          chords = [ "Super a" ];
-          action =
-            if laneBackend == "zmx" then
-              "New agent in its own worktree + window (${agentDefault})"
-            else
-              "New agent in its own worktree (${agentDefault})";
-        }
-        {
-          chords = [ "Super Shift a" ];
-          # Under zmx the lane is a window, so there is no pane to replace and
-          # this chord does what ⌘A does. Say that rather than teach a
-          # distinction the machine no longer makes.
-          action =
-            if laneBackend == "zmx" then
-              "Same — no pane to replace, lanes are windows"
-            else
-              "Same, replacing this pane (it comes back)";
-        }
-        {
-          chords = [ "Ctrl Alt Shift a" ];
-          action = "Agent in THIS checkout — one per tab";
-        }
-      ];
+      # ⌘A and ⌘⇧A are zellij's, and under `lanes.backend = "zmx"` zellij no
+      # longer binds them: a lane is a window there, so the chord moved out of
+      # the multiplexer to ⌃⌘A in AeroSpace, where the WINDOWS table teaches it
+      # (../windows/wm-bindings.nix, fed the same contribution). Their rows have
+      # to leave with them — the assertion in ./default.nix compares this table
+      # against the RENDERED config.kdl in both directions, so a row taught here
+      # and bound nowhere fails the build just as loudly as the reverse.
+      #
+      # ⌃⌥⇧A stays either way: the resident agent works in THIS checkout and is
+      # a pane by definition, so it has nothing to move to.
+      items =
+        lib.optionals (laneBackend != "zmx") [
+          {
+            chords = [ "Super a" ];
+            action = "New agent in its own worktree (${agentDefault})";
+          }
+          {
+            chords = [ "Super Shift a" ];
+            action = "Same, replacing this pane (it comes back)";
+          }
+        ]
+        ++ [
+          {
+            chords = [ "Ctrl Alt Shift a" ];
+            action = "Agent in THIS checkout — one per tab";
+          }
+        ];
     }
     {
       title = "Terminal · Panes & Tabs";

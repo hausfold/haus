@@ -61,25 +61,35 @@ let
   # chord follows. It is also what makes the lane resumable, because Claude
   # keys a transcript to the directory it started in — a `holt new` lane's
   # conversation lives at the lane's own path, where `holt <name>` looks for it.
-  agentNewRun =
-    if agentDefault == "claude" && terminalCfg.lanes.backend != "zmx" then
-      ''"claude" "--worktree"''
-    else
-      ''"holt" "new"'';
+  agentNewRun = if agentDefault == "claude" then ''"claude" "--worktree"'' else ''"holt" "new"'';
 
-  # Super a's spelling of the same thing, and the only Run bind in config.kdl
-  # that doesn't take close_on_exit unconditionally. Under zellij the command IS
-  # the lane and never returns, so the flag would only decide what happens when
-  # you quit the client — today the pane stays, scrollback intact, which is the
-  # behaviour that predates this and is not this change's to alter. Under zmx
-  # `holt new` hands off to lanes/lane-open.sh, which opens a window and RETURNS
-  # in well under a second, so without the flag every ⌘A leaves a spent pane.
+  # ⌘A and ⌘⇧A, or nothing at all.
   #
-  # Super Shift a already carries close_on_exit for its own reason (it replaces
-  # a suppressed pane that has to come back), so it keeps taking @AGENT_NEW@.
-  agentNewSolo =
-    agentNewRun
-    + lib.optionalString (terminalCfg.lanes.backend == "zmx") " { close_on_exit true; }";
+  # Under `lanes.backend = "zmx"` a lane is a WINDOW, and both binds go — the
+  # chord moves to ⌃⌘A in AeroSpace (this room contributes it through
+  # `_contrib.windows.agents` below; the reasoning is in the kdl beside the
+  # placeholder and in modules/windows/options.nix). Rendering nothing rather
+  # than rendering `holt new` here is deliberate on three counts: zellij can
+  # only run a command by opening a pane, so this bind could not stop flashing
+  # one; a zmx lane's own window has no zellij to receive ⌘A at all; and two
+  # chords that spawn a lane, one of which works in half the windows, is worse
+  # than one that works in all of them.
+  #
+  # The assertion in this file cross-checks the RENDERED kdl against
+  # term-bindings.nix, so dropping the binds here without dropping their rows
+  # there fails the build — which is the invariant working, not a hazard.
+  agentLaneBinds =
+    if terminalCfg.lanes.backend == "zmx" then
+      ""
+    else
+      ''
+        bind "Super a" { Run ${agentNewRun}; }
+                bind "Super Shift a" {
+                    Run ${agentNewRun} {
+                        in_place true
+                        close_on_exit true
+                    }
+                }'';
 
   # One client id → one package, from the one table (modules/lib/agent-packages.nix):
   # the AI room asserts each named client is buildable here, and this is where a
@@ -203,10 +213,21 @@ let
         // agent process; a real keypress here is a human at the keyboard.
         bind "Super b" { Run "@HOME@/code/workshop/bench" "try" "lane" "switch"; }
   '';
-  zellijConfigTemplate = builtins.replaceStrings [ "@GH_DASH_BIND@" "@BENCH_LANE_BIND@" ] [
-    ghDashBind
-    benchLaneBind
-  ] (builtins.readFile ./zellij/config.kdl);
+  # Conditional BINDS are substituted here rather than in zellijConfigFile
+  # below, and the difference is load-bearing: `kdlChords` reads this string to
+  # cross-check the cheatsheet, so a bind that only appears after the later pass
+  # is a bind the assertion cannot see. (Found the hard way — @AGENT_LANE_BINDS@
+  # started in the later pass and the check went green on a zmx machine while
+  # failing every zellij one.) Only substitutions that add no `bind` line —
+  # @HOME@, the mode names, @AGENT_HERE@'s client — belong in the later pass.
+  zellijConfigTemplate =
+    builtins.replaceStrings [ "@GH_DASH_BIND@" "@BENCH_LANE_BIND@" "@AGENT_LANE_BINDS@" ]
+      [
+        ghDashBind
+        benchLaneBind
+        agentLaneBinds
+      ]
+      (builtins.readFile ./zellij/config.kdl);
   ghDashGhosttyBind = lib.optionalString ghDashCfg.enable ''
     # cmd+g → zellij "Super g": gh-dash as a clean fullscreen overlay.
     # Ghostty owns this chord as search-next by default, so it must be released
@@ -616,6 +637,20 @@ let
   '';
 in
 {
+  # ---- what this room contributes to other rooms ------------------------------
+  # Windows draws the global agent-spawn chord. The terminal room is the one that
+  # knows a lane has stopped being a pane, and it owns the script that answers
+  # "which repo is the focused window looking at" — but it has no business
+  # binding a global key, so it states the fact and lets windows decide.
+  haus._contrib.windows.agents = {
+    enable = agentContrib.enable && terminalCfg.lanes.backend == "zmx";
+    # @HOME@, not an interpolated home directory: this is read at the SYSTEM
+    # level, where `config.home` doesn't exist, and windows already resolves
+    # that token when it renders the binding table (its `subTokens`). Same
+    # convention every other command in wm-bindings.nix uses.
+    spawn = "@HOME@/.config/haus/lanes/lane-spawn.sh";
+  };
+
   # The agent assertions that used to sit here — default-not-in-clients, clients
   # without the tooling, a client nixpkgs can't build — are the AI room's own
   # invariants and moved to modules/ai with its switch. They named only
@@ -1274,11 +1309,6 @@ in
             "@HOME@"
             "@DEFAULT_MODE@"
             "@BASE_MODE@"
-            # Before "@AGENT_NEW@", though replaceStrings would get this right
-            # either way: at the "@AGENT_NEW_SOLO@" position the shorter pattern
-            # cannot match, since it wants "@" where the longer one has "_".
-            "@AGENT_NEW_SOLO@"
-            "@AGENT_NEW@"
             "@AGENT_HERE@"
           ]
           [
@@ -1289,8 +1319,6 @@ in
             # through it, because upstream's all exit to Normal — which on a
             # locked host silently leaves every submode leader hot afterwards.
             (if terminalCfg.zellijStartLocked then "Locked" else "Normal")
-            agentNewSolo
-            agentNewRun
             ''"${agentDefault}"''
           ]
           zellijConfigTemplate
@@ -2079,6 +2107,16 @@ in
         # flipping the option a rebuild rather than a rebuild plus a relaunch.
         ".config/haus/lanes/lane-open.sh" = {
           source = ./lanes/lane-open.sh;
+          executable = true;
+        };
+
+        # The chord's half. Also shipped whatever the backend is, and for a
+        # sharper reason than lane-open.sh's: it is what the WINDOWS room binds
+        # (through _contrib.windows.agents below), and a bind pointing at a file
+        # that isn't there is the one failure mode a rebuild can't warn about.
+        # Inert on a zellij machine, where nothing binds it.
+        ".config/haus/lanes/lane-spawn.sh" = {
+          source = ./lanes/lane-spawn.sh;
           executable = true;
         };
 

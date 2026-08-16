@@ -350,7 +350,15 @@ let
       key = it.keys;
       action = it.action;
     }) (lib.filter (it: it ? keys) section.items);
-  }) (import ../windows/wm-bindings.nix { inherit lib k; });
+  }) (
+    import ../windows/wm-bindings.nix {
+      inherit lib k;
+      # Same contribution windows itself reads, so the card and the bind appear
+      # and disappear together — the whole reason this table is imported twice
+      # rather than written twice.
+      agents = config.haus._contrib.windows.agents;
+    }
+  );
 
   # The Terminal cards, from the SAME table terminal asserts zellij/config.kdl
   # against (../terminal/term-bindings.nix). So every terminal chord on this

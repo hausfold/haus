@@ -71,7 +71,12 @@ let
   # A function of the keymap now, and it returns NO window sections when
   # keys.windowNav = "none" — so the toml and the cheatsheet both go quiet
   # together instead of one advertising what the other didn't bind.
-  wmBindings = import ./wm-bindings.nix { inherit lib k; };
+  wmBindings = import ./wm-bindings.nix {
+    inherit lib k;
+    # The terminal room's contribution: whether a lane is a window (and so needs
+    # a chord that isn't inside a multiplexer) and what to run when it is.
+    agents = config.haus._contrib.windows.agents;
+  };
   renderCmd = c: if lib.isList c then "[" + lib.concatMapStringsSep ", " (x: "'${x}'") c + "]" else "'${c}'";
   renderBinds =
     binds: lib.concatStrings (lib.mapAttrsToList (chord: cmd: "${chord} = ${renderCmd cmd}\n") binds);
