@@ -63,6 +63,24 @@ let
   # conversation lives at the lane's own path, where `holt <name>` looks for it.
   agentNewRun = if agentDefault == "claude" then ''"claude" "--worktree"'' else ''"holt" "new"'';
 
+  # The one sentence in the generated agent instructions that names the chord.
+  # It has to follow the backend, because these files are what an agent BELIEVES
+  # about the machine it is on — a sentence teaching ⌘A on a zmx host is worse
+  # than no sentence, since the agent will confidently tell its user to press a
+  # key that does nothing.
+  laneChordProse =
+    if terminalCfg.lanes.backend == "zmx" then
+      ''
+        `Ctrl Super a` (⌃⌘A) — a GLOBAL chord, so it works from any window, not
+            just a terminal — spawns each agent into its own isolated checkout on a
+            `worktree-<name>` branch, in its own window, so parallel agents never
+            fight over a single checkout.''
+    else
+      ''
+        `Super a` (⌘A) spawns each agent into its own isolated checkout on
+            a `worktree-<name>` branch, so parallel agents never fight over a single
+            checkout.'';
+
   # ⌘A and ⌘⇧A, or nothing at all.
   #
   # Under `lanes.backend = "zmx"` a lane is a WINDOW, and both binds go — the
@@ -243,14 +261,34 @@ let
     # reasoning as cmd+enter above, so a future default can't steal it.
     keybind = cmd+b=unbind
   '';
+  # An unbind in ghostty/config is not a preference — it is a hole punched so a
+  # chord can fall THROUGH to the multiplexer. So it has to track whether the
+  # multiplexer still catches it. Under `lanes.backend = "zmx"` zellij binds
+  # neither Super a nor Super Shift a (agentLaneBinds renders empty), the lane
+  # chord is ⌃⌘A in AeroSpace, and leaving these unbinds in place would take
+  # select_all away from ⌘A in exchange for nothing at all — a dead key, and one
+  # the kdl↔cheatsheet assertion cannot see, because it does not read this file.
+  agentGhosttyUnbinds = lib.optionalString (terminalCfg.lanes.backend != "zmx") ''
+    # cmd+a → zellij "Super a" (spawn an isolated AGENT in its own worktree).
+    # Ghostty binds cmd+a to select_all by default — unbind it so the chord reaches
+    # zellij. (The agent lived on ⌘C until it was rebound to ⌘A for "agent", which
+    # also let ⌘C go back to meaning copy — see the cmd+c line below.)
+    keybind = cmd+a=unbind
+    # cmd+shift+a → zellij "Super Shift a" (the same isolated agent, but replacing
+    # the focused pane instead of splitting beside it). Ghostty binds nothing here
+    # today, so this unbind is purely defensive: it guarantees the chord keeps
+    # reaching zellij if a future ghostty release claims it.
+    keybind = cmd+shift+a=unbind'';
   ghosttyConfigTemplate = builtins.replaceStrings
     [
       "@GH_DASH_GHOSTTY_BIND@"
       "@BENCH_LANE_GHOSTTY_BIND@"
+      "@AGENT_GHOSTTY_UNBINDS@"
     ]
     [
       ghDashGhosttyBind
       benchLaneGhosttyBind
+      agentGhosttyUnbinds
     ]
     (builtins.readFile ./ghostty/config);
   # Chords bound in config.kdl. Only the quoted words BEFORE the block open — a
@@ -342,9 +380,8 @@ let
     # Agent worktrees & the `holt` tool
 
     `holt` (shipped by haus, on PATH) manages **agent worktrees** for any
-    git repo. `Super a` (⌘A) spawns each agent into its own isolated checkout on
-    a `worktree-<name>` branch, so parallel agents never fight over a single
-    checkout. Closing a pane never loses work — uncommitted edits are parked as
+    git repo. ${laneChordProse} Closing a pane never loses work — uncommitted
+    edits are parked as
     a `wip:` commit and only already-merged branches are reaped. Resume a parked
     session with `holt` (lists every worktree across all repos) or
     `holt <name>`; sweep landed ones on demand with `holt reap`.
@@ -674,6 +711,19 @@ in
         )
         + ". The cheatsheet is the one document whose only job is to be true about the keys, "
         + "so a chord and its caption move together or not at all.";
+    }
+    {
+      assertion = terminalCfg.lanes.backend != "zmx" || config.haus.windows.enable;
+      message =
+        "haus.terminal.lanes.backend = \"zmx\" needs haus.windows.enable. A zmx lane is a WINDOW, "
+        + "and the windows room is what makes that a working idea twice over: lanes/lane-open.sh "
+        + "places each lane with `aerospace move-node-to-workspace`, and the spawn chord itself "
+        + "(⌃⌘A) is an AeroSpace bind — zellij can't hold it, because its only way to run a command "
+        + "is to open a pane, and a lane's own window has no zellij in it to receive one anyway. "
+        + "With windows off, this backend deletes ⌘A from zellij and puts nothing in its place, so "
+        + "the machine ends up with no way to start an agent at all — while the cheatsheet, which "
+        + "the launcher renders without a windows gate, goes on teaching ⌃⌘A. Turn the windows room "
+        + "on, or leave lanes.backend at \"zellij\".";
     }
     {
       assertion = !ghDashCfg.enable || devCfg.git.enable;

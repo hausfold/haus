@@ -48,11 +48,22 @@ set -u
 # Same prelude as lane-open.sh, for the same reason.
 export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/bin:/bin${PATH:+:$PATH}"
 
-# Where a chord pressed over a browser puts you. Not a guess about the "current"
-# project — just somewhere `holt new` can work.
+# ── saying no out loud ───────────────────────────────────────────────────────
+# This runs under AeroSpace's exec-and-forget: no terminal, no stdout anyone
+# will ever see. So `holt new` refusing ("not inside a git repo") is invisible,
+# and a global chord that silently does nothing is worse than one that isn't
+# bound — you press it again, harder, and conclude the rebuild didn't land.
+# Everything below that gives up says so on screen first.
+say() { osascript -e "display notification \"$1\" with title \"haus · agent lane\"" >/dev/null 2>&1; }
+
+# Where a chord pressed over a browser puts you. It only helps if it happens to
+# be a repo; when it isn't, `refuse` is what the user actually gets.
 fallback="${HAUS_LANE_FALLBACK:-$HOME}"
 
-command -v holt >/dev/null 2>&1 || exit 0
+command -v holt >/dev/null 2>&1 || {
+  say "holt isn't on PATH — nothing to spawn a lane with."
+  exit 0
+}
 
 focused() { aerospace list-windows --focused --format "$1" 2>/dev/null; }
 
@@ -106,7 +117,11 @@ if [ -z "$cwd" ] && [ "$app" = "Ghostty" ] && [ -n "$title" ] && command -v zell
         }
         n = gsub(/\{/, "{"); depth += n
         n = gsub(/\}/, "}"); depth -= n
-        if (tabdepth >= 0 && depth < tabdepth) tabdepth = -1
+        # <=, not <: tabdepth is recorded BEFORE the opening line s braces are
+        # counted, so at the tab s closing brace depth is back to tabdepth
+        # exactly. With < this never fired, and only zellij marking one
+        # focus=true pane in the whole dump kept that from mattering.
+        if (tabdepth >= 0 && depth <= tabdepth) tabdepth = -1
       }
       END {
         if (found == "" || found == ".") { print base; exit }
@@ -119,5 +134,18 @@ fi
 
 [ -n "$cwd" ] && [ -d "$cwd" ] || cwd="$fallback"
 
-cd "$cwd" || exit 0
+cd "$cwd" || {
+  say "couldn't enter $cwd."
+  exit 0
+}
+
+# `holt new` needs a repo, and refuses without one — to a terminal that isn't
+# there. Ask the same question here, where the answer can still be shown. The
+# check is git's own rather than a .git test, so a worktree, a submodule and a
+# plain checkout all pass exactly as holt would judge them.
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+  say "$(basename "$cwd") isn't a git repo — focus a window in one, then press ⌃⌘A."
+  exit 0
+fi
+
 exec holt new
