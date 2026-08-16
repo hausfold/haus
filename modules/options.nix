@@ -22,8 +22,10 @@ let
         description = ''
           The leader letter for this app: tap Caps Lock then this key to
           launch/focus it. Must be unique across the roster, and not one of
-          launch mode's own: `v` `e` `z` `,` `` ` `` `-` `=` `/` `1`-`4` `esc`
-          and the arrows are taken, and a rebuild refuses them.
+          launch mode's own: `v` `e` `z` `,` `` ` `` `-` `=` `/` `esc`, the
+          arrows and one digit per numbered workspace (`1`-`4` out of the box;
+          see haus.prowl.numberedWorkspaces) are taken, and a rebuild refuses
+          them.
 
           null (the default) means the entry is INSTALL-ONLY: it still
           brings its cask/formula/package, but claims no leader key, no
