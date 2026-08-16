@@ -186,6 +186,15 @@ let
       keyOk = plainId;
       keySaid = _: "is not a plain item id";
     };
+    # A scene's key is what a person types after `focus scene`, so it has to
+    # survive a shell word as-is. `quiet` is refused separately, by the focus
+    # room's own assertion — it is a real name that means something else, not a
+    # malformed one, and it has to fail the same way for a host as for a
+    # desktop.
+    scene-entries = entries {
+      keyOk = plainId;
+      keySaid = _: "is not a plain scene name";
+    };
     # The whole desktop/host split in one option. `internal` and `main` say
     # WHICH SCREEN YOU MEAN in words that are true on any Mac; a UUID names one
     # physical panel on one desk, which is a hardware fact and belongs to a host

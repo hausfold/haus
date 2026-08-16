@@ -170,6 +170,14 @@ let
     focus = [
       "enable"
       "hooks"
+      "scenes"
+      "scenes.<name>.apps.open"
+      "scenes.<name>.audio.input"
+      "scenes.<name>.description"
+      "scenes.<name>.dnd"
+      "scenes.<name>.hooks"
+      "scenes.<name>.preventSleep"
+      "scenes.<name>.restorePreviousState"
       "slack.enable"
       "slack.snooze"
       "slack.statusEmoji"
@@ -403,6 +411,10 @@ let
     ];
     focus = [
       "hooks"
+      # Same rule one level down: a scene may say "be quiet, stay awake, use
+      # this mic" and a shared desktop may ship it, but the arbitrary script a
+      # scene runs is a person's, not a published desktop's.
+      "scenes.<name>.hooks"
       "slack.tokenCommand"
     ];
     fonts = [ "mono.package" ];
@@ -441,6 +453,7 @@ let
   # data cannot reach them at all.
   recursive = {
     displays."" = "display-selectors";
+    focus.scenes = "scene-entries";
     keys.leaderExtras = "submodule-list";
     launcher.items = "launcher-items";
     roster."" = "roster-entries";
@@ -665,7 +678,7 @@ let
     };
     focus = {
       order = 170;
-      blurb = "One quiet switch: Do Not Disturb, optional Slack status, and your hooks.";
+      blurb = "One quiet switch: Do Not Disturb, optional Slack status, and your hooks — plus the named scenes around it.";
     };
     snippets = {
       order = 180;
@@ -840,14 +853,16 @@ let
     focus = {
       title = "Focus";
       order = 90;
-      blurb = "One quiet switch: Do Not Disturb, an optional status somewhere else, and your own hooks on both edges.";
+      blurb = "One quiet switch: Do Not Disturb, an optional status somewhere else, and your own hooks on both edges — plus the named states (`scenes`) around it, of which quiet is the built-in one.";
       agent = {
-        cli = "focus on|off|toggle|status";
+        cli = "focus on|off|toggle|status · focus scene <name>|off|list";
         asks = [
           "make my mac quiet"
           "turn on do not disturb"
           "hush"
           "am I in do not disturb"
+          "set my mac up for recording"
+          "stop the screen sleeping while I present"
         ];
       };
     };

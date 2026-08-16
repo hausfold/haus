@@ -38,6 +38,32 @@ let
   shq = v: lib.escapeShellArg (lib.escapeShellArg v);
   hooksStr = lib.concatMapStringsSep " " (h: lib.escapeShellArg (toString h)) cfg.hooks;
 
+  # Scenes are DATA, not generated shell: the engine reads this file at runtime
+  # and the option surface is the only thing that decides what a scene may do.
+  # A scene that rendered into the script would make every field a place where
+  # a desktop's string becomes code — the same reason `haus.bar.media.icons`
+  # has a key rule in the desktop walk.
+  scenesJson = pkgs.writeText "focus-scenes.json" (
+    builtins.toJSON (
+      lib.mapAttrs (_: s: {
+        inherit (s)
+          description
+          dnd
+          preventSleep
+          restorePreviousState
+          ;
+        apps = s.apps.open;
+        audioInput = s.audio.input;
+        hooks = map toString s.hooks;
+      }) cfg.scenes
+    )
+  );
+
+  # Only pulled in when a scene actually names an input device — macOS ships no
+  # CLI for this, and a room shouldn't grow a closure for a field nobody set.
+  wantsAudio = lib.any (s: s.audio.input != "") (lib.attrValues cfg.scenes);
+  switchAudio = lib.optionalString wantsAudio "${pkgs.switchaudio-osx}/bin/SwitchAudioSource";
+
   engine = pkgs.runCommand "focus" { } ''
     mkdir -p $out
     substitute ${./focus.sh} $out/focus \
@@ -48,11 +74,57 @@ let
       --subst-var-by slackStatusText ${shq cfg.slack.statusText} \
       --subst-var-by slackStatusEmoji ${shq cfg.slack.statusEmoji} \
       --subst-var-by slackSnooze ${if cfg.slack.snooze then "1" else "0"} \
-      --subst-var-by hooks ${lib.escapeShellArg hooksStr}
+      --subst-var-by hooks ${lib.escapeShellArg hooksStr} \
+      --subst-var-by scenes ${scenesJson} \
+      --subst-var-by switchAudio ${lib.escapeShellArg switchAudio}
     chmod 555 $out/focus
   '';
 in
 lib.mkIf cfg.enable {
+  # A scene's name is what a person types after `focus scene`, so the four
+  # words that subcommand already spends are names a scene could hold and never
+  # be entered under — it would build, validate, appear in `focus scene list`,
+  # and do nothing. `quiet` is the interesting one: it is a real scene, spelled
+  # through slack/hooks rather than through `scenes`, and a second thing by that
+  # name would be one the pill and the palette command could never reach.
+  #
+  # The shape rule sits here as well as in the desktop walk on purpose: that
+  # walk runs on a DESKTOP, so a HOST writing `scenes."deep work"` would
+  # otherwise get a name it can only reach through quoting it never sees.
+  assertions =
+    let
+      reserved = [
+        "list"
+        "off"
+        "quiet"
+        "status"
+      ];
+      names = lib.attrNames cfg.scenes;
+      claimed = lib.intersectLists reserved names;
+      malformed = lib.filter (n: builtins.match "[A-Za-z0-9][A-Za-z0-9_-]*" n == null) names;
+    in
+    [
+      {
+        assertion = claimed == [ ];
+        message = ''
+          haus.focus.scenes.${lib.concatStringsSep " / " claimed} uses a name
+          `focus scene` already spends (${lib.concatStringsSep ", " reserved}).
+          `quiet` is the built-in scene — the one `focus on`, the bar pill and
+          the palette command enter; shape it with haus.focus.slack.* and
+          haus.focus.hooks. The other three are subcommands. Rename the scene.
+        '';
+      }
+      {
+        assertion = malformed == [ ];
+        message = ''
+          haus.focus.scenes."${lib.concatStringsSep "\" / \"" malformed}" is not
+          a plain scene name. A scene name is typed after `focus scene`, so it
+          has to be one word: letters, digits, `_` and `-`, not starting with
+          `-`.
+        '';
+      }
+    ];
+
   # Real-time pill sync for toggles focus didn't make (Control Center, iPhone
   # via Share Across Devices): launchd pokes the bar whenever the Focus DB
   # changes. launchd watches the path itself, so no Full Disk Access is

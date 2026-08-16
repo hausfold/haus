@@ -199,7 +199,10 @@ modules/
                           #   item-grammar.nix mirrors pounce's item-key grammar,
                           #   pinned to the LOCKED pounce by `pounce-item-grammar`
   shelf/                  # the perch notch file shelf, installed via the perch flake input
-  focus/                  # Focus/DND one-switch: declarative hotkey 175 + Slack + hooks
+  focus/                  # Focus/DND one-switch: declarative hotkey 175 + Slack + hooks,
+                          #   plus haus.focus.scenes — the same switch with more than one
+                          #   member (quiet is the built-in, and the name is reserved).
+                          #   Declarative only: a person enters a scene, no trigger daemon
   secrets/                # secretspec: declarative secrets, provider chosen per host
 desktops/                 # the desktops this flake ships: hacker (the one the
                           #   builder selects by default), blank, everyday, minimal.

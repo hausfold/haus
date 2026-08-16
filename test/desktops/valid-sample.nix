@@ -15,6 +15,14 @@
     # and is host-only forever. The readback prints both, so this row also
     # pins that the command followed the name across the seam.
     terminal.editorName = "neovim";
+    # A DYNAMIC container whose payload a named validator admits — the happy
+    # path of the rule `scene-name.nix` fails. A scene is a state a shared
+    # desktop may legitimately ship; only its `hooks` (arbitrary shell) are
+    # host-only, and this one sets none.
+    focus.scenes.presenting = {
+      description = "no interruptions, no screensaver";
+      preventSleep = true;
+    };
     # A list, so the check can read back what a host override does to one.
     launcher.autoQuit.exclude = [
       "from-desktop-a"
