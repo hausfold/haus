@@ -94,9 +94,40 @@ func query(_ name: String) -> [String: Any]? {
     try? JSONSerialization.jsonObject(with: sb(["--query", name], capture: true)) as? [String: Any]
 }
 
-func popupIsOpen(_ item: String) -> Bool {
-    guard let popup = query(item)?["popup"] as? [String: Any] else { return false }
+/// Is the popup up? `nil` means the bar DIDN'T ANSWER — which is not the same
+/// thing as "closed", and conflating the two is what cost the agents pill its
+/// click-outside dismissal entirely. A pill that rebuilds its rows before
+/// toggling (`--remove` + one `--add` per row: 44 of them on a busy agents
+/// popup) leaves sketchybar's mach service too busy to answer for ~150 ms, and
+/// `--query` in that window returns not `drawing: off` but an EMPTY STRING.
+/// Every caller here used to read that as off and give up.
+func popupDrawing(_ item: String) -> Bool? {
+    guard let popup = query(item)?["popup"] as? [String: Any] else { return nil }
     return popup["drawing"] as? String == "on"
+}
+
+/// The arming gate, which is the one caller that has to wait: it runs
+/// milliseconds after the click script asked for the popup, so "no answer yet"
+/// is the EXPECTED first read on any pill big enough to matter. Poll until the
+/// bar answers or the deadline passes. A settled `off` still exits on the first
+/// read — closing a dropdown stays as fast as it was.
+func popupIsOpen(_ item: String, settleFor: TimeInterval = 0) -> Bool {
+    let deadline = Date().addingTimeInterval(settleFor)
+    // Backing off rather than hammering: every retry is a posix_spawn of
+    // `sketchybar --query` aimed INTO the busy window we're waiting on, so a
+    // tight poll would be contending with the very batch whose completion is
+    // the thing we want. First read is immediate — a settled pill answers at
+    // once and never sleeps — then 30 ms growing to 120 ms, ~8 queries across
+    // the full budget instead of ~30.
+    var wait: useconds_t = 30_000
+    repeat {
+        if let drawing = popupDrawing(item) { return drawing }
+        if settleFor > 0 {
+            usleep(wait)
+            wait = min(wait * 3 / 2, 120_000)
+        }
+    } while Date() < deadline
+    return false
 }
 
 // ── geometry ─────────────────────────────────────────────────────────────────
@@ -159,20 +190,42 @@ func localPoint(_ point: NSPoint) -> (point: CGPoint, screenHeight: CGFloat)? {
 // ── the guard ────────────────────────────────────────────────────────────────
 
 func arm(item: String) -> Never {
-    // Nothing opened (the pill's toggle just CLOSED its popup), so there's
-    // nothing to guard. Whatever guard was running notices the same thing.
-    if !popupIsOpen(item) { exit(0) }
-
     // Our caller is a click_script that has already returned; leave its session
     // so nothing downstream can take this process with it. Children are reaped by
     // the kernel, since the fire-and-forget sketchybar calls are never waited on.
+    //
+    // FIRST, before the gate below — that gate can now spend up to 600 ms
+    // waiting for the bar, and every millisecond of it used to be time spent
+    // still inside the click_script's process group. Anything that signals that
+    // group in the window (a bar reload, a script timeout) would take the guard
+    // with it and leave the dropdown un-dismissable again, intermittently.
     setsid()
     signal(SIGCHLD, SIG_IGN)
 
-    // Opening one dropdown closes every other: menu behaviour, and it keeps this
-    // one-guard-at-a-time. One sketchybar call, and it runs after the popup is
-    // already up, so nothing flickers.
+    // The pill's toggle just CLOSED its popup, so there's nothing to guard, and
+    // this has to stay the FIRST thing after setsid: the broadcast below would
+    // otherwise force a popup the user just dismissed straight back open. A
+    // settled `false` is the only answer that means that — `nil` is a bar too
+    // busy to answer (see popupDrawing), which is the opening case.
+    if popupDrawing(item) == false { exit(0) }
+
+    // Opening one dropdown closes every other: menu behaviour, and it keeps
+    // this one-guard-at-a-time.
+    //
+    // BEFORE the settle wait, not after. `/.*/` matches the item we are arming
+    // for as well as its siblings, so this pair is a close-then-open of THIS
+    // popup — invisible while it runs within a few ms of the click, a plain
+    // flicker once it lands after the popup has painted. Waiting first and
+    // broadcasting second is exactly how the guard surviving its own gate
+    // turned a working dropdown into a flashing one.
     sb(["--set", "/.*/", "popup.drawing=off", "--set", item, "popup.drawing=on"])
+
+    // Now wait for the bar to confirm what it's drawing. See popupIsOpen: a
+    // pill that rebuilds a long popup before toggling it can't answer a query
+    // for the first ~150 ms, and taking that silence for "closed" left the
+    // biggest dropdowns on the bar as the only ones a click outside never
+    // dismissed.
+    if !popupIsOpen(item, settleFor: 0.6) { exit(0) }
 
     let app = NSApplication.shared
     app.setActivationPolicy(.accessory)
@@ -192,7 +245,10 @@ func arm(item: String) -> Never {
         // pill toggles itself, and every row's own click_script closes up after
         // running. Closing it from here too would race that script.
         if onBar || rows.contains(where: { $0.contains(point) }) {
-            if !popupIsOpen(item) { exit(0) }
+            // `== false` on purpose: an unanswered query means the bar is busy,
+            // not that the popup went away, and exiting on it drops the guard
+            // for a dropdown still on screen.
+            if popupDrawing(item) == false { exit(0) }
             return
         }
         sb(["--set", item, "popup.drawing=off"])  // not waited on: fire and exit
@@ -202,7 +258,7 @@ func arm(item: String) -> Never {
     // A popup can also close without any click — a plugin refresh, another pill,
     // `sketchybar --reload`. Nothing left to guard then.
     Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
-        if !popupIsOpen(item) { exit(0) }
+        if popupDrawing(item) == false { exit(0) }
     }
     // Backstop, so a dropdown someone walked away from can't leave a guard.
     Timer.scheduledTimer(withTimeInterval: 900, repeats: false) { _ in exit(0) }
