@@ -142,7 +142,17 @@ pkgs.runCommand "haus-agent-skill-${version}"
     # version grepped for `pounce focus`, which the hand-written preamble also
     # contained — so it passed with every `agent.cli` set to null, proving
     # nothing about the field it was there to protect.
-    grep -q '^- \*\*Runtime:\*\* `focus on|off|toggle|status`$' "$out/references/rooms.md" \
+    #
+    # 🚨 Anchored at the START of the value and deliberately NOT at its end.
+    # Pinning the whole string made this a spelling test for one room's CLI
+    # rather than a wiring test: haus#376 appended `· focus scene <name>|off|list`
+    # to that same `agent.cli` and turned a correct change into a red build,
+    # under a message saying the field isn't reaching the page when it plainly
+    # is. The PREFIX is what proves the wiring — `- **Runtime:** ` followed by a
+    # backtick is emitted by `roomSection` alone, and everything after it comes
+    # from the registry — so a room may extend its verb list without editing
+    # this file, and a room that lost its `agent.cli` still fails here.
+    grep -q '^- \*\*Runtime:\*\* `focus on|off|toggle|status' "$out/references/rooms.md" \
       || { echo "rooms.md rendered no room's agent.cli — the field is not reaching the page" >&2; exit 1; }
     grep -q '^- \*\*Says:\*\* .*make my mac quiet' "$out/references/rooms.md" \
       || { echo "rooms.md rendered no room's agent.asks — the routing half is missing" >&2; exit 1; }
