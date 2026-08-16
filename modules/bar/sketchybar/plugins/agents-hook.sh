@@ -20,6 +20,16 @@
 #                    session-end event, so nothing ever reports `remove` for one
 #                    of its panes — agents.sh drops rows whose zellij pane is
 #                    gone instead, which covers every client that dies quietly.
+#   • jcode        — JCODE_HOOK_* environment (exported by terminal when jcode
+#                    is in haus.ai.clients — its own config.toml is a file jcode
+#                    rewrites, so the rice stays out of it): turn_start→working,
+#                    turn_end→waiting, session_start→idle, session_end→remove.
+#                    jcode has no permission prompt, so `waiting` is end-of-turn
+#                    — which is the same claim the amber pill makes: your move.
+#                    Its hooks run from a SHARED server process, not from the
+#                    pane, and still address the right pane: jcode re-exports the
+#                    requesting client's ZELLIJ_PANE_ID/ZELLIJ_SESSION_NAME onto
+#                    every hook it fires.
 #
 # TWO STORES, picked by where the agent is sitting. A zellij pane files its
 # state under /tmp keyed by (session, pane-id); a zmx lane
@@ -46,7 +56,7 @@
 #     already writes a richer pane → transcript PATH join. This is for the
 #     clients that have no statusline of their own to carry it.
 #
-#   usage: agents-hook.sh <working|waiting|idle|remove> [claude|codex|opencode] [session-id]
+#   usage: agents-hook.sh <working|waiting|idle|remove> [claude|codex|opencode|jcode] [session-id]
 set -u
 DIR=/tmp/haus-agents
 # An agent hook can arrive with a bare PATH, and the zellij broadcast below needs
@@ -75,6 +85,7 @@ if [ -z "$agent" ]; then
   if   [ -n "${CLAUDECODE:-}${CLAUDE_PROJECT_DIR:-}" ]; then agent=claude
   elif [ -n "${OPENCODE:-}${OPENCODE_BIN_PATH:-}" ];    then agent=opencode
   elif [ -n "${CODEX_HOME:-}${CODEX_SANDBOX:-}" ];      then agent=codex
+  elif [ -n "${JCODE_HOOK_EVENT:-}" ];                  then agent=jcode
   else agent=agent
   fi
 fi
@@ -149,8 +160,15 @@ else
   # Write-on-change only, and never blank an id we already hold: `chat.message`
   # is the one hook that carries the session id, so the other three states
   # (waiting/idle) arrive with argument 3 empty and must not erase it.
-  if [ -n "${3:-}" ] && [ "$(cat "$sf" 2>/dev/null)" != "$3" ]; then
-    printf '%s\n' "$3" >"$sf.$$" && mv -f "$sf.$$" "$sf"
+  #
+  # jcode reaches the same slot without an argument: a hook command in its
+  # config is a fixed string with no way to interpolate the event, but every
+  # jcode hook process is handed `JCODE_HOOK_SESSION_ID` in its environment. So
+  # read that when argument 3 is empty — the id is recorded on every state, not
+  # just one, and nothing else changes.
+  sid="${3:-${JCODE_HOOK_SESSION_ID:-}}"
+  if [ -n "$sid" ] && [ "$(cat "$sf" 2>/dev/null)" != "$sid" ]; then
+    printf '%s\n' "$sid" >"$sf.$$" && mv -f "$sf.$$" "$sf"
   fi
   cwd="${CLAUDE_PROJECT_DIR:-$PWD}"
   if [ "$(cat "$cf" 2>/dev/null)" != "$cwd" ]; then

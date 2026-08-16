@@ -62,12 +62,23 @@ in
       ];
       description = ''
         Which coding-agent clients to install. `claude` is Claude Code, `codex`
-        is OpenAI Codex, `opencode` is OpenCode. The ⌘A terminal binding starts
+        is OpenAI Codex, `opencode` is OpenCode, `jcode` is
+        [jcode](https://jcode.sh). The ⌘A terminal binding starts
         whichever one `ai.default` names — Claude Code through its own
         `--worktree` hook, the others through `holt new`.
 
         A list rather than one bool per client, matching `developer.languages`
-        — a fourth client later doesn't change this option's shape.
+        — the fourth client, when it came, didn't change this option's shape.
+
+        `jcode` is the one that does NOT come from nixpkgs: there is no
+        derivation for it, so this room installs it from its own Homebrew tap as
+        a roster entry (`1jehuang/jcode/jcode`) instead — the same way bar
+        installs SketchyBar. From here that is invisible (it is on PATH in a
+        pane either way), and core enables the Homebrew framework on every
+        machine, so nothing else has to be switched on for it. What it does
+        change is WHO updates it: `haus update` moves a nixpkgs client, `brew
+        upgrade` moves this one — and jcode's own in-app updater will too unless
+        you set `features.check_updates = false` in `~/.jcode/config.toml`.
 
         This is the option that makes `ai.default` honest. Naming a client
         you have not installed used to fail *at spawn time*, inside the pane,
@@ -76,10 +87,12 @@ in
         be a member of this list, so the same mistake fails the rebuild
         instead, with both values named.
 
-        Override the package for a client the usual Nix way — an overlay on
-        `claude-code`, `codex` or `opencode` — rather than dropping the client
+        Override the package for a nixpkgs client the usual Nix way — an overlay
+        on `claude-code`, `codex` or `opencode` — rather than dropping the client
         here and installing your own copy alongside; two derivations shipping
-        the same `bin/` name collide in one profile.
+        the same `bin/` name collide in one profile. For `jcode` the same job is
+        a roster override: set `haus.roster.jcode.brew` (or `.package`, if you
+        package it yourself) and this room's `mkDefault` steps aside.
 
         Ignored entirely when `ai.enable` is off — see `haus._ai.clients`, the
         resolved list every room actually installs from. Before step 4 this was
@@ -119,15 +132,23 @@ in
         Must be one of `ai.clients` — see there.
 
         Only `claude` can make its own worktree (its native `--worktree` flag,
-        which fires `holt hook create`); for `codex` and `opencode` ⌘A runs
+        which fires `holt hook create`); for the others ⌘A runs
         `holt new` instead, producing the same checkout, branch and registry
         entry from the outside. Resuming follows the client too: `codex` reopens
         its cwd-filtered `codex resume` picker, `opencode` continues its latest
-        session for that cwd. All three share one `holt` branch/parking/reap
-        lifecycle, and all three light up the `agents` bar pill and the zellij
-        tab-bar badge — the opencode plugin and the codex hooks are written for
+        session for that cwd, `jcode` opens its own session picker. They share one
+        `holt` branch/parking/reap
+        lifecycle, and they all light up the `agents` bar pill and the zellij
+        tab-bar badge — the opencode plugin, the codex hooks and jcode's
+        `JCODE_HOOK_*` environment are written for
         you; only Claude Code's stay yours to wire, because Claude owns its own
         settings.json (see `haus.bar.items.agents`).
+
+        One caveat, and it is `jcode`'s alone: it has no way to be launched with
+        a first message — no positional prompt, no `--prompt`, no stdin — so the
+        task typed into Pounce's **Spawn Agent** box cannot be handed to it. That
+        command says so and opens the lane empty rather than dropping the text
+        silently. ⌘A, which never carries a prompt, is unaffected.
       '';
     };
 

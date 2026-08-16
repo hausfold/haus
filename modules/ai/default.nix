@@ -34,14 +34,29 @@ let
   # installs none, and must not be refused for it.
   clients = config.haus._ai.clients;
 
-  # nixpkgs ships all three for aarch64-darwin only. That is the whole rice's
-  # platform since 26.11 dropped x86_64-darwin, so this never fires today — but
-  # it is the difference between a named refusal and an install that silently
-  # does nothing, which is exactly the dead-pane failure `ai.clients` exists
-  # to end. (The `lib.meta.availableOn` guard it replaces did skip silently.)
+  # nixpkgs ships the three it has for aarch64-darwin only. That is the whole
+  # rice's platform since 26.11 dropped x86_64-darwin, so this never fires today
+  # — but it is the difference between a named refusal and an install that
+  # silently does nothing, which is exactly the dead-pane failure `ai.clients`
+  # exists to end. (The `lib.meta.availableOn` guard it replaces did skip
+  # silently.)
+  #
+  # A `null` in the table is not "unavailable": it is a client nixpkgs has no
+  # derivation for, which this room installs from Homebrew below. Asking
+  # `availableOn` about a null throws, so the filter drops them first.
   unavailableClients = lib.filter (
-    c: !lib.meta.availableOn pkgs.stdenv.hostPlatform agentPackages.${c}
+    c: agentPackages.${c} != null && !lib.meta.availableOn pkgs.stdenv.hostPlatform agentPackages.${c}
   ) clients;
+
+  # The clients that come from Homebrew instead of nixpkgs, as roster entries.
+  # Fully-qualified formulae, so declaring one taps its tap — the same trick
+  # bar's `FelixKratz/formulae/sketchybar` uses, and the reason this room needs
+  # no `homebrew.taps` line of its own. mkDefault so a host that already spells
+  # the formula its own way (a pinned tap, a local build) keeps its version
+  # rather than colliding with this one.
+  brewedClients = {
+    jcode.brew = lib.mkDefault "1jehuang/jcode/jcode";
+  };
 
   # Whether this machine actually SPAWNS agents. The room being on is not enough:
   # `ai.clients = [ ]` is a machine the rice installs no client on, and a
@@ -104,6 +119,14 @@ in
     + "writes agent-pane state on this machine, so the pill would stay dormant forever and the "
     + "bar leaves it out."
   );
+
+  # ---- the clients nixpkgs doesn't build --------------------------------------
+  # A roster entry rather than a bare `homebrew.brews` line, for the reason the
+  # roster exists: a host that also declares jcode (as this machine's did while
+  # it was a hand-installed experiment) MERGES on the shared id instead of
+  # installing it twice. Keyed off the resolved client list, so a machine that
+  # doesn't name jcode never taps a tap for it.
+  haus.roster = lib.filterAttrs (id: _: lib.elem id clients) brewedClients;
 
   # ---- what the room contributes to other rooms -------------------------------
   # One write per extension point. Every value here is a fact about the AI room;

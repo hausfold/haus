@@ -75,6 +75,21 @@ provider_style() {
         *)                    P_ICON="󰏫";       P_FONT="$nerd";    P_NAME="Opencode (${model:-api})" ;;
       esac
       ;;
+    jcode)
+      # Same shape as Opencode and for the same reason — jcode fronts whichever
+      # subscription you logged it into — but its usage feed is pulled from
+      # `jcode usage --json`, which reports one block PER logged-in provider, so
+      # the row that reaches here already carries the provider it is about. The
+      # bare client (an agent pane, no model) gets jcode's own mark: SAPPHIRE,
+      # the last cool accent the status ladder doesn't touch.
+      case "$model" in
+        google* | gemini*)    P_ICON="✦";        P_FONT="$nerd";    P_NAME="jcode (${model:-gemini})"; P_COLOR="$LAVENDER" ;;
+        anthropic* | claude*) P_ICON=":claude:"; P_FONT="$appfont"; P_NAME="jcode (${model:-claude})"; P_COLOR="$FLAMINGO" ;;
+        openai* | gpt*)       P_ICON=":openai:"; P_FONT="$appfont"; P_NAME="jcode (${model:-gpt})";    P_COLOR="$TEAL" ;;
+        "")                   P_ICON="󱐋";        P_FONT="$nerd";    P_NAME="jcode";                   P_COLOR="$SAPPHIRE" ;;
+        *)                    P_ICON="󱐋";        P_FONT="$nerd";    P_NAME="jcode (${model:-api})";   P_COLOR="$SAPPHIRE" ;;
+      esac
+      ;;
     *)
       # A client we don't have a mark for — a future one, or an agent whose hook
       # named none. Draw the generic writing-hand and say what it called itself.

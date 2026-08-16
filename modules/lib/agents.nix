@@ -15,6 +15,13 @@
 # copy that CANNOT be folded in: it's the same set on the Go side, and a Go
 # binary can't read Nix. Adding a client means editing there too.
 #
+# A client here does NOT have to come from nixpkgs. `jcode` doesn't — it is a
+# Homebrew formula, so modules/lib/agent-packages.nix maps it to `null` and the
+# AI room contributes a roster entry instead. What a client id DOES have to
+# have, in every case, is a `holt` spec: the id is what `ai.default` is typed
+# against, and a default holt can't spawn is the dead-pane failure `ai.clients`
+# exists to end.
+#
 # And two tables in terminal are keyed BY these ids rather than derived from them,
 # because their values are per-client facts this list can't hold: `agentHomes`
 # (where that client keeps its instructions file and its skills dir) and
@@ -25,4 +32,5 @@
   "claude"
   "codex"
   "opencode"
+  "jcode"
 ]

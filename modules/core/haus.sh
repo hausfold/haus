@@ -2436,7 +2436,7 @@ cmd_doctor() {
   # AGENTS.md is the file that matters: Codex, OpenCode, Cursor, Copilot and
   # anything else that speaks agents.md read it, while Claude Code reads only
   # CLAUDE.md. So a repo with just a CLAUDE.md orients exactly one client — worth
-  # saying out loud, since the agent keybind can spawn any of the three.
+  # saying out loud, since the agent keybind can spawn any of them.
   echo
   say "Agents"
   # The skill lands once per installed client, each in the directory that client
@@ -2445,7 +2445,8 @@ cmd_doctor() {
   # and saying "no skill" there sent people to set an option already true.
   local skilldir=""
   local d
-  for d in "$HOME/.claude/skills/haus" "$HOME/.codex/skills/haus" "$HOME/.config/opencode/skills/haus"; do
+  for d in "$HOME/.claude/skills/haus" "$HOME/.codex/skills/haus" \
+           "$HOME/.config/opencode/skills/haus" "$HOME/.jcode/skills/haus"; do
     if [ -f "$d/SKILL.md" ]; then
       skilldir="$d"
       break

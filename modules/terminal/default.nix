@@ -76,6 +76,16 @@ let
   # is safe on purpose: the same probe shows opencode deduplicating by frontmatter
   # `name` and preferring its OWN directory, so the skill is offered once. (Its
   # docs only say "ensure skill names are unique", which is why this was probed.)
+  #
+  # jcode does the same scan and one thing more: on its FIRST run it *copies*
+  # `~/.claude/skills` and `~/.codex/skills` into `~/.jcode/skills` — but only
+  # when that directory does not exist yet (its `import_from_external`, v0.76.0).
+  # Writing the haus skill there is therefore also what switches that import
+  # off, which is the outcome we want: a copy of a store symlink is a skill
+  # frozen at the revision it was copied on, and `haus update` would never move
+  # it again. Skills a host wires as out-of-store symlinks under
+  # `~/.agents/skills` need no copy either — jcode loads that directory live,
+  # the same one Codex and OpenCode read.
   agentHomes = {
     claude = {
       instructions = ".claude/CLAUDE.md";
@@ -88,6 +98,18 @@ let
     opencode = {
       instructions = ".config/opencode/AGENTS.md";
       skills = ".config/opencode/skills";
+    };
+    # jcode reads a global `~/AGENTS.md`, and that is deliberately NOT the path
+    # here: it is a SHARED convention (Codex and OpenCode look there too, and a
+    # user may keep their own), so owning it as a nix symlink would take a file
+    # this room doesn't own away from every other tool that reads it. jcode's
+    # own private appendix is `prompt-overlay.md` — appended to the system
+    # prompt on every session, project copy and all — so the rice writes there
+    # and leaves `~/AGENTS.md` alone. (`system-prompt.md` next to it REPLACES
+    # the built-in prompt rather than adding to it; never write that one.)
+    jcode = {
+      instructions = ".jcode/prompt-overlay.md";
+      skills = ".jcode/skills";
     };
   };
 
@@ -246,6 +268,7 @@ let
     claude = "`settings.json` is Claude Code's own, and a host may wire individual skills as out-of-store symlinks";
     codex = "`config.toml` and `hooks.json` are Codex's own, and a host may wire individual skills as out-of-store symlinks";
     opencode = "`opencode.json` is OpenCode's own, and a host may wire individual skills or plugins as out-of-store symlinks";
+    jcode = "`config.toml` is jcode's own — it rewrites that file itself, so the rice never touches it — and a host may wire individual skills as out-of-store symlinks";
   };
 
   holtGuidance = client: ''
@@ -1261,7 +1284,46 @@ in
         # agent room off, and it is the only rung a standalone holt install
         # gets for free.
         HAUS_AGENT_DEFAULT = agentDefault;
-      };
+      }
+      # jcode's agent-pane state, wired as ENVIRONMENT rather than as config.
+      #
+      # Every other client here is wired by merging keys into a file it owns
+      # (jq into settings.json / hooks.json, a plugin dropped in a directory).
+      # jcode can't be: its `~/.jcode/config.toml` is a file jcode ITSELF
+      # rewrites — `/colors`, `/model`, `/poke` and the one-time launch-hotkey
+      # bake all save into it — so a rebuild that owned or merged that file
+      # would be racing the client for it. Its documented answer is
+      # `JCODE_HOOK_*`, which always beats the file and needs no merge tool
+      # (there is no jq for TOML). The user's config.toml stays entirely theirs.
+      #
+      #   turn_start    → working
+      #   turn_end      → waiting     ← jcode has no permission prompt to hook,
+      #                                 so "waiting" means end-of-turn, i.e.
+      #                                 your turn. That is the state the pill
+      #                                 goes amber on, which is right: a jcode
+      #                                 pane that finished IS waiting on you.
+      #   session_start → idle
+      #   session_end   → remove      ← reported, unlike Codex, which has no
+      #                                 session-end event at all
+      #
+      # Absolute store path, not a bare `agent-state`: jcode runs hooks from its
+      # long-lived server process, whose PATH is whatever the shell that first
+      # started it had. The pane addressing survives that same split by luck of
+      # jcode's design rather than ours — it re-exports the REQUESTING client's
+      # terminal env onto every hook (ZELLIJ_PANE_ID and ZELLIJ_SESSION_NAME are
+      # both in its CLIENT_TERMINAL_ENV_VARS), so a hook fired by a shared
+      # server still names the pane that asked. Verified against v0.76.0.
+      // lib.optionalAttrs (agentsCfg.enable && lib.elem "jcode" agentClients) (
+        let
+          state = s: "/run/current-system/sw/bin/agent-state ${s} jcode";
+        in
+        {
+          JCODE_HOOK_TURN_START = state "working";
+          JCODE_HOOK_TURN_END = state "waiting";
+          JCODE_HOOK_SESSION_START = state "idle";
+          JCODE_HOOK_SESSION_END = state "remove";
+        }
+      );
 
       # A lean terminal/dev toolbelt, gated by the developer pack. Personal
       # choices (AI CLIs, orbstack, your language toolchains) belong in your
@@ -1293,7 +1355,12 @@ in
         # Unlisted means uninstalled, and `ai.default` is asserted to be a
         # member — so the client the palette is about to spawn is on PATH by
         # construction, rather than discovered missing inside the pane.
-        ++ map (c: agentPackages.${c}) agentClients
+        #
+        # A `null` in the table is a client nixpkgs has no derivation for
+        # (jcode); the AI room installs those from Homebrew, so this profile
+        # skips them. They are still on PATH by the time a pane opens —
+        # /opt/homebrew/bin is on it — which is what the assertion is about.
+        ++ lib.filter (p: p != null) (map (c: agentPackages.${c}) agentClients)
         # zmx, when it is what a lane opens into. Same argument as the clients
         # above: `lane-open.sh` defers to holt's built-in if it can't find zmx,
         # so a missing binary degrades to the zellij behaviour instead of a
