@@ -6,9 +6,9 @@
 # pane you ran it from, and the pane IS the lane. Here the pane is gone and
 # three things carry a lane instead, all named the same:
 #
-#   zmx session   holt.<repo>.<lane>   the PTY the client actually runs in
-#   Ghostty       --title=<same>       a window looking at that PTY
-#   AeroSpace     window-title-regex   a tile, placed by on-window-detected
+#   zmx session   holt.<repo>.<lane>       the PTY the client actually runs in
+#   Ghostty       set_surface_title=<same> a window looking at that PTY
+#   AeroSpace     workspace T/<repo>       a tile on that repo's own page
 #
 # One name across all three is the whole point. Everything the rice does to a
 # lane from outside — the bar's go-to, a peek, "which window is this branch" —
@@ -70,8 +70,8 @@ repo="$(basename "${HOLT_MAIN:-$chat}")"
 sess="holt.${repo}.${HOLT_NAME}"
 
 # ── the launcher ─────────────────────────────────────────────────────────────
-# Ghostty's `initial-command` is split shell-style, so passing an already-quoted
-# `zmx attach … bash -lc '…'` through `open --args` means three levels of
+# The surface configuration's `command` is split shell-style, so passing an
+# already-quoted `zmx attach … bash -lc '…'` through it means three levels of
 # quoting over a $HOLT_COMMAND we don't control. A throwaway script is one
 # level, and deletes itself the moment it has run.
 run_dir="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/haus-lanes"
@@ -129,7 +129,12 @@ exit "$rc"'
   printf '    sleep 0.05\n'
   printf '  done\n'
   printf '  [ -n "${WID:-}" ] || exit 0\n'
-  printf '  aerospace move-node-to-workspace --window-id "$WID" T\n'
+  # T/<repo>, not a single shared T: every lane of one repo tiles on its own
+  # workspace page, so five agents across three repos stop fighting over one
+  # tree. Workspace names may contain "/" (checked by hand against AeroSpace);
+  # the pages are deliberately NOT in persistent-workspaces, so an emptied page
+  # evaporates instead of accreting. Plain terminal windows stay on T.
+  printf '  aerospace move-node-to-workspace --window-id "$WID" %q\n' "T/$repo"
   printf '  aerospace layout --window-id "$WID" tiling\n'
   printf ') >/dev/null 2>&1 &\n'
   printf 'cd %q || exit 1\n' "$chat"
@@ -141,15 +146,26 @@ exit "$rc"'
 chmod +x "$launcher"
 
 # ── the window ───────────────────────────────────────────────────────────────
-# `--title` is a FORCED title in Ghostty, not a starting value: the client
-# inside can't clobber it with OSC 2. Nothing in the rice depends on that yet —
-# the window places itself, above — but it is what lets anything outside find
-# this lane later (`aerospace list-windows | grep '^holt\.'`) without the
-# per-pane state files the bar keeps today.
+# AppleScript into the RUNNING instance, not `open -na`. Measured on 1.3.1:
+# 252 ms vs 366 ms — but the process count is the real reason. `open -n` boots a
+# SECOND Ghostty process per lane, because a forced `--title` is instance-global
+# config and so needs an instance to itself; the forced title and the extra
+# process were the same fact. `set_surface_title` via `perform action` sets a
+# title AeroSpace reads (checked by hand), so the join survives on one instance.
+# The window name is what lets anything outside find this lane later
+# (`aerospace list-windows | grep '^holt\.'`) without the per-pane state files
+# the bar keeps today.
 #
-# `open -na` rather than `ghostty +new-window`, which refuses on macOS
-# ("+new-window is not supported on this platform").
+# `ghostty +new-window` is still refused on macOS ("not supported on this
+# platform", 1.3.1), so these were the only two candidates.
 pgrep -x Ghostty >/dev/null 2>&1 || open -a Ghostty
-open -na Ghostty.app --args \
-  --title="$sess" \
-  --initial-command="$launcher" || exit 3
+osascript - "$sess" "$launcher" >/dev/null <<'OSA' || exit 3
+on run argv
+    set sess to item 1 of argv
+    set launcher to item 2 of argv
+    tell application "Ghostty"
+        set w to new window with configuration {command:launcher}
+        perform action "set_surface_title:" & sess on (first terminal of w)
+    end tell
+end run
+OSA
