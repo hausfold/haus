@@ -514,49 +514,6 @@ in
   # and carry on. Degrading to "the setting didn't apply" is the correct
   # failure; a half-activated Mac is not.
   system.activationScripts.postActivation.text = lib.mkMerge [
-    # ---- the nebelhaus → haus state move, system half (rename note §11.3) ----
-    # `/Library/Application Support/nebelhaus` holds perch's install marker and
-    # zen's policy marker. Both are read by SHIPPED, SIGNED apps that update on
-    # their own cadence — perch reads `perch.installed-from` to decide whether
-    # it may offer to update itself — so this is the one of the four locations
-    # where a plain rename would be a genuine two-repo, multi-release contract.
-    #
-    # The symlink defeats that outright: a perch binary compiled against the old
-    # path resolves through it and still reports "installed by the desktop",
-    # while a new one reads the `haus` path directly. Neither repo has to land
-    # before the other, and nobody in the field is broken in between.
-    # 🚨 Every step is guarded, and the whole call ends in `|| true`. This block
-    # is `mkBefore`, so it runs FIRST in postActivation — an unguarded `mv` or
-    # `rm` that hits one root-owned or locked child would abort activation under
-    # `set -e` at step zero and take the perch install, the accessibility writes
-    # and every later block with it. Degrading to "the directory didn't move" is
-    # the correct failure; a half-activated Mac is not. Same doctrine as the
-    # a11y block below.
-    (lib.mkBefore ''
-      hausStateDirMigration() {
-        old="/Library/Application Support/nebelhaus"
-        new="/Library/Application Support/haus"
-        [ -e "$old" ] || return 0
-        [ -L "$old" ] && return 0
-        if [ -e "$new" ]; then
-          # Both exist. Merge rather than clobber — and do NOT delete the source
-          # unless the copy actually succeeded, or a permission error on one
-          # child silently takes the whole directory with it.
-          if cp -R "$old/." "$new/"; then
-            rm -rf "$old" || { echo "warning: haus: copied $old into $new but could not remove the original; left both in place." >&2; return 0; }
-          else
-            echo "warning: haus: could not merge $old into $new — left both in place, nothing was deleted." >&2
-            return 0
-          fi
-        else
-          mv "$old" "$new" || { echo "warning: haus: could not move $old to $new; left it alone." >&2; return 0; }
-        fi
-        ln -sfn "$new" "$old" || echo "warning: haus: moved $old to $new but could not leave a compatibility symlink — an older perch will stop recognising this as a desktop install." >&2
-        echo "haus: moved $old to $new, leaving a symlink behind" >&2
-      }
-      hausStateDirMigration || true
-    '')
-
     (lib.optionalString (a11ySet != { }) ''
       hausAccessibility() {
         if launchctl asuser "$(id -u -- ${username})" sudo --user=${username} -- \
@@ -962,7 +919,7 @@ in
   # exits immediately and launchd does not restart it.
   launchd.user.agents.awake = {
     serviceConfig = {
-      Label = "org.nebelhaus.awake";
+      Label = "com.hausfold.awake";
       ProgramArguments = [
         "${awake}/bin/awake"
         "_run"
@@ -1414,76 +1371,10 @@ in
       # costs nothing on the rebuilds where it already exists; it never removes
       # or touches a folder after you change `location` away from it, since
       # deleting a directory full of screenshots is not a rebuild's business.
-      home.activation = lib.mkMerge [
-        (lib.mkIf (shotsLocation != null) {
-          hausScreenshotDir = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-            run mkdir -p ${lib.escapeShellArg shotsLocation}
-          '';
-        })
-
-        # ---- the nebelhaus → haus state move (rename note §11.3) -------------
-        # These three directories were `nebelhaus` until 2026-08-14 and hold
-        # live state: the tour stamp, media and zen-tab caches, the elgato host,
-        # the stylus announcement, `nebelung-ports.tsv`, the lane opener and the
-        # find cache. A rename that only changed the writers would silently
-        # orphan every one of them — a finished tour would re-arm, a rebuild
-        # would re-announce the stylus import.
-        #
-        # 🚨 The old path becomes a SYMLINK to the new one rather than
-        # disappearing, and that is the load-bearing half. Anything still
-        # compiled against the old spelling — an older perch in the field, a
-        # bar plugin from a generation you haven't garbage-collected, a script
-        # of your own — resolves through the link and keeps working. Without it
-        # this is a flag day; with it, nothing has to ship in any order.
-        #
-        # Runs `entryBefore [ "writeBoundary" ]` — before home-manager writes any
-        # of this generation's files, so nothing this generation creates under
-        # the new path is copied back over by the merge branch below.
-        #
-        # Three things the loop has to get right, each found the hard way:
-        #
-        #   1. **Both paths existing is the NORMAL case, not the exception.**
-        #      `haus.sh` points `HAUS_LOG_DIR` at `.local/state/haus` and
-        #      `mkdir -p`s it before it drives the rebuild — so by the time this
-        #      runs, the very first `haus rebuild` has already made `$new`.
-        #      Merge, never clobber.
-        #   2. **Never delete the source unless the copy succeeded.** One
-        #      unreadable child would otherwise take the whole directory.
-        #   3. **The symlink is the load-bearing half**, so it is created even
-        #      when the directory turns out to have been moved by an earlier run
-        #      that died before linking. Testing `-e "$old"` first and returning
-        #      would leave that machine permanently without the compat path.
-        {
-          hausStateMigration = lib.hm.dag.entryBefore [ "writeBoundary" ] ''
-            for pair in \
-              ".local/state/nebelhaus:.local/state/haus" \
-              ".config/nebelhaus:.config/haus" \
-              ".cache/nebelhaus:.cache/haus"; do
-              old="$HOME/''${pair%%:*}"
-              new="$HOME/''${pair##*:}"
-              [ -L "$old" ] && continue
-              if [ -e "$old" ]; then
-                if [ -e "$new" ]; then
-                  if run cp -R "$old/." "$new/"; then
-                    run rm -rf "$old" || true
-                  else
-                    echo "warning: haus: could not merge $old into $new — left both in place." >&2
-                    continue
-                  fi
-                else
-                  run mkdir -p "$(dirname "$new")"
-                  run mv "$old" "$new" || { echo "warning: haus: could not move $old to $new." >&2; continue; }
-                fi
-              fi
-              # Reached with $old gone: either we just moved it, or a previous
-              # run did and was interrupted before it linked. Either way the
-              # compat path is owed, and only if the destination is really there.
-              [ -e "$old" ] && continue
-              [ -d "$new" ] || continue
-              run ln -sfn "$new" "$old" || true
-            done
-          '';
-        }
-      ];
+      home.activation = lib.mkIf (shotsLocation != null) {
+        hausScreenshotDir = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+          run mkdir -p ${lib.escapeShellArg shotsLocation}
+        '';
+      };
     };
 }

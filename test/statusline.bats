@@ -48,12 +48,12 @@ setup() {
   REPO="$TMP/wtbase/demo/joyful-pond"
   mkdir -p "$REPO"
   git -C "$REPO" init -q -b main
-  git -C "$REPO" remote add origin https://github.com/nebelhaus/demo.git
+  git -C "$REPO" remote add origin https://github.com/hausfold/demo.git
   git -C "$REPO" commit -q --allow-empty -m init
   git -C "$REPO" checkout -q -b worktree-joyful-pond
 
   # One child row, so the width invariant is tested across BOTH row shapes.
-  printf 'nebelhaus/pounce\tsome-child\t2\t0\t0\t0\t#41 open\t%s\n' \
+  printf 'hausfold/pounce\tsome-child\t2\t0\t0\t0\t#41 open\t%s\n' \
     "$REPO" >"$CLAUDE_STATUSLINE_CACHE/panel.tsv"
 }
 
@@ -123,7 +123,7 @@ vis() {
   # printf %b would eat the ST's literal backslash and silently kill every link;
   # emit() uses %s. Assert both halves of the sequence survive.
   run -0 render claude-fable-5
-  [[ "$output" == *"${ESC}]8;;https://github.com/nebelhaus/pounce/pull/41${ESC}\\"* ]] ||
+  [[ "$output" == *"${ESC}]8;;https://github.com/hausfold/pounce/pull/41${ESC}\\"* ]] ||
     fail "the link's opening half did not survive the tint"
   [[ "$output" == *"${ESC}]8;;${ESC}\\"* ]] ||
     fail "the link's closing half did not survive the tint"
@@ -156,10 +156,10 @@ vis() {
 @test "active child rows stay above reapable rows before the row cap" {
   : >"$CLAUDE_STATUSLINE_CACHE/panel.tsv"
   for i in 1 2 3 4 5 6 7 8; do
-    printf 'nebelhaus/pounce\tmerged-%s\t1\t0\t0\t0\t#%s merged\t%s\n' \
+    printf 'hausfold/pounce\tmerged-%s\t1\t0\t0\t0\t#%s merged\t%s\n' \
       "$i" "$i" "$REPO" >>"$CLAUDE_STATUSLINE_CACHE/panel.tsv"
   done
-  printf 'nebelhaus/pounce\tactive\t1\t0\t0\t0\t#99 open\t%s\n' \
+  printf 'hausfold/pounce\tactive\t1\t0\t0\t0\t#99 open\t%s\n' \
     "$REPO" >>"$CLAUDE_STATUSLINE_CACHE/panel.tsv"
 
   run -0 render claude-opus-5
@@ -180,7 +180,7 @@ vis() {
   # skipped `holt child`, so nothing in the registry knows who owns it. The
   # $HOME pane is the only one that surfaces those, and the ◇ is the "adopt or
   # reap me" flag: a child and an orphan must not render identically.
-  printf 'nebelhaus/pounce\tstray\t1\t0\t0\t0\t#7 open\t\n' \
+  printf 'hausfold/pounce\tstray\t1\t0\t0\t0\t#7 open\t\n' \
     >"$CLAUDE_STATUSLINE_CACHE/panel.tsv"
 
   # From a worktree pane: not $HOME, so the orphan isn't surfaced at all.

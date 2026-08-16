@@ -23,7 +23,7 @@
 //     highlight liberally because the click validates existence before acting.
 //   - URL_REGEX + WEB_DOMAIN_REGEX + open_target: http(s) URLs are highlighted
 //     and open in the default browser via `open` (hence RunCommands), and so
-//     are schemeless well-known-TLD domains (`github.com/x`, `nebelhaus.com`) —
+//     are schemeless well-known-TLD domains (`github.com/x`, `hausfold.co`) —
 //     https:// is prepended on click. open_target is the dispatch point for any
 //     future per-kind click behavior.
 //   - image files open a near-fullscreen floating pane running
@@ -267,7 +267,7 @@ impl State {
             return;
         }
 
-        // 3. Not a real path — a schemeless web link (github.com/x, nebelhaus.com)?
+        // 3. Not a real path — a schemeless web link (github.com/x, hausfold.co)?
         if let Some(url) = parse_bare_url(clicked) {
             open_in_browser(&url);
         }
@@ -615,7 +615,7 @@ fn parse_url(s: &str) -> Option<&str> {
 }
 
 /// Recognize a schemeless web link like `github.com/zellij-org/zellij` or
-/// `nebelhaus.com` and return it with an `https://` scheme prepended. Only
+/// `hausfold.co` and return it with an `https://` scheme prepended. Only
 /// hosts on a well-known TLD (or any `www.` host) qualify, so an ordinary
 /// `name.ext` token isn't mistaken for a site. Called only after the on-disk
 /// existence check has failed, so a real file named `foo.io` still opens as a
@@ -983,7 +983,7 @@ mod tests {
 
     #[test]
     fn parse_bare_url_bare_domain() {
-        assert_eq!(parse_bare_url("nebelhaus.com"), Some("https://nebelhaus.com".to_string()));
+        assert_eq!(parse_bare_url("hausfold.co"), Some("https://hausfold.co".to_string()));
         assert_eq!(
             parse_bare_url("www.anything.example"),
             Some("https://www.anything.example".to_string())
@@ -998,8 +998,8 @@ mod tests {
         );
         // Trailing `)` from a parenthetical (unbalanced within the match) is
         // trimmed; sentence punctuation too.
-        assert_eq!(parse_bare_url("nebelhaus.com)."), Some("https://nebelhaus.com".to_string()));
-        assert_eq!(parse_bare_url("nebelhaus.com,"), Some("https://nebelhaus.com".to_string()));
+        assert_eq!(parse_bare_url("hausfold.co)."), Some("https://hausfold.co".to_string()));
+        assert_eq!(parse_bare_url("hausfold.co,"), Some("https://hausfold.co".to_string()));
     }
 
     #[test]

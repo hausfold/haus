@@ -382,15 +382,13 @@ $(again_row "Not what you wanted? Search the App Store again")"
     # Follow root → haus → nixpkgs in the consumer lock, then search that
     # exact revision. A direct root nixpkgs input is accepted as a fallback.
     #
-    # Either input NAME is accepted: the scaffolded consumer called this input
-    # `nebelhaus` until 2026-08-14 and calls it `haus` since, and an input name
-    # is the consumer's to choose in any case (the rename note's §11.2). Look
-    # for the new spelling first so a consumer that has both can't be read wrong.
+    # The input NAME is the consumer's to choose; `bootstrap.sh` scaffolds
+    # `haus`, which is what this looks for.
     nixpkgs_ref="$(jq -r '
       def node:
         if type == "array" then .[-1] else . end;
       . as $lock
-      | (($lock.nodes[$lock.root].inputs.haus? // $lock.nodes[$lock.root].inputs.nebelhaus? // "") | node) as $haus
+      | (($lock.nodes[$lock.root].inputs.haus? // "") | node) as $haus
       | (
           if $haus == "" then
             ($lock.nodes[$lock.root].inputs.nixpkgs? // "" | node)

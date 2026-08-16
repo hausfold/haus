@@ -1253,13 +1253,14 @@ in
         HOMEBREW_NO_ENV_HINTS = "1";
         EDITOR = terminalCfg.editor;
         VISUAL = terminalCfg.editor;
+        # 🚨 The name is a cross-repo contract — don't rename it here alone.
+        # `holt` reads it as the LOWEST rung of `defaultAgent`
+        # (`internal/commands/env.go`), below `~/.config/holt/config.toml`'s
+        # `agent =` — which this module also writes, but only under
+        # `haus.ai.enable`. So this is what answers for a machine with the
+        # agent room off, and it is the only rung a standalone holt install
+        # gets for free.
         HAUS_AGENT_DEFAULT = agentDefault;
-        # 🚨 Both spellings, and the old one is not decoration: `holt` reads
-        # `NEBELHAUS_AGENT_DEFAULT` and only that (its `internal/commands/env.go`),
-        # and holt is a SEPARATE repo on its own release cadence — this repo
-        # cannot rename a variable another binary reads. Drop this line only
-        # once a released holt knows the new name.
-        NEBELHAUS_AGENT_DEFAULT = agentDefault;
       };
 
       # A lean terminal/dev toolbelt, gated by the developer pack. Personal
@@ -2360,7 +2361,7 @@ in
             # `darwin-rebuild switch` can't answer (and neither declaration nor
             # lsregister overrides Terminal's claim). To send them to the editor,
             # run once by hand and click through the prompt:
-            #   duti -s org.nebelhaus.editoropen public.unix-executable all
+            #   duti -s com.hausfold.editoropen public.unix-executable all
             plistBuddy = "/usr/libexec/PlistBuddy";
             lsregister = "/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister";
             # One PlistBuddy "Add …:CFBundleTypeExtensions:<i> string <ext>" per
@@ -2370,7 +2371,7 @@ in
               ''$DRY_RUN_CMD ${plistBuddy} -c "Add :CFBundleDocumentTypes:0:CFBundleTypeExtensions:${toString i} string ${ext}" "$PL"''
             ) editorExts);
             dutiPins = lib.concatStringsSep "\n" (map (
-              t: ''$DRY_RUN_CMD "${pkgs.duti}/bin/duti" -s org.nebelhaus.editoropen "${t}" all 2>/dev/null || true''
+              t: ''$DRY_RUN_CMD "${pkgs.duti}/bin/duti" -s com.hausfold.editoropen "${t}" all 2>/dev/null || true''
             ) editorExts);
           in
           ''
@@ -2378,7 +2379,7 @@ in
             $DRY_RUN_CMD mkdir -p "$appDir"
             $DRY_RUN_CMD /usr/bin/osacompile -o "$appDir/EditorOpen.app" -e 'on open theFiles' -e 'repeat with theFile in theFiles' -e 'set file_path to POSIX path of theFile' -e 'do shell script "$HOME/.config/zellij/editor-open-pane.sh " & quoted form of file_path' -e 'end repeat' -e 'end open'
             PL="$appDir/EditorOpen.app/Contents/Info.plist"
-            $DRY_RUN_CMD /usr/bin/plutil -replace CFBundleIdentifier -string "org.nebelhaus.editoropen" "$PL"
+            $DRY_RUN_CMD /usr/bin/plutil -replace CFBundleIdentifier -string "com.hausfold.editoropen" "$PL"
 
             # Declare the file types EditorOpen.app owns IN THE APP ITSELF — not
             # just via duti. This is load-bearing: `duti -s <ext>` can only bind an

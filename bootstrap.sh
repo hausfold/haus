@@ -48,27 +48,6 @@ run() { if [ -n "$DRY_RUN" ]; then printf '\033[2m   [dry-run] %s\033[0m\n' "$*"
 USERNAME="$(id -un)"
 HOSTNAME="$(scutil --get LocalHostName 2>/dev/null || hostname -s)"
 
-# 🚨 Every knob below is spelled `HAUS_*`. It was `NEBELHAUS_*` until 2026-08-14
-# (the rename note's §11.2), and that spelling is the DOCUMENTED unattended-
-# install API — someone's provisioning script has it written down. An unknown
-# env var is the worst kind of break: the installer doesn't fail, it silently
-# takes defaults and hands back a machine that isn't the one that was asked for.
-#
-# So promote the old spelling into the new one here, once, before anything reads
-# it — everything downstream keeps saying `HAUS_*` and none of it has to know.
-# The new name wins if both are set. Keep this list in step with the flags block
-# in the header above.
-for _haus_knob in NONINTERACTIVE DRY_RUN FROM DIR DESKTOP PRESET GIT_NAME \
-                  GIT_EMAIL ACCENT EDITOR WALLPAPER ROOMS KEEP FLAKE \
-                  AGENT AGENT_DEFAULT AGENT_IMAGE REPO_ROOTS ZELLIJ_SESSION; do
-  _haus_new="HAUS_$_haus_knob"
-  _haus_old="NEBELHAUS_$_haus_knob"
-  if [ -z "${!_haus_new:-}" ] && [ -n "${!_haus_old:-}" ]; then
-    export "$_haus_new=${!_haus_old}"
-  fi
-done
-unset _haus_knob _haus_new _haus_old
-
 NONINTERACTIVE="${HAUS_NONINTERACTIVE:-}"
 DRY_RUN="${HAUS_DRY_RUN:-}"
 
@@ -342,19 +321,17 @@ ROOMS="${HAUS_ROOMS:-bar,windows,launcher}"
 # which is what "Custom" picks (a hand-chosen room set isn't a named thing) and
 # leaves the builder's own default, the hacker desktop, in place.
 #
-# `HAUS_PRESET` (and its pre-2026-08-14 spelling `NEBELHAUS_PRESET`, promoted up
-# in the config block) is the pre-rooms name for the same thing and still read:
-# `full` names the hacker desktop now, and `everyday`/`minimal` are desktops of
-# their own.
+# `HAUS_PRESET` is the pre-rooms name for the same thing and still read: `full`
+# names the hacker desktop now, and `everyday`/`minimal` are desktops of their
+# own.
 # All of those spellings, plus `--desktop`, land in DESKTOP_ARG up in the flag
 # block; DESKTOP_EXPLICIT is the bit that matters here, because it is what lets
 # the interview below skip a question it already has the answer to.
 DESKTOP_EXPLICIT=""
 DESKTOP_NAME="${DESKTOP_ARG:-hacker}"
-# `full` is the pre-rooms spelling and `nebelhaus` the pre-2026-08-14 name of
-# this same desktop (the rename note's §11). Both resolve here rather than in
-# the case below, so a published `hausfold.co/nebelhaus.sh` keeps installing.
-if [ "$DESKTOP_NAME" = "full" ] || [ "$DESKTOP_NAME" = "nebelhaus" ]; then DESKTOP_NAME=hacker; fi
+# `full` is the pre-rooms spelling of this same desktop. It resolves here rather
+# than in the case below, so the name stays out of the desktop list.
+if [ "$DESKTOP_NAME" = "full" ]; then DESKTOP_NAME=hacker; fi
 if [ -n "$DESKTOP_ARG" ]; then
   DESKTOP_EXPLICIT=1
   # Checked against a list rather than against the repo, because nothing is

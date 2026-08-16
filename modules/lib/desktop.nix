@@ -277,7 +277,6 @@ let
     home-manager = "may not set `home-manager.*` — a desktop configures rooms, and rooms configure home";
     environment = "may not set `environment.*` — installing something is a room's job, and `haus.roster` is how a desktop asks for one";
     nixpkgs = "may not set `nixpkgs.*`";
-    nebelhaus = "spells the namespace the pre-rename way; a desktop is new enough to have no legacy spelling — write `haus`";
   };
 in
 {
@@ -303,7 +302,7 @@ in
         strayFailures = map (
           k: at "${bannedKeys.${k} or "sets `${k}` outside `haus`, and a desktop may set nothing else"}"
         ) stray;
-        missingHausFailures = lib.optional (!(value ? haus) && !(value ? nebelhaus)) (
+        missingHausFailures = lib.optional (!(value ? haus)) (
           at "has no `haus` settings — a desktop is { haus = { … }; }"
         );
         body = value.haus or { };

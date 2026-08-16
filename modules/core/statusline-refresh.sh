@@ -104,7 +104,7 @@ if [ "$nag_fresh" = 0 ] && [ -f "$NAG" ]; then
   [ "$age" -lt "$NAG_TTL" ] && nag_fresh=1
 fi
 if [ "$nag_fresh" = 0 ] && [ -f "$CONSUMER/flake.lock" ]; then
-  lk() { jq -r "(.nodes.haus // .nodes.nebelhaus).$1 // \"$2\"" "$CONSUMER/flake.lock" 2>/dev/null || echo "$2"; }
+  lk() { jq -r ".nodes.haus.$1 // \"$2\"" "$CONSUMER/flake.lock" 2>/dev/null || echo "$2"; }
   lockrev=$(lk 'locked.rev' '')
   lockdate=$(lk 'locked.lastModified' 0)
   owner=$(lk 'original.owner' hausfold)

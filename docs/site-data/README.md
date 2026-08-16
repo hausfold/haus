@@ -27,8 +27,8 @@ regenerate. **Note it only fires when the check is BUILT** — `nix flake check
 The docs site renders its options reference and its keybinding tripwire from
 this rice. Reading the derivations directly means the site's CI needs Nix, a
 flake pin and a nixpkgs fetch just to check its own pages — fine while the site
-lived in a repo that had Nix anyway, and not fine once it moves to its own repo
-(the workshop's `notes/hausfold-rename.md` §5.1).
+lived in a repo that had Nix anyway, and not fine once it moved to its own
+repo (`hausfold/hausfold.co`, 2026-08-08).
 
 So the rice publishes the data and keeps the drift check next to the derivation
 that defines it. The site reads three plain files out of a checkout.

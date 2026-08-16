@@ -4,8 +4,8 @@
 # docs render from — but reading them means running `nix build`, which means the
 # site's CI needs Nix, a flake pin and a fetch of nixpkgs just to check its own
 # reference page. That was tolerable while the site lived in a repo that had Nix
-# anyway; it stops being tolerable when the site moves to its own repo (the
-# workshop's notes/hausfold-rename.md §5.1).
+# anyway; it stopped being tolerable when the site moved to its own repo
+# (`hausfold/hausfold.co`, 2026-08-08).
 #
 # The family's rule for this shape is in the workshop's notes/options-roadmap.md
 # §7: *mirror only what fits in one expression and can be pinned by a golden

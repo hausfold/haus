@@ -1,6 +1,6 @@
 ---
 name: haus
-description: Change this Mac's setup on a machine managed by haus — the hacker desktop, or any other desktop built on it. Install or remove apps, change the theme, fonts, keybindings, window management, the bar, the shell, or macOS settings. Use whenever the user asks you to change how their Mac looks or behaves, or mentions haus, nebelhaus (the desktop's old name), a "rice" (the older word for a desktop), their host file, or ~/.config/nix. Covers finding the right haus.* option, editing the host file, applying with `haus rebuild`, and undoing with `haus rollback`.
+description: Change this Mac's setup on a machine managed by haus — the hacker desktop, or any other desktop built on it. Install or remove apps, change the theme, fonts, keybindings, window management, the bar, the shell, or macOS settings. Use whenever the user asks you to change how their Mac looks or behaves, or mentions haus, a "rice" (the older word for a desktop), their host file, or ~/.config/nix. Covers finding the right haus.* option, editing the host file, applying with `haus rebuild`, and undoing with `haus rollback`.
 ---
 
 # Changing a haus machine
@@ -79,8 +79,7 @@ the host, desktop, or room value wins again. Those two take a LIST the way `set`
 takes pairs, with the same all-or-nothing single rebuild — so undoing light mode
 is one `haus reset theme.flavor theme.systemAppearance`, not two rebuilds with
 the machine half-undone in between. The commands only accept `haus.*` paths (the
-`haus.` prefix may be omitted, and the pre-rename `nebelhaus.` spelling is still
-accepted). Edit the host file directly when the change is structural or needs
+`haus.` prefix may be omitted). Edit the host file directly when the change is structural or needs
 several related definitions in one module.
 
 **A path may go INSIDE an option, and usually should.** `haus set

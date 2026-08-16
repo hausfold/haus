@@ -617,7 +617,7 @@ let
   ) itemBindings;
 
   # The rice's own GLOBAL chords, in the same normalized shape. keys.nix already
-  # asserts leader-vs-palette (nebelhaus#108); item hotkeys are the third
+  # asserts leader-vs-palette (haus#108); item hotkeys are the third
   # claimant, and the failure mode is identical: whoever registers first wins,
   # silently. Terminal chords count too: Pounce registers item hotkeys globally,
   # so a cmd+g item would swallow Zellij's Super-g before Ghostty ever saw it.
@@ -898,9 +898,6 @@ lib.mkIf config.haus.launcher.enable {
         # an interactive shell. Keep the selected client explicit here so a
         # palette spawn and a later `holt <name>` agree on its default.
         HAUS_AGENT_DEFAULT = agentContrib.default;
-        # Both spellings — `holt` reads only the old one, and it ships from its
-        # own repo on its own cadence. See modules/terminal/default.nix's note.
-        NEBELHAUS_AGENT_DEFAULT = agentContrib.default;
         # Where the ssh plugin (and any command that respects the hook) opens a
         # terminal: a new tab in the `main` zellij session instead of stock
         # Terminal. See modules/terminal/zellij/pounce-terminal.sh.

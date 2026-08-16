@@ -411,7 +411,7 @@ lib.mkMerge [
 
     # A warning rather than an assertion, deliberately: the tour still works, it
     # just has less to teach, and blocking a legitimate combination is worse than
-    # saying so. Same call as the universalaccess warning (nebelhaus#89).
+    # saying so. Same call as the universalaccess warning (haus#89).
     warnings = lib.optional (config.haus.tour.enable && k.leader == null) (
       "haus.tour.enable is on with haus.keys.leader = \"none\": three of "
       + "the tour's four steps teach leader moves this desktop doesn't bind. Set a "

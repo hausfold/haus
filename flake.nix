@@ -230,16 +230,12 @@
         # stray key. Exposed so a third party can self-test before publishing
         # rather than learning the rule from a rejected PR.
         #
-        # TWO namespaces are accepted for the length of the rename, and this is
-        # the one place `modules/renamed.nix` cannot help: the aliases live in
-        # the module system, and this reads the FILE's top-level attribute name
-        # before any module is evaluated. `haus` is the answer; `nebelhaus` is
-        # still true of every rice written before the rename, including
-        # third-party ones, who move last by definition. Narrow this to `haus`
-        # alone in the same commit that deletes modules/renamed.nix.
+        # ONE namespace: `haus`. This reads the FILE's top-level attribute name
+        # before any module is evaluated, so it is the one check the module
+        # system's alias machinery could never have covered — and there is no
+        # alias machinery left to cover it with.
         riceNamespaces = [
           "haus"
-          "nebelhaus"
         ];
         checkRice =
           path:
@@ -263,32 +259,19 @@
             throw (
               "checkRice: ${toString path} sets ${builtins.concatStringsSep ", " stray} outside "
               + "`haus`. A data-only pack may set nothing else — that boundary is the whole "
-              + "reason one can be read and trusted at a glance. (`nebelhaus` is still accepted "
-              + "as the pre-rename spelling of the same namespace.)"
-            )
-          else if (m ? haus) && (m ? nebelhaus) then
-            throw (
-              "checkRice: ${toString path} sets BOTH `haus` and `nebelhaus`. They are one "
-              + "namespace under two spellings, so a file that uses both is asking two "
-              + "questions about the same options — and everything downstream here reads one "
-              + "key, which would drop the other half in silence. Pick one; `haus` is current."
+              + "reason one can be read and trusted at a glance."
             )
           else
             true;
 
-        # A rice file's body, under whichever of `riceNamespaces` it used. Reading
-        # `.nebelhaus` directly is the bug this exists to prevent: against a
-        # `haus`-keyed file the `or { }` makes it EMPTY rather than an error, so
-        # checkPack would pass vacuously and `pack` below drop the whole roster in
-        # silence — the exact failure shape checkPack's comment swears off. The
-        # both-keys case can't reach here: checkRice rejects it above, which is
-        # why this can pick one and not merge.
+        # A rice file's body. `or { }` keeps a body-less file from throwing here
+        # rather than at checkRice, which is where the readable message lives.
         riceBody =
           path:
           let
             m = import path;
           in
-          m.haus or m.nebelhaus or { };
+          m.haus or { };
 
         # `haus.lib.checkPack ./my-pack.nix` — checkRice, one level in. A
         # pack is a rice narrowed to `haus.roster`, and that narrowing used
@@ -447,18 +430,11 @@
       # choice and `hacker` the opinionated default; `everyday` and `minimal`
       # are the two whole desktops that used to be presets, written out as the
       # complete selections they always implied.
-      #
-      # ⚠️ `hacker` was called `nebelhaus` until 2026-08-14 (the rename note's
-      # §11). The old key is kept below as an alias, deliberately and not
-      # forever: `hausfold.co/nebelhaus.sh` is a published install command, and
-      # the pin it passes has to name a desktop this flake still answers to.
-      # Drop the alias only once that row leaves the site.
       desktopFiles = {
         blank = ./desktops/blank.nix;
         everyday = ./desktops/everyday.nix;
         hacker = ./desktops/hacker.nix;
         minimal = ./desktops/minimal.nix;
-        nebelhaus = ./desktops/hacker.nix;
       };
       desktopLib = import ./modules/lib/desktop.nix {
         lib = nixpkgs.lib;
@@ -553,14 +529,6 @@
       };
 
       inherit mkHaus;
-
-      # `mkNebelhaus` was this builder's name until 2026-08-14 (the rename
-      # note's §11). It is kept as a plain alias rather than a warning shim on
-      # purpose: a consumer's `flake.nix` is a 👤 file outside this repo, and a
-      # rename that breaks evaluation would couple that edit to a lock bump in
-      # one atomic change — which is exactly the shape `bench ship` cannot
-      # split. With the alias, the consumer moves whenever it likes.
-      mkNebelhaus = mkHaus;
 
       # ---- presets: retired, aliased ------------------------------------------
       # `haus.presets.<name>` still resolves, warns, and produces the machine it
@@ -2365,7 +2333,6 @@
             test/desktops/host-only-signing.nix: haus.launcher.signingIdentity is host-only — it belongs to a person or a machine, so a shared desktop may not set it
             test/desktops/imports.nix: may not import modules — a desktop is one file's worth of values, and what it can reach has to be readable from that file alone
             test/desktops/internal-wiring.nix: haus._contrib is internal wiring between rooms, not a setting a desktop may write
-            test/desktops/legacy-namespace.nix: spells the namespace the pre-rename way; a desktop is new enough to have no legacy spelling — write `haus`
             test/desktops/missing-haus.nix: has no `haus` settings — a desktop is { haus = { … }; }
             test/desktops/module-internals.nix: may not set module-system internals
             test/desktops/nixpkgs.nix: may not set `nixpkgs.*`
@@ -3008,7 +2975,7 @@
           #
           # It exists so the site repo's CI doesn't need Nix, a flake pin and a
           # nixpkgs fetch to check its own reference page — see
-          # modules/site-data.nix, and workshop's notes/hausfold-rename.md §5.1.
+          # modules/site-data.nix.
           site-data = import ./modules/site-data.nix {
             inherit pkgs;
             optionsJson = self.packages.${system}.options-json;
