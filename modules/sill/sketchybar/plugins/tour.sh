@@ -100,8 +100,8 @@ PAW=$(printf '\xEF\x86\xB0')
 # pressing the launcher for the workspace you're already on switches nothing, no
 # aerospace-notify fires, and the step dead-ends — the #1 way the tour stalls
 # (start it from the terminal, whose key `t` leads the roster, and "press t"
-# does nothing). So pick, in roster order, the first APP key (skip the 1-4 digit
-# launchers) bound to a workspace that ISN'T the focused one. Recomputed at
+# does nothing). So pick, in roster order, the first APP key (skip the numbered
+# workspaces' digits) bound to a workspace that ISN'T the focused one. Recomputed at
 # render time, not cached, so it stays right if the user drifts workspaces mid-
 # step. Fall back to the roster's first app key when every app sits on the
 # focused workspace or aerospace is mute — the click-to-skip escape still covers
@@ -112,12 +112,19 @@ launch_key() {
     focused=$(aerospace list-workspaces --focused 2>/dev/null)
     for entry in $LAUNCHERS; do
         key=${entry%%:*}; ws=${entry#*:}
-        case "$key" in 1 | 2 | 3 | 4) continue ;; esac  # digits focus spaces, not apps
+        # Numbered-workspace digits focus a space, not an app. Membership in
+        # NUMBERED_KEYS rather than "is it a digit": how many digits there are
+        # follows haus.prowl.numberedWorkspaces, and a roster app is allowed to
+        # claim one the numbered workspaces didn't take.
+        case " ${NUMBERED_KEYS[*]} " in *" $key "*) continue ;; esac
         [ -n "$ws" ] || continue                        # null-workspace app: no guaranteed move
         [ "$ws" = "$focused" ] && continue              # already here → pressing it moves nothing
         printf '%s\n' "$key"; return
     done
-    printf '%s\n' "${LAUNCHER_KEYS[4]:-t}"
+    # The first APP key, which is whatever follows the numbered digits in
+    # LAUNCHER_KEYS — an index rather than the literal 4 it was, since the count
+    # of digits is an option now.
+    printf '%s\n' "${LAUNCHER_KEYS[${#NUMBERED_KEYS[@]}]:-t}"
 }
 
 acquire_lock() {

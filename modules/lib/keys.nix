@@ -5,8 +5,8 @@
 #   k = import ../lib/keys.nix { inherit lib; keys = config.haus.keys; };
 #
 # The point of putting the vocabulary in ONE table is that a chord and the caption
-# that documents it come from the same row. Before this, "⌥ hjkl" was typed as a
-# display string next to `alt-h` as a chord, in a table whose whole reason for
+# that documents it come from the same row. Before this, "⌥ ⇧ ←↓↑→" was typed as a
+# display string next to `alt-shift-left` as a chord, in a table whose whole reason for
 # existing was that a binding and its cheatsheet caption must not drift — the
 # modifier was the one part of the row still duplicated by hand. Four consumers
 # read this: prowl (aerospace.toml), pounce (the cheatsheet + its hotkey), sill

@@ -11,15 +11,15 @@
 # is what killed the class of drift that commit 9abf899 had to fix by hand.
 #
 # A FUNCTION of the resolved keymap (modules/lib/keys.nix), because the modifier
-# was the last part of a row still written twice: "⌥ hjkl" as a caption beside
-# `alt-h` as a chord. Both now come from `k.nav`, so haus.keys.windowNav
+# was the last part of a row still written twice: "⌥ ⇧ ←↓↑→" as a caption beside
+# `alt-shift-left` as a chord. Both now come from `k.nav`, so haus.keys.windowNav
 # moves the chord and its caption together — and `k.nav == null` (windowNav =
 # "none") returns no window sections at all, rather than a cheatsheet advertising
 # keys that aren't bound.
 #
 # Each item:
 #   keys    display string for the cheatsheet (human-friendly, may fold several
-#           chords into one row like "⌥ hjkl"). Omit for a toml-only binding.
+#           chords into one row like "⌥ ⇧ ←↓↑→"). Omit for a toml-only binding.
 #   action  cheatsheet caption. Omit alongside keys for a toml-only binding.
 #   binds   attrset of aerospace chord → command. The command is a string, or a
 #           list of strings for a multi-command binding (e.g. ["join-with left"
@@ -47,16 +47,16 @@ lib.optionals hasNav [
   {
     title = "Window Management";
     items = [
-      {
-        keys = g "hjkl";
-        action = "Focus direction";
-        binds = {
-          ${m "h"} = "focus left";
-          ${m "j"} = "focus down";
-          ${m "k"} = "focus up";
-          ${m "l"} = "focus right";
-        };
-      }
+      # No focus row here, and nothing replaced it. <mod>hjkl used to focus by
+      # direction; focusing by direction is a LEADER action now — tap the
+      # leader, then an arrow, which drops into navigate mode so the next arrow
+      # keeps moving without re-tapping. That is the better motion of the two
+      # (one chord for a sequence of moves rather than one chord per move), and
+      # the chord it replaced was this layer's last Vim-key default. haus binds
+      # no h/j/k/l direction anywhere now, deliberately: a Vim-handed person can
+      # add their own four lines, and everyone else stops reading a vocabulary
+      # they don't use. <mod>hjkl is left UNBOUND rather than refilled — those
+      # four chords go back to whatever owned them inside a terminal.
       {
         keys = g "/";
         action = "Tiles layout";
@@ -87,14 +87,15 @@ lib.optionals hasNav [
       }
     ];
   }
-  # No "Workspaces" section: BOTH halves of it are leader actions now. Focusing
-  # workspace 1-4 is the leader then a digit (same shape as leader then a letter
-  # for an app), and THROWING the focused window there is the leader then ⇧+the
-  # digit — or ⇧+an app's roster letter for its workspace. Those live in
-  # [mode.launch.binding] in aerospace.toml (the roster half generated from
-  # haus._roster) and on the Launch Mode cheatsheet page, so no main-mode
-  # chord here carries a workspace. The window chords that remain are the ones
-  # that act on the CURRENT workspace, above, plus service mode below.
+  # No "Workspaces" section: ALL THREE parts of it are leader actions now.
+  # Focusing a numbered workspace is the leader then its digit (same shape as
+  # leader then a letter for an app), THROWING the focused window there and
+  # following is the leader then ⇧+that digit, and throwing WITHOUT following is
+  # ⌥⇧+it — or ⇧ / ⌥⇧ + an app's roster letter for its workspace. Those live in
+  # [mode.launch.binding] in aerospace.toml (generated from haus._roster and
+  # haus.prowl.numberedWorkspaces) and on the Launch Mode cheatsheet page, so no
+  # main-mode chord here carries a workspace. The window chords that remain are
+  # the ones that act on the CURRENT workspace, above, plus service mode below.
   {
     title = "Service Mode [${gs ";"}]";
     mode = "service";
@@ -123,23 +124,27 @@ lib.optionals hasNav [
           "mode main"
         ];
       }
+      # Arrows rather than hjkl, for the same reason the focus row went: no Vim
+      # direction is bound by default anywhere in haus. Still on <mod>⇧ rather
+      # than bare, because service mode's bare ↑/↓ are volume and its ⇧↓ is
+      # mute — the modifier is what keeps "join a neighbour" out of their way.
       {
-        keys = gs "hjkl";
+        keys = gs "←↓↑→";
         action = "Join with";
         binds = {
-          ${ms "h"} = [
+          ${ms "left"} = [
             "join-with left"
             "mode main"
           ];
-          ${ms "j"} = [
+          ${ms "down"} = [
             "join-with down"
             "mode main"
           ];
-          ${ms "k"} = [
+          ${ms "up"} = [
             "join-with up"
             "mode main"
           ];
-          ${ms "l"} = [
+          ${ms "right"} = [
             "join-with right"
             "mode main"
           ];

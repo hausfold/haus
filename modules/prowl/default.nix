@@ -43,8 +43,15 @@ let
   apps = config.haus._roster;
   launchers = config.haus._launchers;
   workspaces = config.haus._workspaces;
+  # The numbered workspaces, resolved from haus.prowl.numberedWorkspaces by
+  # ../workspaces. Each is `{ id; key; }` and the two differ only at ten, which
+  # is id "10" on the `0` key — so every render below reads BOTH fields rather
+  # than assuming a workspace is spelled the way you press it.
+  numbered = config.haus._numberedWorkspaces;
   appKeys = map (app: app.key) launchers;
   workspaceKeys = map (ws: ws.key) (lib.filter (ws: ws.key != null) workspaces);
+
+  cfg = config.haus.prowl;
 
   # Which workspace (if any) an app's window herds to, resolved by
   # ../workspaces from haus.workspaces.*.apps — the app itself no longer
@@ -88,40 +95,90 @@ let
     a: ''${launchSh} "${a.name}"'' + lib.optionalString (appWorkspaceId a != null) " ${appWorkspaceId a}";
 
   # The workspace roster for aerospace.toml's persistent-workspaces (config
-  # schema v2 stopped inferring it from the binding right-hand sides). The fixed
-  # digits are the ones hand-written into the toml's launch mode (focus AND
-  # throw); the rest is every haus.workspaces id — Ghostty's T included,
-  # even though its window rules are bespoke, since it's still declared there
-  # for its pill and persistent workspace. Unconditional on the keymap: a
-  # keys.* of "none" removes the chords, not the workspaces the window rules
-  # still sort apps onto.
-  workspaceRoster = lib.sort (a: b: a < b) (
-    lib.unique ([ "1" "2" "3" "4" ] ++ map (ws: ws.id) workspaces)
-  );
+  # schema v2 stopped inferring it from the binding right-hand sides). The
+  # numbered ones come from haus.prowl.numberedWorkspaces; the rest is every
+  # haus.workspaces id — Ghostty's T included, even though its window rules are
+  # bespoke, since it's still declared there for its pill and persistent
+  # workspace. Unconditional on the keymap: a keys.* of "none" removes the
+  # chords, not the workspaces the window rules still sort apps onto.
+  #
+  # Numbered first, in order, then the named ones sorted. NOT one sort over the
+  # lot: a string sort files "10" between "1" and "2", and this list is the one
+  # AeroSpace reads back when it enumerates workspaces.
+  workspaceRoster =
+    map (n: n.id) numbered
+    ++ lib.sort (a: b: a < b) (lib.subtractLists (map (n: n.id) numbered) (
+      lib.unique (map (ws: ws.id) workspaces)
+    ));
   persistentWorkspaces = lib.concatMapStringsSep ", " (w: ''"${w}"'') workspaceRoster;
 
-  # Workspace throws — leader, then ⇧+the WORKSPACE's own key (not an app's:
-  # several apps can share one workspace and one throw now — see
-  # notes/options-roadmap.md §5.4). A LEADER action rather than the old
-  # main-mode <mod>⇧<letter> chord, so "go there" (leader + an app's key opens
-  # it here) and "take this there" (leader + ⇧ + the workspace's key) sit in
-  # the same mode instead of on two unrelated modifiers. It also hands the
-  # whole <mod>⇧<letter> namespace back to the OS: those chords were claimed
-  # globally by AeroSpace, which is how windowNav = "ctrl-alt" used to eat
-  # zellij's ⌃⌥⇧c. Follows keys.leader now, not keys.windowNav — "none" means
-  # no throws (the palette still moves windows). `--focus-follows-window` so
-  # the throw TAKES you there: you moved the window because you want to be
-  # with it, and the old behaviour left you on the workspace it just vacated,
-  # needing a second leader tap to catch up. Same shape as launchExtras: drop
-  # the indicator, act, return to main; homeDir baked literally, so no
-  # subTokens pass.
+  # Every generated [mode.launch.binding] row has one shape: drop the mode
+  # indicator, run the commands, return to main. homeDir is baked literally
+  # (like launchInvocation), so these need no subTokens pass.
+  launchBind =
+    chord: commands:
+    "${chord} = ['exec-and-forget ${homeDir}/.config/sketchybar/plugins/launch_mode.sh off'"
+    + lib.concatMapStrings (c: ", '${c}'") commands
+    + ", 'mode main']\n";
+
+  # What a workspace's key does, in one place for both the numbered digits and
+  # the named workspaces — three bindings off one key:
+  #
+  #   <key>     focus it. NUMBERED ONLY: the bare-key namespace belongs to the
+  #             roster's launcher letters, one of which usually doubles as
+  #             "open something on this workspace".
+  #   ⇧<key>    throw the focused window there AND follow it. You moved the
+  #             window because you want to be with it, and the old
+  #             throw-and-stay left you on the workspace it just vacated.
+  #   ⌥⇧<key>   throw it there and STAY. The other half of that argument, and
+  #             the reason the follow could become the default at all: sending
+  #             something away to keep working is a real move, and it used to
+  #             cost a throw plus a ⌘⇥ back. ⌥⇧ rather than ⇧⌘ because ⇧⌘3/4/5
+  #             are macOS's screenshot hotkeys and win over AeroSpace's, which
+  #             would have made the chord work on some digits and not others;
+  #             ⌥⇧+letter's non-US-layout problem doesn't apply inside a mode,
+  #             where you are pressing a key rather than typing one.
+  #
+  # A LEADER action rather than the old main-mode <mod>⇧<letter> chord, so "go
+  # there" and "take this there" sit in the same mode instead of on two
+  # unrelated modifiers. It also hands the whole <mod>⇧<letter> namespace back
+  # to the OS: those chords were claimed globally by AeroSpace, which is how
+  # windowNav = "ctrl-alt" used to eat zellij's ⌃⌥⇧c. Follows keys.leader, not
+  # keys.windowNav — "none" means no workspace keys at all (the palette still
+  # moves windows).
+  workspaceBinds =
+    {
+      key,
+      id,
+      focus,
+    }:
+    lib.optionalString focus (launchBind key [ "workspace ${id}" ])
+    + launchBind "shift-${key}" [ "move-node-to-workspace --focus-follows-window ${id}" ]
+    + launchBind "alt-shift-${key}" [ "move-node-to-workspace ${id}" ];
+
+  # The numbered workspaces' own rows. Generated rather than hand-written in
+  # aerospace.toml (where 1-4 lived until haus.prowl.numberedWorkspaces existed)
+  # — the count is an option now, so the toml can't spell the digits out.
+  launchDigits = lib.optionalString (k.leader != null) (
+    lib.concatMapStrings (
+      n:
+      workspaceBinds {
+        inherit (n) key id;
+        focus = true;
+      }
+    ) numbered
+  );
+
+  # ...and the named ones, keyed off the WORKSPACE rather than an app (several
+  # apps can share one workspace and one throw — see notes/options-roadmap.md
+  # §5.4).
   launchMoves = lib.optionalString (k.leader != null) (
     lib.concatMapStrings (
       ws:
-      lib.optionalString (ws.key != null) (
-        "shift-${ws.key} = ['exec-and-forget ${homeDir}/.config/sketchybar/plugins/launch_mode.sh off', "
-        + "'move-node-to-workspace --focus-follows-window ${ws.id}', 'mode main']\n"
-      )
+      lib.optionalString (ws.key != null) (workspaceBinds {
+        inherit (ws) key id;
+        focus = false;
+      })
     ) workspaces
   );
 
@@ -164,24 +221,38 @@ let
     };
   }) leaderExtras);
 
-  # The FIXED half of launch mode: the actions written into aerospace.toml's
-  # [mode.launch.binding] by hand rather than generated from the roster (digits
-  # and ⇧digits, arrows, resize, clipboard/emoji, reopen, settings, resort,
-  # cheatsheet, exit). Split out of reservedLaunchKeys because TWO different
-  # things can collide with it and only one of them was ever checked.
-  builtinLaunchKeys = [
-    "esc" "slash" "1" "2" "3" "4"
-    "shift-1" "shift-2" "shift-3" "shift-4"
-    "v" "e" "z" "comma" "backtick" "minus" "equal"
-    "left" "down" "up" "right"
-    "shift-left" "shift-down" "shift-up" "shift-right"
-  ];
+  # The FIXED half of launch mode: the actions a host does not choose (arrows,
+  # resize, clipboard/emoji, reopen, settings, resort, cheatsheet, exit) plus
+  # the numbered workspaces' three chords each. Split out of reservedLaunchKeys
+  # because TWO different things can collide with it and only one of them was
+  # ever checked. The digit half is derived rather than listed, since
+  # haus.prowl.numberedWorkspaces decides how many digits are spoken for — a
+  # literal 1-4 here would have let a roster letter or a workspace key take "7"
+  # on a machine that raised the count.
+  builtinLaunchKeys =
+    [
+      "esc" "slash"
+      "v" "e" "z" "comma" "backtick" "minus" "equal"
+      "left" "down" "up" "right"
+      "shift-left" "shift-down" "shift-up" "shift-right"
+    ]
+    ++ lib.concatMap (n: [
+      n.key
+      "shift-${n.key}"
+      "alt-shift-${n.key}"
+    ]) numbered;
 
   # Keys already spoken for in launch mode, from leaderExtras' point of view:
-  # the fixed actions above, the roster letters (appKeys, plain), and now the
-  # WORKSPACE keys (workspaceKeys, shift-only — see launchMoves above for why
-  # the throw moved off the app's own key).
-  reservedLaunchKeys = appKeys ++ map (key: "shift-${key}") workspaceKeys ++ builtinLaunchKeys;
+  # the fixed actions above, the roster letters (appKeys, plain), and the
+  # WORKSPACE keys (workspaceKeys, ⇧ and ⌥⇧ only — see workspaceBinds above for
+  # why the throw moved off the app's own key).
+  reservedLaunchKeys =
+    appKeys
+    ++ lib.concatMap (key: [
+      "shift-${key}"
+      "alt-shift-${key}"
+    ]) workspaceKeys
+    ++ builtinLaunchKeys;
 
   # ...and the other direction, which had no check at all: a ROSTER app claiming
   # a letter one of the fixed actions already owns. `roster` asserts its keys are
@@ -198,8 +269,8 @@ let
 
   # The workspace equivalents: two workspaces claiming the same key (their
   # shift-throws would collide, AeroSpace keeps one silently), and a workspace
-  # key whose shift-form is already a built-in (⇧1-4 are the numbered
-  # workspaces' own throws).
+  # key whose shift-form is already a built-in (a numbered workspace's own
+  # throw — which digits those are depends on haus.prowl.numberedWorkspaces).
   duplicateWorkspaceKeys = lib.unique (
     lib.filter (key: lib.count (candidate: candidate == key) workspaceKeys > 1) workspaceKeys
   );
@@ -260,9 +331,15 @@ let
     edge:
     ''[{ monitor."Built-in Retina Display" = ${toString edge.builtin} }, ${toString edge.external}]'';
 
+  # haus.prowl.mouseFollowsFocus, as AeroSpace spells it. `monitor-lazy-center`
+  # rather than plain `center` on purpose: lazy leaves the pointer alone if it
+  # is already on the monitor focus landed on, so the setting only fires when
+  # the cursor is genuinely on the wrong screen.
+  monitorChanged = lib.optionalString cfg.mouseFollowsFocus "'move-mouse monitor-lazy-center'";
+
   aerospaceToml = builtins.replaceStrings
-    [ "@HOME@" "@BIN@" "@MAIN_STATIC@" "@SERVICE_STATIC@" "@LAUNCH_MOVES@" "@LEADER_ENTRY@" "@SERVICE_ENTRY@" "@LAUNCH_LETTERS@" "@WINDOW_RULES@" "@FLOAT_RULES@" "@PERSISTENT_WS@" "@GAP_BUILTIN@" "@GAP_EXTERNAL@" "@GAP_OUTER_TOP@" "@GAP_OUTER_BOTTOM@" ]
-    [ homeDir binDir mainStatic serviceStatic launchMoves (subTokens leaderEntry) serviceEntry (launchLetters + launchExtras) windowRules floatRules persistentWorkspaces (toString gaps.inner.builtin) (toString gaps.inner.external) (monLine gaps.outer.top) (monLine gaps.outer.bottom) ]
+    [ "@HOME@" "@BIN@" "@MAIN_STATIC@" "@SERVICE_STATIC@" "@LAUNCH_DIGITS@" "@LAUNCH_MOVES@" "@LEADER_ENTRY@" "@SERVICE_ENTRY@" "@LAUNCH_LETTERS@" "@WINDOW_RULES@" "@FLOAT_RULES@" "@PERSISTENT_WS@" "@DEFAULT_LAYOUT@" "@DEFAULT_ORIENTATION@" "@ACCORDION_PADDING@" "@MONITOR_CHANGED@" "@GAP_BUILTIN@" "@GAP_EXTERNAL@" "@GAP_OUTER_TOP@" "@GAP_OUTER_BOTTOM@" ]
+    [ homeDir binDir mainStatic serviceStatic launchDigits launchMoves (subTokens leaderEntry) serviceEntry (launchLetters + launchExtras) windowRules floatRules persistentWorkspaces cfg.defaultLayout cfg.defaultOrientation (toString cfg.accordionPadding) monitorChanged (toString gaps.inner.builtin) (toString gaps.inner.external) (monLine gaps.outer.top) (monLine gaps.outer.bottom) ]
     (builtins.readFile ./aerospace.toml);
 
   resortScript = builtins.replaceStrings [ "@RESORT_CASES@" ] [ resortCases ] (
@@ -386,13 +463,20 @@ lib.mkMerge [
           + lib.concatStringsSep ", " duplicateWorkspaceKeys;
       }
       {
-        # A workspace key of "1".."4" would throw its shift-form onto the same
-        # binding the fixed numbered-workspace throws already own.
+        # A workspace key that is one of the numbered workspaces' digits would
+        # throw its ⇧- and ⌥⇧-forms onto bindings those already own. Which
+        # digits that means follows haus.prowl.numberedWorkspaces, so raising
+        # the count can make a workspace key that was legal yesterday illegal
+        # today — which is exactly what this message has to say.
         assertion = workspaceBuiltinCollisions == [ ];
         message =
           "haus.workspaces keys must not reuse a numbered workspace's digit (their "
           + "⇧-throw is already bound); conflicting: "
-          + lib.concatStringsSep ", " workspaceBuiltinCollisions;
+          + lib.concatStringsSep ", " workspaceBuiltinCollisions
+          + ". haus.prowl.numberedWorkspaces is ${toString cfg.numberedWorkspaces}, which "
+          + "claims the digits "
+          + lib.concatStringsSep " " (map (n: n.key) numbered)
+          + ". Give the workspace another key, or lower the count.";
       }
     ];
   # AeroSpace itself, as a roster entry like everything else — no leader key,

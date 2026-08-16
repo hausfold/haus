@@ -9,8 +9,9 @@
 # below instead. Omitting this line means v1.
 config-version = 2
 
-# Every workspace the rice can reach, declared rather than inferred: the fixed
-# digits 1-4 plus each roster app's workspace (Ghostty's T included), generated
+# Every workspace the rice can reach, declared rather than inferred: the
+# numbered ones (how many is haus.prowl.numberedWorkspaces) plus each roster
+# app's workspace (Ghostty's T included), generated
 # from haus._apps. Same members v1 inferred from the chords, so the set no
 # longer changes as a side effect of which bindings happen to exist — a
 # workspace stays on the roster even when a keymap ("none") binds nothing to it.
@@ -29,13 +30,20 @@ start-at-login = false
 enable-normalization-flatten-containers = true
 enable-normalization-opposite-orientation-for-nested-containers = true
 
-accordion-padding = 80
+# How much of its neighbours an accordion workspace leaves showing.
+accordion-padding = @ACCORDION_PADDING@
 
-default-root-container-layout = 'tiles'
+# What a fresh workspace does with its windows, and which way its first split
+# runs. Defaults, not locks: the layout chords still switch the current
+# workspace either way.
+default-root-container-layout = '@DEFAULT_LAYOUT@'
 
-default-root-container-orientation = 'auto'
+default-root-container-orientation = '@DEFAULT_ORIENTATION@'
 
-on-focused-monitor-changed = []
+# Empty unless the pointer should follow focus across monitors, in which case
+# this is a lazy re-centre: it leaves the pointer alone when it is already on
+# the monitor focus landed on.
+on-focused-monitor-changed = [@MONITOR_CHANGED@]
 automatically-unhide-macos-hidden-apps = true
 
 [gaps]
@@ -67,14 +75,17 @@ outer.right = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTER
 # Static tiling / workspace / layout / palette bindings — generated from
 # modules/prowl/wm-bindings.nix, the SAME table that renders the pounce
 # cheatsheet, so a binding and its caption can't drift. The modifier every one of
-# them hangs off is haus.keys.windowNav (⌥ by default): focus <mod>hjkl,
+# them hangs off is haus.keys.windowNav (⌥ by default):
 # layouts <mod>/ <mod>,, fullscreen <mod>f,
 # move-workspace <mod>⇧⇥, palette per keys.palette. <mod>⇥ is deliberately
 # unbound — workspace back-and-forth is retired in favour of pounce's
-# cross-workspace ⌘⇥ switcher. Resizing is a leader action
+# cross-workspace ⌘⇥ switcher, and <mod>hjkl is unbound too since focusing by
+# direction moved to the leader's arrows and haus binds no Vim direction by
+# default any more. Resizing is a leader action
 # (tap the leader, then -/=), and so is everything that names a WORKSPACE:
 # the leader then a digit/letter focuses it, the leader then ⇧+that same key
-# throws the focused window there — see [mode.launch.binding] below, next to
+# throws the focused window there and follows, ⌥⇧+it throws and stays — see
+# [mode.launch.binding] below, next to
 # the app launchers. windowNav = "none" renders this block and the service-mode
 # entry empty. (Careful: never write a token's own name in this file's prose —
 # substitution is blind to comments and would inject the generated bindings
@@ -101,21 +112,18 @@ outer.right = [{ monitor."Built-in Retina Display" = @GAP_BUILTIN@ }, @GAP_EXTER
 [mode.launch.binding]
 esc = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'mode main']
 slash = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @BIN@/pounce --cheatsheet ~/.config/pounce/cheatsheet.json', 'mode main']
-# Numbered workspaces 1-4 focus off the same leader — caps then a digit, exactly
-# like caps then a letter jumps to an app's workspace. ⇧+the digit THROWS the
-# focused window there AND follows it (--focus-follows-window), the same
-# shift-the-key rule the roster letters use below — so "go there" and "take this
-# there" are one key apart rather than on two unrelated modifiers, and both land
-# you on the same workspace. Throwing without following left you staring at the
-# hole the window came out of, then re-tapping the leader to catch up.
-1 = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'workspace 1', 'mode main']
-2 = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'workspace 2', 'mode main']
-3 = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'workspace 3', 'mode main']
-4 = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'workspace 4', 'mode main']
-shift-1 = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'move-node-to-workspace --focus-follows-window 1', 'mode main']
-shift-2 = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'move-node-to-workspace --focus-follows-window 2', 'mode main']
-shift-3 = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'move-node-to-workspace --focus-follows-window 3', 'mode main']
-shift-4 = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'move-node-to-workspace --focus-follows-window 4', 'mode main']
+# The numbered workspaces, generated from haus.prowl.numberedWorkspaces (they
+# were written out as 1-4 here until the count became an option). Each gets
+# three rows: the digit focuses it off the same leader — caps then a digit,
+# exactly like caps then a letter jumps to an app's workspace — ⇧+the digit
+# THROWS the focused window there AND follows it (--focus-follows-window), and
+# ⌥⇧+it throws without following. The ⇧/⌥⇧ pair is the same rule the workspace
+# keys below use, so "go there", "take this there" and "send this there" are one
+# modifier apart rather than on three unrelated chords. Follow is the ⇧ default
+# because throwing without it left you staring at the hole the window came out
+# of; staying is the deliberate variant, for sending something away and carrying
+# on.
+@LAUNCH_DIGITS@
 # Non-launch leader actions. v = clipboard history; e = emoji picker; z =
 # reopen last closed app (the browser ⌘⇧T analog — relaunch the most recently
 # quit app; press again to walk back); , = macOS System Settings (mirrors the
@@ -151,8 +159,10 @@ shift-up = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh of
 shift-right = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh on', 'move right', 'mode navigate']
 # App launcher letters — generated from haus._apps.
 @LAUNCH_LETTERS@
-# Workspace throws (⇧+the workspace's own key) — generated from
-# haus._workspaces. Only workspaces that set `key` get one.
+# Workspace throws (⇧+the workspace's own key to follow, ⌥⇧+it to stay) —
+# generated from haus._workspaces. Only workspaces that set `key` get them, and
+# there is deliberately no bare-key focus: that namespace belongs to the roster's
+# launcher letters, one of which usually doubles as "open something here".
 @LAUNCH_MOVES@
 # Resize mode (entered via the launch leader's -/=, or by pressing -/= while
 # navigating). Repeat -/= to keep growing/shrinking the focused tiled window;

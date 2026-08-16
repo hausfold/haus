@@ -1281,7 +1281,7 @@
     "declarations": [
       "modules/options.nix"
     ],
-    "description": "The AeroSpace key name pressed after the leader (e.g. \"enter\",\n\"space\", \"period\", or a letter). Must not collide with a roster\napp's key or a built-in launch-mode key (the digits 1-4, the\narrows, `-`/`=`, `v`/`e`/`z`, `,`, `` ` ``, `/`, esc) — nor with\nthe workspace throws, which are ⇧ + any of those digits or a\nroster letter (\"shift-1\", \"shift-b\", …). An assertion in\nmodules/prowl catches a clash rather than letting one binding\nsilently shadow another.\n",
+    "description": "The AeroSpace key name pressed after the leader (e.g. \"enter\",\n\"space\", \"period\", or a letter). Must not collide with a roster\napp's key or a built-in launch-mode key (one digit per\nnumbered workspace — see haus.prowl.numberedWorkspaces — plus\nthe arrows, `-`/`=`, `v`/`e`/`z`, `,`, `` ` ``, `/`, esc) —\nnor with the workspace throws, which are ⇧ (follow) or ⌥⇧\n(stay) + any of those digits or a roster letter (\"shift-1\",\n\"alt-shift-b\", …). An assertion in modules/prowl catches a\nclash rather than letting one binding silently shadow\nanother.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"enter\""
@@ -1325,7 +1325,7 @@
       "_type": "literalExpression",
       "text": "\"none\""
     },
-    "description": "The modifier vocabulary for prowl's window chords — one setting rather\nthan a bind-per-action, because what people need to move is the\nmodifier, not the letters. It drives focus (`<mod>` + hjkl), layouts\n(`<mod>` + `/` `,`), fullscreen, moving a workspace to the next\nmonitor (`<mod>⇧⇥`), and entering service mode\n(`<mod>⇧;`). Anything that names a workspace — focusing one, or\nthrowing the focused window there — hangs off `leader` instead, not\nthis option.\n\n\"alt\" (default) is ⌥. The alternatives are for **non-US keyboard\nlayouts**, where ⌥+letter types accented characters — a machine that owns\n⌥+letter is unusable on those, which is the concrete reason this option\nexists.\n\nWhatever you pick, AeroSpace claims those chords **globally**, so they\nstop reaching whatever owned them inside a terminal. The surface is\nsmall now that the workspace throws moved to the leader: only hjkl,\n`/` `,`, `f`, `⇧⇥` and `⇧;`, none of which a roster letter can land\non — and `<mod>⇥` is free again, since workspace back-and-forth\nretired in favour of pounce's cross-workspace ⌘⇥ switcher. (Under\n\"ctrl-alt\" that used to bite — the throws were `⌃⌥⇧` + an app's roster\nletter, so an app on `a` silently ate hearth's zellij\n`Ctrl Alt Shift a` in-place-agent bind. That collision is gone.)\nNothing on a stock macOS collides either: the only ⌃⌥ system hotkeys\nare input-source switching (⌃⌥Space, off by default) and hyper-F13.\n\n\"none\" drops the modifier chords entirely: no focus/layout chords, no\nservice mode. Combined with `leader = \"none\"` that's a machine where the\ntiler tiles and the keyboard is left alone — mouse-first. The cheatsheet\nfollows, so it never advertises a key that does nothing.\n\nOnly meaningful with haus.prowl.enable.\n",
+    "description": "The modifier vocabulary for prowl's window chords — one setting rather\nthan a bind-per-action, because what people need to move is the\nmodifier, not the letters. It drives layouts (`<mod>` + `/` `,`),\nfullscreen, moving a workspace to the next monitor (`<mod>⇧⇥`),\nentering service mode (`<mod>⇧;`) and joining a neighbour inside it\n(`<mod>⇧` + an arrow). Anything that names a workspace — focusing\none, or throwing the focused window there — hangs off `leader`\ninstead, not this option. So does focusing by DIRECTION, which is the\nleader then an arrow.\n\n\"alt\" (default) is ⌥. The alternatives are for **non-US keyboard\nlayouts**, where ⌥+letter types accented characters — a machine that owns\n⌥+letter is unusable on those, which is the concrete reason this option\nexists.\n\nWhatever you pick, AeroSpace claims those chords **globally**, so they\nstop reaching whatever owned them inside a terminal. The surface is\nsmall now that the workspace throws moved to the leader and the\nhjkl focus chords were dropped: only `/` `,`, `f`, `⇧⇥`, `⇧;` and\n`⇧`+the arrows, none of which a roster letter can land\non — and `<mod>⇥` is free again, since workspace back-and-forth\nretired in favour of pounce's cross-workspace ⌘⇥ switcher. (Under\n\"ctrl-alt\" that used to bite — the throws were `⌃⌥⇧` + an app's roster\nletter, so an app on `a` silently ate hearth's zellij\n`Ctrl Alt Shift a` in-place-agent bind. That collision is gone.)\nNothing on a stock macOS collides either: the only ⌃⌥ system hotkeys\nare input-source switching (⌃⌥Space, off by default) and hyper-F13.\n\n\"none\" drops the modifier chords entirely: no layout chords, no\nservice mode. Combined with `leader = \"none\"` that's a machine where the\ntiler tiles and the keyboard is left alone — mouse-first. The cheatsheet\nfollows, so it never advertises a key that does nothing.\n\nOnly meaningful with haus.prowl.enable.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"ctrl-alt\""
@@ -2261,6 +2261,61 @@
     "readOnly": false,
     "type": "null or boolean"
   },
+  "haus.prowl.accordionPadding": {
+    "declarations": [
+      "modules/prowl/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "80"
+    },
+    "description": "How much room an accordion layout leaves for the windows either side\nof the focused one, in points. Bigger means a narrower focused window\nwith more of the stack peeking out; `0` hides the neighbours\ncompletely, which makes an accordion workspace look like a fullscreen\none.\n\nOnly read while a workspace is in the accordion layout, whether it got\nthere from haus.prowl.defaultLayout or from the layout chord.\n\nOnly meaningful with haus.prowl.enable.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "30"
+    },
+    "loc": [
+      "haus",
+      "prowl",
+      "accordionPadding"
+    ],
+    "readOnly": false,
+    "type": "unsigned integer, meaning >=0"
+  },
+  "haus.prowl.defaultLayout": {
+    "declarations": [
+      "modules/prowl/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"tiles\""
+    },
+    "description": "What a fresh workspace does with the windows on it.\n\n\"tiles\" divides the space between them, which is what most people mean\nby a tiling window manager. \"accordion\" stacks them and gives the\nfocused one the room, leaving a sliver of its neighbours showing:\ncloser to how a browser's tabs behave, and easier on a laptop display\nwhere a third split stops being readable.\n\nA default, not a lock. The layout chords still switch the current\nworkspace either way, whichever modifier haus.keys.windowNav puts them\non.\n\nOnly meaningful with haus.prowl.enable.\n",
+    "loc": [
+      "haus",
+      "prowl",
+      "defaultLayout"
+    ],
+    "readOnly": false,
+    "type": "one of \"tiles\", \"accordion\""
+  },
+  "haus.prowl.defaultOrientation": {
+    "declarations": [
+      "modules/prowl/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"auto\""
+    },
+    "description": "Which way a fresh workspace's first split runs.\n\n\"auto\" decides per monitor from its shape — side by side on a wide\nscreen, stacked on a tall one — which is right almost always and is\nwhy it is the default. The other two are for a machine that should\nsplit the same way whatever display it wakes up on.\n\nOnly meaningful with haus.prowl.enable.\n",
+    "loc": [
+      "haus",
+      "prowl",
+      "defaultOrientation"
+    ],
+    "readOnly": false,
+    "type": "one of \"auto\", \"horizontal\", \"vertical\""
+  },
   "haus.prowl.enable": {
     "declarations": [
       "modules/prowl/options.nix"
@@ -2277,6 +2332,44 @@
     ],
     "readOnly": false,
     "type": "boolean"
+  },
+  "haus.prowl.mouseFollowsFocus": {
+    "declarations": [
+      "modules/prowl/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Move the pointer to the centre of a monitor when keyboard focus lands\non it.\n\nOff by default, because it moves something you did not move. On a\nmulti-monitor desk it is the setting that answers \"I focused that\nwindow and my cursor is still on the other screen\", and it fires only\non a MONITOR change: focusing another window on the display the\npointer is already on leaves it where it is.\n\nOnly meaningful with haus.prowl.enable.\n",
+    "loc": [
+      "haus",
+      "prowl",
+      "mouseFollowsFocus"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.prowl.numberedWorkspaces": {
+    "declarations": [
+      "modules/prowl/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "4"
+    },
+    "description": "How many numbered workspaces exist, on top of whatever\nhaus.workspaces names. Four is the house default; the ceiling is ten\nbecause the leader reaches them by DIGIT and there are only ten\ndigits: 1-9 in order, then `0` for the tenth, the same wrap a\nbrowser's tab shortcuts use.\n\nEach one gets three leader bindings (the digit focuses it, ⇧+the digit\nthrows the focused window there and follows, ⌥⇧+the digit throws\nwithout following), a bar pill, and a `persistent-workspace` entry, so\nthe workspace exists whether or not a window is on it.\n\n`0` is legal and means no numbered workspaces at all: a machine where\nevery workspace is a NAMED one out of haus.workspaces. Raising the\ncount never renames an existing workspace, so windows stay where they\nare; lowering it leaves whatever was on the workspaces that went\nunreachable from the keyboard.\n\nThe digits are reserved in launch mode, so a haus.workspaces key or a\nhaus.keys.leaderExtras key that collides with one is refused at eval.\nThis count decides which digits that means.\n\nOnly meaningful with haus.prowl.enable.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "6"
+    },
+    "loc": [
+      "haus",
+      "prowl",
+      "numberedWorkspaces"
+    ],
+    "readOnly": false,
+    "type": "integer between 0 and 10 (both inclusive)"
   },
   "haus.roster": {
     "declarations": [
@@ -5110,7 +5203,7 @@
       "_type": "literalExpression",
       "text": "{ }"
     },
-    "description": "AeroSpace workspaces this machine names on purpose, keyed by the\nworkspace id AeroSpace itself will use (any string it accepts as a\nworkspace name — a single letter like `T`, or a word like `comms`).\nFirst-class rather than a field on an app: an app can only ever own\none workspace if the field lives on the app, which makes a role\nworkspace (\"communication\" = Mail + Slack + Messages) or a project\nworkspace literally unrepresentable. Here, a workspace lists its own\nmembers instead.\n\nThe four fixed numbered workspaces (1-4, leader/⇧+digit) are not\npart of this option — they always exist, independent of what any\napp claims. This option is for the NAMED workspaces app windows get\nherded onto.\n\nAn entry with no `key` and no `apps` does nothing (a warning says\nso); one with `apps` but no `key` still gets a persistent workspace,\na pill (with `icon`) and auto-herds its member windows, it just has\nno dedicated leader throw.\n",
+    "description": "AeroSpace workspaces this machine names on purpose, keyed by the\nworkspace id AeroSpace itself will use (any string it accepts as a\nworkspace name — a single letter like `T`, or a word like `comms`).\nFirst-class rather than a field on an app: an app can only ever own\none workspace if the field lives on the app, which makes a role\nworkspace (\"communication\" = Mail + Slack + Messages) or a project\nworkspace literally unrepresentable. Here, a workspace lists its own\nmembers instead.\n\nThe numbered workspaces (leader + a digit) are not part of this\noption — they always exist, independent of what any app claims, and\nhow many there are is haus.prowl.numberedWorkspaces. This option is\nfor the NAMED workspaces app windows get herded onto.\n\nAn entry with no `key` and no `apps` does nothing (a warning says\nso); one with `apps` but no `key` still gets a persistent workspace,\na pill (with `icon`) and auto-herds its member windows, it just has\nno dedicated leader throw.\n",
     "example": {
       "_type": "literalExpression",
       "text": "{\n  # Role workspace: three apps, one pill, one throw key.\n  comms = {\n    key = \"c\";\n    icon = \":slack:\";\n    apps = [ \"slack\" \"mail\" \"messages\" ];\n  };\n\n  # Single-app workspace: the common case, one entry each.\n  T = { key = \"t\"; icon = \":ghostty:\"; apps = [ \"ghostty\" ]; };\n}\n"
@@ -5174,7 +5267,7 @@
       "_type": "literalExpression",
       "text": "null"
     },
-    "description": "Leader then ⇧<key> throws the focused window to this workspace\nand follows it there (AeroSpace's `move-node-to-workspace\n--focus-follows-window`). There is no bare <key> binding for a\nworkspace — that namespace belongs to `haus.roster` app\nlaunch keys, one of which can double as this workspace's \"open\nsomething here\" action by being one of its `apps`. null means the\nworkspace is reachable only by launching an app that belongs to\nit (or not by keyboard at all). Must be unique across workspaces,\nand ⇧<key> must not collide with a built-in launch-mode binding\n(⇧1-4 are taken).\n",
+    "description": "Leader then ⇧<key> throws the focused window to this workspace\nand follows it there (AeroSpace's `move-node-to-workspace\n--focus-follows-window`). There is no bare <key> binding for a\nworkspace — that namespace belongs to `haus.roster` app\nlaunch keys, one of which can double as this workspace's \"open\nsomething here\" action by being one of its `apps`. null means the\nworkspace is reachable only by launching an app that belongs to\nit (or not by keyboard at all). Must be unique across workspaces,\nand ⇧<key> must not collide with a built-in launch-mode binding\n(the numbered workspaces take one digit each — how many is\nhaus.prowl.numberedWorkspaces). ⌥⇧<key> throws the window here\nWITHOUT following it, and is bound alongside.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"c\""
