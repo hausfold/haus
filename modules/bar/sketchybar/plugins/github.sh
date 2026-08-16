@@ -269,11 +269,15 @@ fetch_search() { # fetch_search <index> <query> <limit>
   #   Then the two states that BLOCK a merge, worse first — a conflict (nothing
   #   about the PR can proceed) ahead of red checks (the code is the problem).
   #   Then the two that merely delay it: checks still running, then a reviewer
-  #   asking for changes. Then the two good outcomes, of which green-and-
-  #   approved gets its own glyph because it is the one row in the list that
-  #   means "you can press the button". Everything else — an Issue rather than
-  #   a PR, a repo with no checks, a mergeability GitHub hasn't computed yet —
-  #   is `mute`: a row with no verdict, which must not tint the pill.
+  #   asking for changes. Then UNKNOWN mergeability, which has to be tested
+  #   HERE and not folded into the trailing else: GitHub computes it lazily, so
+  #   a PR opened a moment ago comes back UNKNOWN with its checks already green
+  #   — and without this arm that falls through to the `SUCCESS` case and draws
+  #   an all-clear for a merge nobody has tried yet. Then the two good
+  #   outcomes, of which green-and-approved gets its own glyph because it is
+  #   the one row in the list that means "you can press the button".
+  #   Everything else — an Issue rather than a PR, a repo with no checks — is
+  #   `mute`: a row with no verdict, which must not tint the pill.
   rows=$(printf '%s' "$json" | jq -r \
     --arg conflict "$G_CONFLICT" --arg failed "$G_FAILED" --arg running "$G_RUNNING" \
     --arg changes "$G_CHANGES" --arg ready "$G_READY" --arg green "$G_GREEN" \
@@ -288,6 +292,7 @@ fetch_search() { # fetch_search <index> <query> <limit>
        elif $ci == "FAILURE" or $ci == "ERROR"                  then ["bad",  $failed]
        elif $ci == "PENDING" or $ci == "EXPECTED"               then ["warn", $running]
        elif $n.reviewDecision == "CHANGES_REQUESTED"            then ["warn", $changes]
+       elif $n.mergeable == "UNKNOWN"                           then ["mute", $none]
        elif $n.reviewDecision == "APPROVED" and $ci == "SUCCESS" then ["ok",  $ready]
        elif $ci == "SUCCESS"                                    then ["ok",   $green]
        else ["mute", $none] end) as [$state, $glyph]

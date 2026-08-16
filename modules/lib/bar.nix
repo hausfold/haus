@@ -84,11 +84,18 @@ rec {
     # `icon`, for the handful of glyphs that are as WIDE as they are tall.
     #
     # Nerd Font's Mono builds fit every patched glyph into one cell, and the fit
-    # is by width — so a tall-and-narrow glyph (a calendar, a bolt) lands at
-    # ~0.67em of ink while a square one (the octocat, a logo mark) is squeezed
-    # to ~0.59em by its own width. Same point size, visibly smaller pill. Two
-    # points back is what makes the two read as one family; it costs nothing
-    # vertically, because the ink is what grew and the ink was the short part.
+    # is by WIDTH — so a square mark is squeezed by its own width and comes out
+    # shorter than the tall-and-narrow glyphs beside it at the same point size.
+    # Measured in JetBrainsMonoNerdFontMono-Bold, as a fraction of the em:
+    # octocat 0.586, the MDI square marks 0.600, a calendar 0.684, a bolt 0.798.
+    # So the pill that ought to be the most recognisable one in the bar draws
+    # 14% shorter than the calendar beside it and 27% shorter than the bolt.
+    #
+    # Two points back closes most of that and costs nothing vertically, because
+    # the ink is what grew and the ink was the short part. It stays clear of the
+    # 28pt pill even at the ceiling: 19 × 1.25 = 24pt nominal is 14.1pt of
+    # octocat ink, still under the 16.8pt a bolt already reaches at the plain
+    # 17pt `icon` size.
     iconWide = fontSize 19;
   };
 
