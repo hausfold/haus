@@ -31,7 +31,7 @@ That asks which desktop you want. Swapping the URL answers it instead:
 
 | | |
 |---|---|
-| `curl -fsSL https://hausfold.co/nebelhaus.sh \| bash` | the whole house — tiling, bar, palette, shelf, agents |
+| `curl -fsSL https://hausfold.co/hacker.sh \| bash` | the whole house — tiling, bar, palette, shelf, agents |
 | `curl -fsSL https://hausfold.co/everyday.sh \| bash` | a Mac for someone who doesn't write code |
 | `curl -fsSL https://hausfold.co/minimal.sh \| bash` | just the themed shell, on otherwise stock macOS |
 

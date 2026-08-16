@@ -119,7 +119,7 @@ Slack is implemented as the first built-in **hook** — the extension point
 is generic:
 
 ```
-nebelhaus.focus.hooks = [ ./my-focus-hooks/onair-light.sh ];
+haus.focus.hooks = [ ./my-focus-hooks/onair-light.sh ];
 # each script is called with "on" or "off"
 ```
 
@@ -130,7 +130,7 @@ parking workspace via aerospace.
 ## Options sketch
 
 ```nix
-nebelhaus.focus = {
+haus.focus = {
   enable = true;                      # room flag, default on like windows/bar/pounce
   mechanism = "hotkey";               # "hotkey" (declarative, DND, via pounce) |
                                       # "shortcut" (signed .shortcut, named Focus)
