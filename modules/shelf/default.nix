@@ -40,6 +40,29 @@ lib.mkIf config.haus.shelf.enable {
     installedBy = lib.mkDefault "haus.shelf";
   };
 
+  # ---- `perch` on PATH -------------------------------------------------------
+  # The shelf's command line door (`perch add <path>...`) ships INSIDE the
+  # bundle, as Contents/MacOS/perch-cli — it is signed and notarized as part of
+  # the app, and it is named perch-cli rather than perch because a
+  # Contents/MacOS/perch IS Contents/MacOS/Perch on a case-insensitive volume
+  # and would replace the app's own executable. So something has to put it on
+  # PATH under its real name, and that something is this room: pkgs.perch does
+  # carry a bin/perch, but installing the package into a profile to reach it
+  # would drag a SECOND copy of the whole .app along for one 419 KB tool, right
+  # beside the /Applications copy the activation below already placed.
+  #
+  # The link points at that fixed path, not at the store, for the same reason
+  # the activation copies there: permission grants are keyed per app path, and
+  # the tool's fallback for finding the app it should launch is the bundle it
+  # sits in. Pointing at /Applications also means the link survives a version
+  # bump untouched — only the copy behind it changes.
+  environment.systemPackages = [
+    (pkgs.runCommand "perch-cli-link" { } ''
+      mkdir -p $out/bin
+      ln -s /Applications/Perch.app/Contents/MacOS/perch-cli $out/bin/perch
+    '')
+  ];
+
   # All home-manager wiring in ONE block — a dynamic attr key (${username}) can't
   # be merged across multiple statements. Passed as a module FUNCTION so it gets
   # the overlaid `pkgs`, the `nebelung` input, and home-manager's extended lib
