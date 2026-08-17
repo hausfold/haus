@@ -1,7 +1,6 @@
 # ⌂ haus
 
 **One flake raises the whole Mac.**
-*Think omarchy, on macOS instead of Arch.*
 
 <sub>**pre-release** · Nothing here changes your Mac without a way back: every rebuild is a Nix generation `haus rollback` returns to, and macOS's own settings — the one thing a rollback can't reach — are what `haus capture` and `haus revert-settings` are for. That's the intent, not a warranty: run it on a machine you can afford to rebuild, and tell us what breaks.</sub>
 
