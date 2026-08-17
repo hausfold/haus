@@ -315,11 +315,11 @@ in
       strayFailures ++ missingHausFailures ++ bodyFailures;
 
   # The desktop's values, each leaf carried in at `priority`. Per LEAF, which is
-  # the same trick `lib.pack` turns for packs and for the same reason: a
-  # priority applied at or above an option REPLACES the definition, so one
-  # normal-priority line in a host would outrank the desktop's whole `roster`
-  # rather than its one field. Below the leaf you set a priority; at or above it
-  # you set a value.
+  # the same trick the Apps room's `packEntries` turns on a saved app
+  # collection, and for the same reason: a priority applied at or above an option
+  # REPLACES the definition, so one normal-priority line in a host would outrank
+  # the desktop's whole `roster` rather than its one field. Below the leaf you
+  # set a priority; at or above it you set a value.
   #
   # A LIST is one leaf, and that is a decision rather than an accident. Two
   # definitions of a list-valued option normally CONCATENATE — so an untouched

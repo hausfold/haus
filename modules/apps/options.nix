@@ -79,8 +79,9 @@
     # then an ordinary desktop-safe boolean the registry can classify, the
     # options reference documents each collection where a person will look for
     # it, and a typo is an unknown-option error instead of a silently ignored
-    # string. A stranger's pack file still arrives through `haus.lib.pack`,
-    # which is the same seam at the same priority.
+    # string. It is also the only route: `haus.lib.pack` let a stranger publish
+    # the same shape and was retired on 2026-08-17, leaving a desktop and a room
+    # as the two shareable formats.
     packs.writing.enable = lib.mkOption {
       type = lib.types.bool;
       default = false;

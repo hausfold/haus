@@ -494,10 +494,10 @@ in
           attribute path into nixpkgs, so "nerd-fonts.fira-code" means
           `pkgs.nerd-fonts.fira-code`.
 
-          This exists so a data-only desktop or app pack can change the font
-          FAMILY and not just its size — reaching `pkgs` is precisely what those
-          formats forbid, which made `fonts.mono.package` unreachable to every
-          shared file. A name is data; a package is code.
+          This exists so a data-only desktop can change the font FAMILY and not
+          just its size — reaching `pkgs` is precisely what that format forbids,
+          which made `fonts.mono.package` unreachable to every shared file. A
+          name is data; a package is code.
 
           Set one or the other, never both. A name that resolves to nothing, or
           to a set of packages rather than a package, fails at eval with the

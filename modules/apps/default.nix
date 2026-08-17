@@ -64,9 +64,19 @@ let
   # Adding one back? Check it against terminal's `editorExts` FIRST — and against
   # the UTI, not just the spelling, since one UTI can carry several extensions.
   iinaVideoExts = [
-    "mp4" "m4v" "mov" "mpg" "mpeg"
-    "mkv" "webm" "avi" "wmv" "flv"
-    "3gp" "ogv" "vob"
+    "mp4"
+    "m4v"
+    "mov"
+    "mpg"
+    "mpeg"
+    "mkv"
+    "webm"
+    "avi"
+    "wmv"
+    "flv"
+    "3gp"
+    "ogv"
+    "vob"
   ];
 
   lsregister = "/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister";
@@ -79,15 +89,44 @@ let
   );
 
   # ---- packs ----------------------------------------------------------------
-  # A pack file is data — `{ haus.roster = { … }; }` and nothing else — so this
-  # room can import one and lower it, which is all `haus.lib.pack` does for a
-  # third party's file. The priority is applied PER LEAF, and that detail is the
-  # whole trick: `mkDefault` on the whole `roster` attrset attaches to the entire
-  # definition, so one normal-priority field in a host would outrank the pack's
-  # WHOLE roster — measured at three of four apps silently not installed. Below
-  # the option leaf you set a priority; at or above it you replace a value.
+  # A collection file is data — `{ haus.roster = { … }; }` and nothing else — so
+  # this room can import one and lower it. The priority is applied PER LEAF, and
+  # that detail is the whole trick: `mkDefault` on the whole `roster` attrset
+  # attaches to the entire definition, so one normal-priority field in a host
+  # would outrank the collection's WHOLE roster — measured at three of four apps
+  # silently not installed. Below the option leaf you set a priority; at or above
+  # it you replace a value. `app-collections` in `nix flake check` is what keeps
+  # that true.
+  #
+  # This is the ONLY route now. `haus.lib.pack` used to import the same shape
+  # from a stranger, and it was retired on 2026-08-17: a stranger's app
+  # collection is a ROOM, so haus ships exactly two shareable formats — a
+  # desktop (data) and a room (code). These files are this repo's own.
+  # The one map from a switch name to the file it installs, shared with the
+  # `app-collections` check so the two cannot drift (packs/default.nix).
+  collectionFiles = import ./packs;
+
   packEntries =
-    path:
+    name:
+    let
+      path = collectionFiles.${name};
+      body = (import path).haus or { };
+      stray = builtins.filter (k: k != "roster") (builtins.attrNames body);
+    in
+    # A collection file is narrowed to `haus.roster`, and this is the only thing
+    # left enforcing that. `checkPack` used to, from the flake, back when a
+    # stranger could publish one; the format retired and took the check with it.
+    # The rule did not retire: only `roster` is carried through below, so
+    # anything else the file sets would be SILENTLY DROPPED — no error, no
+    # warning, just a setting that never happened. `writing.nix`'s own footnote
+    # still names `haus.workspaces` as the obvious next thing to reach for.
+    assert
+      stray == [ ]
+      || throw (
+        "modules/apps/packs/${name}.nix sets haus.${builtins.concatStringsSep ", haus." stray}"
+        + " — a saved collection may only set `haus.roster`, because that is all the Apps room"
+        + " carries through. Say the rest in a room, or in the host that turns this on."
+      );
     lib.mapAttrs (_: entry: lib.mapAttrs (_: value: lib.mkDefault value) entry) (
       (import path).haus.roster
     );
@@ -104,7 +143,7 @@ in
         package = lib.mkDefault pkgs.iina;
       };
     })
-    (lib.mkIf cfg.packs.writing.enable (packEntries ./packs/writing.nix))
+    (lib.mkIf cfg.packs.writing.enable (packEntries "writing"))
   ];
 
   home-manager.users.${username} =

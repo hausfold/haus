@@ -45,7 +45,7 @@ let
 
   # `package` and `packageName` are ONE source written two ways: a derivation,
   # for a module that has `pkgs`; an attribute path into nixpkgs, for a
-  # data-only rice or app pack that by definition doesn't
+  # data-only desktop or saved collection that by definition doesn't
   # (modules/lib/pkg-by-name.nix says why that matters). Resolving the name into
   # the field right here, before anything reads the roster, is what keeps the
   # pack-authored half from being a second code path — every check below, and

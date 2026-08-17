@@ -10,7 +10,7 @@
   #
   # The list itself lives in ./options-modules.nix, which is also what the
   # pure-lib option-surface evaluations import (options-json, the claude skill,
-  # flake.nix's pack and compat checks). It used to be written out again here, and a
+  # flake.nix's app-collections and compat checks). It used to be written out again here, and a
   # module added to one copy and not the other fails in a way that names
   # neither file: absent from this one, a real system loses the option; absent
   # from that one, only the option-surface evals do.

@@ -2327,7 +2327,7 @@
       "_type": "literalExpression",
       "text": "null"
     },
-    "description": "The same thing as `package`, NAMED rather than evaluated: an\nattribute path into nixpkgs, so \"nerd-fonts.fira-code\" means\n`pkgs.nerd-fonts.fira-code`.\n\nThis exists so a data-only desktop or app pack can change the font\nFAMILY and not just its size — reaching `pkgs` is precisely what those\nformats forbid, which made `fonts.mono.package` unreachable to every\nshared file. A name is data; a package is code.\n\nSet one or the other, never both. A name that resolves to nothing, or\nto a set of packages rather than a package, fails at eval with the\nspelling to try instead.\n",
+    "description": "The same thing as `package`, NAMED rather than evaluated: an\nattribute path into nixpkgs, so \"nerd-fonts.fira-code\" means\n`pkgs.nerd-fonts.fira-code`.\n\nThis exists so a data-only desktop can change the font FAMILY and not\njust its size — reaching `pkgs` is precisely what that format forbids,\nwhich made `fonts.mono.package` unreachable to every shared file. A\nname is data; a package is code.\n\nSet one or the other, never both. A name that resolves to nothing, or\nto a set of packages rather than a package, fails at eval with the\nspelling to try instead.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"nerd-fonts.fira-code\""
@@ -3938,7 +3938,7 @@
       "_type": "literalExpression",
       "text": "null"
     },
-    "description": "Nixpkgs package that installs this entry. Where it lands is\n`scope`'s call.\n\nA shared desktop or app pack can't set this one — it needs `pkgs`, and\na data-only desktop has no arguments. Use `packageName` there.\n",
+    "description": "Nixpkgs package that installs this entry. Where it lands is\n`scope`'s call.\n\nA shared desktop can't set this one — it needs `pkgs`, and a data-only\ndesktop has no arguments. Use `packageName` there.\n",
     "example": {
       "_type": "literalExpression",
       "text": "pkgs.orbstack"
@@ -3960,7 +3960,7 @@
       "_type": "literalExpression",
       "text": "null"
     },
-    "description": "The same source as `package`, NAMED rather than evaluated: an\nattribute path into nixpkgs, so \"orbstack\" means `pkgs.orbstack` and\n\"python3Packages.black\" means what it says. `scope` applies to it\nidentically.\n\nThis is the source a shared app pack can use — see\n`haus.apps.packs`, and `modules/apps/packs/writing.nix` for one.\nWithout it a pack could install from Homebrew and the App Store but\nnever from Nixpkgs, because reaching `pkgs` is exactly what the\ndata-only format forbids — the one gap in the four sources.\n\nSet this or `package`, never both; and it counts as a source like any\nother, so pairing it with `cask` is the same mistake as pairing\n`cask` with `brew`.\n",
+    "description": "The same source as `package`, NAMED rather than evaluated: an\nattribute path into nixpkgs, so \"orbstack\" means `pkgs.orbstack` and\n\"python3Packages.black\" means what it says. `scope` applies to it\nidentically.\n\nThis is the source a shared desktop can use — see `haus.apps.packs`,\nand `modules/apps/packs/writing.nix` for a saved collection written\nthis way. Without it a data-only file could install from Homebrew and\nthe App Store but never from Nixpkgs, because reaching `pkgs` is\nexactly what the data-only format forbids — the one gap in the four\nsources.\n\nSet this or `package`, never both; and it counts as a source like any\nother, so pairing it with `cask` is the same mistake as pairing\n`cask` with `brew`.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"orbstack\""

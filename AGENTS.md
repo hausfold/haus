@@ -30,7 +30,7 @@ adds only its own host (identity, private apps, secrets).
 > `haus.*`.
 >
 > The current spellings, everywhere: `haus.desktops.hacker`,
-> `haus.lib.checkRice`, `inputs.haus.url`, the builder `mkHaus`, `share/haus/`,
+> `haus.lib.checkDesktop`, `inputs.haus.url`, the builder `mkHaus`, `share/haus/`,
 > and the state dirs `~/.local/state/haus`, `~/.config/haus/`, `~/.cache/haus/`,
 > `/Library/Application Support/haus/`. The agent skill installs as `haus/`
 > inside each client's skills directory (`~/.claude/skills/`, `~/.codex/skills/`,
@@ -125,9 +125,11 @@ modules/
                           #   machine (IINA today) + the file types they claim. Roster
                           #   entries, so a cask of the same app still collides loudly
     packs/                #   saved app collections, one switch each
-                          #   (haus.apps.packs.<name>.enable). Data files in the same
-                          #   format lib.pack takes for a stranger's; `pack` stopped
-                          #   being a top-level concept in step 5 of the rooms plan
+                          #   (haus.apps.packs.<name>.enable). This repo's own data
+                          #   files — `pack` stopped being a top-level concept in step
+                          #   5 of the rooms plan, and `lib.pack`, the seam that let a
+                          #   STRANGER publish the same shape, was retired 2026-08-17.
+                          #   A stranger's app collection is a room now
   appearance/             # the Appearance room's own PROFILE and nothing else:
                           #   haus.appearance.largePrint sets four other rooms'
                           #   options at once, each at mkDefault. Was
