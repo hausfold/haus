@@ -18,7 +18,7 @@ options. **hacker** is the first desktop — grey, quiet, developer-shaped.
 This repo ships both; **hausfold** is the org that makes them, which is why the
 repo is `hausfold/haus`.
 
-📖 [hausfold.co/docs](https://hausfold.co/docs/) — [installing](https://hausfold.co/docs/haus/install/), the rooms, and [pounce](https://hausfold.co/docs/pounce/), the palette
+📖 [hausfold.co/haus](https://hausfold.co/haus/) — what it is, and the [docs](https://hausfold.co/docs/haus/): [installing](https://hausfold.co/docs/haus/install/), the rooms, and [pounce](https://hausfold.co/docs/pounce/), the palette
 
 ## install
 
