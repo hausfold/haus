@@ -206,152 +206,26 @@
       # the new spellings are `desktops/*` and `haus.appearance.largePrint`.
       presetModules = import ./compat/presets.nix;
 
-      # A PACK is a data-only file that touches ONE option family,
-      # `haus.roster` — the apps on a machine, not the kind of machine it is.
-      # The format stays public (`lib.pack` imports a stranger's file, and
-      # `lib.checkPack` self-tests one), but it is no longer a top-level concept
-      # a consumer stacks: the collections this repo SHIPS belong to the Apps
-      # room and are switched on there. This list is what the format's rules are
-      # checked against, and what `packs` below keeps exporting for the length
-      # of the migration window.
-      packFiles = {
-        writing = ./modules/apps/packs/writing.nix;
-      };
-      # What checkRice and `nix flake check` treat as data files. Presets used to
-      # be in here too; they are modules now, so a pack file is the only shape
-      # left that the rice rules can be read off.
-      riceFiles = packFiles;
-
-      # The public helpers, hoisted out of the `lib` output so `packs` below can
-      # use them — a pack is a file PLUS the seam that imports it, and the seam
-      # is what gives it its priority.
+      # The public helpers behind `haus.lib`: the desktop seam, its checker and
+      # the priority it carries a desktop in at. It is `rec` because the seam
+      # asserts on the checker beside it.
       riceLib = rec {
-        # `haus.lib.checkRice ./my-rice.nix` — true, or throws naming the
-        # stray key. Exposed so a third party can self-test before publishing
-        # rather than learning the rule from a rejected PR.
-        #
-        # ONE namespace: `haus`. This reads the FILE's top-level attribute name
-        # before any module is evaluated, so it is the one check the module
-        # system's alias machinery could never have covered — and there is no
-        # alias machinery left to cover it with.
-        riceNamespaces = [
-          "haus"
-        ];
-        checkRice =
-          path:
-          let
-            m = import path;
-            isData = builtins.isAttrs m;
-            stray =
-              if isData then
-                builtins.filter (k: !(builtins.elem k riceNamespaces)) (builtins.attrNames m)
-              else
-                [ ];
-          in
-          if !isData then
-            throw (
-              "checkRice: ${toString path} is a function, so it is not a data-only pack. "
-              + "A data-only pack takes no arguments — no pkgs, no lib, no config — and evaluates "
-              + "to { haus = { … }; }. A pack that genuinely needs pkgs is a power module: "
-              + "an ordinary nix-darwin module, with the trust that implies."
-            )
-          else if stray != [ ] then
-            throw (
-              "checkRice: ${toString path} sets ${builtins.concatStringsSep ", " stray} outside "
-              + "`haus`. A data-only pack may set nothing else — that boundary is the whole "
-              + "reason one can be read and trusted at a glance."
-            )
-          else
-            true;
-
-        # A rice file's body. `or { }` keeps a body-less file from throwing here
-        # rather than at checkRice, which is where the readable message lives.
-        riceBody =
-          path:
-          let
-            m = import path;
-          in
-          m.haus or { };
-
-        # `haus.lib.checkPack ./my-pack.nix` — checkRice, one level in. A
-        # pack is a rice narrowed to `haus.roster`, and that narrowing used
-        # to be a comment at the top of packs/writing.nix. It has to be a rule
-        # now, because `pack` below only carries `roster` through: anything else
-        # a pack file set would be silently dropped, which is the failure shape
-        # this repo keeps promising itself it will stop shipping.
-        checkPack =
-          path:
-          let
-            outside = builtins.filter (k: k != "roster") (builtins.attrNames (riceBody path));
-          in
-          assert checkRice path;
-          if outside != [ ] then
-            throw (
-              "checkPack: ${toString path} sets haus.${builtins.concatStringsSep ", haus." outside} "
-              + "— a pack may only set `haus.roster`. A file that answers what KIND of machine this "
-              + "is, rather than what's on it, is a preset: pass it through `presets`/extraModules "
-              + "directly instead."
-            )
-          else
-            true;
-
-        # `haus.lib.pack ./their-pack.nix` — the import seam for a pack,
-        # and the reason a consumer's own host wins instead of colliding with it.
-        #
-        # Import order carries NO priority in the module system: a host and a
-        # pack that both name `roster.obsidian.key` conflict, and the consumer
-        # meets a raw nix trace rather than anything this project wrote. Since a
-        # pack is data-only it cannot lower its own priority either — writing
-        # `lib.mkDefault` would make the file a function, which checkRice
-        # refuses. So the priority is applied HERE, to the pack, on the way in.
-        #
-        # Per LEAF, and that detail is the whole trick. `mkDefault` on the whole
-        # `haus.roster` attrset is the tempting one-liner and it is wrong in
-        # the worst available way: `roster` is where the option boundary sits, so
-        # the priority would attach to the entire definition and one
-        # normal-priority field in the host would outrank the pack's WHOLE
-        # roster — measured at three of four apps silently not installed
-        # (workshop's notes/probes/pack-priority.nix). Below the option leaf you
-        # set a priority; at or above it you replace a value.
-        #
-        # What this buys, and what it costs:
-        #   - a host that names one of the pack's apps wins that field, silently,
-        #     and keeps the rest of the pack's entry (workspace, pill, cask);
-        #   - two packs that name one app still CONFLICT loudly, which is the
-        #     right asymmetry — the consumer can't be expected to know what a
-        #     pack contains, while two pack authors are equals;
-        #   - a pack can no longer insist on a value. That's the trade, and it's
-        #     the right way round for a format strangers publish into.
-        #
-        # Consume a third-party pack through this, not as a bare path:
-        #   extraModules = [ (haus.lib.pack ./writer-pack.nix) ];
-        # A bare path still works and still conflicts — same file, different
-        # behaviour, which is why `packs.<name>` is pre-wrapped below.
-        pack =
-          path:
-          assert checkPack path;
-          {
-            # The wrapper builds a NEW attrset, so the module system no longer
-            # knows where these definitions came from and reports the one
-            # collision this seam deliberately keeps — two packs naming one app —
-            # as `<unknown-file>` twice: loud, and anonymous, with nothing to say
-            # WHICH two packs disagreed. Measured in workshop's
-            # notes/probes/preset-composition.nix, along with the fact that a
-            # bare path names both files perfectly well. Any wrapper applied to
-            # someone else's module owes it a `_file`.
-            _file = toString path;
-
-            haus.roster = builtins.mapAttrs (
-              _: entry: builtins.mapAttrs (_: value: nixpkgs.lib.mkDefault value) entry
-            ) ((riceBody path).roster or { });
-          };
-
         # ---- desktops ---------------------------------------------------------
         # A DESKTOP is a complete answer to "what should this Mac feel like?",
         # and a host selects exactly one (the workshop's
-        # notes/rooms-desktops.md). Where a pack is a rice narrowed to the app
-        # roster, a desktop is the whole selection — which is why it gets a
-        # closed schema and a trust boundary rather than a stray-key check.
+        # notes/rooms-desktops.md). It is the whole selection — which is why it
+        # gets a closed schema and a trust boundary rather than a stray-key
+        # check.
+        #
+        # It is also, since 2026-08-17, one of exactly TWO shareable formats,
+        # and the only data one. A third — the app PACK, a data-only file
+        # narrowed to `haus.roster`, imported through the retired
+        # `haus.lib.pack` — used to sit beside it. It is gone from the public
+        # surface: a stranger's app collection is a ROOM now (code, an ordinary
+        # flake input, its own trust prompt), and the collections this repo
+        # ships stayed where step 5 put them, inside the Apps room behind
+        # `haus.apps.packs.<name>.enable`. Two formats, one per trust class:
+        # data haus can prove is inert, and code it cannot.
         #
         # The rules it is held to live in modules/lib/desktop.nix and are read
         # off the room registry, so "may a desktop set this?" has exactly one
@@ -441,12 +315,6 @@
         registry = import ./modules/options-groups.nix;
       };
 
-      # A pack as it actually ships: wrapped. `packFiles` is what the format
-      # RULES are checked against (they're rules about files); this is what a
-      # consumer imports, and what the evaluate-a-real-system half of
-      # `nix flake check` has to use, or the check would prove a shape nobody
-      # gets.
-      packModules = builtins.mapAttrs (_: riceLib.pack) packFiles;
       # Linux is in here for the pure-evaluation outputs only (options-json, the
       # theme-variants check) — that's what lets hausfold.co's Linux CI render the
       # options reference. Anything needing a darwin system is guarded per-output.
@@ -544,30 +412,12 @@
       #
       # The data-only TRUST boundary these dogfooded did not retire with them:
       # it is a desktop's now, enforced leaf by leaf against the room registry
-      # (`lib.checkDesktop`) rather than by a top-level stray-key rule, and a
-      # pack file is still checked by `checkRice`/`checkPack`. See
+      # (`lib.checkDesktop`) rather than by a top-level stray-key rule. See
       # compat/presets.nix, and delete both together.
       presets = presetModules;
 
-      # `haus.packs.writing` — the shipped collection, pre-wrapped, kept for the
-      # same migration window. Say `haus.apps.packs.writing.enable = true`
-      # instead: the Apps room owns the collections this repo ships, and that
-      # switch is a desktop-safe option a desktop can name.
-      #
-      # What is NOT deprecated is the FORMAT. `lib.pack ./their-pack.nix` is how
-      # a third party's file arrives, and it is the same seam at the same
-      # priority: every field lands at `mkDefault`, so a consumer's
-      # `roster.obsidian.key` wins per field instead of colliding, and the rest
-      # of the pack's entry survives.
-      packs = packModules;
-
-      # The pack FILES, unwrapped: `haus.lib.checkRice haus.packFiles.writing`.
-      # A path is the right thing to hand a checker, and this is what a pack
-      # author points at to self-test before publishing.
-      inherit packFiles;
-
-      # `haus.desktops.hacker` — the desktop FILES, unwrapped, the way
-      # `packFiles` is. A path is the right thing to hand `lib.checkDesktop`,
+      # `haus.desktops.hacker` — the desktop FILES, unwrapped. A path is the
+      # right thing to hand `lib.checkDesktop`,
       # and it is what `mkHaus`'s `desktop` argument takes:
       #
       #   mkHaus { … desktop = haus.desktops.hacker; }
@@ -590,20 +440,20 @@
       # Three shapes, one check, because they fail the same way:
       #
       #   desktops   selected the way a host selects one, through the builder
-      #   packs      composed onto the default, which is where a roster entry's
-      #              assertions bite — a leader key another entry or a built-in
+      #   collections  the Apps room's saved app sets, switched on the way a
+      #              host switches one on — which is where a roster entry's
+      #              assertions bite: a leader key another entry or a built-in
       #              launch action already owns type-checks fine and then stops
-      #              the build. Data-only would not have caught that; evaluating
-      #              does.
+      #              the build. Reading the file would not have caught that;
+      #              evaluating does.
       #   presets    the retired aliases (compat/presets.nix). They are here so
       #              "still works" is a fact rather than a promise in a comment.
       #
-      # `checkRice` is the pack format's TRUST half and still applies to pack
-      # FILES: no pkgs, no lib, no config, nothing outside `haus.*`. It THROWS
-      # rather than returning false, so a stray key fails during evaluation with
-      # its own message; the `dataOnly` guard below is belt-and-braces for a
-      # future checkRice that returns a bool. A desktop's equivalent boundary is
-      # stricter and lives in `lib.checkDesktop`, checked by `desktop-seam`.
+      # There is no data-only guard beside it any more. `checkRice` was the pack
+      # format's trust half, and the format is retired; a desktop's equivalent
+      # boundary is stricter, lives in `lib.checkDesktop`, and is checked by
+      # `desktop-seam`. A collection file is this repo's own now, so "is it
+      # data?" is a code-review question rather than a check.
       #
       # `theme-variants` runs on EVERY system, Linux included: it's pure lib, the
       # same property that lets options-json build on Linux CI. `catalogue` stays
@@ -612,8 +462,12 @@
         system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          names = builtins.attrNames riceFiles;
-          dataOnly = builtins.all (n: self.lib.checkRice riceFiles.${n}) names;
+          # The Apps room's saved collections, read off the option tree rather
+          # than a hand list, so a new one is covered the day its switch exists.
+          collectionNames = builtins.attrNames optionsEval.options.haus.apps.packs;
+          # …and the files those switches install, from the table the Apps room
+          # itself reads (modules/apps/packs/default.nix).
+          collectionFiles = import ./modules/apps/packs;
           exampleDrv =
             args:
             builtins.unsafeDiscardStringContext
@@ -629,14 +483,17 @@
             map (n: "desktop ${n} ${exampleDrv { desktop = desktopFiles.${n}; }}") (
               builtins.attrNames desktopFiles
             )
-            ++ map (n: "pack ${n} ${exampleDrv { extraModules = [ packModules.${n} ]; }}") names
+            ++ map (
+              n:
+              "collection ${n} ${exampleDrv { extraModules = [ { haus.apps.packs.${n}.enable = true; } ]; }}"
+            ) collectionNames
             ++ map (n: "preset ${n} ${exampleDrv { extraModules = [ presetModules.${n} ]; }}") (
               builtins.attrNames presetModules
             );
 
           # ---- data-only-surface ----------------------------------------------
-          # A shared desktop or app pack is DATA: an attrset, no arguments, so a
-          # checker can read it and so can a person. Which means the option
+          # A shared desktop is DATA: an attrset, no arguments, so a checker can
+          # read it and so can a person. Which means the option
           # surface itself carries a rule nothing was enforcing — an option typed
           # `package` is INVISIBLE to that format, because setting one needs the
           # single thing a data file cannot have, `pkgs`.
@@ -861,86 +718,98 @@
             ++ map (x: "namespace in no room — add it to roomOwners: ${x}") homelessNamespaces
             ++ map (x: "namespace owned by a room but listed as shared or host: ${x}") misclassedNamespaces;
 
-          # ---- packs ----------------------------------------------------------
-          # Three rules about packs that are all invisible until a STRANGER hits
-          # them, which is exactly when nobody is around to explain:
+          # ---- app collections ------------------------------------------------
+          # ONE rule, and it is the one that survived the pack format's
+          # retirement (2026-08-17). `haus.lib.pack` used to carry a stranger's
+          # data-only file in; a stranger's app collection is a ROOM now, so the
+          # only route left is the Apps room's own switch. What did NOT retire
+          # with the seam is the trick both of them turn:
           #
-          #   1. a pack sets nothing outside `haus.roster` (checkPack) —
-          #      because `lib.pack` carries only roster through, so anything else
-          #      would be silently dropped;
-          #   2. the wrapped pack loses to the consumer's host, PER FIELD, and
-          #      keeps everything the host didn't mention;
-          #   3. the wrapped pack still knows its own filename, so the collision
-          #      this seam deliberately keeps (two packs, one app) names the two
-          #      files rather than `<unknown-file>` twice.
+          #   the collection's values are lowered PER LEAF, so a host that names
+          #   one of its apps wins THAT FIELD and keeps the rest of the entry.
           #
-          # Rule 2 is here because the tempting implementation of `lib.pack` —
-          # `mkDefault` on the whole roster attrset instead of on each leaf —
-          # passes every other check in this repo while dropping three of
-          # writing's four apps, with no error. So the composition is evaluated:
-          # the pack as it ships, plus a host that redefines the first keyed
-          # entry's `key`, and then all three properties are read back off the
-          # result. Pure lib (the option surface only, like options-json), so it
-          # runs on Linux CI too.
+          # It is here because the tempting implementation — `mkDefault` on the
+          # whole `roster` attrset instead of on each leaf — passes every other
+          # check in this repo while silently dropping three of writing's four
+          # apps. `roster` is where the option boundary sits, so a priority at or
+          # above it REPLACES the definition rather than deprioritising it, and
+          # one normal-priority field in a host takes the whole collection with
+          # it. No error; you find out on the machine.
           #
-          # This is also the first check that composes TWO rices. The presets
-          # check evaluates each one alone, which is how limit 3 in the roadmap
-          # went unnoticed until a real host met a real pack.
-          packCompose =
+          # This used to be pure lib and ran on Linux CI. It is darwin-only now,
+          # and the check is declared in the darwin block to say so: the switch is
+          # wired by `modules/apps/default.nix`, which needs `pkgs`, so proving
+          # the switch does the right thing means evaluating a real machine — the
+          # same reason `desktop-seam`'s behavioural half is darwin-only.
+          # Evaluation, not a build.
+          #
+          # The file each switch installs comes from `modules/apps/packs`, the
+          # same table the room reads. Deriving it from the option name instead
+          # would make this check read a different file than the room installs
+          # the day a name and a filename stop matching, and do it silently.
+          collectionCompose =
             name:
             let
-              entries = (riceLib.riceBody packFiles.${name}).roster;
+              entries = (import collectionFiles.${name}).haus.roster;
               keyed = builtins.filter (id: (entries.${id}.key or null) != null) (builtins.attrNames entries);
               id = builtins.head keyed;
               # The consumer who wants the app but claims no letter for it —
-              # today's `mkForce` case, and the one a pack author can't foresee.
-              host.haus.roster.${id}.key = null;
+              # today's `mkForce` case, and the one nobody writing the collection
+              # can foresee.
               resolved =
-                (nixpkgs.lib.evalModules {
-                  specialArgs.lib = nixpkgs.lib;
-                  modules = import ./modules/options-modules.nix ++ [
-                    packModules.${name}
-                    host
+                (mkHaus {
+                  inherit system;
+                  username = "you";
+                  hostname = "example";
+                  extraModules = [
+                    { haus.apps.packs.${name}.enable = true; }
+                    { haus.roster.${id}.key = null; }
                   ];
                 }).config.haus.roster;
-              # Every field the pack set on that entry, other than the one the
-              # host overrode, has to survive with the pack's value.
+              # Every field the collection set on that entry, other than the one
+              # the host overrode, has to survive with the collection's value.
               lost = builtins.filter (f: f != "key" && resolved.${id}.${f} != entries.${id}.${f}) (
                 builtins.attrNames entries.${id}
+              );
+              present = builtins.filter (n: builtins.elem n (builtins.attrNames resolved)) (
+                builtins.attrNames entries
               );
             in
             if keyed == [ ] then
               [ ]
             else
-              nixpkgs.lib.optional (builtins.attrNames resolved != builtins.attrNames entries) (
-                "${name}: composing the pack with a host that names ONE of its apps left "
-                + "${toString (builtins.length (builtins.attrNames resolved))} of "
+              nixpkgs.lib.optional (present != builtins.attrNames entries) (
+                "${name}: switching the collection on with a host that names ONE of its apps left "
+                + "${toString (builtins.length present)} of "
                 + "${toString (builtins.length (builtins.attrNames entries))} entries — the priority in "
-                + "lib.pack is being applied at or above the `roster` option instead of per leaf, which "
-                + "replaces the pack's whole definition rather than deprioritising it."
+                + "`packEntries` is being applied at or above the `roster` option instead of per leaf, "
+                + "which replaces the collection's whole definition rather than deprioritising it."
               )
               ++ nixpkgs.lib.optional (resolved.${id}.key != null) (
-                "${name}: the host's `roster.${id}.key` did not win — lib.pack is not lowering the "
-                + "pack's priority at all, so a consumer meets a module-system conflict instead."
+                "${name}: the host's `roster.${id}.key` did not win — `packEntries` is not lowering the "
+                + "collection's priority at all, so a consumer meets a module-system conflict instead."
               )
               ++ nixpkgs.lib.optional (lost != [ ]) (
-                "${name}: the host overrode `roster.${id}.key` and the pack's "
+                "${name}: the host overrode `roster.${id}.key` and the collection's "
                 + "${builtins.concatStringsSep ", " lost} went with it — an override of one field must "
                 + "not take the rest of the entry."
               );
-          packSurfaceOk = builtins.all (n: self.lib.checkPack packFiles.${n}) (builtins.attrNames packFiles);
-          # Rule 3. `_file` is what the module system quotes in a conflict, and
-          # it is the first thing a wrapper drops — the failure is invisible
-          # until two packs actually collide, on someone else's machine.
-          packFileAttrFailures = builtins.concatMap (
-            n:
-            nixpkgs.lib.optional ((packModules.${n}._file or null) != toString packFiles.${n}) (
-              "${n}: lib.pack returned a module with no `_file`, so a collision between this pack and "
-              + "another one reports `<unknown-file>` and names neither."
+          # A switch with no file, or a file with no switch. Three edits make a
+          # collection (options.nix, the file, the table); this is what turns any
+          # two of them into a failure instead of a silently inert switch.
+          collectionOrphans =
+            map (n: "`haus.apps.packs.${n}.enable` has no file in modules/apps/packs/default.nix") (
+              builtins.filter (n: !(collectionFiles ? ${n})) collectionNames
             )
-          ) (builtins.attrNames packFiles);
-          packFailures =
-            builtins.concatMap packCompose (builtins.attrNames packFiles) ++ packFileAttrFailures;
+            ++ map (n: "modules/apps/packs/default.nix lists `${n}`, which no `haus.apps.packs.<name>.enable` switches on") (
+              builtins.filter (n: !(builtins.elem n collectionNames)) (builtins.attrNames collectionFiles)
+            );
+          collectionFailures =
+            collectionOrphans
+            ++ nixpkgs.lib.optionals (collectionOrphans == [ ]) (
+              builtins.concatMap collectionCompose collectionNames
+            );
+
 
           # ---- fragment-compat -------------------------------------------------
           # Step 5 of the rooms plan moved two top-level fragments into the rooms
@@ -960,16 +829,12 @@
           #
           # The OLD spelling is taken from the compatibility alias rather than
           # from a copy of the deleted file, so this pins the second half of the
-          # promise too — that `haus.presets.large-print` and `haus.packs.writing`
-          # still resolve to what they always did.
+          # promise too — that `haus.presets.large-print` still resolves to what it
+          # always did.
           compatPairs = {
             large-print = {
               old = [ presetModules.large-print ];
               new = [ { haus.appearance.largePrint = true; } ];
-            };
-            writing = {
-              old = [ packModules.writing ];
-              new = [ { haus.apps.packs.writing.enable = true; } ];
             };
           };
           compatRow =
@@ -1098,7 +963,6 @@
           fragmentCompatTable = builtins.concatStringsSep "\n" (compatRows ++ mergeRows);
           expectedFragmentCompatTable = ''
             large-print old == new
-            writing old == new
             two data files, one tour step each: B, A (merged, no error)
             two data files, one app each: obsidian, zotero (merged, no error)
           '';
@@ -2367,8 +2231,8 @@
           data-only-surface = pkgs.runCommand "haus-data-only-surface-ok" { } ''
             ${nixpkgs.lib.optionalString (unnamedPackageOptions != [ ]) ''
               cat >&2 <<'OFFENDERS'
-              These options take a package, so a data-only desktop or app pack cannot
-              set them — reaching `pkgs` is exactly what that format forbids:
+              These options take a package, so a data-only desktop cannot set them —
+              reaching `pkgs` is exactly what that format forbids:
 
               ${builtins.concatStringsSep "\n" unnamedPackageOptions}
 
@@ -2377,18 +2241,6 @@
               for the shape). Keep the package-typed option too — it stays the
               precise way to say it from a module that has `pkgs`.
               OFFENDERS
-              exit 1''}
-            touch $out
-          '';
-
-          packs = pkgs.runCommand "haus-packs-ok" { } ''
-            ${nixpkgs.lib.optionalString (
-              !packSurfaceOk
-            ) "echo 'a pack sets something outside haus.roster' >&2; exit 1"}
-            ${nixpkgs.lib.optionalString (packFailures != [ ]) ''
-              cat >&2 <<'FAILURES'
-              ${builtins.concatStringsSep "\n\n" packFailures}
-              FAILURES
               exit 1''}
             touch $out
           '';
@@ -2669,6 +2521,15 @@
           '';
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-darwin" system) {
+          app-collections = pkgs.runCommand "haus-app-collections-ok" { } ''
+            ${nixpkgs.lib.optionalString (collectionFailures != [ ]) ''
+              cat >&2 <<'FAILURES'
+              ${builtins.concatStringsSep "\n\n" collectionFailures}
+              FAILURES
+              exit 1''}
+            touch $out
+          '';
+
           standalone-modules = pkgs.runCommand "haus-standalone-modules-ok" { } ''
             cat > $out <<'MODULES'
             ${builtins.concatStringsSep "\n" standaloneEvaluated}
@@ -2898,7 +2759,6 @@
             '';
 
           catalogue = pkgs.runCommand "haus-catalogue-ok" { } ''
-            ${nixpkgs.lib.optionalString (!dataOnly) "echo 'a pack file is not data-only' >&2; exit 1"}
             cat > $out <<'CATALOGUE'
             ${builtins.concatStringsSep "\n" evaluated}
             CATALOGUE

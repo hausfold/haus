@@ -28,11 +28,11 @@
 # `import haus.presets.everyday` and `haus.lib.checkRice haus.presets.everyday`
 # no longer work. Nothing a consumer's machine does depends on that — it was the
 # documented way to self-test a preset FILE, and the replacement is
-# `lib.checkDesktop` on a desktop file (`lib.checkRice` still takes a pack file).
+# `lib.checkDesktop` on a desktop file.
 #
 # The first three are exercised as their new spellings by `nix flake check`'s
-# `catalogue`; `large-print` and the `writing` pack are additionally pinned
-# old-against-new, evaluated as whole systems, by `fragment-compat`. Delete
+# `catalogue`; `large-print` is additionally pinned old-against-new, evaluated
+# as whole systems, by `fragment-compat`. Delete
 # this directory and the `presets` flake output together, in one commit, once
 # the migration window closes.
 let

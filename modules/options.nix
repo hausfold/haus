@@ -126,8 +126,8 @@ let
           Nixpkgs package that installs this entry. Where it lands is
           `scope`'s call.
 
-          A shared desktop or app pack can't set this one — it needs `pkgs`, and
-          a data-only desktop has no arguments. Use `packageName` there.
+          A shared desktop can't set this one — it needs `pkgs`, and a data-only
+          desktop has no arguments. Use `packageName` there.
         '';
       };
       packageName = lib.mkOption {
@@ -140,11 +140,12 @@ let
           "python3Packages.black" means what it says. `scope` applies to it
           identically.
 
-          This is the source a shared app pack can use — see
-          `haus.apps.packs`, and `modules/apps/packs/writing.nix` for one.
-          Without it a pack could install from Homebrew and the App Store but
-          never from Nixpkgs, because reaching `pkgs` is exactly what the
-          data-only format forbids — the one gap in the four sources.
+          This is the source a shared desktop can use — see `haus.apps.packs`,
+          and `modules/apps/packs/writing.nix` for a saved collection written
+          this way. Without it a data-only file could install from Homebrew and
+          the App Store but never from Nixpkgs, because reaching `pkgs` is
+          exactly what the data-only format forbids — the one gap in the four
+          sources.
 
           Set this or `package`, never both; and it counts as a source like any
           other, so pairing it with `cask` is the same mistake as pairing

@@ -265,9 +265,9 @@ let
   # parses last and the other vanishes with no error, which on "z" means quietly
   # losing reopen-last-app.
   #
-  # Reachable by hand, but it's a SHARED RICE that makes it likely: an app pack
-  # is written without knowing the leader vocabulary, and "z" is the obvious
-  # letter for Zotero. Found exactly that way, writing packs/writing.nix.
+  # Reachable by hand, but it's a SHARED FILE that makes it likely: a saved app
+  # collection is written without knowing the leader vocabulary, and "z" is the
+  # obvious letter for Zotero. Found exactly that way, writing packs/writing.nix.
   rosterBuiltinCollisions = lib.unique (lib.filter (key: lib.elem key builtinLaunchKeys) appKeys);
 
   # The workspace equivalents: two workspaces claiming the same key (their
@@ -459,7 +459,7 @@ lib.mkMerge [
           + ". Those letters are leader actions haus already binds (v clipboard, e emoji, "
           + "z reopen-last-app, , settings, ` resort, - / = resize, digits and arrows for "
           + "workspaces). Pick another letter for the app, or set its key to null and reach it "
-          + "from the palette. If the entry came from a shared desktop or app pack, override just "
+          + "from the palette. If the entry came from a shared desktop, override just "
           + "the key in your host file: haus.roster.<id>.key = \"…\";";
       }
       {
