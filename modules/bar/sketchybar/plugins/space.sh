@@ -4,6 +4,12 @@ exec 2>>/tmp/sketchybar_space.log
 set -x
 
 source "$HOME/.config/sketchybar/colors.sh"
+# The focused pill's fill is peach rather than mauve while the focused window is
+# AeroSpace-fullscreen. Shared with aerospace_watcher.sh and launch_mode.sh so
+# this single-pill repaint — which fires on every workspace change — can't put
+# a plain mauve pill back over a fullscreen one for the two seconds until the
+# watcher's next tick.
+source "$HOME/.config/sketchybar/plugins/aerospace_lib.sh"
 
 # Get current workspace from AeroSpace
 CURRENT_WORKSPACE=$(/opt/homebrew/bin/aerospace list-workspaces --focused)
@@ -23,7 +29,7 @@ if [ "$WORKSPACE_ID" = "$CURRENT_WORKSPACE" ]; then
     echo "  -> Active" >> /tmp/sketchybar_space.log
     # Active workspace - highlight it
     /opt/homebrew/bin/sketchybar --set $NAME \
-        background.color=$MAUVE \
+        background.color=$(fullscreen_active_ws_color "$(aerospace_fullscreen)") \
         icon.color=$BASE \
         label.color=$BASE \
         drawing=on

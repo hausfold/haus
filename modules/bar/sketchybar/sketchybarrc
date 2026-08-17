@@ -185,14 +185,24 @@ do
         --subscribe space.$workspace aerospace_workspace_change
 done
 
-# Aerospace workspace watcher - polls + listens for app changes to catch missed updates
+# Aerospace workspace watcher - polls + listens for app changes to catch missed
+# updates. Also the sole writer of the FULLSCREEN state (the glyph on front_app
+# and the focused workspace pill's peach fill) — see plugins/aerospace_lib.sh
+# for why it lives here rather than in front_app.sh.
+#
+# aerospace_fullscreen_change is fired by the <mod>f binding, through
+# aerospace-notify.sh, so the paint lands on the keypress; the 2s poll still
+# covers the routes no event announces (focusing another window of the SAME app
+# fires no front_app_switched, and an AeroSpace restart fires nothing at all).
+sketchybar --add event aerospace_fullscreen_change
+
 sketchybar --add item aerospace_watcher left \
     --set aerospace_watcher \
         drawing=off \
         updates=on \
         update_freq=2 \
         script="$HOME/.config/sketchybar/plugins/aerospace_watcher.sh" \
-    --subscribe aerospace_watcher front_app_switched space_change
+    --subscribe aerospace_watcher front_app_switched space_change aerospace_fullscreen_change
 
 # Empty-workspace reaction — when a ⌘Q leaves the focused workspace empty, pull
 # back to the most recent populated workspace ("gravity"). Non-drawing; see
@@ -215,7 +225,13 @@ sketchybar --add item last_closed_app left \
         script="$HOME/.config/sketchybar/plugins/last_closed_app.sh" \
     --subscribe last_closed_app front_app_switched
 
-# Front app name
+# Front app name. The icon slot starts empty and stays empty in every state but
+# one: plugins/aerospace_lib.sh puts an expand glyph there while the focused
+# window is AeroSpace-fullscreen, which is why nothing else may claim it. The
+# LABEL's right-hand end is the mode glyphs' territory (resize / navigate, see
+# plugins/front_app.sh) and the BACKGROUND is those modes' too — so window state
+# reads on the left of the app name, armed modes on the right, and the two never
+# overwrite each other.
 sketchybar --add item front_app left \
     --set front_app \
         icon.drawing=off \

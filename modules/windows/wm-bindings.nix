@@ -78,7 +78,17 @@ lib.optionals hasNav [
       {
         keys = g "f";
         action = "Fullscreen toggle";
-        binds.${m "f"} = "fullscreen";
+        # Two commands, because fullscreen is the one tiling state with no tell
+        # of its own: the window fills the workspace, its siblings vanish, and
+        # nothing says they still exist. The second half wakes the bar's
+        # aerospace watcher, which paints the glyph on the front-app pill and
+        # turns the focused workspace pill peach (modules/bar/sketchybar/
+        # plugins/aerospace_lib.sh). The watcher polls too, so this is latency,
+        # not correctness — dropping it costs up to 2s, not the indicator.
+        binds.${m "f"} = [
+          "fullscreen"
+          "exec-and-forget @HOME@/.config/sketchybar/aerospace-notify.sh fullscreen"
+        ];
       }
       # No <mod>⇥ row: workspace back-and-forth is retired. pounce's ⌘⇥ switcher
       # is already cross-workspace (rows carry the window's workspace, and
