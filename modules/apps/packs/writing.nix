@@ -35,11 +35,22 @@
 #   haus.roster.obsidian.appId = "…";   # osascript -e 'id of app "Obsidian"'
 #
 # A plain assignment — and it stays plain for the fields this file DOES set, too.
-# Whichever way it reaches you — the Apps room's switch, or `haus.lib.pack` for
-# a third-party file — every field here arrives at `mkDefault`, so your host
-# outranks it PER FIELD while the rest of the entry survives. Import order still
-# carries no priority in the module system; the seam does. This same file
+# Whichever way it reaches you, every field here arrives BELOW your host, so your
+# host outranks it PER FIELD while the rest of the entry survives. Import order
+# still carries no priority in the module system; the seam does. This same file
 # imported as a bare path gets none of that and conflicts the old way.
+#
+# The two routes differ in exactly one place, and only against a DESKTOP:
+#
+#   - the Apps room's switch (`haus.apps.packs.writing.enable`) carries these
+#     entries at `mkDefault` (1000), BELOW a desktop's 900 — because that switch
+#     is itself desktop-safe, so the desktop may be what turned it on, and its
+#     own explicit `roster` line should beat the collection it asked for;
+#   - `haus.lib.pack`, for a third-party file, carries them at `packPriority`
+#     (500), ABOVE a desktop — because that file is one YOU pointed at in your
+#     own `extraModules`, which is a narrower act than choosing a desktop.
+#
+# Same data, two provenances. Both still lose to your host.
 #
 # So a letter of yours that clashes with one below is one line, no `mkForce`:
 #
@@ -113,8 +124,8 @@
   # WORKSPACE ownership moved off the roster entry entirely (a workspace names
   # its own members now, not the other way round), so this pack can no longer
   # give Obsidian or Zotero one — `checkPack` only lets a pack set
-  # `haus.roster`, and `lib.pack` only lowers THAT option's priority to
-  # `mkDefault` on the way in. Give them one in your own host file instead:
+  # `haus.roster`, and `lib.pack` only lowers THAT option's priority on the way
+  # in. Give them one in your own host file instead:
   #
   #   haus.workspaces.O = { key = "o"; icon = ":obsidian:"; apps = [ "obsidian" ]; };
   #   haus.workspaces.L = { key = "l"; icon = ":zotero:"; apps = [ "zotero" ]; };

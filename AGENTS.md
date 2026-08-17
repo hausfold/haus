@@ -212,7 +212,10 @@ Three rules, all enforced rather than documented:
 - **the host wins** — a desktop's leaves arrive at priority 900, between an ordinary
   host assignment (100) and a room's own `mkDefault` (1000). Overriding your desktop
   never needs `lib.mkForce`. A list-valued option follows the same rule: when the host
-  names that list, its list replaces the desktop's rather than appending to it.
+  names that list, its list replaces the desktop's rather than appending to it. One
+  rung sits inside that gap: a pack the consumer composed through `lib.pack` arrives
+  at `packPriority` (500), so it beats the desktop and still loses to the host — the
+  ladder is one question, *who is speaking*. (`haus set` writes `mkForce`, at 50.)
 
 Adding a rule means adding a fixture in `test/desktops/` and its expected diagnostic
 in `flake.nix`; a rule with no fixture is a comment. `haus.lib.checkDesktop` /

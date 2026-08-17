@@ -320,6 +320,13 @@
         #   - two packs that name one app still CONFLICT loudly, which is the
         #     right asymmetry — the consumer can't be expected to know what a
         #     pack contains, while two pack authors are equals;
+        #   - a pack now WINS, silently, over a roster leaf a room set at
+        #     `mkDefault` — ghostty's, pounce's, espanso's, iina's. At the old
+        #     1000 that was a loud module-system conflict, and it moved with
+        #     `packPriority`. The ladder says it should (a third party you
+        #     pointed at outranks haus), and a pack that wants a different letter
+        #     for an app the layer already installs can now simply say so — but
+        #     it IS a conflict that stopped being one, so it is written down;
         #   - a pack can no longer insist on a value. That's the trade, and it's
         #     the right way round for a format strangers publish into.
         #
@@ -327,6 +334,29 @@
         #   extraModules = [ (haus.lib.pack ./writer-pack.nix) ];
         # A bare path still works and still conflicts — same file, different
         # behaviour, which is why `packs.<name>` is pre-wrapped below.
+
+        # Where a composed pack sits in the ladder (the whole of it is beside
+        # `desktopPriority` below). Between the host and the desktop, because
+        # the ladder is about WHO IS SPEAKING: 100 is you, 900 is the desktop
+        # you chose, 1000 is haus. A pack reached through this seam is a third
+        # party YOU pointed at, in your own `extraModules` — a narrower act than
+        # picking a desktop, so it wins over one.
+        #
+        # This was `mkDefault` (1000) until it became reachable. Nothing shipped
+        # in this repo could see the difference — no desktop here sets
+        # `haus.roster` — but `haus.roster.<name>.key` is desktop-safe, so the
+        # first published desktop that claims a leader letter would have
+        # silently outranked a pack the consumer imported by hand. Fixed before
+        # third-party desktops exist rather than after (the workshop's
+        # notes/rooms-desktops.md, § Acquisition).
+        #
+        # The Apps room's OWN packs (`haus.apps.packs.<name>.enable`) stay at
+        # `mkDefault`, and that asymmetry is deliberate: their data is haus's,
+        # behind a switch a desktop is allowed to flip, so a desktop's explicit
+        # `roster` line should beat the collection it turned on. Same word, two
+        # provenances.
+        packPriority = 500;
+
         pack =
           path:
           assert checkPack path;
@@ -342,7 +372,7 @@
             _file = toString path;
 
             haus.roster = builtins.mapAttrs (
-              _: entry: builtins.mapAttrs (_: value: nixpkgs.lib.mkDefault value) entry
+              _: entry: builtins.mapAttrs (_: value: nixpkgs.lib.mkOverride packPriority value) entry
             ) ((riceBody path).roster or { });
           };
 
@@ -360,13 +390,17 @@
         # Where the desktop's values sit in the priority ladder, and the reason
         # a host can override its desktop with a PLAIN assignment:
         #
+        #   50    `haus set` — a machine-written override (it emits mkForce)
         #   100   the host — an ordinary line in your own host file
+        #   500   a pack the host composed through `lib.pack` (see packPriority)
         #   900   the desktop  ← here
-        #   1000  a room's own mkDefault
+        #   1000  a room's own mkDefault, and the packs the Apps room ships
         #   1500  an option's declared default
         #
-        # Lower wins. Sitting between the host and the rooms is the whole
-        # requirement: a desktop must outrank the generic defaults it exists to
+        # Lower wins, and the rungs are one question: WHO IS SPEAKING. You, then
+        # a third party you pointed at, then the desktop you chose, then haus.
+        # Sitting between the host and the rooms is the whole requirement for
+        # this rung: a desktop must outrank the generic defaults it exists to
         # replace, and must lose to the person who chose it — without anyone
         # having to write `lib.mkForce` for ordinary customization.
         desktopPriority = 900;
@@ -555,10 +589,11 @@
       # switch is a desktop-safe option a desktop can name.
       #
       # What is NOT deprecated is the FORMAT. `lib.pack ./their-pack.nix` is how
-      # a third party's file arrives, and it is the same seam at the same
-      # priority: every field lands at `mkDefault`, so a consumer's
-      # `roster.obsidian.key` wins per field instead of colliding, and the rest
-      # of the pack's entry survives.
+      # a third party's file arrives: every field lands at `packPriority`, so a
+      # consumer's `roster.obsidian.key` wins per field instead of colliding, and
+      # the rest of the pack's entry survives. The one place the two routes
+      # differ is against a DESKTOP — this switch stays at `mkDefault` and loses
+      # to one; a file you pointed at yourself beats one. See `packPriority`.
       packs = packModules;
 
       # The pack FILES, unwrapped: `haus.lib.checkRice haus.packFiles.writing`.
@@ -872,7 +907,19 @@
           #      keeps everything the host didn't mention;
           #   3. the wrapped pack still knows its own filename, so the collision
           #      this seam deliberately keeps (two packs, one app) names the two
-          #      files rather than `<unknown-file>` twice.
+          #      files rather than `<unknown-file>` twice;
+          #   4. the wrapped pack BEATS a desktop that names the same app, and
+          #      still loses to the host. Rule 2 is the bottom of that ladder and
+          #      this is the middle of it.
+          #
+          # Rule 4 is the one nothing in this repo can reach on its own: no
+          # desktop here sets `haus.roster`, so while `lib.pack` sat at
+          # `mkDefault` the desktop silently won and every check stayed green.
+          # `haus.roster.<name>.key` is desktop-safe, so a published desktop
+          # claiming a leader letter is all it takes — which is why the desktop
+          # is SYNTHESIZED here from the pack's own entry rather than waiting for
+          # a fixture file to exist. `prioritize` is exactly what `lib.desktop`
+          # applies to a real one.
           #
           # Rule 2 is here because the tempting implementation of `lib.pack` —
           # `mkDefault` on the whole roster attrset instead of on each leaf —
@@ -895,14 +942,39 @@
               # The consumer who wants the app but claims no letter for it —
               # today's `mkForce` case, and the one a pack author can't foresee.
               host.haus.roster.${id}.key = null;
-              resolved =
+              # A desktop that claims the same app's letter. Not a fixture file:
+              # `prioritize` at `desktopPriority` IS what `lib.desktop` does to a
+              # real desktop's leaves, and building it from the pack's own entry
+              # keeps the rule readable beside the two above it.
+              # Derived from the pack's own key rather than a literal, so the
+              # rung cannot go vacuous the day a pack ships an entry whose key
+              # happens to equal the sentinel.
+              desktopKey = "from-desktop-not-${toString entries.${id}.key}";
+              desktopSays = {
+                _file = "<synthesized desktop>";
+                haus = desktopLib.prioritize riceLib.desktopPriority {
+                  roster.${id}.key = desktopKey;
+                };
+              };
+              rosterOf =
+                mods:
                 (nixpkgs.lib.evalModules {
                   specialArgs.lib = nixpkgs.lib;
-                  modules = import ./modules/options-modules.nix ++ [
-                    packModules.${name}
-                    host
-                  ];
+                  modules = import ./modules/options-modules.nix ++ mods;
                 }).config.haus.roster;
+              resolved = rosterOf [
+                packModules.${name}
+                host
+              ];
+              withDesktop = rosterOf [
+                packModules.${name}
+                desktopSays
+              ];
+              withBoth = rosterOf [
+                packModules.${name}
+                desktopSays
+                host
+              ];
               # Every field the pack set on that entry, other than the one the
               # host overrode, has to survive with the pack's value.
               lost = builtins.filter (f: f != "key" && resolved.${id}.${f} != entries.${id}.${f}) (
@@ -927,6 +999,20 @@
                 "${name}: the host overrode `roster.${id}.key` and the pack's "
                 + "${builtins.concatStringsSep ", " lost} went with it — an override of one field must "
                 + "not take the rest of the entry."
+              )
+              # Rule 4, both rungs. The first is the one that was broken while
+              # nothing could see it; the second is here so the fix cannot be
+              # made by simply lifting the pack above everything.
+              ++ nixpkgs.lib.optional (withDesktop.${id}.key != entries.${id}.key) (
+                "${name}: a desktop naming `roster.${id}.key` beat the pack (got "
+                + "${toString withDesktop.${id}.key}, wanted ${toString entries.${id}.key}) — lib.pack's "
+                + "priority is at or below the desktop's ${toString riceLib.desktopPriority}, so a published "
+                + "desktop silently overrides a pack the consumer imported by hand."
+              )
+              ++ nixpkgs.lib.optional (withBoth.${id}.key != null) (
+                "${name}: with a desktop AND a host both naming `roster.${id}.key`, the host did not win "
+                + "(got ${toString withBoth.${id}.key}) — lib.pack has been lifted above the host rather "
+                + "than between it and the desktop."
               );
           packSurfaceOk = builtins.all (n: self.lib.checkPack packFiles.${n}) (builtins.attrNames packFiles);
           # Rule 3. `_file` is what the module system quotes in a conflict, and

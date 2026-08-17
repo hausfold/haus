@@ -80,12 +80,19 @@ let
 
   # ---- packs ----------------------------------------------------------------
   # A pack file is data — `{ haus.roster = { … }; }` and nothing else — so this
-  # room can import one and lower it, which is all `haus.lib.pack` does for a
-  # third party's file. The priority is applied PER LEAF, and that detail is the
-  # whole trick: `mkDefault` on the whole `roster` attrset attaches to the entire
-  # definition, so one normal-priority field in a host would outrank the pack's
-  # WHOLE roster — measured at three of four apps silently not installed. Below
-  # the option leaf you set a priority; at or above it you replace a value.
+  # room can import one and lower it, which is nearly what `haus.lib.pack` does
+  # for a third party's file. The priority is applied PER LEAF, and that detail
+  # is the whole trick: `mkDefault` on the whole `roster` attrset attaches to the
+  # entire definition, so one normal-priority field in a host would outrank the
+  # pack's WHOLE roster — measured at three of four apps silently not installed.
+  # Below the option leaf you set a priority; at or above it you replace a value.
+  #
+  # "Nearly", and the difference is deliberate: `lib.pack` uses `packPriority`
+  # (500) while this stays at `mkDefault` (1000), so a DESKTOP beats the
+  # collections this room ships and loses to a pack the consumer imported by
+  # hand. The switch above is desktop-safe, so a desktop may be what turned this
+  # on — and its own explicit `roster` line should then win. Don't unify the two
+  # without reading `packPriority` in flake.nix.
   packEntries =
     path:
     lib.mapAttrs (_: entry: lib.mapAttrs (_: value: lib.mkDefault value) entry) (
