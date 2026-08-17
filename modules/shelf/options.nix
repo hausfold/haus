@@ -10,7 +10,10 @@
     shelf.enable = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      description = "The perch notch file shelf, installed via the perch flake (copied to /Applications).";
+      description = ''
+        The perch notch file shelf, installed via the perch flake (copied to
+        /Applications, with its `perch` command line tool linked onto PATH).
+      '';
     };
 
     shelf.followSystemAppearance = lib.mkOption {

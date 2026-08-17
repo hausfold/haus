@@ -4294,7 +4294,7 @@
       "_type": "literalExpression",
       "text": "false"
     },
-    "description": "The perch notch file shelf, installed via the perch flake (copied to /Applications).",
+    "description": "The perch notch file shelf, installed via the perch flake (copied to\n/Applications, with its `perch` command line tool linked onto PATH).\n",
     "loc": [
       "haus",
       "shelf",

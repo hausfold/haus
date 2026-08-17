@@ -65,7 +65,9 @@ darwinConfigurations.mymac = inputs.haus.mkHaus {
   Nix (gpg-agent + pinentry-mac).
 
 - **perch** — `haus.shelf.enable` installs through Nix via its flake
-  input and copies to a fixed `/Applications/Perch.app` path.
+  input and copies to a fixed `/Applications/Perch.app` path. Its command
+  line door, `perch add <path>...`, lands on `PATH` as a link into that
+  bundle.
 
 - **focus** — `haus.focus.*` for the Focus/DND hotkey, Slack status, and
   shell hooks.
