@@ -2461,12 +2461,13 @@
           # the build, and `nix flake check` as it stood; the github pill shipped
           # exactly that way and was caught by hand.
           #
-          # Two plugins are LIBRARIES — sourced by their siblings, never exec'd —
-          # and are legitimately 0644, so they are named rather than pattern-
-          # matched: a new library adds a line here, which is the moment to be
-          # sure it really is one.
+          # Some plugins are LIBRARIES — sourced by their siblings, never exec'd
+          # — and are legitimately 0644, so they are named rather than pattern-
+          # matched: a new library adds a name to `libs` below, which is the
+          # moment to be sure it really is one. (Counted "two" while there were
+          # three; say "some" rather than re-count it wrong at the next one.)
           bar-plugins-executable = pkgs.runCommand "haus-bar-plugins-executable-ok" { } ''
-            libs="ai-provider.sh media_lib.sh vitals_lib.sh"
+            libs="aerospace_lib.sh ai-provider.sh media_lib.sh vitals_lib.sh"
             bad=
             for f in ${./modules/bar/sketchybar/plugins}/*.sh; do
               base=$(basename "$f")
