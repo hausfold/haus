@@ -175,7 +175,18 @@ chmod +x "$launcher"
 #
 # `open -na` rather than `ghostty +new-window`, which refuses on macOS
 # ("not supported on this platform").
-pgrep -x Ghostty >/dev/null 2>&1 || open -a Ghostty
+# Cold start. `open -a` returns as soon as LaunchServices accepts, so firing the
+# `open -na` below in the same breath races the app's own launch and lands you a
+# stray default window beside the lane. Wait for the process, briefly and with a
+# ceiling — ⌃⌘A always arrives from inside a Ghostty window and never pays this,
+# but the palette's Spawn Agent can reach here on a fresh login or after ⌘Q.
+if ! pgrep -x Ghostty >/dev/null 2>&1; then
+  open -a Ghostty
+  for _ in $(seq 1 40); do
+    pgrep -x Ghostty >/dev/null 2>&1 && break
+    sleep 0.05
+  done
+fi
 open -na Ghostty.app --args \
   --title="$sess" \
   --initial-command="$launcher" || exit 3

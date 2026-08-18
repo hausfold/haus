@@ -6,8 +6,9 @@
 #
 # The palette front door to a named agent worktree. Pick a repo, type what you
 # want done, and this creates a worktree named after the task and drops the
-# configured default (Claude Code, Codex, OpenCode or jcode) into it, in the
-# `main` zellij session's tab for that repo.
+# configured default (Claude Code, Codex, OpenCode or jcode) into it, as a LANE:
+# a zmx session, a Ghostty window forced to its name, tiled on that repo's own
+# T/<repo> page.
 #
 # One client takes the worktree and the name but NOT the task: jcode has no
 # way to be launched with a first message (no positional prompt, no --prompt,
@@ -15,8 +16,8 @@
 # and said out loud instead of being handed over and silently dropped. See the
 # end of this script.
 #
-# Why it exists: the same thing by hand is caps→t to a terminal, find the repo's
-# tab, cd, ⌘A for an agent pane, then type the prompt — and the worktree ends up
+# Why it exists: the same thing by hand is caps→t to a terminal, cd to the repo,
+# ⌃⌘A for a lane, then type the prompt — and the worktree ends up
 # with whatever name Claude generated (`luminous-twirling-codd`), which is the
 # name you then have to recognise in `holt`, in the statusline, and on the branch.
 # Naming it from the prompt is the whole point; the palette is just the shortest
@@ -62,13 +63,12 @@
 # `--draft` files it on every dismissal; ⌥↵ hands it back through `--query`, in
 # the box, editable, rather than just re-running it.
 
-# A launchd GUI agent's PATH is bare; resolve our tools (holt, zellij, git,
+# A launchd GUI agent's PATH is bare; resolve our tools (holt, zmx, git,
 # open, osascript, pounce) explicitly — the same prelude add-app.sh uses.
 export PATH="/etc/profiles/per-user/$USER/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 ROOTS="${HAUS_REPO_ROOTS:-$HOME/code:$HOME/src:$HOME/Developer:$HOME/Projects}"
 WT_REGISTRY="${CLAUDE_WT_BASE:-$HOME/.cache/claude-worktrees}/registry.tsv"
-SESSION="${HAUS_ZELLIJ_SESSION:-main}"
 # One drafts store for the command, not one per repo: you often start typing
 # before you have decided which repo it belongs to.
 DRAFT_KEY="spawn-agent"
@@ -86,11 +86,19 @@ notice() {
     | pounce -p "Spawn Agent" -i "sparkles" >/dev/null
 }
 
-for tool in holt zellij; do
+# The lane opener is holt's own `open` seam, installed by the terminal room.
+# Checked HERE, before anything is created, for the reason the client check
+# below gives: a worktree with nothing to open it is litter.
+OPENER="$HOME/.config/haus/lanes/lane-open.sh"
+for tool in holt zmx; do
   command -v "$tool" >/dev/null 2>&1 && continue
   notice "$tool is unavailable" "Rebuild haus, then try again"
   exit 1
 done
+if [ ! -x "$OPENER" ]; then
+  notice "No lane opener" "Rebuild haus — ~/.config/haus/lanes/lane-open.sh is missing"
+  exit 1
+fi
 
 # ── which repo ────────────────────────────────────────────────────────────
 # One line per candidate: "<mtime>\t<main checkout path>". Sorting on the .git
@@ -305,25 +313,6 @@ if [ "${#slug}" -gt 40 ]; then
 fi
 [ -n "$slug" ] || slug="agent"
 
-# ── make sure there is somewhere to put it ────────────────────────────────
-# Ghostty autostarts the `main` session; wait for it exactly like
-# terminal/zellij/pounce-terminal.sh does, and only create the worktree once we
-# know we have a session to spawn into — a worktree with no pane is litter.
-if ! pgrep -x "Ghostty" >/dev/null; then
-  open -a "Ghostty"
-  sleep 2.0
-fi
-if ! zellij list-sessions 2>/dev/null | grep -q "$SESSION"; then
-  for _ in $(seq 1 10); do
-    sleep 0.5
-    zellij list-sessions 2>/dev/null | grep -q "$SESSION" && break
-  done
-fi
-if ! zellij list-sessions 2>/dev/null | grep -q "$SESSION"; then
-  notice "No '$SESSION' zellij session" "Open Ghostty and let it start, then spawn again"
-  exit 1
-fi
-
 dir="$(holt spawn "$repo" "$slug" "$agent" 2>/dev/null)"
 if [ -z "$dir" ] || [ ! -d "$dir" ]; then
   notice "Could not create the worktree" "Check that $repo_name has a commit to branch from"
@@ -331,33 +320,62 @@ if [ -z "$dir" ] || [ ! -d "$dir" ]; then
 fi
 name="$(basename "$dir")"
 
-# ── land it in the repo's tab ─────────────────────────────────────────────
-# A tab already named after the repo is where that repo's work lives, so join it
-# rather than opening a second one. Otherwise make the tab, named for the REPO —
-# zellij would otherwise title a new tab after its cwd or its running command,
-# and `luminous-twirling-codd` or `claude` is not a tab you can find later.
-osascript -e 'tell application "Ghostty" to activate' >/dev/null 2>&1
-agent_args=(agent start "$agent")
+# ── open the lane ─────────────────────────────────────────────────────────
+# holt's `open` seam, called directly. `holt <repo>/<lane>` would be the tidier
+# spelling but it is the wrong ACT: holt resolves HOLT_COMMAND to a RESUME
+# there, and a lane created three lines ago has no conversation to resume — you
+# would get the client's session picker, or "no conversation found", instead of
+# the task you just typed. A spawner with no pane hands the seam the invocation
+# itself, which is precisely the contract the seam documents ("the exact client
+# invocation holt was about to exec — run it; don't rebuild it").
+#
+# What the seam then does with it is the whole reason to go through it rather
+# than opening a window here: one name — holt.<repo>.<lane> — becomes the zmx
+# session, the Ghostty window title AND the tile on T/<repo>, which is the join
+# every other surface (the bar's go-to, Lanes, resort-windows.sh) reads. A
+# window opened by hand here would have to reproduce all of that and drift.
+#
+# HOLT_COMMAND is a command STRING — the opener runs it through `bash -lc` —
+# so every part is %q-quoted in. That is what carries a prompt that spans lines
+# (⇧↵), holds quotes, or contains a `$` through to the client unmangled.
+#
 # HAUS_AGENT_IMAGE is still honoured so an external caller can pre-attach a
 # file; ⌘↵ above is the in-palette way to the same argument.
 [ -n "${image:-}" ] || image="${HAUS_AGENT_IMAGE:-}"
-[ -n "$image" ] && agent_args+=(--image "$image")
-# The prompt is ONE argv element even when it spans lines — holt joins argv with
-# spaces, so splitting it here is what would flatten a list back into a sentence.
-agent_args+=(-- "$prompt")
-if zellij -s "$SESSION" action query-tab-names 2>/dev/null | grep -qxF "$repo_name"; then
-  zellij -s "$SESSION" action go-to-tab-name "$repo_name" >/dev/null 2>&1
-  spawned=$(zellij -s "$SESSION" action new-pane --cwd "$dir" --name "$name" -- holt "${agent_args[@]}")
-else
-  spawned=$(zellij -s "$SESSION" action new-tab --name "$repo_name" --cwd "$dir" -- holt "${agent_args[@]}")
-fi
+cmd="$(printf 'holt agent start %q' "$agent")"
+[ -n "$image" ] && cmd="$cmd $(printf -- '--image %q' "$image")"
+# `--` then ONE quoted word: holt joins argv with spaces, so a prompt split
+# into several arguments here is what would flatten a list back into a sentence.
+cmd="$cmd -- $(printf '%q' "$prompt")"
 
-if [ -z "$spawned" ]; then
+# HOLT_MAIN is the main checkout (the seam takes its basename for the page);
+# HOLT_CHAT is where the conversation lives, which for a spawn is the lane's
+# own checkout — there is no parent pane whose transcript this continues.
+HOLT_COMMAND="$cmd" \
+HOLT_NAME="$name" \
+HOLT_MAIN="$repo" \
+HOLT_PATH="$dir" \
+HOLT_CHAT="$dir" \
+  "$OPENER"
+rc=$?
+
+# Exit 3 is the seam saying "no opinion, use holt's built-in" — which here means
+# nothing opened, because holt is not the one driving. Treat it like any other
+# failure rather than leaving a worktree with no window.
+#
+# This covers the seam REFUSING, not the lane failing later: the opener's last
+# act is `open -na`, which returns the moment LaunchServices accepts it, so
+# nothing after that — the launcher script, `zmx attach`, the client itself —
+# can reach this exit status. Those failures are caught where they happen
+# instead: lane-open.sh holds the window open on a non-zero client exit rather
+# than letting it flash shut, which is the evidence you would otherwise want
+# this branch to preserve.
+if [ "$rc" -ne 0 ]; then
   # Nothing is holding the checkout, so take it back rather than leave a worktree
   # nobody asked for. The branch goes with it — there is no work in it yet.
   git -C "$repo" worktree remove --force "$dir" >/dev/null 2>&1
   git -C "$repo" branch -D "worktree-$name" >/dev/null 2>&1
-  notice "Could not open a pane" "The worktree was removed; nothing changed"
+  notice "Could not open the lane" "The worktree was removed; nothing changed"
   exit 1
 fi
 
@@ -365,13 +383,13 @@ fi
 # jcode's CLI has no way to open the TUI on a first message: no positional
 # prompt, no --prompt flag, and it doesn't read stdin (v0.76.0). Everything else
 # this command does still works — the worktree, the branch named after the task,
-# the pane in the repo's tab — so the spawn goes ahead and the prompt goes to
+# the lane's window on the repo's page — so the spawn goes ahead and the prompt goes to
 # the clipboard rather than into an argv that would drop it without a word.
 #
 # AFTER the spawn, deliberately: `notice` is a pounce window that waits to be
-# dismissed, so putting it earlier would hold the pane behind a message about
-# the pane.
+# dismissed, so putting it earlier would hold the lane behind a message about
+# the lane.
 if [ "$agent" = "jcode" ]; then
   printf '%s' "$prompt" | pbcopy 2>/dev/null
-  notice "jcode can't be started on a task" "It's on your clipboard — ⌘V in the pane" "doc.on.clipboard"
+  notice "jcode can't be started on a task" "It's on your clipboard — ⌘V in the lane" "doc.on.clipboard"
 fi

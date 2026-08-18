@@ -31,11 +31,13 @@
 #                    requesting client's ZELLIJ_PANE_ID/ZELLIJ_SESSION_NAME onto
 #                    every hook it fires.
 #
-# TWO STORES, picked by where the agent is sitting. A zellij pane files its
-# state under /tmp keyed by (session, pane-id); a zmx lane
-# has no pane, so it sets LABELS on its own
-# session instead — see the zmx branch below for why that is the better half of
-# the pair and not just the other one.
+# THREE STORES, picked by where the agent is sitting. A zellij pane files its
+# state under /tmp keyed by (session, pane-id); a DESKTOP-APP session has no
+# pane either but does have a window, and files under its own conversation id
+# with a `.desk` extension (see that branch for why the extension matters); a
+# zmx lane has no file at all, so it sets LABELS on its own session instead —
+# see the zmx branch below for why that is the better half of the set and not
+# just another one.
 #
 # The two readers, drawing agent state in the same three colours:
 #   • bar's `agents` menu-bar pill — reads the /tmp state files below
@@ -64,13 +66,35 @@ DIR=/tmp/haus-agents
 export USER="${USER:-$(id -un)}"
 export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:$PATH"
 
-# Only track agents the rice can actually take you to. That is a zellij pane,
-# or — for a lane — a zmx session, whose name
-# ($ZMX_SESSION, injected into every process in it) is a lane's window title
-# and its holt lane all at once. A bare-terminal agent is neither: no pane to
-# peek, no window to raise, so it stays invisible here as it always has.
+# Only track agents the rice can actually take you to. Three shapes qualify:
+# a zellij pane; a lane's zmx session, whose name ($ZMX_SESSION, injected into
+# every process in it) is a lane's window title and its holt lane all at once;
+# and a DESKTOP-APP session, which has neither of those but does have a window.
+# A bare-terminal agent is none of the three — no pane to peek, no window to
+# raise — so it stays invisible here as it always has.
+#
+# The desktop client is the one that has to be recognised rather than deduced:
+# it and a bare terminal both lack a pane and both export CLAUDECODE, so
+# $CLAUDE_CODE_ENTRYPOINT (the client naming its own front end) is the only
+# thing between them. The session id is required, not optional — it is the key
+# the row is filed under AND what SessionEnd comes back with to remove it, and
+# a row nothing can ever remove is worse than no row at all.
+desktop=""
 if [ -z "${ZELLIJ_PANE_ID:-}" ] && [ -z "${ZMX_SESSION:-}" ]; then
-  exit 0
+  case "${CLAUDE_CODE_ENTRYPOINT:-}" in
+    *desktop*)
+      # A SUBAGENT is not an agent this pill should draw. It runs inside a
+      # session that already has a row, it has its own $CLAUDE_CODE_SESSION_ID
+      # (distinct from the host's — verified), and it gets no SessionEnd of its
+      # own: a fan-out of ten subagents would file ten rows that only the 12h
+      # sweep could ever clear, every one of them keyed to a conversation you
+      # cannot be taken to. $CLAUDE_CODE_HOST_SESSION_ID is preferred for the
+      # same reason turned around — it is the session a click should land on.
+      [ -z "${CLAUDE_CODE_CHILD_SESSION:-}" ] || exit 0
+      desktop="${CLAUDE_CODE_HOST_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-${3:-}}}"
+      ;;
+  esac
+  [ -n "$desktop" ] || exit 0
 fi
 
 st="${1:-working}"
@@ -130,6 +154,62 @@ if [ -n "${ZMX_SESSION:-}" ]; then
     "since=$(date +%s)" >/dev/null 2>&1
   # No zellij tab-bar to broadcast to (there is no tab), so go straight to
   # repainting the bar — the same call the file path makes at the bottom.
+  reader="$(dirname "$0")/agents.sh"
+  [ -x "$reader" ] || reader="$HOME/.config/sketchybar/plugins/agents.sh"
+  [ -x "$reader" ] && SENDER=refresh NAME=agents "$reader" >/dev/null 2>&1
+  exit 0
+fi
+
+# ── the desktop-app path ─────────────────────────────────────────────────────
+# A desktop-client session has no pane and no zmx session, so it is keyed by
+# the client's own conversation id — stable for the life of the conversation,
+# and the one thing SessionEnd can hand back to find this row again.
+#
+# The files carry a `.desk` extension rather than `.state`, and that is not
+# cosmetic. agents.sh's pruner asks zellij whether each `.state` file's session
+# still holds that pane, and treats "Session 'x' not found" as proof that every
+# row of that session is dead. A desktop row has no session for zellij to know
+# about, so filing it as `.state` under any session name at all would have the
+# pruner reap it on its very first tick. A different extension is the one shape
+# that cannot be mistaken for a pane; agents.sh reads it through its own
+# desktop_records(), and its 12h backstop covers both.
+#
+# What "go to this agent" means here: raise the app, and nothing finer. The
+# desktop client runs every conversation as a tab of ONE window (checked: one
+# com.anthropic.claudefordesktop window however many are open), so there is no
+# per-session window to focus and no honest way to pretend otherwise. The row
+# still earns its place — the state and how long it has sat in it is the whole
+# question the pill exists to answer, and until now it answered it for a
+# shrinking fraction of the agents actually running.
+if [ -n "$desktop" ]; then
+  # Same sanitising as the zmx label, for a different reason: this one becomes
+  # a FILENAME. A session id is a uuid today, so nothing here fires — it is
+  # here so that a client which someday passes a path-shaped id writes one file
+  # instead of a directory tree.
+  key=$(printf '%s' "$desktop" | tr -c 'a-zA-Z0-9._-' '-')
+  f="$DIR/${key}.desk"
+  cf="$DIR/${key}.desk.cwd"
+  mkdir -p "$DIR"
+  if [ "$st" = remove ]; then
+    rm -f "$f" "$cf"
+  else
+    # $CLAUDE_PROJECT_DIR before $PWD for the reason the pane path gives: it is
+    # the client telling us, rather than us inferring from wherever the hook
+    # process happened to start.
+    cwd="${CLAUDE_PROJECT_DIR:-$PWD}"
+    if [ "$(cat "$cf" 2>/dev/null)" != "$cwd" ]; then
+      printf '%s\n' "$cwd" >"$cf.$$" && mv -f "$cf.$$" "$cf"
+    fi
+    # The same six columns the pane path writes, so agents.sh's two readers
+    # differ only in where they find the row and never in how they parse it.
+    # The session slot says `desktop` because the popup shows it verbatim when
+    # there is no holt lane to join against, and "desktop" is the true answer
+    # to "where is this agent" in a way a uuid is not.
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "$st" "desktop" "$key" "$(basename "$cwd")" "$(date +%s)" "$agent" > "$f"
+  fi
+  # No zellij pipe: there is no tab bar to broadcast to, exactly as the zmx
+  # branch above finds. Straight to the repaint.
   reader="$(dirname "$0")/agents.sh"
   [ -x "$reader" ] || reader="$HOME/.config/sketchybar/plugins/agents.sh"
   [ -x "$reader" ] && SENDER=refresh NAME=agents "$reader" >/dev/null 2>&1
