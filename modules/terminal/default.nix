@@ -1417,8 +1417,11 @@ in
         # zmx — what a lane opens into. `lane-open.sh` defers to holt's
         # built-in if it can't find zmx, so a missing binary degrades to a pane
         # rather than a dead lane; shipping the package is what stops it having
-        # to find out at spawn time.
-        ++ [ zmx ];
+        # to find out at spawn time. From nixpkgs rather than upstream's flake:
+        # that one builds through zig2nix, whose zon2json helper is IFD, so
+        # merely EVALUATING a darwin system tried to build an aarch64-darwin
+        # derivation — which CI, on Linux, cannot do. Same version either way.
+        ++ lib.optional agentsCfg.enable pkgs.zmx;
 
       programs.zsh = {
         enable = true;
