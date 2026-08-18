@@ -484,8 +484,7 @@
               builtins.attrNames desktopFiles
             )
             ++ map (
-              n:
-              "collection ${n} ${exampleDrv { extraModules = [ { haus.apps.packs.${n}.enable = true; } ]; }}"
+              n: "collection ${n} ${exampleDrv { extraModules = [ { haus.apps.packs.${n}.enable = true; } ]; }}"
             ) collectionNames
             ++ map (n: "preset ${n} ${exampleDrv { extraModules = [ presetModules.${n} ]; }}") (
               builtins.attrNames presetModules
@@ -801,15 +800,15 @@
             map (n: "`haus.apps.packs.${n}.enable` has no file in modules/apps/packs/default.nix") (
               builtins.filter (n: !(collectionFiles ? ${n})) collectionNames
             )
-            ++ map (n: "modules/apps/packs/default.nix lists `${n}`, which no `haus.apps.packs.<name>.enable` switches on") (
-              builtins.filter (n: !(builtins.elem n collectionNames)) (builtins.attrNames collectionFiles)
-            );
+            ++ map (
+              n:
+              "modules/apps/packs/default.nix lists `${n}`, which no `haus.apps.packs.<name>.enable` switches on"
+            ) (builtins.filter (n: !(builtins.elem n collectionNames)) (builtins.attrNames collectionFiles));
           collectionFailures =
             collectionOrphans
             ++ nixpkgs.lib.optionals (collectionOrphans == [ ]) (
               builtins.concatMap collectionCompose collectionNames
             );
-
 
           # ---- fragment-compat -------------------------------------------------
           # Step 5 of the rooms plan moved two top-level fragments into the rooms

@@ -277,7 +277,6 @@ in
       '';
     };
 
-
     launcher.items = lib.mkOption {
       default = { };
       example = {

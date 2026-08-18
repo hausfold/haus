@@ -283,9 +283,9 @@ let
     # The lane picker and the ⌘P/⌘⇧P window spawns only make sense where a lane
     # is a window: under the zellij lane backend those chords are zellij binds
     # and the picker's `zmx ls` half doesn't exist, so the commands go too.
-    ${lib.optionalString (
-      !lanesAreWindows
-    ) "rm ${lib.concatMapStringsSep " " (f: "$out/${f}") laneCommands}"}
+    ${lib.optionalString (!lanesAreWindows)
+      "rm ${lib.concatMapStringsSep " " (f: "$out/${f}") laneCommands}"
+    }
     # The scene commands (see the let-block above). `scene-` can't collide
     # with a static command — none is named that way — and `off` is a name
     # focus reserves, so scene-off.sh is always ours to claim.
@@ -419,21 +419,24 @@ let
   # that generates the aerospace.toml bindings (../windows/wm-bindings.nix) — edit a
   # binding there and its cheatsheet row moves with it, so they can't drift. Only
   # items with a `keys` display appear (toml-only bindings are skipped).
-  wmPages = map (section: {
-    title = section.title;
-    items = map (it: {
-      key = it.keys;
-      action = it.action;
-    }) (lib.filter (it: it ? keys) section.items);
-  }) (
-    import ../windows/wm-bindings.nix {
-      inherit lib k;
-      # Same contribution windows itself reads, so the card and the bind appear
-      # and disappear together — the whole reason this table is imported twice
-      # rather than written twice.
-      agents = config.haus._contrib.windows.agents;
-    }
-  );
+  wmPages =
+    map
+      (section: {
+        title = section.title;
+        items = map (it: {
+          key = it.keys;
+          action = it.action;
+        }) (lib.filter (it: it ? keys) section.items);
+      })
+      (
+        import ../windows/wm-bindings.nix {
+          inherit lib k;
+          # Same contribution windows itself reads, so the card and the bind appear
+          # and disappear together — the whole reason this table is imported twice
+          # rather than written twice.
+          agents = config.haus._contrib.windows.agents;
+        }
+      );
 
   # The Terminal cards, from the SAME table terminal asserts zellij/config.kdl
   # against (../terminal/term-bindings.nix). So every terminal chord on this
@@ -501,15 +504,17 @@ let
         action = commandField file "description";
       })
       (
-        lib.filter (
-          f: (f != "focus.sh" || config.haus.focus.enable) && (lanesAreWindows || !(lib.elem f laneCommands))
-        ) (
-          lib.naturalSort (
-            lib.attrNames (
-              lib.filterAttrs (n: t: t == "regular" && lib.hasSuffix ".sh" n) (builtins.readDir ./commands)
+        lib.filter
+          (
+            f: (f != "focus.sh" || config.haus.focus.enable) && (lanesAreWindows || !(lib.elem f laneCommands))
+          )
+          (
+            lib.naturalSort (
+              lib.attrNames (
+                lib.filterAttrs (n: t: t == "regular" && lib.hasSuffix ".sh" n) (builtins.readDir ./commands)
+              )
             )
           )
-        )
       );
 
   # The scene commands' rows, from the SAME config the scripts above are

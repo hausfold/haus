@@ -215,21 +215,21 @@ let
   # ghDashBind above, so a plain end-user rice never renders a chord that
   # execs a binary that isn't there.
   benchLaneBind = lib.optionalString devCfg.enable ''
-        // Super b — build+activate this pane's HOLT LANE: this worktree PLUS
-        // every `holt child` worktree spawned from it, however many repos it
-        // touches, in ONE rebuild (`bench try lane switch` — "b" for bench,
-        // since Super l is already Links). Unlike try-batch (which needs an
-        // open PR per repo), this tests the LOCAL checkouts — uncommitted
-        // edits included — so it's the fast loop for a cross-repo change
-        // mid-flight. cwd is inherited from the focused pane, same as Super a:
-        // press it from the lane's PARENT worktree (bench refuses if it isn't
-        // one, or if it has no holt children — see bench's own
-        // `cmd_try`/`detect_lane`). No new-pane suppression here, unlike Super
-        // Shift a: the build/switch output and the post-switch activation
-        // banner are worth reading, so the pane stays open after it exits.
-        // Runs UNGATED — bench's BENCH_AGENT_SWITCH check only fires for an
-        // agent process; a real keypress here is a human at the keyboard.
-        bind "Super b" { Run "@HOME@/code/workshop/bench" "try" "lane" "switch"; }
+    // Super b — build+activate this pane's HOLT LANE: this worktree PLUS
+    // every `holt child` worktree spawned from it, however many repos it
+    // touches, in ONE rebuild (`bench try lane switch` — "b" for bench,
+    // since Super l is already Links). Unlike try-batch (which needs an
+    // open PR per repo), this tests the LOCAL checkouts — uncommitted
+    // edits included — so it's the fast loop for a cross-repo change
+    // mid-flight. cwd is inherited from the focused pane, same as Super a:
+    // press it from the lane's PARENT worktree (bench refuses if it isn't
+    // one, or if it has no holt children — see bench's own
+    // `cmd_try`/`detect_lane`). No new-pane suppression here, unlike Super
+    // Shift a: the build/switch output and the post-switch activation
+    // banner are worth reading, so the pane stays open after it exits.
+    // Runs UNGATED — bench's BENCH_AGENT_SWITCH check only fires for an
+    // agent process; a real keypress here is a human at the keyboard.
+    bind "Super b" { Run "@HOME@/code/workshop/bench" "try" "lane" "switch"; }
   '';
   # Conditional BINDS are substituted here rather than in zellijConfigFile
   # below, and the difference is load-bearing: `kdlChords` reads this string to
@@ -239,7 +239,8 @@ let
   # failing every zellij one.) Only substitutions that add no `bind` line —
   # @HOME@, the mode names, @AGENT_HERE@'s client — belong in the later pass.
   zellijConfigTemplate =
-    builtins.replaceStrings [ "@GH_DASH_BIND@" "@BENCH_LANE_BIND@" "@AGENT_LANE_BINDS@" ]
+    builtins.replaceStrings
+      [ "@GH_DASH_BIND@" "@BENCH_LANE_BIND@" "@AGENT_LANE_BINDS@" ]
       [
         ghDashBind
         benchLaneBind
@@ -279,18 +280,19 @@ let
     # today, so this unbind is purely defensive: it guarantees the chord keeps
     # reaching zellij if a future ghostty release claims it.
     keybind = cmd+shift+a=unbind'';
-  ghosttyConfigTemplate = builtins.replaceStrings
-    [
-      "@GH_DASH_GHOSTTY_BIND@"
-      "@BENCH_LANE_GHOSTTY_BIND@"
-      "@AGENT_GHOSTTY_UNBINDS@"
-    ]
-    [
-      ghDashGhosttyBind
-      benchLaneGhosttyBind
-      agentGhosttyUnbinds
-    ]
-    (builtins.readFile ./ghostty/config);
+  ghosttyConfigTemplate =
+    builtins.replaceStrings
+      [
+        "@GH_DASH_GHOSTTY_BIND@"
+        "@BENCH_LANE_GHOSTTY_BIND@"
+        "@AGENT_GHOSTTY_UNBINDS@"
+      ]
+      [
+        ghDashGhosttyBind
+        benchLaneGhosttyBind
+        agentGhosttyUnbinds
+      ]
+      (builtins.readFile ./ghostty/config);
   # Chords bound in config.kdl. Only the quoted words BEFORE the block open — a
   # bind body can carry its own strings (`bind "Super t" { NewTab { layout "…" } }`)
   # and those are not chords.
@@ -946,15 +948,16 @@ in
   nixpkgs.overlays = [
     (_final: prev: {
       zellij-unwrapped = prev.zellij-unwrapped.overrideAttrs (old: {
-        patches = (old.patches or [ ])
-        ++ [
-          ./zellij/patches/selection-autoscroll.patch
-          ./zellij/patches/no-ctrl-scroll-resize.patch
-          ./zellij/patches/ctrl-click-fullscreen.patch
-          ./zellij/patches/unstick-mouse-selection.patch
-          ./zellij/patches/naked-click-links.patch
-        ]
-        ++ lib.optional terminalCfg.rightClickFullscreen ./zellij/patches/right-click-fullscreen.patch;
+        patches =
+          (old.patches or [ ])
+          ++ [
+            ./zellij/patches/selection-autoscroll.patch
+            ./zellij/patches/no-ctrl-scroll-resize.patch
+            ./zellij/patches/ctrl-click-fullscreen.patch
+            ./zellij/patches/unstick-mouse-selection.patch
+            ./zellij/patches/naked-click-links.patch
+          ]
+          ++ lib.optional terminalCfg.rightClickFullscreen ./zellij/patches/right-click-fullscreen.patch;
       });
     })
   ];
@@ -1173,7 +1176,8 @@ in
       accentColor = nebelungPalette.${accent};
       # Zen browser accent. The nebelung zen port renders every accent under
       # themes/<Flavor>/<Accent>/ (both capitalised); yazi uses lowercase for both.
-      zenAccent = lib.toUpper (lib.substring 0 1 accent) + lib.substring 1 (lib.stringLength accent) accent;
+      zenAccent =
+        lib.toUpper (lib.substring 0 1 accent) + lib.substring 1 (lib.stringLength accent) accent;
       zenTheme = "${nebelungRoot}/zen/themes/${nb.title}/${zenAccent}";
       obsidianTheme = "${nebelungRoot}/obsidian/Nebelung";
       ghDashTheme = "${nebelungRoot}/gh-dash/themes/${nbFlavor}/catppuccin-${nbFlavor}-${accent}.yml";
@@ -1340,7 +1344,8 @@ in
       # directly (the old zjstatus couldn't, so its colours used to be injected
       # here). Shared by custom.kdl and its $HOME-pinned home.kdl variant below.
       zellijLayout =
-        builtins.replaceStrings [ "@username@" "@HOME@" ]
+        builtins.replaceStrings
+          [ "@username@" "@HOME@" ]
           [
             (builtins.substring 0 6 username)
             config.home.homeDirectory
@@ -1524,11 +1529,11 @@ in
             ls = "lsd";
           }
           // {
-          # mdcat's replacement: the same themed glow yazi's previewer uses, so
-          # a terminal `mdcat file.md` renders markdown identically to the yazi
-          # right-pane preview (Nebelung glamour port, tables and all).
-          mdcat = ''glow -s "${glowStyle}"'';
-        };
+            # mdcat's replacement: the same themed glow yazi's previewer uses, so
+            # a terminal `mdcat file.md` renders markdown identically to the yazi
+            # right-pane preview (Nebelung glamour port, tables and all).
+            mdcat = ''glow -s "${glowStyle}"'';
+          };
 
         history = {
           size = 5000;
@@ -2127,273 +2132,276 @@ in
       # `haus` skill, one copy each per entry in ai.clients. Built in the
       # `let` beside agentHomes, because what differs between clients is a path
       # table, not a dotfile.
-      home.file = agentInstructionFiles // agentSkillFiles // {
+      home.file =
+        agentInstructionFiles
+        // agentSkillFiles
+        // {
 
-        # opencode
-        ".config/opencode/themes/nebelung.json".source = "${nebelungRoot}/opencode/nebelung.json";
-        ".config/opencode/tui.json".text = ''
-          {
-            "$schema": "https://opencode.ai/tui.json",
-            "theme": "nebelung"
-          }
-        '';
-      }
-      // lib.optionalAttrs agentsCfg.enable {
-        # Holt's durable machine default. The zellij server and launchd daemons
-        # can outlive the environment that started them, so `holt new` resolves
-        # this generated file instead of inheriting a stale client selection.
-        # A standalone Holt install can own the same file by hand.
-        ".config/holt/config.toml".text = ''
-          # Generated from haus.ai.default — edit that option, not here.
-          agent = "${agentDefault}"
-        ''
-        + lib.optionalString (terminalCfg.lanes.backend == "zmx") ''
+          # opencode
+          ".config/opencode/themes/nebelung.json".source = "${nebelungRoot}/opencode/nebelung.json";
+          ".config/opencode/tui.json".text = ''
+            {
+              "$schema": "https://opencode.ai/tui.json",
+              "theme": "nebelung"
+            }
+          '';
+        }
+        // lib.optionalAttrs agentsCfg.enable {
+          # Holt's durable machine default. The zellij server and launchd daemons
+          # can outlive the environment that started them, so `holt new` resolves
+          # this generated file instead of inheriting a stale client selection.
+          # A standalone Holt install can own the same file by hand.
+          ".config/holt/config.toml".text = ''
+            # Generated from haus.ai.default — edit that option, not here.
+            agent = "${agentDefault}"
+          ''
+          + lib.optionalString (terminalCfg.lanes.backend == "zmx") ''
 
-          # haus.terminal.lanes.backend = "zmx". `open` and `resume` are the two
-          # seams holt answers by exec'ing a client; both are answered here by
-          # the same script, because with zmx they are the same act — `zmx
-          # attach` creates the session or joins the live one.
-          #
-          # The path is under ~, not a store path: holt's own docs list "a hook
-          # pointing at a store path from a rebuild ago" as a way for this to
-          # break, and home.file below keeps this one current.
-          [hooks]
-          open = "${config.home.homeDirectory}/.config/haus/lanes/lane-open.sh"
-          resume = "${config.home.homeDirectory}/.config/haus/lanes/lane-open.sh"
-        '';
+            # haus.terminal.lanes.backend = "zmx". `open` and `resume` are the two
+            # seams holt answers by exec'ing a client; both are answered here by
+            # the same script, because with zmx they are the same act — `zmx
+            # attach` creates the session or joins the live one.
+            #
+            # The path is under ~, not a store path: holt's own docs list "a hook
+            # pointing at a store path from a rebuild ago" as a way for this to
+            # break, and home.file below keeps this one current.
+            [hooks]
+            open = "${config.home.homeDirectory}/.config/haus/lanes/lane-open.sh"
+            resume = "${config.home.homeDirectory}/.config/haus/lanes/lane-open.sh"
+          '';
 
-        # The lane opener itself. Shipped whatever the backend is — it is inert
-        # unless holt's config points at it, and having it on disk is what makes
-        # flipping the option a rebuild rather than a rebuild plus a relaunch.
-        ".config/haus/lanes/lane-open.sh" = {
-          source = ./lanes/lane-open.sh;
-          executable = true;
-        };
+          # The lane opener itself. Shipped whatever the backend is — it is inert
+          # unless holt's config points at it, and having it on disk is what makes
+          # flipping the option a rebuild rather than a rebuild plus a relaunch.
+          ".config/haus/lanes/lane-open.sh" = {
+            source = ./lanes/lane-open.sh;
+            executable = true;
+          };
 
-        # The chord's half. Also shipped whatever the backend is, and for a
-        # sharper reason than lane-open.sh's: it is what the WINDOWS room binds
-        # (through _contrib.windows.agents below), and a bind pointing at a file
-        # that isn't there is the one failure mode a rebuild can't warn about.
-        # Inert on a zellij machine, where nothing binds it.
-        ".config/haus/lanes/lane-spawn.sh" = {
-          source = ./lanes/lane-spawn.sh;
-          executable = true;
-        };
+          # The chord's half. Also shipped whatever the backend is, and for a
+          # sharper reason than lane-open.sh's: it is what the WINDOWS room binds
+          # (through _contrib.windows.agents below), and a bind pointing at a file
+          # that isn't there is the one failure mode a rebuild can't warn about.
+          # Inert on a zellij machine, where nothing binds it.
+          ".config/haus/lanes/lane-spawn.sh" = {
+            source = ./lanes/lane-spawn.sh;
+            executable = true;
+          };
 
-        # The shared "which directory is the focused window looking at?"
-        # resolver — lane-spawn.sh's cwd half, split out so the launcher's
-        # shell-here command (⌘P/⌘⇧P under zmx) asks the identical question
-        # instead of drifting a copy of the awk.
-        ".config/haus/lanes/lane-cwd.sh" = {
-          source = ./lanes/lane-cwd.sh;
-          executable = true;
-        };
+          # The shared "which directory is the focused window looking at?"
+          # resolver — lane-spawn.sh's cwd half, split out so the launcher's
+          # shell-here command (⌘P/⌘⇧P under zmx) asks the identical question
+          # instead of drifting a copy of the awk.
+          ".config/haus/lanes/lane-cwd.sh" = {
+            source = ./lanes/lane-cwd.sh;
+            executable = true;
+          };
 
-        # Opencode's half of the agent-pane status the bar and the zellij tab-bar
-        # draw. Claude Code's equivalent is four hooks in ~/.claude/settings.json,
-        # which the USER wires (Claude owns that file and rewrites it, so the rice
-        # never has); opencode instead auto-loads every file under this directory,
-        # so the rice can own the whole wiring and a fresh machine gets working
-        # paws for opencode panes with nothing to configure.
-        # @AGENT_STATE@ → core's `agent-state` by absolute path: a plugin runs
-        # inside opencode's server process, which is given no PATH guarantees.
-        ".config/opencode/plugin/haus-agent-state.js".text =
-          builtins.replaceStrings [ "@AGENT_STATE@" ] [ "/run/current-system/sw/bin/agent-state" ]
-            (builtins.readFile ./opencode/agent-state.js);
-      }
-      # Helix nebelung theme, from the nebelung flake. This used to be a
-      # hand-written [palette] block inheriting helix's BUILT-IN
-      # catppuccin_<flavor>; nebelung now carries the real catppuccin/helix
-      # port, so the theme comes rendered like every other tool here and the
-      # syntax scopes track upstream instead of whatever helix ships.
-      # Kept under the `nebelung` name that programs.helix.settings.theme
-      # points at (the port also renders a no_italics/ sibling).
-      #
-      # Conditional for the same reason the helix PORT is: on a machine whose
-      # `haus.terminal.editorName` is not helix, this room installs no helix, and
-      # a theme file for an editor that is not there is just litter in ~.
-      // lib.optionalAttrs (terminalCfg.editorName == "helix") {
-        ".config/helix/themes/nebelung.toml".source =
-          "${nebelungRoot}/helix/themes/default/catppuccin_${nbFlavor}.toml";
-      }
-      // {
+          # Opencode's half of the agent-pane status the bar and the zellij tab-bar
+          # draw. Claude Code's equivalent is four hooks in ~/.claude/settings.json,
+          # which the USER wires (Claude owns that file and rewrites it, so the rice
+          # never has); opencode instead auto-loads every file under this directory,
+          # so the rice can own the whole wiring and a fresh machine gets working
+          # paws for opencode panes with nothing to configure.
+          # @AGENT_STATE@ → core's `agent-state` by absolute path: a plugin runs
+          # inside opencode's server process, which is given no PATH guarantees.
+          ".config/opencode/plugin/haus-agent-state.js".text =
+            builtins.replaceStrings [ "@AGENT_STATE@" ] [ "/run/current-system/sw/bin/agent-state" ]
+              (builtins.readFile ./opencode/agent-state.js);
+        }
+        # Helix nebelung theme, from the nebelung flake. This used to be a
+        # hand-written [palette] block inheriting helix's BUILT-IN
+        # catppuccin_<flavor>; nebelung now carries the real catppuccin/helix
+        # port, so the theme comes rendered like every other tool here and the
+        # syntax scopes track upstream instead of whatever helix ships.
+        # Kept under the `nebelung` name that programs.helix.settings.theme
+        # points at (the port also renders a no_italics/ sibling).
+        #
+        # Conditional for the same reason the helix PORT is: on a machine whose
+        # `haus.terminal.editorName` is not helix, this room installs no helix, and
+        # a theme file for an editor that is not there is just litter in ~.
+        // lib.optionalAttrs (terminalCfg.editorName == "helix") {
+          ".config/helix/themes/nebelung.toml".source =
+            "${nebelungRoot}/helix/themes/default/catppuccin_${nbFlavor}.toml";
+        }
+        // {
 
-        # ghostty (config lives in Application Support; theme lookup is XDG)
-        # ghostty's `command` runs the zellij launcher by absolute path; render
-        # @HOME@ → the user's home so it isn't pinned to one account.
-        "Library/Application Support/com.mitchellh.ghostty/config".text =
-          builtins.replaceStrings
-            [ "@HOME@" "@FONT_FAMILY@" "@FONT_SIZE@" ]
-            [
-              config.home.homeDirectory
-              fontsCfg.mono.name
-              (toString fontsCfg.mono.size)
-            ]
-            ghosttyConfigTemplate;
-        ".config/ghostty/themes/nebelung".source =
-          "${nebelungRoot}/ghostty/themes/catppuccin-${nbFlavor}.conf";
-
-        # lsd colours (replaces catppuccin.lsd). lsd auto-reads this file.
-        ".config/lsd/colors.yaml".source = "${nebelungRoot}/lsd/themes/catppuccin-${nbFlavor}/colors.yaml";
-
-        # yazi theme (replaces catppuccin.yazi): mgr/status/mode palette (mauve
-        # accent) plus the syntect theme its syntect_theme line points at —
-        # reusing the Nebelung bat tmTheme so previews match bat.
-        ".config/yazi/theme.toml".source =
-          "${nebelungRoot}/yazi/themes/${nbFlavor}/catppuccin-${nbFlavor}-${accent}.toml";
-        # This target's NAME is pinned by the rendered theme.toml above: its
-        # syntect_theme line reads ~/.config/yazi/Catppuccin-<flavor>.tmTheme, so it
-        # has to carry the flavor or yazi's code previews lose their colours.
-        ".config/yazi/Catppuccin-${nbFlavor}.tmTheme".source =
-          "${nebelungRoot}/bat/themes/${batTheme}.tmTheme";
-
-        # zellij
-        # NOTE: config.kdl is deliberately absent from this block — it is
-        # installed as a real file by the zellijLiveConfig activation instead,
-        # so a rebuild hot-reloads into the running session. See there.
-        ".config/zellij/themes/nebelung.kdl".source = "${nebelungRoot}/zellij/themes/nebelung.kdl";
-        # Custom layout, rendered from the in-repo template (see zellijLayout
-        # in the let above).
-        ".config/zellij/layouts/custom.kdl".text = zellijLayout;
-        # The same layout with the content tab pinned to $HOME — the Super-t
-        # NewTab bind opens tabs from this file, so a plain new tab always starts
-        # at ~ no matter where the focused pane lives (Super-Shift-t is the "…at
-        # the focused dir" variant — new-tab-here.sh). Tab-level cwd is the only
-        # form zellij honors under a default_tab_template (peek-run.sh and
-        # new-tab-here.sh pull the same trick per-pick); the assert trips at eval
-        # time if custom.kdl's
-        # content-tab line ever changes shape, instead of silently shipping a
-        # layout that no-ops back to cwd inheritance.
-        ".config/zellij/layouts/home.kdl".text =
-          let
-            pinned =
-              builtins.replaceStrings
-                [ "\n    tab name=\"~\" {\n" ]
-                [ "\n    tab cwd=\"${config.home.homeDirectory}\" name=\"~\" {\n" ]
-                zellijLayout;
-          in
-          assert pinned != zellijLayout;
-          pinned;
-        # The four plugin forks, each built from ./zellij/<name>/src by the
-        # zellijPlugins derivations in the let above — never a checked-in blob,
-        # so a source edit can't be shipped half-applied. The install paths stay
-        # exactly these four names: config.kdl / custom.kdl reference them by
-        # path, and so does the permission-cache seed below (keyed on the
-        # expanded ~/.config/zellij/plugins/<name>.wasm), so renaming one here
-        # silently un-grants the plugin.
-        ".config/zellij/plugins/link-handler.wasm".source = zellijPlugins.link-handler;
-        # tab-history (see zellij/tab-history/): background plugin that makes
-        # Ctrl(+Shift)+Tab walk tabs in most-recently-used order (browser-style
-        # back/forward) instead of by position. Loaded via config.kdl's
-        # load_plugins; grants seeded below.
-        ".config/zellij/plugins/tab-history.wasm".source = zellijPlugins.tab-history;
-        # Our status-bar fork (see zellij/status-bar/): the bottom-right quick
-        # hints are condensed to one flat Super-key block (agent, find, optional
-        # gh-dash, pounce-links, pane, tab, yazi-peek, fullscreen — keys only,
-        # no labels/ribbons, listed alphabetically by the key that shows).
-        ".config/zellij/plugins/status-bar.wasm".source = zellijPlugins.status-bar;
-        # Our tab-bar fork (see zellij/tab-bar/): the top bar, replacing the
-        # third-party zjstatus that used to sit here. Same active-anchored tab
-        # scroll viewport as upstream zellij:tab-bar (so tabs stay readable on a
-        # thin pane instead of clipping under the right-hand widgets, which is
-        # what zjstatus did), themed to nebelung, with a username pill + a
-        # Ctrl+Tab / swap-layout right side.
-        ".config/zellij/plugins/tab-bar.wasm".source = zellijPlugins.tab-bar;
-        ".config/zellij/launch.sh" = {
-          source = ./zellij/launch.sh;
-          executable = true;
-        };
-        ".config/zellij/image-preview.sh" = {
-          source = ./zellij/image-preview.sh;
-          executable = true;
-        };
-        # Both peek binds run this one script: Super y hops out of an agent
-        # worktree to the repo's main checkout, Super Shift y passes --stay and
-        # doesn't. See config.kdl's pair of binds.
-        ".config/zellij/peek.sh" = {
-          source = ./zellij/peek.sh;
-          executable = true;
-        };
-        ".config/zellij/peek-run.sh" = {
-          source = ./zellij/peek-run.sh;
-          executable = true;
-        };
-        # Super-Shift-t: open a new tab cwd'd at the focused pane's dir (clones
-        # the active layout + injects a tab-level cwd). See config.kdl's bind.
-        ".config/zellij/new-tab-here.sh" = {
-          source = ./zellij/new-tab-here.sh;
-          executable = true;
-        };
-        # ⌘F / ⌘⇧F: full-text search over every pane in the session —
-        # agent panes through their Claude transcript (the alt-screen has no
-        # scrollback to search), everything else through dump-screen. See the
-        # script header for why this isn't zellij's native search.
-        ".config/zellij/find.sh" = {
-          source = ./zellij/find.sh;
-          executable = true;
-        };
-        # Cmd-G: the tiny launcher that asks zellij for the real full-window,
-        # borderless gh-dash pane. The bind is rendered only when ghDash is on.
-        ".config/zellij/gh-dash.sh" = {
-          source = ./zellij/gh-dash.sh;
-          executable = true;
-        };
-        # The one floating-Ghostty helper (geom + spawn + ring); peek.sh, the
-        # Rebuild System pounce command, and the agent-peek popup all route
-        # through it. The outline's binary/colour/width are baked in rather than
-        # passed per caller, so haus.terminal.floatBorder moves all three at once
-        # — and so the pounce command, which runs on launchd's bare PATH, gets
-        # floatring by store path instead of hoping it's installed.
-        ".config/zellij/float-term.sh" = {
-          text =
+          # ghostty (config lives in Application Support; theme lookup is XDG)
+          # ghostty's `command` runs the zellij launcher by absolute path; render
+          # @HOME@ → the user's home so it isn't pinned to one account.
+          "Library/Application Support/com.mitchellh.ghostty/config".text =
             builtins.replaceStrings
+              [ "@HOME@" "@FONT_FAMILY@" "@FONT_SIZE@" ]
               [
-                "@floatring@"
-                "@ring_color@"
-                "@ring_width@"
+                config.home.homeDirectory
+                fontsCfg.mono.name
+                (toString fontsCfg.mono.size)
               ]
-              [
-                # "off" renders BOTH empty, so an opted-out machine doesn't even
-                # carry the binary in its closure (a store path in the script's
-                # text is a real dependency — the swiftc build would run anyway).
-                (if terminalCfg.floatBorder == "off" then "" else "${floatring}/bin/floatring")
-                floatBorderColor
-                "2"
-              ]
-              (builtins.readFile ./zellij/float-term.sh);
-          executable = true;
+              ghosttyConfigTemplate;
+          ".config/ghostty/themes/nebelung".source =
+            "${nebelungRoot}/ghostty/themes/catppuccin-${nbFlavor}.conf";
+
+          # lsd colours (replaces catppuccin.lsd). lsd auto-reads this file.
+          ".config/lsd/colors.yaml".source = "${nebelungRoot}/lsd/themes/catppuccin-${nbFlavor}/colors.yaml";
+
+          # yazi theme (replaces catppuccin.yazi): mgr/status/mode palette (mauve
+          # accent) plus the syntect theme its syntect_theme line points at —
+          # reusing the Nebelung bat tmTheme so previews match bat.
+          ".config/yazi/theme.toml".source =
+            "${nebelungRoot}/yazi/themes/${nbFlavor}/catppuccin-${nbFlavor}-${accent}.toml";
+          # This target's NAME is pinned by the rendered theme.toml above: its
+          # syntect_theme line reads ~/.config/yazi/Catppuccin-<flavor>.tmTheme, so it
+          # has to carry the flavor or yazi's code previews lose their colours.
+          ".config/yazi/Catppuccin-${nbFlavor}.tmTheme".source =
+            "${nebelungRoot}/bat/themes/${batTheme}.tmTheme";
+
+          # zellij
+          # NOTE: config.kdl is deliberately absent from this block — it is
+          # installed as a real file by the zellijLiveConfig activation instead,
+          # so a rebuild hot-reloads into the running session. See there.
+          ".config/zellij/themes/nebelung.kdl".source = "${nebelungRoot}/zellij/themes/nebelung.kdl";
+          # Custom layout, rendered from the in-repo template (see zellijLayout
+          # in the let above).
+          ".config/zellij/layouts/custom.kdl".text = zellijLayout;
+          # The same layout with the content tab pinned to $HOME — the Super-t
+          # NewTab bind opens tabs from this file, so a plain new tab always starts
+          # at ~ no matter where the focused pane lives (Super-Shift-t is the "…at
+          # the focused dir" variant — new-tab-here.sh). Tab-level cwd is the only
+          # form zellij honors under a default_tab_template (peek-run.sh and
+          # new-tab-here.sh pull the same trick per-pick); the assert trips at eval
+          # time if custom.kdl's
+          # content-tab line ever changes shape, instead of silently shipping a
+          # layout that no-ops back to cwd inheritance.
+          ".config/zellij/layouts/home.kdl".text =
+            let
+              pinned =
+                builtins.replaceStrings
+                  [ "\n    tab name=\"~\" {\n" ]
+                  [ "\n    tab cwd=\"${config.home.homeDirectory}\" name=\"~\" {\n" ]
+                  zellijLayout;
+            in
+            assert pinned != zellijLayout;
+            pinned;
+          # The four plugin forks, each built from ./zellij/<name>/src by the
+          # zellijPlugins derivations in the let above — never a checked-in blob,
+          # so a source edit can't be shipped half-applied. The install paths stay
+          # exactly these four names: config.kdl / custom.kdl reference them by
+          # path, and so does the permission-cache seed below (keyed on the
+          # expanded ~/.config/zellij/plugins/<name>.wasm), so renaming one here
+          # silently un-grants the plugin.
+          ".config/zellij/plugins/link-handler.wasm".source = zellijPlugins.link-handler;
+          # tab-history (see zellij/tab-history/): background plugin that makes
+          # Ctrl(+Shift)+Tab walk tabs in most-recently-used order (browser-style
+          # back/forward) instead of by position. Loaded via config.kdl's
+          # load_plugins; grants seeded below.
+          ".config/zellij/plugins/tab-history.wasm".source = zellijPlugins.tab-history;
+          # Our status-bar fork (see zellij/status-bar/): the bottom-right quick
+          # hints are condensed to one flat Super-key block (agent, find, optional
+          # gh-dash, pounce-links, pane, tab, yazi-peek, fullscreen — keys only,
+          # no labels/ribbons, listed alphabetically by the key that shows).
+          ".config/zellij/plugins/status-bar.wasm".source = zellijPlugins.status-bar;
+          # Our tab-bar fork (see zellij/tab-bar/): the top bar, replacing the
+          # third-party zjstatus that used to sit here. Same active-anchored tab
+          # scroll viewport as upstream zellij:tab-bar (so tabs stay readable on a
+          # thin pane instead of clipping under the right-hand widgets, which is
+          # what zjstatus did), themed to nebelung, with a username pill + a
+          # Ctrl+Tab / swap-layout right side.
+          ".config/zellij/plugins/tab-bar.wasm".source = zellijPlugins.tab-bar;
+          ".config/zellij/launch.sh" = {
+            source = ./zellij/launch.sh;
+            executable = true;
+          };
+          ".config/zellij/image-preview.sh" = {
+            source = ./zellij/image-preview.sh;
+            executable = true;
+          };
+          # Both peek binds run this one script: Super y hops out of an agent
+          # worktree to the repo's main checkout, Super Shift y passes --stay and
+          # doesn't. See config.kdl's pair of binds.
+          ".config/zellij/peek.sh" = {
+            source = ./zellij/peek.sh;
+            executable = true;
+          };
+          ".config/zellij/peek-run.sh" = {
+            source = ./zellij/peek-run.sh;
+            executable = true;
+          };
+          # Super-Shift-t: open a new tab cwd'd at the focused pane's dir (clones
+          # the active layout + injects a tab-level cwd). See config.kdl's bind.
+          ".config/zellij/new-tab-here.sh" = {
+            source = ./zellij/new-tab-here.sh;
+            executable = true;
+          };
+          # ⌘F / ⌘⇧F: full-text search over every pane in the session —
+          # agent panes through their Claude transcript (the alt-screen has no
+          # scrollback to search), everything else through dump-screen. See the
+          # script header for why this isn't zellij's native search.
+          ".config/zellij/find.sh" = {
+            source = ./zellij/find.sh;
+            executable = true;
+          };
+          # Cmd-G: the tiny launcher that asks zellij for the real full-window,
+          # borderless gh-dash pane. The bind is rendered only when ghDash is on.
+          ".config/zellij/gh-dash.sh" = {
+            source = ./zellij/gh-dash.sh;
+            executable = true;
+          };
+          # The one floating-Ghostty helper (geom + spawn + ring); peek.sh, the
+          # Rebuild System pounce command, and the agent-peek popup all route
+          # through it. The outline's binary/colour/width are baked in rather than
+          # passed per caller, so haus.terminal.floatBorder moves all three at once
+          # — and so the pounce command, which runs on launchd's bare PATH, gets
+          # floatring by store path instead of hoping it's installed.
+          ".config/zellij/float-term.sh" = {
+            text =
+              builtins.replaceStrings
+                [
+                  "@floatring@"
+                  "@ring_color@"
+                  "@ring_width@"
+                ]
+                [
+                  # "off" renders BOTH empty, so an opted-out machine doesn't even
+                  # carry the binary in its closure (a store path in the script's
+                  # text is a real dependency — the swiftc build would run anyway).
+                  (if terminalCfg.floatBorder == "off" then "" else "${floatring}/bin/floatring")
+                  floatBorderColor
+                  "2"
+                ]
+                (builtins.readFile ./zellij/float-term.sh);
+            executable = true;
+          };
+          # The one "open in the editor" launcher — a new zellij tab running
+          # haus.terminal.editor (baked into @editor@). Shared by the "Nix
+          # Config" palette/bar commands and the file-association hijack.
+          ".config/zellij/editor-open-pane.sh" = {
+            text = builtins.replaceStrings [ "@editor@" ] [ terminalCfg.editor ] (
+              builtins.readFile ./zellij/editor-open-pane.sh
+            );
+            executable = true;
+          };
+          # pounce's terminal launcher (POUNCE_TERMINAL_LAUNCHER, wired in
+          # modules/launcher) — opens `ssh <host>` etc. in a new `main`-session tab,
+          # same flow as editor-open-pane.sh above.
+          ".config/zellij/pounce-terminal.sh" = {
+            source = ./zellij/pounce-terminal.sh;
+            executable = true;
+          };
+          # The one "open the nix config" opener — resolves this host's
+          # hosts/@hostname@/default.nix and hands it to the launcher above with
+          # the flake root as cwd. The "Nix Config" palette command (pounce) and
+          # the bar's nix pill (bar) both exec this.
+          ".config/zellij/nix-config-open.sh" = {
+            text = builtins.replaceStrings [ "@hostname@" ] [ hostname ] (
+              builtins.readFile ./zellij/nix-config-open.sh
+            );
+            executable = true;
+          };
+          ".config/zellij/copy-clean.pl" = {
+            source = ./zellij/copy-clean.pl;
+            executable = true;
+          };
         };
-        # The one "open in the editor" launcher — a new zellij tab running
-        # haus.terminal.editor (baked into @editor@). Shared by the "Nix
-        # Config" palette/bar commands and the file-association hijack.
-        ".config/zellij/editor-open-pane.sh" = {
-          text = builtins.replaceStrings [ "@editor@" ] [ terminalCfg.editor ] (
-            builtins.readFile ./zellij/editor-open-pane.sh
-          );
-          executable = true;
-        };
-        # pounce's terminal launcher (POUNCE_TERMINAL_LAUNCHER, wired in
-        # modules/launcher) — opens `ssh <host>` etc. in a new `main`-session tab,
-        # same flow as editor-open-pane.sh above.
-        ".config/zellij/pounce-terminal.sh" = {
-          source = ./zellij/pounce-terminal.sh;
-          executable = true;
-        };
-        # The one "open the nix config" opener — resolves this host's
-        # hosts/@hostname@/default.nix and hands it to the launcher above with
-        # the flake root as cwd. The "Nix Config" palette command (pounce) and
-        # the bar's nix pill (bar) both exec this.
-        ".config/zellij/nix-config-open.sh" = {
-          text = builtins.replaceStrings [ "@hostname@" ] [ hostname ] (
-            builtins.readFile ./zellij/nix-config-open.sh
-          );
-          executable = true;
-        };
-        ".config/zellij/copy-clean.pl" = {
-          source = ./zellij/copy-clean.pl;
-          executable = true;
-        };
-      };
 
       # config.kdl is INSTALLED, not linked — the one dotfile in this module that
       # isn't a store symlink, and the reason a rebuild no longer costs you your
@@ -2567,17 +2575,86 @@ in
             # UTI, not by spelling, since one UTI can carry several extensions
             # (claiming `mts` drags `.m2ts` along; AVCHD gives them one).
             editorExts = [
-              "json" "jsonc" "txt" "md" "mdx" "markdown" "rst" "adoc" "org"
-              "ts" "tsx" "mts" "cts" "js" "jsx" "mjs" "cjs"
-              "rs" "go" "py" "rb" "lua" "pl" "php" "java" "kt" "kts" "swift" "scala" "clj"
-              "c" "h" "cc" "cpp" "hpp" "hh" "cs"
-              "nix" "toml" "yaml" "yml" "kdl" "conf" "ini" "cfg" "properties" "env"
-              "css" "scss" "sass" "less" "styl"
-              "vue" "svelte" "astro"
-              "sh" "bash" "zsh" "fish" "vim" "ps1"
-              "sql" "graphql" "gql" "prisma" "proto"
-              "xml" "csv" "tsv" "diff" "patch" "log" "lock" "tex" "bib"
-              "editorconfig" "gitignore" "gitattributes" "dockerignore" "npmrc"
+              "json"
+              "jsonc"
+              "txt"
+              "md"
+              "mdx"
+              "markdown"
+              "rst"
+              "adoc"
+              "org"
+              "ts"
+              "tsx"
+              "mts"
+              "cts"
+              "js"
+              "jsx"
+              "mjs"
+              "cjs"
+              "rs"
+              "go"
+              "py"
+              "rb"
+              "lua"
+              "pl"
+              "php"
+              "java"
+              "kt"
+              "kts"
+              "swift"
+              "scala"
+              "clj"
+              "c"
+              "h"
+              "cc"
+              "cpp"
+              "hpp"
+              "hh"
+              "cs"
+              "nix"
+              "toml"
+              "yaml"
+              "yml"
+              "kdl"
+              "conf"
+              "ini"
+              "cfg"
+              "properties"
+              "env"
+              "css"
+              "scss"
+              "sass"
+              "less"
+              "styl"
+              "vue"
+              "svelte"
+              "astro"
+              "sh"
+              "bash"
+              "zsh"
+              "fish"
+              "vim"
+              "ps1"
+              "sql"
+              "graphql"
+              "gql"
+              "prisma"
+              "proto"
+              "xml"
+              "csv"
+              "tsv"
+              "diff"
+              "patch"
+              "log"
+              "lock"
+              "tex"
+              "bib"
+              "editorconfig"
+              "gitignore"
+              "gitattributes"
+              "dockerignore"
+              "npmrc"
             ];
             # NOTE on extensionless executables (`bench` & friends): they're
             # typed public.unix-executable and RUN in Terminal on click. That one
@@ -2591,13 +2668,18 @@ in
             lsregister = "/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister";
             # One PlistBuddy "Add …:CFBundleTypeExtensions:<i> string <ext>" per
             # extension, index-ordered.
-            declareExts = lib.concatStringsSep "\n" (lib.imap0 (
-              i: ext:
-              ''$DRY_RUN_CMD ${plistBuddy} -c "Add :CFBundleDocumentTypes:0:CFBundleTypeExtensions:${toString i} string ${ext}" "$PL"''
-            ) editorExts);
-            dutiPins = lib.concatStringsSep "\n" (map (
-              t: ''$DRY_RUN_CMD "${pkgs.duti}/bin/duti" -s com.hausfold.editoropen "${t}" all 2>/dev/null || true''
-            ) editorExts);
+            declareExts = lib.concatStringsSep "\n" (
+              lib.imap0 (
+                i: ext:
+                ''$DRY_RUN_CMD ${plistBuddy} -c "Add :CFBundleDocumentTypes:0:CFBundleTypeExtensions:${toString i} string ${ext}" "$PL"''
+              ) editorExts
+            );
+            dutiPins = lib.concatStringsSep "\n" (
+              map (
+                t:
+                ''$DRY_RUN_CMD "${pkgs.duti}/bin/duti" -s com.hausfold.editoropen "${t}" all 2>/dev/null || true''
+              ) editorExts
+            );
           in
           ''
             appDir="$HOME/Applications"
@@ -2709,24 +2791,24 @@ in
       # runs no agents should not have its ~/.claude/settings.json rewritten.
       home.activation.claudeCodeSettings = lib.mkIf agentsCfg.enable (
         lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-        run sh -c '
-          settings="$0"
-          mkdir -p "''${settings%/*}"
-          tmp="$settings.hm-seed"
-          if [ -s "$settings" ]; then base="$settings"; else base="$tmp.base"; printf "{}" > "$base"; fi
-          ${pkgs.jq}/bin/jq ".hooks.WorktreeCreate = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook create\"}]}]
-            | .hooks.WorktreeRemove = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook remove\"}]}]
-            | .permissions.defaultMode = \"auto\"
-            | .tui = \"fullscreen\"
-            | .disableAgentView = true
-            | .spinnerTipsEnabled = false
-            | .statusLine = {type: \"command\", command: \"/run/current-system/sw/bin/claude-statusline\", refreshInterval: 12}
-            | .footerLinksRegexes = [{type: \"regex\", pattern: \"(?<owner>[A-Za-z0-9_.-]+)/(?<repo>[A-Za-z0-9_.-]+)#(?<pr>[0-9]+)\", url: \"https://github.com/{owner}/{repo}/pull/{pr}\", label: \"{repo}#{pr}\"}]" \
-            "$base" > "$tmp"
-          mv "$tmp" "$settings"
-          rm -f "$tmp.base"
-        ' "$HOME/.claude/settings.json"
-      ''
+          run sh -c '
+            settings="$0"
+            mkdir -p "''${settings%/*}"
+            tmp="$settings.hm-seed"
+            if [ -s "$settings" ]; then base="$settings"; else base="$tmp.base"; printf "{}" > "$base"; fi
+            ${pkgs.jq}/bin/jq ".hooks.WorktreeCreate = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook create\"}]}]
+              | .hooks.WorktreeRemove = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook remove\"}]}]
+              | .permissions.defaultMode = \"auto\"
+              | .tui = \"fullscreen\"
+              | .disableAgentView = true
+              | .spinnerTipsEnabled = false
+              | .statusLine = {type: \"command\", command: \"/run/current-system/sw/bin/claude-statusline\", refreshInterval: 12}
+              | .footerLinksRegexes = [{type: \"regex\", pattern: \"(?<owner>[A-Za-z0-9_.-]+)/(?<repo>[A-Za-z0-9_.-]+)#(?<pr>[0-9]+)\", url: \"https://github.com/{owner}/{repo}/pull/{pr}\", label: \"{repo}#{pr}\"}]" \
+              "$base" > "$tmp"
+            mv "$tmp" "$settings"
+            rm -f "$tmp.base"
+          ' "$HOME/.claude/settings.json"
+        ''
       );
 
       # Codex — the same agent-pane status wiring, in Codex's own hook file, so a
@@ -2756,24 +2838,22 @@ in
       # Merged with jq rather than owned outright: hooks.json is a user-editable
       # file and may hold hooks of your own, which must survive a rebuild.
       # Only written when Codex is actually installed (`ai.clients`).
-      home.activation.codexAgentHooks =
-        lib.mkIf (agentsCfg.enable && lib.elem "codex" agentClients)
-          (
-            lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-              run sh -c '
-                hooks="$0"
-                bin="$1"
-                mkdir -p "''${hooks%/*}"
-                tmp="$hooks.hm-seed"
-                if [ -s "$hooks" ]; then base="$hooks"; else base="$tmp.base"; printf "{}" > "$base"; fi
-                ${pkgs.jq}/bin/jq --arg bin "$bin" ".hooks.UserPromptSubmit = [{hooks:[{type:\"command\",command:(\$bin + \" working codex\")}]}]
-                  | .hooks.PermissionRequest = [{hooks:[{type:\"command\",command:(\$bin + \" waiting codex\")}]}]
-                  | .hooks.Stop = [{hooks:[{type:\"command\",command:(\$bin + \" idle codex\")}]}]" \
-                  "$base" > "$tmp"
-                mv "$tmp" "$hooks"
-                rm -f "$tmp.base"
-              ' "$HOME/.codex/hooks.json" "/run/current-system/sw/bin/agent-state"
-            ''
-          );
+      home.activation.codexAgentHooks = lib.mkIf (agentsCfg.enable && lib.elem "codex" agentClients) (
+        lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+          run sh -c '
+            hooks="$0"
+            bin="$1"
+            mkdir -p "''${hooks%/*}"
+            tmp="$hooks.hm-seed"
+            if [ -s "$hooks" ]; then base="$hooks"; else base="$tmp.base"; printf "{}" > "$base"; fi
+            ${pkgs.jq}/bin/jq --arg bin "$bin" ".hooks.UserPromptSubmit = [{hooks:[{type:\"command\",command:(\$bin + \" working codex\")}]}]
+              | .hooks.PermissionRequest = [{hooks:[{type:\"command\",command:(\$bin + \" waiting codex\")}]}]
+              | .hooks.Stop = [{hooks:[{type:\"command\",command:(\$bin + \" idle codex\")}]}]" \
+              "$base" > "$tmp"
+            mv "$tmp" "$hooks"
+            rm -f "$tmp.base"
+          ' "$HOME/.codex/hooks.json" "/run/current-system/sw/bin/agent-state"
+        ''
+      );
     };
 }

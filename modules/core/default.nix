@@ -237,7 +237,9 @@ let
   # Both lists are announced into the built script, because the reader that
   # matters most (`haus plan`) never runs it.
   fdaGuardedDomains = builtins.filter (
-    d: (reachOf d).guardedBy or null != null && !(d == "com.apple.universalaccess" && universalaccessSet != [ ])
+    d:
+    (reachOf d).guardedBy or null != null
+    && !(d == "com.apple.universalaccess" && universalaccessSet != [ ])
   ) needsFdaDomains;
   fdaUnguardedDomains = builtins.filter (d: !(builtins.elem d fdaGuardedDomains)) needsFdaDomains;
 
