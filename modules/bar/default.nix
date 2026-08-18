@@ -486,6 +486,33 @@ let
               click_script="open -a 'System Settings' 'x-apple.systempreferences:com.apple.wifi-settings-extension'" \
               update_freq=10
     '';
+    # Which repo PAGE the focused workspace is — the `T/<repo>` a lane's window
+    # tiles itself onto. Drawn ONLY on the terminal pages (see page.sh); starts
+    # hidden, because the workspace you rebuild from is usually not one.
+    #
+    # Push-driven like `agents`, and for the same reason: a drawing=off item's
+    # own update_freq never ticks, so a hidden pill can't re-show itself from a
+    # poll. The event comes from AeroSpace's exec-on-workspace-change through
+    # sketchybar/aerospace-notify.sh, which fires it at BOTH bars — the bottom
+    # one is a separate instance and would otherwise never hear it.
+    #
+    # Click: the Pages picker. Plain click goes to a page, ⇧/right-click throws
+    # this window onto one (modules/launcher/commands/pages.sh).
+    page = ''
+      ${sb} --add item page ${side} \
+          --set page \
+              drawing=off \
+              icon=󰘬 \
+              icon.color=$TEAL \
+              icon.padding_left=10 \
+              icon.padding_right=6 \
+              label.padding_right=10 \
+              label.font="${barFont}:Bold:${sizes.label}" \
+              background.color=$SURFACE0 \
+              script="$HOME/.config/sketchybar/plugins/page.sh" \
+              click_script="$HOME/.config/sketchybar/plugins/page.sh click" \
+          --subscribe page aerospace_workspace_change mouse.clicked
+    '';
     # Agent-pane status, for whichever client the pane runs (Claude Code, Codex,
     # Opencode). The refresh is push, not poll: agents-hook.sh invokes
     # agents.sh directly on every agent state change, so the pill updates even
@@ -799,6 +826,7 @@ let
     "wifi"
   ];
   extraOrder = [
+    "page"
     "agents"
     "aiUsage"
     "github"

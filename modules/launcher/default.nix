@@ -1140,6 +1140,18 @@ lib.mkIf config.haus.launcher.enable {
       xdg.configFile = themeFiles;
 
       # Palette settings — pounce re-reads this on each open. Edit + rebuild.
+      # The Pages picker, a SECOND time, at a stable path. Its palette copy lives
+      # in a nix store dir (`riceCommands`, which the daemon discovers through
+      # POUNCE_EXTRA_COMMAND_DIRS) — a path that moves every rebuild and that
+      # nothing outside the daemon can resolve. The bar's `page` pill has to
+      # reach the same picker on a click, so it gets a name it can write down.
+      # One source file, two install points: they cannot drift, because the
+      # rebuild that moves one moves the other.
+      home.file.".config/haus/pages.sh" = {
+        source = ./commands/pages.sh;
+        executable = true;
+      };
+
       home.file.".config/pounce/config.json".text = builtins.toJSON (
         {
           # Shape and size, kept apart on purpose: windowMode picks the layout's
