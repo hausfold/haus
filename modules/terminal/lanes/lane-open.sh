@@ -133,7 +133,19 @@ exit "$rc"'
   # tree. Workspace names may contain "/" (checked by hand against AeroSpace);
   # the pages are deliberately NOT in persistent-workspaces, so an emptied page
   # evaporates instead of accreting. Plain terminal windows stay on T.
-  printf '  aerospace move-node-to-workspace --window-id "$WID" %q\n' "T/$repo"
+  #
+  # --focus-follows-window, because a lane you can't see is a lane you have to
+  # go looking for. Without it, spawning a lane for a repo other than the one
+  # the current page belongs to sent the window to T/<other-repo> and left you
+  # standing on T/<this-repo>, ⌃⇥-ing through pages to find the agent you just
+  # asked for. It is unconditional rather than "only when the repo differs":
+  # the page a lane belongs to is not the page you spawned it from, and
+  # windows floats every runtime-spawned Ghostty window onto the CURRENTLY
+  # focused workspace (aerospace.toml's on-window-detected rule), so even a
+  # same-repo lane is somewhere else until this line runs. The one case that
+  # really is a no-op — you were already standing on T/<repo> — costs nothing,
+  # because the focus it follows to is the focus that window already has.
+  printf '  aerospace move-node-to-workspace --focus-follows-window --window-id "$WID" %q\n' "T/$repo"
   printf '  aerospace layout --window-id "$WID" tiling\n'
   printf ') >/dev/null 2>&1 &\n'
   printf 'cd %q || exit 1\n' "$chat"
