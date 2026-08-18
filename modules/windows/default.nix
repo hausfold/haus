@@ -72,27 +72,22 @@ let
   # keys.windowNav = "none" — so the toml and the cheatsheet both go quiet
   # together instead of one advertising what the other didn't bind.
   #
-  # The agent-spawn section is the exception, and deliberately: it sits OUTSIDE
-  # the windowNav gate because ⌃⌘A is not a navigation chord and doesn't hang
-  # off `k.nav`. `windowNav = "none"` therefore still emits it, under an
-  # otherwise-empty [mode.main.binding] — which is right. Someone who wants no
-  # directional window keys has not thereby asked to lose the way they start
-  # agents.
+  # The agent-spawn chord used to be the exception here — a section outside the
+  # windowNav gate, because ⌃⌘A was no navigation key. It left this room on
+  # 2026-08-18 for pounce's Ghostty-scoped tap (⌘↵, `cmd:lane-here`), so the
+  # table is once again nothing but window keys.
   wmBindings = import ./wm-bindings.nix {
     inherit lib k;
-    # The terminal room's contribution: whether a lane is a window (and so needs
-    # a chord that isn't inside a multiplexer) and what to run when it is.
-    agents = config.haus._contrib.windows.agents;
   };
-  renderCmd = c: if lib.isList c then "[" + lib.concatMapStringsSep ", " (x: "'${x}'") c + "]" else "'${c}'";
+  renderCmd =
+    c: if lib.isList c then "[" + lib.concatMapStringsSep ", " (x: "'${x}'") c + "]" else "'${c}'";
   renderBinds =
     binds: lib.concatStrings (lib.mapAttrsToList (chord: cmd: "${chord} = ${renderCmd cmd}\n") binds);
-  sectionBinds = section: lib.concatMapStrings (
-    it: lib.optionalString (it ? binds) (renderBinds it.binds)
-  ) section.items;
-  bindingsForMode = mode: lib.concatMapStrings sectionBinds (
-    lib.filter (s: (s.mode or "main") == mode) wmBindings
-  );
+  sectionBinds =
+    section:
+    lib.concatMapStrings (it: lib.optionalString (it ? binds) (renderBinds it.binds)) section.items;
+  bindingsForMode =
+    mode: lib.concatMapStrings sectionBinds (lib.filter (s: (s.mode or "main") == mode) wmBindings);
   # Resolve @HOME@/@BIN@ here: builtins.replaceStrings makes one non-rescanning
   # pass, so tokens these rendered lines introduce wouldn't be caught by the
   # outer substitution below.
@@ -104,7 +99,8 @@ let
   # actions stay out of this namespace so every roster letter remains available.
   isRealAssign = a: a.appId != null && appWorkspaceId a != null && a.appId != "com.mitchellh.ghostty";
   launchInvocation =
-    a: ''${launchSh} "${a.name}"'' + lib.optionalString (appWorkspaceId a != null) " ${appWorkspaceId a}";
+    a:
+    ''${launchSh} "${a.name}"'' + lib.optionalString (appWorkspaceId a != null) " ${appWorkspaceId a}";
 
   # The workspace roster for aerospace.toml's persistent-workspaces (config
   # schema v2 stopped inferring it from the binding right-hand sides). The
@@ -119,9 +115,9 @@ let
   # AeroSpace reads back when it enumerates workspaces.
   workspaceRoster =
     map (n: n.id) numbered
-    ++ lib.sort (a: b: a < b) (lib.subtractLists (map (n: n.id) numbered) (
-      lib.unique (map (ws: ws.id) workspaces)
-    ));
+    ++ lib.sort (a: b: a < b) (
+      lib.subtractLists (map (n: n.id) numbered) (lib.unique (map (ws: ws.id) workspaces))
+    );
   persistentWorkspaces = lib.concatMapStringsSep ", " (w: ''"${w}"'') workspaceRoster;
 
   # Every generated [mode.launch.binding] row has one shape: drop the mode
@@ -223,15 +219,18 @@ let
   leaderExtras = config.haus.keys.leaderExtras;
   leaderExtraPath = e: "${homeDir}/.config/aerospace/leader-extra-${e.key}.sh";
   launchExtras = lib.concatMapStrings (
-    e: "${e.key} = ['exec-and-forget ${homeDir}/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget ${leaderExtraPath e}', 'mode main']\n"
+    e:
+    "${e.key} = ['exec-and-forget ${homeDir}/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget ${leaderExtraPath e}', 'mode main']\n"
   ) leaderExtras;
-  leaderExtraFiles = lib.listToAttrs (map (e: {
-    name = ".config/aerospace/leader-extra-${e.key}.sh";
-    value = {
-      text = "#!/bin/sh\n# haus.keys.leaderExtras — leader → ${e.key}\nexec ${e.command}\n";
-      executable = true;
-    };
-  }) leaderExtras);
+  leaderExtraFiles = lib.listToAttrs (
+    map (e: {
+      name = ".config/aerospace/leader-extra-${e.key}.sh";
+      value = {
+        text = "#!/bin/sh\n# haus.keys.leaderExtras — leader → ${e.key}\nexec ${e.command}\n";
+        executable = true;
+      };
+    }) leaderExtras
+  );
 
   # The FIXED half of launch mode: the actions a host does not choose (arrows,
   # resize, clipboard/emoji, reopen, settings, resort, cheatsheet, exit) plus
@@ -289,8 +288,7 @@ let
 
   windowRules = lib.concatMapStrings (
     a:
-    lib.optionalString (isRealAssign a)
-      "[[on-window-detected]]\nif.app-id = '${a.appId}'\nrun = 'move-node-to-workspace ${appWorkspaceId a}'\n\n"
+    lib.optionalString (isRealAssign a) "[[on-window-detected]]\nif.app-id = '${a.appId}'\nrun = 'move-node-to-workspace ${appWorkspaceId a}'\n\n"
   ) apps;
 
   # `float` entries — the generalised shape the three FaceTime/Trill/Ghostty
@@ -313,7 +311,8 @@ let
   ) apps;
 
   resortCases = lib.concatMapStrings (
-    a: lib.optionalString (isRealAssign a) ''        ${a.appId}) target="${appWorkspaceId a}" ;;''
+    a:
+    lib.optionalString (isRealAssign a) ''${a.appId}) target="${appWorkspaceId a}" ;;''
     + lib.optionalString (isRealAssign a) "\n"
   ) apps;
 
@@ -345,10 +344,55 @@ let
   focusChanged = lib.optionalString cfg.mouseFollowsFocus "'move-mouse window-lazy-center'";
   monitorChanged = lib.optionalString cfg.mouseFollowsFocus "'move-mouse monitor-lazy-center'";
 
-  aerospaceToml = builtins.replaceStrings
-    [ "@HOME@" "@BIN@" "@MAIN_STATIC@" "@SERVICE_STATIC@" "@LAUNCH_DIGITS@" "@LAUNCH_MOVES@" "@LEADER_ENTRY@" "@SERVICE_ENTRY@" "@LAUNCH_LETTERS@" "@WINDOW_RULES@" "@FLOAT_RULES@" "@PERSISTENT_WS@" "@DEFAULT_LAYOUT@" "@DEFAULT_ORIENTATION@" "@ACCORDION_PADDING@" "@FOCUS_CHANGED@" "@MONITOR_CHANGED@" "@GAP_BUILTIN@" "@GAP_EXTERNAL@" "@GAP_OUTER_TOP@" "@GAP_OUTER_BOTTOM@" ]
-    [ homeDir binDir mainStatic serviceStatic launchDigits launchMoves (subTokens leaderEntry) serviceEntry (launchLetters + launchExtras) windowRules floatRules persistentWorkspaces cfg.defaultLayout cfg.defaultOrientation (toString cfg.accordionPadding) focusChanged monitorChanged (toString gaps.inner.builtin) (toString gaps.inner.external) (monLine gaps.outer.top) (monLine gaps.outer.bottom) ]
-    (builtins.readFile ./aerospace.toml);
+  aerospaceToml =
+    builtins.replaceStrings
+      [
+        "@HOME@"
+        "@BIN@"
+        "@MAIN_STATIC@"
+        "@SERVICE_STATIC@"
+        "@LAUNCH_DIGITS@"
+        "@LAUNCH_MOVES@"
+        "@LEADER_ENTRY@"
+        "@SERVICE_ENTRY@"
+        "@LAUNCH_LETTERS@"
+        "@WINDOW_RULES@"
+        "@FLOAT_RULES@"
+        "@PERSISTENT_WS@"
+        "@DEFAULT_LAYOUT@"
+        "@DEFAULT_ORIENTATION@"
+        "@ACCORDION_PADDING@"
+        "@FOCUS_CHANGED@"
+        "@MONITOR_CHANGED@"
+        "@GAP_BUILTIN@"
+        "@GAP_EXTERNAL@"
+        "@GAP_OUTER_TOP@"
+        "@GAP_OUTER_BOTTOM@"
+      ]
+      [
+        homeDir
+        binDir
+        mainStatic
+        serviceStatic
+        launchDigits
+        launchMoves
+        (subTokens leaderEntry)
+        serviceEntry
+        (launchLetters + launchExtras)
+        windowRules
+        floatRules
+        persistentWorkspaces
+        cfg.defaultLayout
+        cfg.defaultOrientation
+        (toString cfg.accordionPadding)
+        focusChanged
+        monitorChanged
+        (toString gaps.inner.builtin)
+        (toString gaps.inner.external)
+        (monLine gaps.outer.top)
+        (monLine gaps.outer.bottom)
+      ]
+      (builtins.readFile ./aerospace.toml);
 
   resortScript = builtins.replaceStrings [ "@RESORT_CASES@" ] [ resortCases ] (
     builtins.readFile ./scripts/resort-windows.sh
@@ -487,104 +531,104 @@ lib.mkMerge [
           + ". Give the workspace another key, or lower the count.";
       }
     ];
-  # AeroSpace itself, as a roster entry like everything else — no leader key,
-  # because you don't launch your window manager, it's just running. Its tap
-  # stays a raw homebrew.taps line: a tap isn't an app, and the roster models
-  # what a machine HAS, not where Homebrew looks for it.
-  homebrew.taps = [ "nikitabobko/tap" ];
-  haus.roster.aerospace = {
-    name = lib.mkDefault "AeroSpace";
-    cask = lib.mkDefault "aerospace";
-  };
+    # AeroSpace itself, as a roster entry like everything else — no leader key,
+    # because you don't launch your window manager, it's just running. Its tap
+    # stays a raw homebrew.taps line: a tap isn't an app, and the roster models
+    # what a machine HAS, not where Homebrew looks for it.
+    homebrew.taps = [ "nikitabobko/tap" ];
+    haus.roster.aerospace = {
+      name = lib.mkDefault "AeroSpace";
+      cask = lib.mkDefault "aerospace";
+    };
 
-  # Caps Lock → F18, feeding AeroSpace's `launch` leader mode: AeroSpace can't
-  # bind Caps Lock itself. Decimal values are the hidutil HID usage codes (caps
-  # lock → F18). Only for keys.leader = "caps" — every other value leaves the
-  # keyboard alone, which is the difference between a rice you can hand to
-  # someone else and one that takes their Caps Lock. hidutil mappings are
-  # re-applied at each activation and don't survive a reboot, so dropping this
-  # ends the remap rather than stranding it.
-  # mkDefault because the Launcher room can also want key mapping on
-  # (haus.launcher.fnKey = "remap" adds Fn → F19 to the same list): a plain
-  # definition in both rooms is a conflict the moment the two disagree.
-  system.keyboard.enableKeyMapping = lib.mkDefault (k.leader != null && k.leader.capsRemap);
-  system.keyboard.userKeyMapping = lib.optionals (k.leader != null && k.leader.capsRemap) [
-    {
-      HIDKeyboardModifierMappingSrc = 30064771129; # 0x700000039 caps lock
-      HIDKeyboardModifierMappingDst = 30064771181; # 0x70000006D F18
-    }
-  ];
+    # Caps Lock → F18, feeding AeroSpace's `launch` leader mode: AeroSpace can't
+    # bind Caps Lock itself. Decimal values are the hidutil HID usage codes (caps
+    # lock → F18). Only for keys.leader = "caps" — every other value leaves the
+    # keyboard alone, which is the difference between a rice you can hand to
+    # someone else and one that takes their Caps Lock. hidutil mappings are
+    # re-applied at each activation and don't survive a reboot, so dropping this
+    # ends the remap rather than stranding it.
+    # mkDefault because the Launcher room can also want key mapping on
+    # (haus.launcher.fnKey = "remap" adds Fn → F19 to the same list): a plain
+    # definition in both rooms is a conflict the moment the two disagree.
+    system.keyboard.enableKeyMapping = lib.mkDefault (k.leader != null && k.leader.capsRemap);
+    system.keyboard.userKeyMapping = lib.optionals (k.leader != null && k.leader.capsRemap) [
+      {
+        HIDKeyboardModifierMappingSrc = 30064771129; # 0x700000039 caps lock
+        HIDKeyboardModifierMappingDst = 30064771181; # 0x70000006D F18
+      }
+    ];
 
-  launchd.user.agents.aerospace = {
-    serviceConfig = {
-      ProgramArguments = withGUIWait "/Applications/AeroSpace.app/Contents/MacOS/AeroSpace";
-      KeepAlive = true;
-      RunAtLoad = true;
-      ProcessType = "Interactive";
-      StandardOutPath = "/tmp/aerospace.out.log";
-      StandardErrorPath = "/tmp/aerospace.err.log";
-      EnvironmentVariables = {
-        LANG = "en_US.UTF-8";
-        PATH = userPath;
+    launchd.user.agents.aerospace = {
+      serviceConfig = {
+        ProgramArguments = withGUIWait "/Applications/AeroSpace.app/Contents/MacOS/AeroSpace";
+        KeepAlive = true;
+        RunAtLoad = true;
+        ProcessType = "Interactive";
+        StandardOutPath = "/tmp/aerospace.out.log";
+        StandardErrorPath = "/tmp/aerospace.err.log";
+        EnvironmentVariables = {
+          LANG = "en_US.UTF-8";
+          PATH = userPath;
+        };
       };
     };
-  };
 
-  # On wake, re-sort AeroSpace windows back to their assigned workspaces (macOS
-  # otherwise dumps them all onto the current workspace).
-  launchd.user.agents.sleepwatcher = {
-    serviceConfig = {
-      ProgramArguments = [
-        "${pkgs.sleepwatcher}/bin/sleepwatcher"
-        "-w"
-        "/Users/${username}/.config/aerospace/on-wake.sh"
-      ];
-      KeepAlive = true;
-      RunAtLoad = true;
-      StandardOutPath = "/tmp/sleepwatcher.out.log";
-      StandardErrorPath = "/tmp/sleepwatcher.err.log";
-      EnvironmentVariables.PATH = userPath;
+    # On wake, re-sort AeroSpace windows back to their assigned workspaces (macOS
+    # otherwise dumps them all onto the current workspace).
+    launchd.user.agents.sleepwatcher = {
+      serviceConfig = {
+        ProgramArguments = [
+          "${pkgs.sleepwatcher}/bin/sleepwatcher"
+          "-w"
+          "/Users/${username}/.config/aerospace/on-wake.sh"
+        ];
+        KeepAlive = true;
+        RunAtLoad = true;
+        StandardOutPath = "/tmp/sleepwatcher.out.log";
+        StandardErrorPath = "/tmp/sleepwatcher.err.log";
+        EnvironmentVariables.PATH = userPath;
+      };
     };
-  };
 
-  home-manager.users.${username}.home.file = leaderExtraFiles // {
-    ".config/aerospace/aerospace.toml" = {
-      text = aerospaceToml;
-      # AeroSpace runs as a KeepAlive launchd agent, so a rebuild rewrites this
-      # file but the live daemon keeps its old in-memory bindings until it's
-      # told to reload. Without this, every binding edit silently fails to take
-      # until a manual `aerospace reload-config` or a reboot — which is exactly
-      # how the leader→1-4 workspace focus binds looked "broken" after landing.
-      # Guarded so first-boot activation (no daemon yet) doesn't fail; launchd
-      # RunAtLoad then starts AeroSpace with the fresh config anyway.
-      onChange = ''
-        /opt/homebrew/bin/aerospace reload-config 2>/dev/null || true
-      '';
+    home-manager.users.${username}.home.file = leaderExtraFiles // {
+      ".config/aerospace/aerospace.toml" = {
+        text = aerospaceToml;
+        # AeroSpace runs as a KeepAlive launchd agent, so a rebuild rewrites this
+        # file but the live daemon keeps its old in-memory bindings until it's
+        # told to reload. Without this, every binding edit silently fails to take
+        # until a manual `aerospace reload-config` or a reboot — which is exactly
+        # how the leader→1-4 workspace focus binds looked "broken" after landing.
+        # Guarded so first-boot activation (no daemon yet) doesn't fail; launchd
+        # RunAtLoad then starts AeroSpace with the fresh config anyway.
+        onChange = ''
+          /opt/homebrew/bin/aerospace reload-config 2>/dev/null || true
+        '';
+      };
+      ".config/aerospace/resort-windows.sh" = {
+        text = resortScript;
+        executable = true;
+      };
+      # leader→z reopen-last-closed-app: pops the stack bar's last_closed_app.sh
+      # plugin fills on every app quit, and `open -b`s it back (browser ⌘⇧T analog).
+      ".config/aerospace/reopen-last-app.sh" = {
+        source = ./scripts/reopen-last-app.sh;
+        executable = true;
+      };
+      ".config/aerospace/on-wake.sh" = {
+        source = ./scripts/on-wake.sh;
+        executable = true;
+      };
+      ".config/aerospace/launch.sh" = {
+        source = ./scripts/launch.sh;
+        executable = true;
+      };
+      # Workspace recency: pushed by exec-on-workspace-change, read back by
+      # launch.sh (page-aware `caps t`) and by pounce's ⌃⇥ page walk.
+      ".config/aerospace/workspace-mru.sh" = {
+        source = ./scripts/workspace-mru.sh;
+        executable = true;
+      };
     };
-    ".config/aerospace/resort-windows.sh" = {
-      text = resortScript;
-      executable = true;
-    };
-    # leader→z reopen-last-closed-app: pops the stack bar's last_closed_app.sh
-    # plugin fills on every app quit, and `open -b`s it back (browser ⌘⇧T analog).
-    ".config/aerospace/reopen-last-app.sh" = {
-      source = ./scripts/reopen-last-app.sh;
-      executable = true;
-    };
-    ".config/aerospace/on-wake.sh" = {
-      source = ./scripts/on-wake.sh;
-      executable = true;
-    };
-    ".config/aerospace/launch.sh" = {
-      source = ./scripts/launch.sh;
-      executable = true;
-    };
-    # Workspace recency: pushed by exec-on-workspace-change, read back by
-    # launch.sh (page-aware `caps t`) and by pounce's ⌃⇥ page walk.
-    ".config/aerospace/workspace-mru.sh" = {
-      source = ./scripts/workspace-mru.sh;
-      executable = true;
-    };
-  };
   })
 ]

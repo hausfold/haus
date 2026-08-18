@@ -114,16 +114,20 @@ confirm-close-surface = false
 
 #zellij overwrites
 keybind = cmd+t=unbind
-# cmd+p / cmd+shift+p → zellij "Super p" / "Super Shift p": a new pane
+# cmd+n / cmd+shift+n → zellij "Super n" / "Super Shift n": a new pane
 # inheriting the focused pane's cwd / one that STAYS there even inside an agent
-# worktree (the no-hop sibling). Ghostty binds cmd+shift+p to its command
-# palette by default — unbind it so the chord reaches zellij instead of popping
-# the palette. In practice neither chord gets this far: pounce's Ghostty-scoped
-# hotkeys consume both while Ghostty is frontmost and spawn a shell WINDOW
-# instead (cmd:shell-here[-stay]), so these unbinds are inert rather than wrong
-# — they are what a machine with the agent clients off falls back to.
-keybind = cmd+p=unbind
-keybind = cmd+shift+p=unbind
+# worktree (the no-hop sibling). Ghostty binds cmd+n to new_window by default —
+# unbind it so the chord reaches the multiplexer, which is the layer that knows
+# what "here" means. In practice neither chord gets this far: pounce's
+# Ghostty-scoped hotkeys consume both while Ghostty is frontmost and spawn a
+# shell WINDOW instead (cmd:shell-here[-stay]) — so ⌘N still means "new window"
+# the way it does everywhere else, just one that lands in the right directory.
+# These unbinds are what a machine with the agent clients off falls back to.
+#
+# ⌘P/⌘⇧P carried this pair until 2026-08-18 and are deliberately NOT unbound any
+# more: ⌘⇧P goes back to Ghostty's command palette, and ⌘P is left to Ghostty.
+keybind = cmd+n=unbind
+keybind = cmd+shift+n=unbind
 keybind = cmd+y=unbind
 keybind = cmd+shift+y=unbind
 keybind = cmd+shift+t=unbind
@@ -137,14 +141,16 @@ keybind = cmd+f=unbind
 # nothing here today; unbind it defensively so the chord keeps reaching zellij.
 keybind = cmd+shift+f=unbind
 @GH_DASH_GHOSTTY_BIND@
-# cmd+enter → zellij "Super Enter" (toggle the focused pane fullscreen), which
-# is where pane zoom moved when ⌘F went back to meaning find. Ghostty binds
-# nothing here today; unbind it defensively, so a future release can't claim
-# the chord out from under the multiplexer.
+# cmd+enter → the LANE chord: pounce's Ghostty-scoped tap consumes it while
+# Ghostty is frontmost and fires `cmd:lane-here` (a new agent lane in this
+# window's repo). It was ⌃⌘A in AeroSpace until 2026-08-18, and before that this
+# chord was zellij's pane-fullscreen toggle — which is gone, zoom being ⌃click /
+# right-click now. Ghostty binds nothing here today; the unbind stays defensive,
+# so a future release can't claim the chord out from under pounce.
 keybind = cmd+enter=unbind
 # cmd+a is NOT unbound. An unbind here only exists to let a chord fall THROUGH
-# to zellij, and zellij binds nothing on it: the lane chord is ⌃⌘A in
-# AeroSpace. ⌘A stays select_all.
+# to zellij, and zellij binds nothing on it: the lane chord is ⌘↵, one layer
+# above. ⌘A stays select_all.
 @BENCH_LANE_GHOSTTY_BIND@
 # cmd+c → ghostty's own copy, deliberately. This chord (and cmd+shift+c) used to
 # be unbound so they'd reach zellij as the agent-spawn binds; those moved to

@@ -159,7 +159,7 @@ chmod +x "$launcher"
 # constantly, so the machine-readable name survived only until the client's
 # first thought. The extra process is the price of a title nothing inside the
 # window can take away. (The AppleScript path still spawns the PLAIN shell
-# windows — ⌘P/⌘⇧P — which carry no name anything joins on.)
+# windows — ⌘N/⌘⇧N — which carry no name anything joins on.)
 #
 # `open -na` rather than `ghostty +new-window`, which refuses on macOS
 # ("not supported on this platform").

@@ -141,7 +141,8 @@ in
   haus._contrib = {
     # Development — the terminal binds ⌃⌥⇧A (the resident agent) and aliases
     # `c`, and pounce renders the same table onto its Terminal cards. The LANE
-    # chord is windows' (⌃⌘A), through _contrib.windows.agents.
+    # chord is pounce's own (⌘↵, Ghostty-scoped → `cmd:lane-here`); it was
+    # windows' ⌃⌘A, through a _contrib.windows.agents that no longer exists.
     development.agents = {
       enable = spawnable;
       inherit (cfg) default;

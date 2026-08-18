@@ -54,7 +54,7 @@ in
         the ⌃⌥⇧A chord that spawns an agent in THIS checkout, the `c` alias, and
         the cheatsheet cards pounce draws from the same table. The chord that
         spawns a fresh `holt` worktree is not here — a lane is a window, so it
-        is ⌃⌘A in the windows room (see `_contrib.windows.agents`).
+        is ⌘↵, a Ghostty-scoped pounce hotkey firing `cmd:lane-here`.
 
         Off leaves the terminal exactly as it is without agents — no dead chord
         teaching a client this machine never installed. It never installs an

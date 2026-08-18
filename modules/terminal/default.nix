@@ -47,10 +47,10 @@ let
   # a wrong chord here is worse than none: the agent will confidently tell its
   # user to press a key that does nothing.
   laneChordProse = ''
-    `Ctrl Super a` (⌃⌘A) — a GLOBAL chord, so it works from any window, not
-        just a terminal — spawns each agent into its own isolated checkout on a
-        `worktree-<name>` branch, in its own window, so parallel agents never
-        fight over a single checkout.'';
+    `Cmd Return` (⌘↵) — pressed from any Ghostty window, a terminal pane or
+        another agent's lane alike — spawns each agent into its own isolated
+        checkout on a `worktree-<name>` branch, in its own window, so parallel
+        agents never fight over a single checkout.'';
 
   # One client id → one package, from the one table (modules/lib/agent-packages.nix):
   # the AI room asserts each named client is buildable here, and this is where a
@@ -597,18 +597,12 @@ let
 in
 {
   # ---- what this room contributes to other rooms ------------------------------
-  # Windows draws the global agent-spawn chord. The terminal room is the one that
-  # knows a lane has stopped being a pane, and it owns the script that answers
-  # "which repo is the focused window looking at" — but it has no business
-  # binding a global key, so it states the fact and lets windows decide.
-  haus._contrib.windows.agents = {
-    enable = agentContrib.enable;
-    # @HOME@, not an interpolated home directory: this is read at the SYSTEM
-    # level, where `config.home` doesn't exist, and windows already resolves
-    # that token when it renders the binding table (its `subTokens`). Same
-    # convention every other command in wm-bindings.nix uses.
-    spawn = "@HOME@/.config/haus/lanes/lane-spawn.sh";
-  };
+  # Nothing, since 2026-08-18. This room used to hand windows the agent-spawn
+  # chord's script (`_contrib.windows.agents`, when the chord was the global
+  # ⌃⌘A); ⌘↵ is a Ghostty-scoped pounce hotkey now, and pounce reaches the same
+  # script through its own `cmd:lane-here` command rather than through an
+  # option. The file this room installs at
+  # ~/.config/haus/lanes/lane-spawn.sh is still the one thing the chord runs.
 
   # The agent assertions that used to sit here — default-not-in-clients, clients
   # without the tooling, a client nixpkgs can't build — are the AI room's own
@@ -637,13 +631,12 @@ in
     {
       assertion = !agentContrib.enable || config.haus.windows.enable;
       message =
-        "agent lanes need haus.windows.enable. A lane is a zmx session in its own WINDOW, and the "
-        + "windows room is what makes that a working idea twice over: lanes/lane-open.sh places "
-        + "each lane with `aerospace move-node-to-workspace`, and the spawn chord itself (⌃⌘A) is "
-        + "an AeroSpace bind — zellij can't hold it, because its only way to run a command is to "
-        + "open a pane, and a lane's own window has no zellij in it to receive one anyway. With "
-        + "windows off there is no way to start a lane at all, while the cheatsheet — which the "
-        + "launcher renders without a windows gate — goes on teaching ⌃⌘A. Turn the windows room "
+        "agent lanes need haus.windows.enable. A lane is a zmx session in its own WINDOW, and "
+        + "lanes/lane-open.sh places each one with `aerospace move-node-to-workspace` — with the "
+        + "windows room off, every lane piles onto whatever workspace happened to be focused, and "
+        + "the page walk (⌃⇥) that tiles them per repo has nothing to walk. The spawn chord no "
+        + "longer needs this room (⌘↵ is a Ghostty-scoped pounce hotkey since 2026-08-18, where "
+        + "it was an AeroSpace bind before), but the placement still does. Turn the windows room "
         + "on, or turn the agent clients off (haus.ai.clients = [ ]).";
     }
     {
@@ -1563,9 +1556,9 @@ in
             zstyle ':completion:*' menu no
 
             # New shells inherit the spawning surface's cwd — zellij panes
-            # (Super p) and the cwd-injecting new-tab spawns (Super Shift t,
+            # (Super n) and the cwd-injecting new-tab spawns (Super Shift t,
             # the peek Enter-on-dir tab), but equally the plain Ghostty windows
-            # ⌘P spawns a lane-aware shell window, which is why this sits
+            # ⌘N spawns a lane-aware shell window, which is why this sits
             # OUTSIDE the $ZELLIJ block below (it used to live inside it, and a
             # zmx window's shell sailed straight past the hop). Next to an
             # agent's pane or window that cwd is the agent's throwaway checkout
@@ -1573,7 +1566,7 @@ in
             # has no business starting there: hop to the repo the worktree
             # belongs to (the parent of the shared .git).
             # $CLAUDECODE spares the agent's own subshells, and $HAUS_STAY
-            # spares the deliberate "stay here" spawns — Super Shift p / ⌘⇧P,
+            # spares the deliberate "stay here" spawns — Super Shift n / ⌘⇧N,
             # and the Enter-on-dir tab of a Super-Shift-y (--stay) peek, which
             # bakes HAUS_STAY=1 into the layout it generates. Those must stay
             # in the worktree; the Super-y peek's Enter tab is NOT spared,
@@ -2132,9 +2125,9 @@ in
             executable = true;
           };
 
-          # The chord's half: what the WINDOWS room binds ⌃⌘A to (through
-          # _contrib.windows.agents below). A bind pointing at a file that isn't
-          # there is the one failure mode a rebuild can't warn about.
+          # The chord's half: what pounce's Ghostty-scoped ⌘↵ runs, through the
+          # launcher's `cmd:lane-here` command. A chord pointing at a file that
+          # isn't there is the one failure mode a rebuild can't warn about.
           ".config/haus/lanes/lane-spawn.sh" = {
             source = ./lanes/lane-spawn.sh;
             executable = true;
@@ -2142,7 +2135,7 @@ in
 
           # The shared "which directory is the focused window looking at?"
           # resolver — lane-spawn.sh's cwd half, split out so the launcher's
-          # shell-here command (⌘P/⌘⇧P under zmx) asks the identical question
+          # shell-here command (⌘N/⌘⇧N under zmx) asks the identical question
           # instead of drifting a copy of the awk.
           ".config/haus/lanes/lane-cwd.sh" = {
             source = ./lanes/lane-cwd.sh;

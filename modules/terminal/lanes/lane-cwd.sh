@@ -2,8 +2,8 @@
 # lane-cwd.sh — "which directory is the focused window looking at?"
 #
 # The shared half of every window-layer chord. A zellij bind inherited the
-# focused pane's directory for free; a chord bound at the window layer (⌃⌘A's
-# lane-spawn.sh, ⌘P/⌘⇧P's shell-here) has no directory at all, so it has to
+# focused pane's directory for free; a chord bound outside it (⌘↵'s
+# lane-spawn.sh, ⌘N/⌘⇧N's shell-here) has no directory at all, so it has to
 # ask. The window TITLE is the join in both worlds:
 #
 #   holt.<repo>.<lane>   a zmx lane window. lane-open.sh forced that title, and

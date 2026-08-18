@@ -153,6 +153,13 @@ let
   # written into config.json and the mapping declared below.
   fnRemap = config.haus.launcher.fnKey == "remap";
 
+  # The keys the Ghostty-scoped chords ride on (the appHotkeys block below).
+  # Named once because each is read twice: by that block and by startupState's
+  # hash, so a rebind actually reaches the running daemon instead of landing in
+  # a file the daemon read at boot.
+  shellSpawnKey = "n";
+  laneSpawnKey = "return";
+
   # Every pounce setting the daemon reads ONCE at startup, as one opaque word —
   # the activation marker's whole content, see home.activation.kickstartPounce.
   # A rebuild that moves any of them bounces the daemon, because the alternative
@@ -171,7 +178,13 @@ let
   #   lanes     whether the appHotkeys/pages blocks are written at all (they
   #             follow the AI room's switch): pounce arms both taps once at
   #             startup, so turning lanes on or off has to bounce the daemon or
-  #             ⌘P/⌃⇥ keep last boot's meaning until the next log-in.
+  #             ⌘N/⌃⇥ keep last boot's meaning until the next log-in.
+  #   shellSpawnKey / laneSpawnKey  which KEYS the two Ghostty-scoped chords
+  #             ride on. Same tap, armed at the same moment: the 2026-08-18
+  #             ⌘P → ⌘N and ⌃⌘A → ⌘↵ moves changed only these, so without them
+  #             in the hash the rebuild would land, the docs would say ⌘N/⌘↵,
+  #             and the running daemon would keep answering the old chords
+  #             until the next log-in.
   #
   # Hashed rather than inlined so the marker is one short line whatever the
   # exclude list grows to, and prefixed so an absent or empty marker (a machine
@@ -182,6 +195,7 @@ let
         autoQuit = config.haus.launcher.autoQuit;
         fnKey = config.haus.launcher.fnKey;
         lanes = lanesEnabled;
+        inherit shellSpawnKey laneSpawnKey;
       }
     )
   }";
@@ -257,13 +271,14 @@ let
   '';
 
   # The lane commands ride the terminal room's agent switch: without lanes there
-  # is nothing for the picker to pick or for ⌘P to spawn a lane-aware shell
+  # is nothing for the picker to pick or for ⌘N to spawn a lane-aware shell
   # beside. ONE list, read by both the install below and the cheatsheet rows
   # above, so a row can't survive a command that wasn't installed — the same
   # rule the focus.sh filter and the scene rows follow.
   lanesEnabled = termAgentContrib.enable;
   laneCommands = [
     "lanes.sh"
+    "lane-here.sh"
     "shell-here.sh"
     "shell-here-stay.sh"
   ];
@@ -281,7 +296,7 @@ let
     # nested so the catalog cannot appear in the launcher and be run as Bash.
     install -Dm444 ${popularAppsCatalog} $out/data/popular-apps.tsv
     ${lib.optionalString (!config.haus.focus.enable) "rm $out/focus.sh"}
-    # The lane picker and the ⌘P/⌘⇧P window spawns need lanes to exist: with
+    # The lane picker and the ⌘N/⌘⇧N window spawns need lanes to exist: with
     # the agent clients off there is nothing for `zmx ls` to list.
     ${lib.optionalString (!lanesEnabled)
       "rm ${lib.concatMapStringsSep " " (f: "$out/${f}") laneCommands}"
@@ -431,10 +446,6 @@ let
       (
         import ../windows/wm-bindings.nix {
           inherit lib k;
-          # Same contribution windows itself reads, so the card and the bind appear
-          # and disappear together — the whole reason this table is imported twice
-          # rather than written twice.
-          agents = config.haus._contrib.windows.agents;
         }
       );
 
@@ -1175,19 +1186,23 @@ lib.mkIf config.haus.launcher.enable {
             autoPaste = true; # synthesize ⌘V into the prior app; needs Accessibility
           };
         }
-        # The lane window-layer chords, both riding the same
+        # The lane window-layer chords, all riding the same
         # consuming event tap the ⌘⇥ switcher already runs (and the same
         # Accessibility gate — ungranted installs simply keep the chords' stock
-        # meanings). Both are APP-SCOPED to Ghostty: consumed only while it is
-        # frontmost, passed through untouched everywhere else, so ⌘P stays
-        # print and ⌃⇥ stays next-tab in every other app. An older pounce that
-        # predates the keys ignores both blocks — the same lenient parse as
-        # `themeLight`.
+        # meanings). All of them are APP-SCOPED to Ghostty: consumed only while
+        # it is frontmost, passed through untouched everywhere else, so ⌘N stays
+        # new-document, ⌘↵ stays send and ⌃⇥ stays next-tab in every other app.
+        # An older pounce that predates the keys ignores both blocks — the same
+        # lenient parse as `themeLight`.
         // lib.optionalAttrs lanesEnabled {
-          # ⌘P / ⌘⇧P — the zellij NewPane chords' heirs: a shell WINDOW in the
-          # focused window's directory (cmd:shell-here[-stay], this rice's own
-          # command scripts). Targets are pounce's one dispatch grammar, so a
-          # scoped chord and a palette row are the same address.
+          # ⌘N / ⌘⇧N — new WINDOW, the chord every Mac app spells that way:
+          # a shell window in the focused window's directory
+          # (cmd:shell-here[-stay], this rice's own command scripts), hopping
+          # out of an agent worktree to the repo's main checkout unless the
+          # shifted key says stay. They were ⌘P/⌘⇧P (the zellij NewPane chords'
+          # heirs) until this landed; ⌘P is Ghostty's again. Targets are
+          # pounce's one dispatch grammar, so a scoped chord and a palette row
+          # are the same address.
           appHotkeys = {
             enabled = true;
             scopes = [
@@ -1195,17 +1210,33 @@ lib.mkIf config.haus.launcher.enable {
                 bundleId = "com.mitchellh.ghostty";
                 keys = [
                   {
-                    key = "p";
+                    key = shellSpawnKey;
                     modifiers = [ "cmd" ];
                     target = "cmd:shell-here";
                   }
                   {
-                    key = "p";
+                    key = shellSpawnKey;
                     modifiers = [
                       "cmd"
                       "shift"
                     ];
                     target = "cmd:shell-here-stay";
+                  }
+                  # ⌘↵ — a new agent lane in the focused window's repo
+                  # (cmd:lane-here → the terminal room's lane-spawn.sh). This
+                  # was ⌃⌘A in AeroSpace until 2026-08-18, which bought "from
+                  # any window at all" — a browser included — at the price of a
+                  # chord nobody could guess. ⌘↵ is the guessable one, and it is
+                  # exactly why it cannot be global: it means *send* in Slack,
+                  # Claude and Linear. Scoped to Ghostty it still covers every
+                  # window the chord is really pressed from, because a zellij
+                  # pane and a lane's own window are both Ghostty — and pounce's
+                  # own panel is a different app, so Spawn Agent's ⌘↵ (shoot a
+                  # screenshot, then spawn) never sees this tap.
+                  {
+                    key = laneSpawnKey;
+                    modifiers = [ "cmd" ];
+                    target = "cmd:lane-here";
                   }
                 ];
               }

@@ -3,18 +3,18 @@
 # pounce: description = Shell window in the focused window's directory
 # pounce: icon = terminal
 
-# The heir of zellij's Super p. Pounce's Ghostty-scoped ⌘P fires
+# The heir of zellij's Super n. Pounce's Ghostty-scoped ⌘N fires
 # `cmd:shell-here` and the spawned thing is a window rather than a pane —
 # everything else about the chord survives (with the agent clients off this
-# script isn't installed at all, same as focus.sh, and ⌘P falls back to
+# script isn't installed at all, same as focus.sh, and ⌘N falls back to
 # zellij's NewPane):
 #
 #   · the cwd is the focused window's, asked of zmx or zellij by lane-cwd.sh
-#     (the same resolver ⌃⌘A's lane-spawn.sh uses)
+#     (the same resolver ⌘↵'s lane-spawn.sh uses)
 #   · the "no place for a human shell" hop OUT of an agent worktree still
 #     happens, because it lives in terminal's zshrc, not in zellij — the fresh
 #     login shell fires it wherever it's born
-#   · --stay (⌘⇧P, via shell-here-stay.sh) still suppresses that hop, now as
+#   · --stay (⌘⇧N, via shell-here-stay.sh) still suppresses that hop, now as
 #     HAUS_STAY=1 in the WINDOW's environment. This is why the spawn is
 #     AppleScript (`surface configuration` carries `environment variables`)
 #     rather than Ghostty's native new_window, which can't set env at all.
