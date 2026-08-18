@@ -496,13 +496,28 @@ let
     # sketchybar/aerospace-notify.sh, which fires it at BOTH bars — the bottom
     # one is a separate instance and would otherwise never hear it.
     #
+    # Hence the `--add event` here, which the menu bar's sketchybarrc already
+    # does for its workspace pills. An event is per-INSTANCE: on the bottom bar
+    # nothing else declares this one, so without this line the `--subscribe`
+    # below has nothing to attach to, the notify script's trigger names an
+    # unknown event, and a pill that starts hidden and never ticks would stay
+    # hidden forever. Declaring it twice on the menu bar is a no-op.
+    #
+    # `mouse.clicked` is deliberately NOT subscribed: a click_script fires on
+    # its own, and subscribing as well would run `script` (the repaint) and
+    # `click_script` (the picker) on every click. `iconWide` for the same
+    # reason `github` uses it — a square Material Design mark renders short at
+    # the bar's default icon size.
+    #
     # Click: the Pages picker. Plain click goes to a page, ⇧/right-click throws
     # this window onto one (modules/launcher/commands/pages.sh).
     page = ''
+      ${sb} --add event aerospace_workspace_change
       ${sb} --add item page ${side} \
           --set page \
               drawing=off \
-              icon=󰘬 \
+              icon="󰘬" \
+              icon.font="${barFont}:Bold:${sizes.iconWide}" \
               icon.color=$TEAL \
               icon.padding_left=10 \
               icon.padding_right=6 \
@@ -511,7 +526,7 @@ let
               background.color=$SURFACE0 \
               script="$HOME/.config/sketchybar/plugins/page.sh" \
               click_script="$HOME/.config/sketchybar/plugins/page.sh click" \
-          --subscribe page aerospace_workspace_change mouse.clicked
+          --subscribe page aerospace_workspace_change
     '';
     # Agent-pane status, for whichever client the pane runs (Claude Code, Codex,
     # Opencode). The refresh is push, not poll: agents-hook.sh invokes
@@ -866,7 +881,19 @@ let
   # wrote to disk, and a client this rice never installed still writes them. The
   # `agents` pill is different — its writer is `agent-state`, which the AI room
   # ships or does not.
-  contributed = name: if name == "agents" then config.haus._contrib.bar.agents.enable else true;
+  # `page` is the second entry, and its room is `windows`: a page IS an AeroSpace
+  # workspace, so with the tiler off there is no `T/<repo>` to name, nothing to
+  # fire the workspace-change event the pill lives on, and no window for its
+  # picker to move. That pill would be drawn, hidden, forever — the dormant-pill
+  # failure this gate exists to prevent, and indistinguishable from a broken one.
+  contributed =
+    name:
+    if name == "agents" then
+      config.haus._contrib.bar.agents.enable
+    else if name == "page" then
+      config.haus.windows.enable
+    else
+      true;
 
   # ---- the second bar's three groups -----------------------------------------
   # Which group of the bottom bar a pill was asked for, or null for "not on this

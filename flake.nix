@@ -2691,6 +2691,7 @@
                   "volume"
                   "calendar"
                   "caffeinate"
+                  "page"
                   "agents"
                   "aiUsage"
                   "elgato"

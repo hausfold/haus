@@ -279,6 +279,7 @@ let
   laneCommands = [
     "lanes.sh"
     "lane-here.sh"
+    "pages.sh"
     "shell-here.sh"
     "shell-here-stay.sh"
   ];
@@ -1139,7 +1140,6 @@ lib.mkIf config.haus.launcher.enable {
       # use static attr-paths a dynamic `home.file = …` set can't merge with.
       xdg.configFile = themeFiles;
 
-      # Palette settings — pounce re-reads this on each open. Edit + rebuild.
       # The Pages picker, a SECOND time, at a stable path. Its palette copy lives
       # in a nix store dir (`riceCommands`, which the daemon discovers through
       # POUNCE_EXTRA_COMMAND_DIRS) — a path that moves every rebuild and that
@@ -1147,11 +1147,21 @@ lib.mkIf config.haus.launcher.enable {
       # reach the same picker on a click, so it gets a name it can write down.
       # One source file, two install points: they cannot drift, because the
       # rebuild that moves one moves the other.
+      #
+      # NOT behind `lanesEnabled`, unlike its palette copy. The two answer
+      # different questions: the palette drops the command on a lane-less
+      # machine because there is no lane work to page, while the bar's pill
+      # rides `windows.enable` (see the `contributed` gate in ../bar) and stays
+      # useful there — `T` is an AeroSpace workspace whether or not anything
+      # spawns lanes onto it. This entry also cannot be an `mkIf`: the sibling
+      # entries below are static attr-paths, which a dynamic `home.file = …`
+      # set can't merge with.
       home.file.".config/haus/pages.sh" = {
         source = ./commands/pages.sh;
         executable = true;
       };
 
+      # Palette settings — pounce re-reads this on each open. Edit + rebuild.
       home.file.".config/pounce/config.json".text = builtins.toJSON (
         {
           # Shape and size, kept apart on purpose: windowMode picks the layout's

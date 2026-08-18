@@ -9,12 +9,19 @@
 # because they are the same question asked in two directions:
 #
 #   ↵    go to that page
-#   ⇧↵   throw the focused window onto it, and follow it there
+#   ⌘↵   throw the focused window onto it, and follow it there
 #
 # `pages.sh move` opens the same list with those two swapped, which is what the
 # bar's `page` pill runs on a ⇧/right-click. One command, one list, one place to
 # fix — a second "Move window to page" entry would fuzzy-match against the first
 # every time you typed "page".
+#
+# ⌘↵ and not ⇧↵, which reads better and does not work: pounce treats Shift+Return
+# as "insert a newline" in the text field and never commits on it (Rows.swift),
+# so a `shift:` action is a HINT it draws and never delivers — the row would just
+# navigate, silently doing the other thing. spawn-agent.sh's box reaches for
+# ⌘↵/⌥↵ for the same reason. The pill's own ⇧-click is unaffected: that modifier
+# arrives from SketchyBar, which has no such rule.
 #
 # ── why a palette command and not a keybind ──────────────────────────────────
 # `caps `` (resort-windows.sh) already puts EVERY window back on its page, which
@@ -36,7 +43,11 @@ set -u
 # PATH is bare. Same prelude as the other commands here.
 export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/bin:/bin${PATH:+:$PATH}"
 
-command -v aerospace >/dev/null 2>&1 || exit 0
+if ! command -v aerospace >/dev/null 2>&1; then
+  printf '%s\t%s\t%s\n' "AeroSpace is unavailable" "Rebuild haus, then try again" \
+    "exclamationmark.triangle" | pounce -p "Pages" -i "square.stack" >/dev/null
+  exit 1
+fi
 
 MODE="${1:-go}"
 
@@ -56,9 +67,12 @@ pages="$(
     | awk '$0 == "T" || $0 ~ /^T\// { if (!seen[$0]++) print }'
 )"
 
-# App names per workspace, counted in ONE pass — a `list-windows --workspace`
-# call per page would be one subprocess per repo on the palette's interactive
-# path. Tab-separated so a window title can never be mistaken for a delimiter.
+# App names per workspace, from ONE `aerospace` call — the alternative is a
+# `list-windows --workspace` per page, and AeroSpace's own startup cost is what
+# makes that N subprocesses too many on the palette's interactive path. (The
+# awk that reads this table back below runs once per row, which is a fork over a
+# string already in memory and not the thing worth avoiding.) Tab-separated so a
+# window title can never be mistaken for a delimiter.
 summaries="$(
   aerospace list-windows --all --format '%{workspace}|%{app-name}' 2>/dev/null |
     awk -F'|' '
@@ -71,10 +85,10 @@ summaries="$(
 )"
 
 if [ "$MODE" = move ]; then
-  actions="Throw this window here|shift:Just go there"
+  actions="Throw this window here|cmd:Just go there"
   prompt="Throw this window onto which page?"
 else
-  actions="Go|shift:Throw this window here"
+  actions="Go|cmd:Throw this window here"
   prompt="Pages"
 fi
 
@@ -125,7 +139,7 @@ fi
 # Which act the pick meant. Enter is the mode's primary; ⇧ is the other one, so
 # either mode can reach either act without reopening the picker in the other.
 case "$MODE:$action" in
-  move:enter | go:shift) act=move ;;
+  move:enter | go:cmd) act=move ;;
   *) act=go ;;
 esac
 
