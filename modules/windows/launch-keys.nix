@@ -28,7 +28,7 @@
   "esc"
   "slash"
   "v"
-  "e"
+  "f"
   "z"
   "comma"
   "backtick"

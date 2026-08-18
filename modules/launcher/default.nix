@@ -324,7 +324,7 @@ let
 
   # Launch-mode cheatsheet rows — generated from the app roster so the leader
   # page always matches AeroSpace's launcher, then the fixed leader
-  # actions (resize / clipboard / emoji / reopen-last-app / resort / exit)
+  # actions (resize / clipboard / Find Files / reopen-last-app / resort / exit)
   # appended. The whole page disappears when keys.leader = "none": there is no
   # launch mode to document, and a page teaching an unbound key is worse than none.
   # A few AeroSpace key names read badly as a bare cheatsheet glyph ("enter"); map
@@ -412,8 +412,8 @@ let
         action = "Resize active tile — enters resize, repeats (⎋ exits)";
       }
       {
-        key = "v / e";
-        action = "Clipboard / Emoji";
+        key = "v / f";
+        action = "Clipboard / Find Files";
       }
       {
         key = "z";
@@ -881,7 +881,7 @@ let
     emoji = "Emoji picker";
     screenshots = "Screenshot browser";
     camera = "Camera preview";
-    filesearch = "File search";
+    filesearch = "Find Files";
   };
   humanize =
     id:
@@ -942,6 +942,11 @@ lib.mkIf config.haus.launcher.enable {
   # outright. An ungranted or stopped daemon leaves macOS's action untouched
   # either way. mkDefault keeps the opinion easy to undo with
   #   haus.launcher.items."mode:emoji".hotkey = null;
+  # — which now removes the grid's LAST key. The Caps-Lock leader carried it on
+  # `e` too until this tap proved itself; one picker did not need two bindings,
+  # and `e` went back to the roster (the leader's second pounce key is `f`, Find
+  # Files). So a host that nulls this wants to name another hotkey beside it, or
+  # it is down to ⌘Space → "emoji".
   haus.launcher.items."mode:emoji".hotkey = lib.mkDefault "fn";
 
   # haus.launcher.fnKey = "remap": Fn → F19 at the HID layer, declared HERE and

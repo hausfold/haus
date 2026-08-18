@@ -321,7 +321,10 @@ in
         carrying the key.
 
         Inert unless something binds `fn`: with no such item, this is a key
-        pounce reads and does nothing with.
+        pounce reads and does nothing with. On a default haus that item is the
+        emoji grid and Fn is its ONLY key — the Caps-Lock leader dropped `e` once
+        one key did the job — so a host that turns the Fn binding off wants to
+        put mode:emoji on something else.
       '';
     };
 
@@ -366,7 +369,12 @@ in
         open alongside pounce's. haus.launcher.fnKey = "remap" is the way to own
         the key outright; read that option before reaching for it, because it
         costs Fn's other jobs. haus uses Fn for mode:emoji by default; set that
-        item's hotkey to null to leave the Globe key to macOS.
+        item's hotkey to null to leave the Globe key to macOS — but Fn is the ONLY
+        key haus gives the emoji grid. The Caps-Lock leader carried it on `e`
+        until the Fn tap made that second binding redundant (`e` is unbound now,
+        and `f` is Find Files), so nulling this leaves ⌘Space → "emoji" as the
+        only route. Give mode:emoji another hotkey in the same breath if you want
+        a key for it.
 
         Sequences are worth knowing about on a tiling desktop: they open a namespace
         that structurally can't collide with the ⌥/⌘ chords windows already claims,
