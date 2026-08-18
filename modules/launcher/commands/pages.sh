@@ -9,19 +9,28 @@
 # because they are the same question asked in two directions:
 #
 #   ↵    go to that page
-#   ⌘↵   throw the focused window onto it, and follow it there
+#   ⌥↵   throw the focused window onto it, and follow it there
 #
 # `pages.sh move` opens the same list with those two swapped, which is what the
 # bar's `page` pill runs on a ⇧/right-click. One command, one list, one place to
 # fix — a second "Move window to page" entry would fuzzy-match against the first
 # every time you typed "page".
 #
-# ⌘↵ and not ⇧↵, which reads better and does not work: pounce treats Shift+Return
-# as "insert a newline" in the text field and never commits on it (Rows.swift),
-# so a `shift:` action is a HINT it draws and never delivers — the row would just
-# navigate, silently doing the other thing. spawn-agent.sh's box reaches for
-# ⌘↵/⌥↵ for the same reason. The pill's own ⇧-click is unaffected: that modifier
-# arrives from SketchyBar, which has no such rule.
+# Not ⇧↵, which reads better and does not work: pounce treats Shift+Return as
+# "insert a newline" in the text field and never commits on it (Rows.swift), so
+# a `shift:` action is a HINT it draws and never delivers — the row would just
+# navigate, silently doing the other thing. The committing modifiers are ⌘, ⌥
+# and ⌃, which is why spawn-agent.sh's box reaches for ⌘↵/⌥↵.
+#
+# And ⌥ rather than ⌘ out of those, because ⌘↵ stopped being free: it is the
+# Ghostty-scoped lane chord as of the ⌘N/⌘↵ move. That chord rides a consuming
+# CGEventTap gated on `NSWorkspace.frontmostApplication` (pounce's
+# AppScoped.swift), and a pounce picker is a `.nonactivatingPanel` — it never
+# becomes frontmost, so with Ghostty behind it the tap plausibly eats ⌘↵ before
+# the picker sees it and spawns a lane instead. Rather than depend on the
+# answer, this takes the modifier nothing is scoped to. The pill's own ⇧-click
+# is a third thing again and unaffected: that modifier arrives from SketchyBar,
+# which has no such rule.
 #
 # ── why a palette command and not a keybind ──────────────────────────────────
 # `caps `` (resort-windows.sh) already puts EVERY window back on its page, which
@@ -85,10 +94,10 @@ summaries="$(
 )"
 
 if [ "$MODE" = move ]; then
-  actions="Throw this window here|cmd:Just go there"
+  actions="Throw this window here|opt:Just go there"
   prompt="Throw this window onto which page?"
 else
-  actions="Go|cmd:Throw this window here"
+  actions="Go|opt:Throw this window here"
   prompt="Pages"
 fi
 
@@ -139,7 +148,7 @@ fi
 # Which act the pick meant. Enter is the mode's primary; ⇧ is the other one, so
 # either mode can reach either act without reopening the picker in the other.
 case "$MODE:$action" in
-  move:enter | go:cmd) act=move ;;
+  move:enter | go:opt) act=move ;;
   *) act=go ;;
 esac
 

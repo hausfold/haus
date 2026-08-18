@@ -51,7 +51,8 @@ if [ "${1:-}" = click ]; then
   # A plain click sends MODIFIER=none, not empty — test against the word. Any
   # modifier means move mode, ⇧ included: this is SketchyBar's own modifier,
   # not pounce's text field, so ⇧ is a real gesture here even though a `shift:`
-  # ACTION inside the picker would never fire (see pages.sh's header).
+  # ACTION inside the picker would never fire — and ⌘ there is the lane chord's
+  # (see pages.sh's header for both).
   if [ "${BUTTON:-left}" = "right" ] || [ "${MODIFIER:-none}" != "none" ]; then
     exec "$picker" move
   fi
