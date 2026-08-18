@@ -80,7 +80,7 @@
 #   "gui-only"    — the write lands in the plist and posts no change notification,
 #                   so no running app ever re-reads it and System Settings renders
 #                   a desynced view of its own rows. Only the slider works.
-#   "noop"        — writes, changes nothing, ever. The worst of the four: a
+#   "noop"        — writes, changes nothing, ever. The worst of the five: a
 #                   read-back check reports "applied" on a machine that did not
 #                   move. Any option built on this ships a lie.
 #
@@ -113,16 +113,48 @@
 # which is also the only channel that can pre-grant TCC itself (PPPC), so the two
 # halves of "no clicking left" turn out to be one half.
 #
-# THE ANY-USER LEVEL — /Library/Preferences/<domain>.plist: root-owned, outside
-# TCC, no approval of any kind, and already how modules/terminal/zen.nix writes
-# Firefox's policy from activation. CFPreferences searches it BELOW the user
-# domain, so on a Mac whose user domain holds no accessibility key it is in the
-# search path, and activation is already root — meaning a rebuild could drive it
-# unattended if it lands. UNMEASURED, and the uncertainty is specific: whether
-# universalaccessd reads through `CFPreferencesCopyAppValue` and so sees the
-# any-user level, or scopes its read to the current user and never looks. Measure
-# against NSWorkspace before believing it. A plist holding a value nothing reads
-# is this table's `noop` class, and not shipping one is the whole point of it.
+# THE ANY-USER LEVEL — /Library/Preferences/<domain>.plist, root-owned and, for
+# THIS domain, outside TCC. (Not for the directory as a whole: com.apple.TimeMachine
+# lives there and is FDA-gated. Reachability is a property of the domain, not the
+# folder.) modules/terminal/zen.nix already writes a file there from activation,
+# installing Zen's policy domain wholesale rather than through `defaults`.
+#
+# MEASURED 2026-08-18, and it WORKS. With the user domain empty, a root write to
+# /Library/Preferences/com.apple.universalaccess plus a `killall universalaccessd`
+# reads back TRUE through `hausax` — `effective` by this table's own oracle, with
+# no Full Disk Access anywhere, no profile, and nothing clicked. Activation is
+# already root, so this is the one escape a rebuild could drive unattended.
+#
+# The mechanism is nothing exotic: it is CFPreferences' ordinary search list —
+# managed, then the current user, then any-user. Saying that plainly matters,
+# because it collapses two apparent surprises into one fact:
+#   - the user domain SHADOWS the any-user level BY CONSTRUCTION. Feature and
+#     trap at once: a person keeps the last word in System Settings, and the
+#     moment they use it a haus write here goes inert forever, with nothing
+#     anywhere to say so.
+#   - so `needs-fda` above is a property of (domain, LEVEL) rather than of the
+#     domain alone. com.apple.universalaccess is FDA-gated at the user level and
+#     open at the any-user level, and the table's key names only the first.
+#
+# What a route built on it would still owe, none of it fatal:
+#   - The daemon has to be restarted before anyone feels it — including for
+#     `reduceTransparency`, which is live IMMEDIATELY when written at the user
+#     level. modules/core/default.nix's `a11yRestartKeys` gate deliberately
+#     bounces universalaccessd only for the `by-eye` keys, because the four
+#     oracle-backed ones were already live; that gate would have to become
+#     level-aware and not merely key-aware. ./restart-map.nix already maps the
+#     domain to the daemon, so it is core's per-key filter that moves, not the map.
+#   - Only `reduceTransparency` was measured this way. The other three
+#     `effective` keys are untested at this level, and so is survival across a
+#     reboot.
+#   - The first run of this measurement was a FALSE POSITIVE and cost a
+#     retraction: write, an immediate `killall cfprefsd universalaccessd`, an
+#     oracle reading true — and minutes later no plist on disk and the oracle
+#     back to false. The mechanism is UNEXPLAINED, and it sits awkwardly beside
+#     zen.nix's own measured "cfprefsd flushes on SIGTERM, which is what makes
+#     that safe rather than lossy", so reconcile those two before trusting either
+#     account. The operating rule needs no mechanism at all: an oracle read is
+#     not evidence until the plist is ON DISK.
 {
   # ---- com.apple.universalaccess ---------------------------------------------
   # The reason this file exists. Real, useful, TCC-gated, and mixed: four keys
