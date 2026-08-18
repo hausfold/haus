@@ -233,10 +233,10 @@ let
   );
 
   # The FIXED half of launch mode: the actions a host does not choose (arrows,
-  # resize, clipboard/emoji, reopen, settings, resort, cheatsheet, exit) plus
-  # the numbered workspaces' three chords each. Split out of reservedLaunchKeys
-  # because TWO different things can collide with it and only one of them was
-  # ever checked; split into ./launch-keys.nix because the docs repo's
+  # resize, clipboard, Find Files, reopen, settings, resort, cheatsheet, exit)
+  # plus the numbered workspaces' three chords each. Split out of
+  # reservedLaunchKeys because TWO different things can collide with it and only
+  # one of them was ever checked; split into ./launch-keys.nix because the docs repo's
   # keybinding tripwire renders the same list from the same file (see its
   # header). The digit half is derived rather than listed, since
   # haus.windows.numberedWorkspaces decides how many digits are spoken for — a
@@ -500,7 +500,7 @@ lib.mkMerge [
         message =
           "haus.roster leader keys must not reuse a built-in launch-mode key; conflicting: "
           + lib.concatStringsSep ", " rosterBuiltinCollisions
-          + ". Those letters are leader actions haus already binds (v clipboard, e emoji, "
+          + ". Those letters are leader actions haus already binds (v clipboard, f Find Files, "
           + "z reopen-last-app, , settings, ` resort, - / = resize, digits and arrows for "
           + "workspaces). Pick another letter for the app, or set its key to null and reach it "
           + "from the palette. If the entry came from a shared desktop, override just "

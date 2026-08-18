@@ -318,7 +318,7 @@ let
 
   # Launch-mode cheatsheet rows — generated from the app roster so the leader
   # page always matches AeroSpace's launcher, then the fixed leader
-  # actions (resize / clipboard / emoji / reopen-last-app / resort / exit)
+  # actions (resize / clipboard / Find Files / reopen-last-app / resort / exit)
   # appended. The whole page disappears when keys.leader = "none": there is no
   # launch mode to document, and a page teaching an unbound key is worse than none.
   # A few AeroSpace key names read badly as a bare cheatsheet glyph ("enter"); map
@@ -406,8 +406,8 @@ let
         action = "Resize active tile — enters resize, repeats (⎋ exits)";
       }
       {
-        key = "v / e";
-        action = "Clipboard / Emoji";
+        key = "v / f";
+        action = "Clipboard / Find Files";
       }
       {
         key = "z";
@@ -867,7 +867,7 @@ let
     emoji = "Emoji picker";
     screenshots = "Screenshot browser";
     camera = "Camera preview";
-    filesearch = "File search";
+    filesearch = "Find Files";
   };
   humanize =
     id:

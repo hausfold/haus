@@ -57,12 +57,12 @@ file_slug() {
 # ── which leader letters are already spoken for ───────────────────────────
 # EVERY key launch mode binds, not just the roster's. The generated
 # aerospace.toml's [mode.launch.binding] is the authority: roster launchers,
-# their ⇧throws, the fixed built-ins (v clipboard, e emoji, z reopen-last-app,
+# their ⇧throws, the fixed built-ins (v clipboard, f Find Files, z reopen-last-app,
 # `,` settings, ` resort, - / = resize) and any haus.keys.leaderExtras all
 # land in that ONE table, which is exactly the set windows asserts against.
 #
 # Reading only the cheatsheet's Launch Mode rows was the bug: the built-ins
-# render there as display glyphs ("v / e"), which never matched a bare-letter
+# render there as display glyphs ("v / f"), which never matched a bare-letter
 # comparison — so "v" looked free, got offered, and the roster entry then
 # collided with the clipboard binding at EVAL time (windows's
 # rosterBuiltinCollisions assertion), failing the rebuild after the module was
