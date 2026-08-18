@@ -12,6 +12,13 @@ jobs:
   eval:
     name: eval the example host
     runs-on: ubuntu-latest
+    # A ceiling, not a target: this job runs in ~2 minutes. It exists because
+    # GitHub's default is SIX HOURS, and a step that hangs rather than fails
+    # sits there burning the whole budget while the PR shows "running" — which
+    # is exactly what happened on 2026-08-18, when the shellcheck job's
+    # `apt-get update` stalled on the Azure Ubuntu mirrors and had to be
+    # cancelled by hand after two hours.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: DeterminateSystems/nix-installer-action@main
@@ -102,6 +109,8 @@ jobs:
   shellcheck:
     name: shell scripts
     runs-on: ubuntu-latest
+    # See the eval job above — this is the one that hung.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       # bootstrap.sh is the standalone curl|bash installer — the one shell
@@ -112,7 +121,12 @@ jobs:
       # regression here reaches every new installer.
       - name: shellcheck
         run: |
-          sudo apt-get update && sudo apt-get install -y shellcheck bats
+          # Retries plus a per-mirror timeout, on both calls: an unreachable
+          # Azure mirror should fail this step in seconds, not block on it.
+          # (Both, because `install` fetches over the same mirrors `update` does.)
+          apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=15)
+          sudo apt-get "${apt_opts[@]}" update
+          sudo apt-get "${apt_opts[@]}" install -y shellcheck bats
           # bootstrap.sh reaches every new installer via hausfold.co/hacker.sh;
           # haus.sh + awake.sh ship onto every machine as end-user CLIs.
           # statusline-refresh.sh is linted for a different reason: it runs

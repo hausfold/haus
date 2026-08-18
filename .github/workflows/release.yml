@@ -19,6 +19,11 @@ jobs:
   release:
     name: publish release
     runs-on: ubuntu-latest
+    # Same ceiling as check.yml's jobs, for the same reason: this one evaluates
+    # the example host too, so it inherits every way that step can hang — and a
+    # release job that sits at "running" for GitHub's six-hour default is a tag
+    # nobody can tell has failed.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
