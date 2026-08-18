@@ -208,7 +208,7 @@ rec {
         }
         {
           key = "⌃ Click pane";
-          action = "Zooms it fullscreen — the only way there now";
+          action = "Zooms it fullscreen — zoom has no chord now";
         }
         {
           key = "Drag a selection";

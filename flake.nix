@@ -2792,11 +2792,11 @@
                 import ./modules/windows/wm-bindings.nix {
                   inherit (pkgs) lib;
                   inherit k;
-                  # `agents` is deliberately NOT passed. It is a per-machine
-                  # contribution from the terminal room — whether a lane is a
-                  # window rather than a pane — and the shipped default is a
-                  # pane. Its own default leaves that section out, which is the
-                  # honest answer to "what does a default install bind".
+                  # Nothing else to pass: this table is window keys and
+                  # nothing but. It carried one per-machine contribution — the
+                  # agent-spawn chord, back when it was AeroSpace's ⌃⌘A — and
+                  # that left the room on 2026-08-18 for pounce's
+                  # Ghostty-scoped ⌘↵.
                 }
               )
             );

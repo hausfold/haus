@@ -2,6 +2,7 @@
 # pounce: name = New Agent Lane
 # pounce: description = Agent lane in the focused window's repo, no questions asked
 # pounce: icon = sparkles
+# pounce: cheat = agent lane
 
 # The lane chord's front door. Pounce's Ghostty-scoped ⌘↵ fires
 # `cmd:lane-here`, which is this file, which is a one-line exec into the script
@@ -28,4 +29,15 @@
 # it is the entire interaction.
 set -u
 
-exec "$HOME/.config/haus/lanes/lane-spawn.sh"
+# The script is the terminal room's, installed beside its lane hooks, and the
+# `laneCommands` filter takes this file away on a machine that has no lanes — so
+# a missing file should be impossible. Say so anyway rather than exiting 127
+# into a daemon with no stdout: an invisible failure is the one thing a chord
+# can't afford, which is the whole subject of lane-spawn.sh's own header.
+spawn="$HOME/.config/haus/lanes/lane-spawn.sh"
+[ -x "$spawn" ] || {
+  osascript -e 'display notification "lane-spawn.sh is missing — the terminal room installs it; rebuild." with title "haus · agent lane"' >/dev/null 2>&1
+  exit 0
+}
+
+exec "$spawn"

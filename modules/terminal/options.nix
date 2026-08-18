@@ -295,8 +295,9 @@ in
         zellij; it does not take effect on a running server. The real cost:
         right-click stops reaching the pane's own program, so a TUI's own
         right-click context menu (lazygit, vim, mc, …) goes with it. Set
-        false to leave right-click alone and keep zooming with Ctrl+Click or
-        Super Enter.
+        false to leave right-click alone and keep zooming with Ctrl+Click,
+        which is the only other way there: ⌘↵ used to zoom a pane and is the
+        agent-lane chord now.
       '';
     };
 

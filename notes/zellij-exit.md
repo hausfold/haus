@@ -106,6 +106,20 @@ be app-scoped — AeroSpace modes do not inherit, so every main-mode bind
 would have to be duplicated into it, and the mode switch races the focus
 change, so a fast ⌘A right after clicking a window lands in the wrong mode.
 
+> **Superseded 2026-08-18, on the key but not the argument.** The chord is
+> **⌘↵** now, and it is held by *pounce's* Ghostty-scoped tap
+> (`modules/launcher`, `appHotkeys` → `cmd:lane-here` → the same
+> `lane-spawn.sh`); `haus._contrib.windows.agents` is gone with it. Everything
+> above still holds — a lane is a window, zellij can't run a command without a
+> pane, Ghostty can't run one at all — except the conclusion that the chord
+> must therefore be *global*. App-scoping is the third option this section
+> didn't have when it was written: it arrived for ⌘P/⌘⇧P a phase later (see
+> the ⌃⇥ / shell-window note above), and it turns out to fit the spawn chord
+> too, because every window worth pressing it from is a Ghostty window.
+> ⌘↵ needs it: unlike ⌃⌘A it is *send* in half the Mac, so a global grab was
+> never available. The same phase moved the shell-window pair ⌘P/⌘⇧P → ⌘N/⌘⇧N;
+> read every ⌘P below as ⌘N.
+
 **The cost this pays, and how it is paid.** A zellij bind inherited the
 focused pane's directory for free; a window-layer chord has no directory at
 all. The window TITLE is the join in both worlds:

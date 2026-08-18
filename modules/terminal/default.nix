@@ -716,9 +716,10 @@ in
   # ctrl+wheel branch in mouse_handler.rs is gated on nothing at all.
   #
   # The third patch adds ctrl+click-to-zoom: clicking anywhere in a pane's BODY
-  # with ctrl held toggles that pane fullscreen — the pointer-driven twin of
-  # Super Enter, for when the hand is already on the trackpad and reaching back
-  # to the keyboard is the slow part.
+  # with ctrl held toggles that pane fullscreen. It was the pointer-driven twin
+  # of Super Enter; since ⌘↵ became the agent-lane chord it is the ONLY way to
+  # zoom a pane, which makes this patch and its right-click sibling load-bearing
+  # rather than a convenience.
   #
   # It has to be a patch, and no config or plugin can substitute: zellij's
   # keybind system is keyboard-only. Mouse buttons are not bindable in

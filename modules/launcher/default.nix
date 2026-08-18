@@ -686,6 +686,12 @@ let
   keyAliases = {
     function = "fn";
     globe = "fn";
+    # Same story one key over: pounce's HotKeyParser maps "enter" and "return"
+    # to the one kVK_Return, so an item hotkey spelled "cmd+enter" and the lane
+    # chord spelled "cmd+return" are the same keypress and have to compare equal
+    # here — otherwise the clash the riceChords list below exists to catch slips
+    # through on a synonym.
+    enter = "return";
   };
 
   # "cmd + shift + v" is ONE step; "opt+space e" is two. Whitespace separates
@@ -738,6 +744,14 @@ let
   # so a cmd+g item would swallow Zellij's Super-g before Ghostty ever saw it.
   # termBindings is already feature-aware (gh-dash is absent when disabled), so
   # the assertion reserves exactly the terminal surface this host actually has.
+  #
+  # The Ghostty-scoped chords (⌘N/⌘⇧N/⌘↵) are in the list for a subtler reason:
+  # they are NOT global — pounce's own tap consumes them only over Ghostty — so
+  # an item hotkey on ⌘↵ would build green and then lose that key inside the
+  # terminal alone, which is the worst shape a clash can take (it works
+  # everywhere you test it and dies where you use it). They ride the same
+  # `lanesEnabled` gate as the block that arms them, so a machine without lanes
+  # reserves nothing.
   riceChords =
     lib.optional (k.palette != null) {
       what = "haus.keys.palette";
@@ -752,7 +766,19 @@ let
     ++ map (chord: {
       what = "terminal binding ${chord}";
       chord = (normalizeStep (lib.replaceStrings [ " " ] [ "+" ] chord)).chord;
-    }) termBindings.chords;
+    }) termBindings.chords
+    ++ lib.optionals lanesEnabled (
+      map
+        (chord: {
+          what = "Ghostty-scoped chord ${chord}";
+          chord = (normalizeStep chord).chord;
+        })
+        [
+          "cmd+${shellSpawnKey}"
+          "cmd+shift+${shellSpawnKey}"
+          "cmd+${laneSpawnKey}"
+        ]
+    );
 
   # Only the FIRST step can clash with a rice chord: a later step is grabbed for
   # ~2s after the leader fires, and pounce disarms it again.

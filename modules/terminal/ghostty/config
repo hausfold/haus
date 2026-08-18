@@ -134,7 +134,8 @@ keybind = cmd+shift+t=unbind
 # cmd+f → zellij "Super f": FIND — full-text search over this pane (find.sh).
 # Ghostty binds cmd+f to its native-macOS window fullscreen by default, so this
 # unbind is what lets ⌘F mean here what it means in every other app on the
-# machine. (Pane fullscreen used to live on this chord; it moved to cmd+enter.)
+# machine. (Pane fullscreen used to live on this chord, then on cmd+enter; it
+# has no chord at all now — ⌃click and right-click are the zoom.)
 keybind = cmd+f=unbind
 # cmd+shift+f → zellij "Super Shift f": the same find overlay, opened across
 # every pane in the session instead of just the focused one. Ghostty binds
