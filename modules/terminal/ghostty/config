@@ -118,10 +118,10 @@ keybind = cmd+t=unbind
 # inheriting the focused pane's cwd / one that STAYS there even inside an agent
 # worktree (the no-hop sibling). Ghostty binds cmd+shift+p to its command
 # palette by default — unbind it so the chord reaches zellij instead of popping
-# the palette. Under haus.terminal.lanes.backend = "zmx" neither chord gets
-# this far: pounce's Ghostty-scoped hotkeys consume both while Ghostty is
-# frontmost and spawn a shell WINDOW instead (cmd:shell-here[-stay]), so these
-# unbinds are then inert rather than wrong.
+# the palette. In practice neither chord gets this far: pounce's Ghostty-scoped
+# hotkeys consume both while Ghostty is frontmost and spawn a shell WINDOW
+# instead (cmd:shell-here[-stay]), so these unbinds are inert rather than wrong
+# — they are what a machine with the agent clients off falls back to.
 keybind = cmd+p=unbind
 keybind = cmd+shift+p=unbind
 keybind = cmd+y=unbind
@@ -139,16 +139,12 @@ keybind = cmd+shift+f=unbind
 @GH_DASH_GHOSTTY_BIND@
 # cmd+enter → zellij "Super Enter" (toggle the focused pane fullscreen), which
 # is where pane zoom moved when ⌘F went back to meaning find. Ghostty binds
-# nothing here today; unbind it defensively, same as cmd+shift+a, so a future
-# release can't claim the chord out from under the multiplexer.
+# nothing here today; unbind it defensively, so a future release can't claim
+# the chord out from under the multiplexer.
 keybind = cmd+enter=unbind
-# cmd+a / cmd+shift+a — see @AGENT_GHOSTTY_UNBINDS@'s own comment in
-# modules/terminal/default.nix. An unbind here only exists to let a chord fall
-# THROUGH to zellij, so it has to disappear when zellij has stopped binding it:
-# under haus.terminal.lanes.backend = "zmx" the lane chord is ⌃⌘A in AeroSpace,
-# and an unconditional unbind would leave ⌘A a dead key that had lost
-# select_all and gained nothing.
-@AGENT_GHOSTTY_UNBINDS@
+# cmd+a is NOT unbound. An unbind here only exists to let a chord fall THROUGH
+# to zellij, and zellij binds nothing on it: the lane chord is ⌃⌘A in
+# AeroSpace. ⌘A stays select_all.
 @BENCH_LANE_GHOSTTY_BIND@
 # cmd+c → ghostty's own copy, deliberately. This chord (and cmd+shift+c) used to
 # be unbound so they'd reach zellij as the agent-spawn binds; those moved to
@@ -192,11 +188,11 @@ keybind = cmd+shift+d=unbind
 # even unbound, macOS AppKit swallows ctrl+tab for focus navigation before
 # the terminal core sees it. So bind it to SEND the kitty-keyboard-protocol
 # encoding explicitly (CSI 9;5u / 9;6u = ctrl+Tab / ctrl+shift+Tab); zellij's
-# config.kdl binds those to the tab-history plugin (MRU back/forward). Under
-# haus.terminal.lanes.backend = "zmx" the chord never reaches ghostty at all:
-# pounce's Ghostty-scoped tap consumes it first and walks the T/* lane PAGES
-# by recency instead — the same swallowed-by-AppKit fact is why that walk has
-# to live in pounce's event tap rather than in AeroSpace's bindings.
+# config.kdl binds those to the tab-history plugin (MRU back/forward). With
+# lanes on, the chord never reaches ghostty at all: pounce's Ghostty-scoped tap
+# consumes it first and walks the T/* lane PAGES by recency instead — the same
+# swallowed-by-AppKit fact is why that walk has to live in pounce's event tap
+# rather than in AeroSpace's bindings.
 keybind = ctrl+tab=text:\x1b[9;5u
 keybind = ctrl+shift+tab=text:\x1b[9;6u
 

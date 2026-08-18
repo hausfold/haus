@@ -1,22 +1,27 @@
 # Leaving zellij — Ghostty windows + AeroSpace + zmx (architecture A)
 
-> Status: **mostly plan; two pieces are now shipped.** zellij stays the
-> shipped multiplexer until Phase 7 flips the default. Every phase below is
+> Status: **mostly plan; the lane half has shipped.** zellij stays the
+> shipped multiplexer for PANES until Phase 7 flips the default; agent lanes
+> already left it. Every phase below is
 > separately shippable and separately revertible; the seam in Phase 2 is
 > what makes that true.
 >
-> **What has landed early, and why it jumped the queue** (2026-08-16):
-> `haus.terminal.lanes.backend = "zmx"` ships a lane — one agent worktree —
-> as its own zmx session in its own Ghostty window, ahead of the
-> `multiplexer` seam Phase 2 describes. That is a narrower option than
-> Phase 2's (it moves *agent lanes* out of zellij, not *panes*), and it was
-> worth having on its own. Living on it immediately produced two findings
+> **What has landed early, and why it jumped the queue** (2026-08-16, made
+> unconditional 2026-08-17): a lane — one agent worktree — is its own zmx
+> session in its own Ghostty window, ahead of the `multiplexer` seam Phase 2
+> describes. That is narrower than Phase 2 (it moves *agent lanes* out of
+> zellij, not *panes*), and it was worth having on its own. It shipped as
+> `haus.terminal.lanes.backend`, an enum defaulting to `"zellij"`; a day of
+> living on `"zmx"` settled it, so the option is **gone** and lanes are zmx
+> windows with no second path. The consequence to know: **agent lanes now
+> require `haus.windows.enable`**, asserted at build time — the chord is an
+> AeroSpace bind and the tiler is what places each lane. Living on it immediately produced two findings
 > the plan had listed as open, so they are recorded in place below:
 > **decision 4** (the chord layer, forced sooner than Phase 4 expected) and
 > **the spawn measurement** that open question 1 asks for.
 >
 > **The lane FLOW followed on 2026-08-16** — the pieces that make many lanes
-> livable, all behind the same backend option: lanes tile per-repo on
+> livable, behind the same option while it existed: lanes tile per-repo on
 > **`T/<repo>` pages** (lane-open.sh) with a workspace-MRU file pushed from
 > AeroSpace's `exec-on-workspace-change` making `caps t` page-aware
 > (windows/scripts/workspace-mru.sh); **⌃⇥/⌃⇧⇥** walk those pages by recency

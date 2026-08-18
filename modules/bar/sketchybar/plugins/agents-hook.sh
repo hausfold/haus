@@ -33,7 +33,7 @@
 #
 # TWO STORES, picked by where the agent is sitting. A zellij pane files its
 # state under /tmp keyed by (session, pane-id); a zmx lane
-# (haus.terminal.lanes.backend = "zmx") has no pane, so it sets LABELS on its own
+# has no pane, so it sets LABELS on its own
 # session instead — see the zmx branch below for why that is the better half of
 # the pair and not just the other one.
 #
@@ -65,7 +65,7 @@ export USER="${USER:-$(id -un)}"
 export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:$PATH"
 
 # Only track agents the rice can actually take you to. That is a zellij pane,
-# or — since haus.terminal.lanes.backend = "zmx" — a zmx session, whose name
+# or — for a lane — a zmx session, whose name
 # ($ZMX_SESSION, injected into every process in it) is a lane's window title
 # and its holt lane all at once. A bare-terminal agent is neither: no pane to
 # peek, no window to raise, so it stays invisible here as it always has.
@@ -91,7 +91,7 @@ if [ -z "$agent" ]; then
 fi
 
 # ── the zmx lane path ────────────────────────────────────────────────────────
-# A lane under haus.terminal.lanes.backend = "zmx" has no pane, so there is no
+# A lane has no pane, so there is no
 # ${sess}__${pane} key to file it under — and nothing to sweep either. Its state
 # goes on the session itself as LABELS, which zmx keeps in memory for exactly as
 # long as the session lives. That is the whole reason this branch exists: the

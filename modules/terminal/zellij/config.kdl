@@ -75,63 +75,17 @@ load_plugins {
 
 keybinds {
     shared {
-        // Super a — spawn an ISOLATED agent in its own checkout, so parallel
-        // agents never move this checkout's branch out from under each other.
-        // Merge/inspect their branches from the main checkout; `bench status`
-        // lists them. Cmd a reaches zellij as Super a because ghostty/config
-        // unbinds cmd+a (its select_all); the status-bar fork renders the
-        // "Super + a" hint next to pane/tab in the bottom-right (it resolves the
-        // key from whichever spelling below is live).
-        //
-        // "a" for AGENT, not "c" for Claude: this whole family used to live on
-        // ⌘C, from back when Claude Code was the only client it could start. It
-        // now starts whichever client haus.ai.default names, and ⌘C is
-        // back to being copy in ghostty (see terminal's ghostty/config).
-        //
-        // @AGENT_NEW@ is rendered by terminal from haus.ai.default:
-        //   claude   → `claude --worktree`, its NATIVE flag, which fires the
-        //              `holt` WorktreeCreate hook in ~/.claude/settings.json.
-        //   every    → `holt new`: no client-side equivalent exists, so Holt
-        //   other      makes the same worktree from the outside and opens the
-        //   client     configured client. Holt reads its persisted config, not
-        //              Zellij's launch-time environment, so it keeps following
-        //              haus.ai.default after a rebuild. Same path, branch,
-        //              registry, parking and reaping either way.
-        // The checkout is ~/.cache/claude-worktrees/<repo>/<name> on branch
-        // worktree-<name>, branched from this checkout's local HEAD.
-        //
-        // No --dangerously-skip-permissions here: terminal pins
-        // permissions.defaultMode = "auto" in ~/.claude/settings.json (the
-        // claudeCodePermissionMode activation), so agents run unattended with
-        // background safety checks rather than the old blanket bypass.
-        //
-        // Super Shift a is the same isolated agent, but IN PLACE of the focused
-        // pane instead of splitting beside it: for when the tab is already as
-        // subdivided as you want it and this pane's job is done. Zellij
-        // *suppresses* the replaced pane rather than killing it (same mechanism
-        // as opening scrollback in an editor), so nothing is lost — when the
-        // agent exits, close_on_exit drops its pane and the original shell comes
-        // back exactly where it was, scrollback intact. cwd is inherited from
-        // the pane being replaced, same as Super a. Reaches zellij with no
-        // ghostty change needed (ghostty binds nothing to cmd+shift+a), but
-        // ghostty/config unbinds it anyway so a future default can't steal it.
-        //
-        // ── BOTH ARE ABSENT under haus.terminal.lanes.backend = "zmx" ────────
-        // @AGENT_LANE_BINDS@ renders them for the zellij backend and renders
-        // NOTHING for zmx, where the chord moved out of the multiplexer
-        // altogether — to ⌃⌘A in AeroSpace (modules/windows/wm-bindings.nix,
-        // running lanes/lane-spawn.sh). Two reasons it had to move, and the
-        // first is visible: zellij's only way to run a command is to open a
-        // pane for it, which under zellij was fine because that pane WAS the
-        // lane, and under zmx meant a pane that flashed and was torn down again
-        // the moment `holt new` returned. The second is worse: ⌘A arrives here
-        // only because ghostty/config unbinds cmd+a, and a zmx lane's own window
-        // has no zellij in it — so the chord worked everywhere except the
-        // windows you would most want to press it from. Ghostty can't hold it
-        // either (no keybind action runs a command), so the window manager is
-        // the only layer left that sees every window. Same conclusion
+        // The lane chord is NOT here. A lane is a zmx session in its own
+        // Ghostty window, and zellij's only way to run a command is to open a
+        // pane for it — which would flash and be torn down the moment `holt
+        // new` returned. Worse, ⌘A only ever reached zellij because
+        // ghostty/config unbound cmd+a, and a lane's own window has no zellij
+        // in it: the chord would work everywhere except the windows you would
+        // most want to press it from. So it lives in AeroSpace as ⌃⌘A
+        // (modules/windows/wm-bindings.nix, running lanes/lane-spawn.sh), the
+        // one layer that sees every window. Same conclusion
         // notes/zellij-exit.md reaches for the whole keymap.
-        @AGENT_LANE_BINDS@
+        //
         // Ctrl Alt Shift a — the resident agent: works IN this checkout, on
         // whatever branch you're looking at. At most one per tab, by
         // convention — it's the only agent allowed to touch the real tree.

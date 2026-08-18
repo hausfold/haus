@@ -1034,7 +1034,7 @@
     "terminal": {
       "blurb": "The shell and terminal experience.",
       "kind": "room",
-      "optionCount": 9,
+      "optionCount": 8,
       "options": {
         "haus.terminal.editor": {
           "desktopSafe": false
@@ -1049,9 +1049,6 @@
           "desktopSafe": true
         },
         "haus.terminal.hijackFileAssociations": {
-          "desktopSafe": true
-        },
-        "haus.terminal.lanes.backend": {
           "desktopSafe": true
         },
         "haus.terminal.obsidianVaults": {
@@ -1394,7 +1391,7 @@
         "zen",
         "developer"
       ],
-      "optionCount": 21,
+      "optionCount": 20,
       "order": 40,
       "title": "Development"
     },

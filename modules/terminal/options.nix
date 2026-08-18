@@ -51,9 +51,10 @@ in
     _contrib.development.agents = contrib.mkExtensionPoint {
       description = ''
         The AI room's agent lifecycle bindings, as the terminal renders them:
-        the ⌘A / Super-a chords that spawn an agent (in a fresh `holt` worktree,
-        or in this pane), the `c` alias, and the cheatsheet cards pounce draws
-        from the same table.
+        the ⌃⌥⇧A chord that spawns an agent in THIS checkout, the `c` alias, and
+        the cheatsheet cards pounce draws from the same table. The chord that
+        spawns a fresh `holt` worktree is not here — a lane is a window, so it
+        is ⌃⌘A in the windows room (see `_contrib.windows.agents`).
 
         Off leaves the terminal exactly as it is without agents — no dead chord
         teaching a client this machine never installed. It never installs an
@@ -254,73 +255,6 @@ in
         Empty (the default) leaves every vault untouched. Paths must be
         relative to the user's home, may not contain "..", and are skipped
         with a warning unless their .obsidian directory already exists.
-      '';
-    };
-
-    terminal.lanes.backend = lib.mkOption {
-      type = lib.types.enum [
-        "zellij"
-        "zmx"
-      ];
-      # In-room taste, like zellijStartLocked below: both backends ship with
-      # the room either way, and this only decides which one a `holt` lane
-      # opens into. A desktop may set it.
-      default = "zellij";
-      description = ''
-        Where an agent lane's terminal actually lives.
-
-        `zellij` (the default) is the behaviour haus has always had: a
-        lane is a pane in the `main` zellij session, and `holt` execs the
-        client in the pane you ran it from. Panes are cheap, but a lane's
-        identity is then a (session, pane-id) pair that only zellij
-        understands — which is why the bar keeps a state file per pane and
-        joins it back to a checkout path to work out which window to raise.
-
-        `zmx` makes the lane its own zmx session, viewed through its own
-        Ghostty window, tiled by windows — all three named
-        `holt.<repo>.<lane>`. Three consequences, in the order you'd feel
-        them:
-
-        - **Closing the window stops meaning parking the work.** A zmx
-          session outlives every client attached to it, so ⌘W detaches and
-          the agent keeps thinking; `holt <name>` reopens a window onto the
-          live conversation instead of resuming a transcript.
-        - **The name is the join.** `zmx ls --where state=waiting`,
-          AeroSpace's `window-title-regex`, and the lane in `holt --json`
-          all key off one string.
-        - **Splits are gone**, because zmx has none by design. Windows tiles
-          the windows instead, which is the trade: a real window manager
-          rather than a second one nested inside a terminal.
-
-        Both backends can be installed at once — this only picks which one
-        `holt` opens into, through the `[hooks] open`/`resume` seam in
-        `~/.config/holt/config.toml`. If zmx is somehow missing at runtime
-        the hook defers (exit 3) and holt falls back to its built-in, so the
-        worst case is the zellij behaviour you already had.
-
-        Choosing `zmx` also changes what ⌘A runs. Claude Code's own
-        `--worktree` makes the checkout through the WorktreeCreate hook and
-        then runs in the pane it was launched from — it never calls `holt
-        new`, so it never reaches the seam above, and the chord would keep
-        opening a pane on a machine that had asked for windows. Under `zmx`
-        the chord is `holt new` for every client, which builds the identical
-        checkout from the outside. The side benefit is that the lane becomes
-        resumable: Claude keys a transcript to the directory it started in,
-        so a `holt new` lane's conversation lives at the lane's own path,
-        which is where `holt <name>` goes looking for it.
-
-        And it changes what living with several lanes feels like. Each
-        repo's lanes tile on their own workspace page (`T/<repo>`), with
-        the leader's `t` returning to whichever page you used last; ⌃⇥/⌃⇧⇥
-        walk the non-empty pages by recency, and ⌘P/⌘⇧P open a shell
-        WINDOW in the focused window's directory (⇧ staying inside an
-        agent worktree instead of hopping to the main checkout). Those
-        three chords are consumed by pounce only while Ghostty is
-        frontmost — everywhere else ⌘P still prints and ⌃⇥ still switches
-        the app's own tabs — and the launcher gains a `Lanes` palette
-        command: fuzzy over every lane with its state, Enter focusing (or
-        waking) its window, `/term` switching to a content search across
-        the lanes' transcripts.
       '';
     };
 

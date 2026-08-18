@@ -139,8 +139,9 @@ in
   # nothing at all when it is itself switched off. That is the whole seam: no
   # room reads `config.haus.ai.*` to decide what to draw any more.
   haus._contrib = {
-    # Development — the terminal binds ⌘A / Super-a and aliases `c`, and pounce
-    # renders the same table onto its Terminal cards.
+    # Development — the terminal binds ⌃⌥⇧A (the resident agent) and aliases
+    # `c`, and pounce renders the same table onto its Terminal cards. The LANE
+    # chord is windows' (⌃⌘A), through _contrib.windows.agents.
     development.agents = {
       enable = spawnable;
       inherit (cfg) default;

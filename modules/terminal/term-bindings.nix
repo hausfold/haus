@@ -52,10 +52,6 @@
   # haus.terminal.rightClickFullscreen — the mouse row only appears when the
   # zellij patch that implements it is actually compiled in.
   rightClickFullscreenEnabled,
-  # haus.terminal.lanes.backend — the agent rows describe where a lane LANDS,
-  # and under "zmx" that is a window rather than a pane. ⌘⇧A's whole caption is
-  # about replacing a pane, which is a distinction that backend removes.
-  laneBackend,
 }:
 
 let
@@ -91,53 +87,37 @@ rec {
       # With no client installed these would open a pane that dies on `command
       # not found`, so the card goes quiet rather than teaching a dead key.
       show = agentsEnabled;
-      # ⌘A and ⌘⇧A are zellij's, and under `lanes.backend = "zmx"` zellij no
-      # longer binds them: a lane is a window there, so the chord moved out of
-      # the multiplexer to ⌃⌘A in AeroSpace, where the WINDOWS table teaches it
-      # (../windows/wm-bindings.nix, fed the same contribution). Their rows have
-      # to leave with them — the assertion in ./default.nix compares this table
-      # against the RENDERED config.kdl in both directions, so a row taught here
-      # and bound nowhere fails the build just as loudly as the reverse.
+      # The lane chord — ⌃⌘A — is NOT taught here. A lane is a window, so the
+      # bind lives in AeroSpace and the WINDOWS table teaches it
+      # (../windows/wm-bindings.nix, fed the same contribution). The assertion
+      # in ./default.nix compares this table against the RENDERED config.kdl in
+      # both directions, so a row taught here and bound nowhere fails the build
+      # just as loudly as the reverse.
       #
-      # ⌃⌥⇧A stays either way: the resident agent works in THIS checkout and is
-      # a pane by definition, so it has nothing to move to.
-      items =
-        lib.optionals (laneBackend != "zmx") [
-          {
-            chords = [ "Super a" ];
-            action = "New agent in its own worktree (${agentDefault})";
-          }
-          {
-            chords = [ "Super Shift a" ];
-            action = "Same, replacing this pane (it comes back)";
-          }
-        ]
-        ++ [
-          {
-            chords = [ "Ctrl Alt Shift a" ];
-            action = "Agent in THIS checkout — one per tab";
-          }
-        ];
+      # ⌃⌥⇧A stays: the resident agent works in THIS checkout and is a pane by
+      # definition, so it has nothing to move to.
+      items = [
+        {
+          chords = [ "Ctrl Alt Shift a" ];
+          action = "Agent in THIS checkout — one per tab";
+        }
+      ];
     }
     {
       title = "Terminal · Panes & Tabs";
-      # Two rows change CAPTION with the lane backend while their chords stay:
-      # under zmx, pounce consumes ⌘P/⌘⇧P and ⌃⇥/⌃⇧⇥ while Ghostty is frontmost
+      # Two rows describe POUNCE's behaviour, not the kdl bind under them:
+      # pounce consumes ⌘P/⌘⇧P and ⌃⇥/⌃⇧⇥ while Ghostty is frontmost
       # (Ghostty-scoped, via its event tap), so the kdl binds below them never
-      # see the keys — the binds stay in config.kdl (the file is one file for
-      # both backends, and the assertion demands bind↔row parity), but what the
-      # MACHINE does is the pounce behaviour, and the cheatsheet teaches that.
+      # see the keys — the binds stay in config.kdl, because the assertion
+      # demands bind↔row parity, but what the MACHINE does is the pounce
+      # behaviour and the cheatsheet teaches that.
       items = [
         {
           chords = [
             "Super p"
             "Super Shift p"
           ];
-          action =
-            if laneBackend == "zmx" then
-              "New shell window — hop out of a worktree / stay"
-            else
-              "New pane — hop out of a worktree / stay in it";
+          action = "New shell window — hop out of a worktree / stay";
         }
         {
           chords = [ "Super w" ];
@@ -155,11 +135,7 @@ rec {
             "Ctrl Tab"
             "Ctrl Shift Tab"
           ];
-          action =
-            if laneBackend == "zmx" then
-              "Walk lane pages by recency, back / forward"
-            else
-              "Walk tabs by recency, back / forward";
+          action = "Walk lane pages by recency, back / forward";
         }
         {
           chords = [ "Super Enter" ];

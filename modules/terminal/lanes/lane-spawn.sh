@@ -1,7 +1,7 @@
 #!/bin/bash
 # lane-spawn.sh — "start an agent here", bound at the WINDOW layer.
 #
-# This is the other half of haus.terminal.lanes.backend = "zmx". lane-open.sh
+# This is the other half of the lane chord ⌃⌘A. lane-open.sh
 # answers holt's open/resume seam (what a lane looks like once it exists); this
 # answers the chord (which repo a new lane is FOR).
 #

@@ -278,7 +278,7 @@ heal() { # run "$@"; on the cache-corruption signature, wipe the caches and retr
 # rules out:
 #
 #   - It let two of the three clients through. `under_agent` tested CLAUDECODE,
-#     and ⌘A spawns whichever client haus.ai.default names: Codex and OpenCode
+#     and the lane chord spawns whichever client haus.ai.default names: Codex and OpenCode
 #     set no such variable, so the one config shape that breaks a machine sailed
 #     past the check written to catch it.
 #   - It waved through the human it was protecting. A person in a terminal

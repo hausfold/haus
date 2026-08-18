@@ -868,7 +868,7 @@ in
     ++ lib.optionals config.haus.ai.enable [
       # holt — agent worktrees, its own product now (hausfold/holt, taken as
       # a flake input). Every caller the rice owns is on it: terminal's
-      # ⌘A runs `holt new`, pounce's Spawn Agent goes through `holt spawn`, and
+      # ⌃⌘A runs `holt new`, pounce's Spawn Agent goes through `holt spawn`, and
       # the Claude Code WorktreeCreate/WorktreeRemove hooks — which terminal
       # DECLARES into ~/.claude/settings.json and re-asserts on every rebuild
       # (see modules/terminal, home.activation.claudeCodeSettings) — point at

@@ -1,10 +1,9 @@
 #!/bin/bash
 # lane-open.sh — holt's `open`/`resume` seam, backed by zmx + a Ghostty window.
 #
-# This is the zmx half of `haus.terminal.lanes.backend`. With the zellij backend
-# (the default) holt keeps its built-in behaviour: it execs the client in the
-# pane you ran it from, and the pane IS the lane. Here the pane is gone and
-# three things carry a lane instead, all named the same:
+# holt's built-in behaviour execs the client in the pane you ran it from, and
+# the pane IS the lane. Here there is no pane, and three things carry a lane
+# instead, all named the same:
 #
 #   zmx session   holt.<repo>.<lane>   the PTY the client actually runs in
 #   Ghostty       --title=<same>       a window looking at that PTY
