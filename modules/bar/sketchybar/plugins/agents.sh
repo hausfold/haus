@@ -6,10 +6,10 @@
 # land here, and each popup row is marked with the client sitting in it.
 #
 # State is written by agents-hook.sh from each client's own lifecycle hooks
-# (authoritative — no screen-scraping) into one of TWO stores, depending on where
-# the agent sits. All three are normalised into one record by zellij_records /
-# zmx_records / desktop_records below, and nothing after that point knows the
-# difference.
+# (authoritative — no screen-scraping) into one of THREE stores, depending on
+# where the agent sits. All three are normalised into one record by
+# zellij_records / zmx_records / desktop_records below, and nothing after that
+# point knows the difference.
 #
 #   • a zellij pane → one file per pane under /tmp/haus-agents/*.state:
 #       <state>\t<session>\t<pane-id>\t<label>\t<epoch>\t<client>
@@ -18,6 +18,12 @@
 #     about a client. A `.cwd` sibling (same base name) carries the pane's
 #     checkout path, which the popup joins against `holt --json`'s lane `.path`
 #     — see "the holt join" below.
+#   • a desktop-app session → one file per conversation under
+#     /tmp/haus-agents/*.desk, same six columns as a pane's `.state` and a
+#     `.desk.cwd` sibling for the same join. The extension is load-bearing:
+#     prune_dead_panes below reads a zellij "session not found" as proof that
+#     every row of that session is dead, and a desktop row is in no zellij
+#     session, so a `.state` file would be reaped on the first tick.
 #   • a zmx lane → labels on its own zmx
 #     session, which has no pane and needs none of the pruning below: labels are
 #     in-memory and die with the session. Its holt join is by NAME, not cwd,
@@ -215,6 +221,40 @@ zellij_records() {
 # branch for the whole reasoning.
 desktop_records() {
   local f st sess key label epoch client pr cwd cf
+  # ── the liveness answer prune_dead_panes can't give ────────────────────────
+  # A desktop row's only reaper is the client's own SessionEnd, which never
+  # fires on a force-quit, a crash, a logout or an app update — and the pill's
+  # LABEL is the most urgent state it can find, so one stuck row makes the bar
+  # read "1 working" with nothing running, for the twelve hours until the
+  # backstop sweep. That is exactly the ghost accretion prune_dead_panes exists
+  # to stop for Codex, and it needs the same answer from outside.
+  #
+  # The app not running is that answer, and it is total: every desktop session
+  # lives in the one process, so no app means no session, whatever the files
+  # say. Asked through LaunchServices by BUNDLE ID rather than pgrep'ing a
+  # process name — `Claude` matches this rice's own `claude` CLI and anything
+  # else named for it, and the bundle id is the same string the row's click
+  # handler raises. Bundle-id-specific because the hook's desktop branch is
+  # too: Claude Code is the only client with a desktop front end today, and a
+  # reaper that guessed wider would reap rows it cannot vouch for.
+  #
+  # No lsappinfo, no reap: a missing tool must never wipe live agents, the same
+  # rule prune_dead_panes states for a transient zellij failure.
+  if command -v /usr/bin/lsappinfo >/dev/null 2>&1; then
+    if [ -z "$(/usr/bin/lsappinfo find bundleid=com.anthropic.claudefordesktop 2>/dev/null)" ]; then
+      rm -f "$DIR"/*.desk "$DIR"/*.desk.cwd 2>/dev/null
+    fi
+  fi
+  # A `.cwd` orphaned by the 12h sweep (which only deletes the row itself)
+  # would otherwise never go: a `.desk` key is a fresh uuid per conversation,
+  # so unlike the pane keys these never get reused and the directory would
+  # accrete one file per conversation until reboot. Keyed on its own row being
+  # gone rather than on age — a live session's `.cwd` is written once and can
+  # be arbitrarily older than the state beside it.
+  for cf in "$DIR"/*.desk.cwd; do
+    [ -e "$cf" ] || continue
+    [ -e "${cf%.cwd}" ] || rm -f "$cf"
+  done
   for f in "$DIR"/*.desk; do
     [ -e "$f" ] || continue
     IFS=$'\t' read -r st sess key label epoch client < "$f"

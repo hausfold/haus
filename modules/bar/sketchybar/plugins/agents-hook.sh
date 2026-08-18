@@ -31,11 +31,13 @@
 #                    requesting client's ZELLIJ_PANE_ID/ZELLIJ_SESSION_NAME onto
 #                    every hook it fires.
 #
-# TWO STORES, picked by where the agent is sitting. A zellij pane files its
-# state under /tmp keyed by (session, pane-id); a zmx lane
-# has no pane, so it sets LABELS on its own
-# session instead — see the zmx branch below for why that is the better half of
-# the pair and not just the other one.
+# THREE STORES, picked by where the agent is sitting. A zellij pane files its
+# state under /tmp keyed by (session, pane-id); a DESKTOP-APP session has no
+# pane either but does have a window, and files under its own conversation id
+# with a `.desk` extension (see that branch for why the extension matters); a
+# zmx lane has no file at all, so it sets LABELS on its own session instead —
+# see the zmx branch below for why that is the better half of the set and not
+# just another one.
 #
 # The two readers, drawing agent state in the same three colours:
 #   • bar's `agents` menu-bar pill — reads the /tmp state files below
@@ -80,7 +82,17 @@ export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:$PATH"
 desktop=""
 if [ -z "${ZELLIJ_PANE_ID:-}" ] && [ -z "${ZMX_SESSION:-}" ]; then
   case "${CLAUDE_CODE_ENTRYPOINT:-}" in
-    *desktop*) desktop="${CLAUDE_CODE_SESSION_ID:-${3:-}}" ;;
+    *desktop*)
+      # A SUBAGENT is not an agent this pill should draw. It runs inside a
+      # session that already has a row, it has its own $CLAUDE_CODE_SESSION_ID
+      # (distinct from the host's — verified), and it gets no SessionEnd of its
+      # own: a fan-out of ten subagents would file ten rows that only the 12h
+      # sweep could ever clear, every one of them keyed to a conversation you
+      # cannot be taken to. $CLAUDE_CODE_HOST_SESSION_ID is preferred for the
+      # same reason turned around — it is the session a click should land on.
+      [ -z "${CLAUDE_CODE_CHILD_SESSION:-}" ] || exit 0
+      desktop="${CLAUDE_CODE_HOST_SESSION_ID:-${CLAUDE_CODE_SESSION_ID:-${3:-}}}"
+      ;;
   esac
   [ -n "$desktop" ] || exit 0
 fi

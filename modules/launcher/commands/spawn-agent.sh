@@ -362,6 +362,14 @@ rc=$?
 # Exit 3 is the seam saying "no opinion, use holt's built-in" — which here means
 # nothing opened, because holt is not the one driving. Treat it like any other
 # failure rather than leaving a worktree with no window.
+#
+# This covers the seam REFUSING, not the lane failing later: the opener's last
+# act is `open -na`, which returns the moment LaunchServices accepts it, so
+# nothing after that — the launcher script, `zmx attach`, the client itself —
+# can reach this exit status. Those failures are caught where they happen
+# instead: lane-open.sh holds the window open on a non-zero client exit rather
+# than letting it flash shut, which is the evidence you would otherwise want
+# this branch to preserve.
 if [ "$rc" -ne 0 ]; then
   # Nothing is holding the checkout, so take it back rather than leave a worktree
   # nobody asked for. The branch goes with it — there is no work in it yet.
