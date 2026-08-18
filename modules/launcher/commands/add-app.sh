@@ -87,7 +87,7 @@ launch_used_letters() {
     ' "$AEROSPACE_TOML" 2>/dev/null
 
     # Split each cheatsheet key on non-letters and keep the single-letter
-    # tokens, so "v / e" yields v and e while a legend row like "⇧ [Letter]"
+    # tokens, so "v / f" yields v and f while a legend row like "⇧ [Letter]"
     # yields the 6-letter word "letter" and is correctly ignored.
     jq -r '.[] | select(.title | test("Launch Mode")) | .items[].key // empty' \
       "$CHEATSHEET" 2>/dev/null \

@@ -928,6 +928,11 @@ lib.mkIf config.haus.launcher.enable {
   # outright. An ungranted or stopped daemon leaves macOS's action untouched
   # either way. mkDefault keeps the opinion easy to undo with
   #   haus.launcher.items."mode:emoji".hotkey = null;
+  # — which now removes the grid's LAST key. The Caps-Lock leader carried it on
+  # `e` too until this tap proved itself; one picker did not need two bindings,
+  # and `e` went back to the roster (the leader's second pounce key is `f`, Find
+  # Files). So a host that nulls this wants to name another hotkey beside it, or
+  # it is down to ⌘Space → "emoji".
   haus.launcher.items."mode:emoji".hotkey = lib.mkDefault "fn";
 
   # haus.launcher.fnKey = "remap": Fn → F19 at the HID layer, declared HERE and
