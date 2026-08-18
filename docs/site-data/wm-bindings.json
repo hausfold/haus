@@ -18,7 +18,10 @@
       {
         "action": "Fullscreen toggle",
         "binds": {
-          "alt-f": "fullscreen"
+          "alt-f": [
+            "fullscreen",
+            "exec-and-forget @HOME@/.config/sketchybar/aerospace-notify.sh fullscreen"
+          ]
         },
         "keys": "⌥ f"
       },

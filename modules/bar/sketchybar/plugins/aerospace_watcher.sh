@@ -10,22 +10,44 @@
 # nobody on that list had never lit up, and one that had been renamed was
 # updated by name forever. Raising haus.windows.numberedWorkspaces past four is
 # what would have made that visible.
+#
+# It is also the sole writer of the FULLSCREEN state (plugins/aerospace_lib.sh)
+# — the glyph on the front-app pill and the focused workspace pill's peach fill,
+# both appended to the same batch this already sends. Sole writer on purpose:
+# front_app.sh is subscribed to the same front_app_switched this is, but it
+# shells out to osascript for the app name, so routing the fullscreen repaint
+# through it would put an ~80 ms round trip on a state that changes by keypress.
+# Here it costs one more `aerospace` call per tick and no extra sketchybar call
+# at all.
+#
+# The <mod>f binding fires aerospace_fullscreen_change (see
+# ../aerospace-notify.sh) so the paint lands on the keypress rather than up to
+# 2 s later. The poll stays because that event is not the only route into the
+# state: focusing another window OF THE SAME APP changes which window's
+# fullscreen flag we're reading and fires no front_app_switched at all.
 
 source "$HOME/.config/sketchybar/colors.sh"
 source "$HOME/.config/sketchybar/workspaces.sh"
+source "$HOME/.config/sketchybar/plugins/aerospace_lib.sh"
 
 CURRENT=$(/opt/homebrew/bin/aerospace list-workspaces --focused 2>/dev/null)
 WITH_WINDOWS=$(/opt/homebrew/bin/aerospace list-workspaces --monitor all --empty no 2>/dev/null)
+FULLSCREEN=$(aerospace_fullscreen)
+ACTIVE_COLOR=$(fullscreen_active_ws_color "$FULLSCREEN")
 
 ARGS=()
 for workspace in "${WORKSPACES[@]}"; do
     if [ "$workspace" = "$CURRENT" ]; then
-        ARGS+=(--set space.$workspace background.color=$MAUVE icon.color=$BASE label.color=$BASE drawing=on)
+        ARGS+=(--set space.$workspace background.color=$ACTIVE_COLOR icon.color=$BASE label.color=$BASE drawing=on)
     elif echo "$WITH_WINDOWS" | grep -q "^${workspace}$"; then
         ARGS+=(--set space.$workspace background.color=$SURFACE0 icon.color=$TEXT label.color=$TEXT drawing=on)
     else
         ARGS+=(--set space.$workspace drawing=off)
     fi
 done
+
+# Unquoted on purpose — the helper echoes space-separated `key=value` words with
+# no spaces inside any value, and each has to reach sketchybar as its own arg.
+ARGS+=(--set front_app $(fullscreen_front_app_args "$FULLSCREEN"))
 
 /opt/homebrew/bin/sketchybar "${ARGS[@]}"

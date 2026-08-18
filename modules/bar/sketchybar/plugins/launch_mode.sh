@@ -33,6 +33,11 @@ SNAP="/tmp/sketchybar_launch_logo.json"
 LOCK="/tmp/sketchybar_launch.lock"
 
 source "$HOME/.config/sketchybar/colors.sh"
+# The focused workspace pill's fill (peach while the focused window is
+# AeroSpace-fullscreen, mauve otherwise). do_disarm repaints that pill from
+# scratch, so without this it would drop a fullscreen pill back to mauve every
+# time the leader was tapped and released.
+source "$HOME/.config/sketchybar/plugins/aerospace_lib.sh"
 # sizes.sh is deliberately not sourced any more: the only thing that needed it
 # was the ${BAR_FONT}:Bold:$FS_ICON on the lead-glyph swap, and the swap is gone.
 # BAR_LOGO_COLOR — the logo's resting accent, GENERATED from haus.bar.logo.*
@@ -112,9 +117,12 @@ do_disarm() {
     # Query occupancy up front so the whole left side repaints in ONE batch —
     # no intermediate frame (the old mid-disarm aerospace_watcher.sh call left a
     # visible gap that flashed).
-    local focused open
+    local focused open active_color
     focused=$(aerospace list-workspaces --focused 2>/dev/null)
     open=$(aerospace list-workspaces --monitor all --empty no 2>/dev/null)
+    # Read with the rest of the state, up front, for the same reason: the
+    # focused pill's fill is part of the one frame this repaints.
+    active_color=$(fullscreen_active_ws_color "$(aerospace_fullscreen)")
 
     local a="" sp ws
     # Hide the picker bubbles.
@@ -123,7 +131,7 @@ do_disarm() {
     for sp in $(spaces); do
         ws=${sp#space.}
         if [ "$ws" = "$focused" ]; then
-            a+=" --set $sp updates=when_shown drawing=on background.color=$MAUVE icon.color=$BASE label.color=$BASE"
+            a+=" --set $sp updates=when_shown drawing=on background.color=$active_color icon.color=$BASE label.color=$BASE"
         elif grep -qx "$ws" <<<"$open"; then
             a+=" --set $sp updates=when_shown drawing=on background.color=$SURFACE0 icon.color=$TEXT label.color=$TEXT"
         else
