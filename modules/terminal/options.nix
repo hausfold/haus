@@ -54,7 +54,7 @@ in
         the ⌃⌥⇧A chord that spawns an agent in THIS checkout, the `c` alias, and
         the cheatsheet cards pounce draws from the same table. The chord that
         spawns a fresh `holt` worktree is not here — a lane is a window, so it
-        is ⌃⌘A in the windows room (see `_contrib.windows.agents`).
+        is ⌘↵, a Ghostty-scoped pounce hotkey firing `cmd:lane-here`.
 
         Off leaves the terminal exactly as it is without agents — no dead chord
         teaching a client this machine never installed. It never installs an
@@ -295,8 +295,9 @@ in
         zellij; it does not take effect on a running server. The real cost:
         right-click stops reaching the pane's own program, so a TUI's own
         right-click context menu (lazygit, vim, mc, …) goes with it. Set
-        false to leave right-click alone and keep zooming with Ctrl+Click or
-        Super Enter.
+        false to leave right-click alone and keep zooming with Ctrl+Click,
+        which is the only other way there: ⌘↵ used to zoom a pane and is the
+        agent-lane chord now.
       '';
     };
 

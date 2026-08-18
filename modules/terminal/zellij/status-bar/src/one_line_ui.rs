@@ -80,7 +80,7 @@ pub fn one_line_ui(
     .map(|mode_key_indicators| append(&mode_key_indicators, &mut max_len))
     .and_then(|_| match help.mode {
         // Unlocked (Normal): the full mode ribbon on the left already spells
-        // out every submode, so the bottom-right `⌘ + <a,f,l,p,t,y,⏎>` launcher
+        // out every submode, so the bottom-right `⌘ + <f,l,n,t,y>` launcher
         // block is just clutter here — leave the right side empty. The hints
         // still render in Locked, where the ribbon collapses to the lone
         // unlock key and the reminder earns its space.
@@ -880,8 +880,8 @@ fn should_show_focus_and_resize_shortcuts(tab_info: Option<&TabInfo>) -> bool {
 fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usize) -> LinePart {
     let binds = &help.get_mode_keybinds();
     // Fork: the bottom-right quick hints are condensed to a single flat block —
-    // ` ⌘ + <a,f,l,p,t,y,⏎> ` — the launchers plus find and fullscreen
-    // (a = a new agent worktree, p = new pane, t = new tab, y = yazi peek,
+    // ` ⌘ + <f,l,n,t,y> ` — the launchers plus find and fullscreen
+    // (n = new pane, t = new tab, y = yazi peek,
     // l = pounce links, f = find, ⏎ = fullscreen toggle): keys only, no
     // word-labels and no powerline ribbons.
     // What each key does lives in the web docs / cheatsheet (hausfold.co), not
@@ -889,21 +889,25 @@ fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usi
     // run_bind_key / action_key), so a rebind re-letters the block; only the
     // labels and the Floating/Focus/Resize hints were dropped versus upstream.
     // There is no `a` launcher here. A lane is a zmx session in its own window,
-    // so its chord is ⌃⌘A in AeroSpace and zellij binds nothing on `a` — see
-    // zellij/config.kdl. The resident ⌃⌥⇧A agent is deliberately not hinted
-    // either: it is one-per-tab by convention, not a launcher.
+    // so its chord is ⌘↵ on pounce's Ghostty-scoped tap and zellij binds
+    // nothing on `a` — see zellij/config.kdl. The resident ⌃⌥⇧A agent is
+    // deliberately not hinted either: it is one-per-tab by convention, not a
+    // launcher.
     let peek_key = run_bind_key(binds, "peek.sh", None);
     let links_key = run_bind_key(binds, "pounce", Some("cmd:links"));
     // Find: bound twice (Super f = this pane, Super Shift f = every pane), so
     // run_bind_key's own "unshifted wins" rule already lands the hint on `f`.
     let find_key = run_bind_key(binds, "find.sh", None);
 
-    // Fullscreen: the single-action ToggleFocusFullscreen bind (Super Enter —
-    // it moved off Super f when ⌘F went back to meaning find). Resolved from
-    // the live binds, so this hint re-letters itself and needed no change.
-    // action_key demands an exact-length action match, so only a bind whose
-    // whole action list is this one element matches — a multi-action bind that
-    // merely starts with ToggleFocusFullscreen wouldn't.
+    // Fullscreen: the single-action ToggleFocusFullscreen bind. Nothing binds
+    // it since 2026-08-18 — ⌘↵ became the lane chord and zoom is the mouse's
+    // (⌃click / right-click) — so this resolves to nothing and the ⏎ simply
+    // drops out of the block, which is the hint block working as designed. Left
+    // in place because it costs one lookup and re-letters itself the moment a
+    // keyboard zoom comes back. action_key demands an exact-length action
+    // match, so only a bind whose whole action list is this one element
+    // matches — a multi-action bind that merely starts with
+    // ToggleFocusFullscreen wouldn't.
     let fullscreen_key = action_key(binds, &[Action::ToggleFocusFullscreen])
         .first()
         .map(|k| vec![k.clone()])
@@ -963,7 +967,7 @@ fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usi
     ];
     let common_modifiers = get_common_modifiers(ordered.iter().flatten().collect());
 
-    // One display char per launcher, common modifier stripped so only `a`/`p`/…
+    // One display char per launcher, common modifier stripped so only `n`/`t`/…
     // shows inside the bracket group.
     let mut key_chars: Vec<String> = ordered
         .iter()
@@ -988,9 +992,9 @@ fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usi
     key_chars.sort_by_key(|k| k.to_lowercase());
     let joined = key_chars.join(",");
 
-    // ` <mods> + <a,f,l,p,t,y,⏎> ` as one opaque, non-ribbon block; the bracket
+    // ` <mods> + <f,l,n,t,y> ` as one opaque, non-ribbon block; the bracket
     // group is painted in the emphasis colour (index 0). On a pane too thin for
-    // the modifier prefix, fall back to a bare ` <a,f,l,p,t,y,⏎> `.
+    // the modifier prefix, fall back to a bare ` <f,l,n,t,y> `.
     let render_block = |with_modifier: bool| -> LinePart {
         let prefix = if with_modifier && !common_modifiers.is_empty() {
             format!(

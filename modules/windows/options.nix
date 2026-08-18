@@ -8,55 +8,8 @@
 # all three so a chord and the caption documenting it can't drift.
 { lib, ... }:
 
-let
-  contrib = import ../lib/contrib.nix { inherit lib; };
-in
-
 {
   options.haus = {
-    # ---- the Windows room's extension points ----------------------------------
-    # See modules/lib/contrib.nix for the contract. The terminal room is today's
-    # only writer; windows decides whether and how the chord is drawn.
-    _contrib.windows.agents = contrib.mkExtensionPoint {
-      description = ''
-        A global "start an agent here" chord.
-
-        The terminal room turns this on wherever agent lanes exist. A lane is a
-        WINDOW rather than a pane, so zellij can't own the chord, for two
-        reasons: its only way to run a command is to open a pane, so the bind
-        flashed a pane it immediately tore down; and a lane's own window has no
-        zellij in it, so the chord reached exactly the windows it was least
-        useful in. Ghostty can't take it either — it has no keybind action that
-        runs a command.
-
-        So it comes here, to the one layer that sees every window. Windows binds
-        it and puts it on the cheatsheet; the terminal room supplies the script,
-        which is the half that knows how to work out which repo the focused
-        window is looking at.
-      '';
-      options = {
-        enable = lib.mkOption {
-          type = lib.types.bool;
-          default = false;
-          description = "Whether windows should bind the agent-spawn chord.";
-        };
-        spawn = lib.mkOption {
-          type = lib.types.str;
-          default = "";
-          description = ''
-            Path to the script the chord runs, `@HOME@`-relative — windows
-            resolves that token when it renders the binding table, the same way
-            every other command in `wm-bindings.nix` is written.
-
-            Under the home directory rather than in the store on purpose: the
-            bind lands in `aerospace.toml`, which AeroSpace re-reads on its own
-            schedule, so a store path from a rebuild ago would outlive the file
-            it names.
-          '';
-        };
-      };
-    };
-
     # core + terminal are the floor and have no switch (system, shell). Of the
     # rooms you can SEE, all six have one — windows, bar, pounce, perch, focus,
     # security — and turning one off drops its packages, agents and config

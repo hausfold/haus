@@ -63,7 +63,7 @@ in
       description = ''
         Which coding-agent clients to install. `claude` is Claude Code, `codex`
         is OpenAI Codex, `opencode` is OpenCode, `jcode` is
-        [jcode](https://jcode.sh). The ⌃⌘A lane chord starts whichever one
+        [jcode](https://jcode.sh). The ⌘↵ lane chord starts whichever one
         `ai.default` names, all of them through `holt new`.
 
         A list rather than one bool per client, matching `developer.languages`
@@ -122,7 +122,7 @@ in
       default = "claude";
       example = "codex";
       description = ''
-        The coding agent started by the ⌃⌘A lane chord, by Pounce's **Spawn
+        The coding agent started by the ⌘↵ lane chord, by Pounce's **Spawn
         Agent** command, by the ⌃⌥⇧A resident bind and the `c` shell alias, and
         used to reopen worktrees with no client recorded yet. Each spawned worktree records its
         own client, so changing this affects new work but never reopens an
@@ -152,7 +152,7 @@ in
         a first message — no positional prompt, no `--prompt`, no stdin — so the
         task typed into Pounce's **Spawn Agent** box cannot be handed to it. That
         command says so and opens the lane empty rather than dropping the text
-        silently. ⌘A, which never carries a prompt, is unaffected.
+        silently. ⌘↵, which never carries a prompt, is unaffected.
       '';
     };
 

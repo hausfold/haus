@@ -87,16 +87,22 @@ rec {
       # With no client installed these would open a pane that dies on `command
       # not found`, so the card goes quiet rather than teaching a dead key.
       show = agentsEnabled;
-      # The lane chord — ⌃⌘A — is NOT taught here. A lane is a window, so the
-      # bind lives in AeroSpace and the WINDOWS table teaches it
-      # (../windows/wm-bindings.nix, fed the same contribution). The assertion
-      # in ./default.nix compares this table against the RENDERED config.kdl in
-      # both directions, so a row taught here and bound nowhere fails the build
-      # just as loudly as the reverse.
+      # The lane chord — ⌘↵ since 2026-08-18, ⌃⌘A in AeroSpace before that — IS
+      # taught here, but as a display-only row: it is a pounce hotkey scoped to
+      # Ghostty (modules/launcher's appHotkeys → `cmd:lane-here`), so there is
+      # no kdl bind under it and it must carry no `chords`. The assertion in
+      # ./default.nix compares this table's chords against the RENDERED
+      # config.kdl in both directions, and a row claiming "Super Enter" here
+      # would demand a zellij bind that pounce eats before zellij can see it.
+      # Same shape as the mouse rows on Tips, for the same reason.
       #
-      # ⌃⌥⇧A stays: the resident agent works in THIS checkout and is a pane by
-      # definition, so it has nothing to move to.
+      # ⌃⌥⇧A stays a real chord: the resident agent works in THIS checkout and
+      # is a pane by definition, so it has nothing to move to.
       items = [
+        {
+          key = "⌘ ↵";
+          action = "New agent lane in this window's repo";
+        }
         {
           chords = [ "Ctrl Alt Shift a" ];
           action = "Agent in THIS checkout — one per tab";
@@ -106,7 +112,7 @@ rec {
     {
       title = "Terminal · Panes & Tabs";
       # Two rows describe POUNCE's behaviour, not the kdl bind under them:
-      # pounce consumes ⌘P/⌘⇧P and ⌃⇥/⌃⇧⇥ while Ghostty is frontmost
+      # pounce consumes ⌘N/⌘⇧N and ⌃⇥/⌃⇧⇥ while Ghostty is frontmost
       # (Ghostty-scoped, via its event tap), so the kdl binds below them never
       # see the keys — the binds stay in config.kdl, because the assertion
       # demands bind↔row parity, but what the MACHINE does is the pounce
@@ -114,8 +120,8 @@ rec {
       items = [
         {
           chords = [
-            "Super p"
-            "Super Shift p"
+            "Super n"
+            "Super Shift n"
           ];
           action = "New shell window — hop out of a worktree / stay";
         }
@@ -136,10 +142,6 @@ rec {
             "Ctrl Shift Tab"
           ];
           action = "Walk lane pages by recency, back / forward";
-        }
-        {
-          chords = [ "Super Enter" ];
-          action = "Fullscreen this pane, again to drop back";
         }
         {
           chords = [
@@ -206,7 +208,7 @@ rec {
         }
         {
           key = "⌃ Click pane";
-          action = "Zooms it fullscreen — ⌘ ⏎ without the reach";
+          action = "Zooms it fullscreen — zoom has no chord now";
         }
         {
           key = "Drag a selection";

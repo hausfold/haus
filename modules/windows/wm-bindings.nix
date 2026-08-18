@@ -29,17 +29,17 @@
 #
 # Each section: title (cheatsheet heading), optional mode ("main" default, or
 # "service" → rendered under [mode.service.binding]).
+# There is no agent-spawn chord in this table, and there hasn't been since
+# 2026-08-18. It was ⌃⌘A here — the one layer that sees every window — until the
+# chord became ⌘↵, which cannot be global (it is *send* in half the Mac) and so
+# rides pounce's Ghostty-scoped tap instead: modules/launcher's appHotkeys,
+# targeting `cmd:lane-here`. The extension point windows declared for it
+# (`haus._contrib.windows.agents`) went with it; the terminal room still owns
+# the script, and lanes still need this room for `aerospace
+# move-node-to-workspace` (see terminal's own assertion).
 {
   lib,
   k,
-  # haus._contrib.windows.agents — the terminal room's "a lane is a window now"
-  # fact, as `{ enable, spawn }`. See modules/windows/options.nix for why this
-  # chord can live neither in zellij nor in Ghostty. Defaulted off so a caller
-  # that predates the seam still evaluates.
-  agents ? {
-    enable = false;
-    spawn = "";
-  },
 }:
 
 let
@@ -195,43 +195,20 @@ lib.optionals hasNav [
     ];
   }
 ]
-++
-  lib.optionals agents.enable [
-    {
-      # ⌃⌘A, and not ⌘A. ⌘A only ever reached zellij because ghostty/config
-      # unbinds cmd+a and lets it fall through to the terminal app — a global
-      # bind on it would take select-all away from every other application on
-      # the machine, which is not a trade worth one keystroke. ⌃⌘A is free in
-      # ⌘-land, and leaves ⌃A alone as beginning-of-line inside a terminal.
-      #
-      # It is a main-mode chord rather than a leader letter because starting an
-      # agent is the single most-pressed action in this setup, and because the
-      # leader's `a` is already an app.
-      title = "Agents";
-      items = [
-        {
-          keys = "⌃ ⌘ A";
-          action = "New agent in its own worktree + window";
-          binds.ctrl-cmd-a = "exec-and-forget ${agents.spawn}";
-        }
-      ];
-    }
-  ]
-++
-  lib.optionals (k.palette != null) [
-    {
-      title = "System";
-      items = [
-        {
-          # Display-only: the pounce daemon registers this hotkey itself (in-process
-          # Carbon hotkey, see modules/launcher). Binding it here too made AeroSpace
-          # win the race and spawn the palette — so every palette command ran
-          # under AEROSPACE's TCC identity, where e.g. CoreBluetooth aborts
-          # (AeroSpace.app has no Bluetooth usage description). Commands must
-          # spawn from the daemon so grants land on the signed Pounce.app.
-          keys = k.palette.glyph;
-          action = "Command Palette";
-        }
-      ];
-    }
-  ]
+++ lib.optionals (k.palette != null) [
+  {
+    title = "System";
+    items = [
+      {
+        # Display-only: the pounce daemon registers this hotkey itself (in-process
+        # Carbon hotkey, see modules/launcher). Binding it here too made AeroSpace
+        # win the race and spawn the palette — so every palette command ran
+        # under AEROSPACE's TCC identity, where e.g. CoreBluetooth aborts
+        # (AeroSpace.app has no Bluetooth usage description). Commands must
+        # spawn from the daemon so grants land on the signed Pounce.app.
+        keys = k.palette.glyph;
+        action = "Command Palette";
+      }
+    ];
+  }
+]

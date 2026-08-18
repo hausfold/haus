@@ -1,7 +1,7 @@
 #!/bin/bash
-# lane-spawn.sh — "start an agent here", bound at the WINDOW layer.
+# lane-spawn.sh — "start an agent here", bound OUTSIDE the multiplexer.
 #
-# This is the other half of the lane chord ⌃⌘A. lane-open.sh
+# This is the other half of the lane chord ⌘↵. lane-open.sh
 # answers holt's open/resume seam (what a lane looks like once it exists); this
 # answers the chord (which repo a new lane is FOR).
 #
@@ -20,26 +20,33 @@
 # take over either: `ghostty +list-actions` on 1.3.1 has 85 actions and not one
 # of them runs a command.
 #
-# So the chord belongs to the only layer that sees every window: AeroSpace,
-# which already owns the global chord table (modules/windows/wm-bindings.nix)
-# and already tiles these windows. Same conclusion notes/zellij-exit.md reached
-# for the whole keymap — "chords move to AeroSpace, not to Ghostty" — arrived at
-# early, for the one chord that needed it first.
+# ── who holds the chord, and why it changed ──────────────────────────────────
+# It was AeroSpace's ⌃⌘A: the one layer that sees every window, so the chord
+# worked over a browser too. On 2026-08-18 it became ⌘↵ — the guessable key for
+# "go" — and that is exactly the key it cannot hold globally, because ⌘↵ means
+# *send* in Slack, Claude, Linear and half the Mac. So it moved to pounce's
+# app-scoped tap (modules/launcher, appHotkeys → `cmd:lane-here` → this file),
+# consumed only while Ghostty is frontmost and passed through untouched
+# everywhere else. That still covers every window the chord is really pressed
+# from — a zellij pane and a lane's own window are both Ghostty — and the price,
+# paid knowingly, is that a lane can no longer be started from a browser. The
+# palette (Spawn Agent, New Agent Lane) is the answer there.
 #
-# ── the cost of that: no cwd ─────────────────────────────────────────────────
-# A zellij bind inherited the focused pane's directory for free. A window-layer
-# chord has to ask; lane-cwd.sh (extracted so ⌘P's shell-here shares it) reads
-# the focused window's title and asks zmx or zellij, whichever is behind it.
-# Anything else — a browser, Finder, a plain shell — has no repo to speak of and
-# falls back, because "⌃⌘A from anywhere" is worth more than a refusal.
+# ── the cost of living outside the multiplexer: no cwd ───────────────────────
+# A zellij bind inherited the focused pane's directory for free. A chord bound
+# above it has to ask; lane-cwd.sh (extracted so ⌘N's shell-here shares it)
+# reads the focused window's title and asks zmx or zellij, whichever is behind
+# it. Anything else — Finder, a plain shell — has no repo to speak of and falls
+# back, because a lane in $HOME beats a refusal.
 set -u
 
-# Bound through AeroSpace's exec-and-forget, which runs with a bare environment.
-# Same prelude as lane-open.sh, for the same reason.
+# Run from the pounce daemon (and formerly AeroSpace's exec-and-forget), neither
+# of which carries a user PATH. Same prelude as lane-open.sh, for the same
+# reason.
 export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/bin:/bin${PATH:+:$PATH}"
 
 # ── saying no out loud ───────────────────────────────────────────────────────
-# This runs under AeroSpace's exec-and-forget: no terminal, no stdout anyone
+# This runs under the pounce daemon: no terminal, no stdout anyone
 # will ever see. So `holt new` refusing ("not inside a git repo") is invisible,
 # and a global chord that silently does nothing is worse than one that isn't
 # bound — you press it again, harder, and conclude the rebuild didn't land.
@@ -68,7 +75,7 @@ cd "$cwd" || {
 # check is git's own rather than a .git test, so a worktree, a submodule and a
 # plain checkout all pass exactly as holt would judge them.
 if ! git rev-parse --git-dir >/dev/null 2>&1; then
-  say "$(basename "$cwd") isn't a git repo — focus a window in one, then press ⌃⌘A."
+  say "$(basename "$cwd") isn't a git repo — focus a window in one, then press ⌘↵."
   exit 0
 fi
 

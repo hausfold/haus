@@ -3,9 +3,9 @@
 # rooted at the focused pane's cwd.
 #
 #   peek.sh          Super y       — hop out of an agent worktree to the repo's
-#                                    main checkout (the Super p convention)
+#                                    main checkout (the Super n convention)
 #   peek.sh --stay   Super Shift y — stay exactly where the pane is, worktree
-#                                    or not (the Super Shift p convention)
+#                                    or not (the Super Shift n convention)
 #
 # Why a separate Ghostty instance instead of a zellij floating pane: zellij's
 # VTE parser strips kitty-graphics APC sequences, so yazi inside zellij can
@@ -35,7 +35,7 @@ FLOAT_TERM="$HOME/.config/zellij/float-term.sh"
 WINDOW_TITLE="quick-terminal-peek"
 
 # --stay (Super Shift y) is the no-hop sibling of the plain bind, exactly as
-# Super Shift p is to Super p: sometimes you DO want to browse the agent's
+# Super Shift n is to Super n: sometimes you DO want to browse the agent's
 # throwaway checkout rather than the repo it branched from. It rides through to
 # peek-run.sh as well, so an Enter-on-a-directory tab opened from a stayed peek
 # doesn't hop back out of the worktree the moment its shell starts.

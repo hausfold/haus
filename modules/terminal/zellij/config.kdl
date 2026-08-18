@@ -81,10 +81,11 @@ keybinds {
         // new` returned. Worse, ⌘A only ever reached zellij because
         // ghostty/config unbound cmd+a, and a lane's own window has no zellij
         // in it: the chord would work everywhere except the windows you would
-        // most want to press it from. So it lives in AeroSpace as ⌃⌘A
-        // (modules/windows/wm-bindings.nix, running lanes/lane-spawn.sh), the
-        // one layer that sees every window. Same conclusion
-        // notes/zellij-exit.md reaches for the whole keymap.
+        // most want to press it from. So it lives OUTSIDE the multiplexer: it
+        // was AeroSpace's ⌃⌘A, and since 2026-08-18 it is ⌘↵ on pounce's
+        // Ghostty-scoped tap (modules/launcher, `cmd:lane-here` → the same
+        // lanes/lane-spawn.sh). Same conclusion notes/zellij-exit.md reaches
+        // for the whole keymap.
         //
         // Ctrl Alt Shift a — the resident agent: works IN this checkout, on
         // whatever branch you're looking at. At most one per tab, by
@@ -92,23 +93,23 @@ keybinds {
         // @AGENT_HERE@ is haus.ai.default's client, plain.
         bind "Ctrl Alt Shift a" { Run @AGENT_HERE@; }
 @BENCH_LANE_BIND@
-        // Super p — New pane, inheriting the focused pane's cwd — except next
+        // Super n — New pane, inheriting the focused pane's cwd — except next
         //            to a claude --worktree pane: terminal's zshrc notices a
         //            fresh shell starting inside ~/.cache/claude-worktrees and
         //            hops it to the repo's main checkout instead (the agent's
         //            throwaway dir is no place for a human shell).
-        bind "Super p" { NewPane; }
-        // Super Shift p — New pane that STAYS in the focused pane's cwd, hop and
-        //            all suppressed: the no-hop sibling of Super p, for when you
+        bind "Super n" { NewPane; }
+        // Super Shift n — New pane that STAYS in the focused pane's cwd, hop and
+        //            all suppressed: the no-hop sibling of Super n, for when you
         //            DO want a shell inside an agent's worktree checkout. Runs
         //            the login shell with HAUS_STAY=1 set, which terminal's zshrc
         //            reads to skip the ~/.cache/claude-worktrees → main-checkout
         //            hop (see modules/terminal default.nix). Reaches zellij because
-        //            ghostty/config unbinds cmd+shift+p (its command palette).
-        bind "Super Shift p" { Run "sh" "-c" "HAUS_STAY=1 exec \"$SHELL\""; }
+        //            ghostty/config unbinds cmd+shift+n.
+        bind "Super Shift n" { Run "sh" "-c" "HAUS_STAY=1 exec \"$SHELL\""; }
 
         // Super w — Close the focused pane, without unlocking into pane mode
-        //            first. The missing counterpart to Super p: until now every
+        //            first. The missing counterpart to Super n: until now every
         //            way out of a pane was either the running program's
         //            business (^C, ^D) or a two-step trip through a submode, so
         //            a pane wrapping an agent or a wedged process had no
@@ -143,22 +144,18 @@ keybinds {
             }
         }
 
-        // Super Enter — toggle the focused pane fullscreen. Zoom one pane to
-        //            fill the tab, hit it again to drop back into the tiled
-        //            layout. This used to live on Super f; it moved so that
-        //            ⌘F could go back to meaning *find* like it does in every
-        //            other app on the machine. ⌘⏎ is the zoom key in every
-        //            tiling WM worth the name (and windows's own ⌥F is
-        //            untouched), so the muscle memory already exists.
+        // Pane fullscreen has NO chord here any more. It was Super Enter (and
+        // Super f before that, until ⌘F went back to meaning find), and ⌘↵ went
+        // to the lane chord on 2026-08-18 — a pounce hotkey scoped to Ghostty,
+        // so it is consumed before this file ever sees it and a bind here would
+        // be a bind that never fires while teaching that it does.
         //
-        //            Ctrl+click inside any pane body does the same thing, for
-        //            when the hand is already on the trackpad. That one is NOT
-        //            bindable here — zellij's keybinds are keyboard-only and
-        //            plugins get no mouse API — so it lives in
-        //            ./patches/ctrl-click-fullscreen.patch. If it ever stops
-        //            working after a nixpkgs bump, that patch is where to look;
-        //            this bind is unaffected either way.
-        bind "Super Enter" { ToggleFocusFullscreen; }
+        // Zoom is the mouse's now, and always was in practice: Ctrl+click
+        // inside any pane body, plus right-click where
+        // haus.terminal.rightClickFullscreen is on. Neither is bindable here —
+        // zellij's keybinds are keyboard-only and plugins get no mouse API — so
+        // they live in ./patches/ctrl-click-fullscreen.patch. If zoom ever
+        // stops working after a nixpkgs bump, that patch is where to look.
 
         // Super f       — Find in this pane.
         // Super Shift f — Find across every pane in the session.
@@ -223,7 +220,7 @@ keybinds {
         //
         // Super y  — Peek: file browser rooted at the focused pane's cwd — but
         //            next to a claude --worktree pane it opens at the repo's
-        //            MAIN checkout instead, the same hop Super p does (the
+        //            MAIN checkout instead, the same hop Super n does (the
         //            agent's throwaway dir is no place to go browsing). The
         //            panel covers the summoning terminal window exactly, so it
         //            reads as that window switching modes. Live markdown/code
@@ -242,7 +239,7 @@ keybinds {
         // Super Shift y — Peek that STAYS in the focused pane's cwd, hop and all
         //            suppressed: the no-hop sibling of Super y, for when you DO
         //            want to browse an agent's worktree checkout. Exactly the
-        //            Super p / Super Shift p relationship, one letter over.
+        //            Super n / Super Shift n relationship, one letter over.
         //            Reaches zellij because ghostty/config unbinds cmd+shift+y.
         bind "Super Shift y" {
             Run "@HOME@/.config/zellij/peek.sh" "--stay" {
@@ -311,7 +308,7 @@ keybinds {
     // These two are safe to steal from the pane's app in a way the rest of the
     // Alt row is NOT: Alt h/j/k/l and Alt arrows are readline/vim word-motion
     // keys, so they stay locked-mode-inert on purpose. Re-picking a layout is a
-    // workspace-level act, like Super p / Super t — the same reason those live
+    // workspace-level act, like Super n / Super t — the same reason those live
     // in `shared`.
     locked {
         bind "Alt [" { PreviousSwapLayout; }
