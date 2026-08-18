@@ -21,13 +21,13 @@ in
       description = ''
         A global "start an agent here" chord.
 
-        The terminal room turns this on when a lane is a WINDOW rather than a
-        pane (`haus.terminal.lanes.backend = "zmx"`). At that point zellij can
-        no longer own the chord, for two reasons: its only way to run a command
-        is to open a pane, so the bind flashed a pane it immediately tore down;
-        and a lane's own window has no zellij in it, so the chord reached
-        exactly the windows it was least useful in. Ghostty can't take it
-        either — it has no keybind action that runs a command.
+        The terminal room turns this on wherever agent lanes exist. A lane is a
+        WINDOW rather than a pane, so zellij can't own the chord, for two
+        reasons: its only way to run a command is to open a pane, so the bind
+        flashed a pane it immediately tore down; and a lane's own window has no
+        zellij in it, so the chord reached exactly the windows it was least
+        useful in. Ghostty can't take it either — it has no keybind action that
+        runs a command.
 
         So it comes here, to the one layer that sees every window. Windows binds
         it and puts it on the cheatsheet; the terminal room supplies the script,

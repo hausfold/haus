@@ -237,9 +237,7 @@ let
   # Both lists are announced into the built script, because the reader that
   # matters most (`haus plan`) never runs it.
   fdaGuardedDomains = builtins.filter (
-    d:
-    (reachOf d).guardedBy or null != null
-    && !(d == "com.apple.universalaccess" && universalaccessSet != [ ])
+    d: (reachOf d).guardedBy or null != null && !(d == "com.apple.universalaccess" && universalaccessSet != [ ])
   ) needsFdaDomains;
   fdaUnguardedDomains = builtins.filter (d: !(builtins.elem d fdaGuardedDomains)) needsFdaDomains;
 
@@ -870,7 +868,7 @@ in
     ++ lib.optionals config.haus.ai.enable [
       # holt — agent worktrees, its own product now (hausfold/holt, taken as
       # a flake input). Every caller the rice owns is on it: terminal's
-      # ⌘A runs `holt new`, pounce's Spawn Agent goes through `holt spawn`, and
+      # ⌃⌘A runs `holt new`, pounce's Spawn Agent goes through `holt spawn`, and
       # the Claude Code WorktreeCreate/WorktreeRemove hooks — which terminal
       # DECLARES into ~/.claude/settings.json and re-asserts on every rebuild
       # (see modules/terminal, home.activation.claudeCodeSettings) — point at

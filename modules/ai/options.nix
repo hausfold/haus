@@ -37,7 +37,7 @@ in
 
         On, this room brings its clients, `holt` and the lifecycle wiring on its
         own. What it adds to OTHER rooms it adds only when they are present: the
-        ⌘A terminal binds and the `c` alias arrive with the terminal, the
+        ⌃⌥⇧A terminal bind and the `c` alias arrive with the terminal, the
         `agents` pill with the bar, the agent commands with the launcher. None
         of those rooms is switched on by turning this one on.
 
@@ -63,10 +63,8 @@ in
       description = ''
         Which coding-agent clients to install. `claude` is Claude Code, `codex`
         is OpenAI Codex, `opencode` is OpenCode, `jcode` is
-        [jcode](https://jcode.sh). The ⌘A terminal binding starts
-        whichever one `ai.default` names — Claude Code through its own
-        `--worktree` hook, the others through `holt new`, and every one of them
-        through `holt new` under `haus.terminal.lanes.backend = "zmx"`.
+        [jcode](https://jcode.sh). The ⌃⌘A lane chord starts whichever one
+        `ai.default` names, all of them through `holt new`.
 
         A list rather than one bool per client, matching `developer.languages`
         — the fourth client, when it came, didn't change this option's shape.
@@ -124,21 +122,22 @@ in
       default = "claude";
       example = "codex";
       description = ''
-        The coding agent started by Pounce's **Spawn Agent** command, by the
-        ⌘A / Super-a zellij binds and the `c` shell alias, and used to reopen
-        worktrees with no client recorded yet. Each spawned worktree records its
+        The coding agent started by the ⌃⌘A lane chord, by Pounce's **Spawn
+        Agent** command, by the ⌃⌥⇧A resident bind and the `c` shell alias, and
+        used to reopen worktrees with no client recorded yet. Each spawned worktree records its
         own client, so changing this affects new work but never reopens an
         existing Codex or OpenCode task in Claude.
 
         Must be one of `ai.clients` — see there.
 
-        Only `claude` can make its own worktree (its native `--worktree` flag,
-        which fires `holt hook create`); for the others ⌘A runs
-        `holt new` instead, producing the same checkout, branch and registry
-        entry from the outside. `haus.terminal.lanes.backend = "zmx"` puts
-        `claude` on that same outside path, because the client's own flag never
-        reaches the hook the zmx backend is wired into — so on a zmx machine
-        this option chooses the client and nothing else about how a lane opens.
+        This option chooses the client and nothing else about how a lane opens.
+        `claude` can make its own worktree (its native `--worktree` flag, which
+        fires `holt hook create`), but haus does not use it: that flag runs the
+        client in the pane it was launched from and never asks holt's `[hooks]
+        open`, which is the seam a lane's own window arrives through. So every
+        client goes through `holt new`, producing the same checkout, branch and
+        registry entry from the outside — and the lane stays resumable, because
+        Claude keys a transcript to the directory it started in.
         Resuming follows the client too: `codex` reopens
         its cwd-filtered `codex resume` picker, `opencode` continues its latest
         session for that cwd, `jcode` opens its own session picker. They share one

@@ -168,9 +168,9 @@ let
   #             when it REGISTERS the binding, so switching modes needs the
   #             daemon to re-register. Flipping remap → tap also has to reach a
   #             running daemon, since the daemon is what gives the Fn key back.
-  #   lanesZmx  whether the appHotkeys/pages blocks are written at all (they
-  #             follow haus.terminal.lanes.backend): pounce arms both taps once
-  #             at startup, so flipping the backend has to bounce the daemon or
+  #   lanes     whether the appHotkeys/pages blocks are written at all (they
+  #             follow the AI room's switch): pounce arms both taps once at
+  #             startup, so turning lanes on or off has to bounce the daemon or
   #             ⌘P/⌃⇥ keep last boot's meaning until the next log-in.
   #
   # Hashed rather than inlined so the marker is one short line whatever the
@@ -181,7 +181,7 @@ let
       builtins.toJSON {
         autoQuit = config.haus.launcher.autoQuit;
         fnKey = config.haus.launcher.fnKey;
-        lanesZmx = lanesAreWindows;
+        lanes = lanesEnabled;
       }
     )
   }";
@@ -256,11 +256,12 @@ let
     exec "$HOME/.local/bin/focus" scene off
   '';
 
-  # The lane commands ride haus.terminal.lanes.backend: they only make sense
-  # where a lane is a window. ONE list, read by both the install below and the
-  # cheatsheet rows above, so a row can't survive a command that wasn't
-  # installed — the same rule the focus.sh filter and the scene rows follow.
-  lanesAreWindows = config.haus.terminal.lanes.backend == "zmx";
+  # The lane commands ride the terminal room's agent switch: without lanes there
+  # is nothing for the picker to pick or for ⌘P to spawn a lane-aware shell
+  # beside. ONE list, read by both the install below and the cheatsheet rows
+  # above, so a row can't survive a command that wasn't installed — the same
+  # rule the focus.sh filter and the scene rows follow.
+  lanesEnabled = termAgentContrib.enable;
   laneCommands = [
     "lanes.sh"
     "shell-here.sh"
@@ -280,10 +281,9 @@ let
     # nested so the catalog cannot appear in the launcher and be run as Bash.
     install -Dm444 ${popularAppsCatalog} $out/data/popular-apps.tsv
     ${lib.optionalString (!config.haus.focus.enable) "rm $out/focus.sh"}
-    # The lane picker and the ⌘P/⌘⇧P window spawns only make sense where a lane
-    # is a window: under the zellij lane backend those chords are zellij binds
-    # and the picker's `zmx ls` half doesn't exist, so the commands go too.
-    ${lib.optionalString (!lanesAreWindows)
+    # The lane picker and the ⌘P/⌘⇧P window spawns need lanes to exist: with
+    # the agent clients off there is nothing for `zmx ls` to list.
+    ${lib.optionalString (!lanesEnabled)
       "rm ${lib.concatMapStringsSep " " (f: "$out/${f}") laneCommands}"
     }
     # The scene commands (see the let-block above). `scene-` can't collide
@@ -458,7 +458,6 @@ let
     ghDashEnabled = config.haus.terminal.ghDash.enable;
     benchLaneEnabled = config.haus.developer.enable;
     rightClickFullscreenEnabled = config.haus.terminal.rightClickFullscreen;
-    laneBackend = config.haus.terminal.lanes.backend;
   };
   termPages = termBindings.pages;
 
@@ -505,9 +504,7 @@ let
       })
       (
         lib.filter
-          (
-            f: (f != "focus.sh" || config.haus.focus.enable) && (lanesAreWindows || !(lib.elem f laneCommands))
-          )
+          (f: (f != "focus.sh" || config.haus.focus.enable) && (lanesEnabled || !(lib.elem f laneCommands)))
           (
             lib.naturalSort (
               lib.attrNames (
@@ -1178,7 +1175,7 @@ lib.mkIf config.haus.launcher.enable {
             autoPaste = true; # synthesize ⌘V into the prior app; needs Accessibility
           };
         }
-        # The zmx lane backend's window-layer chords, both riding the same
+        # The lane window-layer chords, both riding the same
         # consuming event tap the ⌘⇥ switcher already runs (and the same
         # Accessibility gate — ungranted installs simply keep the chords' stock
         # meanings). Both are APP-SCOPED to Ghostty: consumed only while it is
@@ -1186,7 +1183,7 @@ lib.mkIf config.haus.launcher.enable {
         # print and ⌃⇥ stays next-tab in every other app. An older pounce that
         # predates the keys ignores both blocks — the same lenient parse as
         # `themeLight`.
-        // lib.optionalAttrs lanesAreWindows {
+        // lib.optionalAttrs lanesEnabled {
           # ⌘P / ⌘⇧P — the zellij NewPane chords' heirs: a shell WINDOW in the
           # focused window's directory (cmd:shell-here[-stay], this rice's own
           # command scripts). Targets are pounce's one dispatch grammar, so a

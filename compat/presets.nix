@@ -68,6 +68,11 @@ in
     launcher.enable = false;
     tour.enable = false;
 
+    # Agent lanes are windows, so they need the tiler; the successor desktop
+    # (desktops/minimal.nix) leaves the AI room off for the same reason a
+    # machine with no windows room has nowhere to put a lane.
+    ai.enable = false;
+
     developer.enable = true;
   };
 
@@ -83,6 +88,10 @@ in
     ];
 
     windows.enable = false;
+
+    # Same as minimal above, and the same as desktops/everyday.nix: no tiler,
+    # so no lanes.
+    ai.enable = false;
 
     developer.enable = false;
   };

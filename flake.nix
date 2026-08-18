@@ -59,8 +59,8 @@
 
     # Terminal session persistence — attach/detach a PTY without a multiplexer,
     # because "windows, tabs and splits are the window manager's job" and this
-    # rice already has one (windows). It is the backing store for
-    # `haus.terminal.lanes.backend = "zmx"`: a lane's agent lives in a zmx
+    # rice already has one (windows). It is the backing store for an agent
+    # LANE: a lane's agent lives in a zmx
     # session, and a Ghostty window is only ever a view onto it. NO overlay of
     # its own — the flake exposes `packages.<system>.zmx` and nothing else — so
     # the builder below lifts it into pkgs by hand.

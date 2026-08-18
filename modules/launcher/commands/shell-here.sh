@@ -3,11 +3,11 @@
 # pounce: description = Shell window in the focused window's directory
 # pounce: icon = terminal
 
-# The zmx-backend heir of Super p. Under the zellij backend ⌘P is a zellij
-# NewPane and this script isn't installed (modules/launcher strips it, same as
-# focus.sh); under haus.terminal.lanes.backend = "zmx" pounce's Ghostty-scoped
-# ⌘P fires `cmd:shell-here` and the spawned thing changes from pane to window —
-# everything else about the chord survives:
+# The heir of zellij's Super p. Pounce's Ghostty-scoped ⌘P fires
+# `cmd:shell-here` and the spawned thing is a window rather than a pane —
+# everything else about the chord survives (with the agent clients off this
+# script isn't installed at all, same as focus.sh, and ⌘P falls back to
+# zellij's NewPane):
 #
 #   · the cwd is the focused window's, asked of zmx or zellij by lane-cwd.sh
 #     (the same resolver ⌃⌘A's lane-spawn.sh uses)
@@ -37,7 +37,7 @@ stay=""
 say() { osascript -e "display notification \"$1\" with title \"haus · shell here\"" >/dev/null 2>&1; }
 
 # The resolver is installed by the terminal room's agents block; without it
-# (exotic: zmx backend with the AI room off) fall back to $HOME rather than
+# (which the laneCommands filter should have made unreachable) fall back to $HOME rather than
 # dying on a missing file.
 cwd=""
 [ -x "$HOME/.config/haus/lanes/lane-cwd.sh" ] && cwd="$("$HOME/.config/haus/lanes/lane-cwd.sh")"

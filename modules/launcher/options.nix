@@ -18,8 +18,8 @@ in
         The AI room's palette surface: the client **Spawn Agent** starts, and the
         Agent Worktrees cards on the cheatsheet's Tips page.
 
-        Off, the palette carries no agent rows — the same gate the ⌘A card on the
-        Keys page already used, named once here instead of re-derived from
+        Off, the palette carries no agent rows — the same gate the agent cards
+        on the Keys page already used, named once here instead of re-derived from
         `haus.ai.clients` in three separate places.
       '';
       options = {

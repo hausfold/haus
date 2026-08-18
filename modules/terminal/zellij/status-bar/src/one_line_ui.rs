@@ -888,18 +888,10 @@ fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usi
     // spelled out on the bar. Keys are still resolved from the live binds (via
     // run_bind_key / action_key), so a rebind re-letters the block; only the
     // labels and the Floating/Focus/Resize hints were dropped versus upstream.
-    // The `a` launcher is "start an agent", not "start Claude": terminal renders
-    // that bind from haus.ai.default AND haus.terminal.lanes.backend, so it is
-    // `claude --worktree` only on a Claude machine still on the zellij lane
-    // backend, and `holt new` on a Codex/Opencode one or on any machine that
-    // chose zmx. Try each spelling and take the first that resolves — matching
-    // only the Claude one used to blank the whole hint block's first key the
-    // moment the default changed.
-    let agent_key = [("claude", Some("--worktree")), ("holt", Some("new"))]
-        .into_iter()
-        .map(|(cmd, arg)| run_bind_key(binds, cmd, arg))
-        .find(|keys| !keys.is_empty())
-        .unwrap_or_default();
+    // There is no `a` launcher here. A lane is a zmx session in its own window,
+    // so its chord is ⌃⌘A in AeroSpace and zellij binds nothing on `a` — see
+    // zellij/config.kdl. The resident ⌃⌥⇧A agent is deliberately not hinted
+    // either: it is one-per-tab by convention, not a launcher.
     let peek_key = run_bind_key(binds, "peek.sh", None);
     let links_key = run_bind_key(binds, "pounce", Some("cmd:links"));
     // Find: bound twice (Super f = this pane, Super Shift f = every pane), so
@@ -962,7 +954,6 @@ fn secondary_keybinds(help: &ModeInfo, _tab_info: Option<&TabInfo>, max_len: usi
     // (sorted below) — the letters are what the eye scans, so a stable a,f,l,…
     // beats an order only the source file knows.
     let ordered: Vec<Vec<KeyWithModifier>> = vec![
-        agent_key,
         pane_key,
         tab_key,
         peek_key,

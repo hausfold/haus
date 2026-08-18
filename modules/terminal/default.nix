@@ -42,72 +42,15 @@ let
   agentContrib = config.haus._contrib.development.agents;
   agentDefault = agentContrib.default;
 
-  # How the zellij binds and the `c` alias spell "start an agent". Only Claude
-  # Code can make its own worktree (`--worktree`, which fires the WorktreeCreate
-  # hook); for the others `holt new` does it from the outside, so Super a
-  # behaves the same whichever client the machine defaults to. Holt reads the
-  # persisted default rendered below, rather than the Zellij server's
-  # launch-time environment. Rendered into config.kdl's @AGENT_NEW@
-  # (@AGENT_HERE@ is just agentDefault).
-  #
-  # `lanes.backend = "zmx"` takes the client's own flag away even from Claude,
-  # because `claude --worktree` does not go through the seam the backend is
-  # wired into. Claude's flag makes the checkout via the WorktreeCreate hook
-  # (`holt hook create`) and then runs the client in the pane it was launched
-  # from — it never calls `holt new`, so `[hooks] open` is never asked, and the
-  # chord would silently keep opening a zellij pane on a machine that had
-  # chosen zmx. `holt new` makes the identical checkout from the outside and
-  # DOES ask, which is the whole point of the option: pick the backend and the
-  # chord follows. It is also what makes the lane resumable, because Claude
-  # keys a transcript to the directory it started in — a `holt new` lane's
-  # conversation lives at the lane's own path, where `holt <name>` looks for it.
-  agentNewRun = if agentDefault == "claude" then ''"claude" "--worktree"'' else ''"holt" "new"'';
-
-  # The one sentence in the generated agent instructions that names the chord.
-  # It has to follow the backend, because these files are what an agent BELIEVES
-  # about the machine it is on — a sentence teaching ⌘A on a zmx host is worse
-  # than no sentence, since the agent will confidently tell its user to press a
-  # key that does nothing.
-  laneChordProse =
-    if terminalCfg.lanes.backend == "zmx" then
-      ''
-        `Ctrl Super a` (⌃⌘A) — a GLOBAL chord, so it works from any window, not
-            just a terminal — spawns each agent into its own isolated checkout on a
-            `worktree-<name>` branch, in its own window, so parallel agents never
-            fight over a single checkout.''
-    else
-      ''
-        `Super a` (⌘A) spawns each agent into its own isolated checkout on
-            a `worktree-<name>` branch, so parallel agents never fight over a single
-            checkout.'';
-
-  # ⌘A and ⌘⇧A, or nothing at all.
-  #
-  # Under `lanes.backend = "zmx"` a lane is a WINDOW, and both binds go — the
-  # chord moves to ⌃⌘A in AeroSpace (this room contributes it through
-  # `_contrib.windows.agents` below; the reasoning is in the kdl beside the
-  # placeholder and in modules/windows/options.nix). Rendering nothing rather
-  # than rendering `holt new` here is deliberate on three counts: zellij can
-  # only run a command by opening a pane, so this bind could not stop flashing
-  # one; a zmx lane's own window has no zellij to receive ⌘A at all; and two
-  # chords that spawn a lane, one of which works in half the windows, is worse
-  # than one that works in all of them.
-  #
-  # The assertion in this file cross-checks the RENDERED kdl against
-  # term-bindings.nix, so dropping the binds here without dropping their rows
-  # there fails the build — which is the invariant working, not a hazard.
-  agentLaneBinds =
-    if terminalCfg.lanes.backend == "zmx" then
-      ""
-    else
-      ''
-        bind "Super a" { Run ${agentNewRun}; }
-                bind "Super Shift a" {
-                    Run ${agentNewRun} {
-                        in_place true
-                        close_on_exit true
-                    }
-                }'';
+  # The one sentence in the generated agent instructions that names the lane
+  # chord. These files are what an agent BELIEVES about the machine it is on, so
+  # a wrong chord here is worse than none: the agent will confidently tell its
+  # user to press a key that does nothing.
+  laneChordProse = ''
+    `Ctrl Super a` (⌃⌘A) — a GLOBAL chord, so it works from any window, not
+        just a terminal — spawns each agent into its own isolated checkout on a
+        `worktree-<name>` branch, in its own window, so parallel agents never
+        fight over a single checkout.'';
 
   # One client id → one package, from the one table (modules/lib/agent-packages.nix):
   # the AI room asserts each named client is buildable here, and this is where a
@@ -188,7 +131,6 @@ let
     ghDashEnabled = ghDashCfg.enable;
     benchLaneEnabled = devCfg.enable;
     rightClickFullscreenEnabled = terminalCfg.rightClickFullscreen;
-    laneBackend = terminalCfg.lanes.backend;
   };
   ghDashBind = lib.optionalString ghDashCfg.enable ''
     // Super g — GitHub's review queue in a borderless, full-window
@@ -234,17 +176,15 @@ let
   # Conditional BINDS are substituted here rather than in zellijConfigFile
   # below, and the difference is load-bearing: `kdlChords` reads this string to
   # cross-check the cheatsheet, so a bind that only appears after the later pass
-  # is a bind the assertion cannot see. (Found the hard way — @AGENT_LANE_BINDS@
-  # started in the later pass and the check went green on a zmx machine while
-  # failing every zellij one.) Only substitutions that add no `bind` line —
-  # @HOME@, the mode names, @AGENT_HERE@'s client — belong in the later pass.
+  # is a bind the assertion cannot see. Only substitutions that add no `bind`
+  # line — @HOME@, the mode names, @AGENT_HERE@'s client — belong in the later
+  # pass.
   zellijConfigTemplate =
     builtins.replaceStrings
-      [ "@GH_DASH_BIND@" "@BENCH_LANE_BIND@" "@AGENT_LANE_BINDS@" ]
+      [ "@GH_DASH_BIND@" "@BENCH_LANE_BIND@" ]
       [
         ghDashBind
         benchLaneBind
-        agentLaneBinds
       ]
       (builtins.readFile ./zellij/config.kdl);
   ghDashGhosttyBind = lib.optionalString ghDashCfg.enable ''
@@ -262,35 +202,15 @@ let
     # reasoning as cmd+enter above, so a future default can't steal it.
     keybind = cmd+b=unbind
   '';
-  # An unbind in ghostty/config is not a preference — it is a hole punched so a
-  # chord can fall THROUGH to the multiplexer. So it has to track whether the
-  # multiplexer still catches it. Under `lanes.backend = "zmx"` zellij binds
-  # neither Super a nor Super Shift a (agentLaneBinds renders empty), the lane
-  # chord is ⌃⌘A in AeroSpace, and leaving these unbinds in place would take
-  # select_all away from ⌘A in exchange for nothing at all — a dead key, and one
-  # the kdl↔cheatsheet assertion cannot see, because it does not read this file.
-  agentGhosttyUnbinds = lib.optionalString (terminalCfg.lanes.backend != "zmx") ''
-    # cmd+a → zellij "Super a" (spawn an isolated AGENT in its own worktree).
-    # Ghostty binds cmd+a to select_all by default — unbind it so the chord reaches
-    # zellij. (The agent lived on ⌘C until it was rebound to ⌘A for "agent", which
-    # also let ⌘C go back to meaning copy — see the cmd+c line below.)
-    keybind = cmd+a=unbind
-    # cmd+shift+a → zellij "Super Shift a" (the same isolated agent, but replacing
-    # the focused pane instead of splitting beside it). Ghostty binds nothing here
-    # today, so this unbind is purely defensive: it guarantees the chord keeps
-    # reaching zellij if a future ghostty release claims it.
-    keybind = cmd+shift+a=unbind'';
   ghosttyConfigTemplate =
     builtins.replaceStrings
       [
         "@GH_DASH_GHOSTTY_BIND@"
         "@BENCH_LANE_GHOSTTY_BIND@"
-        "@AGENT_GHOSTTY_UNBINDS@"
       ]
       [
         ghDashGhosttyBind
         benchLaneGhosttyBind
-        agentGhosttyUnbinds
       ]
       (builtins.readFile ./ghostty/config);
   # Chords bound in config.kdl. Only the quoted words BEFORE the block open — a
@@ -682,7 +602,7 @@ in
   # "which repo is the focused window looking at" — but it has no business
   # binding a global key, so it states the fact and lets windows decide.
   haus._contrib.windows.agents = {
-    enable = agentContrib.enable && terminalCfg.lanes.backend == "zmx";
+    enable = agentContrib.enable;
     # @HOME@, not an interpolated home directory: this is read at the SYSTEM
     # level, where `config.home` doesn't exist, and windows already resolves
     # that token when it renders the binding table (its `subTokens`). Same
@@ -715,17 +635,16 @@ in
         + "so a chord and its caption move together or not at all.";
     }
     {
-      assertion = terminalCfg.lanes.backend != "zmx" || config.haus.windows.enable;
+      assertion = !agentContrib.enable || config.haus.windows.enable;
       message =
-        "haus.terminal.lanes.backend = \"zmx\" needs haus.windows.enable. A zmx lane is a WINDOW, "
-        + "and the windows room is what makes that a working idea twice over: lanes/lane-open.sh "
-        + "places each lane with `aerospace move-node-to-workspace`, and the spawn chord itself "
-        + "(⌃⌘A) is an AeroSpace bind — zellij can't hold it, because its only way to run a command "
-        + "is to open a pane, and a lane's own window has no zellij in it to receive one anyway. "
-        + "With windows off, this backend deletes ⌘A from zellij and puts nothing in its place, so "
-        + "the machine ends up with no way to start an agent at all — while the cheatsheet, which "
-        + "the launcher renders without a windows gate, goes on teaching ⌃⌘A. Turn the windows room "
-        + "on, or leave lanes.backend at \"zellij\".";
+        "agent lanes need haus.windows.enable. A lane is a zmx session in its own WINDOW, and the "
+        + "windows room is what makes that a working idea twice over: lanes/lane-open.sh places "
+        + "each lane with `aerospace move-node-to-workspace`, and the spawn chord itself (⌃⌘A) is "
+        + "an AeroSpace bind — zellij can't hold it, because its only way to run a command is to "
+        + "open a pane, and a lane's own window has no zellij in it to receive one anyway. With "
+        + "windows off there is no way to start a lane at all, while the cheatsheet — which the "
+        + "launcher renders without a windows gate — goes on teaching ⌃⌘A. Turn the windows room "
+        + "on, or turn the agent clients off (haus.ai.clients = [ ]).";
     }
     {
       assertion = !ghDashCfg.enable || devCfg.git.enable;
@@ -1495,12 +1414,11 @@ in
         # skips them. They are still on PATH by the time a pane opens —
         # /opt/homebrew/bin is on it — which is what the assertion is about.
         ++ lib.filter (p: p != null) (map (c: agentPackages.${c}) agentClients)
-        # zmx, when it is what a lane opens into. Same argument as the clients
-        # above: `lane-open.sh` defers to holt's built-in if it can't find zmx,
-        # so a missing binary degrades to the zellij behaviour instead of a
-        # dead lane — but the whole point of the option is that it doesn't have
+        # zmx — what a lane opens into. `lane-open.sh` defers to holt's
+        # built-in if it can't find zmx, so a missing binary degrades to a pane
+        # rather than a dead lane; shipping the package is what stops it having
         # to find out at spawn time.
-        ++ lib.optional (terminalCfg.lanes.backend == "zmx") zmx;
+        ++ [ zmx ];
 
       programs.zsh = {
         enable = true;
@@ -1607,7 +1525,7 @@ in
             # New shells inherit the spawning surface's cwd — zellij panes
             # (Super p) and the cwd-injecting new-tab spawns (Super Shift t,
             # the peek Enter-on-dir tab), but equally the plain Ghostty windows
-            # ⌘P spawns under the zmx lane backend, which is why this sits
+            # ⌘P spawns a lane-aware shell window, which is why this sits
             # OUTSIDE the $ZELLIJ block below (it used to live inside it, and a
             # zmx window's shell sailed straight past the hop). Next to an
             # agent's pane or window that cwd is the agent's throwaway checkout
@@ -2154,13 +2072,11 @@ in
           ".config/holt/config.toml".text = ''
             # Generated from haus.ai.default — edit that option, not here.
             agent = "${agentDefault}"
-          ''
-          + lib.optionalString (terminalCfg.lanes.backend == "zmx") ''
 
-            # haus.terminal.lanes.backend = "zmx". `open` and `resume` are the two
-            # seams holt answers by exec'ing a client; both are answered here by
-            # the same script, because with zmx they are the same act — `zmx
-            # attach` creates the session or joins the live one.
+            # `open` and `resume` are the two seams holt answers by exec'ing a
+            # client; both are answered here by the same script, because with zmx
+            # they are the same act — `zmx attach` creates the session or joins
+            # the live one.
             #
             # The path is under ~, not a store path: holt's own docs list "a hook
             # pointing at a store path from a rebuild ago" as a way for this to
@@ -2170,19 +2086,15 @@ in
             resume = "${config.home.homeDirectory}/.config/haus/lanes/lane-open.sh"
           '';
 
-          # The lane opener itself. Shipped whatever the backend is — it is inert
-          # unless holt's config points at it, and having it on disk is what makes
-          # flipping the option a rebuild rather than a rebuild plus a relaunch.
+          # The lane opener itself — what holt's [hooks] above exec.
           ".config/haus/lanes/lane-open.sh" = {
             source = ./lanes/lane-open.sh;
             executable = true;
           };
 
-          # The chord's half. Also shipped whatever the backend is, and for a
-          # sharper reason than lane-open.sh's: it is what the WINDOWS room binds
-          # (through _contrib.windows.agents below), and a bind pointing at a file
-          # that isn't there is the one failure mode a rebuild can't warn about.
-          # Inert on a zellij machine, where nothing binds it.
+          # The chord's half: what the WINDOWS room binds ⌃⌘A to (through
+          # _contrib.windows.agents below). A bind pointing at a file that isn't
+          # there is the one failure mode a rebuild can't warn about.
           ".config/haus/lanes/lane-spawn.sh" = {
             source = ./lanes/lane-spawn.sh;
             executable = true;

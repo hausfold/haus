@@ -17,7 +17,7 @@
 #     about a client. A `.cwd` sibling (same base name) carries the pane's
 #     checkout path, which the popup joins against `holt --json`'s lane `.path`
 #     — see "the holt join" below.
-#   • a zmx lane (haus.terminal.lanes.backend = "zmx") → labels on its own zmx
+#   • a zmx lane → labels on its own zmx
 #     session, which has no pane and needs none of the pruning below: labels are
 #     in-memory and die with the session. Its holt join is by NAME, not cwd,
 #     because the session is named `holt.<repo>.<lane>`.
@@ -149,7 +149,7 @@ state_style() {
 # words, which is why target is the LAST positional in the `row` sub-command),
 # the zmx session name for zmx.
 #
-# zmx_records — lanes under haus.terminal.lanes.backend = "zmx". Their state
+# zmx_records — the agent lanes. Their state
 # lives as labels on the session (agents-hook.sh), which zmx holds in memory for
 # the session's lifetime. So there is nothing here matching prune_dead_panes or
 # the 12h sweep below: a lane that dies takes its labels with it, and a session
@@ -224,7 +224,7 @@ if [ "${1:-}" = "row" ] && [ "${2:-}" = "zmx" ]; then
     # search the zellij path below has to do — terminal/lanes/lane-open.sh gives
     # the window a forced `--title` equal to the session name, so the join is a
     # string equality. No window means the lane is detached and still running
-    # (the whole point of the zmx backend), so reopen one on the live session
+    # (the whole point of a zmx lane), so reopen one on the live session
     # rather than pretending nothing is there.
     win=$(aerospace list-windows --all --format '%{window-id}|%{app-name}|%{window-title}' 2>/dev/null \
           | awk -F'|' -v t="$zsess" '$2 == "Ghostty" && $3 == t { print $1; exit }')
@@ -524,7 +524,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
 
   # Build the sort key up front: priority (waiting=0 … idle=2), then epoch
   # ascending — within a tier, the one that's been sitting longest is the one
-  # that most needs a glance. Both backends land in one array, already in the
+  # that most needs a glance. Panes and lanes land in one array, already in the
   # shape the render loop reads (see zmx_records above).
   files=()
   while IFS= read -r rec; do
