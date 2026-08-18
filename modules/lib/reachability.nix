@@ -83,6 +83,46 @@
 #   "noop"        — writes, changes nothing, ever. The worst of the four: a
 #                   read-back check reports "applied" on a machine that did not
 #                   move. Any option built on this ships a lie.
+#
+# ---- the routes NOT taken, and why -----------------------------------------
+# Two ways to reach a `needs-fda` domain WITHOUT the grant. Both are real; one is
+# measured and rejected, one is still open. Written down because the FDA gate is
+# the first thing anybody reading this file wants out of, and the obvious escapes
+# cost an afternoon each to re-derive.
+#
+# A CONFIGURATION PROFILE — spiked 2026-08-18, since bypassing TCC is precisely
+# what a managed preference is for. It works. A System-scope
+# `com.apple.ManagedClient.preferences` payload forcing com.apple.universalaccess
+# writes /Library/Managed Preferences/<user>/com.apple.universalaccess.plist —
+# the per-user path under a device-scope payload, which is MCX compositing for
+# the logged-in user rather than a typo — leaves the user domain untouched
+# (`defaults read` still answers "does not exist"), and macOS honours the result:
+# `hausax` read NSWorkspace TRUE for both `reduceTransparency` and `reduceMotion`
+# from a shell holding no Full Disk Access at all.
+#
+# Rejected on DELIVERY, not on effect. macOS has had no command-line install path
+# since Big Sur — `profiles install` answers "profiles tool no longer supports
+# installs" — so an unmanaged Mac approves each profile by hand in System
+# Settings with an admin password, and that cost is per profile VERSION: an
+# in-place update, same PayloadIdentifier and same PayloadUUID with
+# PayloadVersion bumped, prompted for the entire flow a second time. A rebuild
+# that moves one accessibility value would therefore nag every time, where the
+# guarded `defaults write` above is silent forever after a single grant. Forced
+# prefs also grey the switch out of System Settings, which is a strange thing to
+# hand someone on their own Mac. The route survives only where MDM delivers it —
+# which is also the only channel that can pre-grant TCC itself (PPPC), so the two
+# halves of "no clicking left" turn out to be one half.
+#
+# THE ANY-USER LEVEL — /Library/Preferences/<domain>.plist: root-owned, outside
+# TCC, no approval of any kind, and already how modules/terminal/zen.nix writes
+# Firefox's policy from activation. CFPreferences searches it BELOW the user
+# domain, so on a Mac whose user domain holds no accessibility key it is in the
+# search path, and activation is already root — meaning a rebuild could drive it
+# unattended if it lands. UNMEASURED, and the uncertainty is specific: whether
+# universalaccessd reads through `CFPreferencesCopyAppValue` and so sees the
+# any-user level, or scopes its read to the current user and never looks. Measure
+# against NSWorkspace before believing it. A plist holding a value nothing reads
+# is this table's `noop` class, and not shipping one is the whole point of it.
 {
   # ---- com.apple.universalaccess ---------------------------------------------
   # The reason this file exists. Real, useful, TCC-gated, and mixed: four keys
