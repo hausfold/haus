@@ -7,8 +7,9 @@
 #
 # State is written by agents-hook.sh from each client's own lifecycle hooks
 # (authoritative — no screen-scraping) into one of TWO stores, depending on where
-# the agent sits. Both are normalised into one record by zellij_records /
-# zmx_records below, and nothing after that point knows the difference.
+# the agent sits. All three are normalised into one record by zellij_records /
+# zmx_records / desktop_records below, and nothing after that point knows the
+# difference.
 #
 #   • a zellij pane → one file per pane under /tmp/haus-agents/*.state:
 #       <state>\t<session>\t<pane-id>\t<label>\t<epoch>\t<client>
@@ -206,9 +207,53 @@ zellij_records() {
   done
 }
 
+# desktop_records — the `.desk` files a desktop-client session writes. Same six
+# columns as a pane's `.state` and the same normalised shape out, so everything
+# downstream is unchanged; the extension is what keeps prune_dead_panes (which
+# reads a zellij "session not found" as proof of death) from reaping rows that
+# were never in a zellij session to begin with. See agents-hook.sh's desktop
+# branch for the whole reasoning.
+desktop_records() {
+  local f st sess key label epoch client pr cwd cf
+  for f in "$DIR"/*.desk; do
+    [ -e "$f" ] || continue
+    IFS=$'\t' read -r st sess key label epoch client < "$f"
+    case "$st" in waiting) pr=0 ;; working) pr=1 ;; idle) pr=2 ;; *) pr=3 ;; esac
+    cwd=""
+    cf="${f}.cwd"
+    [ -s "$cf" ] && cwd="$(cat "$cf")"
+    printf '%s\t%s\tdesktop\t%s\t%s\t%s\t%s\t%s\n' \
+      "$pr" "${epoch:-0}" "$st" "$key" "$label" "$client" "$cwd"
+  done
+}
+
 # ── popup-row click: go to the agent (left) or peek it (⌥/right) ──────────────
 # `agents.sh row <kind> <target…>` — the target is last because zellij's is two
 # words (session, pane) and zmx's is one (the session name).
+if [ "${1:-}" = "row" ] && [ "${2:-}" = "desktop" ]; then
+  # Raise the desktop client, and that is the whole action — there is no
+  # per-conversation window to focus (every session is a tab of one window) and
+  # no peek either: a desktop session's transcript is not tailable from outside
+  # the app the way `zmx tail` follows a lane. So a modifier click does the
+  # same thing rather than silently doing nothing, which is the failure mode
+  # that teaches you the row is broken.
+  #
+  # `aerospace focus` rather than `open -b`: the window usually lives on its
+  # own workspace (the roster puts the client on one), and focusing by window
+  # id switches to that workspace, where `open` would only activate the app
+  # under whatever is in front of it. Falls back to `open -b` when AeroSpace
+  # can't see a window — the app may be closed to its dock icon.
+  win=$(aerospace list-windows --all --format '%{window-id}|%{app-bundle-id}' 2>/dev/null \
+        | awk -F'|' '$2 == "com.anthropic.claudefordesktop" { print $1; exit }')
+  if [ -n "$win" ]; then
+    aerospace focus --window-id "$win" 2>/dev/null
+  else
+    open -b com.anthropic.claudefordesktop 2>/dev/null
+  fi
+  "$SB" --set agents popup.drawing=off
+  exit 0
+fi
+
 if [ "${1:-}" = "row" ] && [ "${2:-}" = "zmx" ]; then
   zsess="$3"
   if [ "${BUTTON:-left}" = "right" ] || [ "${MODIFIER:-none}" != "none" ]; then
@@ -307,7 +352,10 @@ prune_dead_panes
 # Backstop cleanup for what that can't see (a whole zellij server gone, a client
 # that wrote a row from a pane id zellij never knew): reap state files untouched
 # for >12h. Live agents re-stamp their epoch on every hook.
-[ -d "$DIR" ] && find "$DIR" -name '*.state' -mmin +720 -delete 2>/dev/null
+# `.desk` rows are swept by the same rule and for a sharper reason: their only
+# reaper is the client's own SessionEnd, so a desktop app that is force-quit
+# (or crashes) leaves a row nothing else can see is dead.
+[ -d "$DIR" ] && find "$DIR" \( -name '*.state' -o -name '*.desk' \) -mmin +720 -delete 2>/dev/null
 
 # Iterate the glob with a -e guard rather than an array: macOS bash 3.2 under
 # `set -u` throws on "${arr[@]}" when the array is empty, and "no agents" is the
@@ -529,7 +577,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
   files=()
   while IFS= read -r rec; do
     [ -n "$rec" ] && files+=("$rec")
-  done < <(zellij_records; zmx_records)
+  done < <(zellij_records; zmx_records; desktop_records)
 
   if [ ${#files[@]} -eq 0 ]; then
     "$SB" --add item agents.popup.0 popup.agents 2>/dev/null \
@@ -656,7 +704,7 @@ while IFS=$'\t' read -r _pr _epoch _kind st _rest; do
     waiting) waiting=$((waiting + 1)) ;;
     idle)    idle=$((idle + 1)) ;;
   esac
-done < <(zellij_records; zmx_records)
+done < <(zellij_records; zmx_records; desktop_records)
 
 if [ $((working + waiting + idle)) -eq 0 ]; then
   "$SB" --set agents drawing=off   # nothing running → no clutter
