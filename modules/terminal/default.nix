@@ -1495,15 +1495,52 @@ in
             # (haus.secrets.provider) into just that process, nothing
             # plaintext on disk. Anything you truly need in EVERY shell,
             # export in your HOST file's initContent (this is the public rice).
+
+            # Custom completions: a dir you drop (or symlink) a `_foo` into,
+            # for a CLI whose completion lives beside it in a checkout rather
+            # than in a package. It has to be prepended HERE, in the block that
+            # lands ABOVE home-manager's `compinit` — it used to sit further
+            # down the zshrc, past the point compinit had already walked fpath,
+            # so the dir was only ever scanned by accident: in a shell that
+            # inherited an already-extended FPATH from a parent that got this
+            # far. A top-level shell silently had no _foo at all. Prepended
+            # rather than appended on purpose — the reason to keep a completion
+            # in a checkout is for it to beat the packaged one.
+            #
+            # The glob asks both questions at once: does the dir exist, and is
+            # it free of group/world write. compinit refuses to trust one that
+            # isn't — it warns and then BLOCKS on a y/n prompt, and a shell with
+            # no tty answers that by aborting completion entirely, fzf-tab
+            # included. Harmless while this sat below compinit; above it, a dir
+            # that arrived 0777 (an rsync from another box, a copy off exFAT)
+            # would take the whole shell's completion down with it. So skip it
+            # and say why once, rather than letting compinit ask.
+            _haus_comps=(~/.zsh-completions(N/^WI))
+            if (( $#_haus_comps )); then
+              fpath=($_haus_comps $fpath)
+
+              # A completion symlinked out of an agent worktree outlives the
+              # worktree: holt reaps the checkout, the link dangles, and
+              # compinit (which reads the first line of every file it globs)
+              # names the missing path in EVERY shell after that. A reaped
+              # worktree never comes back, so drop links pointing into one.
+              # Anything else that dangles is left alone and left noisy — an
+              # unmounted volume comes back, and a link YOU made is yours to
+              # fix, not ours to delete.
+              for _haus_stale in $_haus_comps[1]/*(-@N); do
+                [[ "$(readlink -- "$_haus_stale")" == "$HOME/.cache/claude-worktrees/"* ]] &&
+                  rm -f -- "$_haus_stale"
+              done
+            elif [[ -d ~/.zsh-completions ]]; then
+              print -u2 "haus: ignoring ~/.zsh-completions — it is group- or world-writable (chmod 755 it)"
+            fi
+            unset _haus_comps _haus_stale
           '')
           ''
             # Nebelung zsh-syntax-highlighting colours (replaces catppuccin's
             # port). Sourced before the plugin loads — like catppuccin did —
             # which is fine: ZSH_HIGHLIGHT_STYLES is read at highlight time.
             source ${nebelungRoot}/zsh-syntax-highlighting/themes/catppuccin_${nbFlavor}-zsh-syntax-highlighting.zsh
-
-            # Custom completions
-            fpath=(~/.zsh-completions $fpath)
 
             ${lib.optionalString (builtins.elem "node" devCfg.languages) ''
               # fnm (Node version manager)
