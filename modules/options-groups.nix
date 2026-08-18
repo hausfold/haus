@@ -373,6 +373,7 @@ let
       "defaultOrientation"
       "enable"
       "mouseFollowsFocus"
+      "mouseFullscreen"
       "numberedWorkspaces"
     ];
     workspaces = [

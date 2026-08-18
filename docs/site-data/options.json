@@ -5388,6 +5388,27 @@
     "readOnly": false,
     "type": "boolean"
   },
+  "haus.windows.mouseFullscreen": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"none\""
+    },
+    "description": "Zoom the window **under the pointer** with a modifier + a click.\n\nThe keyboard's `<mod>f` can only ever reach the window you are already\nin; this is its pointer twin, so zooming a window on the other monitor\nis one gesture rather than focus-then-zoom. It is the same AeroSpace\n`fullscreen` either way — a toggle, so the same click puts it back —\nand the click focuses the window on its way in.\n\nThe modifier is NOT separately settable: it follows\n`haus.keys.windowNav`, so `<mod>f` and `<mod>`+click are one\nvocabulary and a machine that moved the modifier for its keyboard\nlayout moves the mouse chord with it. `windowNav = \"none\"` therefore\nleaves nothing to hold, and an assertion refuses the pair rather than\nletting a bare click be bound — a modifier-less chord would swallow\nevery click on the machine.\n\nWhich button, and why the default is the right one: **the click is\nconsumed over every app**, so this spends a gesture machine-wide.\n`\"right\"` is ⌥ + right-click, the quietest of the three rather than a\nfree one: macOS uses ⌥ as the ALTERNATE-contextual-menu modifier, so\ninside a Finder window it is what turns \"Copy X\" into \"Copy X as\nPathname\", and an app that reads ⌥ + right-DRAG (a 3D viewport zoom)\nloses that too, since the mouse-down is swallowed before the drag\nstarts. The desktop passes through, so only in-window menus are\naffected. `\"left\"`\nis ⌥ + left-click, which costs considerably more — multi-cursor in GUI editors,\n⌥-click-a-link to download, ⌥-click on a menu extra, and every ⌥-drag\n(the mouse-down is swallowed, so the drag never begins) — offered\nbecause on some mice the right button is the awkward one, not because\nit is a peer of `\"right\"`. There is deliberately no ctrl option:\nctrl+click IS macOS's secondary click, so binding it would cost\ncontext menus everywhere.\n\nClicking the desktop passes through untouched, and anything drawn\nabove ordinary windows — the menu bar, the Dock, the bar — is\ntransparent to the chord rather than being \"clicked\".\n\nCarried by pounce's event tap (AeroSpace has no mouse bindings at all,\nand Ghostty's keybind triggers are keys), so it needs\nhaus.launcher.enable and the Accessibility grant pounce already asks\nfor; an assertion catches the first, and without the second the click\nsimply keeps its stock meaning.\n\nOnly meaningful with haus.windows.enable.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"right\""
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "mouseFullscreen"
+    ],
+    "readOnly": false,
+    "type": "one of \"right\", \"left\", \"none\""
+  },
   "haus.windows.numberedWorkspaces": {
     "declarations": [
       "modules/windows/options.nix"

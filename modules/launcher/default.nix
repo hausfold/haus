@@ -185,6 +185,11 @@ let
   #             in the hash the rebuild would land, the docs would say ⌘N/⌘↵,
   #             and the running daemon would keep answering the old chords
   #             until the next log-in.
+  #   mouse     the windows room's pointer chord — a SECOND tap, but armed at
+  #             that same one moment, so the same trap: MouseChords captures
+  #             the whole chord when it arms, and moving the button (or moving
+  #             haus.keys.windowNav underneath it) otherwise leaves the old
+  #             chord live and the new one dead.
   #
   # Hashed rather than inlined so the marker is one short line whatever the
   # exclude list grows to, and prefixed so an absent or empty marker (a machine
@@ -196,6 +201,7 @@ let
         fnKey = config.haus.launcher.fnKey;
         lanes = lanesEnabled;
         inherit shellSpawnKey laneSpawnKey;
+        mouse = mouseContrib;
       }
     )
   }";
@@ -447,6 +453,13 @@ let
       (
         import ../windows/wm-bindings.nix {
           inherit lib k;
+          # Through the contribution rather than off haus.windows directly —
+          # contrib.nix's contract, and here it also earns itself: the windows
+          # room only WRITES the contribution inside its own enable gate, so a
+          # machine with the desktop's `mouseFullscreen` set but
+          # `windows.enable = false` gets no chord, and reading the raw option
+          # would still print the card for it.
+          mouseFullscreen = if mouseContrib.enable then mouseContrib.button else "none";
         }
       );
 
@@ -461,6 +474,7 @@ let
   # DEVELOPMENT point instead: they describe the terminal's chords, so they must
   # say exactly what the terminal bound, not what the palette knows.
   agentContrib = config.haus._contrib.launcher.agents;
+  mouseContrib = config.haus._contrib.launcher.mouseChords;
   termAgentContrib = config.haus._contrib.development.agents;
 
   termBindings = import ../terminal/term-bindings.nix {
@@ -1301,6 +1315,22 @@ lib.mkIf config.haus.launcher.enable {
             prefix = "T";
             bundleId = "com.mitchellh.ghostty";
             mruFile = "/Users/${username}/.local/state/haus/workspace-mru";
+          };
+        }
+        # The windows room's pointer chord (_contrib.launcher.mouseChords): a
+        # modifier + a click zooming the window UNDER THE POINTER, which no
+        # keybind can reach — a keybind only ever lands on the window you are
+        # already in. Written only when that room asks for it; an older pounce
+        # that predates mouseChords ignores the block rather than failing on it,
+        # the same lenient parse as `themeLight`.
+        // lib.optionalAttrs mouseContrib.enable {
+          mouseChords = {
+            enabled = true;
+            chords = [
+              {
+                inherit (mouseContrib) button modifiers action;
+              }
+            ];
           };
         }
         # haus.launcher.items — hidden rows, aliases and per-item hotkeys (see the

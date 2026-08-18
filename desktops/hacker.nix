@@ -57,7 +57,16 @@
 
     launcher.enable = true;
 
-    windows.enable = true;
+    windows = {
+      enable = true;
+      # ⌥ + right-click zooms whatever window is under the pointer. The one
+      # machine-wide click chord this desktop spends, and it spends it on the
+      # quietest of the three: it costs Finder's ⌥ variant of a context menu
+      # ("Copy as Pathname"), where ⌥ + left-click would cost multi-cursor in
+      # GUI editors and every ⌥-drag, and ctrl + click is macOS's own secondary
+      # click. The modifier follows keys.windowNav, so it reads as ⌥f's twin.
+      mouseFullscreen = "right";
+    };
 
     bar = {
       enable = true;

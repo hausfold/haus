@@ -134,6 +134,10 @@ let
       "enable"
     ]
     [
+      "windows"
+      "mouseFullscreen"
+    ]
+    [
       "bar"
       "enable"
     ]

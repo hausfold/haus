@@ -40,6 +40,13 @@
 {
   lib,
   k,
+  # haus.windows.mouseFullscreen — "right", "left" or "none". A display-only row:
+  # the chord is pounce's event tap, not an AeroSpace bind (AeroSpace has no
+  # mouse bindings at all), so this table carries the caption and nothing else.
+  # It still belongs here rather than in the launcher's own cards, because the
+  # thing it does is <mod>f's and it should read beside it — and unlike the
+  # agent chord that just left, it is a WINDOW action, so it stays.
+  mouseFullscreen ? "none",
 }:
 
 let
@@ -90,6 +97,15 @@ lib.optionals hasNav [
           "exec-and-forget @HOME@/.config/sketchybar/aerospace-notify.sh fullscreen"
         ];
       }
+    ]
+    ++ lib.optional (mouseFullscreen != "none") {
+      # The same toggle, on the window under the POINTER rather than the focused
+      # one — which is the whole reason it exists, since <mod>f can only ever
+      # reach the window you are already in. No `binds`: pounce carries it.
+      keys = g (if mouseFullscreen == "right" then "right-click" else "click");
+      action = "Fullscreen the window under the pointer";
+    }
+    ++ [
       # No <mod>⇥ row: workspace back-and-forth is retired. pounce's ⌘⇥ switcher
       # is already cross-workspace (rows carry the window's workspace, and
       # focusing goes through `aerospace focus --window-id`), so "get me back to
