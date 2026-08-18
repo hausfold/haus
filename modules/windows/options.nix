@@ -90,6 +90,62 @@
       '';
     };
 
+    windows.mouseFullscreen = lib.mkOption {
+      type = lib.types.enum [
+        "right"
+        "left"
+        "none"
+      ];
+      default = "none";
+      example = "right";
+      description = ''
+        Zoom the window **under the pointer** with a modifier + a click.
+
+        The keyboard's `<mod>f` can only ever reach the window you are already
+        in; this is its pointer twin, so zooming a window on the other monitor
+        is one gesture rather than focus-then-zoom. It is the same AeroSpace
+        `fullscreen` either way — a toggle, so the same click puts it back —
+        and the click focuses the window on its way in.
+
+        The modifier is NOT separately settable: it follows
+        `haus.keys.windowNav`, so `<mod>f` and `<mod>`+click are one
+        vocabulary and a machine that moved the modifier for its keyboard
+        layout moves the mouse chord with it. `windowNav = "none"` therefore
+        leaves nothing to hold, and an assertion refuses the pair rather than
+        letting a bare click be bound — a modifier-less chord would swallow
+        every click on the machine.
+
+        Which button, and why the default is the right one: **the click is
+        consumed over every app**, so this spends a gesture machine-wide.
+        `"right"` is ⌥ + right-click, the quietest of the three rather than a
+        free one: macOS uses ⌥ as the ALTERNATE-contextual-menu modifier, so
+        inside a Finder window it is what turns "Copy X" into "Copy X as
+        Pathname", and an app that reads ⌥ + right-DRAG (a 3D viewport zoom)
+        loses that too, since the mouse-down is swallowed before the drag
+        starts. The desktop passes through, so only in-window menus are
+        affected. `"left"`
+        is ⌥ + left-click, which costs considerably more — multi-cursor in GUI editors,
+        ⌥-click-a-link to download, ⌥-click on a menu extra, and every ⌥-drag
+        (the mouse-down is swallowed, so the drag never begins) — offered
+        because on some mice the right button is the awkward one, not because
+        it is a peer of `"right"`. There is deliberately no ctrl option:
+        ctrl+click IS macOS's secondary click, so binding it would cost
+        context menus everywhere.
+
+        Clicking the desktop passes through untouched, and anything drawn
+        above ordinary windows — the menu bar, the Dock, the bar — is
+        transparent to the chord rather than being "clicked".
+
+        Carried by pounce's event tap (AeroSpace has no mouse bindings at all,
+        and Ghostty's keybind triggers are keys), so it needs
+        haus.launcher.enable and the Accessibility grant pounce already asks
+        for; an assertion catches the first, and without the second the click
+        simply keeps its stock meaning.
+
+        Only meaningful with haus.windows.enable.
+      '';
+    };
+
     windows.defaultOrientation = lib.mkOption {
       type = lib.types.enum [
         "auto"

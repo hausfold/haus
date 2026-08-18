@@ -34,6 +34,7 @@
     "haus.launcher.enable": true,
     "haus.launcher.windowMode": "compact",
     "haus.windows.enable": true,
+    "haus.windows.mouseFullscreen": "right",
     "haus.bar.clock.mode": "full",
     "haus.bar.enable": true,
     "haus.bar.items.battery": true,

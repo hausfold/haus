@@ -78,7 +78,12 @@ let
   # table is once again nothing but window keys.
   wmBindings = import ./wm-bindings.nix {
     inherit lib k;
+    inherit mouseFullscreen;
   };
+  # Which button zooms the window under the pointer, or "none". The modifier is
+  # k.nav's — see the option.
+  mouseFullscreen = cfg.mouseFullscreen;
+
   renderCmd =
     c: if lib.isList c then "[" + lib.concatMapStringsSep ", " (x: "'${x}'") c + "]" else "'${c}'";
   renderBinds =
@@ -474,7 +479,38 @@ lib.mkMerge [
       + "leader, or turn the tour off."
     );
 
+    # ---- what the room contributes to other rooms -------------------------------
+    # The pointer twin of <mod>f. It has to be pounce's tap that carries it —
+    # AeroSpace has no mouse bindings and Ghostty's keybind triggers are keys —
+    # but WHAT it does is this room's, so the launcher only writes it out.
+    # Modifiers follow k.nav, so moving haus.keys.windowNav moves the click with
+    # the key; `k.nav.chord` is AeroSpace's dash-joined spelling and pounce takes
+    # a list, which is the whole of the translation.
+    haus._contrib.launcher.mouseChords = {
+      enable = mouseFullscreen != "none" && k.nav != null;
+      button = if mouseFullscreen == "none" then "right" else mouseFullscreen;
+      modifiers = if k.nav == null then [ "alt" ] else lib.splitString "-" k.nav.chord;
+      action = "fullscreen";
+    };
+
     assertions = [
+      {
+        # windowNav = "none" leaves no modifier to hold, and a bare click chord
+        # would swallow every click on the machine — pounce refuses one outright,
+        # so without this the option would go quiet and look broken instead.
+        assertion = mouseFullscreen == "none" || k.nav != null;
+        message =
+          "haus.windows.mouseFullscreen = \"${mouseFullscreen}\" needs a modifier to hold, "
+          + "but haus.keys.windowNav is \"none\". Set windowNav, or set mouseFullscreen = \"none\".";
+      }
+      {
+        # pounce's event tap is the only thing on the machine that can fire on a
+        # click, so the chord is silently absent without the launcher room.
+        assertion = mouseFullscreen == "none" || config.haus.launcher.enable;
+        message =
+          "haus.windows.mouseFullscreen = \"${mouseFullscreen}\" is carried by pounce's event tap "
+          + "(AeroSpace has no mouse bindings), so it needs haus.launcher.enable.";
+      }
       {
         # Cross-room: keys.leader is windows's chord and keys.palette is pounce's
         # in-process hotkey, so nothing would have caught them claiming the same

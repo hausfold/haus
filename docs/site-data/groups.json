@@ -1197,7 +1197,7 @@
     "windows": {
       "blurb": "Tiling window management and the Caps-Lock leader launcher.",
       "kind": "room",
-      "optionCount": 6,
+      "optionCount": 7,
       "options": {
         "haus.windows.accordionPadding": {
           "desktopSafe": true
@@ -1212,6 +1212,9 @@
           "desktopSafe": true
         },
         "haus.windows.mouseFollowsFocus": {
+          "desktopSafe": true
+        },
+        "haus.windows.mouseFullscreen": {
           "desktopSafe": true
         },
         "haus.windows.numberedWorkspaces": {
@@ -1599,7 +1602,7 @@
         "hotCorners",
         "windows"
       ],
-      "optionCount": 10,
+      "optionCount": 11,
       "order": 50,
       "title": "Windows"
     }

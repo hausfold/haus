@@ -36,6 +36,54 @@ in
       };
     };
 
+    _contrib.launcher.mouseChords = contrib.mkExtensionPoint {
+      description = ''
+        The windows room's pointer chord: a modifier + a click, acting on the
+        window under the cursor rather than on the focused one.
+
+        It lands here because pounce is the only thing on the machine that can
+        carry it — AeroSpace has no mouse bindings at all, and Ghostty's
+        keybind triggers are keys or Unicode codepoints, so a consuming
+        CGEventTap is the mechanism and pounce already runs two of them behind
+        the Accessibility grant they need. What the chord DOES is still the
+        windows room's business; the launcher only writes it into
+        `config.json`.
+
+        Off, pounce's `mouseChords` block isn't written at all and every click
+        keeps its stock meaning.
+      '';
+      options = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+          description = "Whether pounce arms a mouse chord at all.";
+        };
+        button = lib.mkOption {
+          type = lib.types.enum [
+            "left"
+            "right"
+          ];
+          default = "right";
+          description = "Which button the chord uses — `haus.windows.mouseFullscreen`.";
+        };
+        modifiers = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ "alt" ];
+          description = ''
+            The modifiers held, in pounce's spelling. Follows
+            `haus.keys.windowNav`, so the pointer chord and `<mod>f` are one
+            vocabulary. Never empty: pounce refuses a bare chord, and the
+            windows room asserts the pair before it gets here.
+          '';
+        };
+        action = lib.mkOption {
+          type = lib.types.str;
+          default = "fullscreen";
+          description = "The pounce action the chord fires.";
+        };
+      };
+    };
+
     launcher.enable = lib.mkOption {
       type = lib.types.bool;
       default = false;

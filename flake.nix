@@ -2798,6 +2798,14 @@
                   # agent-spawn chord, back when it was AeroSpace's ⌃⌘A — and
                   # that left the room on 2026-08-18 for pounce's
                   # Ghostty-scoped ⌘↵.
+                  #
+                  # `mouseFullscreen` is passed by neither, and by its own
+                  # default rather than by omission ("none", so the row is
+                  # absent): the pointer chord is a DESKTOP's choice — hacker
+                  # takes it — not something a bare haus binds, which is the
+                  # honest answer to "what does a default install bind". Its
+                  # prose page is hand-written, so nothing depends on this
+                  # tripwire seeing it.
                 }
               )
             );
