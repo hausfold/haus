@@ -141,7 +141,10 @@ esac
 # the exact failure this pill's whole sweep design exists to prevent.
 case "${SENDER:-}" in
 mouse.entered)
-  "$SB" --set "$ITEM_NAME" scroll_texts=on
+  # haus.bar.calendar.marquee, which haus.appearance.reduceMotion sets off.
+  # Entering still falls through to the repaint below — looking at the pill is
+  # when its number has to be right — it just doesn't start the sweep.
+  [ "${BAR_CALENDAR_MARQUEE:-1}" = "1" ] && "$SB" --set "$ITEM_NAME" scroll_texts=on
   ;;
 mouse.exited | mouse.exited.global)
   "$SB" --set "$ITEM_NAME" scroll_texts=off

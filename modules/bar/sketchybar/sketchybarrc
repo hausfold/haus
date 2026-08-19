@@ -23,6 +23,10 @@ source "$HOME/.config/sketchybar/workspaces.sh"
 # BAR_POSITION_MODE (gates the auto hook near the end of this file).
 source "$HOME/.config/sketchybar/position.sh"
 
+# Gravity ($BAR_GRAVITY) — GENERATED from haus.windows.*. The one windows
+# behaviour this bar implements; see the empty_workspace item below.
+source "$HOME/.config/sketchybar/windows_config.sh"
+
 # The far-left logo pill — GENERATED from haus.bar.logo.*. Defines
 # BAR_LOGO_ICON/SIZE/COLOR/STATUS/UPDATE_CHECK/SWEEP, read here and by
 # plugins/logo.sh (the state tick, the hover sweep and every click) and
@@ -208,12 +212,21 @@ sketchybar --add item aerospace_watcher left \
 # back to the most recent populated workspace ("gravity"). Non-drawing; see
 # plugins/empty_workspace.sh for the quit-vs-switch detection and the
 # quit-in-place guard that keeps it off a workspace you merely navigated to.
-sketchybar --add item empty_workspace left \
-    --set empty_workspace \
-        drawing=off \
-        updates=on \
-        script="$HOME/.config/sketchybar/plugins/empty_workspace.sh" \
-    --subscribe empty_workspace front_app_switched
+#
+# $BAR_GRAVITY is GENERATED from haus.windows.gravity (which
+# haus.appearance.reduceMotion sets off — it is the biggest unasked movement
+# haus makes). The item is not ADDED when it is off, rather than added and
+# guarded inside the plugin: it subscribes to front_app_switched, which fires on
+# every app switch there is, so off has to cost no process rather than a cheap
+# one.
+if [ "$BAR_GRAVITY" = "1" ]; then
+    sketchybar --add item empty_workspace left \
+        --set empty_workspace \
+            drawing=off \
+            updates=on \
+            script="$HOME/.config/sketchybar/plugins/empty_workspace.sh" \
+        --subscribe empty_workspace front_app_switched
+fi
 
 # Reopen-last-closed-app recorder — pushes a quit app's bundle id onto a stack
 # that the caps→z leader (reopen-last-app.sh) pops to relaunch it, the browser

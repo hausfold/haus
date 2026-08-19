@@ -16,7 +16,7 @@
     "order": 22
   },
   "appearance": {
-    "blurb": "The Appearance room's own profile — one named answer to a whole-machine question, where the groups below are the individual dials. `largePrint` sets the interface scale, the high-contrast palette, macOS's own contrast lift and the screen's scaled resolution together, each as a default you can still pin by hand.",
+    "blurb": "The Appearance room's own profiles — named answers to whole-machine questions, where the groups below are the individual dials. `largePrint` sets the interface scale, the high-contrast palette, macOS's own contrast lift and the screen's scaled resolution together. `reduceMotion` stops the motion haus itself draws — the bar's hover sweeps, the pointer following focus, the pull back off an emptied workspace — and asks for macOS's own Reduce Motion alongside it. Both set every value as a default you can still pin by hand.",
     "order": 25
   },
   "apps": {
@@ -202,11 +202,14 @@
       "owner": "apps"
     },
     "appearance": {
-      "blurb": "The Appearance room's own profile — one named answer to a whole-machine question, where the groups below are the individual dials. `largePrint` sets the interface scale, the high-contrast palette, macOS's own contrast lift and the screen's scaled resolution together, each as a default you can still pin by hand.",
+      "blurb": "The Appearance room's own profiles — named answers to whole-machine questions, where the groups below are the individual dials. `largePrint` sets the interface scale, the high-contrast palette, macOS's own contrast lift and the screen's scaled resolution together. `reduceMotion` stops the motion haus itself draws — the bar's hover sweeps, the pointer following focus, the pull back off an emptied workspace — and asks for macOS's own Reduce Motion alongside it. Both set every value as a default you can still pin by hand.",
       "kind": "room",
-      "optionCount": 1,
+      "optionCount": 2,
       "options": {
         "haus.appearance.largePrint": {
+          "desktopSafe": true
+        },
+        "haus.appearance.reduceMotion": {
           "desktopSafe": true
         }
       },
@@ -234,7 +237,7 @@
     "bar": {
       "blurb": "The menu bar, and which pills it draws.",
       "kind": "room",
-      "optionCount": 74,
+      "optionCount": 76,
       "options": {
         "haus.bar.aiUsage.provider": {
           "desktopSafe": true
@@ -306,6 +309,9 @@
           "desktopSafe": true
         },
         "haus.bar.calendar.joinHosts": {
+          "desktopSafe": true
+        },
+        "haus.bar.calendar.marquee": {
           "desktopSafe": true
         },
         "haus.bar.calendar.me": {
@@ -453,6 +459,9 @@
         "haus.bar.media.icons": {
           "desktopSafe": "recursive",
           "validator": "attrs-of-string"
+        },
+        "haus.bar.media.marquee": {
+          "desktopSafe": true
         },
         "haus.bar.media.width": {
           "desktopSafe": true
@@ -1209,7 +1218,7 @@
     "windows": {
       "blurb": "Tiling window management and the Caps-Lock leader launcher — plus macOS's OWN window features (Stage Manager, edge-drag tiling, the desktop's icons and widgets), which live here rather than with the other macOS settings because they decide the same thing the tiler does and haus warns when both are on.",
       "kind": "room",
-      "optionCount": 19,
+      "optionCount": 20,
       "options": {
         "haus.windows.accordionPadding": {
           "desktopSafe": true
@@ -1230,6 +1239,9 @@
           "desktopSafe": true
         },
         "haus.windows.enable": {
+          "desktopSafe": true
+        },
+        "haus.windows.gravity": {
           "desktopSafe": true
         },
         "haus.windows.mouseFollowsFocus": {
@@ -1379,7 +1391,7 @@
         "screenshots",
         "sound"
       ],
-      "optionCount": 49,
+      "optionCount": 50,
       "order": 20,
       "title": "Appearance"
     },
@@ -1424,7 +1436,7 @@
         "menuBar",
         "bar"
       ],
-      "optionCount": 86,
+      "optionCount": 88,
       "order": 60,
       "title": "Bar"
     },
@@ -1656,7 +1668,7 @@
         "hotCorners",
         "windows"
       ],
-      "optionCount": 23,
+      "optionCount": 24,
       "order": 50,
       "title": "Windows"
     }

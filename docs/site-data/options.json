@@ -301,6 +301,27 @@
     "readOnly": false,
     "type": "boolean"
   },
+  "haus.appearance.reduceMotion": {
+    "declarations": [
+      "modules/appearance/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Stop the things haus itself animates from animating. One switch, for a\nmachine whose user is vestibular-sensitive, motion-sick, or simply done\nwith movement in the corner of their eye.\n\nIt exists because macOS's own motion is already curated — `haus.animations`\nfor the Dock's timings, `haus.accessibility.reduceMotion` for Apple's\nswitch — and NEITHER of them reaches the motion haus draws. The bar's\nsweeps and the tiler's automatic moves are the layer's own; they run\nhappily on a Mac with every Apple switch flipped, and until this option\nthere was no way to quiet them short of turning off the pills that carry\nthem.\n\nWhat it stops, all of it haus's own:\n\n  the logo pill's hover sweep   six family accents turning through the\n                                mark whenever the pointer crosses it\n                                (`haus.bar.logo.sweep`)\n  the media pill's marquee      a long track title sweeping past on hover\n                                (`haus.bar.media.marquee`)\n  the calendar pill's marquee   the same, for a long meeting title\n                                (`haus.bar.calendar.marquee`)\n  the pointer following focus   `haus.windows.mouseFollowsFocus`: a\n                                pointer teleporting across the desk is\n                                movement you did not make\n  workspace gravity             `haus.windows.gravity`: the automatic pull\n                                back to a populated workspace when a ⌘Q\n                                empties this one — a whole screen changing\n                                under you, unasked\n\nEvery one is set as a DEFAULT, so any single one goes back by name:\nthis option `true` with `haus.bar.logo.sweep = true` keeps the sweep and\ndrops the rest. Nothing loses information — a title too long for its pill\nis clipped rather than swept, and both dropdowns carry it in full.\n\nIT ALSO ASKS FOR macOS's OWN \"Reduce motion\"\n(`haus.accessibility.reduceMotion`), again as a default, because a machine\nthat quietened its own five surfaces and left Spaces sliding would have\nanswered the question halfway. Know that flag's blast radius before you\ntake it: it is the single switch every browser reads as\n`prefers-reduced-motion: reduce`, so it rewrites the web too — mostly for\nthe better, except on sites whose scroll-reveal animation is what makes\ntheir content visible at all. `haus.accessibility.reduceMotion = false` in\nyour host keeps the local half without the web one.\n\nThat composition is deliberate rather than convenient. Apple's flag is\nFDA-gated at its own option, so on a machine whose rebuilding app lacks\nFull Disk Access it is skipped with a warning — and everything above still\napplies, because haus's own half depends on no permission at all. A\nlegibility switch that only worked with a grant would be the wrong shape.\n\nWhat it deliberately does NOT set is `haus.animations = \"fast\"`. That\ngroup speeds macOS's Dock timings UP rather than removing motion, and\ncoming back from it only stops writing rather than restores — a\nmotion-sensitivity switch has no business leaving a Dock permanently\nretuned.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "appearance",
+      "reduceMotion"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
   "haus.apps.packs.writing.enable": {
     "declarations": [
       "modules/apps/options.nix"
@@ -836,6 +857,28 @@
     ],
     "readOnly": false,
     "type": "list of string"
+  },
+  "haus.bar.calendar.marquee": {
+    "declarations": [
+      "modules/bar/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Sweep a long event title past while the pointer is on the calendar pill.\n\nHover only, exactly like the media pill's: the label is clipped to\n`haus.bar.calendar.width` and hovering shows the rest. Off, the clip is\nall you get on the pill and the timeline dropdown carries the full name,\nwhich is where a title you actually need to read belongs anyway.\n\n`haus.appearance.reduceMotion` turns this off as a default, along with\nthe rest of the motion haus draws.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "loc": [
+      "haus",
+      "bar",
+      "calendar",
+      "marquee"
+    ],
+    "readOnly": false,
+    "type": "boolean"
   },
   "haus.bar.calendar.me": {
     "declarations": [
@@ -1822,6 +1865,28 @@
     ],
     "readOnly": false,
     "type": "attribute set of string"
+  },
+  "haus.bar.media.marquee": {
+    "declarations": [
+      "modules/bar/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Sweep a long track title past while the pointer is on the media pill.\n\nHover is the only thing that starts it — nothing here runs a marquee on\na track change or on a timer — and one hover buys one full pass back to\nthe start. Off, a title too long for `haus.bar.media.width` is simply\nclipped, and the dropdown still carries it in full, so nothing is lost\nbut the movement.\n\n`haus.appearance.reduceMotion` turns this off as a default, along with\nthe rest of the motion haus draws.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "loc": [
+      "haus",
+      "bar",
+      "media",
+      "marquee"
+    ],
+    "readOnly": false,
+    "type": "boolean"
   },
   "haus.bar.media.width": {
     "declarations": [
@@ -5530,6 +5595,27 @@
       "haus",
       "windows",
       "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.windows.gravity": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "When a ⌘Q leaves the focused workspace empty, pull back to the most\nrecently populated one instead of leaving you on a blank screen.\n\nIt fires only for a workspace you EMPTIED — never for one you\ndeliberately navigated to that happens to be empty — so in ordinary use\nit is the difference between quitting the last app on a space and then\nhaving to find your way off it.\n\nTurn it off if a screen that changes without you touching it is worse\nthan a blank one. That is what `haus.appearance.reduceMotion` decides on\nyour behalf: it is the largest movement haus makes that you did not ask\nfor, and one whole display's worth of content replaced in a blink is\nexactly what a vestibular trigger looks like.\n\nNeeds both `haus.windows.enable` and `haus.bar.enable`: the quit is\ndetected from the bar's own event stream (see\nmodules/bar/sketchybar/plugins/empty_workspace.sh for why there is no\nAeroSpace hook for it), so with no bar there is no gravity either way.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "gravity"
     ],
     "readOnly": false,
     "type": "boolean"
