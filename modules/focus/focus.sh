@@ -202,6 +202,43 @@ audio_input_set() { # $1 = exact device name
         || note "audio: no input device named \"$1\" — left as it was"
 }
 
+# An app is named the way `open -a` takes it — a name or a bundle id — so the
+# AppleScript reference is picked the same way, on the one shape only a bundle
+# id has (dots, no spaces). The name is passed as an ARGUMENT rather than
+# spliced into the script text: scene data never becomes code here, which is
+# the whole reason the table is JSON the engine reads.
+#
+# `application X is running` is the one form that answers without launching what
+# it asks about — `tell application X to ...` would start it. An app macOS has
+# never heard of errors, which greps as "not running", which is right.
+app_running() { # $1 = app name or bundle id
+    /usr/bin/osascript - "$1" <<'EOS' 2>/dev/null | grep -q true
+on run argv
+    set a to item 1 of argv
+    if a contains "." and a does not contain " " then
+        return (application id a is running)
+    end if
+    return (application a is running)
+end run
+EOS
+}
+
+# The polite quit — the same message ⌘Q sends, so an app with unsaved work still
+# gets to put its dialog up. Guarded by `is running` so quitting what is already
+# gone can never be what starts it.
+app_quit() { # $1 = app name or bundle id
+    /usr/bin/osascript - "$1" <<'EOS' >/dev/null 2>&1
+on run argv
+    set a to item 1 of argv
+    if a contains "." and a does not contain " " then
+        if application id a is running then tell application id a to quit
+    else
+        if application a is running then tell application a to quit
+    end if
+end run
+EOS
+}
+
 # caffeinate outlives this script on purpose (the scene is what holds the
 # assertion, not the command that started it). The pid file survives a reboot
 # and pids get reused, so releasing checks it is still caffeinate before
@@ -250,6 +287,16 @@ scene_prev_write() { # $1 = sceneDnd, $2 = tookDnd, $3 = tookAudio, $4 = restore
 }
 
 scene_prev_read() { "$JQ" -r "$1 // empty" "$SCENE_PREV" 2>/dev/null; }
+
+# A second write, because which apps an entry STARTED is only known after it has
+# started them — and `prev` has to exist before the DND leg, which can exit. A
+# scene that doesn't close its apps writes nothing here, so exit finds no list
+# and quits nothing.
+scene_prev_took_apps() { # $1 = JSON array of apps this entry launched
+    local merged
+    merged=$("$JQ" --argjson a "$1" '.tookApps = $a' "$SCENE_PREV" 2>/dev/null) || return 0
+    printf '%s\n' "$merged" >"$SCENE_PREV"
+}
 
 scene_enter() {
     local name=$1 active
@@ -300,10 +347,24 @@ scene_enter() {
     [ "$(scene_field "$name" .preventSleep)" = true ] && sleep_hold
     [ "$takeAudio" = true ] && audio_input_set "$wantAudio"
 
+    # Only what this scene actually STARTED is its to close: an app you already
+    # had open is not a lever it pulled, the same rule takeDnd and takeAudio
+    # follow above. The probe costs an osascript per app, so it is only paid by
+    # a scene that asked to close them.
+    local closeApps took started
+    closeApps=$([ "$(scene_field "$name" .closeApps)" = true ] && echo true || echo false)
+    took='[]'
     while IFS= read -r app; do
         [ -n "$app" ] || continue
-        /usr/bin/open -a "$app" </dev/null >/dev/null 2>&1 || note "could not open \"$app\""
+        started=false
+        if [ "$closeApps" = true ] && ! app_running "$app"; then started=true; fi
+        if ! /usr/bin/open -a "$app" </dev/null >/dev/null 2>&1; then
+            note "could not open \"$app\""
+        elif [ "$started" = true ]; then
+            took=$("$JQ" -n --argjson t "$took" --arg a "$app" '$t + [$a]')
+        fi
     done < <(scene_field "$name" '.apps[]?')
+    if [ "$closeApps" = true ]; then scene_prev_took_apps "$took"; fi
 
     scene_hooks "$name" on
     poke_bar
@@ -322,6 +383,16 @@ scene_off() {
     fi
 
     scene_hooks "$name" off
+
+    # Before the rest, and off `prev` like every other reversal, so a scene the
+    # host deleted mid-flight still closes what it opened. A hook runs first on
+    # purpose: it is the half that might want to save something out of an app
+    # about to be asked to quit.
+    while IFS= read -r app; do
+        [ -n "$app" ] || continue
+        app_quit "$app"
+    done < <("$JQ" -r '.tookApps[]? // empty' "$SCENE_PREV" 2>/dev/null)
+
     sleep_release
 
     [ "$(scene_prev_read .tookAudio)" = true ] && audio_input_set "$(scene_prev_read .audioInput)"

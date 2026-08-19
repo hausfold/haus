@@ -136,9 +136,28 @@
               ];
               description = ''
                 Apps to launch on entry, by the name or bundle id `open -a`
-                takes. Honest scope: exiting a scene never closes them. Quitting
-                an app you were mid-sentence in is not a decision a config file
-                should make, so that reversal stays yours.
+                takes. Exiting a scene leaves them running unless
+                `apps.closeOnExit` says otherwise — quitting an app you were
+                mid-sentence in is not a decision a config file should make by
+                default.
+              '';
+            };
+
+            apps.closeOnExit = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = ''
+                On exit, quit the apps this scene STARTED — the ones from
+                `apps.open` that weren't already running when you entered. An
+                app you already had open is not a lever the scene pulled, so
+                leaving never closes it; that is the same rule DND and the input
+                device follow, and it is what keeps a work mode from taking your
+                editor down with it.
+
+                The quit is the polite one (the same message ⌘Q sends), so an app
+                with unsaved work still gets to ask. It is recorded on entry, so
+                exit closes what it opened even if the scene has since been
+                edited out of the table.
               '';
             };
 
