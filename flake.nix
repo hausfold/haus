@@ -2256,10 +2256,19 @@
               # `static let modes = ["launcher", "clipboard", …]` → one per line.
               sed -n 's/.*static let modes = \[\(.*\)\].*/\1/p' "$src" \
                 | tr -d ' "' | tr ',' '\n' | grep . > theirs-modes || true
-              # The fallback text of ItemTarget.problem. The `mode:` error also
-              # starts "(expected", but its literal has no closing paren before
-              # the quote, so this pattern takes only the shape list.
-              grep -o '(expected [^"]*)' "$src" > theirs-shapes || true
+              # The fallback text of ItemTarget.problem. That literal is built by
+              # CONCATENATION in Swift and wraps across lines once it grew a
+              # fourth shape, so the source is flattened first: join every line,
+              # then delete each `" + "` seam, leaving one string to grep. Doing
+              # it on the raw file is how this check broke when pounce added
+              # `setting:` — the closing paren moved into the next literal, the
+              # pattern matched nothing, and the guard below fired instead of
+              # the diff that would have named the missing shape.
+              tr '\n' ' ' < "$src" | sed 's/" *+ *"//g' > flat
+              # The `mode:` error also starts "(expected", but its literal has
+              # no closing paren before the quote, so this pattern takes only
+              # the shape list.
+              grep -o '(expected [^"]*)' flat > theirs-shapes || true
               # …and the parser itself, because the line above mirrors pounce's
               # ERROR TEXT, which is a hand-written literal beside `parse` rather
               # than something derived from it. A prefix added to `parse` and left

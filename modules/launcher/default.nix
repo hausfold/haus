@@ -652,6 +652,15 @@ let
         null
       else
         "\"${key}\" names no shortcut (shortcut:<uuid>, from `shortcuts list --show-identifiers`)"
+    else if lib.hasPrefix "setting:" key then
+      # Length only, exactly like `ItemTarget.parse`. Whether that pane and
+      # anchor exist is a question only the running Mac can answer (pounce
+      # builds the list from /System/Library/ExtensionKit at summon time), so a
+      # stricter mirror here would refuse keys the daemon happily fires.
+      if lib.stringLength key > 8 then
+        null
+      else
+        "\"${key}\" names no settings pane (setting:<pane>[?<anchor>], as the Settings rows in pounce report)"
     else if lib.hasPrefix "mode:" key then
       let
         mode = lib.removePrefix "mode:" key;
