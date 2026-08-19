@@ -54,6 +54,17 @@
 #       nix-darwin's restart logic never touches it and no private API does
 #       either). Declared so a future write here is a conscious decision, not
 #       a silent gap — see the matrix's `com.apple.WindowManager` row.
+#
+#       ★ `logout` is the one verb with a THIRD consumer, and since 2026-08-19 it
+#       is no longer only a warning. ./login-map.nix reads this verb back out of
+#       this table and pairs each logout-only domain with the sentence its
+#       options carry in their own descriptions — so the person is told before
+#       they set the option, not only after they rebuilt. That file fails the
+#       build if a domain becomes `logout` here without one, which is what
+#       finally made these domains shippable: §5.6 refused them for years on the
+#       grounds that "a group that silently needs a logout is worse than no
+#       group", and the missing piece was never the data, it was a description
+#       that could not drift from it.
 {
   # ---- always written (mkDefault, every rebuild) ---------------------------
   "com.apple.dock" = "Dock"; # nix-darwin restarts Dock itself whenever this domain is set — see core's postActivation, which skips it to avoid bouncing the Dock twice
@@ -173,8 +184,17 @@
   "com.apple.menuExtraClock" = "SystemUIServer"; # haus.menuBar.clock
   "com.apple.controlcenter" = "ControlCenter"; # haus.menuBar.controlCenter — the first actual write into this domain; the old `restartProcesses` list had carried "ControlCenter" unused since rice#249 (that list is gone, #255)
 
-  # ---- not written yet — declared ahead of use ------------------------------
-  # The day the rice (or a host) writes into this, the warning in core/default.nix
-  # already has a correct answer instead of another rice#181.
-  "com.apple.WindowManager" = "logout"; # matrix: 12 typed keys, no live-reload path exists on macOS 26 — no haus.* option is backed by this domain yet, on purpose (§5.6: a group that silently needs a logout is worse than no group)
+  # ---- logout-only, and now BUILT ON ---------------------------------------
+  # Both were declared here ahead of any write, and both stayed unbuilt for the
+  # same reason (§5.6: a group that silently needs a logout is worse than no
+  # group). ./login-map.nix removed that reason on 2026-08-19 by making the wait
+  # something the OPTION says out loud, so `haus.windows.stageManager` /
+  # `.nativeTiling.*`, `haus.lock.login.*` and `haus.security.guestAccount` now
+  # write into them. The verb is unchanged — what changed is that the silence it
+  # used to imply is gone.
+  #
+  # Neither is TCC-gated (./reachability.nix lists neither, so both are `open`
+  # and `plain`): the write lands on every machine, and only the READER waits.
+  "com.apple.WindowManager" = "logout"; # matrix: 12 typed keys, no live-reload path on macOS 26 — the WindowServer reads its session state at login
+  "com.apple.loginwindow" = "logout"; # matrix: 11 typed keys. The one domain whose restart is UNAVAILABLE rather than merely absent: `loginwindow` owns the session, so killing it to reread the domain would log the user out to apply a login-window setting
 }

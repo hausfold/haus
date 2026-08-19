@@ -115,7 +115,7 @@
     "order": 118
   },
   "lock": {
-    "blurb": "Whether waking this Mac needs a password, and how long the grace period is. Worth setting on any laptop that leaves the house.",
+    "blurb": "Whether waking this Mac needs a password and how long the grace period is, plus the login window itself — name-and-password instead of a list of faces, a message for whoever finds a lost laptop, and which of Shut Down / Restart / Sleep it offers. The login half lands at your next login, which each option says.",
     "order": 114
   },
   "menuBar": {
@@ -760,10 +760,25 @@
       "owner": "host"
     },
     "lock": {
-      "blurb": "Whether waking this Mac needs a password, and how long the grace period is. Worth setting on any laptop that leaves the house.",
+      "blurb": "Whether waking this Mac needs a password and how long the grace period is, plus the login window itself — name-and-password instead of a list of faces, a message for whoever finds a lost laptop, and which of Shut Down / Restart / Sleep it offers. The login half lands at your next login, which each option says.",
       "kind": "room",
-      "optionCount": 2,
+      "optionCount": 7,
       "options": {
+        "haus.lock.login.hideRestart": {
+          "desktopSafe": true
+        },
+        "haus.lock.login.hideShutDown": {
+          "desktopSafe": true
+        },
+        "haus.lock.login.hideSleep": {
+          "desktopSafe": true
+        },
+        "haus.lock.login.message": {
+          "desktopSafe": true
+        },
+        "haus.lock.login.showNameField": {
+          "desktopSafe": true
+        },
         "haus.lock.requirePassword": {
           "desktopSafe": true
         },
@@ -947,9 +962,9 @@
       "owner": "security"
     },
     "security": {
-      "blurb": "Security posture: the built-in application firewall and how strict it is (off on a fresh Mac — the setting to turn on for a laptop that joins networks you don't own), plus Touch ID for `sudo`, including inside a terminal multiplexer, and the passwordless-rebuild rule.",
+      "blurb": "Security posture: the built-in application firewall and how strict it is (off on a fresh Mac — the setting to turn on for a laptop that joins networks you don't own), whether the passwordless Guest account can log in (on out of the box, and the one genuine boundary in this group), plus Touch ID for `sudo`, including inside a terminal multiplexer, and the passwordless-rebuild rule.",
       "kind": "room",
-      "optionCount": 7,
+      "optionCount": 8,
       "options": {
         "haus.security.firewall.allowSigned": {
           "desktopSafe": true
@@ -964,6 +979,9 @@
           "desktopSafe": true
         },
         "haus.security.firewall.stealthMode": {
+          "desktopSafe": true
+        },
+        "haus.security.guestAccount": {
           "desktopSafe": true
         },
         "haus.security.touchId.enable": {
@@ -1189,9 +1207,9 @@
       "owner": "appearance"
     },
     "windows": {
-      "blurb": "Tiling window management and the Caps-Lock leader launcher.",
+      "blurb": "Tiling window management and the Caps-Lock leader launcher — plus macOS's OWN window features (Stage Manager, edge-drag tiling, the desktop's icons and widgets), which live here rather than with the other macOS settings because they decide the same thing the tiler does and haus warns when both are on.",
       "kind": "room",
-      "optionCount": 7,
+      "optionCount": 19,
       "options": {
         "haus.windows.accordionPadding": {
           "desktopSafe": true
@@ -1200,6 +1218,15 @@
           "desktopSafe": true
         },
         "haus.windows.defaultOrientation": {
+          "desktopSafe": true
+        },
+        "haus.windows.desktop.clickToReveal": {
+          "desktopSafe": true
+        },
+        "haus.windows.desktop.hideIcons": {
+          "desktopSafe": true
+        },
+        "haus.windows.desktop.hideWidgets": {
           "desktopSafe": true
         },
         "haus.windows.enable": {
@@ -1211,7 +1238,34 @@
         "haus.windows.mouseFullscreen": {
           "desktopSafe": true
         },
+        "haus.windows.nativeTiling.edgeDrag": {
+          "desktopSafe": true
+        },
+        "haus.windows.nativeTiling.margins": {
+          "desktopSafe": true
+        },
+        "haus.windows.nativeTiling.optionAccelerator": {
+          "desktopSafe": true
+        },
+        "haus.windows.nativeTiling.topEdgeFullscreen": {
+          "desktopSafe": true
+        },
         "haus.windows.numberedWorkspaces": {
+          "desktopSafe": true
+        },
+        "haus.windows.stageManager.autoHideStrip": {
+          "desktopSafe": true
+        },
+        "haus.windows.stageManager.enable": {
+          "desktopSafe": true
+        },
+        "haus.windows.stageManager.groupWindows": {
+          "desktopSafe": true
+        },
+        "haus.windows.stageManager.hideDesktopIcons": {
+          "desktopSafe": true
+        },
+        "haus.windows.stageManager.hideWidgets": {
           "desktopSafe": true
         }
       },
@@ -1519,11 +1573,14 @@
           "touch id for sudo",
           "turn on the firewall",
           "lock my screen faster",
+          "turn off the guest account",
+          "put my phone number on the login screen",
+          "stop showing a list of users when i log in",
           "where does haus get my secrets"
         ],
         "cli": null
       },
-      "blurb": "Touch ID for sudo, lock behaviour, the firewall, and where secret values come from.",
+      "blurb": "Touch ID for sudo, lock and login-window behaviour, the guest account, the firewall, and where secret values come from.",
       "exports": [
         "secrets",
         "security"
@@ -1534,7 +1591,7 @@
         "security",
         "secrets"
       ],
-      "optionCount": 10,
+      "optionCount": 16,
       "order": 120,
       "title": "Security"
     },
@@ -1583,11 +1640,14 @@
           "change my window keybindings",
           "move this window to another workspace",
           "set up hot corners",
-          "what does my leader key do"
+          "what does my leader key do",
+          "turn off stage manager",
+          "stop windows snapping when i drag them to the edge",
+          "hide the icons on my desktop"
         ],
         "cli": "aerospace"
       },
-      "blurb": "Tiling, window navigation, hot corners, and the leader key that launches an app or throws it somewhere. The workspaces themselves (`haus.workspaces`) and the keys haus claims (`haus.keys`) are shared surfaces below, because the bar and the launcher read them too.",
+      "blurb": "Tiling, window navigation, hot corners, and the leader key that launches an app or throws it somewhere — plus macOS's own Stage Manager, edge-drag tiling and desktop clutter, which answer the same question the tiler does. The workspaces themselves (`haus.workspaces`) and the keys haus claims (`haus.keys`) are shared surfaces below, because the bar and the launcher read them too.",
       "exports": [
         "windows"
       ],
@@ -1596,7 +1656,7 @@
         "hotCorners",
         "windows"
       ],
-      "optionCount": 11,
+      "optionCount": 23,
       "order": 50,
       "title": "Windows"
     }
@@ -1615,7 +1675,7 @@
     "order": 220
   },
   "security": {
-    "blurb": "Security posture: the built-in application firewall and how strict it is (off on a fresh Mac — the setting to turn on for a laptop that joins networks you don't own), plus Touch ID for `sudo`, including inside a terminal multiplexer, and the passwordless-rebuild rule.",
+    "blurb": "Security posture: the built-in application firewall and how strict it is (off on a fresh Mac — the setting to turn on for a laptop that joins networks you don't own), whether the passwordless Guest account can log in (on out of the box, and the one genuine boundary in this group), plus Touch ID for `sudo`, including inside a terminal multiplexer, and the passwordless-rebuild rule.",
     "order": 116
   },
   "shelf": {
@@ -1651,7 +1711,7 @@
     "order": 35
   },
   "windows": {
-    "blurb": "Tiling window management and the Caps-Lock leader launcher.",
+    "blurb": "Tiling window management and the Caps-Lock leader launcher — plus macOS's OWN window features (Stage Manager, edge-drag tiling, the desktop's icons and widgets), which live here rather than with the other macOS settings because they decide the same thing the tiler does and haus warns when both are on.",
     "order": 120
   },
   "workspaces": {

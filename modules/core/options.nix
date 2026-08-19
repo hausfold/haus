@@ -35,6 +35,64 @@ let
   alertSoundNames = import ./alert-sounds.nix;
   alertSoundList = "  ${lib.concatStringsSep "  " alertSoundNames}\n";
 
+  # ---- the logout note (§5.6's last blocker) ---------------------------------
+  # `haus.lock.login.*` and `haus.security.guestAccount` write
+  # com.apple.loginwindow, which macOS reads once when your session is created.
+  # The process that would reread it is `loginwindow` itself, so the only
+  # "restart" available is the one that ends your session — which is why haus
+  # never fires it, and why this group sat unbuilt while the wait could only be
+  # discovered AFTER a rebuild.
+  #
+  # ../lib/login-map.nix is the third table in the family (../lib/reachability.nix
+  # says whether a write can land, ../lib/restart-map.nix says what makes it
+  # felt, this says what to tell someone when the answer is "a logout"). It reads
+  # the `logout` verb straight out of the restart map, so the sentence below and
+  # the announcement core renders into the built activation script cannot
+  # disagree: there is one fact and three renderings of it.
+  loginMap = import ../lib/login-map.nix { inherit lib; };
+  loginWindowDomain = "com.apple.loginwindow";
+  loginWindowKeys = import ./loginwindow-keys.nix;
+
+  # Every boolean option on that domain has the same shape, so the only per-option
+  # content is prose and which plist key it is for. Naming the key here is what
+  # makes ./loginwindow-keys.nix checkable in BOTH directions — an option for a
+  # key the table lacks is refused right here, and a table entry with no option
+  # is refused in ./default.nix, where the write is built by walking it.
+  #
+  # `haus.lock.login.message` does not use this: it is the domain's one string
+  # key, and it interpolates `loginMap.note` itself.
+  mkLoginWindow =
+    {
+      key,
+      description,
+    }:
+    if !(loginWindowKeys ? ${key}) then
+      throw ''
+        haus: an option declares the plist key `${key}`, which
+        ./loginwindow-keys.nix does not carry — so nothing would ever write it.
+
+        That table is what ./default.nix walks to build the
+        system.defaults.loginwindow block. Add the key there, with the option's
+        path under `haus`, and the write follows.
+      ''
+    else
+      lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        example = true;
+        description = ''
+          ${description}
+
+          null (the default) writes nothing at all, which is not the same as
+          "off" — and on this domain that matters more than most, because
+          several of these keys are ON out of the box. Turning an option back to
+          null STOPS writing rather than restoring: macOS keeps no memory of
+          what the value was before haus set it.
+
+          ${loginMap.note loginWindowDomain}
+        '';
+      };
+
   hotCornerActions = import ./hot-corners.nix;
   hotCornerNames = map (a: a.name) hotCornerActions;
   # The value list in the description comes from the same table the enum does,
@@ -274,9 +332,7 @@ in
         };
 
         undescribed = builtins.filter (k: !(descriptions ? ${k})) a11yEffectiveKeys;
-        unbacked = builtins.filter (k: !(builtins.elem k a11yEffectiveKeys)) (
-          lib.attrNames descriptions
-        );
+        unbacked = builtins.filter (k: !(builtins.elem k a11yEffectiveKeys)) (lib.attrNames descriptions);
       in
       if undescribed != [ ] then
         throw ''
@@ -689,14 +745,20 @@ in
     };
 
     # ---- lock ----
-    # §5.6's "Lock / login / screensaver" group, the LOCK half only. The login
-    # half (com.apple.loginwindow — guest account, the text under the password
-    # field, hiding Shut Down/Restart) is deliberately not here: loginwindow is
-    # read once at boot/login, killing the loginwindow process would force-quit
-    # the current session, and there is no live-reload path — exactly the
-    # "silent logout" trap this section exists to avoid. It waits until this
-    # group has somewhere honest to say "takes effect at next login" out loud,
-    # the way `haus.accessibility` says "needs Full Disk Access".
+    # §5.6's "Lock / login / screensaver" group, now BOTH halves.
+    #
+    # The lock half (com.apple.screensaver) was always live: no persistent
+    # process reads it, so the next lock picks it up. The LOGIN half
+    # (com.apple.loginwindow) was deferred for a year because it is the opposite
+    # — read once when the session is created, and the process that would reread
+    # it is the one that owns your session, so the "restart" is a logout. §5.6
+    # refused to ship a settings group whose keys SILENTLY need one.
+    #
+    # ../lib/login-map.nix is what removed the word "silently": `mkLoginWindow`
+    # below stamps every option in this half with the domain's paragraph, from
+    # the same `logout` verb in ../lib/restart-map.nix that already makes
+    # activation announce it and `haus plan` report it. One fact, rendered where
+    # each audience stands, and no copy anyone can edit out of step.
     lock = {
       requirePassword = lib.mkOption {
         type = lib.types.nullOr lib.types.bool;
@@ -722,6 +784,75 @@ in
           0 locks instantly. Has no effect while `requirePassword` is null or
           false.
         '';
+      };
+
+      # ---- the login half (com.apple.loginwindow) ----------------------------
+      # What you see BEFORE a session exists: the login window itself. Nested
+      # under `lock` rather than given a room of its own because it is the same
+      # question — who gets into this Mac — asked one step earlier, which is how
+      # §5.6 grouped it in the first place ("Lock / login / screensaver").
+      login = {
+        showNameField = mkLoginWindow {
+          key = "SHOWFULLNAME";
+          description = ''
+            Ask for a username AND a password, instead of showing a list of
+            user pictures to click.
+
+            The shoulder-surfing setting: with the list, half the credential is
+            already on screen for anyone who walks past. Worth true on a laptop
+            that leaves the house, and it is also the only way to log into an
+            account the list deliberately hides.
+          '';
+        };
+        message = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          example = "If found, please call +1 555 0100.";
+          description = ''
+            A line of text under the password field on the login window.
+            null (the default) leaves whatever is there alone.
+
+            The one genuinely useful thing to put here is how to reach you if
+            the machine is lost — it is visible to somebody who cannot log in,
+            which is exactly the person you want reading it. Everything else it
+            gets used for (a banner, a policy notice) is a workplace thing.
+
+            Not a security boundary: anyone who can read this can also read it
+            off the disk, and it is not a lock. Empty string clears the message
+            rather than leaving it alone; that is `""`, not null.
+
+            ${loginMap.note loginWindowDomain}
+          '';
+        };
+        hideShutDown = mkLoginWindow {
+          key = "ShutDownDisabled";
+          description = ''
+            Remove the Shut Down button from the login window.
+
+            For a machine that should stay up and reachable — a Mac serving
+            something on the desk in the corner — where the only person pressing
+            it is someone who walked past. It does not stop a long press on the
+            power button, and it is not a lock: it removes the easy way, not
+            every way.
+          '';
+        };
+        hideRestart = mkLoginWindow {
+          key = "RestartDisabled";
+          description = ''
+            Remove the Restart button from the login window. Same reasoning as
+            `hideShutDown`, and normally set with it — leaving one of the two
+            buttons is a curious middle ground.
+          '';
+        };
+        hideSleep = mkLoginWindow {
+          key = "SleepDisabled";
+          description = ''
+            Remove the Sleep button from the login window. The mildest of the
+            three, and the one with a real cost on a laptop: sleeping from the
+            login window is how you put a machine away that you have already
+            locked.
+          '';
+        };
       };
     };
 
@@ -840,17 +971,49 @@ in
     };
 
     # ---- security ----
-    # §5.6's "Security posture" group, the firewall half only. Guest user lives
-    # in the logout-only loginwindow domain (see `lock` above); remote login and
-    # AirDrop's OWN on/off (as opposed to its menu bar icon, above) aren't
-    # reachable through anything this rice currently wires.
+    # §5.6's "Security posture" group, now both of the halves that are reachable
+    # at all.
     #
-    # NOT a system.defaults domain and NOT in modules/lib/restart-map.nix on
-    # purpose: nix-darwin's networking.applicationFirewall runs
+    # The firewall half is not a plist write: nix-darwin's
+    # networking.applicationFirewall runs
     # `/usr/libexec/ApplicationFirewall/socketfilterfw` directly, in its own
-    # unconditional activation script, every rebuild — a live command, not a
-    # plist write waiting for something to reread it. No restart, no logout,
-    # no TCC grant.
+    # unconditional activation script, every rebuild — a live command, so no
+    # restart, no logout, no TCC grant, and no entry in
+    # ../lib/restart-map.nix.
+    #
+    # `guestAccount` is the other half, and it was deferred for exactly as long
+    # as `lock`'s login half and for the same reason: com.apple.loginwindow is
+    # logout-only, and the group would not ship a key that silently waits. It
+    # carries ../lib/login-map.nix's paragraph now, like every other option on
+    # that domain.
+    #
+    # REMOTE LOGIN (sshd) is still not here, and this is the deliberate gap —
+    # it isn't a `defaults` key at all. It's `systemsetup -setremotelogin` /
+    # `launchctl enable system/com.openssh.sshd`, which needs a guarded
+    # activation step of its own (the `haus.power` shape, not the
+    # `system.defaults` one), and turning a machine's SSH server on is a
+    # different class of decision from the rest of this group: it opens a port
+    # to the network rather than changing what a local screen shows. It also
+    # needs Full Disk Access to drive `systemsetup` on macOS 26. Worth building,
+    # deliberately not smuggled in behind a logout-note PR.
+    security.guestAccount = mkLoginWindow {
+      key = "GuestEnabled";
+      description = ''
+        Whether anyone can log in as "Guest" without a password — a temporary
+        session macOS wipes when they log out.
+
+        Fresh Macs ship with this ON, which is the fact worth knowing: a
+        machine you never configured lets a stranger who has it in their hands
+        reach a browser, a network and any file share you are connected to.
+        `false` is the setting almost every personal machine wants and almost
+        no one has made.
+
+        It is also the one key in this group that is genuinely a security
+        boundary rather than a papercut, so it is worth setting explicitly even
+        when you believe it is already off.
+      '';
+    };
+
     security.firewall = {
       enable = lib.mkOption {
         type = lib.types.nullOr lib.types.bool;

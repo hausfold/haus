@@ -8,6 +8,61 @@
 # all three so a chord and the caption documenting it can't drift.
 { lib, ... }:
 
+let
+  # ---- the logout note, and where it comes from ------------------------------
+  # `haus.windows.stageManager.*`, `.nativeTiling.*` and `.desktop.*` all write
+  # `com.apple.WindowManager`, which macOS reads at login and offers no way to
+  # re-read. That fact lives in ../lib/restart-map.nix as the `logout` verb, and
+  # the SENTENCE about it lives in ../lib/login-map.nix — one paragraph per
+  # domain, interpolated below rather than written twelve times.
+  #
+  # This is the whole reason the group is shippable. §5.6 refused it while the
+  # only place the wait was stated was the machine (activation's announcement,
+  # `haus plan`); saying it at the option, before anyone builds anything, is what
+  # turns "it silently didn't work" into "it lands next login", and generating it
+  # from the verb is what stops the twelve copies from drifting apart.
+  loginMap = import ../lib/login-map.nix { inherit lib; };
+  windowManagerDomain = "com.apple.WindowManager";
+  windowManagerKeys = import ./window-manager-keys.nix;
+
+  # Every option in the group has the same shape — nullOr bool, null means write
+  # nothing — so the only per-option content is its prose and which plist key it
+  # is FOR. Taking the key here is what lets ./window-manager-keys.nix be checked
+  # in both directions: an option naming a key the table doesn't have is refused
+  # right here, and a table entry with no option is caught in ./default.nix.
+  mkWindowManagerOption =
+    {
+      key,
+      description,
+    }:
+    if !(windowManagerKeys ? ${key}) then
+      throw ''
+        haus.windows: an option declares the plist key `${key}`, which
+        ./window-manager-keys.nix does not carry — so nothing would ever write it.
+
+        That table is what ./default.nix walks to build the
+        system.defaults.WindowManager block. Add the key there (with the option
+        path) and the write follows.
+      ''
+    else
+      lib.mkOption {
+        type = lib.types.nullOr lib.types.bool;
+        default = null;
+        example = true;
+        description = ''
+          ${description}
+
+          null (the default) writes nothing at all, which is not the same as
+          "off": these are settings people have usually already made by hand,
+          and a rebuild that named one it didn't care about would silently
+          overwrite a choice. Turning an option back to null STOPS writing, it
+          does not restore — macOS keeps no memory of what the value was.
+
+          ${loginMap.note windowManagerDomain}
+        '';
+      };
+in
+
 {
   options.haus = {
     # core + terminal are the floor and have no switch (system, shell). Of the
@@ -199,6 +254,171 @@
 
         Only meaningful with haus.windows.enable.
       '';
+    };
+
+    # ---- macOS's OWN window features (com.apple.WindowManager) ---------------
+    # §5.6's "Windows" row, and the last of its ten groups to be built. It was
+    # deliberately unbuilt for a year on one ground: this domain has no
+    # live-reload path on macOS 26, so every option here lands in the plist and
+    # changes nothing until the next login, and "a curated group that silently
+    # needs a logout is worse than no group". `../lib/login-map.nix` is what
+    # removed the word SILENTLY — every description below carries its paragraph,
+    # generated from the same `logout` verb in `../lib/restart-map.nix` that
+    # makes activation announce it and `haus plan` report it. One fact, three
+    # renderings, no hand copy.
+    #
+    # It lives in the windows room and NOT in core with the other macOS-settings
+    # groups, because this is the one settings group that interlocks with what
+    # the room does: Stage Manager and native edge-drag tiling are macOS's own
+    # answer to the question AeroSpace answers, so a machine that runs both has
+    # two window managers fighting over the same windows. That is the whole
+    # reason the roadmap wrote "must interlock with windows" beside this row.
+    # Every option is null-by-default like every other §5.6 group, so the room
+    # still imposes nothing; what it adds is one warning when the two collide
+    # (see ./default.nix), which core could not have written.
+    #
+    # Independent of `windows.enable` on purpose. Turning the TILER off is a
+    # perfectly good reason to want macOS's own tiling turned on, and gating
+    # these behind the room switch would make the two mutually exclusive in
+    # exactly the case where you want the other one.
+    windows.stageManager = {
+      enable = mkWindowManagerOption {
+        key = "GloballyEnabled";
+        description = ''
+          macOS's Stage Manager: recent windows are swept into a strip down the
+          side of the screen, one app in the middle at a time.
+
+          Turning this on while `haus.windows.enable` is also on gives you two
+          window managers with different ideas about where a window belongs —
+          AeroSpace tiles it, Stage Manager pulls it back to the strip. haus
+          warns about the pair rather than refusing it, because "Stage Manager
+          on the laptop display, tiling on the external" is a real way to work,
+          but if windows will not stay where the tiler puts them this is the
+          first thing to turn off.
+        '';
+      };
+      autoHideStrip = mkWindowManagerOption {
+        key = "AutoHide";
+        description = ''
+          Hide the strip of recent apps until the pointer goes near it, instead
+          of keeping it on screen. Only does anything while Stage Manager is on.
+
+          The setting that buys back the width Stage Manager costs you on a
+          laptop display.
+        '';
+      };
+      groupWindows = mkWindowManagerOption {
+        key = "AppWindowGroupingBehavior";
+        description = ''
+          When you click an app in the strip, whether Stage Manager brings ALL
+          of that app's windows forward together (true) or one at a time
+          (false). macOS spells these "All at once" and "One at a time".
+
+          True is what you want for an app you keep several windows of and read
+          side by side; false keeps the middle of the screen to a single window,
+          which is the point of Stage Manager for most people.
+        '';
+      };
+      hideDesktopIcons = mkWindowManagerOption {
+        key = "HideDesktop";
+        description = ''
+          Hide the icons on your desktop while Stage Manager is on. The
+          Stage-Manager-only twin of `haus.windows.desktop.hideIcons`, which
+          hides them always.
+        '';
+      };
+      hideWidgets = mkWindowManagerOption {
+        key = "StageManagerHideWidgets";
+        description = ''
+          Hide desktop widgets while Stage Manager is on. The
+          Stage-Manager-only twin of `haus.windows.desktop.hideWidgets`.
+        '';
+      };
+    };
+
+    windows.nativeTiling = {
+      edgeDrag = mkWindowManagerOption {
+        key = "EnableTilingByEdgeDrag";
+        description = ''
+          Drag a window to the side of the screen and macOS tiles it there.
+          On (macOS's own default) unless you say otherwise.
+
+          THE ONE TO TURN OFF IF YOU TILE. With `haus.windows.enable` on,
+          AeroSpace already owns where windows go, and this is the setting that
+          makes a window you were merely dragging past the edge of the screen
+          snap to half of it — which then fights the tiler for the same space.
+          Setting it false is the single most useful key in this group for a
+          tiling machine, and haus warns about the combination.
+        '';
+      };
+      topEdgeFullscreen = mkWindowManagerOption {
+        key = "EnableTopTilingByEdgeDrag";
+        description = ''
+          Drag a window up to the menu bar and macOS fills the screen with it.
+          The same bargain as `edgeDrag`, at the top edge, and worth turning off
+          for the same reason if you tile: the menu bar is somewhere a window
+          gets dragged PAST, on the way to somewhere else.
+        '';
+      };
+      optionAccelerator = mkWindowManagerOption {
+        key = "EnableTilingOptionAccelerator";
+        description = ''
+          Hold ⌥ while dragging to tile a window.
+
+          READ THIS WITH `edgeDrag`, not instead of it. These are two
+          independent keys and macOS ships both on, so turning this on does NOT
+          stop a bare drag from tiling — that is `edgeDrag = false`, and what
+          this adds is a second, deliberate way in. The pair people usually
+          want is `edgeDrag = false` here and `optionAccelerator = true`:
+          native tiling stays available on the machine and stops happening by
+          accident, which on a tiling machine is the whole complaint.
+
+          On a tiling machine it also spends a modifier AeroSpace may want —
+          check `haus.keys.windowNav` before relying on it.
+        '';
+      };
+      margins = mkWindowManagerOption {
+        key = "EnableTiledWindowMargins";
+        description = ''
+          Leave a gap between natively tiled windows and the screen edges.
+          macOS's own gaps setting, and nothing to do with
+          `haus.windows.accordionPadding` or AeroSpace's gaps, which apply to
+          windows the TILER placed.
+        '';
+      };
+    };
+
+    windows.desktop = {
+      clickToReveal = mkWindowManagerOption {
+        key = "EnableStandardClickToShowDesktop";
+        description = ''
+          Click the wallpaper to push every window aside and reveal the desktop.
+          macOS 14 turned this on for everybody and it is the change most people
+          want back: true is "always", false is "only in Stage Manager".
+
+          Worth knowing before you leave it on with a tiler: a click on the
+          wallpaper is easy to make by accident on a workspace whose windows do
+          not cover the screen, and it moves every window on it.
+        '';
+      };
+      hideIcons = mkWindowManagerOption {
+        key = "StandardHideDesktopIcons";
+        description = ''
+          Hide the icons on your desktop, always — the files are still in
+          `~/Desktop`, Finder still shows them, they just stop being drawn on
+          the wallpaper.
+
+          The natural companion to a generated `haus.wallpaper`, which you chose
+          to look at rather than to be a filing cabinet.
+        '';
+      };
+      hideWidgets = mkWindowManagerOption {
+        key = "StandardHideWidgets";
+        description = ''
+          Hide desktop widgets, always. Same idea as `hideIcons`, for the
+          clock/calendar/weather widgets macOS 14 let you park on the desktop.
+        '';
+      };
     };
   };
 }

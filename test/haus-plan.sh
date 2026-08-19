@@ -229,8 +229,68 @@ res="$(plan_restarts "$tmp/new-activate")"
 has 'restarts Finder, SystemUIServer' "$res"
 has 'broadcasts activateSettings' "$res"
 has 'posts AppleDatePreferencesChangedNotification' "$res"
+# The fixture above sets no logout-only domain, so the OTHER half of
+# plan_restarts must stay silent. Worth asserting rather than assuming: the
+# warning is the one line in this function that fires on a minority of machines,
+# which makes "it always prints" the failure nobody would notice.
+lacks 'waits for a logout' "$res"
 test -z "$(plan_restarts "$tmp/bare-activate")" \
   || fail "plan_restarts announced restarts for a script that has none"
+
+# The logout half, on a script that DOES declare one. Both real domains, because
+# the line core emits carries them space-separated on one line and the reader has
+# to split them — a parser that took the whole tail as a single name would print
+# "com.apple.WindowManager com.apple.loginwindow" as one item and still look
+# plausible. Kept as a fixture rather than derived from restart-map.nix, for the
+# same reason the rest of this file greps the built script: the point is what a
+# rebuild actually contains, not a second copy of the table.
+printf 'echo "haus: waits-for-logout com.apple.loginwindow com.apple.WindowManager" >&2\n' \
+  >"$tmp/logout-activate"
+res="$(plan_restarts "$tmp/logout-activate")"
+has 'waits for a logout' "$res"
+# Sorted, and `LC_ALL=C` means ASCII order rather than dictionary order — so
+# `com.apple.WindowManager` comes FIRST, because uppercase W sorts before
+# lowercase l. Written out the way it actually prints rather than the way it
+# reads: this is the same collation the reader uses everywhere else in haus.sh,
+# and asserting the pretty order would be asserting a bug.
+has 'com.apple.WindowManager, com.apple.loginwindow' "$res"
+# It is a WARNING and its own line, never folded into the "every rebuild also…"
+# sentence: that one says what will happen, this says what won't.
+lacks 'every rebuild also' "$res"
+
+# ---- which declared plist keys the checker can SEE ---------------------------
+# `declared_defaults` is what `haus diff` and `haus plan` compare the live
+# machine against, so a key it cannot parse is a key haus silently has no
+# opinion about — indistinguishable, from the outside, from a key that agrees.
+#
+# nix-darwin emits TWO shapes and this pins both, because for a while it only
+# read one. A USER default arrives through the `launchctl asuser … sudo … --`
+# wrapper; a SYSTEM default (system.defaults.loginwindow.*) is written bare, as
+# root, to an absolute /Library/Preferences/<domain>. Matching only the wrapped
+# shape is how six shipped options were invisible to the checker on day one.
+plistfix() { # <domain-or-path> <key> <value-xml>
+  printf "%s '<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" "defaults write $1 $2"
+  printf '<plist version="1.0"><%s/></plist>'"'"'\n' "$3"
+}
+{
+  # wrapped: how every user-level domain arrives
+  printf 'launchctl asuser 501 sudo --user=fakeuser -- '
+  plistfix com.apple.dock autohide true
+  # bare + absolute: how a system-level domain arrives
+  plistfix /Library/Preferences/com.apple.loginwindow GuestEnabled false
+  # -g is spelled that way on the command line and NSGlobalDomain everywhere else
+  printf 'launchctl asuser 501 sudo --user=fakeuser -- '
+  plistfix -g InitialKeyRepeat integer
+} >"$tmp/defaults-activate"
+res="$(declared_defaults "$tmp/defaults-activate" | cut -f1,2)"
+has 'com.apple.dock	autohide' "$res"
+has 'NSGlobalDomain	InitialKeyRepeat' "$res"
+# The regression this section exists for. Note the domain is reported WITHOUT
+# the /Library/Preferences prefix: one domain must never be two rows, or
+# classify_key and the restart/reachability tables — all keyed by the bare
+# spelling — would miss it while the diff still printed something plausible.
+has 'com.apple.loginwindow	GuestEnabled' "$res"
+lacks '/Library/Preferences' "$res"
 
 # ---- what the settings NEED before they can land (§5.12) --------------------
 # The reachability announcement core renders beside the restart calls. Same

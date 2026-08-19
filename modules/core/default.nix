@@ -74,6 +74,16 @@ let
     "com.apple.screensaver" # haus.lock
     "com.apple.menuExtraClock" # haus.menuBar.clock
     "com.apple.controlcenter" # haus.menuBar.controlCenter
+    "com.apple.loginwindow" # haus.lock.login + haus.security.guestAccount
+    # Written by modules/windows, not here (haus.windows.stageManager /
+    # .nativeTiling / .desktop), and named anyway — this list is what the restart
+    # and logout lookups are done over, and a domain missing from it is a domain
+    # whose announcement never fires. That is not hypothetical for these two: the
+    # `logout` verb has no process to kill, so a missing entry produces no
+    # symptom at all, just silence where the warning should have been. The
+    # `restartDeclaredBy` gate below is what keeps both quiet on a machine that
+    # sets none of their keys.
+    "com.apple.WindowManager"
   ];
   customPrefDomainsWritten = lib.attrNames config.system.defaults.CustomUserPreferences;
   domainsWritten = lib.unique (typedDomainsWritten ++ customPrefDomainsWritten);
@@ -140,6 +150,32 @@ let
       ++ universalaccessSet
       ++ lib.attrNames (config.system.defaults.CustomUserPreferences."com.apple.universalaccess" or { })
     );
+
+    # ---- the two logout-only domains ---------------------------------------
+    # Same gate, different verb, and it is what makes the announcement WORTH
+    # something. `logout` fires no process, so an unconditional entry costs no
+    # Dock bounce and no interrupted VoiceOver — it costs the signal itself: a
+    # "waits for a logout" warning on every rebuild of every machine, including
+    # the overwhelming majority that set none of these keys, is noise people
+    # learn to skip, and then the one rebuild that genuinely waits says nothing
+    # anyone reads. That is the same failure the locale notification's trigger
+    # avoided, restated for a verb that prints instead of killing:
+    # **"which restart" is data; "does this rebuild need one" sometimes isn't.**
+    #
+    # Read off the resolved `system.defaults.<domain>` block rather than off the
+    # haus option that fed it, which is the important detail: it is true for a
+    # host reaching `system.defaults.loginwindow.*` directly (there is no guard
+    # to route around on this domain — no TCC, no abort — so that route is
+    # perfectly legitimate here, unlike universalaccess's), and it stays true
+    # when a key is added to either group with no edit at this line. A null in
+    # every key means nothing is written, which is exactly when there is nothing
+    # to wait for.
+    "com.apple.loginwindow" = lib.any (v: v != null) (
+      lib.attrValues config.system.defaults.loginwindow
+    );
+    "com.apple.WindowManager" = lib.any (v: v != null) (
+      lib.attrValues config.system.defaults.WindowManager
+    );
   };
   domainsRestarted = builtins.filter (d: restartDeclaredBy.${d} or true) domainsWritten;
 
@@ -161,9 +197,22 @@ let
   # So activation announces them, and `haus plan` reads that announcement back
   # out of the BUILT script rather than re-deriving it from this table — the same
   # discipline `plan_restarts` already follows, and the reason a second copy of
-  # the map can't drift into existence. Empty on every configuration today (no
-  # haus.* option is backed by a logout-only domain, on purpose), so this is the
-  # signal waiting for the first one, not noise on anybody's rebuild.
+  # the map can't drift into existence.
+  #
+  # ★ This used to say "empty on every configuration today (no haus.* option is
+  # backed by a logout-only domain, on purpose)", and as of 2026-08-19 it is not:
+  # `haus.lock.login.*`, `haus.security.guestAccount` and
+  # `haus.windows.{stageManager,nativeTiling,desktop}.*` are all backed by one.
+  # The signal was built for a first member and now has one — but read
+  # `restartDeclaredBy` above before assuming it fires: it stays empty on a
+  # machine that sets none of those keys, which is what keeps it a signal rather
+  # than a line on every rebuild.
+  #
+  # It is also no longer the whole story, and knowing which half is which is the
+  # point of the third table. This line is what the MACHINE says, after the fact.
+  # ../lib/login-map.nix is what the OPTION says, before anyone builds anything —
+  # both rendered from the one `logout` verb below, because the fact was never
+  # the hard part; a description that couldn't drift from it was.
   logoutDomains = builtins.filter (
     d: builtins.elem "logout" (lib.toList (restartMap.${d} or [ ]))
   ) domainsRestarted;
@@ -1184,6 +1233,27 @@ in
       askForPassword = lockCfg.requirePassword;
       askForPasswordDelay = lockCfg.requirePasswordDelay;
     };
+
+    # ---- haus.lock.login + haus.security.guestAccount → com.apple.loginwindow
+    # §5.6's two deferred half-groups, and the domain the section's own guardrail
+    # kept out for a year: `loginwindow` is read when your session is created and
+    # the process that would reread it is the one that owns the session, so the
+    # restart is a logout. ../lib/restart-map.nix marks it `logout`, activation
+    # announces the wait (see `logoutDomains` above, which now has its first real
+    # members), `haus plan` reports it before the rebuild, and every option here
+    # carries ../lib/login-map.nix's paragraph in its own description. The write
+    # itself is the same null-stays-null pass-through as the block above; nothing
+    # about it is TCC-gated.
+    #
+    # Built by walking ./loginwindow-keys.nix rather than by naming the keys a
+    # second time. An entry whose option path doesn't resolve throws right here,
+    # which is the other half of the check `mkLoginWindow` runs in ./options.nix:
+    # a key with no option and an option with no key are both build failures.
+    # Note the paths are absolute under `haus`, because this one plist domain is
+    # split across `haus.lock.login.*` and `haus.security.*` on purpose.
+    loginwindow = lib.mapAttrs (_: path: lib.getAttrFromPath path config.haus) (
+      import ./loginwindow-keys.nix
+    );
 
     # ---- haus.menuBar.clock → com.apple.menuExtraClock -------------------
     menuExtraClock = {
