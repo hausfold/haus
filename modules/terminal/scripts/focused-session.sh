@@ -46,6 +46,11 @@ printf '%s' "$(zmx ls 2>/dev/null)" | awk -F'\t' -v want="$title" -v wid="$wid" 
       p = index($i, "=")
       if (p == 0) continue
       k = substr($i, 1, p - 1); gsub(/^[ \t]+|[ \t]+$/, "", k)
+      # zmx marks the row you are ATTACHED to in its first field
+      # ("-> ** name=..."), gluing the marker onto that key. Strip
+      # anything before the key proper or the session you are
+      # sitting in is the one row that never matches.
+      sub(/^[^A-Za-z_]*/, "", k)
       # Only up to the FIRST "=": a label value can carry its own.
       if (k == "name")   name = substr($i, p + 1)
       if (k == "window") win  = substr($i, p + 1)
