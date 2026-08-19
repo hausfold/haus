@@ -375,6 +375,16 @@ it silently.
   and `default.nix` so the enum and the emission can't disagree.
   macOS reserves the top strip of a display and
   reserves NOTHING at the bottom, so windows's `outerBottom` carves the room instead.
+- **A bottom-bar pill that starts `drawing=off` must also set `updates=on`.**
+  The bottom bar's `--default` carries `updates=when_shown` (`bar-bottomrc`),
+  and SketchyBar applies that to EVENT delivery, not just to `update_freq`
+  ticks: a hidden item is not dispatched to at all, so the very script that
+  would turn its drawing back on never runs. Starting hidden is a one-way door
+  under the inherited default — which is exactly what kept the `page` pill
+  invisible from the day it landed, on the `T/<repo>` pages it exists to label.
+  It hides well, too: a hand-run `--update` (`SENDER=forced`) DOES reach a
+  hidden item, so poking the pill by hand repaints it perfectly and only the
+  live event path fails. `media` and `page` both carry `updates=on` for this.
 - **A new default app pick** (an app the rice thinks a finished machine has, not one a
   room needs to do its job): it goes in `modules/apps` — one
   `haus.apps.<thing>.enable` knob in its `options.nix`, one roster entry (never a

@@ -503,6 +503,17 @@ let
     # unknown event, and a pill that starts hidden and never ticks would stay
     # hidden forever. Declaring it twice on the menu bar is a no-op.
     #
+    # `updates=on` is the OTHER half of that, and without it the pill was
+    # invisible on every page — including the `T/<repo>` ones it exists for.
+    # The bottom bar's `--default` sets `updates=when_shown` (bar-bottomrc), and
+    # SketchyBar takes that literally for EVENTS too: a drawing=off item is not
+    # merely un-ticked, it is not dispatched to at all, so the script that would
+    # turn drawing back ON never runs. Starting hidden is therefore a one-way
+    # door under the inherited default. A `--update` (SENDER=forced) does reach
+    # a hidden item, which is why poking the pill by hand always looked healthy
+    # and only the live workspace-change path failed. `updates=on` costs nothing
+    # here because this item has no update_freq: it is woken by the event alone.
+    #
     # `mouse.clicked` is deliberately NOT subscribed: a click_script fires on
     # its own, and subscribing as well would run `script` (the repaint) and
     # `click_script` (the picker) on every click. `iconWide` for the same
@@ -516,6 +527,7 @@ let
       ${sb} --add item page ${side} \
           --set page \
               drawing=off \
+              updates=on \
               icon="󰘬" \
               icon.font="${barFont}:Bold:${sizes.iconWide}" \
               icon.color=$TEAL \
