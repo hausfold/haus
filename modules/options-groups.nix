@@ -648,7 +648,7 @@ let
     };
     lock = {
       order = 114;
-      blurb = "Whether waking this Mac needs a password, and how long the grace period is. Worth setting on any laptop that leaves the house.";
+      blurb = "Whether waking this Mac needs a password and how long the grace period is, plus the login window itself — name-and-password instead of a list of faces, a message for whoever finds a lost laptop, and which of Shut Down / Restart / Sleep it offers. The login half lands at your next login, which each option says.";
     };
     menuBar = {
       order = 115;
@@ -660,7 +660,7 @@ let
     # and the ordering follows the bigger half.
     security = {
       order = 116;
-      blurb = "Security posture: the built-in application firewall and how strict it is (off on a fresh Mac — the setting to turn on for a laptop that joins networks you don't own), plus Touch ID for `sudo`, including inside a terminal multiplexer, and the passwordless-rebuild rule.";
+      blurb = "Security posture: the built-in application firewall and how strict it is (off on a fresh Mac — the setting to turn on for a laptop that joins networks you don't own), whether the passwordless Guest account can log in (on out of the box, and the one genuine boundary in this group), plus Touch ID for `sudo`, including inside a terminal multiplexer, and the passwordless-rebuild rule.";
     };
     sound = {
       order = 117;
@@ -678,7 +678,7 @@ let
     # ---- the rooms ------------------------------------------------------------
     windows = {
       order = 120;
-      blurb = "Tiling window management and the Caps-Lock leader launcher.";
+      blurb = "Tiling window management and the Caps-Lock leader launcher — plus macOS's OWN window features (Stage Manager, edge-drag tiling, the desktop's icons and widgets), which live here rather than with the other macOS settings because they decide the same thing the tiler does and haus warns when both are on.";
     };
     bar = {
       order = 130;
@@ -810,7 +810,7 @@ let
     windows = {
       title = "Windows";
       order = 50;
-      blurb = "Tiling, window navigation, hot corners, and the leader key that launches an app or throws it somewhere. The workspaces themselves (`haus.workspaces`) and the keys haus claims (`haus.keys`) are shared surfaces below, because the bar and the launcher read them too.";
+      blurb = "Tiling, window navigation, hot corners, and the leader key that launches an app or throws it somewhere — plus macOS's own Stage Manager, edge-drag tiling and desktop clutter, which answer the same question the tiler does. The workspaces themselves (`haus.workspaces`) and the keys haus claims (`haus.keys`) are shared surfaces below, because the bar and the launcher read them too.";
       agent = {
         cli = "aerospace";
         asks = [
@@ -819,6 +819,9 @@ let
           "move this window to another workspace"
           "set up hot corners"
           "what does my leader key do"
+          "turn off stage manager"
+          "stop windows snapping when i drag them to the edge"
+          "hide the icons on my desktop"
         ];
       };
     };
@@ -913,13 +916,16 @@ let
     security = {
       title = "Security";
       order = 120;
-      blurb = "Touch ID for sudo, lock behaviour, the firewall, and where secret values come from.";
+      blurb = "Touch ID for sudo, lock and login-window behaviour, the guest account, the firewall, and where secret values come from.";
       agent = {
         cli = null;
         asks = [
           "touch id for sudo"
           "turn on the firewall"
           "lock my screen faster"
+          "turn off the guest account"
+          "put my phone number on the login screen"
+          "stop showing a list of users when i log in"
           "where does haus get my secrets"
         ];
       };
