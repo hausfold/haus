@@ -135,9 +135,9 @@ if [ -n "${ZMX_SESSION:-}" ]; then
   # zmx rejects a label value containing anything outside [a-zA-Z0-9-_.], and it
   # rejects the WHOLE `set` when one value is bad — so an exotic directory name
   # would silently cost this lane its state, not just its label. Fold the rest
-  # to `-`. Nothing needs the pane's cwd as a label for the same reason: `zmx
-  # ls` already reports the session's own `cwd=`, unrestricted, which is the
-  # checkout the launcher cd'd into.
+  # to `-`. Nothing needs the cwd as a label for the same reason: `zmx ls`
+  # already reports the session's own directory, unrestricted — as `start_dir=`
+  # in 0.7.0, `cwd=` in a newer one; agents.sh reads either.
   label=$(printf '%s' "$label" | tr -c 'a-zA-Z0-9._-' '-')
   # The client's own conversation id, when it passes one — `chat.message` is the
   # one opencode hook that carries it, and jcode hands every hook process a
