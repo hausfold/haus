@@ -26,7 +26,7 @@
 #
 # Two renderings of the same JSON exist beside this one and are deliberately
 # different: hausfold.co's page (its own gen-options.mjs, for reading
-# top-to-bottom) and the agent skill's reference (terminal/agents/options-md.jq,
+# top-to-bottom) and the agent skill's reference (ai/agents/options-md.jq,
 # for grepping). This one is for a file you EDIT.
 #
 # Inputs:

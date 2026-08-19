@@ -23,6 +23,6 @@ Only Claude-specific wiring belongs below.
 `haus.ai.instructions`, `haus.ai.skill`, the generated `haus/` skill in
 each client's skills directory and its `consumer-AGENTS.md`/`consumer-CLAUDE.md`
 starter pair, the per-client agent-state hooks in `modules/terminal` — is a
-feature of the distro, documented in `AGENTS.md` and `modules/terminal/agents/`.
+feature of the distro, documented in `AGENTS.md` and `modules/ai/agents/`.
 
 The full cross-harness map is [`.agents/README.md`](./.agents/README.md).

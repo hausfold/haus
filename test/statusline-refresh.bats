@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Hermetic tests for the statusline refresher (modules/core/statusline-refresh.sh)
+# Hermetic tests for the statusline refresher (modules/ai/statusline-refresh.sh)
 # — the detached half of the agent-worktree bar.
 #
 # Why this suite exists, in one paragraph. The refresher runs under
@@ -20,7 +20,7 @@
 bats_require_minimum_version 1.5.0
 
 setup() {
-  REFRESH="${REFRESH_UNDER_TEST:-$BATS_TEST_DIRNAME/../modules/core/statusline-refresh.sh}"
+  REFRESH="${REFRESH_UNDER_TEST:-$BATS_TEST_DIRNAME/../modules/ai/statusline-refresh.sh}"
   TMP="$(cd "$BATS_TEST_TMPDIR" && pwd -P)"   # /var → /private/var, as git resolves it
 
   export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null

@@ -19,7 +19,7 @@
 #
 # WHERE THE TEXT COMES FROM, per session
 #   Claude window   → its Claude Code transcript, via claude-statusline's
-#     session → transcript map (modules/core/statusline.sh writes
+#     session → transcript map (modules/ai/statusline.sh writes
 #     pane-transcripts.tsv on every render — it's the one process that knows
 #     both $ZMX_SESSION and the transcript path). Same join the Links picker uses.
 #   Opencode window → that conversation's rows in opencode's SQLite history, via

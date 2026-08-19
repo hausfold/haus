@@ -558,7 +558,7 @@ let
     # AI rate-limit gauges (5-hour session + 7-day weekly) and API spend, one row
     # per reporting client. Two feed shapes, both ending in
     # ~/.cache/claude-statusline/usage-*.tsv:
-    #   • pushed — modules/core/statusline.sh stashes the percentages Claude Code
+    #   • pushed — modules/ai/statusline.sh stashes the percentages Claude Code
     #     hands every statusline render, then invokes ai_usage.sh when one moves.
     #   • pulled — Codex (an account API call) and Opencode (a sqlite read) have
     #     no client-side writer, so claude-statusline-refresh --usage-only fetches

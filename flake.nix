@@ -1935,6 +1935,75 @@
             }"
           ) registeredExports;
 
+          # The same exports again, evaluated WITHOUT `hostname` in specialArgs.
+          #
+          # `standaloneSystem` above passes both `username` and `hostname`,
+          # because the full builders do. A bare `darwinModules.*` import does
+          # NOT: the consumer writes their own `darwinSystem` call and passes
+          # whatever they please, and nothing in the exported surface documents
+          # `hostname` as required. So the table above cannot see a module in
+          # the shared foundation making it mandatory — which is exactly what
+          # happened when the AI room took its payload and named `hostname` in
+          # its argument set: `darwinModules.windows`, nothing to do with coding
+          # agents, started failing with `attribute 'hostname' missing`. Two
+          # more modules (terminal, launcher) had had the same bug for longer.
+          #
+          # Only `username` is passed here, because that one IS load-bearing —
+          # the foundation writes `users.users.${username}` — and a consumer
+          # cannot avoid supplying it. Anything else a foundation module wants
+          # must have a fallback, and this table is what says so.
+          standaloneNoHostname = map (
+            name:
+            "${name} ${
+              builtins.unsafeDiscardStringContext
+                (inputs.nix-darwin.lib.darwinSystem {
+                  inherit system;
+                  specialArgs = {
+                    inherit inputs;
+                    username = "you";
+                  };
+                  modules = [
+                    {
+                      nixpkgs.hostPlatform = system;
+                      nixpkgs.config.allowUnfree = true;
+                      system.primaryUser = "you";
+                      system.stateVersion = 7;
+                      users.users.you = {
+                        name = "you";
+                        home = "/Users/you";
+                      };
+                      nixpkgs.overlays = [
+                        pounce.overlays.default
+                        perch.overlays.default
+                        holt.overlays.default
+                      ];
+                    }
+                    home-manager.darwinModules.home-manager
+                    {
+                      home-manager.useGlobalPkgs = true;
+                      home-manager.useUserPackages = true;
+                      home-manager.users.you.home.stateVersion = "24.11";
+                      home-manager.extraSpecialArgs = {
+                        inherit inputs;
+                        username = "you";
+                        nebelung = {
+                          themes = nebelung.packages.${system}.default;
+                          palette = nebelung.palette;
+                          palettes = nebelung.palettes;
+                          ports = nebelung.ports or { };
+                        };
+                      };
+                      home-manager.sharedModules = [
+                        catppuccin.homeModules.catppuccin
+                        nix-index-database.homeModules.nix-index
+                      ];
+                    }
+                    self.darwinModules.${name}
+                  ];
+                }).system.drvPath
+            }"
+          ) registeredExports;
+
           # ---- desktop-seam ----------------------------------------------------
           # Step 3 of the workshop's notes/rooms-desktops.md: a host selects
           # EXACTLY ONE desktop, a desktop is data with a closed shape, and the
@@ -2515,6 +2584,13 @@
             cat > $out <<'MODULES'
             ${builtins.concatStringsSep "\n" standaloneEvaluated}
             MODULES
+            # The second table is the one with a claim in it: every export must
+            # also evaluate with NO `hostname` specialArg. Both lists are forced
+            # by being interpolated, so a module that made `hostname` mandatory
+            # fails this derivation at eval rather than in a consumer's flake.
+            cat >> $out <<'NOHOSTNAME'
+            ${builtins.concatStringsSep "\n" standaloneNoHostname}
+            NOHOSTNAME
           '';
 
           desktop-seam = pkgs.runCommand "haus-desktop-seam-ok" { } ''
@@ -2883,7 +2959,7 @@
           # Claude Code's alone. Not aliased: a flake output is named in a
           # command someone types, not pinned in a config that would silently
           # break, and `nix build .#` lists the new one.
-          agent-skill = import ./modules/terminal/agents/skill.nix { inherit pkgs; };
+          agent-skill = import ./modules/ai/agents/skill.nix { inherit pkgs; };
 
           # `nix build .#host-template` — the annotated host file a fresh
           # install is scaffolded with: every haus.* option at its default,

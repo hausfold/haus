@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Hermetic tests for the statusline RENDER path (modules/core/statusline.sh) —
+# Hermetic tests for the statusline RENDER path (modules/ai/statusline.sh) —
 # the inline half of the agent-worktree bar, and specifically the Fable/Mythos
 # row tint.
 #
@@ -31,7 +31,7 @@ RESET="${ESC}[0m"
 TINT="${ESC}[48;2;56;39;19m"
 
 setup() {
-  SL="${STATUSLINE_UNDER_TEST:-$BATS_TEST_DIRNAME/../modules/core/statusline.sh}"
+  SL="${STATUSLINE_UNDER_TEST:-$BATS_TEST_DIRNAME/../modules/ai/statusline.sh}"
   TMP="$(cd "$BATS_TEST_TMPDIR" && pwd -P)"
 
   export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null

@@ -8,7 +8,7 @@
 # config/pkgs dependencies. Keep them that way.
 #
 # Three consumers build on this: the flake's `options-json` output (which the
-# docs site renders), the agent skill's option reference (terminal/agents/skill.nix,
+# docs site renders), the agent skill's option reference (ai/agents/skill.nix,
 # which every machine installs), and the annotated host template a fresh install
 # is scaffolded with (host-template.nix). One evaluation, one normalisation, so
 # they can't disagree about what an option is.
