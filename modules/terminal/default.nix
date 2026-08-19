@@ -1856,9 +1856,8 @@ in
           # removed. The directory moved with the scripts rather than being kept
           # for compatibility: nothing but this rice ever wrote to it, and a
           # path named for a tool the machine no longer has is a lie that costs
-          # nothing to stop telling. The nine files below are what survived; the
-          # plugin wasm, the two layouts, config.kdl, the theme and copy-clean.pl
-          # went with it.
+          # nothing to stop telling. What survived is below; the plugin wasm, the
+          # two layouts, config.kdl, the theme and copy-clean.pl went with it.
           ".config/haus/term/launch.sh" = {
             source = ./scripts/launch.sh;
             executable = true;

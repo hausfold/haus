@@ -45,18 +45,27 @@ if [ "${1:-}" = "--stay" ]; then
     STAY_ARG=" --stay"
 fi
 
+# WHERE peek starts. Under zellij this was `$PWD`, because the bind ran inside
+# the pane and inherited its directory for free. The chord fires from the pounce
+# daemon now, whose cwd is whatever launchd gave it — so ask, the same way every
+# other window-layer chord does (⌘N's shell-here.sh, ⌘↵'s lane-spawn.sh, ⌘B).
+# $PWD stays as the fallback: lane-cwd.sh is only installed when the agent
+# clients are on, and a peek rooted at the daemon's cwd still beats no peek.
+START=""
+[ -x "$HOME/.config/haus/lanes/lane-cwd.sh" ] && START="$("$HOME/.config/haus/lanes/lane-cwd.sh")"
+[ -n "$START" ] && [ -d "$START" ] || START="$PWD"
+
 # Root peek at the REAL repo, not a throwaway worktree checkout: if the
 # summoning window sits inside a linked git worktree (its per-worktree gitdir
 # differs from the shared common dir), start yazi at the repo's MAIN worktree —
 # the first entry of `git worktree list` — so peek always opens you in the
 # canonical repo. A normal checkout (gitdir == common dir), a non-repo cwd, or
-# --stay all fall through to $PWD unchanged.
-START="$PWD"
+# --stay all fall through unchanged.
 if [ "$STAY" = 0 ]; then
-    _gd="$(git -C "$PWD" rev-parse --path-format=absolute --git-dir 2>/dev/null)"
-    _gcd="$(git -C "$PWD" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+    _gd="$(git -C "$START" rev-parse --path-format=absolute --git-dir 2>/dev/null)"
+    _gcd="$(git -C "$START" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
     if [ -n "$_gd" ] && [ "$_gd" != "$_gcd" ]; then
-        _main="$(git -C "$PWD" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
+        _main="$(git -C "$START" worktree list --porcelain 2>/dev/null | sed -n '1s/^worktree //p')"
         [ -n "$_main" ] && [ -d "$_main" ] && START="$_main"
     fi
 fi

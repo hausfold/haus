@@ -56,11 +56,14 @@ if [ $# -gt 0 ]; then
   # splits, so each argument has to be quoted back into one.
   #
   # Single quotes, hand-rolled, rather than `printf %q`. %q escapes with
-  # BACKSLASHES outside any quotes (`a\ b`, `\$1`, `\;`), which assumes
-  # Ghostty's splitter implements backslash escaping — an assumption nothing
-  # here can check, and one that fails silently and confusingly (the window
-  # opens, running not-quite-your-command). Single quotes only assume it
-  # implements quotes, which any splitter worth the name does. An embedded
+  # BACKSLASHES outside any quotes (`a\ b`, `\$1`, `\;`), which would assume
+  # Ghostty's splitter implements backslash escaping — and that failure mode is
+  # the bad kind: the window opens and runs a not-quite-right command. Single
+  # quotes assume only that it implements quotes.
+  #
+  # MEASURED on Ghostty 1.3.1, not reasoned: a `zsh -c '…'` payload carrying
+  # `a b.rs:12`, `+12` and `has$dollar` as separate single-quoted arguments came
+  # back out of the surface as exactly those three argv entries. An embedded
   # single quote closes, adds a double-quoted one, and reopens — `'"'"'` — so
   # even that case needs no backslash.
   #

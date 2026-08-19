@@ -23,11 +23,15 @@
 # user-bound palette item can't quietly take ⌘F away inside Ghostty alone.
 #
 # Each item:
-#   key     the display glyphs, e.g. "⌘ ⇧ Y". Typed, since there is no bind
-#           spelling left to derive them from.
-#   chord   the normalizable spelling ("cmd+shift+y") for the collision check.
-#           Omit for a display-only row (the mouse gestures), which reserves
-#           nothing because it is not a key.
+#   key     the display glyphs, e.g. "⌘ Y / ⌘ ⇧ Y". Typed, since there is no
+#           bind spelling left to derive them from.
+#   chords  EVERY normalizable spelling the row folds — a two-chord row reserves
+#           both. Listing one while displaying two is a real bug rather than an
+#           untidiness: the unlisted half stays armed with nothing reserving it,
+#           so a `haus.launcher.items` hotkey on it builds green and then
+#           silently steals that key inside Ghostty alone. Omit for a
+#           display-only row (the mouse gestures), which reserves nothing
+#           because it is not a key.
 #   action  the cheatsheet caption.
 #
 # Each section: title (card heading), optional page ("Keys" default, "Tips" for
@@ -62,12 +66,12 @@ rec {
       items = [
         {
           key = "⌘ ↵";
-          chord = "cmd+return";
+          chords = [ "cmd+return" ];
           action = "New agent lane in this window's repo";
         }
         {
           key = "⌃ ⌥ ⇧ A";
-          chord = "ctrl+alt+shift+a";
+          chords = [ "ctrl+alt+shift+a" ];
           action = "Agent in THIS checkout — one per window";
         }
       ];
@@ -82,12 +86,18 @@ rec {
       items = [
         {
           key = "⌘ N / ⌘ ⇧ N";
-          chord = "cmd+n";
+          chords = [
+            "cmd+n"
+            "cmd+shift+n"
+          ];
           action = "New shell window — hop out of a worktree / stay";
         }
         {
           key = "⌃ ⇥ / ⌃ ⇧ ⇥";
-          chord = "ctrl+tab";
+          chords = [
+            "ctrl+tab"
+            "ctrl+shift+tab"
+          ];
           action = "Walk lane pages by recency, back / forward";
         }
       ];
@@ -97,28 +107,34 @@ rec {
       items = [
         {
           key = "⌘ F / ⌘ ⇧ F";
-          chord = "cmd+f";
+          chords = [
+            "cmd+f"
+            "cmd+shift+f"
+          ];
           action = "Find in this window / across every window";
         }
         {
           key = "⌘ Y / ⌘ ⇧ Y";
-          chord = "cmd+y";
+          chords = [
+            "cmd+y"
+            "cmd+shift+y"
+          ];
           action = "Peek files — hop out of a worktree / stay in it";
         }
         {
           key = "⌘ L";
-          chord = "cmd+l";
+          chords = [ "cmd+l" ];
           action = "Open a link from this window's scrollback";
         }
       ]
       ++ lib.optional ghDashEnabled {
         key = "⌘ G";
-        chord = "cmd+g";
+        chords = [ "cmd+g" ];
         action = "GitHub dashboard, fullscreen overlay";
       }
       ++ lib.optional benchLaneEnabled {
         key = "⌘ B";
-        chord = "cmd+b";
+        chords = [ "cmd+b" ];
         action = "Build+activate this window's whole holt lane";
       };
     }
@@ -157,7 +173,7 @@ rec {
   # for the haus.launcher.items collision check. Includes sections whose `show`
   # is false: the chord is reserved regardless, because turning the feature on
   # must not surface a clash that was hidden while it was off.
-  chords = lib.concatMap (s: lib.concatMap (it: lib.optional (it ? chord) it.chord) s.items) sections;
+  chords = lib.concatMap (s: lib.concatMap (it: it.chords or [ ]) s.items) sections;
 
   # The cheatsheet's view of the same table: hidden sections dropped.
   pages = map (

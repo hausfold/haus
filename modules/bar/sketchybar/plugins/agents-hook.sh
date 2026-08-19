@@ -212,12 +212,19 @@ if [ -n "$desktop" ]; then
   exit 0
 fi
 
-# Nothing below the desktop branch: both stores return above. What used to be
-# here was the zellij pane path — a `.state` file keyed by (session, pane id),
-# with `.session` and `.cwd` siblings, and a `zellij pipe` broadcast to the
-# tab-bar plugin. All three consumers are gone, and the two facts that made them
-# necessary are gone with them: a WASI plugin that could not read files, and a
-# pane id that outlived nothing.
+# Nothing below the desktop branch: both stores return above, and anything that
+# reaches here has no row to write. That used to be impossible — the zellij pane
+# path was the catch-all, a `.state` file keyed by (session, pane id) with
+# `.session`/`.cwd` siblings and a `zellij pipe` broadcast to the tab-bar
+# plugin. All three consumers are gone, and the two facts that made them
+# necessary went with them: a WASI plugin that could not read files, and a pane
+# id that outlived nothing.
+#
+# So exit rather than falling through to the repaint below. A bare-terminal
+# agent — no zmx session, not the desktop app — is deliberately invisible here
+# (the gate at the top says so), and re-rendering the whole pill on its every
+# turn would be work for a row that can never exist.
+exit 0
 # Repaint the bar now by running the reader directly — the only reliable path.
 # A hidden item's own update_freq never ticks (so it could never re-show itself),
 # and sketchybar delivers custom --trigger events inconsistently across reloads;

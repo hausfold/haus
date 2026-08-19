@@ -44,11 +44,18 @@ cwd=""
 [ -x "$HOME/.config/haus/lanes/lane-cwd.sh" ] && cwd="$("$HOME/.config/haus/lanes/lane-cwd.sh")"
 [ -n "$cwd" ] && [ -d "$cwd" ] || cwd="$HOME"
 
-# An explicit login shell, NOT the ghostty-config default command: that default
-# is terminal's scripts/launch.sh, which would claim a `term.<n>` zmx session
-# for it. A ⌘N window is spawned to be worked in and closed; the launcher's
-# session recycling exists for the windows Ghostty opens on its own.
-shell="${SHELL:-/bin/zsh}"
+# The ghostty-config DEFAULT command — terminal's scripts/launch.sh — not a bare
+# login shell, and this is the difference between a ⌘N window being a real
+# terminal window and being a lesser one. launch.sh claims a `term.<n>` zmx
+# session and stamps the `window=` label on it, which is what every other chord
+# joins on: without a session, ⌘F has nothing to search in this window, ⌘L has
+# no scrollback to mine, ⌘N pressed FROM here can't tell where "here" is, and
+# the bar can't take you back to it. Under zellij a ⌘N pane was in the session
+# by construction; this is what keeps that true.
+#
+# The one thing it costs: launch.sh execs the session's own login shell, so
+# $SHELL is honoured there rather than here.
+shell="$HOME/.config/haus/term/launch.sh"
 
 # The window AeroSpace sees before this one, so the tile poll below can tell
 # the new window from the one the chord was pressed in (both are Ghostty).
@@ -58,7 +65,7 @@ if [ -n "$stay" ]; then
   osascript - "$cwd" "$shell" <<'OSA' >/dev/null 2>&1
 on run argv
     tell application "Ghostty"
-        new window with configuration {initial working directory:item 1 of argv, command:(item 2 of argv) & " --login", environment variables:{"HAUS_STAY=1"}}
+        new window with configuration {initial working directory:item 1 of argv, command:item 2 of argv, environment variables:{"HAUS_STAY=1"}}
     end tell
 end run
 OSA
@@ -66,7 +73,7 @@ else
   osascript - "$cwd" "$shell" <<'OSA' >/dev/null 2>&1
 on run argv
     tell application "Ghostty"
-        new window with configuration {initial working directory:item 1 of argv, command:(item 2 of argv) & " --login"}
+        new window with configuration {initial working directory:item 1 of argv, command:item 2 of argv}
     end tell
 end run
 OSA
