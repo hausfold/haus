@@ -52,9 +52,29 @@ done
 # whose whole life is one command.
 shell="${SHELL:-/bin/zsh}"
 if [ $# -gt 0 ]; then
-  # `command` in a surface configuration is a shell-style string, so quote each
-  # argument. printf %q, not bash 5's ${var@Q}: /bin/bash on macOS is 3.2.
-  cmd="$(printf '%q ' "$@")"
+  # `command` in a surface configuration is a shell-style STRING that Ghostty
+  # splits, so each argument has to be quoted back into one.
+  #
+  # Single quotes, hand-rolled, rather than `printf %q`. %q escapes with
+  # BACKSLASHES outside any quotes (`a\ b`, `\$1`, `\;`), which assumes
+  # Ghostty's splitter implements backslash escaping — an assumption nothing
+  # here can check, and one that fails silently and confusingly (the window
+  # opens, running not-quite-your-command). Single quotes only assume it
+  # implements quotes, which any splitter worth the name does. An embedded
+  # single quote closes, adds a double-quoted one, and reopens — `'"'"'` — so
+  # even that case needs no backslash.
+  #
+  # The pattern and the replacement come from VARIABLES rather than being
+  # written inline, and that is not style: `${a//\'/…}` puts backslashes in the
+  # replacement, and bash keeps them literally — the round trip produced
+  # `'it\'"\'"\'s'`, which is a syntax error rather than a string. From
+  # variables there are no backslashes to survive.
+  sq="'"
+  esc="'\"'\"'"
+  cmd=""
+  for a in "$@"; do
+    cmd="$cmd$sq${a//$sq/$esc}$sq "
+  done
 else
   cmd="$shell --login"
 fi
