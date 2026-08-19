@@ -58,6 +58,19 @@ let
   agentPackages = import ../lib/agent-packages.nix pkgs;
   agentClients = config.haus._ai.clients;
 
+  # Does this machine draw the `agents` paw anywhere? Either bar counts — the
+  # bottom bar's value is a SIDE (`"left"`/`"center"`/`"right"`) or `false`, not
+  # a bool, so it is tested against `false` rather than truthiness. Read once
+  # here because two things want the answer: whether jcode's own macOS status
+  # item is redundant (below), and nothing else yet — but the next reader
+  # shouldn't have to rediscover the bottom bar's shape.
+  pawPillDrawn =
+    config.haus.bar.enable
+    && (
+      config.haus.bar.items.agents
+      || (config.haus.bar.bottom.enable && config.haus.bar.bottom.items.agents != false)
+    );
+
   # One client id → where that client keeps the two files the rice ships into a
   # home: the always-on instructions (`haus.ai.instructions`) and the `haus`
   # skill (`haus.ai.skill`). Every client has both slots under a different
@@ -1369,7 +1382,39 @@ in
           JCODE_HOOK_TURN_END = state "waiting";
           JCODE_HOOK_SESSION_START = state "idle";
           JCODE_HOOK_SESSION_END = state "remove";
+
+          # Two jcode defaults the rice answers, for the same reason as the
+          # hooks above and by the same means: `config.toml` is jcode's own
+          # file, so the setting has to arrive as environment or not at all.
+          #
+          # `JCODE_CHECK_UPDATES=false` is the env form of
+          # `[features] check_updates` — the knob behind both the update
+          # banner and the auto-update that follows it. haus installs jcode
+          # from Homebrew (`modules/lib/agent-packages.nix` says why there is
+          # no derivation), so a client that updates ITSELF puts the binary
+          # somewhere brew's manifest doesn't describe, and the next
+          # `brew upgrade` moves it back — a version that flaps depending on
+          # which one ran last. One updater per package: `haus update` runs
+          # `brew upgrade`, and that is the whole story. `JCODE_NO_AUTO_UPDATE`
+          # rides along because the two are separate gates in jcode: the first
+          # stops it LOOKING, the second stops the release build installing
+          # what it found (`--auto-update` defaults on for releases).
+          #
+          # `JCODE_NO_MENUBAR=1` suppresses the macOS status item jcode
+          # spawns for its running/streaming session counts. The bar room's
+          # `agents` paw already draws exactly that, across every client
+          # rather than jcode alone, and it is the pill the `agent-state`
+          # hooks two lines up feed — so the status item is a second, worse
+          # copy of a readout haus owns. Any non-empty value switches it off
+          # (`"0"` and `"false"` count as set), hence `1`.
+          JCODE_CHECK_UPDATES = "false";
+          JCODE_NO_AUTO_UPDATE = "1";
         }
+        # The status item is only redundant where the paw pill actually
+        # exists, so this one is gated rather than unconditional: a machine
+        # with the bar room off, or with `agents` not drawn on either bar,
+        # keeps jcode's own indicator — it is the only session readout it has.
+        // lib.optionalAttrs pawPillDrawn { JCODE_NO_MENUBAR = "1"; }
       );
 
       # A lean terminal/dev toolbelt, gated by the developer pack. Personal
