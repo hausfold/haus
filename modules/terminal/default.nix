@@ -1,6 +1,6 @@
 # Terminal — the room you actually live in. The terminal experience: zsh, a
 # Nebelung-tinted starship prompt, git, and a themed CLI toolbelt (bat, delta,
-# lazygit, lsd, yazi, zoxide, fzf), plus the ghostty / zellij / yazi dotfiles.
+# lazygit, lsd, yazi, zoxide, fzf), plus the ghostty / zmx / yazi dotfiles.
 #
 # Identity is NOT baked in: git name/email/signing come from `haus.git.*`
 # (set in your host), and secrets stay out of the store — they live in the
@@ -129,88 +129,35 @@ let
 
   fontsCfg = config.haus.fonts; # terminal font family/size (core installs the package)
 
-  # ---- the terminal's hotkeys, and the proof they're documented --------------
+  # ---- the terminal's hotkeys ------------------------------------------------
   #
-  # ./term-bindings.nix is the one table of zellij chords + captions; pounce
-  # renders the Terminal cards on the cheatsheet from it. The kdl stays
-  # hand-written (its bind bodies carry Run options and the reasoning behind
-  # each), so the two are kept honest here instead: every chord config.kdl binds
-  # must be taught or explicitly listed as mode-internal, and every chord the
-  # table teaches must actually be bound. Either half failing is the drift that
-  # left the cheatsheet teaching ⌘C for agents long after they moved to ⌘A.
+  # ./term-bindings.nix is the one table of terminal chords + captions; pounce
+  # renders the Terminal cards on the cheatsheet from it.
+  #
+  # It used to be cross-checked against zellij's config.kdl in both directions —
+  # every bind taught, every taught chord bound — and that assertion is gone with
+  # the kdl. There is nothing left for it to read: the chords it described are
+  # now pounce appHotkeys entries (modules/launcher), and a Nix assertion cannot
+  # see into another room's generated JSON. The table and the appHotkeys list are
+  # kept honest by living one screen apart and by the chord glyphs being derived
+  # rather than typed.
   termBindings = import ./term-bindings.nix {
     inherit lib agentDefault;
     agentsEnabled = agentContrib.enable;
     ghDashEnabled = ghDashCfg.enable;
     benchLaneEnabled = devCfg.enable;
-    rightClickFullscreenEnabled = terminalCfg.rightClickFullscreen;
   };
-  ghDashBind = lib.optionalString ghDashCfg.enable ''
-    // Super g — GitHub's review queue in a borderless, full-window
-    // floating pane. It has the same overlay shape as Super f: the
-    // tiled pane underneath is untouched, and quitting gh-dash drops
-    // straight back into it. A 1% launcher is necessary because KDL's
-    // Run action cannot request a borderless pane; gh-dash.sh opens the
-    // real overlay through `zellij action new-pane --borderless true`.
-    bind "Super g" {
-        Run "@HOME@/.config/zellij/gh-dash.sh" {
-            floating true
-            close_on_exit true
-            name "github-launch"
-            x "100%"; y "100%"; width "1%"; height "1%"
-        }
-    }
-  '';
-  # `bench` (and the whole hausfold family workshop) is a family-DEVELOPER
-  # tool that lives at a fixed, hardcoded path — `~/code/workshop` — on the
-  # rice author's own machines, never on an end-user install (this module
-  # ships to real consumers via mkHaus; see the "workshop repo end users
-  # don't have" note a few hundred lines down). Gate the whole bind — kdl AND
-  # the ghostty release — behind haus.developer.enable, same shape as
-  # ghDashBind above, so a plain end-user rice never renders a chord that
-  # execs a binary that isn't there.
-  benchLaneBind = lib.optionalString devCfg.enable ''
-    // Super b — build+activate this pane's HOLT LANE: this worktree PLUS
-    // every `holt child` worktree spawned from it, however many repos it
-    // touches, in ONE rebuild (`bench try lane switch` — "b" for bench,
-    // since Super l is already Links). Unlike try-batch (which needs an
-    // open PR per repo), this tests the LOCAL checkouts — uncommitted
-    // edits included — so it's the fast loop for a cross-repo change
-    // mid-flight. cwd is inherited from the focused pane, same as Super a:
-    // press it from the lane's PARENT worktree (bench refuses if it isn't
-    // one, or if it has no holt children — see bench's own
-    // `cmd_try`/`detect_lane`). No new-pane suppression here, unlike Super
-    // Shift a: the build/switch output and the post-switch activation
-    // banner are worth reading, so the pane stays open after it exits.
-    // Runs UNGATED — bench's BENCH_AGENT_SWITCH check only fires for an
-    // agent process; a real keypress here is a human at the keyboard.
-    bind "Super b" { Run "@HOME@/code/workshop/bench" "try" "lane" "switch"; }
-  '';
-  # Conditional BINDS are substituted here rather than in zellijConfigFile
-  # below, and the difference is load-bearing: `kdlChords` reads this string to
-  # cross-check the cheatsheet, so a bind that only appears after the later pass
-  # is a bind the assertion cannot see. Only substitutions that add no `bind`
-  # line — @HOME@, the mode names, @AGENT_HERE@'s client — belong in the later
-  # pass.
-  zellijConfigTemplate =
-    builtins.replaceStrings
-      [ "@GH_DASH_BIND@" "@BENCH_LANE_BIND@" ]
-      [
-        ghDashBind
-        benchLaneBind
-      ]
-      (builtins.readFile ./zellij/config.kdl);
   ghDashGhosttyBind = lib.optionalString ghDashCfg.enable ''
-    # cmd+g → zellij "Super g": gh-dash as a clean fullscreen overlay.
-    # Ghostty owns this chord as search-next by default, so it must be released
-    # explicitly before the multiplexer can see it. This is Cmd-G, not Zellij's
-    # Ctrl-G lock toggle; those are distinct chords and coexist.
+    # ⌘G — consumed by pounce (cmd:gh-dash): GitHub's review queue as a
+    # near-fullscreen floating window. Ghostty owns this chord as search-next by
+    # default, so it must be released explicitly or the tap is the only thing
+    # standing between the chord and a find-again nobody asked for.
     keybind = cmd+g=unbind
   '';
   benchLaneGhosttyBind = lib.optionalString devCfg.enable ''
-    # cmd+b → zellij "Super b": build+activate this pane's holt LANE — this
-    # worktree plus every `holt child` worktree spawned from it — in one rebuild
-    # (`bench try lane switch`; "b" for bench, since ⌘L is already Links below).
+    # ⌘B — consumed by pounce (cmd:bench-lane): build+activate this window's holt
+    # LANE — this worktree plus every `holt child` worktree spawned from it — in
+    # one rebuild (`bench try lane switch`; "b" for bench, since ⌘L is Links).
     # Ghostty has no default binding on this chord; unbound defensively, same
     # reasoning as cmd+enter above, so a future default can't steal it.
     keybind = cmd+b=unbind
@@ -226,48 +173,6 @@ let
         benchLaneGhosttyBind
       ]
       (builtins.readFile ./ghostty/config);
-  # Chords bound in config.kdl. Only the quoted words BEFORE the block open — a
-  # bind body can carry its own strings (`bind "Super t" { NewTab { layout "…" } }`)
-  # and those are not chords.
-  kdlChords = lib.concatMap (
-    line:
-    let
-      m = builtins.match "[[:space:]]*bind ([^{]*)\\{.*" line;
-      quoted = lib.splitString "\"" (builtins.head m);
-    in
-    if m == null then
-      [ ]
-    else
-      map (p: p.v) (lib.filter (p: lib.mod p.i 2 == 1) (lib.imap0 (i: v: { inherit i v; }) quoted))
-  ) (lib.splitString "\n" zellijConfigTemplate);
-  untaughtChords = lib.subtractLists (termBindings.chords ++ termBindings.modeOnly) (
-    lib.unique kdlChords
-  );
-  unboundChords = lib.subtractLists kdlChords termBindings.chords;
-
-  # Our four zellij plugin forks, built FROM SOURCE at rebuild time. They're
-  # wasm32-wasip1 binaries, so they come out of the wasi32 cross set — the same
-  # way nixpkgs builds its own zellijPlugins (each ./zellij/<name>/default.nix
-  # carries the lld/wasm-ld pin that needs).
-  #
-  # This used to be four hand-vendored `.wasm` blobs under ./zellij/plugins/,
-  # copied in by each plugin's build.sh. That made "edit the Rust, forget to
-  # re-run build.sh" a silent failure: the module installed the stale blob, the
-  # rebuild succeeded, and the bar just kept rendering the old code. It bit us
-  # twice (#195 for status-bar, #202 for tab-bar, which shipped 2 days of
-  # rebuilds without #177's typography). Nix tracking the source removes the
-  # step there was to forget.
-  zellijPlugins =
-    let
-      build = name: pkgs.pkgsCross.wasi32.callPackage (./zellij + "/${name}") { };
-    in
-    lib.genAttrs [
-      "tab-bar"
-      "status-bar"
-      "link-handler"
-      "tab-history"
-    ] (name: "${build name}/bin/zellij-${name}.wasm");
-
   # Rice-owned preamble for each client's instructions file. The rice ships
   # `holt` (core) on PATH to every machine, and agent worktrees live OUTSIDE the
   # repo tree (~/.cache/claude-worktrees/…), so a worktree agent's instructions
@@ -624,24 +529,6 @@ in
   # terminal room at all.
   assertions = [
     {
-      assertion = untaughtChords == [ ] && unboundChords == [ ];
-      message =
-        "modules/terminal/term-bindings.nix and zellij/config.kdl disagree: "
-        + lib.concatStringsSep "; " (
-          lib.optional (untaughtChords != [ ]) (
-            "config.kdl binds ${lib.concatMapStringsSep ", " (c: "\"${c}\"") untaughtChords} "
-            + "but nothing teaches it — add a row (or list it in `modeOnly` if it only exists "
-            + "inside a submode)"
-          )
-          ++ lib.optional (unboundChords != [ ]) (
-            "the cheatsheet teaches ${lib.concatMapStringsSep ", " (c: "\"${c}\"") unboundChords} "
-            + "but config.kdl binds nothing to it"
-          )
-        )
-        + ". The cheatsheet is the one document whose only job is to be true about the keys, "
-        + "so a chord and its caption move together or not at all.";
-    }
-    {
       assertion = !agentContrib.enable || config.haus.windows.enable;
       message =
         "agent lanes need haus.windows.enable. A lane is a zmx session in its own WINDOW, and "
@@ -662,231 +549,34 @@ in
     }
   ];
 
-  # Drag-to-select autoscroll. Upstream zellij scrolls exactly ONE line per
-  # inbound mouse-motion event and has no repeat timer anywhere (server or
-  # client), so parking the cursor past a pane edge scrolls at whatever rate
-  # your hand's micro-movement happens to produce — the terminal only emits a
-  # motion report when the CELL under the pointer changes. Selecting a long
-  # scrollback meant jittering the mouse to manufacture events.
+  # The six `zellij-unwrapped` patches that used to sit here are gone with the
+  # multiplexer, and the record of what they bought is worth keeping in one
+  # line each, because four of the six describe behaviour Ghostty now has to
+  # provide (or doesn't) rather than behaviour we chose:
   #
-  # Two halves. A repeat timer in screen.rs re-posts the held drag position
-  # every 16ms while the pointer sits inside the scroll zone, so a parked cursor
-  # scrolls at all. That is the half that removes the jittering. The other half
-  # is that the speed is a RATE IN LINES PER SECOND rather than a line per
-  # event: because the debt accumulator bills elapsed wall-clock time, a
-  # jittered mouse and a parked one move at exactly the same speed — the thing
-  # the first cut of this couldn't do.
+  #   selection-autoscroll     drag past a pane edge scrolls at a rate set by
+  #                            the distance. Ghostty autoscrolls a drag natively.
+  #   no-ctrl-scroll-resize    stop ⌃scroll resizing panes so it reaches the
+  #                            program (⌃scroll is zoom in an agent TUI).
+  #                            Moot: no panes to resize.
+  #   ctrl-click-fullscreen    ⌃click zooms a pane. Moot: a window is the pane,
+  #                            and windows/AeroSpace has fullscreen on its own
+  #                            chord.
+  #   right-click-fullscreen   the same, on right-click, behind
+  #                            haus.terminal.rightClickFullscreen. Retired with
+  #                            the option (see modules/renamed.nix).
+  #   unstick-mouse-selection  a selection left "stuck" after the mouse left the
+  #                            pane. A zellij-server bug, gone with the server.
+  #   naked-click-links        open the OSC 8 / regex link under a BARE click.
+  #                            NOT replaced: inside a mouse-tracking program the
+  #                            click belongs to the program, and ghostty's own
+  #                            opener needs ⌘⇧+click (see ghostty/config's
+  #                            macos-option-as-alt block for why super can never
+  #                            reach it through an SGR mouse report).
   #
-  # The zone GROWS with the selection. Three rows swept arms the last three pane
-  # rows; by two thirds of a pane swept it covers everything but a three-row
-  # brake strip at the FAR edge. So a long selection scrolls with the pointer
-  # parked comfortably inside a fullscreen Ghostty window — no edge to reach —
-  # while a short selection near an edge stays precise. Pulling back to the
-  # brake strip is how you stop a long drag without releasing the button; it
-  # can't be "drag back towards where you started", because for a long selection
-  # the anchor has long since scrolled off the top.
-  #
-  # Speed is then two signals. How much of the selection is ON SCREEN sets the
-  # ceiling — a fraction of the pane, not a line count, so the same gesture means
-  # the same speed in a 25-row zoomed-in pane and an 80-row one. How deep into
-  # the zone the pointer sits picks the rate under that ceiling, live: on a
-  # 37-row pane, ~5 lines/s a few rows in, ~48 mid-pane, 360 (about ten
-  # screenfuls) jammed against the edge. The pane is the speed dial.
-  #
-  # On-screen height, specifically, and not the total rows swept: scrolling is
-  # what grows the total, so feeding it back in as the speed is a loop with
-  # itself — every drag, however short, would run away to the ceiling in about
-  # half a second with no way down but releasing the button.
-  #
-  # Pointer depth only became usable once the zone reached inside the pane. Past
-  # the edge it is close to useless: terminals clamp a drag that leaves the
-  # window to the edge cell (ghostty: src/renderer/size.zig, `@max(0, …)` /
-  # `@min(…, rows - 1)`), so above a fullscreen pane there's exactly one row of
-  # travel to measure. Inside the pane there are thirty.
-  #
-  # The curve is the mean of the linear and squared terms, not the square. The
-  # first cut squared it, which measured out (on a 28-row pane, instrumented)
-  # as: break-even against upstream's flat one-line-per-event at 29% of the
-  # pane, and every gesture below that bunched into 0.39–0.70 lines per event —
-  # one flat crawl, indistinguishable, which is exactly what it felt like.
-  #
-  # The second patch kills ctrl+scroll pane resize. Upstream turns one wheel
-  # notch with ctrl held into a resize of whatever pane the pointer happens to
-  # be over (`MouseAction::ResizeScrollUp/Down`, zellij-server tab/mouse_handler.rs)
-  # — an accidental gesture, not a chosen one, since ctrl is held for half the
-  # shortcuts a terminal app owns, and there is no undo for the layout it just
-  # reshaped. Ctrl+wheel now falls through to plain scroll; deliberate resizing
-  # is still the resize-mode keys and ctrl+drag on a pane frame.
-  #
-  # It has to be a patch. `mouse_scroll_resize false` — which lived in
-  # config.kdl from 2026-07-31 to 2026-08-03 — is not a zellij option and never
-  # was: it is absent from 0.44.3's source and binary, and zellij silently
-  # accepts unknown top-level keys (`zellij setup --check` reports "CONFIG FILE:
-  # Well defined" with it present), so it did nothing for the three days it was
-  # in the tree. `advanced_mouse_actions false` is a real option and is NOT the
-  # one either — it gates pane grouping and hover effects only (screen.rs's
-  # group_toggle/group_add/ungroup arms, mouse_handler.rs's hover arm). The
-  # ctrl+wheel branch in mouse_handler.rs is gated on nothing at all.
-  #
-  # The third patch adds ctrl+click-to-zoom: clicking anywhere in a pane's BODY
-  # with ctrl held toggles that pane fullscreen. It was the pointer-driven twin
-  # of Super Enter; since ⌘↵ became the agent-lane chord it is the ONLY way to
-  # zoom a pane, which makes this patch and its right-click sibling load-bearing
-  # rather than a convenience.
-  #
-  # It has to be a patch, and no config or plugin can substitute: zellij's
-  # keybind system is keyboard-only. Mouse buttons are not bindable in
-  # config.kdl at all (modifier+scroll isn't either — zellij-org/zellij#4838),
-  # and plugins get no mouse-input API, so a bind or a plugin would have
-  # nothing to hook.
-  #
-  # It is deliberately the smallest patch that can exist for this. Upstream
-  # already routes ctrl+left-press into its own branch of
-  # `determine_mouse_action` and, once it has ruled out a frame drag (the
-  # resize gesture), does NOTHING with it — every body click falls through to
-  # `MouseAction::NoAction`. So this fills an inert `else` rather than taking a
-  # gesture off anything: frame drags still resize, and the running program
-  # never saw the click either way, since that branch returns before any of the
-  # SendToTerminal arms. Three additive hunks — an enum variant, that `else`,
-  # and a match arm calling the same `toggle_active_pane_fullscreen` the
-  # keybind path calls — with no upstream line deleted, so a nixpkgs bump can
-  # only break it by rewriting mouse_handler.rs wholesale.
-  #
-  # The fourth patch unsticks the mouse in a tab that has stopped answering it.
-  # The symptom is unmistakable and, until now, unrecoverable: one tab stops
-  # responding to the wheel and to clicks — its tab bar included — while its
-  # neighbours are fine, and a healthy tab's bar can still click INTO the dead
-  # one. Only the keyboard works there.
-  #
-  # One `Option<PaneId>` explains all of it. A left-press that doesn't go to a
-  # mouse-tracking application starts a text selection and records the pane in
-  # `Tab::selecting_with_mouse_in_pane`; while that is set, every mouse event in
-  # THAT TAB is read as "the drag continues", so `determine_mouse_action`
-  # answers `NoAction` to anything that isn't a left-motion or a left-release
-  # (zellij-server tab/mouse_handler.rs). It is per-tab state, which is why the
-  # damage is per-tab. Upstream clears it in exactly one place: the branch of
-  # `execute_end_selection` that ends a text selection. So two ordinary things
-  # leave it set forever —
-  #
-  #   · the pane is gone by the time the button comes up (a `close_on_exit`
-  #     float like the find/links overlays, a command pane that exited, a click
-  #     that closed the thing it landed on). The pane lookup fails, the whole
-  #     `if let` is skipped, and no later Release can ever clear it either,
-  #     because that lookup will keep failing.
-  #   · the pane's application turned mouse tracking ON between the press and
-  #     the release. The release is then forwarded to the application by the
-  #     OTHER branch — the one with no reset in it.
-  #
-  # Both hunks are one line of behaviour each: drop a `selecting_with_mouse_in_pane`
-  # that points at a pane which no longer exists, and `take` the field at the
-  # top of `execute_end_selection` instead of assigning `None` on one branch
-  # near the bottom — the button is up, so the drag is over whichever branch
-  # runs and whichever of their `?`s bails out first. The first hunk is the one
-  # that matters for a tab that is ALREADY wedged: it heals on the next mouse
-  # event of any kind, where the `take` needs a left click-and-release, the one
-  # event a wedged tab still routes anywhere.
-  #
-  # Everything that reads the field wants it false once the button is up:
-  # `determine_mouse_action`'s early return, the `MouseEventContext` literal,
-  # and — ours — `track_selection_autoscroll` in screen.rs, added by the first
-  # patch above. That last one is the reason a wedged tab was costing more than
-  # a dead mouse: the autoscroll thread arms on held-left-motion while a
-  # selection is in progress and re-posts the held position at 16ms forever, so
-  # a wedged tab left a timer thread spinning for the life of the session. The
-  # resize twin next to it (`pane_being_resized_with_mouse`) already clears
-  # unconditionally — this only brings selection into line.
-  #
-  # What it still doesn't cover: a release that never arrives at all for a pane
-  # that is still alive (the button let go while the terminal wasn't focused,
-  # say). Hunk one only heals once the pane is gone.
-  #
-  # It has to be a patch: the field is private tab state with no option, no
-  # keybind and no plugin surface anywhere near it. Upstream carries the same
-  # bug on main (checked 2026-08-09), so this is a candidate to send upstream
-  # rather than a local preference.
-  #
-  # The fifth patch is the link experience: hover underlines a link in EVERY
-  # pane, and a bare click opens it in every pane.
-  #
-  # The problem it solves is that link behaviour used to change completely
-  # depending on which program owned the pane, and no amount of config could
-  # even it out, because three programs are stacked here and the mouse belongs
-  # to whichever is innermost. In a shell pane zellij had it: hover underlined,
-  # ⌥+Click opened. In a pane running an agent TUI the application had it: no
-  # underline at all (nothing painted one), a bare click did whatever that
-  # application decided, and ⌥+Click — the one gesture zellij keeps for itself —
-  # opened a BROKEN url, because the plugin API can only see the visible text
-  # and an agent hard-wraps a long URL across two rows. ⌘ is not a way out for
-  # anyone: the SGR mouse encoding carries shift, alt and ctrl and has no bit
-  # for super, so ⌘+Click reaches a terminal program indistinguishable from a
-  # bare one. That is the whole reason ⌘+Click "does the same thing as a click"
-  # inside Claude Code and always would.
-  #
-  # So the gesture is the bare click, and the destination comes from the CELLS
-  # rather than from the text. In a pane whose application wants the mouse,
-  # that is ALL we take: a link anchor is a link and nothing else, while a
-  # plugin pattern only matches text that looks like a path — and an
-  # application that asked for the mouse is usually one whose own clicks land
-  # on exactly that text (yazi selecting a file, lazygit staging one). So there
-  # the rule is links-only, hover underline included, and everything else stays
-  # the application's. In a shell pane, where nothing else wants the mouse,
-  # paths and images are clickable too. Both places a real URL is recorded — an OSC 8
-  # hyperlink the application emitted, and zellij's own HyperlinkTracker, which
-  # anchors any URL it sees printed — write a `link_anchor` onto every cell of
-  # the link, and that anchor survives a wrap and is present even when the
-  # visible text is a word. Upstream only ever wrote those anchors outward
-  # (re-emitting the OSC 8 to ghostty); this reads them back. A click resolves
-  # the anchor first and the link-handler plugin's regexes second, so paths,
-  # images and schemeless domains still work exactly as they did.
-  #
-  # Press arms, release opens, and only if both landed on the same link — a
-  # browser's contract, and what keeps a drag that starts on a URL from opening
-  # it. While armed, every event is swallowed, so an application can never see
-  # a release for a press it never got. A second press on the same cell within
-  # 400ms opens nothing and is passed through as an ordinary click, so
-  # double-clicking a link opens it once rather than twice.
-  #
-  # ⌥+Click loses its interception in the same patch and goes back to meaning
-  # what upstream means by it (pane grouping): keeping a second, text-derived
-  # copy of the same behaviour cost a modifier and shipped wrong URLs. ⌘⇧+Click
-  # is untouched and is still the escape hatch: ⇧ is the one modifier ghostty
-  # keeps for itself (mouse-shift-capture), which frees the mouse from whatever
-  # program is capturing it, and ⌘ is what makes ghostty treat what's under the
-  # pointer as a link at all (`link-url` hard-wires that condition, and 1.3.1
-  # can't configure it). Two modifiers, but it's ghostty's chord, not ours, and
-  # it works identically in every pane.
-  #
-  # It has to be a patch on all counts: the anchors are private grid state with
-  # no plugin API (checked against zellij-tile 0.44.3 — HighlightClicked hands
-  # back the matched *visible* string and nothing else), mouse buttons aren't
-  # bindable in config.kdl, and the two suppressions it lifts are unconditional
-  # `if`s in the render and hover paths, not options.
-  #
-  # All patched at zellij-unwrapped, not zellij: the latter is a thin wrapper
-  # derivation with no source of its own. It rebuilds from source on every
-  # nixpkgs bump that moves zellij or its deps.
-  #
-  # right-click-fullscreen is the odd one out of the six: gated on
-  # haus.terminal.rightClickFullscreen rather than always applied, because it
-  # trades away right-click's forward-to-terminal (lazygit/vim/mc's own
-  # context menu) for a bare right-click zoom, and that trade isn't
-  # everyone's — see the option's own doc for the reasoning.
-  nixpkgs.overlays = [
-    (_final: prev: {
-      zellij-unwrapped = prev.zellij-unwrapped.overrideAttrs (old: {
-        patches =
-          (old.patches or [ ])
-          ++ [
-            ./zellij/patches/selection-autoscroll.patch
-            ./zellij/patches/no-ctrl-scroll-resize.patch
-            ./zellij/patches/ctrl-click-fullscreen.patch
-            ./zellij/patches/unstick-mouse-selection.patch
-            ./zellij/patches/naked-click-links.patch
-          ]
-          ++ lib.optional terminalCfg.rightClickFullscreen ./zellij/patches/right-click-fullscreen.patch;
-      });
-    })
-  ];
+  # `copy-clean.pl` went the same way and is the one outright loss: it was a
+  # zellij `copy_command` filter that stripped the padding zellij adds to
+  # wrapped lines on copy, and Ghostty has no copy hook to hang it on.
 
   # The one thing terminal installs that isn't shell config: the tool the
   # file-association hijack drives. In the roster because that's where
@@ -930,7 +620,6 @@ in
     "obsidian"
     "opencode"
     "yazi"
-    "zellij"
     "zen"
     "zsh-syntax-highlighting"
     "starship"
@@ -1263,72 +952,6 @@ in
         '';
       });
 
-      # The zellij custom layout, rendered from the in-repo template. Only two
-      # tokens remain: the login name for the tab-bar's username pill, and
-      # $HOME for the plugin paths. Bar/tab colours no longer ride in here —
-      # our tab-bar + status-bar plugins read the zellij "nebelung" theme
-      # directly (the old zjstatus couldn't, so its colours used to be injected
-      # here). Shared by custom.kdl and its $HOME-pinned home.kdl variant below.
-      zellijLayout =
-        builtins.replaceStrings
-          [ "@username@" "@HOME@" ]
-          [
-            (builtins.substring 0 6 username)
-            config.home.homeDirectory
-          ]
-          (builtins.readFile ./zellij/custom.kdl);
-
-      # The rendered config.kdl. Unlike every other dotfile here it is NOT handed
-      # to home.file — see the zellijLiveConfig activation below for why it has
-      # to reach ~/.config as a real file instead of a store symlink.
-      #
-      # config.kdl bakes absolute script paths (zellij doesn't expand $HOME in
-      # copy_command / Run / layout), so render @HOME@ → the user's home.
-      zellijConfigFile = pkgs.writeText "zellij-config.kdl" (
-        builtins.replaceStrings
-          [
-            "@HOME@"
-            "@DEFAULT_MODE@"
-            "@BASE_MODE@"
-            "@AGENT_HERE@"
-          ]
-          [
-            config.home.homeDirectory
-            (if terminalCfg.zellijStartLocked then "locked" else "normal")
-            # The same choice, capitalised: SwitchToMode takes a Mode name, not
-            # default_mode's lowercase spelling. The scroll/search binds exit
-            # through it, because upstream's all exit to Normal — which on a
-            # locked host silently leaves every submode leader hot afterwards.
-            (if terminalCfg.zellijStartLocked then "Locked" else "Normal")
-            ''"${agentDefault}"''
-          ]
-          zellijConfigTemplate
-      );
-
-      # Seeds a zellij plugin's grants into the permission cache (see the
-      # home.activation entries near the end of this file for the why).
-      seedZellijPluginPermissions =
-        wasm: perms:
-        lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-          permissions="$HOME/Library/Caches/org.Zellij-Contributors.Zellij/permissions.kdl"
-          plugin="$HOME/.config/zellij/plugins/${wasm}"
-          run sh -c '
-            permissions="$0" plugin="$1" tmp="$0.hm-seed"
-            mkdir -p "''${permissions%/*}"
-            if [ -f "$permissions" ]; then
-              # /usr/bin path: home-manager activation runs with a bare PATH
-              /usr/bin/awk -v open="\"$plugin\" {" \
-                "\$0 == open { skip = 1; next } skip && \$0 == \"}\" { skip = 0; next } !skip" \
-                "$permissions" > "$tmp"
-            else
-              : > "$tmp"
-            fi
-            printf "%s\n" \
-              "\"$plugin\" {" \
-              ${lib.concatMapStrings (p: "\"    ${p}\" \\\n              ") perms}"}" >> "$tmp"
-            mv "$tmp" "$permissions"
-          ' "$permissions" "$plugin"
-        '';
     in
     {
       home.sessionVariables = {
@@ -1368,11 +991,11 @@ in
       #
       # Absolute store path, not a bare `agent-state`: jcode runs hooks from its
       # long-lived server process, whose PATH is whatever the shell that first
-      # started it had. The pane addressing survives that same split by luck of
+      # started it had. The window addressing survives that same split by luck of
       # jcode's design rather than ours — it re-exports the REQUESTING client's
-      # terminal env onto every hook (ZELLIJ_PANE_ID and ZELLIJ_SESSION_NAME are
-      # both in its CLIENT_TERMINAL_ENV_VARS), so a hook fired by a shared
-      # server still names the pane that asked. Verified against v0.76.0.
+      # terminal env onto every hook (`ZMX_SESSION` rides in the same
+      # CLIENT_TERMINAL_ENV_VARS list zellij's pane ids used to), so a hook fired
+      # by a shared server still names the window that asked.
       // lib.optionalAttrs (agentsCfg.enable && lib.elem "jcode" agentClients) (
         let
           state = s: "/run/current-system/sw/bin/agent-state ${s} jcode";
@@ -1519,7 +1142,7 @@ in
 
             # zoxide's doctor wants its init to be the LAST thing in the zshrc,
             # but home-manager injects `zoxide init` early — and we deliberately
-            # add chpwd hooks after it (fnm --use-on-cd, the zellij tab-namer).
+            # add chpwd hooks after it (fnm --use-on-cd).
             # Those coexist fine with zoxide's `cd` override (see programs.zoxide
             # below), so the doctor is a false positive; it's silenced via
             # _ZO_DOCTOR=0 in the envExtra above (~/.zshenv) so agent shells —
@@ -1601,29 +1224,25 @@ in
             zstyle ':completion:*' list-colors "''${(s.:.)LS_COLORS}"
             zstyle ':completion:*' menu no
 
-            # New shells inherit the spawning surface's cwd — zellij panes
-            # (Super n) and the cwd-injecting new-tab spawns (Super Shift t,
-            # the peek Enter-on-dir tab), but equally the plain Ghostty windows
-            # ⌘N spawns a lane-aware shell window, which is why this sits
-            # OUTSIDE the $ZELLIJ block below (it used to live inside it, and a
-            # zmx window's shell sailed straight past the hop). Next to an
-            # agent's pane or window that cwd is the agent's throwaway checkout
-            # under ~/.cache/claude-worktrees, and a fresh interactive shell
-            # has no business starting there: hop to the repo the worktree
-            # belongs to (the parent of the shared .git).
+            # New shells inherit the spawning surface's cwd — the ⌘N shell
+            # window, the peek's Enter-on-dir window, a lane's own window. Next
+            # to an agent's window that cwd is the agent's throwaway checkout
+            # under ~/.cache/claude-worktrees, and a fresh interactive shell has
+            # no business starting there: hop to the repo the worktree belongs
+            # to (the parent of the shared .git).
             # $CLAUDECODE spares the agent's own subshells, and $HAUS_STAY
-            # spares the deliberate "stay here" spawns — Super Shift n / ⌘⇧N,
-            # and the Enter-on-dir tab of a Super-Shift-y (--stay) peek, which
-            # bakes HAUS_STAY=1 into the layout it generates. Those must stay
-            # in the worktree; the Super-y peek's Enter tab is NOT spared,
-            # because that peek was rooted at the main checkout to begin with.
+            # spares the deliberate "stay here" spawns — ⌘⇧N, and the
+            # Enter-on-dir window of a ⌘⇧Y (--stay) peek, which bakes
+            # HAUS_STAY=1 into the window's environment. Those must stay in the
+            # worktree; the ⌘Y peek's Enter window is NOT spared, because that
+            # peek was rooted at the main checkout to begin with.
             # Both fire once at shell birth, so unset HAUS_STAY afterward to
             # keep it out of child processes and later cd's.
-            # Gated to the surfaces this rice spawns — a zellij pane or a
-            # Ghostty window — because the hop is about THEIR cwd inheritance.
-            # A third-party terminal (an editor's integrated one, ssh) opened
-            # deliberately inside a worktree must not be teleported out of it.
-            if [[ -n "$ZELLIJ" || "$TERM_PROGRAM" == ghostty ]] &&
+            # Gated to the surface this rice spawns — a Ghostty window — because
+            # the hop is about ITS cwd inheritance. A third-party terminal (an
+            # editor's integrated one, ssh) opened deliberately inside a
+            # worktree must not be teleported out of it.
+            if [[ "$TERM_PROGRAM" == ghostty ]] &&
                [[ -z "$CLAUDECODE" && -z "$HAUS_STAY" && "$PWD" == "$HOME/.cache/claude-worktrees/"* ]]; then
               _wt_main="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
               [[ -n "$_wt_main" ]] && cd "''${_wt_main:h}"
@@ -1631,24 +1250,13 @@ in
             fi
             unset HAUS_STAY
 
-            # Auto-name the current zellij tab after the repo whenever you cd.
-            if [[ -n "$ZELLIJ" ]]; then
-
-              # "~" is what fresh tabs are born as (custom.kdl) — cd-ing back
-              # to ~ returns the tab to that name instead of the login name.
-              _zj_name_tab() {
-                local root name
-                if [[ "$PWD" == "$HOME" ]]; then
-                  name="~"
-                else
-                  root=$(git rev-parse --show-toplevel 2>/dev/null)
-                  name=''${''${root:-$PWD}:t}
-                fi
-                command zellij action rename-tab "$name" 2>/dev/null
-              }
-              autoload -Uz add-zsh-hook
-              add-zsh-hook chpwd _zj_name_tab
-            fi
+            # The chpwd hook that renamed the zellij tab after the repo is
+            # gone with the tabs. A window's name is not ours to write: for a
+            # lane it is a FORCED --title carrying the `holt.<repo>.<lane>` join
+            # (lanes/lane-open.sh), and for a plain window it is whatever the
+            # program inside emits as OSC 2 — which is the right answer, since
+            # the thing the bar and the switcher need to see is what you are
+            # running, not which directory you last cd'd into.
           ''
         ];
       };
@@ -1791,8 +1399,8 @@ in
               notification = true;
             };
           };
-          # peek-open: Enter inside the Super-y peek overlay. On a directory it
-          # spawns a new zellij tab cwd'd there (the old browse-and-pick tab
+          # peek-open: Enter inside the ⌘Y peek overlay. On a directory it
+          # spawns a new Ghostty WINDOW cwd'd there (the old browse-and-pick tab
           # picker, folded in here); on a file it pages as normal. Gated on
           # PEEK=1 (set only by
           # peek-run.sh), so in a plain `yy` session it's a no-op passthrough to
@@ -1814,11 +1422,11 @@ in
           }
           {
             # Enter routes through peek-open: in the peek overlay a directory
-            # opens a new zellij tab there, a file pages fullscreen; everywhere
+            # opens a new window there, a file pages fullscreen; everywhere
             # else it's plain `open` (yazi's default Enter). See peek-open.yazi.
             on = "<Enter>";
             run = "plugin peek-open";
-            desc = "Peek: open dir as tab / page file (else default open)";
+            desc = "Peek: open dir in a window / page file (else default open)";
           }
         ];
         settings.plugin.prepend_previewers = [
@@ -1864,7 +1472,7 @@ in
           ];
           image_preview = [
             {
-              run = ''~/.config/zellij/image-preview.sh "$@"'';
+              run = ''~/.config/haus/term/image-preview.sh "$@"'';
               block = true;
               desc = "Preview";
             }
@@ -1913,7 +1521,7 @@ in
         enable = devCfg.toolbelt.enable;
         enableZshIntegration = true;
         # Let zoxide take over `cd`: `cd proj` jumps by frecency, `cdi` opens
-        # the interactive fzf picker. The chpwd hooks below (zellij tab-naming)
+        # the interactive fzf picker. The chpwd hooks elsewhere in this room
         # still fire — zoxide's cd triggers the same chpwd event as builtin cd.
         options = [ "--cmd cd" ];
       };
@@ -1991,8 +1599,6 @@ in
         };
       };
 
-      programs.zellij.enable = true;
-
       # Opt-in because a GitHub dashboard is not something to hand someone who
       # never asked for one. Terminal supplies the patched binary, the Nebelung
       # include, the Cmd-G overlay and the self tabs; the PR tabs come from
@@ -2010,8 +1616,8 @@ in
       };
 
       # Catppuccin: `catppuccin.flavor` is the single source of truth — every
-      # integration follows it. Raw dotfiles nix can't inject into (ghostty
-      # config, zellij config.kdl) name the flavor manually; keep them in sync.
+      # integration follows it. Raw dotfiles nix can't inject into (the ghostty
+      # config) name the flavor manually; keep them in sync.
       # Every port here is themed by Nebelung instead of stock catppuccin —
       # either by pointing the program at a whiskers-rendered file from the
       # nebelung flake (bat/delta/lsd/yazi), or by injecting nebelungPalette
@@ -2034,7 +1640,6 @@ in
       catppuccin.yazi.enable = false;
       catppuccin.gh-dash.enable = false;
       catppuccin.zsh-syntax-highlighting.enable = false;
-      catppuccin.zellij.enable = false; # managed as a raw dotfile below
 
       # nix-index + comma (`, foo` runs a program without installing it):
       # unambiguously developer tooling, and the index is not small, so a
@@ -2144,7 +1749,7 @@ in
           '';
         }
         // lib.optionalAttrs agentsCfg.enable {
-          # Holt's durable machine default. The zellij server and launchd daemons
+          # Holt's durable machine default. launchd daemons and zmx sessions
           # can outlive the environment that started them, so `holt new` resolves
           # this generated file instead of inheriting a stale client selection.
           # A standalone Holt install can own the same file by hand.
@@ -2188,8 +1793,8 @@ in
             executable = true;
           };
 
-          # Opencode's half of the agent-pane status the bar and the zellij tab-bar
-          # draw. Claude Code's equivalent is four hooks in ~/.claude/settings.json,
+          # Opencode's half of the agent status the bar's paw pill draws.
+          # Claude Code's equivalent is four hooks in ~/.claude/settings.json,
           # which the USER wires (Claude owns that file and rewrites it, so the rice
           # never has); opencode instead auto-loads every file under this directory,
           # so the rice can own the whole wiring and a fresh machine gets working
@@ -2218,7 +1823,7 @@ in
         // {
 
           # ghostty (config lives in Application Support; theme lookup is XDG)
-          # ghostty's `command` runs the zellij launcher by absolute path; render
+          # ghostty's `command` runs scripts/launch.sh by absolute path; render
           # @HOME@ → the user's home so it isn't pinned to one account.
           "Library/Application Support/com.mitchellh.ghostty/config".text =
             builtins.replaceStrings
@@ -2246,95 +1851,45 @@ in
           ".config/yazi/Catppuccin-${nbFlavor}.tmTheme".source =
             "${nebelungRoot}/bat/themes/${batTheme}.tmTheme";
 
-          # zellij
-          # NOTE: config.kdl is deliberately absent from this block — it is
-          # installed as a real file by the zellijLiveConfig activation instead,
-          # so a rebuild hot-reloads into the running session. See there.
-          ".config/zellij/themes/nebelung.kdl".source = "${nebelungRoot}/zellij/themes/nebelung.kdl";
-          # Custom layout, rendered from the in-repo template (see zellijLayout
-          # in the let above).
-          ".config/zellij/layouts/custom.kdl".text = zellijLayout;
-          # The same layout with the content tab pinned to $HOME — the Super-t
-          # NewTab bind opens tabs from this file, so a plain new tab always starts
-          # at ~ no matter where the focused pane lives (Super-Shift-t is the "…at
-          # the focused dir" variant — new-tab-here.sh). Tab-level cwd is the only
-          # form zellij honors under a default_tab_template (peek-run.sh and
-          # new-tab-here.sh pull the same trick per-pick); the assert trips at eval
-          # time if custom.kdl's
-          # content-tab line ever changes shape, instead of silently shipping a
-          # layout that no-ops back to cwd inheritance.
-          ".config/zellij/layouts/home.kdl".text =
-            let
-              pinned =
-                builtins.replaceStrings
-                  [ "\n    tab name=\"~\" {\n" ]
-                  [ "\n    tab cwd=\"${config.home.homeDirectory}\" name=\"~\" {\n" ]
-                  zellijLayout;
-            in
-            assert pinned != zellijLayout;
-            pinned;
-          # The four plugin forks, each built from ./zellij/<name>/src by the
-          # zellijPlugins derivations in the let above — never a checked-in blob,
-          # so a source edit can't be shipped half-applied. The install paths stay
-          # exactly these four names: config.kdl / custom.kdl reference them by
-          # path, and so does the permission-cache seed below (keyed on the
-          # expanded ~/.config/zellij/plugins/<name>.wasm), so renaming one here
-          # silently un-grants the plugin.
-          ".config/zellij/plugins/link-handler.wasm".source = zellijPlugins.link-handler;
-          # tab-history (see zellij/tab-history/): background plugin that makes
-          # Ctrl(+Shift)+Tab walk tabs in most-recently-used order (browser-style
-          # back/forward) instead of by position. Loaded via config.kdl's
-          # load_plugins; grants seeded below.
-          ".config/zellij/plugins/tab-history.wasm".source = zellijPlugins.tab-history;
-          # Our status-bar fork (see zellij/status-bar/): the bottom-right quick
-          # hints are condensed to one flat Super-key block (agent, find, optional
-          # gh-dash, pounce-links, pane, tab, yazi-peek, fullscreen — keys only,
-          # no labels/ribbons, listed alphabetically by the key that shows).
-          ".config/zellij/plugins/status-bar.wasm".source = zellijPlugins.status-bar;
-          # Our tab-bar fork (see zellij/tab-bar/): the top bar, replacing the
-          # third-party zjstatus that used to sit here. Same active-anchored tab
-          # scroll viewport as upstream zellij:tab-bar (so tabs stay readable on a
-          # thin pane instead of clipping under the right-hand widgets, which is
-          # what zjstatus did), themed to nebelung, with a username pill + a
-          # Ctrl+Tab / swap-layout right side.
-          ".config/zellij/plugins/tab-bar.wasm".source = zellijPlugins.tab-bar;
-          ".config/zellij/launch.sh" = {
-            source = ./zellij/launch.sh;
+          # ── ~/.config/haus/term — the scripts that outlived the multiplexer ──
+          # This whole block lived under ~/.config/zellij until zellij was
+          # removed. The directory moved with the scripts rather than being kept
+          # for compatibility: nothing but this rice ever wrote to it, and a
+          # path named for a tool the machine no longer has is a lie that costs
+          # nothing to stop telling. The nine files below are what survived; the
+          # plugin wasm, the two layouts, config.kdl, the theme and copy-clean.pl
+          # went with it.
+          ".config/haus/term/launch.sh" = {
+            source = ./scripts/launch.sh;
             executable = true;
           };
-          ".config/zellij/image-preview.sh" = {
-            source = ./zellij/image-preview.sh;
+          ".config/haus/term/image-preview.sh" = {
+            source = ./scripts/image-preview.sh;
             executable = true;
           };
-          # Both peek binds run this one script: Super y hops out of an agent
-          # worktree to the repo's main checkout, Super Shift y passes --stay and
-          # doesn't. See config.kdl's pair of binds.
-          ".config/zellij/peek.sh" = {
-            source = ./zellij/peek.sh;
+          # Both peek chords run this one script: ⌘Y hops out of an agent
+          # worktree to the repo's main checkout, ⌘⇧Y passes --stay and doesn't.
+          # Both are pounce appHotkeys now (cmd:peek / cmd:peek-stay).
+          ".config/haus/term/peek.sh" = {
+            source = ./scripts/peek.sh;
             executable = true;
           };
-          ".config/zellij/peek-run.sh" = {
-            source = ./zellij/peek-run.sh;
+          ".config/haus/term/peek-run.sh" = {
+            source = ./scripts/peek-run.sh;
             executable = true;
           };
-          # Super-Shift-t: open a new tab cwd'd at the focused pane's dir (clones
-          # the active layout + injects a tab-level cwd). See config.kdl's bind.
-          ".config/zellij/new-tab-here.sh" = {
-            source = ./zellij/new-tab-here.sh;
+          # ⌘F / ⌘⇧F: full-text search over this window's zmx scrollback, or over
+          # every session at once — agent windows through their Claude
+          # transcript (an alt-screen has no scrollback to search), everything
+          # else through `zmx history`.
+          ".config/haus/term/find.sh" = {
+            source = ./scripts/find.sh;
             executable = true;
           };
-          # ⌘F / ⌘⇧F: full-text search over every pane in the session —
-          # agent panes through their Claude transcript (the alt-screen has no
-          # scrollback to search), everything else through dump-screen. See the
-          # script header for why this isn't zellij's native search.
-          ".config/zellij/find.sh" = {
-            source = ./zellij/find.sh;
-            executable = true;
-          };
-          # Cmd-G: the tiny launcher that asks zellij for the real full-window,
-          # borderless gh-dash pane. The bind is rendered only when ghDash is on.
-          ".config/zellij/gh-dash.sh" = {
-            source = ./zellij/gh-dash.sh;
+          # ⌘G: gh-dash in its own near-fullscreen floating window. The chord is
+          # armed only when ghDash is on.
+          ".config/haus/term/gh-dash.sh" = {
+            source = ./scripts/gh-dash.sh;
             executable = true;
           };
           # The one floating-Ghostty helper (geom + spawn + ring); peek.sh, the
@@ -2343,7 +1898,7 @@ in
           # passed per caller, so haus.terminal.floatBorder moves all three at once
           # — and so the pounce command, which runs on launchd's bare PATH, gets
           # floatring by store path instead of hoping it's installed.
-          ".config/zellij/float-term.sh" = {
+          ".config/haus/term/float-term.sh" = {
             text =
               builtins.replaceStrings
                 [
@@ -2359,161 +1914,36 @@ in
                   floatBorderColor
                   "2"
                 ]
-                (builtins.readFile ./zellij/float-term.sh);
+                (builtins.readFile ./scripts/float-term.sh);
             executable = true;
           };
-          # The one "open in the editor" launcher — a new zellij tab running
+          # The one "open in the editor" launcher — a new Ghostty window running
           # haus.terminal.editor (baked into @editor@). Shared by the "Nix
           # Config" palette/bar commands and the file-association hijack.
-          ".config/zellij/editor-open-pane.sh" = {
+          ".config/haus/term/editor-open-pane.sh" = {
             text = builtins.replaceStrings [ "@editor@" ] [ terminalCfg.editor ] (
-              builtins.readFile ./zellij/editor-open-pane.sh
+              builtins.readFile ./scripts/editor-open-pane.sh
             );
             executable = true;
           };
           # pounce's terminal launcher (POUNCE_TERMINAL_LAUNCHER, wired in
-          # modules/launcher) — opens `ssh <host>` etc. in a new `main`-session tab,
-          # same flow as editor-open-pane.sh above.
-          ".config/zellij/pounce-terminal.sh" = {
-            source = ./zellij/pounce-terminal.sh;
+          # modules/launcher) — opens `ssh <host>` etc. in a new window, same
+          # flow as editor-open-pane.sh above.
+          ".config/haus/term/pounce-terminal.sh" = {
+            source = ./scripts/pounce-terminal.sh;
             executable = true;
           };
           # The one "open the nix config" opener — resolves this host's
           # hosts/@hostname@/default.nix and hands it to the launcher above with
           # the flake root as cwd. The "Nix Config" palette command (pounce) and
           # the bar's nix pill (bar) both exec this.
-          ".config/zellij/nix-config-open.sh" = {
+          ".config/haus/term/nix-config-open.sh" = {
             text = builtins.replaceStrings [ "@hostname@" ] [ hostname ] (
-              builtins.readFile ./zellij/nix-config-open.sh
+              builtins.readFile ./scripts/nix-config-open.sh
             );
             executable = true;
           };
-          ".config/zellij/copy-clean.pl" = {
-            source = ./zellij/copy-clean.pl;
-            executable = true;
-          };
         };
-
-      # config.kdl is INSTALLED, not linked — the one dotfile in this module that
-      # isn't a store symlink, and the reason a rebuild no longer costs you your
-      # tabs.
-      #
-      # zellij watches the active config and applies most fields to the running
-      # server within a second: keybinds, theme, pane_frames, the lot. It decides
-      # "changed" by the file's mtime. Every /nix/store file carries mtime =
-      # epoch 1, so a home.file symlink defeats that completely — activation
-      # repoints the link at a NEW store path with the SAME 1970 timestamp, the
-      # watcher reads it as older than what it already parsed, and nothing
-      # happens. That single stat is the whole reason a rebuild used to mean
-      # `zellij delete-all-sessions` (and the reason zreload existed).
-      #
-      # Measured on 0.44.3 against a live session, four ways. Diagnosis:
-      # repointing the symlink at a file with a fresh mtime reloaded in ~1s;
-      # repointing between two files with identical epoch mtimes never fired at
-      # all; and `touch`ing one file — same path, same bytes, mtime the only
-      # thing that moved — reloaded in <1s. Then the shipped mechanism itself:
-      # four consecutive install+rename cycles against one live session all
-      # reloaded, in 1-2s each. That last one matters because rename gives the
-      # path a NEW INODE every time — the watcher is keyed on the path and
-      # re-arms, so this doesn't silently work once and then stop.
-      #
-      # `install` writes a fresh regular file with the current mtime, so every
-      # activation looks new. Mode 0444 keeps the read-only semantics the store
-      # symlink had, so zellij still can't persist runtime edits into a file nix
-      # owns; the write goes to a temp name and renames into place, because
-      # rename() needs write on the DIRECTORY, not on the 0444 file it replaces.
-      # entryAfter linkGeneration: home-manager removes the symlink it used to
-      # manage here during that step, so we must land after it, not before.
-      # Absolute /bin and /usr/bin paths throughout — activation runs with a bare
-      # PATH (same reason the plugin-permission seed above spells out
-      # /usr/bin/awk).
-      home.activation.zellijLiveConfig = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-        run /bin/mkdir -p "$HOME/.config/zellij"
-        zcfg="$HOME/.config/zellij/config.kdl"
-        # Rewrite only when it would change something: the path is still
-        # home-manager's symlink (the migration case, and the one a plain content
-        # compare would wrongly skip), or it's missing, or the bytes actually
-        # moved. Without this every no-op `haus rebuild` would hand the running
-        # server a pointless reload.
-        if [ -L "$zcfg" ] || [ ! -e "$zcfg" ] || ! /usr/bin/cmp -s ${zellijConfigFile} "$zcfg"; then
-          run /bin/rm -f "$zcfg.new"
-          run /usr/bin/install -m 0444 ${zellijConfigFile} "$zcfg.new"
-          run /bin/mv -f "$zcfg.new" "$zcfg"
-        fi
-        # Rollback safety. `home-manager.backupFileExtension = "backup"` (see
-        # flake.nix) means an older generation that still wants to LINK this path
-        # moves our real file to config.kdl.backup rather than refusing — good,
-        # but only once: check-link-targets aborts activation outright if that
-        # backup already exists, so a rollback → rebuild → rollback sequence would
-        # fail on the second one. Clear it here; the file is always regenerable
-        # from the store, so there is nothing to lose.
-        run /bin/rm -f "$zcfg.backup"
-      '';
-
-      # zellij grants plugin permissions through an interactive (y/n) prompt in
-      # the plugin's pane — but none of our forks can answer it: link-handler is
-      # a background plugin (load_plugins) with no pane, status-bar never calls
-      # request_permission (built-ins don't need to, and we keep the fork diff
-      # minimal), and tab-bar's "pane" is a 1-line borderless bar you can't
-      # select — so its prompt renders in the bar but no keystroke ever reaches
-      # it. An ungranted plugin therefore sits event-less forever (zellij only
-      # auto-grants when EVERY requested permission is cached).
-      # Seed the grants straight into zellij's permission cache instead (keyed
-      # by the plugin's expanded path): replace our plugin's block wholesale so
-      # permission-list changes propagate, but never own the file — zellij
-      # rewrites it when other plugins are granted interactively, so those
-      # entries must survive.
-      #
-      # OPERATIONAL GOTCHA — a live server can clobber a fresh seed, and only a
-      # bounce fixes it. zellij re-reads this file whenever a plugin requests
-      # permission, so a seed normally takes effect on the next plugin load. But
-      # a running server also *rewrites* the file from its own in-memory
-      # snapshot (whenever any plugin is granted), which can drop a grant this
-      # activation just wrote. So when a rebuild changes a bar plugin's wasm,
-      # the next new tab can surface the un-answerable prompt above even though
-      # the seed ran — the seed and the running server race for the file. The
-      # seed alone can't win that race (zellij owns the file at runtime); the
-      # fix is to bounce the server so it reloads the seeded file cleanly:
-      #     zellij kill-session <name> && zellij attach --create <name>
-      # serialize_pane_viewport is on, so pane layouts + scrollback resurrect
-      # (live processes don't — re-run them). `bench try switch` (or any
-      # rebuild) re-runs this seed; the bounce is what makes an already-running
-      # server honour it.
-      home.activation.zellijLinkHandlerPermissions = seedZellijPluginPermissions "link-handler.wasm" [
-        "ReadApplicationState"
-        "ChangeApplicationState"
-        "FullHdAccess"
-        "RunCommands"
-        "ReadSessionEnvironmentVariables"
-      ];
-      # ModeUpdate/TabUpdate/PaneUpdate — everything the bar renders from —
-      # are gated on ReadApplicationState (zellij's check_event_permission).
-      home.activation.zellijStatusBarPermissions = seedZellijPluginPermissions "status-bar.wasm" [
-        "ReadApplicationState"
-      ];
-      # tab-history reads TabUpdate (ReadApplicationState) to track focus order
-      # and calls go_to_tab (ChangeApplicationState) to switch tabs; both are
-      # pre-seeded because it's a background plugin with no pane to prompt in.
-      home.activation.zellijTabHistoryPermissions = seedZellijPluginPermissions "tab-history.wasm" [
-        "ReadApplicationState"
-        "ChangeApplicationState"
-      ];
-      # tab-bar renders from TabUpdate/ModeUpdate/PaneUpdate (ReadApplicationState)
-      # and switches tabs on a mouse click via switch_tab_to
-      # (ChangeApplicationState). ReadCliPipes is for the agent-status paw beside
-      # a tab name: bar's agents-hook.sh broadcasts each agent pane's state over
-      # `zellij pipe`, and without this permission that pipe never reaches the
-      # plugin. NOTE it can't be treated as optional — zellij only auto-grants
-      # when EVERY requested permission is cached, so if this list falls behind
-      # the wasm's request_permission() the whole bar goes event-less, not just
-      # the paws. It's the top bar, so its prompt would render in a 1-line
-      # borderless pane you can't select — un-answerable (see the note above),
-      # which is exactly why it must be seeded rather than left to prompt.
-      home.activation.zellijTabBarPermissions = seedZellijPluginPermissions "tab-bar.wasm" [
-        "ReadApplicationState"
-        "ChangeApplicationState"
-        "ReadCliPipes"
-      ];
 
       # Keep nix-installed .app bundles findable by LaunchServices.
       #
@@ -2546,7 +1976,7 @@ in
       # Off by default: silently making EditorOpen.app the handler for a dozen
       # extensions is a jarring, hard-to-undo surprise on someone else's machine.
       # It opens files in the rice editor (haus.terminal.editor) via the same
-      # zellij launcher the palette/bar use.
+      # window launcher the palette/bar use.
       home.activation.editorOpenApp = lib.mkIf terminalCfg.hijackFileAssociations (
         lib.hm.dag.entryAfter [ "writeBoundary" ] (
           let
@@ -2554,7 +1984,7 @@ in
             # the app" note in the script). Deliberately EXCLUDES web-content
             # types (html/htm/xhtml — browsers own public.html and won't yield,
             # and you want those in a browser anyway) and image types (handled by
-            # the zellij link-handler's image preview).
+            # yazi's own image preview — scripts/image-preview.sh).
             #
             # The rice owns each of these EXCLUSIVELY, and that is a rule, not a
             # coincidence: modules/apps keeps `ts`, `mts` and `m2ts` out of
@@ -2675,7 +2105,7 @@ in
           ''
             appDir="$HOME/Applications"
             $DRY_RUN_CMD mkdir -p "$appDir"
-            $DRY_RUN_CMD /usr/bin/osacompile -o "$appDir/EditorOpen.app" -e 'on open theFiles' -e 'repeat with theFile in theFiles' -e 'set file_path to POSIX path of theFile' -e 'do shell script "$HOME/.config/zellij/editor-open-pane.sh " & quoted form of file_path' -e 'end repeat' -e 'end open'
+            $DRY_RUN_CMD /usr/bin/osacompile -o "$appDir/EditorOpen.app" -e 'on open theFiles' -e 'repeat with theFile in theFiles' -e 'set file_path to POSIX path of theFile' -e 'do shell script "$HOME/.config/haus/term/editor-open-pane.sh " & quoted form of file_path' -e 'end repeat' -e 'end open'
             PL="$appDir/EditorOpen.app/Contents/Info.plist"
             $DRY_RUN_CMD /usr/bin/plutil -replace CFBundleIdentifier -string "com.hausfold.editoropen" "$PL"
 
@@ -2716,7 +2146,7 @@ in
       # Claude Code — seed a couple of defaults into settings.json:
       #   permissions.defaultMode = "auto"  — pin the permission mode here
       #     instead of passing --dangerously-skip-permissions on the command
-      #     line (the zellij binds above no longer do). "auto" runs agents
+      #     line (the lane spawner no longer does). "auto" runs agents
       #     unattended but keeps the background safety checks that block
       #     dangerous escalations, so it's safe on the host — unlike
       #     bypassPermissions, which is the flag's exact, check-free behaviour
@@ -2724,13 +2154,13 @@ in
       #   tui = "fullscreen"  — render Claude Code in the alt-screen (fullscreen)
       #     TUI rather than inline. `/tui fullscreen` sets this per-session and
       #     relaunches; seeding it makes fullscreen the default on every new
-      #     machine. Highlight-to-copy through zellij still works, so there's no
-      #     tradeoff to the classic inline renderer.
+      #     machine. Ghostty's own ⇧-drag selection still reaches the
+      #     alt-screen, so there's no tradeoff to the classic inline renderer.
       #   disableAgentView = true  — turn off the built-in agent-manager view
       #     (`claude agents`, `--bg`, /background, its on-demand daemon) and the
       #     "← for agents" toolbar hint that advertises it. Undocumented key,
       #     equivalent to CLAUDE_CODE_DISABLE_AGENT_VIEW=1. Parallel Claude
-      #     sessions here go through `holt` + zellij panes (core/terminal), not the
+      #     sessions here go through `holt` + zmx windows (core/terminal), not the
       #     in-app view, so the hint is pure noise — kill it at the rice level.
       #   statusLine  — point Claude Code's status bar at `claude-statusline`
       #     (core ships it on PATH). It renders THIS session's `holt` worktree +
@@ -2802,8 +2232,8 @@ in
         ''
       );
 
-      # Codex — the same agent-pane status wiring, in Codex's own hook file, so a
-      # Codex pane lights the `agents` paw and the zellij tab badge exactly like a
+      # Codex — the same agent status wiring, in Codex's own hook file, so a
+      # Codex window lights the `agents` paw exactly like a
       # Claude or Opencode one. Three of its ten events carry the states we draw:
       #
       #   UserPromptSubmit  → working
@@ -2811,15 +2241,14 @@ in
       #   Stop              → idle
       #
       # There is deliberately no fourth: Codex has no session-END event (its list
-      # stops at Stop), so nothing can report `remove`. agents.sh closes that by
-      # asking zellij which panes still exist and dropping the rows of those that
-      # don't — which also cleans up after any client that dies without saying
-      # goodbye. Schema verified against codex-cli 0.145.0 by running a real turn
+      # stops at Stop), so nothing can report `remove`. A zmx session closes that
+      # by construction: its labels live in the session and die with it, so a
+      # window that goes away takes its row with it — which also cleans up after
+      # any client that dies without saying goodbye. Schema verified against codex-cli 0.145.0 by running a real turn
       # with `--dangerously-bypass-hook-trust` and watching the hooks fire: it is
       # Claude-shaped (PascalCase event → matcher groups → `{type, command}`
       # handlers), the command runs under `$SHELL -lc` with the session's cwd, and
-      # it inherits $ZELLIJ_PANE_ID / $ZELLIJ_SESSION_NAME — which is the whole
-      # addressing scheme.
+      # it inherits $ZMX_SESSION — which is the whole addressing scheme.
       #
       # First launch after this lands, Codex will ask you to REVIEW the hooks
       # ("Hooks need review") and won't run them until you trust them. That gate

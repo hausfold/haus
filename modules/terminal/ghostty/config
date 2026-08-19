@@ -12,10 +12,16 @@ theme = nebelung
 font-family = @FONT_FAMILY@
 font-size = @FONT_SIZE@
 
-# Auto-attach to (or create) the "main" zellij session on launch.
-# Skipped for quick-terminal, for nested ghostty (already inside zellij),
-# and when NO_ZELLIJ=1 is set. Falls back to plain zsh if zellij errors.
-command = @HOME@/.config/zellij/launch.sh
+# Attach to (or create) this window's own zmx session on launch — `term.<n>`,
+# lowest free n, so reopening Ghostty walks back into the shells you had.
+# Skipped for quick-terminal, for a nested surface (already in a session) and
+# when HAUS_NO_ZMX=1 is set. Falls back to plain zsh if zmx errors.
+#
+# There is no "main" session any more, because there is no multiplexer for one
+# to belong to: a window IS a pane now. The session exists per window, and it
+# exists at all because Ghostty's AppleScript API can create a surface but
+# cannot READ one — ⌘F, ⌘L and the bar's peek all need `zmx history`.
+command = @HOME@/.config/haus/term/launch.sh
 
 macos-titlebar-style = hidden
 # Kill the window drop-shadow. Under AeroSpace, windows tile edge-to-edge
@@ -34,34 +40,29 @@ macos-titlebar-style = hidden
 # the rule, applied by bar-bottomrc and sketchybarrc — which fixes it for every
 # app at once and needs no SIP, no yabai, and nothing from ghostty.
 macos-window-shadow = false
-# Option is sent into the terminal as Alt, so ⌥-chords reach zellij / the shell
-# instead of composing accented characters.
+# Option is sent into the terminal as Alt, so ⌥-chords reach the shell instead
+# of composing accented characters.
 #
-# This line used to be described as the thing that leaves ⌘ free to be
-# ghostty's link-open modifier, with Opt+Click zellij's link gesture and
-# Cmd+Click ghostty's. Half of that was never true: SGR mouse reports encode
-# shift, alt and ctrl and have NO bit for super, so a ⌘+Click inside any
-# mouse-tracking program (zellij always, an agent TUI on top of it) arrives
-# indistinguishable from a bare click and ghostty never gets a say — which is
-# exactly why ⌘+Click "did the same thing as a click" in a Claude Code pane.
-# Links now open on a BARE click, resolved inside zellij from the cell's link
-# anchor (terminal's naked-click-links.patch), and ⌥+Click is not a link gesture
-# at all any more.
+# ghostty owns SHIFT (see mouse-shift-capture below), so ⌘⇧+Click is the
+# dependable way into its link opener from any window, whatever program has
+# claimed the mouse — ⇧ frees the pointer from that program, ⌘ is what makes
+# ghostty read a link under it, and ⌘⇧+hover is what draws the preview. Both
+# halves are ghostty's own rule: `link-url` hard-wires the hover condition to
+# cmd and ghostty 1.3.1 cannot configure `link` ("TODO: This can't currently be
+# set!").
 #
-# ghostty still owns SHIFT (see mouse-shift-capture below), so ⌘⇧+Click stays
-# the escape hatch into its own opener from any pane — ⇧ frees the mouse from
-# the program capturing it, ⌘ is what makes ghostty read a link under the
-# pointer at all, and ⌘⇧+hover is what draws its preview. Both halves are
-# ghostty's own rule: `link-url` hard-wires the hover condition to cmd and
-# ghostty 1.3.1 cannot configure `link` ("TODO: This can't currently be set!").
-# It sees embedded links at all only because zellij's config.kdl sets
-# `osc8_hyperlinks true` to forward them out. See that block for the full story.
+# Plain ⌘+Click is NOT a link gesture inside a mouse-tracking program, and
+# never can be: SGR mouse reports encode shift, alt and ctrl and have no bit
+# for super, so ⌘+Click arrives at an agent TUI indistinguishable from a bare
+# click. Under zellij a patch of ours resolved links from the cell's own anchor
+# on a naked click; with the multiplexer gone that gesture belongs to whatever
+# program owns the pane, and ⌘⇧+Click is the escape hatch.
 macos-option-as-alt = true
 
 # Shift is the ONE modifier that always reaches ghostty, whatever program owns
-# the pane — that is what makes ⌘⇧+Click a dependable way out of the
-# multiplexer and into ghostty's own link opener, and ⇧-drag a dependable way
-# into its selection. `false` is already the default, but at that setting a
+# the window — that is what makes ⌘⇧+Click a dependable way out of an agent TUI
+# and into ghostty's own link opener, and ⇧-drag a dependable way into its
+# selection. `false` is already the default, but at that setting a
 # program can flip it with XTSHIFTESCAPE; `never` is the same rule with the
 # override refused, so no application can quietly claim the one gesture the
 # whole link design keeps in reserve.
@@ -74,132 +75,108 @@ mouse-shift-capture = never
 # ignored instead; the agent panes carry their own status.
 progress-style = false
 
-# Make zellij's bottom status bar sit flush along the window's bottom edge at
-# EVERY font size. The ghostty window is tiled at a fixed pixel height (windows /
-# AeroSpace), so when a font size doesn't divide the height evenly, ghostty
-# leaves the leftover pixels as padding on the BOTTOM (and right) edge —
-# window-padding-balance defaults to false. That's why the top tab-bar always
-# looks flush but the bottom status-bar floats above a background-coloured gap,
-# and why only a few zoom levels (font-size 19 out of the box) happen to divide
-# evenly. Painting that leftover padding with the nearest grid cell's background
-# (the zellij status-bar row) makes the bar bleed its own colour down to the
-# window edge, so it reads as flush at any zoom level.
+# Split the non-divisible leftover evenly instead of dumping all of it on the
+# bottom edge. The ghostty window is tiled at a fixed pixel height (windows /
+# AeroSpace), so when a font size doesn't divide that height evenly ghostty has
+# leftover pixels to put somewhere, and `false` (the default) puts every one of
+# them at the bottom — a fat band of dead space below the last row at most zoom
+# levels. Balanced, the worst case is half a cell at the top and half at the
+# bottom, both painted in the theme background, both invisible.
 #
-# This MUST be `extend-always`, not plain `extend`. `extend` applies heuristics
-# that disable extension row-by-row, and the zellij bar row trips two of them:
-# it contains powerline separator glyphs () and its right end has default-
-# background cells — both of which ghostty's `extend` refuses to paint (it
-# assumes powerline ribbons and default-bg gaps look wrong extended). An earlier
-# attempt with plain `extend` shipped on the theory that these heuristics only
-# apply to primary-screen apps and zellij (alt-screen) is exempt; that was
-# wrong — the gap persisted in a fresh ghostty. `extend-always` forces the
-# extension unconditionally, ignoring every heuristic, which is exactly what a
-# uniform full-width status bar wants.
-window-padding-color = extend-always
-
-# extend-always alone still dumps 100% of the non-divisible leftover on the
-# BOTTOM edge (balance defaults to false), so at zoom levels where the remainder
-# is large the extended status-bar background reads as a fat slab of dead space
-# below the last row — "flush" but bottom-heavy. Balancing splits the remainder
-# evenly top/bottom (and left/right): the visible bottom band halves, and its
-# other half moves to the TOP, where extend-always paints it with the tab-bar
-# row's background (the dark terminal bg) so it blends into the surrounding black
-# and stays invisible. Worst-case band is thus ~half a cell height, not a full
-# one, at every zoom.
+# `window-padding-color = extend-always` used to sit above this line, and it is
+# gone with the multiplexer: it existed to make zellij's bottom status row bleed
+# its own colour down to the window edge, and there is no status row now. The
+# default (`background`) is what a window with no bar wants.
 window-padding-balance = true
 
 quit-after-last-window-closed = true
 window-save-state = never
 confirm-close-surface = false
 
-#zellij overwrites
-keybind = cmd+t=unbind
-# cmd+n / cmd+shift+n → zellij "Super n" / "Super Shift n": a new pane
-# inheriting the focused pane's cwd / one that STAYS there even inside an agent
-# worktree (the no-hop sibling). Ghostty binds cmd+n to new_window by default —
-# unbind it so the chord reaches the multiplexer, which is the layer that knows
-# what "here" means. In practice neither chord gets this far: pounce's
-# Ghostty-scoped hotkeys consume both while Ghostty is frontmost and spawn a
-# shell WINDOW instead (cmd:shell-here[-stay]) — so ⌘N still means "new window"
-# the way it does everywhere else, just one that lands in the right directory.
-# These unbinds are what a machine with the agent clients off falls back to.
+# ── the chord layer ──────────────────────────────────────────────────────────
+# Every line below used to be an `unbind` whose only job was to let a chord fall
+# THROUGH Ghostty to zellij. There is no multiplexer to fall through to now, so
+# each one is either a real Ghostty action, a deliberate hole, or a chord that
+# pounce's Ghostty-scoped event tap consumes before Ghostty ever sees it
+# (modules/launcher's appHotkeys — the same tap that already owns ⌘N and ⌘↵).
 #
-# ⌘P/⌘⇧P carried this pair until 2026-08-18 and are deliberately NOT unbound any
-# more: ⌘⇧P goes back to Ghostty's command palette, and ⌘P is left to Ghostty.
+# `unbind` is passthrough, not `ignore`: the key still reaches the program in
+# the window. That is what an unbind is FOR here — pounce's tap sits above
+# Ghostty, so a chord it consumes never arrives, and a chord it doesn't consume
+# should reach the shell rather than do something Ghostty made up.
+
+# ⌘T — no tabs. A window is a pane in this desktop (windows/AeroSpace tiles
+# them), and a Ghostty tab would nest a second layout model inside one tile.
+keybind = cmd+t=unbind
+# ⌘⇧T likewise: it was "new tab at this pane's cwd", which is what ⌘N means now.
+keybind = cmd+shift+t=unbind
+
+# ⌘N / ⌘⇧N — consumed by pounce (cmd:shell-here[-stay]): a shell WINDOW in the
+# focused window's directory, hopping out of an agent worktree unless the
+# shifted key says stay. Unbound here so a machine with the agent clients off
+# gets a dead key rather than Ghostty's own new_window, which knows nothing
+# about "here" and would silently disagree with the cheatsheet.
 keybind = cmd+n=unbind
 keybind = cmd+shift+n=unbind
+
+# ⌘F / ⌘⇧F — consumed by pounce (cmd:find[-all]): full-text search over this
+# window's zmx scrollback, or over every session at once. Ghostty binds cmd+f to
+# native-macOS window fullscreen by default, so this unbind is also what stops
+# ⌘F meaning something else entirely on a machine without the tap.
+keybind = cmd+f=unbind
+keybind = cmd+shift+f=unbind
+
+# ⌘Y / ⌘⇧Y — consumed by pounce (cmd:peek[-stay]): the yazi file peek, in a new
+# window rather than the tab it used to open.
 keybind = cmd+y=unbind
 keybind = cmd+shift+y=unbind
-keybind = cmd+shift+t=unbind
-# cmd+f → zellij "Super f": FIND — full-text search over this pane (find.sh).
-# Ghostty binds cmd+f to its native-macOS window fullscreen by default, so this
-# unbind is what lets ⌘F mean here what it means in every other app on the
-# machine. (Pane fullscreen used to live on this chord, then on cmd+enter; it
-# has no chord at all now — ⌃click and right-click are the zoom.)
-keybind = cmd+f=unbind
-# cmd+shift+f → zellij "Super Shift f": the same find overlay, opened across
-# every pane in the session instead of just the focused one. Ghostty binds
-# nothing here today; unbind it defensively so the chord keeps reaching zellij.
-keybind = cmd+shift+f=unbind
+
+# ⌘L — consumed by pounce (cmd:links): every URL this window's scrollback has
+# seen, newest first.
+keybind = cmd+l=unbind
 @GH_DASH_GHOSTTY_BIND@
-# cmd+enter → the LANE chord: pounce's Ghostty-scoped tap consumes it while
-# Ghostty is frontmost and fires `cmd:lane-here` (a new agent lane in this
-# window's repo). It was ⌃⌘A in AeroSpace until 2026-08-18, and before that this
-# chord was zellij's pane-fullscreen toggle — which is gone, zoom being ⌃click /
-# right-click now. Ghostty binds nothing here today; the unbind stays defensive,
-# so a future release can't claim the chord out from under pounce.
+# ⌘↵ — the LANE chord, consumed by pounce (cmd:lane-here): a new agent lane in
+# this window's repo. It was ⌃⌘A in AeroSpace until 2026-08-18. Ghostty binds
+# nothing here today; the unbind stays defensive, so a future release can't
+# claim the chord out from under pounce.
 keybind = cmd+enter=unbind
-# cmd+a is NOT unbound. An unbind here only exists to let a chord fall THROUGH
-# to zellij, and zellij binds nothing on it: the lane chord is ⌘↵, one layer
-# above. ⌘A stays select_all.
+# ⌘A is NOT unbound and never was — the lane chord is ⌘↵, one layer above.
+# ⌘A stays select_all.
 @BENCH_LANE_GHOSTTY_BIND@
-# cmd+c → ghostty's own copy, deliberately. This chord (and cmd+shift+c) used to
-# be unbound so they'd reach zellij as the agent-spawn binds; those moved to
-# ⌘A / ⇧⌘A ("a" for agent), which frees ⌘C to mean here what it means in every
-# other app on the machine. Bound explicitly rather than left to ghostty's
-# default, so the intent sits on the page beside the unbinds and no future
-# default change can take it away. The everyday copy path is still zellij's own
-# — a mouse selection is piped through copy_command (copy-clean.pl) on release;
-# ⌘C is the ghostty-level fallback, for a ghostty-level (⇧-drag) selection.
+# ⌘C → ghostty's own copy. Bound explicitly rather than left to the default so
+# the intent sits on the page and no future default change can take it away.
+# Under zellij this was the FALLBACK path — the everyday copy was a mouse
+# selection piped through zellij's copy_command (copy-clean.pl, which stripped
+# wrapped-line padding). Ghostty has no copy hook, so that filter is gone
+# rather than ported, and ⌘C over a ghostty selection is the whole copy story.
 # cmd+shift+c is simply released back to ghostty, which binds nothing to it.
 keybind = cmd+c=copy_to_clipboard
-# cmd+l → zellij "Super l": open Pounce Links command for the focused pane.
-keybind = cmd+l=unbind
-# cmd+r → still released to the program (`unbind` is passthrough, not `ignore`),
-# but nothing catches it any more. It used to reach zellij's "Super r"
-# session-reload chord; that chord is gone, because a rebuild's config.kdl now
-# hot-reloads into the running server (terminal's zellijLiveConfig). Kept as an
-# explicit unbind rather than handed back to Ghostty's default: ⌘R reads as
-# "reload" to muscle memory, and a Ghostty-level binding would act on the
-# surface zellij is driving. Same spelling and same reasoning as cmd+d below.
+# ⌘R — released to the program. It used to reach zellij's session-reload chord;
+# nothing catches it now. Kept as an explicit unbind rather than handed back to
+# Ghostty's default: ⌘R reads as "reload" to muscle memory, and a Ghostty-level
+# binding would act on the surface an agent is drawing into.
 keybind = cmd+r=unbind
-# cmd+w → zellij "Super w": close the focused PANE. Ghostty's default here is
-# close_surface, and since confirm-close-surface = false above, that default made
-# ⌘W a silent one-key kill of the entire window — the zellij client with it —
-# from any pane, at any time. Handing the chord to the multiplexer both fixes
-# that and gives panes the one-chord exit they never had. cmd+shift+w is
-# deliberately NOT unbound: it stays ghostty's close_window, so the "close the
-# real window" action keeps a key of its own, one shift away from the pane one.
-keybind = cmd+w=unbind
-# cmd+d / cmd+shift+d → nothing at all, deliberately. Ghostty's defaults here
-# are new_split:right and new_split:down — GHOSTTY splits, invisible to zellij:
-# they nest a second terminal surface INSIDE the one zellij is driving, so the
-# multiplexer's layout, status bar and pane binds end up applying to only half
-# the window. It looks like a split and quietly breaks the session's model, and
-# it's an easy chord to hit by accident (⌘d is muscle memory from iTerm/other
-# terminals). No zellij bind is added in its place: the point is that the keys
-# do nothing, not that they do something else.
+# ⌘W → ghostty's close_window, its own default, restored. Under zellij this was
+# unbound so the chord could close the focused PANE instead of silently killing
+# the whole client. A window is the pane now, and closing it DETACHES its zmx
+# session rather than ending it — the shell keeps running and the next window
+# that claims that name walks back into it — so the destructive edge the unbind
+# existed to blunt is gone. cmd+shift+w stays ghostty's close_window too.
+# ⌘D / ⌘⇧D → nothing at all, deliberately. Ghostty's defaults here are
+# new_split:right and new_split:down, and splits are unused in this desktop for
+# the same reason tabs are: AeroSpace already tiles, and a split nests a second
+# layout model inside one tile. It's an easy chord to hit by accident (muscle
+# memory from iTerm), so the keys do nothing rather than something else.
 keybind = cmd+d=unbind
 keybind = cmd+shift+d=unbind
-# ghostty binds ctrl+tab to its own next_tab/previous_tab by default, and
-# even unbound, macOS AppKit swallows ctrl+tab for focus navigation before
-# the terminal core sees it. So bind it to SEND the kitty-keyboard-protocol
-# encoding explicitly (CSI 9;5u / 9;6u = ctrl+Tab / ctrl+shift+Tab); zellij's
-# config.kdl binds those to the tab-history plugin (MRU back/forward). With
-# lanes on, the chord never reaches ghostty at all: pounce's Ghostty-scoped tap
-# consumes it first and walks the T/* lane PAGES by recency instead — the same
-# swallowed-by-AppKit fact is why that walk has to live in pounce's event tap
-# rather than in AeroSpace's bindings.
+# ghostty binds ctrl+tab to its own next_tab/previous_tab by default, and even
+# unbound, macOS AppKit swallows ctrl+tab for focus navigation before the
+# terminal core sees it. So bind it to SEND the kitty-keyboard-protocol encoding
+# explicitly (CSI 9;5u / 9;6u = ctrl+Tab / ctrl+shift+Tab), which is what a TUI
+# in the window would want. With lanes on the chord never reaches ghostty at
+# all: pounce's Ghostty-scoped tap consumes it first and walks the T/* lane
+# PAGES by recency instead — the same swallowed-by-AppKit fact is why that walk
+# has to live in pounce's event tap rather than in AeroSpace's bindings.
 keybind = ctrl+tab=text:\x1b[9;5u
 keybind = ctrl+shift+tab=text:\x1b[9;6u
 
