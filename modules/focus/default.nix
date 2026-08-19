@@ -126,6 +126,26 @@ lib.mkIf cfg.enable {
       }
     ];
 
+  # ---- what the room contributes to other rooms -------------------------------
+  # Two writes, both inside this module's own `mkIf cfg.enable`, so each says
+  # exactly "the Focus room exists on this machine". How that is presented is
+  # the receiving room's business: bar decides whether the pill is drawn and
+  # where, launcher decides which palette rows and cheatsheet entries it makes.
+  # Neither reads `config.haus.focus.*` any more — see modules/lib/contrib.nix.
+  #
+  # The launcher's point carries the scenes as well as the switch, because a
+  # scene becomes its own palette command and its own cheatsheet row. It gets
+  # the ONE field it renders: `hooks`, `apps`, `audio` and `dnd` never cross,
+  # so a rename inside a scene's shape cannot reach the launcher, and the
+  # launcher's option surface never grows a copy of this room's.
+  haus._contrib = {
+    bar.focus.enable = true;
+    launcher.focus = {
+      enable = true;
+      scenes = lib.mapAttrs (_: s: { inherit (s) description; }) cfg.scenes;
+    };
+  };
+
   # Real-time pill sync for toggles focus didn't make (Control Center, iPhone
   # via Share Across Devices): launchd pokes the bar whenever the Focus DB
   # changes. launchd watches the path itself, so no Full Disk Access is

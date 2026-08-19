@@ -251,13 +251,14 @@ let
   # A declared scene used to have no surface but the CLI (its option's own
   # wording, since amended): quiet had a pill and a palette row while `focus
   # scene recording` had a terminal. These commands are generated from
-  # `config.haus.focus.scenes` — NOT read from ./commands — so the installed
+  # the Focus room's contribution — NOT read from ./commands — so the installed
   # script and its cheatsheet row exist exactly when the scene does, and
   # nothing here reads a generated file at eval (the IFD trap the static-dir
   # comment below riceCommandRows describes). A scene name is a safe filename
   # and a safe shell word by construction: focus's own assertion pins it to
   # one word of [A-Za-z0-9_-], never starting with `-`.
-  scenes = lib.optionalAttrs config.haus.focus.enable config.haus.focus.scenes;
+  focusContrib = config.haus._contrib.launcher.focus;
+  scenes = focusContrib.scenes;
 
   # The `# pounce:` header is line-based, so a description must stay one line —
   # a newline in a host's string would end the header early and turn the rest
@@ -273,7 +274,7 @@ let
       # pounce: name = Scene: ${name}
       # pounce: description = ${sceneDescription name s}
       # pounce: icon = theatermasks.fill
-      # Generated from haus.focus.scenes.${name} — the palette surface a scene
+      # Generated from the scene ${name} — the palette surface a scene
       # doesn't get from the static ./commands dir. Absolute path: the
       # daemon's environment has no user PATH.
       exec "$HOME/.local/bin/focus" scene ${name}
@@ -325,7 +326,7 @@ let
     # Pounce discovers every top-level file as a command. Keep picker payloads
     # nested so the catalog cannot appear in the launcher and be run as Bash.
     install -Dm444 ${popularAppsCatalog} $out/data/popular-apps.tsv
-    ${lib.optionalString (!config.haus.focus.enable) "rm $out/focus.sh"}
+    ${lib.optionalString (!focusContrib.enable) "rm $out/focus.sh"}
     # ⌘G and ⌘B, gated exactly like the chords that fire them: gh-dash is an
     # opt-in package, and `bench` lives at a hardcoded ~/code/workshop on the
     # family developer's own machines.
@@ -562,7 +563,7 @@ let
         lib.filter
           (
             f:
-            (f != "focus.sh" || config.haus.focus.enable)
+            (f != "focus.sh" || focusContrib.enable)
             && (f != "gh-dash.sh" || config.haus.terminal.ghDash.enable)
             && (f != "bench-lane.sh" || config.haus.developer.enable)
             && (lanesEnabled || !(lib.elem f laneCommands))
