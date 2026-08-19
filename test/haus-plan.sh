@@ -258,6 +258,40 @@ has 'com.apple.WindowManager, com.apple.loginwindow' "$res"
 # sentence: that one says what will happen, this says what won't.
 lacks 'every rebuild also' "$res"
 
+# ---- which declared plist keys the checker can SEE ---------------------------
+# `declared_defaults` is what `haus diff` and `haus plan` compare the live
+# machine against, so a key it cannot parse is a key haus silently has no
+# opinion about — indistinguishable, from the outside, from a key that agrees.
+#
+# nix-darwin emits TWO shapes and this pins both, because for a while it only
+# read one. A USER default arrives through the `launchctl asuser … sudo … --`
+# wrapper; a SYSTEM default (system.defaults.loginwindow.*) is written bare, as
+# root, to an absolute /Library/Preferences/<domain>. Matching only the wrapped
+# shape is how six shipped options were invisible to the checker on day one.
+plistfix() { # <domain-or-path> <key> <value-xml>
+  printf "%s '<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" "defaults write $1 $2"
+  printf '<plist version="1.0"><%s/></plist>'"'"'\n' "$3"
+}
+{
+  # wrapped: how every user-level domain arrives
+  printf 'launchctl asuser 501 sudo --user=fakeuser -- '
+  plistfix com.apple.dock autohide true
+  # bare + absolute: how a system-level domain arrives
+  plistfix /Library/Preferences/com.apple.loginwindow GuestEnabled false
+  # -g is spelled that way on the command line and NSGlobalDomain everywhere else
+  printf 'launchctl asuser 501 sudo --user=fakeuser -- '
+  plistfix -g InitialKeyRepeat integer
+} >"$tmp/defaults-activate"
+res="$(declared_defaults "$tmp/defaults-activate" | cut -f1,2)"
+has 'com.apple.dock	autohide' "$res"
+has 'NSGlobalDomain	InitialKeyRepeat' "$res"
+# The regression this section exists for. Note the domain is reported WITHOUT
+# the /Library/Preferences prefix: one domain must never be two rows, or
+# classify_key and the restart/reachability tables — all keyed by the bare
+# spelling — would miss it while the diff still printed something plausible.
+has 'com.apple.loginwindow	GuestEnabled' "$res"
+lacks '/Library/Preferences' "$res"
+
 # ---- what the settings NEED before they can land (§5.12) --------------------
 # The reachability announcement core renders beside the restart calls. Same
 # discipline as above — the parser reads the built script, so what's worth

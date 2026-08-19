@@ -420,10 +420,28 @@ legacy_switch() { ( cd "$CONSUMER" && sudo /run/current-system/sw/bin/darwin-reb
 # first machine that doesn't happen to set every key this parses.
 declared_defaults() {
   local f="$1" lineno rest domain key endline val
-  grep -n -- "-- defaults write .* '<?xml" "$f" 2>/dev/null | while IFS=: read -r lineno rest; do
-    domain="$(printf '%s' "$rest" | sed -E "s/.*-- defaults write (-g|[^ ]+) ([^ ]+) .*/\\1/")"
-    key="$(printf '%s' "$rest" | sed -E "s/.*-- defaults write (-g|[^ ]+) ([^ ]+) .*/\\2/")"
+  # TWO shapes, not one, and the difference is the LEVEL the domain lives at.
+  #
+  #   USER defaults come through nix-darwin's `launchctl asuser … sudo --user=X --`
+  #   wrapper, so the line has a literal ` -- ` before `defaults write`.
+  #   SYSTEM defaults (`system.defaults.loginwindow.*`) are written bare, as root,
+  #   to an absolute `/Library/Preferences/<domain>` path — activation is already
+  #   root, so there is nothing to wrap.
+  #
+  # Matching only the first shape is how `haus.lock.login.*` and
+  # `haus.security.guestAccount` were invisible to `haus diff` and `haus plan`
+  # the day they shipped: six options that wrote correctly and that the checker
+  # silently had no opinion about. Nothing looked wrong — a key nobody reports on
+  # is indistinguishable from a key that agrees. So the pattern is anchored on
+  # `defaults write` itself and the wrapper is optional.
+  grep -nE -- "(^|[[:space:]]|--[[:space:]])defaults write .* '<\?xml" "$f" 2>/dev/null | while IFS=: read -r lineno rest; do
+    domain="$(printf '%s' "$rest" | sed -E "s/.*defaults write (-g|[^ ]+) ([^ ]+) .*/\\1/")"
+    key="$(printf '%s' "$rest" | sed -E "s/.*defaults write (-g|[^ ]+) ([^ ]+) .*/\\2/")"
     [ "$domain" = "-g" ] && domain="NSGlobalDomain"
+    # Normalise the any-user level back to a bare domain name, so one domain is
+    # never two rows: `live_value` knows how to read it, and `classify_key`
+    # and modules/lib/*.nix are all keyed by the plain `com.apple.foo` spelling.
+    domain="${domain##*/}"
     endline="$(awk -v s="$lineno" 'NR>=s && /<\/plist>/ {print NR; exit}' "$f")"
     [ -n "$endline" ] || continue
     val="$(
@@ -488,8 +506,23 @@ normalize_declared() {
 live_value() { # <domain> <key> -> `defaults read`'s raw output, empty if unset
   # `|| true`: an unset key is the common case, not a script error — `defaults
   # read` exits non-zero for it, and this runs under `set -e`.
-  if [ "$1" = "NSGlobalDomain" ]; then defaults read -g "$2" 2>/dev/null || true
-  else defaults read "$1" "$2" 2>/dev/null || true; fi
+  local v
+  if [ "$1" = "NSGlobalDomain" ]; then defaults read -g "$2" 2>/dev/null || true; return; fi
+  v="$(defaults read "$1" "$2" 2>/dev/null || true)"
+  # Fall through to the ANY-USER level when the user domain has nothing. A
+  # SYSTEM default (`system.defaults.loginwindow.*`) is written by activation to
+  # /Library/Preferences/<domain> as root, and `defaults read <domain>` — which
+  # reads the invoking user's domain — does NOT see it. Reading only the first
+  # level reports every one of those keys as unset, which is worse than not
+  # reading them: `haus diff` would call a correctly applied setting missing, on
+  # every machine, forever.
+  #
+  # This order, and not the reverse, because it is CFPreferences' own search
+  # list: the user domain shadows the any-user level, so if somebody has set the
+  # key for themselves in System Settings, THAT is the value macOS will act on
+  # and therefore the one a diff should compare against.
+  [ -n "$v" ] || v="$(defaults read "/Library/Preferences/$1" "$2" 2>/dev/null || true)"
+  printf '%s' "$v"
 }
 
 # How to verify a declared key, per §4/§8's finding: some domains write and
@@ -2371,6 +2404,26 @@ cmd_doctor() {
     info "Automation — haus.theme.systemAppearance drives System Events on every rebuild; without the grant the appearance silently stays put (the rebuild still succeeds): open '$pane?Privacy_Automation'"
   else
     info "Automation — nothing needs it unless you set haus.theme.systemAppearance, or ⌘-click the media pill to reach a browser tab: open '$pane?Privacy_Automation'"
+  fi
+
+  # Not a permission, and here anyway: the settings this RUNNING system declares
+  # that macOS only reads at login. Same reader as everything above (`_haus_verdict`
+  # over the built activation script — never a second copy of
+  # modules/lib/restart-map.nix), and the same reason it belongs in a checklist:
+  # it is a live property of this machine that nothing else will volunteer.
+  #
+  # `haus plan` says it BEFORE a rebuild, which is the more useful half. This is
+  # the after: it answers "I set that days ago and my Mac never changed", which
+  # is precisely when somebody runs doctor, and it is what 19 option descriptions
+  # promise doctor will say. Silent unless the configuration writes such a
+  # domain, so it costs nothing on a machine with no opinion about them.
+  local waits
+  waits="$(_haus_verdict waits-for-logout /run/current-system/activate)"
+  if [ -n "$waits" ]; then
+    echo
+    say "Waiting for a login"
+    warn "these settings are applied but macOS only reads them when a session starts, so they appear at your next login: ${waits//,/, }"
+    info "  nothing is half-applied, and no rebuild can hurry it — the process that would reread these is the one that owns your session"
   fi
 
   # Homebrew casks are declared in nix (homebrew.casks) but live OUTSIDE Nix

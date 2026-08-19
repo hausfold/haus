@@ -363,15 +363,18 @@ in
       optionAccelerator = mkWindowManagerOption {
         key = "EnableTilingOptionAccelerator";
         description = ''
-          Hold ⌥ while dragging to tile, instead of tiling whenever a drag
-          reaches an edge.
+          Hold ⌥ while dragging to tile a window.
 
-          The middle setting between the two extremes, and the one to reach for
-          before turning `edgeDrag` off entirely: native tiling stays available
-          on the machine and stops happening by accident, because it now takes a
-          modifier you have to mean. On a tiling machine that still costs a
-          modifier AeroSpace may want — check `haus.keys.windowNav` before
-          relying on it.
+          READ THIS WITH `edgeDrag`, not instead of it. These are two
+          independent keys and macOS ships both on, so turning this on does NOT
+          stop a bare drag from tiling — that is `edgeDrag = false`, and what
+          this adds is a second, deliberate way in. The pair people usually
+          want is `edgeDrag = false` here and `optionAccelerator = true`:
+          native tiling stays available on the machine and stops happening by
+          accident, which on a tiling machine is the whole complaint.
+
+          On a tiling machine it also spends a modifier AeroSpace may want —
+          check `haus.keys.windowNav` before relying on it.
         '';
       };
       margins = mkWindowManagerOption {

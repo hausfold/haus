@@ -469,9 +469,10 @@ lib.mkMerge [
             haus.windows.nativeTiling.edgeDrag = false;
             haus.windows.nativeTiling.topEdgeFullscreen = false;
 
-        (or `haus.windows.nativeTiling.optionAccelerator = true`, which keeps
-        native tiling but makes it take a held ⌥ rather than happening whenever a
-        drag reaches an edge.)
+        (`haus.windows.nativeTiling.optionAccelerator = true` alongside that
+        first line keeps native tiling available on a held ⌥, rather than
+        removing it — the two keys are independent, so it is an addition to
+        `edgeDrag = false` and not a substitute for it.)
 
         Both of those land at your NEXT LOGIN — com.apple.WindowManager has no
         live-reload path on macOS 26 — so expect the fight to continue until then.
