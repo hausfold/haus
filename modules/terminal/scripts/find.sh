@@ -32,13 +32,6 @@
 #     scroll_buffer_size. It includes CODEX windows: Codex reports state through
 #     agent-state like the others, but passes no conversation id and this repo
 #     knows no on-disk history path for it, so there is nothing to join to.
-#     It also includes JCODE windows today, but for a different reason and not
-#     for long: the join already exists — agent-state reads
-#     `JCODE_HOOK_SESSION_ID` out of the hook environment and writes the same
-#     `convo` label opencode gets — and what is missing is the RENDERER for
-#     jcode's own session store under `~/.jcode`. Until one exists a jcode
-#     window falls through to scrollback, which for an alt-screen TUI is one
-#     screenful.
 #
 # WHICH WINDOW DID THE USER MEAN
 #

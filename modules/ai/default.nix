@@ -71,33 +71,15 @@ let
   # installs none, and must not be refused for it.
   clients = config.haus._ai.clients;
 
-  # nixpkgs ships the three it has for aarch64-darwin only. That is the whole
-  # rice's platform since 26.11 dropped x86_64-darwin, so this never fires today
+  # nixpkgs ships all three for aarch64-darwin only. That is the whole rice's
+  # platform since 26.11 dropped x86_64-darwin, so this never fires today
   # — but it is the difference between a named refusal and an install that
   # silently does nothing, which is exactly the dead-pane failure `ai.clients`
   # exists to end. (The `lib.meta.availableOn` guard it replaces did skip
   # silently.)
-  #
-  # A `null` in the table is not "unavailable": it is a client nixpkgs has no
-  # derivation for, which this room installs from Homebrew below. Asking
-  # `availableOn` about a null throws, so the filter drops them first.
   unavailableClients = lib.filter (
-    c: agentPackages.${c} != null && !lib.meta.availableOn pkgs.stdenv.hostPlatform agentPackages.${c}
+    c: !lib.meta.availableOn pkgs.stdenv.hostPlatform agentPackages.${c}
   ) clients;
-
-  # The clients that come from Homebrew instead of nixpkgs, as roster entries —
-  # the same shape bar uses for SketchyBar: a fully-qualified formula, plus the
-  # tap declared beside it. Both halves, because `brew bundle` resolving a
-  # qualified name is not the same thing as the tap being present, and the
-  # rebuild that finds out is a fresh machine's. mkDefault on the formula so a
-  # host that spells it its own way (a pinned tap, a local build) keeps its
-  # version rather than colliding with this one.
-  brewedClients = {
-    jcode.brew = lib.mkDefault "1jehuang/jcode/jcode";
-  };
-  brewedClientTaps = {
-    jcode = "1jehuang/jcode";
-  };
 
   # Whether this machine actually SPAWNS agents. The room being on is not enough:
   # `ai.clients = [ ]` is a machine the rice installs no client on, and a
@@ -156,16 +138,6 @@ let
   # is safe on purpose: the same probe shows opencode deduplicating by frontmatter
   # `name` and preferring its OWN directory, so the skill is offered once. (Its
   # docs only say "ensure skill names are unique", which is why this was probed.)
-  #
-  # jcode does the same scan and one thing more: on its FIRST run it *copies*
-  # `~/.claude/skills` and `~/.codex/skills` into `~/.jcode/skills` — but only
-  # when that directory does not exist yet (its `import_from_external`, v0.76.0).
-  # Writing the haus skill there is therefore also what switches that import
-  # off, which is the outcome we want: a copy of a store symlink is a skill
-  # frozen at the revision it was copied on, and `haus update` would never move
-  # it again. Skills a host wires as out-of-store symlinks under
-  # `~/.agents/skills` need no copy either — jcode loads that directory live,
-  # the same one Codex and OpenCode read.
   agentHomes = {
     claude = {
       instructions = ".claude/CLAUDE.md";
@@ -178,18 +150,6 @@ let
     opencode = {
       instructions = ".config/opencode/AGENTS.md";
       skills = ".config/opencode/skills";
-    };
-    # jcode reads a global `~/AGENTS.md`, and that is deliberately NOT the path
-    # here: it is a SHARED convention (Codex and OpenCode look there too, and a
-    # user may keep their own), so owning it as a nix symlink would take a file
-    # this room doesn't own away from every other tool that reads it. jcode's
-    # own private appendix is `prompt-overlay.md` — appended to the system
-    # prompt on every session, project copy and all — so the rice writes there
-    # and leaves `~/AGENTS.md` alone. (`system-prompt.md` next to it REPLACES
-    # the built-in prompt rather than adding to it; never write that one.)
-    jcode = {
-      instructions = ".jcode/prompt-overlay.md";
-      skills = ".jcode/skills";
     };
   };
 
@@ -218,7 +178,6 @@ let
     claude = "`settings.json` is Claude Code's own, and a host may wire individual skills as out-of-store symlinks";
     codex = "`config.toml` and `hooks.json` are Codex's own, and a host may wire individual skills as out-of-store symlinks";
     opencode = "`opencode.json` is OpenCode's own, and a host may wire individual skills or plugins as out-of-store symlinks";
-    jcode = "`config.toml` is jcode's own — it rewrites that file itself, so the rice never touches it — and a host may wire individual skills as out-of-store symlinks";
   };
 
   holtGuidance = client: ''
@@ -317,16 +276,7 @@ let
   # before this room existed both files were written unconditionally. So with
   # nothing named, write for every client we know — they are inert markdown, and
   # a skill nothing reads is much cheaper than an agent inventing option names.
-  #
-  # Every client we know EXCEPT jcode, and that exception is the exception that
-  # proves the rule: these files are inert for the other three, but creating
-  # `~/.jcode/skills` is itself an action — it is what tells jcode not to run
-  # its first-run import of `~/.claude/skills` and `~/.codex/skills`. Speculating
-  # a directory into existence on a machine that named no client would silently
-  # cancel that import for a jcode the rice didn't install. Named clients still
-  # get it, where the trade is deliberate (see agentHomes).
-  speculativeFileClients = lib.filter (c: c != "jcode") (lib.attrNames agentHomes);
-  fileClients = if agentClients == [ ] then speculativeFileClients else agentClients;
+  fileClients = if agentClients == [ ] then lib.attrNames agentHomes else agentClients;
 
   agentInstructionFiles = lib.optionalAttrs (cfg.instructions != "") (
     lib.listToAttrs (
@@ -621,15 +571,6 @@ in
   # attrsets, and a collision on one path would be an error rather than a silent
   # last-wins — which is what makes splitting them safe.
   home-manager.users.${username}.home.file = agentInstructionFiles // agentSkillFiles;
-
-  # ---- the clients nixpkgs doesn't build --------------------------------------
-  # A roster entry rather than a bare `homebrew.brews` line, for the reason the
-  # roster exists: a host that also declares jcode (as this machine's did while
-  # it was a hand-installed experiment) MERGES on the shared id instead of
-  # installing it twice. Keyed off the resolved client list, so a machine that
-  # doesn't name jcode never taps a tap for it.
-  haus.roster = lib.filterAttrs (id: _: lib.elem id clients) brewedClients;
-  homebrew.taps = lib.attrValues (lib.filterAttrs (id: _: lib.elem id clients) brewedClientTaps);
 
   # ---- what the room contributes to other rooms -------------------------------
   # One write per extension point. Every value here is a fact about the AI room;

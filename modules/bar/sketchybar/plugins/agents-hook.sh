@@ -1,6 +1,6 @@
 #!/bin/bash
 # agents-hook.sh — the single writer of agent state, and it is CLIENT-AGNOSTIC:
-# Claude Code, Codex, OpenCode and jcode all report through this one script.
+# Claude Code, Codex and OpenCode all report through this one script.
 # Each client runs it from its own lifecycle hooks, and because those hooks are
 # children of an agent process living INSIDE a zmx session, they inherit
 # $ZMX_SESSION — so each agent self-reports its exact state AND the handle
@@ -20,15 +20,6 @@
 #                    session-end event, so nothing ever reports `remove` for one
 #                    of its windows — and nothing has to: its state lives as
 #                    LABELS on the zmx session and dies with it.
-#   • jcode        — JCODE_HOOK_* environment (exported by terminal when jcode
-#                    is in haus.ai.clients — its own config.toml is a file jcode
-#                    rewrites, so the rice stays out of it): turn_start→working,
-#                    turn_end→waiting, session_start→idle, session_end→remove.
-#                    jcode has no permission prompt, so `waiting` is end-of-turn
-#                    — which is the same claim the amber pill makes: your move.
-#                    Its hooks run from a SHARED server process, not from the
-#                    window, and still address the right one: jcode re-exports
-#                    the requesting client's terminal env onto every hook.
 #
 # TWO STORES, picked by where the agent is sitting:
 #   • a zmx session — every terminal agent, lane or plain window. Its state goes
@@ -57,7 +48,7 @@
 # claude-statusline already writes a richer session → transcript PATH join. This
 # is for the clients that have no statusline of their own to carry it.
 #
-#   usage: agents-hook.sh <working|waiting|idle|remove> [claude|codex|opencode|jcode] [session-id]
+#   usage: agents-hook.sh <working|waiting|idle|remove> [claude|codex|opencode] [session-id]
 set -u
 DIR=/tmp/haus-agents
 # An agent hook can arrive with a bare PATH, and `zmx` lives on the nix profile
@@ -107,7 +98,6 @@ if [ -z "$agent" ]; then
   if   [ -n "${CLAUDECODE:-}${CLAUDE_PROJECT_DIR:-}" ]; then agent=claude
   elif [ -n "${OPENCODE:-}${OPENCODE_BIN_PATH:-}" ];    then agent=opencode
   elif [ -n "${CODEX_HOME:-}${CODEX_SANDBOX:-}" ];      then agent=codex
-  elif [ -n "${JCODE_HOOK_EVENT:-}" ];                  then agent=jcode
   else agent=agent
   fi
 fi
@@ -140,14 +130,13 @@ if [ -n "${ZMX_SESSION:-}" ]; then
   # in 0.7.0, `cwd=` in a newer one; agents.sh reads either.
   label=$(printf '%s' "$label" | tr -c 'a-zA-Z0-9._-' '-')
   # The client's own conversation id, when it passes one — `chat.message` is the
-  # one opencode hook that carries it, and jcode hands every hook process a
-  # JCODE_HOOK_SESSION_ID. This is what lets ⌘F search an alt-screen agent's
-  # stored history rather than its one screenful of scrollback. Set only when we
-  # have one: the other three states arrive with argument 3 empty and must not
-  # erase what `chat.message` recorded. A session id is a uuid, so the label
+  # one opencode hook that carries it. This is what lets ⌘F search an alt-screen
+  # agent's stored history rather than its one screenful of scrollback. Set only
+  # when we have one: the other three states arrive with argument 3 empty and must
+  # not erase what `chat.message` recorded. A session id is a uuid, so the label
   # charset holds without sanitising — but sanitise anyway, because zmx rejects
   # the WHOLE `set` on one bad value and that would cost this row its state.
-  convo="${3:-${JCODE_HOOK_SESSION_ID:-}}"
+  convo="${3:-}"
   set -- "state=$st" "client=$agent" "label=$label" "since=$(date +%s)"
   [ -n "$convo" ] &&
     set -- "$@" "convo=$(printf '%s' "$convo" | tr -c 'a-zA-Z0-9._-' '-')"

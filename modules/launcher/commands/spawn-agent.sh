@@ -6,15 +6,9 @@
 #
 # The palette front door to a named agent worktree. Pick a repo, type what you
 # want done, and this creates a worktree named after the task and drops the
-# configured default (Claude Code, Codex, OpenCode or jcode) into it, as a LANE:
+# configured default (Claude Code, Codex or OpenCode) into it, as a LANE:
 # a zmx session, a Ghostty window forced to its name, tiled on that repo's own
 # T/<repo> page.
-#
-# One client takes the worktree and the name but NOT the task: jcode has no
-# way to be launched with a first message (no positional prompt, no --prompt,
-# no stdin — checked against v0.76.0), so what you typed is put on the clipboard
-# and said out loud instead of being handed over and silently dropped. See the
-# end of this script.
 #
 # Why it exists: the same thing by hand is caps→t to a terminal, cd to the repo,
 # ⌃⌘A for a lane, then type the prompt — and the worktree ends up
@@ -377,19 +371,4 @@ if [ "$rc" -ne 0 ]; then
   git -C "$repo" branch -D "worktree-$name" >/dev/null 2>&1
   notice "Could not open the lane" "The worktree was removed; nothing changed"
   exit 1
-fi
-
-# ── the one client that can't be handed the task ──────────────────────────
-# jcode's CLI has no way to open the TUI on a first message: no positional
-# prompt, no --prompt flag, and it doesn't read stdin (v0.76.0). Everything else
-# this command does still works — the worktree, the branch named after the task,
-# the lane's window on the repo's page — so the spawn goes ahead and the prompt goes to
-# the clipboard rather than into an argv that would drop it without a word.
-#
-# AFTER the spawn, deliberately: `notice` is a pounce window that waits to be
-# dismissed, so putting it earlier would hold the lane behind a message about
-# the lane.
-if [ "$agent" = "jcode" ]; then
-  printf '%s' "$prompt" | pbcopy 2>/dev/null
-  notice "jcode can't be started on a task" "It's on your clipboard — ⌘V in the lane" "doc.on.clipboard"
 fi

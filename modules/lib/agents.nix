@@ -8,21 +8,20 @@
 # `ai.default` (modules/ai/options.nix) already shared one `let`-bound copy,
 # but bar's `aiUsage.provider` enum was a second, hand-typed one in another
 # room's option file — and the two are the same question asked twice, so a
-# fourth client would have to be added in both or the bar would refuse to
+# new client would have to be added in both or the bar would refuse to
 # display a client the palette could happily spawn.
 #
 # `specFor()` in holt (hausfold/holt, internal/commands/agent.go) is the one
 # copy that CANNOT be folded in: it's the same set on the Go side, and a Go
 # binary can't read Nix. Adding a client means editing there too.
 #
-# A client here does NOT have to come from nixpkgs. `jcode` doesn't — it is a
-# Homebrew formula, so modules/lib/agent-packages.nix maps it to `null` and the
-# AI room contributes a roster entry instead. What a client id DOES have to
-# have, in every case, is a `holt` spec: the id is what `ai.default` is typed
-# against, and a default holt can't spawn is the dead-pane failure `ai.clients`
-# exists to end.
+# Every client here is installed from nixpkgs, so it also needs a derivation in
+# modules/lib/agent-packages.nix. And what a client id must have in every case
+# is a `holt` spec: the id is what `ai.default` is typed against, and a default
+# holt can't spawn is the dead-pane failure `ai.clients` exists to end.
 #
-# And two tables in terminal are keyed BY these ids rather than derived from them,
+# And two tables in the AI room (modules/ai/default.nix) are keyed BY these ids
+# rather than derived from them,
 # because their values are per-client facts this list can't hold: `agentHomes`
 # (where that client keeps its instructions file and its skills dir) and
 # `clientScopeNote` (which of its own files the rice does NOT own). A client
@@ -32,5 +31,4 @@
   "claude"
   "codex"
   "opencode"
-  "jcode"
 ]
