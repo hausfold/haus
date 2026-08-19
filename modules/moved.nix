@@ -42,27 +42,21 @@
     # 2026-08-19 — zellij is gone, and the two options that described its
     # in-pane behaviour go with it: `terminal.zellijStartLocked` (boot into
     # Locked input mode) and `terminal.rightClickFullscreen` (a bare
-    # right-click zooms a pane). Neither has a successor to rename to —
-    # Ghostty has no input modes, and a window is the pane now, so
-    # "fullscreen" is windows/AeroSpace's own chord.
+    # right-click zooms a pane, which was a zellij-unwrapped patch rather than
+    # a config toggle). Both were public and desktop-safe, and both shipped
+    # desktops set them.
     #
-    # These get `mkRemovedOptionModule` rather than the silent deletion the
-    # room renames below took, and the difference is who is on the other end.
-    # A room rename touched `haus.*` spellings inside the layer's own single
-    # consumer. These two are PUBLIC, desktop-safe, published in
-    # docs/site-data/options.json, and were set by both shipped desktops — so
-    # somebody else's host file can name them, and "unknown option" would send
-    # them looking for a typo instead of telling them what happened.
-    (lib.mkRemovedOptionModule [ "haus" "terminal" "zellijStartLocked" ] ''
-      zellij is gone (2026-08-19) — haus ships Ghostty windows tiled by
-      haus.windows, with zmx for session persistence. Ghostty has no input
-      modes, so there is nothing to start locked. Drop the line.
-    '')
-    (lib.mkRemovedOptionModule [ "haus" "terminal" "rightClickFullscreen" ] ''
-      zellij is gone (2026-08-19), and with it the zellij-unwrapped patch this
-      option compiled in. A window is the pane now: zoom it with
-      haus.windows' own fullscreen chord (see the Keys page). Drop the line.
-    '')
+    # No entry, and not for want of trying: `mkRemovedOptionModule` — which
+    # would turn "unknown option" into a sentence saying what happened — defines
+    # `config.assertions`, and this file is imported by
+    # modules/options-modules.nix into the PURE-LIB evals that render the
+    # options reference and the agent skill. Those have no nixpkgs module behind
+    # them and therefore no `assertions` option, so the whole options surface
+    # stops evaluating on Linux CI. A removal notice is not worth breaking the
+    # renderer for, and it would be the only entry here that isn't a rename.
+    #
+    # Neither has a successor to rename to anyway: Ghostty has no input modes,
+    # and a window is the pane now, so "fullscreen" is haus.windows' own chord.
 
     # 2026-08-13 — the whole coding-agent capability became `haus.ai.*`, and
     # deliberately got NO alias here. `haus.agents.*` and
