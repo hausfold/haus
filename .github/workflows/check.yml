@@ -173,7 +173,7 @@ jobs:
           # how the `modules/core/` → `modules/ai/` move in #402 surfaced: the
           # job had been failing on it, invisibly, behind the apt stall this
           # commit's parent removed. Move a script, fix the path here.
-          shellcheck --severity=warning bootstrap.sh modules/core/haus.sh modules/core/awake.sh modules/ai/statusline-refresh.sh test/awake.sh test/haus-settings.sh test/haus-plan.sh
+          shellcheck --severity=warning bootstrap.sh modules/core/haus.sh modules/core/awake.sh modules/ai/statusline-refresh.sh modules/terminal/lanes/lane-cwd.sh test/awake.sh test/haus-settings.sh test/haus-plan.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
       # `haus plan`'s parsers, and the only part of plan CI can execute: they

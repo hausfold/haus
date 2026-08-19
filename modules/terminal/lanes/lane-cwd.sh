@@ -24,9 +24,12 @@ command -v zmx >/dev/null 2>&1 || exit 0
 sess="$("$HOME/.config/haus/term/focused-session.sh" 2>/dev/null)"
 [ -n "$sess" ] || exit 0
 
-# `zmx ls` is tab-separated k=v, with three traps that every copy of this parse
-# (scripts/focused-session.sh, scripts/find.sh, scripts/launch.sh, the bar's
-# agents.sh, the palette's lanes.sh) has to handle:
+# `zmx ls` is tab-separated k=v. The first two traps below are every copy of
+# this parse's to handle (scripts/focused-session.sh, scripts/find.sh,
+# scripts/launch.sh, the bar's agents.sh, the palette's lanes.sh); the third
+# binds only a reader that wants a LIVE directory, which today is this file
+# alone — find.sh's opencode lookup reads the same stale field and is content
+# to, because it falls back to a label join.
 #
 #   · The directory field is `start_dir` in zmx 0.7.0; older zmx called it `cwd`
 #     and wrapped it in a file:// URL with the host in it. Both spellings are
@@ -40,8 +43,8 @@ sess="$("$HOME/.config/haus/term/focused-session.sh" 2>/dev/null)"
 #   · **`start_dir` is where the session was BORN, not where it is now.** It is
 #     stamped once at `zmx attach` and never moves again, so a window opened in
 #     $HOME still reports $HOME after you `cd` into a repo — which is the whole
-#     of "⌘↵ says julienmartel isn't a git repo" while you are plainly standing
-#     in one. zmx has no live-cwd field to ask for (0.7.0's `ls` emits exactly
+#     of "⌘↵ says ~ isn't a git repo" while you are plainly standing in one.
+#     zmx has no live-cwd field to ask for (0.7.0's `ls` emits exactly
 #     name/pid/clients/created/start_dir/window), so the live answer has to come
 #     from the kernel: `pid` is the session's own login shell, and a shell's cwd
 #     IS the thing that tracks `cd`. That makes start_dir the FALLBACK — right
