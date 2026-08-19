@@ -1,39 +1,44 @@
 # Leaving zellij — Ghostty windows + AeroSpace + zmx (architecture A)
 
-> Status: **mostly plan; the lane half has shipped.** zellij stays the
-> shipped multiplexer for PANES until Phase 7 flips the default; agent lanes
-> already left it. Every phase below is
-> separately shippable and separately revertible; the seam in Phase 2 is
-> what makes that true.
+> Status: **done, 2026-08-19.** zellij is gone from the repo, the closure and
+> the machine. What follows is kept as the record of WHY, and of what each piece
+> cost — the phase plan below was written before any of it shipped, so read it as
+> the argument rather than as the state. Where a phase's answer changed on
+> contact, the change is recorded in place.
 >
-> **What has landed early, and why it jumped the queue** (2026-08-16, made
-> unconditional 2026-08-17): a lane — one agent worktree — is its own zmx
-> session in its own Ghostty window, ahead of the `multiplexer` seam Phase 2
-> describes. That is narrower than Phase 2 (it moves *agent lanes* out of
-> zellij, not *panes*), and it was worth having on its own. It shipped as
-> `haus.terminal.lanes.backend`, an enum defaulting to `"zellij"`; a day of
-> living on `"zmx"` settled it, so the option is **gone** and lanes are zmx
-> windows with no second path. The consequence to know: **agent lanes now
-> require `haus.windows.enable`**, asserted at build time — the chord is an
-> AeroSpace bind and the tiler is what places each lane. Living on it immediately produced two findings
-> the plan had listed as open, so they are recorded in place below:
-> **decision 4** (the chord layer, forced sooner than Phase 4 expected) and
-> **the spawn measurement** that open question 1 asks for.
+> **What actually happened, against the plan.** Phase 0 and 1 ran as written and
+> Phase 2's `multiplexer` seam was never built: the lane half had already shipped
+> unconditionally (below), the machine had lived on it for three days, and a
+> seam exists to make a bad day one flip back — which is worth paying for when
+> you don't yet know, and not when you do. Phases 3–8 landed as one change
+> instead of six, for the same reason risk 3 predicted: the identity retarget,
+> the spawners and the option ripple are not separable. `main` was never
+> half-migrated because it went in one PR, which is the other way to get what
+> the seam was for.
 >
-> **The lane FLOW followed on 2026-08-16** — the pieces that make many lanes
-> livable, behind the same option while it existed: lanes tile per-repo on
-> **`T/<repo>` pages** (lane-open.sh) with a workspace-MRU file pushed from
-> AeroSpace's `exec-on-workspace-change` making `caps t` page-aware
-> (windows/scripts/workspace-mru.sh); **⌃⇥/⌃⇧⇥** walk those pages by recency
-> and **⌘P/⌘⇧P** spawn a shell WINDOW in the focused window's directory —
-> both hosted by **pounce's event tap, app-scoped to Ghostty** (consume when
-> frontmost, pass through everywhere else: ⌘P stays print and ⌃⇥ stays
-> next-tab elsewhere — the mechanism the whole Phase 4 keymap needs, landed
-> for the two chords that needed it first); a **lane picker** palette command
-> (`lanes.sh`: `holt --json` ⋈ `zmx ls`, `/term` greps `zmx history`); and
-> the worktree-hop's stay-flag renamed **`ZJ_STAY` → `HAUS_STAY`**, with the
-> hop itself moved out of the zshrc's `$ZELLIJ` block so window shells get it
-> too.
+> **The four answers the plan wanted, as measured:**
+>
+> | | |
+> |---|---|
+> | Every window is a `zmx` session | `term.<n>`, lowest free n, claimed by `scripts/launch.sh`. NOT because of detach — because Ghostty's AppleScript API cannot READ a surface, and ⌘F/⌘L/peek all read one. `zmx history` is the whole scrollback, which is MORE than `dump-screen --full` gave. |
+> | The chord layer is pounce's | `ghostty +list-actions` on 1.3.1: 85 actions, none runs a command. Every chord that does something is an app-scoped `appHotkeys` entry. |
+> | Two chords died rather than moving | ⌘⇧T ("new tab at this pane's cwd" — that is what ⌘N means now) and ⌥[/⌥] (zellij swap layouts; windows has its own). ⌘W went back to Ghostty's `close_window`, which is safe now: closing a window DETACHES its session. |
+> | The window→session join | A lane by its forced `--title`; everything else by a `window=` label `launch.sh` stamps with the AeroSpace id it tiled. `scripts/focused-session.sh` is the one implementation. |
+>
+> **What was lost, and it is exactly what risk 4 said.** `copy-clean.pl` — the
+> `copy_command` filter that stripped zellij's wrapped-line padding on a mouse
+> selection — has no Ghostty counterpart and is not ported; ⌘C over a ⇧-drag
+> selection is the whole copy story now. `naked-click-links` went with it: inside
+> a mouse-tracking program the click belongs to the program (an SGR mouse report
+> has no super bit), so ⌘⇧+click is the only way into Ghostty's own opener. The
+> other four patches were moot rather than lost — the per-patch verdicts are in
+> `modules/terminal/default.nix`, where the overlay used to be.
+>
+> **One bug found on the way out**, unrelated to the plan and older than it: both
+> `zmx ls` readers looked only for a `cwd=` field, and zmx 0.7.0 emits
+> `start_dir=` instead. Every zmx row reached the holt join with an empty path,
+> and `lane-cwd.sh`'s zmx branch always fell through to `$HOME`.
+
 
 ## Three decisions, settled 2026-08-14
 

@@ -97,13 +97,16 @@ side and ships a `bench` CLI for the cross-repo flow — most usefully `bench tr
 which builds your real machine against your **local, uncommitted** checkouts, so
 you never push to find out whether something works.
 
-Iterating on a **zellij** edit splits in two. A `config.kdl` change (a keybind, a
-theme colour, an option) needs nothing special — `bench try switch`, and zellij's
-own config watcher applies it to the running server in about a second, tabs and
-panes intact, because terminal installs that file with a live mtime rather than as
-a store symlink. A plugin `.wasm`, a patched zellij binary, or a layout change to
-a tab that already exists can't hot-reload at all; for those there's `zscratch` —
-a dev CLI shipped in this repo's `modules/core` — which boots your candidate in a
-throwaway session in its own Ghostty window, so you feel the change without a
-rebuild or losing your working session's tabs. See [`AGENTS.md`](../AGENTS.md)
-for the full flag set and the mtime gotcha behind the split.
+Iterating on a **terminal** edit needs nothing special any more: `bench try
+switch`, and Ghostty's own config watcher applies the new keybinds, theme and
+options to every running window in about a second. Windows, sessions and the
+agents in them all stay put — a window's shell lives in a `zmx` session that
+outlives the window, so even the ones that DO restart come back to the same
+scrollback.
+
+That used to be a two-branch story with a dev CLI (`zscratch`) behind the second
+branch, and both halves left with zellij: a running zellij server cached plugin
+wasm in memory for its whole lifetime, so a plugin edit needed a fresh server,
+and its config only reloaded on a live mtime — which is why terminal had to
+install `config.kdl` as a real file rather than a store symlink. Ghostty has no
+plugins and watches a symlink happily.

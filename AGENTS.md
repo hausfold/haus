@@ -141,7 +141,7 @@ modules/
                           #   Its payload is still installed by core (system) and terminal
                           #   (home), gated on haus.ai.enable
   core/                   # system: macOS defaults, Homebrew framework, core CLI, GC
-                          #   + on-PATH CLIs: haus / awake / zscratch / statusline
+                          #   + on-PATH CLIs: haus / awake / statusline
   displays/               # haus.displays: scaled resolution by intent + the
                           #   hausdisp helper (Swift, xcrun-compiled like pounce's)
   theme/                  # the accent, the flavour, macOS Light/Dark
@@ -149,7 +149,7 @@ modules/
                           #   package.nix renders it (resvg for the vector layer,
                           #   ImageMagick for the 16-bit field), looks/ holds the
                           #   hand-made Nebelung PNGs
-  terminal/               # shell: zsh, starship, git, yazi, zellij, ghostty + theming
+  terminal/               # shell: zsh, starship, git, yazi, ghostty + zmx + theming
                           #   + floatring (Swift, xcrun-compiled): the outline every
                           #   window float-term.sh spawns wears (haus.terminal.floatBorder)
     agents/               # the haus agent skill (haus.ai.skill): hand-written
@@ -256,7 +256,7 @@ a hex that belongs in nebelung or app logic that belongs in pounce landing in a
 module here; a `haus.*` option added or renamed with no matching edit in
 hausfold.co's `content/docs/` — its `haus/reference/options.mdx` (generated from
 this repo's committed `docs/site-data/`) or the matching room; a new
-keybind colliding across zellij / AeroSpace (windows) / pounce / macOS symbolic hotkeys —
+keybind colliding across AeroSpace (windows) / pounce / macOS symbolic hotkeys —
 collisions are silent, the loser just stops firing; a breaking option rename whose
 consumer edit didn't ride in the same PR, leaving `main` broken mid-ripple; and
 hardcoded identity that should be a `haus.*` option.
@@ -306,8 +306,9 @@ it silently.
   `brew bundle` (activation runs it under a `sudo … env …` that resets everything
   else), so the API-refresh window and the env-hint silencing live there too — an
   export in terminal or bench only ever reaches your interactive shell.
-- **Touch ID + zellij** (`modules/security`): `reattach = true` is required because sudo
-  runs inside zellij; without pam_reattach the Touch ID prompt beachballs.
+- **Touch ID + a multiplexer** (`modules/security`): `reattach = true` is required
+  because sudo can run inside one (tmux/screen, or a `zmx` session — every terminal
+  window is one); without pam_reattach the Touch ID prompt beachballs.
 - **secretspec + keychain ACLs** (`modules/secrets`): with the default "keyring"
   provider, macOS keys each item's "Always Allow" to the exact binary — a rebuild that
   changes secretspec's store path re-prompts once per secret. Harmless (approve again);
@@ -419,9 +420,8 @@ it silently.
   that doesn't exist), which is why `nix flake check`'s `theme-variants` pins the
   flavor/contrast → variant/subdir table as a golden file — and why the same rule
   lives in exactly one place on each side of the repo boundary (nebelung's
-  `variantDir`, this file). Raw dotfiles nix can't inject into (ghostty `config`,
-  zellij `config.kdl`) reference the *rendered file*, not the flavor, so they need
-  no per-flavor edit.
+  `variantDir`, this file). Raw dotfiles nix can't inject into (ghostty `config`)
+  reference the *rendered file*, not the flavor, so they need no per-flavor edit.
   - Adding a flavor means: a nebelung `VARIANTS` entry, one enum value in
     `modules/theme/options.nix`, one row in the `theme-variants` golden table, and a
     `nix flake update nebelung`. Nothing else *for colour* — that's the point of the
@@ -431,38 +431,42 @@ it silently.
     Dark. That's a polarity question rather than a palette one, which is why it isn't
     in `modules/lib/nebelung.nix` with the rest — but it is the one place the list
     above doesn't cover.
-- **Iterating on a zellij edit** — two cases, and only one of them costs you
-  anything.
-  - **config.kdl (keybinds, theme, options) hot-reloads. Just
-    `bench try switch`.** zellij watches the active config and applies most
-    fields to the *running* server in about a second; your tabs, panes and live
-    Claude sessions stay exactly where they are. This works because terminal
-    installs `~/.config/zellij/config.kdl` as a real file with a live mtime
-    (`home.activation.zellijLiveConfig`) instead of a home-manager symlink —
-    every `/nix/store` file carries mtime = epoch 1, so a symlinked config makes
-    every rebuild look *older* than what zellij already parsed and nothing
-    reloads. That one stat is why a rebuild used to mean
-    `zellij delete-all-sessions`; don't reintroduce a `home.file` entry for this
-    path. (There is no reload chord any more — `Super r` and the `zreload`
-    command are gone.)
-  - **Plugin `.wasm`, a patched zellij binary, and layout changes to tabs that
-    already exist do NOT hot-reload** — a running server caches plugin wasm in
-    memory for its lifetime. That's what **`zscratch`** (`modules/core`) is for:
-    it renders your candidate over a copy of the live `~/.config/zellij` into a
-    temp `--config-dir` and boots a throwaway session in its own Ghostty window,
-    so the working multiplexer is untouched. `zscratch --config FILE` /
-    `--layout FILE` / `--theme FILE` / `--plugin tab-bar=WASM` / `--bin
-    /path/to/zellij`; `zscratch clean` reaps it. A brand-new session name = a new
-    zellij *server*, which recompiles plugin wasm from disk. Feel it there, then
-    `bench try switch` once, already knowing it works.
-- **The four zellij plugin forks** (`modules/terminal/zellij/{tab-bar,status-bar,
-  link-handler,tab-history}`) are Rust → wasm32-wasip1, and terminal builds them
-  **from source** on every rebuild (`zellijPlugins`, via `pkgsCross.wasi32`) —
-  there is no checked-in `.wasm` to re-vendor, so editing `src/` is the whole
-  job. Each dir's `build.sh` is only the dev shortcut: it prints a candidate
-  `.wasm` path to feed `zscratch --plugin <name>="$(./build.sh)"`.
+- **Iterating on a terminal edit costs nothing.** `bench try switch`, and
+  Ghostty's own watcher applies the new keybinds, theme and options to every
+  running window in about a second. Windows, sessions and live agents stay put —
+  and a window's shell lives in a `zmx` session that outlives the window, so even
+  a restart comes back to the same scrollback.
+
+  This used to be a two-branch story and both branches left with zellij, which is
+  worth recording because the workarounds looked like architecture. A running
+  zellij server cached plugin wasm in memory for its whole lifetime, so a plugin
+  edit needed a FRESH server — that is what `zscratch` (deleted) existed for. And
+  zellij decided "config changed" by mtime, while every `/nix/store` file carries
+  mtime = epoch 1, so a home-manager symlink made each rebuild look *older* than
+  what the server had already parsed and nothing reloaded — that is why terminal
+  installed `config.kdl` as a real file through a `home.activation` block instead
+  of `home.file`. Ghostty has no plugins and watches a store symlink happily; both
+  hacks are gone and neither should come back.
+- **The chord layer is pounce's, not Ghostty's** (`modules/launcher`'s
+  `appHotkeys`, cross-referenced by `modules/terminal/ghostty/config` and taught
+  by `modules/terminal/term-bindings.nix`). Every terminal chord that *does*
+  something — ⌘F, ⌘L, ⌘Y, ⌘N, ⌘↵, ⌘G, ⌘B — is an app-scoped entry in pounce's
+  event tap, consumed only while Ghostty is frontmost. This is measured, not
+  stylistic: `ghostty +list-actions` on 1.3.1 lists 85 actions and **none of them
+  runs a command**, so a chord that shells out has nowhere else to live.
+  Ghostty's config unbinds each of them so the tap is not racing a built-in;
+  those three files move together or the cheatsheet starts lying.
+- **Every window is a `zmx` session** (`modules/terminal/scripts/launch.sh`, which
+  is Ghostty's `command`). Persistence is the small half — the load-bearing half
+  is that Ghostty's AppleScript API can create a surface but cannot READ one, and
+  three shipped features read a window: ⌘F find, ⌘L links, and the bar's agent
+  peek. `zmx history` / `zmx tail` is that read API. The session is named
+  `term.<n>`, lowest free n, so reopening Ghostty walks back into the shells you
+  had; a lane is `holt.<repo>.<lane>` and belongs to `lanes/lane-open.sh`.
+  `scripts/focused-session.sh` is the one window→session join — by forced window
+  title for a lane, by a `window=` label for everything else.
 - **The core CLIs** (`modules/core`, each on `PATH` via `writeShellScriptBin`, source
-  beside `default.nix`): the rice ships six dev/user CLIs — **`haus.sh`** (the
+  beside `default.nix`): the rice ships five dev/user CLIs — **`haus.sh`** (the
   end-user machine driver: rebuild/update/rollback/doctor/status — knows nothing of
   the family repos), **`haus-activate.sh`** (the privileged half of a rebuild:
   `haus` and `bench` build as YOU, then hand the built store path to
@@ -474,9 +478,9 @@ it silently.
   `/run/current-system/sw/bin` path is load-bearing: security's NOPASSWD rule must
   name a literal path), **`awake.sh`** (launchd-owned timed/indefinite macOS
   caffeinate assertions; Bar's optional coffee pill is only its controller),
-  **`zscratch.sh`** (above), **`statusline.sh`** / `statusline-refresh.sh` (the
+  **`statusline.sh`** / `statusline-refresh.sh` (the
   agent HUD, reading `holt`'s registry), and **`agent-state`** — the one writer of
-  agent-pane state behind bar's paw pill and the zellij tab badge. That last one
+  agent state behind bar's paw pill. That last one
   has no source file of its own here: core `readFile`s
   `modules/bar/sketchybar/plugins/agents-hook.sh`, the same script bar installs
   into the bar's plugin dir, so the PATH copy and the bar copy can never drift.
@@ -495,7 +499,7 @@ it silently.
   Spawn Agent, `bench status`) now point at `holt` alone; there is no fallback
   to roll back to. `haus` and the workshop's `bench` are named apart on purpose
   so they never shadow each other — `haus` = your machine, `bench` = the family
-  repos, `holt`/`zscratch` = dev tools the rice puts on `PATH` regardless.
+  repos, `holt` = the worktree tool the rice puts on `PATH` regardless.
   (User-facing docs: the [AI room](https://hausfold.co/docs/haus/rooms/ai/) and the
   [haus reference](https://hausfold.co/docs/haus/reference/haus/) on hausfold.co.)
 - **New pounce command**: generic ones live in the
