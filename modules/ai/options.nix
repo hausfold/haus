@@ -76,8 +76,16 @@ in
         pane either way), and core enables the Homebrew framework on every
         machine, so nothing else has to be switched on for it. What it does
         change is WHO updates it: `haus update` moves a nixpkgs client, `brew
-        upgrade` moves this one — and jcode's own in-app updater will too unless
-        you set `features.check_updates = false` in `~/.jcode/config.toml`.
+        upgrade` moves this one — and haus makes that the only answer by
+        exporting `JCODE_CHECK_UPDATES=false` (plus `JCODE_NO_AUTO_UPDATE`) for
+        you, the env form of `features.check_updates` in `~/.jcode/config.toml`.
+        A client that updated itself would land a binary brew's manifest
+        doesn't describe, and the next `brew upgrade` would move it back.
+        The same environment turns off jcode's own macOS status item
+        (`JCODE_NO_MENUBAR`) wherever the bar's `agents` paw is drawn, since
+        that pill counts the same sessions across every client rather than
+        jcode alone. `~/.jcode/config.toml` itself stays untouched — jcode
+        rewrites that file, so haus never owns it.
 
         This is the option that makes `ai.default` honest. Naming a client
         you have not installed used to fail *at spawn time*, inside the pane,
