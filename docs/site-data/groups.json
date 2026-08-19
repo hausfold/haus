@@ -237,7 +237,7 @@
     "bar": {
       "blurb": "The menu bar, and which pills it draws.",
       "kind": "room",
-      "optionCount": 76,
+      "optionCount": 83,
       "options": {
         "haus.bar.aiUsage.provider": {
           "desktopSafe": true
@@ -467,6 +467,28 @@
           "desktopSafe": true
         },
         "haus.bar.position": {
+          "desktopSafe": true
+        },
+        "haus.bar.widgets": {
+          "desktopSafe": "recursive",
+          "validator": "widget-entries"
+        },
+        "haus.bar.widgets.<name>.command": {
+          "desktopSafe": false
+        },
+        "haus.bar.widgets.<name>.enable": {
+          "desktopSafe": true
+        },
+        "haus.bar.widgets.<name>.icon": {
+          "desktopSafe": true
+        },
+        "haus.bar.widgets.<name>.interval": {
+          "desktopSafe": true
+        },
+        "haus.bar.widgets.<name>.permissions": {
+          "desktopSafe": true
+        },
+        "haus.bar.widgets.<name>.placement": {
           "desktopSafe": true
         }
       },
@@ -1436,7 +1458,7 @@
         "menuBar",
         "bar"
       ],
-      "optionCount": 88,
+      "optionCount": 95,
       "order": 60,
       "title": "Bar"
     },

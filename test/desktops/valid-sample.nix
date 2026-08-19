@@ -23,6 +23,15 @@
       description = "no interruptions, no screensaver";
       preventSleep = true;
     };
+    # The bar's OPEN form, on its desktop-safe side. A desktop may arrange the
+    # pills haus ships — where they sit, how often they run, whether they are
+    # drawn — which is the whole point of §5.9 for anyone publishing a desktop.
+    # The one thing it may not do is bring a pill that runs code, and
+    # `host-only-widget-command.nix` is that half.
+    bar.widgets.cpu = {
+      enable = true;
+      interval = 10;
+    };
     # A list, so the check can read back what a host override does to one.
     launcher.autoQuit.exclude = [
       "from-desktop-a"

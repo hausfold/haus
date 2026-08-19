@@ -2235,6 +2235,7 @@
             test/desktops/host-only-secret.nix: haus.focus.slack.tokenCommand is host-only — it belongs to a person or a machine, so a shared desktop may not set it
             test/desktops/host-only-secret.nix: haus.secrets.provider is host-only — it belongs to a person or a machine, so a shared desktop may not set it
             test/desktops/host-only-signing.nix: haus.launcher.signingIdentity is host-only — it belongs to a person or a machine, so a shared desktop may not set it
+            test/desktops/host-only-widget-command.nix: haus.bar.widgets.<name>.command is host-only — it belongs to a person or a machine, so a shared desktop may not set it
             test/desktops/imports.nix: may not import modules — a desktop is one file's worth of values, and what it can reach has to be readable from that file alone
             test/desktops/internal-wiring.nix: haus._contrib is internal wiring between rooms, not a setting a desktop may write
             test/desktops/missing-haus.nix: has no `haus` settings — a desktop is { haus = { … }; }
