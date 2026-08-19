@@ -11,7 +11,7 @@
 #   1. The window's Claude Code session TRANSCRIPT (the whole session, including
 #      URLs inside collapsed tool outputs and things that scrolled away hours
 #      ago). The session → transcript join is maintained by the statusline
-#      (modules/core/statusline.sh writes pane-transcripts.tsv on every render —
+#      (modules/ai/statusline.sh writes pane-transcripts.tsv on every render —
 #      it's the one process that knows both $ZMX_SESSION and the transcript
 #      path), so this map only exists for windows running Claude Code.
 #   2. Fallback for any other window: `zmx history` — its whole scrollback.

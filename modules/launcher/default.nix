@@ -14,12 +14,21 @@
   config,
   lib,
   pkgs,
-  hostname,
   username,
   ...
-}:
+}@args:
 
 let
+  # Same reason modules/ai and modules/terminal read it this way: `hostname` is
+  # a specialArg of the full builders and NOT of a bare `darwinModules.launcher`
+  # import. Naming it above made this export refuse to evaluate for a consumer
+  # who didn't pass it, for one substitution into `add-app.sh`. The
+  # `standalone-modules` check evaluates every export without it.
+  hostname =
+    args.hostname or (
+      if (config.networking.hostName or null) != null then config.networking.hostName else "this Mac"
+    );
+
   identity = config.haus.launcher.signingIdentity;
 
   # The resolved keymap (../lib/keys.nix). pounce needs it twice over: the palette
@@ -821,8 +830,7 @@ let
     ++ map (chord: {
       what = "terminal binding ${chord}";
       chord = (normalizeStep chord).chord;
-    }) termBindings.chords
-    ;
+    }) termBindings.chords;
 
   # Only the FIRST step can clash with a rice chord: a later step is grabbed for
   # ~2s after the leader fires, and pounce disarms it again.

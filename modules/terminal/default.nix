@@ -11,11 +11,22 @@
   lib,
   pkgs,
   username,
-  hostname,
   ...
-}:
+}@args:
 
 let
+  # Same reason modules/ai reads it this way (see there): `hostname` is a
+  # specialArg of the full builders and NOT of a bare `darwinModules.terminal`
+  # import, where the consumer writes their own darwinSystem call. Naming it in
+  # the argument set above made it mandatory, so this export refused to evaluate
+  # for anyone who didn't happen to pass it — for one interpolation into a
+  # script that opens a host file. The `standalone-modules` check now evaluates
+  # every export without it.
+  hostname =
+    args.hostname or (
+      if (config.networking.hostName or null) != null then config.networking.hostName else "this Mac"
+    );
+
   gitCfg = config.haus.git;
   terminalCfg = config.haus.terminal;
   ghDashCfg = terminalCfg.ghDash;
@@ -35,22 +46,15 @@ let
   # `haus.ai.*`: the AI room decides whether it has an agent to spawn, the
   # terminal decides how a chord for one is spelled.
   #
-  # Its own client PAYLOAD is a different thing and is still read directly
-  # below — the packages, the instructions/skill files and the per-client hook
-  # wiring are the AI room's, hosted here only because a home profile is where
-  # they can be written. See modules/ai.
+  # Its client PAYLOAD used to be read directly below — the packages, the
+  # instructions/skill files and the per-client hook wiring — hosted here on the
+  # theory that a home profile is where they can be written. That turned out to
+  # be a habit rather than a constraint: modules/ai writes into the same
+  # `home-manager.users.<name>` now and home-manager merges the two. What is
+  # left here is the terminal's own business — the client packages a pane needs
+  # on PATH, and the dotfiles this room themes. See modules/ai.
   agentContrib = config.haus._contrib.development.agents;
   agentDefault = agentContrib.default;
-
-  # The one sentence in the generated agent instructions that names the lane
-  # chord. These files are what an agent BELIEVES about the machine it is on, so
-  # a wrong chord here is worse than none: the agent will confidently tell its
-  # user to press a key that does nothing.
-  laneChordProse = ''
-    `Cmd Return` (⌘↵) — pressed from any Ghostty window, a terminal pane or
-        another agent's lane alike — spawns each agent into its own isolated
-        checkout on a `worktree-<name>` branch, in its own window, so parallel
-        agents never fight over a single checkout.'';
 
   # One client id → one package, from the one table (modules/lib/agent-packages.nix):
   # the AI room asserts each named client is buildable here, and this is where a
@@ -70,62 +74,6 @@ let
       config.haus.bar.items.agents
       || (config.haus.bar.bottom.enable && config.haus.bar.bottom.items.agents != false)
     );
-
-  # One client id → where that client keeps the two files the rice ships into a
-  # home: the always-on instructions (`haus.ai.instructions`) and the `haus`
-  # skill (`haus.ai.skill`). Every client has both slots under a different
-  # name, which is the whole reason those options are named for the room and not
-  # for Claude.
-  #
-  # Verified against the clients themselves rather than their docs, because the
-  # cost of a wrong path here is silent — a file written where nothing reads it
-  # looks exactly like a working install:
-  #
-  #   codex debug prompt-input   → ~/.codex/AGENTS.md and ~/.codex/skills/*
-  #                                appear in the model-visible prompt
-  #   opencode debug skill       → lists ~/.config/opencode/skills/*
-  #
-  # OpenCode also scans `~/.claude/skills` for Claude Code compatibility, so a
-  # machine running both clients has two copies of this skill in its reach. That
-  # is safe on purpose: the same probe shows opencode deduplicating by frontmatter
-  # `name` and preferring its OWN directory, so the skill is offered once. (Its
-  # docs only say "ensure skill names are unique", which is why this was probed.)
-  #
-  # jcode does the same scan and one thing more: on its FIRST run it *copies*
-  # `~/.claude/skills` and `~/.codex/skills` into `~/.jcode/skills` — but only
-  # when that directory does not exist yet (its `import_from_external`, v0.76.0).
-  # Writing the haus skill there is therefore also what switches that import
-  # off, which is the outcome we want: a copy of a store symlink is a skill
-  # frozen at the revision it was copied on, and `haus update` would never move
-  # it again. Skills a host wires as out-of-store symlinks under
-  # `~/.agents/skills` need no copy either — jcode loads that directory live,
-  # the same one Codex and OpenCode read.
-  agentHomes = {
-    claude = {
-      instructions = ".claude/CLAUDE.md";
-      skills = ".claude/skills";
-    };
-    codex = {
-      instructions = ".codex/AGENTS.md";
-      skills = ".codex/skills";
-    };
-    opencode = {
-      instructions = ".config/opencode/AGENTS.md";
-      skills = ".config/opencode/skills";
-    };
-    # jcode reads a global `~/AGENTS.md`, and that is deliberately NOT the path
-    # here: it is a SHARED convention (Codex and OpenCode look there too, and a
-    # user may keep their own), so owning it as a nix symlink would take a file
-    # this room doesn't own away from every other tool that reads it. jcode's
-    # own private appendix is `prompt-overlay.md` — appended to the system
-    # prompt on every session, project copy and all — so the rice writes there
-    # and leaves `~/AGENTS.md` alone. (`system-prompt.md` next to it REPLACES
-    # the built-in prompt rather than adding to it; never write that one.)
-    jcode = {
-      instructions = ".jcode/prompt-overlay.md";
-      skills = ".jcode/skills";
-    };
-  };
 
   fontsCfg = config.haus.fonts; # terminal font family/size (core installs the package)
 
@@ -173,345 +121,7 @@ let
         benchLaneGhosttyBind
       ]
       (builtins.readFile ./ghostty/config);
-  # Rice-owned preamble for each client's instructions file. The rice ships
-  # `holt` (core) on PATH to every machine, and agent worktrees live OUTSIDE the
-  # repo tree (~/.cache/claude-worktrees/…), so a worktree agent's instructions
-  # walk never reaches the project/workshop AGENTS.md — only THIS file + the
-  # repo's own checked-out one are guaranteed read. So the general `holt`
-  # etiquette every agent needs travels HERE, WITH the tool — not just in the
-  # workshop repo end users don't have. Prepended to the host's own
-  # `haus.ai.instructions`.
-  #
-  # A function of the client, because the only thing that differs between the
-  # three copies is which paths they name — and naming the wrong one is worse
-  # than naming none: a Codex pane told to edit `~/.claude/CLAUDE.md` would
-  # change a file nothing it runs will ever read.
-  #
-  # It opens by naming itself as generated, because the file the agent is
-  # reading is a read-only store symlink: an agent asked to "add this to your
-  # global memory" otherwise edits it (fails), or replaces the symlink with a
-  # real file whose contents die at the next rebuild. The scope has to be
-  # exact — a host may wire individual skills as out-of-store symlinks, and each
-  # client owns its own settings file, so a blanket "this directory is
-  # nix-managed" would be wrong.
-  clientScopeNote = {
-    claude = "`settings.json` is Claude Code's own, and a host may wire individual skills as out-of-store symlinks";
-    codex = "`config.toml` and `hooks.json` are Codex's own, and a host may wire individual skills as out-of-store symlinks";
-    opencode = "`opencode.json` is OpenCode's own, and a host may wire individual skills or plugins as out-of-store symlinks";
-    jcode = "`config.toml` is jcode's own — it rewrites that file itself, so the rice never touches it — and a host may wire individual skills as out-of-store symlinks";
-  };
 
-  holtGuidance = client: ''
-    # This file is generated by Nix — don't edit it here
-
-    `~/${agentHomes.${client}.instructions}` is a read-only symlink into the Nix
-    store, rendered from `haus.ai.instructions` in this machine's host file
-    (`~/.config/nix/hosts/${hostname}/default.nix`, unless `HAUS_CONSUMER` says
-    otherwise). Change it there, then `haus rebuild` — a hand-edit here either
-    fails outright or is reverted by the next rebuild. Every coding agent this
-    machine installs gets the same text at its own path, so a change lands for
-    all of them at once.
-
-    The same goes for `~/${agentHomes.${client}.skills}/haus/`, generated from
-    the haus revision this machine pins (`haus update` regenerates it). It does
-    NOT go for everything beside them: ${clientScopeNote.${client}} that you can
-    edit live with no rebuild. `ls -l` the path before assuming which kind it is.
-
-    # Agent worktrees & the `holt` tool
-
-    `holt` (shipped by haus, on PATH) manages **agent worktrees** for any
-    git repo. ${laneChordProse} Closing a pane never loses work — uncommitted
-    edits are parked as
-    a `wip:` commit and only already-merged branches are reaped. Resume a parked
-    session with `holt` (lists every worktree across all repos) or
-    `holt <name>`; sweep landed ones on demand with `holt reap`.
-
-    Checkouts live under `~/.cache/claude-worktrees/<repo>/<name>` whichever
-    client you are — the path name is historical, not a claim about who owns it.
-
-    **Cross-repo work uses `holt child`, never a raw `git worktree add`.** To
-    work on a DIFFERENT repo than the pane you're in (e.g. a parent pane editing
-    a sub-repo), create the worktree with:
-
-        cd "$(holt child /path/to/other/repo)"
-
-    A raw `git worktree add` never touches the registry, so the statusline HUD
-    never learns to query that repo's GitHub — the worktree and its PR go
-    **invisible in the bar** (they only surface, unattributed with a `◇`, in the
-    `~` home pane). `holt child` does the same worktree add but registers it
-    under the spawning pane, so its PR shows as a child row where you're working.
-
-    **Setting work aside uses `holt park`, never `git stash`.** The stash stack
-    is NOT per-worktree — it lives in the shared `.git` dir, so every agent
-    worktree of a repo and the main checkout push and pop the SAME stack, and
-    parallel agents routinely pop each other's entries into a tree that never
-    asked for them. `holt park [label]` instead commits the whole dirty tree as
-    one `wip:` commit on the branch only this pane has checked out (the same
-    thing the remove hook does on pane close); `holt unpark` rewinds it, putting
-    those changes back uncommitted. It refuses to unpark a wip commit you've
-    already pushed, so it can never turn into a force-push.
-
-    **A session that keeps committing after its PR merged needs `holt reship`.**
-    GitHub deletes the head branch on merge, so those later commits have no
-    remote and no PR — and `holt` deliberately won't reap that branch. `holt`
-    marks it `+N` in the state column (`live+3`), the bar shows an orange `N^`
-    instead of the ⏏ it used to, and `holt reship [name]` pushes the branch and
-    opens the follow-up PR.
-
-    Full guide: https://hausfold.co/docs/haus/rooms/ai/
-
-  '';
-
-  # ---- the haus skill: an agent that can change this machine safely -----
-  # A Mac whose config is declarative is the one kind of machine an agent can
-  # reconfigure without it being reckless: `haus rebuild` builds before it
-  # switches, so a broken edit never reaches the running system, and `haus
-  # rollback` undoes an applied one atomically. What was missing was the
-  # knowledge — a model left to guess reaches for `brew install` and dotfiles,
-  # both of which the next rebuild overwrites, or invents a `haus.*` option
-  # that doesn't exist.
-  #
-  # So the rice ships the knowledge with itself. The option reference inside the
-  # skill is RENDERED from this revision's module system (agents/skill.nix), and
-  # `this-machine.md` below is rendered from this host's own evaluated config —
-  # neither can drift, and `haus update` refreshes both along with the rice.
-  #
-  # ONE derivation, installed into each client's own skills directory (see
-  # agentHomes): the knowledge is about this machine, not about who's reading.
-  hausSkill = import ./agents/skill.nix { inherit pkgs; };
-
-  # ---- what lands in each installed client's home ---------------------------
-  #
-  # Keyed off ai.clients, not "always Claude": writing ~/.claude/CLAUDE.md on
-  # a codex-only machine is a file nothing reads, and NOT writing
-  # ~/.codex/AGENTS.md on one is the half-truth this fan-out ends — the pane
-  # spawned with none of the context the same machine hands Claude.
-  #
-  # Empty instructions = nothing written for anyone, so a hand-managed
-  # instructions file is never clobbered just to inject the rice's note.
-  # Who the two files below are written for. Normally `ai.clients` — but an
-  # EMPTY list doesn't mean "no agent ever runs here", it means the rice installs
-  # none — either nothing named any client, or the AI room is switched off, which
-  # empties the resolved list whatever a desktop wrote (`haus._ai.clients`). A
-  # machine like that can still have Claude Code from npm or Codex from brew, and
-  # before this room existed both files were written unconditionally. So with
-  # nothing named, write for every client we know — they are inert markdown, and
-  # a skill nothing reads is much cheaper than an agent inventing option names.
-  #
-  # Every client we know EXCEPT jcode, and that exception is the exception that
-  # proves the rule: these files are inert for the other three, but creating
-  # `~/.jcode/skills` is itself an action — it is what tells jcode not to run
-  # its first-run import of `~/.claude/skills` and `~/.codex/skills`. Speculating
-  # a directory into existence on a machine that named no client would silently
-  # cancel that import for a jcode the rice didn't install. Named clients still
-  # get it, where the trade is deliberate (see agentHomes).
-  speculativeFileClients = lib.filter (c: c != "jcode") (lib.attrNames agentHomes);
-  fileClients = if agentClients == [ ] then speculativeFileClients else agentClients;
-
-  agentInstructionFiles = lib.optionalAttrs (agentsCfg.instructions != "") (
-    lib.listToAttrs (
-      map (
-        client:
-        lib.nameValuePair agentHomes.${client}.instructions {
-          text = holtGuidance client + agentsCfg.instructions;
-        }
-      ) fileClients
-    )
-  );
-
-  # The skill, installed file-by-file rather than as one directory symlink so
-  # this-machine.md — rendered from THIS host, not from the rice — can sit inside
-  # the same skill alongside the store-built parts.
-  #
-  # The starter instruction pair for ~/.config/nix rides along INSIDE the skill
-  # rather than being written into that repo: it's the user's own git repo, and a
-  # read-only store symlink inside it would be a thing they can't commit. `haus
-  # doctor` points at these paths, and the skill tells the agent to offer the
-  # copy — so they land as real, editable files or not at all. Two files, because
-  # that's the shape every repo in the family uses: AGENTS.md carries the rules
-  # (Codex, OpenCode, Cursor, Copilot and anything else that speaks agents.md
-  # read it natively), and CLAUDE.md is a bare @AGENTS.md import for the one
-  # client that reads only that name. Copying just the CLAUDE.md would leave a
-  # Codex or OpenCode pane in that repo with no instructions at all.
-  agentSkillFiles = lib.optionalAttrs agentsCfg.skill (
-    lib.mergeAttrsList (
-      map (
-        client:
-        let
-          dir = "${agentHomes.${client}.skills}/haus";
-        in
-        {
-          "${dir}/SKILL.md".source = "${hausSkill}/SKILL.md";
-          "${dir}/references/options.md".source = "${hausSkill}/references/options.md";
-          # The routing layer ABOVE options.md: which room a sentence belongs
-          # to, and whether that room has a runtime verb (`focus on`) as well as
-          # options. Rendered from the room registry rather than the module
-          # system — see agents/skill.nix.
-          "${dir}/references/rooms.md".source = "${hausSkill}/references/rooms.md";
-          "${dir}/references/recipes.md".source = "${hausSkill}/references/recipes.md";
-          "${dir}/references/this-machine.md".text = thisMachine;
-          "${dir}/consumer-AGENTS.md".source = "${hausSkill}/consumer-AGENTS.md";
-          "${dir}/consumer-CLAUDE.md".source = "${hausSkill}/consumer-CLAUDE.md";
-        }
-      ) fileClients
-    )
-  );
-
-  onOff = b: if b then "on" else "off";
-
-  # `toString 1.0` is "1.000000", which reads like a precision the option
-  # doesn't have — and an agent copying it back into a host file writes noise.
-  trimZeros = s: if lib.hasSuffix "0" s then trimZeros (lib.removeSuffix "0" s) else s;
-  num = n: if lib.isFloat n then lib.removeSuffix "." (trimZeros (toString n)) else toString n;
-
-  # Whichever TCC-protected universalaccess keys the host set directly. Named
-  # here because it's the one thing that makes an AGENT's rebuild behave
-  # differently from the user's own (see haus rebuild's guard), so the skill
-  # should be able to see it without evaluating anything.
-  rawUniversalaccess = lib.attrNames (
-    lib.filterAttrs (_: v: v != null) config.system.defaults.universalaccess
-  );
-
-  # Two halves of the same roster: what has a leader key (the table an agent
-  # reads before picking a free letter) and what doesn't (installed, but nothing
-  # to press). The install-only half keeps its attr id, since with no key and
-  # often no `name` that id is the only handle an edit can grab.
-  launcherRoster = lib.sort (a: b: a.order < b.order) config.haus._launchers;
-  # Where an entry comes from, in one clause — the question a comment in the host
-  # file used to answer badly. Four sources plus `installedBy` for the rice's own
-  # bundles; "· cask x" alone would quietly describe everything else as unmanaged.
-  sourceOf =
-    a:
-    if a.cask != null then
-      " · cask `${a.cask}`"
-    else if a.brew != null then
-      " · brew `${a.brew}`"
-    else if a.package != null then
-      " · nixpkgs (${a.scope} scope)"
-    else if a.appStoreId != null then
-      " · App Store `${toString a.appStoreId}`"
-    else if a.installedBy != null then
-      " · installed by `${a.installedBy}`"
-    else
-      "";
-  installOnlyRoster = lib.sort (a: b: a.id < b.id) (
-    lib.mapAttrsToList (id: app: { inherit id app; }) (
-      lib.filterAttrs (_: app: app.enable && app.key == null) config.haus.roster
-    )
-  );
-
-  thisMachine = ''
-    # This machine
-
-    Rendered from `${hostname}`'s own evaluated configuration when that
-    configuration was built. Where this disagrees with something you remember,
-    this file is right.
-
-    | | |
-    |---|---|
-    | hostname | `${hostname}` |
-    | user | `${username}` |
-    | host file | `~/.config/nix/hosts/${hostname}/default.nix` |
-    | config flake | `~/.config/nix` (unless `HAUS_CONSUMER` says otherwise) |
-    | haus version | `${lib.fileContents ../../VERSION}` |
-
-    Run `haus status` for the pinned revision and whether it's behind upstream.
-
-    ## Rooms
-
-    | room | what it is | state |
-    |---|---|---|
-    | windows | window tiling | ${onOff config.haus.windows.enable} |
-    | bar | the menu bar | ${onOff config.haus.bar.enable} |
-    | pounce | the command palette | ${onOff config.haus.launcher.enable} |
-    | focus | Focus / Do Not Disturb | ${onOff config.haus.focus.enable} |
-    | perch | the notch file shelf | ${onOff config.haus.shelf.enable} |
-    | snippets | text expansion | ${onOff config.haus.snippets.enable} |
-    | developer | the dev toolbelt | ${onOff config.haus.developer.enable} |
-
-    A room that's off means its options do nothing until you turn it on — say so
-    rather than silently enabling a room to satisfy a small request.
-
-    ## Look
-
-    - theme: `${config.haus.theme.flavor}` flavor, `${config.haus.theme.accent}` accent, `${config.haus.theme.contrast}` contrast
-    - `haus.ui.scale` = `${num config.haus.ui.scale}`
-    - terminal font: ${config.haus.fonts.mono.name} at ${toString config.haus.fonts.mono.size}pt
-
-    ## Keys
-
-    - leader: `${config.haus.keys.leader}`
-    - palette: `${config.haus.keys.palette}`
-    - window navigation: `${config.haus.keys.windowNav}`
-
-    ## Apps on the roster
-
-    Leader key → app. Taken keys are taken; pick an unused one when adding.
-
-    ${
-      if launcherRoster == [ ] then
-        "*(none declared)*"
-      else
-        lib.concatMapStringsSep "\n" (
-          a:
-          "- `${a.key}` → ${a.name}"
-          + (
-            let
-              ws = config.haus._appWorkspace.${a.id} or null;
-            in
-            if ws == null then " *(launcher-only)*" else " (workspace `${ws}`)"
-          )
-          + sourceOf a
-        ) launcherRoster
-    }
-
-    ## Also declared, without a leader key
-
-    Same `haus.roster`, no keyboard binding — apps reached another way,
-    haus's own (installed by a module rather than a package manager), and
-    the fonts and command-line tools that live in the one list too. Adding a
-    `key` to any of these is what puts it on the launcher.
-
-    ${
-      if installOnlyRoster == [ ] then
-        "*(none)*"
-      else
-        lib.concatMapStringsSep "\n" (
-          e:
-          "- `${e.id}`"
-          + (if e.app.name == null then "" else " → ${e.app.name}")
-          + (if sourceOf e.app == "" then " · not installed by haus" else sourceOf e.app)
-        ) installOnlyRoster
-    }
-
-    ## Rebuild hazards on this host
-
-    ${
-      if rawUniversalaccess == [ ] then
-        "None. `haus rebuild` will run for you."
-      else
-        ''
-          ⚠ This host sets `system.defaults.universalaccess` directly (${lib.concatStringsSep ", " rawUniversalaccess}).
-
-          That domain is TCC-protected, nix-darwin writes it unguarded, and the
-          write needs Full Disk Access on whichever app your session runs under.
-          A failure there aborts activation partway and skips every background
-          service haus installs.
-
-          So on this host `haus rebuild` checks first, and refuses if this
-          session can't write that domain — for anyone, not just an agent, since
-          the grant follows the app rather than the person.
-
-          The fix is usually to move those keys to `haus.accessibility.*`, which
-          reaches every key in that domain measured to work and writes them
-          guarded: a missing grant costs the setting and nothing else, and the
-          rebuild runs from anywhere. Otherwise: make the edit, then ask the user
-          to run `haus rebuild` in their own terminal. `haus doctor` reports
-          whether the grant is present here, and `haus plan` says so before a
-          rebuild rather than after.
-        ''
-    }
-  '';
 in
 {
   # ---- what this room contributes to other rooms ------------------------------
@@ -1729,232 +1339,229 @@ in
       );
 
       # ---- dotfiles + Nebelung theme drops ----
-      # agentInstructionFiles / agentSkillFiles — the two things the rice ships
-      # into every installed client's home: the host's instructions and the
-      # `haus` skill, one copy each per entry in ai.clients. Built in the
-      # `let` beside agentHomes, because what differs between clients is a path
-      # table, not a dotfile.
-      home.file =
-        agentInstructionFiles
-        // agentSkillFiles
-        // {
+      # The agent instructions and the `haus` skill used to be merged in here,
+      # from a path table in this file's `let`. They are modules/ai's own now —
+      # it writes its own `home.file` into this same user, and home-manager
+      # merges the two attrsets. What is left below is dotfiles: theme drops and
+      # client config this room writes whether or not the AI room is on.
+      home.file = {
 
-          # opencode
-          ".config/opencode/themes/nebelung.json".source = "${nebelungRoot}/opencode/nebelung.json";
-          ".config/opencode/tui.json".text = ''
-            {
-              "$schema": "https://opencode.ai/tui.json",
-              "theme": "nebelung"
-            }
-          '';
-        }
-        // lib.optionalAttrs agentsCfg.enable {
-          # Holt's durable machine default. launchd daemons and zmx sessions
-          # can outlive the environment that started them, so `holt new` resolves
-          # this generated file instead of inheriting a stale client selection.
-          # A standalone Holt install can own the same file by hand.
-          ".config/holt/config.toml".text = ''
-            # Generated from haus.ai.default — edit that option, not here.
-            agent = "${agentDefault}"
+        # opencode
+        ".config/opencode/themes/nebelung.json".source = "${nebelungRoot}/opencode/nebelung.json";
+        ".config/opencode/tui.json".text = ''
+          {
+            "$schema": "https://opencode.ai/tui.json",
+            "theme": "nebelung"
+          }
+        '';
+      }
+      // lib.optionalAttrs agentsCfg.enable {
+        # Holt's durable machine default. launchd daemons and zmx sessions
+        # can outlive the environment that started them, so `holt new` resolves
+        # this generated file instead of inheriting a stale client selection.
+        # A standalone Holt install can own the same file by hand.
+        ".config/holt/config.toml".text = ''
+          # Generated from haus.ai.default — edit that option, not here.
+          agent = "${agentDefault}"
 
-            # `open` and `resume` are the two seams holt answers by exec'ing a
-            # client; both are answered here by the same script, because with zmx
-            # they are the same act — `zmx attach` creates the session or joins
-            # the live one.
-            #
-            # The path is under ~, not a store path: holt's own docs list "a hook
-            # pointing at a store path from a rebuild ago" as a way for this to
-            # break, and home.file below keeps this one current.
-            [hooks]
-            open = "${config.home.homeDirectory}/.config/haus/lanes/lane-open.sh"
-            resume = "${config.home.homeDirectory}/.config/haus/lanes/lane-open.sh"
-          '';
+          # `open` and `resume` are the two seams holt answers by exec'ing a
+          # client; both are answered here by the same script, because with zmx
+          # they are the same act — `zmx attach` creates the session or joins
+          # the live one.
+          #
+          # The path is under ~, not a store path: holt's own docs list "a hook
+          # pointing at a store path from a rebuild ago" as a way for this to
+          # break, and home.file below keeps this one current.
+          [hooks]
+          open = "${config.home.homeDirectory}/.config/haus/lanes/lane-open.sh"
+          resume = "${config.home.homeDirectory}/.config/haus/lanes/lane-open.sh"
+        '';
 
-          # The lane opener itself — what holt's [hooks] above exec.
-          ".config/haus/lanes/lane-open.sh" = {
-            source = ./lanes/lane-open.sh;
-            executable = true;
-          };
-
-          # The chord's half: what pounce's Ghostty-scoped ⌘↵ runs, through the
-          # launcher's `cmd:lane-here` command. A chord pointing at a file that
-          # isn't there is the one failure mode a rebuild can't warn about.
-          ".config/haus/lanes/lane-spawn.sh" = {
-            source = ./lanes/lane-spawn.sh;
-            executable = true;
-          };
-
-          # The shared "which directory is the focused window looking at?"
-          # resolver — lane-spawn.sh's cwd half, split out so the launcher's
-          # shell-here command (⌘N/⌘⇧N under zmx) asks the identical question
-          # instead of drifting a copy of the awk.
-          ".config/haus/lanes/lane-cwd.sh" = {
-            source = ./lanes/lane-cwd.sh;
-            executable = true;
-          };
-
-          # Opencode's half of the agent status the bar's paw pill draws.
-          # Claude Code's equivalent is four hooks in ~/.claude/settings.json,
-          # which the USER wires (Claude owns that file and rewrites it, so the rice
-          # never has); opencode instead auto-loads every file under this directory,
-          # so the rice can own the whole wiring and a fresh machine gets working
-          # paws for opencode panes with nothing to configure.
-          # @AGENT_STATE@ → core's `agent-state` by absolute path: a plugin runs
-          # inside opencode's server process, which is given no PATH guarantees.
-          ".config/opencode/plugin/haus-agent-state.js".text =
-            builtins.replaceStrings [ "@AGENT_STATE@" ] [ "/run/current-system/sw/bin/agent-state" ]
-              (builtins.readFile ./opencode/agent-state.js);
-        }
-        # Helix nebelung theme, from the nebelung flake. This used to be a
-        # hand-written [palette] block inheriting helix's BUILT-IN
-        # catppuccin_<flavor>; nebelung now carries the real catppuccin/helix
-        # port, so the theme comes rendered like every other tool here and the
-        # syntax scopes track upstream instead of whatever helix ships.
-        # Kept under the `nebelung` name that programs.helix.settings.theme
-        # points at (the port also renders a no_italics/ sibling).
-        #
-        # Conditional for the same reason the helix PORT is: on a machine whose
-        # `haus.terminal.editorName` is not helix, this room installs no helix, and
-        # a theme file for an editor that is not there is just litter in ~.
-        // lib.optionalAttrs (terminalCfg.editorName == "helix") {
-          ".config/helix/themes/nebelung.toml".source =
-            "${nebelungRoot}/helix/themes/default/catppuccin_${nbFlavor}.toml";
-        }
-        // {
-
-          # ghostty (config lives in Application Support; theme lookup is XDG)
-          # ghostty's `command` runs scripts/launch.sh by absolute path; render
-          # @HOME@ → the user's home so it isn't pinned to one account.
-          "Library/Application Support/com.mitchellh.ghostty/config".text =
-            builtins.replaceStrings
-              [ "@HOME@" "@FONT_FAMILY@" "@FONT_SIZE@" ]
-              [
-                config.home.homeDirectory
-                fontsCfg.mono.name
-                (toString fontsCfg.mono.size)
-              ]
-              ghosttyConfigTemplate;
-          ".config/ghostty/themes/nebelung".source =
-            "${nebelungRoot}/ghostty/themes/catppuccin-${nbFlavor}.conf";
-
-          # lsd colours (replaces catppuccin.lsd). lsd auto-reads this file.
-          ".config/lsd/colors.yaml".source = "${nebelungRoot}/lsd/themes/catppuccin-${nbFlavor}/colors.yaml";
-
-          # yazi theme (replaces catppuccin.yazi): mgr/status/mode palette (mauve
-          # accent) plus the syntect theme its syntect_theme line points at —
-          # reusing the Nebelung bat tmTheme so previews match bat.
-          ".config/yazi/theme.toml".source =
-            "${nebelungRoot}/yazi/themes/${nbFlavor}/catppuccin-${nbFlavor}-${accent}.toml";
-          # This target's NAME is pinned by the rendered theme.toml above: its
-          # syntect_theme line reads ~/.config/yazi/Catppuccin-<flavor>.tmTheme, so it
-          # has to carry the flavor or yazi's code previews lose their colours.
-          ".config/yazi/Catppuccin-${nbFlavor}.tmTheme".source =
-            "${nebelungRoot}/bat/themes/${batTheme}.tmTheme";
-
-          # ── ~/.config/haus/term — the scripts that outlived the multiplexer ──
-          # This whole block lived under ~/.config/zellij until zellij was
-          # removed. The directory moved with the scripts rather than being kept
-          # for compatibility: nothing but this rice ever wrote to it, and a
-          # path named for a tool the machine no longer has is a lie that costs
-          # nothing to stop telling. What survived is below; the plugin wasm, the
-          # two layouts, config.kdl, the theme and copy-clean.pl went with it.
-          ".config/haus/term/launch.sh" = {
-            source = ./scripts/launch.sh;
-            executable = true;
-          };
-          ".config/haus/term/image-preview.sh" = {
-            source = ./scripts/image-preview.sh;
-            executable = true;
-          };
-          # The one window → zmx-session join, and the one tiled-window spawn.
-          # Both are libraries rather than chords: focused-session.sh is what
-          # ⌘F/⌘L and lanes/lane-cwd.sh all ask "which window is this", and
-          # new-window.sh is what every "open this somewhere" script ends in.
-          ".config/haus/term/focused-session.sh" = {
-            source = ./scripts/focused-session.sh;
-            executable = true;
-          };
-          ".config/haus/term/new-window.sh" = {
-            source = ./scripts/new-window.sh;
-            executable = true;
-          };
-          # Both peek chords run this one script: ⌘Y hops out of an agent
-          # worktree to the repo's main checkout, ⌘⇧Y passes --stay and doesn't.
-          # Both are pounce appHotkeys now (cmd:peek / cmd:peek-stay).
-          ".config/haus/term/peek.sh" = {
-            source = ./scripts/peek.sh;
-            executable = true;
-          };
-          ".config/haus/term/peek-run.sh" = {
-            source = ./scripts/peek-run.sh;
-            executable = true;
-          };
-          # ⌘F / ⌘⇧F: full-text search over this window's zmx scrollback, or over
-          # every session at once — agent windows through their Claude
-          # transcript (an alt-screen has no scrollback to search), everything
-          # else through `zmx history`.
-          ".config/haus/term/find.sh" = {
-            source = ./scripts/find.sh;
-            executable = true;
-          };
-          # ⌘G: gh-dash in its own near-fullscreen floating window. The chord is
-          # armed only when ghDash is on.
-          ".config/haus/term/gh-dash.sh" = {
-            source = ./scripts/gh-dash.sh;
-            executable = true;
-          };
-          # The one floating-Ghostty helper (geom + spawn + ring); peek.sh, the
-          # Rebuild System pounce command, and the agent-peek popup all route
-          # through it. The outline's binary/colour/width are baked in rather than
-          # passed per caller, so haus.terminal.floatBorder moves all three at once
-          # — and so the pounce command, which runs on launchd's bare PATH, gets
-          # floatring by store path instead of hoping it's installed.
-          ".config/haus/term/float-term.sh" = {
-            text =
-              builtins.replaceStrings
-                [
-                  "@floatring@"
-                  "@ring_color@"
-                  "@ring_width@"
-                ]
-                [
-                  # "off" renders BOTH empty, so an opted-out machine doesn't even
-                  # carry the binary in its closure (a store path in the script's
-                  # text is a real dependency — the swiftc build would run anyway).
-                  (if terminalCfg.floatBorder == "off" then "" else "${floatring}/bin/floatring")
-                  floatBorderColor
-                  "2"
-                ]
-                (builtins.readFile ./scripts/float-term.sh);
-            executable = true;
-          };
-          # The one "open in the editor" launcher — a new Ghostty window running
-          # haus.terminal.editor (baked into @editor@). Shared by the "Nix
-          # Config" palette/bar commands and the file-association hijack.
-          ".config/haus/term/editor-open-pane.sh" = {
-            text = builtins.replaceStrings [ "@editor@" ] [ terminalCfg.editor ] (
-              builtins.readFile ./scripts/editor-open-pane.sh
-            );
-            executable = true;
-          };
-          # pounce's terminal launcher (POUNCE_TERMINAL_LAUNCHER, wired in
-          # modules/launcher) — opens `ssh <host>` etc. in a new window, same
-          # flow as editor-open-pane.sh above.
-          ".config/haus/term/pounce-terminal.sh" = {
-            source = ./scripts/pounce-terminal.sh;
-            executable = true;
-          };
-          # The one "open the nix config" opener — resolves this host's
-          # hosts/@hostname@/default.nix and hands it to the launcher above with
-          # the flake root as cwd. The "Nix Config" palette command (pounce) and
-          # the bar's nix pill (bar) both exec this.
-          ".config/haus/term/nix-config-open.sh" = {
-            text = builtins.replaceStrings [ "@hostname@" ] [ hostname ] (
-              builtins.readFile ./scripts/nix-config-open.sh
-            );
-            executable = true;
-          };
+        # The lane opener itself — what holt's [hooks] above exec.
+        ".config/haus/lanes/lane-open.sh" = {
+          source = ./lanes/lane-open.sh;
+          executable = true;
         };
+
+        # The chord's half: what pounce's Ghostty-scoped ⌘↵ runs, through the
+        # launcher's `cmd:lane-here` command. A chord pointing at a file that
+        # isn't there is the one failure mode a rebuild can't warn about.
+        ".config/haus/lanes/lane-spawn.sh" = {
+          source = ./lanes/lane-spawn.sh;
+          executable = true;
+        };
+
+        # The shared "which directory is the focused window looking at?"
+        # resolver — lane-spawn.sh's cwd half, split out so the launcher's
+        # shell-here command (⌘N/⌘⇧N under zmx) asks the identical question
+        # instead of drifting a copy of the awk.
+        ".config/haus/lanes/lane-cwd.sh" = {
+          source = ./lanes/lane-cwd.sh;
+          executable = true;
+        };
+
+        # Opencode's half of the agent status the bar's paw pill draws.
+        # Claude Code's equivalent is four hooks in ~/.claude/settings.json,
+        # which the USER wires (Claude owns that file and rewrites it, so the rice
+        # never has); opencode instead auto-loads every file under this directory,
+        # so the rice can own the whole wiring and a fresh machine gets working
+        # paws for opencode panes with nothing to configure.
+        # @AGENT_STATE@ → core's `agent-state` by absolute path: a plugin runs
+        # inside opencode's server process, which is given no PATH guarantees.
+        ".config/opencode/plugin/haus-agent-state.js".text =
+          builtins.replaceStrings [ "@AGENT_STATE@" ] [ "/run/current-system/sw/bin/agent-state" ]
+            (builtins.readFile ./opencode/agent-state.js);
+      }
+      # Helix nebelung theme, from the nebelung flake. This used to be a
+      # hand-written [palette] block inheriting helix's BUILT-IN
+      # catppuccin_<flavor>; nebelung now carries the real catppuccin/helix
+      # port, so the theme comes rendered like every other tool here and the
+      # syntax scopes track upstream instead of whatever helix ships.
+      # Kept under the `nebelung` name that programs.helix.settings.theme
+      # points at (the port also renders a no_italics/ sibling).
+      #
+      # Conditional for the same reason the helix PORT is: on a machine whose
+      # `haus.terminal.editorName` is not helix, this room installs no helix, and
+      # a theme file for an editor that is not there is just litter in ~.
+      // lib.optionalAttrs (terminalCfg.editorName == "helix") {
+        ".config/helix/themes/nebelung.toml".source =
+          "${nebelungRoot}/helix/themes/default/catppuccin_${nbFlavor}.toml";
+      }
+      // {
+
+        # ghostty (config lives in Application Support; theme lookup is XDG)
+        # ghostty's `command` runs scripts/launch.sh by absolute path; render
+        # @HOME@ → the user's home so it isn't pinned to one account.
+        "Library/Application Support/com.mitchellh.ghostty/config".text =
+          builtins.replaceStrings
+            [ "@HOME@" "@FONT_FAMILY@" "@FONT_SIZE@" ]
+            [
+              config.home.homeDirectory
+              fontsCfg.mono.name
+              (toString fontsCfg.mono.size)
+            ]
+            ghosttyConfigTemplate;
+        ".config/ghostty/themes/nebelung".source =
+          "${nebelungRoot}/ghostty/themes/catppuccin-${nbFlavor}.conf";
+
+        # lsd colours (replaces catppuccin.lsd). lsd auto-reads this file.
+        ".config/lsd/colors.yaml".source = "${nebelungRoot}/lsd/themes/catppuccin-${nbFlavor}/colors.yaml";
+
+        # yazi theme (replaces catppuccin.yazi): mgr/status/mode palette (mauve
+        # accent) plus the syntect theme its syntect_theme line points at —
+        # reusing the Nebelung bat tmTheme so previews match bat.
+        ".config/yazi/theme.toml".source =
+          "${nebelungRoot}/yazi/themes/${nbFlavor}/catppuccin-${nbFlavor}-${accent}.toml";
+        # This target's NAME is pinned by the rendered theme.toml above: its
+        # syntect_theme line reads ~/.config/yazi/Catppuccin-<flavor>.tmTheme, so it
+        # has to carry the flavor or yazi's code previews lose their colours.
+        ".config/yazi/Catppuccin-${nbFlavor}.tmTheme".source =
+          "${nebelungRoot}/bat/themes/${batTheme}.tmTheme";
+
+        # ── ~/.config/haus/term — the scripts that outlived the multiplexer ──
+        # This whole block lived under ~/.config/zellij until zellij was
+        # removed. The directory moved with the scripts rather than being kept
+        # for compatibility: nothing but this rice ever wrote to it, and a
+        # path named for a tool the machine no longer has is a lie that costs
+        # nothing to stop telling. What survived is below; the plugin wasm, the
+        # two layouts, config.kdl, the theme and copy-clean.pl went with it.
+        ".config/haus/term/launch.sh" = {
+          source = ./scripts/launch.sh;
+          executable = true;
+        };
+        ".config/haus/term/image-preview.sh" = {
+          source = ./scripts/image-preview.sh;
+          executable = true;
+        };
+        # The one window → zmx-session join, and the one tiled-window spawn.
+        # Both are libraries rather than chords: focused-session.sh is what
+        # ⌘F/⌘L and lanes/lane-cwd.sh all ask "which window is this", and
+        # new-window.sh is what every "open this somewhere" script ends in.
+        ".config/haus/term/focused-session.sh" = {
+          source = ./scripts/focused-session.sh;
+          executable = true;
+        };
+        ".config/haus/term/new-window.sh" = {
+          source = ./scripts/new-window.sh;
+          executable = true;
+        };
+        # Both peek chords run this one script: ⌘Y hops out of an agent
+        # worktree to the repo's main checkout, ⌘⇧Y passes --stay and doesn't.
+        # Both are pounce appHotkeys now (cmd:peek / cmd:peek-stay).
+        ".config/haus/term/peek.sh" = {
+          source = ./scripts/peek.sh;
+          executable = true;
+        };
+        ".config/haus/term/peek-run.sh" = {
+          source = ./scripts/peek-run.sh;
+          executable = true;
+        };
+        # ⌘F / ⌘⇧F: full-text search over this window's zmx scrollback, or over
+        # every session at once — agent windows through their Claude
+        # transcript (an alt-screen has no scrollback to search), everything
+        # else through `zmx history`.
+        ".config/haus/term/find.sh" = {
+          source = ./scripts/find.sh;
+          executable = true;
+        };
+        # ⌘G: gh-dash in its own near-fullscreen floating window. The chord is
+        # armed only when ghDash is on.
+        ".config/haus/term/gh-dash.sh" = {
+          source = ./scripts/gh-dash.sh;
+          executable = true;
+        };
+        # The one floating-Ghostty helper (geom + spawn + ring); peek.sh, the
+        # Rebuild System pounce command, and the agent-peek popup all route
+        # through it. The outline's binary/colour/width are baked in rather than
+        # passed per caller, so haus.terminal.floatBorder moves all three at once
+        # — and so the pounce command, which runs on launchd's bare PATH, gets
+        # floatring by store path instead of hoping it's installed.
+        ".config/haus/term/float-term.sh" = {
+          text =
+            builtins.replaceStrings
+              [
+                "@floatring@"
+                "@ring_color@"
+                "@ring_width@"
+              ]
+              [
+                # "off" renders BOTH empty, so an opted-out machine doesn't even
+                # carry the binary in its closure (a store path in the script's
+                # text is a real dependency — the swiftc build would run anyway).
+                (if terminalCfg.floatBorder == "off" then "" else "${floatring}/bin/floatring")
+                floatBorderColor
+                "2"
+              ]
+              (builtins.readFile ./scripts/float-term.sh);
+          executable = true;
+        };
+        # The one "open in the editor" launcher — a new Ghostty window running
+        # haus.terminal.editor (baked into @editor@). Shared by the "Nix
+        # Config" palette/bar commands and the file-association hijack.
+        ".config/haus/term/editor-open-pane.sh" = {
+          text = builtins.replaceStrings [ "@editor@" ] [ terminalCfg.editor ] (
+            builtins.readFile ./scripts/editor-open-pane.sh
+          );
+          executable = true;
+        };
+        # pounce's terminal launcher (POUNCE_TERMINAL_LAUNCHER, wired in
+        # modules/launcher) — opens `ssh <host>` etc. in a new window, same
+        # flow as editor-open-pane.sh above.
+        ".config/haus/term/pounce-terminal.sh" = {
+          source = ./scripts/pounce-terminal.sh;
+          executable = true;
+        };
+        # The one "open the nix config" opener — resolves this host's
+        # hosts/@hostname@/default.nix and hands it to the launcher above with
+        # the flake root as cwd. The "Nix Config" palette command (pounce) and
+        # the bar's nix pill (bar) both exec this.
+        ".config/haus/term/nix-config-open.sh" = {
+          text = builtins.replaceStrings [ "@hostname@" ] [ hostname ] (
+            builtins.readFile ./scripts/nix-config-open.sh
+          );
+          executable = true;
+        };
+      };
 
       # Keep nix-installed .app bundles findable by LaunchServices.
       #

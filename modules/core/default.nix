@@ -851,55 +851,22 @@ in
       gnupg
       lazygit
     ]
-    # `zscratch` used to live here — a throwaway zellij server in its own Ghostty
-    # window, rendering a candidate config/layout/plugin.wasm over a copy of the
-    # live ~/.config/zellij so you could feel an edit without a rebuild. It is
-    # deleted with the multiplexer, and it did not need replacing: both halves
-    # of its reason are gone. A running zellij server cached plugin wasm in
-    # memory for its whole lifetime, so a plugin edit needed a FRESH server;
-    # there are no plugins. And its config could only be reloaded by a live
-    # mtime, which is why terminal installed config.kdl as a real file; Ghostty
-    # watches and reloads its own config, from a store symlink, for free.
-    # The AI room's payload, hosted here because this is where a system profile
-    # is written; the room that OWNS it is modules/ai, and this is its switch.
-    ++ lib.optionals config.haus.ai.enable [
-      # holt — agent worktrees, its own product now (hausfold/holt, taken as
-      # a flake input). Every caller the rice owns is on it: terminal's
-      # ⌘↵ runs `holt new`, pounce's Spawn Agent goes through `holt spawn`, and
-      # the Claude Code WorktreeCreate/WorktreeRemove hooks — which terminal
-      # DECLARES into ~/.claude/settings.json and re-asserts on every rebuild
-      # (see modules/terminal, home.activation.claudeCodeSettings) — point at
-      # `holt hook create` / `holt hook remove`. Its bash predecessor `wt.sh`
-      # has been retired entirely; there is no fallback to roll back to.
-      holt
-
-      # `claude-statusline` — the agent-worktree HUD for Claude Code's status bar
-      # (terminal's claudeCodeSettings points the `statusLine` key here). Row 1 is
-      # THIS session's worktree name + one status token (⏏ purge / N^ commits —
-      # blue when unmerged, orange when they landed AFTER the PR merged and no PR
-      # covers them / +A -D uncommitted); rows below list sister `holt` worktrees across
-      # ALL repos, with GitHub PR state. Cheap local git runs in the render path;
-      # the cross-repo + `gh` enumeration is done detached by the companion
-      # `claude-statusline-refresh` and cached (stale-while-revalidate), so the bar
-      # never blocks. Reads `holt`'s registry — same agent-worktree flow, same home.
-      # It doubles as the writer for bar's `claudeUsage` pill: Claude Code hands
-      # every render the account's 5-hour + weekly rate-limit percentages, so the
-      # render path stashes them to ~/.cache/claude-statusline/usage.tsv — the
-      # cheapest possible source, with no keychain read and nothing polling.
-      (writeShellScriptBin "claude-statusline" (builtins.readFile ./statusline.sh))
-      (writeShellScriptBin "claude-statusline-refresh" (builtins.readFile ./statusline-refresh.sh))
-
-      # `agent-state` — the one writer of agent state, feeding bar's `agents`
-      # paw. BYTE-FOR-BYTE the script bar also
-      # installs as ~/.config/sketchybar/plugins/agents-hook.sh (read from there,
-      # so the two can never drift); this copy exists only to give it a stable
-      # name on PATH. Claude Code's hooks point at the sketchybar path because the
-      # user's own settings.json wires them, but the Codex and Opencode wirings
-      # terminal writes are client config files with no business knowing where a bar
-      # keeps its plugins — they call
-      # `agent-state <working|waiting|idle|remove> <client>` instead.
-      (writeShellScriptBin "agent-state" (builtins.readFile ../bar/sketchybar/plugins/agents-hook.sh))
-    ];
+  # `zscratch` used to live here — a throwaway zellij server in its own Ghostty
+  # window, rendering a candidate config/layout/plugin.wasm over a copy of the
+  # live ~/.config/zellij so you could feel an edit without a rebuild. It is
+  # deleted with the multiplexer, and it did not need replacing: both halves
+  # of its reason are gone. A running zellij server cached plugin wasm in
+  # memory for its whole lifetime, so a plugin edit needed a FRESH server;
+  # there are no plugins. And its config could only be reloaded by a live
+  # mtime, which is why terminal installed config.kdl as a real file; Ghostty
+  # watches and reloads its own config, from a store symlink, for free.
+  #
+  # The AI room's payload used to be gated in here too — `holt`, the two
+  # statusline scripts and `agent-state`, hosted by core because core is where
+  # a system profile is written. They are modules/ai's own now (2026-08-19):
+  # the room that owns a capability owns its payload, and it writes this same
+  # `environment.systemPackages` for itself.
+  ;
 
   # system-path links a fixed set of subdirectories out of everything in
   # environment.systemPackages — /bin, /share/man, /share/zsh and a handful more.

@@ -44,7 +44,7 @@ client's own file and the *content* stays here or in `.agents/`. The map of
 which tool reads which file is [`.agents/README.md`](./.agents/README.md).
 (That's the rule for this repo's *own* files. The rice also **ships** agent
 config to end users — `haus.ai.instructions`, `haus.ai.skill`, the
-`terminal/agents` skill — and that's a product surface, not this layer. It obeys
+`ai/agents` skill — and that's a product surface, not this layer. It obeys
 the same rule one layer out: one body, written once per client at the path that
 client reads. Both options were `haus.claude.*` until 2026-08-11, when they
 stopped writing Claude's copy alone.)
@@ -138,10 +138,23 @@ modules/
                           #   Pure wiring — its assertions, and what it CONTRIBUTES to
                           #   the terminal, the bar and the launcher through the
                           #   extension points those rooms declare (lib/contrib.nix).
-                          #   Its payload is still installed by core (system) and terminal
-                          #   (home), gated on haus.ai.enable
+                          #   Owns its payload too, in BOTH profiles (2026-08-19):
+                          #   holt + the statusline pair + agent-state (system),
+                          #   and the instructions/skill files (home, written into
+                          #   the same user terminal writes — home-manager merges
+                          #   the two, and a path collision is an error)
+    agents/               # the haus agent skill (haus.ai.skill): hand-written
+                          #   SKILL.md + recipes, plus an option reference rendered
+                          #   per-revision — see skill.nix for why it's a package. ONE
+                          #   skill, installed into every client in haus.ai.clients
+                          #   (this room's agentHomes has the paths; was terminal/claude/
+                          #   and Claude-only until 2026-08-11, then terminal/agents/
+                          #   until 2026-08-19). Also ships the consumer
+                          #   starter pair (consumer-AGENTS.md + its consumer-CLAUDE.md
+                          #   pointer) `haus doctor` offers to copy
   core/                   # system: macOS defaults, Homebrew framework, core CLI, GC
-                          #   + on-PATH CLIs: haus / awake / statusline
+                          #   + on-PATH CLIs: haus / haus-activate / awake
+                          #   (the statusline pair and agent-state left for ai/)
   displays/               # haus.displays: scaled resolution by intent + the
                           #   hausdisp helper (Swift, xcrun-compiled like pounce's)
   theme/                  # the accent, the flavour, macOS Light/Dark
@@ -152,14 +165,6 @@ modules/
   terminal/               # shell: zsh, starship, git, yazi, ghostty + zmx + theming
                           #   + floatring (Swift, xcrun-compiled): the outline every
                           #   window float-term.sh spawns wears (haus.terminal.floatBorder)
-    agents/               # the haus agent skill (haus.ai.skill): hand-written
-                          #   SKILL.md + recipes, plus an option reference rendered
-                          #   per-revision — see skill.nix for why it's a package. ONE
-                          #   skill, installed into every client in haus.ai.clients
-                          #   (terminal's agentHomes has the paths; was terminal/claude/ and
-                          #   Claude-only until 2026-08-11). Also ships the consumer
-                          #   starter pair (consumer-AGENTS.md + its consumer-CLAUDE.md
-                          #   pointer) `haus doctor` offers to copy
   windows/                # AeroSpace tiling
   bar/                    # SketchyBar + barpop (Swift, xcrun-compiled): the pill
                           #   dropdowns' click-outside dismissal
@@ -466,7 +471,7 @@ it silently.
   `scripts/focused-session.sh` is the one window→session join — by forced window
   title for a lane, by a `window=` label for everything else.
 - **The core CLIs** (`modules/core`, each on `PATH` via `writeShellScriptBin`, source
-  beside `default.nix`): the rice ships five dev/user CLIs — **`haus.sh`** (the
+  beside `default.nix`): core ships three dev/user CLIs — **`haus.sh`** (the
   end-user machine driver: rebuild/update/rollback/doctor/status — knows nothing of
   the family repos), **`haus-activate.sh`** (the privileged half of a rebuild:
   `haus` and `bench` build as YOU, then hand the built store path to
@@ -478,14 +483,17 @@ it silently.
   `/run/current-system/sw/bin` path is load-bearing: security's NOPASSWD rule must
   name a literal path), **`awake.sh`** (launchd-owned timed/indefinite macOS
   caffeinate assertions; Bar's optional coffee pill is only its controller),
+  Three more were listed here until 2026-08-19 and are the **AI room's** now —
   **`statusline.sh`** / `statusline-refresh.sh` (the
-  agent HUD, reading `holt`'s registry), and **`agent-state`** — the one writer of
-  agent state behind bar's paw pill. That last one
-  has no source file of its own here: core `readFile`s
+  agent HUD, reading `holt`'s registry) and **`agent-state`** (the one writer of
+  agent state behind bar's paw pill) live in `modules/ai`, which writes the
+  system profile they land in, because the room that owns a capability owns its
+  payload. The last one still
+  has no source file of its own: `modules/ai` `readFile`s
   `modules/bar/sketchybar/plugins/agents-hook.sh`, the same script bar installs
   into the bar's plugin dir, so the PATH copy and the bar copy can never drift.
   Every client's hooks call it (`agent-state <working|waiting|idle|remove>
-  <client>`) — which is why the wirings terminal writes for opencode, codex and
+  <client>`) — which is why the wirings the AI room writes for opencode, codex and
   jcode never need to know where a bar keeps its plugins. (jcode's is not a file
   at all: its config.toml is a file the client rewrites, so the wiring is four
   `JCODE_HOOK_*` session variables, which beat that file by jcode's own rule.)
