@@ -62,30 +62,11 @@ in
       ];
       description = ''
         Which coding-agent clients to install. `claude` is Claude Code, `codex`
-        is OpenAI Codex, `opencode` is OpenCode, `jcode` is
-        [jcode](https://jcode.sh). The ⌘↵ lane chord starts whichever one
-        `ai.default` names, all of them through `holt new`.
+        is OpenAI Codex, `opencode` is OpenCode. The ⌘↵ lane chord starts
+        whichever one `ai.default` names, all of them through `holt new`.
 
         A list rather than one bool per client, matching `developer.languages`
-        — the fourth client, when it came, didn't change this option's shape.
-
-        `jcode` is the one that does NOT come from nixpkgs: there is no
-        derivation for it, so this room installs it from its own Homebrew tap as
-        a roster entry (`1jehuang/jcode/jcode`) instead — the same way bar
-        installs SketchyBar. From here that is invisible (it is on PATH in a
-        pane either way), and core enables the Homebrew framework on every
-        machine, so nothing else has to be switched on for it. What it does
-        change is WHO updates it: `haus update` moves a nixpkgs client, `brew
-        upgrade` moves this one — and haus makes that the only answer by
-        exporting `JCODE_CHECK_UPDATES=false` (plus `JCODE_NO_AUTO_UPDATE`) for
-        you, the env form of `features.check_updates` in `~/.jcode/config.toml`.
-        A client that updated itself would land a binary brew's manifest
-        doesn't describe, and the next `brew upgrade` would move it back.
-        The same environment turns off jcode's own macOS status item
-        (`JCODE_NO_MENUBAR`) wherever the bar's `agents` paw is drawn, since
-        that pill counts the same sessions across every client rather than
-        jcode alone. `~/.jcode/config.toml` itself stays untouched — jcode
-        rewrites that file, so haus never owns it.
+        — a client added later doesn't change this option's shape.
 
         This is the option that makes `ai.default` honest. Naming a client
         you have not installed used to fail *at spawn time*, inside the pane,
@@ -94,12 +75,10 @@ in
         be a member of this list, so the same mistake fails the rebuild
         instead, with both values named.
 
-        Override the package for a nixpkgs client the usual Nix way — an overlay
-        on `claude-code`, `codex` or `opencode` — rather than dropping the client
+        Override a client's package the usual Nix way — an overlay on
+        `claude-code`, `codex` or `opencode` — rather than dropping the client
         here and installing your own copy alongside; two derivations shipping
-        the same `bin/` name collide in one profile. For `jcode` the same job is
-        a roster override: set `haus.roster.jcode.brew` (or `.package`, if you
-        package it yourself) and this room's `mkDefault` steps aside.
+        the same `bin/` name collide in one profile.
 
         Ignored entirely when `ai.enable` is off — see `haus._ai.clients`, the
         resolved list every room actually installs from. Before step 4 this was
@@ -148,19 +127,11 @@ in
         Claude keys a transcript to the directory it started in.
         Resuming follows the client too: `codex` reopens
         its cwd-filtered `codex resume` picker, `opencode` continues its latest
-        session for that cwd, `jcode` opens its own session picker. They share one
-        `holt` branch/parking/reap
+        session for that cwd. They share one `holt` branch/parking/reap
         lifecycle, and they all light up the `agents` bar pill — the opencode
-        plugin, the codex hooks and jcode's
-        `JCODE_HOOK_*` environment are written for
+        plugin and the codex hooks are written for
         you; only Claude Code's stay yours to wire, because Claude owns its own
         settings.json (see `haus.bar.items.agents`).
-
-        One caveat, and it is `jcode`'s alone: it has no way to be launched with
-        a first message — no positional prompt, no `--prompt`, no stdin — so the
-        task typed into Pounce's **Spawn Agent** box cannot be handed to it. That
-        command says so and opens the lane empty rather than dropping the text
-        silently. ⌘↵, which never carries a prompt, is unaffected.
       '';
     };
 
@@ -183,12 +154,7 @@ in
         slot every client has under a different name. Written once per client
         in `ai.clients`, to the path that client actually reads:
         `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`,
-        `~/.config/opencode/AGENTS.md`, `~/.jcode/prompt-overlay.md`.
-
-        That last one is jcode's system-prompt APPENDIX rather than an
-        instructions file, which is the closest thing it has to the slot and
-        the only one that is jcode's alone: the `~/AGENTS.md` it also reads is
-        a shared convention other clients read too, so haus leaves it to you.
+        `~/.config/opencode/AGENTS.md`.
 
         Write it client-neutrally: the same text reaches whichever agent the ⌘A
         pane spawns, so a line about a Claude-only skill or file path is noise
@@ -207,9 +173,7 @@ in
 
         With `ai.clients` empty (a machine haus installs no client on)
         every known client's path is written instead of none: the list being
-        empty means haus installs none, not that no agent runs here. jcode is
-        the one exception — creating `~/.jcode/` there would cancel its
-        first-run skill import for a client haus never installed.
+        empty means haus installs none, not that no agent runs here.
       '';
     };
 
@@ -224,14 +188,11 @@ in
 
         One copy per client, in the directory that client scans:
         `~/.claude/skills/haus`, `~/.codex/skills/haus`,
-        `~/.config/opencode/skills/haus`, `~/.jcode/skills/haus`. OpenCode also
+        `~/.config/opencode/skills/haus`. OpenCode also
         scans `~/.claude/skills`
         for Claude Code compatibility, and prefers its own copy when both
         exist — so a machine running both clients sees the skill once, not
-        twice. jcode scans the same shared directories, and its own copy is
-        also what stops it copying `~/.claude/skills` into `~/.jcode/skills` on
-        first run — a copy that would freeze this skill at the revision it was
-        taken on, where `haus update` could never move it again.
+        twice.
 
         The skill's option reference is GENERATED from the haus revision this
         machine is pinned to, so it can only ever describe options that

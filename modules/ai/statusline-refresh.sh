@@ -24,9 +24,8 @@
 # behind upstream, on its own much longer TTL. Same reason it lives here — it
 # needs the network, and the network must never be in the render path.
 #
-#   --usage-only   skip the panel + the lock nag; refresh ONLY the Codex,
-#                  Opencode and jcode usage feeds at the bottom, then poke bar's
-#                  pill.
+#   --usage-only   skip the panel + the lock nag; refresh ONLY the Codex and
+#                  Opencode usage feeds at the bottom, then poke bar's pill.
 #                  This is how the aiUsage pill stays alive on a machine driving
 #                  one of those rather than Claude: those feeds are
 #                  PULLED (an API call, a sqlite read, a CLI question) instead of
@@ -486,95 +485,6 @@ if [ "$codex_fresh" = 0 ] && [ -f "$CODEX_AUTH" ] && command -v jq >/dev/null 2>
     # TTL while the bar keeps telling the truth ("as of Nm ago") about the age of
     # the numbers it's showing.
     [ -f "$CODEX_TSV" ] && touch "$CODEX_TSV"
-  fi
-fi
-
-# --- jcode usage feed: ask the client, which asks every account it holds -------
-# jcode is the one client here that will just TELL you: `jcode usage --json`
-# prints a block per logged-in provider with the same 5-hour / 7-day
-# percentages Claude Code hands its statusline, and it answers in ~0.5s off a
-# cached token without a session running. So no db read (opencode), no
-# undocumented endpoint and no token refresh of our own (codex) — this feed is
-# the whole integration.
-#
-# ONE row, for one provider, because usage-<client>.tsv is one row per CLIENT
-# and jcode can be logged into several at once. Which one: whatever
-# `[provider] default_provider` in jcode's own config.toml names — the account
-# this machine actually drives — falling back to the first block that reports
-# limits at all. Read with grep rather than a TOML parser on purpose: the
-# fallback is right whenever the grep is wrong, so the cost of the cheap read
-# is bounded.
-#
-# Note the rows this can DOUBLE UP on. jcode signed into Anthropic reports the
-# same subscription Claude Code's own statusline reports, so a machine driving
-# both shows two rows moving in lockstep. That is honest rather than redundant
-# — they are two clients spending one budget, and the dropdown says which is
-# which — but it is why the pill's headline number must never be a sum.
-JCODE_AUTH="$HOME/.jcode/auth.json"
-JCODE_TSV="$CACHE_DIR/usage-jcode.tsv"
-JCODE_TTL=${JCODE_TTL:-120}   # seconds; same cadence as the codex feed
-
-jcode_fresh=0
-if [ -f "$JCODE_TSV" ]; then
-  age=$(( $(date +%s) - $(mtime "$JCODE_TSV") ))
-  [ "$age" -lt "$JCODE_TTL" ] && jcode_fresh=1
-fi
-
-# auth.json is the opt-in, exactly as it is for codex: no jcode login on this
-# machine, no call out.
-if [ "$jcode_fresh" = 0 ] && [ -f "$JCODE_AUTH" ] \
-   && command -v jcode >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
-  now=$(date +%s)
-  # claude|anthropic → "Anthropic (Claude)", openai → "OpenAI (ChatGPT)", and so
-  # on: match on a word that appears in jcode's own provider_name, not on its
-  # provider id.
-  jc_want=$(sed -n 's/^[[:space:]]*default_provider[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' \
-    "$HOME/.jcode/config.toml" 2>/dev/null | head -1)
-  case "$jc_want" in
-    claude | anthropic) jc_want="anthropic" ;;
-    openai | chatgpt)   jc_want="openai" ;;
-    gemini | google)    jc_want="gemini" ;;
-    copilot)            jc_want="copilot" ;;
-    # Unset means jcode auto-detects per session, so there is no configured
-    # answer to read. Prefer Anthropic and let the jq fall through to the first
-    # provider that reports limits if this machine has no Claude login.
-    "")                 jc_want="anthropic" ;;
-  esac
-
-  jc_row=$(jcode usage --json 2>/dev/null | jq -r --arg want "$jc_want" '
-    # resets_at is RFC3339 with fractional seconds and a +00:00 offset, neither
-    # of which jq'"'"'s fromdateiso8601 accepts. Anything that is not plainly UTC
-    # yields 0 (the pill draws no reset time) rather than an hour in the wrong
-    # place.
-    def at: if type=="string" and (test("\\+00:00$") or test("Z$"))
-            then (sub("\\.[0-9]+";"") | sub("\\+00:00$";"Z") | fromdateiso8601) else 0 end;
-    def pick($n): [.[] | select((.name // "") | test($n;"i"))] | first;
-    [ .providers[] | select(.error == null and ((.limits // []) | length) > 0) ] as $ps
-    | (($ps | map(select((.provider_name // "") | test($want;"i"))) | first) // ($ps | first)) as $p
-    | if $p == null then empty else
-        ($p.limits | pick("hour")) as $s
-        # The weekly window by its exact name first: a Claude account also
-        # reports a per-model "7-day Fable window", and matching "7-day" loosely
-        # would let whichever came first win.
-        | (($p.limits | [.[] | select((.name // "") == "7-day window")] | first)
-           // ($p.limits | pick("day|week"))) as $w
-        | [ (($s.usage_percent // 0) | floor), (($w.usage_percent // 0) | floor),
-            (($s.resets_at // "") | at), (($w.resets_at // "") | at) ] | @tsv
-      end' 2>/dev/null || true)
-
-  if [ -n "$jc_row" ]; then
-    # Fields 7 and 8 (model, provider_id) carry WHICH account this row is
-    # about, so the dropdown can draw that provider's brand mark instead of a
-    # generic one — the same slot opencode's cost rows use. Without them
-    # provider_style's jcode cases would be unreachable and every row would
-    # draw the bare client mark.
-    printf '%s\t%s\tjcode\t%s\t%s\n' "$jc_row" "$now" "$jc_want" "$jc_want" >"$JCODE_TSV.tmp"
-    mv "$JCODE_TSV.tmp" "$JCODE_TSV"
-    fed=1
-  else
-    # Same reasoning as the codex feed: touch rather than write, so the retry
-    # backs off a full TTL while the bar keeps dating the row it still shows.
-    [ -f "$JCODE_TSV" ] && touch "$JCODE_TSV"
   fi
 fi
 

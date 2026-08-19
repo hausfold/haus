@@ -62,19 +62,6 @@ let
   agentPackages = import ../lib/agent-packages.nix pkgs;
   agentClients = config.haus._ai.clients;
 
-  # Does this machine draw the `agents` paw anywhere? Either bar counts — the
-  # bottom bar's value is a SIDE (`"left"`/`"center"`/`"right"`) or `false`, not
-  # a bool, so it is tested against `false` rather than truthiness. Read once
-  # here because two things want the answer: whether jcode's own macOS status
-  # item is redundant (below), and nothing else yet — but the next reader
-  # shouldn't have to rediscover the bottom bar's shape.
-  pawPillDrawn =
-    config.haus.bar.enable
-    && (
-      config.haus.bar.items.agents
-      || (config.haus.bar.bottom.enable && config.haus.bar.bottom.items.agents != false)
-    );
-
   fontsCfg = config.haus.fonts; # terminal font family/size (core installs the package)
 
   # ---- the terminal's hotkeys ------------------------------------------------
@@ -577,78 +564,7 @@ in
         # agent room off, and it is the only rung a standalone holt install
         # gets for free.
         HAUS_AGENT_DEFAULT = agentDefault;
-      }
-      # jcode's agent-pane state, wired as ENVIRONMENT rather than as config.
-      #
-      # Every other client here is wired by merging keys into a file it owns
-      # (jq into settings.json / hooks.json, a plugin dropped in a directory).
-      # jcode can't be: its `~/.jcode/config.toml` is a file jcode ITSELF
-      # rewrites — `/colors`, `/model`, `/poke` and the one-time launch-hotkey
-      # bake all save into it — so a rebuild that owned or merged that file
-      # would be racing the client for it. Its documented answer is
-      # `JCODE_HOOK_*`, which always beats the file and needs no merge tool
-      # (there is no jq for TOML). The user's config.toml stays entirely theirs.
-      #
-      #   turn_start    → working
-      #   turn_end      → waiting     ← jcode has no permission prompt to hook,
-      #                                 so "waiting" means end-of-turn, i.e.
-      #                                 your turn. That is the state the pill
-      #                                 goes amber on, which is right: a jcode
-      #                                 pane that finished IS waiting on you.
-      #   session_start → idle
-      #   session_end   → remove      ← reported, unlike Codex, which has no
-      #                                 session-end event at all
-      #
-      # Absolute store path, not a bare `agent-state`: jcode runs hooks from its
-      # long-lived server process, whose PATH is whatever the shell that first
-      # started it had. The window addressing survives that same split by luck of
-      # jcode's design rather than ours — it re-exports the REQUESTING client's
-      # terminal env onto every hook (`ZMX_SESSION` rides in the same
-      # CLIENT_TERMINAL_ENV_VARS list zellij's pane ids used to), so a hook fired
-      # by a shared server still names the window that asked.
-      // lib.optionalAttrs (agentsCfg.enable && lib.elem "jcode" agentClients) (
-        let
-          state = s: "/run/current-system/sw/bin/agent-state ${s} jcode";
-        in
-        {
-          JCODE_HOOK_TURN_START = state "working";
-          JCODE_HOOK_TURN_END = state "waiting";
-          JCODE_HOOK_SESSION_START = state "idle";
-          JCODE_HOOK_SESSION_END = state "remove";
-
-          # Two jcode defaults the rice answers, for the same reason as the
-          # hooks above and by the same means: `config.toml` is jcode's own
-          # file, so the setting has to arrive as environment or not at all.
-          #
-          # `JCODE_CHECK_UPDATES=false` is the env form of
-          # `[features] check_updates` — the knob behind both the update
-          # banner and the auto-update that follows it. haus installs jcode
-          # from Homebrew (`modules/lib/agent-packages.nix` says why there is
-          # no derivation), so a client that updates ITSELF puts the binary
-          # somewhere brew's manifest doesn't describe, and the next
-          # `brew upgrade` moves it back — a version that flaps depending on
-          # which one ran last. One updater per package: `haus update` runs
-          # `brew upgrade`, and that is the whole story. `JCODE_NO_AUTO_UPDATE`
-          # rides along because the two are separate gates in jcode: the first
-          # stops it LOOKING, the second stops the release build installing
-          # what it found (`--auto-update` defaults on for releases).
-          #
-          # `JCODE_NO_MENUBAR=1` suppresses the macOS status item jcode
-          # spawns for its running/streaming session counts. The bar room's
-          # `agents` paw already draws exactly that, across every client
-          # rather than jcode alone, and it is the pill the `agent-state`
-          # hooks two lines up feed — so the status item is a second, worse
-          # copy of a readout haus owns. Any non-empty value switches it off
-          # (`"0"` and `"false"` count as set), hence `1`.
-          JCODE_CHECK_UPDATES = "false";
-          JCODE_NO_AUTO_UPDATE = "1";
-        }
-        # The status item is only redundant where the paw pill actually
-        # exists, so this one is gated rather than unconditional: a machine
-        # with the bar room off, or with `agents` not drawn on either bar,
-        # keeps jcode's own indicator — it is the only session readout it has.
-        // lib.optionalAttrs pawPillDrawn { JCODE_NO_MENUBAR = "1"; }
-      );
+      };
 
       # A lean terminal/dev toolbelt, gated by the developer pack. Personal
       # choices (AI CLIs, orbstack, your language toolchains) belong in your
@@ -680,12 +596,7 @@ in
         # Unlisted means uninstalled, and `ai.default` is asserted to be a
         # member — so the client the palette is about to spawn is on PATH by
         # construction, rather than discovered missing inside the pane.
-        #
-        # A `null` in the table is a client nixpkgs has no derivation for
-        # (jcode); the AI room installs those from Homebrew, so this profile
-        # skips them. They are still on PATH by the time a pane opens —
-        # /opt/homebrew/bin is on it — which is what the assertion is about.
-        ++ lib.filter (p: p != null) (map (c: agentPackages.${c}) agentClients)
+        ++ map (c: agentPackages.${c}) agentClients
         # zmx — what a lane opens into. `lane-open.sh` defers to holt's
         # built-in if it can't find zmx, so a missing binary degrades to a pane
         # rather than a dead lane; shipping the package is what stops it having

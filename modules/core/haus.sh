@@ -2499,7 +2499,7 @@ cmd_doctor() {
   local skilldir=""
   local d
   for d in "$HOME/.claude/skills/haus" "$HOME/.codex/skills/haus" \
-           "$HOME/.config/opencode/skills/haus" "$HOME/.jcode/skills/haus"; do
+           "$HOME/.config/opencode/skills/haus"; do
     if [ -f "$d/SKILL.md" ]; then
       skilldir="$d"
       break
