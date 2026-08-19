@@ -38,6 +38,35 @@
 > `zmx ls` readers looked only for a `cwd=` field, and zmx 0.7.0 emits
 > `start_dir=` instead. Every zmx row reached the holt join with an empty path,
 > and `lane-cwd.sh`'s zmx branch always fell through to `$HOME`.
+>
+> **What the pre-PR assurance pass caught, because it is the shape of mistake
+> this migration makes.** All four are the same mistake: a chord that used to
+> run INSIDE the terminal, ported to a layer that has no terminal around it.
+>
+> - **⌃⌥⇧A was taught in five places and bound in none.** It was
+>   `bind "Ctrl Alt Shift a" { Run <client>; }` in config.kdl, the deletion took
+>   it, and nothing re-hosted it — while `term-bindings.nix` still drew the row
+>   and four option descriptions still promised it, which meant it would have
+>   rendered onto hausfold.co's options reference as a live key. It is
+>   `cmd:agent-here` on the Ghostty tap now.
+> - **⌘Y rooted yazi at the pounce daemon's cwd.** Every other moved chord got a
+>   `lane-cwd.sh` call; peek was ported without one, so the worktree→main hop —
+>   the entire difference between ⌘Y and ⌘⇧Y — was evaluating against launchd's
+>   idea of a working directory.
+> - **A folded cheatsheet row reserved half its chords.** "⌘ F / ⌘ ⇧ F" exported
+>   one `chord`, so ⌘⇧F, ⌘⇧Y and ⌃⇧⇥ were armed with nothing holding them
+>   against a `haus.launcher.items` hotkey — a clash that builds green and dies
+>   only inside Ghostty.
+> - **⌘N windows had no session.** `shell-here.sh` spawned a bare login shell
+>   rather than `launch.sh`, so the window you press ⌘F in most often was the
+>   one window ⌘F could not read. Under zellij a ⌘N pane was in the session by
+>   construction; nothing replaced that until this.
+>
+> The measurement the last risk wanted: **Ghostty 1.3.1's `command` splitter
+> honours single quotes exactly** — a `zsh -c '…'` payload carrying
+> `a b.rs:12`, `+12` and `has$dollar` came back out as those three argv entries.
+> So `new-window.sh` quotes with single quotes rather than `printf %q`, whose
+> backslash form would have needed a second assumption nobody had checked.
 
 
 ## Three decisions, settled 2026-08-14
