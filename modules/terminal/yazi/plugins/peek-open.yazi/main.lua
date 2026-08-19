@@ -2,10 +2,10 @@
 --- @sync entry
 
 -- peek-open — bound to Enter in the main yazi keymap, but only CHANGES anything
--- inside the "peek" overlay (Super y, see zellij/peek-run.sh, which exports
+-- inside the "peek" overlay (⌘Y, see scripts/peek-run.sh, which exports
 -- PEEK=1). There it branches on the hovered entry:
 --   • directory → write its path to ~/.cache/peek.cwd and quit yazi, so
---     peek-run.sh spawns a new zellij tab cwd'd there (the old Super-Shift-t
+--     peek-run.sh spawns a new Ghostty WINDOW cwd'd there (the old ⌘⇧T
 --     browse-and-pick flow, folded into peek). Descend to browse with l/→.
 --   • file → fall through to `open`, paging it fullscreen — peek stays a reader.
 -- Outside peek (a normal `yy` session, PEEK unset) it is a plain passthrough to
@@ -29,7 +29,7 @@ return {
 		end
 
 		-- Hand the picked directory to peek-run.sh via a fixed drop file, then
-		-- quit so it can spawn the tab. HOME is always set in the peek instance.
+		-- quit so it can spawn the window. HOME is always set in the peek instance.
 		local out = (os.getenv("HOME") or "") .. "/.cache/peek.cwd"
 		local f = io.open(out, "w")
 		if f then

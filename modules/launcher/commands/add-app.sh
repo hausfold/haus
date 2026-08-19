@@ -37,7 +37,7 @@ CHEATSHEET="$HOME/.config/pounce/cheatsheet.json"
 AEROSPACE_TOML="$HOME/.config/aerospace/aerospace.toml"
 BREW_INDEX="$HOME/.cache/haus/brew-index.tsv"
 BREW_API="$HOME/Library/Caches/Homebrew/api"
-FLOAT_TERM="$HOME/.config/zellij/float-term.sh"
+FLOAT_TERM="$HOME/.config/haus/term/float-term.sh"
 APP_ICON_MAP="$(dirname "$0")/app-icon-map"
 POPULAR_APPS="$(dirname "$0")/data/popular-apps.tsv"
 

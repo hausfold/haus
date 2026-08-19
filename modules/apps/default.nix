@@ -43,7 +43,7 @@ let
   # Trimmed from IINA's own list on purpose:
   #   - audio (mp3, flac, m4a, wav, aac, opus, …), `gif`, playlists (m3u/pls)
   #     and IINA's own plugin types — "open videos in IINA" shouldn't quietly
-  #     take the music library, or the gif the zellij previewer shows inline.
+  #     take the music library, or the gif the terminal previewer shows inline.
   #   - `ts`, `mts`, `m2ts`: transport streams by name, TypeScript by practice.
   #     terminal's hijackFileAssociations claims all three for the editor (`.mts`
   #     is an ESM TypeScript module). `mts` used to sit in BOTH lists, and since

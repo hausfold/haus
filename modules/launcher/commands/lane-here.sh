@@ -12,7 +12,7 @@
 # It was ⌃⌘A in AeroSpace: global, so it fired over a browser too. ⌘↵ can't be
 # global — it is "send" in Slack, Claude, Linear and half the Mac — so it rides
 # pounce's Ghostty-scoped tap instead, beside ⌘N's shell-here. That covers every
-# window you would actually press it from: a zellij pane and a lane's own window
+# window you would actually press it from: every terminal window
 # are both Ghostty. The cost, paid knowingly, is that a lane can no longer be
 # started from a browser; the palette row this header makes (and Spawn Agent
 # beside it) is the answer there.

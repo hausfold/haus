@@ -30,8 +30,8 @@ in
       defaultText = lib.literalExpression "false";
       description = ''
         The AI room: coding-agent *tooling*. `holt` (agent worktrees),
-        `agent-state` (the pane-status writer behind the `agents` bar pill and
-        the zellij tab badge), the agent-worktree statusline, and the client
+        `agent-state` (the status writer behind the `agents` bar pill),
+        the agent-worktree statusline, and the client
         config the Terminal room writes (Claude Code's settings.json keys, opencode's
         agent-state plugin). Which clients get installed is `ai.clients`.
 
@@ -150,8 +150,8 @@ in
         its cwd-filtered `codex resume` picker, `opencode` continues its latest
         session for that cwd, `jcode` opens its own session picker. They share one
         `holt` branch/parking/reap
-        lifecycle, and they all light up the `agents` bar pill and the zellij
-        tab-bar badge — the opencode plugin, the codex hooks and jcode's
+        lifecycle, and they all light up the `agents` bar pill — the opencode
+        plugin, the codex hooks and jcode's
         `JCODE_HOOK_*` environment are written for
         you; only Claude Code's stay yours to wire, because Claude owns its own
         settings.json (see `haus.bar.items.agents`).

@@ -463,10 +463,11 @@ in
 
           hacker's 19pt baseline exists for a reason worth knowing: the Ghostty window is
           tiled to a fixed pixel height by windows, and sizes that don't divide
-          that height evenly used to leave a gap under zellij's status bar.
-          That's since been fixed properly (window-padding-balance +
-          `extend-always`), so any size is safe now — 19 is simply the tuned
-          starting point.
+          that height evenly used to leave a gap along its bottom edge, under
+          the multiplexer's status bar. That's since been fixed properly
+          (`window-padding-balance`, which splits the leftover pixels evenly
+          instead of dumping them all at the bottom), so any size is safe now —
+          19 is simply the tuned starting point.
         '';
       };
       package = lib.mkOption {

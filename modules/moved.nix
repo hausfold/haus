@@ -39,6 +39,25 @@
     # would be permanent furniture protecting nobody. It would also defeat the
     # point — the whole change is that those words stop appearing.
 
+    # 2026-08-19 — zellij is gone, and the two options that described its
+    # in-pane behaviour go with it: `terminal.zellijStartLocked` (boot into
+    # Locked input mode) and `terminal.rightClickFullscreen` (a bare
+    # right-click zooms a pane, which was a zellij-unwrapped patch rather than
+    # a config toggle). Both were public and desktop-safe, and both shipped
+    # desktops set them.
+    #
+    # No entry, and not for want of trying: `mkRemovedOptionModule` — which
+    # would turn "unknown option" into a sentence saying what happened — defines
+    # `config.assertions`, and this file is imported by
+    # modules/options-modules.nix into the PURE-LIB evals that render the
+    # options reference and the agent skill. Those have no nixpkgs module behind
+    # them and therefore no `assertions` option, so the whole options surface
+    # stops evaluating on Linux CI. A removal notice is not worth breaking the
+    # renderer for, and it would be the only entry here that isn't a rename.
+    #
+    # Neither has a successor to rename to anyway: Ghostty has no input modes,
+    # and a window is the pane now, so "fullscreen" is haus.windows' own chord.
+
     # 2026-08-13 — the whole coding-agent capability became `haus.ai.*`, and
     # deliberately got NO alias here. `haus.agents.*` and
     # `haus.developer.agents.enable` are gone rather than deprecated: the rice

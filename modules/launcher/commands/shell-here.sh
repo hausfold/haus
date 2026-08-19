@@ -6,14 +6,15 @@
 # The heir of zellij's Super n. Pounce's Ghostty-scoped ⌘N fires
 # `cmd:shell-here` and the spawned thing is a window rather than a pane —
 # everything else about the chord survives (with the agent clients off this
-# script isn't installed at all, same as focus.sh, and ⌘N falls back to
-# zellij's NewPane):
+# script isn't installed at all, same as focus.sh, and ⌘N is simply dead —
+# Ghostty's config unbinds it rather than falling back to its own new_window,
+# which knows nothing about "here"):
 #
-#   · the cwd is the focused window's, asked of zmx or zellij by lane-cwd.sh
-#     (the same resolver ⌘↵'s lane-spawn.sh uses)
+#   · the cwd is the focused window's, asked of zmx by lane-cwd.sh (the same
+#     resolver ⌘↵'s lane-spawn.sh uses)
 #   · the "no place for a human shell" hop OUT of an agent worktree still
-#     happens, because it lives in terminal's zshrc, not in zellij — the fresh
-#     login shell fires it wherever it's born
+#     happens, because it lives in terminal's zshrc — the fresh login shell
+#     fires it wherever it's born
 #   · --stay (⌘⇧N, via shell-here-stay.sh) still suppresses that hop, now as
 #     HAUS_STAY=1 in the WINDOW's environment. This is why the spawn is
 #     AppleScript (`surface configuration` carries `environment variables`)
@@ -43,10 +44,18 @@ cwd=""
 [ -x "$HOME/.config/haus/lanes/lane-cwd.sh" ] && cwd="$("$HOME/.config/haus/lanes/lane-cwd.sh")"
 [ -n "$cwd" ] && [ -d "$cwd" ] || cwd="$HOME"
 
-# An explicit login shell, NOT the ghostty-config default command: that default
-# is zellij/launch.sh, which would attach this window to the `main` zellij
-# session — the exact thing a window-per-shell flow is walking away from.
-shell="${SHELL:-/bin/zsh}"
+# The ghostty-config DEFAULT command — terminal's scripts/launch.sh — not a bare
+# login shell, and this is the difference between a ⌘N window being a real
+# terminal window and being a lesser one. launch.sh claims a `term.<n>` zmx
+# session and stamps the `window=` label on it, which is what every other chord
+# joins on: without a session, ⌘F has nothing to search in this window, ⌘L has
+# no scrollback to mine, ⌘N pressed FROM here can't tell where "here" is, and
+# the bar can't take you back to it. Under zellij a ⌘N pane was in the session
+# by construction; this is what keeps that true.
+#
+# The one thing it costs: launch.sh execs the session's own login shell, so
+# $SHELL is honoured there rather than here.
+shell="$HOME/.config/haus/term/launch.sh"
 
 # The window AeroSpace sees before this one, so the tile poll below can tell
 # the new window from the one the chord was pressed in (both are Ghostty).
@@ -56,7 +65,7 @@ if [ -n "$stay" ]; then
   osascript - "$cwd" "$shell" <<'OSA' >/dev/null 2>&1
 on run argv
     tell application "Ghostty"
-        new window with configuration {initial working directory:item 1 of argv, command:(item 2 of argv) & " --login", environment variables:{"HAUS_STAY=1"}}
+        new window with configuration {initial working directory:item 1 of argv, command:item 2 of argv, environment variables:{"HAUS_STAY=1"}}
     end tell
 end run
 OSA
@@ -64,7 +73,7 @@ else
   osascript - "$cwd" "$shell" <<'OSA' >/dev/null 2>&1
 on run argv
     tell application "Ghostty"
-        new window with configuration {initial working directory:item 1 of argv, command:(item 2 of argv) & " --login"}
+        new window with configuration {initial working directory:item 1 of argv, command:item 2 of argv}
     end tell
 end run
 OSA

@@ -1040,7 +1040,7 @@
     "terminal": {
       "blurb": "The shell and terminal experience.",
       "kind": "room",
-      "optionCount": 8,
+      "optionCount": 6,
       "options": {
         "haus.terminal.editor": {
           "desktopSafe": false
@@ -1059,12 +1059,6 @@
         },
         "haus.terminal.obsidianVaults": {
           "desktopSafe": false
-        },
-        "haus.terminal.rightClickFullscreen": {
-          "desktopSafe": true
-        },
-        "haus.terminal.zellijStartLocked": {
-          "desktopSafe": true
         }
       },
       "order": 70,
@@ -1400,7 +1394,7 @@
         "zen",
         "developer"
       ],
-      "optionCount": 20,
+      "optionCount": 18,
       "order": 40,
       "title": "Development"
     },

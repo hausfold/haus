@@ -2,103 +2,58 @@
 # lane-cwd.sh — "which directory is the focused window looking at?"
 #
 # The shared half of every window-layer chord. A zellij bind inherited the
-# focused pane's directory for free; a chord bound outside it (⌘↵'s
-# lane-spawn.sh, ⌘N/⌘⇧N's shell-here) has no directory at all, so it has to
-# ask. The window TITLE is the join in both worlds:
+# focused pane's directory for free; a chord bound outside the terminal (⌘↵'s
+# lane-spawn.sh, ⌘N/⌘⇧N's shell-here, ⌘Y's peek, ⌘B, ⌃⌥⇧A) has no directory at
+# all, so it has to ask.
 #
-#   holt.<repo>.<lane>   a zmx lane window. lane-open.sh forced that title, and
-#                        `zmx ls` reports that session's cwd.
-#   <session name>       a zellij window — ghostty shows the zellij session name
-#                        (verified: `aerospace list-windows` prints "Ghostty|main").
-#                        `zellij action dump-layout` then carries the focused
-#                        pane's LIVE cwd, not its launch cwd: a pane that
-#                        chdir'd reports where it is now.
+# The answer is one hop past scripts/focused-session.sh, which does the hard
+# half — window → zmx session, by forced title for a lane and by the `window=`
+# label for everything else. `zmx ls` then reports that session's directory.
 #
-# Anything else — a browser, Finder, a plain shell — has no repo to speak of and
-# prints NOTHING; the caller picks its own fallback, because "from anywhere"
-# beats a refusal and what "anywhere" should mean differs per chord.
+# A window with no session — a browser, Finder, the quick terminal — prints
+# NOTHING; the caller picks its own fallback, because "from anywhere" beats a
+# refusal and what "anywhere" should mean differs per chord.
 #
 # stdout: the directory, or empty. Exit 0 either way.
 set -u
 
 export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/bin:/bin${PATH:+:$PATH}"
 
-focused() { aerospace list-windows --focused --format "$1" 2>/dev/null; }
+command -v zmx >/dev/null 2>&1 || exit 0
 
-title="$(focused '%{window-title}')"
-app="$(focused '%{app-name}')"
-cwd=""
+sess="$("$HOME/.config/haus/term/focused-session.sh" 2>/dev/null)"
+[ -n "$sess" ] || exit 0
 
-# ── a zmx lane window ────────────────────────────────────────────────────────
-case "$title" in
-  holt.*)
-    if command -v zmx >/dev/null 2>&1; then
-      # `zmx ls` is tab-separated k=v. The directory field is `start_dir` (zmx
-      # 0.7.0); older zmx called it `cwd` and wrapped it in a file:// URL with
-      # the host in it, so both spellings are accepted and the URL prefix is
-      # stripped when present. Reading only `cwd` is what silently broke ⌘↵:
-      # no directory came back, the chord fell through to $HOME, and $HOME
-      # isn't a git repo. The bar's agents.sh parses the same two shapes.
-      cwd="$(
-        zmx ls 2>/dev/null | awk -F'\t' -v want="$title" '
-          {
-            name = ""; c = ""
-            for (i = 1; i <= NF; i++) {
-              p = index($i, "=")
-              if (p == 0) { gsub(/^[ \t]+|[ \t]+$/, "", $i); if (name == "") name = $i; continue }
-              k = substr($i, 1, p - 1); gsub(/^[ \t]+|[ \t]+$/, "", k)
-              # zmx marks rows in the FIRST field ("→ ** name=…" for the
-              # session you are attached to), so the first key arrives with
-              # that marker glued to it. Drop anything before the last run of
-              # marker/space characters or the key never matches and the lane
-              # you pressed ⌘↵ from is the one row that fails to resolve.
-              sub(/^[^A-Za-z_]*/, "", k)
-              if (k == "name") name = substr($i, p + 1)
-              if (k == "start_dir") c = substr($i, p + 1)
-              else if (k == "cwd" && c == "") c = substr($i, p + 1)
-            }
-            if (name == want && c != "") { sub(/^file:\/\/[^\/]*/, "", c); print c; exit }
-          }
-        '
-      )"
-    fi
-    ;;
-esac
-
-# ── a zellij window ──────────────────────────────────────────────────────────
-# The title is the session name. Panes carry a cwd RELATIVE to the layout's own
-# `cwd`, exactly one tab is focus=true and exactly one pane inside it is, so the
-# answer is "the focused pane of the focused tab" — the depth tracking is what
-# stops a focused pane in some other tab from winning.
-if [ -z "$cwd" ] && [ "$app" = "Ghostty" ] && [ -n "$title" ] && command -v zellij >/dev/null 2>&1; then
-  cwd="$(
-    zellij --session "$title" action dump-layout 2>/dev/null | awk '
-      BEGIN { depth = 0; tabdepth = -1; base = ""; found = "" }
-      /^[ \t]*cwd[ \t]+"/ && base == "" {
-        line = $0; sub(/^[ \t]*cwd[ \t]+"/, "", line); sub(/".*$/, "", line); base = line
+# `zmx ls` is tab-separated k=v, with two traps that every copy of this parse
+# (scripts/focused-session.sh, scripts/find.sh, scripts/launch.sh, the bar's
+# agents.sh, the palette's lanes.sh) has to handle:
+#
+#   · The directory field is `start_dir` in zmx 0.7.0; older zmx called it `cwd`
+#     and wrapped it in a file:// URL with the host in it. Both spellings are
+#     accepted and the URL prefix is stripped when present. Reading only `cwd`
+#     is what silently broke ⌘↵ once: no directory came back, the chord fell
+#     through to $HOME, and $HOME isn't a git repo.
+#   · zmx marks rows in the FIRST field ("→ ** name=…" for the session you are
+#     attached to), so that row's first key arrives with the marker glued to it.
+#     Strip everything before the key proper, or the session you pressed the
+#     chord IN is the one row that fails to resolve.
+cwd="$(
+  zmx ls 2>/dev/null | awk -F'\t' -v want="$sess" '
+    {
+      name = ""; c = ""
+      for (i = 1; i <= NF; i++) {
+        p = index($i, "=")
+        if (p == 0) continue
+        k = substr($i, 1, p - 1); gsub(/^[ \t]+|[ \t]+$/, "", k)
+        sub(/^[^A-Za-z_]*/, "", k)
+        if (k == "name") name = substr($i, p + 1)
+        if (k == "start_dir") c = substr($i, p + 1)
+        else if (k == "cwd" && c == "") c = substr($i, p + 1)
       }
-      {
-        if ($0 ~ /^[ \t]*tab[ \t]/ && $0 ~ /focus=true/) tabdepth = depth
-        if (tabdepth >= 0 && found == "" && $0 ~ /^[ \t]*pane/ && $0 ~ /focus=true/) {
-          if (match($0, /cwd="[^"]*"/)) found = substr($0, RSTART + 5, RLENGTH - 6)
-          else found = "."
-        }
-        n = gsub(/\{/, "{"); depth += n
-        n = gsub(/\}/, "}"); depth -= n
-        # <=, not <: tabdepth is recorded BEFORE the opening line s braces are
-        # counted, so at the tab s closing brace depth is back to tabdepth
-        # exactly. With < this never fired, and only zellij marking one
-        # focus=true pane in the whole dump kept that from mattering.
-        if (tabdepth >= 0 && depth <= tabdepth) tabdepth = -1
-      }
-      END {
-        if (found == "" || found == ".") { print base; exit }
-        if (found ~ /^\//) { print found; exit }
-        print base "/" found
-      }
-    '
-  )"
-fi
+      if (name == want && c != "") { sub(/^file:\/\/[^\/]*/, "", c); print c; exit }
+    }
+  '
+)"
 
 [ -n "$cwd" ] && [ -d "$cwd" ] && printf '%s\n' "$cwd"
 exit 0

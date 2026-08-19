@@ -51,7 +51,7 @@ xattr -d com.apple.quarantine "$runner" 2>/dev/null || true
 cleanup() { rm -f -- "$runner"; }
 trap cleanup EXIT
 
-exec "$HOME/.config/zellij/float-term.sh" spawn \
+exec "$HOME/.config/haus/term/float-term.sh" spawn \
   --title quick-terminal-settings \
   --w 750 --h 400 --cols 80 --rows 20 \
   --pin \

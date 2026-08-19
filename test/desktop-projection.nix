@@ -94,14 +94,6 @@ let
       "editorName"
     ]
     [
-      "terminal"
-      "rightClickFullscreen"
-    ]
-    [
-      "terminal"
-      "zellijStartLocked"
-    ]
-    [
       "focus"
       "enable"
     ]

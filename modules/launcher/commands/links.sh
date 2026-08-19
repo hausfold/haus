@@ -1,21 +1,20 @@
 #!/bin/bash
 # pounce: name = Links
-# pounce: description = Open a URL from the focused pane's Claude transcript
+# pounce: description = Open a URL from the focused window's Claude transcript
 # pounce: icon = link
 # pounce: submenu = true
 
-# Links: every URL the focused zellij pane has ever seen, newest first, in a
-# pounce picker — ⏎ opens the pick in the browser.
+# Links: every URL the focused window has ever seen, newest first, in a pounce
+# picker — ⏎ opens the pick in the browser.
 #
 # Where the URLs come from, in preference order:
-#   1. The pane's Claude Code session TRANSCRIPT (the whole session, including
+#   1. The window's Claude Code session TRANSCRIPT (the whole session, including
 #      URLs inside collapsed tool outputs and things that scrolled away hours
-#      ago). The pane → transcript join is maintained by the statusline
+#      ago). The session → transcript join is maintained by the statusline
 #      (modules/core/statusline.sh writes pane-transcripts.tsv on every render —
-#      it's the one process that knows both $ZELLIJ_PANE_ID and the transcript
-#      path), so this map only exists for panes running Claude Code.
-#   2. Fallback for any other pane: `zellij action dump-screen --full` — the
-#      pane's full scrollback.
+#      it's the one process that knows both $ZMX_SESSION and the transcript
+#      path), so this map only exists for windows running Claude Code.
+#   2. Fallback for any other window: `zmx history` — its whole scrollback.
 #
 # GitHub PR/issue links get real details (title, open/closed/merged) via
 # `gh api` — fetched in parallel, capped at ~2s total and cached by gh for an
@@ -23,22 +22,14 @@
 #
 # Gotchas encoded here:
 #   - The pounce daemon spawns commands on launchd's bare PATH → resolve
-#     zellij/gh/jq explicitly (same prelude as reload-bar.sh).
-#   - `zellij action` from outside a session needs -s and must NOT see a
-#     $ZELLIJ from a testing shell, hence `env -u ZELLIJ`.
-#   - list-clients prints pane ids as "terminal_88"; $ZELLIJ_PANE_ID inside the
-#     pane is bare "88" — strip the prefix to join against the map.
-#   - list-clients' RUNNING_COMMAND is the pane's *deepest foreground* process,
-#     NOT what you launched: a Claude Code pane routinely reports sourcekit-lsp,
-#     node, bash or rg. Never gate the transcript lookup on it matching
-#     "claude" — presence in the map is the only reliable "this is a Claude
-#     pane" signal, and a stale entry is covered by the fallback below.
-#   - dump-screen dumps the FOCUSED pane, which is exactly the one we want:
-#     the palette is an NSPanel, it never steals zellij focus. Pass -p anyway so
-#     the dump can't drift to another pane between the two zellij calls.
-#   - dump-screen takes `--path FILE` (or prints to STDOUT); it has NO positional
-#     file argument — passing one makes zellij 0.44 exit with a usage error and
-#     leaves an empty dump, i.e. a silent "No links found".
+#     zmx/gh/jq explicitly (same prelude as reload-bar.sh).
+#   - WHICH window did the user mean? The palette is an NSPanel, so it never
+#     takes focus away from the terminal — the focused window at this instant is
+#     the one the chord was pressed in. scripts/focused-session.sh turns that
+#     into a session name; see its header for the two joins.
+#   - A window with no session (a browser was frontmost, or zmx isn't running)
+#     is a real case, not an error state: say so in the picker rather than
+#     showing an empty list, which reads as "this file has no links".
 
 export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
 
@@ -59,18 +50,14 @@ extract_urls() {
   grep -oE 'https?://[^][:space:]<>"'\''`)]+' | sed -E 's/[.,;:!?]+$//'
 }
 
-sess=$(env -u ZELLIJ zellij list-sessions -n 2>/dev/null | grep -v EXITED | head -1 | awk '{print $1}')
+sess=$("$HOME/.config/haus/term/focused-session.sh" 2>/dev/null)
 if [ -z "$sess" ]; then
-  printf 'No zellij session\t(nothing to scan)\txmark.circle\n' | pounce
+  printf 'No terminal window focused\t(nothing to scan)\txmark.circle\n' | pounce
   exit 0
 fi
 
-# Focused pane: one attached client → one data row. $2 is the pane id.
-pane=$(env -u ZELLIJ zellij -s "$sess" action list-clients 2>/dev/null | awk 'NR==2{print $2}')
-pane=${pane#terminal_}
-
 transcript=""
-[ -f "$MAP" ] && transcript=$(awk -F'\t' -v id="$pane" '$1==id{t=$2} END{print t}' "$MAP")
+[ -f "$MAP" ] && transcript=$(awk -F'\t' -v id="$sess" '$1==id{t=$2} END{print t}' "$MAP")
 
 urls=""
 if [ -n "$transcript" ] && [ -f "$transcript" ]; then
@@ -81,11 +68,13 @@ if [ -n "$transcript" ] && [ -f "$transcript" ]; then
     "$transcript" 2>/dev/null | extract_urls)
 fi
 
-# Scrollback fallback: no map entry (not a Claude pane), a stale entry pointing
-# at a transcript that's since been removed, or a transcript that simply has no
-# URLs in it. Cheaper to just try than to prove which case we're in.
+# Scrollback fallback: no map entry (not a Claude window), a stale entry
+# pointing at a transcript that's since been removed, or a transcript that
+# simply has no URLs in it. Cheaper to just try than to prove which case we're
+# in. `zmx history` is the whole scrollback, not one screenful — which is more
+# than `dump-screen --full` ever gave, and free.
 if [ -z "$urls" ]; then
-  urls=$(env -u ZELLIJ zellij -s "$sess" action dump-screen --full ${pane:+-p "$pane"} 2>/dev/null | extract_urls)
+  urls=$(zmx history "$sess" 2>/dev/null | extract_urls)
 fi
 
 # Newest first, dedupe on first (= most recent) occurrence, drop noise, cap.

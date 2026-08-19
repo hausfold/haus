@@ -106,7 +106,7 @@
   #   homebrew.casks = [ "some-cask" ];
 
   # The shell/terminal layer ships in the `terminal` module (zsh, starship, git,
-  # yazi, zellij, ghostty — all Nebelung-themed). To add YOUR personal bits on
+  # yazi, ghostty, helix — all Nebelung-themed). To add YOUR personal bits on
   # top (extra packages, private aliases, the rare env var every shell needs),
   # extend home-manager — per-project secrets belong in secretspec instead:
   #
