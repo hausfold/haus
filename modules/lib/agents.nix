@@ -20,7 +20,8 @@
 # is a `holt` spec: the id is what `ai.default` is typed against, and a default
 # holt can't spawn is the dead-pane failure `ai.clients` exists to end.
 #
-# And two tables in terminal are keyed BY these ids rather than derived from them,
+# And two tables in the AI room (modules/ai/default.nix) are keyed BY these ids
+# rather than derived from them,
 # because their values are per-client facts this list can't hold: `agentHomes`
 # (where that client keeps its instructions file and its skills dir) and
 # `clientScopeNote` (which of its own files the rice does NOT own). A client

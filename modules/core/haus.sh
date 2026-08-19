@@ -2493,7 +2493,7 @@ cmd_doctor() {
   echo
   say "Agents"
   # The skill lands once per installed client, each in the directory that client
-  # scans (terminal's agentHomes). Report the first one found rather than the
+  # scans (the AI room's agentHomes). Report the first one found rather than the
   # Claude path alone: on a codex-only machine that path is legitimately absent,
   # and saying "no skill" there sent people to set an option already true.
   local skilldir=""

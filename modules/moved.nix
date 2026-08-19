@@ -39,6 +39,18 @@
     # would be permanent furniture protecting nobody. It would also defeat the
     # point — the whole change is that those words stop appearing.
 
+    # 2026-08-19 — `jcode` is no longer a coding-agent client the layer knows
+    # about, so it leaves modules/lib/agents.nix and with it the enums of
+    # `haus.ai.clients`, `haus.ai.default` and `haus.bar.aiUsage.provider`.
+    # A host still naming it gets the module system's own enum error.
+    #
+    # No entry, for the same renderer reason the zellij removal gives below —
+    # and a narrower one besides: this is a removed VALUE, not a removed
+    # option. `mkRemovedOptionModule` has nothing to point at; the option is
+    # still here, it just accepts three names instead of four. Nothing shipped
+    # ever set it: no desktop named jcode, and the one consumer's host had it
+    # commented out.
+
     # 2026-08-19 — zellij is gone, and the two options that described its
     # in-pane behaviour go with it: `terminal.zellijStartLocked` (boot into
     # Locked input mode) and `terminal.rightClickFullscreen` (a bare
