@@ -972,6 +972,39 @@ let
     else
       userWidgetBlock sb side name;
 
+  # ---- what a widget may be called -------------------------------------------
+  # The item ids the bar draws WITHOUT going through the widget table, so a
+  # widget may not claim one. They come from three places, none of which the
+  # emission above can see: the hand-written left side of sketchybarrc (the
+  # logo, the front app, the workspace and launcher pill prefixes, the position
+  # and aerospace watchers), the tour's own pill, and `ai_usage` — which is
+  # `aiUsage` renamed by `itemId`, so the collision is with a name that never
+  # appears in the widget table at all.
+  #
+  # A prefix rather than a name for `space.` and `launcher.`: those are emitted
+  # one per workspace (`space.T`, `launcher.g`), so the reserved thing is the
+  # namespace. A widget name may not contain a dot in any case, which is what
+  # makes checking the prefix alone enough.
+  reservedItemIds = [
+    "haus"
+    "front_app"
+    "empty_workspace"
+    "last_closed_app"
+    "aerospace_watcher"
+    "bar_position"
+    "tour"
+    "space"
+    "launcher"
+    "ai_usage"
+  ];
+  # A SketchyBar item id as it has to survive being written into a generated
+  # shell script as a bare word: no space (which would split into item + group),
+  # no dot (which is how SketchyBar spells a popup child and how the bar spells
+  # its per-workspace pills), nothing that could be shell syntax.
+  validWidgetName =
+    name:
+    builtins.match "[A-Za-z0-9][A-Za-z0-9_-]*" name != null && !(builtins.elem name reservedItemIds);
+
   # Is the room BEHIND this pill actually here? A pill the bar draws for another
   # room is that room's feature (modules/lib/contrib.nix): the bar owns where it
   # sits and how it looks, the source room owns whether there is anything to
@@ -1437,7 +1470,32 @@ lib.mkIf config.haus.bar.enable {
           builtins.filter (name: onBottom name && !cfg.bottom.enable && widgets.${name}.enable) (
             builtins.attrNames widgets
           )
-        );
+        )
+    ++
+      # A name SketchyBar cannot address, or one already spoken for.
+      #
+      # A widget's name is not a label: it is the item id in every generated
+      # `--add item <name> <side>` line, and those are bare words in a shell
+      # script. `widgets."my widget"` emits `--add item my widget right`, which
+      # SketchyBar reads as the item `my` in the group `widget` — no error, no
+      # log line, just a pill that never appears and a `right` that silently
+      # became something else. The desktop seam already refuses this shape
+      # (`plainId`, in modules/lib/desktop.nix) but only for a DESKTOP; a host
+      # reaches the same option down a path that had no check at all.
+      #
+      # The reserved half is the same failure by a different route. The bar's
+      # own rc hand-writes the left side (the logo, the front app, the workspace
+      # and launcher pills) and the tour, and `aiUsage` is drawn under the id
+      # `ai_usage` — none of which is a widget, so nothing above would notice a
+      # widget claiming one of those names and quietly colliding with it.
+      map (name: {
+        assertion = false;
+        message =
+          if builtins.elem name reservedItemIds then
+            "haus.bar.widgets.${name} claims an item id the bar already draws for itself (${lib.concatStringsSep ", " reservedItemIds}) — the logo, the front app, the workspace and launcher pills, the tour, and the id the aiUsage pill is drawn under. Two items of one name on one bar collide silently. Pick another name."
+          else
+            "haus.bar.widgets.\"${name}\" is not a usable pill name. A widget's name becomes the SketchyBar item id in `--add item <name> <side>`, which is a bare word in a generated shell script — a space or a dot there silently changes which item and which group the bar hears. Use letters, digits, `_` and `-`, starting with a letter or digit.";
+      }) (builtins.filter (name: !(validWidgetName name)) userWidgetNames);
 
   # ---- the bundled pills, pre-declared as widgets -----------------------------
   # Every pill this repo ships exists in `haus.bar.widgets` on every machine,
