@@ -6,14 +6,15 @@
 # The heir of zellij's Super n. Pounce's Ghostty-scoped ⌘N fires
 # `cmd:shell-here` and the spawned thing is a window rather than a pane —
 # everything else about the chord survives (with the agent clients off this
-# script isn't installed at all, same as focus.sh, and ⌘N falls back to
-# zellij's NewPane):
+# script isn't installed at all, same as focus.sh, and ⌘N is simply dead —
+# Ghostty's config unbinds it rather than falling back to its own new_window,
+# which knows nothing about "here"):
 #
-#   · the cwd is the focused window's, asked of zmx or zellij by lane-cwd.sh
-#     (the same resolver ⌘↵'s lane-spawn.sh uses)
+#   · the cwd is the focused window's, asked of zmx by lane-cwd.sh (the same
+#     resolver ⌘↵'s lane-spawn.sh uses)
 #   · the "no place for a human shell" hop OUT of an agent worktree still
-#     happens, because it lives in terminal's zshrc, not in zellij — the fresh
-#     login shell fires it wherever it's born
+#     happens, because it lives in terminal's zshrc — the fresh login shell
+#     fires it wherever it's born
 #   · --stay (⌘⇧N, via shell-here-stay.sh) still suppresses that hop, now as
 #     HAUS_STAY=1 in the WINDOW's environment. This is why the spawn is
 #     AppleScript (`surface configuration` carries `environment variables`)
@@ -44,8 +45,9 @@ cwd=""
 [ -n "$cwd" ] && [ -d "$cwd" ] || cwd="$HOME"
 
 # An explicit login shell, NOT the ghostty-config default command: that default
-# is zellij/launch.sh, which would attach this window to the `main` zellij
-# session — the exact thing a window-per-shell flow is walking away from.
+# is terminal's scripts/launch.sh, which would claim a `term.<n>` zmx session
+# for it. A ⌘N window is spawned to be worked in and closed; the launcher's
+# session recycling exists for the windows Ghostty opens on its own.
 shell="${SHELL:-/bin/zsh}"
 
 # The window AeroSpace sees before this one, so the tile poll below can tell

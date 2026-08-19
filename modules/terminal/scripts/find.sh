@@ -1,130 +1,108 @@
 #!/bin/bash
-# find.sh — ⌘F (this pane) and ⌘⇧F (every pane): full-text search across
-# the zellij session, in a floating overlay, live as you type.
+# find.sh — ⌘F (this window) and ⌘⇧F (every window): full-text search across
+# every zmx session, in a floating overlay, live as you type.
 #
-# WHY THIS ISN'T JUST `SwitchToMode "EnterSearch"`
+# WHY THIS EXISTS AT ALL
 #
-# zellij's native search is excellent — for a shell pane. It is useless for the
-# panes you most want to search: terminal seeds Claude Code with `tui =
-# "fullscreen"` (modules/terminal/default.nix), so an agent pane renders in the
-# ALT-SCREEN, which by definition has no scrollback. Native search there sees
-# exactly the one screenful in front of you, and `dump-screen --full` returns
-# the same. For those panes the session TRANSCRIPT is the only real corpus —
-# and it's a better one anyway: complete, not truncated at scroll_buffer_size,
-# and it still holds what was inside collapsed tool output.
+# Ghostty has no find. It also has no way to be ASKED for one: its AppleScript
+# API can create and focus a surface but cannot read a single character back —
+# no dump-screen, no scrollback, no text property. The corpus therefore comes
+# from zmx, which is exactly why every window runs inside a session
+# (scripts/launch.sh). This overlay is the reason that design decision was made,
+# not a consumer that happened to find it useful.
 #
-# zellij also has no cross-pane search of any kind, so ⌘⇧F has nothing native
-# to sit on regardless.
+# It also has to exist for the windows you most want to search: terminal seeds
+# Claude Code with `tui = "fullscreen"` (modules/terminal/default.nix), so an
+# agent renders in the ALT-SCREEN, which by definition has no scrollback. For
+# those the session TRANSCRIPT is the only real corpus — and it is a better one
+# anyway: complete, and it still holds what was inside collapsed tool output.
 #
-# So: one overlay, both keys, both pane kinds. Native search stays reachable on
-# its own path (Ctrl g → scroll → `/`, see config.kdl) for in-place n/N
-# highlighting, which the overlay deliberately does not try to replace.
-#
-# WHERE THE TEXT COMES FROM, per pane
-#   Claude pane   → its Claude Code transcript, via claude-statusline's pane →
-#     transcript map (modules/core/statusline.sh writes pane-transcripts.tsv on
-#     every render — it's the one process that knows both $ZELLIJ_PANE_ID and
-#     the transcript path). Same join the Links picker uses.
-#   Opencode pane → that conversation's rows in opencode's SQLite history, via
-#     the `.session` file agent-state writes (its plugin runs inside the
-#     opencode server process, so it inherits $ZELLIJ_PANE_ID the same way),
-#     falling back to a match on the session's recorded directory. See
+# WHERE THE TEXT COMES FROM, per session
+#   Claude window   → its Claude Code transcript, via claude-statusline's
+#     session → transcript map (modules/core/statusline.sh writes
+#     pane-transcripts.tsv on every render — it's the one process that knows
+#     both $ZMX_SESSION and the transcript path). Same join the Links picker uses.
+#   Opencode window → that conversation's rows in opencode's SQLite history, via
+#     the `convo` LABEL agents-hook.sh sets on the session (its plugin runs
+#     inside the opencode server process, so it inherits $ZMX_SESSION the same
+#     way), falling back to a match on the session's recorded directory. See
 #     opencode_session / render_opencode.
-#   any other pane → `zellij action dump-screen --full -p <id>`, the pane's
-#     whole scrollback. That includes CODEX panes: it reports pane state through
+#   any other       → `zmx history <session>`, the whole scrollback. That is
+#     MORE than the old zellij path gave: `dump-screen --full` was capped at
+#     scroll_buffer_size. It includes CODEX windows: Codex reports state through
 #     agent-state like the others, but passes no conversation id and this repo
 #     knows no on-disk history path for it, so there is nothing to join to.
-#     It also includes JCODE panes today, but for a different reason and not
+#     It also includes JCODE windows today, but for a different reason and not
 #     for long: the join already exists — agent-state reads
 #     `JCODE_HOOK_SESSION_ID` out of the hook environment and writes the same
-#     `.session` sibling opencode gets — and what is missing is the RENDERER for
-#     jcode's own session store under `~/.jcode`. Until one exists a jcode pane
-#     falls through to scrollback, which for an alt-screen TUI is one screenful.
+#     `convo` label opencode gets — and what is missing is the RENDERER for
+#     jcode's own session store under `~/.jcode`. Until one exists a jcode
+#     window falls through to scrollback, which for an alt-screen TUI is one
+#     screenful.
 #
-# WHICH PANE DID THE USER MEAN (the non-obvious part)
+# WHICH WINDOW DID THE USER MEAN
 #
-# A zellij keybind can only `Run` something, and running it opens a PANE, which
-# takes focus — so by the time this script starts, the *client's* focused pane
-# is this script's own launcher float. `list-clients` reports only that float
-# (zellij-org/zellij#4067), so it can't name the pane underneath.
+# The one that has focus. pounce's Ghostty-scoped tap fires this from the
+# daemon, and the palette panel never appears, so nothing has taken focus away
+# from the terminal by the time we run. scripts/focused-session.sh turns that
+# window into a session name — a lane by its forced title, anything else by the
+# `window=` label scripts/launch.sh stamps.
 #
-# `list-panes --json` can: it reports THIS TAB's panes with their own is_focused
-# flag, and the focused tiled pane keeps that flag while a floating pane is up.
-# So the launcher just reads it, synchronously, and never has to wait for focus
-# to come back:
+# This is a two-stage script and it stays two-stage, though the reason changed.
+# Under zellij, stage 1 ran inside a throwaway 1% pane and could not detach
+# anything (a `close_on_exit` pane's command exiting tears down its whole
+# process group, so a `nohup`ed helper was killed before its first line). Now
+# stage 1 runs in the pounce daemon, and the split is simply that the overlay is
+# a different process in a different window:
 #
-#   `launch`  runs in the 1% corner float: read the focused tiled pane, then
-#             open the overlay pane and exit (which closes the float).
-#   `ui`      runs inside the overlay pane: build the corpus, then fzf, driven
-#             by rg on every keystroke.
+#   `launch`  resolve the focused session, then spawn the overlay window.
+#   `ui`      runs inside the overlay: build the corpus, then fzf, driven by rg
+#             on every keystroke.
 #
-# NOTHING MAY BE DETACHED FROM THE LAUNCHER. This used to `nohup` a stage-2
-# helper and exit immediately, which never ran at all: when a `close_on_exit`
-# pane's command exits, zellij tears down its whole process group, and nohup
-# only blocks SIGHUP. The helper was killed before its first line — ⌘F opened a
-# 1% float for a few milliseconds and then, visibly, nothing. Anything that must
-# outlive the launcher has to be a zellij PANE (as the overlay is), not a
-# background child of it.
-#
-# The corpus is ALWAYS every pane, even for pane scope — scope is just which
-# subdirectory rg is pointed at. That makes the in-overlay scope toggle
-# (Ctrl-s) instant instead of a rebuild, which is the whole reason it's worth
-# having a toggle at all.
+# The corpus is ALWAYS every session, even for `this window` scope — scope is
+# just which subdirectory rg is pointed at. That makes the in-overlay scope
+# toggle (Ctrl-s) instant instead of a rebuild, which is the whole reason it is
+# worth having a toggle at all.
 #
 # Gotchas encoded here:
-#   - Commands spawned from a zellij bind inherit a thin PATH; resolve
-#     zellij/jq/rg/fzf off an explicit one (same prelude as links.sh).
-#     That PATH sees ONLY the nix profiles, so every one of those has to be a
-#     real installed binary — a shell alias or a bare store path that happens to
-#     work in an interactive shell is invisible here. `rg` shipped missing
-#     exactly this way once (modules/core declares it in the toolbelt now); the
-#     preflight in cmd_ui is what stops that from ever looking like "no hits".
-#   - `zellij action` run from inside a pane must not see that pane's inherited
-#     $ZELLIJ — `env -u ZELLIJ` + an explicit `-s <session>`, or the action is
-#     routed at the pane rather than the session we resolved.
-#   - list-panes ids are bare integers; list-clients prints them as
-#     "terminal_88". Strip the prefix before joining against anything.
-#   - A pane's RUNNING_COMMAND is its DEEPEST FOREGROUND process, not what you
-#     launched — a Claude pane routinely reports node, rg or sourcekit-lsp.
-#     Never gate the transcript lookup on it; presence in the map is the only
-#     reliable "this is an agent pane" signal.
-#   - dump-screen takes `--path FILE` or prints to stdout; it has NO positional
-#     file argument (passing one makes zellij 0.44 exit with a usage error and
-#     leave an empty dump, i.e. a silent "no results").
-#   - `pane_frames false` does not apply to FLOATING panes: zellij frames every
-#     one of them, in the theme's frame_selected colour, with its own PIN hint.
-#     The overlay passes `--borderless true` so fzf's border is the only one on
-#     screen — see cmd_launch.
-#   - rg's `--colors path:none` does not stop rg EMITTING escapes around the
-#     path and line number under `--color=always`; it only clears their style.
-#     Parse the prefix off `--field-match-separator`, not off ':' — see cmd_rg.
+#   - The pounce daemon spawns commands on launchd's bare PATH; resolve
+#     zmx/jq/rg/fzf off an explicit one (same prelude as links.sh). That PATH
+#     sees ONLY the nix profiles, so every one of those has to be a real
+#     installed binary — a shell alias or a bare store path that happens to work
+#     in an interactive shell is invisible here. `rg` shipped missing exactly
+#     this way once (modules/core declares it in the toolbelt now); the preflight
+#     in cmd_ui is what stops that from ever looking like "no hits".
+#   - A session's RUNNING command is not what you launched — a Claude window
+#     routinely has node, rg or sourcekit-lsp in front. Never gate the
+#     transcript lookup on it; presence in the map is the only reliable "this is
+#     an agent" signal.
 #   - macOS's awk is BWK awk: no `\x` escapes (so `-F'\x01'` is the literal FS
 #     "x01"), no `length()` in characters, and byte-counting %-*s padding. Octal
-#     escapes, and pad-without-truncating, or a multi-byte tab name gets sliced.
+#     escapes, and pad-without-truncating, or a multi-byte label gets sliced.
 #   - VERSION FLOOR, and it fails invisibly. The overlay needs fzf ≳0.65
 #     (--footer, --footer-border, --ghost, --gutter, --highlight-line,
-#     --info=inline-right, --border-label-pos) and zellij 0.44 (`new-pane
-#     --borderless`). fzf rejects an unknown option and exits at once, and the
-#     pane is --close-on-exit, so on an older pin ⌘F flashes a pane and does
-#     nothing — the same silent shape the cmd_ui preflight exists to prevent,
-#     which only checks that the binaries EXIST, never which flags they take.
-#     Bump the floor here when you reach for a newer flag.
+#     --info=inline-right, --border-label-pos). fzf rejects an unknown option and
+#     exits at once, and the overlay window closes when its command does, so on
+#     an older pin ⌘F flashes a window and does nothing — the same silent shape
+#     the cmd_ui preflight exists to prevent, which only checks that the binaries
+#     EXIST, never which flags they take. Bump the floor here when you reach for
+#     a newer flag.
 
 set -u
 
 # Same prelude as links.sh, but $USER is defaulted: this runs under `set -u`,
-# and a detached process spawned off a zellij bind is not guaranteed to have it.
+# and a process spawned by the pounce daemon is not guaranteed to have it.
 export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/${USER:-$(id -un)}/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-# The overlay pane re-enters this same script, so it needs an absolute path to
+# The overlay window re-enters this same script, so it needs an absolute path to
 # it. Derive it from $0 rather than hardcoding the installed location, so a
-# worktree copy can be exercised end to end (launcher float → overlay pane)
-# without a rebuild; the installed path is the fallback.
+# worktree copy can be exercised end to end (launch → overlay) without a
+# rebuild; the installed path is the fallback.
 case "$0" in
     /*) SELF="$0" ;;
     *) SELF="$(cd "$(dirname "$0")" 2>/dev/null && pwd)/$(basename "$0")" ;;
 esac
-[ -x "$SELF" ] || SELF="$HOME/.config/zellij/find.sh"
+[ -x "$SELF" ] || SELF="$HOME/.config/haus/term/find.sh"
 CACHE_DIR="${CLAUDE_STATUSLINE_CACHE:-$HOME/.cache/claude-statusline}"
 MAP="$CACHE_DIR/pane-transcripts.tsv"
 # Rendered transcripts are cached by (size, mtime) so a repeat search on a
@@ -132,7 +110,7 @@ MAP="$CACHE_DIR/pane-transcripts.tsv"
 RENDER_CACHE="$HOME/.cache/haus/find/transcripts"
 # Opencode's history db. The filename moved between releases (`opencode.db` →
 # `opencode-stable.db`), so take whichever exists rather than pinning one and
-# silently degrading every opencode pane to scrollback after an upgrade.
+# silently degrading every opencode window to scrollback after an upgrade.
 # Empty when opencode isn't installed, or when sqlite3 isn't around to read it.
 OPENCODE_DB=""
 if command -v sqlite3 >/dev/null 2>&1; then
@@ -141,108 +119,105 @@ if command -v sqlite3 >/dev/null 2>&1; then
         [ -f "$_db" ] && OPENCODE_DB="$_db" && break
     done
 fi
-zj() { env -u ZELLIJ zellij -s "$SESSION" "$@"; }
-
-# ── stage 1: the 1% launcher float ──────────────────────────────────────────
-# Runs inside the throwaway float the keybind opens. Resolves the pane the user
-# was actually on, opens the overlay pane, and exits — which closes the float
-# and hands focus to the overlay.
-#
-# Everything here is synchronous ON PURPOSE: see the "nothing may be detached"
-# note in the header.
-cmd_launch() {
-    local scope="${1:-pane}"
-    SESSION="${ZELLIJ_SESSION_NAME:-}"
-    [ -n "$SESSION" ] ||
-        SESSION=$(env -u ZELLIJ zellij list-sessions -n 2>/dev/null |
-            grep -v EXITED | head -1 | awk '{print $1}')
-    [ -n "$SESSION" ] || exit 0
-
-    # The pane the user meant = this tab's focused TILED pane. `list-panes`
-    # (without --all, so: this tab) keeps reporting it as focused even while
-    # this launcher float sits on top of it, which is precisely the read
-    # `list-clients` cannot give — that one only ever names the float
-    # (zellij-org/zellij#4067). No polling, no waiting for focus to snap back.
-    local target
-    target=$(zj action list-panes --json 2>/dev/null |
-        jq -r 'first(.[] | select(.is_focused and (.is_floating | not)
-                                  and (.is_plugin | not)) | .id) // empty' 2>/dev/null)
-
-    local dir
-    dir=$(mktemp -d -t zellij-find) || exit 0
-    mkdir -p "$dir/src"
-    printf '%s\n' "$target" >"$dir/target"
-    printf '%s\n' "$SESSION" >"$dir/session"
-
-    # Scope falls back to session when we never pinned a target pane — an empty
-    # "this pane" search would just look broken.
-    [ -n "$target" ] || scope="session"
-
-    # Full-bleed, and BORDERLESS. Two reasons, both about chrome:
-    #
-    #   - zellij draws a frame on every FLOATING pane no matter what
-    #     `pane_frames false` says, in the theme's frame_selected colour (green,
-    #     from nebelung) and with its own "PIN [ ]" hint in the top right. That
-    #     frame plus fzf's own border meant two nested boxes and the word "find"
-    #     printed twice. `--borderless true` (zellij 0.44 `new-pane` flag) drops
-    #     zellij's, so fzf owns the one border there is — which is the only one
-    #     we can colour and label ourselves. The flag's documented cost is that
-    #     the pane can no longer be dragged with the mouse; a full-screen overlay
-    #     you dismiss with esc has nowhere to be dragged to.
-    #   - At 100%/100% the overlay simply IS the window (still a float, so the
-    #     tiled layout underneath is untouched and esc restores it instantly).
-    #     No need for yazi's escape-hatch-to-a-real-Ghostty-window trick — that
-    #     one is about image protocols zellij can't pass through, and nothing
-    #     here renders images.
-    zj action new-pane --floating --close-on-exit --borderless true \
-        --name find --x 0 --y 0 --width 100% --height 100% \
-        -- "$SELF" ui "$dir" "$scope" >/dev/null 2>&1
+# Every live zmx session, one per line: "<name>\t<dir>". The directory is under
+# either of the two names zmx has used for it — 0.7.0 prints `start_dir=<plain
+# path>` and no `cwd`; a newer one prints `cwd=file://Mac/Users/…` — so take
+# whichever is there and strip the URL scheme, which is a no-op on a plain path.
+zmx_sessions() {
+    zmx ls 2>/dev/null | awk -F'\t' '
+        {
+            name = ""; c = ""; sd = ""
+            for (i = 1; i <= NF; i++) {
+                p = index($i, "=")
+                if (p == 0) continue
+                k = substr($i, 1, p - 1); gsub(/^[ \t]+|[ \t]+$/, "", k)
+                if (k == "name")      name = substr($i, p + 1)
+                if (k == "cwd")       c    = substr($i, p + 1)
+                if (k == "start_dir") sd   = substr($i, p + 1)
+            }
+            if (name == "") next
+            if (c == "") c = sd
+            sub(/^file:\/\/[^\/]*/, "", c)
+            printf "%s\t%s\n", name, c
+        }'
 }
 
-# Dump every pane once. Agent panes render from their transcript, everything
-# else from full scrollback. Panes are dumped in parallel — dump-screen is a
-# cheap IPC round-trip, but a jq pass over a tens-of-MB transcript is not.
+# One session's labels as "k=v" lines. agents-hook.sh sets `convo` here; nothing
+# else in this script reads a label, so this stays a one-liner rather than
+# growing a parser.
+zmx_label() { # zmx_label <session> <key>
+    zmx get "$1" 2>/dev/null | tr '\t' '\n' |
+        sed -n "s/^ *$2=//p" | head -1
+}
+
+# ── stage 1: resolve the window, open the overlay ───────────────────────────
+# Runs in the pounce daemon (the ⌘F / ⌘⇧F appHotkeys target). Resolves the
+# session the user was looking at, drops it in a temp dir the overlay reads, and
+# spawns the overlay window.
+cmd_launch() {
+    local scope="${1:-pane}"
+
+    # The focused window's session. Nothing has stolen focus — pounce's panel is
+    # never shown for an appHotkeys chord — so this is the window the chord was
+    # pressed in. See scripts/focused-session.sh for the two joins.
+    local target
+    target="$("$(dirname "$SELF")/focused-session.sh" 2>/dev/null)"
+
+    local dir
+    dir=$(mktemp -d -t haus-find) || exit 0
+    mkdir -p "$dir/src"
+    printf '%s\n' "$target" >"$dir/target"
+
+    # Scope falls back to every-session when we never pinned a target — an empty
+    # "this window" search would just look broken.
+    [ -n "$target" ] || scope="session"
+
+    # A FLOATING window, matched to the frame of the window that summoned it, so
+    # find reads as that terminal switching into a search rather than as a popup
+    # landing somewhere over it. Under zellij this was a 100%/100% borderless
+    # floating PANE, for the same reason and with the same look; --pin lands it
+    # on the current workspace and force-floats it, since windows/aerospace.toml
+    # floats every runtime-spawned Ghostty window anyway.
+    #
+    # The overlay's own window has no zmx session (float-term runs the command
+    # directly, not through scripts/launch.sh), which is also why it never shows
+    # up in its own corpus — there is nothing to enumerate.
+    "$HOME/.config/haus/term/float-term.sh" spawn \
+        --title "find" \
+        --match-frontmost \
+        --pin \
+        --command "/bin/bash $SELF ui $dir $scope" >/dev/null
+}
+
+# Dump every session once. Agent sessions render from their transcript,
+# everything else from `zmx history`. Sessions are dumped in parallel — a
+# history read is a cheap socket round-trip, but a jq pass over a tens-of-MB
+# transcript is not.
 build_corpus() {
     local dir="$1"
     mkdir -p "$RENDER_CACHE"
 
-    # Our own two panes are not worth searching, so they're filtered out HERE
-    # rather than skipped in the loop below — the labeller downstream numbers
-    # same-named tabs, and it has to number the panes we actually index. (The
-    # launcher is usually gone by now and the overlay doesn't exist yet, but a
-    # Ctrl-s rebuild or a second ⌘F over an open overlay would catch them.)
-    zj action list-panes --all --json 2>/dev/null |
-        jq -r '.[] | select(.is_plugin == false)
-               | select((.title // "") | . != "find" and . != "find-launch")
-               | [(.id|tostring), (.tab_name // ""), (.title // ""), (.pane_cwd // "")] | @tsv' \
-            >"$dir/panes.raw" 2>/dev/null
-
+    zmx_sessions >"$dir/panes.raw"
     [ -s "$dir/panes.raw" ] || return 0
 
-    # Pane LABEL = the tab name, and nothing else.
+    # The LABEL is the session name, shortened.
     #
-    # It used to be "<tab>/<title>", which read `workshop/claude --worktree` on
-    # every single row: the title of an agent pane is its deepest foreground
-    # process, so it's the same three words for every agent pane in the session
-    # — and in `this pane` scope EVERY row carries the identical label, i.e.
-    # pure width spent on nothing. The tab name is the thing you'd actually
-    # navigate by. When a tab holds more than one indexed pane they ALL take a
-    # suffix — `workshop.1`, `workshop.2`, never a bare `workshop` beside a
-    # `workshop.2` — so the column names exactly one pane and a numbered row
-    # never reads as "the other one". ASCII on purpose: the padding downstream
-    # is awk's byte-counting %-*s.
-    awk -F'\t' '
-        { id[NR] = $1; tab[NR] = ($2 != "" ? $2 : "pane " $1); n[tab[NR]]++ }
-        END {
-            for (i = 1; i <= NR; i++) {
-                t = tab[i]; seen[t]++
-                printf "%s\t%s\n", id[i], (n[t] > 1 ? t "." seen[t] : t)
-            }
-        }' "$dir/panes.raw" >"$dir/labels.tsv"
+    # A lane is `holt.<repo>.<lane>`, and the `holt.` prefix is on every single
+    # one — pure width spent on nothing, in a column whose whole job is telling
+    # rows apart. `<repo>.<lane>` is what you would navigate by, and it is
+    # exactly the key the bar's popup joins holt on. A plain window keeps its
+    # `term.<n>` as-is: it is already short, and the number is the only thing
+    # distinguishing one shell from another.
+    #
+    # No de-duplication pass here, unlike the zellij version, which had to
+    # number `workshop.1`, `workshop.2` because several panes could share one
+    # tab name. A zmx session name is unique by construction.
+    awk -F'\t' '{ n = $1; sub(/^holt\./, "", n); printf "%s\t%s\n", $1, n }' \
+        "$dir/panes.raw" >"$dir/labels.tsv"
 
     : >"$dir/panes.tsv"
-    local id tab title cwd transcript ocsid kind label
-    while IFS=$'\t' read -r id tab title cwd; do
+    local id cwd transcript ocsid kind label
+    while IFS=$'\t' read -r id cwd; do
         [ -n "$id" ] || continue
 
         transcript=""
@@ -257,41 +232,38 @@ build_corpus() {
             render_opencode "$ocsid" "$dir/src/$id.txt" &
         else
             kind="shell"
-            zj action dump-screen --full -p "$id" >"$dir/src/$id.txt" 2>/dev/null &
+            zmx history "$id" >"$dir/src/$id.txt" 2>/dev/null &
         fi
 
         label=$(awk -F'\t' -v i="$id" '$1==i{l=$2} END{print l}' "$dir/labels.tsv")
-        printf '%s\t%s\t%s\n' "$id" "${label:-pane $id}" "$kind" >>"$dir/panes.tsv"
+        printf '%s\t%s\t%s\n' "$id" "${label:-$id}" "$kind" >>"$dir/panes.tsv"
     done <"$dir/panes.raw"
     wait
 }
 
-# Which opencode conversation, if any, is this pane showing?
+# Which opencode conversation, if any, is this session showing?
 #
 # Two routes, most-precise first:
-#   1. The `.session` file agent-state writes (modules/bar/sketchybar/plugins/
+#   1. The `convo` LABEL agents-hook.sh sets (modules/bar/sketchybar/plugins/
 #      agents-hook.sh). The opencode plugin runs inside the opencode server
-#      process, which is a child of the pane, so it inherits $ZELLIJ_PANE_ID and
+#      process, which is a child of the session, so it inherits $ZMX_SESSION and
 #      can report the id `chat.message` hands it. Exact, and correct even with
-#      two opencode panes on the same checkout.
+#      two opencode windows on the same checkout.
 #   2. Failing that, the newest non-archived session whose recorded `directory`
-#      IS this pane's cwd. Covers the pane that was already open before any of
-#      this shipped, and the one that hasn't sent a first message yet — both of
-#      which have no `.session` file and would otherwise fall to scrollback.
-#      Ambiguous if two opencode panes share a checkout; newest wins, which is
-#      the better half of a bad guess.
+#      IS this session's cwd. Covers the window that was already open before any
+#      of this shipped, and the one that hasn't sent a first message yet — both
+#      of which have no label and would otherwise fall to scrollback. Ambiguous
+#      if two opencode windows share a checkout; newest wins, which is the
+#      better half of a bad guess.
 #
-# Empty output (and non-zero) means "not an opencode pane", which is also what a
-# machine with no opencode at all returns on the very first test.
+# Empty output (and non-zero) means "not an opencode window", which is also what
+# a machine with no opencode at all returns on the very first test.
 opencode_session() {
-    local id="$1" cwd="$2" sf sid
+    local id="$1" cwd="$2" sid
     [ -n "$OPENCODE_DB" ] || return 1
 
-    sf="/tmp/haus-agents/${SESSION}__terminal_${id}.session"
-    if [ -f "$sf" ]; then
-        sid=$(cat "$sf" 2>/dev/null)
-        [ -n "$sid" ] && printf '%s' "$sid" && return 0
-    fi
+    sid=$(zmx_label "$id" convo)
+    [ -n "$sid" ] && printf '%s' "$sid" && return 0
 
     [ -n "$cwd" ] || return 1
     sid=$(sqlite3 "$OPENCODE_DB" \
@@ -381,28 +353,26 @@ render_transcript() {
     cp "$key" "$out" 2>/dev/null
 }
 
-# ── stage 3: the overlay ────────────────────────────────────────────────────
+# ── stage 2: the overlay ────────────────────────────────────────────────────
 cmd_ui() {
     local dir="$1" scope="${2:-pane}"
-    local target session
+    local target
     target=$(cat "$dir/target" 2>/dev/null)
-    session=$(cat "$dir/session" 2>/dev/null)
-    SESSION="$session" # what zj() routes at, for build_corpus below
 
     trap 'rm -rf "$dir"' EXIT
 
     # A missing tool here is otherwise INVISIBLE: fzf runs its reload bind in a
     # subshell whose stderr goes nowhere, so no `rg` means an overlay that opens,
     # accepts typing, and simply never matches anything — indistinguishable from
-    # "your search has no hits". Say so instead, and hold the pane open (it's
-    # --close-on-exit, so an unheld message would flash past).
+    # "your search has no hits". Say so instead, and hold the window open (Ghostty
+    # closes it when the command exits, so an unheld message would flash past).
     # A plain string, not an array: the shebang is /bin/bash, which on macOS is
     # still 3.2, where `${#arr[@]}` on an EMPTY array trips `set -u`.
     # bat is deliberately NOT in this list any more — cmd_preview renders the
     # context window with awk now. This list is the tools whose ABSENCE would be
     # invisible rather than loud, which is why it isn't every binary the script
-    # touches: awk, jq, zellij and sqlite3 also resolve off the PATH above, but
-    # awk is in every base system and the other three fail where you can see it.
+    # touches: awk, jq, zmx and sqlite3 also resolve off the PATH above, but awk
+    # is in every base system and the other three fail where you can see it.
     local missing="" tool
     for tool in rg fzf; do
         command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
@@ -417,12 +387,12 @@ cmd_ui() {
         exit 0
     fi
 
-    # The corpus is built HERE, in the overlay pane, not by the launcher: the
-    # launcher's process group dies with its float, and dumping a session's
-    # worth of panes is exactly the kind of work that would get killed halfway.
-    # It also means the overlay is on screen while it happens, so a multi-second
-    # index reads as "working" instead of as a keypress that did nothing.
-    printf '\n  indexing panes…\n'
+    # The corpus is built HERE, in the overlay, not in stage 1: stage 1 runs in
+    # the pounce daemon, and holding a keystroke handler open for a multi-second
+    # index is how a chord comes to feel broken. It also means the overlay is on
+    # screen while it happens, so the wait reads as "working" rather than as a
+    # keypress that did nothing.
+    printf '\n  indexing windows…\n'
     build_corpus "$dir"
 
     # Ctrl-s toggles scope by EXITING fzf and reopening it, not by fzf's
@@ -433,8 +403,8 @@ cmd_ui() {
     # --print-query lets the typed query survive the switch, which become
     # couldn't have done anyway.
     #
-    # The toggle is instant because the corpus already holds every pane in both
-    # scopes; scope is only which path rg is aimed at.
+    # The toggle is instant because the corpus already holds every session in
+    # both scopes; scope is only which path rg is aimed at.
     #
     # `start:reload` matters BECAUSE of that loop: --query restores the text you
     # had typed, but restoring a query is not a `change`, so the re-entered fzf
@@ -443,13 +413,13 @@ cmd_ui() {
     # toggle rather than a reset.
     #
     # ── the chrome ──────────────────────────────────────────────────────────
-    # ONE border, ours, drawn by fzf (the pane itself is --borderless; see
-    # cmd_launch). Everything the eye doesn't need is off:
+    # ONE border, ours, drawn by fzf — the window has none of its own
+    # (macos-titlebar-style = hidden). Everything the eye doesn't need is off:
     #
-    #   - The only title is the border's top-LEFT label, `find · this pane`.
-    #     It used to be centred while zellij's frame said "find" in its own
-    #     corner, so the word appeared twice; now the scope rides along with it
-    #     in the one place a title belongs.
+    #   - The only title is the border's top-LEFT label, `find · this window`.
+    #     It used to be centred while zellij's floating-pane frame said "find" in
+    #     its own corner, so the word appeared twice; now the scope rides along
+    #     with it in the one place a title belongs.
     #   - No --header. It sat above the list, so it was clipped to the list's
     #     width and the last hints were simply never readable. The same keys
     #     live in --footer, which is drawn against the bottom of the overlay and
@@ -472,7 +442,7 @@ cmd_ui() {
     #     overlay follows a flavour change for free, and no colour literal has to
     #     be smuggled into haus (they belong in the nebelung repo). 8 is the
     #     grey the border/footer want; 5 is the mauve accent.
-    #   - `${scoped_label}…`, braced. Zellij execs this command directly rather
+    #   - `${scoped_label}…`, braced. Ghostty execs this command directly rather
     #     than through a login shell, so LANG can be unset — and in the C locale
     #     bash reads the following ellipsis's UTF-8 bytes as MORE variable name
     #     and then dies under `set -u` on a name that doesn't exist. Brace every
@@ -501,14 +471,14 @@ cmd_ui() {
     # can least afford), and there is no width-keyed form to say the real thing.
     local preview_win='right,40%,border-left'
 
-    local out query key sel id line
+    local out query key sel id line win lw
     local fzf_color='fg:-1,bg:-1,fg+:-1,bg+:8,gutter:-1,border:8,label:5'
     fzf_color="$fzf_color,preview-border:8,prompt:5,pointer:5,query:-1"
     fzf_color="$fzf_color,info:8,spinner:5,footer:8,scrollbar:8"
 
     while :; do
-        local scoped_label="this pane" other="session"
-        [ "$scope" = "session" ] && scoped_label="every pane" other="pane"
+        local scoped_label="this window" other="session"
+        [ "$scope" = "session" ] && scoped_label="every window" other="pane"
 
         out=$(fzf \
             --ansi --disabled --no-sort --layout=reverse \
@@ -538,7 +508,7 @@ cmd_ui() {
     [ -n "$sel" ] || exit 0
     id=$(cut -f1 <<<"$sel")
     # Field 4 — the uncoloured, unpadded copy. Field 3 carries escape codes and
-    # (in `every pane` scope) a pane column, neither of which belongs on a
+    # (in `every window` scope) a label column, neither of which belongs on a
     # clipboard. See the field map above cmd_rg.
     line=$(cut -f4- <<<"$sel")
 
@@ -548,19 +518,30 @@ cmd_ui() {
     printf '%s' "$line" | pbcopy
     [ "$key" = "ctrl-y" ] && exit 0
 
-    # ⏎ — go to the pane the hit came from. focus-pane-with-id landed in zellij
-    # 0.44.1; on anything older it exits non-zero and the overlay simply closes,
-    # which is a fine floor for a key whose text you already have.
-    [ -n "$id" ] &&
-        env -u ZELLIJ zellij -s "$session" action focus-pane-with-id "$id" \
-            >/dev/null 2>&1
+    # ⏎ — go to the window the hit came from. Two joins, the same pair the bar's
+    # popup uses: a LANE window carries the session name as a forced title, and
+    # anything else is found through the `window=` label scripts/launch.sh
+    # stamps with the AeroSpace id it tiled. A detached session matches neither,
+    # and there is deliberately no third branch reopening a window for it — you
+    # asked to go to a hit, not to resurrect a terminal. The line is on the
+    # clipboard either way, which is the floor this key has always had.
+    if [ -n "$id" ]; then
+        win=$(aerospace list-windows --all --format '%{window-id}|%{app-name}|%{window-title}' 2>/dev/null |
+            awk -F'|' -v t="$id" '$2 == "Ghostty" && $3 == t { print $1; exit }')
+        if [ -z "$win" ]; then
+            lw=$(zmx_label "$id" window)
+            [ -n "$lw" ] && win=$(aerospace list-windows --all --format '%{window-id}' 2>/dev/null |
+                grep -Fx "$lw")
+        fi
+        [ -n "$win" ] && aerospace focus --window-id "$win" >/dev/null 2>&1
+    fi
     exit 0
 }
 
 # ── fzf helpers ─────────────────────────────────────────────────────────────
 # Emit four tab-separated fields, of which fzf DISPLAYS exactly one:
 #
-#   1 pane id    the ⏎ action's target
+#   1 session    the ⏎ action's target, and the corpus filename
 #   2 line no    where the preview scrolls to. Deliberately NOT on the row: it
 #                indexes a rendered transcript, so it means nothing anywhere
 #                outside this overlay, and it cost a column on all 2000 rows.
@@ -569,8 +550,8 @@ cmd_ui() {
 #                clipboard. It has to come AFTER the display field, since
 #                --with-nth can only take a single field or a contiguous tail.
 #
-# The pane column is drawn in `every pane` scope only. In `this pane` scope it
-# would be the same string on every row (see the labeller in build_corpus).
+# The label column is drawn in `every window` scope only. In `this window` scope
+# it would be the same string on every row (see the labeller in build_corpus).
 #
 # rg colours the MATCH itself (--color=always) rather than fzf doing it: fzf is
 # --disabled here, so it matches nothing and therefore highlights nothing, and
