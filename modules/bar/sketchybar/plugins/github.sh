@@ -23,7 +23,8 @@
 #   ci       the owner's repos, each one's default branch, that branch's head
 #            commit's check rollup. count = how many are FAILURE/ERROR; rows are
 #            those repos. This is the one search cannot do.
-#   command  an arbitrary command printing `<state>\t<text>[\t<url>]` per line.
+#   command  an arbitrary command printing `<state>\t<text>[\t<url>]` per line,
+#            state being one rung of the colour ladder below.
 #            count = the number of lines. The escape hatch, and deliberately a
 #            command rather than a query: it can do the fetching AND the shaping,
 #            and you can run it in a terminal to see why it is wrong.
@@ -35,12 +36,39 @@
 # head commit's checks came back as, and what the review landed on, and folds
 # those into one state — the same question GitHub's own merge box answers.
 #
+# ── the colour ladder ─────────────────────────────────────────────────────────
+# Five states, one hue each, and this ladder is the whole colour system — rows,
+# section headings and both halves of the pill all read off it:
+#
+#   mute   grey    no verdict. A draft, an issue rather than a PR, a
+#                  mergeability GitHub has not computed yet. Tints nothing.
+#   ok     green   green — and clear to merge, when it is also approved.
+#   busy   sky     checks still running. The tone the agents pill already
+#                  spends on "working": the machine has this one, not you.
+#   warn   peach   wants a human on THIS pull request — it conflicts, its own
+#                  checks came back red, or a reviewer asked for changes.
+#   bad    red     the DEFAULT BRANCH is red.
+#
+# Red meaning exactly one thing is the point of the ladder. A pull request of
+# yours with red checks is your branch's problem, not the repo on fire, so it
+# reads peach on the rung below — a red that fires for every work-in-progress
+# is a red you stop reading, and then the one that means "main is broken" has
+# nothing left to say. Red reaches the rest of the pill only where a HOST put
+# it there: a source declared `bad` (`severity`) paints its own count and its
+# section heading red — that is a host saying "this question is on the same
+# footing as a broken main" about a filter it wrote itself. A `command` source
+# is the one that can also print a red ROW, because it is arbitrary code and
+# its rows are its own claim rather than a verdict this plugin computed.
+#
 # That state colours the row's glyph, and the WORST state across every source
 # colours the pill's octocat, while the number keeps the colour of the source it
 # is counting. Two tones, because they are two different facts and collapsing
-# them loses one of them: painting the number red when one of five PRs conflicts
-# says "five bad things" when there is one, and leaving it neutral says nothing
-# is wrong at all. So the number is HOW MANY and the logo is HOW BAD.
+# them loses one of them: painting the number peach when one of five PRs
+# conflicts says "five bad things" when there is one, and leaving it neutral
+# says nothing is wrong at all. So the number is HOW MANY and the logo is HOW
+# BAD — green included, which is not a resting state here: with nothing open
+# there are no rows at all and the logo keeps the number's own grey, so a green
+# octocat only ever means "there is a queue, and every row in it is fine".
 #
 # `mergeable` is computed lazily by GitHub: a PR nobody has asked about comes
 # back UNKNOWN, and asking is what schedules the merge-commit test. That reads
@@ -163,20 +191,41 @@ tour_drawing() {
 # ── severity ──────────────────────────────────────────────────────────────────
 # One ordered scale for two related jobs: which SOURCE the pill speaks for
 # (those are `info`/`warn`/`bad`, what a host writes in the option) and how bad
-# a ROW is (those are `mute`/`ok`/`warn`/`bad`, what the merge verdict resolves
-# to, and the three a `command` source is allowed to print).
+# a ROW is (those are `mute`/`ok`/`busy`/`warn`/`bad` — the colour ladder in the
+# header, what the merge verdict resolves to, and the four a `command` source is
+# allowed to print).
 #
-# `mute` sits below `ok` on purpose. It is "no verdict" — a draft, an issue
-# rather than a PR, a mergeability GitHub has not computed yet — and a row with
-# nothing to say must never out-rank a row that came back green, or one draft in
-# the list would tint the pill for the whole queue.
+# The rungs are ordered by how much the row wants a HUMAN, which is not the same
+# as how alarming it looks:
+#
+#   `mute` sits below `ok` on purpose. It is "no verdict" — a draft, an issue
+#   rather than a PR, a mergeability GitHub has not computed yet — and a row with
+#   nothing to say must never out-rank a row that came back green, or one draft
+#   in the list would tint the pill for the whole queue.
+#
+#   `busy` sits ABOVE `ok`, because a queue with a run still going is not yet
+#   the queue you can act on, and one below `warn`, because a run in flight is
+#   the machine's turn and not yours.
+#
+#   `bad` is the top rung and it is reserved: a red default branch, or a source
+#   a host declared `bad` itself. Nothing a single pull request can do reaches
+#   it — see the header for why that reservation is the whole point.
+#
+# `info` is a SOURCE severity only, and it takes the rung BELOW `ok` rather than
+# sharing it. The two are only ever compared in one place — the dropdown's
+# section heading, which wears the worse of what the source is worth and what
+# its rows found — and a tie there would leave an `info` queue of entirely green
+# rows with a plain TEXT heading over a green octocat, i.e. the one corner of
+# the new system that didn't read off the ladder.
 #
 # `auth` and `error` are states rather than severities: they mean the number is
 # unknown, which is a different thing from the number being zero.
 sev_rank() {
   case "$1" in
-    bad) echo 3 ;;
-    warn) echo 2 ;;
+    bad) echo 5 ;;
+    warn) echo 4 ;;
+    busy) echo 3 ;;
+    ok) echo 2 ;;
     mute | none | '') echo 0 ;;
     *) echo 1 ;;
   esac
@@ -185,6 +234,7 @@ sev_color() {
   case "$1" in
     bad) echo "$RED" ;;
     warn) echo "$PEACH" ;;
+    busy) echo "$SKY" ;;
     ok) echo "$GREEN" ;;
     mute | none | '') echo "$OVERLAY0" ;;
     *) echo "$TEXT" ;;
@@ -211,7 +261,7 @@ US=$'\037'
 # cheaper than threading a running maximum through three different pipelines.
 rows_worst() { # rows_worst <rows>
   local s
-  for s in bad warn ok; do
+  for s in bad warn busy ok; do
     printf '%s\n' "$1" | grep -q "^row${US}${s}${US}" && { echo "$s"; return; }
   done
   echo none
@@ -278,6 +328,21 @@ fetch_search() { # fetch_search <index> <query> <limit>
   #   the one row in the list that means "you can press the button".
   #   Everything else — an Issue rather than a PR, a repo with no checks — is
   #   `mute`: a row with no verdict, which must not tint the pill.
+  #
+  #   Note the ceiling: the WORST rung a pull request can reach here is `warn`.
+  #   Conflicts and red checks used to be `bad`, which meant the pill's octocat
+  #   went the same red for "one of my branches is failing CI" as for "main is
+  #   broken" — and since the first is the normal state of a machine that opens
+  #   PRs all day, it made the second unreadable. `bad` is the ci source's now
+  #   (see the ladder in the header), and everything below it is a rung a PR
+  #   can actually climb.
+  #
+  #   Each verdict also carries its NAME, appended to the row's text in the
+  #   dropdown. Colour puts a row in a tier and the glyph says which member of
+  #   it, but "conflicts" and "changes requested" are peach with a similar mark
+  #   at 11pt — the word is what makes the row readable without a legend. Only
+  #   the verdicts worth acting on carry one; a plain green PR reads as its
+  #   title alone.
   rows=$(printf '%s' "$json" | jq -r \
     --arg conflict "$G_CONFLICT" --arg failed "$G_FAILED" --arg running "$G_RUNNING" \
     --arg changes "$G_CHANGES" --arg ready "$G_READY" --arg green "$G_GREEN" \
@@ -286,18 +351,19 @@ fetch_search() { # fetch_search <index> <query> <limit>
     | select(.url != null)
     | . as $n
     | (.commits.nodes[0].commit.statusCheckRollup.state // "NONE") as $ci
-    | (if $n.__typename != "PullRequest"                        then ["mute", $none]
-       elif $n.isDraft                                          then ["mute", $draft]
-       elif $n.mergeable == "CONFLICTING"                       then ["bad",  $conflict]
-       elif $ci == "FAILURE" or $ci == "ERROR"                  then ["bad",  $failed]
-       elif $ci == "PENDING" or $ci == "EXPECTED"               then ["warn", $running]
-       elif $n.reviewDecision == "CHANGES_REQUESTED"            then ["warn", $changes]
-       elif $n.mergeable == "UNKNOWN"                           then ["mute", $none]
-       elif $n.reviewDecision == "APPROVED" and $ci == "SUCCESS" then ["ok",  $ready]
-       elif $ci == "SUCCESS"                                    then ["ok",   $green]
-       else ["mute", $none] end) as [$state, $glyph]
+    | (if $n.__typename != "PullRequest"                        then ["mute", $none,     ""]
+       elif $n.isDraft                                          then ["mute", $draft,    "draft"]
+       elif $n.mergeable == "CONFLICTING"                       then ["warn", $conflict, "conflicts"]
+       elif $ci == "FAILURE" or $ci == "ERROR"                  then ["warn", $failed,   "checks red"]
+       elif $ci == "PENDING" or $ci == "EXPECTED"               then ["busy", $running,  "checks running"]
+       elif $n.reviewDecision == "CHANGES_REQUESTED"            then ["warn", $changes,  "changes requested"]
+       elif $n.mergeable == "UNKNOWN"                           then ["mute", $none,     ""]
+       elif $n.reviewDecision == "APPROVED" and $ci == "SUCCESS" then ["ok",  $ready,    "ready to merge"]
+       elif $ci == "SUCCESS"                                    then ["ok",   $green,    ""]
+       else ["mute", $none, ""] end) as [$state, $glyph, $note]
     | "row\u001f" + $state
-      + "\u001f" + (.repository.name + " #" + (.number|tostring) + "  " + .title)
+      + "\u001f" + (.repository.name + " #" + (.number|tostring) + "  " + .title
+                     + (if $note == "" then "" else "  · " + $note end))
       + "\u001f" + .url
       + "\u001f" + $glyph')
   worst=$(rows_worst "$rows")
@@ -381,12 +447,16 @@ fetch_command() { # fetch_command <index> <command> <limit>
   # you to distrust the pill instead of fixing the script.
   #
   # The glyph comes from the state the script printed, so a `command` source
-  # gets the same three marks a search row wears without having to know they
-  # exist — its contract is still the two or three fields it always was.
+  # gets the same marks a search row wears without having to know they exist —
+  # its contract is still the two or three fields it always was. `busy` is the
+  # newest of the four and the only one that is not just a colour: it is how a
+  # command says "this is in flight", which is the state the ladder added so
+  # that red could stop meaning it. A script that only ever printed the old
+  # three keeps working unchanged.
   rows=$(printf '%s' "$rows" | awk -F'\t' -v US=$'\037' \
-    -v GB="$G_FAILED" -v GW="$G_RUNNING" -v GO="$G_GREEN" \
-    'NF>=2 && ($1=="ok"||$1=="warn"||$1=="bad"){
-      glyph = ($1=="bad" ? GB : ($1=="warn" ? GW : GO))
+    -v GB="$G_FAILED" -v GW="$G_CHANGES" -v GR="$G_RUNNING" -v GO="$G_GREEN" \
+    'NF>=2 && ($1=="ok"||$1=="busy"||$1=="warn"||$1=="bad"){
+      glyph = ($1=="bad" ? GB : ($1=="warn" ? GW : ($1=="busy" ? GR : GO)))
       printf "row%s%s%s%s%s%s%s%s\n", US, $1, US, $2, US, (NF>=3 ? $3 : ""), US, glyph }')
   count=$(printf '%s' "$rows" | grep -c '^row' 2>/dev/null || true)
   count=${count:-0}
@@ -531,8 +601,8 @@ spawn_fetch() {
 # LEAD_WORST is the other half of the two-tone pill (see the header): the worst
 # ROW state anywhere, across every source rather than only the leading one. It
 # is deliberately not tied to which source leads — a conflict in the open-PR
-# list is worth the same red whether or not that list happens to be the source
-# the number came from.
+# list is worth the same peach whether or not that list happens to be the
+# source the number came from.
 LEAD_STATE=ok
 LEAD_COUNT=0
 LEAD_SEV=info
@@ -549,7 +619,11 @@ read_cache() {
     [ "$kind" = meta ] || continue
     case "$sev" in
       auth)
-        LEAD_STATE=auth; LEAD_COUNT=0
+        # LEAD_WORST too, not just the count. Nothing is answering, so an
+        # earlier source's rows are not evidence about anything — and since the
+        # logo now paints on `ok`, leaving it behind would draw a green octocat
+        # beside the word `auth`.
+        LEAD_STATE=auth; LEAD_COUNT=0; LEAD_WORST=none
         return ;;
       error)
         saw_error=1
@@ -602,14 +676,21 @@ render() {
     esac
   fi
 
-  # The logo's own tone: the worst row anywhere, but ONLY when that is something
-  # to act on. `ok` deliberately doesn't paint it green — an all-clear that is
-  # true almost all the time is a colour you stop reading, and then the red one
-  # has to fight it for attention. So the octocat matches the number until
-  # something is actually wrong, and then it is the thing that moved.
+  # The logo's own tone: the worst row anywhere, on the ladder in the header.
+  # Every rung paints it except `mute`, which is the one that means "nothing has
+  # a verdict" and so has no tone to lend.
+  #
+  # That includes `ok`, which it used to withhold on the grounds that an
+  # all-clear true almost all the time is a colour you stop reading. It isn't
+  # true almost all the time — a source with nothing in it contributes no rows
+  # at all, so an empty queue leaves the logo the number's own grey. Green here
+  # means "there IS a queue and every row in it is fine", which is a different
+  # sentence from silence and worth a colour; and now that the ladder reserves
+  # red, the octocat reads as a four-step gauge rather than an alarm that is
+  # either on or off.
   icolor="$color"
   case "$LEAD_WORST" in
-    bad | warn) icolor="$(sev_color "$LEAD_WORST")" ;;
+    bad | warn | busy | ok) icolor="$(sev_color "$LEAD_WORST")" ;;
   esac
 
   # An icon-only pill has to be padded symmetrically. The bar's defaults are
@@ -687,7 +768,7 @@ open_popup() {
       # row's own state — the section's verdict has to survive that.
       local msev="$sev" mworst="${worst:-none}"
       # The heading takes the WORSE of what the source is worth and what its
-      # rows actually found, so an `info` queue holding one conflict reads red
+      # rows actually found, so an `info` queue holding one conflict reads peach
       # at the section level too rather than only on the one row.
       local hsev="$msev"
       [ "$(sev_rank "$mworst")" -gt "$(sev_rank "$msev")" ] && hsev="$mworst"
@@ -755,7 +836,7 @@ open_popup() {
     elif [ "$secs" -lt 3600 ]; then age="$((secs / 60))m ago"
     else age="$((secs / 3600))h ago"; fi
   fi
-  pop_add icon="" icon.color="$SKY" \
+  pop_add icon="" icon.color="$SAPPHIRE" \
     label="Refresh · $age" label.color="$SUBTEXT0" \
     label.font="${BAR_FONT}:Bold:${FS_SMALL}" \
     click_script="$HOME/.config/sketchybar/plugins/github.sh refresh"

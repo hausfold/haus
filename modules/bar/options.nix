@@ -252,14 +252,29 @@ let
         that counted them: whether the pull request conflicts, what its head
         commit's checks came back as, and what the review landed on, folded into
         the one state GitHub's own merge box answers with. That is the row's
-        glyph and colour, and the worst of them across every source is what
-        tints the pill's logo. In precedence order: a draft is muted (its author
-        already said "not ready", so its red checks are not news), then a
-        conflict, then failed checks, then checks still running, then changes
-        requested, then approved-and-green — which gets a glyph of its own,
-        being the one row that means you can press the button. A mergeability
+        glyph, its colour and the word after its title, and the worst of them
+        across every source is what tints the pill's logo.
+
+        In precedence order, first match wins: a draft is *grey* (its author
+        already said "not ready", so its red checks are not news); then a
+        conflict, then failed checks — both *peach*; then checks still running,
+        *sky*, the machine's turn rather than yours; then changes requested,
+        *peach* again; then green, *green*, with approved-and-green getting a
+        glyph and a word of its own, being the one row that means you can press
+        the button. Note that a run in flight outranks a reviewer's changes
+        request rather than the other way round: peach and sky are two tiers,
+        but the order the verdicts are tested in is one list. A mergeability
         GitHub has not computed yet reads as no verdict and resolves itself on
         the next refresh.
+
+        Note what a search row cannot be: *red*, ever. Red on this pill means a
+        DEFAULT BRANCH is broken — see `ci` — and nothing one pull request of
+        yours does reaches it, because a red that fires for every
+        work-in-progress is a red you stop reading. Marking the source itself
+        `bad` (`severity`) doesn't change that either: it reddens this source's
+        COUNT and its section heading, which is you putting your own filter on
+        the same footing as a broken main, and leaves each row wearing the
+        verdict it earned.
 
         The string is literal: nothing interpolates `haus.git.org` into it for
         you, because a machine that reads several owners is the reason that
@@ -287,9 +302,12 @@ let
       example = "gh api /notifications --jq '.[] | \"warn\\t\" + .subject.title'";
       description = ''
         A command run through `bash -c`, printing one row per line as
-        `<state>\t<text>` or `<state>\t<text>\t<url>`, where state is `ok`,
-        `warn` or `bad`. The count is the number of rows; a line that doesn't
-        match the shape is dropped rather than drawn mangled.
+        `<state>\t<text>` or `<state>\t<text>\t<url>`, where state is one rung
+        of the pill's ladder: `ok` (green), `busy` (sky — in flight, nobody's
+        turn yet), `warn` (peach — wants a human) or `bad` (red — reserved for
+        "this is broken", the tone a red default branch wears). The count is the
+        number of rows; a line that doesn't match the shape is dropped rather
+        than drawn mangled.
 
         It runs from the bar's detached fetch, i.e. under launchd's environment
         and not your interactive shell: name binaries by absolute path or expect
@@ -342,6 +360,11 @@ let
         (`info` neutral, `warn` peach, `bad` red) and which source the PILL
         speaks for when more than one has something to say — highest severity
         first, then list order.
+
+        `bad` is worth spending carefully: a red default branch is the only
+        thing that turns this pill red on its own, so a source you mark `bad`
+        is one you are putting on that footing. A queue you merely want to
+        notice is `warn`.
 
         It is per-source rather than global because the same kind means
         different things in two entries: `is:pr is:open` is a work queue and
