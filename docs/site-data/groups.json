@@ -762,8 +762,23 @@
     "lock": {
       "blurb": "Whether waking this Mac needs a password, and how long the grace period is. Worth setting on any laptop that leaves the house.",
       "kind": "room",
-      "optionCount": 2,
+      "optionCount": 7,
       "options": {
+        "haus.lock.login.hideRestart": {
+          "desktopSafe": true
+        },
+        "haus.lock.login.hideShutDown": {
+          "desktopSafe": true
+        },
+        "haus.lock.login.hideSleep": {
+          "desktopSafe": true
+        },
+        "haus.lock.login.message": {
+          "desktopSafe": true
+        },
+        "haus.lock.login.showNameField": {
+          "desktopSafe": true
+        },
         "haus.lock.requirePassword": {
           "desktopSafe": true
         },
@@ -949,7 +964,7 @@
     "security": {
       "blurb": "Security posture: the built-in application firewall and how strict it is (off on a fresh Mac — the setting to turn on for a laptop that joins networks you don't own), plus Touch ID for `sudo`, including inside a terminal multiplexer, and the passwordless-rebuild rule.",
       "kind": "room",
-      "optionCount": 7,
+      "optionCount": 8,
       "options": {
         "haus.security.firewall.allowSigned": {
           "desktopSafe": true
@@ -964,6 +979,9 @@
           "desktopSafe": true
         },
         "haus.security.firewall.stealthMode": {
+          "desktopSafe": true
+        },
+        "haus.security.guestAccount": {
           "desktopSafe": true
         },
         "haus.security.touchId.enable": {
@@ -1197,7 +1215,7 @@
     "windows": {
       "blurb": "Tiling window management and the Caps-Lock leader launcher.",
       "kind": "room",
-      "optionCount": 7,
+      "optionCount": 19,
       "options": {
         "haus.windows.accordionPadding": {
           "desktopSafe": true
@@ -1206,6 +1224,15 @@
           "desktopSafe": true
         },
         "haus.windows.defaultOrientation": {
+          "desktopSafe": true
+        },
+        "haus.windows.desktop.clickToReveal": {
+          "desktopSafe": true
+        },
+        "haus.windows.desktop.hideIcons": {
+          "desktopSafe": true
+        },
+        "haus.windows.desktop.hideWidgets": {
           "desktopSafe": true
         },
         "haus.windows.enable": {
@@ -1217,7 +1244,34 @@
         "haus.windows.mouseFullscreen": {
           "desktopSafe": true
         },
+        "haus.windows.nativeTiling.edgeDrag": {
+          "desktopSafe": true
+        },
+        "haus.windows.nativeTiling.margins": {
+          "desktopSafe": true
+        },
+        "haus.windows.nativeTiling.optionAccelerator": {
+          "desktopSafe": true
+        },
+        "haus.windows.nativeTiling.topEdgeFullscreen": {
+          "desktopSafe": true
+        },
         "haus.windows.numberedWorkspaces": {
+          "desktopSafe": true
+        },
+        "haus.windows.stageManager.autoHideStrip": {
+          "desktopSafe": true
+        },
+        "haus.windows.stageManager.enable": {
+          "desktopSafe": true
+        },
+        "haus.windows.stageManager.groupWindows": {
+          "desktopSafe": true
+        },
+        "haus.windows.stageManager.hideDesktopIcons": {
+          "desktopSafe": true
+        },
+        "haus.windows.stageManager.hideWidgets": {
           "desktopSafe": true
         }
       },
@@ -1540,7 +1594,7 @@
         "security",
         "secrets"
       ],
-      "optionCount": 10,
+      "optionCount": 16,
       "order": 120,
       "title": "Security"
     },
@@ -1602,7 +1656,7 @@
         "hotCorners",
         "windows"
       ],
-      "optionCount": 11,
+      "optionCount": 23,
       "order": 50,
       "title": "Windows"
     }

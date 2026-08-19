@@ -405,6 +405,79 @@ let
 
 in
 lib.mkMerge [
+  # ---- macOS's own window features (com.apple.WindowManager) ----------------
+  # OUTSIDE the `windows.enable` gate on purpose, and it is the only block here
+  # that is. These twelve keys are macOS's own Stage Manager / native tiling /
+  # desktop settings, not AeroSpace's, so a machine that turns the TILER off has
+  # every reason to still want them — gating them behind the room switch would
+  # make the two mutually exclusive in exactly the case where you want the other
+  # one. They live in this room rather than in core (where the rest of §5.6's
+  # settings groups live) because they are the one group that INTERLOCKS with
+  # what the room does; see the warning below, which core could not have written.
+  #
+  # The write itself is an ordinary pass-through: null stays null, upstream's
+  # `nullOr bool` already means "leave it alone", and nothing here is TCC-gated.
+  # What is unusual is only WHEN it is felt — `../lib/restart-map.nix` marks the
+  # domain `logout`, so core announces the wait into the built activation script
+  # and every option's description carries the sentence from
+  # `../lib/login-map.nix`. Nothing to do here for that; it is already said in
+  # the two places a person looks.
+  {
+    # Built by walking ./window-manager-keys.nix rather than by listing the keys
+    # again, so the table stays the single source: an entry whose option path
+    # doesn't resolve fails at eval here (`getAttrFromPath` throws), which is the
+    # other half of the check `mkWindowManagerOption` runs in ./options.nix. A
+    # key with no option and an option with no key are both build failures.
+    system.defaults.WindowManager = lib.mapAttrs (
+      _: path: lib.getAttrFromPath path config.haus.windows
+    ) (import ./window-manager-keys.nix);
+
+    # The interlock the roadmap asked for, as a warning rather than an assertion.
+    # Two window managers on one machine is a genuine, if unusual, way to work
+    # ("Stage Manager on the laptop panel, tiling on the external"), so refusing
+    # it would be wrong — but the far more likely reading of this pair is that
+    # somebody turned on the tiler and cannot work out why windows keep sliding
+    # back, or dragged a window past the screen edge and had macOS tile it into
+    # the space AeroSpace was using. Naming both switches is the point: the
+    # symptom gives no hint which of the two is doing it.
+    warnings =
+      let
+        smOn = config.haus.windows.stageManager.enable == true;
+        dragOn =
+          config.haus.windows.nativeTiling.edgeDrag == true
+          || config.haus.windows.nativeTiling.topEdgeFullscreen == true;
+        both = config.haus.windows.enable && (smOn || dragOn);
+      in
+      lib.optional both ''
+        haus: haus.windows.enable is on (AeroSpace tiling) and so is macOS's own
+        window management: ${
+          lib.concatStringsSep " + " (
+            lib.optional smOn "stageManager.enable" ++ lib.optional dragOn "nativeTiling edge-drag"
+          )
+        }.
+
+        Both decide where a window belongs, and they disagree: AeroSpace tiles a
+        window into the layout, Stage Manager pulls it back to the strip, and an
+        edge drag hands half the screen to a window the tiler was already
+        placing. The usual symptom is "windows won't stay where I put them",
+        which points at neither of them on its own.
+
+        This is a warning and not an error because the combination can be
+        deliberate. If it wasn't, the fix is one of:
+
+            haus.windows.stageManager.enable = false;
+            haus.windows.nativeTiling.edgeDrag = false;
+            haus.windows.nativeTiling.topEdgeFullscreen = false;
+
+        (or `haus.windows.nativeTiling.optionAccelerator = true`, which keeps
+        native tiling but makes it take a held ⌥ rather than happening whenever a
+        drag reaches an edge.)
+
+        Both of those land at your NEXT LOGIN — com.apple.WindowManager has no
+        live-reload path on macOS 26 — so expect the fight to continue until then.
+      '';
+  }
+
   (lib.mkIf config.haus.windows.enable {
     # A fresh host gets a useful terminal + browser. These are field-level
     # defaults, so keyed entries compose with them and can override by app id.

@@ -229,8 +229,34 @@ res="$(plan_restarts "$tmp/new-activate")"
 has 'restarts Finder, SystemUIServer' "$res"
 has 'broadcasts activateSettings' "$res"
 has 'posts AppleDatePreferencesChangedNotification' "$res"
+# The fixture above sets no logout-only domain, so the OTHER half of
+# plan_restarts must stay silent. Worth asserting rather than assuming: the
+# warning is the one line in this function that fires on a minority of machines,
+# which makes "it always prints" the failure nobody would notice.
+lacks 'waits for a logout' "$res"
 test -z "$(plan_restarts "$tmp/bare-activate")" \
   || fail "plan_restarts announced restarts for a script that has none"
+
+# The logout half, on a script that DOES declare one. Both real domains, because
+# the line core emits carries them space-separated on one line and the reader has
+# to split them — a parser that took the whole tail as a single name would print
+# "com.apple.WindowManager com.apple.loginwindow" as one item and still look
+# plausible. Kept as a fixture rather than derived from restart-map.nix, for the
+# same reason the rest of this file greps the built script: the point is what a
+# rebuild actually contains, not a second copy of the table.
+printf 'echo "haus: waits-for-logout com.apple.loginwindow com.apple.WindowManager" >&2\n' \
+  >"$tmp/logout-activate"
+res="$(plan_restarts "$tmp/logout-activate")"
+has 'waits for a logout' "$res"
+# Sorted, and `LC_ALL=C` means ASCII order rather than dictionary order — so
+# `com.apple.WindowManager` comes FIRST, because uppercase W sorts before
+# lowercase l. Written out the way it actually prints rather than the way it
+# reads: this is the same collation the reader uses everywhere else in haus.sh,
+# and asserting the pretty order would be asserting a bug.
+has 'com.apple.WindowManager, com.apple.loginwindow' "$res"
+# It is a WARNING and its own line, never folded into the "every rebuild also…"
+# sentence: that one says what will happen, this says what won't.
+lacks 'every rebuild also' "$res"
 
 # ---- what the settings NEED before they can land (§5.12) --------------------
 # The reachability announcement core renders beside the restart calls. Same

@@ -243,6 +243,11 @@ let
       "temperature"
     ];
     lock = [
+      "login.hideRestart"
+      "login.hideShutDown"
+      "login.hideSleep"
+      "login.message"
+      "login.showNameField"
       "requirePassword"
       "requirePasswordDelay"
     ];
@@ -302,6 +307,7 @@ let
       "firewall.blockAllIncoming"
       "firewall.enable"
       "firewall.stealthMode"
+      "guestAccount"
       "touchId.enable"
       "touchId.passwordlessRebuild"
     ];
@@ -371,10 +377,22 @@ let
       "accordionPadding"
       "defaultLayout"
       "defaultOrientation"
+      "desktop.clickToReveal"
+      "desktop.hideIcons"
+      "desktop.hideWidgets"
       "enable"
       "mouseFollowsFocus"
       "mouseFullscreen"
+      "nativeTiling.edgeDrag"
+      "nativeTiling.margins"
+      "nativeTiling.optionAccelerator"
+      "nativeTiling.topEdgeFullscreen"
       "numberedWorkspaces"
+      "stageManager.autoHideStrip"
+      "stageManager.enable"
+      "stageManager.groupWindows"
+      "stageManager.hideDesktopIcons"
+      "stageManager.hideWidgets"
     ];
     workspaces = [
       ""

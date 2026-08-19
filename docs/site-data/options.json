@@ -3235,6 +3235,116 @@
     "readOnly": false,
     "type": "null or one of \"celsius\", \"fahrenheit\""
   },
+  "haus.lock.login.hideRestart": {
+    "declarations": [
+      "modules/core/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Remove the Restart button from the login window. Same reasoning as\n`hideShutDown`, and normally set with it — leaving one of the two\nbuttons is a curious middle ground.\n\n\nnull (the default) writes nothing at all, which is not the same as\n\"off\" — and on this domain that matters more than most, because\nseveral of these keys are ON out of the box. Turning an option back to\nnull STOPS writing rather than restoring: macOS keeps no memory of\nwhat the value was before haus set it.\n\nTAKES EFFECT AT YOUR NEXT LOGIN — and for most of this group that is the\nonly moment it could: the login window is what the setting is ABOUT, so\n\"when do I see it\" and \"when does it apply\" are the same question. The\nwrite lands during the rebuild and needs no permission; what has no\nlive-reload path is the reader. `loginwindow` is the process that owns\nyour session, so the restart that would make it re-read this domain is\nthe one that would log you out to do it — which is why haus never fires\nit for you.\n\n`haus plan` says the same thing before the rebuild, and `haus doctor`\nafter it, both read out of the built activation script rather than from a\nsecond copy of this list.\n\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "lock",
+      "login",
+      "hideRestart"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.lock.login.hideShutDown": {
+    "declarations": [
+      "modules/core/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Remove the Shut Down button from the login window.\n\nFor a machine that should stay up and reachable — a Mac serving\nsomething on the desk in the corner — where the only person pressing\nit is someone who walked past. It does not stop a long press on the\npower button, and it is not a lock: it removes the easy way, not\nevery way.\n\n\nnull (the default) writes nothing at all, which is not the same as\n\"off\" — and on this domain that matters more than most, because\nseveral of these keys are ON out of the box. Turning an option back to\nnull STOPS writing rather than restoring: macOS keeps no memory of\nwhat the value was before haus set it.\n\nTAKES EFFECT AT YOUR NEXT LOGIN — and for most of this group that is the\nonly moment it could: the login window is what the setting is ABOUT, so\n\"when do I see it\" and \"when does it apply\" are the same question. The\nwrite lands during the rebuild and needs no permission; what has no\nlive-reload path is the reader. `loginwindow` is the process that owns\nyour session, so the restart that would make it re-read this domain is\nthe one that would log you out to do it — which is why haus never fires\nit for you.\n\n`haus plan` says the same thing before the rebuild, and `haus doctor`\nafter it, both read out of the built activation script rather than from a\nsecond copy of this list.\n\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "lock",
+      "login",
+      "hideShutDown"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.lock.login.hideSleep": {
+    "declarations": [
+      "modules/core/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Remove the Sleep button from the login window. The mildest of the\nthree, and the one with a real cost on a laptop: sleeping from the\nlogin window is how you put a machine away that you have already\nlocked.\n\n\nnull (the default) writes nothing at all, which is not the same as\n\"off\" — and on this domain that matters more than most, because\nseveral of these keys are ON out of the box. Turning an option back to\nnull STOPS writing rather than restoring: macOS keeps no memory of\nwhat the value was before haus set it.\n\nTAKES EFFECT AT YOUR NEXT LOGIN — and for most of this group that is the\nonly moment it could: the login window is what the setting is ABOUT, so\n\"when do I see it\" and \"when does it apply\" are the same question. The\nwrite lands during the rebuild and needs no permission; what has no\nlive-reload path is the reader. `loginwindow` is the process that owns\nyour session, so the restart that would make it re-read this domain is\nthe one that would log you out to do it — which is why haus never fires\nit for you.\n\n`haus plan` says the same thing before the rebuild, and `haus doctor`\nafter it, both read out of the built activation script rather than from a\nsecond copy of this list.\n\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "lock",
+      "login",
+      "hideSleep"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.lock.login.message": {
+    "declarations": [
+      "modules/core/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "A line of text under the password field on the login window.\nnull (the default) leaves whatever is there alone.\n\nThe one genuinely useful thing to put here is how to reach you if\nthe machine is lost — it is visible to somebody who cannot log in,\nwhich is exactly the person you want reading it. Everything else it\ngets used for (a banner, a policy notice) is a workplace thing.\n\nNot a security boundary: anyone who can read this can also read it\noff the disk, and it is not a lock. Empty string clears the message\nrather than leaving it alone; that is `\"\"`, not null.\n\nTAKES EFFECT AT YOUR NEXT LOGIN — and for most of this group that is the\nonly moment it could: the login window is what the setting is ABOUT, so\n\"when do I see it\" and \"when does it apply\" are the same question. The\nwrite lands during the rebuild and needs no permission; what has no\nlive-reload path is the reader. `loginwindow` is the process that owns\nyour session, so the restart that would make it re-read this domain is\nthe one that would log you out to do it — which is why haus never fires\nit for you.\n\n`haus plan` says the same thing before the rebuild, and `haus doctor`\nafter it, both read out of the built activation script rather than from a\nsecond copy of this list.\n\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"If found, please call +1 555 0100.\""
+    },
+    "loc": [
+      "haus",
+      "lock",
+      "login",
+      "message"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.lock.login.showNameField": {
+    "declarations": [
+      "modules/core/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Ask for a username AND a password, instead of showing a list of\nuser pictures to click.\n\nThe shoulder-surfing setting: with the list, half the credential is\nalready on screen for anyone who walks past. Worth true on a laptop\nthat leaves the house, and it is also the only way to log into an\naccount the list deliberately hides.\n\n\nnull (the default) writes nothing at all, which is not the same as\n\"off\" — and on this domain that matters more than most, because\nseveral of these keys are ON out of the box. Turning an option back to\nnull STOPS writing rather than restoring: macOS keeps no memory of\nwhat the value was before haus set it.\n\nTAKES EFFECT AT YOUR NEXT LOGIN — and for most of this group that is the\nonly moment it could: the login window is what the setting is ABOUT, so\n\"when do I see it\" and \"when does it apply\" are the same question. The\nwrite lands during the rebuild and needs no permission; what has no\nlive-reload path is the reader. `loginwindow` is the process that owns\nyour session, so the restart that would make it re-read this domain is\nthe one that would log you out to do it — which is why haus never fires\nit for you.\n\n`haus plan` says the same thing before the rebuild, and `haus doctor`\nafter it, both read out of the built activation script rather than from a\nsecond copy of this list.\n\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "lock",
+      "login",
+      "showNameField"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
   "haus.lock.requirePassword": {
     "declarations": [
       "modules/core/options.nix"
@@ -4283,6 +4393,27 @@
       "security",
       "firewall",
       "stealthMode"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.security.guestAccount": {
+    "declarations": [
+      "modules/core/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Whether anyone can log in as \"Guest\" without a password — a temporary\nsession macOS wipes when they log out.\n\nFresh Macs ship with this ON, which is the fact worth knowing: a\nmachine you never configured lets a stranger who has it in their hands\nreach a browser, a network and any file share you are connected to.\n`false` is the setting almost every personal machine wants and almost\nno one has made.\n\nIt is also the one key in this group that is genuinely a security\nboundary rather than a papercut, so it is worth setting explicitly even\nwhen you believe it is already off.\n\n\nnull (the default) writes nothing at all, which is not the same as\n\"off\" — and on this domain that matters more than most, because\nseveral of these keys are ON out of the box. Turning an option back to\nnull STOPS writing rather than restoring: macOS keeps no memory of\nwhat the value was before haus set it.\n\nTAKES EFFECT AT YOUR NEXT LOGIN — and for most of this group that is the\nonly moment it could: the login window is what the setting is ABOUT, so\n\"when do I see it\" and \"when does it apply\" are the same question. The\nwrite lands during the rebuild and needs no permission; what has no\nlive-reload path is the reader. `loginwindow` is the process that owns\nyour session, so the restart that would make it re-read this domain is\nthe one that would log you out to do it — which is why haus never fires\nit for you.\n\n`haus plan` says the same thing before the rebuild, and `haus doctor`\nafter it, both read out of the built activation script rather than from a\nsecond copy of this list.\n\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "security",
+      "guestAccount"
     ],
     "readOnly": false,
     "type": "null or boolean"
@@ -5354,6 +5485,72 @@
     "readOnly": false,
     "type": "one of \"auto\", \"horizontal\", \"vertical\""
   },
+  "haus.windows.desktop.clickToReveal": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Click the wallpaper to push every window aside and reveal the desktop.\nmacOS 14 turned this on for everybody and it is the change most people\nwant back: true is \"always\", false is \"only in Stage Manager\".\n\nWorth knowing before you leave it on with a tiler: a click on the\nwallpaper is easy to make by accident on a workspace whose windows do\nnot cover the screen, and it moves every window on it.\n\n\nnull (the default) writes nothing at all, which is not the same as\n\"off\": these are settings people have usually already made by hand,\nand a rebuild that named one it didn't care about would silently\noverwrite a choice. Turning an option back to null STOPS writing, it\ndoes not restore — macOS keeps no memory of what the value was.\n\nTAKES EFFECT AT YOUR NEXT LOGIN. The write lands during the rebuild (no\npermission is involved, and `haus diff` will show the new value straight\naway), but macOS reads this domain when your login session starts and\noffers nothing that makes it re-read: there is no process to restart the\nway Finder or the menu bar can be restarted. So a rebuild that changes\nthis option leaves your desktop behaving exactly as it did until you log\nout and back in — which is a wait, not a failure, and nothing is in a\nhalf-applied state meanwhile.\n\n`haus plan` says the same thing before the rebuild, and `haus doctor`\nafter it, both read out of the built activation script rather than from a\nsecond copy of this list.\n\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "desktop",
+      "clickToReveal"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.windows.desktop.hideIcons": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Hide the icons on your desktop, always — the files are still in\n`~/Desktop`, Finder still shows them, they just stop being drawn on\nthe wallpaper.\n\nThe natural companion to a generated `haus.wallpaper`, which you chose\nto look at rather than to be a filing cabinet.\n\n\nnull (the default) writes nothing at all, which is not the same as\n\"off\": these are settings people have usually already made by hand,\nand a rebuild that named one it didn't care about would silently\noverwrite a choice. Turning an option back to null STOPS writing, it\ndoes not restore — macOS keeps no memory of what the value was.\n\nTAKES EFFECT AT YOUR NEXT LOGIN. The write lands during the rebuild (no\npermission is involved, and `haus diff` will show the new value straight\naway), but macOS reads this domain when your login session starts and\noffers nothing that makes it re-read: there is no process to restart the\nway Finder or the menu bar can be restarted. So a rebuild that changes\nthis option leaves your desktop behaving exactly as it did until you log\nout and back in — which is a wait, not a failure, and nothing is in a\nhalf-applied state meanwhile.\n\n`haus plan` says the same thing before the rebuild, and `haus doctor`\nafter it, both read out of the built activation script rather than from a\nsecond copy of this list.\n\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "desktop",
+      "hideIcons"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.windows.desktop.hideWidgets": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Hide desktop widgets, always. Same idea as `hideIcons`, for the\nclock/calendar/weather widgets macOS 14 let you park on the desktop.\n\n\nnull (the default) writes nothing at all, which is not the same as\n\"off\": these are settings people have usually already made by hand,\nand a rebuild that named one it didn't care about would silently\noverwrite a choice. Turning an option back to null STOPS writing, it\ndoes not restore — macOS keeps no memory of what the value was.\n\nTAKES EFFECT AT YOUR NEXT LOGIN. The write lands during the rebuild (no\npermission is involved, and `haus diff` will show the new value straight\naway), but macOS reads this domain when your login session starts and\noffers nothing that makes it re-read: there is no process to restart the\nway Finder or the menu bar can be restarted. So a rebuild that changes\nthis option leaves your desktop behaving exactly as it did until you log\nout and back in — which is a wait, not a failure, and nothing is in a\nhalf-applied state meanwhile.\n\n`haus plan` says the same thing before the rebuild, and `haus doctor`\nafter it, both read out of the built activation script rather than from a\nsecond copy of this list.\n\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "desktop",
+      "hideWidgets"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
   "haus.windows.enable": {
     "declarations": [
       "modules/windows/options.nix"
@@ -5409,6 +5606,94 @@
     "readOnly": false,
     "type": "one of \"right\", \"left\", \"none\""
   },
+  "haus.windows.nativeTiling.edgeDrag": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Drag a window to the side of the screen and macOS tiles it there.\nOn (macOS's own default) unless you say otherwise.\n\nTHE ONE TO TURN OFF IF YOU TILE. With `haus.windows.enable` on,\nAeroSpace already owns where windows go, and this is the setting that\nmakes a window you were merely dragging past the edge of the screen\nsnap to half of it — which then fights the tiler for the same space.\nSetting it false is the single most useful key in this group for a\ntiling machine, and haus warns about the combination.\n\n\nnull (the default) writes nothing at all, which is not the same as\n\"off\": these are settings people have usually already made by hand,\nand a rebuild that named one it didn't care about would silently\noverwrite a choice. Turning an option back to null STOPS writing, it\ndoes not restore — macOS keeps no memory of what the value was.\n\nTAKES EFFECT AT YOUR NEXT LOGIN. The write lands during the rebuild (no\npermission is involved, and `haus diff` will show the new value straight\naway), but macOS reads this domain when your login session starts and\noffers nothing that makes it re-read: there is no process to restart the\nway Finder or the menu bar can be restarted. So a rebuild that changes\nthis option leaves your desktop behaving exactly as it did until you log\nout and back in — which is a wait, not a failure, and nothing is in a\nhalf-applied state meanwhile.\n\n`haus plan` says the same thing before the rebuild, and `haus doctor`\nafter it, both read out of the built activation script rather than from a\nsecond copy of this list.\n\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "nativeTiling",
+      "edgeDrag"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.windows.nativeTiling.margins": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Leave a gap between natively tiled windows and the screen edges.\nmacOS's own gaps setting, and nothing to do with\n`haus.windows.accordionPadding` or AeroSpace's gaps, which apply to\nwindows the TILER placed.\n\n\nnull (the default) writes nothing at all, which is not the same as\n\"off\": these are settings people have usually already made by hand,\nand a rebuild that named one it didn't care about would silently\noverwrite a choice. Turning an option back to null STOPS writing, it\ndoes not restore — macOS keeps no memory of what the value was.\n\nTAKES EFFECT AT YOUR NEXT LOGIN. The write lands during the rebuild (no\npermission is involved, and `haus diff` will show the new value straight\naway), but macOS reads this domain when your login session starts and\noffers nothing that makes it re-read: there is no process to restart the\nway Finder or the menu bar can be restarted. So a rebuild that changes\nthis option leaves your desktop behaving exactly as it did until you log\nout and back in — which is a wait, not a failure, and nothing is in a\nhalf-applied state meanwhile.\n\n`haus plan` says the same thing before the rebuild, and `haus doctor`\nafter it, both read out of the built activation script rather than from a\nsecond copy of this list.\n\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "nativeTiling",
+      "margins"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.windows.nativeTiling.optionAccelerator": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Hold ⌥ while dragging to tile, instead of tiling whenever a drag\nreaches an edge.\n\nThe middle setting between the two extremes, and the one to reach for\nbefore turning `edgeDrag` off entirely: native tiling stays available\non the machine and stops happening by accident, because it now takes a\nmodifier you have to mean. On a tiling machine that still costs a\nmodifier AeroSpace may want — check `haus.keys.windowNav` before\nrelying on it.\n\n\nnull (the default) writes nothing at all, which is not the same as\n\"off\": these are settings people have usually already made by hand,\nand a rebuild that named one it didn't care about would silently\noverwrite a choice. Turning an option back to null STOPS writing, it\ndoes not restore — macOS keeps no memory of what the value was.\n\nTAKES EFFECT AT YOUR NEXT LOGIN. The write lands during the rebuild (no\npermission is involved, and `haus diff` will show the new value straight\naway), but macOS reads this domain when your login session starts and\noffers nothing that makes it re-read: there is no process to restart the\nway Finder or the menu bar can be restarted. So a rebuild that changes\nthis option leaves your desktop behaving exactly as it did until you log\nout and back in — which is a wait, not a failure, and nothing is in a\nhalf-applied state meanwhile.\n\n`haus plan` says the same thing before the rebuild, and `haus doctor`\nafter it, both read out of the built activation script rather than from a\nsecond copy of this list.\n\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "nativeTiling",
+      "optionAccelerator"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.windows.nativeTiling.topEdgeFullscreen": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Drag a window up to the menu bar and macOS fills the screen with it.\nThe same bargain as `edgeDrag`, at the top edge, and worth turning off\nfor the same reason if you tile: the menu bar is somewhere a window\ngets dragged PAST, on the way to somewhere else.\n\n\nnull (the default) writes nothing at all, which is not the same as\n\"off\": these are settings people have usually already made by hand,\nand a rebuild that named one it didn't care about would silently\noverwrite a choice. Turning an option back to null STOPS writing, it\ndoes not restore — macOS keeps no memory of what the value was.\n\nTAKES EFFECT AT YOUR NEXT LOGIN. The write lands during the rebuild (no\npermission is involved, and `haus diff` will show the new value straight\naway), but macOS reads this domain when your login session starts and\noffers nothing that makes it re-read: there is no process to restart the\nway Finder or the menu bar can be restarted. So a rebuild that changes\nthis option leaves your desktop behaving exactly as it did until you log\nout and back in — which is a wait, not a failure, and nothing is in a\nhalf-applied state meanwhile.\n\n`haus plan` says the same thing before the rebuild, and `haus doctor`\nafter it, both read out of the built activation script rather than from a\nsecond copy of this list.\n\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "nativeTiling",
+      "topEdgeFullscreen"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
   "haus.windows.numberedWorkspaces": {
     "declarations": [
       "modules/windows/options.nix"
@@ -5429,6 +5714,116 @@
     ],
     "readOnly": false,
     "type": "integer between 0 and 10 (both inclusive)"
+  },
+  "haus.windows.stageManager.autoHideStrip": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Hide the strip of recent apps until the pointer goes near it, instead\nof keeping it on screen. Only does anything while Stage Manager is on.\n\nThe setting that buys back the width Stage Manager costs you on a\nlaptop display.\n\n\nnull (the default) writes nothing at all, which is not the same as\n\"off\": these are settings people have usually already made by hand,\nand a rebuild that named one it didn't care about would silently\noverwrite a choice. Turning an option back to null STOPS writing, it\ndoes not restore — macOS keeps no memory of what the value was.\n\nTAKES EFFECT AT YOUR NEXT LOGIN. The write lands during the rebuild (no\npermission is involved, and `haus diff` will show the new value straight\naway), but macOS reads this domain when your login session starts and\noffers nothing that makes it re-read: there is no process to restart the\nway Finder or the menu bar can be restarted. So a rebuild that changes\nthis option leaves your desktop behaving exactly as it did until you log\nout and back in — which is a wait, not a failure, and nothing is in a\nhalf-applied state meanwhile.\n\n`haus plan` says the same thing before the rebuild, and `haus doctor`\nafter it, both read out of the built activation script rather than from a\nsecond copy of this list.\n\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "stageManager",
+      "autoHideStrip"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.windows.stageManager.enable": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "macOS's Stage Manager: recent windows are swept into a strip down the\nside of the screen, one app in the middle at a time.\n\nTurning this on while `haus.windows.enable` is also on gives you two\nwindow managers with different ideas about where a window belongs —\nAeroSpace tiles it, Stage Manager pulls it back to the strip. haus\nwarns about the pair rather than refusing it, because \"Stage Manager\non the laptop display, tiling on the external\" is a real way to work,\nbut if windows will not stay where the tiler puts them this is the\nfirst thing to turn off.\n\n\nnull (the default) writes nothing at all, which is not the same as\n\"off\": these are settings people have usually already made by hand,\nand a rebuild that named one it didn't care about would silently\noverwrite a choice. Turning an option back to null STOPS writing, it\ndoes not restore — macOS keeps no memory of what the value was.\n\nTAKES EFFECT AT YOUR NEXT LOGIN. The write lands during the rebuild (no\npermission is involved, and `haus diff` will show the new value straight\naway), but macOS reads this domain when your login session starts and\noffers nothing that makes it re-read: there is no process to restart the\nway Finder or the menu bar can be restarted. So a rebuild that changes\nthis option leaves your desktop behaving exactly as it did until you log\nout and back in — which is a wait, not a failure, and nothing is in a\nhalf-applied state meanwhile.\n\n`haus plan` says the same thing before the rebuild, and `haus doctor`\nafter it, both read out of the built activation script rather than from a\nsecond copy of this list.\n\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "stageManager",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.windows.stageManager.groupWindows": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "When you click an app in the strip, whether Stage Manager brings ALL\nof that app's windows forward together (true) or one at a time\n(false). macOS spells these \"All at once\" and \"One at a time\".\n\nTrue is what you want for an app you keep several windows of and read\nside by side; false keeps the middle of the screen to a single window,\nwhich is the point of Stage Manager for most people.\n\n\nnull (the default) writes nothing at all, which is not the same as\n\"off\": these are settings people have usually already made by hand,\nand a rebuild that named one it didn't care about would silently\noverwrite a choice. Turning an option back to null STOPS writing, it\ndoes not restore — macOS keeps no memory of what the value was.\n\nTAKES EFFECT AT YOUR NEXT LOGIN. The write lands during the rebuild (no\npermission is involved, and `haus diff` will show the new value straight\naway), but macOS reads this domain when your login session starts and\noffers nothing that makes it re-read: there is no process to restart the\nway Finder or the menu bar can be restarted. So a rebuild that changes\nthis option leaves your desktop behaving exactly as it did until you log\nout and back in — which is a wait, not a failure, and nothing is in a\nhalf-applied state meanwhile.\n\n`haus plan` says the same thing before the rebuild, and `haus doctor`\nafter it, both read out of the built activation script rather than from a\nsecond copy of this list.\n\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "stageManager",
+      "groupWindows"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.windows.stageManager.hideDesktopIcons": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Hide the icons on your desktop while Stage Manager is on. The\nStage-Manager-only twin of `haus.windows.desktop.hideIcons`, which\nhides them always.\n\n\nnull (the default) writes nothing at all, which is not the same as\n\"off\": these are settings people have usually already made by hand,\nand a rebuild that named one it didn't care about would silently\noverwrite a choice. Turning an option back to null STOPS writing, it\ndoes not restore — macOS keeps no memory of what the value was.\n\nTAKES EFFECT AT YOUR NEXT LOGIN. The write lands during the rebuild (no\npermission is involved, and `haus diff` will show the new value straight\naway), but macOS reads this domain when your login session starts and\noffers nothing that makes it re-read: there is no process to restart the\nway Finder or the menu bar can be restarted. So a rebuild that changes\nthis option leaves your desktop behaving exactly as it did until you log\nout and back in — which is a wait, not a failure, and nothing is in a\nhalf-applied state meanwhile.\n\n`haus plan` says the same thing before the rebuild, and `haus doctor`\nafter it, both read out of the built activation script rather than from a\nsecond copy of this list.\n\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "stageManager",
+      "hideDesktopIcons"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
+  },
+  "haus.windows.stageManager.hideWidgets": {
+    "declarations": [
+      "modules/windows/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Hide desktop widgets while Stage Manager is on. The\nStage-Manager-only twin of `haus.windows.desktop.hideWidgets`.\n\n\nnull (the default) writes nothing at all, which is not the same as\n\"off\": these are settings people have usually already made by hand,\nand a rebuild that named one it didn't care about would silently\noverwrite a choice. Turning an option back to null STOPS writing, it\ndoes not restore — macOS keeps no memory of what the value was.\n\nTAKES EFFECT AT YOUR NEXT LOGIN. The write lands during the rebuild (no\npermission is involved, and `haus diff` will show the new value straight\naway), but macOS reads this domain when your login session starts and\noffers nothing that makes it re-read: there is no process to restart the\nway Finder or the menu bar can be restarted. So a rebuild that changes\nthis option leaves your desktop behaving exactly as it did until you log\nout and back in — which is a wait, not a failure, and nothing is in a\nhalf-applied state meanwhile.\n\n`haus plan` says the same thing before the rebuild, and `haus doctor`\nafter it, both read out of the built activation script rather than from a\nsecond copy of this list.\n\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "windows",
+      "stageManager",
+      "hideWidgets"
+    ],
+    "readOnly": false,
+    "type": "null or boolean"
   },
   "haus.workspaces": {
     "declarations": [

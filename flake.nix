@@ -2195,6 +2195,89 @@
           desktopWronglyRefused = builtins.filter (
             name: !(builtins.tryEval (riceLib.checkDesktop (desktopFixture name))).success
           ) desktopValidNames;
+          # ---- login-note ------------------------------------------------------
+          # The third table's own check, and the only one of the three that can't
+          # be enforced by construction the way the other two are.
+          #
+          # modules/lib/login-map.nix already fails at eval in both directions
+          # against modules/lib/restart-map.nix — a domain that becomes `logout`
+          # with no paragraph, or a paragraph for a domain that isn't `logout`
+          # any more. What that CAN'T see is the step after it: whether the
+          # options actually backed by a logout-only domain interpolate the
+          # paragraph at all. Nothing forces them to. `mkLoginWindow` and
+          # `mkWindowManagerOption` do it for every option built through them,
+          # but an option added beside those helpers, by hand, would type-check,
+          # write the plist, and say nothing about the wait — which is precisely
+          # the silent settings group §5.6 refused for a year, reintroduced one
+          # option at a time.
+          #
+          # So this reads the EVALUATED option tree — descriptions as a person
+          # will see them in the reference, not the source that produced them —
+          # and requires the note's own sentence in every leaf under the four
+          # namespaces those two domains back. Reading the rendered description
+          # is the point: it passes whether the prose arrives through a helper,
+          # an interpolation or a future third route, and fails only on the thing
+          # that matters, which is a person meeting the option and not being told.
+          loginNoteNamespaces = [
+            [
+              "lock"
+              "login"
+            ]
+            [
+              "security"
+              "guestAccount"
+            ]
+            [
+              "windows"
+              "stageManager"
+            ]
+            [
+              "windows"
+              "nativeTiling"
+            ]
+            [
+              "windows"
+              "desktop"
+            ]
+          ];
+          # One short phrase common to both domains' paragraphs, rather than a
+          # whole one: a substring long enough to be unmistakable and short
+          # enough that editing either note's wording doesn't turn this check
+          # into a spelling test. If the phrase itself is ever reworded, the two
+          # assertions below say so rather than silently matching nothing.
+          loginNotePhrase = "TAKES EFFECT AT YOUR NEXT LOGIN";
+          loginNoteOptions =
+            let
+              opts =
+                (mkHaus {
+                  inherit system;
+                  username = "you";
+                  hostname = "example";
+                }).options.haus;
+              # Walk to a leaf: an option set has `_type == "option"`, anything
+              # else with attrs is a namespace to descend into.
+              leaves =
+                path: node:
+                if !(builtins.isAttrs node) then
+                  [ ]
+                else if node._type or null == "option" then
+                  [
+                    {
+                      inherit path;
+                      description = node.description or "";
+                    }
+                  ]
+                else
+                  nixpkgs.lib.concatLists (
+                    nixpkgs.lib.mapAttrsToList (n: v: leaves (path ++ [ n ]) v) (removeAttrs node [ "_module" ])
+                  );
+            in
+            nixpkgs.lib.concatMap (ns: leaves ns (nixpkgs.lib.getAttrFromPath ns opts)) loginNoteNamespaces;
+          loginNoteMissing = map (o: nixpkgs.lib.concatStringsSep "." ([ "haus" ] ++ o.path)) (
+            builtins.filter (
+              o: !(nixpkgs.lib.hasInfix loginNotePhrase (toString o.description))
+            ) loginNoteOptions
+          );
         in
         {
           room-registry = pkgs.runCommand "haus-room-registry-ok" { } ''
@@ -2612,6 +2695,39 @@
           scale-reach = pkgs.runCommand "haus-scale-reach-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedScaleTable} \
                     ${pkgs.writeText "actual" (scaleTable + "\n")}
+            touch $out
+          '';
+
+          login-note = pkgs.runCommand "haus-login-note-ok" { } ''
+            ${nixpkgs.lib.optionalString (loginNoteOptions == [ ]) ''
+              cat >&2 <<'GONE'
+              login-note found NO options under the namespaces it is meant to check
+              (haus.lock.login, haus.security.guestAccount, haus.windows.stageManager
+              / .nativeTiling / .desktop).
+
+              Either those groups were removed — in which case delete this check and
+              the `logout` entries in modules/lib/restart-map.nix together — or the
+              walk over the option tree stopped working, in which case this check has
+              been passing on an empty set. Do not simply delete it.
+              GONE
+              exit 1''}
+            ${nixpkgs.lib.optionalString (loginNoteMissing != [ ]) ''
+              cat >&2 <<'MISSING'
+              These options write a logout-only plist domain but their descriptions
+              never say so:
+
+              ${builtins.concatStringsSep "\n              " loginNoteMissing}
+
+              A setting that lands in the plist and changes nothing until the next
+              login, with nothing at the option to say it, is the exact failure §5.6
+              refused these groups over — "a group that silently needs a logout is
+              worse than no group". The fix is not to write the sentence again: build
+              the option through `mkLoginWindow` (modules/core/options.nix) or
+              `mkWindowManagerOption` (modules/windows/options.nix), both of which
+              stamp it from modules/lib/login-map.nix, which in turn reads the
+              `logout` verb out of modules/lib/restart-map.nix. One fact, one place.
+              MISSING
+              exit 1''}
             touch $out
           '';
 
