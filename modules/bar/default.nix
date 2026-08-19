@@ -1024,12 +1024,22 @@ let
   # fire the workspace-change event the pill lives on, and no window for its
   # picker to move. That pill would be drawn, hidden, forever — the dormant-pill
   # failure this gate exists to prevent, and indistinguishable from a broken one.
+  # `focus` is the third, and it is the one that was gated by NAME before the
+  # widget table existed — twice, once per bar. `bar.items` has no switch for it
+  # (it rides `haus.focus.enable`), so under the old shape there was no way to
+  # ask for it without the room. The open form removes that accident:
+  # `widgets.focus.enable = true` is now a thing a rice can write, and with the
+  # room off it would draw a bell whose click_script is a `~/.local/bin/focus`
+  # only that room installs — a pill that does nothing, forever. Same gate, said
+  # once now instead of per bar.
   contributed =
     name:
     if name == "agents" then
       config.haus._contrib.bar.agents.enable
     else if name == "page" then
       config.haus.windows.enable
+    else if name == "focus" then
+      config.haus.focus.enable
     else
       true;
 
