@@ -39,6 +39,10 @@ zmx_states() {
         p = index($i, "=")
         if (p == 0) { gsub(/^[ \t]+|[ \t]+$/, "", $i); if (name == "") name = $i; continue }
         k = substr($i, 1, p - 1); gsub(/^[ \t]+|[ \t]+$/, "", k)
+        # The row you are attached to is marked in zmx s FIRST field
+        # ("-> ** name=..."), gluing the marker onto that key; strip it or the
+        # lane you are sitting in is the one row with no state.
+        sub(/^[^A-Za-z_]*/, "", k)
         if (k == "name")   name   = substr($i, p + 1)
         if (k == "state")  state  = substr($i, p + 1)
         if (k == "client") client = substr($i, p + 1)
