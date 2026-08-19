@@ -202,38 +202,56 @@ audio_input_set() { # $1 = exact device name
         || note "audio: no input device named \"$1\" — left as it was"
 }
 
-# An app is named the way `open -a` takes it — a name or a bundle id — so the
-# AppleScript reference is picked the same way, on the one shape only a bundle
-# id has (dots, no spaces). The name is passed as an ARGUMENT rather than
-# spliced into the script text: scene data never becomes code here, which is
-# the whole reason the table is JSON the engine reads.
+# An app is named the way `open -a` takes it — a name, a bundle id, or a path —
+# and AppleScript has two references to reach one, so both are TRIED rather than
+# guessed at from the shape of the string: a bundle id and a dotted app name
+# (`draw.io`) look identical, and a heuristic that picks wrong makes closeOnExit
+# silently do nothing. `application id` first because it is the exact one; the
+# name form answers `false` for anything macOS doesn't know, so an app that
+# exists under neither reads as "not running", which is right.
+#
+# The name reaches osascript as an ARGUMENT, never spliced into the script text:
+# scene data stays data, which is the whole reason the table is JSON the engine
+# reads rather than generated shell.
 #
 # `application X is running` is the one form that answers without launching what
-# it asks about — `tell application X to ...` would start it. An app macOS has
-# never heard of errors, which greps as "not running", which is right.
-app_running() { # $1 = app name or bundle id
+# it asks about — `tell application X to ...` would start it.
+app_running() { # $1 = app name, bundle id or path
     /usr/bin/osascript - "$1" <<'EOS' 2>/dev/null | grep -q true
 on run argv
     set a to item 1 of argv
-    if a contains "." and a does not contain " " then
+    try
         return (application id a is running)
-    end if
+    end try
     return (application a is running)
 end run
 EOS
 }
 
 # The polite quit — the same message ⌘Q sends, so an app with unsaved work still
-# gets to put its dialog up. Guarded by `is running` so quitting what is already
-# gone can never be what starts it.
-app_quit() { # $1 = app name or bundle id
+# gets to put its save sheet up. `ignoring application responses` is what makes
+# that safe to do from here: without it osascript waits for the reply, and an
+# app showing a sheet doesn't reply until a person dismisses it (or the Apple
+# event times out, two minutes later), which would leave the rest of the exit —
+# the caffeinate hold, the microphone, the state files — hanging behind a modal.
+# ⌘Q from the Dock doesn't wait either. Guarded by `is running` so quitting what
+# is already gone can never be what starts it.
+app_quit() { # $1 = app name, bundle id or path
     /usr/bin/osascript - "$1" <<'EOS' >/dev/null 2>&1
 on run argv
     set a to item 1 of argv
-    if a contains "." and a does not contain " " then
-        if application id a is running then tell application id a to quit
-    else
-        if application a is running then tell application a to quit
+    try
+        if application id a is running then
+            ignoring application responses
+                tell application id a to quit
+            end ignoring
+        end if
+        return
+    end try
+    if application a is running then
+        ignoring application responses
+            tell application a to quit
+        end ignoring
     end if
 end run
 EOS
@@ -382,17 +400,14 @@ scene_off() {
         return
     fi
 
+    # Read off `prev` like every other reversal — never off the table — so a
+    # scene the host deleted mid-flight still closes what it opened. Read HERE
+    # and quit at the very end: the levers below all read this same file, and an
+    # app is the one thing on the list that can put a dialog between us and them.
+    local quitApps
+    quitApps=$("$JQ" -r '.tookApps[]? // empty' "$SCENE_PREV" 2>/dev/null)
+
     scene_hooks "$name" off
-
-    # Before the rest, and off `prev` like every other reversal, so a scene the
-    # host deleted mid-flight still closes what it opened. A hook runs first on
-    # purpose: it is the half that might want to save something out of an app
-    # about to be asked to quit.
-    while IFS= read -r app; do
-        [ -n "$app" ] || continue
-        app_quit "$app"
-    done < <("$JQ" -r '.tookApps[]? // empty' "$SCENE_PREV" 2>/dev/null)
-
     sleep_release
 
     [ "$(scene_prev_read .tookAudio)" = true ] && audio_input_set "$(scene_prev_read .audioInput)"
@@ -413,6 +428,17 @@ scene_off() {
 
     /bin/rm -f "$SCENE_FILE" "$SCENE_PREV"
     poke_bar
+
+    # Last, with the scene already recorded as off and the bar already repainted:
+    # the quit is asynchronous but an app can still take a visible moment to go,
+    # and a pill that waits for OBS to finish closing is a pill that looks dead
+    # to the second click — which would run this whole function again, against a
+    # `prev` file the first pass has since removed.
+    while IFS= read -r app; do
+        [ -n "$app" ] || continue
+        app_quit "$app"
+    done <<<"$quitApps"
+
     note "scene off ($name)"
 }
 
