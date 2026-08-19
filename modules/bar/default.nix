@@ -309,8 +309,9 @@ let
   '';
 
   # The focus pill — generic (no personal hardware/service), so unlike the
-  # bar.items extras below it rides haus.focus.enable, not an opt-in
-  # list. focus_change is fired by the focus engine after its own toggles and by
+  # bar.items extras below it rides the Focus room's contribution
+  # (`_contrib.bar.focus`, which `haus.focus.enable` is the user's address for),
+  # not an opt-in list. focus_change is fired by the focus engine after its own toggles and by
   # the focus-watcher agent (modules/focus) when the Focus DB changes; the
   # update_freq poll is only a backstop for missed events.
   focusBlock = sb: side: ''
@@ -1092,8 +1093,8 @@ let
 
   topItemsSh = ''
     #!/bin/bash
-    # GENERATED from haus.bar.widgets (which haus.bar.items and
-    # haus.focus.enable write into) by modules/bar/default.nix — do not edit.
+    # GENERATED from haus.bar.widgets (which haus.bar.items, and the rooms that
+    # contribute a pill, write into) by modules/bar/default.nix — do not edit.
   ''
   + lib.concatMapStrings (widgetBlock barTopPath "right") topItems;
 

@@ -274,7 +274,8 @@ let
       # pounce: name = Scene: ${name}
       # pounce: description = ${sceneDescription name s}
       # pounce: icon = theatermasks.fill
-      # Generated from the scene ${name} — the palette surface a scene
+      # Generated from haus.focus.scenes.${name}, by way of the Focus room's
+      # contribution — the palette surface a scene
       # doesn't get from the static ./commands dir. Absolute path: the
       # daemon's environment has no user PATH.
       exec "$HOME/.local/bin/focus" scene ${name}

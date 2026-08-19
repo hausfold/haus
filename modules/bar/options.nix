@@ -27,8 +27,8 @@ let
   widgets = import ./widgets.nix;
 
   # Which of them `bar.items` offers, and what each defaults to. `focus` carries
-  # `default = null` — it rides `haus.focus.enable` rather than a bool of its
-  # own — so it is in neither table's ON/OFF surface, and is filtered out here
+  # `default = null` — it rides the Focus room's contribution rather than a bool
+  # of its own — so it is in neither table's ON/OFF surface, and is filtered out here
   # by that null rather than by name.
   switchable = lib.filterAttrs (_: w: w.default != null) widgets;
   # The five that draw on a rice which says nothing, and the rest. Split only to

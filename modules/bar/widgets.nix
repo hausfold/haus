@@ -182,7 +182,7 @@
   };
 
   # The Focus pill is bundled and movable but is NOT in `bar.items`: it rides
-  # `haus.focus.enable` rather than an opt-in bool, which is the one asymmetry
+  # the Focus room's contribution rather than an opt-in bool, which is the one asymmetry
   # the old tables carried and this one keeps. `default = null` says exactly
   # that — "another room decides" — and modules/bar/default.nix is where the
   # room is named, so a widget the bar cannot switch on by itself can still be
