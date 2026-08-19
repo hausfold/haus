@@ -176,8 +176,12 @@ zmx_records() {
         if (p == 0) continue
         k = substr($i, 1, p - 1)
         gsub(/^[ \t]+|[ \t]+$/, "", k)
-        # Only up to the FIRST "=", because a value carries its own: cwd is a
-        # URL, and a label is whatever the client wrote.
+        # zmx marks the row you are attached to in its FIRST field
+        # ("-> ** name=..."), so that row carries the marker glued onto its
+        # first key and matches nothing. Strip anything before the key proper.
+        sub(/^[^A-Za-z_]*/, "", k)
+        # Only up to the FIRST "=", because a value carries its own: the
+        # directory may be a URL, and a label is whatever the client wrote.
         f[k] = substr($i, p + 1)
       }
       if (f["state"] == "" || f["name"] == "") next
@@ -186,11 +190,12 @@ zmx_records() {
       else if (f["state"] == "working") pr = 1
       else if (f["state"] == "idle")    pr = 2
       since = (f["since"] == "" ? f["created"] : f["since"])
-      # zmx reports the session cwd as a file:// URL with the host in it
-      # ("file://Mac/Users/…"); the holt join below wants the plain path. This
-      # is not a label — zmx rejects any label value containing a slash — it is
-      # a field zmx keeps itself, which is why the hook does not have to.
-      cwd = f["cwd"]
+      # The session directory is `start_dir` in zmx 0.7.0 and was `cwd`, a
+      # file:// URL with the host in it ("file://Mac/Users/…"), before that;
+      # the holt join below wants the plain path either way. This is not a
+      # label — zmx rejects any label value containing a slash — it is a field
+      # zmx keeps itself, which is why the hook does not have to.
+      cwd = (f["start_dir"] != "" ? f["start_dir"] : f["cwd"])
       sub(/^file:\/\/[^\/]*/, "", cwd)
       printf "%s\t%s\tzmx\t%s\t%s\t%s\t%s\t%s\n",
         pr, (since == "" ? 0 : since), f["state"], f["name"],

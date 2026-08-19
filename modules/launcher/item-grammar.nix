@@ -33,6 +33,7 @@ let
     "cmd:<id>"
     "app:<path>"
     "shortcut:<uuid>"
+    "setting:<pane>[?<anchor>]"
     "mode:<name>"
   ];
 in
@@ -56,6 +57,9 @@ in
     "cmd:<id>" = "cmd:emoji";
     "app:<path>" = "app:/Applications/Ghostty.app";
     "shortcut:<uuid>" = "shortcut:0ECC8F7A-3A52-467A-84C0-511CCE1CB9B7";
+    # A pane on its own; `pane?anchor` is the same shape with one setting named
+    # inside it, and both go down the same length-only branch in the validator.
+    "setting:<pane>[?<anchor>]" = "setting:com.apple.Appearance-Settings.extension";
     "mode:<name>" = "mode:clipboard";
   };
 

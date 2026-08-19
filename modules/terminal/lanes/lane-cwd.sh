@@ -33,9 +33,12 @@ cwd=""
 case "$title" in
   holt.*)
     if command -v zmx >/dev/null 2>&1; then
-      # `zmx ls` is tab-separated k=v; cwd comes back as a file:// URL with the
-      # host in it, which is the same shape (and the same strip) the bar's
-      # agents.sh already parses.
+      # `zmx ls` is tab-separated k=v. The directory field is `start_dir` (zmx
+      # 0.7.0); older zmx called it `cwd` and wrapped it in a file:// URL with
+      # the host in it, so both spellings are accepted and the URL prefix is
+      # stripped when present. Reading only `cwd` is what silently broke ⌘↵:
+      # no directory came back, the chord fell through to $HOME, and $HOME
+      # isn't a git repo. The bar's agents.sh parses the same two shapes.
       cwd="$(
         zmx ls 2>/dev/null | awk -F'\t' -v want="$title" '
           {
@@ -44,8 +47,15 @@ case "$title" in
               p = index($i, "=")
               if (p == 0) { gsub(/^[ \t]+|[ \t]+$/, "", $i); if (name == "") name = $i; continue }
               k = substr($i, 1, p - 1); gsub(/^[ \t]+|[ \t]+$/, "", k)
+              # zmx marks rows in the FIRST field ("→ ** name=…" for the
+              # session you are attached to), so the first key arrives with
+              # that marker glued to it. Drop anything before the last run of
+              # marker/space characters or the key never matches and the lane
+              # you pressed ⌘↵ from is the one row that fails to resolve.
+              sub(/^[^A-Za-z_]*/, "", k)
               if (k == "name") name = substr($i, p + 1)
-              if (k == "cwd")  c    = substr($i, p + 1)
+              if (k == "start_dir") c = substr($i, p + 1)
+              else if (k == "cwd" && c == "") c = substr($i, p + 1)
             }
             if (name == want && c != "") { sub(/^file:\/\/[^\/]*/, "", c); print c; exit }
           }
