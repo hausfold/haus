@@ -1931,6 +1931,161 @@
     "readOnly": false,
     "type": "one of \"top\", \"bottom\", \"auto\""
   },
+  "haus.bar.widgets": {
+    "declarations": [
+      "modules/bar/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "{ }"
+    },
+    "description": "Every pill on the bar, including the bundled ones — the open form of\n`haus.bar.items`, and the only way to add a pill haus does not ship.\n\nA widget is one script, run on a timer, whose output is the pill's\nlabel. Nothing else is required:\n\n  haus.bar.widgets.backup = {\n    command = \"/etc/haus/backup-status.sh\";\n    interval = 300;\n    icon = \"󰁯\";\n  };\n\nThe sixteen bundled pills are already declared here, so\n`haus.bar.widgets.clock`, `.media`, `.agents` and the rest exist on\nevery machine and can be retuned by name — `interval` and `placement`\nare the two fields that mean something on all of them:\n\n  haus.bar.widgets.weather.interval = 1800;   # ask half as often\n  haus.bar.widgets.cpu.placement = \"left\";    # only on the bottom bar\n\nA bundled widget's `command` is haus's own plugin and is read-only —\nsetting one is refused by name rather than silently ignored, because a\npill whose script you replaced but whose dropdown, click gestures and\ncolour rules still belong to haus is not a pill either of us can\nreason about. Write your own widget under a new name instead.\n\n`haus.bar.items.<name>` is sugar for `haus.bar.widgets.<name>.enable`\nand `haus.bar.bottom.items.<name>` for `.placement`; both keep working\nexactly as they did, and either spelling may be used. Setting the same\npill both ways is not an error — the open form is the more specific of\nthe two and simply wins, so `haus.bar.items.cpu = false` alongside\n`haus.bar.widgets.cpu.enable = true` draws the pill.\n\n`permissions` is a DECLARATION, not a grant: it says what macOS will\nask your widget for, so `haus doctor` can tell you which pill is about\nto prompt instead of leaving you to guess. Nothing here requests\nanything, and a widget that lies about it merely gets a worse report.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "{\n  backup = {\n    command = \"/etc/haus/backup-status.sh\";\n    icon = \"󰁯\";\n    interval = 300;\n    permissions = [\n      \"full-disk-access\"\n    ];\n    placement = \"right\";\n  };\n}"
+    },
+    "loc": [
+      "haus",
+      "bar",
+      "widgets"
+    ],
+    "readOnly": false,
+    "type": "attribute set of (submodule)"
+  },
+  "haus.bar.widgets.<name>.command": {
+    "declarations": [
+      "modules/bar/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The script whose output is this pill's label, run every\n`interval` seconds. One line on stdout is the label; nothing at all\nhides the pill for that tick, which is how a widget says \"no news\"\nwithout drawing an empty box.\n\nIt runs as you, with SketchyBar's own variables in the\nenvironment (`$NAME` is this widget's item id, `$BUTTON` and\n`$SENDER` on a click). Reach the bar back through `$SB` after\nsourcing `~/.config/sketchybar/bar.sh` rather than by naming\n`sketchybar`, so a widget moved to the bottom bar keeps talking to\nthe bar it is actually on — see AGENTS.md, it is the single most\ncommon way a pill silently stops updating.\n\nnull on a bundled pill, whose behaviour is haus's own plugin, and\nsetting one there is an error rather than an override.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"/etc/haus/backup-status.sh\""
+    },
+    "loc": [
+      "haus",
+      "bar",
+      "widgets",
+      "<name>",
+      "command"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.bar.widgets.<name>.enable": {
+    "declarations": [
+      "modules/bar/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Whether to draw this pill. A widget you declared is on by default —\nyou wrote it down to get it — while the bundled pills keep the\ndefaults they always had, which `haus.bar.items` is the sugar for.\n\nOff is not \"hidden\": the pill is never created and its command\nnever runs, so a widget switched off costs nothing at all.\n",
+    "loc": [
+      "haus",
+      "bar",
+      "widgets",
+      "<name>",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.bar.widgets.<name>.icon": {
+    "declarations": [
+      "modules/bar/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "The glyph drawn to the left of the label, in the bar's own font\n(`haus.fonts.mono.name`), so any Nerd Font glyph works. Empty\ndraws no icon and gives the label the whole pill.\n\nIgnored on a bundled pill: those set their own, and several change\nit to say something (the memory pill's pressure colour, the\ngithub pill's two-tone logo).\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"󰁯\""
+    },
+    "loc": [
+      "haus",
+      "bar",
+      "widgets",
+      "<name>",
+      "icon"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.bar.widgets.<name>.interval": {
+    "declarations": [
+      "modules/bar/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "How often to run `command`, in seconds. Works on the bundled pills\ntoo, where it retunes what that pill already polls at:\n\n  haus.bar.widgets.weather.interval = 1800;\n\nnull keeps the widget's own default — for a bundled pill the rate\nit ships with, for yours a 60-second tick. A few pills are\npush-driven rather than polled (`agents`, `page`) and a couple own\ntheir rate through an older option of their own\n(`haus.bar.calendar.refresh`); setting this on one of those is\naccepted and changes only the backstop tick, which is exactly what\nupdate_freq is on a pill that repaints on an event.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "300"
+    },
+    "loc": [
+      "haus",
+      "bar",
+      "widgets",
+      "<name>",
+      "interval"
+    ],
+    "readOnly": false,
+    "type": "null or (positive integer, meaning >0)"
+  },
+  "haus.bar.widgets.<name>.permissions": {
+    "declarations": [
+      "modules/bar/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ ]"
+    },
+    "description": "What macOS will ask this widget for the first time it runs.\n\nA DECLARATION and nothing more: haus requests none of these, and\nlisting one neither grants it nor makes the pill wait for it. What\nit buys is a reader — `haus doctor` can say which pill on your bar\nis about to raise a permission dialog, and a widget you install\nfrom someone else can be read for what it will reach for before\nyou switch it on. That is the same shape nebelung's ports metadata\nuses, one room over: the declaration lives with the thing, the\nconsumer reads it.\n\n`network` is not a macOS grant at all, and is here because \"this\npill talks to the internet\" is the property people actually want\nto see on a widget they didn't write.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"full-disk-access\"\n]"
+    },
+    "loc": [
+      "haus",
+      "bar",
+      "widgets",
+      "<name>",
+      "permissions"
+    ],
+    "readOnly": false,
+    "type": "list of (one of \"accessibility\", \"automation\", \"calendar\", \"contacts\", \"full-disk-access\", \"location\", \"microphone\", \"network\", \"photos\", \"reminders\", \"screen-recording\")"
+  },
+  "haus.bar.widgets.<name>.placement": {
+    "declarations": [
+      "modules/bar/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Which bar this pill sits on, and where along it.\n\n`\"menu-bar\"` is the top bar, and is where every pill goes unless\nsomething says otherwise — it has one group to offer, because its\nleft is the workspace pills and its centre is the notch.\n`\"bottom-left\"`, `\"bottom-center\"` and `\"bottom-right\"` are the\nsecond bar's three groups, and need `haus.bar.bottom.enable`.\n\nA bare `\"left\"` / `\"center\"` / `\"right\"` is the same three groups\nof the bottom bar, spelled the way `haus.bar.bottom.items` spells\nthem — that option is sugar for this field, so both spellings\nreach the same place.\n\nnull means \"wherever the sugar put it\", which on a machine that\nnever mentions this pill is the menu bar.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"bottom-left\""
+    },
+    "loc": [
+      "haus",
+      "bar",
+      "widgets",
+      "<name>",
+      "placement"
+    ],
+    "readOnly": false,
+    "type": "null or one of \"menu-bar\", \"bottom-left\", \"bottom-center\", \"bottom-right\", \"left\", \"center\", \"right\""
+  },
   "haus.developer.enable": {
     "declarations": [
       "modules/options.nix"

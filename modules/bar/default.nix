@@ -867,17 +867,110 @@ let
   ];
   itemOrder = coreOrder ++ [ "focus" ] ++ extraOrder;
 
-  # Is this pill switched on in the MENU BAR's table? Kept bool-only on purpose:
-  # the top bar has exactly one group to offer, and `claudeUsage` — the
-  # deprecated alias, which only this table carries — is honoured here, in one
-  # place. The bottom table is read through `bottomSideOf` instead, because its
-  # values answer a second question.
-  wantsItem =
-    items: name:
-    if name == "aiUsage" then
-      (items.aiUsage or false) || (items.claudeUsage or false)
+  # ---- widgets: the open form, and the sugar over it --------------------------
+  # `haus.bar.widgets.<name>` is what a pill IS now; `bar.items` and
+  # `bar.bottom.items` are two closed submodules that write into it. The bundled
+  # sixteen are PRE-DECLARED below, so nothing about the old surface changes
+  # meaning — every leaf keeps its default, its description and its effect — and
+  # a rice that isn't this one can finally add a seventeenth pill.
+  #
+  # The direction of the sugar is deliberate: the tables write into `widgets`
+  # rather than `widgets` being read back out of them. That is what makes the
+  # open form the single source the emission reads, so a bundled pill and a
+  # stranger's arrive at the bar down the same path.
+  widgetTable = import ./widgets.nix;
+  bundledNames = builtins.attrNames widgetTable;
+  # The one entry in that table which draws no pill: a deprecated alias, folded
+  # into the widget it names rather than pre-declared as one of its own.
+  aliasOf = name: widgetTable.${name}.alias or null;
+  drawnBundled = builtins.filter (name: aliasOf name == null) bundledNames;
+  widgets = cfg.widgets;
+  # A pill this repo ships, as opposed to one a rice declared. The distinction
+  # is only ever used to REFUSE something (a `command` on a bundled pill, a
+  # stranger's widget claiming a bundled name), never to give the bundled ones a
+  # capability — see the assertions below.
+  isBundled = name: builtins.elem name drawnBundled;
+  userWidgetNames = builtins.filter (name: !(isBundled name)) (builtins.attrNames widgets);
+
+  # Where a widget sits, normalised to the one spelling the emission uses:
+  # "menu-bar", or "bottom-<side>". `bar.bottom.items` writes the bare side
+  # names — which is the spelling that option always took — so both are accepted
+  # and mean the bottom bar, exactly as that option's values always did.
+  placementOf =
+    name:
+    let
+      p = widgets.${name}.placement or null;
+    in
+    if p == null then
+      "menu-bar"
+    else if builtins.elem p bottomSides then
+      "bottom-${p}"
     else
-      items.${name} or false;
+      p;
+  onBottom = name: lib.hasPrefix "bottom-" (placementOf name);
+
+  # Every widget that should be drawn at all: switched on, and with the room
+  # behind it actually present. One list for both bars, split by placement
+  # below — so "is this pill live" is answered once.
+  liveWidgets = builtins.filter (name: (widgets.${name}.enable or false) && contributed name) (
+    lib.unique (itemOrder ++ userWidgetNames)
+  );
+
+  # A widget a rice declared, rendered as a SketchyBar block. Deliberately
+  # small: one item, one script, one interval, and the same background and
+  # padding every bundled pill wears, so a stranger's widget looks like it
+  # belongs on this bar rather than like a patch on it. Anything richer — a
+  # dropdown, click gestures, a colour that says something — is what writing a
+  # room is for, and this is the line between the two.
+  #
+  # `icon.drawing` follows whether an icon was given: SketchyBar reserves the
+  # icon's padding even for an empty string, so a widget with no glyph would
+  # otherwise draw a pill with a blank gap where one would go.
+  userWidgetBlock =
+    sb: side: name:
+    let
+      w = widgets.${name};
+      freq = if w.interval != null then w.interval else 60;
+    in
+    ''
+      ${sb} --add item ${name} ${side} \
+          --set ${name} \
+              update_freq=${toString freq} \
+              icon=${lib.escapeShellArg w.icon} \
+              icon.drawing=${if w.icon == "" then "off" else "on"} \
+              icon.color=$TEAL \
+              background.color=$SURFACE0 \
+              label.font="${barFont}:Bold:${sizes.label}" \
+              script=${lib.escapeShellArg w.command} \
+          --subscribe ${name} system_woke
+    '';
+
+  # The interval override, for a BUNDLED pill whose block already wrote an
+  # update_freq of its own. Emitted after that block rather than woven into it:
+  # the blocks are hand-written SketchyBar runs, several of them interpolating
+  # their rate from an older option (`haus.bar.calendar.refresh`), and a `--set`
+  # that lands after the `--add` wins with no ambiguity about which. Nothing at
+  # all is emitted when the rice said nothing, so a bar that never mentions
+  # `interval` renders byte-identically to before this existed.
+  intervalOverride =
+    sb: name:
+    let
+      chosen = widgets.${name}.interval or null;
+      shipped = widgetTable.${name}.interval or null;
+    in
+    lib.optionalString (chosen != null && chosen != shipped) ''
+      ${sb} --set ${itemId name} update_freq=${toString chosen}
+    '';
+
+  # One pill's block, whichever kind it is. This is the whole reason the open
+  # form is worth having: past this point the emission never asks again whether
+  # a pill is haus's or yours.
+  widgetBlock =
+    sb: side: name:
+    if isBundled name then
+      (mkPluginBlocks sb side).${name} + intervalOverride sb name
+    else
+      userWidgetBlock sb side name;
 
   # Is the room BEHIND this pill actually here? A pill the bar draws for another
   # room is that room's feature (modules/lib/contrib.nix): the bar owns where it
@@ -908,52 +1001,43 @@ let
       true;
 
   # ---- the second bar's three groups -----------------------------------------
-  # Which group of the bottom bar a pill was asked for, or null for "not on this
-  # bar at all". `haus.bar.bottom.items.<pill>` is a side name, or a bool: the
-  # option shipped bool-only, so `true` still has to mean the right group, which
-  # is where every pill landed then.
+  # The three groups themselves. Which pill is in which is `placementOf`'s
+  # answer now — `haus.bar.bottom.items.<pill>` writes that field rather than
+  # being read here — but the LIST still lives in one file shared with
+  # options.nix, for the reason sides.nix gives.
   bottomSides = import ./sides.nix;
-  bottomSideOf =
-    name:
-    let
-      v = cfg.bottom.items.${name} or false;
-    in
-    if lib.isString v then
-      v
-    else if v then
-      "right"
-    else
-      null;
 
-  # The pills each group claims, in the same fixed order everywhere. SketchyBar
-  # packs a group outward from its own edge, so `right` still reads outside-in
-  # (clock furthest right, exactly as on the menu bar) while `left` fills
-  # rightward from the left edge — the two are mirrors of one list, not two
-  # lists.
+  # The order pills are emitted in: the bundled ones in the fixed left-to-right
+  # order above, then whatever a rice declared, alphabetically. A stranger's
+  # widget lands outboard of haus's own rather than interleaved, which is the
+  # only stable answer available — `itemOrder` is an editorial sequence, and
+  # there is no field on a widget that could name a position in it without
+  # inventing an ordering surface nobody asked for yet.
+  emissionOrder = itemOrder ++ userWidgetNames;
+
+  # The pills each group claims, in that order. SketchyBar packs a group outward
+  # from its own edge, so `right` still reads outside-in (clock furthest right,
+  # exactly as on the menu bar) while `left` fills rightward from the left edge —
+  # the two are mirrors of one list, not two lists.
   bottomGroup =
     side:
     lib.optionals cfg.bottom.enable (
-      lib.filter (
-        name: bottomSideOf name == side && (name != "focus" || config.haus.focus.enable) && contributed name
-      ) itemOrder
+      lib.filter (name: placementOf name == "bottom-${side}") (
+        lib.filter (name: builtins.elem name liveWidgets) emissionOrder
+      )
     );
 
   # Every pill on the SECOND bar, whichever group it sits in, and then the ones
-  # left for the menu bar. A pill MOVES rather than duplicating: the bottom table
-  # wins outright, so there is one switch per pill per bar and never two live
-  # copies of a readout racing each other's update_freq. This flattened list is
-  # what the "is it down there?" questions read — the top bar's exclusion, the
-  # bar.sh routing table, the media/calendar closure — none of which care about
-  # the group.
+  # left for the menu bar. A pill MOVES rather than duplicating: a bottom
+  # placement takes it off the top, so there is one switch per pill per bar and
+  # never two live copies of a readout racing each other's update_freq. This
+  # flattened list is what the "is it down there?" questions read — the top bar's
+  # exclusion, the bar.sh routing table, the media/calendar closure — none of
+  # which care about the group.
   bottomItems = lib.concatMap bottomGroup bottomSides;
-  topCore = lib.filter (
-    name: wantsItem cfg.items name && contributed name && !(builtins.elem name bottomItems)
-  ) coreOrder;
-  topExtras = lib.filter (
-    name: wantsItem cfg.items name && contributed name && !(builtins.elem name bottomItems)
-  ) extraOrder;
-  topFocus = config.haus.focus.enable && !(builtins.elem "focus" bottomItems);
-  topItems = topCore ++ lib.optional topFocus "focus" ++ topExtras;
+  topItems = lib.filter (
+    name: builtins.elem name liveWidgets && !(builtins.elem name bottomItems)
+  ) emissionOrder;
 
   # nix name -> the item name SketchyBar knows it by. Identity for all but the
   # camel-cased one, and the plugins' own $NAME is the sketchybar side — so this
@@ -962,12 +1046,10 @@ let
 
   topItemsSh = ''
     #!/bin/bash
-    # GENERATED from haus.focus.enable + haus.bar.items by
-    # modules/bar/default.nix — do not edit.
+    # GENERATED from haus.bar.widgets (which haus.bar.items and
+    # haus.focus.enable write into) by modules/bar/default.nix — do not edit.
   ''
-  + lib.concatMapStrings (name: (mkPluginBlocks barTopPath "right").${name}) topCore
-  + lib.optionalString topFocus (focusBlock barTopPath "right")
-  + lib.concatMapStrings (name: (mkPluginBlocks barTopPath "right").${name}) topExtras;
+  + lib.concatMapStrings (widgetBlock barTopPath "right") topItems;
 
   # The same blocks again, emitted against the OTHER bar and grouped by side.
   # $SB is set by bar.sh, which bar-bottomrc sources before this file — an
@@ -977,8 +1059,9 @@ let
   # instead.
   bottomItemsSh = ''
     #!/bin/bash
-    # GENERATED from haus.bar.bottom.items by modules/bar/default.nix — do not
-    # edit. One `# --- <side>` run per group, in left/center/right order.
+    # GENERATED from haus.bar.widgets' placements (which haus.bar.bottom.items
+    # writes into) by modules/bar/default.nix — do not edit. One
+    # `# --- <side>` run per group, in left/center/right order.
   ''
   + lib.concatMapStrings (
     side:
@@ -986,7 +1069,7 @@ let
       names = bottomGroup side;
     in
     lib.optionalString (names != [ ]) (
-      "\n# --- ${side} ---\n" + lib.concatMapStrings (name: (mkPluginBlocks "$SB" side).${name}) names
+      "\n# --- ${side} ---\n" + lib.concatMapStrings (widgetBlock "$SB" side) names
     )
   ) bottomSides;
 
@@ -1306,7 +1389,125 @@ lib.mkIf config.haus.bar.enable {
         assertion = !(drawn && !config.haus.developer.git.enable);
         message = "haus.bar.items.github is on but haus.developer.git.enable is off. The pill queries GitHub through `gh`, which that pack is what installs.";
       }
-    ];
+    ]
+    # ---- what a widget may not do ------------------------------------------
+    # The open form's three refusals. All assertions rather than warnings,
+    # because each names a configuration whose only two readings are "you meant
+    # something we can't do" and "you meant something we would do WRONG" — and
+    # the wrong half is silent in every case: a bundled pill quietly keeping
+    # haus's script, a stranger's widget quietly inheriting a bundled pill's
+    # gestures, a pill quietly drawn on a bar that isn't there.
+    ++
+      map
+        (name: {
+          assertion = false;
+          message = "haus.bar.widgets.${name}.command is set, but `${name}` is a pill haus ships: its behaviour is haus's own plugin, and its dropdown, click gestures and colour rules are written against that script. Setting a command here would replace only half of it. Declare your own widget under a different name instead — `haus.bar.widgets.my${
+            lib.toUpper (builtins.substring 0 1 name)
+          }${
+            builtins.substring 1 (builtins.stringLength name) name
+          }`, say — and turn this one off with `haus.bar.items.${name} = false`.";
+        })
+        (
+          builtins.filter (name: isBundled name && (widgets.${name}.command or null) != null) (
+            builtins.attrNames widgets
+          )
+        )
+    ++
+      map
+        (name: {
+          assertion = false;
+          message = "haus.bar.widgets.${name} is enabled but sets no command, and `${name}` is not a pill haus ships — so there is nothing for the bar to run and the pill would draw an empty box forever. Give it a `command`, or drop the widget.";
+        })
+        (
+          builtins.filter (
+            name: widgets.${name}.enable && (widgets.${name}.command or null) == null
+          ) userWidgetNames
+        )
+    ++
+      # A pill placed on a bar that isn't drawn. The bottom bar is off by
+      # default, so this is the likeliest way to lose a widget entirely — and it
+      # is invisible from the option alone, because the placement is perfectly
+      # valid and the bar it names simply doesn't exist.
+      map
+        (name: {
+          assertion = false;
+          message = "haus.bar.widgets.${name}.placement puts it on the bottom bar, but haus.bar.bottom.enable is off, so that bar is never drawn and this pill would appear nowhere at all. Switch the second bar on, or place this on \"menu-bar\".";
+        })
+        (
+          builtins.filter (name: onBottom name && !cfg.bottom.enable && widgets.${name}.enable) (
+            builtins.attrNames widgets
+          )
+        );
+
+  # ---- the bundled pills, pre-declared as widgets -----------------------------
+  # Every pill this repo ships exists in `haus.bar.widgets` on every machine,
+  # whether anyone named it or not, and this is where. Three things arrive here
+  # and each is a different kind of answer:
+  #
+  #   enable      what `bar.items` says, or — for `focus`, which has no switch in
+  #               that table — what the Focus room says. mkDefault, so a rice
+  #               that reaches for the open form directly
+  #               (`widgets.cpu.enable = true`) wins over the sugar's default
+  #               without having to know the sugar exists.
+  #   placement   what `bar.bottom.items` says, and null (the menu bar) when it
+  #               says nothing.
+  #   interval /  the widget table's own values, so reading
+  #   permissions `haus.bar.widgets.weather` answers "how often does this run,
+  #               and what will it ask me for" without a second lookup — which
+  #               is the whole reason those two fields are on the open form
+  #               rather than in a comment.
+  #
+  # `claudeUsage` never becomes a widget: it is a deprecated ALIAS, so it is
+  # OR-ed into the widget it names. That fold lived in `wantsItem` before and is
+  # the same one line, one layer earlier — which is the shape of this whole
+  # change, and the reason the emission below never mentions it again.
+  haus.bar.widgets = lib.mkMerge (
+    map (
+      name:
+      let
+        w = widgetTable.${name};
+        side = cfg.bottom.items.${name} or false;
+        # The sugar's answer for this pill, and it is TWO questions folded into
+        # one field, exactly as the old tables folded them. `focus` is the
+        # first asymmetry: it rides its room's switch, and `bar.items` never
+        # offered a bool for it.
+        #
+        # The second is `bar.bottom.items`, and it is the one worth writing
+        # down. Naming a pill there has ALWAYS drawn it — the bottom table won
+        # outright, so `bottom.items.calendar = "center"` put the calendar on
+        # the second bar with `items.calendar` left at its default false, which
+        # is the documented way to do it and what the roster's ical-buddy gate
+        # keys off. Placement therefore implies enablement, and a first cut of
+        # this that read `items` alone silently emptied the bottom bar of every
+        # default-off pill — caught by `bar-bottom-groups`, which is exactly
+        # the fixture that exists to catch it.
+        wanted =
+          if name == "focus" then
+            config.haus.focus.enable
+          else
+            side != false
+            || (cfg.items.${name} or w.default)
+            || lib.any (a: aliasOf a == name && (cfg.items.${a} or false)) bundledNames;
+      in
+      {
+        ${name} = {
+          enable = lib.mkDefault wanted;
+          placement = lib.mkDefault (
+            if side == false then
+              null
+            else if lib.isString side then
+              side
+            else
+              # The bool form `bar.bottom.items.<pill> = true`, which is what
+              # that option shipped as and still means the right group.
+              "right"
+          );
+          interval = lib.mkDefault w.interval;
+          permissions = lib.mkDefault w.permissions;
+        };
+      }
+    ) drawnBundled
+  );
 
   # The pill's default sources, set here rather than in options.nix because they
   # are built from haus.git.org and an option's `default` cannot read config.

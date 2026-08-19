@@ -195,6 +195,25 @@ let
       keyOk = plainId;
       keySaid = _: "is not a plain scene name";
     };
+    # A pill on the bar, keyed by the name it is drawn under — the bundled ones
+    # a desktop wants to move or retune, and, in the shape of the option though
+    # not in what a desktop can reach, a new one. The KEY has to be a plain id
+    # because it becomes a SketchyBar item name, which is a bare word in every
+    # generated `--add item <name> <side>` line.
+    #
+    # The payload goes back through `walk` like every other validator, which is
+    # what makes `widgets.<name>.command` host-only mean something here rather
+    # than in a second rule: a desktop may say where a pill sits, how often it
+    # runs and whether it is drawn at all, and the one leaf it cannot write is
+    # the script the bar executes. So a shared desktop can turn the whole bar
+    # into its own arrangement of the pills haus ships and still cannot add a
+    # timer that runs code — which is the same line `keys.leaderExtras.*.command`
+    # and `focus.scenes.<name>.hooks` already draw, in the room that finally
+    # made the surface open.
+    widget-entries = entries {
+      keyOk = plainId;
+      keySaid = _: "is not a plain widget name";
+    };
     # The whole desktop/host split in one option. `internal` and `main` say
     # WHICH SCREEN YOU MEAN in words that are true on any Mac; a UUID names one
     # physical panel on one desk, which is a hardware fact and belongs to a host

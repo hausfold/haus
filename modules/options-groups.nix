@@ -159,6 +159,13 @@ let
       "media.icons"
       "media.width"
       "position"
+      "widgets"
+      "widgets.<name>.command"
+      "widgets.<name>.enable"
+      "widgets.<name>.icon"
+      "widgets.<name>.interval"
+      "widgets.<name>.permissions"
+      "widgets.<name>.placement"
     ];
     developer = [
       "enable"
@@ -428,6 +435,15 @@ let
       # it can do, and a source that runs a command is exactly the leaf that
       # would stop being true of. `search` and `ci` beside it stay desktop-safe.
       "github.sources.*.command"
+      # The same rule, one room's open form later. A widget's `command` is the
+      # script the bar EXECUTES every interval — the single most powerful leaf
+      # in the whole desktop-safe surface if it were admitted, and the one that
+      # would turn "a desktop is data you can read" into "a desktop is data
+      # plus whatever it runs on a timer, forever, in your session". So a
+      # shared desktop may place, retune and switch off any pill, and may not
+      # bring a new one that runs code. That asymmetry is the point rather than
+      # a limitation: everything else about a widget stays desktop data.
+      "widgets.<name>.command"
     ];
     focus = [
       "hooks"
@@ -479,6 +495,7 @@ let
     roster."" = "roster-entries";
     bar."github.sources" = "submodule-list";
     bar."media.icons" = "attrs-of-string";
+    bar.widgets = "widget-entries";
     snippets.matches = "submodule-list";
     tour.steps = "submodule-list";
     workspaces."" = "workspace-entries";

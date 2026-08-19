@@ -11,57 +11,205 @@ let
   agentClients = import ../lib/agents.nix;
   accentNames = import ../lib/accents.nix;
 
-  # Per-pill on/off for the whole right side of the bar. One bool per item in a
-  # submodule (not attrsOf) so unknown keys are rejected and each item carries
-  # its own default: the core pills default true, the extras default false. The
-  # descriptions here are the single source for the options reference.
+  # ---- the bundled pills -----------------------------------------------------
+  # The names, defaults and descriptions all come out of ./widgets.nix, which
+  # is the ONE table both this file and default.nix read. It used to be two
+  # hand-written attrsets right here (`core` and `extra`), which is exactly the
+  # shape §5.9 of the workshop's notes/options-roadmap.md was written about: a
+  # closed submodule that grew a leaf every time a pill shipped, in three places
+  # each time (here, `bar.bottom.items`, and the block table in default.nix).
   #
-  # Up here rather than inside `bar.items` because `bar.bottom.items` reads the
-  # same tables — a pill's description is written once and both bars'
-  # option pages render it.
-  core = {
-    clock = "The clock pill, pinned to the far right.";
-    weather = "The weather pill and its click-to-open forecast popover.";
-    media = "The now-playing track — auto-hides when nothing plays, dims when paused, and counts DOWN instead of scrolling a title once the thing playing is longer than twenty minutes (a podcast or a video is one you already know the name of; what you keep glancing at the bar for is how much is left). The title scrolls for a few seconds after a track changes and then settles, so nothing moves in the corner of your eye forever; hovering brings the full title back. Gestures: left click the dropdown, RIGHT click play/pause, ⌥ next, ⇧ previous, ⌘ jump to whatever is making the noise, scroll to seek ±10s. That ⌘ click reaches the browser TAB, not just the browser: the track's title is matched against the open tabs through Safari's and Chromium's AppleScript tab APIs, and on a Firefox fork (Zen among them) — which expose no tab list at all, neither to AppleScript nor to accessibility — through Firefox's own open-tab search in the address bar. Both routes ask for a permission the first time they run, Automation for the scriptable browsers and Accessibility for the Firefox forks, and both quietly fall back to just fronting the app if you say no. The dropdown carries the cover when the source published one, a scrubbable position slider, and transport rows — plus, for a source with no cover, a small app-icon badge floating in its bottom-right corner. It reads the same system-wide session Control Center does, so it follows a browser tab as readily as Apple Music or Spotify, and its icon says what KIND of thing is playing: an app it recognises gets that app's glyph, a browser gets video or music depending on whether an album was published. It cannot say which SITE — no URL reaches the now-playing session and none of window titles, artwork shape or the session's pid can recover one, so a wrong YouTube glyph on a Netflix tab is a guess this deliberately doesn't make; `haus.bar.media.icons` is the override for a machine that knows better. SketchyBar's own `media_change` event has been dead since macOS 15.4, where Apple started requiring an entitlement to talk to `mediaremoted`; the pill is fed instead by `media-control`, which does the read from inside the entitled `/usr/bin/perl`. That is a private-framework route Apple could close in any point release — `media-control test` exits non-zero once it has.";
-    battery = "The battery pill.";
-    wifi = "The Wi-Fi status pill.";
-  };
-  extra = {
-    cpu = "Total CPU load, drawn as a graph pill: the last two minutes of it behind the number, because a percentage on its own can't tell a spike settling from a climb that started five minutes ago. The reading is a DELTA between samples — the `ps` sum this used to print is each process's average over its whole lifetime, which on a machine that has been up a week barely moves while every core is pinned. LEFT-CLICK opens a dropdown: the user/system split, the load average, then what's responsible, biggest first and aggregated per app so a browser's twenty helpers are one row; clicking a row focuses that app's window. RIGHT-CLICK opens Activity Monitor on its CPU tab. The rows can only cover processes you own, so anything root runs — `kernel_task`, `WindowServer` — lands in `everything else` rather than going quietly missing from the sum.";
-    memory = "Memory in use, drawn as a graph pill. It counts what Activity Monitor counts — app memory + wired + compressed — and deliberately NOT the file cache: macOS fills idle RAM with cache on purpose, and the old reading counted that as used, which is why it sat near 90% on a machine doing nothing. The pill's COLOUR is the kernel's own pressure level (green normal, amber warning, red critical) rather than the percentage, because 60% of RAM in use is a Mac working correctly and a pill that goes amber for it is a pill you learn to ignore. LEFT-CLICK opens a dropdown with used/total, the cache, compressed and swap figures and then the biggest footprints per app, each row clicking through to that app's window. RIGHT-CLICK opens Activity Monitor on its Memory tab.";
-    volume = "Output volume / mute state.";
-    calendar = "The one meeting you have to be at next, and one gesture to join it. It reads \"in 12m · Design review\" — countdown first, because a label is clipped from the END and the number is the part you must never lose; below `haus.bar.calendar.preciseUnder` hours it carries minutes, above it just \"in 14h\" or \"in 2d\", and while an event is running it says \"now · …\" instead of going blank. For `haus.bar.calendar.imminent` minutes either side of the start the whole pill FILLS with the accent — a shape change rather than a colour change, so it catches the eye you aren't pointing at it. RIGHT-CLICK joins: it opens the event's conferencing link, found in the invite's url, location or notes (Meet, Zoom, Teams, Webex, Jitsi, Whereby and friends out of the box; `haus.bar.calendar.joinHosts` adds your own). LEFT-CLICK opens the day as a timeline — what's DONE in the last `haus.bar.calendar.past` hours, what's on NOW, and what's NEXT — each event carrying its day, clock time, length and who it's with, the next one boxed, and a `Join` affordance on every row that has a link. Your own address is dropped from the \"with\" line automatically: a CalDAV calendar is named for the account it syncs, so the pill can work out which attendee is you with no configuration (`haus.bar.calendar.me` for the cases where it can't). A name too long for the pill sweeps past only while you HOVER it — nothing here starts a marquee on its own — and `haus.bar.calendar.width` sets how much room it gets before that applies. Pulls in `ical-buddy` automatically and reads Calendar, so macOS prompts for Calendar access on first run.";
-    caffeinate = "A coffee pill that prevents idle system sleep for 1/2/4/8 hours, a custom whole-hour duration, or indefinitely. The display may still turn off; closing a MacBook lid still sleeps it. Uses macOS's built-in `caffeinate`, so there is no extra package.";
-    page = "Which repo PAGE you are looking at — the `T/<repo>` workspace a lane's window tiles itself onto. The label is the repo, and it costs nothing to produce: the workspace's own name already carries it, so there is no git call, no cwd to resolve and no join. It draws ONLY on the terminal pages — the repo spelled out on a `T/<repo>`, the glyph alone on bare `T` (a real place, not an error), and nothing at all anywhere else, because \"which repo\" has no answer on the workspace holding your notes. The repaint is pushed by AeroSpace's own workspace-change hook rather than polled, so it lands on the switch, exactly as the menu bar's workspace pills do — and a hidden pill could not revive itself from a tick in any case. CLICK opens the Pages picker: a plain click goes to a page, ⇧/right-click opens the same list in move mode, which throws the focused window onto the page you pick and follows it there — the single-window counterpart to leader-backtick putting every window back at once. Inside the picker the other direction is ⌥↵ — Shift+Return types a newline in a pounce box and never commits, and ⌘↵ is the Ghostty-scoped lane chord. Needs `haus.windows.enable`: a page is an AeroSpace workspace, so with the tiler off the pill is left out rather than drawn permanently dormant. Typing a name no page has yet is not a miss — AeroSpace makes a workspace on first use, so it throws the window onto a page for a repo whose first lane hasn't been opened.";
-    agents = "A paw pill tracking your agent windows. The label always names the state worth interrupting you for — \"2 ready\" outranks \"5 working\", which outranks \"1 done\" — never a bare count you'd have to click to decode. Click for the per-agent breakdown, sorted the same way (waiting first, then working, then idle, longest-elapsed first within each), each block showing the client, how long it's sat in that state, and — when the window's checkout is a `holt` lane — its repo and PR status: merged, `+N unshipped` (exactly what `holt reship` fixes), not yet landed, or a dirty-tree footnote. A summary header totals the counts once more than one agent is running. Left-click a row to jump to that window, ⌥/right-click for a live peek at what it is saying (`zmx tail`) — except a desktop session, whose transcript is not readable from outside the app, so that row raises the app on either click. Fed by each client's own lifecycle hooks, which all call `agent-state` (also installed as ~/.config/sketchybar/plugins/agents-hook.sh): Opencode's plugin and Codex's ~/.codex/hooks.json are written for you (Codex asks you to trust its hooks the first time it sees them), while Claude Code's four agent-state hooks stay yours to point at it in ~/.claude/settings.json — Claude owns that file and rewrites it, so haus merges in only the keys it must and never touches those four. (The two worktree hooks ARE declared, in terminal: they point at a haus-controlled path and self-heal on rebuild.) A row lives as labels on the window's own zmx session, so it disappears the moment that session does — which is what stands in for the session-end event Codex doesn't have. A session in Claude Code's DESKTOP app has no window of its own, so it is tracked by its conversation id instead and a click raises the app — every conversation there is a tab of the one window. Its row drops off when the session ends, and, since a force-quit fires no such event, whenever the app itself is not running. Subagents are deliberately not rows: they sit inside a session that already has one. Dormant until a client fires.";
-    aiUsage = "A gauge pill showing AI usage (Claude Code/Codex subscription rate limits as %, or Opencode API token cost as daily $). Automatically shows whichever provider reported most recently. Click for expanded session/weekly limits and daily/monthly API costs with model breakdowns. Claude and Opencode are read off disk; Codex has no local usage data, so its row is polled from your ChatGPT account with the OAuth token in ~/.codex/auth.json (refreshed and rewritten in place) — no Codex login on the machine, no call is made. jcode is the easy one: it answers `jcode usage --json` with the same 5-hour/7-day percentages for whichever account its own `default_provider` names, so its row is one CLI call — and on a machine signed into the same Anthropic account twice, its row and Claude's move together, because they are two clients spending one budget. Claude's row is pushed by its statusline; the Codex, Opencode and jcode rows are pulled by the pill itself on a 3-minute TTL, so they stay current on a machine that never opens Claude at all. Claude and Opencode also get a `tokens` block in the dropdown — raw tokens moved today, this week, this month and all time (cache reads and all), two periods to a line so a full set reads as a 2×2, purely for the fun of watching the number climb. A period with nothing in it is left out rather than printed as a zero, so the block simply gets smaller, and a closing `∑ Everything` adds every provider up when more than one is reporting. It is a score, not a limit: nothing acts on it, and it never reaches the pill's own label. Claude's is summed from your transcripts on a 15-minute TTL behind an index, so only sessions that grew since the last pass are re-read; Codex has no row because it keeps no local history to count.";
-    claudeUsage = "Deprecated alias for `aiUsage`.";
-    github = "One number from GitHub, and the rows behind it. The pill is configured as a list of typed SOURCES (`haus.bar.github.sources`) — a `search` filter, the `ci` board, or your own `command` — and its label is whichever source is worth interrupting you for: the highest-severity one with a nonzero count, earliest in the list on a tie. With nothing to report it draws no number at all rather than a zero, because a number you never act on is a number you stop seeing. The pill is TWO-TONE: the number is how many, coloured by the source it counts, and the octocat beside it is how bad, coloured by the worst single row anywhere — so five open PRs of which one conflicts reads as a neutral `5` under a red logo, rather than as five red things or as nothing wrong. The logo stays the number's own colour while everything is fine; green is a row colour, not a resting state. LEFT-CLICK opens the dropdown, one section per source, each row clicking through to the PR or repo on github.com; RIGHT-CLICK refreshes now, as does the `Refresh` row at the bottom of the dropdown, which also says how old the numbers are. The `ci` source is the one thing gh-dash cannot show you: GitHub's search index carries no workflow runs, so \"did main's last run pass\" is only reachable as the check rollup of the default branch's head commit, in GraphQL — which is exactly what that source asks for, in one query for the whole owner. Needs `haus.developer.git.enable` (an assertion enforces it) for the `gh` it queries through, and a `gh auth login` you have run: not logged in, the pill says `auth` and its dropdown hands you that command rather than drawing a silent zero. Never fetches on the bar's tick — the tick renders a cache and detaches the network call — so a slow GitHub costs a stale number, never a stalled bar.";
-    elgato = "Toggles an Elgato Key Light on the local network. The light is found over mDNS (or pinned with `haus.bar.elgato.host`), and the pill draws dim when it can't be reached at all — a light that dropped off the wifi is not the same thing as a light that's switched off.";
-    harvest = "A Harvest time-tracking pill; needs a ~/.config/sketchybar/harvest_secrets.sh you provide.";
-  };
+  # `bar.items` and `bar.bottom.items` are unchanged as a SURFACE — same leaves,
+  # same types, same defaults, same prose — but they are now sugar over
+  # `haus.bar.widgets.<name>`, the open form a rice that isn't this one can add
+  # a seventeenth pill to. Anything a bundled pill needs to say about itself is
+  # said in widgets.nix; nothing about a pill is written twice.
+  widgets = import ./widgets.nix;
+
+  # Which of them `bar.items` offers, and what each defaults to. `focus` carries
+  # `default = null` — it rides `haus.focus.enable` rather than a bool of its
+  # own — so it is in neither table's ON/OFF surface, and is filtered out here
+  # by that null rather than by name.
+  switchable = lib.filterAttrs (_: w: w.default != null) widgets;
+  # The five that draw on a rice which says nothing, and the rest. Split only to
+  # keep the parent option's prose able to name them; both halves are the same
+  # table's `default` field.
+  coreNames = lib.attrNames (lib.filterAttrs (_: w: w.default == true) switchable);
+  extraNames = lib.attrNames (lib.filterAttrs (_: w: w.default == false) switchable);
+
   mkItem =
-    default: desc:
+    w:
     lib.mkOption {
       type = lib.types.bool;
-      inherit default;
-      description = desc;
+      inherit (w) default;
+      description = w.description;
     };
 
   # Which pills the SECOND bar can host. The whole right side is emitted from
   # one parameterized block table, so core and extra pills can move without a
   # second source copy. `claudeUsage` is left out because it is only a
   # deprecated alias for `aiUsage`.
-  movable =
-    core
-    // builtins.removeAttrs extra [ "claudeUsage" ]
-    // {
-      focus = "The Focus (Do-Not-Disturb) pill. Needs `haus.focus.enable`; setting this moves the pill but does not enable the Focus room by itself.";
-    };
+  # A widget marked `movable = false` names no pill of its own: `claudeUsage` is
+  # a deprecated ALIAS for `aiUsage`, so there was never a second thing to move
+  # and this table never carried it. `focus` IS here, though `bar.items` has no
+  # switch for it — moving a pill and switching it on are different questions,
+  # and the Focus room answers the second.
+  movable = lib.filterAttrs (_: w: w.movable) widgets;
 
   # The bottom bar's three groups. Shared with default.nix, which emits one run
   # per group in this order — see sides.nix for why it is one list and not two.
   sides = import ./sides.nix;
+
+  # ---- one widget ------------------------------------------------------------
+  # The open form. Everything a pill IS, for the bundled sixteen and a
+  # stranger's seventeenth alike — which is the point: a rice that adds a pill
+  # writes the same fields haus's own pills carry, so there is no second-class
+  # widget and no private field a bundled pill gets and a new one doesn't.
+  #
+  # `bundled` is the exception that proves it. A bundled widget's BLOCK is a
+  # hand-written SketchyBar run in default.nix — dropdown rows, click gestures,
+  # popup alignment, colour rules — and none of that is expressible here, so
+  # `command` on one of them is refused rather than half-honoured (the
+  # assertion is in default.nix, which is the only file that knows which is
+  # which). What a bundled widget DOES admit is the two fields that mean the
+  # same thing for every pill on the bar: where it sits, and how often it runs.
+  widgetModule =
+    { name, config, ... }:
+    {
+      options = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = true;
+          description = ''
+            Whether to draw this pill. A widget you declared is on by default —
+            you wrote it down to get it — while the bundled pills keep the
+            defaults they always had, which `haus.bar.items` is the sugar for.
+
+            Off is not "hidden": the pill is never created and its command
+            never runs, so a widget switched off costs nothing at all.
+          '';
+        };
+
+        command = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          example = "/etc/haus/backup-status.sh";
+          description = ''
+            The script whose output is this pill's label, run every
+            `interval` seconds. One line on stdout is the label; nothing at all
+            hides the pill for that tick, which is how a widget says "no news"
+            without drawing an empty box.
+
+            It runs as you, with SketchyBar's own variables in the
+            environment (`$NAME` is this widget's item id, `$BUTTON` and
+            `$SENDER` on a click). Reach the bar back through `$SB` after
+            sourcing `~/.config/sketchybar/bar.sh` rather than by naming
+            `sketchybar`, so a widget moved to the bottom bar keeps talking to
+            the bar it is actually on — see AGENTS.md, it is the single most
+            common way a pill silently stops updating.
+
+            null on a bundled pill, whose behaviour is haus's own plugin, and
+            setting one there is an error rather than an override.
+          '';
+        };
+
+        interval = lib.mkOption {
+          type = lib.types.nullOr lib.types.ints.positive;
+          default = null;
+          example = 300;
+          description = ''
+            How often to run `command`, in seconds. Works on the bundled pills
+            too, where it retunes what that pill already polls at:
+
+              haus.bar.widgets.weather.interval = 1800;
+
+            null keeps the widget's own default — for a bundled pill the rate
+            it ships with, for yours a 60-second tick. A few pills are
+            push-driven rather than polled (`agents`, `page`) and a couple own
+            their rate through an older option of their own
+            (`haus.bar.calendar.refresh`); setting this on one of those is
+            accepted and changes only the backstop tick, which is exactly what
+            update_freq is on a pill that repaints on an event.
+          '';
+        };
+
+        icon = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          example = "󰁯";
+          description = ''
+            The glyph drawn to the left of the label, in the bar's own font
+            (`haus.fonts.mono.name`), so any Nerd Font glyph works. Empty
+            draws no icon and gives the label the whole pill.
+
+            Ignored on a bundled pill: those set their own, and several change
+            it to say something (the memory pill's pressure colour, the
+            github pill's two-tone logo).
+          '';
+        };
+
+        placement = lib.mkOption {
+          type = lib.types.nullOr (
+            lib.types.enum ([ "menu-bar" ] ++ map (side: "bottom-${side}") sides ++ sides)
+          );
+          default = null;
+          example = "bottom-left";
+          description = ''
+            Which bar this pill sits on, and where along it.
+
+            `"menu-bar"` is the top bar, and is where every pill goes unless
+            something says otherwise — it has one group to offer, because its
+            left is the workspace pills and its centre is the notch.
+            `"bottom-left"`, `"bottom-center"` and `"bottom-right"` are the
+            second bar's three groups, and need `haus.bar.bottom.enable`.
+
+            A bare `"left"` / `"center"` / `"right"` is the same three groups
+            of the bottom bar, spelled the way `haus.bar.bottom.items` spells
+            them — that option is sugar for this field, so both spellings
+            reach the same place.
+
+            null means "wherever the sugar put it", which on a machine that
+            never mentions this pill is the menu bar.
+          '';
+        };
+
+        permissions = lib.mkOption {
+          type = lib.types.listOf (
+            lib.types.enum [
+              "accessibility"
+              "automation"
+              "calendar"
+              "contacts"
+              "full-disk-access"
+              "location"
+              "microphone"
+              "network"
+              "photos"
+              "reminders"
+              "screen-recording"
+            ]
+          );
+          default = [ ];
+          example = [ "full-disk-access" ];
+          description = ''
+            What macOS will ask this widget for the first time it runs.
+
+            A DECLARATION and nothing more: haus requests none of these, and
+            listing one neither grants it nor makes the pill wait for it. What
+            it buys is a reader — `haus doctor` can say which pill on your bar
+            is about to raise a permission dialog, and a widget you install
+            from someone else can be read for what it will reach for before
+            you switch it on. That is the same shape nebelung's ports metadata
+            uses, one room over: the declaration lives with the thing, the
+            consumer reads it.
+
+            `network` is not a macOS grant at all, and is here because "this
+            pill talks to the internet" is the property people actually want
+            to see on a widget they didn't write.
+          '';
+        };
+      };
+    };
 
   # A pill on the SECOND bar. Same table as `bar.items`, but each value also
   # answers WHERE: `false` keeps it off this bar, a side name puts it in that
@@ -74,11 +222,11 @@ let
   # "Example: center" blocks would be fifteen new sections of noise in the
   # options reference. The worked example lives on the parent option, once.
   mkBottomItem =
-    desc:
+    w:
     lib.mkOption {
       type = lib.types.either lib.types.bool (lib.types.enum sides);
       default = false;
-      description = desc;
+      description = w.description;
     };
 
   # ---- one source of the github pill -----------------------------------------
@@ -924,9 +1072,63 @@ in
       '';
     };
 
+    # ---- the open form ---------------------------------------------------------
+    bar.widgets = lib.mkOption {
+      type = lib.types.attrsOf (lib.types.submodule widgetModule);
+      default = { };
+      example = {
+        backup = {
+          command = "/etc/haus/backup-status.sh";
+          interval = 300;
+          icon = "󰁯";
+          placement = "right";
+          permissions = [ "full-disk-access" ];
+        };
+      };
+      description = ''
+        Every pill on the bar, including the bundled ones — the open form of
+        `haus.bar.items`, and the only way to add a pill haus does not ship.
+
+        A widget is one script, run on a timer, whose output is the pill's
+        label. Nothing else is required:
+
+          haus.bar.widgets.backup = {
+            command = "/etc/haus/backup-status.sh";
+            interval = 300;
+            icon = "󰁯";
+          };
+
+        The sixteen bundled pills are already declared here, so
+        `haus.bar.widgets.clock`, `.media`, `.agents` and the rest exist on
+        every machine and can be retuned by name — `interval` and `placement`
+        are the two fields that mean something on all of them:
+
+          haus.bar.widgets.weather.interval = 1800;   # ask half as often
+          haus.bar.widgets.cpu.placement = "left";    # only on the bottom bar
+
+        A bundled widget's `command` is haus's own plugin and is read-only —
+        setting one is refused by name rather than silently ignored, because a
+        pill whose script you replaced but whose dropdown, click gestures and
+        colour rules still belong to haus is not a pill either of us can
+        reason about. Write your own widget under a new name instead.
+
+        `haus.bar.items.<name>` is sugar for `haus.bar.widgets.<name>.enable`
+        and `haus.bar.bottom.items.<name>` for `.placement`; both keep working
+        exactly as they did, and either spelling may be used. Setting the same
+        pill both ways is not an error — the open form is the more specific of
+        the two and simply wins, so `haus.bar.items.cpu = false` alongside
+        `haus.bar.widgets.cpu.enable = true` draws the pill.
+
+        `permissions` is a DECLARATION, not a grant: it says what macOS will
+        ask your widget for, so `haus doctor` can tell you which pill is about
+        to prompt instead of leaving you to guess. Nothing here requests
+        anything, and a widget that lies about it merely gets a worse report.
+      '';
+    };
+
     bar.items = lib.mkOption {
       type = lib.types.submodule {
-        options = lib.mapAttrs (_: mkItem true) core // lib.mapAttrs (_: mkItem false) extra;
+        options = lib.mapAttrs (_: mkItem) switchable;
       };
       default = { };
       example = {
@@ -992,6 +1194,7 @@ in
 
     bar.bottom.items = lib.mkOption {
       type = lib.types.submodule { options = lib.mapAttrs (_: mkBottomItem) movable; };
+
       default = { };
       example = {
         agents = "left";
