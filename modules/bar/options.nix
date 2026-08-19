@@ -196,10 +196,9 @@ let
 
             A DECLARATION and nothing more: haus requests none of these, and
             listing one neither grants it nor makes the pill wait for it. What
-            it buys is a reader — `haus doctor` can say which pill on your bar
-            is about to raise a permission dialog, and a widget you install
-            from someone else can be read for what it will reach for before
-            you switch it on. That is the same shape nebelung's ports metadata
+            it buys is a widget that can be READ for what it will reach for
+            before you switch it on — the pill you installed from someone else
+            most of all. That is the same shape nebelung's ports metadata
             uses, one room over: the declaration lives with the thing, the
             consumer reads it.
 
@@ -1120,9 +1119,9 @@ in
         `haus.bar.widgets.cpu.enable = true` draws the pill.
 
         `permissions` is a DECLARATION, not a grant: it says what macOS will
-        ask your widget for, so `haus doctor` can tell you which pill is about
-        to prompt instead of leaving you to guess. Nothing here requests
-        anything, and a widget that lies about it merely gets a worse report.
+        ask your widget for, so a widget can be read for what it reaches for
+        before it is switched on. Nothing here requests anything, and a widget
+        that lies about it merely describes itself badly.
       '';
     };
 

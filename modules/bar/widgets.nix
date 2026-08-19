@@ -29,9 +29,8 @@
 #                it.
 #   permissions  the macOS grants the pill actually needs to do its job, from
 #                the enum in options.nix. Declared rather than documented so a
-#                reader (today `haus doctor`, through the generated
-#                widgets_config.sh) can answer "what on this bar is going to
-#                ask me for something" without a second hand-written list —
+#                reader can answer "what on this bar is going to ask me for
+#                something" without a second hand-written list —
 #                which is the half of §5.9's last box that the ports metadata
 #                in nebelung already proved out. A pill that needs nothing
 #                carries `[ ]` rather than being left out, so the table stays
