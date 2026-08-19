@@ -4546,7 +4546,7 @@
       "_type": "literalMD",
       "text": "the command for haus.terminal.editorName — hx for helix"
     },
-    "description": "The ONE editor command haus uses everywhere. It's the shell command\nfor $EDITOR / $VISUAL (git, etc.) AND what every \"open in an editor\"\naction launches — the \"Nix Config\" palette command, the bar's nix-open\nitem, and the file-association hijack. Those open the target in a new\nzellij tab running this command, so a terminal editor is the natural\nfit for haus; a GUI editor's CLI works too (e.g. \"code\" or\n\"code -w\" to block).\n\nIt defaults to the command for `haus.terminal.editorName`, so choosing an\neditor there is enough. Set this only for the case that option cannot\nexpress: pointing haus at something it does not install. Naming a\ncommand here does NOT install it — that machine has to already have it.\n",
+    "description": "The ONE editor command haus uses everywhere. It's the shell command\nfor $EDITOR / $VISUAL (git, etc.) AND what every \"open in an editor\"\naction launches — the \"Nix Config\" palette command, the bar's nix-open\nitem, and the file-association hijack. Those open the target in a new\nterminal WINDOW running this command, so a terminal editor is the\nnatural fit for haus; a GUI editor's CLI works too (e.g. \"code\" or\n\"code -w\" to block).\n\nIt defaults to the command for `haus.terminal.editorName`, so choosing an\neditor there is enough. Set this only for the case that option cannot\nexpress: pointing haus at something it does not install. Naming a\ncommand here does NOT install it — that machine has to already have it.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"code -w\""
@@ -4588,7 +4588,7 @@
       "_type": "literalExpression",
       "text": "\"accent\""
     },
-    "description": "The outline drawn around every floating terminal `float-term.sh` spawns:\nthe Super-y yazi peek panel, the bar's agent peek, and the palette's\nRebuild System / Install App / Settings and `zscratch` windows. They all\nland on top of a tiled desktop, where a dark terminal over a dark window\nbehind it has no edge at all.\n\n- `accent` (the default) — `haus.theme.accent`, so a summoned window\n  announces itself and the whole desktop keeps one accent.\n- `grey` — Nebelung's `surface0`, one step off the terminal's own\n  background: the same relationship the bar's dropdowns wear\n  (`popup.background.border_color` in modules/bar), for an edge that\n  defines the window without drawing the eye.\n- `off` — no outline; the look before this option existed. It also keeps\n  floatring out of the closure entirely, so nothing is compiled for it.\n- any Nebelung accent name (`lavender`, `sapphire`, …) — one colour for\n  these popups that ISN'T `haus.theme.accent`, the same escape hatch\n  `haus.bar.logo.color` offers.\n\n2pt, following the window's own corner curve. Drawn by a tiny overlay\nwindow (modules/terminal/floatring.swift) that lives and dies with the\npopup, because Ghostty has no border setting of its own and aerospace\ndraws none — that file's header has the rest, including why it isn't\nJankyBorders. Switch it with\n`haus set terminal.floatBorder grey && haus rebuild`; to compare colours\nfirst, without a rebuild, outline any window by hand (the process name is\nlower-case — `pgrep -x Ghostty` matches nothing and rings nothing):\n`~/.config/zellij/float-term.sh ring \"$(pgrep -x ghostty | head -1)\" '#cba6f7'`\n",
+    "description": "The outline drawn around every floating terminal `float-term.sh` spawns:\nthe ⌘Y yazi peek panel, the bar's agent peek, and the palette's\nRebuild System / Install App / Settings windows. They all land on top of\na tiled desktop, where a dark terminal over a dark window behind it has\nno edge at all.\n\n- `accent` (the default) — `haus.theme.accent`, so a summoned window\n  announces itself and the whole desktop keeps one accent.\n- `grey` — Nebelung's `surface0`, one step off the terminal's own\n  background: the same relationship the bar's dropdowns wear\n  (`popup.background.border_color` in modules/bar), for an edge that\n  defines the window without drawing the eye.\n- `off` — no outline; the look before this option existed. It also keeps\n  floatring out of the closure entirely, so nothing is compiled for it.\n- any Nebelung accent name (`lavender`, `sapphire`, …) — one colour for\n  these popups that ISN'T `haus.theme.accent`, the same escape hatch\n  `haus.bar.logo.color` offers.\n\n2pt, following the window's own corner curve. Drawn by a tiny overlay\nwindow (modules/terminal/floatring.swift) that lives and dies with the\npopup, because Ghostty has no border setting of its own and aerospace\ndraws none — that file's header has the rest, including why it isn't\nJankyBorders. Switch it with\n`haus set terminal.floatBorder grey && haus rebuild`; to compare colours\nfirst, without a rebuild, outline any window by hand (the process name is\nlower-case — `pgrep -x Ghostty` matches nothing and rings nothing):\n`~/.config/haus/term/float-term.sh ring \"$(pgrep -x ghostty | head -1)\" '#cba6f7'`\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"grey\""
@@ -4609,7 +4609,7 @@
       "_type": "literalExpression",
       "text": "false"
     },
-    "description": "Whether to enable the themed gh-dash GitHub dashboard and its Cmd-G\nfullscreen Zellij overlay.\n\nEnabling it gets you the issue and notification tabs (yours, assigned,\nunread, participating). The four PR tabs — open / green / red /\nshipped — need `haus.git.org` as well, since a PR section is a search\nfilter scoped to an owner. A host can compose or replace any of it\nthrough home-manager's `programs.gh-dash.settings`: every section list\nTerminal writes is a `mkDefault`, per list.\n\nNeeds `haus.developer.git.enable` (an assertion enforces it): gh-dash\nauthenticates out of `gh`'s own credentials, so the Git pack is where\nits login comes from.\n",
+    "description": "Whether to enable the themed gh-dash GitHub dashboard and its ⌘G\nnear-fullscreen floating window.\n\nEnabling it gets you the issue and notification tabs (yours, assigned,\nunread, participating). The four PR tabs — open / green / red /\nshipped — need `haus.git.org` as well, since a PR section is a search\nfilter scoped to an owner. A host can compose or replace any of it\nthrough home-manager's `programs.gh-dash.settings`: every section list\nTerminal writes is a `mkDefault`, per list.\n\nNeeds `haus.developer.git.enable` (an assertion enforces it): gh-dash\nauthenticates out of `gh`'s own credentials, so the Git pack is where\nits login comes from.\n",
     "example": {
       "_type": "literalExpression",
       "text": "true"
@@ -4631,7 +4631,7 @@
       "_type": "literalExpression",
       "text": "false"
     },
-    "description": "When true, build a small opener app and make it the default handler\nfor ~80 text/code extensions (json, md, ts, nix, rs, go, kdl, …), so\nopening or clicking those files opens them in haus.terminal.editor in\na terminal tab. The app declares the types itself (not just `duti`) so\nextensions nothing else on the machine declares still bind. Off by\ndefault: silently rewriting your file associations is a jarring,\nhard-to-undo change, so it's strictly opt-in. (Extensionless executables\nlike `bench` are NOT covered — macOS gates the public.unix-executable\nhandler behind an interactive dialog; set it by hand once if wanted:\n`duti -s com.hausfold.editoropen public.unix-executable all`.)\n",
+    "description": "When true, build a small opener app and make it the default handler\nfor ~80 text/code extensions (json, md, ts, nix, rs, go, kdl, …), so\nopening or clicking those files opens them in haus.terminal.editor in\na terminal window. The app declares the types itself (not just `duti`) so\nextensions nothing else on the machine declares still bind. Off by\ndefault: silently rewriting your file associations is a jarring,\nhard-to-undo change, so it's strictly opt-in. (Extensionless executables\nlike `bench` are NOT covered — macOS gates the public.unix-executable\nhandler behind an interactive dialog; set it by hand once if wanted:\n`duti -s com.hausfold.editoropen public.unix-executable all`.)\n",
     "loc": [
       "haus",
       "terminal",
@@ -4660,40 +4660,6 @@
     ],
     "readOnly": false,
     "type": "list of string"
-  },
-  "haus.terminal.rightClickFullscreen": {
-    "declarations": [
-      "modules/terminal/options.nix"
-    ],
-    "default": {
-      "_type": "literalExpression",
-      "text": "true"
-    },
-    "description": "When true (the default), a bare right-click on any pane zooms it\nfullscreen — the same MouseAction::ToggleFullscreen Ctrl+Click already\ntriggers, just a different, easier-to-reach trigger. It's a whole\nzellij-unwrapped patch, not a config toggle (mouse buttons still\naren't bindable in config.kdl — see naked-click-links.patch's header\nfor why link gestures hit the same wall), so flipping this rebuilds\nzellij; it does not take effect on a running server. The real cost:\nright-click stops reaching the pane's own program, so a TUI's own\nright-click context menu (lazygit, vim, mc, …) goes with it. Set\nfalse to leave right-click alone and keep zooming with Ctrl+Click,\nwhich is the only other way there: ⌘↵ used to zoom a pane and is the\nagent-lane chord now.\n",
-    "loc": [
-      "haus",
-      "terminal",
-      "rightClickFullscreen"
-    ],
-    "readOnly": false,
-    "type": "boolean"
-  },
-  "haus.terminal.zellijStartLocked": {
-    "declarations": [
-      "modules/terminal/options.nix"
-    ],
-    "default": {
-      "_type": "literalExpression",
-      "text": "true"
-    },
-    "description": "When true (the default), zellij boots into Locked input mode instead of\nNormal — its single-key submode leaders (pane, tab, resize, …) stay\ninert until you unlock with Ctrl-g, so a stray keystroke can't jump you\ninto a submode. The `Super`-prefixed launchers (claude / pane / tab /\nyazi-peek / fullscreen) are bound in `shared` and keep working while\nlocked, as do `Alt [` / `Alt ]` (cycle swap layouts) — the rest of\nzellij's `Alt` row stays inert while locked, since those keys are\nreadline/vim word motions the pane's app wants. The bar's bottom-right\nquick-hint block only shows in Locked mode. Set false to start in Normal\nmode (zellij's own default).\n",
-    "loc": [
-      "haus",
-      "terminal",
-      "zellijStartLocked"
-    ],
-    "readOnly": false,
-    "type": "boolean"
   },
   "haus.theme.accent": {
     "declarations": [
