@@ -1867,6 +1867,18 @@ in
             source = ./scripts/image-preview.sh;
             executable = true;
           };
+          # The one window → zmx-session join, and the one tiled-window spawn.
+          # Both are libraries rather than chords: focused-session.sh is what
+          # ⌘F/⌘L and lanes/lane-cwd.sh all ask "which window is this", and
+          # new-window.sh is what every "open this somewhere" script ends in.
+          ".config/haus/term/focused-session.sh" = {
+            source = ./scripts/focused-session.sh;
+            executable = true;
+          };
+          ".config/haus/term/new-window.sh" = {
+            source = ./scripts/new-window.sh;
+            executable = true;
+          };
           # Both peek chords run this one script: ⌘Y hops out of an agent
           # worktree to the repo's main checkout, ⌘⇧Y passes --stay and doesn't.
           # Both are pounce appHotkeys now (cmd:peek / cmd:peek-stay).
