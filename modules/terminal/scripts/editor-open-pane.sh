@@ -1,36 +1,23 @@
 #!/bin/zsh
 
-# Open a file OR a directory in the rice editor, in a new zellij tab. @editor@
-# is baked from haus.terminal.editor at build time (the one editor the whole
-# rice uses — same value as $EDITOR). Called by the EditorOpen.app
-# file-association handler (a file), by nix-config-open.sh (a file plus a
-# cwd override, so the pane sits at the flake root rather than the file's own
-# directory), and by the zellij link-handler plugin when a clicked path
-# carried a line number (a file, an empty cwd override, and the line).
+# Open a file OR a directory in the rice editor, in a new tiled Ghostty window.
+# @editor@ is baked from haus.terminal.editor at build time (the one editor the
+# whole rice uses — same value as $EDITOR). Called by the EditorOpen.app
+# file-association handler (a file), and by nix-config-open.sh (a file plus a
+# cwd override, so the window sits at the flake root rather than the file's own
+# directory). The third argument — a line number — was the zellij link-handler
+# plugin's caller, which is gone; the parameter stays because the line-number
+# spelling table below is the only place that knowledge lives, and a future
+# clicked-path opener will want it.
+#
+# The name says "pane" for the same reason ~/.cache/claude-worktrees does: it
+# is the path every caller already spells, and renaming it buys nothing.
 FILE_PATH="${1:A}"
 CWD_OVERRIDE="${2:+${2:A}}"
 LINE="${3:-}"
 
-# 1. Ensure Ghostty is running
-if ! pgrep -x "Ghostty" > /dev/null; then
-    open -a "Ghostty"
-    # Wait for Ghostty and Zellij to bootstrap
-    sleep 2.0
-fi
-
-# 2. Check if the "main" zellij session is active
-if ! zellij list-sessions 2>/dev/null | grep -q "main"; then
-    # Wait up to 5 seconds for the session to appear
-    for i in {1..10}; do
-        sleep 0.5
-        if zellij list-sessions 2>/dev/null | grep -q "main"; then
-            break
-        fi
-    done
-fi
-
 # A directory opens as `<editor> .` cwd'd into it; a file opens cwd'd at its
-# nearest git repo root (so the tab name and the editor's workspace match the
+# nearest git repo root (so the window name and the editor's workspace match the
 # project it lives in), falling back to the file's own parent dir outside a repo.
 # An explicit cwd passed as $2 (nix-config-open.sh) always wins.
 if [ -d "$FILE_PATH" ]; then
@@ -57,18 +44,11 @@ if [ -n "$LINE" ] && [ "$TARGET" != "." ]; then
     esac
 fi
 
-# 3. Open in a new tab with zsh and the editor
-if zellij list-sessions 2>/dev/null | grep -q "main"; then
-    # Focus Ghostty to bring it to front
-    osascript -e 'tell application "Ghostty" to activate'
-
-    # Open in a new tab running zsh, cd to the dir, run the editor, and exec zsh
-    # on exit. After the two shifts "$@" is the line-number prefix, which is
-    # usually empty and then expands to nothing at all.
-    zellij -s main action new-tab -- zsh -c 'if cd "$1"; then shift; target="$1"; shift; @editor@ "$@" "$target"; fi; exec zsh' "editor-launcher" "$DIR_PATH" "$TARGET" "${PRE_ARGS[@]}"
-else
-    # Fallback: Open a fresh Ghostty window running the editor on the target.
-    # cd first, because a directory target is spelled "." above and would
-    # otherwise open the editor on Ghostty's own cwd.
-    open -na "Ghostty" --args -e "cd \"$DIR_PATH\" && @editor@ ${PRE_ARGS[*]} \"$TARGET\""
-fi
+# `exec zsh` after the editor so quitting it leaves a shell rather than closing
+# the window out from under you — the one thing the old zellij tab gave for
+# free.
+# `zsh -c SCRIPT name args…` binds `name` to $0, not $1 — hence the throwaway
+# first word. After the shift "$@" is the line-number prefix, usually empty.
+exec "$HOME/.config/haus/term/new-window.sh" --cwd "$DIR_PATH" -- \
+    zsh -c 'target="$1"; shift; @editor@ "$@" "$target"; exec zsh' \
+    editor-launcher "$TARGET" "${PRE_ARGS[@]}"

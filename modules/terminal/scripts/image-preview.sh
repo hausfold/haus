@@ -1,18 +1,19 @@
 #!/bin/bash
-# image-preview.sh — terminal-native image preview for the zellij link-handler.
+# image-preview.sh — terminal-native image preview. yazi's Enter opener for an
+# image (yazi/… `run` in modules/terminal), and a reader in its own right.
 #
-# Spawned by the link-handler plugin in a floating pane when an image path is
-# clicked (a bare click, in a pane no application is tracking the mouse in). Renders with chafa in `symbols` mode (truecolor half-block
-# art) — the ONLY mode that survives this pipeline: zellij's VTE parser drops
-# kitty-graphics APC sequences outright, and it only forwards sixel when the
-# host terminal advertises it in its DA1 response, which Ghostty (kitty
-# protocol only, no sixel) does not. Don't "upgrade" this to --format=kitty
-# or sixels; you'll get a blank pane.
+# Renders with `chafa -f kitty`: REAL PIXELS, at the terminal's own resolution.
+# It used to render truecolor half-block art (`-f symbols`) and carried a long
+# comment explaining that this was the only mode that could survive the
+# pipeline — zellij's VTE parser drops kitty-graphics APC outright, and forwards
+# sixel only when the host terminal advertises it in DA1, which Ghostty (kitty
+# protocol, no sixel) does not. That parser is gone. This is the escape hatch
+# that file's own header described, taken.
 
 set -u
 
-# The plugin spawns this directly, not through a login shell — make sure the
-# nix profile bins (chafa, zellij) are reachable regardless.
+# yazi spawns this directly, not through a login shell — make sure the nix
+# profile bins (chafa) are reachable regardless.
 export PATH="$PATH:/etc/profiles/per-user/$USER/bin:/run/current-system/sw/bin"
 
 BOLD=$'\e[1m'
@@ -41,8 +42,10 @@ size=$(awk -v b="$bytes" 'BEGIN {
     printf (i == 1 ? "%d %s" : "%.1f %s"), b, u[i]
 }')
 
-# Name the floating pane after the image instead of the raw command line.
-zellij action rename-pane "🖼  $name" 2>/dev/null
+# Name the WINDOW after the image instead of the raw command line. OSC 2 rather
+# than a rename action: the window is the surface now, and its title is whatever
+# the program inside last set.
+printf '\033]2;🖼  %s\007' "$name"
 
 rows=0
 cols=0
@@ -73,50 +76,18 @@ draw() {
     local body_rows=$((rows - 4))
     ((body_rows < 1)) && body_rows=1
 
-    local fmt="symbols"
-    if [ -z "${ZELLIJ:-}" ] && [ "${TERM_PROGRAM:-}" = "Ghostty" -o -n "${GHOSTTY_RESOURCES_DIR:-}" ]; then
-        fmt="kitty"
-    fi
+    clear
+    printf '  %s%s%s' "$BOLD" "$name" "$RESET"
+    [ -n "$dims" ] && printf '  %s%s px%s' "$DIM" "$dims" "$RESET"
+    printf '  %s%s%s' "$DIM" "$size" "$RESET"
 
-    if [ "$fmt" = "symbols" ]; then
-        local art
-        if ! art=$(chafa -f symbols -c full --center=on --size="${cols}x${body_rows}" "$path" 2>&1); then
-            clear
-            printf '\n  %schafa failed to render %s:%s\n\n%s\n' "$ERR" "$name" "$RESET" "$art"
-            draw_hints
-            return
-        fi
-
-        local art_rows pad
-        art_rows=$(printf '%s\n' "$art" | wc -l | tr -d ' ')
-        pad=$(( (body_rows - art_rows) / 2 ))
-        ((pad < 0)) && pad=0
-
-        clear
-        printf '  %s%s%s' "$BOLD" "$name" "$RESET"
-        [ -n "$dims" ] && printf '  %s%s px%s' "$DIM" "$dims" "$RESET"
-        printf '  %s%s%s' "$DIM" "$size" "$RESET"
-
-        tput cup $((2 + pad)) 0
-        printf '%s\n' "$art"
-        draw_hints
-    else
-        clear
-        printf '  %s%s%s' "$BOLD" "$name" "$RESET"
-        [ -n "$dims" ] && printf '  %s%s px%s' "$DIM" "$dims" "$RESET"
-        printf '  %s%s%s' "$DIM" "$size" "$RESET"
-
-        tput cup 2 0
-        chafa -f kitty --center=on --size="${cols}x${body_rows}" "$path"
-        draw_hints
-    fi
+    tput cup 2 0
+    chafa -f kitty --center=on --size="${cols}x${body_rows}" "$path"
+    draw_hints
 }
 
 quit() {
     printf '\e[?25h' # show cursor
-    # A zellij command pane lingers after its command exits ("press Enter to
-    # re-run") — close the pane explicitly so q/Esc dismisses in one press.
-    zellij action close-pane 2>/dev/null
     exit 0
 }
 
