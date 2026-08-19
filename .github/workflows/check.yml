@@ -109,10 +109,40 @@ jobs:
   shellcheck:
     name: shell scripts
     runs-on: ubuntu-latest
-    # See the eval job above — this is the one that hung.
+    # See the eval job above — this is the one that hung, repeatedly. The
+    # ceiling is the backstop; the fix is that this job no longer speaks to apt
+    # at all (see the shellcheck step).
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      # `bats` is the ONE tool this job needs that the runner image lacks, and
+      # npm is preinstalled, so it comes from npm rather than apt. That is the
+      # whole reason this job no longer stalls.
+      #
+      # It used to `apt-get update && apt-get install shellcheck bats`, and that
+      # hung for hours at a time — twice within a day, most recently on #406.
+      # Three separate things were wrong with it:
+      #
+      #   1. `shellcheck` is ALREADY on the ubuntu-latest image (0.9.0), so the
+      #      lint never needed apt in the first place. Half the reason to talk
+      #      to a package mirror was imaginary.
+      #   2. The Azure mirrors the runner is pointed at (`Ign:` on every
+      #      `azure.archive.ubuntu.com` line in the log) fail in a way apt does
+      #      not treat as failure: it falls back to `archive.ubuntu.com` and
+      #      keeps going, so the step can look alive while getting nowhere.
+      #   3. `Acquire::http::Timeout` — the fix attempted in #390 — does NOT
+      #      cover this. It bounds a single HTTP connect/read, not the step, and
+      #      it says nothing at all about `https://` sources, which is what the
+      #      mirrorlist actually resolves to. So the retries multiplied against
+      #      an unbounded whole rather than capping it.
+      #
+      # The durable lesson is #1: prefer what the image already ships, and where
+      # something is genuinely missing, get it from a package manager whose
+      # registry isn't the runner's own distro mirror. If apt ever becomes
+      # necessary again, wrap the WHOLE call in `timeout 120 …` — a per-request
+      # option cannot bound a step that retries.
+      - name: bats
+        run: sudo npm install -g bats
       # bootstrap.sh is the standalone curl|bash installer — the one shell
       # script here that isn't a nix template (@PLACEHOLDER@ substitution) or a
       # zsh sketchybar plugin, so it's the one we can lint as-is. Warning level
@@ -121,12 +151,10 @@ jobs:
       # regression here reaches every new installer.
       - name: shellcheck
         run: |
-          # Retries plus a per-mirror timeout, on both calls: an unreachable
-          # Azure mirror should fail this step in seconds, not block on it.
-          # (Both, because `install` fetches over the same mirrors `update` does.)
-          apt_opts=(-o Acquire::Retries=3 -o Acquire::http::Timeout=15)
-          sudo apt-get "${apt_opts[@]}" update
-          sudo apt-get "${apt_opts[@]}" install -y shellcheck bats
+          # shellcheck comes from the runner image — no install step. Print the
+          # version so a future image change that drops it fails loudly here
+          # rather than as a confusing "command not found" mid-lint.
+          shellcheck --version
           # bootstrap.sh reaches every new installer via hausfold.co/hacker.sh;
           # haus.sh + awake.sh ship onto every machine as end-user CLIs.
           # statusline-refresh.sh is linted for a different reason: it runs
