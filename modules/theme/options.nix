@@ -38,7 +38,7 @@ in
 
         What follows it: every tool haus injects colours into or points at a
         rendered theme — Ghostty, bat, delta, lsd, yazi, fzf, glow, starship,
-        lazygit, zellij, opencode, the bar, Zen and Obsidian, plus helix
+        lazygit, opencode, the bar, Zen and Obsidian, plus helix
         whenever it is the editor `haus.terminal.editorName` selects (Nebelung
         has a port for helix and none for the alternatives).
         These are genuinely re-rendered for the flavor, not recoloured in place:
@@ -149,7 +149,7 @@ in
         tests actually assert.
 
         Honest scope. This recolours what haus injects colours into:
-        Ghostty, bat, delta, lsd, yazi, zellij, glow, starship, lazygit, the
+        Ghostty, bat, delta, lsd, yazi, glow, starship, lazygit, the
         bar, pounce and perch (at runtime, via ~/.config/{pounce,perch}/themes/ —
         and unlike `flavor`, contrast reaches both on BOTH halves of their
         light/dark pair), Zen and Obsidian. It does NOT reach:
@@ -196,7 +196,7 @@ in
 
         Honest scope: this moves the accent on those tools, NOT literally
         everything. Single-file dotfiles that bake the palette at their own
-        theme slot (ghostty, starship, tmux, bat, zellij, …) keep their built-in
+        theme slot (ghostty, starship, tmux, bat, …) keep their built-in
         colour and don't follow this option. The base palette stays the same
         Nebelung grey either way — only the accent hue changes.
 

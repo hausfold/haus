@@ -784,10 +784,10 @@ let
   # The rice's own GLOBAL chords, in the same normalized shape. keys.nix already
   # asserts leader-vs-palette (haus#108); item hotkeys are the third
   # claimant, and the failure mode is identical: whoever registers first wins,
-  # silently. Terminal chords count too: Pounce registers item hotkeys globally,
-  # so a cmd+g item would swallow Zellij's Super-g before Ghostty ever saw it.
-  # termBindings is already feature-aware (gh-dash is absent when disabled), so
-  # the assertion reserves exactly the terminal surface this host actually has.
+  # silently. Terminal chords count too: pounce registers item hotkeys GLOBALLY,
+  # so a cmd+g item would swallow the Ghostty-scoped ⌘G before the app-scoped tap
+  # ever saw it. termBindings is already feature-aware (gh-dash is absent when
+  # disabled), so the assertion reserves exactly the surface this host has.
   #
   # EVERY terminal chord is Ghostty-scoped now, and that is the subtle reason
   # they all belong in this list: pounce's own tap consumes them only over
@@ -1500,7 +1500,7 @@ lib.mkIf config.haus.launcher.enable {
         # ── Tips page (⇥ flips to it) — workflows and the stuff that's hard to
         # remember. NO plain key rows are hand-typed here any more: the terminal's
         # come from terminal's table (termPages above) and the window manager's from
-        # windows's, because the two cards that WERE hand-typed — "Terminal · Zellij"
+        # windows's, because the two cards that WERE hand-typed — "Terminal · Panes"
         # and "Claude Agents" — are exactly the two that went stale, teaching ⌘C
         # for agents and a folder picker that had long since folded into Peek.
         # What's left below is workflow: the things a key list can't say.

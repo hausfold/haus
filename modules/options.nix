@@ -652,8 +652,8 @@ in
           on — and `<mod>⇥` is free again, since workspace back-and-forth
           retired in favour of pounce's cross-workspace ⌘⇥ switcher. (Under
           "ctrl-alt" that used to bite — the throws were `⌃⌥⇧` + an app's roster
-          letter, so an app on `a` silently ate terminal's zellij
-          `Ctrl Alt Shift a` in-place-agent bind. That collision is gone.)
+          letter, so an app on `a` silently ate terminal's ⌃⌥⇧A in-place-agent
+          chord. That collision is gone.)
           Nothing on a stock macOS collides either: the only ⌃⌥ system hotkeys
           are input-source switching (⌃⌥Space, off by default) and hyper-F13.
 
