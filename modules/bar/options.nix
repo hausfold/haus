@@ -595,6 +595,28 @@ in
       '';
     };
 
+    # The pill's only motion, and its own switch so
+    # haus.appearance.reduceMotion has a leaf to set rather than reaching into
+    # the plugin. Default true: this is what the pill does today, and a rice
+    # that never asked for quiet keeps it byte for byte.
+    bar.media.marquee = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      example = false;
+      description = ''
+        Sweep a long track title past while the pointer is on the media pill.
+
+        Hover is the only thing that starts it — nothing here runs a marquee on
+        a track change or on a timer — and one hover buys one full pass back to
+        the start. Off, a title too long for `haus.bar.media.width` is simply
+        clipped, and the dropdown still carries it in full, so nothing is lost
+        but the movement.
+
+        `haus.appearance.reduceMotion` turns this off as a default, along with
+        the rest of the motion haus draws.
+      '';
+    };
+
     bar.media.artworkTint = lib.mkOption {
       type = lib.types.bool;
       default = false;
@@ -657,6 +679,24 @@ in
 
         It is a MAXIMUM, not a fixed size — a short event name still draws a
         short pill.
+      '';
+    };
+
+    # Same shape as bar.media.marquee, same reason — see there.
+    bar.calendar.marquee = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      example = false;
+      description = ''
+        Sweep a long event title past while the pointer is on the calendar pill.
+
+        Hover only, exactly like the media pill's: the label is clipped to
+        `haus.bar.calendar.width` and hovering shows the rest. Off, the clip is
+        all you get on the pill and the timeline dropdown carries the full name,
+        which is where a title you actually need to read belongs anyway.
+
+        `haus.appearance.reduceMotion` turns this off as a default, along with
+        the rest of the motion haus draws.
       '';
     };
 

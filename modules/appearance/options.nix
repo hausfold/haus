@@ -73,4 +73,74 @@
         - Light mode, if it reads better for you: `haus.theme.flavor = "latte"`.
     '';
   };
+
+  # The layer's OWN motion, which is what makes this an option rather than a
+  # pointer at Apple's. `haus.animations` curates five macOS timing keys and
+  # `haus.accessibility.reduceMotion` flips Apple's switch; neither reaches a
+  # sweep the bar draws or a workspace the tiler pulls you to. Those are ours,
+  # they run with every Apple switch flipped, and this is the one address that
+  # turns them off. It COMPOSES with Apple's rather than duplicating it — see
+  # the description, and modules/appearance/default.nix for the fan-out.
+  options.haus.appearance.reduceMotion = lib.mkOption {
+    type = lib.types.bool;
+    default = false;
+    example = true;
+    description = ''
+      Stop the things haus itself animates from animating. One switch, for a
+      machine whose user is vestibular-sensitive, motion-sick, or simply done
+      with movement in the corner of their eye.
+
+      It exists because macOS's own motion is already curated — `haus.animations`
+      for the Dock's timings, `haus.accessibility.reduceMotion` for Apple's
+      switch — and NEITHER of them reaches the motion haus draws. The bar's
+      sweeps and the tiler's automatic moves are the layer's own; they run
+      happily on a Mac with every Apple switch flipped, and until this option
+      there was no way to quiet them short of turning off the pills that carry
+      them.
+
+      What it stops, all of it haus's own:
+
+        the logo pill's hover sweep   six family accents turning through the
+                                      mark whenever the pointer crosses it
+                                      (`haus.bar.logo.sweep`)
+        the media pill's marquee      a long track title sweeping past on hover
+                                      (`haus.bar.media.marquee`)
+        the calendar pill's marquee   the same, for a long meeting title
+                                      (`haus.bar.calendar.marquee`)
+        the pointer following focus   `haus.windows.mouseFollowsFocus`: a
+                                      pointer teleporting across the desk is
+                                      movement you did not make
+        workspace gravity             `haus.windows.gravity`: the automatic pull
+                                      back to a populated workspace when a ⌘Q
+                                      empties this one — a whole screen changing
+                                      under you, unasked
+
+      Every one is set as a DEFAULT, so any single one goes back by name:
+      this option `true` with `haus.bar.logo.sweep = true` keeps the sweep and
+      drops the rest. Nothing loses information — a title too long for its pill
+      is clipped rather than swept, and both dropdowns carry it in full.
+
+      IT ALSO ASKS FOR macOS's OWN "Reduce motion"
+      (`haus.accessibility.reduceMotion`), again as a default, because a machine
+      that quietened its own five surfaces and left Spaces sliding would have
+      answered the question halfway. Know that flag's blast radius before you
+      take it: it is the single switch every browser reads as
+      `prefers-reduced-motion: reduce`, so it rewrites the web too — mostly for
+      the better, except on sites whose scroll-reveal animation is what makes
+      their content visible at all. `haus.accessibility.reduceMotion = false` in
+      your host keeps the local half without the web one.
+
+      That composition is deliberate rather than convenient. Apple's flag is
+      FDA-gated at its own option, so on a machine whose rebuilding app lacks
+      Full Disk Access it is skipped with a warning — and everything above still
+      applies, because haus's own half depends on no permission at all. A
+      legibility switch that only worked with a grant would be the wrong shape.
+
+      What it deliberately does NOT set is `haus.animations = "fast"`. That
+      group speeds macOS's Dock timings UP rather than removing motion, and
+      coming back from it only stops writing rather than restores — a
+      motion-sensitivity switch has no business leaving a Dock permanently
+      retuned.
+    '';
+  };
 }

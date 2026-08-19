@@ -72,7 +72,10 @@ let
       "skill"
     ];
     animations = [ "" ];
-    appearance = [ "largePrint" ];
+    appearance = [
+      "largePrint"
+      "reduceMotion"
+    ];
     apps = [
       "packs.writing.enable"
       "videoPlayer.claimFileTypes"
@@ -104,6 +107,7 @@ let
       "calendar.horizon"
       "calendar.imminent"
       "calendar.joinHosts"
+      "calendar.marquee"
       "calendar.me"
       "calendar.past"
       "calendar.preciseUnder"
@@ -151,6 +155,7 @@ let
       "logo.updateCheck"
       "media.artworkTint"
       "media.collapse"
+      "media.marquee"
       "media.icons"
       "media.width"
       "position"
@@ -379,6 +384,7 @@ let
       "desktop.hideIcons"
       "desktop.hideWidgets"
       "enable"
+      "gravity"
       "mouseFollowsFocus"
       "mouseFullscreen"
       "nativeTiling.edgeDrag"
@@ -577,7 +583,7 @@ let
     # ---- how it looks ---------------------------------------------------------
     appearance = {
       order = 25;
-      blurb = "The Appearance room's own profile — one named answer to a whole-machine question, where the groups below are the individual dials. `largePrint` sets the interface scale, the high-contrast palette, macOS's own contrast lift and the screen's scaled resolution together, each as a default you can still pin by hand.";
+      blurb = "The Appearance room's own profiles — named answers to whole-machine questions, where the groups below are the individual dials. `largePrint` sets the interface scale, the high-contrast palette, macOS's own contrast lift and the screen's scaled resolution together. `reduceMotion` stops the motion haus itself draws — the bar's hover sweeps, the pointer following focus, the pull back off an emptied workspace — and asks for macOS's own Reduce Motion alongside it. Both set every value as a default you can still pin by hand.";
     };
     theme = {
       order = 30;

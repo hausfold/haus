@@ -65,6 +65,12 @@ close_popup() { $SB --set media popup.drawing=off; }
 MARQUEE_SECONDS=8
 
 start_marquee() {
+    # haus.bar.media.marquee, which haus.appearance.reduceMotion sets off. The
+    # guard is HERE rather than at the call sites because both of them (hover,
+    # and the render that follows it) want the same answer, and a sweep that is
+    # never started needs no stopping — scroll_texts is only ever turned on in
+    # this function, so with it off the pill simply clips.
+    [ "${BAR_MEDIA_MARQUEE:-1}" = "1" ] || return
     mkdir "$BAR_MEDIA_STATE_DIR/marquee.lock" 2>/dev/null || return
     $SB --set media scroll_texts=on
     (
@@ -81,7 +87,7 @@ start_marquee() {
 # instead of growing a row at a time — the same lesson ai_usage.sh's dropdown
 # learned the visible way.
 build_popup() {
-    local kind icon accent art scale sub elapsed dur pct label_app badge
+    local kind icon accent art scale sub elapsed dur pct label_app badge popup_scroll
     media_read_now || return 1
 
     kind="$(media_kind "$MEDIA_BUNDLE" "$MEDIA_TITLE" "$MEDIA_ARTIST" "$MEDIA_ALBUM" "$MEDIA_DURATION")"
@@ -144,6 +150,13 @@ build_popup() {
     fi
 
     # ── what it is ───────────────────────────────────────────────────────────
+    # The dropdown's two long rows sweep for as long as the popup is OPEN, which
+    # makes them the most persistent motion on the bar and the first thing
+    # haus.bar.media.marquee has to reach — a hover sweep at least ends by
+    # itself. Off, max_chars still caps them, so the row clips instead.
+    popup_scroll="scroll_texts=on"
+    [ "${BAR_MEDIA_MARQUEE:-1}" = "1" ] || popup_scroll="scroll_texts=off"
+
     # max_chars, not a fixed width: sketchybar's `width` is a static size, not
     # a cap, and setting one forced every title — a three-word one included —
     # to the same wide box. max_chars leaves a short title sized to itself and
@@ -156,7 +169,7 @@ build_popup() {
         icon="$icon" icon.color="$accent"
         label="$MEDIA_TITLE" label.color="$TEXT"
         label.font="$BAR_FONT:Bold:$FS_SMALL"
-        label.max_chars="$BAR_MEDIA_POPUP_MAX_CHARS" scroll_texts=on)
+        label.max_chars="$BAR_MEDIA_POPUP_MAX_CHARS" "$popup_scroll")
 
     sub="$MEDIA_ARTIST"
     [ -n "$MEDIA_ALBUM" ] && sub="${sub:+$sub — }$MEDIA_ALBUM"
@@ -166,7 +179,7 @@ build_popup() {
             icon="" icon.padding_left=0 icon.padding_right=0
             label="$sub" label.color="$SUBTEXT0"
             label.padding_left=38
-            label.max_chars="$BAR_MEDIA_POPUP_MAX_CHARS" scroll_texts=on)
+            label.max_chars="$BAR_MEDIA_POPUP_MAX_CHARS" "$popup_scroll")
     fi
 
     # ── the scrubber ─────────────────────────────────────────────────────────

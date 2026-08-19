@@ -238,6 +238,42 @@ in
       '';
     };
 
+    # Gravity: the tiler's one UNASKED move, which is what puts it in reach of
+    # haus.appearance.reduceMotion. Everything else windows does happens because
+    # a key was pressed; this happens because an app quit.
+    #
+    # The option is windows's because the behaviour is (it moves you between
+    # AeroSpace workspaces), but the code that implements it is a non-drawing
+    # SketchyBar item — front_app_switched is the only cheap signal a ⌘Q gives,
+    # and aerospace.toml has no hook for it. So bar READS this option the same
+    # way it already reads windows.enable, and with the bar off there is nothing
+    # to switch off: gravity was never running.
+    windows.gravity = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      example = false;
+      description = ''
+        When a ⌘Q leaves the focused workspace empty, pull back to the most
+        recently populated one instead of leaving you on a blank screen.
+
+        It fires only for a workspace you EMPTIED — never for one you
+        deliberately navigated to that happens to be empty — so in ordinary use
+        it is the difference between quitting the last app on a space and then
+        having to find your way off it.
+
+        Turn it off if a screen that changes without you touching it is worse
+        than a blank one. That is what `haus.appearance.reduceMotion` decides on
+        your behalf: it is the largest movement haus makes that you did not ask
+        for, and one whole display's worth of content replaced in a blink is
+        exactly what a vestibular trigger looks like.
+
+        Needs both `haus.windows.enable` and `haus.bar.enable`: the quit is
+        detected from the bar's own event stream (see
+        modules/bar/sketchybar/plugins/empty_workspace.sh for why there is no
+        AeroSpace hook for it), so with no bar there is no gravity either way.
+      '';
+    };
+
     windows.mouseFollowsFocus = lib.mkOption {
       type = lib.types.bool;
       default = false;

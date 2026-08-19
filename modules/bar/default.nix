@@ -1023,6 +1023,18 @@ let
     esac
   '';
 
+  # The one windows behaviour the BAR implements: gravity (haus.windows.gravity).
+  # It lives here because front_app_switched is the only cheap signal a ⌘Q gives
+  # and aerospace.toml has no hook for it — see plugins/empty_workspace.sh. The
+  # rc gates the item's very existence on this rather than letting the plugin
+  # exit early: the item is subscribed to an event that fires on every app
+  # switch, so "off" should cost no process at all, not a cheap one.
+  windowsConfigSh = ''
+    #!/bin/bash
+    # GENERATED from haus.windows.* by modules/bar/default.nix — do not edit.
+    BAR_GRAVITY="${if config.haus.windows.enable && config.haus.windows.gravity then "1" else "0"}"
+  '';
+
   # Bar position (haus.bar.position). Sourced by sketchybarrc — which sets
   # `position=` / `topmost=` on --bar from these two — and, in auto mode, re-run
   # by plugins/position.sh on every display_change. bar_position() echoes the
@@ -1555,6 +1567,7 @@ lib.mkIf config.haus.bar.enable {
         ".config/sketchybar/top_items.sh".text = topItemsSh;
         ".config/sketchybar/bar.sh".text = barSh;
         ".config/sketchybar/position.sh".text = positionSh;
+        ".config/sketchybar/windows_config.sh".text = windowsConfigSh;
         ".config/sketchybar/tour_item.sh".text = tourItemSh;
         ".config/sketchybar/tour_config.sh".text = tourConfigSh;
         ".config/sketchybar/battery_config.sh".text = ''
@@ -1587,6 +1600,10 @@ lib.mkIf config.haus.bar.enable {
           }"
           BAR_MEDIA_COLLAPSE="${if cfg.media.collapse then "1" else "0"}"
           BAR_MEDIA_ARTWORK_TINT="${if cfg.media.artworkTint then "1" else "0"}"
+          # The pill's only motion — off when the machine asked for less of it
+          # (haus.appearance.reduceMotion sets this leaf, it does not reach the
+          # plugin). "0" clips a long title instead of sweeping it.
+          BAR_MEDIA_MARQUEE="${if cfg.media.marquee then "1" else "0"}"
           BAR_MEDIA_ICONS="${
             lib.concatStringsSep "\n" (lib.mapAttrsToList (key: glyph: "${key}\t${glyph}") cfg.media.icons)
           }"
@@ -1613,6 +1630,8 @@ lib.mkIf config.haus.bar.enable {
           BAR_CALENDAR_UPCOMING="${toString cfg.calendar.upcoming}"
           BAR_CALENDAR_ME="${lib.concatStringsSep "," cfg.calendar.me}"
           BAR_CALENDAR_JOIN_HOSTS="${lib.concatStringsSep "," cfg.calendar.joinHosts}"
+          # Same as the media pill's: hover-sweep the full title, or clip it.
+          BAR_CALENDAR_MARQUEE="${if cfg.calendar.marquee then "1" else "0"}"
         '';
         ".config/sketchybar/github_config.sh".text = githubConfigSh;
         ".config/sketchybar/ai_usage_config.sh".text = ''
