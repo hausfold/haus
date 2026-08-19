@@ -194,9 +194,16 @@ def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
               + (if $safety.desktopSafe == true then "safe\n"
                  elif $safety.desktopSafe == false then "host-only\n"
                  else "recursive (\($safety.validator))\n"
-                      + (($validators[$safety.validator].rule // "")
-                         | if . == "" then ""
-                           else (wrap(66) | map("  #       " + .) | join("\n")) + "\n"
+                      # Indexed through a defaulted name, and defaulted again
+                      # after: jq ERRORS on `.[null]`, so a registry gap that
+                      # used to render `recursive (null)` and carry on would
+                      # otherwise abort `haus options` with a jq trace and
+                      # write no host file at all. Aligned under `desktop
+                      # data: ` rather than at the `type:` continuation, so a
+                      # wrapped type and a rule don't read as the same line.
+                      + (($validators[$safety.validator // ""].rule // "")
+                         | if (. | test("^[ \t]*$")) then ""
+                           else (wrap(56) | map("  #               " + .) | join("\n")) + "\n"
                            end)
                  end)
               + (if ($o.value | has("example")) and ($default != null) and (uninformative($default))

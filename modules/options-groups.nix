@@ -505,15 +505,15 @@ let
   # What each of those names MEANS, in one sentence, for the reader who meets it
   # rendered rather than in `modules/lib/desktop.nix`.
   #
-  # The validator name is already generated into two files a person reads — the
-  # `# desktop data: recursive (display-selectors)` line in their own host file,
-  # and the desktop-safety column of the options reference — and on its own it
-  # is a bare identifier that answers nothing. The rule it stands for WAS
-  # written down, in hand-written prose on the docs page about writing a
-  # desktop, which is a different file that nothing checks against this one. So
-  # the sentence lives here, beside the name it explains, and is rendered
-  # wherever that name is: one statement, generated, instead of two that can
-  # drift apart.
+  # The name alone is a bare identifier that answers nothing, and it is
+  # generated into the `# desktop data: recursive (display-selectors)` line of
+  # every host file `haus options` writes. The rule it stands for was written
+  # down as hand-written prose on hausfold.co's guide to writing a desktop — a
+  # different file, in a different repo, that nothing checks against this one.
+  # So the sentence lives here, beside the name it explains, and renders
+  # wherever that name is: one generated statement rather than two that can
+  # drift apart. A companion PR on hausfold.co is the other half: it renders
+  # this table on the options reference and stops the guide restating it.
   #
   # These are DESCRIPTIONS of the rule, not the diagnostics — `desktop.nix`'s
   # `keySaid` messages say what a bad key did wrong and are phrased to complete

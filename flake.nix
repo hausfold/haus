@@ -621,9 +621,19 @@
           # as a bare identifier that answers nothing, and nothing about that
           # fails anywhere. It is the same rule as "room with no title or no
           # blurb", one layer down.
-          namedValidators = nixpkgs.lib.unique (
-            map (name: registryOptions.${name}.validator) (
-              builtins.filter (name: registryOptions.${name}.desktopSafe == "recursive") registeredOptionNames
+          #
+          # `or ""`, then dropped, is load-bearing rather than defensive: the
+          # `recursive option has no validator` message above is computed from
+          # the same options, and `registryFailures` forces this list first, so
+          # a bare `.validator` would replace that diagnostic with a Nix trace
+          # at exactly the moment it was written to fire.
+          namedValidators = builtins.filter (name: name != "") (
+            nixpkgs.lib.unique (
+              map (name: registryOptions.${name}.validator or "") (
+                builtins.filter (
+                  name: registryOptions.${name}.desktopSafe == "recursive"
+                ) registeredOptionNames
+              )
             )
           );
           implementedValidators = desktopLib.validatorNames;
@@ -634,9 +644,12 @@
           unusedValidators = builtins.filter (
             name: !(builtins.elem name namedValidators)
           ) implementedValidators;
+          # Trimmed, because a blank-looking sentence renders as a comment line
+          # holding nothing but its own indent — the same non-answer as no
+          # sentence at all, arrived at by a route the check would wave through.
           unexplainedValidators = builtins.filter (
             name:
-            !((registry.validators.${name}.rule or "") != "")
+            (nixpkgs.lib.trim (registry.validators.${name}.rule or "")) == ""
           ) implementedValidators;
           strayValidatorRules = builtins.filter (
             name: !(builtins.elem name implementedValidators)

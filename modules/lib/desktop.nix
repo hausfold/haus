@@ -262,12 +262,12 @@ let
         lib.concatMap (
           key:
           if !(shellSafe key) then
-            [ (said "${path}.${key}" "may not contain quotes, backslashes, `$`, backticks or newlines") ]
+            [ (said "${path}.${key}" "may not contain quotes, backslashes, `$`, backticks, newlines or tabs") ]
           else if !(builtins.isString value.${key}) then
             [ (said "${path}.${key}" "must be a string") ]
           else if !(shellSafe value.${key}) then
             [
-              (said "${path}.${key}" "may not contain quotes, backslashes, `$`, backticks or newlines")
+              (said "${path}.${key}" "may not contain quotes, backslashes, `$`, backticks, newlines or tabs")
             ]
           else
             [ ]
