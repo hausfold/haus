@@ -1755,11 +1755,6 @@
               # The room's own payload: does this machine get the worktree tool
               # and at least one client, whatever else it has?
               holt = yn (hasPkg cfg.environment.systemPackages "holt");
-              # `zscratch` left the agent switch for the developer pack in the
-              # same change that made this room. It is an INSTALL change, so it
-              # gets a column rather than a sentence: the row for a machine with
-              # the pack on and the room off is the whole claim.
-              zscratch = yn (hasPkg cfg.environment.systemPackages "zscratch");
               client = yn (hasPkg hm.home.packages "claude-code");
               # What it contributes, as each receiving room actually rendered it.
               alias = hm.programs.zsh.shellAliases.c or "(none)";
@@ -1832,21 +1827,21 @@
               let
                 r = aiRoomAt aiRoomFixtures.${name};
               in
-              "${name} holt=${r.holt} zscratch=${r.zscratch} client=${r.client} alias=${r.alias} pill=${r.pill} cards=${r.cards}"
+              "${name} holt=${r.holt} client=${r.client} alias=${r.alias} pill=${r.pill} cards=${r.cards}"
             ) (builtins.attrNames aiRoomFixtures)
           );
           # `hacker pill=no` is not a miss: the rice ships the agents pill OFF
           # (it is an extra, like every personal readout), and a host turns it on.
           # The fixtures that exercise the seam ask for it explicitly.
           expectedAiRoomTable = ''
-            ai-alone holt=yes zscratch=yes client=yes alias=claude pill=no cards=no
-            ai-off holt=no zscratch=yes client=no alias=(none) pill=no cards=no
-            ai-with-bar holt=yes zscratch=yes client=yes alias=claude pill=yes cards=no
-            ai-with-launcher holt=yes zscratch=yes client=yes alias=claude pill=no cards=yes
-            bottom-pill-without-ai holt=no zscratch=yes client=no alias=(none) pill=no cards=no
-            hacker holt=yes zscratch=yes client=yes alias=claude pill=no cards=yes
-            no-rice-clients holt=yes zscratch=yes client=no alias=(none) pill=yes cards=no
-            pill-without-ai holt=no zscratch=yes client=no alias=(none) pill=no cards=no
+            ai-alone holt=yes client=yes alias=claude pill=no cards=no
+            ai-off holt=no client=no alias=(none) pill=no cards=no
+            ai-with-bar holt=yes client=yes alias=claude pill=yes cards=no
+            ai-with-launcher holt=yes client=yes alias=claude pill=no cards=yes
+            bottom-pill-without-ai holt=no client=no alias=(none) pill=no cards=no
+            hacker holt=yes client=yes alias=claude pill=no cards=yes
+            no-rice-clients holt=yes client=no alias=(none) pill=yes cards=no
+            pill-without-ai holt=no client=no alias=(none) pill=no cards=no
           '';
 
           # There is no old-address fixture, on purpose: `haus.agents.*` and

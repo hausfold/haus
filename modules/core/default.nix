@@ -835,7 +835,7 @@ in
       jq
       lsd
       # ripgrep isn't just a nicer grep here: terminal's ⌘F overlay
-      # (modules/terminal/zellij/find.sh) shells out to `rg` on every keystroke,
+      # (modules/terminal/scripts/find.sh) shells out to `rg` on every keystroke,
       # off an explicit thin PATH that only sees these profiles. Without it the
       # overlay opens and stays empty forever, with no error anywhere.
       ripgrep
@@ -851,20 +851,15 @@ in
       gnupg
       lazygit
     ]
-    # `zscratch` — feel-test a candidate zellij config / layout / plugin.wasm in
-    # a throwaway session in its OWN Ghostty window, WITHOUT a rebuild. Renders
-    # your edit over a copy of the live ~/.config/zellij into a temp config-dir
-    # and boots a fresh scratch session (its own name → its own server →
-    # recompiled wasm), so the working `main` session's tabs stay untouched.
-    # Moves the iterate-loop off `bench try switch` + restart; you rebuild once,
-    # at the end, already knowing it works. Lives here (not terminal) because it's
-    # a dev CLI on PATH like `haus`/`holt`, though it drives terminal's zellij dotfiles.
-    #
-    # It followed the agent switch until 2026-08-13, which was only ever an
-    # accident of where that switch lived: nothing about editing a zellij layout
-    # in a scratch session is about coding agents. It follows the developer pack
-    # now, next to `nixfmt` — the other tool here for editing the rice itself.
-    ++ lib.optional devCfg.enable (writeShellScriptBin "zscratch" (builtins.readFile ./zscratch.sh))
+    # `zscratch` used to live here — a throwaway zellij server in its own Ghostty
+    # window, rendering a candidate config/layout/plugin.wasm over a copy of the
+    # live ~/.config/zellij so you could feel an edit without a rebuild. It is
+    # deleted with the multiplexer, and it did not need replacing: both halves
+    # of its reason are gone. A running zellij server cached plugin wasm in
+    # memory for its whole lifetime, so a plugin edit needed a FRESH server;
+    # there are no plugins. And its config could only be reloaded by a live
+    # mtime, which is why terminal installed config.kdl as a real file; Ghostty
+    # watches and reloads its own config, from a store symlink, for free.
     # The AI room's payload, hosted here because this is where a system profile
     # is written; the room that OWNS it is modules/ai, and this is its switch.
     ++ lib.optionals config.haus.ai.enable [
@@ -894,8 +889,8 @@ in
       (writeShellScriptBin "claude-statusline" (builtins.readFile ./statusline.sh))
       (writeShellScriptBin "claude-statusline-refresh" (builtins.readFile ./statusline-refresh.sh))
 
-      # `agent-state` — the one writer of agent-pane state, feeding bar's `agents`
-      # paw and terminal's zellij tab-bar badge. BYTE-FOR-BYTE the script bar also
+      # `agent-state` — the one writer of agent state, feeding bar's `agents`
+      # paw. BYTE-FOR-BYTE the script bar also
       # installs as ~/.config/sketchybar/plugins/agents-hook.sh (read from there,
       # so the two can never drift); this copy exists only to give it a stable
       # name on PATH. Claude Code's hooks point at the sketchybar path because the
