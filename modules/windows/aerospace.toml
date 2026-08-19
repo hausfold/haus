@@ -227,7 +227,7 @@ enter = ['exec-and-forget @HOME@/.config/sketchybar/plugins/navigate_mode.sh off
 # tiled for a beat — reflowing the whole workspace — before any float rule
 # could win. Instead: every ghostty window spawned at runtime floats (floating
 # never reflows the tiles), and regular terminal windows tile themselves onto
-# workspace T from inside zellij/launch.sh, which knows what it is with
+# workspace T from inside terminal's scripts/launch.sh, which knows what it is with
 # certainty. At aerospace (re)start, existing windows go straight to T tiled,
 # same as before. (Ghostty belongs to haus.workspaces.T but its window
 # rules are bespoke, so the generated auto-assign block below skips it — see

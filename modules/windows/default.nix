@@ -156,7 +156,7 @@ let
   # there" and "take this there" sit in the same mode instead of on two
   # unrelated modifiers. It also hands the whole <mod>⇧<letter> namespace back
   # to the OS: those chords were claimed globally by AeroSpace, which is how
-  # windowNav = "ctrl-alt" used to eat zellij's ⌃⌥⇧c. Follows keys.leader, not
+  # windowNav = "ctrl-alt" used to eat the terminal's ⌃⌥⇧c. Follows keys.leader, not
   # keys.windowNav — "none" means no workspace keys at all (the palette still
   # moves windows).
   workspaceBinds =
