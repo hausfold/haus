@@ -1,33 +1,28 @@
 #!/bin/bash
 # agents.sh — the reader half of the `agents` bar item (opt-in via
-# haus.bar.items.agents). Surfaces the state of your agent worktree panes in the
-# menu bar so you never have to cycle zellij tabs hunting for the one that's
-# blocked on you. Client-agnostic: Claude Code, Codex and Opencode panes all
-# land here, and each popup row is marked with the client sitting in it.
+# haus.bar.items.agents). Surfaces the state of your agent windows in the menu
+# bar so you never have to hunt the workspaces for the one that's blocked on
+# you. Client-agnostic: Claude Code, Codex and Opencode all land here, and each
+# popup row is marked with the client sitting in it.
 #
 # State is written by agents-hook.sh from each client's own lifecycle hooks
-# (authoritative — no screen-scraping) into one of THREE stores, depending on
-# where the agent sits. All three are normalised into one record by
-# zellij_records / zmx_records / desktop_records below, and nothing after that
-# point knows the difference.
+# (authoritative — no screen-scraping) into one of TWO stores, depending on
+# where the agent sits. Both are normalised into one record by zmx_records /
+# desktop_records below, and nothing after that point knows the difference.
 #
-#   • a zellij pane → one file per pane under /tmp/haus-agents/*.state:
-#       <state>\t<session>\t<pane-id>\t<label>\t<epoch>\t<client>
-#     <client> is the newest field: a file written before it existed reads as
-#     empty, which provider_style draws as the generic mark rather than lying
-#     about a client. A `.cwd` sibling (same base name) carries the pane's
-#     checkout path, which the popup joins against `holt --json`'s lane `.path`
-#     — see "the holt join" below.
+#   • a zmx session → labels on the session itself. No file, and so no pruning:
+#     labels are in-memory and die with the session. A LANE's holt join is by
+#     NAME (`holt.<repo>.<lane>`, forced by terminal/lanes/lane-open.sh); a
+#     plain window's is by the `cwd` zmx reports for it.
 #   • a desktop-app session → one file per conversation under
-#     /tmp/haus-agents/*.desk, same six columns as a pane's `.state` and a
-#     `.desk.cwd` sibling for the same join. The extension is load-bearing:
-#     prune_dead_panes below reads a zellij "session not found" as proof that
-#     every row of that session is dead, and a desktop row is in no zellij
-#     session, so a `.state` file would be reaped on the first tick.
-#   • a zmx lane → labels on its own zmx
-#     session, which has no pane and needs none of the pruning below: labels are
-#     in-memory and die with the session. Its holt join is by NAME, not cwd,
-#     because the session is named `holt.<repo>.<lane>`.
+#     /tmp/haus-agents/*.desk: <state>\t<session>\t<key>\t<label>\t<epoch>\t<client>,
+#     with a `.desk.cwd` sibling for the same join.
+#
+# A THIRD store used to sit in front of both: `.state` files keyed by (zellij
+# session, pane id), with a `prune_dead_panes` reaper asking zellij which panes
+# still existed and a 12h backstop behind it. Both went with the multiplexer,
+# and the reason is worth keeping: a file outlives what it describes, so it
+# needs a reaper; a label cannot, so it doesn't.
 #
 # Four entry paths:
 #   • agent_update / system_woke / periodic  → recount, repaint icon+label
@@ -72,7 +67,7 @@
 # existed, not an error or a blocked popup.
 set -u
 # Work whether we're run by the bar (rich env) or invoked from a bare env (an
-# agent's hook, or a popup click needing zellij/aerospace): guarantee the nix
+# agent's hook, or a popup click needing zmx/aerospace): guarantee the nix
 # profile + Homebrew on PATH, and $USER (sketchybar-msg resolves its socket via
 # it). Set USER before PATH since PATH interpolates it.
 export USER="${USER:-$(id -un)}"
@@ -151,17 +146,18 @@ state_style() {
 #
 #   <priority> <since> <kind> <state> <target> <label> <client> <cwd>
 #
-# `kind` is `zellij` or `zmx`, and `target` is whatever that kind's row-click
-# handler needs to find the agent again: "<session> <pane>" for zellij (two
-# words, which is why target is the LAST positional in the `row` sub-command),
-# the zmx session name for zmx.
+# `kind` is `zmx` or `desktop`, and `target` is what that kind's row-click
+# handler needs to find the agent again: the session name for zmx, the
+# conversation key for desktop. It stays the LAST positional in the `row`
+# sub-command, which is a shape inherited from when one kind's target was two
+# words (a zellij session plus a pane id) and is kept because it costs nothing.
 #
-# zmx_records — the agent lanes. Their state
-# lives as labels on the session (agents-hook.sh), which zmx holds in memory for
-# the session's lifetime. So there is nothing here matching prune_dead_panes or
-# the 12h sweep below: a lane that dies takes its labels with it, and a session
-# that never reported (an ordinary `zmx attach` you opened yourself) has no
-# `state` label and is skipped.
+# zmx_records — every terminal agent. Their state lives as labels on the
+# session (agents-hook.sh), which zmx holds in memory for the session's
+# lifetime. So there is no reaper here and none is needed: a session that dies
+# takes its labels with it, and a session that never reported (a plain `term.<n>`
+# window, or an `zmx attach` you opened yourself) has no `state` label and is
+# skipped.
 #
 # Parsed out of plain `zmx ls`, not `zmx ls --where state=…`: in zmx 0.7.0
 # `--where` does not filter — it returns every session, labelled or not — so
@@ -203,27 +199,9 @@ zmx_records() {
     }'
 }
 
-# zellij_records — the /tmp state files, unchanged in every respect but shape.
-zellij_records() {
-  local f st sess pane label epoch client pr cwd cf
-  for f in "$DIR"/*.state; do
-    [ -e "$f" ] || continue
-    IFS=$'\t' read -r st sess pane label epoch client < "$f"
-    case "$st" in waiting) pr=0 ;; working) pr=1 ;; idle) pr=2 ;; *) pr=3 ;; esac
-    cwd=""
-    cf="${f%.state}.cwd"
-    [ -s "$cf" ] && cwd="$(cat "$cf")"
-    printf '%s\t%s\tzellij\t%s\t%s\t%s\t%s\t%s\n' \
-      "$pr" "${epoch:-0}" "$st" "$sess $pane" "$label" "$client" "$cwd"
-  done
-}
-
-# desktop_records — the `.desk` files a desktop-client session writes. Same six
-# columns as a pane's `.state` and the same normalised shape out, so everything
-# downstream is unchanged; the extension is what keeps prune_dead_panes (which
-# reads a zellij "session not found" as proof of death) from reaping rows that
-# were never in a zellij session to begin with. See agents-hook.sh's desktop
-# branch for the whole reasoning.
+# desktop_records — the `.desk` files a desktop-client session writes. Six
+# columns, normalised into the same shape zmx_records emits, so everything
+# downstream is unchanged. See agents-hook.sh's desktop branch for the reasoning.
 desktop_records() {
   local f st sess key label epoch client pr cwd cf
   # ── the liveness answer prune_dead_panes can't give ────────────────────────
@@ -231,8 +209,8 @@ desktop_records() {
   # fires on a force-quit, a crash, a logout or an app update — and the pill's
   # LABEL is the most urgent state it can find, so one stuck row makes the bar
   # read "1 working" with nothing running, for the twelve hours until the
-  # backstop sweep. That is exactly the ghost accretion prune_dead_panes exists
-  # to stop for Codex, and it needs the same answer from outside.
+  # backstop sweep. A zmx row cannot accrete this way — its labels die with the
+  # session — so this is the one store that still needs an outside answer.
   #
   # The app not running is that answer, and it is total: every desktop session
   # lives in the one process, so no app means no session, whatever the files
@@ -243,8 +221,7 @@ desktop_records() {
   # too: Claude Code is the only client with a desktop front end today, and a
   # reaper that guessed wider would reap rows it cannot vouch for.
   #
-  # No lsappinfo, no reap: a missing tool must never wipe live agents, the same
-  # rule prune_dead_panes states for a transient zellij failure.
+  # No lsappinfo, no reap: a missing tool must never wipe live agents.
   if command -v /usr/bin/lsappinfo >/dev/null 2>&1; then
     if [ -z "$(/usr/bin/lsappinfo find bundleid=com.anthropic.claudefordesktop 2>/dev/null)" ]; then
       rm -f "$DIR"/*.desk "$DIR"/*.desk.cwd 2>/dev/null
@@ -273,8 +250,8 @@ desktop_records() {
 }
 
 # ── popup-row click: go to the agent (left) or peek it (⌥/right) ──────────────
-# `agents.sh row <kind> <target…>` — the target is last because zellij's is two
-# words (session, pane) and zmx's is one (the session name).
+# `agents.sh row <kind> <target…>` — see the record contract above for why the
+# target is last.
 if [ "${1:-}" = "row" ] && [ "${2:-}" = "desktop" ]; then
   # Raise the desktop client, and that is the whole action — there is no
   # per-conversation window to focus (every session is a tab of one window) and
@@ -302,22 +279,30 @@ fi
 if [ "${1:-}" = "row" ] && [ "${2:-}" = "zmx" ]; then
   zsess="$3"
   if [ "${BUTTON:-left}" = "right" ] || [ "${MODIFIER:-none}" != "none" ]; then
-    # peek: `zmx tail` FOLLOWS the session's output, so this is a live view
-    # rather than the one-shot dump agents-peek.sh does for a pane — and it
-    # needs no attach, so it can never steal the lane's keyboard or count as a
-    # client on it.
-    "$HOME/.config/zellij/float-term.sh" spawn --title "peek" \
+    # peek: `zmx tail` FOLLOWS the session's output, so this is a LIVE view
+    # rather than the one-shot dump the zellij path used to take, and it needs
+    # no attach — it can never steal the session's keyboard or count as a client
+    # on it. (agents-peek.sh, which wrapped `zellij … subscribe --pane-id`, is
+    # deleted: one `zmx tail` replaces the whole script.)
+    "$HOME/.config/haus/term/float-term.sh" spawn --title "peek" \
       --w 900 --h 560 --pin \
       --command "zmx tail $zsess" >/dev/null
   else
-    # go-to: raise the lane's window. An EXACT title match, not the substring
-    # search the zellij path below has to do — terminal/lanes/lane-open.sh gives
-    # the window a forced `--title` equal to the session name, so the join is a
-    # string equality. No window means the lane is detached and still running
-    # (the whole point of a zmx lane), so reopen one on the live session
-    # rather than pretending nothing is there.
+    # go-to: raise the window. Two joins, tried in order. A LANE is an exact
+    # title match — terminal/lanes/lane-open.sh gives its window a forced
+    # `--title` equal to the session name, so nothing inside can clobber it.
+    # Anything else (a plain `term.<n>` window that happens to hold an agent)
+    # carries no forced title, so it is found through the `window` label
+    # scripts/launch.sh stamps with the AeroSpace window id it tiled. No window
+    # either way means the session is detached and still running — the whole
+    # point of zmx — so reopen one on it rather than pretending nothing is there.
     win=$(aerospace list-windows --all --format '%{window-id}|%{app-name}|%{window-title}' 2>/dev/null \
           | awk -F'|' -v t="$zsess" '$2 == "Ghostty" && $3 == t { print $1; exit }')
+    if [ -z "$win" ]; then
+      lw=$(zmx get "$zsess" 2>/dev/null | tr '\t' '\n' | sed -n 's/^ *window=//p' | head -1)
+      [ -n "$lw" ] && win=$(aerospace list-windows --all --format '%{window-id}' 2>/dev/null \
+            | grep -Fx "$lw")
+    fi
     if [ -n "$win" ]; then
       aerospace focus --window-id "$win" 2>/dev/null
     else
@@ -328,79 +313,14 @@ if [ "${1:-}" = "row" ] && [ "${2:-}" = "zmx" ]; then
   exit 0
 fi
 
-if [ "${1:-}" = "row" ]; then
-  # `row zellij <session> <pane>` — $2 is the kind, kept positional so both
-  # handlers share one click contract.
-  sess="$3"; pane="$4"
-  # A plain click sends MODIFIER=none (not empty), so test against "none" — any
-  # real modifier (alt/cmd/shift/ctrl) or a right-click means "peek instead".
-  if [ "${BUTTON:-left}" = "right" ] || [ "${MODIFIER:-none}" != "none" ]; then
-    # peek: live-tail the pane in a throwaway Ghostty, without stealing focus.
-    # float-term centers it on the current screen (this window used to spawn
-    # wherever AppKit last left one) and floats it via the shared helper.
-    "$HOME/.config/zellij/float-term.sh" spawn --title "peek" \
-      --w 900 --h 560 --pin \
-      --command "/bin/bash $PLUGINS/agents-peek.sh $sess $pane" >/dev/null
-  else
-    # go-to: focus the pane (zellij jumps to its tab), then raise the terminal
-    # window showing that session. Match the Ghostty window whose title carries
-    # the session name (zellij titles the terminal with it); fall back to just
-    # activating Ghostty. Only works for an attached session — a detached one
-    # (0 clients) isn't in any window, so nothing to raise.
-    zellij --session "$sess" action focus-pane-id "$pane" 2>/dev/null
-    win=$(aerospace list-windows --all --format '%{window-id} %{app-name} %{window-title}' 2>/dev/null \
-          | grep -w Ghostty | grep -F "$sess" | head -1 | awk '{print $1}')
-    if [ -n "$win" ]; then aerospace focus --window-id "$win" 2>/dev/null; else open -a Ghostty; fi
-  fi
-  "$SB" --set agents popup.drawing=off
-  exit 0
-fi
-
-# ── drop rows whose pane is gone ─────────────────────────────────────────────
-# The state files are self-reported, so a client that never says goodbye leaves
-# its last row on the bar forever. Claude Code has SessionEnd and Opencode has
-# dispose; CODEX HAS NEITHER — its hook events end at Stop — so without this a
-# finished Codex pane would sit there as a green paw until the 12h sweep below.
-#
-# zellij knows, and answers from outside a session (the bar is not in one):
-# `action list-panes` prints one `terminal_<id>` per line, the exact key these
-# filenames carry. Two answers are actionable and everything else is left
-# alone — a transient zellij failure must never wipe live agents:
-#   • a real list (has the PANE_ID header) → drop the panes not in it
-#   • "Session 'x' not found"              → drop every row of that session
-# One call per session with rows, on a 10s while-visible tick. Cheap.
-prune_dead_panes() {
-  [ -d "$DIR" ] || return 0
-  command -v zellij >/dev/null 2>&1 || return 0
-  local f base sess pane panes
-  for sess in $(
-    for f in "$DIR"/*.state; do
-      [ -e "$f" ] || continue
-      base="${f##*/}"; printf '%s\n' "${base%%__*}"
-    done | sort -u
-  ); do
-    panes="$(zellij --session "$sess" action list-panes 2>&1)"
-    case "$panes" in
-      *PANE_ID*) ;;                       # a real list — fall through and diff it
-      *"not found"*) rm -f "$DIR/${sess}__"*.state; continue ;;
-      *) continue ;;                      # anything else: leave the rows alone
-    esac
-    for f in "$DIR/${sess}__"*.state; do
-      [ -e "$f" ] || continue
-      base="${f##*/}"; pane="${base##*__}"; pane="${pane%.state}"
-      printf '%s\n' "$panes" | grep -q "^${pane}[[:space:]]" || rm -f "$f"
-    done
-  done
-}
-prune_dead_panes
-
-# Backstop cleanup for what that can't see (a whole zellij server gone, a client
-# that wrote a row from a pane id zellij never knew): reap state files untouched
-# for >12h. Live agents re-stamp their epoch on every hook.
-# `.desk` rows are swept by the same rule and for a sharper reason: their only
-# reaper is the client's own SessionEnd, so a desktop app that is force-quit
-# (or crashes) leaves a row nothing else can see is dead.
-[ -d "$DIR" ] && find "$DIR" \( -name '*.state' -o -name '*.desk' \) -mmin +720 -delete 2>/dev/null
+# ── the 12h backstop ─────────────────────────────────────────────────────────
+# Only `.desk` rows can go stale now: a zmx row's labels die with its session,
+# and there are no `.state` files left (the prune_dead_panes reaper that asked
+# zellij which panes still existed went with them). A desktop row's only reaper
+# is the client's own SessionEnd, which never fires on a force-quit, a crash, a
+# logout or an app update — desktop_records' lsappinfo check catches the common
+# case, and this catches the rest. Live agents re-stamp their epoch on every hook.
+[ -d "$DIR" ] && find "$DIR" -name '*.desk' -mmin +720 -delete 2>/dev/null
 
 # Iterate the glob with a -e guard rather than an array: macOS bash 3.2 under
 # `set -u` throws on "${arr[@]}" when the array is empty, and "no agents" is the
@@ -527,8 +447,8 @@ detail() { # detail <left> <left-color> <right> <right-color>
 # per-agent lookup is a pure-bash scan that spawns nothing at all.
 #
 # Two keys per lane, because there are two joins (see the render loop): the
-# checkout `path` a zellij pane reports, and `<repo>.<name>` for a zmx session
-# named `holt.<repo>.<lane>`.
+# checkout `path` a plain window reports as its cwd, and `<repo>.<name>` for a
+# lane's session, named `holt.<repo>.<lane>`.
 LANE_TABLE=""
 lane_table() { # lane_table <lanes-json>
   LANE_TABLE="$(printf '%s' "$1" | jq -r '
@@ -622,7 +542,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
   files=()
   while IFS= read -r rec; do
     [ -n "$rec" ] && files+=("$rec")
-  done < <(zellij_records; zmx_records; desktop_records)
+  done < <(zmx_records; desktop_records)
 
   if [ ${#files[@]} -eq 0 ]; then
     "$SB" --add item agents.popup.0 popup.agents 2>/dev/null \
@@ -749,7 +669,7 @@ while IFS=$'\t' read -r _pr _epoch _kind st _rest; do
     waiting) waiting=$((waiting + 1)) ;;
     idle)    idle=$((idle + 1)) ;;
   esac
-done < <(zellij_records; zmx_records; desktop_records)
+done < <(zmx_records; desktop_records)
 
 if [ $((working + waiting + idle)) -eq 0 ]; then
   "$SB" --set agents drawing=off   # nothing running → no clutter

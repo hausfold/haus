@@ -43,7 +43,7 @@ setup() {
   export COLUMNS=100
   WIDTH=92                      # COLUMNS - the script's RESERVE=8
   mkdir -p "$HOME" "$CLAUDE_STATUSLINE_CACHE"
-  unset ZELLIJ_PANE_ID          # no pane→transcript upsert from a test
+  unset ZMX_SESSION             # no session→transcript upsert from a test
 
   REPO="$TMP/wtbase/demo/joyful-pond"
   mkdir -p "$REPO"

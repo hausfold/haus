@@ -113,13 +113,14 @@ render_status() {
 # (plain() strips SGR, not OSC 8). A "#N" is clickable ONLY when its caller
 # passes a url — every caller here does (row 1's own pill, the row-1 sister
 # cluster, and the row-2 children). CC forwards OSC 8 to the terminal, so in a
-# hyperlink-aware terminal a BARE click opens the PR: zellij forwards the OSC 8
-# out to Ghostty and, since the rice's naked-click-links patch, resolves the
-# anchor itself, so the pill opens from inside an agent pane with no modifier
-# (⌘ never crossed the wire there — SGR mouse reports have no super bit — which
-# is why this used to say ⌘-click and be wrong inside zellij). Terminals or
-# multiplexers that swallow OSC 8 (some tmux builds — anthropics/claude-code#21586, #27047)
-# just show the colored "#N" with no link, which is a harmless graceful downgrade.
+# hyperlink-aware terminal ⌘⇧-click opens the PR. It is ⌘⇧ and not ⌘ because an
+# agent TUI is tracking the mouse: an SGR mouse report has bits for shift, alt
+# and ctrl and NONE for super, so a plain ⌘-click arrives at the program
+# indistinguishable from a bare click and Ghostty never gets a say. ⇧ is the one
+# modifier Ghostty always keeps (`mouse-shift-capture = never` in its config), so
+# ⌘⇧ is what reaches its own opener. Terminals that swallow OSC 8 (some tmux
+# builds — anthropics/claude-code#21586, #27047) just show the colored "#N" with
+# no link, which is a harmless graceful downgrade.
 render_pr() {
   local pr="$1" url="${2:-}" state="${1##* }" col="$DIM" num="${1%% *}"
   [ -n "$pr" ] || return 0
@@ -174,20 +175,26 @@ cost=$(j '.cost.total_cost_usd')
 transcript=$(j '.transcript_path')
 COLS=${COLUMNS:-120}
 
-# Pane → transcript map, consumed by pounce's Links command (modules/launcher/
-# commands/links.sh). This render is the one process that knows BOTH which
-# zellij pane it lives in ($ZELLIJ_PANE_ID, inherited through Claude Code) and
-# which session transcript that pane is showing (stdin) — so it maintains the
-# join. Upsert keyed by pane id, write only on change: a pane id reused after a
-# session restart is corrected by that pane's next render, and a lost race
-# between two concurrent renders heals the same way. Tiny file; no pruning.
-if [ -n "${ZELLIJ_PANE_ID:-}" ] && [ -n "$transcript" ]; then
+# Session → transcript map, consumed by pounce's Links command
+# (modules/launcher/commands/links.sh) and by ⌘F find
+# (modules/terminal/scripts/find.sh). This render is the one process that knows
+# BOTH which zmx session it lives in ($ZMX_SESSION, inherited through Claude
+# Code) and which conversation transcript that session is showing (stdin) — so
+# it maintains the join. Upsert keyed by session name, write only on change: a
+# `term.<n>` name recycled onto a new conversation is corrected by that window's
+# next render, and a lost race between two concurrent renders heals the same
+# way. Tiny file; no pruning.
+#
+# The file is still called pane-transcripts.tsv. A window IS the pane now, both
+# readers spell the path, and renaming it would strand every live row for a
+# word.
+if [ -n "${ZMX_SESSION:-}" ] && [ -n "$transcript" ]; then
   map="$CACHE_DIR/pane-transcripts.tsv"
-  if [ "$(awk -F'\t' -v id="$ZELLIJ_PANE_ID" '$1==id{v=$2} END{print v}' "$map" 2>/dev/null)" != "$transcript" ]; then
+  if [ "$(awk -F'\t' -v id="$ZMX_SESSION" '$1==id{v=$2} END{print v}' "$map" 2>/dev/null)" != "$transcript" ]; then
     [ -d "$CACHE_DIR" ] || mkdir -p "$CACHE_DIR"
     {
-      awk -F'\t' -v id="$ZELLIJ_PANE_ID" '$1!=id' "$map" 2>/dev/null
-      printf '%s\t%s\n' "$ZELLIJ_PANE_ID" "$transcript"
+      awk -F'\t' -v id="$ZMX_SESSION" '$1!=id' "$map" 2>/dev/null
+      printf '%s\t%s\n' "$ZMX_SESSION" "$transcript"
     } >"$map.$$" && mv -f "$map.$$" "$map"
   fi
 fi

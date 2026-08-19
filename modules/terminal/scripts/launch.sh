@@ -10,12 +10,12 @@
 # ── why a zmx session at all, when a window could just be a shell ────────────
 # Persistence is the small half. The load-bearing half is that Ghostty's
 # AppleScript API can CREATE a surface but cannot READ one — no dump-screen, no
-# scrollback, no text property. Three shipped features read a pane: ⌘F find
+# scrollback, no text property. Three shipped features read a window: ⌘F find
 # (scripts/find.sh), ⌘L links (launcher/commands/links.sh) and the bar's agent
-# peek (bar/…/agents-peek.sh). Under zellij they all called
-# `zellij action dump-screen`; the replacement is `zmx history <session>`, and
-# that only exists if the window's shell is INSIDE a session. So the session is
-# the read API, exactly as it is for a lane — see notes/zellij-exit.md.
+# peek (bar/…/agents.sh). Under zellij they all called
+# `zellij action dump-screen`; the replacement is `zmx history` / `zmx tail`,
+# and that only exists if the window's shell is INSIDE a session. So the session
+# is the read API, exactly as it is for a lane — see notes/zellij-exit.md.
 #
 # ── the name, and why it is recycled ─────────────────────────────────────────
 # `term.<n>`, lowest free n. "Free" means the session does not exist, or exists
@@ -54,28 +54,6 @@ if [[ "${title}" == *quick-terminal* ]]; then
     log "guard: quick-terminal"
     run_shell
 fi
-
-# This is a regular terminal window. windows floats every runtime ghostty
-# window (see windows/aerospace.toml — popups must never be tiled, and title
-# rules race detection), so tile ourselves onto workspace T. From in here the
-# window certainly exists, and it has focus (it was just opened by the user),
-# so targeting the focused window is race-free in practice.
-(
-    export PATH="/opt/homebrew/bin:$PATH"
-    WID=""
-    for _ in $(seq 1 20); do
-        WID=$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)
-        [ -n "$WID" ] && break
-        sleep 0.05
-    done
-    if [ -n "$WID" ]; then
-        aerospace move-node-to-workspace --window-id "$WID" T 2>>"$LOG"
-        aerospace layout --window-id "$WID" tiling 2>>"$LOG"
-        log "self-tiled window $WID onto workspace T"
-    else
-        log "self-tile: no focused window found"
-    fi
-) &
 
 command -v zmx >/dev/null 2>&1 || {
     log "no zmx on PATH — plain shell"
@@ -131,6 +109,42 @@ log "claimed $SESSION (busy: $(printf '%s' "$busy" | tr '\n' ' '))"
 # until the window closes, and holding a global mutex for the life of a window
 # would serialise every terminal on the machine down to one.
 /bin/rmdir "$lockdir" 2>/dev/null
+
+# This is a regular terminal window. windows floats every runtime ghostty
+# window (see windows/aerospace.toml — popups must never be tiled, and title
+# rules race detection), so tile ourselves onto workspace T. From in here the
+# window certainly exists, and it has focus (it was just opened by the user),
+# so targeting the focused window is race-free in practice.
+#
+# The same block stamps the window id onto the session as a `window=` label,
+# because it is the one place that knows both halves. That label is the join
+# scripts/focused-session.sh uses for every window that is NOT a lane: a lane's
+# window carries the session name as a forced title, and a plain window's title
+# is whatever the program inside emits.
+(
+    export PATH="/opt/homebrew/bin:$PATH"
+    WID=""
+    for _ in $(seq 1 20); do
+        WID=$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)
+        [ -n "$WID" ] && break
+        sleep 0.05
+    done
+    if [ -n "$WID" ]; then
+        aerospace move-node-to-workspace --window-id "$WID" T 2>>"$LOG"
+        aerospace layout --window-id "$WID" tiling 2>>"$LOG"
+        log "self-tiled window $WID onto workspace T"
+        # The session may not exist for another few milliseconds — `zmx attach`
+        # below is racing this subshell. Retry briefly rather than order the two,
+        # because holding the window untiled until the session is up is the more
+        # visible failure.
+        for _ in $(seq 1 40); do
+            zmx set "$SESSION" "window=$WID" >/dev/null 2>&1 && break
+            sleep 0.05
+        done
+    else
+        log "self-tile: no focused window found"
+    fi
+) &
 
 # `zmx attach` creates the session if it isn't there and re-attaches if it is,
 # so "restore" and "new" are the same call. No trailing command: we want the
