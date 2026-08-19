@@ -2265,6 +2265,26 @@
     "readOnly": false,
     "type": "attribute set of (submodule)"
   },
+  "haus.focus.scenes.<name>.apps.closeOnExit": {
+    "declarations": [
+      "modules/focus/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "On exit, quit the apps this scene STARTED — the ones from\n`apps.open` that weren't already running when you entered. An\napp you already had open is not a lever the scene pulled, so\nleaving never closes it; that is the same rule DND and the input\ndevice follow, and it is what keeps a work mode from taking your\neditor down with it.\n\nThe quit is the polite one (the same message ⌘Q sends), so an app\nwith unsaved work still gets to ask. It is recorded on entry, so\nexit closes what it opened even if the scene has since been\nedited out of the table.\n",
+    "loc": [
+      "haus",
+      "focus",
+      "scenes",
+      "<name>",
+      "apps",
+      "closeOnExit"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
   "haus.focus.scenes.<name>.apps.open": {
     "declarations": [
       "modules/focus/options.nix"
@@ -2273,7 +2293,7 @@
       "_type": "literalExpression",
       "text": "[ ]"
     },
-    "description": "Apps to launch on entry, by the name or bundle id `open -a`\ntakes. Honest scope: exiting a scene never closes them. Quitting\nan app you were mid-sentence in is not a decision a config file\nshould make, so that reversal stays yours.\n",
+    "description": "Apps to launch on entry, by the name or bundle id `open -a`\ntakes. Exiting a scene leaves them running unless\n`apps.closeOnExit` says otherwise — quitting an app you were\nmid-sentence in is not a decision a config file should make by\ndefault.\n",
     "example": {
       "_type": "literalExpression",
       "text": "[\n  \"OBS\"\n  \"Reminders\"\n]"

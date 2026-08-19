@@ -202,6 +202,61 @@ audio_input_set() { # $1 = exact device name
         || note "audio: no input device named \"$1\" — left as it was"
 }
 
+# An app is named the way `open -a` takes it — a name, a bundle id, or a path —
+# and AppleScript has two references to reach one, so both are TRIED rather than
+# guessed at from the shape of the string: a bundle id and a dotted app name
+# (`draw.io`) look identical, and a heuristic that picks wrong makes closeOnExit
+# silently do nothing. `application id` first because it is the exact one; the
+# name form answers `false` for anything macOS doesn't know, so an app that
+# exists under neither reads as "not running", which is right.
+#
+# The name reaches osascript as an ARGUMENT, never spliced into the script text:
+# scene data stays data, which is the whole reason the table is JSON the engine
+# reads rather than generated shell.
+#
+# `application X is running` is the one form that answers without launching what
+# it asks about — `tell application X to ...` would start it.
+app_running() { # $1 = app name, bundle id or path
+    /usr/bin/osascript - "$1" <<'EOS' 2>/dev/null | grep -q true
+on run argv
+    set a to item 1 of argv
+    try
+        return (application id a is running)
+    end try
+    return (application a is running)
+end run
+EOS
+}
+
+# The polite quit — the same message ⌘Q sends, so an app with unsaved work still
+# gets to put its save sheet up. `ignoring application responses` is what makes
+# that safe to do from here: without it osascript waits for the reply, and an
+# app showing a sheet doesn't reply until a person dismisses it (or the Apple
+# event times out, two minutes later), which would leave the rest of the exit —
+# the caffeinate hold, the microphone, the state files — hanging behind a modal.
+# ⌘Q from the Dock doesn't wait either. Guarded by `is running` so quitting what
+# is already gone can never be what starts it.
+app_quit() { # $1 = app name, bundle id or path
+    /usr/bin/osascript - "$1" <<'EOS' >/dev/null 2>&1
+on run argv
+    set a to item 1 of argv
+    try
+        if application id a is running then
+            ignoring application responses
+                tell application id a to quit
+            end ignoring
+        end if
+        return
+    end try
+    if application a is running then
+        ignoring application responses
+            tell application a to quit
+        end ignoring
+    end if
+end run
+EOS
+}
+
 # caffeinate outlives this script on purpose (the scene is what holds the
 # assertion, not the command that started it). The pid file survives a reboot
 # and pids get reused, so releasing checks it is still caffeinate before
@@ -250,6 +305,16 @@ scene_prev_write() { # $1 = sceneDnd, $2 = tookDnd, $3 = tookAudio, $4 = restore
 }
 
 scene_prev_read() { "$JQ" -r "$1 // empty" "$SCENE_PREV" 2>/dev/null; }
+
+# A second write, because which apps an entry STARTED is only known after it has
+# started them — and `prev` has to exist before the DND leg, which can exit. A
+# scene that doesn't close its apps writes nothing here, so exit finds no list
+# and quits nothing.
+scene_prev_took_apps() { # $1 = JSON array of apps this entry launched
+    local merged
+    merged=$("$JQ" --argjson a "$1" '.tookApps = $a' "$SCENE_PREV" 2>/dev/null) || return 0
+    printf '%s\n' "$merged" >"$SCENE_PREV"
+}
 
 scene_enter() {
     local name=$1 active
@@ -300,10 +365,24 @@ scene_enter() {
     [ "$(scene_field "$name" .preventSleep)" = true ] && sleep_hold
     [ "$takeAudio" = true ] && audio_input_set "$wantAudio"
 
+    # Only what this scene actually STARTED is its to close: an app you already
+    # had open is not a lever it pulled, the same rule takeDnd and takeAudio
+    # follow above. The probe costs an osascript per app, so it is only paid by
+    # a scene that asked to close them.
+    local closeApps took started
+    closeApps=$([ "$(scene_field "$name" .closeApps)" = true ] && echo true || echo false)
+    took='[]'
     while IFS= read -r app; do
         [ -n "$app" ] || continue
-        /usr/bin/open -a "$app" </dev/null >/dev/null 2>&1 || note "could not open \"$app\""
+        started=false
+        if [ "$closeApps" = true ] && ! app_running "$app"; then started=true; fi
+        if ! /usr/bin/open -a "$app" </dev/null >/dev/null 2>&1; then
+            note "could not open \"$app\""
+        elif [ "$started" = true ]; then
+            took=$("$JQ" -n --argjson t "$took" --arg a "$app" '$t + [$a]')
+        fi
     done < <(scene_field "$name" '.apps[]?')
+    if [ "$closeApps" = true ]; then scene_prev_took_apps "$took"; fi
 
     scene_hooks "$name" on
     poke_bar
@@ -320,6 +399,13 @@ scene_off() {
         [ "$(focus_state)" = on ] && apply off
         return
     fi
+
+    # Read off `prev` like every other reversal — never off the table — so a
+    # scene the host deleted mid-flight still closes what it opened. Read HERE
+    # and quit at the very end: the levers below all read this same file, and an
+    # app is the one thing on the list that can put a dialog between us and them.
+    local quitApps
+    quitApps=$("$JQ" -r '.tookApps[]? // empty' "$SCENE_PREV" 2>/dev/null)
 
     scene_hooks "$name" off
     sleep_release
@@ -342,6 +428,17 @@ scene_off() {
 
     /bin/rm -f "$SCENE_FILE" "$SCENE_PREV"
     poke_bar
+
+    # Last, with the scene already recorded as off and the bar already repainted:
+    # the quit is asynchronous but an app can still take a visible moment to go,
+    # and a pill that waits for OBS to finish closing is a pill that looks dead
+    # to the second click — which would run this whole function again, against a
+    # `prev` file the first pass has since removed.
+    while IFS= read -r app; do
+        [ -n "$app" ] || continue
+        app_quit "$app"
+    done <<<"$quitApps"
+
     note "scene off ($name)"
 }
 

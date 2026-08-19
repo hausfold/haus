@@ -53,6 +53,7 @@ let
           restorePreviousState
           ;
         apps = s.apps.open;
+        closeApps = s.apps.closeOnExit;
         audioInput = s.audio.input;
         hooks = map toString s.hooks;
       }) cfg.scenes
@@ -65,8 +66,8 @@ let
   switchAudio = lib.optionalString wantsAudio "${pkgs.switchaudio-osx}/bin/SwitchAudioSource";
 
   engine = pkgs.runCommand "focus" { } ''
-    mkdir -p $out
-    substitute ${./focus.sh} $out/focus \
+    mkdir -p $out/bin
+    substitute ${./focus.sh} $out/bin/focus \
       --subst-var-by jq ${pkgs.jq}/bin/jq \
       --subst-var-by keyCode ${toString keyCode} \
       --subst-var-by slackEnabled ${if cfg.slack.enable then "1" else "0"} \
@@ -77,7 +78,7 @@ let
       --subst-var-by hooks ${lib.escapeShellArg hooksStr} \
       --subst-var-by scenes ${scenesJson} \
       --subst-var-by switchAudio ${lib.escapeShellArg switchAudio}
-    chmod 555 $out/focus
+    chmod 555 $out/bin/focus
   '';
 in
 lib.mkIf cfg.enable {
@@ -159,9 +160,15 @@ lib.mkIf cfg.enable {
   home-manager.users.${username} =
     { lib, ... }:
     {
+      # On PATH, because a room whose whole surface is a verb you type should
+      # answer to that verb in a shell. The store path is the same one the
+      # stable link below points at, so the two can never be different builds.
+      home.packages = [ engine ];
+
       # A stable path every surface can call without PATH games — the pounce
-      # daemon and sketchybar both run with minimal environments.
-      home.file.".local/bin/focus".source = "${engine}/focus";
+      # daemon and sketchybar both run with minimal environments, and neither
+      # gets the profile's bin dir.
+      home.file.".local/bin/focus".source = "${engine}/bin/focus";
 
       # Bind symbolic hotkey 175 declaratively. -dict-add merges a single key
       # into AppleSymbolicHotKeys — it can never clobber your other hotkeys.

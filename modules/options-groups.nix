@@ -181,6 +181,7 @@ let
       "enable"
       "hooks"
       "scenes"
+      "scenes.<name>.apps.closeOnExit"
       "scenes.<name>.apps.open"
       "scenes.<name>.audio.input"
       "scenes.<name>.description"
