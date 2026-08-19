@@ -14,7 +14,8 @@
       description = ''
         The security room: Touch ID for `sudo`, with `reattach` — the PAM shim
         that keeps the prompt working when sudo runs inside a terminal
-        multiplexer (tmux/zellij/screen), where it otherwise beachballs.
+        multiplexer (tmux/screen, or the `zmx` session every haus terminal
+        window runs inside), where it otherwise beachballs.
 
         Off means macOS's stock password prompt everywhere, including for the
         rebuild below. Nothing else in haus depends on it.

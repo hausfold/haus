@@ -4295,7 +4295,7 @@
       "_type": "literalExpression",
       "text": "false"
     },
-    "description": "The security room: Touch ID for `sudo`, with `reattach` — the PAM shim\nthat keeps the prompt working when sudo runs inside a terminal\nmultiplexer (tmux/zellij/screen), where it otherwise beachballs.\n\nOff means macOS's stock password prompt everywhere, including for the\nrebuild below. Nothing else in haus depends on it.\n",
+    "description": "The security room: Touch ID for `sudo`, with `reattach` — the PAM shim\nthat keeps the prompt working when sudo runs inside a terminal\nmultiplexer (tmux/screen, or the `zmx` session every haus terminal\nwindow runs inside), where it otherwise beachballs.\n\nOff means macOS's stock password prompt everywhere, including for the\nrebuild below. Nothing else in haus depends on it.\n",
     "loc": [
       "haus",
       "security",

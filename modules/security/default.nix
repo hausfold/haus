@@ -8,7 +8,8 @@
 # defaults, where "turn it off" would mean "turn the foundation off".
 #
 # Touch ID for sudo, with `reattach` — REQUIRED if you ever run sudo inside a
-# terminal multiplexer (tmux/zellij/screen). A multiplexer detaches the process
+# terminal multiplexer (tmux/screen, or the `zmx` session every haus terminal
+# window runs inside). A multiplexer detaches the process
 # from the GUI (Aqua) session, so pam_tid.so can't reach the Touch ID UI and the
 # prompt beachballs. pam_reattach.so (inserted before pam_tid) reattaches auth to
 # the GUI session and fixes the hang. Falls back to the password prompt if Touch
