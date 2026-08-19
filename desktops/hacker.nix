@@ -41,8 +41,6 @@
 
     terminal = {
       floatBorder = "accent";
-      rightClickFullscreen = true;
-      zellijStartLocked = true;
     };
 
     focus.enable = true;

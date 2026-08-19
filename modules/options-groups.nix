@@ -329,8 +329,6 @@ let
       "ghDash.enable"
       "hijackFileAssociations"
       "obsidianVaults"
-      "rightClickFullscreen"
-      "zellijStartLocked"
     ];
     theme = [
       "accent"

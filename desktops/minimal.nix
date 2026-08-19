@@ -36,8 +36,6 @@
 
     fonts.mono.baseSize = 19;
 
-    terminal.zellijStartLocked = true;
-
     theme.accent = "mauve";
   };
 }

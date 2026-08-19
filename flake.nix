@@ -1268,7 +1268,6 @@
               pounce = file "/Users/you/.config/pounce/themes/nebelung.json";
               bar = file ".config/sketchybar/colors.sh";
               starship = file "/Users/you/.config/starship.toml";
-              zellij = file ".config/zellij/themes/nebelung.kdl";
             };
           # Three full evaluations, bound once rather than per row — the rows are
           # cheap, the systems are not.
@@ -1292,7 +1291,7 @@
             }";
           accentTable = builtins.concatStringsSep "\n" (map accentRow (builtins.attrNames accentA));
           # Alphabetical because the rows are `attrNames` — self-sorting, so a new
-          # surface can't be added in a spot that hides it. Ten move, nine hold.
+          # surface can't be added in a spot that hides it. Ten move, eight hold.
           expectedAccentTable = ''
             bar pinned
             bar-logo moves
@@ -1311,7 +1310,6 @@
             wallpaper moves
             yazi moves
             zed-roster-port moves
-            zellij pinned
             zen moves
           '';
 

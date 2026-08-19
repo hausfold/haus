@@ -183,7 +183,7 @@ in
     terminal.editor = lib.mkOption {
       type = lib.types.str;
       # Host-only, and permanently so: this value is EXECUTED — baked into the
-      # zellij opener, the palette command and the bar's nix-open item. That is
+      # window opener, the palette command and the bar's nix-open item. That is
       # the reason a desktop chooses with `editorName` above rather than here.
       # It is still the last word, though: a host naming "code -w" beats the
       # enum's command, which is what makes the enum a closed set without
@@ -203,8 +203,8 @@ in
         for $EDITOR / $VISUAL (git, etc.) AND what every "open in an editor"
         action launches — the "Nix Config" palette command, the bar's nix-open
         item, and the file-association hijack. Those open the target in a new
-        zellij tab running this command, so a terminal editor is the natural
-        fit for haus; a GUI editor's CLI works too (e.g. "code" or
+        terminal WINDOW running this command, so a terminal editor is the
+        natural fit for haus; a GUI editor's CLI works too (e.g. "code" or
         "code -w" to block).
 
         It defaults to the command for `haus.terminal.editorName`, so choosing an
@@ -221,7 +221,7 @@ in
         When true, build a small opener app and make it the default handler
         for ~80 text/code extensions (json, md, ts, nix, rs, go, kdl, …), so
         opening or clicking those files opens them in haus.terminal.editor in
-        a terminal tab. The app declares the types itself (not just `duti`) so
+        a terminal window. The app declares the types itself (not just `duti`) so
         extensions nothing else on the machine declares still bind. Off by
         default: silently rewriting your file associations is a jarring,
         hard-to-undo change, so it's strictly opt-in. (Extensionless executables
@@ -258,49 +258,6 @@ in
       '';
     };
 
-    terminal.zellijStartLocked = lib.mkOption {
-      type = lib.types.bool;
-      # In-room taste: it only describes how the multiplexer this room already
-      # ships behaves once you are in it, so there is no room to switch on and
-      # nothing to install — unlike the editor above, whose desktop-safe half is
-      # a choice about what lands on the machine. (hacker's desktop does set
-      # this one, since it is a claim on a keyboard rather than a package.)
-      default = true;
-      description = ''
-        When true (the default), zellij boots into Locked input mode instead of
-        Normal — its single-key submode leaders (pane, tab, resize, …) stay
-        inert until you unlock with Ctrl-g, so a stray keystroke can't jump you
-        into a submode. The `Super`-prefixed launchers (claude / pane / tab /
-        yazi-peek / fullscreen) are bound in `shared` and keep working while
-        locked, as do `Alt [` / `Alt ]` (cycle swap layouts) — the rest of
-        zellij's `Alt` row stays inert while locked, since those keys are
-        readline/vim word motions the pane's app wants. The bar's bottom-right
-        quick-hint block only shows in Locked mode. Set false to start in Normal
-        mode (zellij's own default).
-      '';
-    };
-
-    terminal.rightClickFullscreen = lib.mkOption {
-      type = lib.types.bool;
-      # Same as zellijStartLocked above: in-room behaviour of a terminal the
-      # layer installs unconditionally.
-      default = true;
-      description = ''
-        When true (the default), a bare right-click on any pane zooms it
-        fullscreen — the same MouseAction::ToggleFullscreen Ctrl+Click already
-        triggers, just a different, easier-to-reach trigger. It's a whole
-        zellij-unwrapped patch, not a config toggle (mouse buttons still
-        aren't bindable in config.kdl — see naked-click-links.patch's header
-        for why link gestures hit the same wall), so flipping this rebuilds
-        zellij; it does not take effect on a running server. The real cost:
-        right-click stops reaching the pane's own program, so a TUI's own
-        right-click context menu (lazygit, vim, mc, …) goes with it. Set
-        false to leave right-click alone and keep zooming with Ctrl+Click,
-        which is the only other way there: ⌘↵ used to zoom a pane and is the
-        agent-lane chord now.
-      '';
-    };
-
     terminal.floatBorder = lib.mkOption {
       type = lib.types.enum (
         [
@@ -317,10 +274,10 @@ in
       example = "grey";
       description = ''
         The outline drawn around every floating terminal `float-term.sh` spawns:
-        the Super-y yazi peek panel, the bar's agent peek, and the palette's
-        Rebuild System / Install App / Settings and `zscratch` windows. They all
-        land on top of a tiled desktop, where a dark terminal over a dark window
-        behind it has no edge at all.
+        the ⌘Y yazi peek panel, the bar's agent peek, and the palette's
+        Rebuild System / Install App / Settings windows. They all land on top of
+        a tiled desktop, where a dark terminal over a dark window behind it has
+        no edge at all.
 
         - `accent` (the default) — `haus.theme.accent`, so a summoned window
           announces itself and the whole desktop keeps one accent.
@@ -342,7 +299,7 @@ in
         `haus set terminal.floatBorder grey && haus rebuild`; to compare colours
         first, without a rebuild, outline any window by hand (the process name is
         lower-case — `pgrep -x Ghostty` matches nothing and rings nothing):
-        `~/.config/zellij/float-term.sh ring "$(pgrep -x ghostty | head -1)" '#cba6f7'`
+        `~/.config/haus/term/float-term.sh ring "$(pgrep -x ghostty | head -1)" '#cba6f7'`
       '';
     };
 
@@ -351,8 +308,8 @@ in
       default = false;
       example = true;
       description = ''
-        Whether to enable the themed gh-dash GitHub dashboard and its Cmd-G
-        fullscreen Zellij overlay.
+        Whether to enable the themed gh-dash GitHub dashboard and its ⌘G
+        near-fullscreen floating window.
 
         Enabling it gets you the issue and notification tabs (yours, assigned,
         unread, participating). The four PR tabs — open / green / red /

@@ -24,8 +24,6 @@
     "haus.terminal.editor": "hx",
     "haus.terminal.editorName": "helix",
     "haus.terminal.floatBorder": "accent",
-    "haus.terminal.rightClickFullscreen": true,
-    "haus.terminal.zellijStartLocked": true,
     "haus.focus.enable": true,
     "haus.keys.leader": "caps",
     "haus.keys.palette": "cmd-space",
