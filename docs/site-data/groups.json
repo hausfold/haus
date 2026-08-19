@@ -1743,6 +1743,32 @@
     "blurb": "One number for \"make the interface bigger\", applied across haus's own surfaces.",
     "order": 50
   },
+  "validators": {
+    "attrs-of-string": {
+      "rule": "Keys and values are strings carrying no quote, backslash, `$`, backtick, newline or tab, because they are written into a generated file as shell assignments."
+    },
+    "display-selectors": {
+      "rule": "Only the `internal` and `main` selectors: a display UUID names one physical panel on one desk, which is a fact about a machine rather than a taste a desktop can share."
+    },
+    "launcher-items": {
+      "rule": "Keys are plain item ids, since each one names a single row in the palette."
+    },
+    "roster-entries": {
+      "rule": "Keys are plain app ids — letters, digits, `_` and `-` — because each one becomes a launcher row and an argument to an installer."
+    },
+    "scene-entries": {
+      "rule": "Keys are plain scene names — what you type after `focus scene`, so a key has to survive as one shell word."
+    },
+    "submodule-list": {
+      "rule": "A list of settings, checked field by field inside each element — and a host that names the list at all REPLACES it rather than appending to it."
+    },
+    "widget-entries": {
+      "rule": "Keys are plain widget names, because each becomes a SketchyBar item name; a desktop may place and retune a pill, but `command` stays host-only so it can never add one that runs code."
+    },
+    "workspace-entries": {
+      "rule": "Keys are plain workspace names, which is what AeroSpace and the bar's page pill both spell them as."
+    }
+  },
   "wallpaper": {
     "blurb": "The desktop behind everything. `minimal` is generated on this machine — a flat field at whatever depth you pick out of the palette, the haus mark ⌂ at its centre, a bloom in your accent, and enough grain that none of it bands. The other looks are the hand-made Nebelung ones.",
     "order": 35

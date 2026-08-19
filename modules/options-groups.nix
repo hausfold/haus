@@ -502,6 +502,36 @@ let
     workspaces."" = "workspace-entries";
   };
 
+  # What each of those names MEANS, in one sentence, for the reader who meets it
+  # rendered rather than in `modules/lib/desktop.nix`.
+  #
+  # The validator name is already generated into two files a person reads — the
+  # `# desktop data: recursive (display-selectors)` line in their own host file,
+  # and the desktop-safety column of the options reference — and on its own it
+  # is a bare identifier that answers nothing. The rule it stands for WAS
+  # written down, in hand-written prose on the docs page about writing a
+  # desktop, which is a different file that nothing checks against this one. So
+  # the sentence lives here, beside the name it explains, and is rendered
+  # wherever that name is: one statement, generated, instead of two that can
+  # drift apart.
+  #
+  # These are DESCRIPTIONS of the rule, not the diagnostics — `desktop.nix`'s
+  # `keySaid` messages say what a bad key did wrong and are phrased to complete
+  # "…`haus.displays.ABC-123` names a physical display". Folding the two into
+  # one string would make either the error clumsy or this sentence so, which is
+  # why the check below requires both to EXIST rather than requiring them to be
+  # the same words.
+  validators = {
+    roster-entries.rule = "Keys are plain app ids — letters, digits, `_` and `-` — because each one becomes a launcher row and an argument to an installer.";
+    workspace-entries.rule = "Keys are plain workspace names, which is what AeroSpace and the bar's page pill both spell them as.";
+    launcher-items.rule = "Keys are plain item ids, since each one names a single row in the palette.";
+    scene-entries.rule = "Keys are plain scene names — what you type after `focus scene`, so a key has to survive as one shell word.";
+    widget-entries.rule = "Keys are plain widget names, because each becomes a SketchyBar item name; a desktop may place and retune a pill, but `command` stays host-only so it can never add one that runs code.";
+    display-selectors.rule = "Only the `internal` and `main` selectors: a display UUID names one physical panel on one desk, which is a fact about a machine rather than a taste a desktop can share.";
+    submodule-list.rule = "A list of settings, checked field by field inside each element — and a host that names the list at all REPLACES it rather than appending to it.";
+    attrs-of-string.rule = "Keys and values are strings carrying no quote, backslash, `$`, backtick, newline or tab, because they are written into a generated file as shell assignments.";
+  };
+
   roomOwners = {
     accessibility = "appearance";
     ai = "ai";
@@ -1082,4 +1112,5 @@ in
   exports = exportsMeta;
   rooms = publishedRooms;
   namespaces = publishedNamespaces;
+  inherit validators;
 }

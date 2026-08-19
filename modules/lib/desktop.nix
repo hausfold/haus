@@ -299,6 +299,16 @@ let
   };
 in
 {
+  # The named validators this file implements, for the check that holds the
+  # three lists in step: what the registry NAMES (`recursive`), what it
+  # EXPLAINS (`validators`), and what is actually here. `validate` already fails
+  # closed on a name it doesn't know, so the missing direction is caught at
+  # evaluation — but only on a desktop that happens to set that container, and
+  # only on the consumer's machine. Exporting the names lets `nix flake check`
+  # answer it for every container at once, in haus's own tree, which is where a
+  # registry mistake is cheap to fix.
+  validatorNames = builtins.attrNames validators;
+
   # Every reason this value is not a desktop, most structural first. Empty means
   # it is one.
   failures =

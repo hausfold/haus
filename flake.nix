@@ -607,6 +607,41 @@
             ) registeredOptionNames
           ) registeredOptionNames;
 
+          # ---- validators -----------------------------------------------------
+          # Three lists have to agree, and each pair fails a different way.
+          # NAMED is what `recursive` puts on a container; IMPLEMENTED is what
+          # `modules/lib/desktop.nix` can actually run; EXPLAINED is the
+          # sentence a person reads in their host file and on the options page.
+          #
+          # Named-but-not-implemented already fails closed at evaluation
+          # (`validate` refuses an unknown name) — but only on a desktop that
+          # sets that container, on someone else's machine. Implemented-but-
+          # unnamed is dead code. Neither of those is the reason this check
+          # exists: EXPLAINED is, because a validator with no sentence renders
+          # as a bare identifier that answers nothing, and nothing about that
+          # fails anywhere. It is the same rule as "room with no title or no
+          # blurb", one layer down.
+          namedValidators = nixpkgs.lib.unique (
+            map (name: registryOptions.${name}.validator) (
+              builtins.filter (name: registryOptions.${name}.desktopSafe == "recursive") registeredOptionNames
+            )
+          );
+          implementedValidators = desktopLib.validatorNames;
+          explainedValidators = builtins.attrNames (registry.validators or { });
+          unimplementedValidators = builtins.filter (
+            name: !(builtins.elem name implementedValidators)
+          ) namedValidators;
+          unusedValidators = builtins.filter (
+            name: !(builtins.elem name namedValidators)
+          ) implementedValidators;
+          unexplainedValidators = builtins.filter (
+            name:
+            !((registry.validators.${name}.rule or "") != "")
+          ) implementedValidators;
+          strayValidatorRules = builtins.filter (
+            name: !(builtins.elem name implementedValidators)
+          ) explainedValidators;
+
           # ---- rooms ----------------------------------------------------------
           # A room is what a person meets; a namespace is how they spell it.
           # `roomOwners` in the registry maps one to the other, and the rooms
@@ -685,6 +720,10 @@
             ++ map (x: "stale darwinModules export: ${x}") staleExports
             ++ map (x: "invalid desktop-safety decision: ${x}") invalidSafety
             ++ map (x: "recursive option has no validator: ${x}") invalidRecursive
+            ++ map (x: "registry names a validator nothing implements: ${x}") unimplementedValidators
+            ++ map (x: "validator no container names: ${x}") unusedValidators
+            ++ map (x: "validator with no rule sentence: ${x}") unexplainedValidators
+            ++ map (x: "rule sentence for a validator that does not exist: ${x}") strayValidatorRules
             ++ map (x: "duplicate option path in namespace: ${x}") duplicateInventory
             ++ map (x: "unsafe dynamic subtree: ${x}") unsafeDynamicRoots
             ++ map (x: "open attrset has no recursive validator: ${x}") unsafeOpenAttrsets
