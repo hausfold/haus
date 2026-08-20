@@ -250,9 +250,10 @@ sketchybar --add item last_closed_app left \
 #
 # It sits HERE, between the workspace pills and the front app, because that is
 # what it qualifies: the workspace pill says which workspace, this says which
-# page of it — or, on the workspace, how many there are to go to. (It was a movable readout on the second bar — `haus.bar.items.page`
-# — until 2026-08-19, where it could only ever answer for `T`, and where the menu
-# bar answered "which workspace" with nothing at all whenever you were on a page:
+# page of it — or, on the workspace, how many there are to go to. (It was a
+# movable readout on the second bar — `haus.bar.items.page` — until 2026-08-19,
+# where it could only ever answer for `T`, and where the menu bar answered
+# "which workspace" with nothing at all whenever you were on a page:
 # plugins/space.sh matches the focused workspace by exact string, so `space.T`
 # goes dark the moment you focus `T/haus`.)
 #
