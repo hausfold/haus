@@ -244,13 +244,16 @@ sketchybar --add item last_closed_app left \
 # terminal-specific — any workspace can carry pages, AeroSpace makes one on first
 # use, and `caps <letter>` resolves a bare workspace to its most recent page
 # (windows/scripts/workspace-mru.sh) — so this pill names the page for whatever
-# workspace you are on, and draws nothing at all when that workspace has none.
+# workspace you are on. On the workspace ITSELF it draws the number of pages
+# under it, dimmed, and it draws nothing at all when there are none: see
+# plugins/page.sh for why the middle state has to exist.
 #
 # It sits HERE, between the workspace pills and the front app, because that is
 # what it qualifies: the workspace pill says which workspace, this says which
-# page of it. (It was a movable readout on the second bar — `haus.bar.items.page`
-# — until 2026-08-19, where it could only ever answer for `T`, and where the menu
-# bar answered "which workspace" with nothing at all whenever you were on a page:
+# page of it — or, on the workspace, how many there are to go to. (It was a
+# movable readout on the second bar — `haus.bar.items.page` — until 2026-08-19,
+# where it could only ever answer for `T`, and where the menu bar answered
+# "which workspace" with nothing at all whenever you were on a page:
 # plugins/space.sh matches the focused workspace by exact string, so `space.T`
 # goes dark the moment you focus `T/haus`.)
 #
@@ -260,6 +263,13 @@ sketchybar --add item last_closed_app left \
 # that would turn drawing back on could never run. It costs nothing here: there
 # is no update_freq, the pill is woken by the workspace-change event alone.
 #
+# The icon is md-layers, the same stack the Pages palette command wears as SF
+# Symbol `square.stack` — one plane in front of others is what a page IS. It was
+# md-source_branch until 2026-08-20, which was borrowed scenery: a page's only
+# producer today happens to be per-repo lanes, but the pill asks the WORKSPACE
+# NAME for a slash and knows nothing about git, so a branch glyph promised a
+# meaning it never had.
+#
 # mouse.clicked is deliberately NOT subscribed: a click_script fires on its own,
 # and subscribing as well would run script (the repaint) and click_script (the
 # picker) on every click.
@@ -268,7 +278,7 @@ if [ "$BAR_PAGES" = "1" ]; then
         --set page \
             drawing=off \
             updates=on \
-            icon="󰘬" \
+            icon="󰌨" \
             icon.font="${BAR_FONT}:Bold:$FS_ICON_WIDE" \
             icon.color=$TEAL \
             icon.padding_left=10 \
