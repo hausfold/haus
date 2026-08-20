@@ -103,15 +103,27 @@ if [ "${#envs[@]}" -gt 0 ]; then
 fi
 
 # The window AeroSpace sees before this one, so the poll below can tell the new
-# window from the one we were called from (both are Ghostty).
-before="$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)"
+# window from the one we were called from (both are Ghostty). Empty, and every
+# AeroSpace line below skipped, on a machine with no tiler — the window still
+# opens, macOS still places it, and scripts/launch.sh inside it still stamps
+# the join label (a Ghostty window id there rather than an AeroSpace one).
+tiler=0
+command -v aerospace >/dev/null 2>&1 && [ "${HAUS_WINDOW_BACKEND:-aerospace}" = aerospace ] && tiler=1
+before=""
+[ "$tiler" = 1 ] && before="$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)"
 
 # Cold start: `open -a` returns as soon as LaunchServices accepts, and asking a
 # not-yet-running Ghostty for a window over Apple Events just fails.
-if ! pgrep -x Ghostty >/dev/null 2>&1; then
+#
+# `pgrep -ix ghostty`, not `pgrep -x Ghostty`: the executable inside the bundle
+# is lowercase (`Ghostty.app/Contents/MacOS/ghostty`), so the capitalised form
+# NEVER matched — every ⌘N took the cold-start branch, activated a Ghostty that
+# was already running, and then polled for a full two seconds before asking for
+# the window. Fixed 2026-08-19; the same one-word bug was in lanes/lane-open.sh.
+if ! pgrep -ix ghostty >/dev/null 2>&1; then
   open -a Ghostty
   for _ in $(seq 1 40); do
-    pgrep -x Ghostty >/dev/null 2>&1 && break
+    pgrep -ix ghostty >/dev/null 2>&1 && break
     sleep 0.05
   done
 fi
@@ -126,12 +138,14 @@ fi
 
 osascript -e 'tell application "Ghostty" to activate' >/dev/null 2>&1
 
-for _ in $(seq 1 20); do
-  wid="$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)"
-  [ -n "$wid" ] && [ "$wid" != "$before" ] && break
-  sleep 0.05
-done
-[ -n "${wid:-}" ] && [ "$wid" != "$before" ] &&
-  aerospace layout --window-id "$wid" tiling >/dev/null 2>&1
+if [ "$tiler" = 1 ]; then
+  for _ in $(seq 1 20); do
+    wid="$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)"
+    [ -n "$wid" ] && [ "$wid" != "$before" ] && break
+    sleep 0.05
+  done
+  [ -n "${wid:-}" ] && [ "$wid" != "$before" ] &&
+    aerospace layout --window-id "$wid" tiling >/dev/null 2>&1
+fi
 
 exit 0

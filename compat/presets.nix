@@ -68,10 +68,13 @@ in
     launcher.enable = false;
     tour.enable = false;
 
-    # Agent lanes are windows, so they need the tiler; the successor desktop
-    # (desktops/minimal.nix) leaves the AI room off for the same reason a
-    # machine with no windows room has nowhere to put a lane.
-    ai.enable = false;
+    # `ai.enable = false` sat here from #388 until 2026-08-19, and it was never
+    # this preset's value: a preset is applied ON TOP of the default desktop, so
+    # hacker's AI room came with it, and terminal asserted that agent lanes
+    # needed the tiler this preset turns off. The assertion is a warning now —
+    # a lane opens as an ordinary macOS window where there is nothing to tile it
+    # onto — so the line is gone and the preset is back to only what it always
+    # set.
 
     developer.enable = true;
   };
@@ -89,9 +92,13 @@ in
 
     windows.enable = false;
 
-    # Same as minimal above, and the same as desktops/everyday.nix: no tiler,
-    # so no lanes.
-    ai.enable = false;
+    # `ai.enable = false` sat here from #388 until 2026-08-19, and it was never
+    # this preset's value: a preset is applied ON TOP of the default desktop, so
+    # hacker's AI room came with it, and terminal asserted that agent lanes
+    # needed the tiler this preset turns off. The assertion is a warning now —
+    # a lane opens as an ordinary macOS window where there is nothing to tile it
+    # onto — so the line is gone and the preset is back to only what it always
+    # set.
 
     developer.enable = false;
   };

@@ -476,7 +476,7 @@ cmd_ui() {
     # can least afford), and there is no width-keyed form to say the real thing.
     local preview_win='right,40%,border-left'
 
-    local out query key sel id line win lw
+    local out query key sel id line
     local fzf_color='fg:-1,bg:-1,fg+:-1,bg+:8,gutter:-1,border:8,label:5'
     fzf_color="$fzf_color,preview-border:8,prompt:5,pointer:5,query:-1"
     fzf_color="$fzf_color,info:8,spinner:5,footer:8,scrollbar:8"
@@ -523,22 +523,14 @@ cmd_ui() {
     printf '%s' "$line" | pbcopy
     [ "$key" = "ctrl-y" ] && exit 0
 
-    # ⏎ — go to the window the hit came from. Two joins, the same pair the bar's
-    # popup uses: a LANE window carries the session name as a forced title, and
-    # anything else is found through the `window=` label scripts/launch.sh
-    # stamps with the AeroSpace id it tiled. A detached session matches neither,
-    # and there is deliberately no third branch reopening a window for it — you
-    # asked to go to a hit, not to resurrect a terminal. The line is on the
-    # clipboard either way, which is the floor this key has always had.
+    # ⏎ — go to the window the hit came from. scripts/raise-session.sh owns the
+    # joins (and knows whether this machine has a tiler); the bar's popup calls
+    # exactly the same script for exactly the same reason. A detached session
+    # raises nothing, and there is deliberately no branch reopening a window for
+    # it — you asked to go to a hit, not to resurrect a terminal. The line is on
+    # the clipboard either way, which is the floor this key has always had.
     if [ -n "$id" ]; then
-        win=$(aerospace list-windows --all --format '%{window-id}|%{app-name}|%{window-title}' 2>/dev/null |
-            awk -F'|' -v t="$id" '$2 == "Ghostty" && $3 == t { print $1; exit }')
-        if [ -z "$win" ]; then
-            lw=$(zmx_label "$id" window)
-            [ -n "$lw" ] && win=$(aerospace list-windows --all --format '%{window-id}' 2>/dev/null |
-                grep -Fx "$lw")
-        fi
-        [ -n "$win" ] && aerospace focus --window-id "$win" >/dev/null 2>&1
+        "$HOME/.config/haus/term/raise-session.sh" "$id" >/dev/null 2>&1
     fi
     exit 0
 }

@@ -137,18 +137,25 @@ in
   # invariants and moved to modules/ai with its switch. They named only
   # `haus.ai.*`, and they have to fail the rebuild on a machine with no
   # terminal room at all.
+  # Agent lanes used to ASSERT haus.windows.enable here, and that was one room
+  # deciding another room's business. What actually needed the tiler was never
+  # the lane — the zmx session that outlives its window, the hold-on-error, the
+  # bar row, holt's registry are all tiler-free — it was PLACEMENT (which has no
+  # meaning without pages) and the window→session JOIN, which was spelled
+  # AeroSpace in three scripts because AeroSpace was always there. Since
+  # 2026-08-19 the join has a second spelling in Ghostty's own scripting API
+  # (lanes/lane-open.sh has the two backends and the measurement that keeps them
+  # apart), so a machine with no tiler gets working lanes in ordinary macOS
+  # windows, and this is a warning about what it is missing rather than a
+  # refusal to build.
+  warnings = lib.optional (agentContrib.enable && !config.haus.windows.enable) (
+    "haus.ai is on with haus.windows off: agent lanes will open as ordinary macOS windows. "
+    + "Everything else works — ⌘↵ spawns, ⌘W detaches, the bar's agents pill goes to a lane and "
+    + "peeks it — but nothing places them, so there are no per-repo T/<repo> pages and no page "
+    + "walk (⌃⇥) to tile five agents across three repos. Turn haus.windows.enable on for those."
+  );
+
   assertions = [
-    {
-      assertion = !agentContrib.enable || config.haus.windows.enable;
-      message =
-        "agent lanes need haus.windows.enable. A lane is a zmx session in its own WINDOW, and "
-        + "lanes/lane-open.sh places each one with `aerospace move-node-to-workspace` — with the "
-        + "windows room off, every lane piles onto whatever workspace happened to be focused, and "
-        + "the page walk (⌃⇥) that tiles them per repo has nothing to walk. The spawn chord no "
-        + "longer needs this room (⌘↵ is a Ghostty-scoped pounce hotkey since 2026-08-18, where "
-        + "it was an AeroSpace bind before), but the placement still does. Turn the windows room "
-        + "on, or turn the agent clients off (haus.ai.clients = [ ]).";
-    }
     {
       assertion = !ghDashCfg.enable || devCfg.git.enable;
       message =
@@ -1483,6 +1490,15 @@ in
         };
         ".config/haus/term/new-window.sh" = {
           source = ./scripts/new-window.sh;
+          executable = true;
+        };
+        # The mirror of focused-session.sh: "put THAT session's window in
+        # front". Two callers with a copy each until 2026-08-19 — the bar's
+        # agents popup and ⌘F's ⏎ — which is why it lives here rather than in
+        # either of them. modules/bar reaches it at this path, the way it
+        # already reaches float-term.sh.
+        ".config/haus/term/raise-session.sh" = {
+          source = ./scripts/raise-session.sh;
           executable = true;
         };
         # Both peek chords run this one script: ⌘Y hops out of an agent

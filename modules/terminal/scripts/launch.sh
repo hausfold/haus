@@ -55,6 +55,15 @@ if [[ "${title}" == *quick-terminal* ]]; then
     run_shell
 fi
 
+# Which window backend this machine has — see lanes/lane-open.sh for the two
+# and why they can't be mixed. HAUS_WINDOW_BACKEND forces one, so a machine
+# that has a tiler can feel-test the path a machine without one takes.
+BACKEND="${HAUS_WINDOW_BACKEND:-}"
+if [ -z "$BACKEND" ]; then
+    if command -v aerospace >/dev/null 2>&1; then BACKEND=aerospace; else BACKEND=ghostty; fi
+fi
+log "window backend: $BACKEND"
+
 command -v zmx >/dev/null 2>&1 || {
     log "no zmx on PATH — plain shell"
     run_shell
@@ -121,33 +130,66 @@ log "claimed $SESSION (busy: $(printf '%s' "$busy" | tr '\n' ' '))"
 # window certainly exists, and it has focus (it was just opened by the user),
 # so targeting the focused window is race-free in practice.
 #
-# The same block stamps the window id onto the session as a `window=` label,
-# because it is the one place that knows both halves. That label is the join
-# scripts/focused-session.sh uses for every window that is NOT a lane: a lane's
-# window carries the session name as a forced title, and a plain window's title
-# is whatever the program inside emits.
+# The same block stamps this window's id onto the session, because it is the
+# one place that knows both halves. That label is the join
+# scripts/focused-session.sh uses for every window that is NOT a lane: a lane
+# carries its own identity (a forced title, or the id lanes/lane-open.sh
+# stamps), and a plain window's title is whatever the program inside emits.
+#
+# WHICH id depends on the backend, exactly as it does for a lane — see
+# lanes/lane-open.sh for the measurement behind the split:
+#
+#   aerospace   window=<aerospace id>, and the window is tiled onto T.
+#   ghostty     gwindow=<ghostty id>, over Ghostty's own AppleScript API, on a
+#               machine with no tiler at all. macOS placed the window; there is
+#               nothing to tile it onto.
+#
+# Only ever ONE of the two, never both: the ids live in different spaces, and a
+# label stamped from the wrong backend is a join that resolves confidently to
+# the wrong window.
 (
     export PATH="/opt/homebrew/bin:$PATH"
-    WID=""
-    for _ in $(seq 1 20); do
-        WID=$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)
-        [ -n "$WID" ] && break
-        sleep 0.05
-    done
-    if [ -n "$WID" ]; then
-        aerospace move-node-to-workspace --window-id "$WID" T 2>>"$LOG"
-        aerospace layout --window-id "$WID" tiling 2>>"$LOG"
-        log "self-tiled window $WID onto workspace T"
-        # The session may not exist for another few milliseconds — `zmx attach`
-        # below is racing this subshell. Retry briefly rather than order the two,
-        # because holding the window untiled until the session is up is the more
-        # visible failure.
-        for _ in $(seq 1 40); do
-            zmx set "$SESSION" "window=$WID" >/dev/null 2>&1 && break
+
+    LABEL=""
+    if [ "$BACKEND" = aerospace ]; then
+        WID=""
+        for _ in $(seq 1 20); do
+            WID=$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)
+            [ -n "$WID" ] && break
             sleep 0.05
         done
+        if [ -n "$WID" ]; then
+            aerospace move-node-to-workspace --window-id "$WID" T 2>>"$LOG"
+            aerospace layout --window-id "$WID" tiling 2>>"$LOG"
+            log "self-tiled window $WID onto workspace T"
+            LABEL="window=$WID"
+        else
+            log "self-tile: no focused window found"
+        fi
     else
-        log "self-tile: no focused window found"
+        # `front window` rather than "the window this process is in", because
+        # Ghostty exposes no such thing — the same assumption the tiler branch
+        # makes, and true for the same reason: this window was just opened and
+        # has focus. Costs ~150 ms, which is why it is HERE, in a backgrounded
+        # subshell, and never on a keystroke path.
+        GWID=$(/usr/bin/osascript -e 'tell application "Ghostty" to return id of front window' 2>>"$LOG")
+        if [ -n "$GWID" ]; then
+            log "ghostty window id $GWID"
+            LABEL="gwindow=$GWID"
+        else
+            log "no ghostty window id — this window has no label join"
+        fi
+    fi
+
+    # The session may not exist for another few milliseconds — `zmx attach`
+    # below is racing this subshell. Retry briefly rather than order the two,
+    # because holding the window untiled until the session is up is the more
+    # visible failure.
+    if [ -n "$LABEL" ]; then
+        for _ in $(seq 1 40); do
+            zmx set "$SESSION" "$LABEL" >/dev/null 2>&1 && break
+            sleep 0.05
+        done
     fi
 ) &
 
