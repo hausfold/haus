@@ -1407,15 +1407,15 @@
                         name = "Zed";
                         cask = "zed";
                       };
-                      # Same reason, and the two surfaces here that reach the
-                      # WEB rather than an app's own config: the stamped Stylus
-                      # bundle only exists once the extension is declared, and
-                      # the compiled userstyle sheet only once a style is named.
-                      # Without the second line the `zen` row below fingerprints
+                      # Same reason, and the one surface here that reaches the
+                      # WEB rather than an app's own config: the compiled
+                      # userstyle sheet exists only once a style is named.
+                      # Without this line the `zen` row below fingerprints
                       # nebelung's own userContent.css and would not notice the
                       # accent dropping out of the compiled half — which is the
                       # only half nothing else in the flake ever evaluates.
-                      haus.zen.extensions.stylus = { };
+                      # (There were two until 2026-08-20; the other was the
+                      # stamped Stylus bundle, and it is retired.)
                       haus.zen.userStyles = [ "github" ];
                     }
                   ];
@@ -1448,11 +1448,6 @@
               zen = hm.home.activation.zenNebelung.data;
               wallpaper = hm.home.activation.hausWallpaper.data;
               zed-roster-port = targetsUnder ".config/zed/themes/";
-              # The WEB, via Stylus — the one surface here that isn't an app's
-              # own config. A path rather than contents on purpose: the bundle
-              # is 3 MB and its derivation is named for the accent, so the path
-              # IS the fingerprint and nothing has to be realised to compare it.
-              stylus = file ".config/haus/nebelung-stylus.json";
               # perch takes the accent by catppuccin ROLE NAME rather than by
               # hex — it resolves the name against whichever half of its
               # dark/light pair macOS is showing — so the fingerprint that moves
@@ -1498,7 +1493,7 @@
             }";
           accentTable = builtins.concatStringsSep "\n" (map accentRow (builtins.attrNames accentA));
           # Alphabetical because the rows are `attrNames` — self-sorting, so a new
-          # surface can't be added in a spot that hides it. Ten move, eight hold.
+          # surface can't be added in a spot that hides it. Nine move, eight hold.
           expectedAccentTable = ''
             bar pinned
             bar-logo moves
@@ -1513,7 +1508,6 @@
             perch moves
             pounce pinned
             starship pinned
-            stylus moves
             wallpaper moves
             yazi moves
             zed-roster-port moves

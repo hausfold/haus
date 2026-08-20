@@ -231,7 +231,13 @@ in
     "lazygit"
   ]
   ++ lib.optional (editor.port != null) editor.port
-  ++ lib.optional ghDashCfg.enable "gh-dash";
+  ++ lib.optional ghDashCfg.enable "gh-dash"
+  # nebelung's `stylus` port is `manual` because the userstyles are LESS that
+  # only Stylus could compile — the import was the activation. Naming a slug in
+  # haus.zen.userStyles compiles them here instead, which IS wiring that port,
+  # so claim it and the roster pass stops nudging you toward an import dialog
+  # for a file haus no longer writes.
+  ++ lib.optional (config.haus.zen.userStyles != [ ]) "stylus";
 
   home-manager.users.${username} =
     {
