@@ -372,6 +372,34 @@ fi
 purge=0
 if [ "$is_wt" = 1 ] && [ "${files:-0}" -eq 0 ] && g merge-base --is-ancestor HEAD "$def" 2>/dev/null; then
   purge=1
+  # …unless the branch has never DIVERGED — no commit of its own, and no
+  # `commit…` entry in its reflog to say it ever had one. Ancestry can't tell
+  # work that landed from work that never existed, so a lane spawned five
+  # seconds ago is an ancestor of the default branch too, and row 1 opened with
+  # ⏏ — which reads as "merged", and is meant to mean "holt reaps this on pane
+  # close". Both are the wrong thing to say about an empty branch: the honest
+  # token for it is no token at all (the muted ● below).
+  #
+  # Same two facts holt's `landed.verdict: fresh` is built from (SPEC.md §3.5),
+  # deliberately duplicated rather than shelled out to: this runs on every
+  # render of every prompt, and `holt --json` walks every lane on the machine.
+  # The reflog is the half that does the work — a branch that merged by
+  # fast-forward has no commits of its own left to count either, and only its
+  # reflog remembers that it ever did anything. An EMPTY reflog (gc'd entries,
+  # or core.logAllRefUpdates off) proves nothing, so it keeps the ⏏.
+  #
+  # The test is INVERTED on purpose: nothing but `branch: Created from …` may
+  # appear, rather than a list of what "something happened" looks like. That
+  # list is a trap — `commit:` covers `git commit` and `--amend` and nothing
+  # else, while cherry-pick writes `cherry-pick:`, revert `revert:`, rebase
+  # `rebase (finish):`, `reset --hard` `reset: moving to`, and `branch -f`
+  # `branch: Reset to` (which is why the match keeps its trailing space).
+  # Hunting for prefixes calls every one of those empty — this same bug
+  # pointing the other way, a lane whose work landed losing its ⏏.
+  if [ "${ahead:-0}" -eq 0 ] && [ -n "$branch" ]; then
+    reflog=$(g reflog show --format=%gs "$branch" 2>/dev/null)
+    [ -n "$reflog" ] && ! printf '%s\n' "$reflog" | grep -qv '^branch: Created from ' && purge=0
+  fi
 fi
 
 # Row 1's own PR, from two sources that cover different halves of a PR's life.
@@ -412,11 +440,12 @@ fi
 
 # --- ROW 1 : status-as-bullet + PR pill + name (no repo name, no "clean") -------
 # The git-status token IS the leading glyph: ⏏ landed / N^ ahead / +A -D dirty,
-# colored by state. A worktree almost always has one (a fresh checkout at main
-# is already ⏏); when nothing differs the token is empty, so fall back to a
-# muted ● (clean / at-main). The model glyph used to sit here — it moved to the
-# tail (per-pane, next to ctx%/cost/mode). The PR "#N" pill follows the lead,
-# left of the name, same as the children.
+# colored by state. A lane that has done nothing yet has NO token — see the
+# never-diverged arm of purge above, which is what stopped a five-second-old
+# worktree opening with ⏏ — so fall back to a muted ● (clean / at-main). The
+# model glyph used to sit here — it moved to the tail (per-pane, next to
+# ctx%/cost/mode). The PR "#N" pill follows the lead, left of the name, same as
+# the children.
 st=$(render_status "$ahead" "$files" "$ins" "$del" "$own_pr" "$purge")
 lead="$st"; [ -z "$lead" ] && lead="${DOT}●${R}"
 # Hyperlink the own pill to its PR (OSC 8), same as the sister/child rows — this
