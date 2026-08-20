@@ -573,10 +573,15 @@ let
     # ~/.cache/claude-statusline/usage-*.tsv:
     #   • pushed — modules/ai/statusline.sh stashes the percentages Claude Code
     #     hands every statusline render, then invokes ai_usage.sh when one moves.
-    #   • pulled — Codex (an account API call) and Opencode (a sqlite read) have
-    #     no client-side writer, so claude-statusline-refresh --usage-only fetches
-    #     them. The plugin kicks that itself on a TTL, which is what keeps this
-    #     pill honest on a machine that never opens Claude at all.
+    #   • pulled — Codex and Claude (account API calls) and Opencode (a sqlite
+    #     read), fetched by claude-statusline-refresh --usage-only. The plugin
+    #     kicks that itself on a TTL, which is what keeps this pill honest on a
+    #     machine driving a client that pushes nothing — including Claude Code's
+    #     own macOS app, which renders no statusline and so pushes nothing either.
+    # Each row carries TWO stamps, and the difference is the pill's whole model of
+    # itself: column 5 is when the row was WRITTEN (what greys it) and column 9 is
+    # when quota was last USED (what `latest` picks on). One column doing both
+    # meant a feed's poll rate decided which provider the pill showed.
     # update_freq is the while-visible backstop that rolls a window over to 0% at
     # its reset. Starts hidden until the first row lands.
     aiUsage = ''

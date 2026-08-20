@@ -328,7 +328,23 @@ if [ -f "$OPENCODE_DB" ] && command -v sqlite3 >/dev/null 2>&1; then
     oc_prov_id="google"
   fi
 
-  printf "%s\t%s\t0\t0\t%s\topencode\t%s\t%s\n" "$oc_today" "$oc_mtd" "$oc_sec_stamp" "$oc_model_id" "$oc_prov_id" > "$CACHE_DIR/usage-opencode.tsv.tmp"
+  # Written (col 5) is NOW — this row was just read out of the db and the money
+  # in it is current — and used (col 9) is the last session's own timestamp,
+  # which sqlite hands us for free. They were the same field, holding the
+  # session stamp, so a feed refreshed seconds ago greyed itself out as stale
+  # and printed `as of 6d ago` under numbers that were not 6 days old.
+  # Both defaults are load-bearing now that a column follows them. `session.model`
+  # is nullable — `ORDER BY time_updated DESC LIMIT 1` picks the newest session,
+  # which may have been opened and not yet used — and `jq` given EMPTY stdin
+  # prints nothing and exits 0, so the `|| echo` fallbacks above never fire and
+  # both ids come back empty. Tab is IFS whitespace: two empty middle fields
+  # collapse to one delimiter, the used epoch lands in the reader's `model`, and
+  # `used` silently falls back to the written stamp — which is now always `now`,
+  # so Opencode would win `latest` permanently and draw its mark from an epoch.
+  # Exactly the bug this change exists to remove, re-entering by the back door.
+  printf "%s\t%s\t0\t0\t%s\topencode\t%s\t%s\t%s\n" \
+    "$oc_today" "$oc_mtd" "$(date +%s)" "${oc_model_id:-opencode}" "${oc_prov_id:-google}" "$oc_sec_stamp" \
+    > "$CACHE_DIR/usage-opencode.tsv.tmp"
   mv "$CACHE_DIR/usage-opencode.tsv.tmp" "$CACHE_DIR/usage-opencode.tsv"
   fed=1
 
@@ -476,7 +492,31 @@ if [ "$codex_fresh" = 0 ] && [ -f "$CODEX_AUTH" ] && command -v jq >/dev/null 2>
   fi
 
   if [ -n "$cx_row" ]; then
-    printf '%s\t%s\tcodex\n' "$cx_row" "$now" >"$CODEX_TSV.tmp"
+    # Column 9, the USED stamp the bar picks `latest` on — and the reason this
+    # column exists at all. This block re-asks OpenAI every CODEX_TTL seconds
+    # whether Codex has been touched or not, so column 5 (written) is always
+    # `now` here; reading that as "most recently used" handed the pill to Codex
+    # permanently, days after the last Codex session. A percentage that ROSE is
+    # use; a percentage that FELL is a rate-limit window rolling over, which is
+    # the opposite of use and must not bump the stamp. Anything else carries the
+    # previous row's stamp forward untouched.
+    cx5=${cx_row%%$'\t'*}; cx_rest=${cx_row#*$'\t'}; cxw=${cx_rest%%$'\t'*}
+    px5=0; pxw=0; px_used=0
+    if [ -s "$CODEX_TSV" ]; then
+      IFS=$'\t' read -r px5 pxw _ _ _ _ _ _ px_used <"$CODEX_TSV" || true
+    fi
+    case "${px5:-}"     in '' | *[!0-9]*) px5=0 ;; esac
+    case "${pxw:-}"     in '' | *[!0-9]*) pxw=0 ;; esac
+    case "${px_used:-}" in '' | *[!0-9]*) px_used=0 ;; esac
+    cx_used=$px_used
+    if [ "$px_used" = 0 ] || [ "${cx5:-0}" -gt "$px5" ] || [ "${cxw:-0}" -gt "$pxw" ]; then
+      cx_used=$now
+    fi
+    # Columns 7/8 carry a value rather than an empty pair: tab is IFS whitespace,
+    # so `read` collapses empty middle fields and shifts column 9 left into
+    # `model`. provider_style's `codex` arm ignores both, but the reader's
+    # parse does not.
+    printf '%s\t%s\tcodex\tcodex\topenai\t%s\n' "$cx_row" "$now" "$cx_used" >"$CODEX_TSV.tmp"
     mv "$CODEX_TSV.tmp" "$CODEX_TSV"
     fed=1
   else
@@ -485,6 +525,196 @@ if [ "$codex_fresh" = 0 ] && [ -f "$CODEX_AUTH" ] && command -v jq >/dev/null 2>
     # TTL while the bar keeps telling the truth ("as of Nm ago") about the age of
     # the numbers it's showing.
     [ -f "$CODEX_TSV" ] && touch "$CODEX_TSV"
+  fi
+fi
+
+# --- Claude usage feed: ask the account, because the GUI has no statusline -----
+# Claude's row is PUSHED for free by statusline.sh on every render, which is the
+# cheapest source there is and stays the primary one — this block only fills the
+# hole underneath it. The hole is that a statusline is a TUI feature: the Claude
+# Code macOS app renders none, runs the `statusLine` command never, and so pushes
+# nothing. Drive the desktop app for a day and the pill sits on percentages from
+# whenever you last opened a terminal pane, greying out around it. (Every other
+# statusline-written cache freezes with it — that is how this was found.)
+#
+# Same shape as the Codex block above and for the same reason: the limits are per
+# ACCOUNT, so it does not matter which client burned them, and asking the account
+# is the only source that counts GUI usage.
+#
+#   GET api.anthropic.com/api/oauth/usage   (bearer = the login keychain)
+#
+# Undocumented, therefore best-effort throughout: any unexpected shape leaves the
+# last row exactly as it was rather than overwriting real numbers with zeroes.
+CLAUDE_TSV="$CACHE_DIR/usage-claude.tsv"
+CLAUDE_TTL=${CLAUDE_TTL:-120}
+CLAUDE_API=${CLAUDE_API:-https://api.anthropic.com/api/oauth/usage}
+CLAUDE_KEYCHAIN=${CLAUDE_KEYCHAIN:-Claude Code-credentials}
+# ── where the token comes from, and what this feed cannot do ──────────────────
+# The login keychain, in practice — but read the limit before relying on it.
+#
+# That item is the CLI's. `claude` renews it in place whenever a terminal pane
+# runs, and it lasts about nine hours; the macOS app keeps its own credentials
+# and never writes it. So the pull answers for roughly nine hours after any TUI
+# session and then goes quiet, and a fully GUI-driven day ends with the pill
+# GREY rather than wrong — which is the honest failure and still a strict
+# improvement on what it did before (show morning's numbers as if current, under
+# whichever provider had polled most recently).
+#
+# Renewing it here is what would close that gap, and it is not done, for two
+# reasons in order of decisiveness:
+#
+#   1. It isn't reachable. The refresh grant needs Claude Code's OAuth client
+#      id, and unlike Codex's — a JWT whose `client_id` claim we read back out
+#      of the token we already hold — an `sk-ant-oat01-…` is opaque. There is
+#      nothing to read and nothing to derive; the id would have to be
+#      hardcoded from outside, which is the kind of coupling that breaks
+#      silently on the day it changes.
+#   2. Even reachable, the exchange ROTATES the pair server-side, so writing the
+#      result back races a `claude` process holding the old refresh token in
+#      memory — and the cost of losing that race is a re-login in every client
+#      at once. The Codex block above pays that price because NOTHING else
+#      renews auth.json. Here something does.
+#
+# $CLAUDE_TOKEN_FILE is the escape hatch, and it is tried FIRST so it can
+# override the keychain outright. What it wants is a bearer token carrying the
+# **user:profile** scope, which is what /api/oauth/usage checks — and note that
+# `claude setup-token` does NOT mint one: that token is scoped `user:inference`
+# for API calls, and this endpoint answers it with a 403 naming the scope it
+# wanted. Tried and rejected, recorded here so it isn't tried twice.
+CLAUDE_TOKEN_FILE=${CLAUDE_TOKEN_FILE:-$HOME/.config/haus/claude-usage-token}
+# How long to stay quiet after the keychain says no. A missing item (no Claude
+# login on this machine) and a denied prompt are the same event here, and both
+# must be answered by BACKING OFF: this block runs every couple of minutes, and
+# a `security` call the user denied re-prompts on the very next pass. An hour of
+# silence per refusal is the difference between a feature and a popup loop.
+CLAUDE_BLOCK_TTL=${CLAUDE_BLOCK_TTL:-3600}
+CLAUDE_BLOCK="$CACHE_DIR/.claude-usage-blocked"
+
+cl_fresh=0
+if [ -f "$CLAUDE_TSV" ]; then
+  age=$(( $(date +%s) - $(mtime "$CLAUDE_TSV") ))
+  [ "$age" -lt "$CLAUDE_TTL" ] && cl_fresh=1
+fi
+cl_blocked=0
+if [ -f "$CLAUDE_BLOCK" ]; then
+  age=$(( $(date +%s) - $(mtime "$CLAUDE_BLOCK") ))
+  [ "$age" -lt "$CLAUDE_BLOCK_TTL" ] && cl_blocked=1
+fi
+
+# The opt-in, and it is deliberately NOT `~/.claude`: this rice writes
+# `~/.claude/CLAUDE.md` and `~/.claude/skills/haus/` itself for any machine whose
+# `haus.ai.clients` names claude, so that directory exists whether or not Claude
+# Code was ever installed — and a Codex-only machine with an old
+# `Claude Code-credentials` item left behind would then draw a macOS keychain
+# prompt once an hour from a feed it never asked for. `projects/` is written by
+# the client rather than by us, so like `~/.codex/auth.json` above it means the
+# thing it looks like it means: Claude Code has actually run here. A token file
+# is the same statement, made on purpose.
+if [ "$cl_fresh" = 0 ] && [ "$cl_blocked" = 0 ] && command -v jq >/dev/null 2>&1 \
+   && { [ -r "$CLAUDE_TOKEN_FILE" ] || [ -d "$HOME/.claude/projects" ]; }; then
+  now=$(date +%s)
+  cl_at=""
+
+  # 1. Our own token, if one was made. First non-blank, non-comment word, so the
+  #    file can carry a line saying where it came from.
+  if [ -r "$CLAUDE_TOKEN_FILE" ]; then
+    cl_at=$(sed -n 's/^[[:space:]]*\([^#[:space:]][^[:space:]]*\).*/\1/p' "$CLAUDE_TOKEN_FILE" | head -1)
+  fi
+
+  # 2. Otherwise the CLI's login, for as long as it happens to be fresh. The item
+  #    is written by Claude Code's own binary, so its ACL may name that binary
+  #    rather than /usr/bin/security and the first pass can raise one macOS
+  #    prompt. Answer it **Always Allow**: a plain "Allow" grants that single
+  #    call and the next pass asks again.
+  if [ -z "$cl_at" ] && command -v security >/dev/null 2>&1; then
+    cl_cred=$(security find-generic-password -s "$CLAUDE_KEYCHAIN" -w 2>/dev/null \
+      || security find-generic-password -s "$CLAUDE_KEYCHAIN" -a "$USER" -w 2>/dev/null \
+      || true)
+    cl_at=$(printf '%s' "$cl_cred" | jq -r '.claudeAiOauth.accessToken // .accessToken // empty' 2>/dev/null || true)
+    # Whether that token is still good is the KEYCHAIN's business, not ours, and
+    # an expired one is dropped here rather than spent — see the header for why
+    # renewing it is neither done nor reachable.
+    cl_exp=$(printf '%s' "$cl_cred" | jq -r '.claudeAiOauth.expiresAt // 0' 2>/dev/null || echo 0)
+    case "${cl_exp:-}" in '' | *[!0-9]*) cl_exp=0 ;; esac
+    [ "$cl_exp" -gt 0 ] && [ $(( cl_exp / 1000 )) -lt "$now" ] && cl_at=""
+    cl_cred=""
+  fi
+
+  cl_row=""
+  if [ -n "$cl_at" ]; then
+    cl_json=$(curl -fsS --max-time 10 \
+      -H "authorization: Bearer $cl_at" \
+      -H "anthropic-beta: oauth-2025-04-20" \
+      "$CLAUDE_API" 2>/dev/null || true)
+    # Windows are read by NAME here rather than by duration as Codex's are: this
+    # endpoint labels them, and the extra `seven_day_opus` bucket is deliberately
+    # ignored — the pill has two columns and the Opus sub-limit is a fraction of
+    # a limit already shown. Percentages are floored to match the statusline's
+    # own truncation, so a pushed row and a pulled one never differ by a point.
+    cl_row=$(printf '%s' "$cl_json" | jq -r '
+      def pct: ((.utilization // .used_percentage // .used_percent // 0) | floor);
+      def at:
+        (.resets_at // .reset_at // 0)
+        | if type == "number" then floor
+          elif type == "string" then
+            # fromdateiso8601 wants exactly …THH:MM:SSZ, so file the fractional
+            # seconds and a +00:00 offset off first. Anything it still refuses
+            # becomes 0, which costs the dropdown its `resets HH:MM` note and
+            # nothing else.
+            (try ((sub("\\.[0-9]+";"") | sub("\\+00:00$";"Z")) | fromdateiso8601) catch 0)
+          else 0 end;
+      (.five_hour // .rate_limits.five_hour // null) as $s
+      | (.seven_day // .rate_limits.seven_day // null) as $w
+      | if ($s == null and $w == null) then empty else
+          [ (if $s then ($s | pct) else 0 end), (if $w then ($w | pct) else 0 end),
+            (if $s then ($s | at)  else 0 end), (if $w then ($w | at)  else 0 end) ]
+          | @tsv
+        end' 2>/dev/null || true)
+  fi
+
+  if [ -n "$cl_row" ]; then
+    # Column 9, the used stamp — the same rise-means-use rule the Codex block and
+    # statusline.sh apply, so all three writers of a usage row agree on what the
+    # column means whichever of them happened to write last.
+    cl5=${cl_row%%$'\t'*}; cl_rest=${cl_row#*$'\t'}; clw=${cl_rest%%$'\t'*}
+    pc5=0; pcw=0; pc_used=0
+    if [ -s "$CLAUDE_TSV" ]; then
+      IFS=$'\t' read -r pc5 pcw _ _ _ _ _ _ pc_used <"$CLAUDE_TSV" || true
+    fi
+    case "${pc5:-}"     in '' | *[!0-9]*) pc5=0 ;; esac
+    case "${pcw:-}"     in '' | *[!0-9]*) pcw=0 ;; esac
+    case "${pc_used:-}" in '' | *[!0-9]*) pc_used=0 ;; esac
+    cl_used=$pc_used
+    if [ "$pc_used" = 0 ] || [ "${cl5:-0}" -gt "$pc5" ] || [ "${clw:-0}" -gt "$pcw" ]; then
+      cl_used=$now
+    fi
+    printf '%s\t%s\tclaude\tclaude\tanthropic\t%s\n' "$cl_row" "$now" "$cl_used" >"$CLAUDE_TSV.tmp"
+    mv "$CLAUDE_TSV.tmp" "$CLAUDE_TSV"
+    # usage.tsv is the pre-per-provider filename, still copied by statusline.sh
+    # and still read by the pill when no usage-*.tsv exists. Keep the two in step
+    # from here too, or a rice mid-upgrade reads the older of the two.
+    cp "$CLAUDE_TSV" "$CACHE_DIR/usage.tsv" 2>/dev/null || true
+    rm -f "$CLAUDE_BLOCK"
+    fed=1
+  elif [ -z "$cl_at" ]; then
+    # No token: no login, a keychain the user declined, or an expired pair. All
+    # three want the same answer — go quiet for an hour rather than ask again in
+    # two minutes.
+    : >"$CLAUDE_BLOCK"
+  elif [ -f "$CLAUDE_TSV" ]; then
+    # Had a token, got nothing usable: offline, revoked, or the endpoint moved.
+    # Touch, don't write — the pill dates the row from the stamp INSIDE the file,
+    # so this backs the retry off a full TTL while the bar goes on telling the
+    # truth about how old the numbers it is showing are.
+    touch "$CLAUDE_TSV"
+  else
+    # Same failure, but with no row to touch — which is the NORMAL state on the
+    # machine this feed is for, where no statusline ever pushed one. Touching
+    # nothing backs nothing off, so the whole block would re-run on every kick:
+    # a poll every three minutes forever, and a keychain prompt every three
+    # minutes for anyone who answered the ACL dialog "Allow" rather than "Always
+    # Allow". Take the same hour of silence a missing token takes.
+    : >"$CLAUDE_BLOCK"
   fi
 fi
 

@@ -574,10 +574,13 @@ in
       # the cross-repo + `gh` enumeration is done detached by the companion
       # `claude-statusline-refresh` and cached (stale-while-revalidate), so the bar
       # never blocks. Reads `holt`'s registry — same agent-worktree flow, same home.
-      # It doubles as the writer for bar's `claudeUsage` pill: Claude Code hands
+      # It doubles as the writer for bar's `aiUsage` pill: Claude Code hands
       # every render the account's 5-hour + weekly rate-limit percentages, so the
-      # render path stashes them to ~/.cache/claude-statusline/usage.tsv — the
-      # cheapest possible source, with no keychain read and nothing polling.
+      # render path stashes them to ~/.cache/claude-statusline/usage-claude.tsv —
+      # the cheapest source there is, and still the primary one. It is no longer
+      # the ONLY one: a statusline is a TUI feature and the macOS app renders
+      # none, so the refresher also polls the account itself, which is the only
+      # source that counts what the GUI burned. See its Claude block.
       (writeShellScriptBin "claude-statusline" (builtins.readFile ./statusline.sh))
       (writeShellScriptBin "claude-statusline-refresh" (builtins.readFile ./statusline-refresh.sh))
 
