@@ -47,6 +47,9 @@ bad()   { printf '  \033[38;5;167m✗\033[0m %s\n' "$(printf '%s' "$*" | scrub)"
 note()  { printf '  \033[38;5;179m⚠\033[0m %s\n' "$*"; }
 dim()   { printf '  \033[38;5;103m%s\033[0m\n' "$*"; }
 plural() { [ "$1" = 1 ] || printf s; }
+# `leaf` is the one word in this report with an irregular plural, and the
+# obvious `leaf$(plural n)` spells it "leafes".
+leaves() { if [ "$1" = 1 ]; then printf leaf; else printf leaves; fi; }
 
 usage() {
   cat <<'EOF'
@@ -64,6 +67,7 @@ your config.
   haus show --room <src>      you are telling haus this is CODE; it prints the
                               trust warning and does not evaluate anything
   haus show --json <src>      the same report as JSON on stdout
+  haus show --no-diff <src>   skip the "what your machine becomes" section
 
 exit codes
   0  it is a desktop and it passed — or it is a room and you said --room
@@ -80,7 +84,17 @@ Under --json, `class` is one of desktop, room or unreadable, and `checked`
 says whether anything was verified. `ok` is true ONLY when the checker passed;
 it is null when nothing was checked, so `.ok == true` never means "we didn't
 look". `origin` is null for a local file, and for a source records what it was
-typed as, what it resolved to and when this run fetched it.
+typed as, what it resolved to and when this run fetched it. `machine` is null
+whenever this machine could not be asked — no config, a lock that needs
+changes, `--no-diff`, or a file that is not a passing desktop — and otherwise
+carries one verdict per leaf: changes, unchanged, overridden (your config
+outranks a desktop), unranked (a recursive container's leaf, which has no
+option node to rank), unknown (your haus has no such option), plus the leaves
+your current desktop sets and this one does not.
+
+The schema version does not move for it, by the rule `origin` set: a bump is
+owed when an existing input's ANSWER changes, and every key a reader already
+had still answers exactly what it did.
 
 Fetching and reading are two acts, and neither can do the other's job. The
 fetch reaches the network and runs nothing: it is a `git clone` or an HTTP GET
@@ -90,6 +104,15 @@ runs restricted, with no fetch of any scheme resolving and only the checker's
 own directory and the source you named readable. An attempt to reach anything
 else fails loudly and names what it reached for.
 
+When there is a haus config at ~/.config/nix (or $HAUS_CONSUMER), a passing
+desktop is also compared against THIS machine, leaf by leaf: what changes, what
+your own config already outranks so the desktop cannot move it, and what the
+desktop you have now sets that this one does not. That comparison evaluates YOUR
+flake and never the stranger's — what crosses over is the list of option names,
+not their file and not their values. It writes nothing, refuses rather than
+updating your lock, and never changes the exit code: it is a leaf diff, not a
+rebuild preview, and `haus plan` is still the command that builds one.
+
 Restricted-eval's unit is the store path, so a fetched repo's desktop can read
 its own siblings — the tree its publisher shipped, and nothing of yours. A
 value in the report may therefore come from anywhere in that tree rather than
@@ -97,11 +120,12 @@ from the file named; the report says so.
 EOF
 }
 
-json="" asroom="" subject="" pick=""
+json="" asroom="" subject="" pick="" nodiff=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --json) json=1 ;;
     --room) asroom=1 ;;
+    --no-diff) nodiff=1 ;;
     --file) shift; [ $# -gt 0 ] || die "--file needs a path inside the source"; pick="$1" ;;
     --file=*) pick="${1#--file=}" ;;
     -h|--help) usage; exit 0 ;;
@@ -113,6 +137,21 @@ done
 
 [ -n "$subject" ] || { usage >&2; exit 2; }
 [ -d "$CHECK" ] || die "no desktop checker at $CHECK — this machine's haus predates 'haus show'; run 'haus update' first."
+# …and then PHYSICALLY, for the same reason the subject below is resolved that
+# way: `restrict-eval` judges the path Nix resolved, not the one you typed. On a
+# real Mac the checker is reached through two symlinks — `/run` →
+# `private/var/run`, and `sw/share/haus/desktop-check` → the store — so `-I`
+# allowed the logical spelling while the interpolated `${CHECK}/read.nix`
+# resolved to `/private/var/run/…` and was refused. That killed EVERY
+# invocation on a machine, local source and remote alike, while the suite
+# stayed green: it runs the packaged wrapper, whose checker is already a store
+# path with no symlink in it. Resolved after the guard above, so the error a
+# person reads still names the path they configured.
+# `cd --`, and stdout discarded: a value starting with `-` would otherwise be
+# read as a `cd` option, and a relative one under a set CDPATH makes `cd` echo
+# the directory it landed in, which the substitution would capture as a second
+# line of the path.
+CHECK="$(cd -- "$CHECK" >/dev/null && pwd -P)"
 
 # The subject's path goes into a Nix expression, so it is escaped as a Nix
 # string rather than pasted. A `"` or a `${` in a directory name is enough to
@@ -356,7 +395,7 @@ if [ -z "$asroom" ]; then
       --option allowed-uris '' \
       --option allow-import-from-derivation false \
       -I "$CHECK" -I "$abs" \
-      --expr "import ${CHECK}/read.nix \"$(nix_string "$abs")\"" 2>"$err"
+      --expr "import \"$(nix_string "$CHECK")/read.nix\" \"$(nix_string "$abs")\"" 2>"$err"
   )" || {
     # Nix's own sentence, not a guess. This path is reached by a type error, a
     # blocked read, an infinite recursion and a missing input as well as by a
@@ -390,6 +429,208 @@ if [ "$class" = unreadable ]; then
   reason="$(whynot "$err")"
 fi
 
+# ---- act three: ask the machine. The stranger is not in this evaluation ------
+# Steps A and B answered "what is this file?". This answers "what would it do
+# HERE", and it is the first thing `show` does that looks at the reader's own
+# config. The rule that keeps it honest is that the candidate is not part of the
+# evaluation: what crosses over from the source is a list of option NAMES — never
+# the file, never a module, never a value. Its values stay on this side and are
+# compared in the shell against what the machine says about those same names.
+#
+# Only for a desktop that PASSED. A failing file's leaf names are names the
+# registry has not vouched for, and "what would this become" is not the answer to
+# "this is not a desktop" anyway.
+#
+# `--no-update-lock-file`, not `--no-write-lock-file`. Both leave the directory
+# alone; they differ on a lock that needs changes. `--no-write-lock-file`
+# resolves the missing inputs in memory and answers anyway, describing a machine
+# the reader has not got against pins nobody chose. `--no-update-lock-file`
+# refuses and says which. That is the right answer for a command whose whole
+# output is "what your machine becomes" — the same instinct as `tarball-ttl 0`
+# above. (Measured: a plain `nix eval` on a consumer flake WRITES that consumer's
+# lock file. This is the first act here that evaluates one, so step B's
+# writes-nothing gate could not have caught it.)
+#
+# Advisory, always. A failure here is a line in the report and never an exit
+# code: the exit code is the publisher's contract with their CI, and their CI has
+# no machine to compare against.
+CONSUMER="${HAUS_CONSUMER:-$HOME/.config/nix}"
+machine='null'
+machine_why=""
+if [ -z "$nodiff" ] && [ "$class" = desktop ] && [ "$(jq -r .ok <<<"$report")" = true ] \
+   && [ -f "$CONSUMER/flake.nix" ]; then
+  # Values are rendered on BOTH sides by the same `toPretty`, so "did this move?"
+  # is one string comparison rather than a guess about how two renderers spell a
+  # list. It also sidesteps `toJSON`, which would try to copy a path-typed value
+  # into the store to answer.
+  #
+  # The expression is a quoted heredoc with two placeholders, and not an
+  # interpolated string: Nix's own `${…}` is on nearly every line of it, and a
+  # shell that expanded those would be reading the reader's environment into the
+  # query. The two things that ARE substituted go in as Nix STRING literals,
+  # escaped exactly like the subject path is — an attrsOf key carrying a `"` or a
+  # `${` is otherwise Nix, running in the reader's own evaluation.
+  q="$(cat <<'NIXQ'
+cfgs:
+let
+  wanted = "@HOST@";
+  names = builtins.attrNames cfgs;
+  host = if wanted != "" then wanted else (if names == [ ] then "" else builtins.head names);
+in
+if host == "" || !(cfgs ? ${host}) then
+  { error = "this config declares no darwinConfiguration called '${if wanted == "" then "<any>" else wanted}'"; }
+else
+  let
+    cfg = cfgs.${host};
+    lib = cfg.pkgs.lib;
+    pretty = lib.generators.toPretty { multiline = false; };
+    render = v: let t = builtins.tryEval (pretty v); in if t.success then t.value else null;
+    split = p: builtins.filter (x: builtins.isString x && x != "") (builtins.split "\\." p);
+    descend =
+      node: ps:
+      if ps == [ ] then node
+      else if !(builtins.isAttrs node) then null
+      else if !(node ? ${builtins.head ps}) then null
+      else descend node.${builtins.head ps} (builtins.tail ps);
+    isOption = x: builtins.isAttrs x && (x._type or null) == "option";
+
+    # The longest prefix of a path that IS an option. A leaf under one of the
+    # registry's recursive containers — haus.roster.<app>.key and its siblings —
+    # has no option node of its own (measured), so without this a desktop that
+    # ships a scene this machine has never had would be reported as "your haus
+    # has no such option", which is false and sends the reader to `haus update`
+    # for a version gap that does not exist. The container is what the machine
+    # actually knows about, so that is what gets named.
+    container =
+      ps:
+      if ps == [ ] then
+        null
+      else
+        let
+          o = descend cfg.options ps;
+        in
+        if o != null && isOption o then ps else container (lib.lists.init ps);
+
+    # An option node answers with a PRIORITY, and that is the whole arbitration:
+    # below 900 something on this machine outranks any desktop, 900 is the
+    # desktop currently selected, above it nothing is in the way. A leaf inside a
+    # container can be compared by value and never by rank, which the report says
+    # out loud rather than guessing. A path with neither is one this machine's
+    # haus has never heard of.
+    look =
+      p:
+      let
+        ps = split p;
+        o = descend cfg.options ps;
+        c = descend cfg.config ps;
+        holder = container ps;
+      in
+      if o != null && isOption o then
+        {
+          path = p;
+          ranked = true;
+          prio = o.highestPrio;
+          value = render o.value;
+          type = o.type.name or null;
+          files = o.files;
+        }
+      else
+        {
+          path = p;
+          ranked = false;
+          prio = null;
+          value = if c == null then null else render c;
+          type = null;
+          files = [ ];
+          inside = if holder == null then null else builtins.concatStringsSep "." holder;
+        };
+
+    # The desktop this machine has now, read INSIDE the evaluation that named it.
+    # Under lazy trees the store path handed back is a name for an
+    # evaluation-time object rather than a location — three evaluations give
+    # three of them and none is on disk — so reading it anywhere else would be
+    # reading nothing. It is the machine's own file, so it needs no guard.
+    sources = cfg.config.haus._desktop.sources or [ ];
+    isBranch = x: builtins.isAttrs x && !(x ? _type);
+    flat =
+      pre: val:
+      if isBranch val then
+        builtins.concatLists (map (k: flat "${pre}.${k}" val.${k}) (builtins.attrNames val))
+      else
+        [ pre ];
+    current =
+      if sources == [ ] then
+        { success = true; value = [ ]; }
+      else
+        builtins.tryEval (flat "haus" ((import (builtins.head sources)).haus or { }));
+  in
+  let
+    wanted = builtins.fromJSON "@PATHS@";
+    has = if current.success then current.value else [ ];
+    # The leaves the desktop you HAVE sets and the candidate does not. Looked up
+    # in the same pass, because "this goes back to whatever haus decides" is only
+    # useful beside the value it is leaving.
+    dropped = builtins.filter (p: !(builtins.elem p wanted)) has;
+  in
+  {
+    inherit host has dropped;
+    desktop = if sources == [ ] then null else builtins.baseNameOf (builtins.head sources);
+    leaves = map look (wanted ++ dropped);
+  }
+NIXQ
+)"
+  q="${q//@HOST@/$(nix_string "${HAUS_HOST:-}")}"
+  q="${q//@PATHS@/$(nix_string "$(jq -c '[.sets[].path]' <<<"$report")")}"
+  if machine="$(
+      nix eval --no-update-lock-file --json "$CONSUMER#darwinConfigurations" --apply "$q" 2>"$err"
+    )"; then
+    machine_why="$(jq -r '.error // ""' <<<"$machine")"
+    [ -z "$machine_why" ] || machine='null'
+  else
+    machine_why="$(whynot "$err")"
+    machine='null'
+  fi
+fi
+
+# The verdicts, computed once and rendered twice. `null` whenever the machine
+# could not be asked, so both renderers have exactly one thing to test.
+#
+#   overridden  something on this machine outranks a desktop, so the file's value
+#               does not land — the single most useful line in the report, and
+#               the one a reader cannot get from either file alone
+#   unranked    a leaf under a recursive container, which has no option node, so
+#               the values can be compared and the winner cannot be named
+#   unknown     this machine's haus has no such option: the desktop was written
+#               against a different one than you have pinned
+#   drops       the desktop you have sets it and this one does not
+becomes='null'
+if [ "$machine" != null ]; then
+  becomes="$(jq -n --argjson m "$machine" --argjson r "$report" '
+    ($r.sets | map({ key: .path, value: .value }) | from_entries) as $want
+    | ($m.leaves | map({ key: .path, value: . }) | from_entries) as $have
+    | {
+        host: $m.host,
+        desktop: $m.desktop,
+        leaves: ($r.sets | map(
+          . as $s | ($have[$s.path] // null) as $h | {
+            path: $s.path,
+            proposed: $s.value,
+            current: ($h.value // null),
+            prio: ($h.prio // null),
+            type: ($h.type // null),
+            inside: ($h.inside // null),
+            verdict: (
+              if $h == null or (($h.ranked | not) and $h.inside == null) then "unknown"
+              elif $h.ranked and $h.prio < 900 then "overridden"
+              elif $h.value == $s.value then "unchanged"
+              elif ($h.ranked | not) then "unranked"
+              else "changes"
+              end)
+          })),
+        drops: ($m.dropped | map(. as $p | { path: $p, current: (($have[$p] // {}).value // null) }))
+      }')"
+fi
+
 if [ -n "$json" ]; then
   # Data on stdout, diagnostics on stderr — notes/agent-surface.md's rule. This
   # is haus's first --json verb, so the envelope is the one the rest of the
@@ -410,6 +651,7 @@ if [ -n "$json" ]; then
   # update one.
   jq -n --arg class "$class" --arg file "$abs" --arg reason "$reason" \
      --argjson origin "$origin" \
+     --argjson machine "$becomes" \
      --argjson report "${report:-null}" '{
     schemaVersion: 1,
     file: ($report.file // $file),
@@ -421,7 +663,8 @@ if [ -n "$json" ]; then
                else ($report.failures // []) + (if $reason == "" then [] else [$reason] end) end),
     sets: (if $class == "desktop" then $report.sets else [] end),
     rooms: (if $class == "desktop" then $report.rooms else [] end),
-    silent: (if $class == "desktop" then $report.silent else [] end)
+    silent: (if $class == "desktop" then $report.silent else [] end),
+    machine: $machine
   }'
 fi
 
@@ -490,6 +733,129 @@ render_room() {
     dim "input reads that flake. That is a different decision, and it will get"
     dim "a different prompt."
   fi
+}
+
+# What this machine would become — step C. The frame the section slots into is
+# the one above: origin, class, verdict, sets, silent, and then this.
+#
+# The order is by consequence, not by option name. A reader is deciding whether
+# to trust a file, and the two lines that decide it are "these do not move,
+# whatever the file says" and "this one turns your bar off".
+render_machine() {
+  local n host desktop
+  [ "$becomes" = null ] && {
+    # Silence when there is nothing to compare against — a publisher's CI has no
+    # machine and should not be told about one. A machine that HAS a config and
+    # still could not be asked gets the reason, because that is a fact about
+    # their config rather than about this command.
+    [ -z "$machine_why" ] || {
+      printf '\n'
+      note "this machine could not be compared: $machine_why"
+      # Nix's own sentence for the refusal is accurate and unreadable, and it is
+      # the one failure here a reader can actually do something about.
+      case "$machine_why" in
+        *"lock file changes"*)
+          dim "Your flake.lock is not the one this machine would rebuild from, so"
+          dim "a diff against it would describe pins nobody chose. 'haus update'"
+          dim "or 'nix flake lock' settles it; nothing above depends on this." ;;
+      esac
+    }
+    return 0
+  }
+
+  host="$(jq -r .host <<<"$becomes")"
+  desktop="$(jq -r '.desktop // "none"' <<<"$becomes")"
+  printf '\n'
+  field "becomes" "$CONSUMER · host $host · desktop $desktop"
+
+  # Every field gets a non-empty placeholder, and that is not decoration: TAB is
+  # an IFS *whitespace* character, so `IFS=$'\t' read` collapses a run of them
+  # and an empty field silently shifts every later one left. A leaf with no type
+  # (a container's entry has none) was handing its container's name to `$type`
+  # and leaving `$inside` blank — which rendered as "(inside )".
+  emit() {
+    jq -r --arg v "$1" '.leaves[] | select(.verdict == $v)
+      | "\(.path)\t\(.current // "not set")\t\(.proposed)\t\(.type // "-")\t\(.inside // "-")"' <<<"$becomes" | scrub
+  }
+  count() { jq -r --arg v "$1" '[.leaves[] | select(.verdict == $v)] | length' <<<"$becomes"; }
+
+  # 1. What the file cannot do here. First, because it is the only section a
+  #    reader has no other way to learn, and because it silently un-does part of
+  #    whatever the rest of the report just promised.
+  n="$(count overridden)"
+  if [ "$n" -gt 0 ]; then
+    printf '\n'
+    note "$n $(leaves "$n") your own config outranks — the desktop does not move $(if [ "$n" = 1 ]; then printf it; else printf them; fi)"
+    emit overridden | while IFS=$'\t' read -r path cur prop type inside; do
+      printf '      %-44s \033[38;5;103mstays %s\033[0m   \033[38;5;243m(it asks for %s)\033[0m\n' "$path" "$cur" "$prop"
+    done
+  fi
+
+  # 2. The changes, with the one merge rule a reader cannot infer from either
+  #    file: a list your machine already ranks above the desktop is REPLACED
+  #    whole rather than merged, so a desktop's entries do not add to yours.
+  n="$(count changes)"
+  if [ "$n" -gt 0 ]; then
+    printf '\n'
+    field "changes" "$n $(leaves "$n")"
+    emit changes | while IFS=$'\t' read -r path cur prop type inside; do
+      printf '      %-44s \033[38;5;103m%s → %s\033[0m' "$path" "$cur" "$prop"
+      case "$type" in listOf) printf '   \033[38;5;179m⚠ a list: replaced whole, not merged\033[0m' ;; esac
+      printf '\n'
+    done
+  fi
+
+  # 3. The container leaves, where the values compare and the winner cannot be
+  #    named. Said out loud: "we cannot tell you who wins here" is information
+  #    and silence is not.
+  n="$(count unranked)"
+  if [ "$n" -gt 0 ]; then
+    printf '\n'
+    field "unranked" "$n $(leaves "$n") inside a list-like option"
+    emit unranked | while IFS=$'\t' read -r path cur prop type inside; do
+      printf '      %-44s \033[38;5;103m%s → %s\033[0m   \033[38;5;243m(inside %s)\033[0m\n' \
+        "$path" "$cur" "$prop" "$inside"
+    done
+    dim "Entries inside a container have no option of their own to rank, so haus"
+    dim "can show you the values and not which one wins. 'haus plan' settles it."
+  fi
+
+  # 4. A desktop written against a haus you have not got. Not a failure of the
+  #    file — it passed the checker, which ran against the registry YOUR pin
+  #    ships — so it is reported as a version gap and not as a broken desktop.
+  n="$(count unknown)"
+  if [ "$n" -gt 0 ]; then
+    printf '\n'
+    note "$n $(leaves "$n") this machine's haus has never heard of"
+    emit unknown | while IFS=$'\t' read -r path cur prop type inside; do
+      printf '      %-44s \033[38;5;167m%s\033[0m\n' "$path" "$prop"
+    done
+    dim "The desktop was written against a different haus than you have pinned."
+    dim "'haus update' moves your pin; nothing here changes the file."
+  fi
+
+  # 5. What stops being set. The value it goes back to is NOT knowable from this
+  #    machine — the module system keeps only the winning definition, so the
+  #    room default underneath the current desktop is not in the tree. Say that
+  #    rather than print a number nobody can stand behind.
+  n="$(jq -r '.drops | length' <<<"$becomes")"
+  if [ "$n" -gt 0 ]; then
+    printf '\n'
+    field "turns off" "$n $(leaves "$n") the desktop you have sets and this one does not"
+    jq -r '.drops[] | "\(.path)\t\(.current // "—")"' <<<"$becomes" | scrub |
+      while IFS=$'\t' read -r path cur; do
+        printf '      %-44s \033[38;5;103m%s → whatever haus decides\033[0m\n' "$path" "$cur"
+      done
+  fi
+
+  n="$(count unchanged)"
+  if [ "$n" -gt 0 ]; then
+    printf '\n'
+    field "unchanged" "$n $(leaves "$n") already say what this desktop says"
+  fi
+  printf '\n'
+  dim "A leaf diff, not a rebuild preview: turning a room off moves packages,"
+  dim "files and services nothing here counts. 'haus plan' builds that answer."
 }
 
 render_desktop() {
@@ -563,9 +929,7 @@ render_desktop() {
   else
     field "silent" "nothing — it has an opinion about every room"
   fi
-  # Step C turns the two lists above into "what your machine becomes": rooms on
-  # and off RELATIVE to your current config, the machine-wide claims, and the
-  # list-typed options a host naming the same list would replace whole.
+  render_machine
 }
 
 case "$class" in

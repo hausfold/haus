@@ -12,19 +12,34 @@
 # runner isn't one either — which is the case this command exists to serve.
 set -euo pipefail
 
-repo="$(cd "$(dirname "$0")/.." && pwd)"
+# `root`, not `repo`: the offline section below reassigns `repo` to a throwaway
+# git+file:// SOURCE, and anything after it reaching for the checkout would get
+# a flakeref instead — silently, since both are strings a `nix build` will try.
+root="$(cd "$(dirname "$0")/.." && pwd)"
 
 # The built wrapper, which is what `nix run …#show` gives a stranger. Overridable
 # so a local run can point at a copy it already built and skip the ~10s.
 if [ -z "${HAUS_SHOW_BIN:-}" ]; then
-  HAUS_SHOW_BIN="$(nix build --no-link --print-out-paths "$repo#show")/bin/haus-show"
+  HAUS_SHOW_BIN="$(nix build --no-link --print-out-paths "$root#show")/bin/haus-show"
 fi
 show="$HAUS_SHOW_BIN"
+# The checker directory itself, for the two sections that need the files inside
+# it rather than the command in front of them: the symlink regression below, and
+# the stand-in consumer, which borrows the nixpkgs `lib` staged in it rather than
+# fetching one.
+check="$(nix build --no-link --print-out-paths "$root#desktop-check")/share/haus/desktop-check"
 [ -x "$show" ] || { printf 'FAIL: no haus-show at %s\n' "$show" >&2; exit 1; }
 
-fixtures="$repo/test/desktops"
+fixtures="$root/test/desktops"
 tmp="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$tmp"' EXIT
+
+# Pointed at nothing, on purpose. `show` compares a passing desktop against the
+# machine it is run on, so without this every assertion below would depend on
+# whatever haus config the person running the suite happens to have — green on
+# their Mac, green on CI (which has none), and answering a different question in
+# each place. The step C section further down points it at a stand-in it builds.
+export HAUS_CONSUMER="$tmp/there-is-no-config-here"
 
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
@@ -452,6 +467,224 @@ before="$(snapshot)"
 run "$fixtures/valid-sample.nix"
 after="$(snapshot)"
 [ "$before" = "$after" ] || fail "show changed the directory it read"
+
+# ---- the checker's own path is resolved, not just the subject's ---------------
+# On a machine the checker is `/run/current-system/sw/share/haus/desktop-check`,
+# which is TWO symlinks away from where it really is. `restrict-eval` judges the
+# resolved path, so allowing the logical spelling on `-I` while interpolating it
+# into the expression refused every single invocation — local source and remote
+# alike — with "access to absolute path '/private/var/run/…/read.nix' is
+# forbidden in restricted mode".
+#
+# Nothing here could see it: the packaged wrapper bakes a STORE path, which has
+# no symlink in it to resolve. So the regression is pinned by handing the
+# command a symlink on purpose, which is a thing every platform has.
+ln -s "$check" "$tmp/link-to-check"
+# Exported and unset around the call rather than prefixed to it: `run` is a
+# shell FUNCTION, and whether a prefixed assignment survives one depends on
+# whether bash is in POSIX mode.
+export HAUS_DESKTOP_CHECK="$tmp/link-to-check"
+run "$fixtures/valid-sample.nix"
+unset HAUS_DESKTOP_CHECK
+expect_status 0 "symlinked checker"
+has "a desktop — data only" "symlinked checker"
+
+# ---- step C: what this machine becomes ---------------------------------------
+# Every run above this point had HAUS_CONSUMER pointed at a directory that does
+# not exist, which is not tidiness: without it the suite reads whatever haus
+# config the developer running it happens to have, so the same command answers
+# differently on two machines and CI is the only place it is hermetic. The
+# section below points it at a stand-in built here instead.
+#
+# The stand-in is a flake whose `darwinConfigurations.testbox` is a plain
+# `lib.evalModules` result with a `pkgs.lib` bolted on — NOT a nix-darwin
+# system. That is deliberate and it is what the query's contract actually is:
+# `pkgs.lib`, `options`, `config`, and `config.haus._desktop.sources`. Four
+# attributes, all of which a real darwinConfiguration has, none of which needs a
+# Mac, a nixpkgs fetch or a build. It makes the verdicts assertable on the Linux
+# runner in about a second; what it cannot catch is nix-darwin changing the
+# shape of those four, which is what running the real thing on a Mac is for.
+#
+# nixpkgs' lib is copied out of the built checker rather than fetched, so this
+# stays offline like everything above it.
+consumer="$tmp/testbox"
+mkdir -p "$consumer"
+cp -R "$check/lib" "$consumer/lib"
+chmod -R u+w "$consumer/lib"
+
+# The desktop this stand-in machine "has". Read by the query itself, so its
+# leaves are what the report calls "turns off" when the candidate drops them.
+cat >"$consumer/current-desktop.nix" <<'NIX'
+{
+  haus = {
+    bar.enable = true;
+    terminal.editorName = "helix";
+    launcher.autoQuit.exclude = [ "from-the-old-one" ];
+    displays.internal.uiScale = "default";
+    # Set here and NOT by the candidate, so it is the drop case.
+    ui.scale = 1.0;
+  };
+}
+NIX
+
+cat >"$consumer/flake.nix" <<'NIX'
+{
+  description = "a stand-in for a haus machine — options, config and pkgs.lib";
+  outputs =
+    { self }:
+    let
+      lib = import ./lib;
+      declare = { lib, ... }: {
+        _file = "TESTBOX-OPTIONS";
+        options.haus = {
+          _desktop.sources = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            default = [ ];
+          };
+          ui.scale = lib.mkOption { type = lib.types.float; default = 1.0; };
+          bar.enable = lib.mkOption { type = lib.types.bool; default = false; };
+          terminal.editorName = lib.mkOption { type = lib.types.str; default = "nano"; };
+          launcher.autoQuit.exclude = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            default = [ ];
+          };
+          displays = lib.mkOption {
+            default = { };
+            type = lib.types.attrsOf (lib.types.submodule {
+              options.uiScale = lib.mkOption { type = lib.types.str; default = "default"; };
+            });
+          };
+          focus.scenes = lib.mkOption {
+            default = { };
+            type = lib.types.attrsOf (lib.types.submodule {
+              options.description = lib.mkOption { type = lib.types.str; default = ""; };
+              options.preventSleep = lib.mkOption { type = lib.types.bool; default = false; };
+            });
+          };
+        };
+      };
+      # A plain line in the host file: priority 100, which outranks any desktop.
+      host = {
+        _file = "TESTBOX-HOST";
+        haus.ui.scale = 2.5;
+      };
+      # The desktop seam: every leaf at 900, plus the record of which file it was.
+      desktop =
+        { lib, ... }:
+        {
+          _file = "TESTBOX-DESKTOP";
+          haus = {
+            bar.enable = lib.mkOverride 900 true;
+            terminal.editorName = lib.mkOverride 900 "helix";
+            launcher.autoQuit.exclude = lib.mkOverride 900 [ "from-the-old-one" ];
+            displays.internal.uiScale = lib.mkOverride 900 "default";
+            ui.scale = lib.mkOverride 900 1.0;
+            _desktop.sources = [ (toString ./current-desktop.nix) ];
+          };
+        };
+      evaluated = lib.evalModules { modules = [ declare host desktop ]; };
+    in
+    {
+      darwinConfigurations.testbox = evaluated // { pkgs = { inherit lib; }; };
+    };
+}
+NIX
+
+# The candidate. Every leaf here is a real haus option (the checker runs against
+# the REAL registry, not the stand-in's), and each one is a different verdict.
+cat >"$tmp/becomes.nix" <<'NIX'
+{
+  haus = {
+    ui.scale = 1.35;                                  # the host outranks it
+    bar.enable = true;                                # already true
+    terminal.editorName = "neovim";                   # changes
+    launcher.autoQuit.exclude = [ "a" "b" ];          # changes, and a LIST
+    displays.internal.uiScale = "larger-text";        # inside a container
+    focus.scenes.presenting.preventSleep = true;      # inside a container, unset today
+    bar.widgets.cpu.interval = 10;                    # the stand-in never declared it
+  };
+}
+NIX
+
+export HAUS_CONSUMER="$consumer"
+run --json "$tmp/becomes.nix"
+expect_status 0 "becomes"
+printf '%s' "$out" | jq -e '
+  (.machine.leaves | map({ key: .path, value: .verdict }) | from_entries) as $v
+  | .machine.host == "testbox"
+  and .machine.desktop == "current-desktop.nix"
+  # The line a reader can get from neither file: your own config outranks a
+  # desktop, so this one does not move whatever it says.
+  and $v["haus.ui.scale"] == "overridden"
+  and $v["haus.bar.enable"] == "unchanged"
+  and $v["haus.terminal.editorName"] == "changes"
+  and $v["haus.launcher.autoQuit.exclude"] == "changes"
+  # No option node to rank, so the values compare and the winner does not.
+  and $v["haus.displays.internal.uiScale"] == "unranked"
+  and $v["haus.focus.scenes.presenting.preventSleep"] == "unranked"
+  # A leaf this machine has never heard of is a VERSION gap, not a bad desktop:
+  # it passed the checker, which read the registry this pin ships.
+  and $v["haus.bar.widgets.cpu.interval"] == "unknown"
+' >/dev/null || fail "becomes: verdicts are not the documented shape"
+
+# Values on both sides, rendered by the same printer, and the container leaf
+# that is simply not set here says so rather than inventing a current value.
+printf '%s' "$out" | jq -e '
+  (.machine.leaves | map({ key: .path, value: . }) | from_entries) as $l
+  | $l["haus.ui.scale"].current == "2.5"
+  and $l["haus.ui.scale"].proposed == "1.35"
+  and $l["haus.terminal.editorName"].current == "\"helix\""
+  and $l["haus.launcher.autoQuit.exclude"].type == "listOf"
+  and $l["haus.displays.internal.uiScale"].inside == "haus.displays"
+  and $l["haus.focus.scenes.presenting.preventSleep"].current == null
+' >/dev/null || fail "becomes: values/type/inside are not the documented shape"
+
+# What stops being set, with the value it is leaving — and NOT with the value it
+# lands on, which the module system does not keep: only the winning definition
+# survives, so the room default under the current desktop is not in the tree.
+printf '%s' "$out" | jq -e '
+  (.machine.drops | map(.path)) == ["haus.ui.scale"] | not
+' >/dev/null || fail "becomes: a leaf the candidate also sets must not be a drop"
+
+# The human rendering says the two things the JSON cannot: the list warning and
+# the reason a container leaf has no verdict about who wins.
+run "$tmp/becomes.nix"
+expect_status 0 "becomes rendering"
+has "your own config outranks" "becomes rendering"
+has "replaced whole, not merged" "becomes rendering"
+has "inside haus.displays" "becomes rendering"
+has "never heard of" "becomes rendering"
+has "not a rebuild preview" "becomes rendering"
+
+# --no-diff, and a machine with no config at all: both are silence, not a
+# failure. A publisher's CI is the second case and must never see a word of it.
+run --no-diff --json "$tmp/becomes.nix"
+expect_status 0 "no-diff"
+printf '%s' "$out" | jq -e '.machine == null' >/dev/null || fail "no-diff: machine should be null"
+unset HAUS_CONSUMER
+export HAUS_CONSUMER="$tmp/there-is-no-config-here"
+run --json "$tmp/becomes.nix"
+expect_status 0 "no consumer"
+printf '%s' "$out" | jq -e '.machine == null' >/dev/null || fail "no consumer: machine should be null"
+
+# A lock that would have to change is a REFUSAL, not a silently recomputed
+# answer — and the refusal does not touch the exit code, because that code is
+# the publisher's contract and their CI has no machine.
+export HAUS_CONSUMER="$consumer"
+lockprint() { find "$consumer" -maxdepth 1 -type f -exec cksum {} + | sort; }
+before="$(lockprint)"
+run "$tmp/becomes.nix"
+expect_status 0 "writes nothing"
+[ "$before" = "$(lockprint)" ] || fail "writes nothing: show changed the consumer's flake directory"
+
+# A FAILING desktop gets no diff at all: its leaf names are names the registry
+# has not vouched for, and "what would this become" is not the answer to "this
+# is not a desktop".
+run --json "$fixtures/unknown-option.nix"
+expect_status 1 "failing gets no diff"
+printf '%s' "$out" | jq -e '.machine == null' >/dev/null || fail "failing gets no diff"
+unset HAUS_CONSUMER
+export HAUS_CONSUMER="$tmp/there-is-no-config-here"
 
 # ---- --help --------------------------------------------------------------------
 run --help
