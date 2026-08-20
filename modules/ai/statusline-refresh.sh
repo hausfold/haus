@@ -540,6 +540,23 @@ CLAUDE_TSV="$CACHE_DIR/usage-claude.tsv"
 CLAUDE_TTL=${CLAUDE_TTL:-120}
 CLAUDE_API=${CLAUDE_API:-https://api.anthropic.com/api/oauth/usage}
 CLAUDE_KEYCHAIN=${CLAUDE_KEYCHAIN:-Claude Code-credentials}
+# ── where the token comes from, and why it is a file first ────────────────────
+# The obvious source is the login keychain, and it is the FALLBACK rather than
+# the answer. That item is the CLI's: `claude` refreshes it in place while you
+# use a terminal pane, and the macOS app — the client this whole block exists
+# for — keeps its own credentials and never touches it. So on the machine this
+# was written for, the keychain's access token had expired at 07:27 and nothing
+# was going to renew it, while GUI sessions ran all evening.
+#
+# Renewing it here was the other candidate and is deliberately not done: see the
+# note below the fetch. What is left is a token of our own —
+#
+#     claude setup-token          → paste the result into $CLAUDE_TOKEN_FILE
+#
+# — which is minted for programmatic use, is long-lived, and is not the pair any
+# client is rotating underneath us. The keychain is still tried when that file
+# is absent, because right after a TUI session it costs nothing and works.
+CLAUDE_TOKEN_FILE=${CLAUDE_TOKEN_FILE:-$HOME/.config/haus/claude-usage-token}
 # How long to stay quiet after the keychain says no. A missing item (no Claude
 # login on this machine) and a denied prompt are the same event here, and both
 # must be answered by BACKING OFF: this block runs every couple of minutes, and
@@ -562,28 +579,39 @@ fi
 # ~/.claude is the opt-in, exactly as ~/.codex/auth.json is above: no Claude Code
 # on this machine, no keychain call and therefore no prompt.
 if [ "$cl_fresh" = 0 ] && [ "$cl_blocked" = 0 ] && [ -d "$HOME/.claude" ] \
-   && command -v jq >/dev/null 2>&1 && command -v security >/dev/null 2>&1; then
+   && command -v jq >/dev/null 2>&1; then
   now=$(date +%s)
-  # The item is written by Claude Code's own binary, so its ACL names that binary
-  # and not /usr/bin/security — the first pass raises one macOS prompt. Answer it
-  # **Always Allow**: a plain "Allow" grants that single call and the next pass
-  # asks again. Revoke later in Keychain Access → "Claude Code-credentials" →
-  # Access Control, which puts this block back to the backoff path below.
-  cl_cred=$(security find-generic-password -s "$CLAUDE_KEYCHAIN" -w 2>/dev/null \
-    || security find-generic-password -s "$CLAUDE_KEYCHAIN" -a "$USER" -w 2>/dev/null \
-    || true)
-  cl_at=$(printf '%s' "$cl_cred" | jq -r '.claudeAiOauth.accessToken // .accessToken // empty' 2>/dev/null || true)
-  # Whether the token is still good is the KEYCHAIN's business, not ours: Claude
-  # Code refreshes it in place whenever you use it, and every client on this
-  # machine reads the same item. Refreshing it here would mean writing the
-  # rotated pair back into the login keychain, where losing the response costs a
-  # re-login in every client at once — a price the Codex block pays because
-  # NOTHING else renews that file, and one this block has no reason to. An
-  # expired token simply fails the call below and the row ages honestly.
-  cl_exp=$(printf '%s' "$cl_cred" | jq -r '.claudeAiOauth.expiresAt // 0' 2>/dev/null || echo 0)
-  case "${cl_exp:-}" in '' | *[!0-9]*) cl_exp=0 ;; esac
-  [ "$cl_exp" -gt 0 ] && [ $(( cl_exp / 1000 )) -lt "$now" ] && cl_at=""
-  cl_cred=""
+  cl_at=""
+
+  # 1. Our own token, if one was made. First non-blank, non-comment word, so the
+  #    file can carry a line saying where it came from.
+  if [ -r "$CLAUDE_TOKEN_FILE" ]; then
+    cl_at=$(sed -n 's/^[[:space:]]*\([^#[:space:]][^[:space:]]*\).*/\1/p' "$CLAUDE_TOKEN_FILE" | head -1)
+  fi
+
+  # 2. Otherwise the CLI's login, for as long as it happens to be fresh. The item
+  #    is written by Claude Code's own binary, so its ACL may name that binary
+  #    rather than /usr/bin/security and the first pass can raise one macOS
+  #    prompt. Answer it **Always Allow**: a plain "Allow" grants that single
+  #    call and the next pass asks again.
+  if [ -z "$cl_at" ] && command -v security >/dev/null 2>&1; then
+    cl_cred=$(security find-generic-password -s "$CLAUDE_KEYCHAIN" -w 2>/dev/null \
+      || security find-generic-password -s "$CLAUDE_KEYCHAIN" -a "$USER" -w 2>/dev/null \
+      || true)
+    cl_at=$(printf '%s' "$cl_cred" | jq -r '.claudeAiOauth.accessToken // .accessToken // empty' 2>/dev/null || true)
+    # Whether that token is still good is the KEYCHAIN's business, not ours, and
+    # an expired one is dropped here rather than spent. Renewing it is the thing
+    # this block will not do: the exchange ROTATES the pair server-side, so
+    # writing the result back into the login keychain races the `claude` process
+    # that may be holding the old refresh token in memory — and the cost of
+    # getting that wrong is a re-login in every client at once. The Codex block
+    # above pays that price because nothing else renews auth.json; here the
+    # answer is `claude setup-token` and $CLAUDE_TOKEN_FILE instead.
+    cl_exp=$(printf '%s' "$cl_cred" | jq -r '.claudeAiOauth.expiresAt // 0' 2>/dev/null || echo 0)
+    case "${cl_exp:-}" in '' | *[!0-9]*) cl_exp=0 ;; esac
+    [ "$cl_exp" -gt 0 ] && [ $(( cl_exp / 1000 )) -lt "$now" ] && cl_at=""
+    cl_cred=""
+  fi
 
   cl_row=""
   if [ -n "$cl_at" ]; then

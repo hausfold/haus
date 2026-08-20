@@ -647,6 +647,33 @@ CLAUDE_USAGE='{"five_hour":{"utilization":41,"resets_at":"2026-08-20T03:00:00Z"}
   [ "$(clrow 4)" = "$(jq -rn '"2026-08-24T00:00:00Z" | fromdateiso8601')" ]
 }
 
+@test "claude: a token file wins, and the keychain is not touched at all" {
+  # The file is the point of this feed, not a convenience. The keychain item is
+  # the CLI's: `claude` renews it while a terminal pane is open and the macOS app
+  # never writes it, so on a GUI-driven machine it is simply expired — which is
+  # how it was found. A token from `claude setup-token` is nobody's to rotate.
+  mkcurl; mkcreds
+  mkdir -p "$HOME/.config/haus"
+  printf '# from `claude setup-token`, 2026-08-19\nsk-ant-oat01-FILE\n' \
+    >"$HOME/.config/haus/claude-usage-token"
+  : >"$SECURITY_LOG"
+  FAKE_CLAUDE_USAGE="$CLAUDE_USAGE" refresh
+  [ "$status" -eq 0 ]
+  [ "$(clrow 1)" = 41 ]
+  grep -q 'Bearer sk-ant-oat01-FILE' "$CURL_LOG" || fail "polled with something other than the file's token"
+  [ ! -s "$SECURITY_LOG" ] || fail "read the keychain anyway, with a token already in hand"
+}
+
+@test "claude: an expired keychain is the reason the file exists, and it still falls back" {
+  # Order matters both ways: no file → the keychain is still worth asking, since
+  # right after a TUI session it is fresh and costs nothing.
+  mkcurl; mkcreds
+  [ ! -e "$HOME/.config/haus/claude-usage-token" ]
+  FAKE_CLAUDE_USAGE="$CLAUDE_USAGE" refresh
+  [ "$(clrow 1)" = 41 ]
+  grep -q 'Bearer AT-CLAUDE' "$CURL_LOG" || fail "did not fall back to the keychain"
+}
+
 @test "claude: no ~/.claude means the keychain is never touched" {
   # The whole opt-in, and the reason it is a directory test rather than a
   # keychain lookup: asking the keychain IS the prompt.
