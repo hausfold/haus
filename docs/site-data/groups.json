@@ -98,6 +98,44 @@
     "blurb": "How rebuilds treat Homebrew packages you did not declare.",
     "order": 230
   },
+  "hostOnlyReasons": {
+    "agent-context": {
+      "why": "Your own always-on instructions to coding agents: the private working context you write for your own machine, not something a stranger's file should arrive holding."
+    },
+    "browser-code": {
+      "why": "It installs browser extensions, or writes raw enterprise policy into a file haus owns as root: code reaching your browser through what is supposed to be readable data."
+    },
+    "haus-writes-it": {
+      "why": "haus sets this itself, so the roster can still say which module put an app on disk. It is a generated fact about this machine rather than an input anyone writes."
+    },
+    "identity": {
+      "why": "It names you rather than a machine: your commit identity, the addresses that are yours, the account whose repositories this Mac works on. A desktop that set it would put its author's details on your work."
+    },
+    "keychain": {
+      "why": "It names a code-signing identity in one login keychain, which exists on exactly one Mac and cannot be meaningfully published."
+    },
+    "local-path": {
+      "why": "It names a path on this disk, so it is a fact about one filesystem rather than an opinion a shared desktop can hold about every machine."
+    },
+    "needs-pkgs": {
+      "why": "It takes a `pkgs` value, and desktop data is evaluated with no module arguments to take one from. The `…Name` leaf beside it is the desktop-safe half of the pair."
+    },
+    "one-network": {
+      "why": "It names a device on your own network by host or IP, which is a fact about your desk. Left empty, the pill discovers the device itself, and that is what a shared desktop should leave it doing."
+    },
+    "runs-a-command": {
+      "why": "It is a shell command this machine runs, and a desktop is a file you can read to know what it does. A leaf carrying a command is exactly what stops that being true."
+    },
+    "secret": {
+      "why": "It points at a secret, or at the store this machine keeps its secrets in, so it belongs to one person on one Mac."
+    },
+    "this-hardware": {
+      "why": "Sleep and power behaviour depends on the machine underneath it: whether it has a battery at all, and how this particular one is carried around."
+    },
+    "your-region": {
+      "why": "Language, region, units and keyboard layout are facts about the person at the keyboard; a desktop that set them would change what your Mac speaks."
+    }
+  },
   "hotCorners": {
     "blurb": "What each corner of the screen does when the pointer reaches it. Every corner is unset by default, so haus never overwrites one you set yourself.",
     "order": 112
@@ -168,7 +206,8 @@
           "desktopSafe": true
         },
         "haus.ai.instructions": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "agent-context"
         },
         "haus.ai.skill": {
           "desktopSafe": true
@@ -315,7 +354,8 @@
           "desktopSafe": true
         },
         "haus.bar.calendar.me": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "identity"
         },
         "haus.bar.calendar.past": {
           "desktopSafe": true
@@ -339,7 +379,8 @@
           "desktopSafe": true
         },
         "haus.bar.elgato.host": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "one-network"
         },
         "haus.bar.enable": {
           "desktopSafe": true
@@ -355,7 +396,8 @@
           "desktopSafe": true
         },
         "haus.bar.github.sources.*.command": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "runs-a-command"
         },
         "haus.bar.github.sources.*.icon": {
           "desktopSafe": true
@@ -474,7 +516,8 @@
           "validator": "widget-entries"
         },
         "haus.bar.widgets.<name>.command": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "runs-a-command"
         },
         "haus.bar.widgets.<name>.enable": {
           "desktopSafe": true
@@ -541,7 +584,8 @@
           "desktopSafe": true
         },
         "haus.focus.hooks": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "runs-a-command"
         },
         "haus.focus.scenes": {
           "desktopSafe": "recursive",
@@ -563,7 +607,8 @@
           "desktopSafe": true
         },
         "haus.focus.scenes.<name>.hooks": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "runs-a-command"
         },
         "haus.focus.scenes.<name>.preventSleep": {
           "desktopSafe": true
@@ -584,7 +629,8 @@
           "desktopSafe": true
         },
         "haus.focus.slack.tokenCommand": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "secret"
         }
       },
       "order": 170,
@@ -602,7 +648,8 @@
           "desktopSafe": true
         },
         "haus.fonts.mono.package": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "needs-pkgs"
         },
         "haus.fonts.mono.packageName": {
           "desktopSafe": true
@@ -623,19 +670,24 @@
       "optionCount": 5,
       "options": {
         "haus.git.email": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "identity"
         },
         "haus.git.name": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "identity"
         },
         "haus.git.org": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "identity"
         },
         "haus.git.shellAliases": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "runs-a-command"
         },
         "haus.git.signingKey": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "identity"
         }
       },
       "order": 10,
@@ -696,7 +748,8 @@
           "desktopSafe": true
         },
         "haus.keys.leaderExtras.*.command": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "runs-a-command"
         },
         "haus.keys.leaderExtras.*.key": {
           "desktopSafe": true
@@ -754,7 +807,8 @@
           "desktopSafe": true
         },
         "haus.launcher.signingIdentity": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "keychain"
         },
         "haus.launcher.windowMode": {
           "desktopSafe": true
@@ -772,22 +826,28 @@
       "optionCount": 6,
       "options": {
         "haus.locale.hourFormat": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "your-region"
         },
         "haus.locale.inputSources": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "your-region"
         },
         "haus.locale.language": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "your-region"
         },
         "haus.locale.metric": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "your-region"
         },
         "haus.locale.region": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "your-region"
         },
         "haus.locale.temperature": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "your-region"
         }
       },
       "order": 118,
@@ -874,28 +934,36 @@
       "optionCount": 8,
       "options": {
         "haus.power.computerSleep.battery": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "this-hardware"
         },
         "haus.power.computerSleep.charger": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "this-hardware"
         },
         "haus.power.diskSleep.battery": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "this-hardware"
         },
         "haus.power.diskSleep.charger": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "this-hardware"
         },
         "haus.power.displaySleep.battery": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "this-hardware"
         },
         "haus.power.displaySleep.charger": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "this-hardware"
         },
         "haus.power.lowPowerMode.battery": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "this-hardware"
         },
         "haus.power.lowPowerMode.charger": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "this-hardware"
         }
       },
       "order": 119,
@@ -929,7 +997,8 @@
           "desktopSafe": true
         },
         "haus.roster.<name>.installedBy": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "haus-writes-it"
         },
         "haus.roster.<name>.key": {
           "desktopSafe": true
@@ -944,7 +1013,8 @@
           "desktopSafe": true
         },
         "haus.roster.<name>.package": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "needs-pkgs"
         },
         "haus.roster.<name>.packageName": {
           "desktopSafe": true
@@ -971,7 +1041,8 @@
           "desktopSafe": true
         },
         "haus.screenshots.location": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "local-path"
         },
         "haus.screenshots.shadow": {
           "desktopSafe": true
@@ -989,7 +1060,8 @@
       "optionCount": 1,
       "options": {
         "haus.secrets.provider": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "secret"
         }
       },
       "order": 220,
@@ -1095,7 +1167,8 @@
       "optionCount": 6,
       "options": {
         "haus.terminal.editor": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "runs-a-command"
         },
         "haus.terminal.editorName": {
           "desktopSafe": true
@@ -1110,7 +1183,8 @@
           "desktopSafe": true
         },
         "haus.terminal.obsidianVaults": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "local-path"
         }
       },
       "order": 70,
@@ -1337,25 +1411,32 @@
       "optionCount": 9,
       "options": {
         "haus.zen.extensions": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "browser-code"
         },
         "haus.zen.extensions.<name>.enable": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "browser-code"
         },
         "haus.zen.extensions.<name>.id": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "browser-code"
         },
         "haus.zen.extensions.<name>.mode": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "browser-code"
         },
         "haus.zen.extensions.<name>.slug": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "browser-code"
         },
         "haus.zen.extensions.<name>.url": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "browser-code"
         },
         "haus.zen.extraPolicies": {
-          "desktopSafe": false
+          "desktopSafe": false,
+          "reason": "browser-code"
         },
         "haus.zen.tabBridge.enable": {
           "desktopSafe": true

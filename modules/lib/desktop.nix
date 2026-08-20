@@ -68,6 +68,26 @@ let
 
   said = path: what: "${path} ${what}";
 
+  # WHY this leaf is a host's, in the registry's own words. The generic clause
+  # this replaced ("it belongs to a person or a machine") was true of the
+  # identity rows and wrong about most of the rest — a `pkgs` value, a command
+  # the machine runs, a region, a laptop's power behaviour — and a desktop
+  # author meeting it here is at the exact moment the difference decides what
+  # they do next: reach for the `…Name` half of a pair, or move the line into
+  # their own host file for good.
+  #
+  # Same rule as a validator's: the sentence lives in the registry beside the
+  # classification, and every renderer of that classification says the same
+  # thing. Defaulted rather than indexed, because this file is also imported by
+  # consumers pinning an older registry, and a desktop author is owed the
+  # general answer rather than an evaluation error.
+  hostOnlyWhy =
+    meta:
+    let
+      why = registry.hostOnlyReasons.${meta.reason or ""}.why or "";
+    in
+    if (lib.trim why) == "" then "It belongs to a person or a machine." else why;
+
   # ---- the walk --------------------------------------------------------------
   # One value at one option path. Everything below is a case of this.
   walk =
@@ -96,7 +116,7 @@ let
         [ (said path "is not a haus option") ]
     else if meta.desktopSafe == false then
       [
-        (said path "is host-only — it belongs to a person or a machine, so a shared desktop may not set it")
+        (said path "is host-only, so a shared desktop may not set it. ${hostOnlyWhy meta}")
       ]
     else if meta.desktopSafe == "recursive" then
       validate meta.validator path value

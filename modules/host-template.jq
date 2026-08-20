@@ -87,6 +87,16 @@ def room: .key | split(".")[1];
 # `your host file` — the sentence survives, the URL noise doesn't.
 def demarkdown: gsub("\\[(?<t>[^\\]]*)\\]\\([^)]*\\)"; .t);
 
+# The sentence under a `desktop data:` line — a validator's rule or a host-only
+# reason, wrapped and aligned under the classification it explains rather than
+# at the `type:` continuation, so a wrapped type and a rule never read as one
+# line. Blank in, nothing out: a registry that carries a name and no sentence
+# renders no line at all rather than an indented empty comment.
+def explain($text): ($text // "")
+  | if (. | test("^[ \t]*$")) then ""
+    else (wrap(56) | map("  #               " + .) | join("\n")) + "\n"
+    end;
+
 # A default that teaches nothing about the option's shape. For those — and only
 # those — the example is worth the extra lines, because `haus.apps = { }`
 # on its own tells you nothing about what goes inside.
@@ -109,6 +119,12 @@ def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
 # because `recursive (display-selectors)` on its own names the rule without
 # stating it, and this file is the one a person edits with no docs page open.
 | ($groups[0].validators // {}) as $validators
+
+# The same, one classification over: a sentence per host-only reason. `host-only`
+# alone says a line may not come from a desktop and nothing about what makes it
+# one — and this is the file the answer sends you to, so it is the file the
+# answer belongs in.
+| ($groups[0].hostOnlyReasons // {}) as $reasons
 
 # Every namespace is registry-backed; `room-registry` rejects an unclassified
 # option before this renderer runs.
@@ -192,19 +208,15 @@ def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
               + "  # docs: https://hausfold.co/docs/haus/reference/options/#\($o.key | slug)\n"
               + "  # desktop data: "
               + (if $safety.desktopSafe == true then "safe\n"
+                 # Indexed through a defaulted name in both branches below, and
+                 # defaulted again after: jq ERRORS on `.[null]`, so a registry
+                 # gap that used to render `recursive (null)` and carry on would
+                 # otherwise abort `haus options` with a jq trace and write no
+                 # host file at all.
                  elif $safety.desktopSafe == false then "host-only\n"
+                      + explain($reasons[$safety.reason // ""].why)
                  else "recursive (\($safety.validator))\n"
-                      # Indexed through a defaulted name, and defaulted again
-                      # after: jq ERRORS on `.[null]`, so a registry gap that
-                      # used to render `recursive (null)` and carry on would
-                      # otherwise abort `haus options` with a jq trace and
-                      # write no host file at all. Aligned under `desktop
-                      # data: ` rather than at the `type:` continuation, so a
-                      # wrapped type and a rule don't read as the same line.
-                      + (($validators[$safety.validator // ""].rule // "")
-                         | if (. | test("^[ \t]*$")) then ""
-                           else (wrap(56) | map("  #               " + .) | join("\n")) + "\n"
-                           end)
+                      + explain($validators[$safety.validator // ""].rule)
                  end)
               + (if ($o.value | has("example")) and ($default != null) and (uninformative($default))
                  then "  #\n"

@@ -652,6 +652,37 @@
             name: !(builtins.elem name implementedValidators)
           ) explainedValidators;
 
+          # ---- host-only reasons ----------------------------------------------
+          # The same shape one classification over, and it exists for the same
+          # reason: `host-only` on its own says a desktop may not set the leaf
+          # and nothing about why, which is the half a person actually needs
+          # when their own host file is the only place it can go.
+          #
+          # Two lists, not three, because there is nothing to implement — a
+          # reason is read, never run. So NAMED is what `hostOnly` puts on an
+          # option and EXPLAINED is `hostOnlyReasons`, and both directions are
+          # silent failures without this: a host-only leaf naming no reason
+          # renders as the bare classification the site already had, and a
+          # name with no sentence renders as nothing at all under a line that
+          # promised one.
+          hostOnlyOptions = builtins.filter (
+            name: registryOptions.${name}.desktopSafe == false
+          ) registeredOptionNames;
+          namedReasons = builtins.filter (name: name != "") (
+            nixpkgs.lib.unique (map (name: registryOptions.${name}.reason or "") hostOnlyOptions)
+          );
+          explainedReasons = builtins.attrNames (registry.hostOnlyReasons or { });
+          unreasonedHostOnly = builtins.filter (
+            name: (nixpkgs.lib.trim (registryOptions.${name}.reason or "")) == ""
+          ) hostOnlyOptions;
+          # Trimmed for the same reason a validator's rule is: a blank sentence
+          # is the same non-answer as no sentence, reached by a route a
+          # presence check waves through.
+          unexplainedReasons = builtins.filter (
+            name: (nixpkgs.lib.trim (registry.hostOnlyReasons.${name}.why or "")) == ""
+          ) namedReasons;
+          strayReasons = builtins.filter (name: !(builtins.elem name namedReasons)) explainedReasons;
+
           # ---- rooms ----------------------------------------------------------
           # A room is what a person meets; a namespace is how they spell it.
           # `roomOwners` in the registry maps one to the other, and the rooms
@@ -734,6 +765,9 @@
             ++ map (x: "validator no container names: ${x}") unusedValidators
             ++ map (x: "validator with no rule sentence: ${x}") unexplainedValidators
             ++ map (x: "rule sentence for a validator that does not exist: ${x}") strayValidatorRules
+            ++ map (x: "host-only option with no reason: ${x}") unreasonedHostOnly
+            ++ map (x: "host-only reason with no sentence: ${x}") unexplainedReasons
+            ++ map (x: "reason sentence for a reason no option names: ${x}") strayReasons
             ++ map (x: "duplicate option path in namespace: ${x}") duplicateInventory
             ++ map (x: "unsafe dynamic subtree: ${x}") unsafeDynamicRoots
             ++ map (x: "open attrset has no recursive validator: ${x}") unsafeOpenAttrsets
@@ -2275,22 +2309,22 @@
           );
           expectedDesktopDiagnostics = ''
             test/desktops/activation.nix: may not set `system.*` (activation scripts, macOS defaults nothing declares) — those are a host's, or a room's
-            test/desktops/dynamic-host-only.nix: haus.roster.<name>.package is host-only — it belongs to a person or a machine, so a shared desktop may not set it
+            test/desktops/dynamic-host-only.nix: haus.roster.<name>.package is host-only, so a shared desktop may not set it. It takes a `pkgs` value, and desktop data is evaluated with no module arguments to take one from. The `…Name` leaf beside it is the desktop-safe half of the pair.
             test/desktops/dynamic-unknown.nix: haus.roster.<name>.postInstall is not a haus option
             test/desktops/extra-key.nix: may not set `environment.*` — installing something is a room's job, and `haus.roster` is how a desktop asks for one
             test/desktops/file-attr.nix: may not claim another file's name
             test/desktops/function.nix: is a function, so it is not a desktop. A desktop takes no arguments — no pkgs, no lib, no config — and evaluates to { haus = { … }; }. Something that genuinely needs pkgs is a room, with the trust that implies.
             test/desktops/group-not-option.nix: haus.theme is a group of options, not an option — name one of the settings under it
             test/desktops/home-manager.nix: may not set `home-manager.*` — a desktop configures rooms, and rooms configure home
-            test/desktops/host-only-command.nix: haus.keys.leaderExtras.*.command is host-only — it belongs to a person or a machine, so a shared desktop may not set it
+            test/desktops/host-only-command.nix: haus.keys.leaderExtras.*.command is host-only, so a shared desktop may not set it. It is a shell command this machine runs, and a desktop is a file you can read to know what it does. A leaf carrying a command is exactly what stops that being true.
             test/desktops/host-only-hardware.nix: haus.displays.37D8832A-2D66-02CA-B9F7-8F30A301B230 names a physical display, which is a fact about one machine — a desktop may only use the `internal` and `main` selectors
-            test/desktops/host-only-identity.nix: haus.git.email is host-only — it belongs to a person or a machine, so a shared desktop may not set it
-            test/desktops/host-only-package.nix: haus.fonts.mono.package is host-only — it belongs to a person or a machine, so a shared desktop may not set it
-            test/desktops/host-only-path.nix: haus.terminal.obsidianVaults is host-only — it belongs to a person or a machine, so a shared desktop may not set it
-            test/desktops/host-only-secret.nix: haus.focus.slack.tokenCommand is host-only — it belongs to a person or a machine, so a shared desktop may not set it
-            test/desktops/host-only-secret.nix: haus.secrets.provider is host-only — it belongs to a person or a machine, so a shared desktop may not set it
-            test/desktops/host-only-signing.nix: haus.launcher.signingIdentity is host-only — it belongs to a person or a machine, so a shared desktop may not set it
-            test/desktops/host-only-widget-command.nix: haus.bar.widgets.<name>.command is host-only — it belongs to a person or a machine, so a shared desktop may not set it
+            test/desktops/host-only-identity.nix: haus.git.email is host-only, so a shared desktop may not set it. It names you rather than a machine: your commit identity, the addresses that are yours, the account whose repositories this Mac works on. A desktop that set it would put its author's details on your work.
+            test/desktops/host-only-package.nix: haus.fonts.mono.package is host-only, so a shared desktop may not set it. It takes a `pkgs` value, and desktop data is evaluated with no module arguments to take one from. The `…Name` leaf beside it is the desktop-safe half of the pair.
+            test/desktops/host-only-path.nix: haus.terminal.obsidianVaults is host-only, so a shared desktop may not set it. It names a path on this disk, so it is a fact about one filesystem rather than an opinion a shared desktop can hold about every machine.
+            test/desktops/host-only-secret.nix: haus.focus.slack.tokenCommand is host-only, so a shared desktop may not set it. It points at a secret, or at the store this machine keeps its secrets in, so it belongs to one person on one Mac.
+            test/desktops/host-only-secret.nix: haus.secrets.provider is host-only, so a shared desktop may not set it. It points at a secret, or at the store this machine keeps its secrets in, so it belongs to one person on one Mac.
+            test/desktops/host-only-signing.nix: haus.launcher.signingIdentity is host-only, so a shared desktop may not set it. It names a code-signing identity in one login keychain, which exists on exactly one Mac and cannot be meaningfully published.
+            test/desktops/host-only-widget-command.nix: haus.bar.widgets.<name>.command is host-only, so a shared desktop may not set it. It is a shell command this machine runs, and a desktop is a file you can read to know what it does. A leaf carrying a command is exactly what stops that being true.
             test/desktops/imports.nix: may not import modules — a desktop is one file's worth of values, and what it can reach has to be readable from that file alone
             test/desktops/internal-wiring.nix: haus._contrib is internal wiring between rooms, not a setting a desktop may write
             test/desktops/missing-haus.nix: has no `haus` settings — a desktop is { haus = { … }; }
