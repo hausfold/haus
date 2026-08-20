@@ -487,60 +487,6 @@ let
               click_script="open -a 'System Settings' 'x-apple.systempreferences:com.apple.wifi-settings-extension'" \
               update_freq=10
     '';
-    # Which repo PAGE the focused workspace is — the `T/<repo>` a lane's window
-    # tiles itself onto. Drawn ONLY on the terminal pages (see page.sh); starts
-    # hidden, because the workspace you rebuild from is usually not one.
-    #
-    # Push-driven like `agents`, and for the same reason: a drawing=off item's
-    # own update_freq never ticks, so a hidden pill can't re-show itself from a
-    # poll. The event comes from AeroSpace's exec-on-workspace-change through
-    # sketchybar/aerospace-notify.sh, which fires it at BOTH bars — the bottom
-    # one is a separate instance and would otherwise never hear it.
-    #
-    # Hence the `--add event` here, which the menu bar's sketchybarrc already
-    # does for its workspace pills. An event is per-INSTANCE: on the bottom bar
-    # nothing else declares this one, so without this line the `--subscribe`
-    # below has nothing to attach to, the notify script's trigger names an
-    # unknown event, and a pill that starts hidden and never ticks would stay
-    # hidden forever. Declaring it twice on the menu bar is a no-op.
-    #
-    # `updates=on` is the OTHER half of that, and without it the pill was
-    # invisible on every page — including the `T/<repo>` ones it exists for.
-    # The bottom bar's `--default` sets `updates=when_shown` (bar-bottomrc), and
-    # SketchyBar takes that literally for EVENTS too: a drawing=off item is not
-    # merely un-ticked, it is not dispatched to at all, so the script that would
-    # turn drawing back ON never runs. Starting hidden is therefore a one-way
-    # door under the inherited default. A `--update` (SENDER=forced) does reach
-    # a hidden item, which is why poking the pill by hand always looked healthy
-    # and only the live workspace-change path failed. `updates=on` costs nothing
-    # here because this item has no update_freq: it is woken by the event alone.
-    #
-    # `mouse.clicked` is deliberately NOT subscribed: a click_script fires on
-    # its own, and subscribing as well would run `script` (the repaint) and
-    # `click_script` (the picker) on every click. `iconWide` for the same
-    # reason `github` uses it — a square Material Design mark renders short at
-    # the bar's default icon size.
-    #
-    # Click: the Pages picker. Plain click goes to a page, ⇧/right-click throws
-    # this window onto one (modules/launcher/commands/pages.sh).
-    page = ''
-      ${sb} --add event aerospace_workspace_change
-      ${sb} --add item page ${side} \
-          --set page \
-              drawing=off \
-              updates=on \
-              icon="󰘬" \
-              icon.font="${barFont}:Bold:${sizes.iconWide}" \
-              icon.color=$TEAL \
-              icon.padding_left=10 \
-              icon.padding_right=6 \
-              label.padding_right=10 \
-              label.font="${barFont}:Bold:${sizes.label}" \
-              background.color=$SURFACE0 \
-              script="$HOME/.config/sketchybar/plugins/page.sh" \
-              click_script="$HOME/.config/sketchybar/plugins/page.sh click" \
-          --subscribe page aerospace_workspace_change
-    '';
     # Agent-pane status, for whichever client the pane runs (Claude Code, Codex,
     # Opencode). The refresh is push, not poll: agents-hook.sh invokes
     # agents.sh directly on every agent state change, so the pill updates even
@@ -859,7 +805,6 @@ let
     "wifi"
   ];
   extraOrder = [
-    "page"
     "agents"
     "aiUsage"
     "github"
@@ -994,6 +939,7 @@ let
   reservedItemIds = [
     "haus"
     "front_app"
+    "page"
     "empty_workspace"
     "last_closed_app"
     "aerospace_watcher"
@@ -1025,12 +971,7 @@ let
   # wrote to disk, and a client this rice never installed still writes them. The
   # `agents` pill is different — its writer is `agent-state`, which the AI room
   # ships or does not.
-  # `page` is the second entry, and its room is `windows`: a page IS an AeroSpace
-  # workspace, so with the tiler off there is no `T/<repo>` to name, nothing to
-  # fire the workspace-change event the pill lives on, and no window for its
-  # picker to move. That pill would be drawn, hidden, forever — the dormant-pill
-  # failure this gate exists to prevent, and indistinguishable from a broken one.
-  # `focus` is the third, and it is the one that was gated by NAME before the
+  # `focus` is the second, and it is the one that was gated by NAME before the
   # widget table existed — twice, once per bar. `bar.items` has no switch for it
   # (it rides the Focus room), so under the old shape there was no way to ask
   # for it without the room. The open form removes that accident:
@@ -1039,14 +980,14 @@ let
   # `~/.local/bin/focus` only that room installs — a pill that does nothing,
   # forever. Same gate, said once now instead of per bar.
   #
-  # `page` is the odd one out and deliberately still a direct read: the Windows
-  # room declares no point here yet. It is the next candidate, not an oversight.
+  # `page` was a third entry here and is not a widget at all any more: a page is
+  # a property of the WORKSPACE you are on, so its readout belongs beside the
+  # workspace pills in the menu bar's hand-written left group rather than in a
+  # table of movable readouts. See `windowsConfigSh` and sketchybarrc.
   contributed =
     name:
     if name == "agents" then
       config.haus._contrib.bar.agents.enable
-    else if name == "page" then
-      config.haus.windows.enable
     else if name == "focus" then
       config.haus._contrib.bar.focus.enable
     else
@@ -1164,10 +1105,20 @@ let
   # rc gates the item's very existence on this rather than letting the plugin
   # exit early: the item is subscribed to an event that fires on every app
   # switch, so "off" should cost no process at all, not a cheap one.
+  #
+  # $BAR_PAGES rides along because it asks the same question of the same room: a
+  # PAGE is an AeroSpace workspace with a `/` in its name (`T/<repo>`, the page
+  # lanes/lane-open.sh tiles onto), so with no tiler there is no page to name and
+  # no workspace-change event to hear about one. The pill it gates sits in the
+  # hand-written LEFT group beside the front app, not in the widget table: it
+  # qualifies which workspace you are on, so it belongs with the workspace pills
+  # and not among the movable readouts. It was `haus.bar.items.page` — a movable
+  # pill, drawn only on `T/*` — until 2026-08-19.
   windowsConfigSh = ''
     #!/bin/bash
     # GENERATED from haus.windows.* by modules/bar/default.nix — do not edit.
     BAR_GRAVITY="${if config.haus.windows.enable && config.haus.windows.gravity then "1" else "0"}"
+    BAR_PAGES="${if config.haus.windows.enable then "1" else "0"}"
   '';
 
   # Bar position (haus.bar.position). Sourced by sketchybarrc — which sets
@@ -1775,6 +1726,9 @@ lib.mkIf config.haus.bar.enable {
         # five places is a font that ends up being two.
         BAR_FONT="${barFont}"
         FS_ICON="${sizes.icon}"
+        # The square Material Design marks render short at FS_ICON; `github` and
+        # the page pill both draw at this one instead.
+        FS_ICON_WIDE="${sizes.iconWide}"
         FS_LABEL="${sizes.label}"
         FS_SMALL="${sizes.small}"
         FS_TINY="${sizes.tiny}"

@@ -1,34 +1,40 @@
 #!/bin/bash
-# page.sh — which repo PAGE you are looking at, and nothing else.
+# page.sh — which PAGE of the focused workspace you are on, and nothing else.
 #
-# A lane's window lives on `T/<repo>` (terminal/lanes/lane-open.sh), so the
-# focused workspace's own name already IS the repo — there is no git call here,
-# no cwd to resolve, and nothing to join. That is the entire reason this pill
-# can be cheap enough to repaint on every workspace change: it reads one string
-# and slices a prefix off it.
+# A PAGE is an AeroSpace workspace with a `/` in its name. `T/<repo>` is the one
+# haus produces today (terminal/lanes/lane-open.sh gives every repo's lanes their
+# own page), but nothing about the mechanism is terminal-specific: AeroSpace
+# makes a workspace on first use, `caps <letter>` resolves any bare workspace to
+# its most recent live page (windows/scripts/workspace-mru.sh resolve), and the
+# Pages picker will throw a window onto a page of any workspace. So this pill
+# asks one question of the NAME — is there a `/` in it — and answers with the
+# part after it. There is no git call here, no cwd to resolve and no join, which
+# is the entire reason it is cheap enough to repaint on every workspace change.
 #
 # ── when it draws ────────────────────────────────────────────────────────────
-# Only on the terminal pages, because only there does "which repo" have an
-# answer. Three cases:
+#   <ws>/<page>   the page, spelled out — the answer this pill exists to give
+#   anything      drawing=off. A workspace with no pages under it has no page to
+#   else          be on, and the workspace pill beside this one already says
+#                 which workspace that is. A pill that said "no page" everywhere
+#                 would be noise you learn to skip past on the pages that DO
+#                 carry one.
 #
-#   T/<repo>   the repo, spelled out — the answer this pill exists to give
-#   T          the glyph alone, no label: you are on the unpaged terminal
-#              workspace, which is a real place and not an error
-#   anything   drawing=off — Obsidian's workspace has no repo, and a pill that
-#              else       said so in every window would be noise you learn to
-#                         skip past on the pages that DO carry one
+# It drew only on `T` and `T/*` until 2026-08-19, when it moved from the second
+# bar's movable readouts into the menu bar's hand-written left group — beside the
+# front app, where the workspace pills are. Pages were never a terminal feature;
+# only their one producer was.
 #
 # ── why hiding it is reliable ────────────────────────────────────────────────
 # The repaint is PUSHed, never polled: AeroSpace's exec-on-workspace-change runs
 # aerospace-notify.sh, which fires `aerospace_workspace_change` at both bars.
-# That is the same signal the menu bar's workspace pills have always repainted
-# on, so this pill is exactly as prompt as those are — one event per switch, no
-# tick to wait for.
+# That is the same signal the workspace pills repaint on, so this pill is exactly
+# as prompt as those are — one event per switch, no tick to wait for.
 #
 # It is also why there is no update_freq. A drawing=off item's own update_freq
 # never ticks (see the agents pill's note in modules/bar/default.nix), so a
 # hidden pill could never re-show itself from a poll anyway; the event is not a
-# supplement to a tick here, it is the whole mechanism.
+# supplement to a tick here, it is the whole mechanism. The rc pairs it with
+# `updates=on` for the other half of the same fact.
 set -u
 export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:$PATH"
 source "$HOME/.config/sketchybar/colors.sh"
@@ -61,13 +67,13 @@ fi
 
 ws="$(aerospace list-workspaces --focused 2>/dev/null)"
 
+# `${ws#*/}` — the FIRST slash, so a hypothetical `T/a/b` reads as page "a/b"
+# rather than losing its tail. AeroSpace workspace names are opaque strings; the
+# rice only ever writes one level, but truncating someone else's is a silent lie.
 case "$ws" in
-  T)
-    "$SB" --set page drawing=on label.drawing=off icon.color="$OVERLAY1"
-    ;;
-  T/*)
+  */*)
     "$SB" --set page drawing=on label.drawing=on \
-        label="${ws#T/}" label.color="$TEXT" icon.color="$TEAL"
+        label="${ws#*/}" label.color="$TEXT" icon.color="$TEAL"
     ;;
   *)
     "$SB" --set page drawing=off

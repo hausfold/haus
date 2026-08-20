@@ -125,7 +125,7 @@ let
 
             null keeps the widget's own default — for a bundled pill the rate
             it ships with, for yours a 60-second tick. A few pills are
-            push-driven rather than polled (`agents`, `page`) and a couple own
+            push-driven rather than polled (`agents`) and a couple own
             their rate through an older option of their own
             (`haus.bar.calendar.refresh`); setting this on one of those is
             accepted and changes only the backstop tick, which is exactly what

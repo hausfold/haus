@@ -622,10 +622,11 @@ in
   # nothing at all when it is itself switched off. That is the whole seam: no
   # room reads `config.haus.ai.*` to decide what to draw any more.
   haus._contrib = {
-    # Development — the terminal binds ⌃⌥⇧A (the resident agent) and aliases
-    # `c`, and pounce renders the same table onto its Terminal cards. The LANE
-    # chord is pounce's own (⌘↵, Ghostty-scoped → `cmd:lane-here`); it was
-    # windows' ⌃⌘A, through a _contrib.windows.agents that no longer exists.
+    # Development — the terminal aliases `c` to this client, and pounce renders
+    # the same table onto its Terminal cards. The LANE chord is pounce's own
+    # (⌘↵, Ghostty-scoped → `cmd:lane-here`); it was windows' ⌃⌘A, through a
+    # _contrib.windows.agents that no longer exists. The resident-agent chord
+    # ⌃⌥⇧A was retired 2026-08-19 — `c` in that window's shell is the same act.
     development.agents = {
       enable = spawnable;
       inherit (cfg) default;

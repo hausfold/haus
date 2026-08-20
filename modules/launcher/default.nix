@@ -303,7 +303,6 @@ let
   laneCommands = [
     "lanes.sh"
     "lane-here.sh"
-    "agent-here.sh"
     "pages.sh"
     "shell-here.sh"
     "shell-here-stay.sh"
@@ -316,12 +315,6 @@ let
     mkdir -p $out
     cp ${./commands}/*.sh $out/
     substituteInPlace $out/add-app.sh --replace-fail '@hostname@' '${hostname}'
-    # ⌃⌥⇧A runs the AI room's chosen client by name. Baked here rather than
-    # resolved at runtime for the same reason the zellij bind baked it: the
-    # command runs on launchd's bare PATH and `haus.ai.default` is a build-time
-    # fact. `--replace-fail`, so a rename of the token can't ship a script that
-    # execs the literal string.
-    substituteInPlace $out/agent-here.sh --replace-fail '@AGENT_HERE@' '${termAgentContrib.default}'
     chmod 555 $out/*.sh
     install -m555 ${appIconMap} $out/app-icon-map
     # Pounce discovers every top-level file as a command. Keep picker payloads
@@ -1372,23 +1365,15 @@ lib.mkIf config.haus.launcher.enable {
                   target = "cmd:bench-lane";
                 }
                 ++ lib.optionals lanesEnabled [
-                  # ⌃⌥⇧A — the RESIDENT agent: one that works in the checkout
-                  # you already have, on the branch you are looking at, rather
-                  # than in a worktree of its own. It was a zellij bind and is
-                  # Ghostty-scoped now rather than global (which ⌘↵'s
-                  # predecessor ⌃⌘A was): "this checkout" only means anything
-                  # in a terminal window, and a global ⌃⌥⇧A would land exactly
-                  # where `haus.keys.windowNav = "ctrl-alt"` used to put its
-                  # workspace throws.
-                  {
-                    key = "a";
-                    modifiers = [
-                      "ctrl"
-                      "alt"
-                      "shift"
-                    ];
-                    target = "cmd:agent-here";
-                  }
+                  # There is no resident-agent chord here, and hasn't been since
+                  # 2026-08-19. ⌃⌥⇧A ran the client in the checkout you already
+                  # had — a zellij bind, re-hosted onto this tap when zellij
+                  # went, and never used after the move. What it did is what
+                  # typing `c` in that window's shell does (terminal's alias,
+                  # which follows haus.ai.default the same way the chord did),
+                  # so the chord was a keystroke for a command already one
+                  # keystroke long. ⌘↵'s lane — a worktree of its own — is the
+                  # agent spawn this desktop actually runs on.
                   # ⌘N / ⌘⇧N — new WINDOW, the chord every Mac app spells that
                   # way: a shell window in the focused window's directory,
                   # hopping out of an agent worktree to the repo's main checkout

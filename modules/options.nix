@@ -651,9 +651,9 @@ in
           `⇧`+the arrows, none of which a roster letter can land
           on — and `<mod>⇥` is free again, since workspace back-and-forth
           retired in favour of the launcher's cross-workspace ⌘⇥ switcher. (Under
-          "ctrl-alt" that used to bite — the throws were `⌃⌥⇧` + an app's roster
-          letter, so an app on `a` silently ate terminal's ⌃⌥⇧A in-place-agent
-          chord. That collision is gone.)
+          "ctrl-alt" that used to bite: the throws were `⌃⌥⇧` + an app's roster
+          letter, so an app on `a` silently ate whatever the terminal had bound
+          on ⌃⌥⇧A. Moving the throws onto the leader ended it.)
           Nothing on a stock macOS collides either: the only ⌃⌥ system hotkeys
           are input-source switching (⌃⌥Space, off by default) and hyper-F13.
 

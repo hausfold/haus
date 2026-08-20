@@ -175,7 +175,7 @@
       "_type": "literalExpression",
       "text": "\"claude\""
     },
-    "description": "The coding agent started by the ⌘↵ lane chord, by the palette's\n**Spawn Agent** command, by the ⌃⌥⇧A resident bind and the `c` shell\nalias, and used to reopen worktrees with no client recorded yet. Each spawned worktree records its\nown client, so changing this affects new work but never reopens an\nexisting Codex or OpenCode task in Claude.\n\nMust be one of `ai.clients` — see there.\n\nThis option chooses the client and nothing else about how a lane opens.\n`claude` can make its own worktree (its native `--worktree` flag, which\nfires `holt hook create`), but haus does not use it: that flag runs the\nclient in the pane it was launched from and never asks holt's `[hooks]\nopen`, which is the seam a lane's own window arrives through. So every\nclient goes through `holt new`, producing the same checkout, branch and\nregistry entry from the outside — and the lane stays resumable, because\nClaude keys a transcript to the directory it started in.\nResuming follows the client too: `codex` reopens\nits cwd-filtered `codex resume` picker, `opencode` continues its latest\nsession for that cwd. They share one `holt` branch/parking/reap\nlifecycle, and they all light up the `agents` bar pill — the opencode\nplugin and the codex hooks are written for\nyou; only Claude Code's stay yours to wire, because Claude owns its own\nsettings.json (see `haus.bar.items.agents`).\n",
+    "description": "The coding agent started by the ⌘↵ lane chord, by the palette's\n**Spawn Agent** command and by the `c` shell\nalias, and used to reopen worktrees with no client recorded yet. Each spawned worktree records its\nown client, so changing this affects new work but never reopens an\nexisting Codex or OpenCode task in Claude.\n\nMust be one of `ai.clients` — see there.\n\nThis option chooses the client and nothing else about how a lane opens.\n`claude` can make its own worktree (its native `--worktree` flag, which\nfires `holt hook create`), but haus does not use it: that flag runs the\nclient in the pane it was launched from and never asks holt's `[hooks]\nopen`, which is the seam a lane's own window arrives through. So every\nclient goes through `holt new`, producing the same checkout, branch and\nregistry entry from the outside — and the lane stays resumable, because\nClaude keys a transcript to the directory it started in.\nResuming follows the client too: `codex` reopens\nits cwd-filtered `codex resume` picker, `opencode` continues its latest\nsession for that cwd. They share one `holt` branch/parking/reap\nlifecycle, and they all light up the `agents` bar pill — the opencode\nplugin and the codex hooks are written for\nyou; only Claude Code's stay yours to wire, because Claude owns its own\nsettings.json (see `haus.bar.items.agents`).\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"codex\""
@@ -196,7 +196,7 @@
       "_type": "literalExpression",
       "text": "false"
     },
-    "description": "The AI room: coding-agent *tooling*. `holt` (agent worktrees),\n`agent-state` (the status writer behind the `agents` bar pill),\nthe agent-worktree statusline, and the client\nconfig the Terminal room writes (Claude Code's settings.json keys, opencode's\nagent-state plugin). Which clients get installed is `ai.clients`.\n\nOn, this room brings its clients, `holt` and the lifecycle wiring on its\nown. What it adds to OTHER rooms it adds only when they are present: the\n⌃⌥⇧A terminal bind and the `c` alias arrive with the terminal, the\n`agents` pill with the bar, the agent commands with the launcher. None\nof those rooms is switched on by turning this one on.\n\nOff is right for any machine not running coding agents — it's a large\nsurface a non-developer never sees. The neutral default installs no\nclients; a desktop that selects this room names both `ai.clients` and\n`ai.default`.\n\nWas `haus.developer.agents.enable`, and the rest of this namespace was\n`haus.agents.*`, until 2026-08-13. Neither spelling is aliased — see\nmodules/moved.nix for why.\n",
+    "description": "The AI room: coding-agent *tooling*. `holt` (agent worktrees),\n`agent-state` (the status writer behind the `agents` bar pill),\nthe agent-worktree statusline, and the client\nconfig the Terminal room writes (Claude Code's settings.json keys, opencode's\nagent-state plugin). Which clients get installed is `ai.clients`.\n\nOn, this room brings its clients, `holt` and the lifecycle wiring on its\nown. What it adds to OTHER rooms it adds only when they are present: the\n`c` alias arrives with the terminal, the\n`agents` pill with the bar, the agent commands with the launcher. None\nof those rooms is switched on by turning this one on.\n\nOff is right for any machine not running coding agents — it's a large\nsurface a non-developer never sees. The neutral default installs no\nclients; a desktop that selects this room names both `ai.clients` and\n`ai.default`.\n\nWas `haus.developer.agents.enable`, and the rest of this namespace was\n`haus.agents.*`, until 2026-08-13. Neither spelling is aliased — see\nmodules/moved.nix for why.\n",
     "loc": [
       "haus",
       "ai",
@@ -712,25 +712,6 @@
       "bottom",
       "items",
       "memory"
-    ],
-    "readOnly": false,
-    "type": "boolean or one of \"left\", \"center\", \"right\""
-  },
-  "haus.bar.bottom.items.page": {
-    "declarations": [
-      "modules/bar/options.nix"
-    ],
-    "default": {
-      "_type": "literalExpression",
-      "text": "false"
-    },
-    "description": "Which repo PAGE you are looking at — the `T/<repo>` workspace a lane's window tiles itself onto. The label is the repo, and it costs nothing to produce: the workspace's own name already carries it, so there is no git call, no cwd to resolve and no join. It draws ONLY on the terminal pages — the repo spelled out on a `T/<repo>`, the glyph alone on bare `T` (a real place, not an error), and nothing at all anywhere else, because \"which repo\" has no answer on the workspace holding your notes. The repaint is pushed by AeroSpace's own workspace-change hook rather than polled, so it lands on the switch, exactly as the menu bar's workspace pills do — and a hidden pill could not revive itself from a tick in any case. CLICK opens the Pages picker: a plain click goes to a page, ⇧/right-click opens the same list in move mode, which throws the focused window onto the page you pick and follows it there — the single-window counterpart to leader-backtick putting every window back at once. Inside the picker the other direction is ⌥↵ — Shift+Return types a newline in a palette box and never commits, and ⌘↵ is the Ghostty-scoped lane chord. Needs `haus.windows.enable`: a page is an AeroSpace workspace, so with the tiler off the pill is left out rather than drawn permanently dormant. Typing a name no page has yet is not a miss — AeroSpace makes a workspace on first use, so it throws the window onto a page for a repo whose first lane hasn't been opened.",
-    "loc": [
-      "haus",
-      "bar",
-      "bottom",
-      "items",
-      "page"
     ],
     "readOnly": false,
     "type": "boolean or one of \"left\", \"center\", \"right\""
@@ -1586,24 +1567,6 @@
     "readOnly": false,
     "type": "boolean"
   },
-  "haus.bar.items.page": {
-    "declarations": [
-      "modules/bar/options.nix"
-    ],
-    "default": {
-      "_type": "literalExpression",
-      "text": "false"
-    },
-    "description": "Which repo PAGE you are looking at — the `T/<repo>` workspace a lane's window tiles itself onto. The label is the repo, and it costs nothing to produce: the workspace's own name already carries it, so there is no git call, no cwd to resolve and no join. It draws ONLY on the terminal pages — the repo spelled out on a `T/<repo>`, the glyph alone on bare `T` (a real place, not an error), and nothing at all anywhere else, because \"which repo\" has no answer on the workspace holding your notes. The repaint is pushed by AeroSpace's own workspace-change hook rather than polled, so it lands on the switch, exactly as the menu bar's workspace pills do — and a hidden pill could not revive itself from a tick in any case. CLICK opens the Pages picker: a plain click goes to a page, ⇧/right-click opens the same list in move mode, which throws the focused window onto the page you pick and follows it there — the single-window counterpart to leader-backtick putting every window back at once. Inside the picker the other direction is ⌥↵ — Shift+Return types a newline in a palette box and never commits, and ⌘↵ is the Ghostty-scoped lane chord. Needs `haus.windows.enable`: a page is an AeroSpace workspace, so with the tiler off the pill is left out rather than drawn permanently dormant. Typing a name no page has yet is not a miss — AeroSpace makes a workspace on first use, so it throws the window onto a page for a repo whose first lane hasn't been opened.",
-    "loc": [
-      "haus",
-      "bar",
-      "items",
-      "page"
-    ],
-    "readOnly": false,
-    "type": "boolean"
-  },
   "haus.bar.items.volume": {
     "declarations": [
       "modules/bar/options.nix"
@@ -2025,7 +1988,7 @@
       "_type": "literalExpression",
       "text": "null"
     },
-    "description": "How often to run `command`, in seconds. Works on the bundled pills\ntoo, where it retunes what that pill already polls at:\n\n  haus.bar.widgets.weather.interval = 1800;\n\nnull keeps the widget's own default — for a bundled pill the rate\nit ships with, for yours a 60-second tick. A few pills are\npush-driven rather than polled (`agents`, `page`) and a couple own\ntheir rate through an older option of their own\n(`haus.bar.calendar.refresh`); setting this on one of those is\naccepted and changes only the backstop tick, which is exactly what\nupdate_freq is on a pill that repaints on an event.\n",
+    "description": "How often to run `command`, in seconds. Works on the bundled pills\ntoo, where it retunes what that pill already polls at:\n\n  haus.bar.widgets.weather.interval = 1800;\n\nnull keeps the widget's own default — for a bundled pill the rate\nit ships with, for yours a 60-second tick. A few pills are\npush-driven rather than polled (`agents`) and a couple own\ntheir rate through an older option of their own\n(`haus.bar.calendar.refresh`); setting this on one of those is\naccepted and changes only the backstop tick, which is exactly what\nupdate_freq is on a pill that repaints on an event.\n",
     "example": {
       "_type": "literalExpression",
       "text": "300"
@@ -3168,7 +3131,7 @@
       "_type": "literalExpression",
       "text": "\"none\""
     },
-    "description": "The modifier vocabulary for windows's window chords — one setting rather\nthan a bind-per-action, because what people need to move is the\nmodifier, not the letters. It drives layouts (`<mod>` + `/` `,`),\nfullscreen, moving a workspace to the next monitor (`<mod>⇧⇥`),\nentering service mode (`<mod>⇧;`) and joining a neighbour inside it\n(`<mod>⇧` + an arrow). Anything that names a workspace — focusing\none, or throwing the focused window there — hangs off `leader`\ninstead, not this option. So does focusing by DIRECTION, which is the\nleader then an arrow.\n\n\"alt\" (default) is ⌥. The alternatives are for **non-US keyboard\nlayouts**, where ⌥+letter types accented characters — a machine that owns\n⌥+letter is unusable on those, which is the concrete reason this option\nexists.\n\nWhatever you pick, AeroSpace claims those chords **globally**, so they\nstop reaching whatever owned them inside a terminal. The surface is\nsmall now that the workspace throws moved to the leader and the\nhjkl focus chords were dropped: only `/` `,`, `f`, `⇧⇥`, `⇧;` and\n`⇧`+the arrows, none of which a roster letter can land\non — and `<mod>⇥` is free again, since workspace back-and-forth\nretired in favour of the launcher's cross-workspace ⌘⇥ switcher. (Under\n\"ctrl-alt\" that used to bite — the throws were `⌃⌥⇧` + an app's roster\nletter, so an app on `a` silently ate terminal's ⌃⌥⇧A in-place-agent\nchord. That collision is gone.)\nNothing on a stock macOS collides either: the only ⌃⌥ system hotkeys\nare input-source switching (⌃⌥Space, off by default) and hyper-F13.\n\n\"none\" drops the modifier chords entirely: no layout chords, no\nservice mode. Combined with `leader = \"none\"` that's a machine where the\ntiler tiles and the keyboard is left alone — mouse-first. The cheatsheet\nfollows, so it never advertises a key that does nothing.\n\nOnly meaningful with haus.windows.enable.\n",
+    "description": "The modifier vocabulary for windows's window chords — one setting rather\nthan a bind-per-action, because what people need to move is the\nmodifier, not the letters. It drives layouts (`<mod>` + `/` `,`),\nfullscreen, moving a workspace to the next monitor (`<mod>⇧⇥`),\nentering service mode (`<mod>⇧;`) and joining a neighbour inside it\n(`<mod>⇧` + an arrow). Anything that names a workspace — focusing\none, or throwing the focused window there — hangs off `leader`\ninstead, not this option. So does focusing by DIRECTION, which is the\nleader then an arrow.\n\n\"alt\" (default) is ⌥. The alternatives are for **non-US keyboard\nlayouts**, where ⌥+letter types accented characters — a machine that owns\n⌥+letter is unusable on those, which is the concrete reason this option\nexists.\n\nWhatever you pick, AeroSpace claims those chords **globally**, so they\nstop reaching whatever owned them inside a terminal. The surface is\nsmall now that the workspace throws moved to the leader and the\nhjkl focus chords were dropped: only `/` `,`, `f`, `⇧⇥`, `⇧;` and\n`⇧`+the arrows, none of which a roster letter can land\non — and `<mod>⇥` is free again, since workspace back-and-forth\nretired in favour of the launcher's cross-workspace ⌘⇥ switcher. (Under\n\"ctrl-alt\" that used to bite: the throws were `⌃⌥⇧` + an app's roster\nletter, so an app on `a` silently ate whatever the terminal had bound\non ⌃⌥⇧A. Moving the throws onto the leader ended it.)\nNothing on a stock macOS collides either: the only ⌃⌥ system hotkeys\nare input-source switching (⌃⌥Space, off by default) and hyper-F13.\n\n\"none\" drops the modifier chords entirely: no layout chords, no\nservice mode. Combined with `leader = \"none\"` that's a machine where the\ntiler tiles and the keyboard is left alone — mouse-first. The cheatsheet\nfollows, so it never advertises a key that does nothing.\n\nOnly meaningful with haus.windows.enable.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"ctrl-alt\""

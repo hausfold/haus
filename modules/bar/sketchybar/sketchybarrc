@@ -238,6 +238,48 @@ sketchybar --add item last_closed_app left \
         script="$HOME/.config/sketchybar/plugins/last_closed_app.sh" \
     --subscribe last_closed_app front_app_switched
 
+# Page — which PAGE of the focused workspace you are on. A page is an AeroSpace
+# workspace with a `/` in its name: `T/<repo>`, the per-repo page a lane's window
+# tiles itself onto (terminal/lanes/lane-open.sh). Nothing about that is
+# terminal-specific — any workspace can carry pages, AeroSpace makes one on first
+# use, and `caps <letter>` resolves a bare workspace to its most recent page
+# (windows/scripts/workspace-mru.sh) — so this pill names the page for whatever
+# workspace you are on, and draws nothing at all when that workspace has none.
+#
+# It sits HERE, between the workspace pills and the front app, because that is
+# what it qualifies: the workspace pill says which workspace, this says which
+# page of it. (It was a movable readout on the second bar — `haus.bar.items.page`
+# — until 2026-08-19, where it could only ever answer for `T`, and where the menu
+# bar answered "which workspace" with nothing at all whenever you were on a page:
+# plugins/space.sh matches the focused workspace by exact string, so `space.T`
+# goes dark the moment you focus `T/haus`.)
+#
+# updates=on is load-bearing, exactly as it is for bar_position below: the item
+# starts drawing=off and the bar default is updates=when_shown, under which a
+# hidden item is not merely un-ticked but never dispatched to — so the script
+# that would turn drawing back on could never run. It costs nothing here: there
+# is no update_freq, the pill is woken by the workspace-change event alone.
+#
+# mouse.clicked is deliberately NOT subscribed: a click_script fires on its own,
+# and subscribing as well would run script (the repaint) and click_script (the
+# picker) on every click.
+if [ "$BAR_PAGES" = "1" ]; then
+    sketchybar --add item page left \
+        --set page \
+            drawing=off \
+            updates=on \
+            icon="󰘬" \
+            icon.font="${BAR_FONT}:Bold:$FS_ICON_WIDE" \
+            icon.color=$TEAL \
+            icon.padding_left=10 \
+            icon.padding_right=6 \
+            label.padding_right=10 \
+            background.color=$SURFACE0 \
+            script="$HOME/.config/sketchybar/plugins/page.sh" \
+            click_script="$HOME/.config/sketchybar/plugins/page.sh click" \
+        --subscribe page aerospace_workspace_change
+fi
+
 # Front app name. The icon slot starts empty and stays empty in every state but
 # one: plugins/aerospace_lib.sh puts an expand glyph there while the focused
 # window is AeroSpace-fullscreen, which is why nothing else may claim it. The

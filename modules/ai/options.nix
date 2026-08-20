@@ -37,7 +37,7 @@ in
 
         On, this room brings its clients, `holt` and the lifecycle wiring on its
         own. What it adds to OTHER rooms it adds only when they are present: the
-        ⌃⌥⇧A terminal bind and the `c` alias arrive with the terminal, the
+        `c` alias arrives with the terminal, the
         `agents` pill with the bar, the agent commands with the launcher. None
         of those rooms is switched on by turning this one on.
 
@@ -110,7 +110,7 @@ in
       example = "codex";
       description = ''
         The coding agent started by the ⌘↵ lane chord, by the palette's
-        **Spawn Agent** command, by the ⌃⌥⇧A resident bind and the `c` shell
+        **Spawn Agent** command and by the `c` shell
         alias, and used to reopen worktrees with no client recorded yet. Each spawned worktree records its
         own client, so changing this affects new work but never reopens an
         existing Codex or OpenCode task in Claude.

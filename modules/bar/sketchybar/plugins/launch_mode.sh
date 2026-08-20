@@ -84,7 +84,10 @@ do_arm() {
     # Hide + freeze the workspace pills and their batch-updater, hide front-app.
     local hide="" sp
     for sp in $(spaces); do hide+=" --set $sp drawing=off updates=off"; done
-    hide+=" --set aerospace_watcher updates=off --set front_app drawing=off"
+    # `page` hides with them and is restored by re-running its own plugin (see
+    # do_disarm) rather than from a value computed here: its label is a workspace
+    # name, and this batch is `eval`ed as one unquoted string.
+    hide+=" --set aerospace_watcher updates=off --set front_app drawing=off --set page drawing=off"
 
     # Color the picker; collect open/active first for the left-ward ordering.
     local colors="" active="" closed=""
@@ -128,11 +131,15 @@ do_disarm() {
     # Hide the picker bubbles.
     for entry in $LAUNCHERS; do a+=" --set launcher.${entry%%:*} drawing=off"; done
     # Thaw + repaint the workspace pills to live occupancy (mirrors space.sh).
+    # `$focused` may be a PAGE (`T/haus`), and the pill for its workspace is
+    # `space.T` — so match the workspace itself OR anything under it, exactly as
+    # plugins/space.sh does. Without this the terminal pill goes dark the moment
+    # a lane page is focused, which is most of the time this bar is looked at.
     for sp in $(spaces); do
         ws=${sp#space.}
-        if [ "$ws" = "$focused" ]; then
+        if [ "$ws" = "$focused" ] || [ "${focused#"$ws"/}" != "$focused" ]; then
             a+=" --set $sp updates=when_shown drawing=on background.color=$active_color icon.color=$BASE label.color=$BASE"
-        elif grep -qx "$ws" <<<"$open"; then
+        elif grep -qE "^${ws}(/|\$)" <<<"$open"; then
             a+=" --set $sp updates=when_shown drawing=on background.color=$SURFACE0 icon.color=$TEXT label.color=$TEXT"
         else
             a+=" --set $sp updates=when_shown drawing=off"
@@ -149,6 +156,11 @@ do_disarm() {
     a+=" --set haus.logo icon.color=$ac background.color=$ab"
 
     eval "sketchybar $a"
+    # One extra process, on a keypress that already spawns several, and the only
+    # honest way to restore a pill whose visibility depends on a name: the batch
+    # above is eval'ed unquoted, and a workspace name is not ours to assume is
+    # one shell word.
+    "$HOME/.config/sketchybar/plugins/page.sh" >/dev/null 2>&1 &
     rm -f "$SNAP"
 }
 
