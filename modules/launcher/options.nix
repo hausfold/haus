@@ -377,13 +377,16 @@ in
           hotkey = "opt+e";
         };
         "cmd:brew-services".listed = false;
+        "cmd:lane-here".workspaces = [ "T" ];
+        "cmd:peek".bundleIds = [ "com.mitchellh.ghostty" ];
         "app:/Applications/Ghostty.app".hotkey = "opt+t";
         "shortcut:0ECC8F7A-3A52-467A-84C0-511CCE1CB9B7".alias = "shelf";
         "mode:clipboard".hotkey = "cmd+shift+v";
       };
       description = ''
         Per-item palette settings, keyed by the item's own address. One entry is
-        one row of the palette: hide it, give it a search shorthand, give it a key.
+        one row of the palette: hide it, give it a search shorthand, give it a
+        key, or list it only where it is useful (`workspaces` / `bundleIds`).
 
           "cmd:<id>"                       a command, by script name without .sh
           "app:/Applications/Foo.app"      an application, by path
@@ -501,6 +504,54 @@ in
                 that fires on a lone tap and SHARES the key with macOS's own
                 Globe action, or `remap`, which takes the key away from macOS
                 entirely at the cost of Fn's other jobs.
+              '';
+            };
+
+            workspaces = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              default = [ ];
+              example = [ "T" ];
+              description = ''
+                List this row only while one of these workspaces is in front.
+                Empty — the default — means everywhere.
+
+                A bare name matches that page AND its children, the same rule
+                the ⌃⇥ page walk's prefix uses: `"T"` covers T and every
+                T/<repo> lane page. `"T/*"` is the children only, and `"T/main"`
+                is that one page. Case-insensitive.
+
+                It scopes the ROW, never this item's `hotkey` — a key you bound
+                stays bound, exactly as it does under `listed = false`. What
+                this is FOR is a row whose command needs the window you were
+                looking at: an agent lane or a shell "here" reads the focused
+                terminal's directory, and from a browser it has nothing to read.
+
+                Which page you are on is read from the workspace-recency file
+                the windows room's AeroSpace hook maintains. **With no such file
+                — no tiler, or the windows room off — this filters nothing**,
+                deliberately: a machine that cannot answer the question would
+                otherwise hide the row forever.
+              '';
+            };
+
+            bundleIds = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              default = [ ];
+              example = [ "com.mitchellh.ghostty" ];
+              description = ''
+                List this row only while one of these apps is frontmost. Empty —
+                the default — means any app.
+
+                The tighter twin of `workspaces` for a row that needs a
+                particular app rather than a particular page: a Ghostty window
+                dragged onto another page still satisfies this one, and a
+                browser parked on a terminal page does not. Set both and the row
+                wants both. Case-insensitive.
+
+                Like `workspaces`, it scopes the row alone. Scoping a KEY to an
+                app is a different mechanism with a different cost — the palette
+                has to consume the keystroke to do it — and haus writes those
+                itself (the ⌘↵ and ⌘N Ghostty taps).
               '';
             };
           };

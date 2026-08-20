@@ -3269,10 +3269,10 @@
       "_type": "literalExpression",
       "text": "{ }"
     },
-    "description": "Per-item palette settings, keyed by the item's own address. One entry is\none row of the palette: hide it, give it a search shorthand, give it a key.\n\n  \"cmd:<id>\"                       a command, by script name without .sh\n  \"app:/Applications/Foo.app\"      an application, by path\n  \"shortcut:<uuid>\"                a Shortcuts-library entry, by the id\n                                   `shortcuts list --show-identifiers` prints\n  \"mode:<name>\"                    a built-in window — launcher, clipboard,\n                                   emoji, screenshots, camera, filesearch\n\nThose keys are the palette's own address space (the same strings its frecency\nstore and `pounce run` use), so a key written here is also what you'd type\nto invoke the thing from a script or another tool's binding.\n\nHotkeys can be a single chord (\"opt+e\") or a LEADER SEQUENCE — steps\nseparated by spaces, modifiers by \"+\", the notation Emacs and VS Code use:\n\n  hotkey = \"opt+space e\";          # ⌥Space, then E\n  hotkey = [ \"cmd+k\" \"cmd+c\" ];    # the same thing, step by step\n\nThe modifier-only laptop Fn/Globe key is the one special single-step\nvalue: hotkey = \"fn\". By default it is read with an event tap, which\nneeds Pounce's Accessibility grant (unlike a Carbon chord or leader\nsequence) and fires only when Fn is tapped alone — and which SHARES the\nkey with macOS's own Globe action, so the system emoji picker can still\nopen alongside the palette's. haus.launcher.fnKey = \"remap\" is the way to own\nthe key outright; read that option before reaching for it, because it\ncosts Fn's other jobs. haus uses Fn for mode:emoji by default; set that\nitem's hotkey to null to leave the Globe key to macOS — but Fn is the ONLY\nkey haus gives the emoji grid. The Caps-Lock leader carried it on `e`\nuntil the Fn tap made that second binding redundant (`e` is unbound now,\nand `f` is Find Files), so nulling this leaves ⌘Space → \"emoji\" as the\nonly route. Give mode:emoji another hotkey in the same breath if you want\na key for it.\n\nSequences are worth knowing about on a tiling desktop: they open a namespace\nthat structurally can't collide with the ⌥/⌘ chords windows already claims,\nand they need no Accessibility grant (the palette grabs the second step as an\nordinary global hotkey for a couple of seconds rather than tapping events).\n\nTwo things this checks at build time, because both fail SILENTLY at\nruntime: a key that names no real item shape (a \"mode:\" typo binds\nnothing at all), and a chord already claimed by haus.keys.palette,\nhaus.keys.leader, or a terminal binding (whoever registers first\nwins, and it isn't always the same one). What it can't check is whether\n`cmd:<id>` names a command that exists — command scripts are discovered\nat runtime, so the palette warns about that itself when the daemon starts, and\n`pounce doctor` lists any binding that failed to arm.\n",
+    "description": "Per-item palette settings, keyed by the item's own address. One entry is\none row of the palette: hide it, give it a search shorthand, give it a\nkey, or list it only where it is useful (`workspaces` / `bundleIds`).\n\n  \"cmd:<id>\"                       a command, by script name without .sh\n  \"app:/Applications/Foo.app\"      an application, by path\n  \"shortcut:<uuid>\"                a Shortcuts-library entry, by the id\n                                   `shortcuts list --show-identifiers` prints\n  \"mode:<name>\"                    a built-in window — launcher, clipboard,\n                                   emoji, screenshots, camera, filesearch\n\nThose keys are the palette's own address space (the same strings its frecency\nstore and `pounce run` use), so a key written here is also what you'd type\nto invoke the thing from a script or another tool's binding.\n\nHotkeys can be a single chord (\"opt+e\") or a LEADER SEQUENCE — steps\nseparated by spaces, modifiers by \"+\", the notation Emacs and VS Code use:\n\n  hotkey = \"opt+space e\";          # ⌥Space, then E\n  hotkey = [ \"cmd+k\" \"cmd+c\" ];    # the same thing, step by step\n\nThe modifier-only laptop Fn/Globe key is the one special single-step\nvalue: hotkey = \"fn\". By default it is read with an event tap, which\nneeds Pounce's Accessibility grant (unlike a Carbon chord or leader\nsequence) and fires only when Fn is tapped alone — and which SHARES the\nkey with macOS's own Globe action, so the system emoji picker can still\nopen alongside the palette's. haus.launcher.fnKey = \"remap\" is the way to own\nthe key outright; read that option before reaching for it, because it\ncosts Fn's other jobs. haus uses Fn for mode:emoji by default; set that\nitem's hotkey to null to leave the Globe key to macOS — but Fn is the ONLY\nkey haus gives the emoji grid. The Caps-Lock leader carried it on `e`\nuntil the Fn tap made that second binding redundant (`e` is unbound now,\nand `f` is Find Files), so nulling this leaves ⌘Space → \"emoji\" as the\nonly route. Give mode:emoji another hotkey in the same breath if you want\na key for it.\n\nSequences are worth knowing about on a tiling desktop: they open a namespace\nthat structurally can't collide with the ⌥/⌘ chords windows already claims,\nand they need no Accessibility grant (the palette grabs the second step as an\nordinary global hotkey for a couple of seconds rather than tapping events).\n\nTwo things this checks at build time, because both fail SILENTLY at\nruntime: a key that names no real item shape (a \"mode:\" typo binds\nnothing at all), and a chord already claimed by haus.keys.palette,\nhaus.keys.leader, or a terminal binding (whoever registers first\nwins, and it isn't always the same one). What it can't check is whether\n`cmd:<id>` names a command that exists — command scripts are discovered\nat runtime, so the palette warns about that itself when the daemon starts, and\n`pounce doctor` lists any binding that failed to arm.\n",
     "example": {
       "_type": "literalExpression",
-      "text": "{\n  \"app:/Applications/Ghostty.app\" = {\n    hotkey = \"opt+t\";\n  };\n  \"cmd:brew-services\" = {\n    listed = false;\n  };\n  \"cmd:emoji\" = {\n    alias = \"emo\";\n    hotkey = \"opt+e\";\n  };\n  \"mode:clipboard\" = {\n    hotkey = \"cmd+shift+v\";\n  };\n  \"shortcut:0ECC8F7A-3A52-467A-84C0-511CCE1CB9B7\" = {\n    alias = \"shelf\";\n  };\n}"
+      "text": "{\n  \"app:/Applications/Ghostty.app\" = {\n    hotkey = \"opt+t\";\n  };\n  \"cmd:brew-services\" = {\n    listed = false;\n  };\n  \"cmd:emoji\" = {\n    alias = \"emo\";\n    hotkey = \"opt+e\";\n  };\n  \"cmd:lane-here\" = {\n    workspaces = [\n      \"T\"\n    ];\n  };\n  \"cmd:peek\" = {\n    bundleIds = [\n      \"com.mitchellh.ghostty\"\n    ];\n  };\n  \"mode:clipboard\" = {\n    hotkey = \"cmd+shift+v\";\n  };\n  \"shortcut:0ECC8F7A-3A52-467A-84C0-511CCE1CB9B7\" = {\n    alias = \"shelf\";\n  };\n}"
     },
     "loc": [
       "haus",
@@ -3304,6 +3304,29 @@
     ],
     "readOnly": false,
     "type": "null or string"
+  },
+  "haus.launcher.items.<name>.bundleIds": {
+    "declarations": [
+      "modules/launcher/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ ]"
+    },
+    "description": "List this row only while one of these apps is frontmost. Empty —\nthe default — means any app.\n\nThe tighter twin of `workspaces` for a row that needs a\nparticular app rather than a particular page: a Ghostty window\ndragged onto another page still satisfies this one, and a\nbrowser parked on a terminal page does not. Set both and the row\nwants both. Case-insensitive.\n\nLike `workspaces`, it scopes the row alone. Scoping a KEY to an\napp is a different mechanism with a different cost — the palette\nhas to consume the keystroke to do it — and haus writes those\nitself (the ⌘↵ and ⌘N Ghostty taps).\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"com.mitchellh.ghostty\"\n]"
+    },
+    "loc": [
+      "haus",
+      "launcher",
+      "items",
+      "<name>",
+      "bundleIds"
+    ],
+    "readOnly": false,
+    "type": "list of string"
   },
   "haus.launcher.items.<name>.caption": {
     "declarations": [
@@ -3369,6 +3392,29 @@
     ],
     "readOnly": false,
     "type": "boolean"
+  },
+  "haus.launcher.items.<name>.workspaces": {
+    "declarations": [
+      "modules/launcher/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ ]"
+    },
+    "description": "List this row only while one of these workspaces is in front.\nEmpty — the default — means everywhere.\n\nA bare name matches that page AND its children, the same rule\nthe ⌃⇥ page walk's prefix uses: `\"T\"` covers T and every\nT/<repo> lane page. `\"T/*\"` is the children only, and `\"T/main\"`\nis that one page. Case-insensitive.\n\nIt scopes the ROW, never this item's `hotkey` — a key you bound\nstays bound, exactly as it does under `listed = false`. What\nthis is FOR is a row whose command needs the window you were\nlooking at: an agent lane or a shell \"here\" reads the focused\nterminal's directory, and from a browser it has nothing to read.\n\nWhich page you are on is read from the workspace-recency file\nthe windows room's AeroSpace hook maintains. **With no such file\n— no tiler, or the windows room off — this filters nothing**,\ndeliberately: a machine that cannot answer the question would\notherwise hide the row forever.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"T\"\n]"
+    },
+    "loc": [
+      "haus",
+      "launcher",
+      "items",
+      "<name>",
+      "workspaces"
+    ],
+    "readOnly": false,
+    "type": "list of string"
   },
   "haus.launcher.scale": {
     "declarations": [
