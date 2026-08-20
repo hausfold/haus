@@ -11,7 +11,10 @@
 # haus stays upstream, where `nix flake update haus` pulls it.
 #
 # Flags / env:
-#   --defaults, HAUS_NONINTERACTIVE=1   skip the interview, take smart defaults
+#   --defaults, HAUS_NONINTERACTIVE=1   skip the interview, take smart defaults —
+#                                       including Determinate's own confirmation
+#                                       of the Nix install, which an unattended
+#                                       run has no terminal to answer
 #   --desktop <name>, HAUS_DESKTOP=<name>    pick the desktop up front — one of
 #                                            hacker, everyday, minimal, blank
 #                                            — and SKIP that question, in an
@@ -258,7 +261,19 @@ elif [ -e /nix ] && [ ! -e /nix/receipt.json ] && [ -z "$DRY_RUN" ]; then
   die "Found /nix without a Determinate receipt — uninstall the existing Nix first, then re-run."
 else
   say "Installing Determinate Nix…"
-  run sh -c 'curl -fsSL https://install.determinate.systems/nix | sh -s -- install --determinate'
+  # Their installer confirms before it touches anything, and reaches for
+  # /dev/tty to ask when stdin is a pipe — which it always is under the
+  # one-liner, so a person at a terminal gets the question and it works. A run
+  # with NO controlling terminal (--defaults over ssh, CI, a provisioning
+  # wrapper) has no /dev/tty to reach, and it exits with "Unable to run
+  # interactively" instead of taking the defaults we already promised. So an
+  # unattended install has to say --no-confirm on its own behalf; asking to be
+  # asked is the one thing --defaults means it won't do.
+  if [ -n "$INTERACTIVE" ]; then
+    run sh -c 'curl -fsSL https://install.determinate.systems/nix | sh -s -- install --determinate'
+  else
+    run sh -c 'curl -fsSL https://install.determinate.systems/nix | sh -s -- install --determinate --no-confirm'
+  fi
   # shellcheck disable=SC1091
   [ -n "$DRY_RUN" ] || . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
 fi
