@@ -86,6 +86,23 @@
       '';
     };
 
+    focus.triggers.interval = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 30;
+      description = ''
+        Seconds between checks of every `scenes.<name>.when` condition. The
+        agent that runs them exists only when some scene declares a condition,
+        so a machine whose scenes are all hand-entered runs nothing at all and
+        this option decides nothing.
+
+        Thirty seconds is the compromise a clock wants: a window that opens at
+        09:00 is entered by 09:00:30, and the check costs one short shell run.
+        Raise it if a probe on this machine is expensive — the screen count
+        falls back to `system_profiler` without the displays room, which is the
+        one probe here that takes a visible moment.
+      '';
+    };
+
     focus.scenes = lib.mkOption {
       type = lib.types.attrsOf (
         lib.types.submodule {
@@ -201,6 +218,108 @@
                 and "off" to disagree about.
               '';
             };
+
+            # The trigger half. Every field here is a CONDITION — something that
+            # is true or false about the machine right now — and they are ANDed:
+            # a scene with a window and a network is entered inside the window
+            # AND on that network. A scene that sets none of them is entered by
+            # a person and nothing else, which is every scene that existed
+            # before this option did.
+            when = {
+              time = lib.mkOption {
+                type = lib.types.str;
+                default = "";
+                example = "09:00-17:00";
+                description = ''
+                  Enter this scene inside a daily window, `HH:MM-HH:MM` in
+                  24-hour local time. An end earlier than the start wraps
+                  midnight, so `22:00-06:00` is one night rather than an empty
+                  window. Unset, the clock never enters this scene.
+
+                  A window is a condition, not an alarm: the scene is entered on
+                  the edge where the window opens, so leaving it by hand at ten
+                  past nine leaves you out of it until tomorrow. The `scenes`
+                  description says why that rule is the whole design.
+                '';
+              };
+
+              days = lib.mkOption {
+                type = lib.types.listOf (
+                  lib.types.enum [
+                    "mon"
+                    "tue"
+                    "wed"
+                    "thu"
+                    "fri"
+                    "sat"
+                    "sun"
+                  ]
+                );
+                default = [ ];
+                example = [
+                  "mon"
+                  "tue"
+                  "wed"
+                  "thu"
+                  "fri"
+                ];
+                description = ''
+                  Limit the trigger to these weekdays. Empty means every day.
+                  It narrows the other conditions rather than standing on its
+                  own: a scene whose only condition is a list of days is on for
+                  all of every one of them.
+                '';
+              };
+
+              wifi = lib.mkOption {
+                type = lib.types.listOf lib.types.str;
+                default = [ ];
+                example = [ "Home" ];
+                description = ''
+                  Enter this scene while joined to one of these Wi-Fi networks,
+                  by the exact SSID. Empty means the network is not part of this
+                  scene's condition.
+
+                  Honest scope: the current SSID is the one probe macOS can
+                  refuse to answer, and an unreadable SSID matches nothing —
+                  which looks exactly like a network you are not on. `focus auto
+                  --probe` prints what it reads right now and `focus doctor`
+                  says when it comes back empty, so the difference is one
+                  command rather than a guess.
+                '';
+              };
+
+              power = lib.mkOption {
+                type = lib.types.enum [
+                  "any"
+                  "ac"
+                  "battery"
+                ];
+                default = "any";
+                description = ''
+                  Enter this scene only on wall power (`ac`) or only off it
+                  (`battery`). `any` — the default — leaves the power source out
+                  of this scene's condition.
+                '';
+              };
+
+              displays = lib.mkOption {
+                type = lib.types.nullOr lib.types.ints.positive;
+                default = null;
+                example = 2;
+                description = ''
+                  Enter this scene while at least this many displays are active,
+                  the built-in screen included — so `2` is "docked" on a laptop,
+                  and `null`, the default, leaves the screens out of this
+                  scene's condition.
+
+                  A count rather than a display's name, on purpose: which panel
+                  is on your desk is a fact about one machine (the same reason
+                  `haus.displays.<uuid>` is host-only), while "more than one
+                  screen" is a shape any desktop can share.
+                '';
+              };
+            };
           };
         }
       );
@@ -231,11 +350,16 @@
         mean remembering its name in a terminal. A `haus.keys.leaderExtras`
         chord remains the way to give one a key.
 
-        The half that is still deliberate scope: **nothing enters a scene for
-        you** — no clock, no Wi-Fi network, no display appearing. Declaring
-        the states is the cheap half and this is it; a daemon that decides
-        *when* is a separate piece of work, and not one to pay for before a
-        single scene has proved useful.
+        A scene with a `when` is entered for you — a daily window, a set of
+        weekdays, a Wi-Fi network, the power source, how many screens are
+        attached. One rule governs all of it, and it is the reason this is
+        safe to leave running: **the daemon never overrides a state you
+        chose.** It enters a scene on the EDGE where the condition becomes
+        true and only from a neutral Mac, it leaves only the scene it entered
+        itself, and it never re-enters one you walked out of until that
+        condition has gone false and true again. So a scene you leave at ten
+        past nine stays left, and a scene you enter by hand is never taken
+        away from you.
       '';
     };
   };

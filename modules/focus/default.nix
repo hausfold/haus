@@ -56,6 +56,21 @@ let
         closeApps = s.apps.closeOnExit;
         audioInput = s.audio.input;
         hooks = map toString s.hooks;
+        # The conditions ride the same file for the same reason the rest of the
+        # scene does: `focus auto` asks the table what a scene wants and the
+        # option surface is the only thing that decides what it may want. A
+        # trigger rendered into shell would be a desktop's string running on a
+        # timer, forever — the one thing `haus.bar.widgets.<name>.command`
+        # is host-only to prevent, arriving through a different door.
+        when = {
+          inherit (s.when)
+            time
+            days
+            wifi
+            power
+            displays
+            ;
+        };
       }) cfg.scenes
     )
   );
@@ -64,6 +79,20 @@ let
   # CLI for this, and a room shouldn't grow a closure for a field nobody set.
   wantsAudio = lib.any (s: s.audio.input != "") (lib.attrValues cfg.scenes);
   switchAudio = lib.optionalString wantsAudio "${pkgs.switchaudio-osx}/bin/SwitchAudioSource";
+
+  # The same rule for a launchd agent rather than a closure: a machine whose
+  # scenes are all hand-entered runs no daemon at all. `haus.focus.triggers`
+  # has no `enable` because this IS the enable — declaring a condition is what
+  # asks for the thing that checks it, and an enable beside it would be a second
+  # switch that can disagree with the data.
+  hasWhen =
+    s:
+    s.when.time != ""
+    || s.when.days != [ ]
+    || s.when.wifi != [ ]
+    || s.when.power != "any"
+    || s.when.displays != null;
+  wantsTriggers = lib.any hasWhen (lib.attrValues cfg.scenes);
 
   engine = pkgs.runCommand "focus" { } ''
     mkdir -p $out/bin
@@ -143,6 +172,18 @@ lib.mkMerge [
       names = lib.attrNames cfg.scenes;
       claimed = lib.intersectLists reserved names;
       malformed = lib.filter (n: builtins.match "[A-Za-z0-9][A-Za-z0-9_-]*" n == null) names;
+      # A window is read by a shell that can only answer yes or no, so a
+      # misspelling has no way to complain at 09:00 — it just never matches.
+      # That is the "degrades to silence" shape this layer refuses everywhere
+      # else, and eval is the only place it can be caught.
+      window = n: cfg.scenes.${n}.when.time;
+      badWindow =
+        n:
+        window n != ""
+        && builtins.match "([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]" (window n) == null;
+      emptyWindow = n: window n != "" && lib.substring 0 5 (window n) == lib.substring 6 5 (window n);
+      badWindows = lib.filter badWindow names;
+      emptyWindows = lib.filter emptyWindow names;
     in
     [
       {
@@ -162,6 +203,25 @@ lib.mkMerge [
           a plain scene name. A scene name is typed after `focus scene`, so it
           has to be one word: letters, digits, `_` and `-`, not starting with
           `-`.
+        '';
+      }
+      {
+        assertion = badWindows == [ ];
+        message = ''
+          haus.focus.scenes.${lib.concatStringsSep " / " badWindows}.when.time is
+          not a daily window. Write it as HH:MM-HH:MM in 24-hour time, e.g.
+          "09:00-17:00" — an end earlier than the start wraps midnight, so
+          "22:00-06:00" is one night. The engine can only answer yes or no about
+          a window, so anything else would simply never match.
+        '';
+      }
+      {
+        assertion = emptyWindows == [ ];
+        message = ''
+          haus.focus.scenes.${lib.concatStringsSep " / " emptyWindows}.when.time
+          opens and closes at the same minute, so it can never hold and the
+          scene would never be entered. For a whole day, leave `when.time`
+          unset and say the rest of the condition instead.
         '';
       }
     ];
@@ -210,6 +270,34 @@ lib.mkMerge [
       ];
       WatchPaths = [ "/Users/${username}/Library/DoNotDisturb/DB" ];
       RunAtLoad = false;
+    };
+  };
+
+  # The trigger daemon: one `focus auto` tick every interval, and only on a
+  # machine where some scene declared a condition (`wantsTriggers`).
+  #
+  # RunAtLoad is FALSE on purpose, and it is the launchd GUI race rather than
+  # taste: a tick can enter a scene, and entering one can `open -a` an app and
+  # talk to System Events — both of which park at cold boot before the Aqua
+  # session is up (see modules/lib/gui-wait.nix). Waiting one interval costs at
+  # most `triggers.interval` seconds after login and needs none of that
+  # machinery. It also loses nothing: the first tick after a fresh state file
+  # treats whatever holds as an edge, so logging in at 09:30 inside a 09:00
+  # window still lands in the scene.
+  #
+  # Logs go where every other agent in this repo puts them, and they are the
+  # answer to the only question a trigger daemon ever gets asked — "why did my
+  # Mac just go quiet?"
+  launchd.user.agents.focus-auto = lib.mkIf wantsTriggers {
+    serviceConfig = {
+      ProgramArguments = [
+        "${engine}/bin/focus"
+        "auto"
+      ];
+      StartInterval = cfg.triggers.interval;
+      RunAtLoad = false;
+      StandardOutPath = "/tmp/focus-auto.out.log";
+      StandardErrorPath = "/tmp/focus-auto.err.log";
     };
   };
 

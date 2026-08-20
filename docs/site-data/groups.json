@@ -1519,11 +1519,13 @@
           "hush",
           "am I in do not disturb",
           "set my mac up for recording",
-          "stop the screen sleeping while I present"
+          "stop the screen sleeping while I present",
+          "go quiet automatically in the evening",
+          "how do I make a scene start on its own"
         ],
-        "cli": "focus on|off|toggle|status · focus scene <name>|off|list"
+        "cli": "focus on|off|toggle|status · focus scene <name>|off|list · focus auto --probe"
       },
-      "blurb": "One quiet switch: Do Not Disturb, an optional status somewhere else, and your own hooks on both edges — plus the named states (`scenes`) around it, of which quiet is the built-in one.",
+      "blurb": "One quiet switch: Do Not Disturb, an optional status somewhere else, and your own hooks on both edges — plus the named states (`scenes`) around it, of which quiet is the built-in one. A scene can carry a `when` (a daily window, a network, the power source, the screens) and be entered for you, on a rule that never overrides a state you chose.",
       "exports": [
         "focus"
       ],
@@ -1531,7 +1533,7 @@
       "namespaces": [
         "focus"
       ],
-      "optionCount": 16,
+      "optionCount": 22,
       "order": 90,
       "title": "Focus"
     },

@@ -189,11 +189,17 @@ let
       "scenes.<name>.hooks"
       "scenes.<name>.preventSleep"
       "scenes.<name>.restorePreviousState"
+      "scenes.<name>.when.days"
+      "scenes.<name>.when.displays"
+      "scenes.<name>.when.power"
+      "scenes.<name>.when.time"
+      "scenes.<name>.when.wifi"
       "slack.enable"
       "slack.snooze"
       "slack.statusEmoji"
       "slack.statusText"
       "slack.tokenCommand"
+      "triggers.interval"
     ];
     fonts = [
       "mono.baseSize"
@@ -453,6 +459,13 @@ let
       # this mic" and a shared desktop may ship it, but the arbitrary script a
       # scene runs is a person's, not a published desktop's.
       "scenes.<name>.hooks"
+      # A trigger condition is a taste — "quiet in the evening", "docked means
+      # two screens" — with exactly one exception: an SSID names one router in
+      # one building, which is a fact about a place the way
+      # `haus.displays.<uuid>` is a fact about a desk. That asymmetry is why
+      # `when.displays` is a COUNT: it keeps the docked trigger shareable while
+      # the network one stays yours.
+      "scenes.<name>.when.wifi"
       "slack.tokenCommand"
     ];
     fonts = [ "mono.package" ];
@@ -925,9 +938,9 @@ let
     focus = {
       title = "Focus";
       order = 90;
-      blurb = "One quiet switch: Do Not Disturb, an optional status somewhere else, and your own hooks on both edges — plus the named states (`scenes`) around it, of which quiet is the built-in one.";
+      blurb = "One quiet switch: Do Not Disturb, an optional status somewhere else, and your own hooks on both edges — plus the named states (`scenes`) around it, of which quiet is the built-in one. A scene can carry a `when` (a daily window, a network, the power source, the screens) and be entered for you, on a rule that never overrides a state you chose.";
       agent = {
-        cli = "focus on|off|toggle|status · focus scene <name>|off|list";
+        cli = "focus on|off|toggle|status · focus scene <name>|off|list · focus auto --probe";
         asks = [
           "make my mac quiet"
           "turn on do not disturb"
@@ -935,6 +948,8 @@ let
           "am I in do not disturb"
           "set my mac up for recording"
           "stop the screen sleeping while I present"
+          "go quiet automatically in the evening"
+          "how do I make a scene start on its own"
         ];
       };
     };
