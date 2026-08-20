@@ -225,9 +225,27 @@ log "claimed $SESSION (busy: $(printf '%s' "$busy" | tr '\n' ' '))"
 # so "restore" and "new" are the same call. No trailing command: we want the
 # session's own login shell, which is $SHELL above.
 zmx attach "$SESSION" 2> >(tee -a "$LOG" >&2)
-log "zmx exited with code $?"
+rc=$?
+log "zmx exited with code $rc"
 
-# zmx has exited (detach, the shell exited, or an error) — fall back to a plain
-# shell so the ghostty window stays open rather than vanishing with the
-# evidence.
+# ── one ^D, not two ──────────────────────────────────────────────────────────
+# A clean exit ends the WINDOW. `zmx attach <name>` with no trailing command
+# returns 0 whenever the session is over — a detach, the shell exiting, and
+# (measured 2026-08-19) whatever the shell exited WITH: `exit 7` inside the
+# session still comes back 0 out here, because the code being read is zmx's
+# own, not the shell's. So 0 means "the session is over" and nothing else, and
+# the honest answer to that is to end this process too and let ghostty close
+# the surface.
+#
+# This fell through to `run_shell` unconditionally until 2026-08-19, and that
+# is what put TWO shells in every window: ^D ended the session and landed you
+# in a sessionless login zsh that needed a SECOND ^D to close the window. The
+# fallback is still here for the case it was actually written for — a non-zero
+# rc is zmx failing rather than a session ending, and a window that vanishes
+# takes the error with it — but only a failure reaches it now. Even then the
+# screen is not the only copy: zmx's stderr is tee'd to $LOG above.
+#
+# A lane window has answered this way since it existed (lanes/lane-open.sh
+# execs `zmx attach` and holds only on a non-zero rc). Same rule, same reason.
+[ "$rc" -eq 0 ] && exit 0
 run_shell
