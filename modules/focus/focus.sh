@@ -819,7 +819,7 @@ doctor() {
     if [ "${triggered:-0}" = 0 ]; then
         echo "  [--] triggers: no scene declares 'when' — nothing enters a scene for you"
     else
-        echo "  [ok] triggers: $triggered scene(s) with a condition — 'focus auto --probe'"
+        echo "  [ok] triggers: $triggered $([ "$triggered" = 1 ] && echo scene || echo scenes) with a condition — 'focus auto --probe'"
         echo "       prints what each probe reads and what every condition makes of it"
         if fact_wanted wifi && [ -z "$(read_wifi)" ]; then
             echo "  [!!] triggers: the Wi-Fi SSID reads empty here, and a wifi condition can"
