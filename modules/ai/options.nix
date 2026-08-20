@@ -158,11 +158,11 @@ in
 
         Write it client-neutrally: the same text reaches whichever agent the ⌘A
         pane spawns, so a line about a Claude-only skill or file path is noise
-        to the others. When set, haus prepends two short sections of its
+        to the others. When set, haus prepends three short sections of its
         own — a note that the file is generated and where to actually edit it
-        (with THAT client's path), and the `holt` worktree etiquette, since
-        haus ships `holt` and that rule is what keeps it working — then your
-        text.
+        (with THAT client's path), the `holt` worktree etiquette, since haus
+        ships `holt` and that rule is what keeps it working, and the screen
+        etiquette that pairs with `agent-desktop-guard` — then your text.
 
         Empty (the default) writes nothing at all, for any client, so a
         hand-managed instructions file is never clobbered just to inject
