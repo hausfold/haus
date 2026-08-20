@@ -37,7 +37,10 @@
 #                               older than ttl (default 20s). One winner among
 #                               concurrent callers; returns immediately
 #   holt-cache sync [timeout]   refresh in the FOREGROUND, bounded by timeout
-#                               (default 8s), and print the result. Exit 1 if
+#                               (default 6s — deliberately UNDER the 8s the
+#                               skeleton fades at, since a default equal to the
+#                               deadline is a default that always misses it),
+#                               and print the result. Exit 1 if
 #                               holt was too slow or answered with nonsense —
 #                               the caller then decides between a stale read
 #                               and saying so out loud
@@ -149,7 +152,7 @@ case "${1:-read}" in
     ;;
 
   sync)
-    timeout="${2:-8}"
+    timeout="${2:-6}"
     command -v holt >/dev/null 2>&1 || exit 1
     n=$(now)
     # No lock, no refresh — somebody else is already paying this cost, and

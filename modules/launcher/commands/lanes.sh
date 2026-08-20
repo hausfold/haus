@@ -55,9 +55,12 @@
 # empty; it used to be an undocumented `/` prefix with nothing on screen to
 # suggest it existed, and a typo'd lane name fell through to `holt <typo>/<typo>`,
 # which does not search anything — it SPAWNS A LANE. A leading `/` is still
-# accepted and stripped, both because that is the spelling the old header
-# taught and because it is the one way to force a search for a term that would
-# otherwise fuzzy-match a row.
+# accepted and stripped, because that is the spelling the old header taught.
+# It is NOT a guaranteed escape hatch, and don'"'"'t document it as one: pounce
+# scores the subtitle as well as the title, and a subtitle here is a branch
+# name or a directory, both full of slashes — so `/foo` can still match a row,
+# and a row that matches is a row that commits. A term that collides with a
+# lane belongs in ⌘⇧F, which searches every window and has no rows to lose to.
 #
 # One `zmx history` per session, run in PARALLEL and individually bounded —
 # serial greps across a dozen sessions is the one shape guaranteed to walk off
@@ -69,10 +72,19 @@ export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/s
 PROMPT="Lanes"
 ICON="point.3.connected.trianglepath.dotted"
 
-FRESH=120       # serve the cached lane list up to this old — the zmx union
-                # covers anything spawned since, which is the half that moves
-KICK_AFTER=20   # …and warm it in the background past this, so the next open
-                # is reading something recent. Matches the bar's own TTL
+FRESH=900       # serve the cached lane list up to this old — the same window
+                # the bar's agents popup already trusts, and the zmx union
+                # covers anything SPAWNED since, which is the half that moves.
+                # Wide on purpose: the bar only warms this cache while an agent
+                # is running (agents.sh returns before its kick when nothing
+                # is), so on the very machine you open this picker to resume a
+                # parked lane, every open past the window pays SYNC_BOUND
+STALE=3600      # …and this is the last resort, when a bounded live refresh
+                # didn't land either. Rows this old can name a lane that has
+                # since been reaped — which is survivable only because opening
+                # a dead row now REPORTS, rather than exiting into the void
+KICK_AFTER=20   # warm it in the background past this, so the next open is
+                # reading something recent. Matches the bar's own TTL
 SYNC_BOUND=5    # a COLD cache is worth waiting for, but only inside the 8s
                 # skeleton, and only once — a miss kicks a full-length refresh
 HISTORY_BOUND=4 # per-session `zmx history` in the content search
@@ -134,6 +146,38 @@ focus_session() {
   "$HOME/.config/haus/term/raise-session.sh" "$1" >/dev/null 2>&1
 }
 
+# Wake a parked lane, and SAY SO when it can't be woken.
+#
+# This was `exec holt <repo>/<lane>` — which is right up to the moment the row
+# was built from a cache that has since gone stale. A lane reaped in that
+# window is gone from holt's registry, `matchLane` answers "no lane named …"
+# (holt's drop.go) and exits non-zero, and that message goes to the pounce
+# daemon's stderr, which nobody reads. A row commit is `.linger`, so the window
+# has already faded by then: the palette closes and nothing happens — the exact
+# failure `bail` exists to end, arriving through the one door that had no
+# `bail` in it. holt's own words go in the row, so a refusal for some OTHER
+# reason (a dirty tree, a git error) doesn't get reported as "the lane is gone".
+# holt's stderr goes to a FILE rather than through `$(…)`: a command
+# substitution stays open until every inherited descriptor is closed, so a
+# window holt spawns and leaves running would hold this script open forever.
+# A plain redirect waits for holt and nothing else — the lifetime `exec` had.
+open_lane() {
+  local log err rc
+  log="$(mktemp "${TMPDIR:-/tmp}/haus-lane-open.XXXXXX" 2>/dev/null)" || log=""
+  if [ -n "$log" ]; then
+    holt "$1/$2" >/dev/null 2>"$log"
+    rc=$?
+    err="$(tr '\n' ' ' <"$log" | cut -c1-160)"
+    rm -f "$log"
+  else
+    holt "$1/$2" >/dev/null 2>&1
+    rc=$?
+    err=""
+  fi
+  [ "$rc" -eq 0 ] && exit 0
+  bail "Could not open $1 · $2" "${err:-holt exited $rc}" "questionmark.circle"
+}
+
 # `holt.<repo>.<lane>` → `<repo>/<lane>`, holt's own address for the lane. The
 # lane name is dot-free and a repo name is not (hausfold.co), so the split is at
 # the LAST dot, never the first.
@@ -156,7 +200,7 @@ if [ -n "$lanes_json" ]; then
 else
   lanes_json="$(holt-cache sync "$SYNC_BOUND" 2>/dev/null)"
   if [ -z "$lanes_json" ]; then
-    lanes_json="$(holt-cache read 86400 2>/dev/null)"
+    lanes_json="$(holt-cache read "$STALE" 2>/dev/null)"
     holt-cache kick 0 >/dev/null 2>&1
   fi
 fi
@@ -249,9 +293,14 @@ if [ -z "$rows" ]; then
   bail "No lanes yet" "holt has nothing parked and nothing running" "zzz"
 fi
 
-# --chain enter: a commit here is never the end — either we focus a window (a
-# fast next act) or the typed term re-invokes the picker with match rows — so
-# the window holds its skeleton instead of fading out and popping back.
+# --chain enter: the TYPED-text commit is never the end — it re-invokes the
+# picker with match rows — so the window holds its skeleton instead of fading
+# out and popping back. It says nothing about a row pick: `chainActions` is
+# read only in pounce'"'"'s `commitText`, and `buildCommit`'"'"'s `.plain` case
+# hard-codes `.linger` whatever this flag says, so a picked lane always fades.
+# That is fine — focusing a window is a fast next act — but it does mean the
+# lane half of this picker has no skeleton to present into, which is why
+# `open_lane` reports a failure as a fresh row rather than into the old window.
 # --actions: with the filter empty, name what Return does with what you typed.
 # That bar is the only place the transcript search can announce itself, because
 # it is the only chrome pounce draws when nothing matched.
@@ -272,7 +321,7 @@ case "$picked" in
     sess="holt.${repo}.${lane}"
     focus_session "$sess" && exit 0
     # No window: parked (or the window was ⌘W'd). holt's open seam spawns it back.
-    exec holt "${repo}/${lane}"
+    open_lane "$repo" "$lane"
     ;;
 esac
 
@@ -303,17 +352,26 @@ while IFS=$'\t' read -r sess _state _client _dir; do
   # not a fault, and it has nothing to say to anyone.
   (
     { /usr/bin/perl -e 'alarm shift; exec @ARGV' "$HISTORY_BOUND" zmx history "$sess"; } 2>/dev/null |
-      grep -iF -- "$term" | tail -1 | cut -c1-120 | tr '\t' ' ' >"$tmp/$sess"
+      grep -iF -- "$term" | tail -1 | cut -c1-120 | tr '\t' ' ' >"$tmp/$n"
   ) &
 done <<EOF
 $states
 EOF
 wait
 
+# Keyed by the loop INDEX, never by the session name. A lane name is its branch
+# minus `worktree-` (holt's Entry.Name), and a branch may hold a slash — which
+# in `$tmp/$sess` is a directory that doesn't exist, so that one lane's redirect
+# fails, its subshell writes nothing, and it silently never matches anything.
+# The second pass walks the same list in the same order, so the index is a
+# join key with no characters in it at all.
 matches=""
+i=0
 while IFS=$'\t' read -r sess _state _client _dir; do
   [ -n "$sess" ] || continue
-  hit="$(cat "$tmp/$sess" 2>/dev/null)"
+  [ "$i" -ge "$n" ] && break
+  i=$((i + 1))
+  hit="$(cat "$tmp/$i" 2>/dev/null)"
   [ -n "$hit" ] || continue
   case "$sess" in
     holt.*)
@@ -353,13 +411,11 @@ focus_session "$sess" && exit 0
 # for a lane. A `term.<n>` shell is not a holt address, and handing one to
 # `holt` spawns a lane in a repo named "term".
 case "$sess" in
-  # `exec` never runs the EXIT trap, so the scratch dir is swept by hand here
-  # rather than left for the next reboot to notice.
   holt.*)
     address="$(lane_address "$sess")"
     rm -rf "$tmp"
     trap - EXIT
-    exec holt "$address"
+    open_lane "${address%%/*}" "${address#*/}"
     ;;
 esac
 exit 0
