@@ -509,6 +509,14 @@ pr_style() {
     contained) PR_TEXT="$GIT_MERGE maybe merged"; PR_COL="$OVERLAY1" ;;
     # Nothing landed and nothing to ship. Drawing "no PR yet" on every fresh
     # lane was a row per agent that said only "this is a normal branch".
+    #
+    # holt's `fresh` (via never-diverged — the lane has never committed) lands
+    # here too, and deliberately: it is the state whose whole content is "nothing
+    # has happened yet". It used to arrive as `yes`, because a branch cut from
+    # main is trivially an ancestor of it, so every lane drew a green `merged`
+    # row from the second it was spawned. Needs a holt that reports it
+    # (hausfold/holt#48); an older one still says `yes`, and still draws
+    # `merged` — the pill is the reader here, not the judge.
     *) PR_TEXT="" ;;
   esac
 }
