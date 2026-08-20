@@ -163,21 +163,32 @@ GAP_SIDE_EXTERNAL="@gap_side_external@"
 # With no tiler installed there is no parking either, so the old
 # frontmost-process probe stays as the fallback.
 #
-# The retry loop is the palette's half of the same question. ⌘Y is a chord AND
-# a palette row (Peek Files), and a pounce command commits with the palette
-# still fading — `.linger`, ~0.4 s, focus handed back to the captured window
-# only after the client has been spawned. Pounce's own window clears the
-# sanity gate below, so without the wait a palette-summoned popup would size
-# itself to the palette. Ask again until pounce is no longer what has focus,
-# then fall through to the centered default if it never yields. `--nowait` is
-# for the one caller that only wants a POINT — the tiled branch's display probe
-# — where a missed answer costs a guess at which screen you are on (and the
-# palette is on that screen anyway), not a misplaced window. It would otherwise
-# pay the whole 0.6 s on every palette-spawned --tiled popup.
+# The retry loop is the palette's half of the same question, and it belongs to
+# the FALLBACK alone. ⌘Y is a chord AND a palette row (Peek Files), and a pounce
+# command commits with the palette still fading — `.linger`, ~0.4 s, focus
+# handed back to the captured window only after the client has been spawned.
+# Pounce's own window clears the sanity gate below, so a frontmost-process probe
+# run in that window would size the popup to the palette; ask again until pounce
+# is no longer what has focus, then fall through to the centered default if it
+# never yields. AeroSpace never sees the palette at all (it is in no workspace
+# and in no `list-windows --all`), so on that path the answer is already the
+# window underneath — retrying a failed AX read there would just burn a spawn
+# pair and 50 ms per turn on a keystroke, so it doesn't. The Pounce arm stays
+# as the belt: `%{app-name}` is `Pounce` (CFBundleName) where System Events'
+# process name is `pounce` (CFBundleExecutable), which is why the two branches
+# spell it differently.
 #
-# HAUS_WINDOW_BACKEND=ghostty forces the tiler-less path, the same escape hatch
-# focused-session.sh carries, so the fallback can be feel-tested on a Mac that
-# does have AeroSpace.
+# `--nowait` is for the one caller that only wants a POINT — the tiled branch's
+# display probe — where a missed answer costs a guess at which screen you are on
+# (and the palette is on that screen anyway), not a misplaced window. It would
+# otherwise pay the whole 0.6 s on every palette-spawned --tiled popup.
+#
+# HAUS_WINDOW_BACKEND picks the backend by hand, the same two spellings
+# focused-session.sh takes, so either path can be feel-tested anywhere. Same
+# question, NOT the same fallback though: with no tiler that file asks GHOSTTY
+# over Apple Events, which needs no Accessibility grant, while this one still
+# needs AX to read a frame at all — Ghostty's dictionary can name the front
+# window but not measure it.
 
 # ax_frame PID TITLE — "X Y W H" for that process's window named TITLE, falling
 # back to its AXFocusedWindow when no title matches (a ⌘N window shares its
@@ -222,11 +233,16 @@ APPLESCRIPT
 }
 
 focused_frame() {
-  local out="" x y w h i tries=12 focused pid title
+  local out="" x y w h i tries=12 backend focused pid title
   [ "${1:-}" = "--nowait" ] && tries=1
 
+  backend="${HAUS_WINDOW_BACKEND:-}"
+  if [ -z "$backend" ]; then
+    if command -v aerospace >/dev/null 2>&1; then backend=aerospace; else backend=ghostty; fi
+  fi
+
   for i in $(seq 1 $tries); do
-    if [ "${HAUS_WINDOW_BACKEND:-}" != "ghostty" ] && command -v aerospace >/dev/null 2>&1; then
+    if [ "$backend" = "aerospace" ]; then
       # pid, app, title — the title is last so a title containing "|" is safe.
       focused=$(aerospace list-windows --focused --format '%{app-pid}|%{app-name}|%{window-title}' 2>/dev/null)
       case "$focused" in
@@ -235,7 +251,11 @@ focused_frame() {
           pid="${focused%%|*}"
           title="${focused#*|}"
           title="${title#*|}"
+          # The tiler already answered about a window that is NOT the palette,
+          # so an empty frame here is AX refusing (a denied Automation prompt,
+          # a window that vanished) — a thing no amount of waiting fixes.
           out=$(ax_frame "$pid" "$title")
+          break
           ;;
       esac
     else
@@ -290,10 +310,20 @@ screen_probe() {
     // by geom()'"'"'s tiled branch and by on_screen(). Both coordinate systems are
     // top-left origin (CGEventGetLocation is global display space), so they are
     // interchangeable.
+    //
+    // ObjC.unwrap FIRST, and then test. An NSDictionary lookup that MISSES
+    // comes back as an ObjC nil wrapper whose `typeof` is "function" — truthy
+    // in JS — so `ex && ey` on the raw values is true even with nothing in the
+    // environment, and the cursor branch below was dead code from the day it
+    // was written: every unset-env probe parsed NaN, compared false against
+    // every screen and silently answered "the primary display". Invisible on a
+    // one-screen Mac and wrong on every other, since it is the ONLY thing that
+    // decides which display a centred popup opens on.
     var env = $.NSProcessInfo.processInfo.environment;
-    var ex = env.objectForKey("HAUS_PROBE_X"), ey = env.objectForKey("HAUS_PROBE_Y");
+    var ex = ObjC.unwrap(env.objectForKey("HAUS_PROBE_X"));
+    var ey = ObjC.unwrap(env.objectForKey("HAUS_PROBE_Y"));
     var loc = (ex && ey)
-      ? { x: parseFloat(ObjC.unwrap(ex)), y: parseFloat(ObjC.unwrap(ey)) }
+      ? { x: parseFloat(ex), y: parseFloat(ey) }
       : $.CGEventGetLocation($.CGEventCreate($()));
     var screens = $.NSScreen.screens;
     if (screens.count === 0) {
