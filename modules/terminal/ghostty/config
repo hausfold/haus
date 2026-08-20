@@ -45,29 +45,34 @@ macos-window-shadow = false
 # Option is sent into the terminal as Alt, so ⌥-chords reach the shell instead
 # of composing accented characters.
 #
-# ghostty owns SHIFT (see mouse-shift-capture below), so ⌘⇧+Click is the
-# dependable way into its link opener from any window, whatever program has
-# claimed the mouse — ⇧ frees the pointer from that program, ⌘ is what makes
-# ghostty read a link under it, and ⌘⇧+hover is what draws the preview. Both
-# halves are ghostty's own rule: `link-url` hard-wires the hover condition to
-# cmd and ghostty 1.3.1 cannot configure `link` ("TODO: This can't currently be
-# set!").
+# ⌘+Click is ghostty's link opener, and ⌘+hover is what draws the preview —
+# from any window, whatever program has claimed the mouse. Both halves are
+# ghostty's own rule: `link-url` hard-wires the hover condition to cmd, and
+# ghostty 1.3.1 cannot configure `link` ("TODO: This can't currently be set!").
+# NO SHIFT. ⌘ alone is the gesture; ⇧ is for selection (see mouse-shift-capture
+# below) and adding it to a link click buys nothing.
 #
-# Plain ⌘+Click is NOT a link gesture inside a mouse-tracking program, and
-# never can be: SGR mouse reports encode shift, alt and ctrl and have no bit
-# for super, so ⌘+Click arrives at an agent TUI indistinguishable from a bare
-# click. Under zellij a patch of ours resolved links from the cell's own anchor
-# on a naked click; with the multiplexer gone that gesture belongs to whatever
-# program owns the pane, and ⌘⇧+Click is the escape hatch.
+# Why ⌘ reaches ghostty at all inside a mouse-tracking agent TUI: ghostty
+# CONSUMES a cmd-click as a link click rather than forwarding it. That it
+# couldn't forward it is also true — SGR mouse reports encode shift, alt and
+# ctrl and have no bit for super — but that fact is about what the program
+# would see, not about whether ghostty acts first, and reading it the other way
+# is what put a phantom ⇧ in this comment (and on the cheatsheet, and in
+# default.nix's patch epitaph) until 2026-08-20. What the missing super bit
+# really costs is the OTHER direction: a program can never distinguish ⌘+Click
+# from a bare click, so it can't opt out — which is fine, because ghostty never
+# hands it over. Under zellij a patch of ours resolved links from the cell's own
+# anchor on a NAKED click; with the multiplexer gone a bare click belongs to
+# whatever program owns the window, and ⌘ is what asks ghostty for the link.
 macos-option-as-alt = true
 
 # Shift is the ONE modifier that always reaches ghostty, whatever program owns
-# the window — that is what makes ⌘⇧+Click a dependable way out of an agent TUI
-# and into ghostty's own link opener, and ⇧-drag a dependable way into its
-# selection. `false` is already the default, but at that setting a
-# program can flip it with XTSHIFTESCAPE; `never` is the same rule with the
-# override refused, so no application can quietly claim the one gesture the
-# whole link design keeps in reserve.
+# the window — that is what makes ⇧-drag a dependable way into ghostty's own
+# selection over any TUI's mouse grab. `false` is already the default, but at
+# that setting a program can flip it with XTSHIFTESCAPE; `never` is the same
+# rule with the override refused, so no application can quietly claim the one
+# gesture the copy story depends on. (It is NOT what makes the link opener
+# work — that is ⌘ alone, above.)
 mouse-shift-capture = never
 
 # No progress bar across the top of the window. Agent CLIs (Claude Code among

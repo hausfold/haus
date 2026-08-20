@@ -29,8 +29,12 @@
 > `copy_command` filter that stripped zellij's wrapped-line padding on a mouse
 > selection — has no Ghostty counterpart and is not ported; ⌘C over a ⇧-drag
 > selection is the whole copy story now. `naked-click-links` went with it: inside
-> a mouse-tracking program the click belongs to the program (an SGR mouse report
-> has no super bit), so ⌘⇧+click is the only way into Ghostty's own opener. The
+> a mouse-tracking program a bare click belongs to the program, so ⌘+click —
+> which Ghostty consumes itself rather than forwarding — is the only way into
+> its own opener. (This paragraph said ⌘⇧+click until 2026-08-20, reasoning from
+> the SGR mouse report's missing super bit; that bit governs what the PROGRAM
+> could see, not whether Ghostty acts first, and shift was never part of the
+> gesture.) The
 > other four patches were moot rather than lost — the per-patch verdicts are in
 > `modules/terminal/default.nix`, where the overlay used to be.
 >

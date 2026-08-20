@@ -174,9 +174,9 @@ in
   #   naked-click-links        open the OSC 8 / regex link under a BARE click.
   #                            NOT replaced: inside a mouse-tracking program the
   #                            click belongs to the program, and ghostty's own
-  #                            opener needs ⌘⇧+click (see ghostty/config's
-  #                            macos-option-as-alt block for why super can never
-  #                            reach it through an SGR mouse report).
+  #                            opener is ⌘+click — no shift (see ghostty/config's
+  #                            macos-option-as-alt block; ghostty consumes the
+  #                            cmd-click itself rather than forwarding it).
   #
   # `copy-clean.pl` went the same way and is the one outright loss: it was a
   # zellij `copy_command` filter that stripped the padding zellij adds to
