@@ -642,6 +642,16 @@ let
   # entirely, so the generated config stays readable and a diff shows intent.
   items = config.haus.launcher.items;
 
+  # An entry says something when it differs from pounce's own defaults — which,
+  # for the two context predicates, means a non-empty list.
+  itemSpeaks =
+    item:
+    !item.listed
+    || item.alias != null
+    || item.hotkey != null
+    || item.workspaces != [ ]
+    || item.bundleIds != [ ];
+
   itemsJSON = lib.mapAttrs (
     _: item:
     lib.optionalAttrs (!item.listed) { enabled = false; }
@@ -653,7 +663,18 @@ let
     // lib.optionalAttrs (item.hotkey != null) {
       hotkey = lib.concatStringsSep " " (stepStrings item.hotkey);
     }
-  ) (lib.filterAttrs (_: item: !item.listed || item.alias != null || item.hotkey != null) items);
+    # The context predicates: where the ROW is listed, never where the hotkey
+    # fires. Always the list form — pounce takes a bare string too, but a
+    # generated file has no reason to use the shorthand.
+    // lib.optionalAttrs (item.workspaces != [ ]) { inherit (item) workspaces; }
+    // lib.optionalAttrs (item.bundleIds != [ ]) { inherit (item) bundleIds; }
+  ) (lib.filterAttrs (_: itemSpeaks) items);
+
+  # Items whose ROW is scoped to a workspace. They are the second reader of the
+  # recency file below, and the reason it is written even where the ⌃⇥ page walk
+  # isn't: pounce answers "which page am I on" from that file alone, and with no
+  # file it stops filtering rather than guessing.
+  workspaceScopedItems = lib.filterAttrs (_: item: item.workspaces != [ ]) items;
 
   # ---- validation: the two ways an items entry fails silently ----------------
   #
@@ -986,6 +1007,34 @@ lib.mkIf config.haus.launcher.enable {
   # Files). So a host that nulls this wants to name another hotkey beside it, or
   # it is down to ⌘Space → "emoji".
   haus.launcher.items."mode:emoji".hotkey = lib.mkDefault "fn";
+
+  # The three rows that act on THE WINDOW YOU WERE LOOKING AT — ⌘↵'s agent lane,
+  # ⌘N's shell window and its ⌘⇧N --stay twin — are listed only on the terminal
+  # pages.
+  #
+  # Not tidiness: each of them asks lane-cwd.sh for the focused window's
+  # directory, and a window with no zmx session behind it (a browser, Finder,
+  # anything that isn't a terminal) answers nothing. New Agent Lane then falls
+  # back to $HOME, finds it isn't a git repo and refuses out loud; New Shell
+  # Window opens a shell in $HOME. Offering a row where it can only disappoint
+  # you is worse than not offering it, and the palette still has the row that
+  # DOES work from anywhere — Spawn Agent asks which repo instead of inheriting
+  # one, which is exactly why it is not in this list.
+  #
+  # "T" covers T and every T/<repo> lane page (lane-open.sh tiles them there),
+  # the same prefix the ⌃⇥ walk reads. mkDefault, so a host can hand them back:
+  #
+  #   haus.launcher.items."cmd:lane-here".workspaces = [ ];              # everywhere
+  #   haus.launcher.items."cmd:lane-here".bundleIds = [ "com.mitchellh.ghostty" ];
+  #
+  # — the second being the tighter predicate of the two, for a terminal window
+  # dragged off T. The page is what haus scopes by because the page is what the
+  # lane rooms already agree about.
+  haus.launcher.items = lib.mkIf lanesEnabled {
+    "cmd:lane-here".workspaces = lib.mkDefault [ "T" ];
+    "cmd:shell-here".workspaces = lib.mkDefault [ "T" ];
+    "cmd:shell-here-stay".workspaces = lib.mkDefault [ "T" ];
+  };
 
   # haus.launcher.fnKey = "remap": Fn → F19 at the HID layer, declared HERE and
   # not left to the daemon, even though pounce can install it itself.
@@ -1422,13 +1471,20 @@ lib.mkIf config.haus.launcher.enable {
             ];
           };
         }
-        // lib.optionalAttrs lanesEnabled {
+        // lib.optionalAttrs (lanesEnabled || workspaceScopedItems != { }) {
           # ⌃⇥ / ⌃⇧⇥ — the MRU walk over the non-empty T/* lane pages
           # (lane-open.sh tiles every repo's lanes onto T/<repo>). Recency
           # comes from the file windows' exec-on-workspace-change hook keeps,
           # so the walk and page-aware `caps t` agree about "last used".
+          #
+          # `mruFile` is the block's other job, and the reason this is written
+          # for a workspace-scoped ITEM too: it is also how pounce answers
+          # "which page am I on" when it decides whether to list a row. The WALK
+          # stays off in that case — `enabled` follows lanes, not the items —
+          # because the file is a fact about this machine and the chord is a
+          # feature the lane rooms turn on.
           pages = {
-            enabled = true;
+            enabled = lanesEnabled;
             key = "tab";
             modifiers = [ "ctrl" ];
             prefix = "T";

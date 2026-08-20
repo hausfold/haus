@@ -14,8 +14,11 @@
 # pounce's Ghostty-scoped tap instead, beside ⌘N's shell-here. That covers every
 # window you would actually press it from: every terminal window
 # are both Ghostty. The cost, paid knowingly, is that a lane can no longer be
-# started from a browser; the palette row this header makes (and Spawn Agent
-# beside it) is the answer there.
+# started from a browser — and the palette does not paper over it: this row is
+# LISTED only on the terminal pages (modules/launcher writes
+# `items."cmd:lane-here".workspaces = [ "T" ]`), because pressed from anywhere
+# else it inherits no repo, falls back to $HOME and refuses. Spawn Agent, which
+# asks which repo instead of inheriting one, is the answer there.
 #
 # Being a palette command rather than an AeroSpace `exec-and-forget` is what
 # makes the chord addressable at all: an app-scoped hotkey fires an ItemTarget

@@ -29,8 +29,12 @@
 # consumed only while Ghostty is frontmost and passed through untouched
 # everywhere else. That still covers every window the chord is really pressed
 # from — a zellij pane and a lane's own window are both Ghostty — and the price,
-# paid knowingly, is that a lane can no longer be started from a browser. The
-# palette (Spawn Agent, New Agent Lane) is the answer there.
+# paid knowingly, is that a lane can no longer be started from a browser.
+# Spawn Agent is the answer there: it asks which repo rather than inheriting the
+# focused window's, which is why it is the palette row that survives off the
+# terminal pages — New Agent Lane's row is scoped to them (see
+# modules/launcher's `items."cmd:lane-here".workspaces`) precisely because
+# everything below this line has nothing to work with from a browser.
 #
 # ── the cost of living outside the multiplexer: no cwd ───────────────────────
 # A zellij bind inherited the focused pane's directory for free. A chord bound
