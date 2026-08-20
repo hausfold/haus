@@ -105,6 +105,11 @@ def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
 
 | ($groups[0].namespaces // {}) as $g
 
+# One sentence per named recursive validator. Rendered under the safety line
+# because `recursive (display-selectors)` on its own names the rule without
+# stating it, and this file is the one a person edits with no docs page open.
+| ($groups[0].validators // {}) as $validators
+
 # Every namespace is registry-backed; `room-registry` rejects an unclassified
 # option before this renderer runs.
 | ($opts | group_by(room) | sort_by([ $g[.[0] | room].order, (.[0] | room) ])) as $rooms
@@ -186,10 +191,21 @@ def uninformative($d): ($d | ltrimstr(" ") | rtrimstr(" ")) as $t
                  | join("\n")) + "\n"
               + "  # docs: https://hausfold.co/docs/haus/reference/options/#\($o.key | slug)\n"
               + "  # desktop data: "
-              + (if $safety.desktopSafe == true then "safe"
-                 elif $safety.desktopSafe == false then "host-only"
-                 else "recursive (\($safety.validator))" end)
-              + "\n"
+              + (if $safety.desktopSafe == true then "safe\n"
+                 elif $safety.desktopSafe == false then "host-only\n"
+                 else "recursive (\($safety.validator))\n"
+                      # Indexed through a defaulted name, and defaulted again
+                      # after: jq ERRORS on `.[null]`, so a registry gap that
+                      # used to render `recursive (null)` and carry on would
+                      # otherwise abort `haus options` with a jq trace and
+                      # write no host file at all. Aligned under `desktop
+                      # data: ` rather than at the `type:` continuation, so a
+                      # wrapped type and a rule don't read as the same line.
+                      + (($validators[$safety.validator // ""].rule // "")
+                         | if (. | test("^[ \t]*$")) then ""
+                           else (wrap(56) | map("  #               " + .) | join("\n")) + "\n"
+                           end)
+                 end)
               + (if ($o.value | has("example")) and ($default != null) and (uninformative($default))
                  then "  #\n"
                       + "  # example:\n"
