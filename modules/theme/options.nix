@@ -200,16 +200,20 @@ in
         colour and don't follow this option. The base palette stays the same
         Nebelung grey either way — only the accent hue changes.
 
-        Zen means Zen's own UI, and the web is a separate story. haus places
-        the Nebelung userChrome/userContent pair, but userContent only styles
-        `about:` pages — github.com and youtube.com are themed by the Stylus
-        extension, whose Catppuccin-derived styles carry their OWN `accentColor`
-        var (default mauve) inside the extension's storage, where no stylesheet
-        can reach it. Declare `haus.zen.extensions.stylus` and haus
-        stamps that var with this accent and tells you, once, when there's a new
-        bundle to import; the import itself stays a click, because Stylus has no
-        file interface. Until you make it, the web keeps the accent you last
-        imported.
+        Zen means Zen's own UI, and the web is a second step. haus places the
+        Nebelung userChrome/userContent pair, and nebelung's userContent styles
+        `about:` pages only — github.com and youtube.com are Catppuccin-derived
+        *userstyles*, LESS source compiled rather than copied, which is why no
+        palette file haus writes reaches them on its own. Two options do,
+        differently. `haus.zen.userStyles` names the sites you want and haus
+        compiles them with this accent into that same userContent.css, so a
+        rebuild (and a Zen restart) recolours them with nothing to import.
+        `haus.zen.extensions.stylus` deploys the extension instead and stamps
+        the same accent into the bundle it hands you — the import stays a click,
+        because Stylus has no file interface, and until you make it the web
+        keeps the accent you last imported. What that click buys is what a
+        compiled sheet can't do: per-site toggles, self-updating styles, and
+        adding one without a rebuild.
 
         Both halves of that are pinned by the `accent-reach` flake check, which
         fingerprints every surface under three accents and fails if one starts

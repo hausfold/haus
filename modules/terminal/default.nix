@@ -391,6 +391,36 @@ in
       zenAccent =
         lib.toUpper (lib.substring 0 1 accent) + lib.substring 1 (lib.stringLength accent) accent;
       zenTheme = "${nebelungRoot}/zen/themes/${nb.title}/${zenAccent}";
+
+      # The sites half of Zen's user sheet (haus.zen.userStyles). nebelung's
+      # userContent.css covers `about:` pages and nothing else; this is the
+      # compiled Nebelung userstyles for the sites you named, appended to it, so
+      # one file goes into the profile either way and the activation below stays
+      # a single symlink.
+      #
+      # Appended rather than installed beside it because Firefox reads exactly
+      # one userContent.css per profile — there is no `.d` directory and no
+      # @import that would survive (see package-userstyles.nix). Order is
+      # deliberate: nebelung's `about:` rules first, the sites after, which is
+      # also the order they'd have been written in by hand.
+      # Sorted and deduped HERE rather than in the script: the list reaches the
+      # derivation through its environment verbatim, so `[ "github" "youtube" ]`
+      # and `[ "youtube" "github" ]` would otherwise be two store paths with
+      # byte-identical contents — a rebuild for a reordering, measured.
+      zenUserStyleSlugs = lib.unique (lib.sort (a: b: a < b) osConfig.haus.zen.userStyles);
+      zenUserStyles = pkgs.callPackage ./package-userstyles.nix {
+        bundle = "${nebelungRoot}/stylus/nebelung-stylus.json";
+        styles = zenUserStyleSlugs;
+        inherit (osConfig.haus.theme) accent;
+        flavor = nbFlavor;
+      };
+      zenUserContent =
+        if osConfig.haus.zen.userStyles == [ ] then
+          "${zenTheme}/userContent.css"
+        else
+          pkgs.runCommand "zen-userContent-${nbFlavor}-${accent}.css" { } ''
+            cat ${zenTheme}/userContent.css ${zenUserStyles} > "$out"
+          '';
       obsidianTheme = "${nebelungRoot}/obsidian/Nebelung";
       ghDashTheme = "${nebelungRoot}/gh-dash/themes/${nbFlavor}/catppuccin-${nbFlavor}-${accent}.yml";
 
@@ -1180,6 +1210,11 @@ in
       # palette rebuild propagates like every other port. Also flips on Firefox's
       # legacy userChrome/userContent stylesheets, which fresh profiles ship off.
       # Zen isn't installed here (themed-but-manual); the loop no-ops if absent.
+      #
+      # userContent is `zenUserContent`, not nebelung's file directly: with
+      # haus.zen.userStyles set it's the same file with the compiled site styles
+      # appended (see there). userChrome is nebelung's alone — that one themes
+      # Zen's OWN interface, and its selectors are Zen's.
       home.activation.zenNebelung = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
         zenProfiles="$HOME/Library/Application Support/zen/Profiles"
         if [ -d "$zenProfiles" ]; then
@@ -1188,7 +1223,7 @@ in
             chrome="$prof"chrome
             $DRY_RUN_CMD mkdir -p "$chrome"
             $DRY_RUN_CMD ln -sf "${zenTheme}/userChrome.css" "$chrome/userChrome.css"
-            $DRY_RUN_CMD ln -sf "${zenTheme}/userContent.css" "$chrome/userContent.css"
+            $DRY_RUN_CMD ln -sf "${zenUserContent}" "$chrome/userContent.css"
             userjs="$prof"user.js
             if [ ! -e "$userjs" ] || ! ${pkgs.gnugrep}/bin/grep -qF \
                 'toolkit.legacyUserProfileCustomizations.stylesheets' "$userjs"; then

@@ -1334,7 +1334,7 @@
     "zen": {
       "blurb": "Zen browser policy, extensions and the optional native tab bridge.",
       "kind": "room",
-      "optionCount": 8,
+      "optionCount": 9,
       "options": {
         "haus.zen.extensions": {
           "desktopSafe": false
@@ -1358,6 +1358,9 @@
           "desktopSafe": false
         },
         "haus.zen.tabBridge.enable": {
+          "desktopSafe": true
+        },
+        "haus.zen.userStyles": {
           "desktopSafe": true
         }
       },
@@ -1485,7 +1488,7 @@
         "zen",
         "developer"
       ],
-      "optionCount": 18,
+      "optionCount": 19,
       "order": 40,
       "title": "Development"
     },
