@@ -1592,7 +1592,7 @@
         ],
         "cli": "pounce"
       },
-      "blurb": "Pounce — the command palette, its daemon, its commands, and every Pounce setting haus exposes.",
+      "blurb": "The command palette: its daemon, its commands, and every Pounce setting haus exposes.",
       "exports": [
         "launcher"
       ],
@@ -1641,7 +1641,7 @@
         ],
         "cli": null
       },
-      "blurb": "Perch — the file shelf that grows out of the notch to catch what you drag at it.",
+      "blurb": "The file shelf that grows out of the notch to catch what you drag at it.",
       "exports": [],
       "kind": "room",
       "namespaces": [

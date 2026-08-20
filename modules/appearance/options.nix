@@ -55,7 +55,7 @@
         - Third-party apps' own font settings. Nothing outside haus follows
           `ui.scale` — they follow the display, which is why the line above
           matters.
-        - The perch shelf, which sizes itself from the screen because it hangs
+        - The shelf, which sizes itself from the screen because it hangs
           off the notch. Scaling the display shrinks its width in points by
           exactly the factor that makes a point bigger.
         - The menu bar's HEIGHT. Its type grows to a 1.25x ceiling and stops:

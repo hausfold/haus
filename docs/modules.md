@@ -50,7 +50,7 @@ darwinConfigurations.mymac = inputs.haus.mkHaus {
 
 ## Identity knobs
 
-- **pounce signing** — set `haus.launcher.signingIdentity` to a codesigning
+- **launcher signing** — set `haus.launcher.signingIdentity` to a codesigning
   identity's **full common name** (`security find-identity -v -p codesigning`,
   e.g. `Developer ID Application: Jane Doe (ABCDE12345)`) so the palette's
   Accessibility grant survives rebuilds. Prefer the name over a SHA-1: the
@@ -64,7 +64,7 @@ darwinConfigurations.mymac = inputs.haus.mkHaus {
   home-manager block; key material and any smartcard/YubiKey setup live outside
   Nix (gpg-agent + pinentry-mac).
 
-- **perch** — `haus.shelf.enable` installs through Nix via its flake
+- **shelf** — `haus.shelf.enable` installs Perch through Nix via its flake
   input and copies to a fixed `/Applications/Perch.app` path. Its command
   line door, `perch add <path>...`, lands on `PATH` as a link into that
   bundle.

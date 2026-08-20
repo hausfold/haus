@@ -90,7 +90,7 @@ every key the user didn't name falls back to its default and a bar they arranged
 over several commands goes back to stock. Setting the leaf touches only the leaf.
 
 **Ask before touching identity or secrets.** `haus.git.*`, signing keys,
-anything under `haus.secrets.*`, and the pounce signing identity are the
+anything under `haus.secrets.*`, and the launcher signing identity are the
 user's, not yours.
 
 **Prefer a `haus.*` option to a raw nix-darwin setting.** Both work — the
