@@ -1424,8 +1424,7 @@ in
           # rather than read at runtime because this script runs before any
           # shell does — there is no environment to have read it from.
           text =
-            builtins.replaceStrings [ "@restore@" ]
-              [ (if terminalCfg.restoreWindows then "1" else "0") ]
+            builtins.replaceStrings [ "@restore@" ] [ (if terminalCfg.restoreWindows then "1" else "0") ]
               (builtins.readFile ./scripts/launch.sh);
           executable = true;
         };
