@@ -8,14 +8,18 @@
 # screen, with the tiled desktop underneath untouched. Quit gh-dash and the
 # window closes with it.
 #
-# --pct 100 rather than a fullscreen flag: float-term centres on the VISIBLE
-# frame (menu bar and dock excluded), which is what "full window" meant under
-# zellij too — the bar stays readable behind it.
+# --tiled rather than a fullscreen flag, and rather than the --pct 100 this
+# carried until 2026-08-20: "full window" means the rectangle the TILED windows
+# occupy, which is the visible frame inset by AeroSpace's outer gaps. --pct 100
+# took the whole visible frame instead, so the popup overhung every window
+# underneath it by exactly one gap on each edge and read as oversized rather
+# than as the desktop being replaced. Either way the bar stays readable behind
+# it — the visible frame excludes the menu bar, and the gap does the rest.
 set -u
 export PATH="/opt/homebrew/bin:/etc/profiles/per-user/$USER/bin:/run/current-system/sw/bin:$PATH"
 
 exec "$HOME/.config/haus/term/float-term.sh" spawn \
     --title "github" \
-    --pct 100 \
+    --tiled \
     --pin \
     --command "gh-dash"

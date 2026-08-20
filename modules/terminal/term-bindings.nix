@@ -139,21 +139,25 @@ rec {
     #
     # Three rows shorter than it was, and every one of them left with a zellij
     # patch: a BARE click no longer opens a link (inside a mouse-tracking
-    # program the click belongs to the program — an SGR mouse report has no
-    # super bit, which is the same fact that makes ⌘⇧ the only way through),
-    # ⌃click and right-click no longer zoom (a window is the pane; windows owns
-    # fullscreen), and a clicked path no longer opens in the editor. See
-    # modules/terminal/default.nix's patch epitaph for the per-patch verdicts.
+    # program the click belongs to the program, and ⌘ is what asks Ghostty for
+    # the link instead), ⌃click and right-click no longer zoom (a window is the
+    # pane; windows owns fullscreen), and a clicked path no longer opens in the
+    # editor. See modules/terminal/default.nix's patch epitaph for the per-patch
+    # verdicts.
+    #
+    # ⌘, not ⌘⇧: these two rows carried a phantom ⇧ until 2026-08-20 — Ghostty
+    # consumes a cmd-click as a link click before any mouse report is forwarded,
+    # so shift adds nothing. ⇧ belongs to the drag row below and nowhere else.
     {
       title = "Terminal · Mouse";
       page = "Tips";
       items = [
         {
-          key = "⌘⇧ Click link";
+          key = "⌘ Click link";
           action = "Ghostty's own opener — and the only one";
         }
         {
-          key = "⌘⇧ Hover link";
+          key = "⌘ Hover link";
           action = "Previews the target before you commit";
         }
         {

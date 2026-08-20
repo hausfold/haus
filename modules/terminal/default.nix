@@ -174,9 +174,9 @@ in
   #   naked-click-links        open the OSC 8 / regex link under a BARE click.
   #                            NOT replaced: inside a mouse-tracking program the
   #                            click belongs to the program, and ghostty's own
-  #                            opener needs ⌘⇧+click (see ghostty/config's
-  #                            macos-option-as-alt block for why super can never
-  #                            reach it through an SGR mouse report).
+  #                            opener is ⌘+click — no shift (see ghostty/config's
+  #                            macos-option-as-alt block; ghostty consumes the
+  #                            cmd-click itself rather than forwarding it).
   #
   # `copy-clean.pl` went the same way and is the one outright loss: it was a
   # zellij `copy_command` filter that stripped the padding zellij adds to
@@ -273,6 +273,19 @@ in
           off = "";
         }
         .${terminalCfg.floatBorder} or nebelungPalette.${terminalCfg.floatBorder};
+
+      # AeroSpace's OUTER gaps, baked into float-term.sh's `geom --tiled` (⌘G,
+      # ⌘Y, ⌘⇧F). A near-fullscreen popup wants the rectangle the tiled windows
+      # occupy, not everything macOS leaves free: those differ by exactly these
+      # gaps, and a popup sized to the latter overhangs every window it covers.
+      # ../lib/gaps.nix is the same import modules/windows uses to write
+      # aerospace.toml's [gaps] block — one arithmetic, three consumers (windows,
+      # wallpaper, here), so a retuned gap moves the popup with the layout.
+      floatGaps = import ../lib/gaps.nix {
+        inherit lib;
+        scale = osConfig.haus.ui.scale;
+        bar = osConfig.haus.bar;
+      };
       nbFlavor = nb.flavor; # "mocha" | "latte"
       # The bat theme's name AND its filename, which whiskers title-cases:
       # "Catppuccin Mocha" / "Catppuccin Mocha.tmTheme". Named once because three
@@ -1491,7 +1504,10 @@ in
         # through it. The outline's binary/colour/width are baked in rather than
         # passed per caller, so haus.terminal.floatBorder moves all three at once
         # — and so the pounce command, which runs on launchd's bare PATH, gets
-        # floatring by store path instead of hoping it's installed.
+        # floatring by store path instead of hoping it's installed. AeroSpace's
+        # outer gaps ride in the same way (floatGaps above), because `geom
+        # --tiled` has to know where the tiled desktop ends and there is no
+        # runtime query for it that doesn't shell out to aerospace per summon.
         ".config/haus/term/float-term.sh" = {
           text =
             builtins.replaceStrings
@@ -1499,6 +1515,12 @@ in
                 "@floatring@"
                 "@ring_color@"
                 "@ring_width@"
+                "@gap_top_builtin@"
+                "@gap_top_external@"
+                "@gap_bottom_builtin@"
+                "@gap_bottom_external@"
+                "@gap_side_builtin@"
+                "@gap_side_external@"
               ]
               [
                 # "off" renders BOTH empty, so an opted-out machine doesn't even
@@ -1507,6 +1529,12 @@ in
                 (if terminalCfg.floatBorder == "off" then "" else "${floatring}/bin/floatring")
                 floatBorderColor
                 "2"
+                (toString floatGaps.outer.top.builtin)
+                (toString floatGaps.outer.top.external)
+                (toString floatGaps.outer.bottom.builtin)
+                (toString floatGaps.outer.bottom.external)
+                (toString floatGaps.outer.left.builtin)
+                (toString floatGaps.outer.left.external)
               ]
               (builtins.readFile ./scripts/float-term.sh);
           executable = true;
