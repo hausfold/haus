@@ -29,7 +29,7 @@ jobs:
       # example left to eval (see flake.nix `allSystems`).
       - run: nix eval .#darwinConfigurations.example.system.drvPath
       # The platform-independent checks are declared for Linux too precisely so
-      # they can run HERE — THIRTEEN of them, everything in flake.nix's `checks`
+      # they can run HERE — FOURTEEN of them, everything in flake.nix's `checks`
       # before the `optionalAttrs (hasSuffix "-darwin" system)` line, which is
       # the only thing that decides the split and the only place to re-derive
       # this list from:
@@ -63,9 +63,18 @@ jobs:
       #                            the darwin list beside `desktop-seam` because
       #                            it is pure lib, and because a publisher's CI
       #                            is exactly the Linux caller it defends
+      #   namespace-guard          the reserved `haus.my.*` prefix: that haus
+      #                            never ships a room under it, and that a
+      #                            machine declaring some other unregistered
+      #                            `haus.<name>` is told so. Pure lib and up here
+      #                            deliberately — its worst failure is firing on
+      #                            a STOCK machine, which is a thing only a
+      #                            fixture can catch, and the `stock` row is that
+      #                            fixture
       #
-      # All but the last mirror a rule that lives in another repo, in a generated
-      # dotfile, in a shell script, or in a README — where drift is silent.
+      # All but the last two mirror a rule that lives in another repo, in a
+      # generated dotfile, in a shell script, or in a README — where drift is
+      # silent.
       # Without this line they were declared and never executed.
       #
       # Keep this census honest when a check is added: it is this repo's only
@@ -74,7 +83,10 @@ jobs:
       # and on 2026-08-20 it was four wrong AGAIN — it still listed `packs`,
       # which no longer exists on any system, it had never heard of
       # `agent-skill`, and it called the darwin set twelve when it was
-      # fourteen. So do not edit the sentence you are standing next to. Print
+      # fourteen. It went stale a third time the same day, from the other
+      # direction: `namespace-guard` was written pure-lib, described in its own
+      # comment as running on the Linux runner, and declared four lines BELOW
+      # the `optionalAttrs` split, so it ran on nobody's CI. So do not edit the sentence you are standing next to. Print
       # both lists and diff them:
       #
       #   nix eval --json .#checks.x86_64-linux   --apply builtins.attrNames

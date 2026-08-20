@@ -19,6 +19,11 @@
     # over what `lib.desktop` recorded — first because it is about the whole
     # selection rather than about any room's values.
     ./desktop
+    # The namespace seam: a `haus.<name>` this machine declares that haus does
+    # not ship and the reserved prefix does not cover. Beside ./desktop because
+    # it asks the same KIND of question — one about the whole tree rather than
+    # about a room — and because both can only be answered here.
+    ./namespaces.nix
     # Named workspaces: resolves haus.workspaces into the internal lookup
     # ./roster folds into each app's resolved workspace membership. Comes
     # first because roster depends on it, though the module system's laziness
