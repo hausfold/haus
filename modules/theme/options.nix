@@ -204,18 +204,16 @@ in
         Nebelung userChrome/userContent pair, and nebelung's userContent styles
         `about:` pages only — github.com and youtube.com are Catppuccin-derived
         *userstyles*, LESS source compiled rather than copied, which is why no
-        palette file haus writes reaches them on its own. Two options do,
-        differently. `haus.zen.userStyles` names the sites you want and haus
-        compiles them with this accent into that same userContent.css, so a
-        rebuild (and a Zen restart) recolours them with nothing to import.
-        `haus.zen.extensions.stylus` deploys the extension instead and stamps
-        the same accent into the bundle it hands you — the import stays a click,
-        because Stylus has no file interface, and until you make it the web
-        keeps the accent you last imported. What that click buys is what a
-        compiled sheet can't do: per-site toggles, self-updating styles, and
-        adding one without a rebuild.
+        palette file haus writes reaches them on its own. One option does:
+        `haus.zen.userStyles` names the sites you want and haus compiles them
+        with this accent into that same userContent.css, so a rebuild (and a Zen
+        restart) recolours them with nothing to import. Until 2026-08-20 there
+        was a second way — haus deployed the Stylus extension and stamped this
+        accent into a bundle you imported by hand — and it is retired; what the
+        click bought (per-site toggles, self-updating styles, adding one without
+        a rebuild) is what the compiled sheet gives up.
 
-        Both halves of that are pinned by the `accent-reach` flake check, which
+        That reach is pinned by the `accent-reach` flake check, which
         fingerprints every surface under three accents and fails if one starts
         or stops following the accent without anyone deciding it should.
       '';

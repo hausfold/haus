@@ -17,22 +17,22 @@ let
   accentNames = import ../lib/accents.nix;
 
   # The extensions the rice itself has an opinion about, so naming one in
-  # haus.zen.extensions is enough. Stylus is here because it's the Nebelung
-  # port whose theme lives inside the extension rather than in a file — the one
-  # thing standing between the rice's palette and the actual web.
+  # haus.zen.extensions is enough.
+  #
+  # EMPTY since 2026-08-20, and the mechanism stays because the emptiness is a
+  # fact about our roster rather than about the option. Its one entry was
+  # Stylus, carried because the Nebelung userstyles could only be compiled
+  # inside that extension; haus.zen.userStyles compiles them into the profile
+  # instead, so haus stopped deploying it (see terminal/zen.nix's header).
   #
   # An id is unguessable, and a wrong one fails SILENTLY (the policy just
-  # installs nothing), so this table only holds ids read off a real installed
-  # add-on — never one inferred from a slug. That's why it's short: growing it
-  # is a favour to the next person, not a requirement, and anything absent still
-  # works with an explicit `id`. Dark Reader, the other browser-side Nebelung
-  # port, is deliberately NOT here — nobody has read its id off a live profile.
-  knownZenExtensions = {
-    stylus = {
-      id = "{7a7a4a92-a2a0-41d1-9fd7-1e92480d612d}";
-      slug = "styl-us";
-    };
-  };
+  # installs nothing), so this table only ever holds ids read off a real
+  # installed add-on — never one inferred from a slug. Growing it is a favour
+  # to the next person, not a requirement: anything absent still works with an
+  # explicit `id`. Dark Reader, the browser-side Nebelung port nobody has wired,
+  # is deliberately not here for that reason — nobody has read its id off a live
+  # profile.
+  knownZenExtensions = { };
 
   contrib = import ../lib/contrib.nix { inherit lib; };
 
@@ -446,9 +446,6 @@ in
       default = { };
       example = lib.literalExpression ''
         {
-          # Known to haus — id and slug are filled in.
-          stylus = { };
-          # Anything else: bring the id.
           ublock-origin = {
             id = "uBlock0@raymondhill.net";
             slug = "ublock-origin";
@@ -476,17 +473,18 @@ in
         because enterprise policies are on, Zen will tell you it is "managed by
         your organization" — that organization is haus.
 
-        haus knows the id and slug of the extensions it themes
-        (${lib.concatStringsSep ", " (builtins.attrNames knownZenExtensions)}),
-        so those need only be named. Everything else needs `id` — see that
-        option for where to find it.
+        Every entry needs an `id` — the key Firefox's policy engine matches
+        on, unguessable and unreachable from the add-on's name. haus fills that
+        in for add-ons whose id it has read off a live profile, and it knows
+        none today: the one it carried was Stylus. See the `id` option for
+        where to read one off.
 
-        Naming `stylus` here also turns on the stamped userstyle bundle (see
-        haus.theme.accent): the Catppuccin-derived styles Stylus imports
-        carry their own accent and flavor variables, which no palette file can
-        reach, so haus stamps the bundle from your theme — accent, flavor,
-        and the contrast it's rendered for — and tells you when there's a new
-        one to import.
+        This is deployment, not theming. haus themes Zen's own UI through
+        `haus.theme.accent`, and real websites through `haus.zen.userStyles`,
+        which compiles the Nebelung userstyles into the profile's
+        userContent.css — no add-on involved. Stylus used to be the way that
+        reached the web, with a stamped bundle and an import click; that path
+        was retired on 2026-08-20 and nothing here replaces it.
       '';
     };
 
@@ -502,11 +500,11 @@ in
         Nebelung userstyles to compile into Zen's `userContent.css`, by slug —
         the palette on real websites, with **no extension and no import click**.
 
-        This is the same 134 styles Stylus would import, taken the other way
-        round. They are LESS source, which is why the accent could only ever
-        reach the web through a click: Stylus compiles them in the browser.
-        haus compiles the ones you name here instead, stamping the same three
-        axes (`haus.theme.accent`, and the flavor on both its light and dark
+        These are the 134 styles nebelung ships for the Stylus extension,
+        taken the other way round. They are LESS source, which is why the accent
+        could only ever reach the web through an import click: the extension
+        compiled them in the browser. haus compiles the ones you name here at
+        build time instead, stamping the same three axes (`haus.theme.accent`, and the flavor on both its light and dark
         vars), and appends the result to the stylesheet it already drops into
         every Zen profile. Nothing to re-import and no state to carry to the
         next machine — but a **restart of Zen** is what applies it: Firefox
@@ -537,8 +535,8 @@ in
         BELOW the page's own in the cascade, so an unstamped sheet matches the
         site and then loses every property to it. Most of these styles theme by
         redefining the site's own custom properties without `!important` —
-        which is free for Stylus, since it injects author-origin CSS — so
-        without the stamp they render nothing. It was measured that way: this
+        which is free for an extension, since it injects author-origin CSS —
+        so without the stamp they render nothing. It was measured that way: this
         option shipped twice before anyone loaded a page instead of checking
         that the file was in the profile.
 
@@ -546,11 +544,15 @@ in
         the declaration would therefore be dropped: `@keyframes`, descriptor
         blocks like `@font-face`, and at-statements.
 
-        What stays with `haus.zen.extensions.stylus`: per-site toggles, styles
-        that update themselves, and adding one without a rebuild. Both can be
-        on — but keep a given site in one or the other. They do not tie: user
+        This is now the only web-theming path haus ships. Until 2026-08-20 it
+        also deployed the Stylus extension and stamped an importable bundle for
+        it; what that click bought — per-site toggles, styles that update
+        themselves, adding one without a rebuild — is what a compiled sheet
+        gives up, and none of it was being used. Installing Stylus yourself
+        still works (`haus.zen.extensions`, with its `id`), but keep a given
+        site in one place or the other: they do not tie, and a user sheet's
         `!important` outranks every author sheet, so this one wins and the
-        Stylus copy of that site is doing nothing.
+        extension's copy of that site would be doing nothing.
 
         **Gecko only, and permanently so.** `@-moz-document` in a user sheet is
         what makes this possible; Chromium removed user stylesheets in Chrome 33

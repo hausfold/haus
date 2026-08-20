@@ -26,17 +26,21 @@
 # and changed no pixels, because the check was "is the file there" and the file
 # was always there.
 #
-# ---- what stays with Stylus -------------------------------------------------
+# ---- what this gave up, which used to be Stylus's half ----------------------
 #
-# Everything a sheet can't do. No per-site toggle, no auto-update, no adding a
-# style without a rebuild. `haus.zen.extensions.stylus` still deploys the
-# extension and zen.nix still stamps the importable bundle; this is for the
-# handful of sites you want themed on every machine, every rebuild, with no
-# state to carry. The two coexist by accident of scope rather than by design,
-# and they are NOT symmetric: Stylus injects author-origin CSS, this sheet is
-# user `!important`, and user `!important` outranks anything an author sheet
-# can say. So on a site both theme, this one wins and Stylus's copy is dead
-# weight — keep a site in one place or the other.
+# Everything a sheet can't do: no per-site toggle, no auto-update, no adding a
+# style without a rebuild. haus deployed the Stylus extension and stamped an
+# importable bundle for exactly those, and that path is retired (2026-08-20) —
+# measured off a live profile first, where no style carried an `updateUrl` and
+# nothing had been toggled since the import. This is now the whole of haus's
+# web theming: the handful of sites you want themed on every machine, every
+# rebuild, with no state to carry.
+#
+# Installing Stylus by hand still works and the two do NOT tie: an extension
+# injects author-origin CSS, this sheet is user `!important`, and user
+# `!important` outranks anything an author sheet can say. So on a site both
+# theme, this one wins and the extension's copy is dead weight — keep a site in
+# one place or the other.
 #
 # ---- the size cost, which is why the option is a list and not a bool --------
 #
