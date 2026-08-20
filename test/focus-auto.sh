@@ -43,6 +43,19 @@ build_engine() { # $1 = path to the scene table
         -e "s|@switchAudio@||" \
         "$ROOT/modules/focus/focus.sh" >"$TMP/focus"
     chmod +x "$TMP/focus"
+    # The sed table above MIRRORS default.nix's ten --subst-var-by names, and a
+    # hand-copied mirror is the thing this family keeps getting caught by. A new
+    # placeholder there would otherwise reach the engine unsubstituted and this
+    # suite would keep passing, testing a script the module never builds. So the
+    # mirror is checked rather than trusted: anything left in @placeholder@ form
+    # fails here, naming itself.
+    # Comment lines are stripped first: the script's own header explains the
+    # @var@ convention in prose, and every real substitution is on the
+    # right-hand side of an assignment.
+    if /usr/bin/grep -v '^[[:space:]]*#' "$TMP/focus" \
+        | /usr/bin/grep -oE '@[a-zA-Z][a-zA-Z0-9]*@' | sort -u | grep .; then
+        fail "a placeholder above survived — the sed table has drifted from modules/focus/default.nix"
+    fi
 }
 
 cat >"$TMP/bin/date" <<'EOF'
