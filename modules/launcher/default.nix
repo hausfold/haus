@@ -1006,35 +1006,43 @@ lib.mkIf config.haus.launcher.enable {
   # and `e` went back to the roster (the leader's second pounce key is `f`, Find
   # Files). So a host that nulls this wants to name another hotkey beside it, or
   # it is down to ⌘Space → "emoji".
-  haus.launcher.items."mode:emoji".hotkey = lib.mkDefault "fn";
+  #
+  # One definition, mkMerge'd with the lane-row scoping below, because Nix takes
+  # ONE definition per attribute path: `items."mode:emoji".hotkey = …` beside a
+  # second `items = { … }` in this same attrset is a duplicate-attribute error,
+  # not a merge. (mkMerge rather than `//` so the second element can stay an
+  # unevaluated mkIf.)
+  haus.launcher.items = lib.mkMerge [
+    { "mode:emoji".hotkey = lib.mkDefault "fn"; }
 
-  # The three rows that act on THE WINDOW YOU WERE LOOKING AT — ⌘↵'s agent lane,
-  # ⌘N's shell window and its ⌘⇧N --stay twin — are listed only on the terminal
-  # pages.
-  #
-  # Not tidiness: each of them asks lane-cwd.sh for the focused window's
-  # directory, and a window with no zmx session behind it (a browser, Finder,
-  # anything that isn't a terminal) answers nothing. New Agent Lane then falls
-  # back to $HOME, finds it isn't a git repo and refuses out loud; New Shell
-  # Window opens a shell in $HOME. Offering a row where it can only disappoint
-  # you is worse than not offering it, and the palette still has the row that
-  # DOES work from anywhere — Spawn Agent asks which repo instead of inheriting
-  # one, which is exactly why it is not in this list.
-  #
-  # "T" covers T and every T/<repo> lane page (lane-open.sh tiles them there),
-  # the same prefix the ⌃⇥ walk reads. mkDefault, so a host can hand them back:
-  #
-  #   haus.launcher.items."cmd:lane-here".workspaces = [ ];              # everywhere
-  #   haus.launcher.items."cmd:lane-here".bundleIds = [ "com.mitchellh.ghostty" ];
-  #
-  # — the second being the tighter predicate of the two, for a terminal window
-  # dragged off T. The page is what haus scopes by because the page is what the
-  # lane rooms already agree about.
-  haus.launcher.items = lib.mkIf lanesEnabled {
-    "cmd:lane-here".workspaces = lib.mkDefault [ "T" ];
-    "cmd:shell-here".workspaces = lib.mkDefault [ "T" ];
-    "cmd:shell-here-stay".workspaces = lib.mkDefault [ "T" ];
-  };
+    # The three rows that act on THE WINDOW YOU WERE LOOKING AT — ⌘↵'s agent
+    # lane, ⌘N's shell window and its ⌘⇧N --stay twin — are listed only on the
+    # terminal pages.
+    #
+    # Not tidiness: each of them asks lane-cwd.sh for the focused window's
+    # directory, and a window with no zmx session behind it (a browser, Finder,
+    # anything that isn't a terminal) answers nothing. New Agent Lane then falls
+    # back to $HOME, finds it isn't a git repo and refuses out loud; New Shell
+    # Window opens a shell in $HOME. Offering a row where it can only disappoint
+    # you is worse than not offering it, and the palette still has the row that
+    # DOES work from anywhere — Spawn Agent asks which repo instead of
+    # inheriting one, which is exactly why it is not in this list.
+    #
+    # "T" covers T and every T/<repo> lane page (lane-open.sh tiles them there),
+    # the same prefix the ⌃⇥ walk reads. mkDefault, so a host can hand them back:
+    #
+    #   haus.launcher.items."cmd:lane-here".workspaces = [ ];   # everywhere
+    #   haus.launcher.items."cmd:lane-here".bundleIds = [ "com.mitchellh.ghostty" ];
+    #
+    # — the second being the tighter predicate of the two, for a terminal window
+    # dragged off T. The page is what haus scopes by because the page is what
+    # the lane rooms already agree about.
+    (lib.mkIf lanesEnabled {
+      "cmd:lane-here".workspaces = lib.mkDefault [ "T" ];
+      "cmd:shell-here".workspaces = lib.mkDefault [ "T" ];
+      "cmd:shell-here-stay".workspaces = lib.mkDefault [ "T" ];
+    })
+  ];
 
   # haus.launcher.fnKey = "remap": Fn → F19 at the HID layer, declared HERE and
   # not left to the daemon, even though pounce can install it itself.
