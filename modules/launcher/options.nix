@@ -36,6 +36,47 @@ in
       };
     };
 
+    # The Focus room's palette surface. Two facts, and the second is why this
+    # point carries data rather than only a switch: a scene is generated into
+    # its own palette command and its own cheatsheet row, so the launcher needs
+    # the scenes themselves — but only the one field it renders. `hooks`,
+    # `apps`, `audio` and the rest never cross, which is the difference between
+    # a declared point and reading `config.haus.focus.scenes` whole.
+    _contrib.launcher.focus = contrib.mkExtensionPoint {
+      description = ''
+        The Focus room's palette rows: **Toggle Focus**, one **Scene** command
+        per declared scene, and **Leave Scene** beside them.
+
+        Off, none of them is installed and none appears on the cheatsheet — the
+        commands exec `~/.local/bin/focus`, which only that room ships.
+      '';
+      options = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+          description = "Whether the palette carries the focus commands and rows.";
+        };
+        scenes = lib.mkOption {
+          type = lib.types.attrsOf (
+            lib.types.submodule {
+              options.description = lib.mkOption {
+                type = lib.types.str;
+                default = "";
+                description = "The scene's one-line description — `haus.focus.scenes.<name>.description`.";
+              };
+            }
+          );
+          default = { };
+          description = ''
+            The declared scenes, keyed by name. The key is what `focus scene`
+            takes and what the row fuzzy-matches, so the palette row and the
+            CLI teach each other; the description is the only field the palette
+            renders.
+          '';
+        };
+      };
+    };
+
     _contrib.launcher.mouseChords = contrib.mkExtensionPoint {
       description = ''
         The windows room's pointer chord: a modifier + a click, acting on the

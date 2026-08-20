@@ -27,8 +27,8 @@ let
   widgets = import ./widgets.nix;
 
   # Which of them `bar.items` offers, and what each defaults to. `focus` carries
-  # `default = null` — it rides `haus.focus.enable` rather than a bool of its
-  # own — so it is in neither table's ON/OFF surface, and is filtered out here
+  # `default = null` — it rides the Focus room's contribution rather than a bool
+  # of its own — so it is in neither table's ON/OFF surface, and is filtered out here
   # by that null rather than by name.
   switchable = lib.filterAttrs (_: w: w.default != null) widgets;
   # The five that draw on a rice which says nothing, and the rest. Split only to
@@ -406,6 +406,31 @@ in
           type = lib.types.bool;
           default = false;
           description = "Whether the bar may draw the agents pill.";
+        };
+      };
+    };
+
+    # The Focus room's pill: the bell that reports and toggles quiet.
+    #
+    # Unlike `agents`, which the AI room switches on when a machine has
+    # something to report, this one is simply "does the Focus room exist". The
+    # pill's click_script is `~/.local/bin/focus`, a file only that room
+    # installs, so the bar drawing it without the room would draw a bell that
+    # does nothing, forever — the dormant-pill failure the whole `contributed`
+    # gate exists to prevent.
+    _contrib.bar.focus = contrib.mkExtensionPoint {
+      description = ''
+        The Focus room's `focus` pill: quiet's state, and a click to toggle it.
+
+        Off, `haus.bar.widgets.focus.enable` draws nothing — the pill's script
+        and the CLI behind it belong to that room, so without it there is
+        neither state to read nor anything to toggle.
+      '';
+      options = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+          description = "Whether the bar may draw the focus pill.";
         };
       };
     };

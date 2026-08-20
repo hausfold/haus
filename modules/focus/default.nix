@@ -80,8 +80,48 @@ let
       --subst-var-by switchAudio ${lib.escapeShellArg switchAudio}
     chmod 555 $out/bin/focus
   '';
+  # Every address that asked for the focus pill, on either bar. The room's own
+  # config is read here rather than contributed FROM here because the question
+  # is the receiver's ("did someone ask?"), and the answer has to be available
+  # when this room is off — which is exactly when nothing it writes exists.
+  # Both bars, because `contributed` filters both and a warning that knew only
+  # about the menu bar would leave the second one silent. Same shape as the AI
+  # room's `pillAsks`, for the same reason.
+  #
+  # `widgets.focus.enable` is `mkDefault`ed from this room's contribution, so
+  # with the room on it reads true and the warning below cannot fire; with the
+  # room off it reads true only if someone WROTE it, which is the case worth a
+  # sentence.
+  #
+  # DEFAULTED, and the first draft was not: `haus.bar.widgets` is an attrset
+  # option, and the bundled pills are keys BAR'S IMPLEMENTATION writes into it,
+  # not options the declaration file carries. So a standalone
+  # `darwinModules.focus` — which imports every room's options.nix and only the
+  # focus implementation — has the attrset and no `focus` key in it, and a bare
+  # `.focus.enable` threw `attribute 'focus' missing` from a module that had
+  # simply been imported on its own. Caught by `standalone-modules`, which is
+  # the check shaped like exactly that caller.
+  pillAsks =
+    lib.optional (config.haus.bar.widgets.focus.enable or false) "haus.bar.widgets.focus.enable"
+    ++ lib.optional (
+      config.haus.bar.bottom.enable && (config.haus.bar.bottom.items.focus or false) != false
+    ) "haus.bar.bottom.items.focus";
 in
-lib.mkIf cfg.enable {
+lib.mkMerge [
+  {
+    # OUTSIDE the enable gate, and that placement is the whole point: a room
+    # that only speaks when it is on cannot tell you it is off. A pill with no
+    # room behind it is not a smaller feature, it is a dead one — the bar drops
+    # it (modules/bar's `contributed`), so without this the only trace is a
+    # source comment. Not an assertion: the bar is correct without the pill, and
+    # a rebuild that refused over one would be worse than its absence.
+    warnings = lib.optional (pillAsks != [ ] && !cfg.enable) (
+      "${lib.concatStringsSep " and " pillAsks} asks for the focus pill, but the Focus room is "
+      + "off (haus.focus.enable). The pill's click runs ~/.local/bin/focus, which only that room "
+      + "installs, so it would report nothing and toggle nothing — the bar leaves it out."
+    );
+  }
+  (lib.mkIf cfg.enable {
   # A scene's name is what a person types after `focus scene`, so the four
   # words that subcommand already spends are names a scene could hold and never
   # be entered under — it would build, validate, appear in `focus scene list`,
@@ -126,6 +166,32 @@ lib.mkIf cfg.enable {
       }
     ];
 
+  # ---- what the room contributes to other rooms -------------------------------
+  # Two writes, both inside this module's own `mkIf cfg.enable`, so each says
+  # exactly "the Focus room exists on this machine". How that is presented is
+  # the receiving room's business: bar decides whether the pill is drawn and
+  # where, launcher decides which palette rows and cheatsheet entries it makes.
+  # Neither reads `config.haus.focus.*` any more — see modules/lib/contrib.nix.
+  #
+  # The launcher's point carries the scenes as well as the switch, because a
+  # scene becomes its own palette command and its own cheatsheet row. It gets
+  # the ONE field it renders: `hooks`, `apps`, `audio` and `dnd` never cross,
+  # so a rename inside a scene's shape cannot reach the launcher, and the
+  # launcher's option surface never grows a copy of this room's.
+  haus._contrib = {
+    bar.focus.enable = true;
+    launcher.focus = {
+      enable = true;
+      scenes = lib.mapAttrs (_: s: { inherit (s) description; }) cfg.scenes;
+    };
+  };
+
+  # The reverse reach is still direct, and named rather than left to be found:
+  # the watcher below reads `config.haus.bar.enable` / `.bottom.enable` to
+  # decide which bars to poke. A room asking "does a bar exist" is the shape
+  # `_contrib` exists to replace, and Bar declares no point pointing this way
+  # yet. Same class as `page`'s read in modules/bar; its own change.
+  #
   # Real-time pill sync for toggles focus didn't make (Control Center, iPhone
   # via Share Across Devices): launchd pokes the bar whenever the Focus DB
   # changes. launchd watches the path itself, so no Full Disk Access is
@@ -181,4 +247,5 @@ lib.mkIf cfg.enable {
           -dict-add 175 '${hotkeyXml}'
       '';
     };
-}
+  })
+]
