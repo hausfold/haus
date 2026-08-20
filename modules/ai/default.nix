@@ -608,6 +608,17 @@ in
       # "ask". HAUS_DESKTOP_OK=1 in a pane turns it off there, the way
       # BENCH_AGENT_SWITCH=1 does for activation. Details in the script's header.
       (writeShellScriptBin "agent-desktop-guard" (builtins.readFile ./desktop-guard.sh))
+
+      # `holt-cache` — one warm copy of `holt --json` for everything that reads
+      # lanes. `holt --json` self-heals on the way in and dumps `lsof` twice
+      # before it answers, which is seconds even with no lanes registered; the
+      # bar's agents popup redraws on a 10s tick and the Lanes palette opens
+      # under pounce's 8-SECOND loading skeleton, so neither can run it inline.
+      # Both call this instead. It lives here rather than in bar, where the
+      # block started, because the room that owns the capability owns its
+      # payload — and because the launcher's picker needs it on a machine whose
+      # bar is off. Its header has the numbers.
+      (writeShellScriptBin "holt-cache" (builtins.readFile ./holt-cache.sh))
     ]
   );
 

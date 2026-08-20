@@ -211,6 +211,15 @@ jobs:
           # how the `modules/core/` → `modules/ai/` move in #402 surfaced: the
           # job had been failing on it, invisibly, behind the apt stall this
           # commit's parent removed. Move a script, fix the path here.
+          # holt-cache.sh and lanes.sh join for statusline-refresh.sh's reason.
+          # holt-cache's whole job is to run DETACHED with its output discarded
+          # (`holt-cache kick`), so a non-zero in it is invisible and the bar and
+          # the Lanes picker simply go on serving a cache nothing refreshes.
+          # lanes.sh is the palette command a person opens by hand, but its
+          # stderr goes to the pounce daemon and nowhere a user looks, so a
+          # broken row build reads as "the palette closed itself" — which is
+          # exactly the bug #430 was opened for. Both are plain bash with no
+          # @placeholder@ substitution, so they lint as-is.
           # modules/focus/focus.sh IS a @placeholder@ template and lints anyway:
           # every substitution in it sits on the right-hand side of an
           # assignment, so an unsubstituted copy is still valid shell. It earns
@@ -218,7 +227,7 @@ jobs:
           # haus.focus.scenes.<name>.when it also runs from launchd on a timer,
           # where a non-zero is not just invisible but silently stops your Mac
           # entering the scenes you declared.
-          shellcheck --severity=warning bootstrap.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/awake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh
+          shellcheck --severity=warning bootstrap.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/awake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh modules/ai/holt-cache.sh modules/launcher/commands/lanes.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
       # The trigger daemon's decisions — which scene rises, which one it may
