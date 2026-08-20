@@ -255,8 +255,15 @@ in
         they promise. A shell you are finished with should be ended (⌃D, or
         `exit`) rather than closed, or it is a window that comes back.
 
-        Needs an agent client (`haus.ai.clients`) for the lane half; the plain
-        `term.<n>` half needs only Ghostty and zmx.
+        "First" means nothing is attached anywhere on the machine, which is a
+        shade broader than "first window of this Ghostty": with a tiler, a lane
+        runs as its own Ghostty instance, so quitting the main one while a lane
+        window is still open leaves something attached and the automatic restore
+        stays quiet. The palette row is the answer there, and is the answer
+        whenever the automatic moment has passed.
+
+        Needs `haus.ai.clients` — not for the lanes, but because `zmx` itself
+        rides that switch, and with no zmx there are no sessions to park.
       '';
     };
 

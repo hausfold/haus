@@ -13,7 +13,9 @@ font-family = @FONT_FAMILY@
 font-size = @FONT_SIZE@
 
 # Attach to (or create) this window's own zmx session on launch — `term.<n>`,
-# lowest free n, so reopening Ghostty walks back into the shells you had.
+# lowest n no session holds, so a new window is always a new shell. Putting the
+# PARKED ones back is the same script's other job, done once for the first
+# window of a Ghostty (haus.terminal.restoreWindows).
 # Skipped for quick-terminal, for a nested surface (already in a session) and
 # when HAUS_NO_ZMX=1 is set. Falls back to plain zsh if zmx errors.
 #
@@ -159,9 +161,12 @@ keybind = cmd+r=unbind
 # ⌘W → ghostty's close_window, its own default, restored. Under zellij this was
 # unbound so the chord could close the focused PANE instead of silently killing
 # the whole client. A window is the pane now, and closing it DETACHES its zmx
-# session rather than ending it — the shell keeps running and the next window
-# that claims that name walks back into it — so the destructive edge the unbind
-# existed to blunt is gone. cmd+shift+w stays ghostty's close_window too.
+# session rather than ending it — the shell keeps running, and the next Ghostty
+# start opens a window back onto it — so the destructive edge the unbind existed
+# to blunt is gone. NOT the next ⌘N, which is always a new shell: a parked
+# session is a live shell in a directory of its own, and handing one to the
+# chord that means "a shell here" is how ⌘N used to become a lottery.
+# cmd+shift+w stays ghostty's close_window too.
 # ⌘D / ⌘⇧D → nothing at all, deliberately. Ghostty's defaults here are
 # new_split:right and new_split:down, and splits are unused in this desktop for
 # the same reason tabs are: AeroSpace already tiles, and a split nests a second

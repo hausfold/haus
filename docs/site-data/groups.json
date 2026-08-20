@@ -1180,7 +1180,7 @@
     "terminal": {
       "blurb": "The shell and terminal experience.",
       "kind": "room",
-      "optionCount": 6,
+      "optionCount": 7,
       "options": {
         "haus.terminal.editor": {
           "desktopSafe": false,
@@ -1201,6 +1201,9 @@
         "haus.terminal.obsidianVaults": {
           "desktopSafe": false,
           "reason": "local-path"
+        },
+        "haus.terminal.restoreWindows": {
+          "desktopSafe": true
         }
       },
       "order": 70,
@@ -1585,7 +1588,7 @@
         "zen",
         "developer"
       ],
-      "optionCount": 19,
+      "optionCount": 20,
       "order": 40,
       "title": "Development"
     },

@@ -31,7 +31,7 @@
 # A PLAIN window (`term.<n>`) must NOT get a forced title: its title is whatever
 # the program in it emits, which is what a window switcher reads, and its join
 # is the `window=` label launch.sh stamps on every attach. So it is spawned the
-# way every other plain window is — Ghostty's own AppleScript API, running
+# way every other plain window is — scripts/new-window.sh, running
 # scripts/launch.sh, with the session named in the environment.
 #
 # ── placement ────────────────────────────────────────────────────────────────
@@ -52,6 +52,35 @@ if [ "${1:-}" = "--except" ]; then
 fi
 
 command -v zmx >/dev/null 2>&1 || exit 0
+
+# ── one restore at a time ────────────────────────────────────────────────────
+# Two of these running at once would open every parked session twice and land
+# two clients on each. It happens two ways: a double Dock click gives Ghostty
+# two windows that both look like the first (launch.sh cannot know it is about
+# to stop being the only client until `zmx attach` lands, which is after it has
+# to decide), and the palette row can be pressed while an automatic restore is
+# still fanning out.
+#
+# So a mkdir marker, held for the whole fan-out rather than for the moment of
+# deciding. launch.sh takes it BEFORE it adopts a session — that decision is
+# half of the same act — and hands the path down; the trap here is what releases
+# it either way, so a fan-out that dies still frees the next one.
+lock="${HAUS_RESTORE_LOCK:-}"
+if [ -z "$lock" ]; then
+  lock="${TMPDIR:-/tmp}/haus-term-restoring"
+  if ! /bin/mkdir "$lock" 2>/dev/null; then
+    # Held, or left behind by something killed mid-fan-out. Two minutes is far
+    # past the slowest real restore (a settle is capped at 3 s per window), so a
+    # marker older than that is debris rather than a peer.
+    if [ -n "$(find "$lock" -maxdepth 0 -mmin +2 2>/dev/null)" ]; then
+      /bin/rmdir "$lock" 2>/dev/null
+      /bin/mkdir "$lock" 2>/dev/null || exit 0
+    else
+      exit 0
+    fi
+  fi
+fi
+trap '/bin/rmdir "$lock" 2>/dev/null' EXIT
 
 # Parked sessions, in a stable order: `term.<n>` first and numerically, so the
 # desk comes back in the order it was built, then the lanes by name. `sort -n`
@@ -84,46 +113,113 @@ parked=$(
 
 [ -n "$parked" ] || exit 0
 
+# One field of one session, out of `zmx ls` — `zmx get` returns labels only, so
+# `clients` (which zmx keeps itself) is not reachable through it.
+field() {
+  zmx ls 2>/dev/null | awk -F'\t' -v want="$1" -v key="$2" '
+    {
+      name = ""; val = ""
+      for (i = 1; i <= NF; i++) {
+        p = index($i, "=")
+        if (p == 0) continue
+        k = substr($i, 1, p - 1); gsub(/^[ \t]+|[ \t]+$/, "", k)
+        sub(/^[^A-Za-z_]*/, "", k)
+        if (k == "name") name = substr($i, p + 1)
+        else if (k == key) val = substr($i, p + 1)
+      }
+      if (name == want) { print val; exit }
+    }'
+}
+
+# Wait for a spawned window to have finished IDENTIFYING itself, before letting
+# the next one open. This is the whole reason the fan-out is serial.
+#
+# A plain window works out which window it is by asking the window layer what
+# has FOCUS (launch.sh does, in a backgrounded subshell) and stamps the answer
+# onto its session as the `window=` / `gwindow=` label. Two windows mapping at
+# once therefore both resolve to whichever one happened to be in front, and the
+# loser's label points at its neighbour — after which ⌘F searches the wrong
+# scrollback, ⌘L mines the wrong URLs and the bar peeks the wrong agent, all
+# silently and all durably. A fixed sleep is not a fix for that: the margin is
+# ~150 ms and the quick-terminal probe alone is an unbounded Apple Event.
+#
+# So: `term.*` is done when it is attached AND its label has moved off the value
+# it carried before the spawn — that label is written by the very subshell we
+# are waiting on, which makes it the exact signal rather than a proxy for it.
+# A `holt.*` lane on the AeroSpace backend resolves nothing (raise-session.sh
+# forces the window title and the join IS the title), so attachment alone is the
+# whole condition there.
+settle() {
+  local sess="$1" before="$2" i=0 clients label
+  while [ "$i" -lt 60 ]; do
+    clients="$(field "$sess" clients)"
+    if [ -n "$clients" ] && [ "$clients" != 0 ]; then
+      case "$sess" in
+        term.*)
+          label="$(field "$sess" window)"
+          [ -n "$label" ] || label="$(field "$sess" gwindow)"
+          # No label before and none now means a machine with neither backend
+          # answering; do not hold the whole restore for it.
+          [ -n "$label" ] && [ "$label" != "$before" ] && return 0
+          ;;
+        *) return 0 ;;
+      esac
+    fi
+    i=$((i + 1))
+    sleep 0.05
+  done
+  # Three seconds is far past any real spawn. Carrying on is better than
+  # stopping: the remaining windows are still wanted, and the cost of being
+  # wrong here is one label, not one session.
+  return 0
+}
+
 opened=0
 while IFS= read -r sess; do
   [ -n "$sess" ] || continue
   [ "$sess" = "$except" ] && continue
 
+  before="$(field "$sess" window)"
+  [ -n "$before" ] || before="$(field "$sess" gwindow)"
+
   case "$sess" in
     holt.*)
       # --or-open: the session has no window by definition here, so this is
       # always the open path. raise-session.sh owns the forced title and the
-      # backend split.
-      "$HOME/.config/haus/term/raise-session.sh" --or-open "$sess" >/dev/null 2>&1
+      # backend split. </dev/null because this loop is reading the parked list
+      # on fd 0 — anything downstream that read stdin would eat the rest of the
+      # restore and stop it dead, with nothing to say why.
+      "$HOME/.config/haus/term/raise-session.sh" --or-open "$sess" \
+        </dev/null >/dev/null 2>&1
       ;;
     term.*)
-      # launch.sh reads HAUS_ZMX_ATTACH and skips claiming a new name. The
-      # working directory is the session's own — zmx restores it on attach —
-      # so nothing is passed for it here; `initial working directory` would
-      # only decide where the attach itself ran from.
-      osascript - "$HOME/.config/haus/term/launch.sh" "HAUS_ZMX_ATTACH=$sess" <<'OSA' >/dev/null 2>&1
-on run argv
-    tell application "Ghostty"
-        new window with configuration {command:item 1 of argv, environment variables:{item 2 of argv}}
-    end tell
-end run
-OSA
+      # new-window.sh rather than an osascript of our own, for the three things
+      # it already solves and this script must not solve twice: Ghostty may not
+      # be RUNNING (`quit-after-last-window-closed` is on, so "I quit Ghostty"
+      # is the likeliest state anyone reaches for a restore in, and asking a
+      # dead Ghostty for a window over Apple Events simply fails), a denied
+      # Automation grant needs saying out loud rather than swallowing, and a
+      # runtime-spawned Ghostty window floats until something tiles it.
+      #
+      # launch.sh reads HAUS_ZMX_ATTACH and skips claiming a new name. No --cwd:
+      # the directory is the session's own and zmx restores it on attach, so
+      # anything passed here would only decide where the attach itself ran.
+      "$HOME/.config/haus/term/new-window.sh" \
+        --env "HAUS_ZMX_ATTACH=$sess" \
+        -- "$HOME/.config/haus/term/launch.sh" \
+        </dev/null >/dev/null 2>&1
       ;;
     *)
-      # A session you made yourself with `zmx attach`. Not ours to reopen: it
-      # was never a window of this rice's, and guessing would put a window on
-      # someone's long-running build.
+      # Defensive only — the ordering pass above emits nothing else. A session
+      # you made yourself with `zmx attach` is not ours to reopen: it was never
+      # a window of this rice's, and guessing would put a window on someone's
+      # long-running build.
       continue
       ;;
   esac
 
   opened=$((opened + 1))
-  # Ghostty serialises `new window` badly when they arrive faster than it can
-  # map them — two windows in the same tick can both come back with the same
-  # focused id, which is what launch.sh's tile poll and its label stamp both
-  # key on. A beat between spawns is cheaper than either of those resolving to
-  # the wrong window.
-  sleep 0.35
+  settle "$sess" "$before"
 done <<EOF
 $parked
 EOF
@@ -136,8 +232,7 @@ EOF
 # resort reads each window's title and sends it to its page — the same script
 # the leader's backtick runs, and the same one AeroSpace runs at startup.
 if [ -x "$HOME/.config/aerospace/resort-windows.sh" ]; then
-  sleep 0.5
-  "$HOME/.config/aerospace/resort-windows.sh" >/dev/null 2>&1
+  "$HOME/.config/aerospace/resort-windows.sh" </dev/null >/dev/null 2>&1
 fi
 
 exit 0

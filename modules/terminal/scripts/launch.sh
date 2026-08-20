@@ -162,30 +162,46 @@ else
     SESSION="term.$n"
 
     # ── restoring the desk ───────────────────────────────────────────────────
-    # A window is the FIRST of this Ghostty when nothing is attached anywhere:
-    # every other window would be a client on some session, and this one has not
-    # attached yet. So a ⌘Q (or a crash, or a logout that left the daemon up)
-    # followed by opening Ghostty lands exactly here, with every session it left
-    # behind sitting detached — and that is the one moment "put my windows back"
-    # is what was meant. Opening a SECOND window is never that, which is why
-    # this cannot live in the spawn chords.
+    # A window looks like the FIRST of this Ghostty when nothing is attached
+    # anywhere: every other window would be a client on some session, and this
+    # one has not attached yet. So a ⌘Q (or a crash, or a logout that left the
+    # daemon up) followed by opening Ghostty lands exactly here, with every
+    # session it left behind sitting parked — and that is the one moment "put my
+    # windows back" is what was meant. Opening a SECOND window is never that,
+    # which is why this cannot live in the spawn chords.
     #
-    # This window adopts the first detached `term.<n>` itself rather than
-    # opening a fresh session beside the restored ones, or you would come back
-    # to your desk plus one empty window on top of it.
-    if [ "@restore@" = 1 ] && ! printf '%s\n' "$sessions" | awk -F'\t' '$2 != "0"' | grep -q .; then
-        adopt=$(printf '%s\n' "$sessions" | awk -F'\t' '$1 ~ /^term\./ { print substr($1, 6) }' | sort -n | head -1)
+    # "Looks like" is doing real work in that sentence, and the marker below is
+    # what makes it safe. This window does not become a client until `zmx
+    # attach` at the very bottom of the file, long after it has to decide — so a
+    # second window opened in the same breath (a double Dock click, two `open -a
+    # Ghostty`) reads the same "nothing attached", adopts the same session and
+    # fans out a second time. The marker is held across the whole fan-out by
+    # restore-windows.sh, which owns releasing it; taking it HERE rather than
+    # there is what also makes the adopt single, since the adopt is half of the
+    # same act.
+    #
+    # This window adopts the first parked `term.<n>` itself rather than opening
+    # a fresh session beside the restored ones, or you would come back to your
+    # desk plus one empty window on top of it.
+    parked_ours=$(printf '%s\n' "$sessions" |
+        awk -F'\t' '$2 == "0" && ($1 ~ /^term\./ || $1 ~ /^holt\./)' | grep -c .)
+    if [ "@restore@" = 1 ] &&
+       [ "$parked_ours" -gt 0 ] &&
+       ! printf '%s\n' "$sessions" | awk -F'\t' '$2 != "0"' | grep -q . &&
+       /bin/mkdir "${TMPDIR:-/tmp}/haus-term-restoring" 2>/dev/null; then
+        adopt=$(printf '%s\n' "$sessions" |
+            awk -F'\t' '$2 == "0" && $1 ~ /^term\./ { print substr($1, 6) }' | sort -n | head -1)
         if [ -n "$adopt" ]; then
             SESSION="term.$adopt"
             log "restore: adopting $SESSION"
         fi
         # The rest, in the background: this script has a window to attach.
         # --except keeps the fan-out from opening a second window onto the
-        # session we are about to sit in.
-        if printf '%s\n' "$sessions" | grep -q .; then
+        # session we are about to sit in. HAUS_RESTORE_LOCK hands over the
+        # marker, including the job of removing it.
+        HAUS_RESTORE_LOCK="${TMPDIR:-/tmp}/haus-term-restoring" \
             "$HOME/.config/haus/term/restore-windows.sh" --except "$SESSION" \
-                >>"$LOG" 2>&1 &
-        fi
+            </dev/null >>"$LOG" 2>&1 &
     fi
 
     log "claimed $SESSION (existing: $(printf '%s' "$taken" | tr '\n' ' '))"
@@ -282,6 +298,15 @@ fi
 # `zmx attach` creates the session if it isn't there and re-attaches if it is,
 # so "restore" and "new" are the same call. No trailing command: we want the
 # session's own login shell, which is $SHELL above.
+#
+# HAUS_ZMX_ATTACH is dropped first, and that is not tidiness. Attaching to a
+# session that still exists never runs a shell, so the variable goes nowhere —
+# but a session that DIED between the restore listing it and this line is
+# created here instead, and its brand-new login shell would inherit the name of
+# the session it is supposed to be. From that shell, anything that spawns a
+# Ghostty inheriting the environment would put every window it opened onto that
+# one session.
+unset HAUS_ZMX_ATTACH
 zmx attach "$SESSION" 2> >(tee -a "$LOG" >&2)
 rc=$?
 log "zmx exited with code $rc"
