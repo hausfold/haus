@@ -15,6 +15,13 @@
 # already Developer-ID signed, and a grant keyed to that stable identity + path
 # survives rebuilds. `ditto` preserves the signature + notarization staple.
 #
+# Having no launch agent has one consequence the copy has to pay for: the app
+# comes up at login (it registers itself as a login item) and NOTHING else ever
+# starts it, so a rebuild that swaps the bundle under a running Perch leaves the
+# machine shelf-less for the rest of the session. The activation below therefore
+# stops the shelf on purpose before the swap and puts it back after — but only
+# if it was up, so a deliberately-quit Perch is not resurrected by a rebuild.
+#
 # On by default: nix/release.nix in the perch repo pins a real notarized
 # release, so `pkgs.perch` is a shipping app rather than a placeholder.
 #
@@ -161,8 +168,57 @@ lib.mkIf config.haus.shelf.enable {
     perchStore="${pkgs.perch}/Applications/Perch.app"
     perchDest="/Applications/Perch.app"
     perchMarker="/Library/Application Support/haus/perch.installed-from"
+    perchExec="$perchDest/Contents/MacOS/Perch"
+    perchUid="$(/usr/bin/id -u -- ${username})"
     if [ "$(/bin/cat "$perchMarker" 2>/dev/null)" != "${pkgs.perch}" ]; then
       echo "perch: installing ${pkgs.perch} → $perchDest" >&2
+
+      # Two reasons this block has to end with a running Perch, and they are
+      # both decided BEFORE the swap:
+      #
+      #   * the shelf is up right now — the swap below deletes the bundle out
+      #     from under it and it exits (measured), and NOTHING starts it again:
+      #     perch has no launch agent, it registers itself as a login item, so
+      #     the machine sits shelf-less for the rest of the session and the
+      #     version bump reads as "I rebuilt and now perch won't open";
+      #   * there is no marker at all — this is the room's first install, and
+      #     an app that has never been launched has never registered itself as
+      #     a login item either, so without this it would not come up at the
+      #     next login and the shelf would simply never appear.
+      #
+      # A Perch the user quit on purpose, on a machine that already has it,
+      # matches neither and stays quit.
+      perchRelaunch=""
+      [ -e "$perchMarker" ] || perchRelaunch=1
+      if /usr/bin/pgrep -qU "$perchUid" -f "^$perchExec$"; then
+        perchRelaunch=1
+        # Stop it on purpose instead of letting the rm pull the rug: a process
+        # whose bundle has been deleted can still be alive when we relaunch,
+        # and `open` would then just re-activate that stale instance — running
+        # the OLD binary, out of a bundle that no longer exists — instead of
+        # starting the new build. SIGTERM rather than an AppleScript `quit`
+        # because sending an Apple event from activation would want an
+        # Automation consent dialog, and activation is the one place that must
+        # never block on one. The shelf's contents survive either way: perch
+        # writes its manifest to its container as items are added, not at
+        # quit. `-U` so this is one login session's Perch, not every Perch on
+        # a fast-user-switched machine — the relaunch below can only put ONE
+        # user's back.
+        /usr/bin/pkill -U "$perchUid" -f "^$perchExec$" || true
+        perchStopped=""
+        for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+          /usr/bin/pgrep -qU "$perchUid" -f "^$perchExec$" || { perchStopped=1; break; }
+          /bin/sleep 0.2
+        done
+        # Three seconds is a long time for a UIElement app to acknowledge a
+        # TERM. If it hasn't, the relaunch would find a survivor and do
+        # nothing, so make sure there is nothing to find.
+        if [ -z "$perchStopped" ]; then
+          /usr/bin/pkill -9 -U "$perchUid" -f "^$perchExec$" || true
+          /bin/sleep 0.5
+        fi
+      fi
+
       if /usr/bin/ditto "$perchStore" "$perchDest.new"; then
         /bin/rm -rf "$perchDest"
         /bin/mv "$perchDest.new" "$perchDest"
@@ -171,6 +227,32 @@ lib.mkIf config.haus.shelf.enable {
       else
         echo "perch: ditto failed; leaving any existing $perchDest in place" >&2
         /bin/rm -rf "$perchDest.new"
+      fi
+
+      # Put the shelf back up, in the user's GUI session — activation runs as
+      # root, and root's session is not the one with a menu bar in it (same
+      # reason core's activateSettings call goes through asuser). `-g` so a
+      # rebuild never steals focus from whatever is in front, `timeout` because
+      # `open` waits on LaunchServices and this is the one unbounded call in
+      # the block, and `open` rather than exec'ing the binary because the TCC
+      # identity has to be the app's.
+      #
+      # The success line is printed from what actually happened rather than
+      # from having tried: a rebuild that says it put the shelf back and
+      # didn't is the bug this whole block exists to stop being invisible.
+      if [ -n "$perchRelaunch" ] && [ -x "$perchExec" ]; then
+        ${pkgs.coreutils}/bin/timeout 20 launchctl asuser "$perchUid" \
+          sudo --user=${username} -- /usr/bin/open -g "$perchDest" || true
+        perchUp=""
+        for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+          if /usr/bin/pgrep -qU "$perchUid" -f "^$perchExec$"; then perchUp=1; break; fi
+          /bin/sleep 0.2
+        done
+        if [ -n "$perchUp" ]; then
+          echo "perch: shelf back up" >&2
+        else
+          echo "warning: perch: the shelf did not come back up. It will return at your next login; nothing else was affected." >&2
+        fi
       fi
     fi
   '';
