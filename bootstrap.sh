@@ -51,6 +51,18 @@ run() { if [ -n "$DRY_RUN" ]; then printf '\033[2m   [dry-run] %s\033[0m\n' "$*"
 USERNAME="$(id -un)"
 HOSTNAME="$(scutil --get LocalHostName 2>/dev/null || hostname -s)"
 
+# Homebrew, found by PATH *or* by path. Its shellenv is installed into
+# ~/.zprofile, and `curl … | bash` is a non-login bash that never sources it —
+# so `command -v brew` misses an installed Homebrew, the audit says "no
+# Homebrew yet" on a Mac full of casks, and the adopt-your-casks question is
+# never asked. Both prefixes: Apple silicon and Intel.
+BREW="$(command -v brew 2>/dev/null || true)"
+if [ -z "$BREW" ]; then
+  for c in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+    [ -x "$c" ] && { BREW="$c"; break; }
+  done
+fi
+
 NONINTERACTIVE="${HAUS_NONINTERACTIVE:-}"
 DRY_RUN="${HAUS_DRY_RUN:-}"
 
@@ -480,8 +492,8 @@ if [ -n "$INTERACTIVE" ]; then
     echo "$KEPT" | grep -qx finder   && KEEP_FINDER=1
 
     # Adopt existing casks so a future declarative rebuild never deletes them.
-    if command -v brew >/dev/null 2>&1; then
-      CASKS="$(brew list --cask 2>/dev/null | tr '\n' ' ')"
+    if [ -n "$BREW" ]; then
+      CASKS="$("$BREW" list --cask 2>/dev/null | tr '\n' ' ')"
       if [ -n "${CASKS// /}" ] \
         && "$GUM" confirm "Adopt your $(echo "$CASKS" | wc -w | tr -d ' ') existing Homebrew casks into the config?" <&3; then
         ADOPT_CASKS="$CASKS"
@@ -498,9 +510,9 @@ preflight_audit() {
   printf '\n'; say "Preflight — what's already here, and what changes:"
 
   # Apps — nothing is ever removed (homebrew cleanup defaults to "none").
-  if command -v brew >/dev/null 2>&1; then
+  if [ -n "$BREW" ]; then
     printf '  apps      %s Homebrew cask(s) installed — NONE removed (cleanup = none).\n' \
-      "$(brew list --cask 2>/dev/null | wc -l | tr -d ' ')"
+      "$("$BREW" list --cask 2>/dev/null | wc -l | tr -d ' ')"
     [ -n "$ADOPT_CASKS" ] && printf '            %s adopted into your config so a rebuild keeps them.\n' \
       "$(echo "$ADOPT_CASKS" | wc -w | tr -d ' ')"
   else
@@ -512,20 +524,67 @@ preflight_audit() {
   # already symlinked into the Nix store are managed, so they don't count.
   # (haus's directory-based configs — sketchybar, yazi, … — are managed
   # per-file, so only a conflicting file *inside* them is ever backed up.)
+  #
+  # Two of these are NOT backed up but COLLIDE, and home-manager stops the
+  # activation dead when it meets one (`would be clobbered`) — after the whole
+  # first build, and after Homebrew has already installed its casks:
+  #
+  #   * a SYMLINK that isn't ours (a dotfiles repo, stow, chezmoi, or a base
+  #     image that points ~/.profile at ~/.zprofile). backupFileExtension moves
+  #     regular files; it refuses links, on purpose — silently deleting a link
+  #     into someone's dotfiles repo is the worse failure.
+  #   * a path that already has BOTH <file> and <file>.backup, so the backup
+  #     name it wants is taken.
+  #
+  # This is the last moment either costs nothing to fix, so they get their own
+  # line rather than being folded in with the backups. `.profile` is on the
+  # list because haus owns it (modules/terminal) — leaving it off is how a run
+  # got told "nothing to back up" and then died on it 40 minutes later.
   local managed=(
-    "$HOME/.zshrc" "$HOME/.zshenv" "$HOME/.config/starship.toml" "$HOME/.config/git/config"
+    "$HOME/.zshrc" "$HOME/.zshenv" "$HOME/.zprofile" "$HOME/.profile"
+    "$HOME/.config/starship.toml" "$HOME/.config/git/config"
+    "$HOME/.config/aerospace/aerospace.toml" "$HOME/.config/bat/config"
+    "$HOME/Library/Application Support/com.mitchellh.ghostty/config"
   )
-  local hits=() p link
+  local hits=() blockers=() p link
   for p in "${managed[@]}"; do
-    [ -e "$p" ] || continue
+    # -L as well as -e, so a symlink is seen before its target is followed.
+    { [ -e "$p" ] || [ -L "$p" ]; } || continue
     link="$(readlink "$p" 2>/dev/null || true)"
-    case "$link" in */nix/store/*) : ;; *) hits+=("${p/#$HOME/~}") ;; esac
+    case "$link" in
+      # home-manager's own exemption is this narrow: it recognises only ITS
+      # generation's files as already-managed. A hand-made link into the store,
+      # or one another Nix tool wrote, is a collision to it — so a broader glob
+      # here would pass exactly the file it then dies on.
+      */nix/store/*-home-manager-files/*) continue ;;
+      ?*)
+        # A link whose target is GONE is not in the way: home-manager gates the
+        # whole collision check on the target existing, and replaces a dangling
+        # link without comment. Warning about it would stop a run that works.
+        [ -e "$p" ] || continue
+        blockers+=("${p/#$HOME/~} -> ${link/#$HOME/~} (symlink)")
+        continue
+        ;;
+    esac
+    if [ -e "$p.backup" ]; then
+      blockers+=("${p/#$HOME/~} (its .backup name is taken)")
+    else
+      hits+=("${p/#$HOME/~}")
+    fi
   done
   if [ "${#hits[@]}" -gt 0 ]; then
     printf '  dotfiles  these already exist and will be saved as <file>.backup (kept, not deleted):\n'
     printf '              %s\n' "${hits[@]}"
-  else
+  elif [ "${#blockers[@]}" -eq 0 ]; then
     printf '  dotfiles  no conflicting single-file dotfiles — nothing to back up.\n'
+  fi
+  if [ "${#blockers[@]}" -gt 0 ]; then
+    warn "These stop the FIRST switch — home-manager backs up files, not links:"
+    printf '              %s\n' "${blockers[@]}"
+    printf '            Clear each one before you build (mv ~/.profile ~/.profile.mine),\n'
+    printf '            or keep yours and tell haus to skip that file, in your host file:\n'
+    printf '              home.file.".profile".enable = false;           # a $HOME dotfile\n'
+    printf '              xdg.configFile."starship.toml".enable = false; # one under ~/.config\n'
   fi
 
   # macOS settings the chosen rooms will change (current -> new), or that you
