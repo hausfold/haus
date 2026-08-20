@@ -352,6 +352,7 @@ let
       "ghDash.enable"
       "hijackFileAssociations"
       "obsidianVaults"
+      "restoreWindows"
     ];
     theme = [
       "accent"

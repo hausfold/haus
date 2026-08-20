@@ -5129,6 +5129,27 @@
     "readOnly": false,
     "type": "list of string"
   },
+  "haus.terminal.restoreWindows": {
+    "declarations": [
+      "modules/terminal/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Put your terminal windows back when Ghostty starts.\n\nClosing a window does not end its shell — every window is a `zmx`\nsession that outlives it, so a ⌘W, a ⌘Q or a crash leaves the shells\n(and any agents) running with nothing looking at them. On, the FIRST\nwindow of a Ghostty reopens one window per parked session, each attached\nto the session it belongs to, with lanes landing back on their own\n`T/<repo>` pages. Off, that first window is just a new shell and the\nparked sessions wait — the palette's **Restore Terminal Windows** does\nthe same thing on demand either way, as does the `agents` pill, ⌘F's ⏎\nand the **Lanes** picker for one session at a time.\n\nOnly the FIRST window restores, never a later one: ⌘N and ⌘⇧N always\nopen a new shell in the directory you asked for, which is the only thing\nthey promise. A shell you are finished with should be ended (⌃D, or\n`exit`) rather than closed, or it is a window that comes back.\n\nNeeds an agent client (`haus.ai.clients`) for the lane half; the plain\n`term.<n>` half needs only Ghostty and zmx.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "loc": [
+      "haus",
+      "terminal",
+      "restoreWindows"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
   "haus.theme.accent": {
     "declarations": [
       "modules/theme/options.nix"

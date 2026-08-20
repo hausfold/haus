@@ -1419,7 +1419,22 @@ in
         # nothing to stop telling. What survived is below; the plugin wasm, the
         # two layouts, config.kdl, the theme and copy-clean.pl went with it.
         ".config/haus/term/launch.sh" = {
-          source = ./scripts/launch.sh;
+          # Templated for one bit: whether the FIRST window of a Ghostty puts
+          # the parked sessions back (haus.terminal.restoreWindows). Baked
+          # rather than read at runtime because this script runs before any
+          # shell does — there is no environment to have read it from.
+          text =
+            builtins.replaceStrings [ "@restore@" ]
+              [ (if terminalCfg.restoreWindows then "1" else "0") ]
+              (builtins.readFile ./scripts/launch.sh);
+          executable = true;
+        };
+        # "Put my terminal back the way I left it": one window per parked zmx
+        # session. Called by launch.sh for the first window of a Ghostty, and by
+        # the palette on demand. It reaches raise-session.sh for lanes rather
+        # than carrying a second copy of the forced-title spawn.
+        ".config/haus/term/restore-windows.sh" = {
+          source = ./scripts/restore-windows.sh;
           executable = true;
         };
         ".config/haus/term/image-preview.sh" = {

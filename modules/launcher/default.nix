@@ -306,6 +306,12 @@ let
     "pages.sh"
     "shell-here.sh"
     "shell-here-stay.sh"
+    # Restore is here rather than in the always-on set for a reason that is not
+    # about lanes: `zmx` itself rides the agent switch (modules/terminal's
+    # `++ lib.optional agentsCfg.enable pkgs.zmx`), so with it off there are no
+    # sessions, nothing is ever parked, and the row would be a row that cannot
+    # work. It restores plain `term.<n>` shells as much as lanes.
+    "restore-windows.sh"
   ];
 
   # This rice's palette commands (see ./commands — one self-describing script

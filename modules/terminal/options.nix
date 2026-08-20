@@ -233,6 +233,33 @@ in
       '';
     };
 
+    terminal.restoreWindows = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      example = false;
+      description = ''
+        Put your terminal windows back when Ghostty starts.
+
+        Closing a window does not end its shell — every window is a `zmx`
+        session that outlives it, so a ⌘W, a ⌘Q or a crash leaves the shells
+        (and any agents) running with nothing looking at them. On, the FIRST
+        window of a Ghostty reopens one window per parked session, each attached
+        to the session it belongs to, with lanes landing back on their own
+        `T/<repo>` pages. Off, that first window is just a new shell and the
+        parked sessions wait — the palette's **Restore Terminal Windows** does
+        the same thing on demand either way, as does the `agents` pill, ⌘F's ⏎
+        and the **Lanes** picker for one session at a time.
+
+        Only the FIRST window restores, never a later one: ⌘N and ⌘⇧N always
+        open a new shell in the directory you asked for, which is the only thing
+        they promise. A shell you are finished with should be ended (⌃D, or
+        `exit`) rather than closed, or it is a window that comes back.
+
+        Needs an agent client (`haus.ai.clients`) for the lane half; the plain
+        `term.<n>` half needs only Ghostty and zmx.
+      '';
+    };
+
     terminal.obsidianVaults = lib.mkOption {
       type = lib.types.listOf (
         lib.types.addCheck lib.types.str (
