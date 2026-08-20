@@ -421,6 +421,7 @@ let
       "extensions.<name>.url"
       "extraPolicies"
       "tabBridge.enable"
+      "userStyles"
     ];
   };
 

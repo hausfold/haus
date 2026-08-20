@@ -454,6 +454,60 @@ in
       '';
     };
 
+    zen.userStyles = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [
+        "github"
+        "youtube"
+        "reddit"
+      ];
+      description = ''
+        Nebelung userstyles to compile into Zen's `userContent.css`, by slug —
+        the palette on real websites, with **no extension and no import click**.
+
+        This is the same 134 styles Stylus would import, taken the other way
+        round. They are LESS source, which is why the accent could only ever
+        reach the web through a click: Stylus compiles them in the browser.
+        haus compiles the ones you name here instead, stamping the same three
+        axes (`haus.theme.accent`, and the flavor on both its light and dark
+        vars), and appends the result to the stylesheet it already drops into
+        every Zen profile. Nothing to re-import and no state to carry to the
+        next machine — but a **restart of Zen** is what applies it: Firefox
+        reads `userContent.css` once at startup, so a rebuild alone leaves an
+        open browser on the previous colours.
+
+        A slug is the style's own name in nebelung's bundle — `github`,
+        `youtube`, `reddit`, `hacker-news`. Naming one that doesn't exist fails
+        the build and lists every slug there is, so a typo costs a rebuild
+        rather than a silently unthemed site.
+
+        **Keep the list short.** A user stylesheet is parsed and applied to
+        every document, and these are big: github and youtube together are
+        ~320 KB, the whole set is 7 MB of CSS on every page load to theme sites
+        you never open. This is for the handful you actually read.
+
+        A couple of dozen styles theme code blocks through a remote
+        `@import url(...)` — mdn, wikipedia and the nix docs among them. An
+        `@import` inside an `@-moz-document` block is invalid CSS, so Firefox
+        drops it and those styles land with their code blocks unthemed; the
+        rest of each style applies, and the build prints which ones are
+        affected. Stylus has the same styles without that limit.
+
+        What stays with `haus.zen.extensions.stylus`: per-site toggles, styles
+        that update themselves, and adding one without a rebuild. Both can be
+        on — but keep a given site in one or the other, since two sheets
+        setting the same property is a race nobody wins.
+
+        **Gecko only, and permanently so.** `@-moz-document` in a user sheet is
+        what makes this possible; Chromium removed user stylesheets in Chrome 33
+        and the Blink equivalent would be a self-built extension. Zen is where
+        haus points it because Zen is the browser haus themes — the compiled
+        sheet itself is engine-generic, so a second Gecko browser would only
+        need its profile directory added.
+      '';
+    };
+
     zen.tabBridge.enable = lib.mkOption {
       type = lib.types.bool;
       default = false;

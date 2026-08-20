@@ -630,9 +630,7 @@
           namedValidators = builtins.filter (name: name != "") (
             nixpkgs.lib.unique (
               map (name: registryOptions.${name}.validator or "") (
-                builtins.filter (
-                  name: registryOptions.${name}.desktopSafe == "recursive"
-                ) registeredOptionNames
+                builtins.filter (name: registryOptions.${name}.desktopSafe == "recursive") registeredOptionNames
               )
             )
           );
@@ -648,8 +646,7 @@
           # holding nothing but its own indent — the same non-answer as no
           # sentence at all, arrived at by a route the check would wave through.
           unexplainedValidators = builtins.filter (
-            name:
-            (nixpkgs.lib.trim (registry.validators.${name}.rule or "")) == ""
+            name: (nixpkgs.lib.trim (registry.validators.${name}.rule or "")) == ""
           ) implementedValidators;
           strayValidatorRules = builtins.filter (
             name: !(builtins.elem name implementedValidators)
@@ -1258,10 +1255,16 @@
                         name = "Zed";
                         cask = "zed";
                       };
-                      # Same reason, and the one surface here that reaches the
+                      # Same reason, and the two surfaces here that reach the
                       # WEB rather than an app's own config: the stamped Stylus
-                      # bundle only exists once the extension is declared.
+                      # bundle only exists once the extension is declared, and
+                      # the compiled userstyle sheet only once a style is named.
+                      # Without the second line the `zen` row below fingerprints
+                      # nebelung's own userContent.css and would not notice the
+                      # accent dropping out of the compiled half — which is the
+                      # only half nothing else in the flake ever evaluates.
                       haus.zen.extensions.stylus = { };
+                      haus.zen.userStyles = [ "github" ];
                     }
                   ];
                 }).config;
