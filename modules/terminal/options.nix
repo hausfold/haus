@@ -523,12 +523,14 @@ in
         ~320 KB, the whole set is 7 MB of CSS on every page load to theme sites
         you never open. This is for the handful you actually read.
 
-        A couple of dozen styles theme code blocks through a remote
-        `@import url(...)` — mdn, wikipedia and the nix docs among them. An
-        `@import` inside an `@-moz-document` block is invalid CSS, so Firefox
-        drops it and those styles land with their code blocks unthemed; the
-        rest of each style applies, and the build prints which ones are
-        affected. Stylus has the same styles without that limit.
+        Code blocks are themed too, including on the couple of dozen styles
+        that reach for them through a remote `@import url(...)` — mdn,
+        wikipedia, stack-overflow and the nix docs among them. An `@import`
+        inside an `@-moz-document` block is invalid CSS wherever it points, so
+        haus vendors the four files those 29 styles share and pastes each one
+        in where its `@import` was. A fifth URL appearing upstream fails the
+        build naming it, rather than shipping a style whose code blocks are
+        quietly stock.
 
         Every declaration is compiled to `!important`, and that is load-bearing
         rather than heavy-handed: a user stylesheet's normal declarations rank
