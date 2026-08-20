@@ -4,11 +4,29 @@
 # Codex, etc.) or token API costs (Opencode, etc.) in the menu bar.
 #
 # Subscription TSV lines:
-#     <5h %>\t<7d %>\t<5h resets epoch>\t<7d resets epoch>\t<written epoch>\t<provider>
+#     <5h %>\t<7d %>\t<5h resets epoch>\t<7d resets epoch>\t<written epoch>\t<provider>\t<model>\t<provider_id>\t<used epoch>
 # Cost TSV lines (e.g. usage-opencode.tsv):
-#     <today $>\t<mtd $>\t0\t0\t<written epoch>\topencode\t<model>\t<provider_id>
+#     <today $>\t<mtd $>\t0\t0\t<written epoch>\topencode\t<model>\t<provider_id>\t<used epoch>
+# No column here is ever EMPTY, including the two a subscription feed has no
+# real use for: tab is IFS whitespace, so `read` collapses a run of empty middle
+# fields into one delimiter and shifts every later column left.
 # Token TSV lines (tokens-<provider>.tsv, optional, dropdown only):
 #     <today tokens>\t<all-time tokens>\t<written epoch>
+#
+# ── written vs used, and why they are two columns ─────────────────────────────
+# Column 5 answers "how old are these NUMBERS" and column 9 answers "when did
+# you last actually burn quota here". They were one field, and the pill read it
+# as both, which is exactly as wrong as it sounds the moment a feed is PULLED
+# rather than pushed: the Codex block re-asks OpenAI every two minutes whether
+# you have touched Codex or not, so its stamp was always `now` and `latest`
+# handed the pill to the one client that had been idle for days. Opencode had
+# the mirror-image fault — it stamped its row with the last SESSION time, so a
+# feed refreshed 30 seconds ago greyed itself out as stale.
+#
+# So: staleness (the grey, the `as of N ago` footnote) reads column 5, and the
+# `latest` provider selection reads column 9. A row with no column 9 — an older
+# rice, or a client whose writer this repo doesn't own — falls back to column 5,
+# which for a PUSHED feed is what it always meant.
 #
 # Two entry paths:
 #   • periodic / system_woke / refresh  → repaint main pill icon+label
@@ -341,8 +359,12 @@ fi
 [ -f "$HOME/.config/sketchybar/ai_usage_config.sh" ] && source "$HOME/.config/sketchybar/ai_usage_config.sh"
 PREFERRED="${BAR_AI_USAGE_PROVIDER:-latest}"
 
-# Determine active/preferred provider for the main pill
-latest_stamp=-1
+# Determine active/preferred provider for the main pill. `latest` orders on
+# USED (column 9), not on written — see the header. The chosen row's WRITTEN
+# stamp is carried out separately as main_stamp, because that is still what
+# greys the pill.
+latest_used=-1
+main_stamp=0
 main_val5="0"
 main_valw="0"
 main_provider="claude"
@@ -351,9 +373,16 @@ main_provider_id=""
 is_cost=0
 
 for f in "${files[@]}"; do
-  val5=0; valw=0; r5=0; rw=0; stamp=0; prov="claude"; model=""; prov_id=""
-  IFS=$'\t' read -r val5 valw r5 rw stamp prov model prov_id < "$f" || true
+  val5=0; valw=0; r5=0; rw=0; stamp=0; prov="claude"; model=""; prov_id=""; used=""
+  IFS=$'\t' read -r val5 valw r5 rw stamp prov model prov_id used < "$f" || true
   val5=${val5:-0}; valw=${valw:-0}; r5=${r5:-0}; rw=${rw:-0}; stamp=${stamp:-0}; prov=${prov:-claude}
+  # No column 9 (or a non-numeric one) → the row predates the split, where the
+  # written stamp WAS the used stamp for every pushed feed. Validated twice, and
+  # the second one is not redundant: the fallback is `stamp`, which is only
+  # defaulted, never checked, so a garbled row would otherwise reach `-gt` and
+  # print "integer expression expected" into the bar's log every 15 seconds.
+  case "${used:-}" in '' | *[!0-9]*) used=$stamp ;; esac
+  case "${used:-}" in '' | *[!0-9]*) used=0 ;; esac
 
   f_is_cost=0
   if [ "$prov" = "opencode" ] || [[ "$val5" =~ \. ]]; then
@@ -370,10 +399,11 @@ for f in "${files[@]}"; do
     main_model=${model:-}
     main_provider_id=${prov_id:-}
     is_cost=$f_is_cost
-    latest_stamp=$stamp
+    main_stamp=$stamp
     break
-  elif [ "$stamp" -gt "$latest_stamp" ]; then
-    latest_stamp=$stamp
+  elif [ "$used" -gt "$latest_used" ]; then
+    latest_used=$used
+    main_stamp=$stamp
     main_val5=$val5
     main_valw=$valw
     main_provider=$prov
@@ -397,8 +427,8 @@ else
   COL=$(pct_color "$main_pct")
 fi
 
-age=$((now - latest_stamp))
-stale=0; [ "$latest_stamp" -gt 0 ] && [ "$age" -gt "$STALE" ] && stale=1
+age=$((now - main_stamp))
+stale=0; [ "$main_stamp" -gt 0 ] && [ "$age" -gt "$STALE" ] && stale=1
 [ "$stale" = 1 ] && COL=$OVERLAY1
 
 provider_style "$main_provider" "${main_provider_id:-$main_model}" "$FS_LABEL"
@@ -430,8 +460,11 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
   ARGS=()
   i=0
   for f in "${files[@]}"; do
-    val5=0; valw=0; r5=0; rw=0; stamp=0; prov="claude"; model=""; prov_id=""
-    IFS=$'\t' read -r val5 valw r5 rw stamp prov model prov_id < "$f" || true
+    # `used` is read even though the dropdown never shows it: without a variable
+    # to land in, `read` folds column 9 into prov_id — the field provider_style
+    # picks an icon from — and every multi-column row draws the wrong mark.
+    val5=0; valw=0; r5=0; rw=0; stamp=0; prov="claude"; model=""; prov_id=""; used=""
+    IFS=$'\t' read -r val5 valw r5 rw stamp prov model prov_id used < "$f" || true
     val5=${val5:-0}; valw=${valw:-0}; r5=${r5:-0}; rw=${rw:-0}; stamp=${stamp:-0}; prov=${prov:-claude}
 
     f_is_cost=0

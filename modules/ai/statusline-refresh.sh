@@ -328,7 +328,14 @@ if [ -f "$OPENCODE_DB" ] && command -v sqlite3 >/dev/null 2>&1; then
     oc_prov_id="google"
   fi
 
-  printf "%s\t%s\t0\t0\t%s\topencode\t%s\t%s\n" "$oc_today" "$oc_mtd" "$oc_sec_stamp" "$oc_model_id" "$oc_prov_id" > "$CACHE_DIR/usage-opencode.tsv.tmp"
+  # Written (col 5) is NOW — this row was just read out of the db and the money
+  # in it is current — and used (col 9) is the last session's own timestamp,
+  # which sqlite hands us for free. They were the same field, holding the
+  # session stamp, so a feed refreshed seconds ago greyed itself out as stale
+  # and printed `as of 6d ago` under numbers that were not 6 days old.
+  printf "%s\t%s\t0\t0\t%s\topencode\t%s\t%s\t%s\n" \
+    "$oc_today" "$oc_mtd" "$(date +%s)" "$oc_model_id" "$oc_prov_id" "$oc_sec_stamp" \
+    > "$CACHE_DIR/usage-opencode.tsv.tmp"
   mv "$CACHE_DIR/usage-opencode.tsv.tmp" "$CACHE_DIR/usage-opencode.tsv"
   fed=1
 
@@ -476,7 +483,31 @@ if [ "$codex_fresh" = 0 ] && [ -f "$CODEX_AUTH" ] && command -v jq >/dev/null 2>
   fi
 
   if [ -n "$cx_row" ]; then
-    printf '%s\t%s\tcodex\n' "$cx_row" "$now" >"$CODEX_TSV.tmp"
+    # Column 9, the USED stamp the bar picks `latest` on — and the reason this
+    # column exists at all. This block re-asks OpenAI every CODEX_TTL seconds
+    # whether Codex has been touched or not, so column 5 (written) is always
+    # `now` here; reading that as "most recently used" handed the pill to Codex
+    # permanently, days after the last Codex session. A percentage that ROSE is
+    # use; a percentage that FELL is a rate-limit window rolling over, which is
+    # the opposite of use and must not bump the stamp. Anything else carries the
+    # previous row's stamp forward untouched.
+    cx5=${cx_row%%$'\t'*}; cx_rest=${cx_row#*$'\t'}; cxw=${cx_rest%%$'\t'*}
+    px5=0; pxw=0; px_used=0
+    if [ -s "$CODEX_TSV" ]; then
+      IFS=$'\t' read -r px5 pxw _ _ _ _ _ _ px_used <"$CODEX_TSV" || true
+    fi
+    case "${px5:-}"     in '' | *[!0-9]*) px5=0 ;; esac
+    case "${pxw:-}"     in '' | *[!0-9]*) pxw=0 ;; esac
+    case "${px_used:-}" in '' | *[!0-9]*) px_used=0 ;; esac
+    cx_used=$px_used
+    if [ "$px_used" = 0 ] || [ "${cx5:-0}" -gt "$px5" ] || [ "${cxw:-0}" -gt "$pxw" ]; then
+      cx_used=$now
+    fi
+    # Columns 7/8 carry a value rather than an empty pair: tab is IFS whitespace,
+    # so `read` collapses empty middle fields and shifts column 9 left into
+    # `model`. provider_style's `codex` arm ignores both, but the reader's
+    # parse does not.
+    printf '%s\t%s\tcodex\tcodex\topenai\t%s\n' "$cx_row" "$now" "$cx_used" >"$CODEX_TSV.tmp"
     mv "$CODEX_TSV.tmp" "$CODEX_TSV"
     fed=1
   else
