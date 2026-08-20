@@ -66,7 +66,7 @@ _haus() {
     'doctor:check the machine'\''s health (Nix, CLT, the GUI agents)'
     'btm:check BTM daemon-gating (macOS 26 Tahoe+; no-op before)'
     'tour:take the guided haus tour'
-    'show:inspect a desktop or room FILE before you publish or trust it'
+    'show:inspect a desktop or room - a local file or a remote source - before you publish or trust it'
     'help:list every command'
   )
 
@@ -87,10 +87,19 @@ _haus() {
       #
       # `show`'s own flags are excluded for the same reason: they are not
       # positionals, and counting `--json` as one made `haus show --json <TAB>`
-      # complete nothing at all.
+      # complete nothing at all. `--file` is the same bug twice over, because it
+      # takes a VALUE: unlisted, the flag and its argument counted as two
+      # positionals and `haus show --file x.nix <TAB>` completed nothing.
       local -i typed=0 i
+      local -i skip=0
       for (( i = 2; i < CURRENT; i++ )); do
-        [[ $words[i] == (-v|--verbose|--json|--room|-h|--help) ]] || (( typed++ ))
+        if (( skip )); then skip=0; continue; fi
+        case $words[i] in
+          --file)   skip=1 ;;
+          --file=*) ;;
+          -v|--verbose|--json|--room|-h|--help) ;;
+          *) (( typed++ )) ;;
+        esac
       done
 
       case $words[1] in
@@ -112,15 +121,18 @@ _haus() {
           _values 'tour' 'reset[re-arm a finished tour]'
           ;;
         show)
-          # The only verb whose argument is a PATH rather than an option name —
-          # and a file on disk, so the shell's own completion is the right one.
+          # The only verb whose argument is a PATH rather than an option name.
+          # A local one is a file on disk, so the shell's own completion is the
+          # right one; a remote source is a flakeref nothing here can enumerate,
+          # which is why the file glob is offered rather than required.
           if (( typed == 0 )); then
             _arguments \
               '--json[the report as JSON on stdout, for CI and agents]' \
-              '--room[this file is CODE; print the trust warning, check nothing]' \
-              '*:desktop or room file:_files -g "*.nix"'
+              '--room[this is CODE; print the trust warning, check nothing]' \
+              '--file[which file inside a fetched repo to read]:path in the source:' \
+              '*:desktop or room - a .nix file, or a source:_files -g "*.nix"'
           else
-            _message 'one file at a time'
+            _message 'one source at a time'
           fi
           ;;
       esac

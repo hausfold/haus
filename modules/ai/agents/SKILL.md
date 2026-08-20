@@ -167,13 +167,28 @@ user the extra step: `brew uninstall --zap <cask>`.
 - `haus doctor` — health check. Run it before blaming your own change for
   something being broken.
 - `haus generations` / `haus rollback [N]` — the undo history.
-- `haus show <file> [--json]` — the user was handed a `.nix` and wants to know
-  what it is. Reads only. `class: "desktop"` with `ok: true` means haus PROVED
-  it is data that can set nothing but public, desktop-safe options.
-  `class: "room"` means `checked` is false: it is a module, i.e. code that may
-  install packages and run activation scripts as root — **never report that as
-  safe.** Exits 0 passed · 1 checked and failed (`failures` lists every rule) ·
-  3 it is code and the caller did not say `--room`.
+- `haus show <src> [--json]` — the user was handed a `.nix`, or linked to one,
+  and wants to know what it is. `<src>` is a local path **or** a source they do
+  not have yet: `github:ada/writer-desktop`, `git+https://…`,
+  `file+https://…/writer.nix`. A source is fetched into the Nix store and read
+  there; nothing in the user's config is written, so this is safe to run on
+  something they intend to refuse. `--file <p>` picks one file inside a fetched
+  repo — needed when it holds more than one, and `show` lists them when it
+  does. Reads only.
+
+  `class: "desktop"` with `ok: true` means haus PROVED it is data that can set
+  nothing but public, desktop-safe options. `class: "room"` means `checked` is
+  false: it is a module, i.e. code that may install packages and run activation
+  scripts as root — **never report that as safe.** For a source, `origin`
+  carries the origin as typed, the resolved `rev`, `lastModified` (the
+  SOURCE's own date, not the fetch's) and `fetchedAt` (this run's, from the
+  clock). It is `null` for a local file. A `file+https://` URL resolves with no
+  `rev` and no `lastModified` at all — say so rather than implying it is
+  current.
+
+  Exits 0 passed · 1 checked and failed (`failures` lists every rule) · 2 it
+  could not be fetched or read, or the arguments were wrong · 3 it is code and
+  the caller did not say `--room`.
 - <https://hausfold.co/docs/> — guides and reference. Note it documents the **latest**
   haus; this machine is pinned to a specific revision, so it can describe options
   that are not in `references/options.md` yet. When they disagree, this skill's

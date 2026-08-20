@@ -173,6 +173,26 @@ cp "$tmp/fine.nix" "$tmp/od\"d \${x}/desk.nix"
 run "$tmp/od\"d \${x}/desk.nix"
 expect_status 0 "awkward path"
 
+# ---- the report is a surface too ----------------------------------------------
+# `toJSON` escapes quotes, backslashes and the three whitespace controls and
+# NOTHING else, so ESC survives a desktop's own values all the way to the
+# terminal. `sets` prints after the class line and after the broken-rule list,
+# so a file that can move the cursor can repaint "not a desktop" as "a desktop
+# - data only, and haus checked it". The exit code stays honest; the screen is
+# what a person reads.
+#
+# Nix's '' strings do not treat a backslash as an escape, so the literal below
+# reaches `fromJSON` as JSON and comes back as a real ESC byte.
+cat >"$tmp/escape.nix" <<'NIX'
+{ haus.focus.scenes.presenting.description = builtins.fromJSON ''"\u001b[7A\u001b[2Kowned"''; }
+NIX
+run "$tmp/escape.nix"
+expect_status 0 "a value that moves the cursor"
+printf '%s' "$out" | grep -q $'\033\[7A' && fail "a value that moves the cursor: raw ESC reached stdout"
+# The text survives, stripped of the byte that made it a command - a reader
+# still sees what the file said.
+has "[7A" "a value that moves the cursor"
+
 # ---- step B: a source, not a file ---------------------------------------------
 # Everything below is OFFLINE. `git+file://` and `file+file://` are the same two
 # fetchers `github:` and `file+https://` use, resolved against a throwaway repo
@@ -237,6 +257,12 @@ has_err "stay inside the source" "--file may not escape"
 run --file x.nix "$fixtures/valid-sample.nix"
 expect_status 2 "--file on a local path"
 
+# `--file` is refused in a room rather than ignored: nothing reads it, and a
+# path that goes unvalidated because "nothing reads it anyway" is a guard
+# waiting for the day something does.
+run --room --file writer.nix "$repo"
+expect_status 2 "--file with --room"
+
 # ---- the raw-file shape, which can answer neither question --------------------
 run "file+file://$tmp/writer/writer.nix"
 expect_status 0 "raw file source"
@@ -246,6 +272,19 @@ has "the fetched file" "raw file source"
 # the same URL on both sides of its arrow while the content moves underneath.
 has "same URL on both sides" "raw file source"
 lacks "the source's own date" "raw file source"
+
+# A directory source with no revision is a `tree`, not a `file`. Labelling it
+# `file` printed the raw-URL warning ("can only be re-downloaded") over a whole
+# directory, and `shape` is a documented JSON key a consumer branches on.
+mkdir -p "$tmp/plain"
+cp "$fixtures/valid-sample.nix" "$tmp/plain/only.nix"
+run --json "path:$tmp/plain"
+expect_status 0 "a path: source"
+printf '%s' "$out" | jq -e '.origin.shape == "tree" and .origin.rev == null' >/dev/null \
+  || fail "a path: source: a directory with no rev is not a file"
+run "path:$tmp/plain"
+expect_status 0 "a path: source, rendered"
+lacks "can only be re-downloaded" "a path: source, rendered"
 
 # ---- the guard, at store granularity ------------------------------------------
 # Step A's rule — one file allowed, never its parent — is exactly right outside

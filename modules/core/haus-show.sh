@@ -34,11 +34,16 @@ export PATH
 # its own; on a machine the system profile's copy is the pin you actually run.
 CHECK="${HAUS_DESKTOP_CHECK:-/run/current-system/sw/share/haus/desktop-check}"
 
-say()   { printf '\033[38;5;103m🌫  %s\033[0m\n' "$*"; }
-die()   { printf '\033[38;5;167m✗  %s\033[0m\n' "$*" >&2; exit 2; }
-field() { printf '  \033[38;5;103m%-9s\033[0m %s\n' "$1" "$2"; }
+# `scrub` (defined below, beside the reasoning) strips C0 controls. It is
+# applied in the HELPERS rather than at each call site: every one of these takes
+# a message that can carry a source's bytes — a path, a URL, a diagnostic, a
+# value — and a rule that has to be remembered per call is a rule with a hole in
+# it. On haus's own ASCII literals it does nothing.
+say()   { printf '\033[38;5;103m🌫  %s\033[0m\n' "$(printf '%s' "$*" | scrub)"; }
+die()   { printf '\033[38;5;167m✗  %s\033[0m\n' "$(printf '%s' "$*" | scrub)" >&2; exit 2; }
+field() { printf '  \033[38;5;103m%-9s\033[0m %s\n' "$1" "$(printf '%s' "$2" | scrub)"; }
 good()  { printf '  \033[38;5;108m✓\033[0m %s\n' "$*"; }
-bad()   { printf '  \033[38;5;167m✗\033[0m %s\n' "$*"; }
+bad()   { printf '  \033[38;5;167m✗\033[0m %s\n' "$(printf '%s' "$*" | scrub)"; }
 note()  { printf '  \033[38;5;179m⚠\033[0m %s\n' "$*"; }
 dim()   { printf '  \033[38;5;103m%s\033[0m\n' "$*"; }
 plural() { [ "$1" = 1 ] || printf s; }
@@ -116,6 +121,23 @@ done
 # to evaluate.
 nix_string() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/\$/\\$/g'; }
 
+# ---- everything a stranger wrote passes through here -------------------------
+# `toJSON` escapes quotes, backslashes and the three whitespace controls, and
+# nothing else — so ESC survives a desktop's own values and its own attribute
+# NAMES all the way to `jq -r`, which decodes it back to a raw byte. Measured:
+# an accent of "\u001b[7A\u001b[2K…" reaches the terminal intact.
+#
+# That is not cosmetic here. `sets` is printed AFTER the class line and after
+# the list of broken rules, so a file that can move the cursor can repaint
+# "not a desktop — it breaks the rules below" as "a desktop — data only, and
+# haus checked it". The exit code stays honest; the screen is what the audience
+# reads. Step A shipped this hole with an input that had been handed to you by
+# someone; a source arrives from a stranger, which is what makes it bite.
+#
+# Tab survives, because it is the field separator the render loops read on.
+# `--json` needs none of this: jq re-escapes controls on the way out.
+scrub() { LC_ALL=C tr -d '\000-\010\013\014\016-\037\177'; }
+
 # Nix's own sentence out of a captured stderr, not a guess.
 #
 # Step A used the last non-blank line, which is right for a parse error and
@@ -134,7 +156,12 @@ lasterror() {
 }
 # The last non-blank line, for the paths where there is no `error:` line at all.
 lastline() { { grep -v '^[[:space:]]*$' "$1" | tail -n 1 | sed 's/^[[:space:]]*//'; } || true; }
-whynot() { local m; m="$(lasterror "$1")"; [ -n "$m" ] || m="$(lastline "$1")"; printf '%s' "$m"; }
+# Scrubbed for the same reason the report is: this text can contain a remote
+# server's own bytes, quoted by Nix into an error it then prints.
+whynot() {
+  local m; m="$(lasterror "$1")"; [ -n "$m" ] || m="$(lastline "$1")"
+  printf '%s' "$m" | scrub
+}
 
 # BSD takes an epoch after -r, GNU takes one after -d @; -r first because GNU's
 # -r wants a FILE and fails loudly on a number, while BSD's -d is a different
@@ -203,9 +230,18 @@ else
   # --impure is not a weakening we chose. `fetchTree` on an unpinned ref is
   # refused outright in pure mode, and NIX_PATH is cleared because nothing here
   # should read a search path even though nothing here uses one.
+  #
+  # `tarball-ttl 0` is the difference between a provenance report and a stale
+  # one. Nix caches a resolved ref for an hour by default, so without it a
+  # `show` run minutes after a publisher pushes a fix reports the PREVIOUS rev
+  # and the previous date — under a `fetched` line stamped from the clock, in
+  # the freshest language the report has. Every other command here can afford a
+  # cache; the one whose whole output is "where did this come from, and how old
+  # is it" cannot.
   [ -n "$json" ] || printf '\033[38;5;103m🌫  fetching %s …\033[0m\n' "$subject" >&2
   fetched="$(
     NIX_PATH='' nix eval --impure --json \
+      --option tarball-ttl 0 \
       --expr "let t = builtins.fetchTree \"$(nix_string "$subject")\"; in {
         tree = t.outPath;
         rev = t.rev or null;
@@ -223,7 +259,10 @@ else
   if [ -n "$asroom" ]; then
     # A room is never read, so there is no file to choose inside it. Asking
     # which .nix is the room would be asking a question this command has just
-    # promised not to answer from the contents.
+    # promised not to answer from the contents. `--file` is still refused
+    # rather than ignored: a path that goes unvalidated because "nothing reads
+    # it anyway" is a guard waiting for the day something does.
+    [ -z "$pick" ] || die "--file has nothing to name in a room: --room reads nothing at all"
     abs="$tree"
   elif [ -d "$tree" ]; then
     if [ -n "$pick" ]; then
@@ -258,8 +297,17 @@ $(printf '     %s\n' "${cands[@]}")" ;;
     abs="$tree"
   fi
 
-  origin="$(jq --arg typed "$subject" --arg pick "$pick" --argjson at "$(date +%s)" \
-    '{ typed: $typed, shape: (if .rev == null then "file" else "repo" end),
+  # Three-way, because "has no revision" and "is one file" are different facts
+  # and a `path:` or `tarball+` source is the pair that separates them: a
+  # directory with no rev came back labelled `file`, and the report then warned
+  # about a raw URL over a tree. `shape` is a documented JSON key, so a consumer
+  # branches on it.
+  shape="file"
+  [ -d "$tree" ] && shape="tree"
+  [ "$(jq -r '.rev // ""' <<<"$fetched")" = "" ] || shape="repo"
+  origin="$(jq --arg typed "$subject" --arg pick "$pick" --arg shape "$shape" \
+    --argjson at "$(date +%s)" \
+    '{ typed: $typed, shape: $shape,
        file: (if $pick == "" then null else $pick end),
        tree: .tree, rev: .rev, lastModified: .lastModified, narHash: .narHash,
        fetchedAt: $at }' <<<"$fetched")"
@@ -471,7 +519,7 @@ render_desktop() {
     # The checker names the file on every line, which is what makes it useful
     # inside a flake check over a directory of fixtures and noise here, where
     # the filename is already the second line of the report.
-    jq -r --arg abs "$abs" '.failures[] | ltrimstr($abs + ": ")' <<<"$report" |
+    jq -r --arg abs "$abs" '.failures[] | ltrimstr($abs + ": ")' <<<"$report" | scrub |
       while IFS= read -r line; do printf '    \033[38;5;167m·\033[0m %s\n' "$line"; done
   fi
   printf '\n'
@@ -483,8 +531,8 @@ render_desktop() {
     printf '\n'
     while IFS= read -r room; do
       printf '    \033[38;5;108m%s\033[0m\n' \
-        "$(jq -r --arg r "$room" '.rooms[] | select(.room == $r) | .title' <<<"$report")"
-      jq -r --arg r "$room" '.sets[] | select(.room == $r) | "\(.path)\t\(.value)"' <<<"$report" |
+        "$(jq -r --arg r "$room" '.rooms[] | select(.room == $r) | .title' <<<"$report" | scrub)"
+      jq -r --arg r "$room" '.sets[] | select(.room == $r) | "\(.path)\t\(.value)"' <<<"$report" | scrub |
         while IFS=$'\t' read -r path value; do
           printf '      %-46s \033[38;5;103m%s\033[0m\n' "$path" "$value"
         done
@@ -492,7 +540,7 @@ render_desktop() {
     # A leaf no registry namespace owns cannot survive in a PASSING desktop —
     # the checker refuses it — but a failing one is exactly where a reader wants
     # to see it rather than have it silently dropped from the listing.
-    jq -r '.sets[] | select(.room == null) | "\(.path)\t\(.value)"' <<<"$report" |
+    jq -r '.sets[] | select(.room == null) | "\(.path)\t\(.value)"' <<<"$report" | scrub |
       while IFS=$'\t' read -r path value; do
         printf '      %-46s \033[38;5;167m%s\033[0m\n' "$path" "$value"
       done
@@ -534,7 +582,7 @@ case "$class" in
     [ -n "$json" ] || {
       say "$subject"
       printf '\n'
-      bad "$(jq -r --arg abs "$abs" '.failures[0] | ltrimstr($abs + ": ")' <<<"$report")"
+      bad "$(jq -r --arg abs "$abs" '.failures[0] | ltrimstr($abs + ": ")' <<<"$report" | scrub)"
       [ -z "$reason" ] || {
         printf '\n'
         dim "Nix says: $reason"
