@@ -138,10 +138,45 @@ vis() {
   run -0 render claude-opus-5
   local bare; bare=$(printf '%s' "${lines[0]}" |
     sed 's/\x1b]8;;[^\\]*\x1b\\//g; s/\x1b\[[0-9;]*m//g')
-  [[ "$bare" == "⏏ joyful-pond"* ]] ||
+  [[ "$bare" == "● joyful-pond"* ]] ||
     fail "row 1 no longer leads with its own status+name: $bare"
   [[ "$bare" == *"41  42% \$1.23"* ]] ||
     fail "the cluster is not sitting just left of the chips: $bare"
+}
+
+@test "a lane that has never committed leads with ●, not ⏏" {
+  # ⏏ says "landed, and holt reaps this on pane close" — and it is read as
+  # "merged". A branch cut from main is trivially an ancestor of main, so the
+  # ancestry test alone put that on every agent from the second it spawned.
+  # The fixture branch is exactly that lane: created, never committed.
+  run -0 render claude-opus-5
+  local bare; bare=$(printf '%s' "${lines[0]}" | sed 's/\x1b]8;;[^\\]*\x1b\\//g; s/\x1b\[[0-9;]*m//g')
+  [[ "$bare" == "● joyful-pond"* ]] || fail "an empty lane is not landed: $bare"
+}
+
+@test "a lane whose commit landed still leads with ⏏" {
+  # The other direction, and the one that must not move: this branch committed
+  # and main fast-forwarded onto it, so it has no commits of its own left to
+  # count either. Only its reflog separates it from the empty lane above.
+  git -C "$REPO" commit -q --allow-empty -m work
+  git -C "$REPO" branch -f main HEAD
+  run -0 render claude-opus-5
+  local bare; bare=$(printf '%s' "${lines[0]}" | sed 's/\x1b]8;;[^\\]*\x1b\\//g; s/\x1b\[[0-9;]*m//g')
+  [[ "$bare" == "⏏ joyful-pond"* ]] || fail "a landed lane lost its ⏏: $bare"
+}
+
+@test "a tip moved by anything but its own creation keeps ⏏" {
+  # `commit:` is NOT every way git spells "something happened here": cherry-pick,
+  # revert, rebase and reset each write their own reflog subject. So the rule is
+  # inverted — nothing but `branch: Created from …` counts as empty — and this
+  # pins it with a tip moved by `reset`, which a prefix hunt would call empty.
+  git -C "$REPO" checkout -q main
+  git -C "$REPO" commit -q --allow-empty -m "landed elsewhere"
+  git -C "$REPO" checkout -q worktree-joyful-pond
+  git -C "$REPO" reset -q --hard main
+  run -0 render claude-opus-5
+  local bare; bare=$(printf '%s' "${lines[0]}" | sed 's/\x1b]8;;[^\\]*\x1b\\//g; s/\x1b\[[0-9;]*m//g')
+  [[ "$bare" == "⏏ joyful-pond"* ]] || fail "a hand-moved tip read as empty: $bare"
 }
 
 @test "child rows use their status token as the bullet" {

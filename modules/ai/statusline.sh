@@ -384,9 +384,18 @@ if [ "$is_wt" = 1 ] && [ "${files:-0}" -eq 0 ] && g merge-base --is-ancestor HEA
   # fast-forward has no commits of its own left to count either, and only its
   # reflog remembers that it ever did anything. An EMPTY reflog (gc'd entries,
   # or core.logAllRefUpdates off) proves nothing, so it keeps the ⏏.
+  #
+  # The test is INVERTED on purpose: nothing but `branch: Created from …` may
+  # appear, rather than a list of what "something happened" looks like. That
+  # list is a trap — `commit:` covers `git commit` and `--amend` and nothing
+  # else, while cherry-pick writes `cherry-pick:`, revert `revert:`, rebase
+  # `rebase (finish):`, `reset --hard` `reset: moving to`, and `branch -f`
+  # `branch: Reset to` (which is why the match keeps its trailing space).
+  # Hunting for prefixes calls every one of those empty — this same bug
+  # pointing the other way, a lane whose work landed losing its ⏏.
   if [ "${ahead:-0}" -eq 0 ] && [ -n "$branch" ]; then
     reflog=$(g reflog show --format=%gs "$branch" 2>/dev/null)
-    [ -n "$reflog" ] && ! printf '%s\n' "$reflog" | grep -q '^commit' && purge=0
+    [ -n "$reflog" ] && ! printf '%s\n' "$reflog" | grep -qv '^branch: Created from ' && purge=0
   fi
 fi
 
@@ -430,9 +439,10 @@ fi
 # The git-status token IS the leading glyph: ⏏ landed / N^ ahead / +A -D dirty,
 # colored by state. A lane that has done nothing yet has NO token — see the
 # never-diverged arm of purge above, which is what stopped a five-second-old
-# worktree opening with ⏏ — so fall back to a muted ● (clean / at-main). The model glyph used to sit here — it moved to the
-# tail (per-pane, next to ctx%/cost/mode). The PR "#N" pill follows the lead,
-# left of the name, same as the children.
+# worktree opening with ⏏ — so fall back to a muted ● (clean / at-main). The
+# model glyph used to sit here — it moved to the tail (per-pane, next to
+# ctx%/cost/mode). The PR "#N" pill follows the lead, left of the name, same as
+# the children.
 st=$(render_status "$ahead" "$files" "$ins" "$del" "$own_pr" "$purge")
 lead="$st"; [ -z "$lead" ] && lead="${DOT}●${R}"
 # Hyperlink the own pill to its PR (OSC 8), same as the sister/child rows — this
