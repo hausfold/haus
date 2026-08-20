@@ -36,6 +36,21 @@ set -u
 export PATH="/etc/profiles/per-user/$USER/bin:/run/current-system/sw/bin:$PATH"
 export SHELL="/bin/zsh"
 
+# ── where this window belongs ────────────────────────────────────────────────
+# A spawn chord that KNOWS says so here: launcher/commands/shell-here.sh (⌘N /
+# ⌘⇧N) passes the lane page it was pressed on, so a shell asked for on
+# `T/<repo>` opens beside that lane rather than on the shared T. Everything
+# else passes nothing and means T — the Dock, a launcher letter, the restore
+# fan-out, and ⌘N pressed on T itself.
+#
+# Read into a variable and dropped from the environment in the same breath,
+# before any of the guards below can `exec` a shell: every path out of this
+# file ends in a shell that would otherwise carry one page's name into
+# everything it ever spawns. Same reason HAUS_ZMX_ATTACH is unset further
+# down, taken one step earlier because this one has no branch that wants it.
+WANT_WS="${HAUS_TERM_WORKSPACE:-}"
+unset HAUS_TERM_WORKSPACE
+
 LOG=/tmp/haus-term-launch.log
 
 log() { echo "[$(date '+%H:%M:%S')] $*" >>"$LOG"; }
@@ -214,7 +229,8 @@ fi
 
 # This is a regular terminal window. windows floats every runtime ghostty
 # window (see windows/aerospace.toml — popups must never be tiled, and title
-# rules race detection), so tile ourselves onto workspace T. From in here the
+# rules race detection), so tile ourselves onto workspace T — or onto the lane
+# page the spawn chord named in WANT_WS. From in here the
 # window certainly exists, and it has focus (it was just opened by the user),
 # so targeting the focused window is race-free in practice.
 #
@@ -227,7 +243,8 @@ fi
 # WHICH id depends on the backend, exactly as it does for a lane — see
 # lanes/lane-open.sh for the measurement behind the split:
 #
-#   aerospace   window=<aerospace id>, and the window is tiled onto T.
+#   aerospace   window=<aerospace id>, and the window is tiled onto T (or onto
+#               the page it was asked for).
 #   ghostty     gwindow=<ghostty id>, over Ghostty's own AppleScript API, on a
 #               machine with no tiler at all. macOS placed the window; there is
 #               nothing to tile it onto.
@@ -291,9 +308,48 @@ fi
             [ -n "$WID" ] && log "self-tile: focus never landed here, took our process's only window $WID"
         fi
         if [ -n "$WID" ]; then
-            aerospace move-node-to-workspace --window-id "$WID" T 2>>"$LOG"
+            # WHICH workspace — T, or the page WANT_WS named at the top of this
+            # file. Two things are asked before anything moves: where this
+            # window already is, and whether the named workspace is real.
+            #
+            # The name is CHECKED rather than trusted, because an unknown one is
+            # not an error to AeroSpace — it CREATES that workspace and moves
+            # the window there — and a page is deliberately not persistent, so a
+            # page that evaporated between the chord and here would strand this
+            # window where nothing can see it. `--monitor all` lists the
+            # persistent workspaces plus every non-persistent one holding a
+            # window, which is the same call and the same rule as
+            # windows/scripts/workspace-mru.sh's page test. Only the CALLER
+            # decides that a name is a page; anything live is honoured here.
+            CUR="$(aerospace list-windows --monitor all --format '%{window-id}|%{workspace}' 2>/dev/null |
+                     awk -F'|' -v w="$WID" '$1 == w { print $2; exit }')"
+            WS=T
+            if [ -n "$WANT_WS" ] &&
+               { [ "$WANT_WS" = "$CUR" ] ||
+                 aerospace list-workspaces --monitor all 2>/dev/null | grep -qxF "$WANT_WS"; }; then
+                WS="$WANT_WS"
+            fi
+
+            if [ "$WS" = "$CUR" ]; then
+                # Already home — and this is the NORMAL path for a page, since
+                # the tiler drops a new window on the workspace that was focused
+                # when it was born. Saying nothing is the point: the move below
+                # is the only thing that could take you somewhere, so not making
+                # it is what keeps ⌘N from ever moving the screen under you.
+                log "self-tile: window $WID is already on $CUR"
+            elif [ "$WS" = T ]; then
+                aerospace move-node-to-workspace --window-id "$WID" T 2>>"$LOG"
+            else
+                # A page, and the window is NOT on it: the workspace changed in
+                # the beat between the chord and this subshell. Follow the
+                # window, the way lanes/lane-open.sh does — a window that
+                # silently leaves for a page you are not looking at is worse
+                # than one that takes you with it, and you did ask for it there.
+                aerospace move-node-to-workspace --focus-follows-window \
+                    --window-id "$WID" "$WS" 2>>"$LOG"
+            fi
             aerospace layout --window-id "$WID" tiling 2>>"$LOG"
-            log "self-tiled window $WID onto workspace T"
+            log "self-tiled window $WID onto workspace $WS"
             LABEL="window=$WID"
         else
             log "self-tile: could not tell which window this is — left floating, unlabelled"
