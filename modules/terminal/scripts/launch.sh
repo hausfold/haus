@@ -60,7 +60,21 @@ fi
 # that has a tiler can feel-test the path a machine without one takes.
 BACKEND="${HAUS_WINDOW_BACKEND:-}"
 if [ -z "$BACKEND" ]; then
-    if command -v aerospace >/dev/null 2>&1; then BACKEND=aerospace; else BACKEND=ghostty; fi
+    # The literal path is not belt-and-braces, it is the load-bearing half.
+    # This script's PATH (line above) is whatever the window inherited, and a
+    # Ghostty launched from the Dock or at login inherits launchd's — which on
+    # this machine is empty, leaving `/usr/bin:/bin:/usr/sbin:/sbin`. AeroSpace
+    # is a cask and lives ONLY at /opt/homebrew/bin, which is exactly why the
+    # subshell below prepends it and every sibling script bakes it into its own
+    # PATH. `command -v` alone would answer "no tiler" for a window opened one
+    # way and "tiler" for the same window opened another, on the same machine,
+    # and the two answers stamp DIFFERENT labels — so every plain window from
+    # the unlucky half would resolve to no session at all.
+    if command -v aerospace >/dev/null 2>&1 || [ -x /opt/homebrew/bin/aerospace ]; then
+        BACKEND=aerospace
+    else
+        BACKEND=ghostty
+    fi
 fi
 log "window backend: $BACKEND"
 
@@ -172,7 +186,21 @@ log "claimed $SESSION (busy: $(printf '%s' "$busy" | tr '\n' ' '))"
         # makes, and true for the same reason: this window was just opened and
         # has focus. Costs ~150 ms, which is why it is HERE, in a backgrounded
         # subshell, and never on a keystroke path.
-        GWID=$(/usr/bin/osascript -e 'tell application "Ghostty" to return id of front window' 2>>"$LOG")
+        #
+        # Polled like the tiler branch, and for the weaker half of the same
+        # reason: an empty answer (Ghostty still coming up, no window yet) is
+        # worth waiting out. The stronger half it CANNOT reproduce is
+        # new-window.sh's before/after check — there is no "before" from in
+        # here — so a non-empty answer is trusted. That is only wrong if
+        # another Ghostty window took front in the milliseconds since this one
+        # opened, which on this backend means the user clicked away in that
+        # window; the cost is one plain window whose chords answer for its
+        # neighbour until the next attach re-stamps it.
+        for _ in $(seq 1 20); do
+            GWID=$(/usr/bin/osascript -e 'tell application "Ghostty" to return id of front window' 2>>"$LOG")
+            [ -n "$GWID" ] && break
+            sleep 0.05
+        done
         if [ -n "$GWID" ]; then
             log "ghostty window id $GWID"
             LABEL="gwindow=$GWID"

@@ -104,19 +104,33 @@ case "$backend" in
     # with no error anywhere. Measured 2026-08-19.
     out="$(
       /usr/bin/osascript 2>/dev/null <<'APPLESCRIPT'
+set theID to ""
+set theName to ""
 tell application "Ghostty"
   if not frontmost then return ""
   try
     set w to front window
+    set theID to id of w
+    set theName to name of w
   on error
     return ""
   end try
-  set theID to id of w
-  set theName to name of w
 end tell
 return theID & (character id 9) & theName
 APPLESCRIPT
     )"
+    rc=$?
+
+    # An empty answer means "Ghostty isn't in front" and is the normal case —
+    # silence is right. A non-zero EXIT is a different thing entirely, and the
+    # usual cause is one "Don't Allow" on the Automation prompt, which would
+    # otherwise kill ⌘F, ⌘L, ⌘↵, ⌘N, ⌘Y and ⌘B on this machine permanently and
+    # without a word anywhere. Say it, the way every other script that drives
+    # Ghostty over Apple Events says it.
+    if [ "$rc" -ne 0 ]; then
+      /usr/bin/osascript -e 'display notification "couldn'"'"'t ask Ghostty which window is focused — check Privacy & Security → Automation." with title "haus · terminal"' >/dev/null 2>&1
+      exit 0
+    fi
     [ -n "$out" ] || exit 0
 
     wid="${out%%$'\t'*}"

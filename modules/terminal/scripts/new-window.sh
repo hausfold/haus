@@ -18,10 +18,13 @@
 # and `environment variables` natively, and `open --args` carries none of them
 # without a temp launcher script and three levels of quoting.
 #
-# The one caller that must NOT use this is lanes/lane-open.sh: a lane is found
-# by its window TITLE, and only `open -na --title` forces a title the client
-# inside can't clobber with OSC 2. Nothing here carries a name anything joins
-# on, so nothing here pays for that.
+# lanes/lane-open.sh must not use this on the AEROSPACE backend: a lane is
+# found there by its window TITLE, and only `open -na --title` forces a title
+# the client inside can't clobber with OSC 2. Nothing here carries a name
+# anything joins on, so nothing here pays for that. On its ghostty backend it
+# spawns exactly the way this script does and joins on the returned window id
+# instead — inlined rather than shelling out here, because it needs that id
+# back and this script's contract is "open a window", not "tell me which".
 #
 # ── why the tile poll ────────────────────────────────────────────────────────
 # windows/aerospace.toml floats every runtime-spawned Ghostty window, because an

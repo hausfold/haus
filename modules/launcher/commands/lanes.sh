@@ -12,9 +12,11 @@
 #   zmx ls        the live sessions — and the agent's own state (working /
 #                 waiting / done), which agents-hook.sh keeps as labels
 #
-# A lane with a window is focused via `aerospace focus --window-id` (found by
-# its title). A parked lane — no session, no window — is reopened with
-# `holt <repo>/<name>`, which spawns the window through the open seam.
+# A lane with a window is focused through terminal/scripts/raise-session.sh,
+# which knows how this machine finds a window (a forced title through AeroSpace,
+# or a Ghostty window id where there is no tiler). A parked lane — no session,
+# no window — is reopened with `holt <repo>/<name>`, which spawns the window
+# through the open seam.
 #
 # Type `/` + a term + Enter to switch to CONTENT search instead: the term is
 # grepped across every live session's `zmx history` — what the agents are
@@ -52,13 +54,17 @@ zmx_states() {
 }
 
 focus_session() {
-  # The window is found by its forced title; a dead lane has no window and
-  # falls through to a holt reopen by the caller.
-  local sess="$1" wid
-  wid="$(aerospace list-windows --all --format '%{window-id}|%{window-title}' 2>/dev/null |
-    awk -F'|' -v want="$sess" '$2 == want { print $1; exit }')"
-  [ -n "$wid" ] || return 1
-  aerospace focus --window-id "$wid" >/dev/null 2>&1
+  # terminal/scripts/raise-session.sh owns the joins, and owning them in one
+  # place is the point: this was the THIRD copy of "find that session's window
+  # and raise it" (the bar's agents popup and ⌘F's ⏎ were the other two), all
+  # three matching a forced window title through AeroSpace — which answers
+  # nothing on a machine with no tiler, so every row here fell through to a
+  # holt reopen and opened a SECOND window onto a session that already had one.
+  #
+  # A dead lane still has no window, still returns non-zero, and still falls
+  # through to the caller's holt reopen. No --or-open: that is the caller's
+  # decision here, and `holt` does more than attach (it can wake a parked lane).
+  "$HOME/.config/haus/term/raise-session.sh" "$1" >/dev/null 2>&1
 }
 
 # ── step 1: the lane rows ────────────────────────────────────────────────────

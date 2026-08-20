@@ -3,11 +3,12 @@
 #
 # The mirror of scripts/focused-session.sh: that one asks the window layer
 # which session is in front, this one asks it to put a named session in front.
-# Two callers, and they had a copy each until 2026-08-19 — the bar's agents
-# popup (bar/sketchybar/plugins/agents.sh, clicking an agent row) and ⌘F's
-# ⏎ (scripts/find.sh, jumping to the window a hit came from). Both had the
-# same two joins, both spelled AeroSpace, and neither worked on a machine
-# without a tiler.
+# Three callers, and they had a copy each until 2026-08-19 — the bar's agents
+# popup (bar/sketchybar/plugins/agents.sh, clicking an agent row), ⌘F's ⏎
+# (scripts/find.sh, jumping to the window a hit came from) and the palette's
+# Lanes command (launcher/commands/lanes.sh, both its rows and its `/` content
+# search). All three had the same joins, all three spelled AeroSpace, and none
+# of them worked on a machine without a tiler.
 #
 #   raise-session.sh [--or-open] <session>
 #
