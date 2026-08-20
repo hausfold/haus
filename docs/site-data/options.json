@@ -2482,7 +2482,7 @@
       "displays"
     ],
     "readOnly": false,
-    "type": "null or positive integer, meaning >0"
+    "type": "null or (positive integer, meaning >0)"
   },
   "haus.focus.scenes.<name>.when.power": {
     "declarations": [
