@@ -333,8 +333,17 @@ if [ -f "$OPENCODE_DB" ] && command -v sqlite3 >/dev/null 2>&1; then
   # which sqlite hands us for free. They were the same field, holding the
   # session stamp, so a feed refreshed seconds ago greyed itself out as stale
   # and printed `as of 6d ago` under numbers that were not 6 days old.
+  # Both defaults are load-bearing now that a column follows them. `session.model`
+  # is nullable — `ORDER BY time_updated DESC LIMIT 1` picks the newest session,
+  # which may have been opened and not yet used — and `jq` given EMPTY stdin
+  # prints nothing and exits 0, so the `|| echo` fallbacks above never fire and
+  # both ids come back empty. Tab is IFS whitespace: two empty middle fields
+  # collapse to one delimiter, the used epoch lands in the reader's `model`, and
+  # `used` silently falls back to the written stamp — which is now always `now`,
+  # so Opencode would win `latest` permanently and draw its mark from an epoch.
+  # Exactly the bug this change exists to remove, re-entering by the back door.
   printf "%s\t%s\t0\t0\t%s\topencode\t%s\t%s\t%s\n" \
-    "$oc_today" "$oc_mtd" "$(date +%s)" "$oc_model_id" "$oc_prov_id" "$oc_sec_stamp" \
+    "$oc_today" "$oc_mtd" "$(date +%s)" "${oc_model_id:-opencode}" "${oc_prov_id:-google}" "$oc_sec_stamp" \
     > "$CACHE_DIR/usage-opencode.tsv.tmp"
   mv "$CACHE_DIR/usage-opencode.tsv.tmp" "$CACHE_DIR/usage-opencode.tsv"
   fed=1
@@ -576,10 +585,17 @@ if [ -f "$CLAUDE_BLOCK" ]; then
   [ "$age" -lt "$CLAUDE_BLOCK_TTL" ] && cl_blocked=1
 fi
 
-# ~/.claude is the opt-in, exactly as ~/.codex/auth.json is above: no Claude Code
-# on this machine, no keychain call and therefore no prompt.
-if [ "$cl_fresh" = 0 ] && [ "$cl_blocked" = 0 ] && [ -d "$HOME/.claude" ] \
-   && command -v jq >/dev/null 2>&1; then
+# The opt-in, and it is deliberately NOT `~/.claude`: this rice writes
+# `~/.claude/CLAUDE.md` and `~/.claude/skills/haus/` itself for any machine whose
+# `haus.ai.clients` names claude, so that directory exists whether or not Claude
+# Code was ever installed — and a Codex-only machine with an old
+# `Claude Code-credentials` item left behind would then draw a macOS keychain
+# prompt once an hour from a feed it never asked for. `projects/` is written by
+# the client rather than by us, so like `~/.codex/auth.json` above it means the
+# thing it looks like it means: Claude Code has actually run here. A token file
+# is the same statement, made on purpose.
+if [ "$cl_fresh" = 0 ] && [ "$cl_blocked" = 0 ] && command -v jq >/dev/null 2>&1 \
+   && { [ -r "$CLAUDE_TOKEN_FILE" ] || [ -d "$HOME/.claude/projects" ]; }; then
   now=$(date +%s)
   cl_at=""
 
@@ -674,12 +690,20 @@ if [ "$cl_fresh" = 0 ] && [ "$cl_blocked" = 0 ] && [ -d "$HOME/.claude" ] \
     # three want the same answer — go quiet for an hour rather than ask again in
     # two minutes.
     : >"$CLAUDE_BLOCK"
-  else
+  elif [ -f "$CLAUDE_TSV" ]; then
     # Had a token, got nothing usable: offline, revoked, or the endpoint moved.
     # Touch, don't write — the pill dates the row from the stamp INSIDE the file,
     # so this backs the retry off a full TTL while the bar goes on telling the
     # truth about how old the numbers it is showing are.
-    [ -f "$CLAUDE_TSV" ] && touch "$CLAUDE_TSV"
+    touch "$CLAUDE_TSV"
+  else
+    # Same failure, but with no row to touch — which is the NORMAL state on the
+    # machine this feed is for, where no statusline ever pushed one. Touching
+    # nothing backs nothing off, so the whole block would re-run on every kick:
+    # a poll every three minutes forever, and a keychain prompt every three
+    # minutes for anyone who answered the ACL dialog "Allow" rather than "Always
+    # Allow". Take the same hour of silence a missing token takes.
+    : >"$CLAUDE_BLOCK"
   fi
 fi
 

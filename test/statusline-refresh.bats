@@ -410,7 +410,9 @@ EOF
 }
 
 mkcreds() { # mkcreds [expiry-epoch] — Claude Code logged in, as the keychain has it
-  mkdir -p "$HOME/.claude"       # the opt-in: ~/.claude is "this machine runs it"
+  # The opt-in: `projects/` is written by the CLIENT when it actually runs,
+  # unlike ~/.claude itself, which this rice writes for every machine.
+  mkdir -p "$HOME/.claude/projects"
   export FAKE_KEYCHAIN
   FAKE_KEYCHAIN=$(printf '{"claudeAiOauth":{"accessToken":"AT-CLAUDE","refreshToken":"RT-CLAUDE","expiresAt":%s000,"subscriptionType":"max"}}' \
     "${1:-$(( $(date +%s) + 86400 ))}")
@@ -674,9 +676,9 @@ CLAUDE_USAGE='{"five_hour":{"utilization":41,"resets_at":"2026-08-20T03:00:00Z"}
   grep -q 'Bearer AT-CLAUDE' "$CURL_LOG" || fail "did not fall back to the keychain"
 }
 
-@test "claude: no ~/.claude means the keychain is never touched" {
-  # The whole opt-in, and the reason it is a directory test rather than a
-  # keychain lookup: asking the keychain IS the prompt.
+@test "claude: no Claude Code on the machine means the keychain is never touched" {
+  # The whole opt-in, and the reason it is a file test rather than a keychain
+  # lookup: asking the keychain IS the prompt.
   mkcurl
   rm -rf "$HOME/.claude"
   refresh
@@ -684,6 +686,21 @@ CLAUDE_USAGE='{"five_hour":{"utilization":41,"resets_at":"2026-08-20T03:00:00Z"}
   [ ! -s "$SECURITY_LOG" ] || fail "read the login keychain on a machine with no Claude Code"
   grep -q claude-usage "$CURL_LOG" && fail "called Anthropic anyway"
   return 0
+}
+
+@test "claude: the rice's own ~/.claude files are not an opt-in" {
+  # The AI room WRITES ~/.claude/CLAUDE.md and ~/.claude/skills/haus for any
+  # machine whose haus.ai.clients names claude, so the directory's existence
+  # says nothing about whether Claude Code was ever installed. Gating on it
+  # drew an hourly keychain prompt on a Codex-only Mac that still had a stale
+  # credentials item — a prompt from a feed the user never asked for.
+  mkcurl
+  rm -rf "$HOME/.claude"
+  mkdir -p "$HOME/.claude/skills/haus"
+  : >"$HOME/.claude/CLAUDE.md"
+  refresh
+  [ "$status" -eq 0 ]
+  [ ! -s "$SECURITY_LOG" ] || fail "a rice-written CLAUDE.md was read as a Claude Code login"
 }
 
 @test "claude: a keychain that says no goes quiet for an hour" {
@@ -738,6 +755,53 @@ CLAUDE_USAGE='{"five_hour":{"utilization":41,"resets_at":"2026-08-20T03:00:00Z"}
   touch -t 202601010000 "$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv"
   FAKE_CLAUDE_USAGE='{"account":"x"}' refresh
   [ "$(clrow 1)" = 7 ] || fail "an unrecognised shape was written as zeroes"
+}
+
+@test "claude: a dead endpoint with no row yet still backs off" {
+  # The normal state on the machine this feed is FOR: no statusline ever pushed,
+  # so there is no file to touch — and touching nothing backs nothing off. This
+  # is a poll every three minutes forever, and a keychain prompt every three
+  # minutes for anyone who answered the ACL dialog "Allow" rather than "Always
+  # Allow". The token was fine; only the endpoint was not.
+  mkcurl; mkcreds
+  [ ! -f "$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv" ]
+  FAKE_CLAUDE_USAGE_RC=7 FAKE_CLAUDE_USAGE='' refresh
+  [ "$status" -eq 0 ]
+  [ -f "$CLAUDE_STATUSLINE_CACHE/.claude-usage-blocked" ] || fail "no backoff, and nothing to touch"
+  : >"$SECURITY_LOG"; : >"$CURL_LOG"
+  refresh
+  [ ! -s "$SECURITY_LOG" ] || fail "asked the keychain again three minutes later"
+  grep -q claude-usage "$CURL_LOG" && fail "re-polled a dead endpoint inside the backoff"
+  return 0
+}
+
+@test "opencode: a session with no model still writes nine full columns" {
+  # `session.model` is nullable and the newest session may have been opened and
+  # not yet used — and `jq` on EMPTY stdin prints nothing and exits 0, so the
+  # `|| echo` fallbacks never fire. Two empty middle fields collapse under
+  # `read` (tab is IFS whitespace), the used epoch lands in `model`, and
+  # opencode wins `latest` forever while drawing its mark from an epoch. Which
+  # is the exact bug the used column was added to remove.
+  cat >"$BIN/sqlite3" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+  *"ORDER BY time_updated DESC"*) printf '|1700000000000\n' ;;   # model is NULL
+  *SUM\(cost\)*|*printf*)         printf '0.00\n' ;;
+  *)                              printf '0\t0\t0\t0\n' ;;
+esac
+EOF
+  chmod +x "$BIN/sqlite3"
+  mkdir -p "$HOME/.local/share/opencode"
+  : >"$HOME/.local/share/opencode/opencode-stable.db"
+  refresh
+  [ "$status" -eq 0 ]
+  local f="$CLAUDE_STATUSLINE_CACHE/usage-opencode.tsv"
+  [ "$(awk -F'\t' '{print NF; exit}' "$f")" = 9 ] || fail "not nine columns"
+  local model prov used
+  IFS=$'\t' read -r _ _ _ _ _ _ model prov used <"$f"
+  [ "$model" = opencode ] || fail "column 7 is '$model' — the row has shifted left"
+  [ "$prov" = google ] || fail "column 8 is '$prov'"
+  [ "$used" = 1700000000 ] || fail "the used stamp is '$used', not the session's"
 }
 
 @test "claude: a fresh row is not re-fetched, pushed or pulled" {
