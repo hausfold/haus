@@ -10,23 +10,30 @@
 # asks one question of the NAME — is there a `/` in it — and answers with the
 # part after it. There is no git call here, no cwd to resolve and no join, which
 # is the entire reason it is cheap enough to repaint on every workspace change.
-# The counter costs one more `aerospace` call, and only on a page: the answer
-# hides the pill outright on a workspace that has none, so the common case is
-# exactly as cheap as it was before the count existed.
+# The count costs one more `aerospace` call — the one thing here that is not
+# already in hand — and it is unconditional now that the workspace itself is a
+# state: two calls per workspace change, on the same push the workspace pills
+# repaint on.
 #
 # ── when it draws ────────────────────────────────────────────────────────────
 #   <ws>/<page>   the page, spelled out — the answer this pill exists to give —
 #                 followed by `2/3` whenever that workspace has more than one
 #                 live page: which of them you are on, out of how many there
 #                 are. On the only page of a workspace the counter is dropped
-#                 rather than drawn as `1/1`; "1 of 1" is a fact you can already
-#                 see, and a pill that always carries a fraction stops being
-#                 read as one.
+#                 rather than drawn as `1/1`.
+#   <ws>, with    the count alone, dimmed: `3`. You are not on a page, so there
+#   pages under   is no page to name — but there are three, and this is both the
+#   it            notice that they exist and the button that lists them.
 #   anything      drawing=off. A workspace with no pages under it has no page to
-#   else          be on, and the workspace pill beside this one already says
-#                 which workspace that is. A pill that said "no page" everywhere
-#                 would be noise you learn to skip past on the pages that DO
-#                 carry one.
+#   else          be on and none to go to, and the workspace pill beside this
+#                 one already says which workspace that is.
+#
+# The middle state is the one that took two goes to get right. The pill drew
+# only on a page until 2026-08-20, which meant the single thing it could never
+# tell you was that a page EXISTED — you had to already be on one to learn there
+# were others. `T` with three lanes paged away looked exactly like `T` with
+# none, and the picker that would have listed them hangs off a pill that wasn't
+# there.
 #
 # It drew only on `T` and `T/*` until 2026-08-19, when it moved from the second
 # bar's movable readouts into the menu bar's hand-written left group — beside the
@@ -76,48 +83,75 @@ fi
 
 ws="$(aerospace list-workspaces --focused 2>/dev/null)"
 
-# `${ws#*/}` — the FIRST slash, so a hypothetical `T/a/b` reads as page "a/b"
-# rather than losing its tail, and `${ws%%/*}` for the workspace it hangs off.
-# AeroSpace workspace names are opaque strings; the rice only ever writes one
-# level, but truncating someone else's is a silent lie.
-case "$ws" in
-  */*) ;;
-  *)   exec "$SB" --set page drawing=off ;;
-esac
-
+# `${ws%%/*}` — the workspace a page hangs off, and itself when it is not a
+# page. Everything below is asked of that BASE, which is what lets the pill
+# answer on `T` and on `T/haus` with one count.
 base="${ws%%/*}"
-label="${ws#*/}"
 
-# ── the counter ──────────────────────────────────────────────────────────────
+# ── the count ────────────────────────────────────────────────────────────────
 # `list-workspaces --monitor all` reports the persistent workspaces plus every
-# non-persistent one currently holding a window, and a page is never persistent
-# (lane-open.sh keeps `T/<repo>` out of persistent-workspaces on purpose, so an
-# emptied page evaporates instead of accreting) — which makes every `<base>/…`
-# line in that output a LIVE page and the count of them the number this pill
-# wants. Same set the Pages picker lists, from the same call, so the `2/3` here
-# and the rows there can never disagree about how many there are.
+# non-persistent one currently holding a window or currently visible, and a page
+# is never persistent (lane-open.sh keeps `T/<repo>` out of
+# persistent-workspaces on purpose, so an emptied page evaporates instead of
+# accreting) — which makes every `<base>/…` line in that output a LIVE page, and
+# the number of them the number this pill wants. The Pages picker counts the
+# same set from the same call (its list is longer: it forces a bare `T` in and
+# draws a row for each base), so the two can never disagree about how many pages
+# a workspace has.
 #
-# The focused workspace is appended rather than assumed to be in that list: a
-# page you have just switched to and not yet put a window on is real, is where
-# you are standing, and would otherwise make the pill say `1/1` on the second
-# page of two. Appending it LAST while deduplicating by first sighting keeps
-# AeroSpace's own ordering for the pages that were already there, so the index
-# counts down the picker's rows and only a brand-new empty page lands at the end.
+# The focused workspace is appended defensively rather than because it is ever
+# missing — a focused workspace is a visible one, so AeroSpace lists it whether
+# or not it holds a window, including the page you just switched to and have not
+# put anything on yet. `!seen[$0]++` absorbs the duplicate that normally is, and
+# preserves AeroSpace's own ordering for everything already there, so the index
+# counts down the picker's rows.
+#
+# `index($0, pfx) == 1` with the SLASH in pfx, never a bare-name compare: `T`
+# must not match `TT/x`, and a base whose name is a prefix of another base is
+# the one way this could silently over-count.
 counts="$(
   { aerospace list-workspaces --monitor all 2>/dev/null; printf '%s\n' "$ws"; } |
     awk -v ws="$ws" -v pfx="$base/" '
       !seen[$0]++ && index($0, pfx) == 1 { n++; if ($0 == ws) idx = n }
       END { printf "%d %d\n", idx + 0, n + 0 }'
 )"
-idx="${counts%% *}"
-total="${counts##* }"
+idx="${counts%% *}"; idx="${idx:-0}"
+total="${counts##* }"; total="${total:-0}"
 
-# Two spaces, not a separator glyph: the fraction is a second reading of the
-# same pill and wants to sit apart from the name without adding furniture to a
-# label that is already the widest thing in this group.
-if [ "$total" -gt 1 ] && [ "$idx" -gt 0 ]; then
-  label="$label  $idx/$total"
-fi
-
-"$SB" --set page drawing=on label.drawing=on \
-    label="$label" label.color="$TEXT" icon.color="$TEAL"
+# ── what that means on screen ────────────────────────────────────────────────
+# Three states, and the muted one is the point: a pill that only ever appeared
+# once you were already on a page could never tell you a page EXISTED, which is
+# exactly when you want the picker its click opens.
+case "$ws" in
+  */*)
+    # On a page: its name, and `2/3` when there is more than one to be on. Two
+    # spaces rather than a separator glyph — the fraction is a second reading of
+    # the same pill and wants to sit apart from the name without adding
+    # furniture to a label that is already the widest thing in this group. The
+    # only page of a workspace gets no counter at all: `1/1` is a fact you can
+    # already see, and a pill that always carries a fraction stops being read as
+    # one.
+    label="${ws#*/}"
+    [ "$total" -gt 1 ] && [ "$idx" -gt 0 ] && label="$label  $idx/$total"
+    "$SB" --set page drawing=on label.drawing=on \
+        label="$label" label.color="$TEXT" icon.color="$TEAL"
+    ;;
+  *)
+    # On the workspace itself, with pages under it: the count alone, dimmed.
+    # Dimmed because the pill is not naming where you are here — it is saying
+    # "this is not the only place `T` has", which is a weaker claim than the
+    # page name and should not read as loudly as one. The number is the same
+    # number that is the denominator one state up, so `3` and `2/3` are the same
+    # fact seen from either side.
+    if [ "$total" -gt 0 ]; then
+      "$SB" --set page drawing=on label.drawing=on \
+          label="$total" label.color="$SUBTEXT0" icon.color="$OVERLAY1"
+    else
+      # No pages under it — nothing to say. The workspace pill beside this one
+      # already says which workspace you are on, and a pill that said "no pages"
+      # everywhere would be noise you learn to skip past on the workspaces that
+      # DO have some.
+      "$SB" --set page drawing=off
+    fi
+    ;;
+esac

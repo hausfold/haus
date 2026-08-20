@@ -244,11 +244,13 @@ sketchybar --add item last_closed_app left \
 # terminal-specific — any workspace can carry pages, AeroSpace makes one on first
 # use, and `caps <letter>` resolves a bare workspace to its most recent page
 # (windows/scripts/workspace-mru.sh) — so this pill names the page for whatever
-# workspace you are on, and draws nothing at all when that workspace has none.
+# workspace you are on. On the workspace ITSELF it draws the number of pages
+# under it, dimmed, and it draws nothing at all when there are none: see
+# plugins/page.sh for why the middle state has to exist.
 #
 # It sits HERE, between the workspace pills and the front app, because that is
 # what it qualifies: the workspace pill says which workspace, this says which
-# page of it. (It was a movable readout on the second bar — `haus.bar.items.page`
+# page of it — or, on the workspace, how many there are to go to. (It was a movable readout on the second bar — `haus.bar.items.page`
 # — until 2026-08-19, where it could only ever answer for `T`, and where the menu
 # bar answered "which workspace" with nothing at all whenever you were on a page:
 # plugins/space.sh matches the focused workspace by exact string, so `space.T`
