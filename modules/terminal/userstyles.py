@@ -88,7 +88,6 @@ def main():
         )
 
     overrides = {"accentColor": accent, "lightFlavor": flavor, "darkFlavor": flavor}
-    remote_css = []
 
     os.makedirs(outdir, exist_ok=True)
     for slug in wanted:
@@ -111,14 +110,10 @@ def main():
 
         # 29 of the 134 pull remote CSS for code highlighting (prismjs,
         # pygments, highlight.js) — mdn, wikipedia and the nix docs among them.
-        # lessc leaves `@import url(...)` alone, and an
-        # @import inside a conditional group rule is invalid CSS, so Firefox
-        # drops it — those styles land with their code blocks unthemed. Named
-        # here rather than stripped: the rest of the style is correct, and a
-        # silent strip would be a second thing to rediscover.
-        if "@import url(" in source:
-            remote_css.append(slug)
-
+        # lessc leaves `@import url(...)` alone and userstyles-inline.py
+        # replaces it with the vendored file's contents AFTER lessc, so nothing
+        # to do here: an @import is invalid inside `@-moz-document` wherever it
+        # points, which is why this is an inline rather than a rewrite.
         with open(os.path.join(outdir, f"{slug}.less"), "w") as f:
             f.write(header + source)
 
@@ -128,14 +123,6 @@ def main():
     # derivation for an empty list), so this is for the second caller.
     with open(os.path.join(outdir, "order"), "w") as f:
         f.writelines(f"{slug}\n" for slug in wanted)
-
-    if remote_css:
-        print(
-            "note: code-block highlighting is a remote @import in: "
-            + ", ".join(remote_css)
-            + " — Firefox drops those, the rest of each style applies.",
-            file=sys.stderr,
-        )
 
 
 if __name__ == "__main__":

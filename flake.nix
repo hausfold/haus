@@ -2632,6 +2632,22 @@
               o: !(nixpkgs.lib.hasInfix loginNotePhrase (toString o.description))
             ) loginNoteOptions
           );
+          # The userstyles-inline fixture. The `@import` sits where every real
+          # one does — first statement inside the `@-moz-document` block, which
+          # is exactly the position that makes it invalid.
+          userstylesInlineIn = ''
+            @-moz-document domain("example.com") {
+              @import url("https://example.invalid/hl.css");
+              :root { --bg: #202020; }
+            }
+          '';
+          userstylesInlineOut = ''
+            @-moz-document domain("example.com") {
+              /* inlined from https://example.invalid/hl.css */
+            .hljs { color: red; }
+              :root { --bg: #202020; }
+            }
+          '';
           # The userstyles-important fixture, in and out. Held here rather than
           # inline in the check so the two read side by side — the point of the
           # test is the DIFF between them, and three of the eight lines are
@@ -2904,6 +2920,41 @@
           #
           # When this goes red the fix is mechanical and never prose: nothing in
           # docs/site-data/ is hand-written, so regenerate and commit.
+          # ---- userstyles-inline -----------------------------------------------
+          # The pass that gets code blocks themed: `@import` is invalid inside
+          # `@-moz-document` WHEREVER it points, so the file has to be pasted in
+          # rather than pointed at. Two halves worth pinning — that a known URL
+          # is replaced by its contents, and that an unknown one is FATAL. The
+          # second is the one that matters: the failure it replaces was a style
+          # that installed fine and rendered its code blocks stock, and a
+          # silently-skipped import puts that back invisibly.
+          userstyles-inline =
+            pkgs.runCommand "haus-userstyles-inline-ok" { nativeBuildInputs = [ pkgs.python3 ]; }
+              ''
+                map=${
+                  pkgs.writeText "map.json" (
+                    builtins.toJSON {
+                      "https://example.invalid/hl.css" = pkgs.writeText "hl.css" ".hljs { color: red; }";
+                    }
+                  )
+                }
+
+                python3 ${./modules/terminal/userstyles-inline.py} "$map" \
+                  < ${pkgs.writeText "in.css" userstylesInlineIn} > actual.css
+                diff -u ${pkgs.writeText "expected.css" userstylesInlineOut} actual.css
+
+                # An import with no vendored copy must stop the build, not pass through.
+                if python3 ${./modules/terminal/userstyles-inline.py} \
+                     ${pkgs.writeText "empty.json" "{}"} \
+                     < ${pkgs.writeText "in.css" userstylesInlineIn} > /dev/null 2> err.txt; then
+                  echo "userstyles-inline accepted an unvendored @import" >&2
+                  exit 1
+                fi
+                grep -q "example.invalid/hl.css" err.txt
+
+                touch $out
+              '';
+
           # ---- userstyles-important --------------------------------------------
           # The pass that makes `haus.zen.userStyles` render at all: a user
           # sheet's normal declarations lose to the page's own, so every

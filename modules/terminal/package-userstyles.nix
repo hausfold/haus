@@ -50,6 +50,7 @@
   fetchurl,
   lessc,
   python3,
+  writeText,
 
   # nebelung's Stylus export — the RAW one, straight off the variant root.
   # Deliberately not the accent-stamped copy zen.nix builds for the import
@@ -77,6 +78,45 @@ let
     url = "https://userstyles.catppuccin.com/lib/std/v1.less";
     hash = "sha256-XK9Oqan7Kz81DNyE3+ryl5sPi/OpvV+EkgL7WuLoGfM=";
   };
+
+  # The code-block highlighting 29 of the styles reach for with
+  # `@import url(...)`. FOUR files serve all 29, every one version-pinned
+  # upstream, which is what makes vendoring them a table rather than a policy.
+  #
+  # They are fetched so they can be INLINED, not so they can be pointed at:
+  # `@import` is invalid inside `@-moz-document` wherever it points, so a store
+  # path would be dropped exactly like the URL was. userstyles-inline.py does
+  # the substitution and explains the rest. Three of the four are upstream's
+  # own `.important.css` builds — the same cascade problem, solved the same way,
+  # which is a decent check that the reading of it here is right.
+  #
+  # A fifth URL appearing upstream breaks the build with the prefetch command
+  # to run. That is deliberate: the alternative is a style that installs and
+  # renders its code blocks stock, which is the failure this whole thing removes.
+  vendoredImports = {
+    "https://unpkg.com/@catppuccin/highlightjs@1.0.0/css/catppuccin-variables.important.css" =
+      fetchurl
+        {
+          url = "https://unpkg.com/@catppuccin/highlightjs@1.0.0/css/catppuccin-variables.important.css";
+          hash = "sha256-bj/nJEOBpOnecprel/lBXDY3bBu7EmgsjJJUW4bR1Ts=";
+        };
+    "https://unpkg.com/@catppuccin/highlightjs@1.0.0/css/catppuccin-variables.css" = fetchurl {
+      url = "https://unpkg.com/@catppuccin/highlightjs@1.0.0/css/catppuccin-variables.css";
+      hash = "sha256-Dw6A0CRpZrZ7Cc+lQiGoX406ZzlZCH4A/TVh7D+gXj4=";
+    };
+    "https://python.catppuccin.com/pygments/catppuccin-variables.important.css" = fetchurl {
+      url = "https://python.catppuccin.com/pygments/catppuccin-variables.important.css";
+      hash = "sha256-XVji5jYxl8Cj6zqhHX/249O7x0pQh9/1ZDdNNO/IKws=";
+    };
+    "https://prismjs.catppuccin.com/variables.important.css" = fetchurl {
+      url = "https://prismjs.catppuccin.com/variables.important.css";
+      hash = "sha256-YuheYDpqJ/FfPOxPdD+XioxyVGqlmkrPip7d6THoUrc=";
+    };
+  };
+
+  importMap = writeText "userstyle-imports.json" (
+    builtins.toJSON (lib.mapAttrs (_: drv: "${drv}") vendoredImports)
+  );
 in
 
 # The name carries the two axes worth reading in a `ls -l` of the profile's
@@ -109,10 +149,14 @@ runCommand "nebelung-userstyles-${flavor}-${accent}.css"
     : > "$out"
     while read -r slug; do
       printf '\n/* ==== %s (nebelung %s / %s) ==== */\n' "$slug" ${lib.escapeShellArg flavor} ${lib.escapeShellArg accent} >> "$out"
-      # Piped through the important pass, NOT written straight out: a user
-      # sheet's normal declarations lose to the page's own, so unstamped CSS
-      # here renders as nothing at all. userstyles-important.py has the
-      # measurement and the three places it deliberately doesn't stamp.
-      lessc "less/$slug.less" | python3 ${./userstyles-important.py} >> "$out"
+      # Two passes over lessc's output, in this order and not the other one.
+      # Inline first: it pastes in upstream CSS, and one of the four files is
+      # NOT an `.important.css`, so it has to arrive before the stamp to get
+      # stamped. Then important: a user sheet's normal declarations lose to the
+      # page's own, so unstamped CSS here renders as nothing at all. Each
+      # script's header carries its own measurement.
+      lessc "less/$slug.less" \
+        | python3 ${./userstyles-inline.py} ${importMap} \
+        | python3 ${./userstyles-important.py} >> "$out"
     done < less/order
   ''
