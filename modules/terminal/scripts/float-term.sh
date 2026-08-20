@@ -11,11 +11,14 @@
 #       VISIBLE frame (menubar/dock excluded) of whichever display the cursor
 #       is on right now. Multi-monitor aware; coords are Ghostty/AppKit
 #       top-left origin. --pct sizes the window to N% of the visible frame.
-#       --match-frontmost instead returns the frame of the window that is on
-#       top RIGHT NOW — the one whose keystroke summoned us — so the popup
-#       covers its summoner exactly instead of landing at some fraction of the
-#       screen (this is what ⌘F's this-window search wants). Falls back to a
-#       centered 80% if that frame can't be read.
+#       --match-frontmost instead returns the frame of the FOCUSED window right
+#       NOW — the one whose keystroke summoned us — so the popup covers its
+#       summoner exactly instead of landing at some fraction of the screen. It
+#       is what every per-window chord wants: ⌘F searches that one window's
+#       scrollback, ⌘Y roots yazi at that one window's cwd, and a popup that
+#       lands over a DIFFERENT window than the one it is about reads as a bug
+#       even when its contents are right. Falls back to a centered 80% if that
+#       frame can't be read.
 #       --tiled is the "cover the whole desktop" size, and it is NOT the same
 #       as --pct 100: the visible frame is everything macOS leaves us, whereas
 #       the TILED area is that frame inset by AeroSpace's outer gaps — the
@@ -119,13 +122,23 @@ GAP_BOTTOM_EXTERNAL="@gap_bottom_external@"
 GAP_SIDE_BUILTIN="@gap_side_builtin@"
 GAP_SIDE_EXTERNAL="@gap_side_external@"
 
-# ── frame of the window that's on top right now ─────────────────────────────
-# Emits "X Y W H" for the frontmost window of the frontmost application — the
+# ── frame of the window that has the keyboard right now ─────────────────────
+# Emits "X Y W H" for the FOCUSED window of the frontmost application — the
 # window whose keystroke summoned us — in the SAME top-left-origin coord system
 # geom() emits and spawn()'s AppleScript consumes, so the two are drop-in
 # interchangeable. Silent (empty) on any failure — no frontmost app, a process
 # with no windows, a nonsense frame — which is the caller's cue to fall back to
 # centered geometry rather than place a window at 0×0.
+#
+# `AXFocusedWindow`, NOT `window 1`, and that is the whole correctness of this
+# function. One process can own several windows — scripts/new-window.sh asks the
+# RUNNING Ghostty for `new window` rather than paying for a second instance, so
+# every ⌘N window after the first shares its parent's pid — and System Events
+# hands `windows` back in a stable order that is not z-order and not focus. So
+# `window 1` meant "the oldest window of the app", which put every ⌘F overlay
+# over the first window opened no matter which one you pressed the chord in:
+# the search itself was right (it joins on the zmx session, not on a frame),
+# only the placement was, silently and always, one window off.
 frontmost_frame() {
   local out x y w h
   out=$(osascript 2>/dev/null <<'APPLESCRIPT'
@@ -134,8 +147,13 @@ tell application "System Events"
   if (count of fronts) is 0 then return ""
   tell item 1 of fronts
     if (count of windows) is 0 then return ""
-    set {px, py} to position of window 1
-    set {pw, ph} to size of window 1
+    set w to window 1
+    try
+      set fw to value of attribute "AXFocusedWindow"
+      if fw is not missing value then set w to fw
+    end try
+    set {px, py} to position of w
+    set {pw, ph} to size of w
     set out to ((px as integer) as text) & " " & ((py as integer) as text)
     set out to out & " " & ((pw as integer) as text)
     set out to out & " " & ((ph as integer) as text)

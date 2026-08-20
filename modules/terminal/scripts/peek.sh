@@ -8,8 +8,8 @@
 #                          (the ⌘⇧N convention)
 #
 # A separate, FLOATING Ghostty instance rather than a tiled one: peek is
-# summoned over your work and dismissed, so it covers the whole tiled desktop
-# and takes nothing away when it goes. (It was a separate instance under zellij
+# summoned over the window that asked for it and dismissed, so it takes nothing
+# away when it goes — no reflow, no window you have to put back. (It was a separate instance under zellij
 # too, for a reason that has since become the whole architecture: zellij's VTE
 # parser strips kitty-graphics APC sequences, so yazi inside it could only draw
 # chafa block art. Nothing strips them now.)
@@ -70,25 +70,27 @@ if [ "$STAY" = 0 ]; then
     fi
 fi
 
-# Spawn a Ghostty running peek-run.sh, sized to COVER THE WHOLE TILED DESKTOP:
-# --tiled hands float-term the visible frame inset by AeroSpace's outer gaps, so
-# peek lands exactly where the windows are and nowhere else.
+# Spawn a Ghostty running peek-run.sh, sized to COVER THE SUMMONING WINDOW:
+# --match-frontmost hands float-term the frame of the focused window, so peek
+# opens as that terminal switching into a file browser and takes nothing else on
+# the desktop away — the same shape ⌘F's this-window search wears, for the same
+# reason. Peek IS scoped to one window: it is rooted at that window's cwd and
+# nothing else's, so covering the whole layout claims a scope it doesn't have.
 #
-# It matched the SUMMONING WINDOW's frame until 2026-08-20 (--match-frontmost),
-# on the theory that peek reads best as that terminal switching into a file
-# browser. It doesn't: a file browser is not scoped to the window that opened it
-# — yazi's whole value is the tree, the preview pane and the parent column
-# side by side — and summoning it from a half-width tiled pane gave it a
-# half-width column to draw all three in. ⌘F is where matching the summoner
-# still earns its keep, because what ⌘F searches IS that one window's
-# scrollback. (Before either, this took a centered 80% of the cursor's screen,
-# which sat crooked over a tiled layout; float-term still falls back to that
-# shape only for --match-frontmost, which is no longer a path peek takes.)
+# It covered the whole tiled desktop (--tiled) for one day, 2026-08-20 to
+# 2026-08-21, on the argument that yazi wants width — tree, preview and parent
+# column side by side — and a half-width pane gives it a half-width column to
+# draw all three in. True, and outweighed by the consistency: a summoned popup
+# belongs over its summoner, and a desktop-wide one summoned from a tiled pane
+# reads as "what did I just cover?". Take the narrower yazi. (Before either,
+# this took a centered 80% of the cursor's screen, which sat crooked over a
+# tiled layout; float-term still falls back to that shape when the summoning
+# frame can't be read at all.)
 # --pin lands it on the current workspace and force-floats it.
 # cwd rides in on --working-directory (an EXTRA ghostty flag after `--`).
 "$FLOAT_TERM" spawn \
     --title "$WINDOW_TITLE" \
-    --tiled \
+    --match-frontmost \
     --pin \
     --command "/bin/bash $HOME/.config/haus/term/peek-run.sh$STAY_ARG" \
     -- --working-directory="$START" >/dev/null

@@ -275,7 +275,8 @@ in
         .${terminalCfg.floatBorder} or nebelungPalette.${terminalCfg.floatBorder};
 
       # AeroSpace's OUTER gaps, baked into float-term.sh's `geom --tiled` (⌘G,
-      # ⌘Y, ⌘⇧F). A near-fullscreen popup wants the rectangle the tiled windows
+      # ⌘⇧F, and ⌘F once ^s widens it — the popups whose scope IS the whole
+      # desktop; ⌘Y stopped being one 2026-08-21, it covers its summoner). A near-fullscreen popup wants the rectangle the tiled windows
       # occupy, not everything macOS leaves free: those differ by exactly these
       # gaps, and a popup sized to the latter overhangs every window it covers.
       # ../lib/gaps.nix is the same import modules/windows uses to write
