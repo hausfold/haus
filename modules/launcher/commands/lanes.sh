@@ -332,8 +332,12 @@ done <<EOF
 $states
 EOF
 
+# The curly quotes are display text, not shell quoting — shellcheck reads every
+# “ as a mistyped " and has no way to know the difference.
+# shellcheck disable=SC1111
 PROMPT="Matches for “$term”"
 ICON="text.magnifyingglass"
+# shellcheck disable=SC1111
 [ -n "$matches" ] ||
   bail "No transcript mentions “$term”" \
     "searched $n live session(s) — ⌘⇧F searches every window's scrollback" \
