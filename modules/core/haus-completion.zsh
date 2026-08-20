@@ -66,6 +66,7 @@ _haus() {
     'doctor:check the machine'\''s health (Nix, CLT, the GUI agents)'
     'btm:check BTM daemon-gating (macOS 26 Tahoe+; no-op before)'
     'tour:take the guided haus tour'
+    'show:inspect a desktop or room FILE before you publish or trust it'
     'help:list every command'
   )
 
@@ -83,9 +84,13 @@ _haus() {
       # -v/--verbose from anywhere in argv before it dispatches, so `haus set -v
       # theme.` is a path in the first slot — counting the flag would offer a
       # value there instead, and be off by one for every pair after it.
+      #
+      # `show`'s own flags are excluded for the same reason: they are not
+      # positionals, and counting `--json` as one made `haus show --json <TAB>`
+      # complete nothing at all.
       local -i typed=0 i
       for (( i = 2; i < CURRENT; i++ )); do
-        [[ $words[i] == (-v|--verbose) ]] || (( typed++ ))
+        [[ $words[i] == (-v|--verbose|--json|--room|-h|--help) ]] || (( typed++ ))
       done
 
       case $words[1] in
@@ -105,6 +110,18 @@ _haus() {
           ;;
         tour)
           _values 'tour' 'reset[re-arm a finished tour]'
+          ;;
+        show)
+          # The only verb whose argument is a PATH rather than an option name —
+          # and a file on disk, so the shell's own completion is the right one.
+          if (( typed == 0 )); then
+            _arguments \
+              '--json[the report as JSON on stdout, for CI and agents]' \
+              '--room[this file is CODE; print the trust warning, check nothing]' \
+              '*:desktop or room file:_files -g "*.nix"'
+          else
+            _message 'one file at a time'
+          fi
           ;;
       esac
       ;;

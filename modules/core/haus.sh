@@ -22,6 +22,7 @@
 #   haus doctor          check the machine's health (Nix, CLT, the GUI agents)
 #   haus btm             check BTM daemon-gating (macOS 26 Tahoe+; no-op before)
 #   haus tour            take the guided haus tour (it lives in the bar)
+#   haus show            inspect a desktop or room FILE — class, checker verdict, what it sets (--json) — read-only
 set -euo pipefail
 
 # A bare/sudo/login-item shell may have almost nothing on PATH; make sure the
@@ -40,7 +41,31 @@ ok()   { printf '  \033[38;5;108m✓\033[0m %s\n' "$*"; }
 bad()  { printf '  \033[38;5;167m✗\033[0m %s\n' "$*"; }
 info() { printf '  \033[38;5;103mⓘ\033[0m %s\n' "$*"; }
 
-[ -e "$CONSUMER/flake.nix" ] || die "no config flake at $CONSUMER — set HAUS_CONSUMER, or run the bootstrap first."
+# Every verb here drives THIS machine's config, so the config has to exist —
+# with one exception. `haus show` reads a file someone is about to publish or
+# about to trust; it touches no machine at all, and a publisher checking a
+# desktop in CI has no consumer flake to point it at. Guarding it here would
+# make the one command with an audience outside this Mac the one command that
+# cannot run outside it.
+#
+# The verb is the first argument that isn't `-v`, for the same reason the
+# dispatch strips it below: `haus -v show …` is a legal spelling, and keying
+# this on `$1` alone would make the flag re-arm the guard.
+haus_verb=""
+for a in "$@"; do
+  case "$a" in
+    -v | --verbose) ;;
+    *)
+      haus_verb="$a"
+      break
+      ;;
+  esac
+done
+case "$haus_verb" in
+  show) ;;
+  *) [ -e "$CONSUMER/flake.nix" ] || die "no config flake at $CONSUMER — set HAUS_CONSUMER, or run the bootstrap first." ;;
+esac
+unset haus_verb a
 
 SYSPROFILES=/nix/var/nix/profiles
 
@@ -208,6 +233,11 @@ haus — the everyday CLI for a haus machine.
   haus doctor         check the machine's health (Nix, CLT, the GUI agents)
   haus btm            check BTM daemon-gating (macOS 26 Tahoe+; no-op before)
   haus tour           take the guided haus tour (haus tour reset re-arms it)
+  haus show <file>    inspect a desktop or room FILE before you publish or trust
+                      it: the class, whether it is a valid desktop and every rule
+                      it breaks, what it sets and what it leaves alone.
+                      --room says the file is code; --json for CI and agents.
+                      Reads only — nothing is fetched, written or activated
 EOF
 }
 
@@ -2629,6 +2659,18 @@ cmd_tour() {
   esac
 }
 
+# `haus show` is its own script, staged beside the evaluator it drives so that
+# the machine's copy and `nix run github:hausfold/haus#show` are ONE file rather
+# than two that agree today (modules/desktop-check.nix). `exec` rather than a
+# call: its exit code is the whole point — a publisher's CI reads it — and
+# handing the process over is the only way it reaches the caller unedited.
+cmd_show() {
+  local show="${HAUS_SHOW:-/run/current-system/sw/share/haus/show.sh}"
+  [ -r "$show" ] \
+    || die "no 'haus show' at $show — this machine's haus predates it; run 'haus update' first."
+  exec bash "$show" "$@"
+}
+
 # Sourced, not run: test/haus-plan.sh exercises the parsers above directly (they
 # are pure text-and-tree functions, so CI can run them on Linux even though a
 # real `haus plan` needs a Mac with a built system). Everything above this line
@@ -2672,6 +2714,7 @@ case "${1:-status}" in
   doctor)      cmd_doctor ;;
   btm)         cmd_btm ;;
   tour)        cmd_tour "${2:-}" ;;
+  show)        shift; cmd_show "$@" ;;
   -h|--help|help) usage ;;
-  *)           die "unknown command '$1' — try: rebuild update rollback generations status edit options set get unset reset plan diff capture revert-settings doctor btm tour" ;;
+  *)           die "unknown command '$1' — try: rebuild update rollback generations status edit options set get unset reset plan diff capture revert-settings doctor btm tour show" ;;
 esac

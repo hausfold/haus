@@ -167,6 +167,13 @@ user the extra step: `brew uninstall --zap <cask>`.
 - `haus doctor` — health check. Run it before blaming your own change for
   something being broken.
 - `haus generations` / `haus rollback [N]` — the undo history.
+- `haus show <file> [--json]` — the user was handed a `.nix` and wants to know
+  what it is. Reads only. `class: "desktop"` with `ok: true` means haus PROVED
+  it is data that can set nothing but public, desktop-safe options.
+  `class: "room"` means `checked` is false: it is a module, i.e. code that may
+  install packages and run activation scripts as root — **never report that as
+  safe.** Exits 0 passed · 1 checked and failed (`failures` lists every rule) ·
+  3 it is code and the caller did not say `--room`.
 - <https://hausfold.co/docs/> — guides and reference. Note it documents the **latest**
   haus; this machine is pinned to a specific revision, so it can describe options
   that are not in `references/options.md` yet. When they disagree, this skill's

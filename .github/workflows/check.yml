@@ -29,14 +29,14 @@ jobs:
       # example left to eval (see flake.nix `allSystems`).
       - run: nix eval .#darwinConfigurations.example.system.drvPath
       # The platform-independent checks are declared for Linux too precisely so
-      # they can run HERE — TWELVE of them, everything in flake.nix's `checks`
+      # they can run HERE — THIRTEEN of them, everything in flake.nix's `checks`
       # before the `optionalAttrs (hasSuffix "-darwin" system)` line, which is
       # the only thing that decides the split and the only place to re-derive
       # this list from:
       #
       #   room-registry            registry vs the evaluated option tree
       #   data-only-surface        a package-typed option a data-only file can't set
-      #   packs                    what happens when a pack MEETS a host
+      #   agent-skill              the shipped SKILL.md's frontmatter and shape
       #   pounce-item-grammar      modules/launcher/item-grammar.nix vs the LOCKED
       #                            pounce's ItemSettings.swift, so a prefix that
       #                            app learns can't spend a day being refused
@@ -57,29 +57,44 @@ jobs:
       #                            desktop and asserts its size and colour count,
       #                            the only automated thing that can notice the
       #                            dither stopped reaching the 8-bit reduction
+      #   desktop-show             `haus show`'s reading of every desktop
+      #                            fixture — the class it reports and which room
+      #                            each leaf files under. Up here rather than in
+      #                            the darwin list beside `desktop-seam` because
+      #                            it is pure lib, and because a publisher's CI
+      #                            is exactly the Linux caller it defends
       #
       # All but the last mirror a rule that lives in another repo, in a generated
       # dotfile, in a shell script, or in a README — where drift is silent.
       # Without this line they were declared and never executed.
       #
       # Keep this census honest when a check is added: it is this repo's only
-      # record of what CI actually covers, and it went one stale before anyone
-      # noticed — then, checked properly on 2026-08-15, turned out to be four
-      # wrong at once (it said ten, filed bar-rc-executable as darwin-only and
-      # desktop-projection as portable, and had never heard of
-      # bar-plugins-executable). A prose census of a machine-readable fact rots
-      # in every direction, so re-derive both lists from that `optionalAttrs`
-      # line rather than editing the sentence you're standing next to.
+      # record of what CI actually covers, and it rots in every direction. It
+      # said ten once; checked properly on 2026-08-15 it was four wrong at once;
+      # and on 2026-08-20 it was four wrong AGAIN — it still listed `packs`,
+      # which no longer exists on any system, it had never heard of
+      # `agent-skill`, and it called the darwin set twelve when it was
+      # fourteen. So do not edit the sentence you are standing next to. Print
+      # both lists and diff them:
       #
-      # The darwin-only twelve fingerprint a real evaluated system, so they stay
-      # guarded and don't run here — they fire on a Mac, by hand, or not at all:
-      # catalogue (every desktop, pack and compat alias raised as a real system),
+      #   nix eval --json .#checks.x86_64-linux   --apply builtins.attrNames
+      #   nix eval --json .#checks.aarch64-darwin --apply builtins.attrNames
+      #
+      # The darwin-only FOURTEEN fingerprint a real evaluated system, so they
+      # stay guarded and don't run here — they fire on a Mac, by hand, or not at
+      # all: catalogue (every desktop and compat alias raised as a real system),
       # fragment-compat (the retired top-level fragments' old spelling against
       # their new one), desktop-projection (the example host's carved values vs
       # the committed projection — the one thing that can notice the hacker
       # desktop quietly stopping short of what the module defaults used to give),
       # accent-reach, scale-reach, font-reach, standalone-modules, ai-room,
-      # desktop-seam, editor-choice, bar-bottom-focus and bar-bottom-groups.
+      # app-collections, login-note, desktop-seam, editor-choice,
+      # bar-bottom-focus and bar-bottom-groups.
+      #
+      # ⚠️ Two of those fourteen are the reason `nix flake check` on a Mac is
+      # not optional before a PR: the *-reach tables enumerate every generated
+      # home file, so ANY new one is a missing row — and CI here can never see
+      # it. main has merged red on exactly that at least twice.
       - run: nix flake check
       # The annotated host template (hosts/<host>/options.nix) ships every
       # option's DEFAULT as a line you can uncomment. host-template.nix's own
@@ -105,6 +120,17 @@ jobs:
           grep -q '^  haus\.' "$host/options.nix"
           nix eval --impure --apply 'x: x.system.drvPath' --expr \
             "(builtins.getFlake \"path:$PWD\").mkHaus { username = \"ada\"; hostname = \"lovelace\"; host = $host; }"
+
+      # `haus show`'s exit codes, flags and JSON envelope, against the built
+      # `#show` wrapper — the same thing `nix run github:hausfold/haus#show`
+      # hands a publisher. It lives in this job rather than beside the other
+      # shell suites because it needs a real `nix eval`, which is exactly what a
+      # Nix BUILD may not do: the `desktop-show` check above covers everything
+      # about this command that can be answered inside a derivation, and this
+      # covers the part a publisher's CI actually depends on, which is the
+      # number the process exits with.
+      - name: haus show tests
+        run: bash test/haus-show.sh
 
   shellcheck:
     name: shell scripts
@@ -180,7 +206,7 @@ jobs:
           # haus.focus.scenes.<name>.when it also runs from launchd on a timer,
           # where a non-zero is not just invisible but silently stops your Mac
           # entering the scenes you declared.
-          shellcheck --severity=warning bootstrap.sh modules/core/haus.sh modules/core/awake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh
+          shellcheck --severity=warning bootstrap.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/awake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
       # The trigger daemon's decisions — which scene rises, which one it may

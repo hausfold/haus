@@ -224,8 +224,12 @@ Three rules, all enforced rather than documented:
 
 Adding a rule means adding a fixture in `test/desktops/` and its expected diagnostic
 in `flake.nix`; a rule with no fixture is a comment. `haus.lib.checkDesktop` /
-`haus.lib.desktopFailures` are public so a third party can self-test a desktop before
-publishing it.
+`haus.lib.desktopFailures` / `haus.lib.showDesktop` are public so a third party can
+self-test a desktop before publishing it — the first throws, the second lists the
+reasons, and the third adds what the file sets and which rooms it leaves alone.
+`haus show` is the same three from a shell (see `modules/desktop-check.nix` for how
+it reaches them without a flake), so a new rule has to read correctly in FOUR places
+now: the seam, the flake check, the generated host file and that command.
 
 ## Build / test
 
