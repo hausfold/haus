@@ -3,10 +3,33 @@
 # Mirrors the on-window-detected rules in aerospace.toml, which only fire on
 # first detection — after macOS wake events windows often pile up on the
 # current workspace and need re-sorting.
+#
+# ── it puts the LAYOUT back too, not only the page ───────────────────────────
+# Sorting alone left half the job undone, and the visible half at that. Every
+# runtime Ghostty window is detected as `layout floating` on purpose
+# (aerospace.toml says why: a title rule races detection, and a popup tiled for
+# a beat reflows the whole workspace), so the ONLY thing that ever makes one a
+# tile again is the self-tile inside terminal's launch.sh / lanes/lane-open.sh.
+# When one of those misses — the window was born on the wrong page, or the
+# window it aimed at was not the one it was in — you get exactly what this
+# script is reached for: a window on the right page after a re-sort, still
+# floating at whatever size the last one happened to have. So each window this
+# script claims is put back to `tiling` as well.
+#
+# Apps that are MEANT to float are exempt, and they are the same list
+# aerospace.toml's generated float rules are built from (haus.roster.*.float) —
+# passed in below rather than re-derived, so the two cannot drift. A `float`
+# entry scoped by titleRegex exempts the whole app here: leaving one of its
+# windows as it is costs nothing, un-floating one that asked to float is the
+# thing this must never do.
 
 set -u
 
 focused=$(aerospace list-workspaces --focused 2>/dev/null || true)
+
+# Space-delimited app-bundle-ids that must keep whatever layout they have —
+# generated from haus._apps, same source as aerospace.toml's @FLOAT_RULES@.
+floaters=" @RESORT_FLOATERS@ "
 
 # Snapshot the window list first — piping into the loop would let the
 # `aerospace move-node-to-workspace` calls inside consume stdin and starve
@@ -48,6 +71,11 @@ while IFS='|' read -r id bundle title; do
     # </dev/null is critical: aerospace reads stdin and would otherwise
     # drain the herestring, ending the loop after one iteration.
     aerospace move-node-to-workspace --window-id "$id" "$target" </dev/null >/dev/null 2>&1 || true
+
+    case "$floaters" in
+        *" $bundle "*) continue ;;
+    esac
+    aerospace layout --window-id "$id" tiling </dev/null >/dev/null 2>&1 || true
 done <<< "$windows"
 
 if [ -n "$focused" ]; then

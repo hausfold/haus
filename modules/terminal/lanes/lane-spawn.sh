@@ -84,4 +84,15 @@ if ! git rev-parse --git-dir >/dev/null 2>&1; then
   exit 0
 fi
 
-exec holt new
+# `--open`, not bare `holt new`. holt 0.2.94 (its #42, 2026-08-17) split the two
+# halves that used to share one spelling: bare `holt new` now CREATES the lane
+# and prints its path — `cd "$(holt new)"` — and only `--open` still ends by
+# opening a session in it. This line kept the old spelling, so from that release
+# on ⌘↵ (and the palette's New Agent Lane behind it) made the worktree, printed
+# the path to a daemon with no stdout, and exited 0: no window, no client, no
+# error — the chord looked dead while `holt` quietly filled up with lanes.
+#
+# The agent is holt's own default (`agent = …` in ~/.config/holt/config.toml,
+# generated from haus.ai.default), so no --agent here: the chord starts whatever
+# the machine's default client is, which is what that option promises.
+exec holt new --open

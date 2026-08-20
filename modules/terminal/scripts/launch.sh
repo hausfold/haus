@@ -240,19 +240,58 @@ fi
 
     LABEL=""
     if [ "$BACKEND" = aerospace ]; then
+        # Which Ghostty process owns this window — walked up from here, because
+        # this script IS the window's command and that process is its ancestor.
+        # It is the only half of "which window am I in" that cannot race:
+        # AeroSpace hands out focus on its own schedule, and a bare
+        # `list-windows --focused` poll cannot wait for the right answer because
+        # SOME window is always focused, so it returns whatever you were
+        # standing in a moment ago. Believing that costs two things at once —
+        # this window stays FLOATING at whatever size the last one had (windows
+        # floats every runtime Ghostty window; the line below is the only thing
+        # that ever un-floats it), and the `window=` label that every
+        # window→session join reads gets stamped with a NEIGHBOUR's id, so ⌘F,
+        # ⌘Y and ⌘↵'s cwd all answer for the wrong window. Same bug, same day,
+        # as lanes/lane-open.sh's self-tile.
+        #
+        # Focus is still how the WINDOW is picked, because a plain window is
+        # opened through Ghostty's AppleScript API into an instance that may
+        # already have others (lanes/lane-open.sh explains why lanes get their
+        # own process and these do not) — the pid narrows it to "ours", not to
+        # "this one". So the poll now waits for a focused window that belongs to
+        # our own process, and only falls back to the pid alone when that
+        # instance turns out to have exactly one window anyway.
+        gpid=""; p=$$
+        while [ -n "$p" ] && [ "$p" != 1 ]; do
+            case "$(ps -o comm= -p "$p" 2>/dev/null)" in
+                *ghostty) gpid="$p"; break ;;
+            esac
+            p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')
+        done
+
         WID=""
         for _ in $(seq 1 20); do
-            WID=$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)
-            [ -n "$WID" ] && break
+            focused=$(aerospace list-windows --focused --format '%{window-id}|%{app-pid}' 2>/dev/null)
+            if [ -n "$focused" ]; then
+                if [ -z "$gpid" ] || [ "${focused#*|}" = "$gpid" ]; then
+                    WID="${focused%%|*}"
+                    break
+                fi
+            fi
             sleep 0.05
         done
+        if [ -z "$WID" ] && [ -n "$gpid" ]; then
+            mine=$(aerospace list-windows --monitor all --pid "$gpid" --format '%{window-id}' 2>/dev/null)
+            [ "$(printf '%s\n' "$mine" | grep -c .)" = 1 ] && WID="$mine"
+            [ -n "$WID" ] && log "self-tile: focus never landed here, took our process's only window $WID"
+        fi
         if [ -n "$WID" ]; then
             aerospace move-node-to-workspace --window-id "$WID" T 2>>"$LOG"
             aerospace layout --window-id "$WID" tiling 2>>"$LOG"
             log "self-tiled window $WID onto workspace T"
             LABEL="window=$WID"
         else
-            log "self-tile: no focused window found"
+            log "self-tile: could not tell which window this is — left floating, unlabelled"
         fi
     else
         # `front window` rather than "the window this process is in", because

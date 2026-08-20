@@ -85,8 +85,12 @@ fi
 
 # windows floats every runtime-spawned ghostty window (the on-window-detected
 # title race — see aerospace.toml), so tile this one by hand once it has focus.
-# Same poll as lane-open.sh's self-tile, from outside the window: wait for
-# focus to land on a DIFFERENT window id than the one the chord started in.
+# From outside the window, so the join is a before/after on focus: wait for it
+# to land on a DIFFERENT window id than the one the chord started in. (The
+# self-tiles that run from INSIDE their window — terminal's launch.sh and
+# lanes/lane-open.sh — cannot use focus that way and no longer try; they walk
+# up to their own Ghostty process instead. This one has a real "before", which
+# is the guard that makes a focus poll honest.)
 # No move-node — a shell window belongs on the workspace it was asked for.
 # (Until the next resort, that is: resort-windows.sh's catch-all sends plain
 # Ghostty windows home to T, and a shell window carries no title to say

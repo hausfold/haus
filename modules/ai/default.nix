@@ -557,7 +557,8 @@ in
     [
       # holt — agent worktrees, its own product now (hausfold/holt, taken as
       # a flake input). Every caller the rice owns is on it: terminal's
-      # ⌘↵ runs `holt new`, pounce's Spawn Agent goes through `holt spawn`, and
+      # ⌘↵ runs `holt new --open` (bare `holt new` only prints the path since
+      # holt 0.2.94), pounce's Spawn Agent goes through `holt spawn`, and
       # the Claude Code WorktreeCreate/WorktreeRemove hooks — which terminal
       # DECLARES into ~/.claude/settings.json and re-asserts on every rebuild
       # (see modules/terminal, home.activation.claudeCodeSettings) — point at
