@@ -543,15 +543,28 @@ preflight_audit() {
   local managed=(
     "$HOME/.zshrc" "$HOME/.zshenv" "$HOME/.zprofile" "$HOME/.profile"
     "$HOME/.config/starship.toml" "$HOME/.config/git/config"
+    "$HOME/.config/aerospace/aerospace.toml" "$HOME/.config/bat/config"
+    "$HOME/Library/Application Support/com.mitchellh.ghostty/config"
   )
   local hits=() blockers=() p link
   for p in "${managed[@]}"; do
-    # -L as well as -e: a symlink whose target is missing is still in the way.
+    # -L as well as -e, so a symlink is seen before its target is followed.
     { [ -e "$p" ] || [ -L "$p" ]; } || continue
     link="$(readlink "$p" 2>/dev/null || true)"
     case "$link" in
-      */nix/store/*) continue ;;
-      ?*) blockers+=("${p/#$HOME/~} -> $link (symlink)") ; continue ;;
+      # home-manager's own exemption is this narrow: it recognises only ITS
+      # generation's files as already-managed. A hand-made link into the store,
+      # or one another Nix tool wrote, is a collision to it — so a broader glob
+      # here would pass exactly the file it then dies on.
+      */nix/store/*-home-manager-files/*) continue ;;
+      ?*)
+        # A link whose target is GONE is not in the way: home-manager gates the
+        # whole collision check on the target existing, and replaces a dangling
+        # link without comment. Warning about it would stop a run that works.
+        [ -e "$p" ] || continue
+        blockers+=("${p/#$HOME/~} -> ${link/#$HOME/~} (symlink)")
+        continue
+        ;;
     esac
     if [ -e "$p.backup" ]; then
       blockers+=("${p/#$HOME/~} (its .backup name is taken)")
@@ -570,7 +583,8 @@ preflight_audit() {
     printf '              %s\n' "${blockers[@]}"
     printf '            Clear each one before you build (mv ~/.profile ~/.profile.mine),\n'
     printf '            or keep yours and tell haus to skip that file, in your host file:\n'
-    printf '              home.file.".profile".enable = false;\n'
+    printf '              home.file.".profile".enable = false;           # a $HOME dotfile\n'
+    printf '              xdg.configFile."starship.toml".enable = false; # one under ~/.config\n'
   fi
 
   # macOS settings the chosen rooms will change (current -> new), or that you
