@@ -549,22 +549,38 @@ CLAUDE_TSV="$CACHE_DIR/usage-claude.tsv"
 CLAUDE_TTL=${CLAUDE_TTL:-120}
 CLAUDE_API=${CLAUDE_API:-https://api.anthropic.com/api/oauth/usage}
 CLAUDE_KEYCHAIN=${CLAUDE_KEYCHAIN:-Claude Code-credentials}
-# ── where the token comes from, and why it is a file first ────────────────────
-# The obvious source is the login keychain, and it is the FALLBACK rather than
-# the answer. That item is the CLI's: `claude` refreshes it in place while you
-# use a terminal pane, and the macOS app — the client this whole block exists
-# for — keeps its own credentials and never touches it. So on the machine this
-# was written for, the keychain's access token had expired at 07:27 and nothing
-# was going to renew it, while GUI sessions ran all evening.
+# ── where the token comes from, and what this feed cannot do ──────────────────
+# The login keychain, in practice — but read the limit before relying on it.
 #
-# Renewing it here was the other candidate and is deliberately not done: see the
-# note below the fetch. What is left is a token of our own —
+# That item is the CLI's. `claude` renews it in place whenever a terminal pane
+# runs, and it lasts about nine hours; the macOS app keeps its own credentials
+# and never writes it. So the pull answers for roughly nine hours after any TUI
+# session and then goes quiet, and a fully GUI-driven day ends with the pill
+# GREY rather than wrong — which is the honest failure and still a strict
+# improvement on what it did before (show morning's numbers as if current, under
+# whichever provider had polled most recently).
 #
-#     claude setup-token          → paste the result into $CLAUDE_TOKEN_FILE
+# Renewing it here is what would close that gap, and it is not done, for two
+# reasons in order of decisiveness:
 #
-# — which is minted for programmatic use, is long-lived, and is not the pair any
-# client is rotating underneath us. The keychain is still tried when that file
-# is absent, because right after a TUI session it costs nothing and works.
+#   1. It isn't reachable. The refresh grant needs Claude Code's OAuth client
+#      id, and unlike Codex's — a JWT whose `client_id` claim we read back out
+#      of the token we already hold — an `sk-ant-oat01-…` is opaque. There is
+#      nothing to read and nothing to derive; the id would have to be
+#      hardcoded from outside, which is the kind of coupling that breaks
+#      silently on the day it changes.
+#   2. Even reachable, the exchange ROTATES the pair server-side, so writing the
+#      result back races a `claude` process holding the old refresh token in
+#      memory — and the cost of losing that race is a re-login in every client
+#      at once. The Codex block above pays that price because NOTHING else
+#      renews auth.json. Here something does.
+#
+# $CLAUDE_TOKEN_FILE is the escape hatch, and it is tried FIRST so it can
+# override the keychain outright. What it wants is a bearer token carrying the
+# **user:profile** scope, which is what /api/oauth/usage checks — and note that
+# `claude setup-token` does NOT mint one: that token is scoped `user:inference`
+# for API calls, and this endpoint answers it with a 403 naming the scope it
+# wanted. Tried and rejected, recorded here so it isn't tried twice.
 CLAUDE_TOKEN_FILE=${CLAUDE_TOKEN_FILE:-$HOME/.config/haus/claude-usage-token}
 # How long to stay quiet after the keychain says no. A missing item (no Claude
 # login on this machine) and a denied prompt are the same event here, and both
@@ -616,13 +632,8 @@ if [ "$cl_fresh" = 0 ] && [ "$cl_blocked" = 0 ] && command -v jq >/dev/null 2>&1
       || true)
     cl_at=$(printf '%s' "$cl_cred" | jq -r '.claudeAiOauth.accessToken // .accessToken // empty' 2>/dev/null || true)
     # Whether that token is still good is the KEYCHAIN's business, not ours, and
-    # an expired one is dropped here rather than spent. Renewing it is the thing
-    # this block will not do: the exchange ROTATES the pair server-side, so
-    # writing the result back into the login keychain races the `claude` process
-    # that may be holding the old refresh token in memory — and the cost of
-    # getting that wrong is a re-login in every client at once. The Codex block
-    # above pays that price because nothing else renews auth.json; here the
-    # answer is `claude setup-token` and $CLAUDE_TOKEN_FILE instead.
+    # an expired one is dropped here rather than spent — see the header for why
+    # renewing it is neither done nor reachable.
     cl_exp=$(printf '%s' "$cl_cred" | jq -r '.claudeAiOauth.expiresAt // 0' 2>/dev/null || echo 0)
     case "${cl_exp:-}" in '' | *[!0-9]*) cl_exp=0 ;; esac
     [ "$cl_exp" -gt 0 ] && [ $(( cl_exp / 1000 )) -lt "$now" ] && cl_at=""
