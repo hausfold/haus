@@ -2632,6 +2632,38 @@
               o: !(nixpkgs.lib.hasInfix loginNotePhrase (toString o.description))
             ) loginNoteOptions
           );
+          # The userstyles-important fixture, in and out. Held here rather than
+          # inline in the check so the two read side by side — the point of the
+          # test is the DIFF between them, and three of the eight lines are
+          # supposed to come back unchanged.
+          userstylesImportantIn = ''
+            @-moz-document domain("example.com") {
+              @import url("https://a/b.css");
+              :root {
+                --bg: #202020;
+                content: "a;b}c";
+                background: url(a;b.png);
+                width: 3px !important;
+              }
+              @keyframes spin { from { opacity: 0; } }
+              @font-face { font-family: X; src: url(y); }
+              @media (prefers-color-scheme: dark) { .a { color: red; } }
+            }
+          '';
+          userstylesImportantOut = ''
+            @-moz-document domain("example.com") {
+              @import url("https://a/b.css");
+              :root {
+                --bg: #202020 !important;
+                content: "a;b}c" !important;
+                background: url(a;b.png) !important;
+                width: 3px !important;
+              }
+              @keyframes spin { from { opacity: 0; } }
+              @font-face { font-family: X; src: url(y); }
+              @media (prefers-color-scheme: dark) { .a { color: red !important; } }
+            }
+          '';
         in
         {
           room-registry = pkgs.runCommand "haus-room-registry-ok" { } ''
@@ -2872,6 +2904,25 @@
           #
           # When this goes red the fix is mechanical and never prose: nothing in
           # docs/site-data/ is hand-written, so regenerate and commit.
+          # ---- userstyles-important --------------------------------------------
+          # The pass that makes `haus.zen.userStyles` render at all: a user
+          # sheet's normal declarations lose to the page's own, so every
+          # declaration has to leave the build as `!important`. Pinned here
+          # because the interesting half is where it must NOT stamp —
+          # `!important` inside `@keyframes` or a descriptor block is invalid,
+          # and an invalid declaration is DROPPED, so over-stamping deletes
+          # styling rather than strengthening it. The fixture carries one of
+          # each, including the two shapes that fool a naive `;`-splitter: a `;`
+          # inside a string, and one inside an unquoted `url()`.
+          userstyles-important =
+            pkgs.runCommand "haus-userstyles-important-ok" { nativeBuildInputs = [ pkgs.python3 ]; }
+              ''
+                python3 ${./modules/terminal/userstyles-important.py} \
+                  < ${pkgs.writeText "in.css" userstylesImportantIn} > actual.css
+                diff -u ${pkgs.writeText "expected.css" userstylesImportantOut} actual.css
+                touch $out
+              '';
+
           site-data-current = pkgs.runCommand "haus-site-data-current-ok" { } ''
             if ! diff -ru -x README.md \
                  ${./docs/site-data} ${self.packages.${system}.site-data}; then

@@ -1227,11 +1227,22 @@ in
 
       # Zen browser — drop the Nebelung userChrome/userContent into every Zen
       # profile. Zen's chrome lives INSIDE the (randomly-named) browser profile,
-      # not under XDG, so home.file can't target it — we symlink into each
-      # Profiles/*/chrome at activation instead. Symlinks (not copies) so a
-      # palette rebuild propagates like every other port. Also flips on Firefox's
+      # not under XDG, so home.file can't target it — we write into each
+      # Profiles/*/chrome at activation instead. Also flips on Firefox's
       # legacy userChrome/userContent stylesheets, which fresh profiles ship off.
       # Zen isn't installed here (themed-but-manual); the loop no-ops if absent.
+      #
+      # COPIES, not symlinks, and that is the whole reason any of this renders.
+      # Gecko resolves `chrome/userContent.css` before it reads it and ignores
+      # the file when the resolved path lands outside the profile directory — so
+      # a link into /nix/store is read as nothing at all. Measured in Zen, four
+      # runs, one sheet: same bytes as a copy themed news.ycombinator.com and as
+      # a link did not, and a link to a sibling INSIDE chrome/ themed it again.
+      # Propagation is unchanged — activation is what runs on a rebuild either
+      # way. The `rm -f` is not tidiness: it is what MIGRATES a profile that
+      # still holds the old symlink, and what stops `install` from following
+      # that link and trying to write 0444 store bytes. The explicit mode is
+      # because a store file arrives read-only and would stay that way.
       #
       # userContent is `zenUserContent`, not nebelung's file directly: with
       # haus.zen.userStyles set it's the same file with the compiled site styles
@@ -1244,8 +1255,9 @@ in
             [ -d "$prof" ] || continue
             chrome="$prof"chrome
             $DRY_RUN_CMD mkdir -p "$chrome"
-            $DRY_RUN_CMD ln -sf "${zenTheme}/userChrome.css" "$chrome/userChrome.css"
-            $DRY_RUN_CMD ln -sf "${zenUserContent}" "$chrome/userContent.css"
+            $DRY_RUN_CMD rm -f "$chrome/userChrome.css" "$chrome/userContent.css"
+            $DRY_RUN_CMD install -m 0644 "${zenTheme}/userChrome.css" "$chrome/userChrome.css"
+            $DRY_RUN_CMD install -m 0644 "${zenUserContent}" "$chrome/userContent.css"
             userjs="$prof"user.js
             if [ ! -e "$userjs" ] || ! ${pkgs.gnugrep}/bin/grep -qF \
                 'toolkit.legacyUserProfileCustomizations.stylesheets' "$userjs"; then

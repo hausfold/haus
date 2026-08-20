@@ -530,10 +530,25 @@ in
         rest of each style applies, and the build prints which ones are
         affected. Stylus has the same styles without that limit.
 
+        Every declaration is compiled to `!important`, and that is load-bearing
+        rather than heavy-handed: a user stylesheet's normal declarations rank
+        BELOW the page's own in the cascade, so an unstamped sheet matches the
+        site and then loses every property to it. Most of these styles theme by
+        redefining the site's own custom properties without `!important` —
+        which is free for Stylus, since it injects author-origin CSS — so
+        without the stamp they render nothing. It was measured that way: this
+        option shipped twice before anyone loaded a page instead of checking
+        that the file was in the profile.
+
+        The stamp is skipped exactly where `!important` would be invalid and
+        the declaration would therefore be dropped: `@keyframes`, descriptor
+        blocks like `@font-face`, and at-statements.
+
         What stays with `haus.zen.extensions.stylus`: per-site toggles, styles
         that update themselves, and adding one without a rebuild. Both can be
-        on — but keep a given site in one or the other, since two sheets
-        setting the same property is a race nobody wins.
+        on — but keep a given site in one or the other. They do not tie: user
+        `!important` outranks every author sheet, so this one wins and the
+        Stylus copy of that site is doing nothing.
 
         **Gecko only, and permanently so.** `@-moz-document` in a user sheet is
         what makes this possible; Chromium removed user stylesheets in Chrome 33

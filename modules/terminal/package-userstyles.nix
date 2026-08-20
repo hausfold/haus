@@ -11,10 +11,20 @@
 # CRX and force-installed by policy. That asymmetry is why haus's browser story
 # is a Gecko one, and it is the opposite of the way the signing story runs.
 #
-# terminal/default.nix already symlinks nebelung's own userContent.css into
+# terminal/default.nix already copies nebelung's own userContent.css into
 # every Zen profile and flips `toolkit.legacyUserProfileCustomizations.stylesheets`
 # on. That file is entirely `@-moz-document url-prefix("about:")` rules — the
 # browser's own pages. This one is the other half: the sites you actually read.
+#
+# ---- and the Gecko fact it is NOT: the cascade ------------------------------
+#
+# Being able to MATCH the page is only half of it. A user sheet's normal
+# declarations sit BELOW the page's own in the cascade, so everything compiled
+# here has to be raised to `!important` or it renders as nothing — see
+# userstyles-important.py, which does that and explains where it can't. This
+# cost two releases of `haus.zen.userStyles` that looked right in the profile
+# and changed no pixels, because the check was "is the file there" and the file
+# was always there.
 #
 # ---- what stays with Stylus -------------------------------------------------
 #
@@ -22,9 +32,11 @@
 # style without a rebuild. `haus.zen.extensions.stylus` still deploys the
 # extension and zen.nix still stamps the importable bundle; this is for the
 # handful of sites you want themed on every machine, every rebuild, with no
-# state to carry. The two coexist by accident of scope rather than by design —
-# if both are on, whichever set a property last per element wins, so keep a site
-# in one place or the other.
+# state to carry. The two coexist by accident of scope rather than by design,
+# and they are NOT symmetric: Stylus injects author-origin CSS, this sheet is
+# user `!important`, and user `!important` outranks anything an author sheet
+# can say. So on a site both theme, this one wins and Stylus's copy is dead
+# weight — keep a site in one place or the other.
 #
 # ---- the size cost, which is why the option is a list and not a bool --------
 #
@@ -97,6 +109,10 @@ runCommand "nebelung-userstyles-${flavor}-${accent}.css"
     : > "$out"
     while read -r slug; do
       printf '\n/* ==== %s (nebelung %s / %s) ==== */\n' "$slug" ${lib.escapeShellArg flavor} ${lib.escapeShellArg accent} >> "$out"
-      lessc "less/$slug.less" >> "$out"
+      # Piped through the important pass, NOT written straight out: a user
+      # sheet's normal declarations lose to the page's own, so unstamped CSS
+      # here renders as nothing at all. userstyles-important.py has the
+      # measurement and the three places it deliberately doesn't stamp.
+      lessc "less/$slug.less" | python3 ${./userstyles-important.py} >> "$out"
     done < less/order
   ''
