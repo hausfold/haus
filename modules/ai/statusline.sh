@@ -113,12 +113,15 @@ render_status() {
 # (plain() strips SGR, not OSC 8). A "#N" is clickable ONLY when its caller
 # passes a url — every caller here does (row 1's own pill, the row-1 sister
 # cluster, and the row-2 children). CC forwards OSC 8 to the terminal, so in a
-# hyperlink-aware terminal ⌘⇧-click opens the PR. It is ⌘⇧ and not ⌘ because an
-# agent TUI is tracking the mouse: an SGR mouse report has bits for shift, alt
-# and ctrl and NONE for super, so a plain ⌘-click arrives at the program
-# indistinguishable from a bare click and Ghostty never gets a say. ⇧ is the one
-# modifier Ghostty always keeps (`mouse-shift-capture = never` in its config), so
-# ⌘⇧ is what reaches its own opener. Terminals that swallow OSC 8 (some tmux
+# hyperlink-aware terminal ⌘-click opens the PR — no shift, even though this
+# pill is drawn inside an agent TUI that is tracking the mouse. Ghostty consumes
+# a cmd-click as a link click before it forwards any mouse report, so the
+# tracking never gets a say. (This comment claimed ⌘⇧ until 2026-08-20, arguing
+# from the SGR mouse report's missing super bit — real, but it describes what
+# the PROGRAM could see, not whether the terminal acts first. ⇧ is for ghostty's
+# SELECTION over a mouse grab, which is what `mouse-shift-capture = never` in
+# its config buys, and it was never part of the link gesture.) Terminals that
+# swallow OSC 8 (some tmux
 # builds — anthropics/claude-code#21586, #27047) just show the colored "#N" with
 # no link, which is a harmless graceful downgrade.
 render_pr() {

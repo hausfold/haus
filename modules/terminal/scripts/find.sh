@@ -185,6 +185,9 @@ cmd_launch() {
     #                  cross-session result list draw in a half-width column and
     #                  implied a scope it doesn't have.
     #
+    # ^s flips scope mid-search, so the rule can't live on this path alone:
+    # `replant` below re-sizes the open window on every toggle, both ways.
+    #
     # Under zellij both were a 100%/100% borderless floating PANE; --pin lands it
     # on the current workspace and force-floats it, since windows/aerospace.toml
     # floats every runtime-spawned Ghostty window anyway.
@@ -194,6 +197,13 @@ cmd_launch() {
     # up in its own corpus — there is nothing to enumerate.
     local geom_flag="--match-frontmost"
     [ "$scope" = "session" ] && geom_flag="--tiled"
+
+    # Stash the summoning window's frame for ^s. Once the overlay is up it IS
+    # the frontmost window, so --match-frontmost can no longer find the terminal
+    # that summoned us — a toggle back to pane scope has to replay a rectangle
+    # captured here, before the popup exists. Empty on a frame we couldn't read;
+    # float-term's place --frame no-ops on that rather than guessing.
+    "$HOME/.config/haus/term/float-term.sh" geom --match-frontmost >"$dir/frame" 2>/dev/null
 
     "$HOME/.config/haus/term/float-term.sh" spawn \
         --title "find" \
@@ -366,6 +376,37 @@ render_transcript() {
     cp "$key" "$out" 2>/dev/null
 }
 
+# ── resize this overlay to match a changed scope ────────────────────────────
+# Runs INSIDE the popup, so the pid float-term needs is the Ghostty process
+# hosting us — not $$, which is this bash. Walk up until a `ghostty` shows: the
+# chain is ghostty → bash (float-term's --command) → us, but nothing here
+# depends on its length.
+host_ghostty_pid() {
+    local p=$$ comm
+    while [ "${p:-0}" -gt 1 ]; do
+        comm=$(ps -o comm= -p "$p" 2>/dev/null)
+        case "${comm##*/}" in ghostty) echo "$p"; return 0 ;; esac
+        p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')
+    done
+    return 0
+}
+
+# replant <dir> <scope> — grow to the tiled desktop for an every-session search,
+# shrink back to the summoning window's stashed frame for a this-window one.
+# Silent and best-effort throughout: a search in a mis-sized window still works.
+replant() {
+    local dir="$1" scope="$2" pid
+    pid=$(host_ghostty_pid)
+    [ -n "$pid" ] || return 0
+    local ft="$HOME/.config/haus/term/float-term.sh"
+    [ -x "$ft" ] || return 0
+    if [ "$scope" = "session" ]; then
+        "$ft" place "$pid" --tiled >/dev/null 2>&1
+    else
+        "$ft" place "$pid" --frame "$(cat "$dir/frame" 2>/dev/null)" >/dev/null 2>&1
+    fi
+}
+
 # ── stage 2: the overlay ────────────────────────────────────────────────────
 cmd_ui() {
     local dir="$1" scope="${2:-pane}"
@@ -516,6 +557,13 @@ cmd_ui() {
 
         [ "$key" = "ctrl-s" ] || break
         scope="$other"
+        # Resize to match the new scope, same rule the entry path applies:
+        # this window's scrollback gets this window's frame, every session gets
+        # the whole tiled desktop. Growing is computed fresh; shrinking replays
+        # the frame cmd_launch stashed, since the summoner is no longer
+        # frontmost. Best-effort — a failed re-plant leaves a correct search in
+        # a wrongly-sized window, which is the pre-2026-08-20 behaviour.
+        replant "$dir" "$scope"
     done
 
     [ -n "$sel" ] || exit 0

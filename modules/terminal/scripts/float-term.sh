@@ -26,8 +26,11 @@
 #       ../lib/gaps.nix (GAP_* below) — the SAME arithmetic modules/windows
 #       writes into aerospace.toml's [gaps] block, per monitor class, so the
 #       popup cannot drift from the layout it is covering.
-#       Callers that manage their own window (peek's warm-path teleport and its
-#       --macos-hidden cold spawn) consume this for the centering MATH only.
+#       Every caller reaches this through spawn/place rather than directly;
+#       the subcommand stays public because it is the one way to ASK what a
+#       geometry resolves to without opening anything (the peek panel used to
+#       consume it that way, back when it teleported a parked window instead of
+#       spawning a fresh one per summon).
 #
 #   spawn --title T [--tiled | --pct N | --w PX --h PX | --match-frontmost]
 #         [--cols N --rows N] [--pin]
@@ -47,6 +50,24 @@
 #       windows are summoned, and one that opens behind its summoner is a
 #       message nobody reads. It also draws the OUTLINE (see ring below) around
 #       the new window, so every popup that comes through here is edged the same.
+#
+#   place PID {--tiled | --pct N | --w PX --h PX | --frame "X Y W H"}
+#       Re-plant an EXISTING window at that geometry — geom + the same AX drive
+#       spawn uses, and nothing else (no focus claim, no aerospace, no ring; the
+#       window already has all three). For a popup whose SCOPE changes while it
+#       is open, which is ⌘F's ^s toggle and so far only that: the overlay is
+#       sized to the summoning window while it searches that window's
+#       scrollback, and to the tiled desktop the moment ^s widens it to every
+#       session. Without this the rule would hold only on the entry path, and
+#       ⌘F→^s would land you in exactly the half-width cross-session list ⌘⇧F
+#       exists to avoid.
+#       --frame is why place takes an explicit rectangle at all, and it is the
+#       ^s toggle read backwards: --match-frontmost is useless once the popup
+#       IS the frontmost window, so shrinking back to pane scope has to replay a
+#       frame captured before the popup existed. The caller stashes it at spawn
+#       time (find.sh writes "$dir/frame") and hands it back here.
+#       PID is the GHOSTTY process, not the caller — a script running inside the
+#       popup wants the ancestor it is hosted by (find.sh's `host_ghostty_pid`).
 #
 #   ring PID [COLOR [WIDTH_PT]]
 #       Draw a rounded outline just outside PID's window and follow it until that
@@ -147,17 +168,41 @@ geom() {
     mode="pct"; arg="80"
   fi
 
-  # Frame of the cursor's screen in Ghostty's top-origin coord system. `frame`
-  # would include the menu bar / dock; `visibleFrame` excludes them so a
-  # centered window never gets clipped.
+  # WHICH display. The cursor's, normally — it is the only "where am I" a popup
+  # summoned from launchd can read for free. But --tiled is covering the WINDOWS,
+  # and haus.windows.mouseFollowsFocus defaults to false, so on a two-display
+  # desk the pointer is routinely parked on a screen the chord wasn't pressed on.
+  # Probe from the summoning window's own centre when its frame is readable, and
+  # fall back to the cursor when it isn't — which is also every non-tiled mode,
+  # where the popup is centred on a screen rather than fitted to a layout and the
+  # cursor is the better guess anyway.
+  if [ "$mode" = "tiled" ]; then
+    local fx fy fw fh probe
+    probe=$(frontmost_frame)
+    if [ -n "$probe" ]; then
+      read -r fx fy fw fh <<< "$probe"
+      export HAUS_PROBE_X=$(( fx + fw / 2 )) HAUS_PROBE_Y=$(( fy + fh / 2 ))
+    fi
+  fi
+
+  # Frame of that display in Ghostty's top-origin coord system. `frame` would
+  # include the menu bar / dock; `visibleFrame` excludes them so a centered
+  # window never gets clipped.
   local frame
   frame=$(osascript -l JavaScript -e '
     ObjC.import("AppKit");
     ObjC.import("CoreGraphics");
-    var loc = $.CGEventGetLocation($.CGEventCreate($()));
+    // HAUS_PROBE_X/Y: an explicit point to resolve instead of the pointer, set
+    // by the tiled branch above. Both coordinate systems are top-left origin
+    // (CGEventGetLocation is global display space), so they are interchangeable.
+    var env = $.NSProcessInfo.processInfo.environment;
+    var ex = env.objectForKey("HAUS_PROBE_X"), ey = env.objectForKey("HAUS_PROBE_Y");
+    var loc = (ex && ey)
+      ? { x: parseFloat(ObjC.unwrap(ex)), y: parseFloat(ObjC.unwrap(ey)) }
+      : $.CGEventGetLocation($.CGEventCreate($()));
     var screens = $.NSScreen.screens;
     if (screens.count === 0) {
-      "0 0 1920 1080";
+      "0 0 1920 1080 0";
     } else {
       var primaryH = screens.objectAtIndex(0).frame.size.height;
       var pick = screens.objectAtIndex(0);
@@ -176,6 +221,11 @@ geom() {
       // AeroSpace keys its per-monitor gaps off the display NAME, so match on
       // the same string it does rather than on index or on `screens[0]` — the
       // built-in is not always the primary, and a laptop docked shut has none.
+      // Not a perfect mirror: AeroSpace treats its monitor key as a REGEX, so a
+      // display whose name merely CONTAINS "Built-in Retina Display" would get
+      // the built-in gaps from AeroSpace and the external ones from this ===.
+      // No such display is known to exist; the cost if one turns up is a popup
+      // inset by 20/36 instead of 10/10, not a broken one.
       var name = "";
       try { name = ObjC.unwrap(pick.localizedName) || ""; } catch (e) {}
       Math.round(vf.origin.x) + " " + Math.round(vTopY) + " " +
@@ -376,9 +426,31 @@ spawn() {
   echo "$new_pid"
 }
 
+# ── re-plant a window that already exists ───────────────────────────────────
+place() {
+  local pid="${1:-}"
+  shift || true
+  [ -n "$pid" ] || return 0
+  local pos_x pos_y win_w win_h
+  if [ "${1:-}" = "--frame" ]; then
+    read -r pos_x pos_y win_w win_h <<< "${2:-}"
+    # A frame the caller couldn't capture comes through as empty fields; do
+    # nothing rather than collapse the window onto 0×0.
+    case "${pos_x:-x}${pos_y:-x}${win_w:-x}${win_h:-x}" in *[!0-9-]*) return 0 ;; esac
+    [ "${win_w:-0}" -ge 200 ] && [ "${win_h:-0}" -ge 200 ] || return 0
+  else
+    read -r pos_x pos_y win_w win_h <<< "$(geom "$@")"
+  fi
+  # A low try count on purpose: the window is already on screen, so AX exposes
+  # it on the first pass. The 100 spawn uses is for a process that may not have
+  # drawn yet, and waiting that long here would just stall a keypress.
+  set_frame "$pid" "$pos_x" "$pos_y" "$win_w" "$win_h" 10
+}
+
 case "${1:-}" in
   geom)  shift; geom "$@" ;;
   spawn) shift; spawn "$@" ;;
+  place) shift; place "$@" ;;
   ring)  shift; ring "$@" ;;
-  *) echo "usage: float-term.sh {geom|spawn|ring} …" >&2; exit 2 ;;
+  *) echo "usage: float-term.sh {geom|spawn|place|ring} …" >&2; exit 2 ;;
 esac
