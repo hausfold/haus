@@ -421,4 +421,66 @@ assert_eq "$(on_now)" off "a scene whose DND leg failed is not recorded as enter
 assert_eq "$(/usr/bin/jq -r '.matched.hush' "$STATE/auto.json")" true     "the edge is spent even though acting on it failed:"
 FAKE_HHMM=0906 "$TMP/focus" auto >/dev/null 2>&1     || fail "the next tick tried the same failed entry again — the edge was not spent"
 
+# ---------------------------------------------------------------------------
+# 16. A PROBE THAT BLINKS MUST NOT FLAP THE SCENE. macOS reports no Wi-Fi
+# network during sleep/wake, AP roaming and VPN reconnects, and launchd fires
+# StartInterval right at wake — so "the SSID read came back empty" is a routine
+# event, not a corner case. Treating it as a falling edge would leave the scene
+# and re-enter it a tick later, which means hooks off/on, the caffeinate hold
+# dropped and retaken, and with apps.closeOnExit the scene's apps quit and
+# relaunched. The entry counter is the honest witness: it must not move.
+build_engine "$TMP/scenes-facts.json"
+reset
+FAKE_SSID=Home tick
+assert_eq "$(on_now)" home "on the home network:"
+entry_before=$(/bin/cat "$STATE/scene-entry")
+tick # the same tick with no FAKE_SSID: macOS declined to answer
+assert_eq "$(on_now)" home "an unreadable SSID holds the scene rather than leaving it:"
+assert_eq "$(owner_now)" home "and ownership survives the blink:"
+FAKE_SSID=Home tick
+assert_eq "$(on_now)" home "and it is still the same scene when the SSID comes back:"
+assert_eq "$(/bin/cat "$STATE/scene-entry")" "$entry_before" \
+    "the scene was never re-entered — no hooks, no relaunched apps:"
+# The other half of the rule: a probe that ANSWERS, with an answer that fails,
+# still leaves. "Cannot say" is not "no", but "no" is still "no".
+FAKE_SSID=Cafe tick
+assert_eq "$(on_now)" off "a different network is a definite miss, and leaves:"
+
+# ---------------------------------------------------------------------------
+# 17. A LEAVE THAT FAILS IS NOT RETRIED FOREVER — the mirror of case 15, on the
+# other door. `scene_off` can reach `apply off`, which exits 1 without an
+# Accessibility grant and takes the tick with it; ownership recorded after that
+# would re-run the scene's exit every thirty seconds. Reached here through the
+# engine's own no-prev-file branch (an entry whose write failed, or a
+# hand-edited state dir), which is the one path to `apply off` this runner can
+# take: the keypress it needs cannot succeed on Linux.
+build_engine "$TMP/scenes-time.json"
+reset
+FAKE_HHMM=0830 tick
+FAKE_HHMM=0905 tick
+assert_eq "$(on_now)" work "entered, before the state dir is disturbed:"
+rm -f "$STATE/scene-prev.json"
+echo on >"$STATE/state"
+FAKE_HHMM=1730 "$TMP/focus" auto >/dev/null 2>&1 \
+    && fail "the un-quiet keypress cannot succeed here, so the tick must not report success"
+assert_eq "$(owner_now)" "" "a leave that threw still gave up ownership:"
+FAKE_HHMM=1731 "$TMP/focus" auto >/dev/null 2>&1 \
+    || fail "the next tick tried the same failed leave again"
+
+# ---------------------------------------------------------------------------
+# 18. Leaving and re-entering the same scene BY HAND between two ticks is
+# visible to the daemon. Ownership is a name plus the entry it was entered
+# under; on the name alone this is invisible, and the daemon would evict a
+# scene you had just chosen — breaking the one promise the whole feature makes.
+reset
+FAKE_HHMM=0830 tick
+FAKE_HHMM=0905 tick
+assert_eq "$(owner_now)" work "the daemon owns what it entered:"
+"$TMP/focus" scene off 2>/dev/null
+"$TMP/focus" scene work 2>/dev/null # same scene, same interval, by hand
+FAKE_HHMM=0930 tick
+assert_eq "$(owner_now)" "" "a hand re-entry inside one interval takes ownership back:"
+FAKE_HHMM=1730 tick
+assert_eq "$(on_now)" work "so the closing window does not evict the scene you entered:"
+
 printf 'ok - focus auto: %s assertions\n' "$(grep -cE '^assert_eq |\|\| fail ' "$0")"

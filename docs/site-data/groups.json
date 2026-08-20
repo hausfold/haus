@@ -535,7 +535,7 @@
     "focus": {
       "blurb": "One quiet switch: Do Not Disturb, optional Slack status, and your hooks — plus the named scenes around it.",
       "kind": "room",
-      "optionCount": 16,
+      "optionCount": 22,
       "options": {
         "haus.focus.enable": {
           "desktopSafe": true
@@ -571,6 +571,21 @@
         "haus.focus.scenes.<name>.restorePreviousState": {
           "desktopSafe": true
         },
+        "haus.focus.scenes.<name>.when.days": {
+          "desktopSafe": true
+        },
+        "haus.focus.scenes.<name>.when.displays": {
+          "desktopSafe": true
+        },
+        "haus.focus.scenes.<name>.when.power": {
+          "desktopSafe": true
+        },
+        "haus.focus.scenes.<name>.when.time": {
+          "desktopSafe": true
+        },
+        "haus.focus.scenes.<name>.when.wifi": {
+          "desktopSafe": false
+        },
         "haus.focus.slack.enable": {
           "desktopSafe": true
         },
@@ -585,6 +600,9 @@
         },
         "haus.focus.slack.tokenCommand": {
           "desktopSafe": false
+        },
+        "haus.focus.triggers.interval": {
+          "desktopSafe": true
         }
       },
       "order": 170,

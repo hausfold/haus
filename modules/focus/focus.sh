@@ -21,6 +21,11 @@ STATE_FILE="$STATE_DIR/state"
 SCENE_FILE="$STATE_DIR/scene"
 SCENE_PREV="$STATE_DIR/scene-prev.json"
 SCENE_PID="$STATE_DIR/scene-caffeinate.pid"
+# Bumped on every entry, by hand or by the daemon. The daemon remembers the id
+# it entered under, so leaving and re-entering the SAME scene between two ticks
+# is visible to it — otherwise ownership is tracked by name, an off-then-on
+# inside one interval is invisible, and the daemon evicts a scene YOU entered.
+SCENE_ENTRY="$STATE_DIR/scene-entry"
 AUTO_STATE="$STATE_DIR/auto.json"
 SCENES="@scenes@"
 SWITCH_AUDIO="@switchAudio@" # empty unless some scene names an input device
@@ -206,6 +211,14 @@ scene_active() {
     [ -n "$s" ] && echo "$s" || echo off
 }
 
+scene_entry_id() {
+    local n
+    n=$(/bin/cat "$SCENE_ENTRY" 2>/dev/null || true)
+    case "$n" in "" | *[!0-9]*) echo 0 ;; *) echo "$n" ;; esac
+}
+
+scene_entry_bump() { printf '%s\n' "$(($(scene_entry_id) + 1))" >"$SCENE_ENTRY"; }
+
 audio_input_get() {
     [ -n "$SWITCH_AUDIO" ] || return 0
     "$SWITCH_AUDIO" -c -t input 2>/dev/null || true
@@ -376,6 +389,7 @@ scene_enter() {
     # command.
     [ "$takeDnd" = true ] && apply on
     printf '%s\n' "$name" >"$SCENE_FILE"
+    scene_entry_bump
 
     [ "$(scene_field "$name" .preventSleep)" = true ] && sleep_hold
     [ "$takeAudio" = true ] && audio_input_set "$wantAudio"
@@ -505,7 +519,12 @@ scene_list() {
 #      nothing to reverse and says so by forgetting it.
 
 now_hhmm() { "$DATE" +%H%M; }
-now_day() { "$DATE" +%a | /usr/bin/tr '[:upper:]' '[:lower:]'; }
+# LC_ALL=C, or a machine whose LANG is set gets `lun`/`mi`/`月` here and every
+# `when.days` silently stops matching the enum — a trigger that degrades to
+# silence, which is the failure this room asserts against elsewhere. launchd
+# usually hands the daemon a C locale and a terminal usually doesn't, so without
+# this `focus auto --probe` and the daemon could also disagree.
+now_day() { LC_ALL=C "$DATE" +%a | /usr/bin/tr '[:upper:]' '[:lower:]'; }
 
 win_minutes() { # HH:MM → minutes since midnight. 10# or `09` reads as octal.
     local h=${1%%:*} m=${1##*:}
@@ -626,8 +645,21 @@ scene_has_when() { # a scene with no condition is entered by a person and nothin
 # Every condition a scene declares has to hold — they are ANDed, and a scene
 # that declares none never matches at all. Reads the facts `probe_facts` took,
 # so a whole tick sees ONE consistent picture of the machine.
-scene_matches() { # $1 = scene name
-    local name=$1 window days power displays wifi
+#
+# THREE answers, not two, and the third is why a scene doesn't flap:
+#   0  holds
+#   1  definitely does not hold — a probe answered, and the answer fails
+#   2  cannot say — a probe returned nothing at all
+# "Cannot say" is not "no". `networksetup` reports no network during sleep/wake,
+# AP roaming and VPN reconnects, and CGGetActiveDisplayList under-counts while
+# monitors re-negotiate on wake — which launchd's StartInterval lands right on
+# top of. Treating that as a falling edge would leave the scene and then re-enter
+# it a tick later: hooks off/on, the caffeinate hold dropped and retaken, DND and
+# the Slack status flipped twice, and with `apps.closeOnExit` the apps QUIT AND
+# RELAUNCHED — OBS, mid-recording, on the room's own example scene. So entering
+# needs a 0 and leaving needs a 1, and an unknown holds everything where it is.
+scene_matches() { # $1 = scene name; 0 = holds · 1 = does not · 2 = cannot say
+    local name=$1 window days power displays wifi unknown=0
     scene_has_when "$name" || return 1
 
     window=$(scene_field "$name" .when.time)
@@ -640,31 +672,49 @@ scene_matches() { # $1 = scene name
         printf '%s\n' "$days" | /usr/bin/grep -qxF "$FACT_DAY" || return 1
     fi
 
+    # A definite no wins over an unknown, which is what the early `return 1`s
+    # give: a scene wanting AC power and this network, off the wall with the
+    # SSID unreadable, definitely does not hold.
     power=$(scene_field "$name" .when.power)
     if [ -n "$power" ] && [ "$power" != any ]; then
-        if [ -z "$FACT_POWER" ] || [ "$power" != "$FACT_POWER" ]; then return 1; fi
+        if [ -z "$FACT_POWER" ]; then
+            unknown=1
+        elif [ "$power" != "$FACT_POWER" ]; then
+            return 1
+        fi
     fi
 
     wifi=$(scene_field "$name" '.when.wifi[]?')
     if [ -n "$wifi" ]; then
-        [ -n "$FACT_WIFI" ] || return 1
-        printf '%s\n' "$wifi" | /usr/bin/grep -qxF "$FACT_WIFI" || return 1
+        if [ -z "$FACT_WIFI" ]; then
+            unknown=1
+        elif ! printf '%s\n' "$wifi" | /usr/bin/grep -qxF "$FACT_WIFI"; then
+            return 1
+        fi
     fi
 
+    # `case` rather than `[ -ge ]` with the error swallowed: a non-numeric count
+    # makes `[` exit 2, and a `!` in front of that reads as SUCCESS — a probe
+    # returning junk would satisfy the condition it was asked about.
     displays=$(scene_field "$name" .when.displays)
     if [ -n "$displays" ]; then
-        [ -n "$FACT_DISPLAYS" ] || return 1
-        [ "$FACT_DISPLAYS" -ge "$displays" ] 2>/dev/null || return 1
+        case "$FACT_DISPLAYS" in
+            "" | *[!0-9]*) unknown=1 ;;
+            *) [ "$FACT_DISPLAYS" -ge "$displays" ] || return 1 ;;
+        esac
     fi
+
+    [ "$unknown" = 0 ] || return 2
     return 0
 }
 
 auto_read() { "$JQ" -r "$1 // empty" "$AUTO_STATE" 2>/dev/null; }
 auto_matched() { "$JQ" -r --arg n "$1" '(.matched[$n] // false) | tostring' "$AUTO_STATE" 2>/dev/null; }
 
-auto_write() { # $1 = matched object, $2 = owner
+auto_write() { # $1 = matched object, $2 = owner, $3 = the entry id it owns
     local tmp="$AUTO_STATE.tmp"
-    "$JQ" -n --argjson m "$1" --arg o "$2" '{matched:$m,owner:$o}' >"$tmp" 2>/dev/null \
+    "$JQ" -n --argjson m "$1" --arg o "$2" --arg e "${3:-0}" \
+        '{matched:$m,owner:$o,ownerEntry:$e}' >"$tmp" 2>/dev/null \
         && /bin/mv -f "$tmp" "$AUTO_STATE"
 }
 
@@ -672,30 +722,47 @@ auto_write() { # $1 = matched object, $2 = owner
 # to run by hand — it is a function of the machine's state, not of how often it
 # is called.
 auto_tick() {
-    local name owner active matched fired
+    local name owner ownerEntry active matched fired rc was
     /bin/mkdir -p "$STATE_DIR"
     # No state file is the first tick after a fresh install or a cleared state
     # dir: every condition reads as "was false", so whatever holds right now is
     # an edge and gets entered. That is what makes a login inside the 09:00
     # window land in the work scene rather than waiting until tomorrow morning.
-    [ -f "$AUTO_STATE" ] || printf '{"matched":{},"owner":""}\n' >"$AUTO_STATE"
+    [ -f "$AUTO_STATE" ] || printf '{"matched":{},"owner":"","ownerEntry":"0"}\n' >"$AUTO_STATE"
 
     probe_facts
 
     owner=$(auto_read .owner)
+    ownerEntry=$(auto_read .ownerEntry)
     active=$(scene_active)
-    if [ -n "$owner" ] && [ "$owner" != "$active" ]; then owner=""; fi
+    # Ownership survives only while BOTH the name and the entry it was entered
+    # under still stand. The name alone would miss you leaving and re-entering
+    # the same scene between two ticks, and then the daemon would evict a scene
+    # you had just chosen by hand.
+    if [ -n "$owner" ] &&
+        { [ "$owner" != "$active" ] || [ "$ownerEntry" != "$(scene_entry_id)" ]; }; then
+        owner=""
+    fi
 
     matched='{}'
     fired=""
     while IFS= read -r name; do
         [ -n "$name" ] || continue
-        if scene_matches "$name"; then
-            if [ "$(auto_matched "$name")" != true ] && [ -z "$fired" ]; then fired=$name; fi
-            matched=$("$JQ" -n --argjson m "$matched" --arg n "$name" '$m + {($n): true}')
-        else
-            matched=$("$JQ" -n --argjson m "$matched" --arg n "$name" '$m + {($n): false}')
-        fi
+        scene_matches "$name"
+        rc=$?
+        was=$(auto_matched "$name")
+        case $rc in
+            0)
+                if [ "$was" != true ] && [ -z "$fired" ]; then fired=$name; fi
+                matched=$("$JQ" -n --argjson m "$matched" --arg n "$name" '$m + {($n): true}')
+                ;;
+            1) matched=$("$JQ" -n --argjson m "$matched" --arg n "$name" '$m + {($n): false}') ;;
+            # Cannot say: carry the last answer forward rather than recording a
+            # transition. A probe that blinks must not manufacture an edge on
+            # the way back, which is what writing `false` here would do.
+            *) matched=$("$JQ" -n --argjson m "$matched" --arg n "$name" --argjson v \
+                "$([ "$was" = true ] && echo true || echo false)" '$m + {($n): $v}') ;;
+        esac
     done < <(scene_names)
 
     # SPEND THE EDGE BEFORE ACTING ON IT, and this ordering is load-bearing.
@@ -706,24 +773,40 @@ auto_tick() {
     # same notification. Forever. Recording first turns that into one attempt
     # per edge: the failure is still visible (a notification, `focus doctor`),
     # and it is a failure that happens once.
-    auto_write "$matched" "$owner"
+    auto_write "$matched" "$owner" "$ownerEntry"
 
     # Leave before entering, so one tick can hand over: the window that closed
     # and the one that opened are the same minute. `scene_names` is jq's `keys`,
     # which sorts — so when two conditions rise together the first name wins,
     # deterministically, and `--probe` shows you which.
-    if [ -n "$owner" ] && ! scene_matches "$owner"; then
-        scene_off
-        owner=""
+    #
+    # Only a DEFINITE no leaves (rc 1). An unknown holds the scene where it is —
+    # see scene_matches.
+    if [ -n "$owner" ]; then
+        scene_matches "$owner"
+        if [ $? = 1 ]; then
+            # Forget the ownership BEFORE reversing it, for the same reason the
+            # edge is spent before acting on it: `scene_off` reaches `apply off`,
+            # which exits 1 without an Accessibility grant and takes the tick
+            # with it. Recorded afterwards, that would re-run the scene's `hooks
+            # off`, re-release the hold and re-post the same notification every
+            # thirty seconds, forever — the failure the entry path is written to
+            # avoid, arriving through the other door.
+            auto_write "$matched" "" 0
+            owner=""
+            ownerEntry=0
+            scene_off
+        fi
     fi
 
     if [ -n "$fired" ] && [ -z "$owner" ] &&
         [ "$(scene_active)" = off ] && [ "$(focus_state)" != on ]; then
         scene_enter "$fired"
         owner=$fired
+        ownerEntry=$(scene_entry_id)
     fi
 
-    auto_write "$matched" "$owner"
+    auto_write "$matched" "$owner" "$ownerEntry"
 }
 
 # The feel-test in one command: what every probe reads right now, and what each
@@ -759,7 +842,12 @@ auto_probe() {
               , (if ($w.power // "any") != "any" then ("power " + $w.power) else empty end)
               , (if ($w.displays // null) != null then ("displays>=" + ($w.displays | tostring)) else empty end)
               ] | join(" · ")' "$SCENES" 2>/dev/null)
-        if scene_matches "$name"; then mark="holds"; else mark="-"; fi
+        scene_matches "$name"
+        case $? in
+            0) mark="holds" ;;
+            1) mark="-" ;;
+            *) mark="can't tell — a probe above is blank" ;;
+        esac
         printf '  %-14s %-46s %s\n' "$name" "$cond" "$mark"
     done < <(scene_names)
     printf 'A condition that holds is not the same as one that fires: entry happens on\n'

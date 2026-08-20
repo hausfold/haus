@@ -2468,7 +2468,7 @@
       "_type": "literalExpression",
       "text": "null"
     },
-    "description": "Enter this scene while at least this many displays are active,\nthe built-in screen included — so `2` is \"docked\" on a laptop,\nand `null`, the default, leaves the screens out of this\nscene's condition.\n\nA count rather than a display's name, on purpose: which panel\nis on your desk is a fact about one machine (the same reason\n`haus.displays.<uuid>` is host-only), while \"more than one\nscreen\" is a shape any desktop can share.\n",
+    "description": "Enter this scene while at least this many displays are active,\nthe built-in screen included — so `2` is \"docked\" on a laptop,\nand `null`, the default, leaves the screens out of this\nscene's condition.\n\nA count rather than a display's name, on purpose: which panel\nis on your desk is a fact about one machine (the same reason\n`haus.displays.<uuid>` is host-only), while \"more than one\nscreen\" is a shape any desktop can share.\n\nScreens re-negotiate on wake, and a count that comes back\nunreadable holds a running scene where it is rather than\nending it — the same rule `when.wifi` follows, for the same\nreason. Where the count comes from is `focus doctor`'s\nbusiness: with the displays room on it is that room's helper,\nand without it `system_profiler`, which can also count a\nsleeping built-in panel the helper leaves out.\n",
     "example": {
       "_type": "literalExpression",
       "text": "2"
@@ -2536,7 +2536,7 @@
       "_type": "literalExpression",
       "text": "[ ]"
     },
-    "description": "Enter this scene while joined to one of these Wi-Fi networks,\nby the exact SSID. Empty means the network is not part of this\nscene's condition.\n\nHonest scope: the current SSID is the one probe macOS can\nrefuse to answer, and an unreadable SSID matches nothing —\nwhich looks exactly like a network you are not on. `focus auto\n--probe` prints what it reads right now and `focus doctor`\nsays when it comes back empty, so the difference is one\ncommand rather than a guess.\n",
+    "description": "Enter this scene while joined to one of these Wi-Fi networks,\nby the exact SSID. Empty means the network is not part of this\nscene's condition.\n\nHonest scope: the current SSID is the one probe macOS can\nrefuse to answer, and an unreadable SSID can't enter a scene —\nwhich looks exactly like a network you are not on. `focus auto\n--probe` prints what it reads right now and `focus doctor`\nsays when it comes back empty, so the difference is one\ncommand rather than a guess.\n\nIt cannot END a scene either. macOS reports no network during\nsleep/wake, roaming and VPN reconnects, so \"I can't tell\" holds\na running scene exactly where it is; only an SSID that reads\nclearly and isn't in this list leaves.\n",
     "example": {
       "_type": "literalExpression",
       "text": "[\n  \"Home\"\n]"

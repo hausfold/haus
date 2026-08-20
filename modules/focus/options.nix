@@ -281,11 +281,16 @@
                   scene's condition.
 
                   Honest scope: the current SSID is the one probe macOS can
-                  refuse to answer, and an unreadable SSID matches nothing —
+                  refuse to answer, and an unreadable SSID can't enter a scene —
                   which looks exactly like a network you are not on. `focus auto
                   --probe` prints what it reads right now and `focus doctor`
                   says when it comes back empty, so the difference is one
                   command rather than a guess.
+
+                  It cannot END a scene either. macOS reports no network during
+                  sleep/wake, roaming and VPN reconnects, so "I can't tell" holds
+                  a running scene exactly where it is; only an SSID that reads
+                  clearly and isn't in this list leaves.
                 '';
               };
 
@@ -317,6 +322,14 @@
                   is on your desk is a fact about one machine (the same reason
                   `haus.displays.<uuid>` is host-only), while "more than one
                   screen" is a shape any desktop can share.
+
+                  Screens re-negotiate on wake, and a count that comes back
+                  unreadable holds a running scene where it is rather than
+                  ending it — the same rule `when.wifi` follows, for the same
+                  reason. Where the count comes from is `focus doctor`'s
+                  business: with the displays room on it is that room's helper,
+                  and without it `system_profiler`, which can also count a
+                  sleeping built-in panel the helper leaves out.
                 '';
               };
             };

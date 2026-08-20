@@ -282,7 +282,7 @@ plausible other answer:
    only the levers you pulled" rule, one level up: the moment what's active
    isn't the owner, the daemon has nothing to reverse and forgets it.
 
-Four smaller decisions, same treatment:
+Five smaller decisions, same treatment:
 
 4. **The conditions live ON the scene, not in a `haus.focus.triggers.<name>`
    table of their own.** A trigger table would be a second place a scene name
@@ -301,7 +301,13 @@ Four smaller decisions, same treatment:
    first. Any rule here is arbitrary; this one is at least deterministic,
    printable and stable across rebuilds, and `focus auto --probe` shows which
    scenes hold so the loser is visible rather than mysterious.
-7. **`RunAtLoad = false`.** A tick can enter a scene, and entering one can
+7. **Ownership is a name AND the entry it was entered under.** A counter bumps
+   on every entry, by hand or by the daemon, and the daemon remembers the value
+   it entered at. On the name alone, leaving and re-entering the same scene
+   between two ticks is invisible — and the daemon would then evict a scene YOU
+   had just chosen, breaking the one promise the feature makes, in a window
+   exactly one interval wide.
+8. **`RunAtLoad = false`.** A tick can enter a scene, and entering one can
    `open -a` an app and talk to System Events — both of which park at cold boot
    before the Aqua session is up (`modules/lib/gui-wait.nix`). Waiting one
    interval costs at most 30 seconds after login and needs none of that
@@ -311,17 +317,27 @@ Four smaller decisions, same treatment:
 
 ### What the probes can and can't do
 
-Each probe answers `""` for "I could not tell", and `""` matches nothing — a
-condition whose fact is unknown does not hold. That is the conservative
-direction: an unreadable SSID leaves you where you are instead of entering a
-scene on a guess.
+Each probe answers `""` for "I could not tell", and **that is a third answer,
+not a no** — `scene_matches` returns *holds* / *definitely does not* / *cannot
+say*, entering needs the first and leaving needs the second. The two-answer
+version was written first and the assurance pass killed it: it is conservative
+only on the entering side, and maximally aggressive on the other. `networksetup`
+reports no network during sleep/wake, AP roaming and VPN reconnects, and
+CGGetActiveDisplayList under-counts while monitors re-negotiate — all of which
+launchd's `StartInterval` lands directly on top of. One blank read would have
+left the scene and the next one re-entered it: hooks off then on, the caffeinate
+hold dropped and retaken, DND and the Slack status flipped twice, and with
+`apps.closeOnExit` **the scene's apps quit and relaunched** — OBS, mid-recording,
+on this room's own example scene. A tick that cannot tell changes nothing, and
+does not even record a transition, because writing "false" for an unknown would
+manufacture a rising edge on the way back.
 
 | Fact | Read by | Honest scope |
 |---|---|---|
 | clock, weekday | `date` | exact |
 | power source | `pmset -g batt` | exact |
 | Wi-Fi SSID | `networksetup -getairportnetwork <dev>`, device looked up rather than assumed | **macOS can refuse it** (Location Services), and it refuses by saying you are not associated — indistinguishable from being on no network |
-| display count | `hausdisp list` when the displays room is on, else `system_profiler SPDisplaysDataType` | exact either way; the fallback is slow enough to notice, which is what `triggers.interval` says to raise the interval for |
+| display count | `hausdisp list` when the displays room is on, else `system_profiler SPDisplaysDataType` | **not the same count.** The helper reports `CGGetActiveDisplayList`, which drops a sleeping panel; the fallback counts what the GPU driver knows about, which on a clamshell-docked laptop usually still includes the built-in one. So `displays = 2` can read 1 with the displays room and 2 without it on the same Mac. The fallback is also slow enough to notice, which is what `triggers.interval` says to raise the interval for |
 
 `focus auto --probe` prints all four and what each scene's condition makes of
 them, and `focus doctor` calls out an SSID that reads empty. Both exist for the
