@@ -563,6 +563,18 @@ in
       # keeps its plugins — they call
       # `agent-state <working|waiting|idle|remove> <client>` instead.
       (writeShellScriptBin "agent-state" (builtins.readFile ../bar/sketchybar/plugins/agents-hook.sh))
+
+      # `agent-desktop-guard` — the PreToolUse hook terminal wires into
+      # ~/.claude/settings.json. This room sets Claude Code's permission mode to
+      # "auto", which is right for files and wrong for the screen: an agent that
+      # decides to foreground an app or click something just does it, mid-sentence,
+      # while you are typing into something else. The guard re-opens the permission
+      # prompt for exactly that slice — pointer/keyboard/focus/redraw — and returns
+      # no opinion on everything else, so auto-mode is intact everywhere it was
+      # already fine. It never refuses anything; the only verdict it can return is
+      # "ask". HAUS_DESKTOP_OK=1 in a pane turns it off there, the way
+      # BENCH_AGENT_SWITCH=1 does for activation. Details in the script's header.
+      (writeShellScriptBin "agent-desktop-guard" (builtins.readFile ./desktop-guard.sh))
     ]
   );
 

@@ -1788,6 +1788,15 @@ in
       # sensible second handler for "make me a worktree". Every OTHER hook event
       # in the file is untouched — including the four agent-state hooks, which
       # stay yours (see modules/bar/options.nix).
+      #
+      # PreToolUse is the exception, and is APPENDED rather than set: unlike the
+      # worktree events it is a general-purpose event that Claude, a plugin or you
+      # may well have opinions on too, so the merge drops any stale copy of our own
+      # handler by command path and re-appends one, leaving every other entry in
+      # place. It points at `agent-desktop-guard` (modules/ai), which re-asks
+      # before a tool call moves the pointer, takes focus or redraws the desktop —
+      # the counterweight to the `defaultMode = "auto"` two lines below, which is
+      # right for files and wrong for the screen. It refuses nothing.
       # Claude Code settings/hooks/statusline are agent tooling; a machine that
       # runs no agents should not have its ~/.claude/settings.json rewritten.
       home.activation.claudeCodeSettings = lib.mkIf agentsCfg.enable (
@@ -1799,6 +1808,7 @@ in
             if [ -s "$settings" ]; then base="$settings"; else base="$tmp.base"; printf "{}" > "$base"; fi
             ${pkgs.jq}/bin/jq ".hooks.WorktreeCreate = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook create\"}]}]
               | .hooks.WorktreeRemove = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook remove\"}]}]
+              | .hooks.PreToolUse = (((.hooks.PreToolUse // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/agent-desktop-guard\") | not))) + [{matcher: \"Bash|mcp__computer-use__.*\", hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/agent-desktop-guard\"}]}])
               | .permissions.defaultMode = \"auto\"
               | .tui = \"fullscreen\"
               | .disableAgentView = true
