@@ -254,13 +254,16 @@ let
     - **One question beats one stolen focus.** In doubt, ask. You are not being
       helpful by guessing here.
 
-    `agent-desktop-guard` backs this up: it re-opens the permission prompt
-    before a tool call that would move the pointer, take focus or redraw the
-    desktop, because agents here otherwise run in permission mode `auto`. It
-    refuses nothing — it only puts the decision back in front of the user, and
-    `HAUS_DESKTOP_OK=1` in a pane's environment turns it off for a long
-    unattended run. It's a backstop for the rules above, not permission to skip
-    them: a prompt you triggered is still an interruption.
+    ${lib.optionalString (client == "claude") ''
+      `agent-desktop-guard` backs this up on Claude Code panes: a PreToolUse hook
+      that re-opens the permission prompt before a tool call that would move the
+      pointer, take focus or redraw the desktop — which matters because those
+      panes otherwise run in permission mode `auto`. It refuses nothing; it only
+      puts the decision back in front of the user, and `HAUS_DESKTOP_OK=1` in a
+      pane's environment turns it off for a long unattended run. It is a backstop
+      for the rules above, not permission to skip them: a prompt you triggered is
+      still an interruption.
+    ''}
 
     Full guide: https://hausfold.co/docs/haus/rooms/ai/
 
@@ -590,7 +593,8 @@ in
       (writeShellScriptBin "agent-state" (builtins.readFile ../bar/sketchybar/plugins/agents-hook.sh))
 
       # `agent-desktop-guard` — the PreToolUse hook terminal wires into
-      # ~/.claude/settings.json. This room sets Claude Code's permission mode to
+      # ~/.claude/settings.json (terminal's claudeCodeSettings both declares the
+      # hook and sets the permission mode this counterweights). That mode is
       # "auto", which is right for files and wrong for the screen: an agent that
       # decides to foreground an app or click something just does it, mid-sentence,
       # while you are typing into something else. The guard re-opens the permission

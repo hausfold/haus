@@ -93,9 +93,20 @@ case "$tool" in
     ask "Teach mode drives the user's screen directly."
     ;;
 
-  # screenshot, zoom, read_clipboard, list_granted_applications, request_access,
-  # request_teach_access, switch_display: looking and asking. Silent.
-  mcp__computer-use__*) exit 0 ;;
+  # Looking and asking: silent. ENUMERATED, with everything else under the
+  # prefix falling through to ask — the settings matcher is the broad
+  # `mcp__computer-use__.*`, so a tool this list has never heard of is exactly
+  # the case that must not fail open. The sibling browser server already exposes
+  # a singular `computer` tool, so a new interaction verb here is one server
+  # release away.
+  mcp__computer-use__screenshot | mcp__computer-use__zoom \
+    | mcp__computer-use__read_clipboard | mcp__computer-use__list_granted_applications \
+    | mcp__computer-use__request_access | mcp__computer-use__request_teach_access \
+    | mcp__computer-use__switch_display) exit 0 ;;
+
+  mcp__computer-use__*)
+    ask "Unrecognised computer-use tool '$tool' — it may drive the screen the user is working on."
+    ;;
 
   Bash) ;;
   *) exit 0 ;;
@@ -109,10 +120,19 @@ cmd=$(j '.tool_input.command')
 
 m() { printf '%s' "$cmd" | grep -Eq "$1"; }
 
-# `open` foregrounds by default; `open -g` / --background does not, and neither
-# does `open -R` (reveals in Finder without activating? it does activate — so it
-# is not exempted). Only the explicitly-backgrounded form passes.
-if m '(^|[;&|] *)open ' && ! m '(^|[;&|] *)open [^;&|]*(-g|--background)\b'; then
+# `open` foregrounds by default; only the explicitly-backgrounded form passes.
+#
+# Two shapes this deliberately does NOT match, both found by review:
+#   - prose. grep is line-based, so a bare `^open ` would fire on any line of a
+#     heredoc that happens to start with the word — `open the door` in a commit
+#     message. Requiring a flag, a path-shaped argument or a URL keeps English
+#     out. Nagging on prose is worse than not nagging: it trains click-through.
+#   - `open -ga Ghostty`. The flag cluster is combined far more often than not,
+#     so the background exemption looks for a `g` ANYWHERE in a whitespace-led
+#     cluster rather than a standalone `-g`. The leading whitespace matters:
+#     without it `open ./my-great-file` exempts itself on the `-g` of "great".
+if m '(^|[;&|]) *open +(-[a-zA-Z]|[~./$"'"'"']|[a-z][a-z0-9+.-]*://)' \
+  && ! m 'open[^;&|]*[[:space:]]-([a-zA-Z]*g|-background)'; then
   ask "\`open\` brings an app or file to the front. Use \`open -g\` to launch it in the background, or ask the user to open it."
 fi
 
@@ -133,7 +153,9 @@ m '(^|[;&|] *)killall +(Dock|Finder|SystemUIServer|sketchybar|WindowServer)' &&
 
 # screencapture's default plays the shutter and flashes the screen; -x is silent
 # and is the form an agent should be reaching for.
-if m '(^|[;&|] *)screencapture ' && ! m 'screencapture[^;&|]*-[a-zA-Z]*x'; then
+# The -x test needs the leading whitespace for the same reason `open -g` does:
+# without it `screencapture ~/shot-x.png` exempts itself on its own filename.
+if m '(^|[;&|]) *screencapture ' && ! m 'screencapture[^;&|]*[[:space:]]-[a-zA-Z]*x'; then
   ask "\`screencapture\` without \`-x\` plays the shutter sound and flashes the screen. Add \`-x\` to take it silently."
 fi
 

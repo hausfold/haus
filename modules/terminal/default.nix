@@ -1789,6 +1789,12 @@ in
       # in the file is untouched — including the four agent-state hooks, which
       # stay yours (see modules/bar/options.nix).
       #
+      # The `&& mv` is load-bearing: this program's PreToolUse filter is the
+      # first one here that can ERROR on user-shaped data (`map` over a
+      # non-array, if something writes `\"PreToolUse\": \"…\"`), and the `sh -c`
+      # body has no `set -e` — an unconditional `mv` would install jq's empty
+      # output as the user's whole settings.json and report success.
+      #
       # PreToolUse is the exception, and is APPENDED rather than set: unlike the
       # worktree events it is a general-purpose event that Claude, a plugin or you
       # may well have opinions on too, so the merge drops any stale copy of our own
@@ -1815,8 +1821,7 @@ in
               | .spinnerTipsEnabled = false
               | .statusLine = {type: \"command\", command: \"/run/current-system/sw/bin/claude-statusline\", refreshInterval: 12}
               | .footerLinksRegexes = [{type: \"regex\", pattern: \"(?<owner>[A-Za-z0-9_.-]+)/(?<repo>[A-Za-z0-9_.-]+)#(?<pr>[0-9]+)\", url: \"https://github.com/{owner}/{repo}/pull/{pr}\", label: \"{repo}#{pr}\"}]" \
-              "$base" > "$tmp"
-            mv "$tmp" "$settings"
+              "$base" > "$tmp" && mv "$tmp" "$settings"
             rm -f "$tmp.base"
           ' "$HOME/.claude/settings.json"
         ''
