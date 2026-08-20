@@ -47,10 +47,25 @@ info() { printf '  \033[38;5;103mⓘ\033[0m %s\n' "$*"; }
 # desktop in CI has no consumer flake to point it at. Guarding it here would
 # make the one command with an audience outside this Mac the one command that
 # cannot run outside it.
-case "${1:-}" in
+#
+# The verb is the first argument that isn't `-v`, for the same reason the
+# dispatch strips it below: `haus -v show …` is a legal spelling, and keying
+# this on `$1` alone would make the flag re-arm the guard.
+haus_verb=""
+for a in "$@"; do
+  case "$a" in
+    -v | --verbose) ;;
+    *)
+      haus_verb="$a"
+      break
+      ;;
+  esac
+done
+case "$haus_verb" in
   show) ;;
   *) [ -e "$CONSUMER/flake.nix" ] || die "no config flake at $CONSUMER — set HAUS_CONSUMER, or run the bootstrap first." ;;
 esac
+unset haus_verb a
 
 SYSPROFILES=/nix/var/nix/profiles
 

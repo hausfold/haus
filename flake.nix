@@ -3138,9 +3138,11 @@
       );
 
       # `nix run github:hausfold/haus#pounce`
-      # Linux is in allSystems for options-json alone: hausfold.co's CI renders
-      # the options reference there. Nothing else in this set is buildable on
-      # Linux, but option metadata is pure evaluation.
+      # Linux is in allSystems because three of these build there and want to:
+      # options-json, which hausfold.co's CI renders the options reference from,
+      # and `desktop-check` / `show`, whose whole audience is a publisher's CI
+      # runner. The rest of the set is darwin's; nothing here is a Mac except
+      # the things that have to be.
       packages = nixpkgs.lib.genAttrs allSystems (
         system:
         let

@@ -84,9 +84,13 @@ _haus() {
       # -v/--verbose from anywhere in argv before it dispatches, so `haus set -v
       # theme.` is a path in the first slot — counting the flag would offer a
       # value there instead, and be off by one for every pair after it.
+      #
+      # `show`'s own flags are excluded for the same reason: they are not
+      # positionals, and counting `--json` as one made `haus show --json <TAB>`
+      # complete nothing at all.
       local -i typed=0 i
       for (( i = 2; i < CURRENT; i++ )); do
-        [[ $words[i] == (-v|--verbose) ]] || (( typed++ ))
+        [[ $words[i] == (-v|--verbose|--json|--room|-h|--help) ]] || (( typed++ ))
       done
 
       case $words[1] in

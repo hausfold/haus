@@ -41,7 +41,9 @@ run() {
 }
 
 expect_status() { [ "$status" = "$1" ] || fail "$2: expected exit $1, got $status"; }
-has()   { printf '%s\n' "$out" | grep -qF -- "$1" || fail "$2: expected to find '$1'"; }
+has()   { printf '%s\n' "$out" | grep -qF -- "$1" || fail "$2: expected to find '$1' on stdout"; }
+# Diagnostics go to stderr, so a refusal is asserted there and never on stdout.
+has_err() { printf '%s\n' "$err" | grep -qF -- "$1" || fail "$2: expected to find '$1' on stderr"; }
 lacks() { printf '%s\n' "$out" | grep -qF -- "$1" && fail "$2: expected NOT to find '$1'"; return 0; }
 
 # ---- 0: a valid desktop passes, and says what it sets -------------------------
@@ -120,6 +122,56 @@ expect_status 2 "unparseable"
 printf '{ haus.ui.scale = throw "boom"; }\n' >"$tmp/throws.nix"
 run "$tmp/throws.nix"
 expect_status 2 "throwing value"
+has "could not be read" "throwing value"
+
+# A file that is valid Nix and fails for a reason that is NOT a parse error.
+# Every one of these used to be reported as "check it parses", which sends the
+# reader to look at the one thing that is fine.
+printf '{ haus.apps.extra = (import <nixpkgs> { }).hello; }\n' >"$tmp/needs-nixpkgs.nix"
+run "$tmp/needs-nixpkgs.nix"
+expect_status 2 "not a parse error"
+has "Nix says" "not a parse error"
+
+# ---- the sandbox --------------------------------------------------------------
+# Reading a file means evaluating it, and evaluation is not inert. Both of these
+# must be REFUSED, and the refusal must say what was reached for — a `haus show`
+# that exfiltrates during the run you did to decide whether to trust the file is
+# the worst bug this command could have.
+printf 'top secret\n' >"$tmp/creds"
+printf '{ haus.theme.accent = builtins.readFile "%s/creds"; }\n' "$tmp" >"$tmp/reads.nix"
+run "$tmp/reads.nix"
+expect_status 2 "reads a sibling file"
+lacks "top secret" "reads a sibling file"
+printf '%s\n' "$err" | grep -qF "top secret" && fail "reads a sibling file: the secret reached stderr"
+has_err "restricted mode" "reads a sibling file"
+
+printf '{ haus.theme.accent = builtins.fetchurl "https://example.invalid/x"; }\n' >"$tmp/fetches.nix"
+run "$tmp/fetches.nix"
+expect_status 2 "fetches a URL"
+has_err "restricted mode" "fetches a URL"
+
+# And `--room` does not evaluate the file AT ALL, which is why the same hostile
+# file comes back as a plain room rather than as a sandbox refusal. Declaring
+# something to be code and then running it through an evaluator to say so would
+# be the one thing this command must not do to a stranger's file.
+run --room "$tmp/reads.nix"
+expect_status 0 "--room does not evaluate"
+lacks "top secret" "--room does not evaluate"
+
+# The checker's own directory has to stay readable, or the sandbox refuses
+# everything — including the desktops that are fine. Proven by the valid case
+# passing above, and again here on a file in the same directory as the two
+# hostile ones, so it is the FILE that is scoped and not the directory.
+printf '{ haus.theme.accent = "mauve"; }\n' >"$tmp/fine.nix"
+run "$tmp/fine.nix"
+expect_status 0 "a good file beside a hostile one"
+
+# A path a naive splice would break, with the two characters that matter: a
+# quote closes the Nix string, and `${` opens an interpolation inside it.
+mkdir -p "$tmp/od\"d \${x}"
+cp "$tmp/fine.nix" "$tmp/od\"d \${x}/desk.nix"
+run "$tmp/od\"d \${x}/desk.nix"
+expect_status 0 "awkward path"
 
 # ---- --json -------------------------------------------------------------------
 run --json "$fixtures/valid-sample.nix"
@@ -147,8 +199,19 @@ printf '%s' "$out" | jq -e '.ok == false and (.failures | length) == 1' >/dev/nu
 # the one confusion this command must never cause.
 run --json --room "$fixtures/function.nix"
 expect_status 0 "json room"
-printf '%s' "$out" | jq -e '.class == "room" and .checked == false and .ok == true' >/dev/null \
+printf '%s' "$out" | jq -e '.class == "room" and .checked == false and .ok == null' >/dev/null \
   || fail "json room: a room must not read as a checked pass"
+
+# The same rule for a file nothing could be read from: `ok` is null, never true,
+# and the reason survives into `failures` rather than being thrown away with the
+# exit code as the only evidence.
+run --json "$tmp/throws.nix"
+expect_status 2 "json unreadable"
+printf '%s' "$out" | jq -e '
+  .class == "unreadable" and .checked == false and .ok == null
+  and (.failures | length) >= 1
+  and (.failures | join(" ") | test("boom"))
+' >/dev/null || fail "json unreadable: ok/failures are not the documented shape"
 
 # ---- it really does write nothing --------------------------------------------
 # `cksum` rather than md5sum/md5, whose names differ by platform — and content,
@@ -165,5 +228,6 @@ run --help
 expect_status 0 "help"
 has "exit codes" "help"
 has "never infers that something is safe" "help"
+has "unreadable" "help"
 
 printf 'ok — haus show: %s\n' "$show"

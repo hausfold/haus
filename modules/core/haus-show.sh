@@ -17,7 +17,12 @@
 # file rather than two that agree today. See modules/desktop-check.nix.
 set -euo pipefail
 
-PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/bin:/bin:${PATH:-}"
+# APPENDED, unlike haus.sh's own prefix. This script needs `nix` and `jq` and
+# nothing else, and the flake wrapper (`nix run …#show`) pins its own jq on the
+# front for a runner that may have none — prepending here would put a system jq
+# ahead of the pinned one and quietly undo that. The tail is the fallback for a
+# bare login-item or sudo shell with almost nothing on PATH.
+PATH="${PATH:-}:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/bin:/bin"
 export PATH
 
 # The staged evaluator: nixpkgs' lib, the room registry, the desktop rules and
@@ -36,12 +41,14 @@ plural() { [ "$1" = 1 ] || printf s; }
 
 usage() {
   cat <<'EOF'
-haus show — inspect a desktop or room file. Reads only; writes nothing.
+haus show — inspect a desktop or room file. Reads only; nothing is written,
+fetched or applied.
 
   haus show <file>            what it is, whether it is a valid desktop,
                               what it sets and what it leaves alone
   haus show --room <file>     you are telling haus this file is CODE; it
-                              prints the trust warning and checks nothing
+                              prints the trust warning and does not even
+                              evaluate the file
   haus show --json <file>     the same report as JSON on stdout
 
 exit codes
@@ -54,6 +61,18 @@ A desktop is data: a closed `{ haus = { … }; }` value whose every leaf is a
 public option a shared desktop may set. A room is a nix-darwin module — code,
 which haus cannot vet. `haus show` PROVES the first and only ever REPORTS the
 second; it never infers that something is safe.
+
+Under --json, `class` is one of desktop, room or unreadable, and `checked`
+says whether anything was verified. `ok` is true ONLY when the checker passed;
+it is null when nothing was checked, so `.ok == true` never means "we didn't
+look".
+
+Reading a desktop means EVALUATING it, and Nix evaluation can read files and
+fetch URLs. So it runs restricted: no fetch of any kind resolves, and the only
+paths it may read are the checker's own and the one file you named. An attempt
+to reach anything else fails loudly and names what it reached for. That is a
+guard, not a claim about what a ROOM does — a room is code, and the answer for
+code is still "read it, or trust whoever wrote it".
 EOF
 }
 
@@ -75,40 +94,118 @@ done
 [ -d "$CHECK" ] || die "no desktop checker at $CHECK — this machine's haus predates 'haus show'; run 'haus update' first."
 
 # Absolute, because the expression below is evaluated with no working directory
-# of its own and a relative path in it would resolve against the store.
-abs="$(cd "$(dirname "$file")" && pwd)/$(basename "$file")"
+# of its own and a relative path in it would resolve against the store. PHYSICAL
+# (`pwd -P`), because the sandbox below allows paths by name: on macOS `/var` is
+# a symlink to `/private/var`, and the logical spelling of a file under it is a
+# path Nix then refuses as out of bounds.
+abs="$(cd "$(dirname "$file")" && pwd -P)/$(basename "$file")"
 
-# --impure because the subject is a path outside any flake. IFD is turned OFF:
-# reading a stranger's file is the whole point of this command, and a file that
-# can BUILD during evaluation would run code on a machine that came here to find
-# out whether it was safe. It is not a sandbox — plain evaluation can still read
-# files and reach the network — which is exactly why what this prints for code
-# is a warning rather than a verdict.
-report="$(
-  nix eval --impure --json \
+# The subject's path goes into a Nix expression, so it is escaped as a Nix
+# string rather than pasted. A `"` or a `${` in a directory name is enough to
+# break the parse on an ordinary file — and the same hole would let a crafted
+# path inject Nix into an expression this command is about to evaluate.
+nix_string() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/\$/\\$/g'; }
+
+# The last non-blank line of a captured stderr, unindented — Nix puts its actual
+# message there, under however many frames of trace. `|| true` because a
+# no-match `grep` under `set -o pipefail` would take the caller down with it.
+lastline() { { grep -v '^[[:space:]]*$' "$1" | tail -n 1 | sed 's/^[[:space:]]*//'; } || true; }
+
+# ---- the sandbox, and why it is not optional --------------------------------
+# Reading a stranger's file means EVALUATING it, and Nix evaluation is not inert:
+# plain `builtins.readFile` and `builtins.fetchurl` run at eval time. Without the
+# options below, `haus show` on a hostile "desktop" reads any file the user can
+# read and can reach the network — during the very command they ran to decide
+# whether to trust it. (Measured, not assumed: a fixture whose accent was
+# `readFile ~/creds` had the secret read AND printed back in the report.)
+#
+#   restrict-eval   paths must be named on the search path. Both are named
+#                   below, and NOTHING else is: the checker's own directory, and
+#                   the one file being read. Not its parent — a stranger's file
+#                   in ~/Downloads must not be able to read the rest of it.
+#   allowed-uris    empty, so no fetch of any scheme resolves.
+#   IFD off         a file that can BUILD during evaluation runs code, which is
+#                   the thing this whole command exists to avoid doing.
+#   NIX_PATH=''      cleared, or the caller's own search path silently widens
+#                   what "restricted" means.
+#
+# What this buys, beyond the refusal itself: a blocked read is an ERROR naming
+# the path the file reached for, so an attempt shows up in the report rather
+# than in nobody's logs.
+#
+# `--room` skips all of it. You have said the file is code; evaluating it anyway
+# to produce a report nobody will read would be the one thing this command
+# refuses to do to a stranger's file.
+report=""
+class="room"
+if [ -z "$asroom" ]; then
+  err="$(mktemp)"
+  trap 'rm -f "$err"' EXIT
+  report="$(
+    NIX_PATH='' nix eval --impure --json \
+      --option restrict-eval true \
+      --option allowed-uris '' \
+      --option allow-import-from-derivation false \
+      -I "$CHECK" -I "$abs" \
+      --expr "import ${CHECK}/read.nix \"$(nix_string "$abs")\"" 2>"$err"
+  )" || {
+    # Nix's own last line, not a guess. This path is reached by a type error, a
+    # blocked read, an infinite recursion and a missing input as well as by a
+    # syntax error, and telling all of them "check it parses" sends the reader
+    # looking in the wrong place — most misleadingly when the real answer is
+    # "this file tried to read something it may not".
+    die "$file could not be evaluated. Nix says:
+   $(lastline "$err")"
+  }
+  class="$(jq -r .class <<<"$report")"
+fi
+
+# When the reader could not read it, ask Nix why — outside the `tryEval` that
+# made the first pass survivable. `tryEval` returns a bool and no message, so
+# the guarded evaluation cannot tell "this does not parse" from "this reached
+# for a file it may not", and those two send a reader to completely different
+# places. Only on the failure path, so the ordinary run still costs one eval.
+reason=""
+if [ "$class" = unreadable ]; then
+  # `|| true` on both halves, and deliberately: this eval is EXPECTED to fail —
+  # that is the whole point of running it — and `set -o pipefail` would
+  # otherwise make its failure, or a `grep` that matched nothing, abort the
+  # command with no output at all.
+  NIX_PATH='' nix eval --impure --raw \
+    --option restrict-eval true \
+    --option allowed-uris '' \
     --option allow-import-from-derivation false \
-    --expr "import ${CHECK}/read.nix \"${abs}\"" 2>/dev/null
-)" || die "$file could not be evaluated as Nix. Check it parses: nix eval --impure --expr 'import \"$abs\"'"
-
-class="$(jq -r .class <<<"$report")"
-[ -n "$asroom" ] && class="room"
+    -I "$CHECK" -I "$abs" \
+    --expr "builtins.deepSeq (import \"$(nix_string "$abs")\") \"read\"" \
+    >/dev/null 2>"$err" || true
+  reason="$(lastline "$err")"
+fi
 
 if [ -n "$json" ]; then
   # Data on stdout, diagnostics on stderr — notes/agent-surface.md's rule. This
   # is haus's first --json verb, so the envelope is the one the rest of the
   # sweep copies: a schemaVersion, and `checked` said out loud rather than left
   # to be inferred from an empty failure list.
-  jq --arg class "$class" '{
+  #
+  # `ok` is NULL when nothing was checked, never `true`. A room and an
+  # unreadable file are both "not a failed desktop", and a consumer reading
+  # `.ok` alone must not be told they passed — `.ok == true` has to mean the
+  # checker said so. `failures` still carries the reason an unreadable file had
+  # no reading, because throwing that away leaves the caller with an exit code
+  # and no sentence.
+  jq -n --arg class "$class" --arg file "$abs" --arg reason "$reason" \
+     --argjson report "${report:-null}" '{
     schemaVersion: 1,
-    file: .file,
+    file: ($report.file // $file),
     class: $class,
     checked: ($class == "desktop"),
-    ok: (if $class == "desktop" then .ok else true end),
-    failures: (if $class == "desktop" then .failures else [] end),
-    sets: (if $class == "desktop" then .sets else [] end),
-    rooms: (if $class == "desktop" then .rooms else [] end),
-    silent: (if $class == "desktop" then .silent else [] end)
-  }' <<<"$report"
+    ok: (if $class == "desktop" then $report.ok else null end),
+    failures: (if $class == "room" then []
+               else ($report.failures // []) + (if $reason == "" then [] else [$reason] end) end),
+    sets: (if $class == "desktop" then $report.sets else [] end),
+    rooms: (if $class == "desktop" then $report.rooms else [] end),
+    silent: (if $class == "desktop" then $report.silent else [] end)
+  }'
 fi
 
 render_room() {
@@ -209,6 +306,10 @@ case "$class" in
       say "$file"
       printf '\n'
       bad "$(jq -r --arg abs "$abs" '.failures[0] | ltrimstr($abs + ": ")' <<<"$report")"
+      [ -z "$reason" ] || {
+        printf '\n'
+        dim "Nix says: $reason"
+      }
     }
     exit 2
     ;;
