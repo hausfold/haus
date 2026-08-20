@@ -173,6 +173,169 @@ cp "$tmp/fine.nix" "$tmp/od\"d \${x}/desk.nix"
 run "$tmp/od\"d \${x}/desk.nix"
 expect_status 0 "awkward path"
 
+# ---- step B: a source, not a file ---------------------------------------------
+# Everything below is OFFLINE. `git+file://` and `file+file://` are the same two
+# fetchers `github:` and `file+https://` use, resolved against a throwaway repo
+# in $tmp instead of over the network — so CI exercises the real fetch path
+# without a network dependency that would make this suite flaky for a reason
+# that has nothing to do with haus.
+command -v git >/dev/null || fail "step B needs git"
+
+gitc() { git -C "$1" -c user.email=t@haus -c user.name=test "${@:2}"; }
+mkrepo() { mkdir -p "$tmp/$1"; git init -q -b main "$tmp/$1"; }
+commit() { gitc "$tmp/$1" add -A; gitc "$tmp/$1" commit -qm "$2"; }
+
+mkrepo writer
+cp "$fixtures/valid-sample.nix" "$tmp/writer/writer.nix"
+printf 'ada-private-notes\n' >"$tmp/writer/NOTES.txt"
+commit writer one
+repo="git+file://$tmp/writer?ref=main"
+
+run "$repo"
+expect_status 0 "repo source"
+has "a desktop — data only" "repo source"
+has "origin" "repo source"
+# The revision is the source's, and so is the date beside it. `lastModified` on
+# a git node is the COMMIT's timestamp, not a record of this fetch — measured —
+# so the report says which of the two it is rather than leaving a reader to
+# assume the friendlier one.
+has "$(gitc "$tmp/writer" rev-parse HEAD)" "repo source"
+has "the source's own date, not this fetch's" "repo source"
+has "stamped here, by the clock" "repo source"
+has "writer.nix, out of the fetched tree" "repo source"
+has "9 options across 6 rooms" "repo source"
+
+# Reading a fetched desktop is where attribution stops being per-file, so the
+# report has to say so — see the granularity assertions below.
+has "attributed to the fetched TREE" "repo source"
+
+# ---- which file, when a repo holds more than one ------------------------------
+cp "$fixtures/valid-sample.nix" "$tmp/writer/second.nix"
+commit writer two
+
+run "$repo"
+expect_status 2 "ambiguous repo"
+has_err "name one with --file" "ambiguous repo"
+has_err "second.nix" "ambiguous repo"
+has_err "writer.nix" "ambiguous repo"
+
+run --file second.nix "$repo"
+expect_status 0 "--file picks one"
+has "second.nix, out of the fetched tree" "--file picks one"
+
+run --file nope.nix "$repo"
+expect_status 2 "--file names nothing"
+
+# `..` is refused rather than resolved. The guard below ALLOWS the path it is
+# handed, so an escaping --file would not sneak past the sandbox so much as ask
+# to have the escape allowed.
+run --file ../../etc/passwd "$repo"
+expect_status 2 "--file may not escape"
+has_err "stay inside the source" "--file may not escape"
+
+# --file is about a fetched tree; there is nothing for it to mean locally.
+run --file x.nix "$fixtures/valid-sample.nix"
+expect_status 2 "--file on a local path"
+
+# ---- the raw-file shape, which can answer neither question --------------------
+run "file+file://$tmp/writer/writer.nix"
+expect_status 0 "raw file source"
+has "no revision and no date of any kind" "raw file source"
+has "the fetched file" "raw file source"
+# The warning is about the UPDATE, not about the missing changelog: nix prints
+# the same URL on both sides of its arrow while the content moves underneath.
+has "same URL on both sides" "raw file source"
+lacks "the source's own date" "raw file source"
+
+# ---- the guard, at store granularity ------------------------------------------
+# Step A's rule — one file allowed, never its parent — is exactly right outside
+# the store and does not survive a fetch: restrict-eval's unit is the STORE
+# PATH. These two rows pin both halves, because a guard believed to be tighter
+# than it is is what a later step would build on.
+mkrepo hostile
+cat >"$tmp/hostile/sibling.nix" <<'NIX'
+{ haus.theme.accent = builtins.readFile ./ACCENT; }
+NIX
+printf 'mauve' >"$tmp/hostile/ACCENT"
+cat >"$tmp/hostile/outside.nix" <<'NIX'
+{ haus.theme.accent = builtins.readFile /etc/hostname; }
+NIX
+commit hostile h
+hostile="git+file://$tmp/hostile?ref=main"
+
+# ALLOWED, and deliberately: what it opens is the publisher's own tree.
+run --file sibling.nix "$hostile"
+expect_status 0 "a fetched desktop reads its own sibling"
+has "mauve" "a fetched desktop reads its own sibling"
+
+# BLOCKED, which is the half that was load-bearing: nothing outside the store.
+run --file outside.nix "$hostile"
+expect_status 2 "a fetched desktop reaches outside the store"
+has_err "/etc/hostname" "a fetched desktop reaches outside the store"
+has_err "restricted mode" "a fetched desktop reaches outside the store"
+
+# ---- fetch and read are two acts ----------------------------------------------
+# `show` FETCHES a tree; it never locks. Locking a source that is a flake
+# evaluates its flake.nix to find its own inputs — measured — so a command that
+# locked would run a stranger's code before printing a word about it. This repo
+# throws from `inputs`, so the marker below appears if that ever regresses.
+mkrepo aroom
+cat >"$tmp/aroom/flake.nix" <<'NIX'
+{ inputs.nixpkgs.url = builtins.throw "PUBLISHER-CODE-RAN"; outputs = { ... }: { }; }
+NIX
+cat >"$tmp/aroom/photo.nix" <<'NIX'
+{ lib, ... }: { }
+NIX
+commit aroom r
+
+run --room "git+file://$tmp/aroom?ref=main"
+expect_status 0 "a remote room"
+has "this is CODE" "a remote room"
+has "Fetched, not locked" "a remote room"
+# Nothing was read, and the report does not guess which file WOULD have been.
+has "nothing was evaluated" "a remote room"
+lacks "PUBLISHER-CODE-RAN" "a remote room"
+printf '%s\n' "$err" | grep -qF "PUBLISHER-CODE-RAN" && fail "a remote room: its flake.nix was evaluated"
+
+# ---- the errors a fetch produces ----------------------------------------------
+# A bare https URL is a TARBALL flakeref to Nix, so pointing one at a .nix fails
+# with "Unrecognized archive format" — a message that says nothing about the
+# prefix that is missing. Refused with the spellings, and never rewritten: the
+# string typed here is the string `haus add` will write into flake.nix.
+run https://example.org/writer.nix
+expect_status 2 "bare url"
+has_err "file+https://example.org/writer.nix" "bare url"
+has_err "git+https://example.org/writer.nix" "bare url"
+
+# A source that cannot be fetched reports Nix's own SENTENCE. Step A took the
+# last non-blank line of stderr, which is right for a parse error and wrong for
+# a fetch: Nix prints its message and then appends the server's response body
+# under it, so a 404 came back as `}`. The message is the last `error:` line
+# now, with any response body cut off first.
+run "git+file://$tmp/definitely-not-a-repo?ref=main"
+expect_status 2 "unfetchable source"
+has_err "could not fetch" "unfetchable source"
+printf '%s\n' "$err" | grep -qE 'does not exist|No such file' \
+  || fail "unfetchable source: the reason is not Nix's sentence"
+
+# An explicit path spelling is a path even when it does not exist — a mistyped
+# ./file must not turn into a fetch attempt.
+run ./definitely-not-here.nix
+expect_status 2 "a mistyped local path"
+has_err "no such file" "a mistyped local path"
+
+# ---- B's exit gate: the consumer is not touched -------------------------------
+# Not "we didn't mean to" — measured, from inside a directory that HAS a
+# consumer flake, which is where someone would actually run this.
+mkdir -p "$tmp/consumer"
+printf '{ inputs = { }; outputs = { ... }: { }; }\n' >"$tmp/consumer/flake.nix"
+consumer_before="$(find "$tmp/consumer" -type f -exec cksum {} + | sort)"
+(cd "$tmp/consumer" && "$show" "$repo" --file writer.nix >/dev/null 2>&1) || \
+  fail "consumer untouched: show failed from a consumer directory"
+consumer_after="$(find "$tmp/consumer" -type f -exec cksum {} + | sort)"
+[ "$consumer_before" = "$consumer_after" ] || fail "show wrote into the consumer's config"
+[ -e "$tmp/consumer/flake.lock" ] && fail "show locked the consumer's flake"
+
 # ---- --json -------------------------------------------------------------------
 run --json "$fixtures/valid-sample.nix"
 expect_status 0 "json valid"
@@ -188,6 +351,34 @@ printf '%s' "$out" | jq -e '
 # Data on stdout, diagnostics on stderr, and NO human rendering mixed in.
 lacks "🌫" "json valid"
 [ -z "$err" ] || fail "json valid: stderr should be empty, got '$err'"
+
+# `origin` is null for a local file and an object for a source, and the schema
+# version did NOT move for it: a bump is owed when an existing input's answer
+# changes, and every input schemaVersion 1 could accept still gets exactly the
+# answer it got before.
+printf '%s' "$out" | jq -e '.origin == null' >/dev/null || fail "json valid: a local file has no origin"
+
+run --json "$repo" --file writer.nix
+expect_status 0 "json remote"
+printf '%s' "$out" | jq -e '
+  .schemaVersion == 1
+  and .origin.shape == "repo"
+  and .origin.file == "writer.nix"
+  and (.origin.rev | length) == 40
+  and (.origin.lastModified | type) == "number"
+  and (.origin.fetchedAt >= .origin.lastModified)
+  and (.origin.tree | startswith("/nix/store/"))
+  and .file == (.origin.tree + "/writer.nix")
+' >/dev/null || fail "json remote: origin is not the documented shape"
+[ -z "$err" ] || fail "json remote: stderr should be empty, got '$err'"
+
+run --json "file+file://$tmp/writer/writer.nix"
+expect_status 0 "json raw file"
+printf '%s' "$out" | jq -e '
+  .origin.shape == "file" and .origin.rev == null
+  and .origin.lastModified == null and .origin.file == null
+  and (.origin.narHash | startswith("sha256-"))
+' >/dev/null || fail "json raw file: the shape that can answer neither question"
 
 run --json "$fixtures/unknown-option.nix"
 expect_status 1 "json failing"
@@ -228,6 +419,7 @@ run --help
 expect_status 0 "help"
 has "exit codes" "help"
 has "never infers that something is safe" "help"
+has "two acts" "help"
 has "unreadable" "help"
 
 printf 'ok — haus show: %s\n' "$show"

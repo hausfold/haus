@@ -22,7 +22,8 @@
 #   haus doctor          check the machine's health (Nix, CLT, the GUI agents)
 #   haus btm             check BTM daemon-gating (macOS 26 Tahoe+; no-op before)
 #   haus tour            take the guided haus tour (it lives in the bar)
-#   haus show            inspect a desktop or room FILE — class, checker verdict, what it sets (--json) — read-only
+#   haus show            inspect a desktop or room — a local file or a source you have
+#                        not got yet — class, checker verdict, what it sets (--json) — read-only
 set -euo pipefail
 
 # A bare/sudo/login-item shell may have almost nothing on PATH; make sure the
@@ -42,9 +43,10 @@ bad()  { printf '  \033[38;5;167m✗\033[0m %s\n' "$*"; }
 info() { printf '  \033[38;5;103mⓘ\033[0m %s\n' "$*"; }
 
 # Every verb here drives THIS machine's config, so the config has to exist —
-# with one exception. `haus show` reads a file someone is about to publish or
-# about to trust; it touches no machine at all, and a publisher checking a
-# desktop in CI has no consumer flake to point it at. Guarding it here would
+# with one exception. `haus show` reads a desktop someone is about to publish or
+# about to trust — a local file, or a source it fetches into the store; it
+# touches no machine at all, and a publisher checking a desktop in CI has no
+# consumer flake to point it at. Guarding it here would
 # make the one command with an audience outside this Mac the one command that
 # cannot run outside it.
 #
@@ -233,11 +235,15 @@ haus — the everyday CLI for a haus machine.
   haus doctor         check the machine's health (Nix, CLT, the GUI agents)
   haus btm            check BTM daemon-gating (macOS 26 Tahoe+; no-op before)
   haus tour           take the guided haus tour (haus tour reset re-arms it)
-  haus show <file>    inspect a desktop or room FILE before you publish or trust
-                      it: the class, whether it is a valid desktop and every rule
-                      it breaks, what it sets and what it leaves alone.
-                      --room says the file is code; --json for CI and agents.
-                      Reads only — nothing is fetched, written or activated
+  haus show <src>     inspect a desktop or room before you publish or trust it:
+                      the class, whether it is a valid desktop and every rule it
+                      breaks, what it sets and what it leaves alone. <src> is a
+                      local .nix, or a source you have not got yet
+                      (github:ada/desktop, git+https://…, file+https://…).
+                      --file picks one inside a fetched repo; --room says it is
+                      code; --json for CI and agents. A remote source is fetched
+                      into the store and read there — nothing on this machine is
+                      written, and nothing is activated
 EOF
 }
 

@@ -3413,6 +3413,8 @@
           # `nix run github:hausfold/haus#show -- ./writer.nix` — the pre-share
           # check, for the one audience that is NOT on a haus machine: a
           # publisher's CI, gating on the exit code before a desktop goes out.
+          # Since step B it also takes a SOURCE (`github:ada/writer-desktop`),
+          # which is the consumer's half of the same command.
           #
           # It is the same script `haus show` execs, with the same evaluator
           # baked in, which is the point — a checker a publisher runs and a
