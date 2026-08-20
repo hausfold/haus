@@ -32,6 +32,19 @@
 #       consume it that way, back when it teleported a parked window instead of
 #       spawning a fresh one per summon).
 #
+# ── every popup's title starts `quick-terminal-` ─────────────────────────────
+# A forced --title is how anything outside a window finds it, and for these
+# windows the only question anyone asks from outside is "leave it alone": a
+# float-term popup is placed at a pixel frame, floated on purpose and wearing a
+# floatring outline, so windows' re-sort (windows/scripts/resort-windows.sh)
+# must neither move it to a workspace nor pull it into the tiling tree, and
+# terminal's launch.sh must not wrap it in a zmx session. Both ask by prefix.
+# `find` and `github` were the two that did not carry it, which cost nothing
+# until the re-sort learned to restore layout as well as page and started
+# tiling them; they carry it now, and a NEW popup that forgets is the same bug
+# again. So: whatever you call it, prefix it. A --tiled popup covers the whole
+# tiled desktop and is the one that would be most visibly wrong as a tile.
+#
 #   spawn --title T [--tiled | --pct N | --w PX --h PX | --match-frontmost]
 #         [--cols N --rows N] [--pin]
 #         --command CMD [-- EXTRA ghostty args…]

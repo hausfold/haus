@@ -158,9 +158,57 @@ fi
   printf 'export PATH="/opt/homebrew/bin:$PATH"\n'
   if [ "$backend" = aerospace ]; then
     printf '(\n'
-    printf '  for _ in $(seq 1 20); do\n'
-    printf '    WID=$(aerospace list-windows --focused --format "%%{window-id}" 2>/dev/null)\n'
-    printf '    [ -n "$WID" ] && break\n'
+    # ── which window is MINE ──────────────────────────────────────────────
+    # NOT `list-windows --focused`, which is what this block asked for until
+    # 2026-08-20 and is a race with no guard on it. Some window is ALWAYS
+    # focused, so the poll below can never wait for the right one — it takes
+    # whatever had focus at the instant it ran, and if AeroSpace has not
+    # handed focus to the window being born yet, that is the window you were
+    # standing in. Both halves then go wrong at once: the lane stays FLOATING
+    # on whatever page windows' on-window-detected rule dropped it (a browser
+    # workspace, if that is where you pressed the chord), and
+    # --focus-follows-window drags an innocent window to T/<repo> and follows
+    # it there. "Spawn Agent opened a Ghostty window in workspace C" and "lanes
+    # open at the last random size and never tile" are the same line.
+    #
+    # The right join was already in the room: `open -na` gives this lane its
+    # OWN Ghostty process (see the backend note above), and that process is
+    # this launcher's own ancestor. So walk up to it and ask AeroSpace for the
+    # windows of that pid — `--monitor all --pid`, since `--all` refuses to be
+    # combined with a filter. One process, one window at this moment, no focus
+    # anywhere in the question.
+    #
+    # If the walk somehow comes back empty, the block does NOTHING. A lane that
+    # opened floating is a nuisance you can fix with the leader's ` ; a
+    # confidently mis-aimed `move-node-to-workspace` is a window you did not
+    # touch leaving the page you were reading it on.
+    printf '  gpid=""; p=$$\n'
+    printf '  while [ -n "$p" ] && [ "$p" != 1 ]; do\n'
+    printf '    case "$(ps -o comm= -p "$p" 2>/dev/null)" in\n'
+    # Both spellings. The room has paid for this exact word once already:
+    # `pgrep -x Ghostty` never matched the lowercase executable inside the
+    # bundle, so every lane took the cold-start branch for months (see the
+    # note above the pgrep below). A `comm` that reads Ghostty rather than
+    # ghostty would silently disable this whole block, and its failure path is
+    # a bare `exit 0` with nowhere to say so.
+    printf '      *ghostty|*Ghostty) gpid="$p"; break ;;\n'
+    printf '    esac\n'
+    printf '    p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d " ")\n'
+    printf '  done\n'
+    printf '  [ -n "$gpid" ] || exit 0\n'
+    # The window does not exist for AeroSpace the instant the shell inside it
+    # does, so this poll is a real wait rather than the no-op the old one was.
+    # ONE window, or none. A fresh `open -na` process owns exactly one window,
+    # which is the whole reason the pid is a good enough join here — but that
+    # is a fact about this moment, not a structural guarantee: Ghostty's
+    # AppleScript API opens a window in whichever instance it reaches, so a ⌘N
+    # landing in this brand-new instance during the poll below would make a
+    # `head -1` a coin flip, and the loser is teleported by the
+    # --focus-follows-window on the next line. Refusing an ambiguous answer is
+    # the same call the block already makes when it cannot find itself at all.
+    printf '  for _ in $(seq 1 40); do\n'
+    printf '    mine=$(aerospace list-windows --monitor all --pid "$gpid" --format "%%{window-id}" 2>/dev/null)\n'
+    printf '    [ "$(printf "%%s\\n" "$mine" | grep -c .)" = 1 ] && { WID="$mine"; break; }\n'
     printf '    sleep 0.05\n'
     printf '  done\n'
     printf '  [ -n "${WID:-}" ] || exit 0\n'

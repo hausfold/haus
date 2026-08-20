@@ -206,7 +206,7 @@ cmd_launch() {
     "$HOME/.config/haus/term/float-term.sh" geom --match-frontmost >"$dir/frame" 2>/dev/null
 
     "$HOME/.config/haus/term/float-term.sh" spawn \
-        --title "find" \
+        --title "quick-terminal-find" \
         "$geom_flag" \
         --pin \
         --command "/bin/bash $SELF ui $dir $scope" >/dev/null

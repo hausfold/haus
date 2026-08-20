@@ -399,9 +399,16 @@ let
       ]
       (builtins.readFile ./aerospace.toml);
 
-  resortScript = builtins.replaceStrings [ "@RESORT_CASES@" ] [ resortCases ] (
-    builtins.readFile ./scripts/resort-windows.sh
+  # The float list the re-sort must not un-float, from the same `apps` the
+  # floatRules above are built from — one source, so a `float` entry added to
+  # the roster is exempt in both places at once.
+  resortFloaters = lib.concatStringsSep " " (
+    map (a: a.appId) (lib.filter (a: a.appId != null && a.float) apps)
   );
+
+  resortScript =
+    builtins.replaceStrings [ "@RESORT_CASES@" "@RESORT_FLOATERS@" ] [ resortCases resortFloaters ]
+      (builtins.readFile ./scripts/resort-windows.sh);
 
 in
 lib.mkMerge [

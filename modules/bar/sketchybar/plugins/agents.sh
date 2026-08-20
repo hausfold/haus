@@ -284,7 +284,12 @@ if [ "${1:-}" = "row" ] && [ "${2:-}" = "zmx" ]; then
     # no attach — it can never steal the session's keyboard or count as a client
     # on it. (agents-peek.sh, which wrapped `zellij … subscribe --pane-id`, is
     # deleted: one `zmx tail` replaces the whole script.)
-    "$HOME/.config/haus/term/float-term.sh" spawn --title "peek" \
+    # `quick-terminal-agent-peek`, not `peek`: the prefix is what tells windows'
+    # re-sort to leave a float-term popup where it was put (float-term.sh's
+    # header states the rule), and the suffix keeps it apart from ⌘Y's yazi
+    # panel — float-term finds a window it just spawned by exact title, so two
+    # popups sharing one would race for each other's window.
+    "$HOME/.config/haus/term/float-term.sh" spawn --title "quick-terminal-agent-peek" \
       --w 900 --h 560 --pin \
       --command "zmx tail $zsess" >/dev/null
   else
