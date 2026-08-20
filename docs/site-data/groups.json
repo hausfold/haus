@@ -132,6 +132,9 @@
     "this-hardware": {
       "why": "Sleep and power behaviour depends on the machine underneath it: whether it has a battery at all, and how this particular one is carried around."
     },
+    "your-network": {
+      "why": "It names a Wi-Fi network you join, which is a fact about a place rather than a taste anyone can share. It is why the trigger beside it counts SCREENS instead of naming one: a count is a shape every desk can have, and an SSID exists in exactly one building."
+    },
     "your-region": {
       "why": "Language, region, units and keyboard layout are facts about the person at the keyboard; a desktop that set them would change what your Mac speaks."
     }
@@ -578,7 +581,7 @@
     "focus": {
       "blurb": "One quiet switch: Do Not Disturb, optional Slack status, and your hooks — plus the named scenes around it.",
       "kind": "room",
-      "optionCount": 16,
+      "optionCount": 22,
       "options": {
         "haus.focus.enable": {
           "desktopSafe": true
@@ -616,6 +619,22 @@
         "haus.focus.scenes.<name>.restorePreviousState": {
           "desktopSafe": true
         },
+        "haus.focus.scenes.<name>.when.days": {
+          "desktopSafe": true
+        },
+        "haus.focus.scenes.<name>.when.displays": {
+          "desktopSafe": true
+        },
+        "haus.focus.scenes.<name>.when.power": {
+          "desktopSafe": true
+        },
+        "haus.focus.scenes.<name>.when.time": {
+          "desktopSafe": true
+        },
+        "haus.focus.scenes.<name>.when.wifi": {
+          "desktopSafe": false,
+          "reason": "your-network"
+        },
         "haus.focus.slack.enable": {
           "desktopSafe": true
         },
@@ -631,6 +650,9 @@
         "haus.focus.slack.tokenCommand": {
           "desktopSafe": false,
           "reason": "secret"
+        },
+        "haus.focus.triggers.interval": {
+          "desktopSafe": true
         }
       },
       "order": 170,
@@ -1600,11 +1622,13 @@
           "hush",
           "am I in do not disturb",
           "set my mac up for recording",
-          "stop the screen sleeping while I present"
+          "stop the screen sleeping while I present",
+          "go quiet automatically in the evening",
+          "how do I make a scene start on its own"
         ],
-        "cli": "focus on|off|toggle|status · focus scene <name>|off|list"
+        "cli": "focus on|off|toggle|status · focus scene <name>|off|list · focus auto --probe"
       },
-      "blurb": "One quiet switch: Do Not Disturb, an optional status somewhere else, and your own hooks on both edges — plus the named states (`scenes`) around it, of which quiet is the built-in one.",
+      "blurb": "One quiet switch: Do Not Disturb, an optional status somewhere else, and your own hooks on both edges — plus the named states (`scenes`) around it, of which quiet is the built-in one. A scene can carry a `when` (a daily window, a network, the power source, the screens) and be entered for you, on a rule that never overrides a state you chose.",
       "exports": [
         "focus"
       ],
@@ -1612,7 +1636,7 @@
       "namespaces": [
         "focus"
       ],
-      "optionCount": 16,
+      "optionCount": 22,
       "order": 90,
       "title": "Focus"
     },

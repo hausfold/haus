@@ -9,8 +9,14 @@
 >
 > ★ **v2's first piece shipped 2026-08-16: `haus.focus.scenes`** — quiet
 > generalised into named states (`focus scene recording`), with quiet itself as
-> the built-in one. The trigger half is deliberately still unbuilt; see "Scenes"
-> below.
+> the built-in one.
+>
+> ★ **And its second on 2026-08-20: `scenes.<name>.when`** — the trigger half,
+> which every version of this note called "explicitly not v1" until the thing it
+> was waiting for happened (a scene proved useful). See "Triggers" below; the
+> one sentence that matters is that the daemon **never overrides a state you
+> chose**, and the three mechanics that make that true are what the section is
+> about.
 >
 > ⚠️ **This note did not know that was coming, and that is worth a line.** The
 > plan of record for it lived in the *workshop's* `notes/options-roadmap.md`
@@ -214,6 +220,13 @@ Four decisions worth keeping, because each had a plausible other answer:
    half costs one option and one subcommand. Build the daemon after one
    hand-written scene has proved useful — which is why this repo ships the
    mechanism and no desktop ships a scene.
+   → ✅ **Its condition was met and the daemon shipped 2026-08-20** (Triggers,
+   below). Worth keeping as written rather than rewriting: the precondition did
+   its job. Four days of a scene with no way to enter it but a CLI is what
+   turned up the reachability gap (the palette row, haus#381) and
+   `apps.closeOnExit` (haus#408) — two things a trigger daemon built in the same
+   week would have hidden, because nothing fires a trigger by hand often enough
+   to notice that leaving a scene left OBS running.
 
 And two the assurance pass pulled out of the first draft, both about the same
 mistake — **reading the exit off the scene table**, which is a file that can
@@ -241,10 +254,110 @@ only when some scene names a device, since macOS ships no CLI for it); and a
 `preventSleep` assertion is a `caffeinate` process, so its pid file is checked
 against the running process before anything is signalled.
 
+## Triggers — shipped 2026-08-20
+
+`haus.focus.scenes.<name>.when` is a set of CONDITIONS — a daily window, a set
+of weekdays, a Wi-Fi SSID, the power source, how many displays are attached —
+ANDed together, and `focus auto` is one launchd tick that asks each scene
+whether its condition holds. The agent exists only on a machine where some
+scene declared one; `haus.focus.triggers.interval` (default 30s) is how often.
+
+The whole feature rests on one promise — **the daemon never overrides a state
+you chose** — because a background process that moves your Mac around is only
+tolerable if it loses every argument. Three mechanics carry it, and each had a
+plausible other answer:
+
+1. **Entry is edge-triggered, not level-triggered.** A scene is entered on the
+   tick where its condition turns true, never because it is still true. Level
+   triggering is the obvious implementation and it is unusable: leave an
+   auto-entered scene at 09:10 and it comes back at 09:10:30, forever, with no
+   way to say no short of editing your config. Edge triggering makes "I left
+   this" a state the daemon can represent without storing an override list.
+2. **It enters only from a neutral Mac** — no scene on, not quiet. A scene you
+   entered by hand and a quiet you switched on are both opinions. The edge is
+   spent either way, so it does not pounce the moment you go neutral half an
+   hour later; that would be the same surprise arriving late.
+3. **It leaves only what it entered**, tracked as `owner` in
+   `~/.local/state/focus/auto.json`. This is the scene engine's own "reverse
+   only the levers you pulled" rule, one level up: the moment what's active
+   isn't the owner, the daemon has nothing to reverse and forgets it.
+
+Five smaller decisions, same treatment:
+
+4. **The conditions live ON the scene, not in a `haus.focus.triggers.<name>`
+   table of their own.** A trigger table would be a second place a scene name
+   is written, and the two could disagree — a trigger for a scene that no
+   longer exists is a thing the module system would have to check for. `when`
+   beside `dnd` and `apps.open` reads as what it is: another thing the scene
+   knows about itself. It is also why `triggers` has no `enable`; declaring a
+   condition IS the request for the thing that checks it, and a flag beside the
+   data is a switch that can contradict it.
+5. **`when.displays` is a COUNT, not a display's name.** Which panel is on your
+   desk is a fact about one machine — the reason `haus.displays.<uuid>` is
+   host-only — while "two or more screens" is a shape any desktop can share. So
+   `displays` is desktop-safe and `wifi` is not: an SSID names one router in one
+   building. That asymmetry is the whole reason a docked trigger is publishable.
+6. **Two conditions rising in one tick resolve by name**, lexicographically
+   first. Any rule here is arbitrary; this one is at least deterministic,
+   printable and stable across rebuilds, and `focus auto --probe` shows which
+   scenes hold so the loser is visible rather than mysterious.
+7. **Ownership is a name AND the entry it was entered under.** A counter bumps
+   on every entry, by hand or by the daemon, and the daemon remembers the value
+   it entered at. On the name alone, leaving and re-entering the same scene
+   between two ticks is invisible — and the daemon would then evict a scene YOU
+   had just chosen, breaking the one promise the feature makes, in a window
+   exactly one interval wide.
+8. **`RunAtLoad = false`.** A tick can enter a scene, and entering one can
+   `open -a` an app and talk to System Events — both of which park at cold boot
+   before the Aqua session is up (`modules/lib/gui-wait.nix`). Waiting one
+   interval costs at most 30 seconds after login and needs none of that
+   machinery, and it loses nothing: the first tick after a fresh state file
+   treats whatever holds as an edge, so logging in at 09:30 inside a 09:00
+   window still lands in the scene.
+
+### What the probes can and can't do
+
+Each probe answers `""` for "I could not tell", and **that is a third answer,
+not a no** — `scene_matches` returns *holds* / *definitely does not* / *cannot
+say*, entering needs the first and leaving needs the second. The two-answer
+version was written first and the assurance pass killed it: it is conservative
+only on the entering side, and maximally aggressive on the other. `networksetup`
+reports no network during sleep/wake, AP roaming and VPN reconnects, and
+CGGetActiveDisplayList under-counts while monitors re-negotiate — all of which
+launchd's `StartInterval` lands directly on top of. One blank read would have
+left the scene and the next one re-entered it: hooks off then on, the caffeinate
+hold dropped and retaken, DND and the Slack status flipped twice, and with
+`apps.closeOnExit` **the scene's apps quit and relaunched** — OBS, mid-recording,
+on this room's own example scene. A tick that cannot tell changes nothing, and
+does not even record a transition, because writing "false" for an unknown would
+manufacture a rising edge on the way back.
+
+| Fact | Read by | Honest scope |
+|---|---|---|
+| clock, weekday | `date` | exact |
+| power source | `pmset -g batt` | exact |
+| Wi-Fi SSID | `networksetup -getairportnetwork <dev>`, device looked up rather than assumed | **macOS can refuse it** (Location Services), and it refuses by saying you are not associated — indistinguishable from being on no network |
+| display count | `hausdisp list` when the displays room is on, else `system_profiler SPDisplaysDataType` | **not the same count.** The helper reports `CGGetActiveDisplayList`, which drops a sleeping panel; the fallback counts what the GPU driver knows about, which on a clamshell-docked laptop usually still includes the built-in one. So `displays = 2` can read 1 with the displays room and 2 without it on the same Mac. The fallback is also slow enough to notice, which is what `triggers.interval` says to raise the interval for |
+
+`focus auto --probe` prints all four and what each scene's condition makes of
+them, and `focus doctor` calls out an SSID that reads empty. Both exist for the
+same reason: **"no match" and "no answer" look identical from the outside**, and
+a trigger that silently never fires is the failure mode this room already has a
+rule about.
+
+Two things that follow from the probes rather than from the design, and are the
+ones to check on a real Mac: the SSID read is the one macOS is entitled to
+refuse, and the `system_profiler` shape is a JSON parse of a report Apple owns.
+`test/focus-auto.sh` stubs all four — it proves the DECISIONS, and says nothing
+about the READS.
+
 ## v2 candidates (explicitly not v1)
 
-- **Triggers for scenes**: Pounce command, time, Wi-Fi SSID, power source,
-  display attach. The daemon half of the item above.
+- ~~**Triggers for scenes**~~ — shipped 2026-08-20, above. What is still not
+  built is the one trigger in the original list that isn't a condition: a
+  **Pounce command** as a trigger. It never belonged with the other four — a
+  palette row that enters a scene already exists (the launcher generates one per
+  scene), so "trigger" there just means "a person pressed something".
 - **Timed focus**: `focus 25` writes an until-timestamp to
   `~/.local/state/focus/`; the poll auto-offs past expiry and the pill label
   shows minutes remaining. Palette grows "Focus 25m / 60m" commands.
