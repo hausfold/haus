@@ -569,9 +569,18 @@ let
           # query that returns nothing from the wrong page — no error, no hint,
           # and the cheatsheet is exactly where someone goes to find out what
           # they can type. The palette can't explain an absent row; this can.
+          #
+          # Two ways to be absent, so two suffixes. `workspaces` is the row's
+          # `items` entry, set here in Nix; `cheatWhen` is a line in the command's
+          # own header, beside the `whenFile` that does the hiding — the row that
+          # vanishes when there is nothing to act on at all rather than when you
+          # are in the wrong place (pages.sh is the one). It is haus's key, not
+          # pounce's: pounce ignores header fields it doesn't know, and only this
+          # side has a card to write it on.
           action =
             commandField file "description"
-            + lib.optionalString (pages != [ ]) " · on ${lib.concatStringsSep ", " pages}";
+            + lib.optionalString (pages != [ ]) " · on ${lib.concatStringsSep ", " pages}"
+            + lib.optionalString (commandField file "cheatWhen" != null) " · ${commandField file "cheatWhen"}";
         }
       )
       (

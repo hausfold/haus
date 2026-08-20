@@ -87,3 +87,19 @@ done <<< "$windows"
 if [ -n "$focused" ]; then
     aerospace workspace "$focused" >/dev/null 2>&1 || true
 fi
+
+# This script CREATES pages — every lane window it claims lands on `T/<repo>` —
+# and it ends on the workspace it started on, so `exec-on-workspace-change` never
+# fires and nothing else recomputes what the palette reads. Without this line the
+# sequence "wake piles the windows onto T · you switch workspace once, which
+# records no pages · caps ` or a relogin sorts them back onto their pages" leaves
+# `any-page` saying 0 while three pages are open, and the Pages row stays hidden
+# until you happen to switch workspace again.
+#
+# `push` and not a second implementation: it takes the workspace as $2 and
+# re-prepending the entry already at the head of the MRU is a no-op, so the only
+# effect here is the verdict beside it. Same reason it runs from
+# after-startup-command's copy of this script — that is the other moment pages
+# exist before any workspace has changed.
+[ -x "$HOME/.config/aerospace/workspace-mru.sh" ] &&
+    "$HOME/.config/aerospace/workspace-mru.sh" push "$focused" >/dev/null 2>&1 || true

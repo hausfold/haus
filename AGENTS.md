@@ -577,6 +577,33 @@ it silently.
     what `haus_menu.sh` and `settings.sh` do) or index past it (`field "$sel"
     2`, what `add-app.sh` and `spawn-agent.sh` do). It has cost two silent menus
     so far (#310, and the Haus Settings submenu after it).
+  - **A row with nothing to act on can absent itself**, with `# pounce: whenFile
+    = <path>`: pounce hides it while that file's first line is `0`. `pages.sh` is
+    the one that does — the file is `~/.local/state/haus/any-page`, written by
+    `windows/scripts/workspace-mru.sh push` on every workspace change, so `Pages`
+    is missing from a Mac with no page anywhere and back with the first one.
+    `resort-windows.sh` calls that same `push` on its way out, because it CREATES
+    pages and ends on the workspace it started on — the one path that makes pages
+    without a workspace change, and so the one that would otherwise leave the
+    verdict wrong in the direction that hides a working row. A
+    FILE and not a command because the daemon's registry refresh runs on the
+    ⌘Space keystroke (`CommandRegistry.refresh()` inside `presentLauncher`) and
+    may not fork; only a literal `0` hides, so a tiler that is not running, an
+    empty answer and a machine that never writes the file all leave the row
+    listed — hiding is the direction that takes a working row away and says
+    nothing. It is the "is there anything here at all" question;
+    `haus.launcher.items.<key>.workspaces` is the cheaper "where are you" one
+    (pounce matches a name from a file, no fork), used by `cmd:lane-here` and the
+    `shell-here` pair. A hidden row still needs a cheatsheet card that says so,
+    which is `# pounce: cheatWhen = …` — ours, not pounce's, read by
+    `riceCommandRows`.
+  - **A `# pounce:` key the DAEMON does not parse is ignored in silence**, and
+    the daemon is the only path ⌘Space takes. `nix flake check`'s
+    `pounce-command-keys` diffs every key `./commands` uses against
+    `CommandRegistry.swift` in the LOCKED pounce for that reason — the bash
+    `pounce-palette` has its own copy of the parser, and implementing a key
+    there alone (which is where this one started) ships a feature that never
+    runs.
 - **The haus tour** (first-run tutor): ONE state machine,
   `modules/bar/sketchybar/plugins/tour.sh`, drives a single bar pill. The
   leader-mode scripts + `aerospace-notify.sh` feed it `tour.sh event <name>`

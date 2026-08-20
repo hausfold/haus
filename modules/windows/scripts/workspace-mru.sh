@@ -23,6 +23,18 @@
 # pounce's ⌃⇥ page walk reads the SAME file (its `pages.mruFile` setting, wired
 # by modules/launcher), so the chord walk and the letter chord agree about what
 # "recent" means. Writers: this script only.
+#
+# `push` keeps a second, one-byte file beside it — `any-page`, `1` or `0` for
+# "is there a page anywhere on this Mac". That is not recency and has no reader
+# in this room: it is the palette's, whose `Pages` row declares
+# `whenFile = ~/.local/state/haus/any-page` and is hidden while it says `0`
+# (launcher/commands/pages.sh). It is written HERE because a summon may not fork
+# — pounce reads this on the ⌘Space keystroke — and this hook is the only thing
+# that already runs on every workspace change without the bar having to be on.
+# The bar's `page` pill asks a narrower question (how many pages does the
+# workspace you are on have) from its own `aerospace` call on the same event;
+# these two are deliberately not shared, since one is a label and the other is a
+# file a different process stats.
 set -u
 
 export PATH="/opt/homebrew/bin:/usr/bin:/bin${PATH:+:$PATH}"
@@ -40,6 +52,24 @@ case "${1:-}" in
       printf '%s\n' "$ws"
       [ -f "$mru" ] && grep -Fxv -- "$ws" "$mru"
     } 2>/dev/null | head -50 >"$tmp" && mv -f "$tmp" "$mru"
+
+    # A page is any workspace with a `/` in it, and `--monitor all` lists the
+    # persistent workspaces plus every non-persistent one currently holding a
+    # window or visible — a page is never persistent (lane-open.sh keeps
+    # `T/<repo>` out on purpose), so every `…/…` line in that output is a LIVE
+    # page. Same call and same rule as the bar's page pill.
+    #
+    # Written only when AeroSpace actually answered: a tiler that is not running
+    # exits non-zero, and an empty answer is not "no pages", it is "no answer".
+    # Both leave the previous verdict in place, and a Mac that has never had one
+    # has no file, which the palette reads as a yes. The row can then be listed
+    # when it has nothing to show, which is the harmless direction; the other one
+    # takes a working row away and says nothing.
+    if live="$(aerospace list-workspaces --monitor all 2>/dev/null)" && [ -n "$live" ]; then
+      if printf '%s\n' "$live" | grep -q /; then any=1; else any=0; fi
+      tmp="$state_dir/any-page.$$"
+      printf '%s\n' "$any" >"$tmp" && mv -f "$tmp" "$state_dir/any-page"
+    fi
     ;;
   resolve)
     base="${2:-T}"

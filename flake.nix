@@ -2742,6 +2742,64 @@
               touch $out
             '';
 
+          # Every `# pounce: <key> =` this rice's own command scripts use, checked
+          # against the parser the DAEMON builds the launcher from. That is
+          # CommandRegistry.swift and not the bash `pounce-palette`, which is the
+          # distinction this check exists to hold: ⌘Space has been in-process
+          # since the daemon took the hotkey, so a key implemented in the shell
+          # launcher alone is a key that never fires on the only path anyone uses
+          # — and a header key pounce does not know is ignored in SILENCE, which
+          # is the same failure `pounce-item-grammar` was written for one layer
+          # over. `cheat`/`cheatWhen` are ours on purpose: pounce ignores them and
+          # the cheatsheet renderer in modules/launcher reads them.
+          pounce-command-keys =
+            let
+              hausOwn = [
+                "cheat"
+                "cheatWhen"
+              ];
+            in
+            pkgs.runCommand "haus-pounce-command-keys-ok" { } ''
+              src=${pounce}/pkgs/pounce/CommandRegistry.swift
+              test -f "$src" || {
+                echo "pounce CommandRegistry.swift has moved — find the header parser" >&2
+                echo "the daemon uses and repoint this check. Do not delete it: a" >&2
+                echo 'header key pounce does not know is ignored with no error at all.' >&2
+                exit 1
+              }
+
+              # `[A-Za-z0-9_-]`, not `[A-Za-z]`: a key the pattern cannot match is
+              # not compared at all, and this check passing vacuously on
+              # `when-file` would be the silent-ignore bug it exists to catch,
+              # wearing the check's own green.
+              grep -ho '^# pounce: [A-Za-z0-9_-]* *=' ${./modules/launcher/commands}/*.sh \
+                | sed 's/^# pounce: //; s/ *=$//' | sort -u > ours || true
+              grep -o 'field(value, "[A-Za-z]*")' "$src" \
+                | sed 's/.*"\([A-Za-z]*\)".*/\1/' | sort -u > theirs || true
+
+              test -s ours && test -s theirs || {
+                echo 'found CommandRegistry.swift but not its field(value, "…") header' >&2
+                echo 'parser (or no "# pounce:" headers here at all) — restore the shape' >&2
+                echo 'this check greps for rather than deleting the check.' >&2
+                exit 1
+              }
+
+              cat theirs ${
+                pkgs.writeText "haus-own-header-keys" (builtins.concatStringsSep "\n" hausOwn + "\n")
+              } | sort -u > known
+              comm -23 ours known > unknown
+              test -s unknown && {
+                echo 'these "# pounce:" header keys are used by modules/launcher/commands' >&2
+                echo "but the locked pounce's CommandRegistry does not parse them, so the" >&2
+                echo "daemon ignores them on every summon:" >&2
+                sed 's/^/  /' unknown >&2
+                echo "Bump the pounce input, fix the spelling, or add the key to hausOwn" >&2
+                echo "in this check if it is deliberately ours." >&2
+                exit 1
+              }
+              touch $out
+            '';
+
           keymap = pkgs.runCommand "haus-keymap-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedKeymapTable} \
                     ${pkgs.writeText "actual" (keymapTable + "\n")}
