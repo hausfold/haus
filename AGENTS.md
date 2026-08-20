@@ -140,7 +140,7 @@ modules/
                           #   extension points those rooms declare (lib/contrib.nix).
                           #   Owns its payload too, in BOTH profiles (2026-08-19):
                           #   holt + the statusline pair + agent-state +
-                          #   agent-desktop-guard (system),
+                          #   agent-desktop-guard + holt-cache (system),
                           #   and the instructions/skill files (home, written into
                           #   the same user terminal writes — home-manager merges
                           #   the two, and a path collision is an error)
@@ -525,7 +525,18 @@ it silently.
   into the bar's plugin dir, so the PATH copy and the bar copy can never drift.
   Every client's hooks call it (`agent-state <working|waiting|idle|remove>
   <client>`) — which is why the wirings the AI room writes for opencode and codex
-  never need to know where a bar keeps its plugins.
+  never need to know where a bar keeps its plugins. A fourth joined them on
+  2026-08-20: **`holt-cache`**, the one warm copy of `holt --json` that the
+  bar's agents popup and the Lanes palette both read. `holt --json` is an
+  investigation rather than a listing — `holt list` self-heals through a parked
+  reap sweep on the way in, and that sweep AND the JSON encoder each dump
+  `lsof -d cwd` machine-wide before any lane's landed/PR verdict touches git or
+  `gh`, so it costs seconds with zero lanes registered. Neither consumer can
+  pay that inline (the popup redraws on a 10 s tick; the palette opens inside
+  pounce's 8-second loading skeleton), and the TTL + one-winner lock that make
+  it safe were written twice the moment the second consumer appeared. Same
+  reasoning as `agent-state`, one layer up: the room that owns the capability
+  owns the cache in front of it.
   They're plain bash embedded via
   `builtins.readFile`, so a rebuild re-installs them on `PATH`. Agent worktrees
   themselves are **`holt`** — [its own repo](https://github.com/hausfold/holt),

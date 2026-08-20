@@ -90,40 +90,15 @@ source "$HOME/.config/sketchybar/plugins/ai-provider.sh"
 DIR=/tmp/haus-agents
 PLUGINS="$HOME/.config/sketchybar/plugins"
 PAW=$(printf '\xEF\x86\xB0')   # nf-fa-paw (U+F1B0) — on-theme for the cat rice
-HOLT_CACHE_DIR="${CLAUDE_STATUSLINE_CACHE:-$HOME/.cache/claude-statusline}"
-HOLT_CACHE="$HOLT_CACHE_DIR/holt.json"
-HOLT_KICK="$HOLT_CACHE_DIR/.holt-kick"
-HOLT_LOCK="$HOLT_CACHE_DIR/.holt-refresh.lock"
+# The warm `holt --json` copy, and its whole protocol — the TTL, the one-winner
+# lock and the "only a complete result replaces the cache" rule — belong to
+# `holt-cache` (modules/ai/holt-cache.sh), which the AI room puts on PATH. This
+# block was where all of it was written; the Lanes palette then needed exactly
+# the same cache under a much harder deadline, and a second copy of a lock
+# protocol is a drift bug waiting to be found the hard way.
 HOLT_TTL=20                     # Holt itself keeps forge answers cached for 120s
 HOLT_MAX_AGE=900                # persistent failure eventually drops stale PR rows
 HOLT_TIMEOUT=60                 # bound a wedged git/gh call before lock recovery
-HOLT_LOCK_STALE=90              # recover a refresher killed before releasing its lock
-
-release_holt_lock() {
-  local token="$1"
-  if [ "$(cat "$HOLT_LOCK/owner" 2>/dev/null)" = "$token" ]; then
-    rm -f "$HOLT_LOCK/owner"
-    rmdir "$HOLT_LOCK" 2>/dev/null || true
-  fi
-}
-
-refresh_holt_cache() {
-  local token="$1" tmp
-  tmp=$(mktemp "$HOLT_CACHE_DIR/.holt-json.XXXXXX") || {
-    release_holt_lock "$token"
-    return 0
-  }
-  if /usr/bin/perl -e 'alarm shift; exec @ARGV' "$HOLT_TIMEOUT" holt --json \
-    >"$tmp" 2>/dev/null \
-    && jq -e '(.lanes // []) | type == "array"' "$tmp" >/dev/null 2>&1; then
-    mv -f "$tmp" "$HOLT_CACHE"
-  else
-    rm -f "$tmp"
-  fi
-  # A stale owner may have been replaced while this slow process was alive.
-  # Only the process that still owns the lock may remove it.
-  release_holt_lock "$token"
-}
 
 # state → colour + human tag. waiting (a permission prompt) is the urgent one,
 # and is worded "ready" throughout the UI — it means "ready for your turn",
@@ -556,12 +531,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
     # Never run `holt --json` here: landed-verdict checks can block on the
     # network for seconds. The update path below keeps this cache warm; a first
     # click before it lands deliberately gets the existing no-lane fallback.
-    lanes_json=""
-    cache_at=$(stat -f %m "$HOLT_CACHE" 2>/dev/null || echo 0)
-    case "$cache_at" in '' | *[!0-9]*) cache_at=0 ;; esac
-    if [ $(( $(date +%s) - cache_at )) -lt "$HOLT_MAX_AGE" ] && [ -s "$HOLT_CACHE" ]; then
-      lanes_json="$(cat "$HOLT_CACHE" 2>/dev/null)"
-    fi
+    lanes_json="$(holt-cache read "$HOLT_MAX_AGE" 2>/dev/null)"
     [ -n "$lanes_json" ] || lanes_json="{}"
 
     waiting=0 working=0 idle=0
@@ -683,39 +653,10 @@ fi
 
 # `holt --json` computes landed verdicts live and can spend seconds in git/gh.
 # Kick it from the normal update path (push events plus the 10s visible tick),
-# never from mouse.clicked. The TTL limits ordinary starts; an atomic lock also
-# elects one winner when simultaneous hook/tick invocations see the same stale
-# kick. The cache is replaced only after jq accepts the complete result, so a
-# failed refresh leaves the previous lane/PR state intact until HOLT_MAX_AGE.
-now=$(date +%s)
-kick_at=$(stat -f %m "$HOLT_KICK" 2>/dev/null || echo 0)
-case "$kick_at" in '' | *[!0-9]*) kick_at=0 ;; esac
-if [ $((now - kick_at)) -ge "$HOLT_TTL" ] && command -v holt >/dev/null 2>&1; then
-  mkdir -p "$HOLT_CACHE_DIR"
-  if [ -d "$HOLT_LOCK" ]; then
-    lock_at=$(stat -f %m "$HOLT_LOCK" 2>/dev/null || echo 0)
-    case "$lock_at" in '' | *[!0-9]*) lock_at=0 ;; esac
-    if [ $((now - lock_at)) -ge "$HOLT_LOCK_STALE" ]; then
-      # Rename the stale lock out of the election atomically. Two reclaimers
-      # may race here, but only one can move this exact directory; neither can
-      # delete the fresh lock the winner (or another tick) creates afterward.
-      stale_lock="$HOLT_LOCK.stale.$$.$RANDOM"
-      if mv "$HOLT_LOCK" "$stale_lock" 2>/dev/null; then
-        rm -f "$stale_lock/owner"
-        rmdir "$stale_lock" 2>/dev/null || true
-      fi
-    fi
-  fi
-  if mkdir "$HOLT_LOCK" 2>/dev/null; then
-    lock_token="$now.$$.$RANDOM"
-    printf '%s\n' "$lock_token" >"$HOLT_LOCK/owner"
-    touch "$HOLT_KICK"
-    # The inner `&` belongs inside a short-lived subshell, matching ai_usage's
-    # kick: the refresher is reparented before this plugin invocation exits, so
-    # SketchyBar cannot reap the slow work with its script process.
-    (refresh_holt_cache "$lock_token" >/dev/null 2>&1 &)
-  fi
-fi
+# never from mouse.clicked. `holt-cache kick` owns the throttle, the one-winner
+# election and the reparenting that keeps SketchyBar from reaping the slow work
+# with its script process — this line is the whole of the bar's half now.
+holt-cache kick "$HOLT_TTL" "$HOLT_TIMEOUT" >/dev/null 2>&1
 
 if   [ "$waiting" -gt 0 ]; then state_style waiting; n=$waiting
 elif [ "$working" -gt 0 ]; then state_style working; n=$working
