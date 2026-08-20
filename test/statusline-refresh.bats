@@ -51,6 +51,23 @@ printf '%s' "${FAKE_PRS:-[]}"
 EOF
   chmod +x "$BIN/gh"
   export FAKE_GH_LOG="$TMP/gh.log"
+
+  # ── shim: security ─────────────────────────────────────────────────────────
+  # Shimmed for the WHOLE suite, not just the tests that use it, and that is the
+  # point: the Claude usage feed opts in on `[ -d ~/.claude ]`, which the token
+  # tests all create. Without a shim in setup they would each reach the REAL
+  # login keychain and raise a macOS prompt in the middle of a test run. The
+  # default answer is 44 — SecKeychain's "no such item", i.e. a machine that
+  # never logged into Claude Code.
+  cat >"$BIN/security" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$SECURITY_LOG"
+[ -n "${FAKE_KEYCHAIN:-}" ] || exit 44
+printf '%s' "$FAKE_KEYCHAIN"
+EOF
+  chmod +x "$BIN/security"
+  export SECURITY_LOG="$TMP/security.log"
+  : >"$SECURITY_LOG"
 }
 
 # ── fixtures ─────────────────────────────────────────────────────────────────
@@ -367,13 +384,20 @@ EOF
 }
 
 mkcurl() { # shim curl: log every call, answer from FAKE_OAUTH / FAKE_USAGE
+  # Three endpoints now, and the arm is chosen from the URL ALONE — `http*` — not
+  # from whichever argument matches first. Headers are arguments too: Anthropic's
+  # call carries `anthropic-beta: oauth-2025-04-20`, which an `*oauth*` arm reads
+  # as the token endpoint and answers with OpenAI's empty refresh payload, three
+  # arguments before the URL is ever looked at. The claude arm still precedes the
+  # codex one, because both URLs end in `usage`.
   cat >"$BIN/curl" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$CURL_LOG"
 for a in "$@"; do
   case "$a" in
-    *oauth*) printf '%s' "${FAKE_OAUTH:-}"; exit "${FAKE_OAUTH_RC:-0}" ;;
-    *usage*) printf '%s' "${FAKE_USAGE:-}"; exit "${FAKE_USAGE_RC:-0}" ;;
+    http*claude-usage*) printf '%s' "${FAKE_CLAUDE_USAGE:-}"; exit "${FAKE_CLAUDE_USAGE_RC:-0}" ;;
+    http*oauth*)        printf '%s' "${FAKE_OAUTH:-}"; exit "${FAKE_OAUTH_RC:-0}" ;;
+    http*usage*)        printf '%s' "${FAKE_USAGE:-}"; exit "${FAKE_USAGE_RC:-0}" ;;
   esac
 done
 exit 1
@@ -381,7 +405,21 @@ EOF
   chmod +x "$BIN/curl"
   export CURL_LOG="$TMP/curl.log"
   export CODEX_API="http://127.0.0.1:0/usage" CODEX_OAUTH="http://127.0.0.1:0/oauth"
+  export CLAUDE_API="http://127.0.0.1:0/claude-usage"
   : >"$CURL_LOG"
+}
+
+mkcreds() { # mkcreds [expiry-epoch] — Claude Code logged in, as the keychain has it
+  # The opt-in: `projects/` is written by the CLIENT when it actually runs,
+  # unlike ~/.claude itself, which this rice writes for every machine.
+  mkdir -p "$HOME/.claude/projects"
+  export FAKE_KEYCHAIN
+  FAKE_KEYCHAIN=$(printf '{"claudeAiOauth":{"accessToken":"AT-CLAUDE","refreshToken":"RT-CLAUDE","expiresAt":%s000,"subscriptionType":"max"}}' \
+    "${1:-$(( $(date +%s) + 86400 ))}")
+}
+
+clrow() { # clrow <n> — one field of the claude usage row
+  awk -F'\t' -v c="$1" '{print $c}' "$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv" 2>/dev/null
 }
 
 cxrow() { # cxrow <n> — one field of the codex usage row
@@ -490,6 +528,70 @@ USAGE_BOTH='{"rate_limit":{"primary_window":{"used_percent":12,"limit_window_sec
   [ ! -s "$FAKE_GH_LOG" ] || fail "usage-only spent a gh call on the panel"
 }
 
+# ── used vs written, the column the pill picks `latest` on ───────────────────
+# Column 5 is when the row was WRITTEN and column 9 is when quota was last USED,
+# and they are two columns because for a PULLED feed they are nothing alike: this
+# block re-asks OpenAI every CODEX_TTL seconds whether Codex has been touched or
+# not. While they were one column, the pill's `latest` provider was simply
+# "whichever feed polls most often" — Codex, permanently, days after the last
+# Codex session.
+
+@test "codex: an idle poll carries the used stamp forward" {
+  mkcurl; mkauth "$(( $(date +%s) + 86400 ))"
+  FAKE_USAGE="$USAGE_BOTH" refresh
+  [ "$status" -eq 0 ]
+  local first; first="$(cxrow 9)"
+  [ -n "$first" ] || fail "no used column was written at all"
+
+  # Age the file past the TTL without touching its CONTENT — `rm` would work for
+  # the fetch but takes the previous row with it, which is the thing under test.
+  touch -t 202601010000 "$CLAUDE_STATUSLINE_CACHE/usage-codex.tsv"
+  sleep 1
+  FAKE_USAGE="$USAGE_BOTH" refresh                # same percentages: nobody used it
+  [ "$(cxrow 5)" != "$first" ] || fail "the written stamp did not move on a real poll"
+  [ "$(cxrow 9)" = "$first" ] \
+    || fail "an idle poll counted as use — this is the bug that pinned the pill to Codex"
+}
+
+@test "codex: a percentage that rises is use, one that falls is a window rolling over" {
+  mkcurl; mkauth "$(( $(date +%s) + 86400 ))"
+  FAKE_USAGE="$USAGE_BOTH" refresh                # 12 / 88
+  local first; first="$(cxrow 9)"
+
+  touch -t 202601010000 "$CLAUDE_STATUSLINE_CACHE/usage-codex.tsv"
+  sleep 1
+  # 12 → 0: the 5-hour window reset. The opposite of use, and it must not bump.
+  FAKE_USAGE='{"rate_limit":{"primary_window":{"used_percent":0,"limit_window_seconds":18000,"reset_at":1785600000},"secondary_window":{"used_percent":88,"limit_window_seconds":604800,"reset_at":1786178866}}}' \
+    refresh
+  [ "$(cxrow 9)" = "$first" ] || fail "a window rollover was counted as use"
+
+  touch -t 202601010000 "$CLAUDE_STATUSLINE_CACHE/usage-codex.tsv"
+  sleep 1
+  # 0 → 5: somebody actually ran Codex.
+  FAKE_USAGE='{"rate_limit":{"primary_window":{"used_percent":5,"limit_window_seconds":18000,"reset_at":1785600000},"secondary_window":{"used_percent":88,"limit_window_seconds":604800,"reset_at":1786178866}}}' \
+    refresh
+  [ "$(cxrow 9)" != "$first" ] || fail "a percentage that rose did not count as use"
+  [ "$(( $(date +%s) - $(cxrow 9) ))" -lt 60 ] || fail "the used stamp is not now"
+}
+
+@test "codex: no column ever lands empty in the middle of the row" {
+  # Tab is IFS whitespace, so `read` collapses a run of empty middle fields and
+  # every later column shifts left — the used stamp would arrive in the reader's
+  # `model` and the pill would order `latest` on a string. Columns 7/8 are filled
+  # for exactly this reason, though provider_style's codex arm reads neither.
+  mkcurl; mkauth "$(( $(date +%s) + 86400 ))"
+  FAKE_USAGE="$USAGE_BOTH" refresh
+  local n; n=$(awk -F'\t' '{print NF; exit}' "$CLAUDE_STATUSLINE_CACHE/usage-codex.tsv")
+  [ "$n" = 9 ] || fail "wrote $n columns, want 9"
+  local i
+  for i in 1 2 3 4 5 6 7 8 9; do
+    [ -n "$(cxrow $i)" ] || fail "column $i is empty — every later column has shifted left"
+  done
+  # And the reader's own parse gets the row back the way it was written.
+  local a b; IFS=$'\t' read -r _ _ _ _ _ _ a b _ <"$CLAUDE_STATUSLINE_CACHE/usage-codex.tsv"
+  [ "$a" = codex ] && [ "$b" = openai ] || fail "columns 7/8 did not survive a read"
+}
+
 @test "codex: no auth.json means no outbound call at all" {
   # The whole opt-in. A machine that never logged into Codex must not talk to
   # OpenAI because a bar pill exists.
@@ -499,6 +601,218 @@ USAGE_BOTH='{"rate_limit":{"primary_window":{"used_percent":12,"limit_window_sec
   [ "$status" -eq 0 ]
   grep -qE 'usage|oauth' "$CURL_LOG" && fail "called out with no Codex login on the machine"
   [ ! -f "$CLAUDE_STATUSLINE_CACHE/usage-codex.tsv" ]
+}
+
+# ── the Claude usage feed ────────────────────────────────────────────────────
+# Claude's row is normally PUSHED by statusline.sh, for free, on every render —
+# and that is still the primary source. This block is the hole underneath it: a
+# statusline is a TUI feature, the Claude Code macOS app renders none, and a day
+# driven from the desktop app leaves the pill on percentages from the last time
+# a terminal pane was open. Same asymmetry as Codex, so: ask the account.
+#
+# The keychain is the delicate part here the way a rotating refresh token is
+# delicate there. Nothing below may raise a macOS prompt on a machine that never
+# logged in, and nothing may re-raise one every two minutes after a refusal.
+
+CLAUDE_USAGE='{"five_hour":{"utilization":41,"resets_at":"2026-08-20T03:00:00Z"},"seven_day":{"utilization":63,"resets_at":"2026-08-24T00:00:00Z"},"seven_day_opus":{"utilization":12,"resets_at":"2026-08-24T00:00:00Z"}}'
+
+@test "claude: a GUI-only machine still gets a row, pulled from the account" {
+  # The regression in one line: no statusline ever ran here, so nothing pushed.
+  mkcurl; mkcreds
+  [ ! -f "$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv" ]
+  FAKE_CLAUDE_USAGE="$CLAUDE_USAGE" refresh
+  [ "$status" -eq 0 ]
+  [ "$(clrow 1)" = 41 ] || fail "5-hour percent wrong: $(clrow 1)"
+  [ "$(clrow 2)" = 63 ] || fail "7-day percent wrong: $(clrow 2)"
+  [ "$(clrow 6)" = claude ]
+  grep -q 'Bearer AT-CLAUDE' "$CURL_LOG" || fail "polled without the keychain's token"
+  # usage.tsv is the pre-per-provider name statusline.sh still copies to; the two
+  # must not drift, or a rice mid-upgrade reads the older of them.
+  [ "$(cat "$CLAUDE_STATUSLINE_CACHE/usage.tsv")" = "$(cat "$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv")" ]
+}
+
+@test "claude: an ISO reset time becomes the epoch the pill compares against" {
+  # The pill asks `[ "$r5" -gt "$now" ]`. A string there is not a late reset, it
+  # is `integer expression expected` in the bar's log every fifteen seconds.
+  mkcurl; mkcreds
+  FAKE_CLAUDE_USAGE="$CLAUDE_USAGE" refresh
+  [ "$(clrow 3)" = "$(jq -rn '"2026-08-20T03:00:00Z" | fromdateiso8601')" ]
+  [ "$(clrow 4)" = "$(jq -rn '"2026-08-24T00:00:00Z" | fromdateiso8601')" ]
+
+  # Fractional seconds and a +00:00 offset are the two shapes fromdateiso8601
+  # refuses outright; both are filed off before it sees them.
+  rm -f "$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv"
+  FAKE_CLAUDE_USAGE='{"five_hour":{"utilization":1,"resets_at":"2026-08-20T03:00:00.512Z"},
+                      "seven_day":{"utilization":2,"resets_at":"2026-08-24T00:00:00+00:00"}}' \
+    refresh
+  [ "$(clrow 3)" = "$(jq -rn '"2026-08-20T03:00:00Z" | fromdateiso8601')" ]
+  [ "$(clrow 4)" = "$(jq -rn '"2026-08-24T00:00:00Z" | fromdateiso8601')" ]
+}
+
+@test "claude: a token file wins, and the keychain is not touched at all" {
+  # The file is the point of this feed, not a convenience. The keychain item is
+  # the CLI's: `claude` renews it while a terminal pane is open and the macOS app
+  # never writes it, so on a GUI-driven machine it is simply expired — which is
+  # how it was found. A token from `claude setup-token` is nobody's to rotate.
+  mkcurl; mkcreds
+  mkdir -p "$HOME/.config/haus"
+  printf '# from `claude setup-token`, 2026-08-19\nsk-ant-oat01-FILE\n' \
+    >"$HOME/.config/haus/claude-usage-token"
+  : >"$SECURITY_LOG"
+  FAKE_CLAUDE_USAGE="$CLAUDE_USAGE" refresh
+  [ "$status" -eq 0 ]
+  [ "$(clrow 1)" = 41 ]
+  grep -q 'Bearer sk-ant-oat01-FILE' "$CURL_LOG" || fail "polled with something other than the file's token"
+  [ ! -s "$SECURITY_LOG" ] || fail "read the keychain anyway, with a token already in hand"
+}
+
+@test "claude: an expired keychain is the reason the file exists, and it still falls back" {
+  # Order matters both ways: no file → the keychain is still worth asking, since
+  # right after a TUI session it is fresh and costs nothing.
+  mkcurl; mkcreds
+  [ ! -e "$HOME/.config/haus/claude-usage-token" ]
+  FAKE_CLAUDE_USAGE="$CLAUDE_USAGE" refresh
+  [ "$(clrow 1)" = 41 ]
+  grep -q 'Bearer AT-CLAUDE' "$CURL_LOG" || fail "did not fall back to the keychain"
+}
+
+@test "claude: no Claude Code on the machine means the keychain is never touched" {
+  # The whole opt-in, and the reason it is a file test rather than a keychain
+  # lookup: asking the keychain IS the prompt.
+  mkcurl
+  rm -rf "$HOME/.claude"
+  refresh
+  [ "$status" -eq 0 ]
+  [ ! -s "$SECURITY_LOG" ] || fail "read the login keychain on a machine with no Claude Code"
+  grep -q claude-usage "$CURL_LOG" && fail "called Anthropic anyway"
+  return 0
+}
+
+@test "claude: the rice's own ~/.claude files are not an opt-in" {
+  # The AI room WRITES ~/.claude/CLAUDE.md and ~/.claude/skills/haus for any
+  # machine whose haus.ai.clients names claude, so the directory's existence
+  # says nothing about whether Claude Code was ever installed. Gating on it
+  # drew an hourly keychain prompt on a Codex-only Mac that still had a stale
+  # credentials item — a prompt from a feed the user never asked for.
+  mkcurl
+  rm -rf "$HOME/.claude"
+  mkdir -p "$HOME/.claude/skills/haus"
+  : >"$HOME/.claude/CLAUDE.md"
+  refresh
+  [ "$status" -eq 0 ]
+  [ ! -s "$SECURITY_LOG" ] || fail "a rice-written CLAUDE.md was read as a Claude Code login"
+}
+
+@test "claude: a keychain that says no goes quiet for an hour" {
+  # A denied prompt and a missing item look the same from here, and both must be
+  # answered by backing off: this runs every couple of minutes, and `security`
+  # re-prompts on the very next call after a plain Deny. Without the backoff the
+  # feature is a popup loop.
+  mkcurl; mkcreds; unset FAKE_KEYCHAIN         # ~/.claude exists, the item does not
+  refresh
+  [ "$status" -eq 0 ]
+  [ -s "$SECURITY_LOG" ] || fail "never asked at all"
+  [ -f "$CLAUDE_STATUSLINE_CACHE/.claude-usage-blocked" ] || fail "no backoff was recorded"
+  : >"$SECURITY_LOG"
+  refresh
+  [ ! -s "$SECURITY_LOG" ] || fail "asked again two minutes later — this is the popup loop"
+
+  # And the backoff lifts on its own, rather than needing a file deleted by hand.
+  touch -t 202601010000 "$CLAUDE_STATUSLINE_CACHE/.claude-usage-blocked"
+  mkcreds
+  FAKE_CLAUDE_USAGE="$CLAUDE_USAGE" refresh
+  [ "$(clrow 1)" = 41 ] || fail "the hour passed and it never tried again"
+  [ ! -f "$CLAUDE_STATUSLINE_CACHE/.claude-usage-blocked" ] || fail "a success left the block in place"
+}
+
+@test "claude: an expired token is not spent, and never rotated here" {
+  # Refreshing would mean writing the rotated pair back into the LOGIN keychain,
+  # where losing the response costs a re-login in every client at once. Claude
+  # Code renews it in place whenever you use it; this block just waits.
+  mkcurl; mkcreds "$(( $(date +%s) - 10 ))"
+  refresh
+  [ "$status" -eq 0 ]
+  grep -q claude-usage "$CURL_LOG" && fail "polled with a token it knew was expired"
+  grep -qi 'add-generic-password\|-U ' "$SECURITY_LOG" && fail "wrote to the login keychain"
+  return 0
+}
+
+@test "claude: an unanswered poll keeps the last row and its own stamp" {
+  # Touch, don't write — the same contract the Codex feed keeps. A pushed row
+  # from a real session is the LAST good data on the machine; replacing it with
+  # zeroes because the network blinked is worse than showing it greyed.
+  mkcurl; mkcreds
+  mkdir -p "$CLAUDE_STATUSLINE_CACHE"
+  printf '7\t9\t3\t4\t5\tclaude\tclaude\tanthropic\t5\n' >"$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv"
+  touch -t 202601010000 "$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv"
+  FAKE_CLAUDE_USAGE_RC=7 FAKE_CLAUDE_USAGE='' refresh
+  [ "$status" -eq 0 ]
+  [ "$(clrow 1)" = 7 ] && [ "$(clrow 5)" = 5 ] || fail "an empty answer overwrote real numbers"
+  [ "$(( $(date +%s) - $(fmtime "$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv") ))" -lt 60 ] \
+    || fail "the retry was not backed off"
+
+  # A body that parses but describes no window is the same event: leave it alone.
+  touch -t 202601010000 "$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv"
+  FAKE_CLAUDE_USAGE='{"account":"x"}' refresh
+  [ "$(clrow 1)" = 7 ] || fail "an unrecognised shape was written as zeroes"
+}
+
+@test "claude: a dead endpoint with no row yet still backs off" {
+  # The normal state on the machine this feed is FOR: no statusline ever pushed,
+  # so there is no file to touch — and touching nothing backs nothing off. This
+  # is a poll every three minutes forever, and a keychain prompt every three
+  # minutes for anyone who answered the ACL dialog "Allow" rather than "Always
+  # Allow". The token was fine; only the endpoint was not.
+  mkcurl; mkcreds
+  [ ! -f "$CLAUDE_STATUSLINE_CACHE/usage-claude.tsv" ]
+  FAKE_CLAUDE_USAGE_RC=7 FAKE_CLAUDE_USAGE='' refresh
+  [ "$status" -eq 0 ]
+  [ -f "$CLAUDE_STATUSLINE_CACHE/.claude-usage-blocked" ] || fail "no backoff, and nothing to touch"
+  : >"$SECURITY_LOG"; : >"$CURL_LOG"
+  refresh
+  [ ! -s "$SECURITY_LOG" ] || fail "asked the keychain again three minutes later"
+  grep -q claude-usage "$CURL_LOG" && fail "re-polled a dead endpoint inside the backoff"
+  return 0
+}
+
+@test "opencode: a session with no model still writes nine full columns" {
+  # `session.model` is nullable and the newest session may have been opened and
+  # not yet used — and `jq` on EMPTY stdin prints nothing and exits 0, so the
+  # `|| echo` fallbacks never fire. Two empty middle fields collapse under
+  # `read` (tab is IFS whitespace), the used epoch lands in `model`, and
+  # opencode wins `latest` forever while drawing its mark from an epoch. Which
+  # is the exact bug the used column was added to remove.
+  cat >"$BIN/sqlite3" <<'EOF'
+#!/usr/bin/env bash
+case "$*" in
+  *"ORDER BY time_updated DESC"*) printf '|1700000000000\n' ;;   # model is NULL
+  *SUM\(cost\)*|*printf*)         printf '0.00\n' ;;
+  *)                              printf '0\t0\t0\t0\n' ;;
+esac
+EOF
+  chmod +x "$BIN/sqlite3"
+  mkdir -p "$HOME/.local/share/opencode"
+  : >"$HOME/.local/share/opencode/opencode-stable.db"
+  refresh
+  [ "$status" -eq 0 ]
+  local f="$CLAUDE_STATUSLINE_CACHE/usage-opencode.tsv"
+  [ "$(awk -F'\t' '{print NF; exit}' "$f")" = 9 ] || fail "not nine columns"
+  local model prov used
+  IFS=$'\t' read -r _ _ _ _ _ _ model prov used <"$f"
+  [ "$model" = opencode ] || fail "column 7 is '$model' — the row has shifted left"
+  [ "$prov" = google ] || fail "column 8 is '$prov'"
+  [ "$used" = 1700000000 ] || fail "the used stamp is '$used', not the session's"
+}
+
+@test "claude: a fresh row is not re-fetched, pushed or pulled" {
+  # The push is the cheap path and stays primary: while a TUI session is live it
+  # rewrites this file every render, and each rewrite must hold the poll off.
+  mkcurl; mkcreds
+  FAKE_CLAUDE_USAGE="$CLAUDE_USAGE" refresh
+  : >"$CURL_LOG"
+  FAKE_CLAUDE_USAGE="$CLAUDE_USAGE" refresh                    # inside CLAUDE_TTL
+  grep -q claude-usage "$CURL_LOG" && fail "spent an API call inside the TTL"
+  return 0
 }
 
 # ── the lifetime token counter ───────────────────────────────────────────────

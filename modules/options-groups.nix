@@ -431,18 +431,36 @@ let
     ];
   };
 
+  # A whole namespace on one reason, for the three that are host-only entire
+  # (`git`, `locale`, `power`). Derived from the inventory above rather than
+  # restated, so a leaf added to one of them is host-only the moment it exists
+  # instead of falling through to desktop-safe.
+  wholeNamespace =
+    namespace: reason:
+    builtins.listToAttrs (
+      map (path: {
+        name = path;
+        value = reason;
+      }) optionPaths.${namespace}
+    );
+
   # These are the exceptions to the fail-closed default for an INVENTORIED
   # option. Every other exact path above is desktop-safe. An uninventoried path
   # never reaches this decision: the registry check rejects it first.
+  #
+  # Each one names WHY, out of `hostOnlyReasons` below, for the same reason a
+  # `recursive` container names a validator: the classification alone tells a
+  # reader they may not set the leaf and nothing about what would go wrong if
+  # they could. The name is the option's; the sentence is the table's.
   hostOnly = {
-    ai = [ "instructions" ];
-    bar = [
-      "calendar.me"
-      "elgato.host"
+    ai.instructions = "agent-context";
+    bar = {
+      "calendar.me" = "identity";
+      "elgato.host" = "one-network";
       # Arbitrary shell, not data: a desktop is a file you can read to know what
       # it can do, and a source that runs a command is exactly the leaf that
       # would stop being true of. `search` and `ci` beside it stay desktop-safe.
-      "github.sources.*.command"
+      "github.sources.*.command" = "runs-a-command";
       # The same rule, one room's open form later. A widget's `command` is the
       # script the bar EXECUTES every interval — the single most powerful leaf
       # in the whole desktop-safe surface if it were admitted, and the one that
@@ -451,52 +469,91 @@ let
       # shared desktop may place, retune and switch off any pill, and may not
       # bring a new one that runs code. That asymmetry is the point rather than
       # a limitation: everything else about a widget stays desktop data.
-      "widgets.<name>.command"
-    ];
-    focus = [
-      "hooks"
+      "widgets.<name>.command" = "runs-a-command";
+    };
+    focus = {
+      hooks = "runs-a-command";
       # Same rule one level down: a scene may say "be quiet, stay awake, use
       # this mic" and a shared desktop may ship it, but the arbitrary script a
       # scene runs is a person's, not a published desktop's.
-      "scenes.<name>.hooks"
+      "scenes.<name>.hooks" = "runs-a-command";
       # A trigger condition is a taste — "quiet in the evening", "docked means
-      # two screens" — with exactly one exception: an SSID names one router in
-      # one building, which is a fact about a place the way
-      # `haus.displays.<uuid>` is a fact about a desk. That asymmetry is why
-      # `when.displays` is a COUNT: it keeps the docked trigger shareable while
-      # the network one stays yours.
-      "scenes.<name>.when.wifi"
-      "slack.tokenCommand"
-    ];
-    fonts = [ "mono.package" ];
-    git = optionPaths.git;
-    keys = [ "leaderExtras.*.command" ];
-    launcher = [ "signingIdentity" ];
-    locale = optionPaths.locale;
-    power = optionPaths.power;
-    roster = [
-      "<name>.installedBy"
-      "<name>.package"
-    ];
-    screenshots = [ "location" ];
-    secrets = [ "provider" ];
+      # two screens" — with exactly one exception, and the asymmetry is the
+      # point: an SSID names one router in one building, which is why
+      # `when.displays` is a COUNT. The docked trigger stays shareable and the
+      # network one stays yours.
+      "scenes.<name>.when.wifi" = "your-network";
+      "slack.tokenCommand" = "secret";
+    };
+    fonts."mono.package" = "needs-pkgs";
+    # `git` is the one namespace `wholeNamespace` cannot answer alone: four of
+    # its five leaves name you, and `shellAliases` is a set of shell command
+    # strings that names nobody. Overriding the one member is the point of
+    # writing the reasons down — a sweep that put "it names you rather than a
+    # machine" over a command surface would be the exact wrong sentence this
+    # table exists to stop.
+    git = wholeNamespace "git" "identity" // {
+      shellAliases = "runs-a-command";
+    };
+    keys."leaderExtras.*.command" = "runs-a-command";
+    launcher.signingIdentity = "keychain";
+    locale = wholeNamespace "locale" "your-region";
+    power = wholeNamespace "power" "this-hardware";
+    roster = {
+      "<name>.installedBy" = "haus-writes-it";
+      "<name>.package" = "needs-pkgs";
+    };
+    screenshots.location = "local-path";
+    secrets.provider = "secret";
     # `editor` is a shell command this layer executes, so it stays here
     # forever; `editorName` is the desktop-safe half of that pair — a closed
     # enum over the editors the room installs, which is how a desktop says
     # "this is a neovim Mac" without ever naming a command.
-    terminal = [
-      "editor"
-      "obsidianVaults"
-    ];
-    zen = [
-      "extensions"
-      "extensions.<name>.enable"
-      "extensions.<name>.id"
-      "extensions.<name>.mode"
-      "extensions.<name>.slug"
-      "extensions.<name>.url"
-      "extraPolicies"
-    ];
+    terminal = {
+      editor = "runs-a-command";
+      obsidianVaults = "local-path";
+    };
+    zen = {
+      extensions = "browser-code";
+      "extensions.<name>.enable" = "browser-code";
+      "extensions.<name>.id" = "browser-code";
+      "extensions.<name>.mode" = "browser-code";
+      "extensions.<name>.slug" = "browser-code";
+      "extensions.<name>.url" = "browser-code";
+      extraPolicies = "browser-code";
+    };
+  };
+
+  # What each of those names MEANS, in one sentence, for the person who meets
+  # it rendered — under `# desktop data: host-only` in their own host file, and
+  # on the options reference.
+  #
+  # This is the validator table's rule one classification over, and it exists
+  # because the site tried the other thing first: one sentence written into the
+  # renderer for all 43 host-only rows ("names a person, a secret or a piece of
+  # hardware"), which is false on about thirty of them — every `haus.locale.*`
+  # and `haus.power.*` leaf, and every one that is host-only for taking a
+  # `pkgs` value or running a command. A reason that is wrong more often than
+  # right teaches a reader to stop reading the line, so the reasons live here,
+  # per option, where the classification they explain is decided.
+  #
+  # Names rather than sentences at the option, so that eleven rationales are
+  # written once instead of forty-three times and the rows that share one
+  # provably share it. A name used exactly once is fine and normal.
+  hostOnlyReasons = {
+    agent-context.why = "Your own always-on instructions to coding agents: the private working context you write for your own machine, not something a stranger's file should arrive holding.";
+    browser-code.why = "It installs browser extensions, or writes raw enterprise policy into a file haus owns as root: code reaching your browser through what is supposed to be readable data.";
+    haus-writes-it.why = "haus sets this itself, so the roster can still say which module put an app on disk. It is a generated fact about this machine rather than an input anyone writes.";
+    identity.why = "It names you rather than a machine: your commit identity, the addresses that are yours, the account whose repositories this Mac works on. A desktop that set it would put its author's details on your work.";
+    keychain.why = "It names a code-signing identity in one login keychain, which exists on exactly one Mac and cannot be meaningfully published.";
+    local-path.why = "It names a path on this disk, so it is a fact about one filesystem rather than an opinion a shared desktop can hold about every machine.";
+    needs-pkgs.why = "It takes a `pkgs` value, and desktop data is evaluated with no module arguments to take one from. The `…Name` leaf beside it is the desktop-safe half of the pair.";
+    one-network.why = "It names a device on your own network by host or IP, which is a fact about your desk. Left empty, the pill discovers the device itself, and that is what a shared desktop should leave it doing.";
+    runs-a-command.why = "It is a shell command this machine runs, and a desktop is a file you can read to know what it does. A leaf carrying a command is exactly what stops that being true.";
+    secret.why = "It points at a secret, or at the store this machine keeps its secrets in, so it belongs to one person on one Mac.";
+    this-hardware.why = "Sleep and power behaviour depends on the machine underneath it: whether it has a battery at all, and how this particular one is carried around.";
+    your-network.why = "It names a Wi-Fi network you join, which is a fact about a place rather than a taste anyone can share. It is why the trigger beside it counts SCREENS instead of naming one: a count is a shape every desk can have, and an SSID exists in exactly one building.";
+    your-region.why = "Language, region, units and keyboard layout are facts about the person at the keyboard; a desktop that set them would change what your Mac speaks.";
   };
 
   # Containers whose payload is admitted only after a named recursive
@@ -591,8 +648,11 @@ let
   optionName = namespace: path: "haus.${namespace}" + (if path == "" then "" else ".${path}");
   optionMeta =
     namespace: path:
-    if builtins.elem path (hostOnly.${namespace} or [ ]) then
-      { desktopSafe = false; }
+    if (hostOnly.${namespace} or { }) ? ${path} then
+      {
+        desktopSafe = false;
+        reason = hostOnly.${namespace}.${path};
+      }
     else if (recursive.${namespace} or { }) ? ${path} then
       {
         desktopSafe = "recursive";
@@ -1128,5 +1188,5 @@ in
   exports = exportsMeta;
   rooms = publishedRooms;
   namespaces = publishedNamespaces;
-  inherit validators;
+  inherit validators hostOnlyReasons;
 }

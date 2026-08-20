@@ -5,7 +5,7 @@ Three files, none of them hand-written:
 | File | What it is |
 |---|---|
 | `options.json` | every `haus.*` option — type, default, example, description, and the file that declares it |
-| `groups.json` | the export/namespace registry (`modules/options-groups.nix`): ownership, reading order, blurbs and per-option desktop safety — plus a `rooms` catalogue, the twelve rooms a person meets, each with a title, a sentence, and its derived namespaces, exports and option count. Two of its entries carry `kind = "shared"` / `"host"` instead of `"room"`, for the namespaces that belong to no single room; a catalogue filters on that. Top-level namespace aliases temporarily preserve the previous renderer contract |
+| `groups.json` | the export/namespace registry (`modules/options-groups.nix`): ownership, reading order, blurbs and per-option desktop safety (each host-only option naming a reason out of the `hostOnlyReasons` table beside it, the way a `recursive` one names a validator) — plus a `rooms` catalogue, the twelve rooms a person meets, each with a title, a sentence, and its derived namespaces, exports and option count. Two of its entries carry `kind = "shared"` / `"host"` instead of `"room"`, for the namespaces that belong to no single room; a catalogue filters on that. Top-level namespace aliases temporarily preserve the previous renderer contract |
 | `wm-bindings.json` | the static tiling/workspace/service binding table, resolved for the **default** keymap |
 
 They are `nix build .#site-data`, committed. Regenerate from the repo root:

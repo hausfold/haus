@@ -222,8 +222,30 @@ if [ -n "$lim5" ]; then
   rst5=$(j '.rate_limits.five_hour.resets_at'); rstw=$(j '.rate_limits.seven_day.resets_at')
   was=$(cut -f1,2 "$usage" 2>/dev/null)
   [ -d "$CACHE_DIR" ] || mkdir -p "$CACHE_DIR"
-  printf '%s\t%s\t%s\t%s\t%s\tclaude\n' \
-    "${now5:-0}" "${noww:-0}" "${rst5:-0}" "${rstw:-0}" "$(date +%s)" \
+  # Column 9 is when quota was last BURNED here, and the bar's `latest` provider
+  # is chosen on it (see the header of ai_usage.sh). A render is not by itself
+  # use: the statusline re-runs every refreshInterval seconds for as long as a
+  # pane is merely OPEN, so stamping it `now` would pin the pill to whichever
+  # client you left sitting idle. A percentage that went UP is use, and it is
+  # the one signal every feed here can produce, pushed or pulled alike.
+  stamp_now=$(date +%s)
+  p5=0; pw=0; p_used=0
+  # A file test rather than `<file 2>/dev/null`: redirections are applied left to
+  # right, so a missing file has already printed to the REAL stderr by the time
+  # the suppression takes effect — straight into the pane, under the prompt.
+  [ -s "$usage_claude" ] && IFS=$'\t' read -r p5 pw _ _ _ _ _ _ p_used <"$usage_claude"
+  case "${p5:-}"     in '' | *[!0-9]*) p5=0 ;; esac
+  case "${pw:-}"     in '' | *[!0-9]*) pw=0 ;; esac
+  case "${p_used:-}" in '' | *[!0-9]*) p_used=0 ;; esac
+  used=$p_used
+  { [ "$p_used" = 0 ] || [ "${now5:-0}" -gt "$p5" ] || [ "${noww:-0}" -gt "$pw" ]; } && used=$stamp_now
+  # Columns 7 and 8 (model, provider id) are FILLED rather than left empty, even
+  # though provider_style's `claude` arm reads neither. Tab is IFS whitespace, so
+  # `read` collapses a run of empty middle fields into one delimiter and every
+  # later column shifts left — the used stamp would land in `model` and the pill
+  # would order on a string. Same reason panel.tsv writes `-` for "no PR".
+  printf '%s\t%s\t%s\t%s\t%s\tclaude\tclaude\tanthropic\t%s\n' \
+    "${now5:-0}" "${noww:-0}" "${rst5:-0}" "${rstw:-0}" "$stamp_now" "$used" \
     >"$usage.$$" && mv "$usage.$$" "$usage_claude" && cp "$usage_claude" "$usage"
   pill="$HOME/.config/sketchybar/plugins/ai_usage.sh"
   if [ "$was" != "$(printf '%s\t%s' "${now5:-0}" "${noww:-0}")" ] && [ -x "$pill" ]; then
