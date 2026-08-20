@@ -1,9 +1,16 @@
-# What `haus show <file>` reports about one local file, as DATA.
+# What `haus show <src>` reports about one file, as DATA.
 #
-# The command is the publisher's pre-share check (the workshop's
-# notes/rooms-desktops.md, Acquisition step A): read a file, say what class it
-# is, run the desktop checker over it, and list what it would set and what it
-# leaves alone. It writes nothing and fetches nothing.
+# The command is the publisher's pre-share check and the consumer's first look
+# (the workshop's notes/rooms-desktops.md, Acquisition steps A and B): read a
+# file, say what class it is, run the desktop checker over it, and list what it
+# would set and what it leaves alone.
+#
+# THIS file only ever sees a path that is already on disk. Fetching a remote
+# source is the command's own job and happens before this is called, in a
+# separate evaluation with no guard, since the guard the read runs under refuses
+# a fetch by URI. So the path below may be a store path rather than something in
+# the caller's home — nothing here needs to care, and nothing here writes or
+# fetches anything.
 #
 # This file is only the report. The RULES are ./desktop.nix's, read off the room
 # registry, so "may a desktop set this?" still has exactly one answer in one
@@ -14,8 +21,9 @@
 #
 # The class of a source is properly a fact about how it ARRIVES: a desktop comes
 # in as a `flake = false` input and a room as an ordinary flake input, which is
-# why `haus add` will require an explicit `--room` and never guess. A local file
-# has no arrival, so `show` has to say something about the file in front of it,
+# why `haus add` will require an explicit `--room` and never guess. A file has
+# no arrival — not even a fetched one, since `show` fetches a TREE and never
+# locks a flake — so `show` has to say something about the file in front of it,
 # and the safe rule is asymmetric:
 #
 #   code, inferred   — a function is a module. Saying so costs nothing: it
