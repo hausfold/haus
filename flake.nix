@@ -236,6 +236,14 @@
             value = import path;
           };
 
+        # `haus.lib.showDesktop ./my-desktop.nix` — the same reading `haus show`
+        # prints, as data: the class, the failures above, what the file sets and
+        # which rooms it leaves alone. The CLI evaluates the identical function
+        # out of a staged copy (modules/desktop-check.nix) so it can answer from
+        # a shell with no flake; this export is what the flake check and any
+        # other Nix caller uses.
+        showDesktop = path: showLib.read (toString path);
+
         # `haus.lib.checkDesktop ./my-desktop.nix` — true, or throws naming the
         # file and every rule it broke.
         checkDesktop =
@@ -291,6 +299,10 @@
         minimal = ./desktops/minimal.nix;
       };
       desktopLib = import ./modules/lib/desktop.nix {
+        lib = nixpkgs.lib;
+        registry = import ./modules/options-groups.nix;
+      };
+      showLib = import ./modules/lib/show.nix {
         lib = nixpkgs.lib;
         registry = import ./modules/options-groups.nix;
       };
@@ -2338,6 +2350,87 @@
             test/desktops/unknown-option.nix: haus.theme.accentColour is not a haus option
           '';
 
+          # ---- desktop-show ----------------------------------------------------
+          # `haus show`'s reading of every fixture in that same directory — the
+          # data half, which is all of it that can run in a Nix build (the script
+          # shells out to `nix eval`, so its own suite is test/haus-show.sh, run
+          # from CI where a nix IS available).
+          #
+          # One line per fixture, read off the directory like the diagnostics
+          # above, so a rule that gains a fixture gains a row here too. What it
+          # pins is the CLASSIFICATION and the shape of the summary, which is
+          # exactly what the command's trust story rests on: `class=desktop`
+          # with `ok=false` is a file that was CHECKED and refused, and
+          # `class=room` is a file nothing was checked about at all. Those two
+          # must never be confusable, and a fixture drifting from one to the
+          # other is the single most dangerous silent change this command has.
+          desktopShowTable = builtins.concatStringsSep "\n" (
+            map (
+              name:
+              let
+                r = riceLib.showDesktop (desktopFixture name);
+              in
+              "${name} class=${r.class} ok=${nixpkgs.lib.boolToString r.ok} "
+              + "sets=${toString (builtins.length r.sets)} "
+              + "rooms=${
+                if r.rooms == [ ] then "-" else builtins.concatStringsSep "+" (map (x: x.room) r.rooms)
+              } "
+              + "silent=${toString (builtins.length r.silent)}"
+            ) desktopFixtures
+          );
+          expectedDesktopShowTable = ''
+            activation.nix class=desktop ok=false sets=1 rooms=haus silent=12
+            dynamic-host-only.nix class=desktop ok=false sets=1 rooms=haus silent=12
+            dynamic-unknown.nix class=desktop ok=false sets=1 rooms=haus silent=12
+            extra-key.nix class=desktop ok=false sets=1 rooms=haus silent=12
+            file-attr.nix class=desktop ok=false sets=1 rooms=haus silent=12
+            function.nix class=room ok=true sets=0 rooms=- silent=0
+            group-not-option.nix class=desktop ok=false sets=1 rooms=appearance silent=11
+            home-manager.nix class=desktop ok=false sets=1 rooms=haus silent=12
+            host-only-command.nix class=desktop ok=false sets=1 rooms=haus silent=12
+            host-only-hardware.nix class=desktop ok=false sets=1 rooms=displays silent=11
+            host-only-identity.nix class=desktop ok=false sets=1 rooms=host silent=12
+            host-only-package.nix class=desktop ok=false sets=1 rooms=appearance silent=11
+            host-only-path.nix class=desktop ok=false sets=1 rooms=development silent=11
+            host-only-secret.nix class=desktop ok=false sets=2 rooms=focus+security silent=10
+            host-only-signing.nix class=desktop ok=false sets=1 rooms=launcher silent=11
+            host-only-widget-command.nix class=desktop ok=false sets=2 rooms=bar silent=11
+            imports.nix class=desktop ok=false sets=1 rooms=haus silent=12
+            internal-wiring.nix class=desktop ok=false sets=1 rooms=- silent=12
+            missing-haus.nix class=desktop ok=false sets=0 rooms=- silent=12
+            module-internals.nix class=desktop ok=false sets=1 rooms=haus silent=12
+            nixpkgs.nix class=desktop ok=false sets=1 rooms=haus silent=12
+            non-attrset.nix class=desktop ok=false sets=0 rooms=- silent=12
+            priority-instruction.nix class=desktop ok=false sets=1 rooms=haus silent=12
+            scene-name.nix class=desktop ok=false sets=1 rooms=focus silent=11
+            shell-in-free-key.nix class=desktop ok=false sets=1 rooms=bar silent=11
+            stray-key.nix class=desktop ok=false sets=1 rooms=haus silent=12
+            unknown-option.nix class=desktop ok=false sets=1 rooms=appearance silent=11
+            valid-other.nix class=desktop ok=true sets=1 rooms=haus silent=12
+            valid-sample.nix class=desktop ok=true sets=9 rooms=displays+development+bar+launcher+focus+haus silent=7
+          '';
+
+          # And one fixture read in full, because the table above says nothing
+          # about the part a publisher actually reads: which room each leaf was
+          # filed under, and what the value looked like on its way to the
+          # terminal. A leaf whose namespace moves between rooms shows up here.
+          desktopShowSample = builtins.concatStringsSep "\n" (
+            map (s: "${if s.room == null then "(none)" else s.room}  ${s.path} = ${s.value}") (
+              (riceLib.showDesktop (desktopFixture "valid-sample.nix")).sets
+            )
+          );
+          expectedDesktopShowSample = ''
+            bar  haus.bar.enable = true
+            bar  haus.bar.widgets.cpu.enable = true
+            bar  haus.bar.widgets.cpu.interval = 10
+            displays  haus.displays.internal.uiScale = "larger-text"
+            focus  haus.focus.scenes.presenting.description = "no interruptions, no screensaver"
+            focus  haus.focus.scenes.presenting.preventSleep = true
+            launcher  haus.launcher.autoQuit.exclude = [ "from-desktop-a" "from-desktop-b" ]
+            development  haus.terminal.editorName = "neovim"
+            haus  haus.ui.scale = 1.35
+          '';
+
           # And the throwing half of the same seam: `checkDesktop` is what
           # `lib.desktop` asserts on, so a bad desktop has to stop the
           # evaluation rather than merely being listed somewhere.
@@ -2742,6 +2835,20 @@
               || { echo "wallpaper has only $colours distinct colours — the grain that dithers the bloom is not reaching the 8-bit reduction, so it will band" >&2; exit 1; }
             touch $out
           '';
+
+          # `haus show`'s reading of every desktop fixture. Up here rather than
+          # beside `desktop-seam` because it is pure lib over files: the seam's
+          # half needs a real evaluated machine and is darwin-only, and this half
+          # is the one a publisher's Linux CI runs, so it belongs where CI can
+          # reach it.
+          desktop-show = pkgs.runCommand "haus-desktop-show-ok" { } ''
+            diff -u ${pkgs.writeText "expected" expectedDesktopShowTable} \
+                    ${pkgs.writeText "actual" (desktopShowTable + "\n")}
+
+            diff -u ${pkgs.writeText "expected" expectedDesktopShowSample} \
+                    ${pkgs.writeText "actual" (desktopShowSample + "\n")}
+            touch $out
+          '';
         }
         // nixpkgs.lib.optionalAttrs (nixpkgs.lib.hasSuffix "-darwin" system) {
           app-collections = pkgs.runCommand "haus-app-collections-ok" { } ''
@@ -3039,6 +3146,9 @@
           pkgs = nixpkgs.legacyPackages.${system};
           isDarwin = nixpkgs.lib.hasSuffix "-darwin" system;
 
+          # Bound once: two outputs below ship it, and `haus show` is only
+          # honest if both hand the script the SAME rules.
+          desktopCheck = import ./modules/desktop-check.nix { inherit pkgs; };
         in
         {
           # `nix build .#wm-bindings-json` — the static tiling/workspace/service
@@ -3174,6 +3284,27 @@
           # haus yet, and `haus options` on one that does — core installs it
           # into the system profile so that second path costs nothing.
           host-template = import ./modules/host-template.nix { inherit pkgs; };
+
+          # `nix build .#desktop-check` — the desktop rules as a directory
+          # `nix eval` can read, plus the `haus show` script beside them. core
+          # installs it into the system profile; this output is what a publisher
+          # with no haus install can still reach.
+          desktop-check = desktopCheck;
+
+          # `nix run github:hausfold/haus#show -- ./writer.nix` — the pre-share
+          # check, for the one audience that is NOT on a haus machine: a
+          # publisher's CI, gating on the exit code before a desktop goes out.
+          #
+          # It is the same script `haus show` execs, with the same evaluator
+          # baked in, which is the point — a checker a publisher runs and a
+          # checker their reader runs have to be the same one, or "it passed for
+          # me" is the whole bug report. Every system, not just darwin: nothing
+          # in the desktop rules is a Mac, and a publisher's runner is Linux.
+          show = pkgs.writeShellScriptBin "haus-show" ''
+            export PATH="$PATH:${nixpkgs.lib.makeBinPath [ pkgs.jq ]}"
+            export HAUS_DESKTOP_CHECK="''${HAUS_DESKTOP_CHECK:-${desktopCheck}/share/haus/desktop-check}"
+            exec ${pkgs.bash}/bin/bash ${./modules/core/haus-show.sh} "$@"
+          '';
 
           # `nix build .#wallpaper` — the generated `minimal` desktop at the
           # shipped defaults, as a PNG you can open.

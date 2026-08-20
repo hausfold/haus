@@ -868,6 +868,15 @@ in
       # at /run/current-system/sw/share/haus.
       (import ../host-template.nix { inherit pkgs; })
 
+      # `haus show` and the standalone evaluator behind it, at
+      # share/haus/{show.sh,desktop-check/}. Same argument as the template above,
+      # pointed the other way: built from the revision this machine PINNED, so
+      # the rules a stranger's desktop is read against here are the rules this
+      # machine would actually apply to it. Unconditional beside `haus` for the
+      # same reason as well — reading a file before you trust it is the product,
+      # not the developer toolbelt.
+      (import ../desktop-check.nix { inherit pkgs; })
+
       # `awake 3h` / `awake indefinitely` — a durable controller around macOS's
       # built-in caffeinate. Its assertion is launchd-owned below, so callers can
       # exit (or SketchyBar can reload) without accidentally allowing idle sleep.

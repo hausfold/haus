@@ -29,7 +29,7 @@ jobs:
       # example left to eval (see flake.nix `allSystems`).
       - run: nix eval .#darwinConfigurations.example.system.drvPath
       # The platform-independent checks are declared for Linux too precisely so
-      # they can run HERE — TWELVE of them, everything in flake.nix's `checks`
+      # they can run HERE — THIRTEEN of them, everything in flake.nix's `checks`
       # before the `optionalAttrs (hasSuffix "-darwin" system)` line, which is
       # the only thing that decides the split and the only place to re-derive
       # this list from:
@@ -57,6 +57,12 @@ jobs:
       #                            desktop and asserts its size and colour count,
       #                            the only automated thing that can notice the
       #                            dither stopped reaching the 8-bit reduction
+      #   desktop-show             `haus show`'s reading of every desktop
+      #                            fixture — the class it reports and which room
+      #                            each leaf files under. Up here rather than in
+      #                            the darwin list beside `desktop-seam` because
+      #                            it is pure lib, and because a publisher's CI
+      #                            is exactly the Linux caller it defends
       #
       # All but the last mirror a rule that lives in another repo, in a generated
       # dotfile, in a shell script, or in a README — where drift is silent.
@@ -105,6 +111,17 @@ jobs:
           grep -q '^  haus\.' "$host/options.nix"
           nix eval --impure --apply 'x: x.system.drvPath' --expr \
             "(builtins.getFlake \"path:$PWD\").mkHaus { username = \"ada\"; hostname = \"lovelace\"; host = $host; }"
+
+      # `haus show`'s exit codes, flags and JSON envelope, against the built
+      # `#show` wrapper — the same thing `nix run github:hausfold/haus#show`
+      # hands a publisher. It lives in this job rather than beside the other
+      # shell suites because it needs a real `nix eval`, which is exactly what a
+      # Nix BUILD may not do: the `desktop-show` check above covers everything
+      # about this command that can be answered inside a derivation, and this
+      # covers the part a publisher's CI actually depends on, which is the
+      # number the process exits with.
+      - name: haus show tests
+        run: bash test/haus-show.sh
 
   shellcheck:
     name: shell scripts
@@ -180,7 +197,7 @@ jobs:
           # haus.focus.scenes.<name>.when it also runs from launchd on a timer,
           # where a non-zero is not just invisible but silently stops your Mac
           # entering the scenes you declared.
-          shellcheck --severity=warning bootstrap.sh modules/core/haus.sh modules/core/awake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh
+          shellcheck --severity=warning bootstrap.sh modules/core/haus.sh modules/core/awake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
       # The trigger daemon's decisions — which scene rises, which one it may

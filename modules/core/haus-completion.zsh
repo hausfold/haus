@@ -66,6 +66,7 @@ _haus() {
     'doctor:check the machine'\''s health (Nix, CLT, the GUI agents)'
     'btm:check BTM daemon-gating (macOS 26 Tahoe+; no-op before)'
     'tour:take the guided haus tour'
+    'show:inspect a desktop or room FILE before you publish or trust it'
     'help:list every command'
   )
 
@@ -105,6 +106,18 @@ _haus() {
           ;;
         tour)
           _values 'tour' 'reset[re-arm a finished tour]'
+          ;;
+        show)
+          # The only verb whose argument is a PATH rather than an option name —
+          # and a file on disk, so the shell's own completion is the right one.
+          if (( typed == 0 )); then
+            _arguments \
+              '--json[the report as JSON on stdout, for CI and agents]' \
+              '--room[this file is CODE; print the trust warning, check nothing]' \
+              '*:desktop or room file:_files -g "*.nix"'
+          else
+            _message 'one file at a time'
+          fi
           ;;
       esac
       ;;
