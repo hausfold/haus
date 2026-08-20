@@ -131,20 +131,36 @@ GAP_SIDE_EXTERNAL="@gap_side_external@"
 # centered geometry rather than place a window at 0×0.
 #
 # `AXFocusedWindow`, NOT `window 1`, and that is the whole correctness of this
-# function. One process can own several windows — scripts/new-window.sh asks the
-# RUNNING Ghostty for `new window` rather than paying for a second instance, so
-# every ⌘N window after the first shares its parent's pid — and System Events
-# hands `windows` back in a stable order that is not z-order and not focus. So
-# `window 1` meant "the oldest window of the app", which put every ⌘F overlay
-# over the first window opened no matter which one you pressed the chord in:
-# the search itself was right (it joins on the zmx session, not on a frame),
-# only the placement was, silently and always, one window off.
+# function. One process can own several windows — a ⌘N window (launcher's
+# shell-here.sh) and scripts/new-window.sh both ask the RUNNING Ghostty for
+# `new window` over AppleScript rather than paying for a second instance, so
+# every window after the first shares its parent's pid — and System Events'
+# `windows` list is in AX order, which is NOT a promise about which one has the
+# keyboard. So `window 1` meant "some other window of the same app", which put
+# the ⌘F overlay over a window you hadn't pressed the chord in: the search
+# itself was right (it joins on the zmx session, not on a frame), only the
+# placement was, silently, one window off.
+#
+# The retry loop is the palette's half of the same question. ⌘Y is a chord AND
+# a palette row (Peek Files), and a pounce command commits with the palette
+# still fading — `.linger`, ~0.4 s, focus handed back to the captured window
+# only after the client has been spawned. Pounce's own window clears the
+# sanity gate below, so without the wait a palette-summoned popup would size
+# itself to the palette. Ask again until pounce is no longer the frontmost app,
+# then fall through to the centered default if it never yields. `--nowait` is
+# for the one caller that only wants a POINT — the tiled branch's display probe
+# — where a missed answer costs a guess at which screen you are on (and the
+# palette is on that screen anyway), not a misplaced window. It would otherwise
+# pay the whole 0.6 s on every palette-spawned --tiled popup.
 frontmost_frame() {
-  local out x y w h
-  out=$(osascript 2>/dev/null <<'APPLESCRIPT'
+  local out x y w h i tries=12
+  [ "${1:-}" = "--nowait" ] && tries=1
+  for i in $(seq 1 $tries); do
+    out=$(osascript 2>/dev/null <<'APPLESCRIPT'
 tell application "System Events"
   set fronts to (every application process whose frontmost is true)
   if (count of fronts) is 0 then return ""
+  if name of item 1 of fronts is "pounce" then return ""
   tell item 1 of fronts
     if (count of windows) is 0 then return ""
     set w to window 1
@@ -162,6 +178,9 @@ tell application "System Events"
 end tell
 APPLESCRIPT
 )
+    [ -n "$out" ] && break
+    sleep 0.05
+  done
   read -r x y w h <<< "${out:-}"
   # Sanity gate: a real terminal window, not a menubar extra or a zero-size
   # stub. Only w/h are checked — x/y are legitimately negative on a display
@@ -209,7 +228,7 @@ geom() {
   # cursor is the better guess anyway.
   if [ "$mode" = "tiled" ]; then
     local fx fy fw fh probe
-    probe=$(frontmost_frame)
+    probe=$(frontmost_frame --nowait)
     if [ -n "$probe" ]; then
       read -r fx fy fw fh <<< "$probe"
       export HAUS_PROBE_X=$(( fx + fw / 2 )) HAUS_PROBE_Y=$(( fy + fh / 2 ))

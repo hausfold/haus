@@ -9,8 +9,9 @@
 #
 # A separate, FLOATING Ghostty instance rather than a tiled one: peek is
 # summoned over the window that asked for it and dismissed, so it takes nothing
-# away when it goes — no reflow, no window you have to put back. (It was a separate instance under zellij
-# too, for a reason that has since become the whole architecture: zellij's VTE
+# away when it goes — no reflow, no window you have to put back. (It was a
+# separate instance under zellij too, for a reason that has since become the
+# whole architecture: zellij's VTE
 # parser strips kitty-graphics APC sequences, so yazi inside it could only draw
 # chafa block art. Nothing strips them now.)
 #
