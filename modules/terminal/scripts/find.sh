@@ -170,19 +170,34 @@ cmd_launch() {
     # "this window" search would just look broken.
     [ -n "$target" ] || scope="session"
 
-    # A FLOATING window, matched to the frame of the window that summoned it, so
-    # find reads as that terminal switching into a search rather than as a popup
-    # landing somewhere over it. Under zellij this was a 100%/100% borderless
-    # floating PANE, for the same reason and with the same look; --pin lands it
+    # A FLOATING window, and its SIZE follows its SCOPE — the one place in the
+    # rice where two chords of the same script want different geometry:
+    #
+    #   ⌘F  (pane)     matched to the frame of the window that summoned it, so
+    #                  find reads as that terminal switching into a search. The
+    #                  corpus is that window's scrollback and nothing else, so a
+    #                  result you click is already on screen behind the overlay
+    #                  — covering exactly the window it belongs to is the honest
+    #                  shape, not a compromise.
+    #   ⌘⇧F (session)  the whole tiled desktop. This corpus is EVERY session, so
+    #                  there is no one window the overlay belongs to; sizing it
+    #                  to whichever pane happened to be focused made a
+    #                  cross-session result list draw in a half-width column and
+    #                  implied a scope it doesn't have.
+    #
+    # Under zellij both were a 100%/100% borderless floating PANE; --pin lands it
     # on the current workspace and force-floats it, since windows/aerospace.toml
     # floats every runtime-spawned Ghostty window anyway.
     #
     # The overlay's own window has no zmx session (float-term runs the command
     # directly, not through scripts/launch.sh), which is also why it never shows
     # up in its own corpus — there is nothing to enumerate.
+    local geom_flag="--match-frontmost"
+    [ "$scope" = "session" ] && geom_flag="--tiled"
+
     "$HOME/.config/haus/term/float-term.sh" spawn \
         --title "find" \
-        --match-frontmost \
+        "$geom_flag" \
         --pin \
         --command "/bin/bash $SELF ui $dir $scope" >/dev/null
 }

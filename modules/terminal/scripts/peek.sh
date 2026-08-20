@@ -8,7 +8,7 @@
 #                          (the ⌘⇧N convention)
 #
 # A separate, FLOATING Ghostty instance rather than a tiled one: peek is
-# summoned over your work and dismissed, so it covers the window that called it
+# summoned over your work and dismissed, so it covers the whole tiled desktop
 # and takes nothing away when it goes. (It was a separate instance under zellij
 # too, for a reason that has since become the whole architecture: zellij's VTE
 # parser strips kitty-graphics APC sequences, so yazi inside it could only draw
@@ -70,18 +70,25 @@ if [ "$STAY" = 0 ]; then
     fi
 fi
 
-# Spawn a Ghostty running peek-run.sh, sized and placed to COVER THE SUMMONING
-# WINDOW exactly: --match-frontmost hands float-term the frame of the window
-# that's on top at this instant — the Ghostty window whose ⌘Y ran us — so
-# peek reads as that terminal switching into a file browser rather than as a
-# popup landing somewhere over it. (It used to take a centered 80% of the
-# cursor's screen, which on a tiled half-width window sat crooked and spilled
-# past the edges; float-term still falls back to that if the frame is
-# unreadable.) --pin lands it on the current workspace and force-floats it.
+# Spawn a Ghostty running peek-run.sh, sized to COVER THE WHOLE TILED DESKTOP:
+# --tiled hands float-term the visible frame inset by AeroSpace's outer gaps, so
+# peek lands exactly where the windows are and nowhere else.
+#
+# It matched the SUMMONING WINDOW's frame until 2026-08-20 (--match-frontmost),
+# on the theory that peek reads best as that terminal switching into a file
+# browser. It doesn't: a file browser is not scoped to the window that opened it
+# — yazi's whole value is the tree, the preview pane and the parent column
+# side by side — and summoning it from a half-width tiled pane gave it a
+# half-width column to draw all three in. ⌘F is where matching the summoner
+# still earns its keep, because what ⌘F searches IS that one window's
+# scrollback. (Before either, this took a centered 80% of the cursor's screen,
+# which sat crooked over a tiled layout; float-term still falls back to that
+# shape only for --match-frontmost, which is no longer a path peek takes.)
+# --pin lands it on the current workspace and force-floats it.
 # cwd rides in on --working-directory (an EXTRA ghostty flag after `--`).
 "$FLOAT_TERM" spawn \
     --title "$WINDOW_TITLE" \
-    --match-frontmost \
+    --tiled \
     --pin \
     --command "/bin/bash $HOME/.config/haus/term/peek-run.sh$STAY_ARG" \
     -- --working-directory="$START" >/dev/null

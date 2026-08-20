@@ -6,7 +6,7 @@
 #
 # Three subcommands:
 #
-#   geom [--pct N | --w PX --h PX | --match-frontmost]
+#   geom [--tiled | --pct N | --w PX --h PX | --match-frontmost]
 #       Print "X Y W H": a window of the requested size, centered on the
 #       VISIBLE frame (menubar/dock excluded) of whichever display the cursor
 #       is on right now. Multi-monitor aware; coords are Ghostty/AppKit
@@ -14,12 +14,22 @@
 #       --match-frontmost instead returns the frame of the window that is on
 #       top RIGHT NOW — the one whose keystroke summoned us — so the popup
 #       covers its summoner exactly instead of landing at some fraction of the
-#       screen (this is what Super-y peek wants). Falls back to a centered 80%
-#       if that frame can't be read.
+#       screen (this is what ⌘F's this-window search wants). Falls back to a
+#       centered 80% if that frame can't be read.
+#       --tiled is the "cover the whole desktop" size, and it is NOT the same
+#       as --pct 100: the visible frame is everything macOS leaves us, whereas
+#       the TILED area is that frame inset by AeroSpace's outer gaps — the
+#       rectangle the tiled windows themselves occupy, bar room and edge
+#       padding excluded. A --pct 100 popup therefore overhangs every window it
+#       is covering by exactly the gap, which reads as "too big" rather than as
+#       "the desktop, replaced". The four insets are baked in from
+#       ../lib/gaps.nix (GAP_* below) — the SAME arithmetic modules/windows
+#       writes into aerospace.toml's [gaps] block, per monitor class, so the
+#       popup cannot drift from the layout it is covering.
 #       Callers that manage their own window (peek's warm-path teleport and its
 #       --macos-hidden cold spawn) consume this for the centering MATH only.
 #
-#   spawn --title T [--pct N | --w PX --h PX | --match-frontmost]
+#   spawn --title T [--tiled | --pct N | --w PX --h PX | --match-frontmost]
 #         [--cols N --rows N] [--pin]
 #         --command CMD [-- EXTRA ghostty args…]
 #       Spawn a fresh Ghostty INSTANCE running CMD, centered at that geometry,
@@ -62,6 +72,18 @@ export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/usr/bin:/bin:$PATH"
 RING_BIN="@floatring@"
 RING_COLOR="@ring_color@"
 RING_WIDTH="@ring_width@"
+
+# Baked by modules/terminal from ../lib/gaps.nix — AeroSpace's OUTER gaps, in
+# points, per monitor class. These are the same numbers modules/windows writes
+# into aerospace.toml's [gaps] block; imported from the shared file rather than
+# re-derived here so a --tiled popup and the windows it covers can never
+# disagree about where the desktop ends. Only `geom --tiled` reads them.
+GAP_TOP_BUILTIN="@gap_top_builtin@"
+GAP_TOP_EXTERNAL="@gap_top_external@"
+GAP_BOTTOM_BUILTIN="@gap_bottom_builtin@"
+GAP_BOTTOM_EXTERNAL="@gap_bottom_external@"
+GAP_SIDE_BUILTIN="@gap_side_builtin@"
+GAP_SIDE_EXTERNAL="@gap_side_external@"
 
 # ── frame of the window that's on top right now ─────────────────────────────
 # Emits "X Y W H" for the frontmost window of the frontmost application — the
@@ -108,6 +130,7 @@ geom() {
       --w)   mode="px";  W_PX="$2"; shift 2 ;;
       --h)             H_PX="$2"; shift 2 ;;
       --match-frontmost) mode="match"; shift ;;
+      --tiled) mode="tiled"; shift ;;
       *) shift ;;
     esac
   done
@@ -149,14 +172,37 @@ geom() {
       }
       var vf = pick.visibleFrame;
       var vTopY = primaryH - (vf.origin.y + vf.size.height);
+      // Fifth field: which gap column of aerospace.toml this display is in.
+      // AeroSpace keys its per-monitor gaps off the display NAME, so match on
+      // the same string it does rather than on index or on `screens[0]` — the
+      // built-in is not always the primary, and a laptop docked shut has none.
+      var name = "";
+      try { name = ObjC.unwrap(pick.localizedName) || ""; } catch (e) {}
       Math.round(vf.origin.x) + " " + Math.round(vTopY) + " " +
-      Math.round(vf.size.width) + " " + Math.round(vf.size.height);
+      Math.round(vf.size.width) + " " + Math.round(vf.size.height) + " " +
+      (name === "Built-in Retina Display" ? "1" : "0");
     }
   ' 2>/dev/null)
-  [ -z "$frame" ] && frame="0 0 1920 1080"
+  [ -z "$frame" ] && frame="0 0 1920 1080 0"
 
-  local sx sy sw sh win_w win_h
-  read -r sx sy sw sh <<< "$frame"
+  local sx sy sw sh builtin win_w win_h
+  read -r sx sy sw sh builtin <<< "$frame"
+
+  # The tiled desktop: the visible frame minus AeroSpace's outer gaps, which is
+  # the rectangle the windows underneath actually occupy. Returned directly —
+  # there is nothing to centre, the answer IS a frame.
+  if [ "$mode" = "tiled" ]; then
+    local g_top g_bottom g_side
+    if [ "${builtin:-0}" = "1" ]; then
+      g_top="$GAP_TOP_BUILTIN"; g_bottom="$GAP_BOTTOM_BUILTIN"; g_side="$GAP_SIDE_BUILTIN"
+    else
+      g_top="$GAP_TOP_EXTERNAL"; g_bottom="$GAP_BOTTOM_EXTERNAL"; g_side="$GAP_SIDE_EXTERNAL"
+    fi
+    echo "$(( sx + g_side )) $(( sy + g_top ))" \
+         "$(( sw - 2 * g_side )) $(( sh - g_top - g_bottom ))"
+    return 0
+  fi
+
   if [ "$mode" = "pct" ]; then
     win_w=$(( sw * arg / 100 ))
     win_h=$(( sh * arg / 100 ))
@@ -243,7 +289,7 @@ ring() {
 
 # ── spawn a fresh centered instance ─────────────────────────────────────────
 spawn() {
-  local title="" command="" pin=0 cols="" rows="" match=0
+  local title="" command="" pin=0 cols="" rows="" exact=0
   local -a size_args=() extra=()
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -255,7 +301,8 @@ spawn() {
       --pct)     size_args=(--pct "$2"); shift 2 ;;
       --w)       size_args+=(--w "$2"); shift 2 ;;
       --h)       size_args+=(--h "$2"); shift 2 ;;
-      --match-frontmost) size_args=(--match-frontmost); match=1; shift ;;
+      --match-frontmost) size_args=(--match-frontmost); exact=1; shift ;;
+      --tiled)   size_args=(--tiled); exact=1; shift ;;
       --)        shift; extra=("$@"); break ;;
       *) shift ;;
     esac
@@ -309,10 +356,11 @@ spawn() {
 
   # Flipping a window to floating makes aerospace restore its REMEMBERED
   # floating frame, which would undo the placement above. Harmless when we only
-  # wanted "roughly centered", fatal when the whole point is covering the
-  # summoning window pixel-for-pixel — so in --match-frontmost mode, let
-  # aerospace have its say and then plant the frame again, last word ours.
-  if [ "$match" = 1 ] && [ -n "$new_pid" ]; then
+  # wanted "roughly centered", fatal in the two modes whose whole point is a
+  # frame that lines up with something — covering the summoning window
+  # (--match-frontmost) or the tiled desktop (--tiled) — so there, let aerospace
+  # have its say and then plant the frame again, last word ours.
+  if [ "$exact" = 1 ] && [ -n "$new_pid" ]; then
     sleep 0.05
     set_frame "$new_pid" "$pos_x" "$pos_y" "$win_w" "$win_h" 1
   fi
