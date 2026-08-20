@@ -38,7 +38,9 @@
 # for a minute and then activates; a real tiled window would have shrunk every
 # neighbour for that minute and left a shell behind afterwards, so the cost of
 # feeling one branch was a layout you had to repair. A float costs the desktop
-# nothing and closes when you're done reading it.
+# nothing and closes when you're done reading it — and read-then-dismiss is
+# also the only honest shape for a window that has no zmx session and therefore
+# no working chords of its own (see the payload's own comment).
 FLOAT_TERM="$HOME/.config/haus/term/float-term.sh"
 WINDOW_TITLE="quick-terminal-bench-lane"
 
@@ -46,19 +48,43 @@ cwd=""
 [ -x "$HOME/.config/haus/lanes/lane-cwd.sh" ] && cwd="$("$HOME/.config/haus/lanes/lane-cwd.sh")"
 [ -n "$cwd" ] && [ -d "$cwd" ] || cwd="$HOME"
 
-# Stable temp path, the rebuild command's convention: a payload with a `;` and
-# an `exec` in it does not survive being threaded through `open --args` as one
-# ghostty --command string. Overwritten on every invocation.
-RUN_TMP="/tmp/bench-lane-run.sh"
+# The payload, the Rebuild System convention: a command with a `;` in it does
+# not survive being threaded through `open --args` as one ghostty --command
+# string, so it goes in a file and --command runs the file.
+#
+# $TMPDIR rather than rebuild.sh's bare /tmp: on macOS $TMPDIR is a per-user
+# directory (/var/folders/…/T/), so a fixed filename there can't be a symlink
+# someone else planted or a file some other uid owns — which a fixed name in
+# world-writable /tmp can, silently, with `cat`'s error going to a stdout no
+# one reads. Same convention, one hazard fewer. Content is fully static, so
+# two ⌘Bs racing write identical bytes.
+RUN_TMP="${TMPDIR:-/tmp}/haus-bench-lane-run.sh"
 cat >"$RUN_TMP" <<'EOF'
 #!/bin/bash
-# The window stays open after bench exits — the build output and the
-# post-switch activation banner are worth reading, and a float that vanished
-# with the last line would take the failure with it. `exec zsh` also leaves you
-# standing in the lane, which is where the next command usually belongs.
+# --command overrides ghostty's configured launcher, so this window never runs
+# launch.sh and inherits only what `open` leaked from the pounce daemon —
+# launchd's stock PATH plus float-term's own prelude. bench's shebang is
+# `/usr/bin/env bash`, which on a stock PATH resolves macOS bash 3.2 and dies
+# at its first `declare -gA` before its own PATH guard can run. So export the
+# nix bindirs here, exactly as the rebuild payload does.
+export PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:$PATH"
+
 "$HOME/code/workshop/bench" try lane switch
-exec zsh
+
+# Hold, don't hand back a shell. The build output and the post-switch
+# activation banner are the whole point and a float that vanished with the last
+# line would take a failure with it — but this window has no zmx session (a
+# --command instance never reaches launch.sh, which refuses one to a
+# quick-terminal title anyway), so every window-layer chord is dead in it: ⌘B
+# again, ⌘↵ and ⌘N would resolve no cwd and fall back to $HOME, and ⌘F would
+# find no scrollback to search. A popup you read and dismiss is the honest
+# shape for that — the lane's own window is still underneath, unmoved, with all
+# its chords working.
+echo ""
+echo "Press any key to close..."
+read -n 1 -s
 EOF
+chmod 700 "$RUN_TMP"
 xattr -d com.apple.quarantine "$RUN_TMP" 2>/dev/null || true
 
 # cwd rides in on --working-directory (an EXTRA ghostty flag after `--`), the
@@ -68,4 +94,4 @@ exec "$FLOAT_TERM" spawn \
     --match-focused \
     --pin \
     --command "bash $RUN_TMP" \
-    -- --working-directory="$cwd"
+    -- --working-directory="$cwd" >/dev/null
