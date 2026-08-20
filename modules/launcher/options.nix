@@ -378,7 +378,7 @@ in
         };
         "cmd:brew-services".listed = false;
         "cmd:lane-here".workspaces = [ "T" ];
-        "cmd:shell-here".bundleIds = [ "com.mitchellh.ghostty" ];
+        "cmd:peek".bundleIds = [ "com.mitchellh.ghostty" ];
         "app:/Applications/Ghostty.app".hotkey = "opt+t";
         "shortcut:0ECC8F7A-3A52-467A-84C0-511CCE1CB9B7".alias = "shelf";
         "mode:clipboard".hotkey = "cmd+shift+v";

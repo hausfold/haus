@@ -33,8 +33,9 @@
 # Spawn Agent is the answer there: it asks which repo rather than inheriting the
 # focused window's, which is why it is the palette row that survives off the
 # terminal pages — New Agent Lane's row is scoped to them (see
-# modules/launcher's `items."cmd:lane-here".workspaces`) precisely because
-# everything below this line has nothing to work with from a browser.
+# modules/launcher's `items."cmd:lane-here".workspaces`, written only where the
+# windows room gives ghostty a page to be on) precisely because everything below
+# this line has nothing to work with from a browser.
 #
 # ── the cost of living outside the multiplexer: no cwd ───────────────────────
 # A zellij bind inherited the focused pane's directory for free. A chord bound

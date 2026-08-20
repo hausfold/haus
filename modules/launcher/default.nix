@@ -548,17 +548,32 @@ let
   # header fields it doesn't know, so that line costs the command nothing.
   riceCommandRows =
     map
-      (file: {
-        key =
-          let
-            cheat = commandField file "cheat";
-          in
-          if cheat != null then
-            cheat
-          else
-            lib.toLower (lib.head (lib.splitString " " (commandField file "name")));
-        action = commandField file "description";
-      })
+      (
+        file:
+        let
+          # The row's own `items` entry, if it has one — the cheatsheet is the
+          # only surface that can say a row is SCOPED (see below).
+          scope = items."cmd:${lib.removeSuffix ".sh" file}" or null;
+          pages = if scope == null then [ ] else scope.workspaces;
+        in
+        {
+          key =
+            let
+              cheat = commandField file "cheat";
+            in
+            if cheat != null then
+              cheat
+            else
+              lib.toLower (lib.head (lib.splitString " " (commandField file "name")));
+          # A scoped row says where it lives. Without this the card teaches a
+          # query that returns nothing from the wrong page — no error, no hint,
+          # and the cheatsheet is exactly where someone goes to find out what
+          # they can type. The palette can't explain an absent row; this can.
+          action =
+            commandField file "description"
+            + lib.optionalString (pages != [ ]) " · on ${lib.concatStringsSep ", " pages}";
+        }
+      )
       (
         lib.filter
           (
@@ -642,8 +657,10 @@ let
   # entirely, so the generated config stays readable and a diff shows intent.
   items = config.haus.launcher.items;
 
-  # An entry says something when it differs from pounce's own defaults — which,
-  # for the two context predicates, means a non-empty list.
+  # An entry says something TO POUNCE when it differs from pounce's own defaults
+  # — which, for the two context predicates, means a non-empty list. `caption` is
+  # not in here on purpose: it is haus-side cheatsheet text pounce has never
+  # heard of, and a field added to this list is a field written into its JSON.
   itemSpeaks =
     item:
     !item.listed
@@ -669,6 +686,13 @@ let
     // lib.optionalAttrs (item.workspaces != [ ]) { inherit (item) workspaces; }
     // lib.optionalAttrs (item.bundleIds != [ ]) { inherit (item) bundleIds; }
   ) (lib.filterAttrs (_: itemSpeaks) items);
+
+  # The terminal page's id, from the data rather than from the letter T:
+  # `_appWorkspace` is the reverse lookup the workspaces room already maintains
+  # (windows puts ghostty on T), so a desktop that renames the page moves the
+  # rows scoped to it. null when nothing claims ghostty — which is also when
+  # there is no tiler to be on a page of, and the scoping below is not written.
+  terminalPage = config.haus._appWorkspace.ghostty or null;
 
   # Items whose ROW is scoped to a workspace. They are the second reader of the
   # recency file below, and the reason it is written even where the ⌃⇥ page walk
@@ -1028,19 +1052,27 @@ lib.mkIf config.haus.launcher.enable {
     # DOES work from anywhere — Spawn Agent asks which repo instead of
     # inheriting one, which is exactly why it is not in this list.
     #
-    # "T" covers T and every T/<repo> lane page (lane-open.sh tiles them there),
-    # the same prefix the ⌃⇥ walk reads. mkDefault, so a host can hand them back:
+    # The page name covers it AND every <page>/<repo> lane page (lane-open.sh
+    # tiles them there), the same prefix the ⌃⇥ walk reads. mkDefault, so a host
+    # can hand them back:
     #
     #   haus.launcher.items."cmd:lane-here".workspaces = [ ];   # everywhere
     #   haus.launcher.items."cmd:lane-here".bundleIds = [ "com.mitchellh.ghostty" ];
     #
     # — the second being the tighter predicate of the two, for a terminal window
-    # dragged off T. The page is what haus scopes by because the page is what
-    # the lane rooms already agree about.
-    (lib.mkIf lanesEnabled {
-      "cmd:lane-here".workspaces = lib.mkDefault [ "T" ];
-      "cmd:shell-here".workspaces = lib.mkDefault [ "T" ];
-      "cmd:shell-here-stay".workspaces = lib.mkDefault [ "T" ];
+    # dragged off the page. The page is what haus scopes by because the page is
+    # what the lane rooms already agree about.
+    #
+    # Gated on the WINDOWS room, not just on lanes: terminal supports lanes with
+    # haus.windows.enable = false (a warning, not an assertion), and on such a
+    # machine there is no T, nothing writes the recency file, and the rows'
+    # visibility would rest entirely on pounce's no-file-means-no-filter
+    # fallback — a fallback this repo can neither assert nor test. Not writing
+    # the scoping at all is the honest version of the same outcome.
+    (lib.mkIf (lanesEnabled && config.haus.windows.enable && terminalPage != null) {
+      "cmd:lane-here".workspaces = lib.mkDefault [ terminalPage ];
+      "cmd:shell-here".workspaces = lib.mkDefault [ terminalPage ];
+      "cmd:shell-here-stay".workspaces = lib.mkDefault [ terminalPage ];
     })
   ];
 
@@ -1668,7 +1700,9 @@ lib.mkIf config.haus.launcher.enable {
             page = "Tips";
             # The static commands' rows, then the generated scene rows — the
             # same split riceCommands installs, so a row exists iff its command
-            # does.
+            # does. A row whose `items` entry scopes it to certain pages carries
+            # them in its caption, because "installed" and "listed right now"
+            # stopped being the same question.
             items = riceCommandRows ++ sceneCommandRows;
           }
         ]
