@@ -1597,6 +1597,7 @@
             sys finder.sidebar 1 3 3 3
             file .claude/skills/haus/references/this-machine.md moves
             file .config/aerospace/aerospace.toml moves
+            file .config/haus/term/float-term.sh moves
             file .config/opencode/skills/haus/references/this-machine.md moves
             file .config/pounce/config.json ceiling
             file .config/sketchybar/sizes.sh ceiling
