@@ -279,7 +279,7 @@
     "bar": {
       "blurb": "The menu bar, and which pills it draws.",
       "kind": "room",
-      "optionCount": 83,
+      "optionCount": 81,
       "options": {
         "haus.bar.aiUsage.provider": {
           "desktopSafe": true
@@ -330,9 +330,6 @@
           "desktopSafe": true
         },
         "haus.bar.bottom.items.memory": {
-          "desktopSafe": true
-        },
-        "haus.bar.bottom.items.page": {
           "desktopSafe": true
         },
         "haus.bar.bottom.items.volume": {
@@ -460,9 +457,6 @@
           "desktopSafe": true
         },
         "haus.bar.items.memory": {
-          "desktopSafe": true
-        },
-        "haus.bar.items.page": {
           "desktopSafe": true
         },
         "haus.bar.items.volume": {
@@ -1186,7 +1180,7 @@
     "terminal": {
       "blurb": "The shell and terminal experience.",
       "kind": "room",
-      "optionCount": 6,
+      "optionCount": 7,
       "options": {
         "haus.terminal.editor": {
           "desktopSafe": false,
@@ -1207,6 +1201,9 @@
         "haus.terminal.obsidianVaults": {
           "desktopSafe": false,
           "reason": "local-path"
+        },
+        "haus.terminal.restoreWindows": {
+          "desktopSafe": true
         }
       },
       "order": 70,
@@ -1567,7 +1564,7 @@
         "menuBar",
         "bar"
       ],
-      "optionCount": 95,
+      "optionCount": 93,
       "order": 60,
       "title": "Bar"
     },
@@ -1591,7 +1588,7 @@
         "zen",
         "developer"
       ],
-      "optionCount": 19,
+      "optionCount": 20,
       "order": 40,
       "title": "Development"
     },

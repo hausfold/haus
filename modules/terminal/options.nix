@@ -51,10 +51,12 @@ in
     _contrib.development.agents = contrib.mkExtensionPoint {
       description = ''
         The AI room's agent lifecycle bindings, as the terminal renders them:
-        the ⌃⌥⇧A chord that spawns an agent in THIS checkout, the `c` alias, and
-        the cheatsheet cards the launcher draws from the same table. The chord that
-        spawns a fresh `holt` worktree is not here — a lane is a window, so it
-        is ⌘↵, a Ghostty-scoped launcher hotkey firing `cmd:lane-here`.
+        the `c` alias — the client, in the checkout the shell is already in —
+        and the cheatsheet cards the launcher draws from the same table. The
+        chord that spawns a fresh `holt` worktree is not here — a lane is a
+        window, so it is ⌘↵, a Ghostty-scoped launcher hotkey firing
+        `cmd:lane-here`. There is no chord for the resident agent: ⌃⌥⇧A ran one
+        until 2026-08-19, and `c` was always the shorter way to type it.
 
         Off leaves the terminal exactly as it is without agents — no dead chord
         teaching a client this machine never installed. It never installs an
@@ -228,6 +230,40 @@ in
         like `bench` are NOT covered — macOS gates the public.unix-executable
         handler behind an interactive dialog; set it by hand once if wanted:
         `duti -s com.hausfold.editoropen public.unix-executable all`.)
+      '';
+    };
+
+    terminal.restoreWindows = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      example = false;
+      description = ''
+        Put your terminal windows back when Ghostty starts.
+
+        Closing a window does not end its shell — every window is a `zmx`
+        session that outlives it, so a ⌘W, a ⌘Q or a crash leaves the shells
+        (and any agents) running with nothing looking at them. On, the FIRST
+        window of a Ghostty reopens one window per parked session, each attached
+        to the session it belongs to, with lanes landing back on their own
+        `T/<repo>` pages. Off, that first window is just a new shell and the
+        parked sessions wait — the palette's **Restore Terminal Windows** does
+        the same thing on demand either way, as does the `agents` pill, ⌘F's ⏎
+        and the **Lanes** picker for one session at a time.
+
+        Only the FIRST window restores, never a later one: ⌘N and ⌘⇧N always
+        open a new shell in the directory you asked for, which is the only thing
+        they promise. A shell you are finished with should be ended (⌃D, or
+        `exit`) rather than closed, or it is a window that comes back.
+
+        "First" means nothing is attached anywhere on the machine, which is a
+        shade broader than "first window of this Ghostty": with a tiler, a lane
+        runs as its own Ghostty instance, so quitting the main one while a lane
+        window is still open leaves something attached and the automatic restore
+        stays quiet. The palette row is the answer there, and is the answer
+        whenever the automatic moment has passed.
+
+        Needs `haus.ai.clients` — not for the lanes, but because `zmx` itself
+        rides that switch, and with no zmx there are no sessions to park.
       '';
     };
 

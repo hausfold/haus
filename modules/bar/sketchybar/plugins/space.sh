@@ -24,8 +24,17 @@ echo "$(date) - Item: $NAME, ID: ${NAME#space.}, Current: $CURRENT_WORKSPACE (Ex
 # Extract workspace ID from item name (space.1 -> 1, space.C -> C)
 WORKSPACE_ID="${NAME#space.}"
 
-# Check if this workspace is the focused workspace
-if [ "$WORKSPACE_ID" = "$CURRENT_WORKSPACE" ]; then
+# Check if this workspace is the focused workspace.
+#
+# A PAGE counts as its workspace. The focused workspace may be `T/haus` — the
+# per-repo page a lane's window tiles onto (terminal/lanes/lane-open.sh) — and
+# there is no `space.T/haus` pill, only `space.T`. Matched by exact string alone
+# this pill went DARK for the whole time a page was focused, which on this
+# desktop is most of the time the bar is looked at: the terminal's own pill
+# disappeared exactly while you were in the terminal. The `page` pill beside the
+# front app names which page; this names which workspace, and the two only read
+# as a pair if both are lit.
+if [ "$WORKSPACE_ID" = "$CURRENT_WORKSPACE" ] || [ "${CURRENT_WORKSPACE#"$WORKSPACE_ID"/}" != "$CURRENT_WORKSPACE" ]; then
     echo "  -> Active" >> /tmp/sketchybar_space.log
     # Active workspace - highlight it
     /opt/homebrew/bin/sketchybar --set $NAME \
@@ -33,8 +42,11 @@ if [ "$WORKSPACE_ID" = "$CURRENT_WORKSPACE" ]; then
         icon.color=$BASE \
         label.color=$BASE \
         drawing=on
-# Check if this workspace has windows
-elif echo "$WORKSPACES_WITH_WINDOWS" | grep -q "^${WORKSPACE_ID}$"; then
+# Check if this workspace has windows — in itself or on any of its pages, for
+# the same reason. `caps t` resolves a bare workspace to its most recent live
+# page (windows/scripts/workspace-mru.sh), so a `T` whose windows all live on
+# `T/*` is somewhere you can go, not an empty workspace to hide.
+elif echo "$WORKSPACES_WITH_WINDOWS" | grep -qE "^${WORKSPACE_ID}(/|\$)"; then
     echo "  -> Inactive with windows" >> /tmp/sketchybar_space.log
     # Inactive workspace with windows
     /opt/homebrew/bin/sketchybar --set $NAME \

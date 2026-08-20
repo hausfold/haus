@@ -17,13 +17,20 @@
 # and that only exists if the window's shell is INSIDE a session. So the session
 # is the read API, exactly as it is for a lane — see notes/zellij-exit.md.
 #
-# ── the name, and why it is recycled ─────────────────────────────────────────
-# `term.<n>`, lowest free n. "Free" means the session does not exist, or exists
-# with `clients=0` — i.e. it was left behind by a closed window or a Ghostty
-# quit. So reopening Ghostty walks back into the shells you had, in order, and
-# closing a window parks its scrollback rather than burning it. Sessions whose
-# name is not `term.*` are never touched: `holt.*` lanes belong to lane-open.sh
-# and an `zmx attach` you typed yourself belongs to you.
+# ── the name ─────────────────────────────────────────────────────────────────
+# `term.<n>`, lowest n that no session holds. A NEW window is always a new
+# shell: closing a window parks its session rather than burning it, and a parked
+# session is a live shell in some directory of its own, so handing one to the
+# next ⌘N would break the only thing ⌘N promises. Walking back into a parked
+# shell is `scripts/restore-windows.sh`'s job — automatic for the first window
+# of a Ghostty, on demand from the palette — and the bar's, and ⌘F's, and the
+# Lanes picker's. Sessions whose name is not `term.*` are never claimed here:
+# `holt.*` lanes belong to lane-open.sh and a `zmx attach` you typed yourself
+# belongs to you.
+#
+# So the pair to have in the fingers is ⌃D vs ⌘W. ⌃D ends the shell, which ends
+# the session and frees its number; ⌘W closes the window and keeps everything
+# running, to be handed back the next time Ghostty starts.
 set -u
 
 export PATH="/etc/profiles/per-user/$USER/bin:/run/current-system/sw/bin:$PATH"
@@ -83,60 +90,127 @@ command -v zmx >/dev/null 2>&1 || {
     run_shell
 }
 
-# ── claiming a name ──────────────────────────────────────────────────────────
-# Two windows opened in the same breath (⌘N twice, or a restored Ghostty
-# session) would both read the same `zmx ls` and both pick term.1, and the
-# second `attach` would then land a second client on the first one's session.
-# mkdir is the mutex — atomic on every filesystem, no flock (macOS /bin has
-# none), and self-healing because a stale lock older than a few seconds is
-# simply removed.
-lockdir="${TMPDIR:-/tmp}/haus-term-claim.lock"
-tries=0
-until /bin/mkdir "$lockdir" 2>/dev/null; do
-    tries=$((tries + 1))
-    # ~1s is an order of magnitude more than the one `zmx ls` below can take,
-    # so a lock still held here is a crashed claim, not a slow one. Break it
-    # and carry on: a duplicated claim costs one extra client on one session,
-    # a deadlocked launcher costs the window.
-    if [ "$tries" -ge 20 ]; then
-        log "claim lock looked stale after ${tries} tries — breaking it"
-        /bin/rmdir "$lockdir" 2>/dev/null
-        tries=0
+# ── which session this window is ─────────────────────────────────────────────
+# Two answers, and they are different acts on purpose.
+#
+#   HAUS_ZMX_ATTACH=<name>   attach to THAT session, whatever its number. Set by
+#                            scripts/restore-windows.sh, which is the ONLY thing
+#                            that reattaches a session to a new window.
+#   unset                    a name NOBODY holds: the lowest `term.<n>` that
+#                            does not exist at all.
+#
+# That second rule used to read "the lowest n that is not ATTACHED", which
+# silently made every new window a lottery: a `term.<n>` left behind by a closed
+# window is a live shell sitting in some other directory, so ⌘N — whose entire
+# promise is "a shell HERE" — would drop you into an old one somewhere else,
+# with its scrollback and its cwd, roughly as often as you had parked a window.
+# A new window is now always a new shell. Getting an old one back is the restore
+# path's job, and the bar's, and the Lanes picker's — never a spawn chord's.
+if [ -n "${HAUS_ZMX_ATTACH:-}" ]; then
+    SESSION="$HAUS_ZMX_ATTACH"
+    log "explicit attach: $SESSION"
+else
+    # Two windows opened in the same breath (⌘N twice, or the restore fan-out)
+    # would both read the same `zmx ls` and both pick term.1, and the second
+    # `attach` would then land a second client on the first one's session. mkdir
+    # is the mutex — atomic on every filesystem, no flock (macOS /bin has none),
+    # and self-healing because a stale lock is simply removed.
+    lockdir="${TMPDIR:-/tmp}/haus-term-claim.lock"
+    tries=0
+    until /bin/mkdir "$lockdir" 2>/dev/null; do
+        tries=$((tries + 1))
+        # ~1s is an order of magnitude more than the one `zmx ls` below can
+        # take, so a lock still held here is a crashed claim, not a slow one.
+        # Break it and carry on: a duplicated claim costs one extra client on
+        # one session, a deadlocked launcher costs the window.
+        if [ "$tries" -ge 20 ]; then
+            log "claim lock looked stale after ${tries} tries — breaking it"
+            /bin/rmdir "$lockdir" 2>/dev/null
+            tries=0
+        fi
+        sleep 0.05
+    done
+
+    # `clients=N` is a field zmx keeps itself, so "is a window already looking
+    # at this" needs no bookkeeping of ours. One pass, three answers: every
+    # `term.<n>` that EXISTS (what a new name must avoid), whether anything at
+    # all is attached (are we the first window of this Ghostty), and the
+    # detached sessions in name order (what restore has to reopen).
+    sessions=$(zmx ls 2>/dev/null | awk -F'\t' '
+      {
+        name = ""; clients = ""
+        for (i = 1; i <= NF; i++) {
+          p = index($i, "=")
+          if (p == 0) continue
+          k = substr($i, 1, p - 1); gsub(/^[ \t]+|[ \t]+$/, "", k)
+          # zmx marks the row you are ATTACHED to in its first field
+          # ("-> ** name=..."), gluing the marker onto that key. Strip
+          # anything before the key proper or the session you are
+          # sitting in is the one row that never matches.
+          sub(/^[^A-Za-z_]*/, "", k)
+          if (k == "name")    name    = substr($i, p + 1)
+          if (k == "clients") clients = substr($i, p + 1)
+        }
+        if (name != "") print name "\t" (clients == "" ? "0" : clients)
+      }')
+
+    taken=$(printf '%s\n' "$sessions" | awk -F'\t' '$1 ~ /^term\./ { print substr($1, 6) }')
+    n=1
+    while printf '%s\n' "$taken" | grep -qx "$n"; do
+        n=$((n + 1))
+    done
+    SESSION="term.$n"
+
+    # ── restoring the desk ───────────────────────────────────────────────────
+    # A window looks like the FIRST of this Ghostty when nothing is attached
+    # anywhere: every other window would be a client on some session, and this
+    # one has not attached yet. So a ⌘Q (or a crash, or a logout that left the
+    # daemon up) followed by opening Ghostty lands exactly here, with every
+    # session it left behind sitting parked — and that is the one moment "put my
+    # windows back" is what was meant. Opening a SECOND window is never that,
+    # which is why this cannot live in the spawn chords.
+    #
+    # "Looks like" is doing real work in that sentence, and the marker below is
+    # what makes it safe. This window does not become a client until `zmx
+    # attach` at the very bottom of the file, long after it has to decide — so a
+    # second window opened in the same breath (a double Dock click, two `open -a
+    # Ghostty`) reads the same "nothing attached", adopts the same session and
+    # fans out a second time. The marker is held across the whole fan-out by
+    # restore-windows.sh, which owns releasing it; taking it HERE rather than
+    # there is what also makes the adopt single, since the adopt is half of the
+    # same act.
+    #
+    # This window adopts the first parked `term.<n>` itself rather than opening
+    # a fresh session beside the restored ones, or you would come back to your
+    # desk plus one empty window on top of it.
+    parked_ours=$(printf '%s\n' "$sessions" |
+        awk -F'\t' '$2 == "0" && ($1 ~ /^term\./ || $1 ~ /^holt\./)' | grep -c .)
+    if [ "@restore@" = 1 ] &&
+       [ "$parked_ours" -gt 0 ] &&
+       ! printf '%s\n' "$sessions" | awk -F'\t' '$2 != "0"' | grep -q . &&
+       /bin/mkdir "${TMPDIR:-/tmp}/haus-term-restoring" 2>/dev/null; then
+        adopt=$(printf '%s\n' "$sessions" |
+            awk -F'\t' '$2 == "0" && $1 ~ /^term\./ { print substr($1, 6) }' | sort -n | head -1)
+        if [ -n "$adopt" ]; then
+            SESSION="term.$adopt"
+            log "restore: adopting $SESSION"
+        fi
+        # The rest, in the background: this script has a window to attach.
+        # --except keeps the fan-out from opening a second window onto the
+        # session we are about to sit in. HAUS_RESTORE_LOCK hands over the
+        # marker, including the job of removing it.
+        HAUS_RESTORE_LOCK="${TMPDIR:-/tmp}/haus-term-restoring" \
+            "$HOME/.config/haus/term/restore-windows.sh" --except "$SESSION" \
+            </dev/null >>"$LOG" 2>&1 &
     fi
-    sleep 0.05
-done
 
-# `clients=N` is a field zmx keeps itself (see `zmx ls`), so "is a window
-# already looking at this" needs no bookkeeping of ours.
-busy=$(zmx ls 2>/dev/null | awk -F'\t' '
-  {
-    name = ""; clients = ""
-    for (i = 1; i <= NF; i++) {
-      p = index($i, "=")
-      if (p == 0) continue
-      k = substr($i, 1, p - 1); gsub(/^[ \t]+|[ \t]+$/, "", k)
-      # zmx marks the row you are ATTACHED to in its first field
-      # ("-> ** name=..."), gluing the marker onto that key. Strip
-      # anything before the key proper or the session you are
-      # sitting in is the one row that never matches.
-      sub(/^[^A-Za-z_]*/, "", k)
-      if (k == "name")    name    = substr($i, p + 1)
-      if (k == "clients") clients = substr($i, p + 1)
-    }
-    if (name ~ /^term\./ && clients != "0") print substr(name, 6)
-  }')
+    log "claimed $SESSION (existing: $(printf '%s' "$taken" | tr '\n' ' '))"
 
-n=1
-while printf '%s\n' "$busy" | grep -qx "$n"; do
-    n=$((n + 1))
-done
-SESSION="term.$n"
-log "claimed $SESSION (busy: $(printf '%s' "$busy" | tr '\n' ' '))"
-
-# The lock is released before the attach, not after: attach does not return
-# until the window closes, and holding a global mutex for the life of a window
-# would serialise every terminal on the machine down to one.
-/bin/rmdir "$lockdir" 2>/dev/null
+    # The lock is released before the attach, not after: attach does not return
+    # until the window closes, and holding a global mutex for the life of a
+    # window would serialise every terminal on the machine down to one.
+    /bin/rmdir "$lockdir" 2>/dev/null
+fi
 
 # This is a regular terminal window. windows floats every runtime ghostty
 # window (see windows/aerospace.toml — popups must never be tiled, and title
@@ -224,6 +298,15 @@ log "claimed $SESSION (busy: $(printf '%s' "$busy" | tr '\n' ' '))"
 # `zmx attach` creates the session if it isn't there and re-attaches if it is,
 # so "restore" and "new" are the same call. No trailing command: we want the
 # session's own login shell, which is $SHELL above.
+#
+# HAUS_ZMX_ATTACH is dropped first, and that is not tidiness. Attaching to a
+# session that still exists never runs a shell, so the variable goes nowhere —
+# but a session that DIED between the restore listing it and this line is
+# created here instead, and its brand-new login shell would inherit the name of
+# the session it is supposed to be. From that shell, anything that spawns a
+# Ghostty inheriting the environment would put every window it opened onto that
+# one session.
+unset HAUS_ZMX_ATTACH
 zmx attach "$SESSION" 2> >(tee -a "$LOG" >&2)
 rc=$?
 log "zmx exited with code $rc"

@@ -48,7 +48,8 @@
 >   it, and nothing re-hosted it — while `term-bindings.nix` still drew the row
 >   and four option descriptions still promised it, which meant it would have
 >   rendered onto hausfold.co's options reference as a live key. It is
->   `cmd:agent-here` on the Ghostty tap now.
+>   `cmd:agent-here` on the Ghostty tap now. *(Retired 2026-08-19: the chord
+>   and its command are both gone — `c` in the window's shell is the same act.)*
 > - **⌘Y rooted yazi at the pounce daemon's cwd.** Every other moved chord got a
 >   `lane-cwd.sh` call; peek was ported without one, so the worktree→main hop —
 >   the entire difference between ⌘Y and ⌘⇧Y — was evaluating against launchd's

@@ -7,7 +7,7 @@
 # that appears on no page, or a page teaching a key that moved, are both drift
 # — and the cheatsheet's whole job is to be the one place those can't happen.
 # This table is what caught the last round of it: the Tips page still taught
-# ⌘C/⌃⌥⇧C for agents months after they became ⌘A/⌃⌥⇧A, because those rows were
+# ⌘C for agents months after that chord had moved, because those rows were
 # hand-typed prose sitting a repo away from the binds they described.
 #
 # ── what this table stopped being, when zellij went ──────────────────────────
@@ -68,11 +68,6 @@ rec {
           key = "⌘ ↵";
           chords = [ "cmd+return" ];
           action = "New agent lane in this window's repo";
-        }
-        {
-          key = "⌃ ⌥ ⇧ A";
-          chords = [ "ctrl+alt+shift+a" ];
-          action = "Agent in THIS checkout — one per window";
         }
       ];
     }

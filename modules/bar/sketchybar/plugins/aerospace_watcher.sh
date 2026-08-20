@@ -36,10 +36,17 @@ FULLSCREEN=$(aerospace_fullscreen)
 ACTIVE_COLOR=$(fullscreen_active_ws_color "$FULLSCREEN")
 
 ARGS=()
+# A PAGE counts as its workspace, in BOTH tests — the same rule plugins/space.sh
+# and launch_mode.sh's restore apply, and this is the copy that runs most often
+# (every 2 s, and on every app switch). The focused workspace may be `T/haus`,
+# and there is no `space.T/haus` pill, only `space.T`; bare `T` also holds no
+# windows once lanes tile onto their own pages, so an exact occupancy match
+# hides it as empty. Matched exactly here, this loop would re-darken the pill
+# space.sh had just lit, within two seconds, forever.
 for workspace in "${WORKSPACES[@]}"; do
-    if [ "$workspace" = "$CURRENT" ]; then
+    if [ "$workspace" = "$CURRENT" ] || [ "${CURRENT#"$workspace"/}" != "$CURRENT" ]; then
         ARGS+=(--set space.$workspace background.color=$ACTIVE_COLOR icon.color=$BASE label.color=$BASE drawing=on)
-    elif echo "$WITH_WINDOWS" | grep -q "^${workspace}$"; then
+    elif echo "$WITH_WINDOWS" | grep -qE "^${workspace}(/|\$)"; then
         ARGS+=(--set space.$workspace background.color=$SURFACE0 icon.color=$TEXT label.color=$TEXT drawing=on)
     else
         ARGS+=(--set space.$workspace drawing=off)

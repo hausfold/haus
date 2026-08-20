@@ -51,6 +51,14 @@ source "$HOME/.config/sketchybar/logo_config.sh"
 # plain "<key>:<ws>" string.)
 source "$HOME/.config/sketchybar/workspaces.sh"
 
+# $BAR_PAGES — GENERATED from haus.windows.enable, the same switch that decides
+# whether sketchybarrc adds the `page` item at all. Read here because this file
+# eval's its whole repaint as ONE sketchybar invocation: a `--set` naming an item
+# that was never added would land mid-batch. Unreachable today (launch mode is
+# an AeroSpace mode, so the leader implies the tiler implies the pill), which is
+# exactly why it would be a silent trap for whoever decouples them.
+source "$HOME/.config/sketchybar/windows_config.sh"
+
 spaces() { sketchybar --query bar | jq -r '.items[] | select(startswith("space."))'; }
 
 acquire_lock() {
@@ -85,6 +93,13 @@ do_arm() {
     local hide="" sp
     for sp in $(spaces); do hide+=" --set $sp drawing=off updates=off"; done
     hide+=" --set aerospace_watcher updates=off --set front_app drawing=off"
+    # `page` freezes and hides with the workspace pills — frozen as well as
+    # hidden because a workspace change while the leader is armed (caps→letter
+    # fires `on` then `off`) would otherwise re-run its script and flash it back
+    # on over the picker row. It is restored by re-running its own plugin (see
+    # do_disarm) rather than from a value computed here: its label is a
+    # workspace name, and this batch is `eval`ed as one unquoted string.
+    [ "${BAR_PAGES:-0}" = 1 ] && hide+=" --set page drawing=off updates=off"
 
     # Color the picker; collect open/active first for the left-ward ordering.
     local colors="" active="" closed=""
@@ -128,17 +143,22 @@ do_disarm() {
     # Hide the picker bubbles.
     for entry in $LAUNCHERS; do a+=" --set launcher.${entry%%:*} drawing=off"; done
     # Thaw + repaint the workspace pills to live occupancy (mirrors space.sh).
+    # `$focused` may be a PAGE (`T/haus`), and the pill for its workspace is
+    # `space.T` — so match the workspace itself OR anything under it, exactly as
+    # plugins/space.sh does. Without this the terminal pill goes dark the moment
+    # a lane page is focused, which is most of the time this bar is looked at.
     for sp in $(spaces); do
         ws=${sp#space.}
-        if [ "$ws" = "$focused" ]; then
+        if [ "$ws" = "$focused" ] || [ "${focused#"$ws"/}" != "$focused" ]; then
             a+=" --set $sp updates=when_shown drawing=on background.color=$active_color icon.color=$BASE label.color=$BASE"
-        elif grep -qx "$ws" <<<"$open"; then
+        elif grep -qE "^${ws}(/|\$)" <<<"$open"; then
             a+=" --set $sp updates=when_shown drawing=on background.color=$SURFACE0 icon.color=$TEXT label.color=$TEXT"
         else
             a+=" --set $sp updates=when_shown drawing=off"
         fi
     done
     a+=" --set aerospace_watcher updates=on --set front_app drawing=on"
+    [ "${BAR_PAGES:-0}" = 1 ] && a+=" --set page updates=on"
 
     # Restore the logo's two colours from the snapshot in the SAME batch, so the
     # left side repaints in a single frame. Restoring rather than recomputing is
@@ -149,6 +169,12 @@ do_disarm() {
     a+=" --set haus.logo icon.color=$ac background.color=$ab"
 
     eval "sketchybar $a"
+    # One extra process, on a keypress that already spawns several, and the only
+    # honest way to restore a pill whose visibility depends on a name: the batch
+    # above is eval'ed unquoted, and a workspace name is not ours to assume is
+    # one shell word.
+    [ "${BAR_PAGES:-0}" = 1 ] &&
+      "$HOME/.config/sketchybar/plugins/page.sh" >/dev/null 2>&1 &
     rm -f "$SNAP"
 }
 

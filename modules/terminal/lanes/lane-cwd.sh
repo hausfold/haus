@@ -3,7 +3,7 @@
 #
 # The shared half of every window-layer chord. A zellij bind inherited the
 # focused pane's directory for free; a chord bound outside the terminal (⌘↵'s
-# lane-spawn.sh, ⌘N/⌘⇧N's shell-here, ⌘Y's peek, ⌘B, ⌃⌥⇧A) has no directory at
+# lane-spawn.sh, ⌘N/⌘⇧N's shell-here, ⌘Y's peek, ⌘B) has no directory at
 # all, so it has to ask.
 #
 # The answer is one hop past scripts/focused-session.sh, which does the hard

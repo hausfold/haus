@@ -376,16 +376,18 @@ it silently.
   and `default.nix` so the enum and the emission can't disagree.
   macOS reserves the top strip of a display and
   reserves NOTHING at the bottom, so windows's `outerBottom` carves the room instead.
-- **A bottom-bar pill that starts `drawing=off` must also set `updates=on`.**
-  The bottom bar's `--default` carries `updates=when_shown` (`bar-bottomrc`),
-  and SketchyBar applies that to EVENT delivery, not just to `update_freq`
-  ticks: a hidden item is not dispatched to at all, so the very script that
-  would turn its drawing back on never runs. Starting hidden is a one-way door
-  under the inherited default — which is exactly what kept the `page` pill
-  invisible from the day it landed, on the `T/<repo>` pages it exists to label.
-  It hides well, too: a hand-run `--update` (`SENDER=forced`) DOES reach a
-  hidden item, so poking the pill by hand repaints it perfectly and only the
-  live event path fails. `media` and `page` both carry `updates=on` for this.
+- **Any pill that starts `drawing=off` must also set `updates=on`.** BOTH
+  bars' `--default` carries `updates=when_shown` (`sketchybarrc` and
+  `bar-bottomrc` alike), and SketchyBar applies that to EVENT delivery, not just
+  to `update_freq` ticks: a hidden item is not dispatched to at all, so the very
+  script that would turn its drawing back on never runs. Starting hidden is a
+  one-way door under the inherited default — which is exactly what kept the
+  `page` pill invisible from the day it landed, on the very pages it exists to
+  label. It hides well, too: a hand-run `--update` (`SENDER=forced`) DOES reach
+  a hidden item, so poking the pill by hand repaints it perfectly and only the
+  live event path fails. `media` carries `updates=on` for this on the movable
+  side, and `page` and `bar_position` do among the pills `sketchybarrc` writes
+  by hand — `page` starts hidden on every workspace that has no pages.
 - **A new default app pick** (an app the rice thinks a finished machine has, not one a
   room needs to do its job): it goes in `modules/apps` — one
   `haus.apps.<thing>.enable` knob in its `options.nix`, one roster entry (never a
@@ -477,10 +479,24 @@ it silently.
   is that Ghostty's AppleScript API can create a surface but cannot READ one, and
   three shipped features read a window: ⌘F find, ⌘L links, and the bar's agent
   peek. `zmx history` / `zmx tail` is that read API. The session is named
-  `term.<n>`, lowest free n, so reopening Ghostty walks back into the shells you
-  had; a lane is `holt.<repo>.<lane>` and belongs to `lanes/lane-open.sh`.
-  `scripts/focused-session.sh` is the one window→session join — by forced window
-  title for a lane, by a `window=` label for everything else.
+  `term.<n>`, lowest n that no session holds; a lane is `holt.<repo>.<lane>` and
+  belongs to `lanes/lane-open.sh`. `scripts/focused-session.sh` is the one
+  window→session join — by forced window title for a lane, by a `window=` label
+  for everything else.
+  - **A NEW window is always a NEW session, and only `restore-windows.sh` ever
+    reattaches one.** The claim used to read "lowest n that is not ATTACHED",
+    which quietly made ⌘N a lottery: a `term.<n>` left by a closed window is a
+    live shell in some other directory, so the chord whose whole promise is "a
+    shell HERE" handed you an old one somewhere else, about as often as you had
+    parked a window. Walking back in is `scripts/restore-windows.sh` — one
+    window per `clients=0` session, automatically for the FIRST window of a
+    Ghostty (`haus.terminal.restoreWindows`, and "first" means nothing is
+    attached anywhere) and on demand from the palette. It hands `holt.*` to
+    `raise-session.sh`, because only `open -na --title` forces the title the
+    AeroSpace join reads, and spawns `term.*` itself with `HAUS_ZMX_ATTACH` in
+    the environment — a forced title on a plain window would freeze the title
+    its program is supposed to own. The user-facing half of the same fact:
+    **⌃D ends a shell and frees its number, ⌘W parks it for the next start.**
 - **The core CLIs** (`modules/core`, each on `PATH` via `writeShellScriptBin`, source
   beside `default.nix`): core ships three dev/user CLIs — **`haus.sh`** (the
   end-user machine driver: rebuild/update/rollback/doctor/status — knows nothing of
