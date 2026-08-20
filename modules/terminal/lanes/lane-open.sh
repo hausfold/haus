@@ -185,16 +185,30 @@ fi
     printf '  gpid=""; p=$$\n'
     printf '  while [ -n "$p" ] && [ "$p" != 1 ]; do\n'
     printf '    case "$(ps -o comm= -p "$p" 2>/dev/null)" in\n'
-    printf '      *ghostty) gpid="$p"; break ;;\n'
+    # Both spellings. The room has paid for this exact word once already:
+    # `pgrep -x Ghostty` never matched the lowercase executable inside the
+    # bundle, so every lane took the cold-start branch for months (see the
+    # note above the pgrep below). A `comm` that reads Ghostty rather than
+    # ghostty would silently disable this whole block, and its failure path is
+    # a bare `exit 0` with nowhere to say so.
+    printf '      *ghostty|*Ghostty) gpid="$p"; break ;;\n'
     printf '    esac\n'
     printf '    p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d " ")\n'
     printf '  done\n'
     printf '  [ -n "$gpid" ] || exit 0\n'
     # The window does not exist for AeroSpace the instant the shell inside it
     # does, so this poll is a real wait rather than the no-op the old one was.
+    # ONE window, or none. A fresh `open -na` process owns exactly one window,
+    # which is the whole reason the pid is a good enough join here — but that
+    # is a fact about this moment, not a structural guarantee: Ghostty's
+    # AppleScript API opens a window in whichever instance it reaches, so a ⌘N
+    # landing in this brand-new instance during the poll below would make a
+    # `head -1` a coin flip, and the loser is teleported by the
+    # --focus-follows-window on the next line. Refusing an ambiguous answer is
+    # the same call the block already makes when it cannot find itself at all.
     printf '  for _ in $(seq 1 40); do\n'
-    printf '    WID=$(aerospace list-windows --monitor all --pid "$gpid" --format "%%{window-id}" 2>/dev/null | head -1)\n'
-    printf '    [ -n "$WID" ] && break\n'
+    printf '    mine=$(aerospace list-windows --monitor all --pid "$gpid" --format "%%{window-id}" 2>/dev/null)\n'
+    printf '    [ "$(printf "%%s\\n" "$mine" | grep -c .)" = 1 ] && { WID="$mine"; break; }\n'
     printf '    sleep 0.05\n'
     printf '  done\n'
     printf '  [ -n "${WID:-}" ] || exit 0\n'

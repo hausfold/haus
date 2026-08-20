@@ -264,7 +264,12 @@ fi
         gpid=""; p=$$
         while [ -n "$p" ] && [ "$p" != 1 ]; do
             case "$(ps -o comm= -p "$p" 2>/dev/null)" in
-                *ghostty) gpid="$p"; break ;;
+                # Both spellings — the executable inside the bundle is
+                # lowercase, but `pgrep -x Ghostty` not matching it is a bug
+                # this room has already shipped once (lanes/lane-open.sh's
+                # cold-start note), and here the only symptom would be a window
+                # that quietly never tiles.
+                *ghostty|*Ghostty) gpid="$p"; break ;;
             esac
             p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d ' ')
         done

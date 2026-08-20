@@ -47,6 +47,12 @@ while IFS='|' read -r id bundle title; do
     case "$bundle" in
         com.mitchellh.ghostty)
             case "$title" in
+                # Every float-term.sh popup — peek, find, github, rebuild,
+                # the palette's installers — and the dropdown itself. Placed at
+                # a pixel frame, floated on purpose, wearing a floatring: a
+                # re-sort must neither move one nor (since it restores layout
+                # too) tile one. The prefix is float-term.sh's own rule; its
+                # header says so, which is where a new popup will read it.
                 quick-terminal*) continue ;;
                 # A zmx lane window: its page is derivable from the forced
                 # title (holt.<repo>.<lane> → T/<repo>, the same join

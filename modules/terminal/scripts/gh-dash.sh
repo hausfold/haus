@@ -19,7 +19,7 @@ set -u
 export PATH="/opt/homebrew/bin:/etc/profiles/per-user/$USER/bin:/run/current-system/sw/bin:$PATH"
 
 exec "$HOME/.config/haus/term/float-term.sh" spawn \
-    --title "github" \
+    --title "quick-terminal-github" \
     --tiled \
     --pin \
     --command "gh-dash"
