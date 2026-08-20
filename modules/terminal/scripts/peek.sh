@@ -72,7 +72,7 @@ if [ "$STAY" = 0 ]; then
 fi
 
 # Spawn a Ghostty running peek-run.sh, sized to COVER THE SUMMONING WINDOW:
-# --match-frontmost hands float-term the frame of the focused window, so peek
+# --match-focused hands float-term the frame of the focused window, so peek
 # opens as that terminal switching into a file browser and takes nothing else on
 # the desktop away — the same shape ⌘F's this-window search wears, for the same
 # reason. Peek IS scoped to one window: it is rooted at that window's cwd and
@@ -91,7 +91,7 @@ fi
 # cwd rides in on --working-directory (an EXTRA ghostty flag after `--`).
 "$FLOAT_TERM" spawn \
     --title "$WINDOW_TITLE" \
-    --match-frontmost \
+    --match-focused \
     --pin \
     --command "/bin/bash $HOME/.config/haus/term/peek-run.sh$STAY_ARG" \
     -- --working-directory="$START" >/dev/null

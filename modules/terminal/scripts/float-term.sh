@@ -6,19 +6,21 @@
 #
 # Three subcommands:
 #
-#   geom [--tiled | --pct N | --w PX --h PX | --match-frontmost]
+#   geom [--tiled | --pct N | --w PX --h PX | --match-focused]
 #       Print "X Y W H": a window of the requested size, centered on the
 #       VISIBLE frame (menubar/dock excluded) of whichever display the cursor
 #       is on right now. Multi-monitor aware; coords are Ghostty/AppKit
 #       top-left origin. --pct sizes the window to N% of the visible frame.
-#       --match-frontmost instead returns the frame of the FOCUSED window right
+#       --match-focused instead returns the frame of the FOCUSED window right
 #       NOW — the one whose keystroke summoned us — so the popup covers its
 #       summoner exactly instead of landing at some fraction of the screen. It
 #       is what every per-window chord wants: ⌘F searches that one window's
 #       scrollback, ⌘Y roots yazi at that one window's cwd, and a popup that
 #       lands over a DIFFERENT window than the one it is about reads as a bug
-#       even when its contents are right. Falls back to a centered 80% if that
-#       frame can't be read.
+#       even when its contents are right. Which window has focus comes from the
+#       TILER, not from macOS's frontmost-process flag — see focused_frame()
+#       for the measurement that forced that. Falls back to a centered 80% when
+#       the frame can't be read, or describes a window that is on no screen.
 #       --tiled is the "cover the whole desktop" size, and it is NOT the same
 #       as --pct 100: the visible frame is everything macOS leaves us, whereas
 #       the TILED area is that frame inset by AeroSpace's outer gaps — the
@@ -48,7 +50,7 @@
 # again. So: whatever you call it, prefix it. A --tiled popup covers the whole
 # tiled desktop and is the one that would be most visibly wrong as a tile.
 #
-#   spawn --title T [--tiled | --pct N | --w PX --h PX | --match-frontmost]
+#   spawn --title T [--tiled | --pct N | --w PX --h PX | --match-focused]
 #         [--cols N --rows N] [--pin]
 #         --command CMD [-- EXTRA ghostty args…]
 #       Spawn a fresh Ghostty INSTANCE running CMD, centered at that geometry,
@@ -78,8 +80,8 @@
 #       ⌘F→^s would land you in exactly the half-width cross-session list ⌘⇧F
 #       exists to avoid.
 #       --frame is why place takes an explicit rectangle at all, and it is the
-#       ^s toggle read backwards: --match-frontmost is useless once the popup
-#       IS the frontmost window, so shrinking back to pane scope has to replay a
+#       ^s toggle read backwards: --match-focused is useless once the popup
+#       IS the focused window, so shrinking back to pane scope has to replay a
 #       frame captured before the popup existed. The caller stashes it at spawn
 #       time (find.sh writes "$dir/frame") and hands it back here.
 #       PID is the GHOSTTY process, not the caller — a script running inside the
@@ -123,45 +125,125 @@ GAP_SIDE_BUILTIN="@gap_side_builtin@"
 GAP_SIDE_EXTERNAL="@gap_side_external@"
 
 # ── frame of the window that has the keyboard right now ─────────────────────
-# Emits "X Y W H" for the FOCUSED window of the frontmost application — the
-# window whose keystroke summoned us — in the SAME top-left-origin coord system
-# geom() emits and spawn()'s AppleScript consumes, so the two are drop-in
-# interchangeable. Silent (empty) on any failure — no frontmost app, a process
-# with no windows, a nonsense frame — which is the caller's cue to fall back to
-# centered geometry rather than place a window at 0×0.
+# Emits "X Y W H" for the FOCUSED window — the one whose keystroke summoned us
+# — in the SAME top-left-origin coord system geom() emits and spawn()'s
+# AppleScript consumes, so the two are drop-in interchangeable. Silent (empty)
+# on any failure — nothing focused, a process with no windows, a nonsense frame
+# — which is the caller's cue to fall back to centered geometry rather than
+# place a window at 0×0.
 #
-# `AXFocusedWindow`, NOT `window 1`, and that is the whole correctness of this
-# function. One process can own several windows — a ⌘N window (launcher's
-# shell-here.sh) and scripts/new-window.sh both ask the RUNNING Ghostty for
-# `new window` over AppleScript rather than paying for a second instance, so
-# every window after the first shares its parent's pid — and System Events'
-# `windows` list is in AX order, which is NOT a promise about which one has the
-# keyboard. So `window 1` meant "some other window of the same app", which put
-# the ⌘F overlay over a window you hadn't pressed the chord in: the search
-# itself was right (it joins on the zmx session, not on a frame), only the
-# placement was, silently, one window off.
+# ASK THE TILER WHICH WINDOW, not macOS which PROCESS, and that is the whole
+# correctness of this function. It used to read the frontmost APPLICATION
+# PROCESS's window, and that question has no reliable answer on this desktop:
+# every lane and every popup is its own `open -na` Ghostty INSTANCE, so
+# "Ghostty" is five or six processes, and macOS's per-process `frontmost` flag
+# routinely names one that does not hold the keyboard. Measured 2026-08-21 with
+# focus sitting still in a lane window: System Events named a Ghostty process
+# whose only window was parked on a HIDDEN workspace, for a minute at a time,
+# while `aerospace list-windows --focused` named the right one on every sample.
+#
+# That is why ⌘F and ⌘Y still landed wrong after AXFocusedWindow replaced
+# `window 1` (the same file, 2026-08-20): reading the right window of the WRONG
+# process is just as wrong, and it fails worse — AeroSpace parks the windows of
+# a workspace you can't see just off the bottom-right corner at their full tile
+# size, so the frame that came back was a full-desktop rectangle at 1511×950.
+# AppKit then clamps a window that big back onto the screen, which is exactly
+# the reported bug: an overlay that is desktop-sized "no matter what" and lands
+# nowhere near the pane you pressed the chord in.
+#
+# scripts/focused-session.sh already asks AeroSpace the same question for the
+# SESSION half of these chords (~4 ms, and its header has the two-backend
+# story). Sharing the source is the point: the frame a popup wears and the
+# scrollback it reads can no longer disagree about which window you meant.
+# AeroSpace gives us pid + title; the frame itself is still AX, matched inside
+# that pid by title — Ghostty forces the title of a lane and of a popup, and
+# `first process whose unix id is` with the pid written into the script text is
+# the one process lookup System Events gets right (a `whose` clause fed a
+# VARIABLE hands back a different process entirely; measured the same day).
+# With no tiler installed there is no parking either, so the old
+# frontmost-process probe stays as the fallback.
 #
 # The retry loop is the palette's half of the same question. ⌘Y is a chord AND
 # a palette row (Peek Files), and a pounce command commits with the palette
 # still fading — `.linger`, ~0.4 s, focus handed back to the captured window
 # only after the client has been spawned. Pounce's own window clears the
 # sanity gate below, so without the wait a palette-summoned popup would size
-# itself to the palette. Ask again until pounce is no longer the frontmost app,
+# itself to the palette. Ask again until pounce is no longer what has focus,
 # then fall through to the centered default if it never yields. `--nowait` is
 # for the one caller that only wants a POINT — the tiled branch's display probe
 # — where a missed answer costs a guess at which screen you are on (and the
 # palette is on that screen anyway), not a misplaced window. It would otherwise
 # pay the whole 0.6 s on every palette-spawned --tiled popup.
-frontmost_frame() {
-  local out x y w h i tries=12
+#
+# HAUS_WINDOW_BACKEND=ghostty forces the tiler-less path, the same escape hatch
+# focused-session.sh carries, so the fallback can be feel-tested on a Mac that
+# does have AeroSpace.
+
+# ax_frame PID TITLE — "X Y W H" for that process's window named TITLE, falling
+# back to its AXFocusedWindow when no title matches (a ⌘N window shares its
+# parent's pid and wears whatever title the program inside it last emitted).
+ax_frame() {
+  local pid="${1:-}" title="${2:-}"
+  case "$pid" in '' | *[!0-9]*) return 0 ;; esac
+  osascript - "$title" 2>/dev/null <<APPLESCRIPT
+on run argv
+  set wantTitle to item 1 of argv
+  tell application "System Events"
+    tell (first process whose unix id is $pid)
+      if (count of windows) is 0 then return ""
+      set w to missing value
+      if wantTitle is not "" then
+        repeat with ww in windows
+          try
+            if (name of ww) is wantTitle then
+              set w to ww
+              exit repeat
+            end if
+          end try
+        end repeat
+      end if
+      if w is missing value then
+        set w to window 1
+        try
+          set fw to value of attribute "AXFocusedWindow"
+          if fw is not missing value then set w to fw
+        end try
+      end if
+      set {px, py} to position of w
+      set {pw, ph} to size of w
+      set out to ((px as integer) as text) & " " & ((py as integer) as text)
+      set out to out & " " & ((pw as integer) as text)
+      set out to out & " " & ((ph as integer) as text)
+      return out
+    end tell
+  end tell
+end run
+APPLESCRIPT
+}
+
+focused_frame() {
+  local out="" x y w h i tries=12 focused pid title
   [ "${1:-}" = "--nowait" ] && tries=1
+
   for i in $(seq 1 $tries); do
-    out=$(osascript 2>/dev/null <<'APPLESCRIPT'
+    if [ "${HAUS_WINDOW_BACKEND:-}" != "ghostty" ] && command -v aerospace >/dev/null 2>&1; then
+      # pid, app, title — the title is last so a title containing "|" is safe.
+      focused=$(aerospace list-windows --focused --format '%{app-pid}|%{app-name}|%{window-title}' 2>/dev/null)
+      case "$focused" in
+        '' | *'|Pounce|'*) out="" ;;
+        *)
+          pid="${focused%%|*}"
+          title="${focused#*|}"
+          title="${title#*|}"
+          out=$(ax_frame "$pid" "$title")
+          ;;
+      esac
+    else
+      out=$(osascript 2>/dev/null <<'APPLESCRIPT'
 tell application "System Events"
-  set fronts to (every application process whose frontmost is true)
-  if (count of fronts) is 0 then return ""
-  if name of item 1 of fronts is "pounce" then return ""
-  tell item 1 of fronts
+  set p to (first application process whose frontmost is true)
+  if name of p is "pounce" then return ""
+  tell p
     if (count of windows) is 0 then return ""
     set w to window 1
     try
@@ -178,6 +260,7 @@ tell application "System Events"
 end tell
 APPLESCRIPT
 )
+    fi
     [ -n "$out" ] && break
     sleep 0.05
   done
@@ -190,61 +273,23 @@ APPLESCRIPT
   return 0
 }
 
-# ── centered geometry on the cursor's screen ────────────────────────────────
-# Emits "X Y W H" for a WIN_W×WIN_H window centered on the visible frame of the
-# display under the cursor. Pass either an explicit pixel size or a percentage.
-geom() {
-  local mode="pct" arg="85"
-  while [ $# -gt 0 ]; do
-    case "$1" in
-      --pct) mode="pct"; arg="$2"; shift 2 ;;
-      --w)   mode="px";  W_PX="$2"; shift 2 ;;
-      --h)             H_PX="$2"; shift 2 ;;
-      --match-frontmost) mode="match"; shift ;;
-      --tiled) mode="tiled"; shift ;;
-      *) shift ;;
-    esac
-  done
-
-  # Cover-the-summoner mode short-circuits the centering math entirely; if the
-  # frame comes back unreadable, degrade to the old centered default.
-  if [ "$mode" = "match" ]; then
-    local matched
-    matched=$(frontmost_frame)
-    if [ -n "$matched" ]; then
-      echo "$matched"
-      return 0
-    fi
-    mode="pct"; arg="80"
-  fi
-
-  # WHICH display. The cursor's, normally — it is the only "where am I" a popup
-  # summoned from launchd can read for free. But --tiled is covering the WINDOWS,
-  # and haus.windows.mouseFollowsFocus defaults to false, so on a two-display
-  # desk the pointer is routinely parked on a screen the chord wasn't pressed on.
-  # Probe from the summoning window's own centre when its frame is readable, and
-  # fall back to the cursor when it isn't — which is also every non-tiled mode,
-  # where the popup is centred on a screen rather than fitted to a layout and the
-  # cursor is the better guess anyway.
-  if [ "$mode" = "tiled" ]; then
-    local fx fy fw fh probe
-    probe=$(frontmost_frame --nowait)
-    if [ -n "$probe" ]; then
-      read -r fx fy fw fh <<< "$probe"
-      export HAUS_PROBE_X=$(( fx + fw / 2 )) HAUS_PROBE_Y=$(( fy + fh / 2 ))
-    fi
-  fi
-
-  # Frame of that display in Ghostty's top-origin coord system. `frame` would
-  # include the menu bar / dock; `visibleFrame` excludes them so a centered
-  # window never gets clipped.
+# ── which display, and how much of it we may use ────────────────────────────
+# Emits "SX SY SW SH BUILTIN HIT" for the display under the cursor, or under
+# HAUS_PROBE_X/Y when those are set: the VISIBLE frame (menu bar / dock
+# excluded) in Ghostty's top-origin coord system, which gap column of
+# aerospace.toml the display is in, and whether the probed point actually
+# landed ON a screen. HIT is 0 when it didn't — the answer then describes the
+# primary display, which is a fine default to centre on and a lie to trust as
+# "this point is visible", so on_screen() below is the only reader that cares.
+screen_probe() {
   local frame
   frame=$(osascript -l JavaScript -e '
     ObjC.import("AppKit");
     ObjC.import("CoreGraphics");
     // HAUS_PROBE_X/Y: an explicit point to resolve instead of the pointer, set
-    // by the tiled branch above. Both coordinate systems are top-left origin
-    // (CGEventGetLocation is global display space), so they are interchangeable.
+    // by geom()'"'"'s tiled branch and by on_screen(). Both coordinate systems are
+    // top-left origin (CGEventGetLocation is global display space), so they are
+    // interchangeable.
     var env = $.NSProcessInfo.processInfo.environment;
     var ex = env.objectForKey("HAUS_PROBE_X"), ey = env.objectForKey("HAUS_PROBE_Y");
     var loc = (ex && ey)
@@ -252,17 +297,18 @@ geom() {
       : $.CGEventGetLocation($.CGEventCreate($()));
     var screens = $.NSScreen.screens;
     if (screens.count === 0) {
-      "0 0 1920 1080 0";
+      "0 0 1920 1080 0 0";
     } else {
       var primaryH = screens.objectAtIndex(0).frame.size.height;
       var pick = screens.objectAtIndex(0);
+      var hit = 0;
       for (var i = 0; i < screens.count; i++) {
         var s = screens.objectAtIndex(i);
         var fr = s.frame;
         var topY = primaryH - (fr.origin.y + fr.size.height);
         if (loc.x >= fr.origin.x && loc.x < fr.origin.x + fr.size.width &&
             loc.y >= topY      && loc.y < topY      + fr.size.height) {
-          pick = s; break;
+          pick = s; hit = 1; break;
         }
       }
       var vf = pick.visibleFrame;
@@ -280,13 +326,78 @@ geom() {
       try { name = ObjC.unwrap(pick.localizedName) || ""; } catch (e) {}
       Math.round(vf.origin.x) + " " + Math.round(vTopY) + " " +
       Math.round(vf.size.width) + " " + Math.round(vf.size.height) + " " +
-      (name === "Built-in Retina Display" ? "1" : "0");
+      (name === "Built-in Retina Display" ? "1" : "0") + " " + hit;
     }
   ' 2>/dev/null)
-  [ -z "$frame" ] && frame="0 0 1920 1080 0"
+  [ -z "$frame" ] && frame="0 0 1920 1080 0 0"
+  printf '%s\n' "$frame"
+}
 
-  local sx sy sw sh builtin win_w win_h
-  read -r sx sy sw sh builtin <<< "$frame"
+# on_screen X Y — true when that point is on some display. The guard for a
+# frame that came back from AX but describes a window nobody can see: AeroSpace
+# parks the windows of a hidden workspace just off the bottom-right corner, so
+# "unreadable" is not the only way the summoner's frame can be useless.
+on_screen() {
+  local probe
+  probe=$(HAUS_PROBE_X="$1" HAUS_PROBE_Y="$2" screen_probe)
+  [ "$(printf '%s\n' "$probe" | awk '{print $6}')" = "1" ]
+}
+
+# ── centered geometry on the cursor's screen ────────────────────────────────
+# Emits "X Y W H" for a WIN_W×WIN_H window centered on the visible frame of the
+# display under the cursor. Pass either an explicit pixel size or a percentage.
+geom() {
+  local mode="pct" arg="85"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --pct) mode="pct"; arg="$2"; shift 2 ;;
+      --w)   mode="px";  W_PX="$2"; shift 2 ;;
+      --h)             H_PX="$2"; shift 2 ;;
+      --match-focused) mode="match"; shift ;;
+      --tiled) mode="tiled"; shift ;;
+      *) shift ;;
+    esac
+  done
+
+  # Cover-the-summoner mode short-circuits the centering math entirely; if the
+  # frame comes back unreadable — or readable but off every screen, which is
+  # what a window parked on a hidden workspace looks like — degrade to the old
+  # centered default. Placing a popup at an invisible frame is the worse
+  # failure of the two: AppKit clamps it back into view at whatever size the
+  # parked window had, so it lands looking deliberate and wrong.
+  if [ "$mode" = "match" ]; then
+    local matched fx fy fw fh
+    matched=$(focused_frame)
+    if [ -n "$matched" ]; then
+      read -r fx fy fw fh <<< "$matched"
+      if on_screen "$(( fx + fw / 2 ))" "$(( fy + fh / 2 ))"; then
+        echo "$matched"
+        return 0
+      fi
+    fi
+    mode="pct"; arg="80"
+  fi
+
+  # WHICH display. The cursor's, normally — it is the only "where am I" a popup
+  # summoned from launchd can read for free. But --tiled is covering the WINDOWS,
+  # and haus.windows.mouseFollowsFocus defaults to false, so on a two-display
+  # desk the pointer is routinely parked on a screen the chord wasn't pressed on.
+  # Probe from the summoning window's own centre when its frame is readable, and
+  # fall back to the cursor when it isn't — which is also every non-tiled mode,
+  # where the popup is centred on a screen rather than fitted to a layout and the
+  # cursor is the better guess anyway.
+  if [ "$mode" = "tiled" ]; then
+    local fx fy fw fh probe
+    probe=$(focused_frame --nowait)
+    if [ -n "$probe" ]; then
+      read -r fx fy fw fh <<< "$probe"
+      export HAUS_PROBE_X=$(( fx + fw / 2 )) HAUS_PROBE_Y=$(( fy + fh / 2 ))
+    fi
+  fi
+
+  # Frame of that display, from the one probe both modes share.
+  local sx sy sw sh builtin hit win_w win_h
+  read -r sx sy sw sh builtin hit <<< "$(screen_probe)"
 
   # The tiled desktop: the visible frame minus AeroSpace's outer gaps, which is
   # the rectangle the windows underneath actually occupy. Returned directly —
@@ -389,7 +500,7 @@ ring() {
 
 # ── spawn a fresh centered instance ─────────────────────────────────────────
 spawn() {
-  local title="" command="" pin=0 cols="" rows="" exact=0
+  local title="" command="" pin=0 cols="" rows="" exact=0 frame=""
   local -a size_args=() extra=()
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -401,18 +512,32 @@ spawn() {
       --pct)     size_args=(--pct "$2"); shift 2 ;;
       --w)       size_args+=(--w "$2"); shift 2 ;;
       --h)       size_args+=(--h "$2"); shift 2 ;;
-      --match-frontmost) size_args=(--match-frontmost); exact=1; shift ;;
+      --match-focused) size_args=(--match-focused); exact=1; shift ;;
       --tiled)   size_args=(--tiled); exact=1; shift ;;
+      --frame)   frame="$2"; exact=1; shift 2 ;;
       --)        shift; extra=("$@"); break ;;
       *) shift ;;
     esac
   done
   : "${title:?--title required}" "${command:?--command required}"
 
+  # --frame is a geometry the caller ALREADY resolved, the same rectangle place
+  # takes: it skips geom entirely. find.sh is why it exists — ⌘F has to stash
+  # the summoner's frame for the ^s toggle anyway, and asking twice cost a
+  # second AX round trip AND let the two answers disagree if focus moved in
+  # between, which would size the overlay to one window and shrink it back onto
+  # another. Resolve once, use it for both.
+  #
   # ${arr[@]+"${arr[@]}"}: expand safely even when empty — macOS /bin/bash is
   # 3.2, where a bare "${arr[@]}" on an empty array trips `set -u`.
   local pos_x pos_y win_w win_h
-  read -r pos_x pos_y win_w win_h <<< "$(geom ${size_args[@]+"${size_args[@]}"})"
+  read -r pos_x pos_y win_w win_h <<< "${frame:-$(geom ${size_args[@]+"${size_args[@]}"})}"
+  # A frame the caller couldn't capture (empty, truncated, nonsense) must not
+  # become a window at 0×0 — resolve it the ordinary way instead.
+  case "${pos_x:-x}${pos_y:-x}${win_w:-x}${win_h:-x}" in
+    *[!0-9-]* | '')
+      read -r pos_x pos_y win_w win_h <<< "$(geom ${size_args[@]+"${size_args[@]}"})" ;;
+  esac
 
   # Snapshot before spawn: existing ghostty pids so we can pick out the NEW
   # instance, and the focused workspace so --pin can put the window there.
@@ -458,7 +583,7 @@ spawn() {
   # floating frame, which would undo the placement above. Harmless when we only
   # wanted "roughly centered", fatal in the two modes whose whole point is a
   # frame that lines up with something — covering the summoning window
-  # (--match-frontmost) or the tiled desktop (--tiled) — so there, let aerospace
+  # (--match-focused) or the tiled desktop (--tiled) — so there, let aerospace
   # have its say and then plant the frame again, last word ours.
   if [ "$exact" = 1 ] && [ -n "$new_pid" ]; then
     sleep 0.05

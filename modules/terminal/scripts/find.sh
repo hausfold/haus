@@ -195,21 +195,29 @@ cmd_launch() {
     # The overlay's own window has no zmx session (float-term runs the command
     # directly, not through scripts/launch.sh), which is also why it never shows
     # up in its own corpus — there is nothing to enumerate.
-    local geom_flag="--match-frontmost"
-    [ "$scope" = "session" ] && geom_flag="--tiled"
-
     # Stash the summoning window's frame for ^s. Once the overlay is up it IS
-    # the frontmost window, so --match-frontmost can no longer find the terminal
+    # the focused window, so --match-focused can no longer find the terminal
     # that summoned us — a toggle back to pane scope has to replay a rectangle
     # captured here, before the popup exists. `geom` always answers something —
-    # a frame it couldn't read degrades to a centred 80% of this screen — so the
-    # shrink-back below lands somewhere sane even then; place --frame's no-op
-    # guard is for the file being missing or truncated, not for that.
-    "$HOME/.config/haus/term/float-term.sh" geom --match-frontmost >"$dir/frame" 2>/dev/null
+    # a frame it can't read, or that describes a window on no screen, degrades
+    # to a centred 80% of this screen — so the shrink-back below lands
+    # somewhere sane even then; place --frame's no-op guard is for the file
+    # being missing or truncated, not for that.
+    local ft="$HOME/.config/haus/term/float-term.sh" frame
+    frame="$("$ft" geom --match-focused 2>/dev/null)"
+    printf '%s\n' "$frame" >"$dir/frame"
 
-    "$HOME/.config/haus/term/float-term.sh" spawn \
+    # ONE resolve, used twice: pane scope hands that same rectangle to spawn
+    # rather than asking for it again. Two asks cost a second AX round trip on
+    # a keystroke, and they can disagree — focus moves while a window is being
+    # opened — which would size the overlay to one window and shrink it back
+    # onto another.
+    local -a geom_args=(--frame "$frame")
+    [ "$scope" = "session" ] && geom_args=(--tiled)
+
+    "$ft" spawn \
         --title "quick-terminal-find" \
-        "$geom_flag" \
+        "${geom_args[@]}" \
         --pin \
         --command "/bin/bash $SELF ui $dir $scope" >/dev/null
 }
