@@ -519,6 +519,142 @@ if [ "$codex_fresh" = 0 ] && [ -f "$CODEX_AUTH" ] && command -v jq >/dev/null 2>
   fi
 fi
 
+# --- Claude usage feed: ask the account, because the GUI has no statusline -----
+# Claude's row is PUSHED for free by statusline.sh on every render, which is the
+# cheapest source there is and stays the primary one — this block only fills the
+# hole underneath it. The hole is that a statusline is a TUI feature: the Claude
+# Code macOS app renders none, runs the `statusLine` command never, and so pushes
+# nothing. Drive the desktop app for a day and the pill sits on percentages from
+# whenever you last opened a terminal pane, greying out around it. (Every other
+# statusline-written cache freezes with it — that is how this was found.)
+#
+# Same shape as the Codex block above and for the same reason: the limits are per
+# ACCOUNT, so it does not matter which client burned them, and asking the account
+# is the only source that counts GUI usage.
+#
+#   GET api.anthropic.com/api/oauth/usage   (bearer = the login keychain)
+#
+# Undocumented, therefore best-effort throughout: any unexpected shape leaves the
+# last row exactly as it was rather than overwriting real numbers with zeroes.
+CLAUDE_TSV="$CACHE_DIR/usage-claude.tsv"
+CLAUDE_TTL=${CLAUDE_TTL:-120}
+CLAUDE_API=${CLAUDE_API:-https://api.anthropic.com/api/oauth/usage}
+CLAUDE_KEYCHAIN=${CLAUDE_KEYCHAIN:-Claude Code-credentials}
+# How long to stay quiet after the keychain says no. A missing item (no Claude
+# login on this machine) and a denied prompt are the same event here, and both
+# must be answered by BACKING OFF: this block runs every couple of minutes, and
+# a `security` call the user denied re-prompts on the very next pass. An hour of
+# silence per refusal is the difference between a feature and a popup loop.
+CLAUDE_BLOCK_TTL=${CLAUDE_BLOCK_TTL:-3600}
+CLAUDE_BLOCK="$CACHE_DIR/.claude-usage-blocked"
+
+cl_fresh=0
+if [ -f "$CLAUDE_TSV" ]; then
+  age=$(( $(date +%s) - $(mtime "$CLAUDE_TSV") ))
+  [ "$age" -lt "$CLAUDE_TTL" ] && cl_fresh=1
+fi
+cl_blocked=0
+if [ -f "$CLAUDE_BLOCK" ]; then
+  age=$(( $(date +%s) - $(mtime "$CLAUDE_BLOCK") ))
+  [ "$age" -lt "$CLAUDE_BLOCK_TTL" ] && cl_blocked=1
+fi
+
+# ~/.claude is the opt-in, exactly as ~/.codex/auth.json is above: no Claude Code
+# on this machine, no keychain call and therefore no prompt.
+if [ "$cl_fresh" = 0 ] && [ "$cl_blocked" = 0 ] && [ -d "$HOME/.claude" ] \
+   && command -v jq >/dev/null 2>&1 && command -v security >/dev/null 2>&1; then
+  now=$(date +%s)
+  # The item is written by Claude Code's own binary, so its ACL names that binary
+  # and not /usr/bin/security — the first pass raises one macOS prompt. Answer it
+  # **Always Allow**: a plain "Allow" grants that single call and the next pass
+  # asks again. Revoke later in Keychain Access → "Claude Code-credentials" →
+  # Access Control, which puts this block back to the backoff path below.
+  cl_cred=$(security find-generic-password -s "$CLAUDE_KEYCHAIN" -w 2>/dev/null \
+    || security find-generic-password -s "$CLAUDE_KEYCHAIN" -a "$USER" -w 2>/dev/null \
+    || true)
+  cl_at=$(printf '%s' "$cl_cred" | jq -r '.claudeAiOauth.accessToken // .accessToken // empty' 2>/dev/null || true)
+  # Whether the token is still good is the KEYCHAIN's business, not ours: Claude
+  # Code refreshes it in place whenever you use it, and every client on this
+  # machine reads the same item. Refreshing it here would mean writing the
+  # rotated pair back into the login keychain, where losing the response costs a
+  # re-login in every client at once — a price the Codex block pays because
+  # NOTHING else renews that file, and one this block has no reason to. An
+  # expired token simply fails the call below and the row ages honestly.
+  cl_exp=$(printf '%s' "$cl_cred" | jq -r '.claudeAiOauth.expiresAt // 0' 2>/dev/null || echo 0)
+  case "${cl_exp:-}" in '' | *[!0-9]*) cl_exp=0 ;; esac
+  [ "$cl_exp" -gt 0 ] && [ $(( cl_exp / 1000 )) -lt "$now" ] && cl_at=""
+  cl_cred=""
+
+  cl_row=""
+  if [ -n "$cl_at" ]; then
+    cl_json=$(curl -fsS --max-time 10 \
+      -H "authorization: Bearer $cl_at" \
+      -H "anthropic-beta: oauth-2025-04-20" \
+      "$CLAUDE_API" 2>/dev/null || true)
+    # Windows are read by NAME here rather than by duration as Codex's are: this
+    # endpoint labels them, and the extra `seven_day_opus` bucket is deliberately
+    # ignored — the pill has two columns and the Opus sub-limit is a fraction of
+    # a limit already shown. Percentages are floored to match the statusline's
+    # own truncation, so a pushed row and a pulled one never differ by a point.
+    cl_row=$(printf '%s' "$cl_json" | jq -r '
+      def pct: ((.utilization // .used_percentage // .used_percent // 0) | floor);
+      def at:
+        (.resets_at // .reset_at // 0)
+        | if type == "number" then floor
+          elif type == "string" then
+            # fromdateiso8601 wants exactly …THH:MM:SSZ, so file the fractional
+            # seconds and a +00:00 offset off first. Anything it still refuses
+            # becomes 0, which costs the dropdown its `resets HH:MM` note and
+            # nothing else.
+            (try ((sub("\\.[0-9]+";"") | sub("\\+00:00$";"Z")) | fromdateiso8601) catch 0)
+          else 0 end;
+      (.five_hour // .rate_limits.five_hour // null) as $s
+      | (.seven_day // .rate_limits.seven_day // null) as $w
+      | if ($s == null and $w == null) then empty else
+          [ (if $s then ($s | pct) else 0 end), (if $w then ($w | pct) else 0 end),
+            (if $s then ($s | at)  else 0 end), (if $w then ($w | at)  else 0 end) ]
+          | @tsv
+        end' 2>/dev/null || true)
+  fi
+
+  if [ -n "$cl_row" ]; then
+    # Column 9, the used stamp — the same rise-means-use rule the Codex block and
+    # statusline.sh apply, so all three writers of a usage row agree on what the
+    # column means whichever of them happened to write last.
+    cl5=${cl_row%%$'\t'*}; cl_rest=${cl_row#*$'\t'}; clw=${cl_rest%%$'\t'*}
+    pc5=0; pcw=0; pc_used=0
+    if [ -s "$CLAUDE_TSV" ]; then
+      IFS=$'\t' read -r pc5 pcw _ _ _ _ _ _ pc_used <"$CLAUDE_TSV" || true
+    fi
+    case "${pc5:-}"     in '' | *[!0-9]*) pc5=0 ;; esac
+    case "${pcw:-}"     in '' | *[!0-9]*) pcw=0 ;; esac
+    case "${pc_used:-}" in '' | *[!0-9]*) pc_used=0 ;; esac
+    cl_used=$pc_used
+    if [ "$pc_used" = 0 ] || [ "${cl5:-0}" -gt "$pc5" ] || [ "${clw:-0}" -gt "$pcw" ]; then
+      cl_used=$now
+    fi
+    printf '%s\t%s\tclaude\tclaude\tanthropic\t%s\n' "$cl_row" "$now" "$cl_used" >"$CLAUDE_TSV.tmp"
+    mv "$CLAUDE_TSV.tmp" "$CLAUDE_TSV"
+    # usage.tsv is the pre-per-provider filename, still copied by statusline.sh
+    # and still read by the pill when no usage-*.tsv exists. Keep the two in step
+    # from here too, or a rice mid-upgrade reads the older of the two.
+    cp "$CLAUDE_TSV" "$CACHE_DIR/usage.tsv" 2>/dev/null || true
+    rm -f "$CLAUDE_BLOCK"
+    fed=1
+  elif [ -z "$cl_at" ]; then
+    # No token: no login, a keychain the user declined, or an expired pair. All
+    # three want the same answer — go quiet for an hour rather than ask again in
+    # two minutes.
+    : >"$CLAUDE_BLOCK"
+  else
+    # Had a token, got nothing usable: offline, revoked, or the endpoint moved.
+    # Touch, don't write — the pill dates the row from the stamp INSIDE the file,
+    # so this backs the retry off a full TTL while the bar goes on telling the
+    # truth about how old the numbers it is showing are.
+    [ -f "$CLAUDE_TSV" ] && touch "$CLAUDE_TSV"
+  fi
+fi
+
 # --- repaint the bar now that a pulled feed moved ------------------------------
 # Same push the render path does for Claude's own row (statusline.sh): run the
 # reader directly rather than trusting an update_freq. It matters most for the
