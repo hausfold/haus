@@ -121,6 +121,17 @@ modules/
   desktop/                # that seam in the module system: haus._desktop.sources
                           #   (which desktop this machine selected) + the assertion
                           #   that refuses a second one, naming both files
+  lib/namespaces.nix      # who owns `haus.<name>` on a machine: the reserved prefix
+                          #   `haus.my.*` (haus promises never to ship a room under it,
+                          #   and `namespace-guard` fails if one ever appears), plus the
+                          #   walk that finds a namespace which is neither. Read it
+                          #   before writing any other "which namespaces does this
+                          #   machine have" code — the shorthand is wrong twice over
+  namespaces.nix          # that rule in the module system: a WARNING, never a refusal,
+                          #   naming an unregistered `haus.<name>` and every file
+                          #   declaring under it. The only NAMESPACE-WIDE rule that
+                          #   fires on the consumer's Mac — plenty of rooms assert
+                          #   there, but each about its own values
   apps/                   # the EDITORIAL picks: apps the rice chooses for a finished
                           #   machine (IINA today) + the file types they claim. Roster
                           #   entries, so a cask of the same app still collides loudly

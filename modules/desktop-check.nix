@@ -59,6 +59,10 @@ pkgs.runCommand "haus-desktop-check-${version}"
 
     cp ${./options-groups.nix}       "$dir/registry.nix"
     cp ${./lib/desktop.nix}             "$dir/desktop.nix"
+    # desktop.nix imports this for the reserved prefix, so the flake-less copy
+    # needs it too — without it `haus show` dies on any file with a bad option
+    # path, which is exactly the file people run it on.
+    cp ${./lib/namespaces.nix}          "$dir/namespaces.nix"
     cp ${./lib/show.nix}                "$dir/show.nix"
 
     cat > "$dir/read.nix" <<'EOF'

@@ -88,6 +88,11 @@ let
     in
     if (lib.trim why) == "" then "It belongs to a person or a machine." else why;
 
+  # The prefix haus promises never to ship a room under, from the one file that
+  # says so — imported rather than spelled again, because a promise with two
+  # copies is a promise that can be half kept.
+  reservedPath = "haus.${(import ./namespaces.nix { inherit lib registry; }).reserved}";
+
   # ---- the walk --------------------------------------------------------------
   # One value at one option path. Everything below is a case of this.
   walk =
@@ -112,6 +117,17 @@ let
           [ (said path "is a group of options, not an option — name one of the settings under it") ]
       else if lib.hasPrefix "haus._" path then
         [ (said path "is internal wiring between rooms, not a setting a desktop may write") ]
+      else if path == reservedPath || lib.hasPrefix "${reservedPath}." path then
+        # The reserved prefix is the one unknown namespace haus knows the
+        # meaning of, so it gets the real answer rather than "no such option".
+        # Saying that here would be false in the way that costs a reader an
+        # afternoon: `haus.my.*` is not a name haus forgot to declare, it is the
+        # name a private room is SUPPOSED to use — and a desktop is the one place
+        # it cannot appear, because a desktop is read and run by people who do
+        # not have that room.
+        [
+          (said path "names a private room, and a desktop is a file other people run. `${reservedPath}.*` is reserved for rooms that live on one Mac and nowhere else, so nothing shared may name one — publish the room and it claims a plain `haus.<name>` like any other.")
+        ]
       else
         [ (said path "is not a haus option") ]
     else if meta.desktopSafe == false then
