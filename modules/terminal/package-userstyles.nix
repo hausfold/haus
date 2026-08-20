@@ -36,8 +36,9 @@
 # web theming: the handful of sites you want themed on every machine, every
 # rebuild, with no state to carry.
 #
-# Installing Stylus by hand still works and the two do NOT tie: an extension
-# injects author-origin CSS, this sheet is user `!important`, and user
+# `haus.zen.extensions.stylus` still deploys the extension — unthemed — and the
+# two do NOT tie: an extension injects author-origin CSS, this sheet is user
+# `!important`, and user
 # `!important` outranks anything an author sheet can say. So on a site both
 # theme, this one wins and the extension's copy is dead weight — keep a site in
 # one place or the other.

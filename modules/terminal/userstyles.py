@@ -49,9 +49,10 @@ def var_value(var):
 def stamp(var, wanted):
     """A theme axis, but only where the style actually offers it.
 
-    Same guard as the Stylus bundle's (modules/terminal/zen.nix): a select var
-    whose options don't list our accent keeps its own default rather than being
-    handed a name that resolves to nothing. Styles do drop accents.
+    Same guard the retired Stylus bundle used — it stamped these same select
+    vars with jq, in zen.nix, until 2026-08-20: a select var whose options
+    don't list our accent keeps its own default rather than being handed a
+    name that resolves to nothing. Styles do drop accents.
     """
     options = var.get("options") or []
     if var.get("type") == "select" and any(o.get("name") == wanted for o in options):

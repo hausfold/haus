@@ -55,9 +55,11 @@
 # hand. That path is retired (2026-08-20): `haus.zen.userStyles` compiles the
 # styles you name straight into the profile's userContent.css instead — same
 # three axes, no extension, no click, nothing to re-import on the next machine.
-# It lives in terminal/default.nix and package-userstyles.nix. Stylus itself is
-# still installable like any other add-on by naming its `id` and `slug` under
-# `haus.zen.extensions`; haus just no longer ships a stamped bundle for it.
+# It lives in terminal/default.nix and package-userstyles.nix.
+#
+# What is retired is haus theming THROUGH the extension, not the extension:
+# `haus.zen.extensions.stylus` still deploys it (its id is still in the known
+# table in terminal/options.nix), it just arrives unthemed — no bundle, no nudge.
 {
   config,
   lib,
