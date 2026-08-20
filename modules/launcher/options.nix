@@ -2,7 +2,7 @@
 # lives next to the code that implements it; modules/default.nix imports them all.
 # Cross-cutting options (the app roster) stay in modules/options.nix.
 #
-# pounce's options — the ⌘Space palette daemon and its window switcher.
+# The launcher room's options — the ⌘Space palette daemon and its window switcher.
 { lib, config, ... }:
 
 let
@@ -82,22 +82,22 @@ in
         The windows room's pointer chord: a modifier + a click, acting on the
         window under the cursor rather than on the focused one.
 
-        It lands here because pounce is the only thing on the machine that can
+        It lands here because the palette is the only thing on the machine that can
         carry it — AeroSpace has no mouse bindings at all, and Ghostty's
         keybind triggers are keys or Unicode codepoints, so a consuming
-        CGEventTap is the mechanism and pounce already runs two of them behind
+        CGEventTap is the mechanism and the palette already runs two of them behind
         the Accessibility grant they need. What the chord DOES is still the
         windows room's business; the launcher only writes it into
         `config.json`.
 
-        Off, pounce's `mouseChords` block isn't written at all and every click
+        Off, the palette's `mouseChords` block isn't written at all and every click
         keeps its stock meaning.
       '';
       options = {
         enable = lib.mkOption {
           type = lib.types.bool;
           default = false;
-          description = "Whether pounce arms a mouse chord at all.";
+          description = "Whether the palette arms a mouse chord at all.";
         };
         button = lib.mkOption {
           type = lib.types.enum [
@@ -111,16 +111,16 @@ in
           type = lib.types.listOf lib.types.str;
           default = [ "alt" ];
           description = ''
-            The modifiers held, in pounce's spelling. Follows
+            The modifiers held, in the palette's spelling. Follows
             `haus.keys.windowNav`, so the pointer chord and `<mod>f` are one
-            vocabulary. Never empty: pounce refuses a bare chord, and the
+            vocabulary. Never empty: the palette refuses a bare chord, and the
             windows room asserts the pair before it gets here.
           '';
         };
         action = lib.mkOption {
           type = lib.types.str;
           default = "fullscreen";
-          description = "The pounce action the chord fires.";
+          description = "The palette action the chord fires.";
         };
       };
     };
@@ -135,8 +135,8 @@ in
       type = lib.types.bool;
       default = true;
       description = ''
-        Replace the stock ⌘Tab app switcher with pounce's MRU *window* switcher:
-        tap ⌘⇥ to toggle to the last window (across workspaces), hold ⌘ and keep
+        Replace the stock ⌘Tab app switcher with the palette's MRU *window*
+        switcher: tap ⌘⇥ to toggle to the last window (across workspaces), hold ⌘ and keep
         tapping ⇥ to walk older ones, type while holding to fuzzy-filter
         (frecency-ranked). Rows are gathered by AeroSpace workspace under a
         header each, and focusing goes through `aerospace focus --window-id` so
@@ -163,7 +163,7 @@ in
       description = ''
         Quit an app when you close its last window, the way Windows does it.
         macOS keeps a windowless app running, so every one of them is a ⌘Q you
-        forgot; with this on, pounce notices the last window go away and asks
+        forgot; with this on, the palette notices the last window go away and asks
         the app to quit.
 
         *Asked*, not killed — it is the same Quit event ⌘Q sends, so an app
@@ -183,9 +183,9 @@ in
         Off by default: this changes when your apps die, which is a thing you
         feel, and the muscle memory it suits is not everyone's.
 
-        Unlike the rest of pounce's config, the auto-quit settings are read once
+        Unlike the rest of the palette's config, the auto-quit settings are read once
         — when the daemon arms them — rather than per open. So a rebuild that
-        touches any of the three restarts the pounce daemon, which haus does
+        touches any of the three restarts the palette daemon, which haus does
         for you; nothing here needs a log-out to land.
       '';
     };
@@ -207,7 +207,7 @@ in
         haus.launcher.autoQuit.exclude rather than for a delay you would feel on
         every app.
 
-        Read once, when auto-quit arms — changing it bounces the pounce daemon
+        Read once, when auto-quit arms — changing it bounces the palette daemon
         on the next rebuild.
       '';
     };
@@ -215,14 +215,14 @@ in
     launcher.autoQuit.exclude = lib.mkOption {
       type = lib.types.nullOr (lib.types.listOf lib.types.str);
       default = null;
-      defaultText = lib.literalMD "pounce's own list — `[ \"com.apple.finder\" ]`";
+      defaultText = lib.literalMD "the palette's own list — `[ \"com.apple.finder\" ]`";
       example = [
         "com.apple.finder"
         "com.docker.docker"
         "com.spotify.client"
       ];
       description = ''
-        Bundle ids never auto-quit. `null` leaves pounce's own default in
+        Bundle ids never auto-quit. `null` leaves the palette's own default in
         place, which is `[ "com.apple.finder" ]` — Finder is the one app macOS
         runs windowless by design, and quitting it blinks the desktop out while
         it relaunches.
@@ -234,7 +234,7 @@ in
         Read a bundle id off any running app with
         `osascript -e 'id of app "Notes"'`.
 
-        Read once, when auto-quit arms — adding an app here bounces the pounce
+        Read once, when auto-quit arms — adding an app here bounces the palette
         daemon on the next rebuild, so the app stops being quit immediately
         rather than at the next log-in.
       '';
@@ -251,7 +251,7 @@ in
       description = ''
         The palette's proportions. `compact` is narrower with tighter rows and
         keeps its list hidden until you type — haus's tuned look, and what it
-        shipped before this option existed. `default` is pounce's roomier layout,
+        shipped before this option existed. `default` is the palette's roomier layout,
         which shows the top results the moment it opens.
 
         This is shape, not size: how BIG the palette is drawn is
@@ -264,10 +264,10 @@ in
       type = lib.types.numbers.between 0.8 2.0;
       default = lib.min 2.0 (lib.max 0.8 config.haus.ui.scale);
       # Prose, so literalMD — see haus.developer.languages in modules/options.nix.
-      defaultText = lib.literalMD "haus.ui.scale, held inside pounce's 0.8-2.0";
+      defaultText = lib.literalMD "haus.ui.scale, held inside the palette's 0.8-2.0";
       example = 1.4;
       description = ''
-        How big the palette is drawn. Multiplies every size in pounce's UI — the
+        How big the palette is drawn. Multiplies every size in its UI — the
         launcher's rows, header, icons and action bar, and the panels behind it:
         the emoji grid, clipboard history, recent screenshots, camera peek, Find
         Files, the cheatsheet and the window switcher.
@@ -277,7 +277,7 @@ in
         different size from the rest of haus — the launcher is read at arm's
         length for a second, not lived in like the terminal.
 
-        pounce's own range is narrower than ui.scale's, so a machine at
+        The palette's own range is narrower than ui.scale's, so a machine at
         `ui.scale = 2.5` gets a palette at 2.0 rather than an evaluation error.
 
         Two things adapt on their own, which is why one number is enough: the
@@ -293,18 +293,18 @@ in
       type = lib.types.bool;
       default = true;
       description = ''
-        Let the palette follow macOS Light/Dark Mode instead of pinning one
-        polarity: pounce gets the nebelung variant AND its latte counterpart at
+        Let the launcher follow macOS Light/Dark Mode instead of pinning one
+        polarity: it gets the nebelung variant AND its latte counterpart at
         your haus.theme.contrast, as its `theme`/`themeLight` pair, and
         picks between them per open (no rebuild, no daemon restart).
 
-        Honest scope: this makes pounce the one themed tool that does NOT follow
+        Honest scope: this makes the launcher the one themed tool that does NOT follow
         haus.theme.flavor — a flavor pin is a *palette* choice, and asking
         to follow the system says the polarity is macOS's call. The contrast
         axis still applies to both halves. Every other themed tool keeps
         whatever flavor pins.
 
-        false pins pounce to the flavor like every other port, which is exactly
+        false pins the launcher to the flavor like every other port, which is exactly
         what it did before this option existed.
       '';
     };
@@ -322,19 +322,19 @@ in
       default = "tap";
       example = "remap";
       description = ''
-        How pounce gets the Fn/Globe key when an item binds it — which haus does
-        by default, with haus.launcher.items."mode:emoji".hotkey = "fn".
+        How the palette gets the Fn/Globe key when an item binds it — which
+        haus does by default, with haus.launcher.items."mode:emoji".hotkey = "fn".
 
         `tap` reads Fn with an event tap. It needs Pounce's Accessibility grant,
         and it SHARES the key with macOS: HIToolbox carries its own Globe handler
         inside every process, below the event stream a tap can see, so macOS's
-        Emoji & Symbols picker can still open alongside pounce's. Setting System
+        Emoji & Symbols picker can still open alongside the palette's. Setting System
         Settings ▸ Keyboard ▸ "Press 🌐 key to" to Do Nothing helps, but that
         value is read from login-session state — it wants a full logout, and even
         then the two handlers are racing rather than one owning the key.
 
         `remap` takes Fn away at the HID layer instead: it becomes F19, which
-        pounce binds like any ordinary key. No Accessibility grant for this
+        the palette binds like any ordinary key. No Accessibility grant for this
         binding, and nothing left for macOS to race, because there is no Fn key
         in the system any more. That last part is also the cost — Fn stops being
         Fn EVERYWHERE, so no Fn+arrows (Home/End/PageUp/PageDown), no Fn+Delete,
@@ -347,22 +347,22 @@ in
           numeric keypad), where pressing it fires the binding too.
         - A keyboard that re-enumerates — an external one replugged, some
           sleep/wake cycles — drops the mapping, and the binding stays dead
-          until the pounce daemon restarts. `pounce doctor` reports it.
+          until the palette daemon restarts. `pounce doctor` reports it.
         - If F19 is already taken, or the keyboard doesn't expose Fn to IOHID,
-          pounce undoes the remap and falls back to the tap — Accessibility
+          the palette undoes the remap and falls back to the tap — Accessibility
           grant and all.
 
         On haus the mapping is declared rather than left to the daemon
         (modules/launcher/default.nix says why: nix-darwin writes IOKit's
-        UserKeyMapping whole, so a rebuild would otherwise drop a mapping pounce
+        UserKeyMapping whole, so a rebuild would otherwise drop a mapping the palette
         installed). It shares that list with the Caps Lock leader's remap, is
         re-applied at each activation, and does not survive a reboot — but it
-        DOES outlive the daemon, so Fn stays remapped and inert while pounce is
+        DOES outlive the daemon, so Fn stays remapped and inert while the palette is
         stopped. `pounce doctor` reports which of the two mechanisms is actually
         carrying the key.
 
         Inert unless something binds `fn`: with no such item, this is a key
-        pounce reads and does nothing with. On a default haus that item is the
+        the palette reads and does nothing with. On a default haus that item is the
         emoji grid and Fn is its ONLY key — the Caps-Lock leader dropped `e` once
         one key did the job — so a host that turns the Fn binding off wants to
         put mode:emoji on something else.
@@ -392,7 +392,7 @@ in
           "mode:<name>"                    a built-in window — launcher, clipboard,
                                            emoji, screenshots, camera, filesearch
 
-        Those keys are pounce's own address space (the same strings its frecency
+        Those keys are the palette's own address space (the same strings its frecency
         store and `pounce run` use), so a key written here is also what you'd type
         to invoke the thing from a script or another tool's binding.
 
@@ -407,7 +407,7 @@ in
         needs Pounce's Accessibility grant (unlike a Carbon chord or leader
         sequence) and fires only when Fn is tapped alone — and which SHARES the
         key with macOS's own Globe action, so the system emoji picker can still
-        open alongside pounce's. haus.launcher.fnKey = "remap" is the way to own
+        open alongside the palette's. haus.launcher.fnKey = "remap" is the way to own
         the key outright; read that option before reaching for it, because it
         costs Fn's other jobs. haus uses Fn for mode:emoji by default; set that
         item's hotkey to null to leave the Globe key to macOS — but Fn is the ONLY
@@ -419,7 +419,7 @@ in
 
         Sequences are worth knowing about on a tiling desktop: they open a namespace
         that structurally can't collide with the ⌥/⌘ chords windows already claims,
-        and they need no Accessibility grant (pounce grabs the second step as an
+        and they need no Accessibility grant (the palette grabs the second step as an
         ordinary global hotkey for a couple of seconds rather than tapping events).
 
         Two things this checks at build time, because both fail SILENTLY at
@@ -428,7 +428,7 @@ in
         haus.keys.leader, or a terminal binding (whoever registers first
         wins, and it isn't always the same one). What it can't check is whether
         `cmd:<id>` names a command that exists — command scripts are discovered
-        at runtime, so pounce warns about that itself when the daemon starts, and
+        at runtime, so the palette warns about that itself when the daemon starts, and
         `pounce doctor` lists any binding that failed to arm.
       '';
       type = lib.types.attrsOf (
@@ -445,7 +445,7 @@ in
                 keeps working. It's how you hide a command you only ever want to
                 reach by key — or clear the launcher of tools someone else on this
                 Mac has no use for, which is the closest thing to a "pack" the
-                surface has today. (It writes pounce's own `enabled` key.)
+                surface has today. (It writes the palette's own `enabled` key.)
               '';
             };
 
@@ -489,10 +489,10 @@ in
               description = ''
                 A global chord, or a leader sequence, that invokes this item
                 directly without opening the palette first. Modifier names follow
-                pounce's spelling: cmd/command/super/meta · opt/option/alt ·
+                the palette's spelling: cmd/command/super/meta · opt/option/alt ·
                 ctrl/control · shift.
 
-                Whether the KEY name is one pounce can bind is not checked here
+                Whether the KEY name is one the palette can bind is not checked here
                 (that vocabulary lives in the app); a chord it can't register is
                 reported by `pounce doctor` rather than silently dropped.
 
@@ -530,19 +530,19 @@ in
         Changing this once invalidates the existing grant (the requirement
         changes) — re-approve pounce in Accessibility a single time after.
 
-        Leave empty to run pounce unsigned (the palette works, but auto-paste
+        Leave empty to run it unsigned (the palette works, but auto-paste
         and other Accessibility-gated features stay off).
       '';
     };
 
     # Where this rice's own palette commands (modules/launcher/commands) landed in
     # the store. Internal, and the same shape as _roster: one resolved value
-    # every room reads instead of each recomputing it. Empty when pounce is off.
+    # every room reads instead of each recomputing it. Empty when the launcher is off.
     #
     # It exists because SketchyBar's plugins are copied into ~/.config verbatim
     # rather than generated, so a plugin cannot interpolate a store path of its
     # own — and the alternative to handing it this one is a second copy of
-    # rebuild.sh and reload-bar.sh living inside the bar. Only pounce's BUILT-IN
+    # rebuild.sh and reload-bar.sh living inside the bar. Only the palette's BUILT-IN
     # commands get a `pounce-<id>` bin on PATH (pkgs/pounce-commands wraps
     # `builtinIds`); a rice command arrives through `extraCommandDirs`, which
     # the palette discovers at runtime and nothing puts a launcher in front of.
@@ -552,7 +552,7 @@ in
       type = lib.types.str;
       internal = true;
       default = "";
-      description = "Store path of haus's own pounce commands, for rooms that invoke one directly.";
+      description = "Store path of haus's own palette commands, for rooms that invoke one directly.";
     };
   };
 }

@@ -25,7 +25,7 @@
           machine. The bare layer installs nothing you didn't ask for.
 
           Set false and nothing is installed or rebound — bring your own
-          player via the pounce "Install App" palette command or a roster
+          player via the palette's "Install App" command or a roster
           entry. Once on it is a roster entry like any other: give it a leader
           letter with `haus.roster.iina.key`, or pin a different build
           with `haus.roster.iina.package`.

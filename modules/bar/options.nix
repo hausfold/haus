@@ -521,7 +521,7 @@ in
     };
 
     # Documented once, here, because three of the four gestures below are
-    # pounce's and the option page is where someone finds that out.
+    # the launcher's and the option page is where someone finds that out.
     bar.logo.gestures = lib.mkOption {
       type = lib.types.bool;
       default = true;
@@ -532,12 +532,12 @@ in
         |---|---|
         | left click | the **haus menu** — System Settings, Activity Monitor, Lock Screen, Nix Config, Haus Settings, Rebuild System, Reload SketchyBar |
         | ⌘ left click | `haus rebuild`, straight into a floating terminal |
-        | right click | the full pounce palette (⌘Space), which is what a bare click on this pill used to do |
+        | right click | the full palette (⌘Space), which is what a bare click on this pill used to do |
 
-        All three are drawn by **pounce**, so all three need
-        `haus.launcher.enable` (which the hacker desktop turns on). With pounce
-        off they are silent no-ops and this option is the switch that says so out
-        loud — turn it off and the pill stops responding to clicks entirely,
+        All three are drawn by the **launcher**, so all three need
+        `haus.launcher.enable` (which the hacker desktop turns on). With the
+        launcher off they are silent no-ops and this option is the switch that
+        says so out loud — turn it off and the pill stops responding to clicks entirely,
         rather than looking like an affordance that does nothing.
 
         The menu's rows are not reimplemented here: each one runs the palette
@@ -1049,7 +1049,7 @@ in
         leader-mode scripts) — no key logging, no Accessibility.
 
         Needs windows + bar (it silently stays out of the bar without them);
-        the ⌘Space step is dropped when pounce is off. Progress lives in
+        the ⌘Space step is dropped when the launcher is off. Progress lives in
         ~/.local/state/haus — `haus tour reset` re-arms a finished tour.
       '';
     };
@@ -1085,9 +1085,9 @@ in
                 example = "palette";
                 description = ''
                   The existing haus signal that completes this step: entering launch,
-                  navigate or resize mode; changing workspace; or running the Haus Tour
-                  command from Pounce (`palette`). The tour observes outcomes, never
-                  keystrokes. Clicking the pill still skips a step that cannot be
+                  navigate or resize mode; changing workspace; or running the
+                  Haus Tour command from the launcher (`palette`). The tour
+                  observes outcomes, never keystrokes. Clicking the pill still skips a step that cannot be
                   detected in the current setup.
                 '';
               };
@@ -1109,8 +1109,9 @@ in
         `haus.*` option surface.
 
         Detection reuses signals haus already emits. `launch`, `workspace`,
-        `navigate` and `resize` need windows; `palette` needs Pounce and its palette
-        binding. The module warns when a chosen detector's room is disabled.
+        `navigate` and `resize` need windows; `palette` needs the launcher and
+        the key that opens it. The module warns when a chosen detector's room is
+        disabled.
 
         Authoring a tour is also the ONLY way to have one without windows: the
         built-in lap is three leader moves plus the palette, so `tour.enable` on a

@@ -109,9 +109,9 @@ in
       default = "claude";
       example = "codex";
       description = ''
-        The coding agent started by the ⌘↵ lane chord, by Pounce's **Spawn
-        Agent** command, by the ⌃⌥⇧A resident bind and the `c` shell alias, and
-        used to reopen worktrees with no client recorded yet. Each spawned worktree records its
+        The coding agent started by the ⌘↵ lane chord, by the palette's
+        **Spawn Agent** command, by the ⌃⌥⇧A resident bind and the `c` shell
+        alias, and used to reopen worktrees with no client recorded yet. Each spawned worktree records its
         own client, so changing this affects new work but never reopens an
         existing Codex or OpenCode task in Claude.
 

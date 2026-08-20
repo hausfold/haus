@@ -52,9 +52,9 @@ in
       description = ''
         The AI room's agent lifecycle bindings, as the terminal renders them:
         the ⌃⌥⇧A chord that spawns an agent in THIS checkout, the `c` alias, and
-        the cheatsheet cards pounce draws from the same table. The chord that
+        the cheatsheet cards the launcher draws from the same table. The chord that
         spawns a fresh `holt` worktree is not here — a lane is a window, so it
-        is ⌘↵, a Ghostty-scoped pounce hotkey firing `cmd:lane-here`.
+        is ⌘↵, a Ghostty-scoped launcher hotkey firing `cmd:lane-here`.
 
         Off leaves the terminal exactly as it is without agents — no dead chord
         teaching a client this machine never installed. It never installs an

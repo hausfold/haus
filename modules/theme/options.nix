@@ -48,8 +48,8 @@ in
 
         What does NOT follow it:
 
-          - pounce and perch, by default. Both read their palette at runtime and
-            can pick per polarity, so haus.launcher.followSystemAppearance
+          - the launcher and the shelf, by default. Both read their palette at
+            runtime and can pick per polarity, so haus.launcher.followSystemAppearance
             and haus.shelf.followSystemAppearance (default true) hand that
             choice to macOS Light/Dark instead: haus installs every rendered
             variant into ~/.config/{pounce,perch}/themes/ and writes the
@@ -59,7 +59,7 @@ in
             haus.theme.systemAppearance = "flavor". Left at its default haus
             does not touch system appearance in either direction, so latte on
             a dark macOS looks half-done and that half is yours —
-            except in pounce and perch, which read the appearance themselves.
+            except in the launcher and the shelf, which read it themselves.
           - three of the six desktops (haus.wallpaper.style). The hand-made
             "orbits", "constellation" and "flow" have the dark palette baked into
             their pixels; "bold" is generated but follows theme.accent rather
@@ -118,7 +118,7 @@ in
         this option holds only until the next scheduled switch. Pick Light or
         Dark there if you want it to stick.
 
-        Interaction worth knowing: haus.{pounce,perch}.followSystemAppearance
+        Interaction worth knowing: haus.{launcher,shelf}.followSystemAppearance
         hand polarity to macOS. Set this to "flavor" and macOS's polarity is in
         turn haus's, so those two end up following `flavor` transitively —
         which is usually what you wanted, but it does mean `followSystemAppearance`
@@ -150,9 +150,9 @@ in
 
         Honest scope. This recolours what haus injects colours into:
         Ghostty, bat, delta, lsd, yazi, glow, starship, lazygit, the
-        bar, pounce and perch (at runtime, via ~/.config/{pounce,perch}/themes/ —
-        and unlike `flavor`, contrast reaches both on BOTH halves of their
-        light/dark pair), Zen and Obsidian. It does NOT reach:
+        bar, the launcher and the shelf (at runtime, via
+        ~/.config/{pounce,perch}/themes/ — and unlike `flavor`, contrast reaches
+        both on BOTH halves of their light/dark pair), Zen and Obsidian. It does NOT reach:
 
           - macOS itself. For system-wide contrast see
             haus.accessibility.increaseContrast — a separate, FDA-gated
@@ -173,10 +173,10 @@ in
         glow-rendered Markdown headings), and the Zen browser — via the matching
         Nebelung per-accent ports.
 
-        perch follows it too, and is the one surface handed the NAME rather than
+        The shelf follows it too, and is the one surface handed the NAME rather than
         a hex: the shelf resolves it against whichever half of its dark/light
         pair macOS is showing, so the ember under the notch and a pinned tile
-        wear this accent in both polarities from one key. Left at perch's
+        wear this accent in both polarities from one key. Left at the shelf's
         default it accents with its own mark green.
 
         Three more things follow it: the generated desktop (the bloom behind

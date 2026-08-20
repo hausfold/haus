@@ -894,7 +894,7 @@ let
     launcher = {
       title = "Launcher";
       order = 70;
-      blurb = "Pounce — the command palette, its daemon, its commands, and every Pounce setting haus exposes.";
+      blurb = "The command palette: its daemon, its commands, and every Pounce setting haus exposes.";
       agent = {
         cli = "pounce";
         asks = [
@@ -907,7 +907,7 @@ let
     shelf = {
       title = "Shelf";
       order = 80;
-      blurb = "Perch — the file shelf that grows out of the notch to catch what you drag at it.";
+      blurb = "The file shelf that grows out of the notch to catch what you drag at it.";
       agent = {
         # NOT `perch`. This room dittos Perch.app into /Applications and puts no
         # binary on PATH — its roster entry has no `package`, so `packagesFor`

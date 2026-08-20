@@ -65,8 +65,8 @@ let
           AeroSpace `on-window-detected` rule generated from `appId`
           (`run = 'layout floating'`). Right for a picker/dialog/status
           window that would otherwise reflow the whole workspace every time
-          it opens (FaceTime, Trill's Settings/Inbox), not for something you
-          work inside. Requires `appId`; ignored (with a warning) without it.
+          it opens (FaceTime, Trill's Settings/Inbox), not for something
+          you work inside. Requires `appId`; ignored (with a warning) without it.
         '';
       };
       titleRegex = lib.mkOption {
@@ -197,7 +197,7 @@ let
         example = "haus.shelf";
         description = ''
           The haus module that puts this app on disk, when none of the
-          four sources above describes it: pounce and perch copy a
+          four sources above describes it: the launcher and the shelf copy a
           notarized bundle into /Applications from their own activation
           step, which is neither a cask nor a package you can list.
 
@@ -322,7 +322,7 @@ in
       description = ''
         The one list of things this machine has, keyed by a stable id. It is
         the canonical, composable source for AeroSpace launcher keys, the
-        SketchyBar pills, the pounce cheatsheet, Nebelung theme ports — and
+        SketchyBar pills, the launcher cheatsheet, Nebelung theme ports — and
         for the install itself, from any of four sources (`cask`, `brew`,
         `package`, `appStoreId`).
 
@@ -341,7 +341,7 @@ in
         this schema. See that option.
 
         Attribute-set entries merge across Nix modules, so a host, an imported
-        file, and pounce's "Install App" command can each contribute one app
+        file, and the palette's "Install App" command can each contribute one app
         without parsing or replacing a monolithic list. Set an entry's enable
         field to false to remove it, or override individual fields by app id.
       '';
@@ -441,7 +441,7 @@ in
     };
 
     # The launcher subset: entries that claim a leader key. Its own list rather
-    # than a `key != null` filter repeated in windows, bar and pounce — every one
+    # than a `key != null` filter repeated in windows, bar and launcher — every one
     # of those renders `a.key` into a string, so a missed filter isn't a wrong
     # binding, it's the literal word "null" in a keymap.
     _launchers = lib.mkOption {
@@ -532,7 +532,7 @@ in
             (1.25x) and then stops, silently: past that a machine simply gets the
             ceiling. The only way to make the whole bar bigger is to change what
             a point MEANS — the display's scaled resolution, below.
-          - perch, the notch shelf. It sizes itself from the SCREEN — a fraction
+          - the shelf, under the notch. It sizes itself from the SCREEN — a fraction
             of the display's width, clamped — which is the right answer for a
             thing hanging off the notch, and it means NEITHER lever moves it: a
             scaled display shrinks the shelf's width in points by the same
@@ -552,7 +552,7 @@ in
 
     # ---- keys: the keymap, opened up ----
     # Cross-cutting because the keymap is: `leader` and `windowNav` are windows's
-    # (AeroSpace chords + the Caps Lock remap), `palette` is pounce's (an
+    # (AeroSpace chords + the Caps Lock remap), `palette` is the launcher's (an
     # in-process hotkey), and the cheatsheet + the first-run tour describe all
     # three. Resolved once in modules/lib/keys.nix so a chord and the caption
     # documenting it come from the same row.
@@ -605,7 +605,7 @@ in
         default = "none";
         example = "none";
         description = ''
-          What opens the pounce command palette. Registered in-process by the
+          What opens the command palette. Registered in-process by the
           daemon, so it's near-instant and doesn't go through AeroSpace.
 
           "cmd-space" (default) is the one value that also DISABLES Spotlight's
@@ -650,7 +650,7 @@ in
           hjkl focus chords were dropped: only `/` `,`, `f`, `⇧⇥`, `⇧;` and
           `⇧`+the arrows, none of which a roster letter can land
           on — and `<mod>⇥` is free again, since workspace back-and-forth
-          retired in favour of pounce's cross-workspace ⌘⇥ switcher. (Under
+          retired in favour of the launcher's cross-workspace ⌘⇥ switcher. (Under
           "ctrl-alt" that used to bite — the throws were `⌃⌥⇧` + an app's roster
           letter, so an app on `a` silently ate terminal's ⌃⌥⇧A in-place-agent
           chord. That collision is gone.)
@@ -669,7 +669,7 @@ in
       # The seam for leader actions that AREN'T "launch an app". The app roster
       # (haus.roster) already fronts a letter → open an app; this fronts a key
       # → run a command (a script, an AppleScript, a `things:///` open). Rendered
-      # into AeroSpace's [mode.launch.binding] AND the pounce cheatsheet from this
+      # into AeroSpace's [mode.launch.binding] AND the launcher cheatsheet from this
       # one list, so a binding and its caption can't drift — the same guarantee the
       # roster gives. Kept a flat list rather than nested under an app entry on
       # purpose: a leader action is not an attribute of any one app (the target may
@@ -745,7 +745,7 @@ in
     # tools and terminal's shell programs.
     #
     # Until this existed, "minimal" was a lie — turning off windows, bar and
-    # pounce still installed bun, fnm, nixfmt, opencode, lazygit, delta, gh and
+    # launcher still installed bun, fnm, nixfmt, opencode, lazygit, delta, gh and
     # the agent-worktree tooling, because core and terminal are imported
     # unconditionally. A Mac for someone who doesn't write code could not be
     # expressed at all.

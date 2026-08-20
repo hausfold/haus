@@ -4,7 +4,7 @@
 #
 # windows's options — tiling + the leader launcher. WHICH keys drive them is
 # haus.keys.* in modules/options.nix: cross-cutting, because `leader` and
-# `windowNav` are windows's while `palette` is pounce's, and one table has to resolve
+# `windowNav` are windows's while `palette` is the launcher's, and one table has to
 # all three so a chord and the caption documenting it can't drift.
 { lib, ... }:
 
@@ -66,11 +66,11 @@ in
 {
   options.haus = {
     # core + terminal are the floor and have no switch (system, shell). Of the
-    # rooms you can SEE, all six have one — windows, bar, pounce, perch, focus,
+    # rooms you can SEE, all six have one — windows, bar, launcher, shelf, focus,
     # security — and turning one off drops its packages, agents and config
     # entirely. (The cross-cutting modules — apps, displays, roster, secrets,
     # theme, wallpaper, workspaces — have no room switch either; they aren't
-    # rooms. And `full`/bootstrap deliberately expose only bar+windows+pounce+
+    # rooms. And `full`/bootstrap deliberately expose only bar+windows+launcher+
     # tour as the install-time choice, which is a narrower surface than this,
     # not a different list.)
     #
@@ -191,9 +191,9 @@ in
         above ordinary windows — the menu bar, the Dock, the bar — is
         transparent to the chord rather than being "clicked".
 
-        Carried by pounce's event tap (AeroSpace has no mouse bindings at all,
+        Carried by the launcher's event tap (AeroSpace has no mouse bindings at all,
         and Ghostty's keybind triggers are keys), so it needs
-        haus.launcher.enable and the Accessibility grant pounce already asks
+        haus.launcher.enable and Pounce's Accessibility grant, which it already asks
         for; an assertion catches the first, and without the second the click
         simply keeps its stock meaning.
 
