@@ -201,8 +201,10 @@ cmd_launch() {
     # Stash the summoning window's frame for ^s. Once the overlay is up it IS
     # the frontmost window, so --match-frontmost can no longer find the terminal
     # that summoned us — a toggle back to pane scope has to replay a rectangle
-    # captured here, before the popup exists. Empty on a frame we couldn't read;
-    # float-term's place --frame no-ops on that rather than guessing.
+    # captured here, before the popup exists. `geom` always answers something —
+    # a frame it couldn't read degrades to a centred 80% of this screen — so the
+    # shrink-back below lands somewhere sane even then; place --frame's no-op
+    # guard is for the file being missing or truncated, not for that.
     "$HOME/.config/haus/term/float-term.sh" geom --match-frontmost >"$dir/frame" 2>/dev/null
 
     "$HOME/.config/haus/term/float-term.sh" spawn \

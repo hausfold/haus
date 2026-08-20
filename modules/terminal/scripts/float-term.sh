@@ -11,11 +11,14 @@
 #       VISIBLE frame (menubar/dock excluded) of whichever display the cursor
 #       is on right now. Multi-monitor aware; coords are Ghostty/AppKit
 #       top-left origin. --pct sizes the window to N% of the visible frame.
-#       --match-frontmost instead returns the frame of the window that is on
-#       top RIGHT NOW — the one whose keystroke summoned us — so the popup
-#       covers its summoner exactly instead of landing at some fraction of the
-#       screen (this is what ⌘F's this-window search wants). Falls back to a
-#       centered 80% if that frame can't be read.
+#       --match-frontmost instead returns the frame of the FOCUSED window right
+#       NOW — the one whose keystroke summoned us — so the popup covers its
+#       summoner exactly instead of landing at some fraction of the screen. It
+#       is what every per-window chord wants: ⌘F searches that one window's
+#       scrollback, ⌘Y roots yazi at that one window's cwd, and a popup that
+#       lands over a DIFFERENT window than the one it is about reads as a bug
+#       even when its contents are right. Falls back to a centered 80% if that
+#       frame can't be read.
 #       --tiled is the "cover the whole desktop" size, and it is NOT the same
 #       as --pct 100: the visible frame is everything macOS leaves us, whereas
 #       the TILED area is that frame inset by AeroSpace's outer gaps — the
@@ -119,23 +122,54 @@ GAP_BOTTOM_EXTERNAL="@gap_bottom_external@"
 GAP_SIDE_BUILTIN="@gap_side_builtin@"
 GAP_SIDE_EXTERNAL="@gap_side_external@"
 
-# ── frame of the window that's on top right now ─────────────────────────────
-# Emits "X Y W H" for the frontmost window of the frontmost application — the
+# ── frame of the window that has the keyboard right now ─────────────────────
+# Emits "X Y W H" for the FOCUSED window of the frontmost application — the
 # window whose keystroke summoned us — in the SAME top-left-origin coord system
 # geom() emits and spawn()'s AppleScript consumes, so the two are drop-in
 # interchangeable. Silent (empty) on any failure — no frontmost app, a process
 # with no windows, a nonsense frame — which is the caller's cue to fall back to
 # centered geometry rather than place a window at 0×0.
+#
+# `AXFocusedWindow`, NOT `window 1`, and that is the whole correctness of this
+# function. One process can own several windows — a ⌘N window (launcher's
+# shell-here.sh) and scripts/new-window.sh both ask the RUNNING Ghostty for
+# `new window` over AppleScript rather than paying for a second instance, so
+# every window after the first shares its parent's pid — and System Events'
+# `windows` list is in AX order, which is NOT a promise about which one has the
+# keyboard. So `window 1` meant "some other window of the same app", which put
+# the ⌘F overlay over a window you hadn't pressed the chord in: the search
+# itself was right (it joins on the zmx session, not on a frame), only the
+# placement was, silently, one window off.
+#
+# The retry loop is the palette's half of the same question. ⌘Y is a chord AND
+# a palette row (Peek Files), and a pounce command commits with the palette
+# still fading — `.linger`, ~0.4 s, focus handed back to the captured window
+# only after the client has been spawned. Pounce's own window clears the
+# sanity gate below, so without the wait a palette-summoned popup would size
+# itself to the palette. Ask again until pounce is no longer the frontmost app,
+# then fall through to the centered default if it never yields. `--nowait` is
+# for the one caller that only wants a POINT — the tiled branch's display probe
+# — where a missed answer costs a guess at which screen you are on (and the
+# palette is on that screen anyway), not a misplaced window. It would otherwise
+# pay the whole 0.6 s on every palette-spawned --tiled popup.
 frontmost_frame() {
-  local out x y w h
-  out=$(osascript 2>/dev/null <<'APPLESCRIPT'
+  local out x y w h i tries=12
+  [ "${1:-}" = "--nowait" ] && tries=1
+  for i in $(seq 1 $tries); do
+    out=$(osascript 2>/dev/null <<'APPLESCRIPT'
 tell application "System Events"
   set fronts to (every application process whose frontmost is true)
   if (count of fronts) is 0 then return ""
+  if name of item 1 of fronts is "pounce" then return ""
   tell item 1 of fronts
     if (count of windows) is 0 then return ""
-    set {px, py} to position of window 1
-    set {pw, ph} to size of window 1
+    set w to window 1
+    try
+      set fw to value of attribute "AXFocusedWindow"
+      if fw is not missing value then set w to fw
+    end try
+    set {px, py} to position of w
+    set {pw, ph} to size of w
     set out to ((px as integer) as text) & " " & ((py as integer) as text)
     set out to out & " " & ((pw as integer) as text)
     set out to out & " " & ((ph as integer) as text)
@@ -144,6 +178,9 @@ tell application "System Events"
 end tell
 APPLESCRIPT
 )
+    [ -n "$out" ] && break
+    sleep 0.05
+  done
   read -r x y w h <<< "${out:-}"
   # Sanity gate: a real terminal window, not a menubar extra or a zero-size
   # stub. Only w/h are checked — x/y are legitimately negative on a display
@@ -191,7 +228,7 @@ geom() {
   # cursor is the better guess anyway.
   if [ "$mode" = "tiled" ]; then
     local fx fy fw fh probe
-    probe=$(frontmost_frame)
+    probe=$(frontmost_frame --nowait)
     if [ -n "$probe" ]; then
       read -r fx fy fw fh <<< "$probe"
       export HAUS_PROBE_X=$(( fx + fw / 2 )) HAUS_PROBE_Y=$(( fy + fh / 2 ))
