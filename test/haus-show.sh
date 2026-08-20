@@ -12,17 +12,20 @@
 # runner isn't one either — which is the case this command exists to serve.
 set -euo pipefail
 
-repo="$(cd "$(dirname "$0")/.." && pwd)"
+# `root`, not `repo`: the offline section below reassigns `repo` to a throwaway
+# git+file:// SOURCE, and anything after it reaching for the checkout would get
+# a flakeref instead — silently, since both are strings a `nix build` will try.
+root="$(cd "$(dirname "$0")/.." && pwd)"
 
 # The built wrapper, which is what `nix run …#show` gives a stranger. Overridable
 # so a local run can point at a copy it already built and skip the ~10s.
 if [ -z "${HAUS_SHOW_BIN:-}" ]; then
-  HAUS_SHOW_BIN="$(nix build --no-link --print-out-paths "$repo#show")/bin/haus-show"
+  HAUS_SHOW_BIN="$(nix build --no-link --print-out-paths "$root#show")/bin/haus-show"
 fi
 show="$HAUS_SHOW_BIN"
 [ -x "$show" ] || { printf 'FAIL: no haus-show at %s\n' "$show" >&2; exit 1; }
 
-fixtures="$repo/test/desktops"
+fixtures="$root/test/desktops"
 tmp="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$tmp"' EXIT
 
@@ -452,6 +455,28 @@ before="$(snapshot)"
 run "$fixtures/valid-sample.nix"
 after="$(snapshot)"
 [ "$before" = "$after" ] || fail "show changed the directory it read"
+
+# ---- the checker's own path is resolved, not just the subject's ---------------
+# On a machine the checker is `/run/current-system/sw/share/haus/desktop-check`,
+# which is TWO symlinks away from where it really is. `restrict-eval` judges the
+# resolved path, so allowing the logical spelling on `-I` while interpolating it
+# into the expression refused every single invocation — local source and remote
+# alike — with "access to absolute path '/private/var/run/…/read.nix' is
+# forbidden in restricted mode".
+#
+# Nothing here could see it: the packaged wrapper bakes a STORE path, which has
+# no symlink in it to resolve. So the regression is pinned by handing the
+# command a symlink on purpose, which is a thing every platform has.
+check="$(nix build --no-link --print-out-paths "$root#desktop-check")/share/haus/desktop-check"
+ln -s "$check" "$tmp/link-to-check"
+# Exported and unset around the call rather than prefixed to it: `run` is a
+# shell FUNCTION, and whether a prefixed assignment survives one depends on
+# whether bash is in POSIX mode.
+export HAUS_DESKTOP_CHECK="$tmp/link-to-check"
+run "$fixtures/valid-sample.nix"
+unset HAUS_DESKTOP_CHECK
+expect_status 0 "symlinked checker"
+has "a desktop — data only" "symlinked checker"
 
 # ---- --help --------------------------------------------------------------------
 run --help

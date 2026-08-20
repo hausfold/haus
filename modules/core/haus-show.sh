@@ -113,6 +113,17 @@ done
 
 [ -n "$subject" ] || { usage >&2; exit 2; }
 [ -d "$CHECK" ] || die "no desktop checker at $CHECK — this machine's haus predates 'haus show'; run 'haus update' first."
+# …and then PHYSICALLY, for the same reason the subject below is resolved that
+# way: `restrict-eval` judges the path Nix resolved, not the one you typed. On a
+# real Mac the checker is reached through two symlinks — `/run` →
+# `private/var/run`, and `sw/share/haus/desktop-check` → the store — so `-I`
+# allowed the logical spelling while the interpolated `${CHECK}/read.nix`
+# resolved to `/private/var/run/…` and was refused. That killed EVERY
+# invocation on a machine, local source and remote alike, while the suite
+# stayed green: it runs the packaged wrapper, whose checker is already a store
+# path with no symlink in it. Resolved after the guard above, so the error a
+# person reads still names the path they configured.
+CHECK="$(cd "$CHECK" && pwd -P)"
 
 # The subject's path goes into a Nix expression, so it is escaped as a Nix
 # string rather than pasted. A `"` or a `${` in a directory name is enough to
