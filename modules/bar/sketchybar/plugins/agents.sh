@@ -288,26 +288,18 @@ if [ "${1:-}" = "row" ] && [ "${2:-}" = "zmx" ]; then
       --w 900 --h 560 --pin \
       --command "zmx tail $zsess" >/dev/null
   else
-    # go-to: raise the window. Two joins, tried in order. A LANE is an exact
-    # title match — terminal/lanes/lane-open.sh gives its window a forced
-    # `--title` equal to the session name, so nothing inside can clobber it.
-    # Anything else (a plain `term.<n>` window that happens to hold an agent)
-    # carries no forced title, so it is found through the `window` label
-    # scripts/launch.sh stamps with the AeroSpace window id it tiled. No window
-    # either way means the session is detached and still running — the whole
-    # point of zmx — so reopen one on it rather than pretending nothing is there.
-    win=$(aerospace list-windows --all --format '%{window-id}|%{app-name}|%{window-title}' 2>/dev/null \
-          | awk -F'|' -v t="$zsess" '$2 == "Ghostty" && $3 == t { print $1; exit }')
-    if [ -z "$win" ]; then
-      lw=$(zmx get "$zsess" 2>/dev/null | tr '\t' '\n' | sed -n 's/^ *window=//p' | head -1)
-      [ -n "$lw" ] && win=$(aerospace list-windows --all --format '%{window-id}' 2>/dev/null \
-            | grep -Fx "$lw")
-    fi
-    if [ -n "$win" ]; then
-      aerospace focus --window-id "$win" 2>/dev/null
-    else
-      open -na Ghostty.app --args --title="$zsess" --initial-command="zmx attach $zsess"
-    fi
+    # go-to: raise the window. terminal/scripts/raise-session.sh owns the joins
+    # — an exact window-title match for a lane, the window-id label
+    # scripts/launch.sh stamps for a plain `term.<n>` window that happens to
+    # hold an agent, and whether either is spelled AeroSpace or Ghostty on this
+    # machine. ⌘F's ⏎ calls the same script; this pair used to be two copies of
+    # it, both AeroSpace-only.
+    #
+    # --or-open: a session with no window is detached and still running — the
+    # whole point of zmx — so the script opens one onto it rather than
+    # pretending nothing is there. Which is also why the reopen isn't spelled
+    # out here any more: it is the same backend question as the raise.
+    "$HOME/.config/haus/term/raise-session.sh" --or-open "$zsess" >/dev/null 2>&1
   fi
   "$SB" --set agents popup.drawing=off
   exit 0
