@@ -139,7 +139,8 @@ modules/
                           #   the terminal, the bar and the launcher through the
                           #   extension points those rooms declare (lib/contrib.nix).
                           #   Owns its payload too, in BOTH profiles (2026-08-19):
-                          #   holt + the statusline pair + agent-state (system),
+                          #   holt + the statusline pair + agent-state +
+                          #   agent-desktop-guard (system),
                           #   and the instructions/skill files (home, written into
                           #   the same user terminal writes — home-manager merges
                           #   the two, and a path collision is an error)
