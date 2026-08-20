@@ -1,12 +1,16 @@
 #!/bin/bash
 # pounce: name = Pages
-# pounce: description = Jump to a repo page, or throw this window onto one
+# pounce: description = Jump to a workspace page, or throw this window onto one
 # pounce: icon = square.stack
 # pounce: submenu = true
 #
-# The picker for the terminal PAGES — `T` and the `T/<repo>` workspaces a lane's
-# window tiles itself onto (terminal/lanes/lane-open.sh). Two acts on one list,
-# because they are the same question asked in two directions:
+# The picker for PAGES — any workspace with a `/` in its name, plus the
+# workspace it hangs off. `T/<repo>`, the page a lane's window tiles itself onto
+# (terminal/lanes/lane-open.sh), is the only producer haus ships, but AeroSpace
+# makes a workspace on first use and the bar's page pill names the page of
+# whatever workspace you are on — so this list follows the pill rather than the
+# one producer. Two acts on one list, because they are the same question asked
+# in two directions:
 #
 #   ↵    go to that page
 #   ⌥↵   throw the focused window onto it, and follow it there
@@ -68,12 +72,34 @@ WID="$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null | tr
 # exactly the set of pages, since lane-open.sh deliberately keeps `T/<repo>` OUT
 # of persistent-workspaces so an emptied page evaporates instead of accreting.
 #
-# Bare `T` is forced into the list rather than taken from that output: it is the
-# page you most often want to throw something back to, and it is the one that is
-# empty precisely when you need it (every terminal window has been paged away).
+# A page is any workspace with a `/` in it, not a `T/` one: `T/<repo>` is the
+# only producer haus ships (lane-open.sh), but AeroSpace makes a workspace on
+# first use and the bar's page pill names the page of whatever workspace you are
+# on, so a list that hardcoded `T` would light a pill whose click cannot reach
+# its own page. Each page's BASE comes along, because "put this back where it
+# belongs" is the other half of the question this list answers.
+#
+# Bare `T` is forced in on top of that rather than taken from the output: it is
+# the page you most often want to throw something back to, and it is the one
+# that is empty precisely when you need it (every terminal window has been paged
+# away), so it would be missing from a purely live list at exactly that moment.
 pages="$(
   { printf 'T\n'; aerospace list-workspaces --monitor all 2>/dev/null; } \
-    | awk '$0 == "T" || $0 ~ /^T\// { if (!seen[$0]++) print }'
+    | awk '
+        function emit(w) { if (!seen[w]++) print w }
+        { line[++n] = $0 }
+        END {
+          emit("T")
+          # A base earns a row only when something under it is live, so it is
+          # emitted from the page rather than from the input — and just before
+          # it, which groups each workspace with its own pages.
+          for (i = 1; i <= n; i++)
+            if (line[i] ~ /\//) {
+              base = line[i]; sub(/\/.*$/, "", base)
+              emit(base); emit(line[i])
+            }
+        }
+      '
 )"
 
 # App names per workspace, from ONE `aerospace` call — the alternative is a
@@ -103,13 +129,28 @@ fi
 
 current="$(aerospace list-workspaces --focused 2>/dev/null)"
 
+# ── NO APOSTROPHES OR BACKTICKS IN THE COMMENTS BELOW ────────────────────────
+# They live inside a `$( )`, and bash 3.2 — which is `/bin/bash` on macOS, and
+# so is this script's shebang — does not recognise `#` as starting a comment in
+# there. A lone `'` opens a single-quoted string that never closes; a lone
+# backtick opens a command substitution that never closes. Either way the
+# failure is not local: the parse runs to EOF and the WHOLE FILE dies with
+# `unexpected EOF`, at startup, before a single line has run.
+#
+# One word cost this picker exactly that. The row-icon comment read
+# "shouldn't be dressed as one" from the day it landed, so `pages.sh` had never
+# once parsed on a stock macOS — the Pages palette command and the page pill's
+# click both did nothing at all, with the error going wherever pounce sends a
+# command's stderr. Found 2026-08-19 by running the shipped file under
+# `/bin/bash -n`, which is worth doing to any script here that a comment lands
+# inside a command substitution in.
 rows="$(
   printf '%s\n' "$pages" | while IFS= read -r ws; do
     [ -n "$ws" ] || continue
     desc="$(printf '%s\n' "$summaries" | awk -F'\t' -v w="$ws" '$1 == w { print $2; exit }')"
     [ -n "$desc" ] || desc="empty"
     [ "$ws" = "$current" ] && desc="$desc  ·  you are here"
-    # `T` is not a repo and shouldn't be dressed as one.
+    # T is not a repo, so it is not dressed as one.
     if [ "$ws" = T ]; then
       icon="terminal"
       title="T"

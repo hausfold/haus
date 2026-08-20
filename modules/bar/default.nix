@@ -1726,8 +1726,10 @@ lib.mkIf config.haus.bar.enable {
         # five places is a font that ends up being two.
         BAR_FONT="${barFont}"
         FS_ICON="${sizes.icon}"
-        # The square Material Design marks render short at FS_ICON; `github` and
-        # the page pill both draw at this one instead.
+        # The square Material Design marks render short at FS_ICON. The widget
+        # table interpolates the same value straight into its blocks (`github`);
+        # this exists for the pills sketchybarrc writes by hand, where there is
+        # no Nix to interpolate from — today the `page` pill alone.
         FS_ICON_WIDE="${sizes.iconWide}"
         FS_LABEL="${sizes.label}"
         FS_SMALL="${sizes.small}"
