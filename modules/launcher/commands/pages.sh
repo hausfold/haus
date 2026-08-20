@@ -3,6 +3,25 @@
 # pounce: description = Jump to a workspace page, or throw this window onto one
 # pounce: icon = square.stack
 # pounce: submenu = true
+# pounce: whenFile = ~/.local/state/haus/any-page
+# pounce: cheatWhen = while a page exists
+#
+# That `whenFile` is why this row can be missing: the palette hides it while the
+# file says `0`, which is while there is no page ANYWHERE on this Mac — nothing
+# to go to, and nothing this list could name but the bare `T` it forces in.
+# windows/scripts/workspace-mru.sh writes the file on every workspace change,
+# the same hook and the same directory the recency file it already writes lives
+# in; a Mac with no tiler never writes it at all, and a file that does not exist
+# is a yes, so the row simply stays.
+#
+# GLOBAL, deliberately, and not "does the workspace you are on have pages": this
+# list is every base with a live page at once, which is exactly why it is worth
+# opening from a browser on `R`. The per-workspace question belongs to the bar's
+# `page` pill (bar/sketchybar/plugins/page.sh), which answers it by naming where
+# you are. The one thing hiding costs: with no page anywhere, the free-text
+# "throw this window onto a page nobody has opened yet" door below is shut until
+# some page exists — one ⌘↵ away, and the case it serves (paging a repo whose
+# first lane is not open) needs a lane to have been opened somewhere anyway.
 #
 # The picker for PAGES — any workspace with a `/` in its name, plus the
 # workspace it hangs off. `T/<repo>`, the page a lane's window tiles itself onto
