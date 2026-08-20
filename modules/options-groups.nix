@@ -474,7 +474,15 @@ let
       "slack.tokenCommand" = "secret";
     };
     fonts."mono.package" = "needs-pkgs";
-    git = wholeNamespace "git" "identity";
+    # `git` is the one namespace `wholeNamespace` cannot answer alone: four of
+    # its five leaves name you, and `shellAliases` is a set of shell command
+    # strings that names nobody. Overriding the one member is the point of
+    # writing the reasons down — a sweep that put "it names you rather than a
+    # machine" over a command surface would be the exact wrong sentence this
+    # table exists to stop.
+    git = wholeNamespace "git" "identity" // {
+      shellAliases = "runs-a-command";
+    };
     keys."leaderExtras.*.command" = "runs-a-command";
     launcher.signingIdentity = "keychain";
     locale = wholeNamespace "locale" "your-region";
@@ -521,17 +529,17 @@ let
   # written once instead of forty-three times and the rows that share one
   # provably share it. A name used exactly once is fine and normal.
   hostOnlyReasons = {
-    agent-context.why = "Your own always-on instructions to coding agents — the private working context you write for your own machine, not something a stranger's file should arrive holding.";
+    agent-context.why = "Your own always-on instructions to coding agents: the private working context you write for your own machine, not something a stranger's file should arrive holding.";
     browser-code.why = "It installs browser extensions, or writes raw enterprise policy into a file haus owns as root: code reaching your browser through what is supposed to be readable data.";
     haus-writes-it.why = "haus sets this itself, so the roster can still say which module put an app on disk. It is a generated fact about this machine rather than an input anyone writes.";
-    identity.why = "It names you rather than a machine — your commit identity, the addresses that are yours. A desktop that set it would put its author's name on your work.";
+    identity.why = "It names you rather than a machine: your commit identity, the addresses that are yours, the account whose repositories this Mac works on. A desktop that set it would put its author's details on your work.";
     keychain.why = "It names a code-signing identity in one login keychain, which exists on exactly one Mac and cannot be meaningfully published.";
     local-path.why = "It names a path on this disk, so it is a fact about one filesystem rather than an opinion a shared desktop can hold about every machine.";
     needs-pkgs.why = "It takes a `pkgs` value, and desktop data is evaluated with no module arguments to take one from. The `…Name` leaf beside it is the desktop-safe half of the pair.";
-    one-network.why = "It names a device on your own network by host or IP — a fact about your desk. Left empty, the pill discovers the device itself, which is what a shared desktop should leave it doing.";
-    runs-a-command.why = "It is a shell command this machine runs. A desktop is a file you can read to know what it does, and a leaf that runs a command is exactly what would stop being true of.";
-    secret.why = "It points at a secret, or at the store this machine keeps its secrets in — a credential belonging to one person on one Mac.";
-    this-hardware.why = "Sleep and power behaviour depends on the machine underneath it — whether it has a battery at all, and how this particular one is carried around.";
+    one-network.why = "It names a device on your own network by host or IP, which is a fact about your desk. Left empty, the pill discovers the device itself, and that is what a shared desktop should leave it doing.";
+    runs-a-command.why = "It is a shell command this machine runs, and a desktop is a file you can read to know what it does. A leaf carrying a command is exactly what stops that being true.";
+    secret.why = "It points at a secret, or at the store this machine keeps its secrets in, so it belongs to one person on one Mac.";
+    this-hardware.why = "Sleep and power behaviour depends on the machine underneath it: whether it has a battery at all, and how this particular one is carried around.";
     your-region.why = "Language, region, units and keyboard layout are facts about the person at the keyboard; a desktop that set them would change what your Mac speaks.";
   };
 

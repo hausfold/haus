@@ -100,7 +100,7 @@
   },
   "hostOnlyReasons": {
     "agent-context": {
-      "why": "Your own always-on instructions to coding agents — the private working context you write for your own machine, not something a stranger's file should arrive holding."
+      "why": "Your own always-on instructions to coding agents: the private working context you write for your own machine, not something a stranger's file should arrive holding."
     },
     "browser-code": {
       "why": "It installs browser extensions, or writes raw enterprise policy into a file haus owns as root: code reaching your browser through what is supposed to be readable data."
@@ -109,7 +109,7 @@
       "why": "haus sets this itself, so the roster can still say which module put an app on disk. It is a generated fact about this machine rather than an input anyone writes."
     },
     "identity": {
-      "why": "It names you rather than a machine — your commit identity, the addresses that are yours. A desktop that set it would put its author's name on your work."
+      "why": "It names you rather than a machine: your commit identity, the addresses that are yours, the account whose repositories this Mac works on. A desktop that set it would put its author's details on your work."
     },
     "keychain": {
       "why": "It names a code-signing identity in one login keychain, which exists on exactly one Mac and cannot be meaningfully published."
@@ -121,16 +121,16 @@
       "why": "It takes a `pkgs` value, and desktop data is evaluated with no module arguments to take one from. The `…Name` leaf beside it is the desktop-safe half of the pair."
     },
     "one-network": {
-      "why": "It names a device on your own network by host or IP — a fact about your desk. Left empty, the pill discovers the device itself, which is what a shared desktop should leave it doing."
+      "why": "It names a device on your own network by host or IP, which is a fact about your desk. Left empty, the pill discovers the device itself, and that is what a shared desktop should leave it doing."
     },
     "runs-a-command": {
-      "why": "It is a shell command this machine runs. A desktop is a file you can read to know what it does, and a leaf that runs a command is exactly what would stop being true of."
+      "why": "It is a shell command this machine runs, and a desktop is a file you can read to know what it does. A leaf carrying a command is exactly what stops that being true."
     },
     "secret": {
-      "why": "It points at a secret, or at the store this machine keeps its secrets in — a credential belonging to one person on one Mac."
+      "why": "It points at a secret, or at the store this machine keeps its secrets in, so it belongs to one person on one Mac."
     },
     "this-hardware": {
-      "why": "Sleep and power behaviour depends on the machine underneath it — whether it has a battery at all, and how this particular one is carried around."
+      "why": "Sleep and power behaviour depends on the machine underneath it: whether it has a battery at all, and how this particular one is carried around."
     },
     "your-region": {
       "why": "Language, region, units and keyboard layout are facts about the person at the keyboard; a desktop that set them would change what your Mac speaks."
@@ -683,7 +683,7 @@
         },
         "haus.git.shellAliases": {
           "desktopSafe": false,
-          "reason": "identity"
+          "reason": "runs-a-command"
         },
         "haus.git.signingKey": {
           "desktopSafe": false,
