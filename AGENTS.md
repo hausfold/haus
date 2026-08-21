@@ -333,6 +333,39 @@ mechanism, say so in one line.
 
 ## Patterns
 
+- **Room A needs a capability room B provides**: three treatments, picked by
+  whether a substitute exists — not by which room came first. #415's commit
+  message is the worked example; use it as the template for the next pair.
+  - **Presentation only** (B would draw/place something FOR A; nothing in A
+    itself breaks without it): a `haus._contrib.<B>.<feature>` extension point
+    (`modules/lib/contrib.nix`). B declares the point in its own
+    `options.nix`, A writes a plain attrset to it, B renders inside its OWN
+    `mkIf config.haus.<B>.enable` — A never reads B's option surface (a B
+    rename can't break A) and B never has to exist for A to work.
+    `_contrib.bar.agents`, `_contrib.launcher.agents`,
+    `_contrib.development.agents` (`modules/ai/default.nix:636-656`) and
+    `_contrib.bar.focus` / `_contrib.launcher.focus`
+    (`modules/focus/default.nix:241`) are it in production — read the comment
+    at `modules/ai/default.nix:632-635` for the rule stated plainly: "no room
+    reads `config.haus.ai.*` to decide what to draw any more."
+  - **Functional, with a substitute**: detect B's capability at RUNTIME and
+    fall back, rather than requiring B at build time. `haus.ai` needing
+    `haus.windows` for agent-lane placement was exactly this until #415:
+    `modules/terminal/default.nix:127-143` turned a hard `assertions` entry
+    into a `warnings` one, and `lanes/lane-open.sh` now picks
+    `HAUS_WINDOW_BACKEND=aerospace|ghostty` at runtime (`command -v aerospace`)
+    so a tiler-less machine still gets working lanes, only without page
+    placement. A build-time assertion is the wrong tool whenever a
+    lesser-but-real fallback exists — it was forcing the OFF room to disable A
+    entirely (`compat/presets.nix`'s old `ai.enable = false`, deleted by #415)
+    instead of degrading.
+  - **Functional, with NO substitute**: a build-time `assertions` entry is
+    correct, and should stay one — don't reach for `_contrib` or a runtime
+    fallback just to avoid it. `modules/windows/default.nix:587-593`
+    (`mouseFullscreen` needs `haus.launcher.enable`, because pounce's event tap
+    is the only thing on the machine that can fire on a click — AeroSpace has
+    no mouse bindings) is the one room pair left with a real hard requirement,
+    asserted for exactly that reason.
 - **New SketchyBar plugin**: add
   `modules/bar/sketchybar/plugins/<name>.sh`, wire it into
   `modules/bar/sketchybar/sketchybarrc`. Follow an existing plugin.
