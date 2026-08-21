@@ -935,6 +935,31 @@
               description = "The same room, under the reserved prefix.";
             };
           };
+          # E1's three fixtures. A published room, ONE store root, that this
+          # machine's claim table names — must come back silent on both the
+          # warning and the assertion side.
+          nsClaimedRoom = {
+            _file = "/nix/store/cccccccccccccccccccccccccccccccc-source/photography.nix";
+            options.haus.photography.enable = nixpkgs.lib.mkOption {
+              type = nixpkgs.lib.types.bool;
+              default = false;
+              description = "A published room, correctly claimed.";
+            };
+          };
+          nsClaimTable = {
+            photography = "github:ada/photo-room";
+          };
+          # A SECOND input's leaf under the same namespace `nsClaimTable`
+          # claims for the first — the co-ownership hazard itself. Different
+          # store root is the whole test.
+          nsCoOwnerRoom = {
+            _file = "/nix/store/dddddddddddddddddddddddddddddddd-source/hook.nix";
+            options.haus.photography.hook = nixpkgs.lib.mkOption {
+              type = nixpkgs.lib.types.str;
+              default = "";
+              description = "A second input's leaf under the same claimed namespace.";
+            };
+          };
           nsShow = xs: if xs == [ ] then "-" else builtins.concatStringsSep "," xs;
           nsRow =
             name: mods:
@@ -980,11 +1005,51 @@
           '';
           # The words a person actually meets, pinned like the ai room's pill
           # warnings: this text is the entire user-facing surface of E0.
-          namespaceGuardWarnings = namespaceGuard.warningsFor (nsOptionsOf [ nsPrivateRoom ]);
+          namespaceGuardWarnings = namespaceGuard.warningsFor (nsOptionsOf [ nsPrivateRoom ]) { };
           expectedNamespaceGuardWarnings = ''
             haus: `haus.photography` is not a room haus ships, and nothing here records who it belongs to.
               declared by /nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-source/photography.nix
-            Yours alone? Move it under `haus.my.` — `haus.my.photography` — which haus promises never to ship a room under. Somebody else's published room? Then a plain name is correct, and what is missing is this machine's record of the claim, which haus cannot write yet. Either way the risk is the same: a haus release that takes this name meets the declaration above, and the likely outcome is not an error — two modules declaring different leaves under one namespace merge in silence, one room's switch steering the other's.
+            Yours alone? Move it under `haus.my.` — `haus.my.photography` — which haus promises never to ship a room under. Somebody else's published room? Then a plain name is correct — write the claim yourself so this machine can tell a real conflict from silence: `haus._rooms.claimed.photography = "<where it came from>";`. Either way the risk is the same: a haus release that takes this name meets the declaration above, and the likely outcome is not an error — two modules declaring different leaves under one namespace merge in silence, one room's switch steering the other's.
+          '';
+          # E1: a claim that matches what's declared stops warning entirely —
+          # this is the sentence the note said the message would lose once E1
+          # landed, proven by the warning list coming back empty.
+          namespaceGuardWarningsClaimed = namespaceGuard.warningsFor (nsOptionsOf [ nsClaimedRoom ]) nsClaimTable;
+          # Matches the `+ "\n"` the derivation below applies to the actual
+          # side — an empty list becomes one blank line, not a zero-byte file.
+          expectedNamespaceGuardWarningsClaimed = "\n";
+          # E1's fatal half: assertions, not warnings, and only for the two
+          # cases that are never fine — a claimed namespace whose store roots
+          # disagree, and a namespace haus ships colliding with an old claim.
+          # `firstLine` because the full messages are already pinned above and
+          # in the co-ownership/later-shipped rows below; the table is for
+          # coverage across fixtures, not a second copy of the prose.
+          nsFirstLine = m: builtins.head (nixpkgs.lib.splitString "\n" m);
+          nsAssertRow =
+            name: mods: claimed: hausVersion:
+            let
+              opts = nsOptionsOf mods;
+              failing = builtins.filter (r: !r.assertion) (
+                namespaceGuard.assertionsFor opts claimed hausVersion
+              );
+            in
+            "${name} fatal=${toString (builtins.length failing)} ${nsShow (map (r: nsFirstLine r.message) failing)}";
+          namespaceGuardAssertTable = builtins.concatStringsSep "\n" [
+            (nsAssertRow "stock" [ ] { } null)
+            (nsAssertRow "unclaimed" [ nsPrivateRoom ] { } null)
+            (nsAssertRow "claimed" [ nsClaimedRoom ] nsClaimTable null)
+            (nsAssertRow "coowned" [
+              nsClaimedRoom
+              nsCoOwnerRoom
+            ] nsClaimTable null)
+            (nsAssertRow "later-shipped" [ ] { bar = "github:ada/bar-room"; } "2026.08.20")
+          ];
+          expectedNamespaceGuardAssertTable = ''
+            stock fatal=0 -
+            unclaimed fatal=0 -
+            claimed fatal=0 -
+            coowned fatal=1 haus: `haus.photography` is claimed by github:ada/photo-room, but what's actually declared under it doesn't come from one source:
+            later-shipped fatal=1 haus: `haus.bar` is now a namespace haus itself ships (as of 2026.08.20), but this machine had already claimed it for a third-party room:
           '';
 
           # ---- fragment-compat -------------------------------------------------
@@ -3114,6 +3179,12 @@
 
             diff -u ${pkgs.writeText "expected" expectedNamespaceGuardWarnings} \
                     ${pkgs.writeText "actual" (builtins.concatStringsSep "\n" namespaceGuardWarnings + "\n")}
+
+            diff -u ${pkgs.writeText "expected" expectedNamespaceGuardWarningsClaimed} \
+                    ${pkgs.writeText "actual" (builtins.concatStringsSep "\n" namespaceGuardWarningsClaimed + "\n")}
+
+            diff -u ${pkgs.writeText "expected" expectedNamespaceGuardAssertTable} \
+                    ${pkgs.writeText "actual" (namespaceGuardAssertTable + "\n")}
             touch $out
           '';
         }

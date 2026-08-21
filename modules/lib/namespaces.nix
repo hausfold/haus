@@ -63,6 +63,25 @@
 #                           purpose: catching it means comparing `declarations`
 #                           per leaf and asserting one store root, which is E1's
 #                           walk. E0 is about the name, not the leaf.
+#
+# E1 is that walk. `haus._rooms.claimed.<namespace> = "<origin>"` is a
+# machine's own record of who it believes owns a namespace haus doesn't ship —
+# `haus add --room` will write it once that exists (acquisition step F); until
+# then it's set by hand. A claim turns an E0 warning into one of two things,
+# and only one of them is still a warning:
+#
+#   claimed, one store root    resolved. What's declared agrees with the
+#                               claim; nothing to say.
+#   claimed, >1 store roots    co-ownership, in the present tense: two
+#                               different inputs' code sits under one
+#                               namespace and the claim can vouch for only
+#                               one of them. FATAL — this is the hazard the
+#                               whole design exists to catch, not a maybe.
+#
+# A third case has nothing to do with `unregistered` at all: a namespace haus
+# now SHIPS that this machine had already claimed for someone else. That's a
+# future-tense collision between the registry and the claim table, checked
+# independently below (`laterShipped`), and it's FATAL for the same reason.
 {
   lib,
   registry,
@@ -111,21 +130,10 @@ let
     # room: no leaf, nothing to name, nothing to say.
     builtins.filter (u: u.declaredBy != [ ]) (map row (candidates hausOptions));
 
-  # Two readers meet this, and an earlier draft only served one of them.
-  #
-  # The private case is the one E0 is for: a room somebody wrote for their own
-  # Mac, which should move under the reserved prefix. But a room somebody
-  # PUBLISHED is supposed to claim a plain `haus.<name>` — that is what makes it
-  # read like a room, and `/docs/haus/desktops/sharing` says so — and a message
-  # telling that person to move it under `haus.my.` would be wrong advice at
-  # every rebuild. What is actually missing there is the machine's record of
-  # which input claimed the namespace, and haus cannot write one yet: that is the
-  # claim table, step E1, and it is deliberately sequenced after this because a
-  # format is hard to change once anyone has published into it.
-  #
-  # So the message names the risk, which both readers share, and splits only on
-  # what to DO about it. When E1 lands, the claimed case stops reaching here at
-  # all and this text loses its middle sentence.
+  # Two readers meet this, and only one of them still reaches it now that a
+  # claim exists to say otherwise: the private case (E0's own) and a claimed
+  # namespace with a store-root mismatch have their own message below —
+  # `warningsFor` filters both out before this one is ever built.
   message =
     u:
     "haus: `haus.${u.namespace}` is not a room haus ships, and nothing here records who it "
@@ -133,11 +141,65 @@ let
     + "  declared by ${builtins.concatStringsSep " and " u.declaredBy}\n"
     + "Yours alone? Move it under `haus.${reserved}.` — `haus.${reserved}.${u.namespace}` — "
     + "which haus promises never to ship a room under. Somebody else's published room? Then a "
-    + "plain name is correct, and what is missing is this machine's record of the claim, which "
-    + "haus cannot write yet. Either way the risk is the same: a haus release that takes this "
-    + "name meets the declaration above, and the likely outcome is not an error — two modules "
-    + "declaring different leaves under one namespace merge in silence, one room's switch "
-    + "steering the other's.";
+    + "plain name is correct — write the claim yourself so this machine can tell a real "
+    + "conflict from silence: `haus._rooms.claimed.${u.namespace} = \"<where it came from>\";`. "
+    + "Either way the risk is the same: a haus release that takes this name meets the "
+    + "declaration above, and the likely outcome is not an error — two modules declaring "
+    + "different leaves under one namespace merge in silence, one room's switch steering "
+    + "the other's.";
+
+  # Store root of a declaration path — `/nix/store/<hash>-source/kettle.nix`
+  # becomes `/nix/store/<hash>-source`. Two leaves of one namespace commonly
+  # land in different FILES of one source tree (a room split across modules);
+  # the hazard is two different ROOTS, i.e. two different inputs.
+  storeRoot =
+    path:
+    let
+      m = builtins.match "(/nix/store/[^/]+)/.*" path;
+    in
+    if m == null then path else builtins.head m;
+
+  # Every `unregistered` row, plus what its claim (if any) says about it.
+  claimStatus =
+    hausOptions: claimed:
+    map (
+      u:
+      let
+        origin = claimed.${u.namespace} or null;
+        roots = lib.unique (map storeRoot u.declaredBy);
+      in
+      u
+      // {
+        inherit origin;
+        coOwned = origin != null && builtins.length roots > 1;
+      }
+    ) (unregistered hausOptions);
+
+  coOwnershipMessage =
+    u:
+    "haus: `haus.${u.namespace}` is claimed by ${u.origin}, but what's actually declared "
+    + "under it doesn't come from one source:\n"
+    + "  ${builtins.concatStringsSep "\n  " u.declaredBy}\n"
+    + "A claim can vouch for one input; this namespace's leaves come from more than one, "
+    + "so something else is declaring under a name ${u.origin} claimed for itself — one "
+    + "room's switch may be steering another's. Check `haus._rooms.claimed.${u.namespace}` "
+    + "against what's actually installed, and `haus remove` whichever doesn't belong.";
+
+  # E1's other case, independent of `unregistered`: a namespace haus now ships
+  # can't be a CANDIDATE (it's in `known` by definition), but it can still be
+  # in the claim table from before haus shipped it.
+  laterShipped = claimed: builtins.filter (ns: builtins.elem ns known) (builtins.attrNames claimed);
+
+  laterShippedMessage =
+    hausVersion: claimed: ns:
+    "haus: `haus.${ns}` is now a namespace haus itself ships"
+    + (if hausVersion == null then "" else " (as of ${hausVersion})")
+    + ", but this machine had already claimed it for a third-party room:\n"
+    + "  ${claimed.${ns}}\n"
+    + "That room's leaves and haus's own now share one namespace, which either throws on "
+    + "the first leaf they both declare or merges silently on every leaf they don't. Pick "
+    + "one: `haus remove` the third-party room, or move it — the namespace it claimed is "
+    + "haus's now.";
 in
 {
   inherit
@@ -145,8 +207,29 @@ in
     candidates
     unregistered
     message
+    storeRoot
+    claimStatus
+    coOwnershipMessage
+    laterShipped
+    laterShippedMessage
     ;
 
-  # Every message this machine has, ready for `warnings`.
-  warningsFor = hausOptions: map message (unregistered hausOptions);
+  # Only the rows a claim hasn't settled — E0's original case.
+  warningsFor =
+    hausOptions: claimed:
+    map message (builtins.filter (u: (claimed.${u.namespace} or null) == null) (unregistered hausOptions));
+
+  # Both fatal cases, ready for `assertions`. `assertion = false` throughout:
+  # every row here is already filtered or derived to be a real conflict, not a
+  # condition that might still be fine.
+  assertionsFor =
+    hausOptions: claimed: hausVersion:
+    map (u: {
+      assertion = !u.coOwned;
+      message = coOwnershipMessage u;
+    }) (claimStatus hausOptions claimed)
+    ++ map (ns: {
+      assertion = false;
+      message = laterShippedMessage hausVersion claimed ns;
+    }) (laterShipped claimed);
 }
