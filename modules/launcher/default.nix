@@ -709,6 +709,30 @@ let
   # file it stops filtering rather than guessing.
   workspaceScopedItems = lib.filterAttrs (_: item: item.workspaces != [ ]) items;
 
+  # A `workspaces` entry naming a page nothing produces fails silently, and in
+  # two OPPOSITE directions depending on the machine: with a recency file (a
+  # real tiler) the row is never listed, and without one pounce fails open by
+  # design and lists it everywhere. Only the BASE segment (before the first
+  # "/") is checkable here — "T" in "T/main" is one of this layer's own
+  # workspace ids, but "main" is a lane page written at runtime by
+  # lane-open.sh and can't be enumerated at eval. Case-insensitive, same rule
+  # the option's own description states for matching.
+  knownPageIds = map lib.toLower (
+    map (ws: ws.id) config.haus._workspaces ++ map (n: n.id) config.haus._numberedWorkspaces
+  );
+  workspaceEntryProblem =
+    itemKey: entry:
+    if lib.elem (lib.toLower (lib.head (lib.splitString "/" entry))) knownPageIds then
+      null
+    else
+      "${itemKey}: \"${entry}\" names no workspace haus.workspaces or "
+      + "haus.windows.numberedWorkspaces declares";
+  unknownWorkspaceEntries = lib.filter (p: p != null) (
+    lib.flatten (
+      lib.mapAttrsToList (itemKey: item: map (workspaceEntryProblem itemKey) item.workspaces) items
+    )
+  );
+
   # ---- validation: the two ways an items entry fails silently ----------------
   #
   # pounce is deliberately lenient at runtime — a malformed entry is skipped so one
@@ -1151,6 +1175,18 @@ lib.mkIf config.haus.launcher.enable {
         + "first wins — so it has to be one here.";
     }
   ];
+
+  # A warning, not an assertion, for the same two reasons the option's own
+  # description gives without drawing them together: the page suffix is
+  # created at runtime by lanes and can't be enumerated here, and pounce
+  # itself fails open over an entry it can't resolve, so refusing the build
+  # would be stricter than the behaviour this is guarding.
+  warnings = lib.optional (unknownWorkspaceEntries != [ ]) (
+    "haus.launcher.items names `workspaces` pages haus itself never declares, "
+    + "so the row silently never lists (on a machine with a recency file) or "
+    + "never filters (on one without): "
+    + lib.concatStringsSep "; " unknownWorkspaceEntries
+  );
 
   launchd.user.agents.pounce = {
     serviceConfig = {
