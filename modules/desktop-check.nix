@@ -42,6 +42,7 @@ let
     path = "${pkgs.path}/lib";
     name = "nixpkgs-lib";
   };
+  builtinDesktops = import ./desktop-names.nix;
 in
 pkgs.runCommand "haus-desktop-check-${version}"
   {
@@ -79,4 +80,10 @@ pkgs.runCommand "haus-desktop-check-${version}"
     # file with the same directory baked in, which is what makes the CLI and a
     # publisher's CI the same command rather than two that agree today.
     install -Dm755 ${./core/haus-show.sh} "$out/share/haus/show.sh"
+
+    # `haus desktop`'s no-argument listing needs the built-in names offline
+    # and pinned to this same revision — the same argument as everything else
+    # in this derivation, pointed at one more question. A plain JSON array,
+    # not an evaluation the CLI would have to shell back out for.
+    echo '${builtins.toJSON builtinDesktops}' > "$dir/desktops.json"
   ''

@@ -5,7 +5,7 @@
 # family repos or agent worktrees (that's the workshop's developer CLI, `bench`).
 #
 #   haus rebuild        build + switch this machine from your config  (-v for raw output) (the usual day)
-#   haus update         pull the latest haus + its apps, then rebuild
+#   haus update [name]  pull the latest haus (or a pinned desktop) + apps, then rebuild
 #   haus rollback [N]    go back a generation (or to generation N)
 #   haus generations     list the generations you can roll back to
 #   haus status          current generation + how old your pinned haus is
@@ -24,6 +24,9 @@
 #   haus tour            take the guided haus tour (it lives in the bar)
 #   haus show            inspect a desktop or room — a local file or a source you have
 #                        not got yet — class, checker verdict, what it sets (--json) — read-only
+#   haus add <source>    pin a desktop and select it (--as/--file/--vendor/--print) — no rebuild
+#   haus desktop [name]  list what this machine has, or switch to one — no rebuild
+#   haus remove <name>   unpin a desktop and reselect explicitly — no rebuild
 set -euo pipefail
 
 # A bare/sudo/login-item shell may have almost nothing on PATH; make sure the
@@ -34,6 +37,9 @@ export PATH
 # Your config flake — the thin consumer with your host file, scaffolded by the
 # bootstrap. Override with HAUS_CONSUMER if it lives elsewhere.
 CONSUMER="${HAUS_CONSUMER:-$HOME/.config/nix}"
+# `add`/`desktop`/`remove` all edit this one file; named once so every
+# landmark check below reads the same thing settings_write's TX helpers do.
+FLAKE="$CONSUMER/flake.nix"
 
 say()  { printf '\033[38;5;103m🌫  %s\033[0m\n' "$*"; }
 warn() { printf '\033[38;5;179m⚠  %s\033[0m\n' "$*"; }
@@ -197,7 +203,8 @@ usage() {
 haus — the everyday CLI for a haus machine.
 
   haus rebuild        build + switch this machine from your config  (-v for raw output)
-  haus update         pull the latest haus + its apps, then rebuild
+  haus update [name]  pull the latest haus (or a pinned desktop's input) + apps,
+                      then rebuild
   haus rollback [N]   go back a generation (or to generation N)
   haus generations    list the generations you can roll back to
   haus status         current generation + how old your pinned haus is
@@ -244,6 +251,19 @@ haus — the everyday CLI for a haus machine.
                       code; --json for CI and agents. A remote source is fetched
                       into the store and read there — nothing on this machine is
                       written, and nothing is activated
+  haus add <src>      pin a desktop and select it — runs 'haus show' first as
+                      the confirmation prompt, then writes flake.nix +
+                      flake.lock. --as names the input, --file picks the file,
+                      --vendor copies it in instead of pinning it, --print
+                      shows the edit without writing it. Never rebuilds; rooms
+                      aren't supported yet.
+  haus desktop [name] list the built-in desktops and every one this machine has
+                      pinned, marking the selected one; with a name, switch to
+                      it. Never rebuilds.
+  haus remove <name>  unpin a desktop this machine added, and reselect
+                      explicitly (default: blank) so removing your selected
+                      desktop can't silently fall back to the opinionated one.
+                      Never rebuilds.
 EOF
 }
 
@@ -1539,31 +1559,57 @@ fetch_changelog() { # <owner> <repo> <old> <new> <outfile>
 update_brew_job() { refresh_family_apps; brew_prefetch; }
 
 cmd_update() {
-  local old new owner repo logfile input
-  old="$(jq -r '.nodes.haus.locked.rev // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
+  # `cmd_update` used to be written for exactly one caller — every local
+  # hardcoded to the node `haus` — because `bootstrap.sh` never scaffolded a
+  # second input to pull. `haus add` does now, so this re-keys every one of
+  # those reads on $input instead of adding a branch beside them.
+  local input="${1:-haus}"
   # 🚨 The input NAME belongs to the consumer's flake, not to us — and
   # `nix flake update <name that isn't in the lock>` WARNS AND EXITS 0 without
-  # touching anything. So a hardcoded name here doesn't fail loudly, it turns
+  # touching anything. So an unchecked name here doesn't fail loudly, it turns
   # `haus update` into a permanent no-op that then reports "already at the
-  # latest". `bootstrap.sh` scaffolds `haus`, but nothing stops a consumer
-  # naming it something else, so read the name back out of the lock.
-  input="$(jq -r 'if (.nodes[.root].inputs.haus? // null) != null then "haus"
-                  else "" end' "$CONSUMER/flake.lock" 2>/dev/null || true)"
-  [ -n "$input" ] || input=haus
-  say "pulling the latest haus …"
+  # latest".
+  jq -e --arg n "$input" '.nodes[$n] != null' "$CONSUMER/flake.lock" >/dev/null 2>&1 \
+    || die "no input named '$input' in this config — 'haus desktop' lists what's pinned, or run 'haus update' with no name to pull haus itself."
+
+  local old new otype oowner orepo logfile old_nar new_nar
+  old="$(jq -r --arg n "$input" '.nodes[$n].locked.rev // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
+  old_nar="$(jq -r --arg n "$input" '.nodes[$n].locked.narHash // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
+  otype="$(jq -r --arg n "$input" '.nodes[$n].original.type // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
+
+  if [ "$input" = haus ]; then say "pulling the latest haus …"
+  else say "pulling the latest '$input' …"
+  fi
   ( cd "$CONSUMER" && heal nix flake update "$input" )
-  new="$(jq -r '.nodes.haus.locked.rev // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
+
+  new="$(jq -r --arg n "$input" '.nodes[$n].locked.rev // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
+  new_nar="$(jq -r --arg n "$input" '.nodes[$n].locked.narHash // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
+
   if [ -n "$old" ] && [ "$old" = "$new" ]; then
-    say "already at the latest haus (${new:0:12}) — rebuilding anyway."
+    say "already at the latest ${input} (${new:0:12}) — rebuilding anyway."
   elif [ -n "$old" ] && [ -n "$new" ]; then
     # What's about to land. Best-effort via the GitHub compare API — offline,
-    # rate-limited, or non-GitHub upstreams just skip the list. Fetched in the
-    # background: it's a 5-second timeout on a network you may not have, and
-    # nothing downstream waits on it.
-    owner="$(jq -r '.nodes.haus.original.owner // "hausfold"' "$CONSUMER/flake.lock")"
-    repo="$(jq -r '.nodes.haus.original.repo // "haus"' "$CONSUMER/flake.lock")"
-    logfile="$(mktemp)"
-    bg fetch_changelog "$owner" "$repo" "$old" "$new" "$logfile"
+    # rate-limited, or a non-GitHub upstream just skips the list. Fetched in
+    # the background: it's a 5-second timeout on a network you may not have,
+    # and nothing downstream waits on it. Gated on the node's ORIGINAL shape,
+    # not just "has a rev": a non-GitHub git source has a rev too, and no
+    # owner/repo to compare with GitHub's API.
+    if [ "$otype" = github ]; then
+      oowner="$(jq -r --arg n "$input" '.nodes[$n].original.owner // ""' "$CONSUMER/flake.lock")"
+      orepo="$(jq -r --arg n "$input" '.nodes[$n].original.repo // ""' "$CONSUMER/flake.lock")"
+      if [ -n "$oowner" ] && [ -n "$orepo" ]; then
+        logfile="$(mktemp)"
+        bg fetch_changelog "$oowner" "$orepo" "$old" "$new" "$logfile"
+      fi
+    fi
+  elif [ "$old_nar" != "$new_nar" ]; then
+    # A revisionless source (a `file+https` node): Nix's own update line
+    # prints the SAME url on both sides even when the content underneath
+    # moved, so this is the only place that ever shows it actually happened.
+    say "'$input' has no revision to compare — nix's update line for it looks like a no-op. Its content hash moved:"
+    printf '    %s\n    %s %s\n' "${old_nar:-(none)}" "$(printf '\xe2\x86\x92')" "$new_nar"
+  else
+    say "'$input' has no revision, and its content hash didn't move either — nothing changed."
   fi
   # The rebuild's own bg_wait joins this before anything activates.
   BREW_JOB=update_brew_job
@@ -1571,7 +1617,7 @@ cmd_update() {
   if [ -n "${logfile:-}" ]; then
     if [ -s "$logfile" ]; then
       echo
-      say "new in haus (${old:0:7} → ${new:0:7}):"
+      say "new in ${input} (${old:0:7} → ${new:0:7}):"
       sed 's/^/  · /' "$logfile"
     fi
     rm -f "$logfile"
@@ -2665,6 +2711,460 @@ cmd_tour() {
   esac
 }
 
+# ---- acquisition step D: add / desktop / remove -----------------------------
+# `haus add`, `haus desktop` and `haus remove` all write ONE file — flake.nix —
+# and never rebuild: acquisition never activates, and anything this cannot
+# verify, it prints instead of writing. Design: the workshop's
+# notes/rooms-desktops.md, "Step D, designed".
+#
+# The subject's string goes into a Nix expression (the input URL), so it is
+# escaped as a Nix string rather than pasted — the same rule and the same
+# one-liner as haus-show.sh's `nix_string`, kept here rather than sourced
+# because it is one line and the two scripts are not meant to share state.
+nix_string() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/\$/\\$/g'; }
+
+# `github:ada/writer-desktop` -> writer ; `git+https://…/ada/desktop` -> desktop
+# ; a `file+https` source names itself by its filename. No second registry to
+# keep in step — `nix flake update <name>` already addresses this namespace,
+# so the name only has to be legal and free.
+derive_input_name() { # typed shape
+  local typed="$1" shape="$2" n
+  if [ "$shape" = file ]; then
+    n="$(basename "$typed")"; n="${n%.nix}"
+  else
+    n="${typed%%\?*}"; n="${n%%\#*}"; n="${n%.git}"; n="${n%/}"
+    n="${n##*/}"
+  fi
+  n="${n%-desktop}"; n="${n%-haus}"
+  n="$(printf '%s' "$n" | LC_ALL=C tr -c 'A-Za-z0-9_-' '-')"
+  case "$n" in [0-9]*) n="d$n" ;; esac
+  [ -n "$n" ] || n="desktop"
+  printf '%s' "$n"
+}
+
+# ---- flake.nix surgical edits ------------------------------------------------
+# Three landmarks, at three different syntactic depths, and all three or none:
+# the input (`inputs.haus.url`), the outputs BINDING PATTERN (`...` matches an
+# unlisted name syntactically but does not bind it), and the `desktop = ` line
+# inside `mkHaus { … }`. Line-based, not `sed -i … a\` — BSD and GNU sed
+# disagree on that syntax's quoting, and a plain read/printf loop needs no
+# escaping for a URL that can itself contain `&`, `\` or a sed delimiter.
+#
+# ⚠️ Handles exactly ONE additional pinned desktop at a time. A second `add`
+# finds the outputs pattern already reads `{ haus, <name>, ... }:` rather than
+# the bare scaffolded `{ haus, ... }:`, the landmark match fails, and it
+# degrades to --print — the same "hand-reorganised flake" case the design's
+# exit gate asks for, reached by this command's own first success rather than
+# by a hand edit. Supporting N simultaneous third-party desktops is real added
+# complexity this step does not need to spend on day one.
+flake_shape_ok() {
+  grep -qE '^  inputs\.haus\.url = ' "$FLAKE" &&
+  grep -qE '^    \{ haus, \.\.\. \}:' "$FLAKE" &&
+  grep -qE '^        host = ' "$FLAKE"
+}
+
+flake_backup=""
+flake_stage()   { flake_backup="$(mktemp)"; cp -p "$FLAKE" "$flake_backup"; }
+flake_restore() { [ -z "$flake_backup" ] || cp -p "$flake_backup" "$FLAKE"; }
+flake_commit()  { [ -z "$flake_backup" ] || rm -f "$flake_backup"; flake_backup=""; }
+# nixfmt purely as a parser (output discarded) — modules/host-template.nix's
+# trick, aimed here at a mutation instead of a render.
+flake_verify()  { nixfmt - <"$FLAKE" >/dev/null 2>&1; }
+
+# Only the `desktop = ` line — reused by `--vendor`'s add, by `haus desktop
+# <name>` switching between what is already pinned, and by `remove`'s
+# explicit replacement.
+# `host = ` always comes before `desktop = ` in the scaffolded shape, so a
+# loop that decides "insert after host, unless already written" by checking
+# $written AT the host line fires every time — $written can only have been
+# set by a LATER line it hasn't read yet. Two insertion points is two lines.
+# The fix is to know, before the loop starts, whether a desktop line exists
+# at all, and run exactly one of "replace it" or "insert after host" — never
+# both. A refusal on more than one existing line is deliberate: that shape is
+# already hand-edited or corrupted, and guessing which one wins is the thing
+# `--print`'s degrade path exists for.
+flake_set_desktop_line() { # rhs
+  local rhs="$1" tmp; tmp="$(mktemp)"
+  local existing written=""
+  existing="$(grep -cE '^        desktop = .*;$' "$FLAKE" || true)"
+  [ "$existing" -le 1 ] || { rm -f "$tmp"; return 1; }
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      '        desktop = '*';')
+        printf '        desktop = %s;\n' "$rhs" >>"$tmp"; written=1; continue ;;
+      '        host = '*';')
+        printf '%s\n' "$line" >>"$tmp"
+        if [ "$existing" -eq 0 ]; then
+          printf '        desktop = %s;\n' "$rhs" >>"$tmp"; written=1
+        fi
+        continue ;;
+    esac
+    printf '%s\n' "$line" >>"$tmp"
+  done <"$FLAKE"
+  if [ -z "$written" ]; then rm -f "$tmp"; return 1; fi
+  mv "$tmp" "$FLAKE"
+}
+
+flake_add_input() { # name url rhs
+  local name="$1" url="$2" rhs="$3" tmp; tmp="$(mktemp)"
+  local existing input_w="" pattern_w="" desktop_w=""
+  existing="$(grep -cE '^        desktop = .*;$' "$FLAKE" || true)"
+  [ "$existing" -le 1 ] || { rm -f "$tmp"; return 1; }
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      '  inputs.haus.url = '*)
+        printf '%s\n' "$line" >>"$tmp"
+        printf '  inputs.%s.url = "%s";\n' "$name" "$(nix_string "$url")" >>"$tmp"
+        printf '  inputs.%s.flake = false;\n' "$name" >>"$tmp"
+        input_w=1; continue ;;
+      '    { haus, ... }:')
+        printf '    { haus, %s, ... }:\n' "$name" >>"$tmp"
+        pattern_w=1; continue ;;
+      '        desktop = '*';')
+        printf '        desktop = %s;\n' "$rhs" >>"$tmp"
+        desktop_w=1; continue ;;
+      '        host = '*';')
+        printf '%s\n' "$line" >>"$tmp"
+        if [ "$existing" -eq 0 ]; then
+          printf '        desktop = %s;\n' "$rhs" >>"$tmp"; desktop_w=1
+        fi
+        continue ;;
+    esac
+    printf '%s\n' "$line" >>"$tmp"
+  done <"$FLAKE"
+  if [ -z "$input_w" ] || [ -z "$pattern_w" ] || [ -z "$desktop_w" ]; then
+    rm -f "$tmp"; return 1
+  fi
+  mv "$tmp" "$FLAKE"
+}
+
+flake_remove_input() { # name
+  local name="$1" tmp; tmp="$(mktemp)"
+  local removed=""
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      "  inputs.$name.url = "*|"  inputs.$name.flake = "*)
+        removed=1; continue ;;
+      "    { haus, $name, ... }:")
+        printf '    { haus, ... }:\n' >>"$tmp"; continue ;;
+    esac
+    printf '%s\n' "$line" >>"$tmp"
+  done <"$FLAKE"
+  if [ -z "$removed" ]; then rm -f "$tmp"; return 1; fi
+  mv "$tmp" "$FLAKE"
+}
+
+# Which file inside an ALREADY-pinned input is the desktop — re-derived from
+# the LOCK (offline, no re-resolution of the pin) rather than remembered,
+# because nothing yet remembers it (that is E1's claim table). Fetches the
+# exact locked tree via the same `builtins.fetchTree` the lock itself used,
+# so a content-addressed cache hit costs nothing.
+desktop_rhs_for_pinned() { # name
+  local name="$1"
+  [ -f "$CONSUMER/flake.lock" ] || return 1
+  local locked; locked="$(jq -c --arg n "$name" '.nodes[$n].locked // empty' "$CONSUMER/flake.lock" 2>/dev/null)"
+  [ -n "$locked" ] || return 1
+  local lockfile; lockfile="$(mktemp)"
+  printf '%s' "$locked" >"$lockfile"
+  local tree
+  tree="$(NIX_PATH='' nix eval --impure --raw \
+    --expr "(builtins.fetchTree (builtins.fromJSON (builtins.readFile \"$(nix_string "$lockfile")\"))).outPath" \
+    2>/dev/null)" || true
+  rm -f "$lockfile"
+  [ -n "$tree" ] || return 1
+  if [ -f "$tree" ]; then printf '%s' "$name"; return 0; fi
+  local cands=() f
+  for f in "$tree"/*.nix "$tree"/desktops/*.nix; do
+    [ -f "$f" ] || continue
+    [ "$(basename "$f")" = flake.nix ] && continue
+    cands+=("${f#"$tree"/}")
+  done
+  [ "${#cands[@]}" -eq 1 ] || return 1
+  printf '%s + "/%s"' "$name" "${cands[0]}"
+}
+
+cmd_add() {
+  local source="" as="" pickfile="" vendor="" doprint="" yes=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --print) doprint=1 ;;
+      --as) shift; [ $# -gt 0 ] || die "--as needs a name"; as="$1" ;;
+      --as=*) as="${1#--as=}" ;;
+      --file) shift; [ $# -gt 0 ] || die "--file needs a path"; pickfile="$1" ;;
+      --file=*) pickfile="${1#--file=}" ;;
+      --vendor) vendor=1 ;;
+      -y | --yes) yes=1 ;;
+      --room) die "haus add --room isn't built yet — that's acquisition step F. 'haus show --room <source>' can still look at it." ;;
+      -h | --help)
+        cat <<'EOF'
+haus add <source> — pin a desktop and select it. Writes flake.nix + flake.lock;
+never rebuilds — 'haus rebuild' is the next step, printed at the end.
+
+  haus add github:ada/writer-desktop
+  haus add --as writer --file writer.nix github:ada/desktops
+  haus add --vendor file+https://example.org/writer.nix
+  haus add --print git+https://git.example.org/ada/desktop
+
+  --as <name>     the input name (default: the repo name, minus a
+                  -desktop/-haus suffix)
+  --file <path>   which .nix in a fetched repo is the desktop
+  --vendor        copy the file into this config instead of pinning it
+  --print         print the edit instead of writing it
+  -y, --yes       skip the confirmation prompt
+
+Rooms aren't supported yet — that's acquisition step F.
+EOF
+        return 0 ;;
+      -*) die "unknown flag $1 — try 'haus add --help'" ;;
+      *) [ -z "$source" ] || die "one source at a time (got '$source' and '$1')"; source="$1" ;;
+    esac
+    shift
+  done
+  [ -n "$source" ] || die "usage: haus add <source> — try 'haus add --help'"
+  [ -z "$doprint" ] || yes=1   # nothing is written, so nothing needs confirming
+
+  local showbin="${HAUS_SHOW:-/run/current-system/sw/share/haus/show.sh}"
+  [ -r "$showbin" ] || die "no 'haus show' at $showbin — this machine's haus predates it; run 'haus update' first."
+
+  local showargs=()
+  [ -n "$pickfile" ] && showargs+=(--file "$pickfile")
+
+  # The human report IS the confirmation prompt the design calls for — haus
+  # already has cmd_plan/cmd_diff to build a diff, and this is that diff,
+  # reused rather than re-rendered. Read again as JSON afterward for the
+  # values the write needs: two evals of the same fetch, not one, because the
+  # JSON envelope and the human render are two different consumers of one
+  # report and forcing one to parse the other is the wrong coupling.
+  local show_status=0
+  HAUS_CONSUMER="$CONSUMER" bash "$showbin" "${showargs[@]}" "$source" || show_status=$?
+  case "$show_status" in
+    0) ;;
+    3) die "$source is a room, not a desktop — 'haus add' doesn't take rooms yet (acquisition step F). See 'haus show --room $source'." ;;
+    *) die "$source did not pass — see the report above." ;;
+  esac
+
+  local report
+  report="$(HAUS_CONSUMER="$CONSUMER" bash "$showbin" --json "${showargs[@]}" "$source")" \
+    || die "$source stopped passing between the two reads above — try again."
+
+  local class ok origin
+  class="$(jq -r .class <<<"$report")"
+  ok="$(jq -r .ok <<<"$report")"
+  origin="$(jq -c .origin <<<"$report")"
+  [ "$class" = desktop ] || die "$source is a room — 'haus add' doesn't take rooms yet (acquisition step F)."
+  [ "$ok" = true ] || die "$source failed the desktop checker — see the report above."
+  [ "$origin" != null ] || die "haus add takes a source to fetch, not a local path already on this machine."
+
+  local typed shape pick
+  typed="$(jq -r .typed <<<"$origin")"
+  shape="$(jq -r .shape <<<"$origin")"
+  pick="$(jq -r '.file // ""' <<<"$origin")"
+
+  local name="$as"
+  [ -n "$name" ] || name="$(derive_input_name "$typed" "$shape")"
+  [ "$name" != haus ] || die "'haus' is reserved for the layer itself — pick another with --as."
+  [[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_\'-]*$ ]] || die "'--as $name' isn't a legal Nix identifier."
+  grep -qE "^  inputs\.$name\.url = " "$FLAKE" \
+    && die "'$name' is already pinned — 'haus desktop $name' selects it, or pass a different --as."
+
+  if [ -z "$yes" ]; then
+    [ -t 0 ] || die "not a terminal — pass -y/--yes to confirm non-interactively."
+    printf '\n'
+    read -r -p "Add '$name' from $typed and select it? [y/N] " reply
+    case "$reply" in [Yy]*) ;; *) say "not added."; return 1 ;; esac
+  fi
+
+  if [ -n "$vendor" ]; then
+    # Vendoring never touches inputs or the outputs pattern — the file
+    # becomes an ordinary part of this config, addressed by a relative path,
+    # the same as any hand-written .nix under hosts/. It must be `git add`ed:
+    # Nix can't see an untracked file in a git-tracked flake.
+    mkdir -p "$CONSUMER/desktops"
+    local dest="$CONSUMER/desktops/$name.nix"
+    [ -e "$dest" ] && die "$dest already exists — pick a different --as."
+    local src_abs; src_abs="$(jq -r .file <<<"$report")"
+    if [ -n "$doprint" ]; then
+      say "would copy $src_abs -> desktops/$name.nix and set: desktop = ./desktops/$name.nix;"
+      return 0
+    fi
+    cp "$src_abs" "$dest"
+    ( cd "$CONSUMER" && git add "$dest" ) 2>/dev/null \
+      || warn "couldn't 'git add $dest' — do it by hand, or the rebuild won't see it."
+    flake_stage
+    if ! flake_set_desktop_line "./desktops/$name.nix"; then
+      flake_restore
+      say "flake.nix has moved past the scaffolded shape — set this by hand:"
+      printf '        desktop = ./desktops/%s.nix;\n' "$name"
+      return 0
+    fi
+    if ! flake_verify; then
+      flake_restore
+      die "the edit produced invalid Nix — restored. Set it by hand: desktop = ./desktops/$name.nix;"
+    fi
+    flake_commit
+    say "vendored to desktops/$name.nix and selected. Run 'haus rebuild' to apply it."
+    return 0
+  fi
+
+  local rhs
+  if [ "$shape" = file ]; then
+    rhs="$name"
+  else
+    [ -n "$pick" ] || die "couldn't tell which file in $source is the desktop — pass --file."
+    rhs="$name + \"/$pick\""
+  fi
+
+  if [ -n "$doprint" ]; then
+    printf '  inputs.%s.url = "%s";\n' "$name" "$(nix_string "$typed")"
+    printf '  inputs.%s.flake = false;\n' "$name"
+    printf '\n  outputs = { haus, %s, ... }: { … desktop = %s; … }\n' "$name" "$rhs"
+    return 0
+  fi
+
+  flake_stage
+  if ! flake_add_input "$name" "$typed" "$rhs"; then
+    flake_restore
+    say "flake.nix has moved past the scaffolded shape — add these by hand:"
+    printf '  inputs.%s.url = "%s";\n' "$name" "$typed"
+    printf '  inputs.%s.flake = false;\n' "$name"
+    printf '  # bind %s in the outputs pattern, and: desktop = %s;\n' "$name" "$rhs"
+    return 0
+  fi
+  if ! flake_verify; then
+    flake_restore
+    die "the edit produced invalid Nix — restored. See above for the lines to add by hand."
+  fi
+  flake_commit
+  say "locking …"
+  if ( cd "$CONSUMER" && heal nix flake lock ); then
+    say "'$name' pinned and selected. Run 'haus rebuild' to apply it."
+  else
+    warn "flake.nix is edited but 'nix flake lock' failed — run it by hand, then 'haus rebuild'."
+  fi
+}
+
+cmd_desktop() {
+  local want="${1:-}"
+  local check="${HAUS_DESKTOP_CHECK:-/run/current-system/sw/share/haus/desktop-check}"
+  [ -r "$check/desktops.json" ] \
+    || die "no desktop list at $check — this machine's haus predates 'haus desktop'; run 'haus update' first."
+  local builtin_list; builtin_list="$(jq -r '.[]' "$check/desktops.json")"
+
+  # The current selection, read the same landmark way it is written — a
+  # grep, not an eval: "what does this machine have" should cost nothing and
+  # need no network, the same rule --no-diff protects in `haus show`.
+  local current_line current
+  current_line="$(grep -E '^        desktop = ' "$FLAKE" || true)"
+  case "$current_line" in
+    *'haus.desktops.'*) current="${current_line#*haus.desktops.}"; current="${current%;}" ;;
+    '') current="hacker" ;;  # mkHaus's own default when no line is written
+    # A pinned input's RHS is `name` (a file-shaped source) or
+    # `name + "/file.nix"` (a tree) — either way the input's own name is the
+    # leading token, up to the first space.
+    *) current="${current_line#*desktop = }"; current="${current%;}"; current="${current%% *}" ;;
+  esac
+
+  local pinned; pinned="$(grep -oE '^  inputs\.[A-Za-z0-9_'"'"'-]+\.url = ' "$FLAKE" \
+    | sed -E 's/^  inputs\.//; s/\.url = $//' | grep -vx haus || true)"
+
+  if [ -z "$want" ]; then
+    say "desktops"
+    printf '%s\n' "$builtin_list" | while IFS= read -r n; do
+      [ -n "$n" ] || continue
+      if [ "$n" = "$current" ]; then printf '  \033[38;5;108m→\033[0m %-12s built in\n' "$n"
+      else printf '    %-12s built in\n' "$n"; fi
+    done
+    if [ -n "$pinned" ]; then
+      printf '%s\n' "$pinned" | while IFS= read -r n; do
+        if [ "$n" = "$current" ]; then printf '  \033[38;5;108m→\033[0m %-12s pinned\n' "$n"
+        else printf '    %-12s pinned\n' "$n"; fi
+      done
+    fi
+    return 0
+  fi
+
+  if [ "$want" = "$current" ]; then say "already on $want."; return 0; fi
+
+  if printf '%s\n' "$builtin_list" | grep -qx "$want"; then
+    flake_stage
+    if ! flake_set_desktop_line "haus.desktops.${want}"; then
+      flake_restore
+      die "flake.nix has moved past the scaffolded shape — set it by hand: desktop = haus.desktops.${want};"
+    fi
+    if ! flake_verify; then
+      flake_restore
+      die "the edit produced invalid Nix — restored. Set it by hand: desktop = haus.desktops.${want};"
+    fi
+    flake_commit
+    say "desktop set to $want. Run 'haus rebuild' to apply it."
+    return 0
+  fi
+
+  if printf '%s\n' "$pinned" | grep -qx "$want"; then
+    local rhs
+    rhs="$(desktop_rhs_for_pinned "$want")" \
+      || die "couldn't tell which file inside '$want' is the desktop — re-run 'haus add --as $want --file <path> <source>' to reselect it."
+    flake_stage
+    if ! flake_set_desktop_line "$rhs"; then
+      flake_restore
+      die "flake.nix has moved past the scaffolded shape — set it by hand: desktop = $rhs;"
+    fi
+    if ! flake_verify; then
+      flake_restore
+      die "the edit produced invalid Nix — restored. Set it by hand: desktop = $rhs;"
+    fi
+    flake_commit
+    say "desktop set to $want. Run 'haus rebuild' to apply it."
+    return 0
+  fi
+
+  die "no desktop named '$want' — built in: $(printf '%s' "$builtin_list" | tr '\n' ' ')· pinned: $(printf '%s' "${pinned:-none}" | tr '\n' ' ')(or 'haus add' one)"
+}
+
+cmd_remove() {
+  local name="${1:-}" replacement="${2:-}"
+  [ -n "$name" ] || die "usage: haus remove <name> [replacement desktop, default blank]"
+  [ "$name" != haus ] || die "haus is the layer itself, not something 'haus remove' can drop."
+  grep -qE "^  inputs\.$name\.url = " "$FLAKE" \
+    || die "no pinned input named '$name' — 'haus desktop' lists what's pinned."
+
+  local current_line was_selected=""
+  current_line="$(grep -E '^        desktop = ' "$FLAKE" || true)"
+  case "$current_line" in *"$name"*) was_selected=1 ;; esac
+
+  flake_stage
+  if ! flake_remove_input "$name"; then
+    flake_restore
+    die "flake.nix has moved past the scaffolded shape — remove 'inputs.$name' and its binding by hand."
+  fi
+  if [ -n "$was_selected" ]; then
+    # `mkHaus`'s `desktop` argument defaults to the opinionated hacker
+    # desktop, so deleting the selection line silently installs it rather
+    # than returning the machine to neutral. Write an explicit replacement —
+    # blank unless told otherwise.
+    local repl="${replacement:-blank}"
+    if ! flake_set_desktop_line "haus.desktops.${repl}"; then
+      flake_restore
+      die "flake.nix has moved past the scaffolded shape — remove 'inputs.$name' and set 'desktop' by hand."
+    fi
+  fi
+  if ! flake_verify; then
+    flake_restore
+    die "the edit produced invalid Nix — restored. Remove 'inputs.$name' by hand."
+  fi
+  flake_commit
+  if ( cd "$CONSUMER" && heal nix flake lock ); then
+    :
+  else
+    warn "flake.nix is edited but 'nix flake lock' failed — run it by hand."
+  fi
+  if [ -n "$was_selected" ]; then
+    say "'$name' removed. It was your selected desktop — set to '${replacement:-blank}' instead. Run 'haus rebuild' to apply it."
+  else
+    say "'$name' removed. Run 'haus rebuild' to apply it."
+  fi
+}
+
 # `haus show` is its own script, staged beside the evaluator it drives so that
 # the machine's copy and `nix run github:hausfold/haus#show` are ONE file rather
 # than two that agree today (modules/desktop-check.nix). `exec` rather than a
@@ -2703,7 +3203,7 @@ set -- ${HAUS_ARGS[@]+"${HAUS_ARGS[@]}"}
 
 case "${1:-status}" in
   rebuild)     cmd_rebuild ;;
-  update)      cmd_update ;;
+  update)      cmd_update "${2:-}" ;;
   rollback)    cmd_rollback "${2:-}" ;;
   generations) cmd_generations ;;
   status)      cmd_status ;;
@@ -2721,6 +3221,9 @@ case "${1:-status}" in
   btm)         cmd_btm ;;
   tour)        cmd_tour "${2:-}" ;;
   show)        shift; cmd_show "$@" ;;
+  add)         shift; cmd_add "$@" ;;
+  desktop)     cmd_desktop "${2:-}" ;;
+  remove)      cmd_remove "${2:-}" "${3:-}" ;;
   -h|--help|help) usage ;;
-  *)           die "unknown command '$1' — try: rebuild update rollback generations status edit options set get unset reset plan diff capture revert-settings doctor btm tour show" ;;
+  *)           die "unknown command '$1' — try: rebuild update rollback generations status edit options set get unset reset plan diff capture revert-settings doctor btm tour show add desktop remove" ;;
 esac
