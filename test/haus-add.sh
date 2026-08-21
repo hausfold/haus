@@ -172,4 +172,47 @@ set -e
 [ "$status" -ne 0 ] || fail "remove nope: expected a non-zero exit"
 has "no pinned input" "$(cat "$tmp/nope.out")" "remove nope"
 
+# ---- 9: two host blocks refuses rather than writing a desktop line into BOTH -
+# The pre-PR assurance pass caught this one: `$existing` (desktop-line count)
+# is 0 for the whole file regardless of how many `host = ` lines it has, so
+# "insert after host when nothing exists yet" would insert after EVERY host
+# block on a consumer managing more than one Mac from one flake — silently
+# handing the second host the first's desktop too, and nixfmt cannot see it
+# because two `desktop = ` lines in two different `mkHaus { … }` calls is
+# syntactically ordinary Nix.
+rm -rf "$tmp/consumer"
+mkdir -p "$tmp/consumer/hosts/one" "$tmp/consumer/hosts/two"
+printf '{ }\n' > "$tmp/consumer/hosts/one/default.nix"
+printf '{ }\n' > "$tmp/consumer/hosts/two/default.nix"
+cat > "$tmp/consumer/flake.nix" <<NIX
+{
+  description = "two machines, one flake";
+
+  inputs.haus.url = "path:$root";
+
+  outputs =
+    { haus, ... }:
+    {
+      darwinConfigurations.one = haus.mkHaus {
+        username = "tester";
+        hostname = "one";
+        host = ./hosts/one;
+      };
+      darwinConfigurations.two = haus.mkHaus {
+        username = "tester";
+        hostname = "two";
+        host = ./hosts/two;
+      };
+    };
+}
+NIX
+( cd "$tmp/consumer" && nix flake lock >/dev/null 2>&1 )
+before="$(cat "$tmp/consumer/flake.nix")"
+out="$(haus add -y "git+file://$tmp/writer" 2>&1)"
+has "add these by hand" "$out" "two hosts"
+after="$(cat "$tmp/consumer/flake.nix")"
+[ "$before" = "$after" ] || fail "two hosts: flake.nix was touched on the degrade path"
+[ "$(grep -c '        desktop = ' "$tmp/consumer/flake.nix")" = 0 ] \
+  || fail "two hosts: a desktop line leaked into the untouched file"
+
 printf 'ok — haus add/desktop/remove: %s\n' "$show"

@@ -2757,12 +2757,6 @@ derive_input_name() { # typed shape
 # exit gate asks for, reached by this command's own first success rather than
 # by a hand edit. Supporting N simultaneous third-party desktops is real added
 # complexity this step does not need to spend on day one.
-flake_shape_ok() {
-  grep -qE '^  inputs\.haus\.url = ' "$FLAKE" &&
-  grep -qE '^    \{ haus, \.\.\. \}:' "$FLAKE" &&
-  grep -qE '^        host = ' "$FLAKE"
-}
-
 flake_backup=""
 flake_stage()   { flake_backup="$(mktemp)"; cp -p "$FLAKE" "$flake_backup"; }
 flake_restore() { [ -z "$flake_backup" ] || cp -p "$flake_backup" "$FLAKE"; }
@@ -2783,11 +2777,27 @@ flake_verify()  { nixfmt - <"$FLAKE" >/dev/null 2>&1; }
 # both. A refusal on more than one existing line is deliberate: that shape is
 # already hand-edited or corrupted, and guessing which one wins is the thing
 # `--print`'s degrade path exists for.
+#
+# ⚠️ The SAME refusal is needed on `host = `, and for a reason the desktop
+# count alone cannot see: a consumer managing more than one Mac from one
+# flake has one `host = ` line per `darwinConfigurations.<name> = haus.mkHaus
+# { … }` block. With no desktop line yet, `$existing` is 0 for the WHOLE
+# file regardless of how many host blocks it has, so "insert after host when
+# $existing is 0" would insert a desktop line after EVERY block — syntactically
+# valid Nix, so `nixfmt` cannot catch it, and it silently gives every OTHER
+# host on the file the same desktop too. Caught by the pre-PR assurance pass,
+# not by `test/haus-add.sh`, which only ever fixtures one host. The general
+# form is the same as the two-insertion-point bug this function was already
+# rewritten to fix: a landmark this function edits by regex is only a safe
+# landmark when there is exactly one of it, and that has to be checked, not
+# assumed, for EVERY landmark the function touches — not just the one the
+# first bug happened to be in.
 flake_set_desktop_line() { # rhs
   local rhs="$1" tmp; tmp="$(mktemp)"
-  local existing written=""
+  local existing hosts written=""
   existing="$(grep -cE '^        desktop = .*;$' "$FLAKE" || true)"
-  [ "$existing" -le 1 ] || { rm -f "$tmp"; return 1; }
+  hosts="$(grep -cE '^        host = .*;$' "$FLAKE" || true)"
+  [ "$existing" -le 1 ] && [ "$hosts" -eq 1 ] || { rm -f "$tmp"; return 1; }
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in
       '        desktop = '*';')
@@ -2807,9 +2817,10 @@ flake_set_desktop_line() { # rhs
 
 flake_add_input() { # name url rhs
   local name="$1" url="$2" rhs="$3" tmp; tmp="$(mktemp)"
-  local existing input_w="" pattern_w="" desktop_w=""
+  local existing hosts input_w="" pattern_w="" desktop_w=""
   existing="$(grep -cE '^        desktop = .*;$' "$FLAKE" || true)"
-  [ "$existing" -le 1 ] || { rm -f "$tmp"; return 1; }
+  hosts="$(grep -cE '^        host = .*;$' "$FLAKE" || true)"
+  [ "$existing" -le 1 ] && [ "$hosts" -eq 1 ] || { rm -f "$tmp"; return 1; }
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in
       '  inputs.haus.url = '*)
