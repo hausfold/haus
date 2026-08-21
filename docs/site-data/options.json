@@ -322,6 +322,24 @@
     "readOnly": false,
     "type": "boolean"
   },
+  "haus.apps.cursor.enable": {
+    "declarations": [
+      "modules/apps/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Install Cursor as the roster entry `cursor` (cask `cursor`).\nAlready have it installed some other way? `haus.homebrew.adopt`\n(on by default) adopts it instead of installing a second copy.\n",
+    "loc": [
+      "haus",
+      "apps",
+      "cursor",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
   "haus.apps.packs.writing.enable": {
     "declarations": [
       "modules/apps/options.nix"
@@ -376,6 +394,42 @@
       "haus",
       "apps",
       "videoPlayer",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.apps.vscode.enable": {
+    "declarations": [
+      "modules/apps/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Install Visual Studio Code as the roster entry `vscode` (cask\n`visual-studio-code`). Already have it installed some other way?\n`haus.homebrew.adopt` (on by default) adopts it instead of\ninstalling a second copy.\n",
+    "loc": [
+      "haus",
+      "apps",
+      "vscode",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.apps.zed.enable": {
+    "declarations": [
+      "modules/apps/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Install Zed as the roster entry `zed` (cask `zed`). Already have it\ninstalled some other way? `haus.homebrew.adopt` (on by default)\nadopts it instead of installing a second copy.\n",
+    "loc": [
+      "haus",
+      "apps",
+      "zed",
       "enable"
     ],
     "readOnly": false,
@@ -2863,6 +2917,23 @@
     ],
     "readOnly": false,
     "type": "string"
+  },
+  "haus.homebrew.adopt": {
+    "declarations": [
+      "modules/core/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Pass `--adopt` to `brew bundle install`, so a cask haus declares that\nis already sitting in /Applications — installed by hand, the App\nStore, or anything other than Homebrew — is adopted into Homebrew's\nbookkeeping instead of failing activation with \"there is already an\nApp at …\". Nothing about the app itself changes; only whether\nHomebrew considers itself the owner.\n\nOn by default: without it, the roster's whole \"declare an app,\nhaus makes sure it's there\" promise breaks the moment that app\nhappens to already be installed some other way — which is common\nfor editors, browsers and other apps most people bring with them.\n",
+    "loc": [
+      "haus",
+      "homebrew",
+      "adopt"
+    ],
+    "readOnly": false,
+    "type": "boolean"
   },
   "haus.homebrew.autoUpdate": {
     "declarations": [

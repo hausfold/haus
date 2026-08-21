@@ -143,6 +143,24 @@ in
         package = lib.mkDefault pkgs.iina;
       };
     })
+    (lib.mkIf cfg.vscode.enable {
+      vscode = {
+        name = lib.mkDefault "Visual Studio Code";
+        cask = lib.mkDefault "visual-studio-code";
+      };
+    })
+    (lib.mkIf cfg.cursor.enable {
+      cursor = {
+        name = lib.mkDefault "Cursor";
+        cask = lib.mkDefault "cursor";
+      };
+    })
+    (lib.mkIf cfg.zed.enable {
+      zed = {
+        name = lib.mkDefault "Zed";
+        cask = lib.mkDefault "zed";
+      };
+    })
     (lib.mkIf cfg.packs.writing.enable (packEntries "writing"))
   ];
 

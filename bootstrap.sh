@@ -326,7 +326,7 @@ fi
 # Defaults double as the non-interactive answers, and each is env-overridable so
 # an unattended install can be scripted (and so --dry-run can exercise every
 # branch): HAUS_GIT_NAME / _GIT_EMAIL / _ACCENT / _EDITOR / _GUI_EDITOR /
-# _ROOMS / _WALLPAPER.
+# _GUI_EDITOR_APP / _ROOMS / _WALLPAPER.
 GIT_NAME="${HAUS_GIT_NAME:-$(git config --global user.name  2>/dev/null || true)}"
 GIT_EMAIL="${HAUS_GIT_EMAIL:-$(git config --global user.email 2>/dev/null || true)}"
 GIT_SIGNING=""
@@ -336,8 +336,13 @@ ACCENT="${HAUS_ACCENT:-mauve}"
 EDITOR_CHOICE="${HAUS_EDITOR:-helix}"
 # A GUI editor's CLI command (e.g. "code -w"), or empty to use the terminal
 # editor above for $EDITOR/$VISUAL and every "open in an editor" action.
-# Installs nothing — see the prompt below and haus.terminal.editor's own doc.
+# Installs nothing on its own — see the prompt below and
+# haus.terminal.editor's own doc.
 GUI_EDITOR_CMD="${HAUS_GUI_EDITOR:-}"
+# The matching `haus.apps.<name>.enable` to flip on, for the three GUI
+# editors haus knows how to install (vscode/cursor/zed) — empty for "Other"
+# or "none", where haus doesn't know what app the command even points at.
+GUI_EDITOR_APP="${HAUS_GUI_EDITOR_APP:-}"
 # Wallpaper: the generated `minimal` haus look (default, matching the desktop's own
 # haus.wallpaper.style), one of the inherited Nebelung ones, or `none` to leave
 # whatever you already have exactly where it is.
@@ -482,20 +487,25 @@ if [ -n "$INTERACTIVE" ]; then
     EDITOR_CHOICE="$(printf 'helix\nneovim\nvim\nnano' | "$GUM" choose --header 'Editor:')"
     EDITOR_CHOICE="${EDITOR_CHOICE:-helix}"
 
-    # A GUI editor isn't something haus installs — it's already on your Mac
-    # some other way (App Store, Homebrew, direct download). Picking one here
-    # only points `haus.terminal.editor` (the actual command $EDITOR/$VISUAL
-    # and every "open in an editor" action runs) at its CLI — additive to the
-    # terminal editor above, which still gets installed as the room's own
-    # fallback.
+    # Prefer a GUI editor? For the three haus knows (VS Code/Cursor/Zed) this
+    # both installs it (a roster cask — `haus.homebrew.adopt`, on by default,
+    # adopts an existing install instead of duplicating it) AND points
+    # `haus.terminal.editor` ($EDITOR/$VISUAL, every "open in an editor"
+    # action) at its CLI. "Other" only sets the command — haus doesn't know
+    # what app it names, so there's nothing to install. Either way this is
+    # additive to the terminal editor above, which still installs as the
+    # room's own fallback.
     GUI_EDITOR_PICK="$(printf 'none\nVS Code\nCursor\nZed\nOther' \
-      | "$GUM" choose --header 'Prefer a GUI editor for $EDITOR? (must already be installed):')"
+      | "$GUM" choose --header 'Prefer a GUI editor for $EDITOR?')"
     case "$GUI_EDITOR_PICK" in
-      "VS Code") GUI_EDITOR_CMD="code -w" ;;
-      Cursor)    GUI_EDITOR_CMD="cursor -w" ;;
-      Zed)       GUI_EDITOR_CMD="zed --wait" ;;
-      Other)     GUI_EDITOR_CMD="$("$GUM" input --prompt "Editor command › " --placeholder "subl -w" <&3)" ;;
-      *)         GUI_EDITOR_CMD="" ;;
+      "VS Code") GUI_EDITOR_CMD="code -w";     GUI_EDITOR_APP="vscode" ;;
+      Cursor)    GUI_EDITOR_CMD="cursor -w";   GUI_EDITOR_APP="cursor" ;;
+      Zed)       GUI_EDITOR_CMD="zed --wait";  GUI_EDITOR_APP="zed" ;;
+      Other)
+        GUI_EDITOR_CMD="$("$GUM" input --prompt "Editor command › " --placeholder "subl -w" <&3)"
+        GUI_EDITOR_APP=""
+        ;;
+      *) GUI_EDITOR_CMD=""; GUI_EDITOR_APP="" ;;
     esac
 
     # macOS settings: keep your own, or let haus restyle them. Nothing
@@ -703,6 +713,10 @@ opt_lines=""
 # installs and still owns `editorName`, this only redirects $EDITOR/$VISUAL and
 # the "open in an editor" actions at a command haus never installs.
 [ -n "$GUI_EDITOR_CMD" ] && opt_lines+="  haus.terminal.editor = \"$GUI_EDITOR_CMD\";"$'\n'
+# The GUI editor itself, for the three haus can actually install. Duplicate
+# installs are handled downstream by `haus.homebrew.adopt`, not here — this
+# stays a plain static enable regardless of what's already on the machine.
+[ -n "$GUI_EDITOR_APP" ] && opt_lines+="  haus.apps.$GUI_EDITOR_APP.enable = true;"$'\n'
 [ -n "$opt_lines" ] && opt_lines=$'\n'"$opt_lines"
 cask_lines=""
 for c in $ADOPT_CASKS; do cask_lines+="    \"$c\""$'\n'; done

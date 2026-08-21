@@ -77,9 +77,12 @@ let
       "reduceMotion"
     ];
     apps = [
+      "cursor.enable"
       "packs.writing.enable"
       "videoPlayer.claimFileTypes"
       "videoPlayer.enable"
+      "vscode.enable"
+      "zed.enable"
     ];
     appStore = [ "install" ];
     bar = [
@@ -215,6 +218,7 @@ let
       "signingKey"
     ];
     homebrew = [
+      "adopt"
       "autoUpdate"
       "cleanup"
       "upgrade"

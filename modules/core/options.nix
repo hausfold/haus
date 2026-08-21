@@ -606,6 +606,24 @@ in
     };
 
     homebrew = {
+      adopt = lib.mkOption {
+        type = lib.types.bool;
+        default = true;
+        description = ''
+          Pass `--adopt` to `brew bundle install`, so a cask haus declares that
+          is already sitting in /Applications — installed by hand, the App
+          Store, or anything other than Homebrew — is adopted into Homebrew's
+          bookkeeping instead of failing activation with "there is already an
+          App at …". Nothing about the app itself changes; only whether
+          Homebrew considers itself the owner.
+
+          On by default: without it, the roster's whole "declare an app,
+          haus makes sure it's there" promise breaks the moment that app
+          happens to already be installed some other way — which is common
+          for editors, browsers and other apps most people bring with them.
+        '';
+      };
+
       cleanup = lib.mkOption {
         type = lib.types.enum [
           "none"
