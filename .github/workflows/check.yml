@@ -152,6 +152,13 @@ jobs:
       - name: haus show tests
         run: bash test/haus-show.sh
 
+      # Acquisition step D: `haus add`/`desktop`/`remove` edit a real
+      # scaffolded consumer flake.nix and run a real `nix flake lock`, which
+      # is exactly why this lives beside `haus show tests` rather than inside
+      # a flake check — same reasoning, same job.
+      - name: haus add/desktop/remove tests
+        run: bash test/haus-add.sh
+
   shellcheck:
     name: shell scripts
     runs-on: ubuntu-latest
@@ -235,7 +242,7 @@ jobs:
           # haus.focus.scenes.<name>.when it also runs from launchd on a timer,
           # where a non-zero is not just invisible but silently stops your Mac
           # entering the scenes you declared.
-          shellcheck --severity=warning bootstrap.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/awake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh modules/ai/holt-cache.sh modules/launcher/commands/lanes.sh
+          shellcheck --severity=warning bootstrap.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/awake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/holt-cache.sh modules/launcher/commands/lanes.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
       # The trigger daemon's decisions — which scene rises, which one it may

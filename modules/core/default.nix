@@ -815,6 +815,13 @@ in
             lib.makeBinPath [
               gum
               jq
+              # `haus add`/`desktop`/`remove` verify a mechanical flake.nix edit
+              # by re-parsing it (modules/host-template.nix's trick, aimed at a
+              # mutation instead of a render). Same must-be-THERE reasoning as
+              # jq: the toolbelt is what installs nixfmt today, so a machine
+              # with it off would otherwise have an `add` that dies on
+              # `nixfmt: command not found` on its very first edit.
+              nixfmt
             ]
           }
         '';

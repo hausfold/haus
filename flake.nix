@@ -288,16 +288,12 @@
           };
       };
 
-      # The desktops this flake ships. `blank` is the explicit from-scratch
-      # choice and `hacker` the opinionated default; `everyday` and `minimal`
-      # are the two whole desktops that used to be presets, written out as the
-      # complete selections they always implied.
-      desktopFiles = {
-        blank = ./desktops/blank.nix;
-        everyday = ./desktops/everyday.nix;
-        hacker = ./desktops/hacker.nix;
-        minimal = ./desktops/minimal.nix;
-      };
+      # The desktops this flake ships — names in modules/desktop-names.nix,
+      # which `haus desktop`'s listing stages from the same source so the two
+      # cannot drift apart.
+      desktopFiles = nixpkgs.lib.genAttrs (import ./modules/desktop-names.nix) (
+        n: ./desktops/${n}.nix
+      );
       desktopLib = import ./modules/lib/desktop.nix {
         lib = nixpkgs.lib;
         registry = import ./modules/options-groups.nix;
