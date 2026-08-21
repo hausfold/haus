@@ -325,8 +325,8 @@ fi
 # ---- Phase 1: interview ---------------------------------------------------
 # Defaults double as the non-interactive answers, and each is env-overridable so
 # an unattended install can be scripted (and so --dry-run can exercise every
-# branch): HAUS_GIT_NAME / _GIT_EMAIL / _ACCENT / _EDITOR / _ROOMS /
-# _WALLPAPER.
+# branch): HAUS_GIT_NAME / _GIT_EMAIL / _ACCENT / _EDITOR / _GUI_EDITOR /
+# _ROOMS / _WALLPAPER.
 GIT_NAME="${HAUS_GIT_NAME:-$(git config --global user.name  2>/dev/null || true)}"
 GIT_EMAIL="${HAUS_GIT_EMAIL:-$(git config --global user.email 2>/dev/null || true)}"
 GIT_SIGNING=""
@@ -334,6 +334,10 @@ ACCENT="${HAUS_ACCENT:-mauve}"
 # An editor NAME (helix, neovim, vim, nano), not a command — see the prompt
 # below and modules/lib/editors.nix.
 EDITOR_CHOICE="${HAUS_EDITOR:-helix}"
+# A GUI editor's CLI command (e.g. "code -w"), or empty to use the terminal
+# editor above for $EDITOR/$VISUAL and every "open in an editor" action.
+# Installs nothing — see the prompt below and haus.terminal.editor's own doc.
+GUI_EDITOR_CMD="${HAUS_GUI_EDITOR:-}"
 # Wallpaper: the generated `minimal` haus look (default, matching the desktop's own
 # haus.wallpaper.style), one of the inherited Nebelung ones, or `none` to leave
 # whatever you already have exactly where it is.
@@ -477,6 +481,22 @@ if [ -n "$INTERACTIVE" ]; then
     # $EDITOR=nvim and no neovim. Name the editor and the room installs it.
     EDITOR_CHOICE="$(printf 'helix\nneovim\nvim\nnano' | "$GUM" choose --header 'Editor:')"
     EDITOR_CHOICE="${EDITOR_CHOICE:-helix}"
+
+    # A GUI editor isn't something haus installs — it's already on your Mac
+    # some other way (App Store, Homebrew, direct download). Picking one here
+    # only points `haus.terminal.editor` (the actual command $EDITOR/$VISUAL
+    # and every "open in an editor" action runs) at its CLI — additive to the
+    # terminal editor above, which still gets installed as the room's own
+    # fallback.
+    GUI_EDITOR_PICK="$(printf 'none\nVS Code\nCursor\nZed\nOther' \
+      | "$GUM" choose --header 'Prefer a GUI editor for $EDITOR? (must already be installed):')"
+    case "$GUI_EDITOR_PICK" in
+      "VS Code") GUI_EDITOR_CMD="code -w" ;;
+      Cursor)    GUI_EDITOR_CMD="cursor -w" ;;
+      Zed)       GUI_EDITOR_CMD="zed --wait" ;;
+      Other)     GUI_EDITOR_CMD="$("$GUM" input --prompt "Editor command › " --placeholder "subl -w" <&3)" ;;
+      *)         GUI_EDITOR_CMD="" ;;
+    esac
 
     # macOS settings: keep your own, or let haus restyle them. Nothing
     # selected (the default) = haus sets its tidy defaults, as before.
@@ -679,6 +699,10 @@ opt_lines=""
 # the second is a command it merely points at. A generated host must always
 # write the installing one.
 [ "$EDITOR_CHOICE" != "helix" ] && opt_lines+="  haus.terminal.editorName = \"$EDITOR_CHOICE\";"$'\n'
+# A GUI editor pick overrides `editor` alone — the terminal editor above still
+# installs and still owns `editorName`, this only redirects $EDITOR/$VISUAL and
+# the "open in an editor" actions at a command haus never installs.
+[ -n "$GUI_EDITOR_CMD" ] && opt_lines+="  haus.terminal.editor = \"$GUI_EDITOR_CMD\";"$'\n'
 [ -n "$opt_lines" ] && opt_lines=$'\n'"$opt_lines"
 cask_lines=""
 for c in $ADOPT_CASKS; do cask_lines+="    \"$c\""$'\n'; done
