@@ -69,6 +69,55 @@
       };
     };
 
+    # ---- GUI editors ------------------------------------------------------
+    # A GUI editor pick is a roster cask, same shape as the writing pack's
+    # apps — not `haus.terminal.editorName`, which is the CLOSED set haus
+    # actually installs itself with no cask involved (helix/neovim/vim/nano).
+    # A cask here is what lets `haus.homebrew.adopt` do its job: pick VS Code
+    # when you already have it some other way, and activation adopts the
+    # existing app instead of installing a second copy.
+    #
+    # Turning one of these on installs the app; it does NOT touch
+    # `haus.terminal.editor` ($EDITOR/$VISUAL and every "open in an editor"
+    # action) — set that yourself, or let the installer's GUI-editor prompt
+    # set both together.
+    vscode = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Install Visual Studio Code as the roster entry `vscode` (cask
+          `visual-studio-code`). Already have it installed some other way?
+          `haus.homebrew.adopt` (on by default) adopts it instead of
+          installing a second copy.
+        '';
+      };
+    };
+
+    cursor = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Install Cursor as the roster entry `cursor` (cask `cursor`).
+          Already have it installed some other way? `haus.homebrew.adopt`
+          (on by default) adopts it instead of installing a second copy.
+        '';
+      };
+    };
+
+    zed = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Install Zed as the roster entry `zed` (cask `zed`). Already have it
+          installed some other way? `haus.homebrew.adopt` (on by default)
+          adopts it instead of installing a second copy.
+        '';
+      };
+    };
+
     # ---- packs ----------------------------------------------------------
     # A saved app collection, named. `pack` used to be a top-level concept a
     # consumer stacked beside a whole rice; it is something this room offers

@@ -972,6 +972,10 @@ in
       # undeclared casks (cleanup = "none") so the rice can't eat an app you
       # installed yourself. A declarative-minded host can opt into "zap".
       inherit (config.haus.homebrew) autoUpdate upgrade cleanup;
+      # `--adopt`: a cask already sitting in /Applications from some other
+      # install path is adopted into Homebrew's bookkeeping rather than
+      # failing activation outright. haus.homebrew.adopt is the off-switch.
+      extraFlags = lib.optional config.haus.homebrew.adopt "--adopt";
     };
 
     # No casks here on purpose. core's own (ghostty) is a roster entry below,
