@@ -532,7 +532,12 @@ let
       hits = lib.concatMap (
         line:
         let
-          m = builtins.match "# pounce: ${field} = (.*)" line;
+          # Whitespace-tolerant around `=` to match the awk and Swift header
+          # parsers (pounce-palette, CommandRegistry.swift) — a hand-typed
+          # `cheat  = foo` or `cheat= foo` used to match neither of them nor
+          # this regex, and dropped silently: `cheat`/`cheatWhen` have no
+          # reader but this one, so a miss here has nothing to fall back to.
+          m = builtins.match "# pounce: ${field} *= *(.*)" line;
         in
         lib.optionals (m != null) m
       ) (lib.splitString "\n" (builtins.readFile (./commands + "/${file}")));
