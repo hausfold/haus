@@ -31,6 +31,7 @@
   "f"
   "z"
   "comma"
+  "period"
   "backtick"
   "minus"
   "equal"
