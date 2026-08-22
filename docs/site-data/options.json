@@ -3158,7 +3158,7 @@
     "declarations": [
       "modules/options.nix"
     ],
-    "description": "The AeroSpace key name pressed after the leader (e.g. \"enter\",\n\"space\", \"period\", or a letter). Must not collide with a roster\napp's key or a built-in launch-mode key (one digit per\nnumbered workspace — see haus.windows.numberedWorkspaces — plus\nthe arrows, `-`/`=`, `v`/`e`/`z`, `,`, `` ` ``, `/`, esc) —\nnor with the workspace throws, which are ⇧ (follow) or ⌥⇧\n(stay) + any of those digits or a roster letter (\"shift-1\",\n\"alt-shift-b\", …). An assertion in modules/windows catches a\nclash rather than letting one binding silently shadow\nanother.\n",
+    "description": "The AeroSpace key name pressed after the leader (e.g. \"enter\",\n\"space\", \"backslash\", or a letter). Must not collide with a roster\napp's key or a built-in launch-mode key (one digit per\nnumbered workspace — see haus.windows.numberedWorkspaces — plus\nthe arrows, `-`/`=`, `v`/`f`/`z`, `,`, `.`, `` ` ``, `/`, esc) —\nnor with the workspace throws, which are ⇧ (follow) or ⌥⇧\n(stay) + any of those digits or a roster letter (\"shift-1\",\n\"alt-shift-b\", …). An assertion in modules/windows catches a\nclash rather than letting one binding silently shadow\nanother.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"enter\""
@@ -4455,7 +4455,7 @@
       "_type": "literalExpression",
       "text": "null"
     },
-    "description": "The leader letter for this app: tap Caps Lock then this key to\nlaunch/focus it. Must be unique across the roster, and not one of\nlaunch mode's own: `v` `e` `z` `,` `` ` `` `-` `=` `/` `esc`, the\narrows and one digit per numbered workspace (`1`-`4` out of the box;\nsee haus.windows.numberedWorkspaces) are taken, and a rebuild refuses\nthem.\n\nnull (the default) means the entry is INSTALL-ONLY: it still\nbrings its cask/formula/package, but claims no leader key, no\ncheatsheet row, and no launch-mode bubble. That is what lets one\nroster hold both the apps you reach for by keyboard and the ones\nyou just want on the machine (and fonts, and CLI tools).\n",
+    "description": "The leader letter for this app: tap Caps Lock then this key to\nlaunch/focus it. Must be unique across the roster, and not one of\nlaunch mode's own: `v` `f` `z` `,` `.` `` ` `` `-` `=` `/` `esc`, the\narrows and one digit per numbered workspace (`1`-`4` out of the box;\nsee haus.windows.numberedWorkspaces) are taken, and a rebuild refuses\nthem.\n\nnull (the default) means the entry is INSTALL-ONLY: it still\nbrings its cask/formula/package, but claims no leader key, no\ncheatsheet row, and no launch-mode bubble. That is what lets one\nroster hold both the apps you reach for by keyboard and the ones\nyou just want on the machine (and fonts, and CLI tools).\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"s\""

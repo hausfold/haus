@@ -238,7 +238,8 @@ let
   );
 
   # The FIXED half of launch mode: the actions a host does not choose (arrows,
-  # resize, clipboard, Find Files, reopen, settings, resort, cheatsheet, exit)
+  # resize, clipboard, Find Files, reopen, settings, tiling cycle, resort,
+  # cheatsheet, exit)
   # plus the numbered workspaces' three chords each. Split out of
   # reservedLaunchKeys because TWO different things can collide with it and only
   # one of them was ever checked; split into ./launch-keys.nix because the docs repo's
@@ -618,7 +619,8 @@ lib.mkMerge [
           "haus.roster leader keys must not reuse a built-in launch-mode key; conflicting: "
           + lib.concatStringsSep ", " rosterBuiltinCollisions
           + ". Those letters are leader actions haus already binds (v clipboard, f Find Files, "
-          + "z reopen-last-app, , settings, ` resort, - / = resize, digits and arrows for "
+          + "z reopen-last-app, , settings, . tiling cycle, ` resort, - / = resize, digits and "
+          + "arrows for "
           + "workspaces). Pick another letter for the app, or set its key to null and reach it "
           + "from the palette. If the entry came from a shared desktop, override just "
           + "the key in your host file: haus.roster.<id>.key = \"…\";";
