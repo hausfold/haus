@@ -90,6 +90,35 @@ lib.mkIf config.haus.shelf.enable {
       };
       followAppearance = config.haus.shelf.followSystemAppearance;
 
+      # Where captures land, absolute — the same `~/` expansion ../core does
+      # before it writes the plist key, because what perch does with this is
+      # compare it against real paths. null when this machine never said, and
+      # then the key is ABSENT rather than a guess: haus.screenshots.location =
+      # null means "macOS's own choice", and writing "the Desktop" would be
+      # stating something haus does not know (the user may have moved it by
+      # hand). Perch's own fallback is the Desktop, so the common case is
+      # covered without anyone claiming a fact.
+      shotsLocation =
+        let
+          loc = config.haus.screenshots.location;
+        in
+        if loc == null then
+          null
+        else if lib.hasPrefix "~/" loc then
+          "/Users/${username}/${lib.removePrefix "~/" loc}"
+        else
+          loc;
+
+      # See haus.shelf.watchScreenshots: this is the half haus CAN do. A
+      # watched folder is a security-scoped bookmark perch mints from a panel
+      # the user clicked, so this key never grants anything — it only saves
+      # perch from asking a question macOS refuses to answer for a sandboxed
+      # app ("where do screenshots go?"). A perch that predates the key
+      # ignores it, the same way an older one ignores the theme keys.
+      screenshotsKey = lib.optionalAttrs (config.haus.shelf.watchScreenshots && shotsLocation != null) {
+        screenshotsFolder = shotsLocation;
+      };
+
       # The palette per polarity. Perch picks between them by the macOS
       # appearance, so PINNING a flavor is expressed by writing the same variant
       # to both keys. An older perch that predates theming ignores this file.
@@ -99,11 +128,14 @@ lib.mkIf config.haus.shelf.enable {
       # both polarities and follows a flavor change on its own. A perch that
       # predates the key ignores it and keeps accenting with its mark green.
       configJSON = pkgs.writeText "perch-config.json" (
-        builtins.toJSON {
-          themeDark = if followAppearance then nb.darkVariant else nb.variant;
-          themeLight = if followAppearance then nb.lightVariant else nb.variant;
-          accent = config.haus.theme.accent;
-        }
+        builtins.toJSON (
+          {
+            themeDark = if followAppearance then nb.darkVariant else nb.variant;
+            themeLight = if followAppearance then nb.lightVariant else nb.variant;
+            accent = config.haus.theme.accent;
+          }
+          // screenshotsKey
+        )
       );
 
       # Every rendered variant, not just the selected one — a file SHADOWS
@@ -155,13 +187,53 @@ lib.mkIf config.haus.shelf.enable {
   # permission), which perch deliberately refuses to ask for.
   #
   # So the shelf only works if this is off. Not an opinion and therefore not
-  # mkDefault — same footing as _HIHideMenuBar tracking bar.enable in core: it's
-  # a function of running perch, and it comes back the moment perch is disabled.
+  # mkDefault — it is a function of running perch. It is NOT on the same footing
+  # as _HIHideMenuBar tracking bar.enable in core, which this comment used to
+  # claim: core writes that key in both polarities, so it follows the option
+  # back; this write sits inside the room's own mkIf, so disabling the room
+  # stops WRITING the key and macOS keeps the false it last saw. Turning the
+  # trigger back on after dropping the shelf is a manual step (the same toggle
+  # in System Settings, or a host-level CustomUserPreferences write).
   # This is the "Drag windows to top of screen to enter Mission Control" toggle
   # in System Settings ▸ Desktop & Dock; CustomUserPreferences because
   # nix-darwin's typed dock block has no option for it. The Dock restart at the
   # end of activation (core sets system.defaults.dock.*) picks it up.
   system.defaults.CustomUserPreferences."com.apple.dock".enterMissionControlByTopWindowDrag = false;
+
+  # ---- let a capture reach the shelf while you still care about it -----------
+  # Perch's watched folders are how screenshots get onto the shelf without being
+  # dragged: point one at the screenshot folder and every new capture is copied
+  # up on its own. macOS's floating thumbnail breaks exactly that, because it is
+  # not a preview of a file that exists — the capture is HELD in the corner and
+  # only written out when the thumbnail expires (~5 s) or is dismissed. So the
+  # shelf catches it five seconds after the moment you took it, which is a
+  # lifetime for a surface whose whole promise is "drag it somewhere now".
+  #
+  # TWO differences from the Dock key above, both deliberate. It hangs off its
+  # own option rather than off `shelf.enable`, because unlike the top-edge
+  # trigger this is not a thing the shelf cannot work without — it is one half
+  # of a feature (`haus.shelf.watchScreenshots`, whose other half is the
+  # `screenshotsFolder` key in the config drop), and a capture behaviour that
+  # changes machine-wide should be readable as a named option in `haus show`
+  # and the reference rather than inferred from an unrelated room being on. And
+  # it is `mkDefault` rather than an outright write, because the thumbnail only
+  # DELAYS the shelf, it does not defeat it (you can drag the thumbnail into
+  # the notch yourself). The ladder from ../appearance applies — a desktop (900)
+  # or a host (100) that wants the markup affordance back writes
+  # `haus.screenshots.thumbnail = true;` and wins with no mkForce.
+  #
+  # Through the option rather than the plist key direct, so the generated option
+  # reference and `haus show` describe what the machine actually does. That is
+  # the whole gain and it is worth being exact about: `haus plan` reads the built
+  # activate script and the restart map already carries com.apple.screencapture,
+  # so a CustomUserPreferences write would have been just as visible to those
+  # two. (`haus.screenshots` is declared in ../core/options.nix but belongs to
+  # the APPEARANCE room in the registry — ../options-groups.nix — which is the
+  # room page a reader should be sent to.)
+  #
+  # Same shape as the Dock key above on removal: disabling this room stops the
+  # write, it does not put the thumbnail back.
+  haus.screenshots.thumbnail = lib.mkIf config.haus.shelf.watchScreenshots (lib.mkDefault false);
 
   system.activationScripts.postActivation.text = ''
     # --- perch: install the notarized app at a fixed /Applications path -------

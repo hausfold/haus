@@ -337,6 +337,7 @@ let
     shelf = [
       "enable"
       "followSystemAppearance"
+      "watchScreenshots"
     ];
     snippets = [
       "enable"
