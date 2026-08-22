@@ -22,7 +22,7 @@ let
         description = ''
           The leader letter for this app: tap Caps Lock then this key to
           launch/focus it. Must be unique across the roster, and not one of
-          launch mode's own: `v` `e` `z` `,` `` ` `` `-` `=` `/` `esc`, the
+          launch mode's own: `v` `f` `z` `,` `.` `` ` `` `-` `=` `/` `esc`, the
           arrows and one digit per numbered workspace (`1`-`4` out of the box;
           see haus.windows.numberedWorkspaces) are taken, and a rebuild refuses
           them.
@@ -685,10 +685,10 @@ in
                 example = "enter";
                 description = ''
                   The AeroSpace key name pressed after the leader (e.g. "enter",
-                  "space", "period", or a letter). Must not collide with a roster
+                  "space", "backslash", or a letter). Must not collide with a roster
                   app's key or a built-in launch-mode key (one digit per
                   numbered workspace — see haus.windows.numberedWorkspaces — plus
-                  the arrows, `-`/`=`, `v`/`e`/`z`, `,`, `` ` ``, `/`, esc) —
+                  the arrows, `-`/`=`, `v`/`f`/`z`, `,`, `.`, `` ` ``, `/`, esc) —
                   nor with the workspace throws, which are ⇧ (follow) or ⌥⇧
                   (stay) + any of those digits or a roster letter ("shift-1",
                   "alt-shift-b", …). An assertion in modules/windows catches a
