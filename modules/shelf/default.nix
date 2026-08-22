@@ -155,8 +155,13 @@ lib.mkIf config.haus.shelf.enable {
   # permission), which perch deliberately refuses to ask for.
   #
   # So the shelf only works if this is off. Not an opinion and therefore not
-  # mkDefault — same footing as _HIHideMenuBar tracking bar.enable in core: it's
-  # a function of running perch, and it comes back the moment perch is disabled.
+  # mkDefault — it is a function of running perch. It is NOT on the same footing
+  # as _HIHideMenuBar tracking bar.enable in core, which this comment used to
+  # claim: core writes that key in both polarities, so it follows the option
+  # back; this write sits inside the room's own mkIf, so disabling the room
+  # stops WRITING the key and macOS keeps the false it last saw. Turning the
+  # trigger back on after dropping the shelf is a manual step (the same toggle
+  # in System Settings, or a host-level CustomUserPreferences write).
   # This is the "Drag windows to top of screen to enter Mission Control" toggle
   # in System Settings ▸ Desktop & Dock; CustomUserPreferences because
   # nix-darwin's typed dock block has no option for it. The Dock restart at the
@@ -179,9 +184,17 @@ lib.mkIf config.haus.shelf.enable {
   # — a desktop (900) or a host (100) that wants the markup affordance back
   # writes `haus.screenshots.thumbnail = true;` and wins with no mkForce.
   #
-  # Through core's option rather than the plist key direct, so `haus plan`, the
-  # restart map and the option reference all keep describing what the machine
-  # actually does.
+  # Through the option rather than the plist key direct, so the generated option
+  # reference and `haus show` describe what the machine actually does. That is
+  # the whole gain and it is worth being exact about: `haus plan` reads the built
+  # activate script and the restart map already carries com.apple.screencapture,
+  # so a CustomUserPreferences write would have been just as visible to those
+  # two. (`haus.screenshots` is declared in ../core/options.nix but belongs to
+  # the APPEARANCE room in the registry — ../options-groups.nix — which is the
+  # room page a reader should be sent to.)
+  #
+  # Same shape as the Dock key above on removal: disabling this room stops the
+  # write, it does not put the thumbnail back.
   haus.screenshots.thumbnail = lib.mkDefault false;
 
   system.activationScripts.postActivation.text = ''
