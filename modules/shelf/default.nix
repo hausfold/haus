@@ -163,6 +163,27 @@ lib.mkIf config.haus.shelf.enable {
   # end of activation (core sets system.defaults.dock.*) picks it up.
   system.defaults.CustomUserPreferences."com.apple.dock".enterMissionControlByTopWindowDrag = false;
 
+  # ---- let a capture reach the shelf while you still care about it -----------
+  # Perch's watched folders are how screenshots get onto the shelf without being
+  # dragged: point one at the screenshot folder and every new capture is copied
+  # up on its own. macOS's floating thumbnail breaks exactly that, because it is
+  # not a preview of a file that exists — the capture is HELD in the corner and
+  # only written out when the thumbnail expires (~5 s) or is dismissed. So the
+  # shelf catches it five seconds after the moment you took it, which is a
+  # lifetime for a surface whose whole promise is "drag it somewhere now".
+  #
+  # `mkDefault`, unlike the Dock key above, and the difference is real: the
+  # thumbnail only DELAYS the shelf, it does not defeat it (you can even drag
+  # the thumbnail into the notch yourself), so this is the room stating a
+  # preference rather than a requirement. The ladder from ../appearance applies
+  # — a desktop (900) or a host (100) that wants the markup affordance back
+  # writes `haus.screenshots.thumbnail = true;` and wins with no mkForce.
+  #
+  # Through core's option rather than the plist key direct, so `haus plan`, the
+  # restart map and the option reference all keep describing what the machine
+  # actually does.
+  haus.screenshots.thumbnail = lib.mkDefault false;
+
   system.activationScripts.postActivation.text = ''
     # --- perch: install the notarized app at a fixed /Applications path -------
     perchStore="${pkgs.perch}/Applications/Perch.app"
