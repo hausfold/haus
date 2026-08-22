@@ -534,8 +534,7 @@ let
   headerGrammar = import ./header-grammar.nix;
 
   commandField =
-    file: field:
-    headerGrammar.fieldOf (builtins.readFile (./commands + "/${file}")) field;
+    file: field: headerGrammar.fieldOf (builtins.readFile (./commands + "/${file}")) field;
 
   # key = what you TYPE, not the full name: the palette fuzzy-matches, so the
   # shortest thing that gets you there is the row, and a full name ("Report

@@ -1389,23 +1389,50 @@
                 { key-collision = "# pounce: names = Not A Name"; }
                 { not-a-comment = "// pounce: name = Not A Comment"; }
               ];
+              # EVERY row goes through this, including the ones expected to
+              # succeed. Interpolating a value directly would turn a regression
+              # that returns null into `cannot coerce null to a string` — an eval
+              # error, from inside a check whose whole job is to print a legible
+              # diff. A row is only useful when the failure mode is a ROW.
+              row = name: got: "${name} -> ${if got == null then "NONE" else "[${got}]"}";
             in
             builtins.concatStringsSep "\n" (
               map (
                 c:
                 let
                   name = builtins.head (builtins.attrNames c);
-                  got = g.matchField "name" c.${name};
                 in
-                "${name} -> ${if got == null then "NONE" else "[${got}]"}"
+                row name (g.matchField "name" c.${name})
               ) cases
               # `cheatWhen` is the key this whole check exists for, so it is asked
               # by its own name rather than trusted to behave like `name`.
               ++ [
-                "cheatWhen-trailing -> [${
-                  g.matchField "cheatWhen" "# pounce: cheatWhen = while a page exists "
-                }]"
+                (row "cheatWhen-trailing" (g.matchField "cheatWhen" "# pounce: cheatWhen = while a page exists "))
               ]
+              # The rows above all exercise `matchField`, one line at a time.
+              # `commandField` calls `fieldOf`, which additionally splits a whole
+              # FILE into lines and takes the first hit — so without these two the
+              # check would go green on a broken splitter, testing a function the
+              # module does not call. `first-wins` is pounce's rule in both of its
+              # parsers (`&& n == ""`, `header.name.isEmpty`), and `absent` is the
+              # null every caller branches on.
+              ++ (
+                let
+                  file = "#!/bin/bash\n# pounce: name = First\n# pounce: name = Second\n";
+                  filler = n: builtins.concatStringsSep "" (builtins.genList (_: "# filler\n") n);
+                  at = n: "#!/bin/bash\n" + filler (n - 2) + "# pounce: name = Deep\n";
+                in
+                [
+                  (row "fieldOf-first-wins" (g.fieldOf file "name"))
+                  (row "fieldOf-absent" (g.fieldOf file "cheat"))
+                  # Both of pounce's parsers stop after 30 lines, so we must too:
+                  # a header below that is one WE read and the daemon never does.
+                  # 30 in, 31 out — matching `NR > 30 { exit }` and `seen > 30`,
+                  # which both process line 30 and abandon line 31.
+                  (row "fieldOf-line30" (g.fieldOf (at 30) "name"))
+                  (row "fieldOf-line31" (g.fieldOf (at 31) "name"))
+                ]
+              )
             );
           expectedHeaderGrammarTable = ''
             canonical -> [Canonical]
@@ -1420,6 +1447,10 @@
             key-collision -> NONE
             not-a-comment -> NONE
             cheatWhen-trailing -> [while a page exists]
+            fieldOf-first-wins -> [First]
+            fieldOf-absent -> NONE
+            fieldOf-line30 -> [Deep]
+            fieldOf-line31 -> NONE
           '';
 
           # ---- accessibility-surface -------------------------------------------
@@ -2986,6 +3017,52 @@
               touch $out
             '';
 
+          # Tolerance in OUR reader is not a licence to use it in OUR commands.
+          # modules/launcher/header-grammar.nix accepts an indented header, a tab
+          # after the `#`, `pounce:name` and so on, because a user hand-writing a
+          # command in their own dir should not lose a row to a stray space. But
+          # this layer WRITES the headers in modules/launcher/commands and pounce
+          # reads them, and the pounce we are locked against is narrower than we
+          # now are: pre-#95 its Swift parser wants `#` + exactly one space and
+          # its awk wants that anchored. A header we accept and it doesn't isn't
+          # a near miss — the daemon drops the whole line, so the row falls back
+          # to its filename, loses its description, and never sees `whenFile`,
+          # which lists a gated row (Pages) unconditionally.
+          #
+          # So: our own headers stay canonical, whatever the reader tolerates.
+          # The wide pattern finds every line that MEANS to be a header; the
+          # narrow one is the spelling every parser in both repos agrees on. A
+          # line in the first and not the second is the bug.
+          pounce-command-headers = pkgs.runCommand "haus-pounce-command-headers-ok" { } ''
+            # No `cd` into the source — it is a read-only store path, and these
+            # scratch files have to land in the build dir.
+            cmds=${./modules/launcher/commands}
+            grep -hoE '^[[:blank:]]*#[[:blank:]]+pounce:[[:blank:]]*[A-Za-z0-9_-]+[[:blank:]]*=' \
+              "$cmds"/*.sh | sort -u > wide || true
+            grep -hoE '^# pounce: [A-Za-z0-9_-]+ =' "$cmds"/*.sh | sort -u > narrow || true
+
+            test -s wide || {
+              echo 'no "# pounce:" headers found in modules/launcher/commands at all —' >&2
+              echo 'the pattern has gone stale. Repoint it rather than deleting the' >&2
+              echo 'check: it is the only thing keeping our headers portable.' >&2
+              exit 1
+            }
+
+            comm -23 wide narrow > loose
+            test -s loose && {
+              echo 'these header lines are legal for our own reader and are NOT' >&2
+              echo 'canonical, so the locked pounce ignores them outright — the row' >&2
+              echo 'loses its name, its description and its whenFile, silently:' >&2
+              sed 's/^/  /' loose >&2
+              echo >&2
+              echo 'Write them as "# pounce: <key> = <value>", one space each side.' >&2
+              echo 'The tolerance in header-grammar.nix is for headers our USERS' >&2
+              echo 'type, not for the ones we ship.' >&2
+              exit 1
+            }
+            touch $out
+          '';
+
           pounce-header-grammar = pkgs.runCommand "haus-pounce-header-grammar-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedHeaderGrammarTable} \
                     ${pkgs.writeText "actual" (headerGrammarTable + "\n")} || {
@@ -2994,7 +3071,7 @@
               echo "It is the ONLY reader of cheat/cheatWhen, so a miss shows up as" >&2
               echo "a wrong word in the cheatsheet and in no log at all." >&2
               echo "pounce holds the same cases under the same names in" >&2
-              echo "pkgs/pounce/tests/fixtures/ — change both, or neither." >&2
+              echo "pkgs/pounce/tests/fixtures/header-grammar/ — change both, or neither." >&2
               exit 1
             }
             touch $out
