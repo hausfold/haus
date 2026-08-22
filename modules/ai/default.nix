@@ -671,10 +671,11 @@ in
     ]
   );
 
-  # The two files this room ships into every installed client's home. Written
-  # into the SAME user modules/terminal writes; home-manager merges the two
-  # attrsets, and a collision on one path would be an error rather than a silent
-  # last-wins — which is what makes splitting them safe.
+  # What this room ships into home: per-client instructions and skill files,
+  # plus the machine-wide tart runtime adapter. Written into the SAME user
+  # modules/terminal writes; home-manager merges the attrsets, and a
+  # collision on one path would be an error rather than a silent last-wins —
+  # which is what makes splitting them safe.
   home-manager.users.${username}.home.file =
     agentInstructionFiles // agentSkillFiles // agentRuntimeAdapterFiles;
 
