@@ -52,6 +52,55 @@ printf '{ pkgs, ... }: { environment.systemPackages = [ pkgs.hello ]; }\n' > "$t
 git -C "$tmp/a-room" add default.nix
 git -C "$tmp/a-room" -c user.email=t@t -c user.name=t commit -q -m init
 
+# A real third-party ROOM — a flake with no inputs of its own, exposing
+# darwinModules.default: a nix-darwin module under a namespace nothing else on
+# the test machine declares, so `haus add --room` claiming it exercises the
+# whole path (pin, wire into extraModules, claim the namespace) rather than
+# just the flake.nix edit.
+mkdir -p "$tmp/room-a"
+git -C "$tmp/room-a" init -q
+cat > "$tmp/room-a/flake.nix" <<'NIX'
+{
+  description = "room a";
+  outputs = { self }: {
+    darwinModules.default = { lib, ... }: {
+      options.haus.testroom.enable = lib.mkEnableOption "a test room";
+      config.haus.testroom.enable = true;
+    };
+  };
+}
+NIX
+git -C "$tmp/room-a" add flake.nix
+git -C "$tmp/room-a" -c user.email=t@t -c user.name=t commit -q -m init
+room_a_rev="$(git -C "$tmp/room-a" rev-parse HEAD)"
+
+# A second, distinct room claiming the SAME namespace under a different
+# origin — the collision case needs one, since `haus remove` deliberately
+# leaves a namespace claim behind rather than guessing which room it belonged
+# to (see cmd_remove).
+mkdir -p "$tmp/room-b"
+git -C "$tmp/room-b" init -q
+cat > "$tmp/room-b/flake.nix" <<'NIX'
+{
+  description = "room b";
+  outputs = { self }: {
+    darwinModules.default = { lib, ... }: {
+      options.haus.testroom.enable = lib.mkEnableOption "a different test room";
+      config.haus.testroom.enable = true;
+    };
+  };
+}
+NIX
+git -C "$tmp/room-b" add flake.nix
+git -C "$tmp/room-b" -c user.email=t@t -c user.name=t commit -q -m init
+room_b_rev="$(git -C "$tmp/room-b" rev-parse HEAD)"
+
+# A raw single file, not a flake at all — file+file:// is file+https://'s
+# offline sibling, the same substitution haus-show.sh's own suite uses. For
+# `--room` this has no revision, so it's the fixture for "haus cannot lock
+# what it cannot pin as an input."
+printf '{ pkgs, ... }: { environment.systemPackages = [ pkgs.hello ]; }\n' > "$tmp/raw-room.nix"
+
 # ---- a scaffolded consumer, `haus` pinned locally (offline, `path:`) ---------
 new_consumer() {
   rm -rf "$tmp/consumer"
@@ -146,13 +195,15 @@ set -e
 has "already pinned" "$(cat "$tmp/collide.out")" "collision"
 
 # ---- 6: a room is refused, not silently pinned as data ------------------------
+# (Still refuses without --room — acquisition step F changed the message,
+# not the behavior, once --room --namespace became the real way in.)
 new_consumer
 set +e
 haus add -y "git+file://$tmp/a-room" >"$tmp/room.out" 2>&1
 status=$?
 set -e
 [ "$status" -ne 0 ] || fail "room: expected a non-zero exit"
-has "step F" "$(cat "$tmp/room.out")" "room"
+has "--room" "$(cat "$tmp/room.out")" "room"
 lacks "inputs.a-room" "$(cat "$tmp/consumer/flake.nix")" "room: must not have been pinned"
 
 # ---- 7: --vendor copies the file in and never touches inputs -----------------
@@ -214,5 +265,131 @@ after="$(cat "$tmp/consumer/flake.nix")"
 [ "$before" = "$after" ] || fail "two hosts: flake.nix was touched on the degrade path"
 [ "$(grep -c '        desktop = ' "$tmp/consumer/flake.nix")" = 0 ] \
   || fail "two hosts: a desktop line leaked into the untouched file"
+
+# ---- 10: --room without --namespace refuses, and touches nothing -------------
+new_consumer
+before="$(cat "$tmp/consumer/flake.nix")"
+set +e
+haus add --room "git+file://$tmp/room-a" >"$tmp/noroomns.out" 2>&1
+status=$?
+set -e
+[ "$status" -ne 0 ] || fail "room without --namespace: expected a non-zero exit"
+has "--namespace" "$(cat "$tmp/noroomns.out")" "room without --namespace"
+after="$(cat "$tmp/consumer/flake.nix")"
+[ "$before" = "$after" ] || fail "room without --namespace: flake.nix was touched"
+
+# ---- 11: --namespace without --room refuses -----------------------------------
+set +e
+haus add --namespace testroom "git+file://$tmp/writer" >"$tmp/nsnoroom.out" 2>&1
+status=$?
+set -e
+[ "$status" -ne 0 ] || fail "namespace without --room: expected a non-zero exit"
+has "only applies to --room" "$(cat "$tmp/nsnoroom.out")" "namespace without --room"
+
+# ---- 12: the reserved 'my' namespace refuses -----------------------------------
+set +e
+haus add --room --namespace my "git+file://$tmp/room-a" >"$tmp/nsmy.out" 2>&1
+status=$?
+set -e
+[ "$status" -ne 0 ] || fail "namespace my: expected a non-zero exit"
+has "reserved" "$(cat "$tmp/nsmy.out")" "namespace my"
+
+# ---- 13: a namespace this machine already has refuses -------------------------
+set +e
+haus add --room --namespace bar "git+file://$tmp/room-a" >"$tmp/nsbar.out" 2>&1
+status=$?
+set -e
+[ "$status" -ne 0 ] || fail "namespace bar: expected a non-zero exit"
+has "already exists" "$(cat "$tmp/nsbar.out")" "namespace bar"
+
+# ---- 14: a room with no revision refuses — nothing for the typed confirmation
+# to name, and nothing 'nix flake lock' could pin as an ordinary input anyway --
+set +e
+haus add --room --namespace testroom "file+file://$tmp/raw-room.nix" >"$tmp/noshaperoom.out" 2>&1
+status=$?
+set -e
+[ "$status" -ne 0 ] || fail "shapeless room: expected a non-zero exit"
+has "revision" "$(cat "$tmp/noshaperoom.out")" "shapeless room"
+
+# ---- 15: without the confirming env var, a room add refuses non-interactively,
+# and flake.nix is untouched — the prompt gates BEFORE the edit, not just the lock
+new_consumer
+before="$(cat "$tmp/consumer/flake.nix")"
+set +e
+haus add --room --namespace testroom "git+file://$tmp/room-a" >"$tmp/noconfirm.out" 2>&1
+status=$?
+set -e
+[ "$status" -ne 0 ] || fail "room no confirm: expected a non-zero exit"
+has "HAUS_ADD_ROOM_" "$(cat "$tmp/noconfirm.out")" "room no confirm"
+after="$(cat "$tmp/consumer/flake.nix")"
+[ "$before" = "$after" ] || fail "room no confirm: flake.nix was touched"
+
+# ---- 16: a room is pinned, wired into extraModules, and its namespace lands ---
+new_consumer
+out="$(HAUS_ADD_ROOM_ROOMA="$room_a_rev" haus add --room --as rooma --namespace testroom "git+file://$tmp/room-a" 2>&1)"
+has "pinned and wired" "$out" "room add"
+lacks "flake = false" "$(grep -A1 'inputs\.rooma\.url' "$tmp/consumer/flake.nix")" "room add: must not carry flake = false"
+grep -qE '^  inputs\.rooma\.url = "git\+file://'"$tmp"'/room-a";$' "$tmp/consumer/flake.nix" \
+  || fail "room add: input line missing or malformed"
+grep -qE '^    \{ haus, rooma, \.\.\. \}:$' "$tmp/consumer/flake.nix" \
+  || fail "room add: outputs pattern not bound"
+grep -qE '^        extraModules = \[ rooma\.darwinModules\.default \];$' "$tmp/consumer/flake.nix" \
+  || fail "room add: extraModules line missing"
+nixfmt - <"$tmp/consumer/flake.nix" >/dev/null || fail "room add: flake.nix does not parse"
+locked="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d["nodes"]["rooma"]["locked"]["rev"])' "$tmp/consumer/flake.lock")"
+[ "$locked" = "$room_a_rev" ] || fail "room add: locked rev does not match the source"
+claimed="$(cd "$tmp/consumer" && nix eval --raw .#darwinConfigurations.testbox.config.haus._rooms.claimed.testroom)"
+[ "$claimed" = "git+file://$tmp/room-a" ] || fail "room add: namespace claim did not land ($claimed)"
+landed="$(cd "$tmp/consumer" && nix eval .#darwinConfigurations.testbox.config.haus.testroom.enable)"
+[ "$landed" = "true" ] || fail "room add: haus.testroom.enable did not land ($landed)"
+
+# ---- 17: remove strips the input AND the extraModules line, and warns that the
+# namespace claim is left behind rather than guessed at -------------------------
+out="$(haus remove rooma 2>&1)"
+has "extraModules entry" "$out" "room remove"
+has "haus._rooms.claimed" "$out" "room remove"
+lacks "inputs.rooma" "$(cat "$tmp/consumer/flake.nix")" "room remove: input line still present"
+lacks "extraModules" "$(cat "$tmp/consumer/flake.nix")" "room remove: extraModules line still present"
+python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(1 if "rooma" in d["nodes"] else 0)' \
+  "$tmp/consumer/flake.lock" || fail "room remove: lock still carries the pruned node"
+claimed="$(cd "$tmp/consumer" && nix eval --raw .#darwinConfigurations.testbox.config.haus._rooms.claimed.testroom)"
+[ "$claimed" = "git+file://$tmp/room-a" ] || fail "room remove: claim file was unexpectedly touched"
+
+# ---- 18: a second, different room claiming the SAME namespace still pins and
+# wires (the edit machinery doesn't know about claims), but the claim itself
+# refuses to overwrite a DIFFERENT origin's still-standing claim -----------------
+out="$(HAUS_ADD_ROOM_ROOMB="$room_b_rev" haus add --room --as roomb --namespace testroom "git+file://$tmp/room-b" 2>&1)"
+has "claim didn't write" "$out" "room collision"
+grep -qE '^        extraModules = \[ roomb\.darwinModules\.default \];$' "$tmp/consumer/flake.nix" \
+  || fail "room collision: extraModules line wasn't rewired to the new room"
+claimed="$(cd "$tmp/consumer" && nix eval --raw .#darwinConfigurations.testbox.config.haus._rooms.claimed.testroom)"
+[ "$claimed" = "git+file://$tmp/room-a" ] || fail "room collision: the OLD claim should have survived untouched ($claimed)"
+
+# ---- 19: a second SIMULTANEOUS room degrades to --print, touching nothing -----
+new_consumer
+HAUS_ADD_ROOM_ROOMA="$room_a_rev" haus add --room --as rooma --namespace testroom "git+file://$tmp/room-a" >/dev/null 2>&1
+before="$(cat "$tmp/consumer/flake.nix")"
+out="$(HAUS_ADD_ROOM_ROOMB="$room_b_rev" haus add --room --as roomb --namespace otherns "git+file://$tmp/room-b" 2>&1)"
+has "add these by hand" "$out" "second room"
+after="$(cat "$tmp/consumer/flake.nix")"
+[ "$before" = "$after" ] || fail "second room: flake.nix was touched on the degrade path"
+
+# ---- 20: --module is validated like --as and --namespace, not written raw ----
+# (found by the pre-PR assurance pass: --module landed in flake.nix with no
+# check at all, unlike every other token this command writes there — a
+# publisher's own install instructions are exactly the untrusted text this
+# design otherwise guards, so a malformed --module must never reach the file.)
+new_consumer
+before="$(cat "$tmp/consumer/flake.nix")"
+set +e
+HAUS_ADD_ROOM_ROOMA="$room_a_rev" haus add --room --as rooma --namespace testroom \
+  --module '"default" or (builtins.trace "pwned" null)' "git+file://$tmp/room-a" \
+  >"$tmp/badmodule.out" 2>&1
+status=$?
+set -e
+[ "$status" -ne 0 ] || fail "bad --module: expected a non-zero exit"
+has "legal Nix identifier" "$(cat "$tmp/badmodule.out")" "bad --module"
+after="$(cat "$tmp/consumer/flake.nix")"
+[ "$before" = "$after" ] || fail "bad --module: flake.nix was touched"
 
 printf 'ok — haus add/desktop/remove: %s\n' "$show"
