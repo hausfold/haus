@@ -755,6 +755,11 @@ in
           thumbnail waits around — the setting to want if you screenshot in
           quick succession, or if you script anything that reads the file. The
           cost is losing the markup/drag affordance the thumbnail offers.
+
+          One room answers this for you: the shelf turns the thumbnail off at
+          `mkDefault` while `haus.shelf.watchScreenshots` is on, because a
+          capture macOS is still holding cannot reach the shelf. Naming this
+          option in your host outranks that and puts the thumbnail back.
         '';
       };
       includeDate = lib.mkOption {

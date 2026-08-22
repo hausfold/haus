@@ -2926,7 +2926,7 @@
       "_type": "literalExpression",
       "text": "true"
     },
-    "description": "Pass `--adopt` to `brew bundle install`, so a cask haus declares that\nis already sitting in /Applications — installed by hand, the App\nStore, or anything other than Homebrew — is adopted into Homebrew's\nbookkeeping instead of failing activation with \"there is already an\nApp at …\". Nothing about the app itself changes; only whether\nHomebrew considers itself the owner.\n\nOn by default: without it, the roster's whole \"declare an app,\nhaus makes sure it's there\" promise breaks the moment that app\nhappens to already be installed some other way — which is common\nfor editors, browsers and other apps most people bring with them.\n",
+    "description": "Whether a cask haus declares that is already sitting in\n/Applications — installed by hand, the App Store, or anything\nother than Homebrew — gets adopted into Homebrew's bookkeeping\ninstead of failing activation with \"there is already an App at\n…\". Nothing about the app itself changes; only whether Homebrew\nconsiders itself the owner.\n\nOn by default: without it, the roster's whole \"declare an app,\nhaus makes sure it's there\" promise breaks the moment that app\nhappens to already be installed some other way — which is common\nfor editors, browsers and other apps most people bring with them.\n\nCurrent Homebrew (`bundle/cask.rb`) adopts every such cask\nunconditionally on its own, with no supported flag left to opt\nout — `brew bundle install --adopt` was removed, and the only\nalternative, `--force`, overwrites instead of refusing. Setting\nthis to `false` is a no-op until Homebrew grows a real way back\nto \"fail loudly on conflict\" for `brew bundle`.\n",
     "loc": [
       "haus",
       "homebrew",
@@ -4707,7 +4707,7 @@
       "_type": "literalExpression",
       "text": "null"
     },
-    "description": "Whether the floating preview thumbnail appears in the bottom-right\ncorner after a capture. null (the default) leaves macOS's own choice\nalone, which is to show it.\n\nfalse writes the file immediately instead of after the ~5s the\nthumbnail waits around — the setting to want if you screenshot in\nquick succession, or if you script anything that reads the file. The\ncost is losing the markup/drag affordance the thumbnail offers.\n",
+    "description": "Whether the floating preview thumbnail appears in the bottom-right\ncorner after a capture. null (the default) leaves macOS's own choice\nalone, which is to show it.\n\nfalse writes the file immediately instead of after the ~5s the\nthumbnail waits around — the setting to want if you screenshot in\nquick succession, or if you script anything that reads the file. The\ncost is losing the markup/drag affordance the thumbnail offers.\n\nOne room answers this for you: the shelf turns the thumbnail off at\n`mkDefault` while `haus.shelf.watchScreenshots` is on, because a\ncapture macOS is still holding cannot reach the shelf. Naming this\noption in your host outranks that and puts the thumbnail back.\n",
     "example": {
       "_type": "literalExpression",
       "text": "false"
@@ -4938,6 +4938,23 @@
       "haus",
       "shelf",
       "followSystemAppearance"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.shelf.watchScreenshots": {
+    "declarations": [
+      "modules/shelf/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Set this Mac up so new screenshots reach the shelf on their own.\n\nIt does NOT hand perch the folder — it cannot. A watched folder is a\nsecurity-scoped bookmark, and only perch itself can mint one, out of a\npanel you clicked; nothing written from outside the sandbox is a grant.\nWhat this removes is every OTHER obstacle between a capture and the\nshelf:\n\n- The floating preview thumbnail goes away\n  (`haus.screenshots.thumbnail`, at `mkDefault`, so naming that option\n  in your host puts it back). The thumbnail is not a preview of a saved\n  file: macOS HOLDS the capture in the corner and writes it out only\n  when the thumbnail expires (about five seconds) or you dismiss it, so\n  a watched folder catches every screenshot five seconds after you took\n  it.\n\n- Where your screenshots go is written into\n  `~/.config/perch/config.json`, so perch can offer to watch that\n  folder by name instead of asking you to find it — macOS will not tell\n  a sandboxed app where captures are saved, and this machine already\n  knows. Only when `haus.screenshots.location` says where that is: with\n  it unset, haus would be guessing, and perch falls back to the Desktop\n  (macOS's own answer) by itself. A perch too old to know the key\n  ignores it.\n\nTurn it off if you would rather keep the thumbnail's markup and drag\naffordances than have screenshots shelved.\n",
+    "loc": [
+      "haus",
+      "shelf",
+      "watchScreenshots"
     ],
     "readOnly": false,
     "type": "boolean"

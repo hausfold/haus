@@ -16,6 +16,40 @@
       '';
     };
 
+    shelf.watchScreenshots = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Set this Mac up so new screenshots reach the shelf on their own.
+
+        It does NOT hand perch the folder — it cannot. A watched folder is a
+        security-scoped bookmark, and only perch itself can mint one, out of a
+        panel you clicked; nothing written from outside the sandbox is a grant.
+        What this removes is every OTHER obstacle between a capture and the
+        shelf:
+
+        - The floating preview thumbnail goes away
+          (`haus.screenshots.thumbnail`, at `mkDefault`, so naming that option
+          in your host puts it back). The thumbnail is not a preview of a saved
+          file: macOS HOLDS the capture in the corner and writes it out only
+          when the thumbnail expires (about five seconds) or you dismiss it, so
+          a watched folder catches every screenshot five seconds after you took
+          it.
+
+        - Where your screenshots go is written into
+          `~/.config/perch/config.json`, so perch can offer to watch that
+          folder by name instead of asking you to find it — macOS will not tell
+          a sandboxed app where captures are saved, and this machine already
+          knows. Only when `haus.screenshots.location` says where that is: with
+          it unset, haus would be guessing, and perch falls back to the Desktop
+          (macOS's own answer) by itself. A perch too old to know the key
+          ignores it.
+
+        Turn it off if you would rather keep the thumbnail's markup and drag
+        affordances than have screenshots shelved.
+      '';
+    };
+
     shelf.followSystemAppearance = lib.mkOption {
       type = lib.types.bool;
       default = true;

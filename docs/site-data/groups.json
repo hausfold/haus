@@ -1137,12 +1137,15 @@
     "shelf": {
       "blurb": "The notch file shelf. Perch is the app behind it.",
       "kind": "room",
-      "optionCount": 2,
+      "optionCount": 3,
       "options": {
         "haus.shelf.enable": {
           "desktopSafe": true
         },
         "haus.shelf.followSystemAppearance": {
+          "desktopSafe": true
+        },
+        "haus.shelf.watchScreenshots": {
           "desktopSafe": true
         }
       },
@@ -1770,7 +1773,7 @@
       "namespaces": [
         "shelf"
       ],
-      "optionCount": 2,
+      "optionCount": 3,
       "order": 80,
       "title": "Shelf"
     },
