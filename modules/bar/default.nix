@@ -497,13 +497,13 @@ let
     # Popup styling mirrors the apple-logo menu.
     agents =
       let
-        # The pill is FOUR items — the paw, then one segment per state — and
+        # The pill is FOUR items — the bot, then one segment per state — and
         # they have to be ADDED in the order the group packs, not the order
         # they read. A `right` group fills outward from the right edge (the
         # menu bar's clock is furthest right because it is emitted first), so
         # on that side the same four added left-to-right would draw
-        # `done working ready paw`: the urgency ladder backwards with the paw
-        # on the trailing edge. Adding them reversed there puts the paw at the
+        # `done working ready bot`: the urgency ladder backwards with the bot
+        # on the trailing edge. Adding them reversed there puts the bot at the
         # pill's leading edge and the marks in ready → working → done order on
         # every side. The per-item paddings below are physical left/right and
         # need no mirroring once the order is right.
@@ -566,11 +566,11 @@ let
 
         # The pill itself. A bracket is the only way to put one background behind
         # items that must colour themselves independently; it is also what keeps
-        # the paw and the counts reading as one control rather than four pills
+        # the bot and the counts reading as one control rather than four pills
         # that happen to be adjacent. drawing=off to match the members — an
         # all-hidden bracket still paints, so agents.sh turns this off too.
-        # It also carries the POPUP, which the paw used to. A popup aligns to the
-        # item holding it, and the paw is now a third of this pill's width — a
+        # It also carries the POPUP, which the bot used to. A popup aligns to the
+        # item holding it, and the bot is now a third of this pill's width — a
         # right-aligned dropdown (which is every pill on the menu bar) would hang
         # off to the left of its own pill by however many segments were drawn.
         # The bracket's rect is the whole pill at whatever width it currently is,

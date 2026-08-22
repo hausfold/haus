@@ -1386,12 +1386,12 @@ in
           executable = true;
         };
 
-        # Opencode's half of the agent status the bar's paw pill draws.
+        # Opencode's half of the agent status the bar's `agents` pill draws.
         # Claude Code's equivalent is four hooks in ~/.claude/settings.json,
         # which the USER wires (Claude owns that file and rewrites it, so the rice
         # never has); opencode instead auto-loads every file under this directory,
-        # so the rice can own the whole wiring and a fresh machine gets working
-        # paws for opencode panes with nothing to configure.
+        # so the rice can own the whole wiring and a fresh machine gets a working
+        # pill for opencode panes with nothing to configure.
         # @AGENT_STATE@ → core's `agent-state` by absolute path: a plugin runs
         # inside opencode's server process, which is given no PATH guarantees.
         ".config/opencode/plugin/haus-agent-state.js".text =
@@ -1951,11 +1951,11 @@ in
       );
 
       # Codex — the same agent status wiring, in Codex's own hook file, so a
-      # Codex window lights the `agents` paw exactly like a
-      # Claude or Opencode one. Three of its ten events carry the states we draw:
+      # Codex window lights the `agents` pill exactly like a Claude or Opencode
+      # one. Three of its ten events carry the states we draw:
       #
       #   UserPromptSubmit  → working
-      #   PermissionRequest → waiting    ← the urgent one; the pill goes amber
+      #   PermissionRequest → waiting    ← the urgent one; the pill goes red
       #   Stop              → idle
       #
       # There is deliberately no fourth: Codex has no session-END event (its list
