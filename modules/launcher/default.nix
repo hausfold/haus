@@ -531,23 +531,15 @@ let
   # The RICE's commands only. pounce's own built-ins (Force Quit, Find Files, …)
   # live in a derivation, and reading their headers here would be IFD on every
   # eval — the palette lists those itself the moment you open it.
+  # The grammar itself is ./header-grammar.nix — pounce's, mirrored, and pinned
+  # to a table by `nix flake check` because this copy is the ONLY reader of
+  # `cheat`/`cheatWhen` and so the only place a parse miss has no symptom. Its
+  # sibling ./item-grammar.nix (imported as `grammar` below) is the same shape
+  # one layer down, and drifted the same way.
+  headerGrammar = import ./header-grammar.nix;
+
   commandField =
-    file: field:
-    let
-      hits = lib.concatMap (
-        line:
-        let
-          # Whitespace-tolerant around `=` to match the awk and Swift header
-          # parsers (pounce-palette, CommandRegistry.swift) — a hand-typed
-          # `cheat  = foo` or `cheat= foo` used to match neither of them nor
-          # this regex, and dropped silently: `cheat`/`cheatWhen` have no
-          # reader but this one, so a miss here has nothing to fall back to.
-          m = builtins.match "# pounce: ${field} *= *(.*)" line;
-        in
-        lib.optionals (m != null) m
-      ) (lib.splitString "\n" (builtins.readFile (./commands + "/${file}")));
-    in
-    if hits == [ ] then null else lib.head hits;
+    file: field: headerGrammar.fieldOf (builtins.readFile (./commands + "/${file}")) field;
 
   # key = what you TYPE, not the full name: the palette fuzzy-matches, so the
   # shortest thing that gets you there is the row, and a full name ("Report
