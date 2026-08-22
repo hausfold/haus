@@ -355,6 +355,55 @@ let
     )
   );
 
+  # holt's tart runtime adapter (SPEC.md §5.5 in hausfold/holt) — the "real
+  # tart backend" holt#52's own commit message left as a follow-up here.
+  # `holt runtime up|enter|down --backend tart` is otherwise a dead end: the
+  # command exists but every machine refuses it with "no runtime adapter
+  # tart" because nothing has ever written the TOML it looks for.
+  #
+  # Text + a script, machine-wide (not per-client the way the two blocks
+  # above are — a VM isn't a thing Claude vs. Codex each get their own copy
+  # of), gated on this room's own switch since that's what installs `holt`
+  # in the first place. Doesn't install `tart` itself, and doesn't pull a
+  # base image: those are real disk/network cost (tart's macOS base images
+  # run tens of GB) that a machine which never runs `holt runtime up` should
+  # not pay for just because the AI room is on. `holt runtime up` degrades
+  # cleanly (exitcode.Degradedf, "install it, then try again") when `tart`
+  # isn't on PATH, so shipping the adapter ahead of the binary is safe.
+  agentRuntimeAdapterFiles = lib.optionalAttrs cfg.enable (
+    let
+      # System-config scope has no `config.home.homeDirectory` — that's a
+      # home-manager submodule field, and this whole block is a flat
+      # `home-manager.users.${username}.home.file` assignment, not a nested
+      # home-manager function like terminal's. "/Users/${username}" is the
+      # same literal core/windows/bar/launcher already use at this scope.
+      script = "/Users/${username}/.config/haus/runtime/tart-adapter.sh";
+    in
+    {
+      ".config/haus/runtime/tart-adapter.sh" = {
+        source = ./runtime/tart-adapter.sh;
+        executable = true;
+      };
+      # setup/enter/teardown are each ONE argv holt execs with no shell (same
+      # shape as holt's own hooks), so all three just hand off to the script
+      # above with a subcommand — see its header for why the multi-step tart
+      # dance can't live in this file directly.
+      ".config/holt/adapters/runtime/tart.toml".text = ''
+        # Generated from haus.ai — edit modules/ai/runtime/tart-adapter.sh, not here.
+        #
+        # One-time setup this file can't do for you:
+        #   brew install cirruslabs/cli/tart
+        #   tart pull ghcr.io/cirruslabs/macos-sequoia-base:latest
+        #   export HOLT_TART_BASE=ghcr.io/cirruslabs/macos-sequoia-base:latest
+        kind     = "runtime"
+        id       = "tart"
+        setup    = ["${script}", "setup", "{{.Name}}", "{{.Path}}"]
+        enter    = ["${script}", "enter", "{{.Name}}"]
+        teardown = ["${script}", "teardown", "{{.Name}}"]
+      '';
+    }
+  );
+
   onOff = b: if b then "on" else "off";
 
   # `toString 1.0` is "1.000000", which reads like a precision the option
@@ -622,11 +671,13 @@ in
     ]
   );
 
-  # The two files this room ships into every installed client's home. Written
-  # into the SAME user modules/terminal writes; home-manager merges the two
-  # attrsets, and a collision on one path would be an error rather than a silent
-  # last-wins — which is what makes splitting them safe.
-  home-manager.users.${username}.home.file = agentInstructionFiles // agentSkillFiles;
+  # What this room ships into home: per-client instructions and skill files,
+  # plus the machine-wide tart runtime adapter. Written into the SAME user
+  # modules/terminal writes; home-manager merges the attrsets, and a
+  # collision on one path would be an error rather than a silent last-wins —
+  # which is what makes splitting them safe.
+  home-manager.users.${username}.home.file =
+    agentInstructionFiles // agentSkillFiles // agentRuntimeAdapterFiles;
 
   # ---- what the room contributes to other rooms -------------------------------
   # One write per extension point. Every value here is a fact about the AI room;
