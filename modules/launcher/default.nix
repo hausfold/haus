@@ -532,12 +532,14 @@ let
       hits = lib.concatMap (
         line:
         let
-          # Whitespace-tolerant around `=` to match the awk and Swift header
-          # parsers (pounce-palette, CommandRegistry.swift) — a hand-typed
-          # `cheat  = foo` or `cheat= foo` used to match neither of them nor
-          # this regex, and dropped silently: `cheat`/`cheatWhen` have no
-          # reader but this one, so a miss here has nothing to fall back to.
-          m = builtins.match "# pounce: ${field} *= *(.*)" line;
+          # Whitespace-tolerant around `=`, around `pounce:`, and before the
+          # leading `#`, to match the awk and Swift header parsers
+          # (pounce-palette, CommandRegistry.swift) — a hand-typed
+          # `cheat  = foo`, an indented header line, or a stray second space
+          # after `#` used to match some of the three and not the others, and
+          # a miss here is dropped silently: `cheat`/`cheatWhen` have no
+          # reader but this one, so they have nothing to fall back to.
+          m = builtins.match "[ \t]*#[ \t]+pounce:[ \t]*${field}[ \t]*=[ \t]*(.*)" line;
         in
         lib.optionals (m != null) m
       ) (lib.splitString "\n" (builtins.readFile (./commands + "/${file}")));
