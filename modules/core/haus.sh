@@ -24,7 +24,8 @@
 #   haus tour            take the guided haus tour (it lives in the bar)
 #   haus show            inspect a desktop or room — a local file or a source you have
 #                        not got yet — class, checker verdict, what it sets (--json) — read-only
-#   haus add <source>    pin a desktop and select it (--as/--file/--vendor/--print) — no rebuild
+#   haus add <source>    pin a desktop and select it (--as/--file/--vendor/--print), or a
+#                        room with --room --namespace <ns> — no rebuild
 #   haus desktop [name]  list what this machine has, or switch to one — no rebuild
 #   haus remove <name>   unpin a desktop and reselect explicitly — no rebuild
 set -euo pipefail
@@ -255,8 +256,12 @@ haus — the everyday CLI for a haus machine.
                       the confirmation prompt, then writes flake.nix +
                       flake.lock. --as names the input, --file picks the file,
                       --vendor copies it in instead of pinning it, --print
-                      shows the edit without writing it. Never rebuilds; rooms
-                      aren't supported yet.
+                      shows the edit without writing it. Never rebuilds.
+                      --room --namespace <ns> pins a ROOM instead: code, wired
+                      into extraModules rather than selected as a desktop.
+                      Confirming means typing back part of the revision — a
+                      lock evaluates the room's flake.nix, which is the first
+                      execution of its code, not the rebuild.
   haus desktop [name] list the built-in desktops and every one this machine has
                       pinned, marking the selected one; with a name, switch to
                       it. Never rebuilds.
@@ -1819,6 +1824,86 @@ settings_option_exists() {
     || die "'$path' is not a settable option on this machine's pinned haus"
 }
 
+# A courtesy check for `haus add --room --namespace`, sibling to
+# settings_option_exists above but answering with a boolean instead of dying:
+# is `haus.$ns` already a namespace on THIS machine, from haus itself or from
+# any other already-imported module? A claim naming a namespace that's already
+# in use is always wrong — the whole point of a claim is to name a namespace a
+# room is ABOUT to introduce, never one that exists for a different reason
+# already. This is NOT the load-bearing check: modules/namespaces.nix's
+# assertion is what actually refuses a real collision, at eval time, on the
+# CONSUMER's evaluated option tree, regardless of what this walk finds first.
+# This one just turns an obvious mistake into an add-time refusal instead of a
+# rebuild-time one, so a bad `--namespace` doesn't cost a fetch and a lock to
+# discover.
+#
+# `--apply` throughout rather than a quoted attribute inside the `.#…`
+# installable fragment: `$ns` only ever needs escaping into a NIX STRING
+# LITERAL (inside the lambda body, ordinary Nix source), never into the CLI's
+# own flake-fragment parser, which is one fewer syntax to get quoting right in.
+namespace_taken() { # host ns
+  local host="$1" ns="$2" result
+  result="$(
+    cd "$CONSUMER" && nix eval --json ".#darwinConfigurations.$host" --apply "cfg:
+      cfg.options.haus ? \"$ns\"" 2>/dev/null
+  )" || return 1
+  [ "$result" = "true" ]
+}
+
+# The value half of a namespace claim's collision check — sibling to
+# settings_eval_json, reading what THIS machine currently believes
+# haus._rooms.claimed.<ns> is, so a second `add --room` claiming a namespace
+# already claimed by a DIFFERENT origin can refuse before locking anything,
+# rather than discovering the E1 assertion's refusal only at the next
+# rebuild. Empty output means unclaimed (nothing has ever written this leaf).
+namespace_claimed_by() { # host ns
+  local host="$1" ns="$2"
+  ( cd "$CONSUMER" && nix eval --raw ".#darwinConfigurations.$host" --apply "cfg:
+      cfg.config.haus._rooms.claimed.\"$ns\" or \"\"" 2>/dev/null ) || true
+}
+
+# Writes haus._rooms.claimed.<ns> = "<typed>" for one namespace, reusing the
+# exact primitives `cmd_set` uses for every other leaf (settings_write et al.)
+# rather than inventing a second writer — the option is an ordinary attrsOf
+# str (modules/namespaces.nix:32-45), so nothing room-specific belongs in the
+# write path at all. Stops one phase short of cmd_set's own: no
+# settings_apply, because `add` never rebuilds, same as it never rebuilds a
+# desktop selection. Returns non-zero (and writes nothing) on a genuine
+# collision — a differently-typed origin already claims this namespace.
+rooms_claim_namespace() { # host name typed ns
+  local host="$1" name="$2" typed="$3" ns="$4"
+  local dir target existing
+  dir="$(settings_host_dir)"
+  target="$(settings_file "haus._rooms.claimed.$ns")"
+  existing="$(namespace_claimed_by "$host" "$ns")"
+  if [ -n "$existing" ]; then
+    if [ "$existing" = "$typed" ]; then
+      return 0 # same room, re-added — nothing to do
+    fi
+    warn "'$ns' is already claimed by $existing — remove that input first, or pick a different --namespace."
+    return 1
+  fi
+  mkdir -p "$dir"
+  settings_write "haus._rooms.claimed.$ns" "$typed" "$dir" "$target"
+  local err; err="$(mktemp)"
+  # A direct --apply, not settings_eval_json: that helper builds the path
+  # into the `.#…` installable FRAGMENT, and `$ns` only needs to be a valid
+  # NIX STRING there (namespace_claimed_by's own reasoning) — one syntax to
+  # get right instead of two.
+  if ! (
+    cd "$CONSUMER" && nix eval --json ".#darwinConfigurations.$host" --apply "cfg:
+      cfg.config.haus._rooms.claimed.\"$ns\"" >/dev/null 2>"$err"
+  ); then
+    rm -f "$target"
+    warn "the namespace claim for '$ns' did not type-check:"
+    tail -n 12 "$err" >&2
+    rm -f "$err"
+    return 1
+  fi
+  rm -f "$err"
+  return 0
+}
+
 # One override per path is the model, and a path plus one of its ancestors is
 # not one override — `bar.items` written whole and `bar.items.cpu` written on
 # its own are two mkForce definitions of the same leaf the moment they name the
@@ -2849,6 +2934,47 @@ flake_add_input() { # name url rhs
   mv "$tmp" "$FLAKE"
 }
 
+# The room sibling of flake_add_input above — same three-or-none discipline,
+# a different third landmark. A room is an ORDINARY flake input (no
+# `flake = false;`: dropping it is what makes `nix flake lock` evaluate the
+# source's own flake.nix, see the acquisition note's step F), and it has no
+# `desktop = ` line to replace — nothing in `mkHaus`'s signature selects a
+# room the way it selects a desktop. What it has instead is `extraModules`,
+# the same argument bootstrap.sh used to scaffold a preset selection into
+# before presets were retired: `extraModules = [ <name>.darwinModules.<module> ];`,
+# inserted once, never replaced. One room at a time, for the identical reason
+# flake_add_input supports one desktop at a time: refuse (return 1, degrade
+# to --print) on any PRE-EXISTING `extraModules = ` line rather than parse and
+# rewrite a Nix list — real added scope this step does not spend on day one.
+flake_add_room_input() { # name url module
+  local name="$1" url="$2" module="$3" tmp; tmp="$(mktemp)"
+  local existing hosts input_w="" pattern_w="" extra_w=""
+  existing="$(grep -cE '^        extraModules = .*;$' "$FLAKE" || true)"
+  hosts="$(grep -cE '^        host = .*;$' "$FLAKE" || true)"
+  [ "$existing" -eq 0 ] && [ "$hosts" -eq 1 ] || { rm -f "$tmp"; return 1; }
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      '  inputs.haus.url = '*)
+        printf '%s\n' "$line" >>"$tmp"
+        printf '  inputs.%s.url = "%s";\n' "$name" "$(nix_string "$url")" >>"$tmp"
+        input_w=1; continue ;;
+      '    { haus, ... }:')
+        printf '    { haus, %s, ... }:\n' "$name" >>"$tmp"
+        pattern_w=1; continue ;;
+      '        host = '*';')
+        printf '%s\n' "$line" >>"$tmp"
+        printf '        extraModules = [ %s.darwinModules.%s ];\n' "$name" "$module" >>"$tmp"
+        extra_w=1
+        continue ;;
+    esac
+    printf '%s\n' "$line" >>"$tmp"
+  done <"$FLAKE"
+  if [ -z "$input_w" ] || [ -z "$pattern_w" ] || [ -z "$extra_w" ]; then
+    rm -f "$tmp"; return 1
+  fi
+  mv "$tmp" "$FLAKE"
+}
+
 flake_remove_input() { # name
   local name="$1" tmp; tmp="$(mktemp)"
   local removed=""
@@ -2858,6 +2984,11 @@ flake_remove_input() { # name
         removed=1; continue ;;
       "    { haus, $name, ... }:")
         printf '    { haus, ... }:\n' >>"$tmp"; continue ;;
+      # A room's third landmark, dropped whole rather than edited — the same
+      # one-room-at-a-time scope flake_add_room_input keeps means this line
+      # can only ever name the input being removed, never a second room's.
+      '        extraModules = [ '"$name"'.darwinModules.'*'];')
+        continue ;;
     esac
     printf '%s\n' "$line" >>"$tmp"
   done <"$FLAKE"
@@ -2895,7 +3026,8 @@ desktop_rhs_for_pinned() { # name
 }
 
 cmd_add() {
-  local source="" as="" pickfile="" vendor="" doprint="" yes=""
+  local source="" as="" pickfile="" vendor="" doprint="" yes="" room="" module="default"
+  local -a namespaces=()
   while [ $# -gt 0 ]; do
     case "$1" in
       --print) doprint=1 ;;
@@ -2905,25 +3037,43 @@ cmd_add() {
       --file=*) pickfile="${1#--file=}" ;;
       --vendor) vendor=1 ;;
       -y | --yes) yes=1 ;;
-      --room) die "haus add --room isn't built yet — that's acquisition step F. 'haus show --room <source>' can still look at it." ;;
+      --room) room=1 ;;
+      --namespace) shift; [ $# -gt 0 ] || die "--namespace needs a name"; namespaces+=("$1") ;;
+      --namespace=*) namespaces+=("${1#--namespace=}") ;;
+      --module) shift; [ $# -gt 0 ] || die "--module needs a darwinModules attribute"; module="$1" ;;
+      --module=*) module="${1#--module=}" ;;
       -h | --help)
         cat <<'EOF'
-haus add <source> — pin a desktop and select it. Writes flake.nix + flake.lock;
-never rebuilds — 'haus rebuild' is the next step, printed at the end.
+haus add <source> — pin a desktop and select it, or pin a ROOM. Writes
+flake.nix + flake.lock; never rebuilds — 'haus rebuild' is the next step,
+printed at the end.
 
   haus add github:ada/writer-desktop
   haus add --as writer --file writer.nix github:ada/desktops
   haus add --vendor file+https://example.org/writer.nix
   haus add --print git+https://git.example.org/ada/desktop
+  haus add --room --namespace photography github:ada/photo-room
 
-  --as <name>     the input name (default: the repo name, minus a
-                  -desktop/-haus suffix)
-  --file <path>   which .nix in a fetched repo is the desktop
-  --vendor        copy the file into this config instead of pinning it
-  --print         print the edit instead of writing it
-  -y, --yes       skip the confirmation prompt
+  --as <name>       the input name (default: the repo name, minus a
+                    -desktop/-haus suffix)
+  --file <path>     which .nix in a fetched repo is the desktop
+  --vendor          copy the file into this config instead of pinning it
+  --print           print the edit instead of writing it
+  -y, --yes         skip the confirmation prompt (desktops only)
+  --room            the source is CODE, not data — see below
+  --namespace <ns>  which haus.<ns> this room claims (repeatable; required
+                    with --room, refused without it)
+  --module <attr>   the darwinModules.<attr> this room's flake exports
+                    (default: default)
 
-Rooms aren't supported yet — that's acquisition step F.
+A room is a nix-darwin module: it may install packages, write files and run
+activation scripts as root. Nothing here vouches for it — read it, or trust
+whoever wrote it. Pinning one LOCKS it, and locking a flake input evaluates
+its flake.nix — that already runs the room's code, before any rebuild, so
+--room's confirmation is a typed one naming the revision, and neither -y nor
+--yes can skip it. Non-interactively, a per-name
+HAUS_ADD_ROOM_<NAME>=<full revision> is required instead — a piped installer
+can never accept a room on a person's behalf with one blanket switch.
 EOF
         return 0 ;;
       -*) die "unknown flag $1 — try 'haus add --help'" ;;
@@ -2934,11 +3084,34 @@ EOF
   [ -n "$source" ] || die "usage: haus add <source> — try 'haus add --help'"
   [ -z "$doprint" ] || yes=1   # nothing is written, so nothing needs confirming
 
+  local host=""
+  if [ -n "$room" ]; then
+    [ "${#namespaces[@]}" -gt 0 ] \
+      || die "haus add --room needs --namespace <name> (repeatable) — a room's own namespace can't be inferred without running its code, which is the one thing this command must not do before you've confirmed it."
+    [ -z "$pickfile" ] || die "--file has nothing to name in a room — --room reads nothing at all."
+    [ -z "$vendor" ] || die "--vendor doesn't apply to a room — it isn't a single file, it's a flake. Pin it as an input instead."
+
+    host="$(host_name)"
+    local ns
+    for ns in "${namespaces[@]}"; do
+      [[ "$ns" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]] || die "'--namespace $ns' isn't a legal namespace component."
+      case "$ns" in
+        haus) die "'--namespace haus' — haus is the layer itself, not a namespace a room could claim." ;;
+        my) die "'--namespace my' — haus.my.* is reserved for YOUR OWN private modules; a published room claims a plain haus.<name>." ;;
+      esac
+      namespace_taken "$host" "$ns" \
+        && die "'haus.$ns' already exists on this machine — pick a namespace this room actually introduces, or re-read its docs."
+    done
+  else
+    [ "${#namespaces[@]}" -eq 0 ] || die "--namespace only applies to --room."
+  fi
+
   local showbin="${HAUS_SHOW:-/run/current-system/sw/share/haus/show.sh}"
   [ -r "$showbin" ] || die "no 'haus show' at $showbin — this machine's haus predates it; run 'haus update' first."
 
   local showargs=()
   [ -n "$pickfile" ] && showargs+=(--file "$pickfile")
+  [ -n "$room" ] && showargs+=(--room)
 
   # The human report IS the confirmation prompt the design calls for — haus
   # already has cmd_plan/cmd_diff to build a diff, and this is that diff,
@@ -2948,11 +3121,15 @@ EOF
   # report and forcing one to parse the other is the wrong coupling.
   local show_status=0
   HAUS_CONSUMER="$CONSUMER" bash "$showbin" "${showargs[@]}" "$source" || show_status=$?
-  case "$show_status" in
-    0) ;;
-    3) die "$source is a room, not a desktop — 'haus add' doesn't take rooms yet (acquisition step F). See 'haus show --room $source'." ;;
-    *) die "$source did not pass — see the report above." ;;
-  esac
+  if [ -n "$room" ]; then
+    [ "$show_status" -eq 0 ] || die "$source did not pass — see the report above."
+  else
+    case "$show_status" in
+      0) ;;
+      3) die "$source is a room, not a desktop — pass --room --namespace <name> to pin it as one. See 'haus show --room $source'." ;;
+      *) die "$source did not pass — see the report above." ;;
+    esac
+  fi
 
   local report
   report="$(HAUS_CONSUMER="$CONSUMER" bash "$showbin" --json "${showargs[@]}" "$source")" \
@@ -2962,14 +3139,19 @@ EOF
   class="$(jq -r .class <<<"$report")"
   ok="$(jq -r .ok <<<"$report")"
   origin="$(jq -c .origin <<<"$report")"
-  [ "$class" = desktop ] || die "$source is a room — 'haus add' doesn't take rooms yet (acquisition step F)."
-  [ "$ok" = true ] || die "$source failed the desktop checker — see the report above."
+  if [ -n "$room" ]; then
+    [ "$class" = room ] || die "$source is a desktop, not a room — drop --room and --namespace."
+  else
+    [ "$class" = desktop ] || die "$source is a room — 'haus add' needs --room --namespace <name> to pin one."
+    [ "$ok" = true ] || die "$source failed the desktop checker — see the report above."
+  fi
   [ "$origin" != null ] || die "haus add takes a source to fetch, not a local path already on this machine."
 
-  local typed shape pick
+  local typed shape pick rev
   typed="$(jq -r .typed <<<"$origin")"
   shape="$(jq -r .shape <<<"$origin")"
   pick="$(jq -r '.file // ""' <<<"$origin")"
+  rev="$(jq -r '.rev // ""' <<<"$origin")"
 
   local name="$as"
   [ -n "$name" ] || name="$(derive_input_name "$typed" "$shape")"
@@ -2977,6 +3159,65 @@ EOF
   [[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_\'-]*$ ]] || die "'--as $name' isn't a legal Nix identifier."
   grep -qE "^  inputs\.$name\.url = " "$FLAKE" \
     && die "'$name' is already pinned — 'haus desktop $name' selects it, or pass a different --as."
+
+  if [ -n "$room" ]; then
+    [ "$shape" = repo ] \
+      || die "a room must be an ordinary flake — a repo with a revision, not a '$shape' source: haus cannot lock what it cannot pin as an input."
+
+    if [ -z "$doprint" ]; then
+      local rev_short="${rev:0:12}"
+      if [ -t 0 ]; then
+        printf '\n'
+        say "Pinning '$name' from $typed means LOCKING it, and locking a flake input evaluates its flake.nix — that is the FIRST execution of this code, not the rebuild."
+        local reply
+        read -r -p "Type the first 12 characters of the revision ($rev_short) to confirm: " reply
+        [ "$reply" = "$rev_short" ] || { say "not added."; return 1; }
+      else
+        local var; var="HAUS_ADD_ROOM_$(printf '%s' "$name" | tr 'a-z' 'A-Z' | tr -c 'A-Z0-9_' '_')"
+        [ "${!var:-}" = "$rev" ] \
+          || die "not a terminal — set $var=$rev (the full revision) to confirm non-interactively. -y/--yes does not confirm a room."
+      fi
+    fi
+
+    if [ -n "$doprint" ]; then
+      printf '  inputs.%s.url = "%s";\n' "$name" "$(nix_string "$typed")"
+      printf '\n  outputs = { haus, %s, ... }: { … extraModules = [ %s.darwinModules.%s ]; … }\n' "$name" "$name" "$module"
+      for ns in "${namespaces[@]}"; do
+        printf '  haus._rooms.claimed.%s = "%s";\n' "$ns" "$(nix_string "$typed")"
+      done
+      return 0
+    fi
+
+    flake_stage
+    if ! flake_add_room_input "$name" "$typed" "$module"; then
+      flake_restore
+      say "flake.nix has moved past the scaffolded shape — add these by hand:"
+      printf '  inputs.%s.url = "%s";\n' "$name" "$typed"
+      printf '  # bind %s in the outputs pattern, and: extraModules = [ %s.darwinModules.%s ];\n' "$name" "$name" "$module"
+      return 0
+    fi
+    if ! flake_verify; then
+      flake_restore
+      die "the edit produced invalid Nix — restored. See above for the lines to add by hand."
+    fi
+    flake_commit
+    say "locking … (this runs $name's flake.nix)"
+    if ! ( cd "$CONSUMER" && heal nix flake lock ); then
+      warn "flake.nix is edited but 'nix flake lock' failed — run it by hand, then 'haus rebuild'."
+      return 0
+    fi
+    say "'$name' pinned and wired into extraModules."
+    local claim_failed=""
+    for ns in "${namespaces[@]}"; do
+      rooms_claim_namespace "$host" "$name" "$typed" "$ns" || claim_failed=1
+    done
+    if [ -n "$claim_failed" ]; then
+      warn "pinned and wired; at least one namespace claim didn't write — 'haus rebuild' will warn about it until you set it by hand ('haus set _rooms.claimed.<ns> \"$typed\"') or re-run with --namespace."
+    else
+      say "namespace claimed: ${namespaces[*]}. Run 'haus rebuild' to apply it."
+    fi
+    return 0
+  fi
 
   if [ -z "$yes" ]; then
     [ -t 0 ] || die "not a terminal — pass -y/--yes to confirm non-interactively."
@@ -3139,9 +3380,10 @@ cmd_remove() {
   grep -qE "^  inputs\.$name\.url = " "$FLAKE" \
     || die "no pinned input named '$name' — 'haus desktop' lists what's pinned."
 
-  local current_line was_selected=""
+  local current_line was_selected="" was_room=""
   current_line="$(grep -E '^        desktop = ' "$FLAKE" || true)"
   case "$current_line" in *"$name"*) was_selected=1 ;; esac
+  grep -qE "^        extraModules = \[ $name\.darwinModules\." "$FLAKE" && was_room=1
 
   flake_stage
   if ! flake_remove_input "$name"; then
@@ -3171,6 +3413,14 @@ cmd_remove() {
   fi
   if [ -n "$was_selected" ]; then
     say "'$name' removed. It was your selected desktop — set to '${replacement:-blank}' instead. Run 'haus rebuild' to apply it."
+  elif [ -n "$was_room" ]; then
+    say "'$name' removed, and its extraModules entry with it. Run 'haus rebuild' to apply it."
+    # This command doesn't know WHICH namespace(s) '$name' claimed — that
+    # would mean re-reading haus._rooms.claimed for a value matching an
+    # origin the lock no longer carries, over every claimed namespace on the
+    # machine, to undo one write it isn't sure it made. A note is cheaper and
+    # doesn't risk resetting a claim this room never actually owned.
+    info "if '$name' had a namespace claim (haus._rooms.claimed.<ns>), reset it by hand: haus reset _rooms.claimed.<ns>"
   else
     say "'$name' removed. Run 'haus rebuild' to apply it."
   fi
