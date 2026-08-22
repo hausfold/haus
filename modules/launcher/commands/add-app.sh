@@ -58,7 +58,7 @@ file_slug() {
 # EVERY key launch mode binds, not just the roster's. The generated
 # aerospace.toml's [mode.launch.binding] is the authority: roster launchers,
 # their ⇧throws, the fixed built-ins (v clipboard, f Find Files, z reopen-last-app,
-# `,` settings, ` resort, - / = resize) and any haus.keys.leaderExtras all
+# `,` settings, `.` tiling cycle, ` resort, - / = resize) and any haus.keys.leaderExtras all
 # land in that ONE table, which is exactly the set windows asserts against.
 #
 # Reading only the cheatsheet's Launch Mode rows was the bug: the built-ins
