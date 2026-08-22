@@ -389,12 +389,19 @@ let
       # above with a subcommand — see its header for why the multi-step tart
       # dance can't live in this file directly.
       ".config/holt/adapters/runtime/tart.toml".text = ''
-        # Generated from haus.ai — edit modules/ai/runtime/tart-adapter.sh, not here.
+        # Generated from haus.ai — edit modules/ai/default.nix (this text) or
+        # modules/ai/runtime/tart-adapter.sh (the script), not this copy.
         #
         # One-time setup this file can't do for you:
-        #   brew install cirruslabs/cli/tart
-        #   tart pull ghcr.io/cirruslabs/macos-sequoia-base:latest
-        #   export HOLT_TART_BASE=ghcr.io/cirruslabs/macos-sequoia-base:latest
+        #   nix shell nixpkgs#tart          # or: brew install cirruslabs/cli/tart
+        #   tart pull ghcr.io/cirruslabs/macos-tahoe-base:latest
+        #   ./script/build-golden-vm.sh     # bake haus INTO an image, in haus
+        #   export HOLT_TART_BASE=haus-golden
+        #
+        # Tahoe, not Sequoia: the guest findings this depends on — SIP off, the
+        # TCC rows that let `screencapture`/`osascript` work over SSH, the
+        # macOS 26 capture prompt — were all measured on 26.x. Cloning a bare
+        # base works too, but a lane that clones one has no haus to test.
         kind     = "runtime"
         id       = "tart"
         setup    = ["${script}", "setup", "{{.Name}}", "{{.Path}}"]
