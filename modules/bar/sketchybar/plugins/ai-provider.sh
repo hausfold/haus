@@ -5,7 +5,7 @@
 #
 # Two readers use it, and they used to carry their own copy of the same case
 # block — which is how the aiUsage pill grew an OpenAI mark for Codex while the
-# agents pill still drew every client as the same anonymous paw:
+# agents pill still drew every client as the same anonymous robot:
 #   • ai_usage.sh — one row per provider REPORTING USAGE (claude/codex/opencode),
 #     where opencode is really a bring-your-own-key front end, so its mark comes
 #     from the model behind it rather than from opencode itself.

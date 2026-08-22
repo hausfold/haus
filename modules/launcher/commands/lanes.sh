@@ -223,7 +223,7 @@ rows="$(
       | add // {}
     ) as $live
     # state precedence: the agent'"'"'s own label (working/waiting/done) beats
-    # holt'"'"'s registry state (live/parked) — the label is what the paw pill
+    # holt'"'"'s registry state (live/parked) — the label is what the agents pill
     # shows, and the picker should agree with the bar.
     | (
         { waiting: 0, working: 1, done: 2, idle: 2,

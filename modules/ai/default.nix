@@ -635,8 +635,8 @@ in
       (writeShellScriptBin "claude-statusline-refresh" (builtins.readFile ./statusline-refresh.sh))
 
       # `agent-state` — the one writer of agent state, feeding bar's `agents`
-      # paw. BYTE-FOR-BYTE the script bar also
-      # installs as ~/.config/sketchybar/plugins/agents-hook.sh (read from there,
+      # pill. BYTE-FOR-BYTE the script bar also installs as
+      # ~/.config/sketchybar/plugins/agents-hook.sh (read from there,
       # so the two can never drift); this copy exists only to give it a stable
       # name on PATH. Claude Code's hooks point at the sketchybar path because the
       # user's own settings.json wires them, but the Codex and Opencode wirings
@@ -695,7 +695,7 @@ in
       inherit (cfg) default;
     };
 
-    # Bar — the `agents` paw. Still opt-in per host (`haus.bar.items.agents`);
+    # Bar — the `agents` pill. Still opt-in per host (`haus.bar.items.agents`);
     # this only says whether anything on this machine writes pane state for it.
     bar.agents.enable = reportable;
 

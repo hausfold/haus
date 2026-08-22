@@ -530,8 +530,8 @@ mechanism, say so in one line.
   Four more live in **`modules/ai`**, which writes the system profile they land
   in, because the room that owns a capability owns its payload:
   **`statusline.sh`** / `statusline-refresh.sh` (the agent HUD, reading `holt`'s
-  registry), **`agent-state`** (the one writer of agent state behind bar's paw
-  pill), and **`holt-cache`** (the one warm copy of `holt --json`).
+  registry), **`agent-state`** (the one writer of agent state behind bar's
+  `agents` pill), and **`holt-cache`** (the one warm copy of `holt --json`).
   - `agent-state` has no source file of its own: `modules/ai` `readFile`s
     `modules/bar/sketchybar/plugins/agents-hook.sh`, the same script bar
     installs into the bar's plugin dir, so the PATH copy and the bar copy can

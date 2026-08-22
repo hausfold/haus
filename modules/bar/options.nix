@@ -394,7 +394,7 @@ in
     # source room decides whether it has anything to draw at all.
     _contrib.bar.agents = contrib.mkExtensionPoint {
       description = ''
-        The AI room's `agents` pill: the paw tracking agent-worktree panes.
+        The AI room's `agents` pill: the robot tracking agent-worktree panes.
 
         Off, `haus.bar.items.agents` draws nothing — a machine with no agent
         clients has no pane state for the pill to report, and a permanently

@@ -37,20 +37,20 @@
 # five agents quietly working), and the reason that had to go is that the
 # ranking hid the rest: "2 ready" and "2 ready, 9 working, 4 done" drew
 # identically, so the pill could not answer "is anything else going on" without
-# a click. Urgency still decides the ORDER (and which state colours the paw),
+# a click. Urgency still decides the ORDER (and which state colours the bot),
 # not what gets to exist.
 #
 # Words became marks for the same reason: "2 ready · 9 working · 4 done" is
 # most of a sentence in a bar that has a notch to stay clear of, and this is a
 # glanceable pill, not prose. The three marks are declared as a set beside
-# $PAW below; the popup still spells the words out.
+# $BOT below; the popup still spells the words out.
 #
 # Positions are FIXED — a state with a count of 0 draws nothing, but the ones
 # that remain never reorder — so "is the red one there" is answerable by shape
 # and position without reading a number.
 #
 # SketchyBar can colour a label exactly once, so three colours means three
-# items: `agents` (the paw and the popup) plus agents.ready / .working / .done,
+# items: `agents` (the bot and the popup) plus agents.ready / .working / .done,
 # with a `bracket` drawing the one pill background behind whichever are
 # visible. That is why the segments carry no background of their own and no
 # background padding — the bracket owns both, and a segment that kept its own
@@ -109,8 +109,8 @@ source "$HOME/.config/sketchybar/plugins/ai-provider.sh"
 
 DIR=/tmp/haus-agents
 PLUGINS="$HOME/.config/sketchybar/plugins"
-# Which item owns the dropdown, and it is the BRACKET, not the paw. SketchyBar
-# aligns a popup to the item that carries it, and the paw is now a third of the
+# Which item owns the dropdown, and it is the BRACKET, not the bot. SketchyBar
+# aligns a popup to the item that carries it, and the bot is now a third of the
 # pill's width — anchored there, a right-aligned popup (every pill on the menu
 # bar is right-side) would hang off to the left of the pill it belongs to by
 # however many segments happened to be drawn. A bracket answers `--query` with
@@ -118,7 +118,12 @@ PLUGINS="$HOME/.config/sketchybar/plugins"
 # lines up with the pill on either side and at any width. barpop is told the
 # same name.
 POPUP=agents.pill
-PAW=$(printf '\xEF\x86\xB0')   # nf-fa-paw (U+F1B0) — on-theme for the cat rice
+# The pill's identity mark: a robot head, drawn as raw UTF-8 bytes because
+# /bin/bash is 3.2 and its printf has no \u. It is the one part of the pill
+# that is not a count — it says "this pill is about agents" and, by taking
+# the most urgent live state's colour (see the bottom of this file), answers
+# "is anything asking for me" before you have read a single digit.
+BOT=$(printf '\xF3\xB0\x9A\xA9')  # nf-md-robot (U+F06A9)
 
 # ── the three state marks ─────────────────────────────────────────────────────
 # One glyph per state, so the pill can say ALL of them at once (see the pill
@@ -550,7 +555,7 @@ pr_style() {
 }
 
 # ── click: rebuild the popup as one block per agent, then toggle it ───────────
-# Two ways in, because the pill is four items now. `agents` (the paw) is
+# Two ways in, because the pill is four items now. `agents` (the bot) is
 # SUBSCRIBED to mouse.clicked and so arrives with $SENDER set; the three count
 # segments carry a click_script alone, which SketchyBar runs with no sender at
 # all — hence the literal `click`, the same argument the calendar, github and
@@ -597,7 +602,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ] || [ "${1:-}" = "click" ]; then
     # same "no total for a total of one" rule ai_usage's ∑ row follows.
     if [ ${#files[@]} -gt 1 ]; then
       ROW_CLICK=""
-      header "$PAW" "${BAR_FONT}:Bold:${FS_ICON:-$FS_LABEL}" "$TEXT" "Agents"
+      header "$BOT" "${BAR_FONT}:Bold:${FS_ICON:-$FS_LABEL}" "$TEXT" "Agents"
       parts=()
       [ "$waiting" -gt 0 ] && parts+=("$waiting ready")
       [ "$working" -gt 0 ] && parts+=("$working working")
@@ -734,14 +739,14 @@ fi
 # with its script process — this line is the whole of the bar's half now.
 holt-cache kick "$HOLT_TTL" "$HOLT_TIMEOUT" >/dev/null 2>&1
 
-# The paw takes the most urgent state's colour — the same ranking the label
+# The bot takes the most urgent state's colour — the same ranking the label
 # used to encode on its own, kept because it is the one thing that reads
 # without focusing on the pill at all.
 if   [ "$waiting" -gt 0 ]; then state_style waiting
 elif [ "$working" -gt 0 ]; then state_style working
 else                           state_style idle
 fi
-"$SB" --set agents drawing=on icon="$PAW" icon.color="$COL" \
+"$SB" --set agents drawing=on icon="$BOT" icon.color="$COL" \
   --set agents.pill drawing=on
 seg agents.ready   waiting "$waiting"
 seg agents.working working "$working"

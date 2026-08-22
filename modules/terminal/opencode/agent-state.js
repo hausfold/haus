@@ -11,7 +11,7 @@
 //     session.idle    → idle       the turn finished
 //     dispose         → remove     the client is going away
 //
-// The reader (bar's `agents` paw pill) then treats an Opencode window exactly
+// The reader (bar's `agents` pill) then treats an Opencode window exactly
 // like a Claude one.
 //
 // Why this works at all: the plugin runs inside the Opencode server process,

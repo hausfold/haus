@@ -228,7 +228,7 @@ hide() { sketchybar --set tour drawing=off; }
 # itself never moves and keeps talking to the top bar directly.
 #
 # On the id's FIRST DOT-SEGMENT: a pill drawn as several items names them
-# `<pill>.<part>` (the agents pill is a paw, three count segments and the
+# `<pill>.<part>` (the agents pill is a robot, three count segments and the
 # bracket behind them), and only the base id is ever in the placement table.
 # Routing the parts by their full name would send them to the top bar while
 # the pill they belong to lives on the bottom one — a silent miss, since a
@@ -244,7 +244,7 @@ mute() {
     touch "$MUTED"
     local it bar
     # The agents pill is five ids, not one: hiding `agents` alone would leave
-    # its counts and the bracket behind them on the bar with the paw missing.
+    # its counts and the bracket behind them on the bar with the robot missing.
     # Each is gated on its own drawing state below, so the ones already hidden
     # (a state with nothing in it) are skipped and stay hidden on unmute.
     for it in weather media battery wifi focus \
