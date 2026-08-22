@@ -140,8 +140,10 @@ slash = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off',
 # Non-launch leader actions. v = clipboard history; f = Find Files (pounce's
 # Spotlight-style file/folder search); z = reopen last closed app (the browser
 # ⌘⇧T analog — relaunch the most recently quit app; press again to walk back);
-# , = macOS System Settings (mirrors the ⌘, "preferences" convention); ` =
-# re-sort every window to its workspace.
+# , = macOS System Settings (mirrors the ⌘, "preferences" convention); . =
+# cycle the focused workspace's tiling mode (columns -> spiral -> grid ->
+# columns, one-shot each press — see tiling-mode.sh); ` = re-sort every
+# window to its workspace.
 # (Palette is on cmd+space now, so the old space->palette leader is gone.)
 #
 # The emoji grid used to sit on `e` here. It doesn't any more: haus binds a bare
@@ -160,6 +162,7 @@ v = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'ex
 f = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @BIN@/pounce run mode:filesearch', 'mode main']
 z = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/aerospace/reopen-last-app.sh', 'mode main']
 comma = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget open -b com.apple.systempreferences', 'mode main']
+period = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/aerospace/tiling-mode.sh', 'mode main']
 backtick = ['exec-and-forget @HOME@/.config/sketchybar/plugins/launch_mode.sh off', 'exec-and-forget @HOME@/.config/aerospace/resort-windows.sh', 'mode main']
 # - / = resize the focused tiled window (growing it shrinks its neighbour). The
 # first press also drops into `resize` mode so further -/= repeat without re-tapping caps.

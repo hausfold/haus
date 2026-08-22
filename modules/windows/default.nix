@@ -726,6 +726,12 @@ lib.mkMerge [
         text = resortScript;
         executable = true;
       };
+      # leader→. : cycle the focused workspace's tiling mode (columns ->
+      # spiral -> grid -> columns), one one-shot reflow per press.
+      ".config/aerospace/tiling-mode.sh" = {
+        source = ./scripts/tiling-mode.sh;
+        executable = true;
+      };
       # leader→z reopen-last-closed-app: pops the stack bar's last_closed_app.sh
       # plugin fills on every app quit, and `open -b`s it back (browser ⌘⇧T analog).
       ".config/aerospace/reopen-last-app.sh" = {
