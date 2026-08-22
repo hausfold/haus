@@ -226,9 +226,16 @@ hide() { sketchybar --set tour drawing=off; }
 # bar_of() routes per item off the same BAR_BOTTOM_ITEMS table bar.sh generates,
 # which is the one place that knows where each pill ended up. The tour pill
 # itself never moves and keeps talking to the top bar directly.
+#
+# On the id's FIRST DOT-SEGMENT: a pill drawn as several items names them
+# `<pill>.<part>` (the agents pill is a paw, three count segments and the
+# bracket behind them), and only the base id is ever in the placement table.
+# Routing the parts by their full name would send them to the top bar while
+# the pill they belong to lives on the bottom one — a silent miss, since a
+# `--set` for an item the instance doesn't have is not an error.
 bar_of() { # bar_of <item> — the SketchyBar client that owns this pill
     case " ${BAR_BOTTOM_ITEMS:-} " in
-        *" $1 "*) printf '%s' "${BAR_BOTTOM:-sketchybar}" ;;
+        *" ${1%%.*} "*) printf '%s' "${BAR_BOTTOM:-sketchybar}" ;;
         *) printf '%s' "${BAR_TOP:-sketchybar}" ;;
     esac
 }
@@ -236,7 +243,13 @@ bar_of() { # bar_of <item> — the SketchyBar client that owns this pill
 mute() {
     touch "$MUTED"
     local it bar
-    for it in weather media battery wifi focus agents elgato harvest github; do
+    # The agents pill is five ids, not one: hiding `agents` alone would leave
+    # its counts and the bracket behind them on the bar with the paw missing.
+    # Each is gated on its own drawing state below, so the ones already hidden
+    # (a state with nothing in it) are skipped and stay hidden on unmute.
+    for it in weather media battery wifi focus \
+              agents agents.ready agents.working agents.done agents.pill \
+              elgato harvest github; do
         bar="$(bar_of "$it")"
         [ "$("$bar" --query "$it" 2>/dev/null | jq -r '.geometry.drawing')" = on ] || continue
         grep -qxF "$it" "$MUTED" || echo "$it" >> "$MUTED"

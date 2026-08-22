@@ -550,7 +550,13 @@ pr_style() {
 }
 
 # ── click: rebuild the popup as one block per agent, then toggle it ───────────
-if [ "${SENDER:-}" = "mouse.clicked" ]; then
+# Two ways in, because the pill is four items now. `agents` (the paw) is
+# SUBSCRIBED to mouse.clicked and so arrives with $SENDER set; the three count
+# segments carry a click_script alone, which SketchyBar runs with no sender at
+# all — hence the literal `click`, the same argument the calendar, github and
+# media pills take for the same reason. Either way one click anywhere on the
+# pill lands here.
+if [ "${SENDER:-}" = "mouse.clicked" ] || [ "${1:-}" = "click" ]; then
   # Closing is just hiding: a click while the popup is UP must not rebuild it
   # first (see ai_usage.sh's identical guard — this pill had the same
   # rebuild-then-toggle flash before this).

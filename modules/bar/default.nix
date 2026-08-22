@@ -495,9 +495,30 @@ let
     # revive a hidden pill). update_freq is only a while-visible backstop to reap
     # stale files. Starts hidden; agents.sh flips it on when a pane is live.
     # Popup styling mirrors the apple-logo menu.
-    agents = ''
-      ${sb} --add item agents ${side} \
-          --set agents \
+    agents =
+      let
+        # The pill is FOUR items — the paw, then one segment per state — and
+        # they have to be ADDED in the order the group packs, not the order
+        # they read. A `right` group fills outward from the right edge (the
+        # menu bar's clock is furthest right because it is emitted first), so
+        # on that side the same four added left-to-right would draw
+        # `done working ready paw`: the urgency ladder backwards with the paw
+        # on the trailing edge. Adding them reversed there puts the paw at the
+        # pill's leading edge and the marks in ready → working → done order on
+        # every side. The per-item paddings below are physical left/right and
+        # need no mirroring once the order is right.
+        pillItems = [
+          "agents"
+          "agents.ready"
+          "agents.working"
+          "agents.done"
+        ];
+        addOrder = if side == "right" then lib.reverseList pillItems else pillItems;
+      in
+      ''
+        ${lib.concatMapStringsSep "\n" (n: "${sb} --add item ${n} ${side}") addOrder}
+
+        ${sb} --set agents \
               update_freq=10 \
               drawing=off \
               label.drawing=off \
@@ -510,66 +531,74 @@ let
               click_script="$HOME/.config/sketchybar/plugins/agents.sh" \
           --subscribe agents mouse.clicked system_woke
 
-      # One segment per state — ready, working, done — each a mark and a count
-      # in that state's colour, and agents.sh hides the ones sitting at zero.
-      # Three items rather than one label because SketchyBar colours a label
-      # once, and three colours is the whole point (see agents.sh's "the pill"
-      # comment). They carry no background and no background padding: the
-      # bracket below draws the single pill behind all four, and a segment with
-      # its own would both double the background and space the marks apart like
-      # separate pills. Only the LAST visible one wants the pill's right
-      # padding, but every segment carries it: with the same number on both
-      # sides of a gap the eye reads the run as one field either way, and a
-      # trailing-padding fixup would have to run on every repaint.
-      for seg in ready working done; do
-        ${sb} --add item "agents.$seg" ${side} \
-            --set "agents.$seg" \
+        # One segment per state — ready, working, done — each a mark and a
+        # count in that state's colour, and agents.sh hides the ones sitting at
+        # zero. Three items rather than one label because SketchyBar colours a
+        # label once, and three colours is the whole point (see agents.sh's
+        # "the pill" comment). They carry no background and no background
+        # padding: the bracket below draws the single pill behind all four, and
+        # a segment with its own would both double the background and space the
+        # marks apart like separate items. Only the LAST visible one wants the
+        # pill's right padding, but every segment carries it: with the same
+        # number on both sides of a gap the eye reads the run as one field
+        # either way, and a trailing-padding fixup would have to run on every
+        # repaint.
+        #
+        # `agents.sh click`, not a bare invocation: a click_script does NOT
+        # arrive with SENDER=mouse.clicked (that is what the subscription on
+        # `agents` above buys), and the plugin's popup branch keys on it. The
+        # argument is the same shape the calendar, github and media pills use
+        # for exactly this. Subscribing instead would work too and cost a
+        # second run of the plugin per click.
+        for seg in ready working done; do
+          ${sb} --set "agents.$seg" \
+                  drawing=off \
+                  background.drawing=off \
+                  background.padding_left=0 \
+                  background.padding_right=0 \
+                  icon.padding_left=0 \
+                  icon.padding_right=3 \
+                  label.padding_left=0 \
+                  label.padding_right=10 \
+                  label.font="${barFont}:Bold:${sizes.label}" \
+                  click_script="$HOME/.config/sketchybar/plugins/agents.sh click"
+        done
+
+        # The pill itself. A bracket is the only way to put one background behind
+        # items that must colour themselves independently; it is also what keeps
+        # the paw and the counts reading as one control rather than four pills
+        # that happen to be adjacent. drawing=off to match the members — an
+        # all-hidden bracket still paints, so agents.sh turns this off too.
+        # It also carries the POPUP, which the paw used to. A popup aligns to the
+        # item holding it, and the paw is now a third of this pill's width — a
+        # right-aligned dropdown (which is every pill on the menu bar) would hang
+        # off to the left of its own pill by however many segments were drawn.
+        # The bracket's rect is the whole pill at whatever width it currently is,
+        # so the dropdown lines up on either side. agents.sh's $POPUP and the
+        # barpop hand-off both name this item.
+        #
+        # background.padding 0 explicitly, and it is the one place this pill
+        # cannot match the others: a member's padding is drawn INSIDE the
+        # bracket (it widens the pill rather than the gap) and a bracket's own
+        # padding moves nothing at all, so the gutter to the neighbouring pill
+        # is whatever THAT pill contributes — 4pt, where every other pair on the
+        # bar has 8. 0 here at least keeps the pill's own 10pt inner padding
+        # honest; anything else spends it on invisible spacer items.
+        ${sb} --add bracket agents.pill agents agents.ready agents.working agents.done \
+            --set agents.pill \
                 drawing=off \
-                background.drawing=off \
+                background.color=$SURFACE0 \
+                background.corner_radius=12 \
+                background.height=28 \
                 background.padding_left=0 \
                 background.padding_right=0 \
-                icon.padding_left=0 \
-                icon.padding_right=3 \
-                label.padding_left=0 \
-                label.padding_right=10 \
-                label.font="${barFont}:Bold:${sizes.label}" \
-                click_script="$HOME/.config/sketchybar/plugins/agents.sh"
-      done
-
-      # The pill itself. A bracket is the only way to put one background behind
-      # items that must colour themselves independently; it is also what keeps
-      # the paw and the counts reading as one control rather than four pills
-      # that happen to be adjacent. drawing=off to match the members — an
-      # all-hidden bracket still paints, so agents.sh turns this off too.
-      # It also carries the POPUP, which the paw used to. A popup aligns to the
-      # item holding it, and the paw is now a third of this pill's width — a
-      # right-aligned dropdown (which is every pill on the menu bar) would hang
-      # off to the left of its own pill by however many segments were drawn.
-      # The bracket's rect is the whole pill at whatever width it currently is,
-      # so the dropdown lines up on either side. agents.sh's $POPUP and the
-      # barpop hand-off both name this item.
-      #
-      # background.padding 0 explicitly: SketchyBar ignores a bracket's
-      # padding for LAYOUT (the rect is its members' span either way), and
-      # whether it insets the DRAWING is not something to leave to the
-      # inherited default — 0 draws the pill edge to edge under both readings,
-      # which is what puts the same 8pt gutter between this pill and its
-      # neighbours that every other pair on the bar has.
-      ${sb} --add bracket agents.pill agents agents.ready agents.working agents.done \
-          --set agents.pill \
-              drawing=off \
-              background.color=$SURFACE0 \
-              background.corner_radius=12 \
-              background.height=28 \
-              background.padding_left=0 \
-              background.padding_right=0 \
-              popup.background.border_width=2 \
-              popup.background.corner_radius=10 \
-              popup.background.border_color=$SURFACE0 \
-              popup.background.color=$MANTLE \
-              ${popupAlign side} \
-              popup.horizontal=off
-    '';
+                popup.background.border_width=2 \
+                popup.background.corner_radius=10 \
+                popup.background.border_color=$SURFACE0 \
+                popup.background.color=$MANTLE \
+                ${popupAlign side} \
+                popup.horizontal=off
+      '';
     # AI rate-limit gauges (5-hour session + 7-day weekly) and API spend, one row
     # per reporting client. Two feed shapes, both ending in
     # ~/.cache/claude-statusline/usage-*.tsv:
