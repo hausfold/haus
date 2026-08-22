@@ -1644,8 +1644,13 @@ lib.mkIf config.haus.launcher.enable {
               # switcher is what replaced it. Its rows are gathered by workspace
               # and focusing goes through `aerospace focus --window-id`, so it
               # crosses workspaces on its own — and a bare tap takes the most
-              # recent window on a DIFFERENT workspace, which is what makes it
-              # land where you came from rather than on the pane next door.
+              # recent window on a DIFFERENT workspace FAMILY, which is what
+              # makes it land where you came from rather than on the pane next
+              # door. Family, not name: `T`, `T/haus` and `T/main` are one
+              # place, so the tap looks past the page ⌃⇥ was just walking
+              # instead of dropping you back on it. The row below still says
+              # "rows group by workspace" and still means workspace — only the
+              # bare tap's comparison moved up to the family.
               # Deliberately no "move between visible tiles" row here: that's
               # windowNav's focus keys, whose modifier is configurable, and the
               # generated windows page already prints them with the real token.

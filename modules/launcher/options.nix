@@ -149,6 +149,12 @@ in
         Moving between visible tiles stays windowNav's focus keys; the skipped
         siblings are still the rows just below you in the list.
 
+        Pages count as the workspace they belong to: `T`, `T/haus` and `T/main`
+        are one place, so walking pages with ⌃⇥ and then tapping ⌘⇥ takes you
+        off `T` altogether rather than back to the page you just left. Getting
+        between pages is the ⌃⇥ walk's job, the same division of labour as
+        windowNav's focus keys above.
+
         Needs the daemon to hold an Accessibility grant — in practice, set
         haus.launcher.signingIdentity so the grant survives rebuilds. Without
         the grant the event tap can't install and stock ⌘Tab keeps working, so
