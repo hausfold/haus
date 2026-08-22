@@ -506,12 +506,6 @@ let
               background.padding_right=0 \
               icon.padding_left=10 \
               icon.padding_right=8 \
-              popup.background.border_width=2 \
-              popup.background.corner_radius=10 \
-              popup.background.border_color=$SURFACE0 \
-              popup.background.color=$MANTLE \
-              ${popupAlign side} \
-              popup.horizontal=off \
               script="$HOME/.config/sketchybar/plugins/agents.sh" \
               click_script="$HOME/.config/sketchybar/plugins/agents.sh" \
           --subscribe agents mouse.clicked system_woke
@@ -547,12 +541,34 @@ let
       # the paw and the counts reading as one control rather than four pills
       # that happen to be adjacent. drawing=off to match the members — an
       # all-hidden bracket still paints, so agents.sh turns this off too.
+      # It also carries the POPUP, which the paw used to. A popup aligns to the
+      # item holding it, and the paw is now a third of this pill's width — a
+      # right-aligned dropdown (which is every pill on the menu bar) would hang
+      # off to the left of its own pill by however many segments were drawn.
+      # The bracket's rect is the whole pill at whatever width it currently is,
+      # so the dropdown lines up on either side. agents.sh's $POPUP and the
+      # barpop hand-off both name this item.
+      #
+      # background.padding 0 explicitly: SketchyBar ignores a bracket's
+      # padding for LAYOUT (the rect is its members' span either way), and
+      # whether it insets the DRAWING is not something to leave to the
+      # inherited default — 0 draws the pill edge to edge under both readings,
+      # which is what puts the same 8pt gutter between this pill and its
+      # neighbours that every other pair on the bar has.
       ${sb} --add bracket agents.pill agents agents.ready agents.working agents.done \
           --set agents.pill \
               drawing=off \
               background.color=$SURFACE0 \
               background.corner_radius=12 \
-              background.height=28
+              background.height=28 \
+              background.padding_left=0 \
+              background.padding_right=0 \
+              popup.background.border_width=2 \
+              popup.background.corner_radius=10 \
+              popup.background.border_color=$SURFACE0 \
+              popup.background.color=$MANTLE \
+              ${popupAlign side} \
+              popup.horizontal=off
     '';
     # AI rate-limit gauges (5-hour session + 7-day weekly) and API spend, one row
     # per reporting client. Two feed shapes, both ending in

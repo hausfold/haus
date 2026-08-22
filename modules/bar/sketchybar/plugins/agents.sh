@@ -109,6 +109,15 @@ source "$HOME/.config/sketchybar/plugins/ai-provider.sh"
 
 DIR=/tmp/haus-agents
 PLUGINS="$HOME/.config/sketchybar/plugins"
+# Which item owns the dropdown, and it is the BRACKET, not the paw. SketchyBar
+# aligns a popup to the item that carries it, and the paw is now a third of the
+# pill's width — anchored there, a right-aligned popup (every pill on the menu
+# bar is right-side) would hang off to the left of the pill it belongs to by
+# however many segments happened to be drawn. A bracket answers `--query` with
+# the whole pill's rect and takes `popup.*` like any item, so the dropdown
+# lines up with the pill on either side and at any width. barpop is told the
+# same name.
+POPUP=agents.pill
 PAW=$(printf '\xEF\x86\xB0')   # nf-fa-paw (U+F1B0) — on-theme for the cat rice
 
 # ── the three state marks ─────────────────────────────────────────────────────
@@ -286,7 +295,7 @@ if [ "${1:-}" = "row" ] && [ "${2:-}" = "desktop" ]; then
   else
     open -b com.anthropic.claudefordesktop 2>/dev/null
   fi
-  "$SB" --set agents popup.drawing=off
+  "$SB" --set "$POPUP" popup.drawing=off
   exit 0
 fi
 
@@ -320,7 +329,7 @@ if [ "${1:-}" = "row" ] && [ "${2:-}" = "zmx" ]; then
     # out here any more: it is the same backend question as the raise.
     "$HOME/.config/haus/term/raise-session.sh" --or-open "$zsess" >/dev/null 2>&1
   fi
-  "$SB" --set agents popup.drawing=off
+  "$SB" --set "$POPUP" popup.drawing=off
   exit 0
 fi
 
@@ -383,12 +392,12 @@ H_META=20
 # no single agent.
 ROW_CLICK=""
 pop_add() { # pop_add <property=value…>
-  ARGS+=(--add item "agents.popup.$i" popup.agents
+  ARGS+=(--add item "agents.popup.$i" "popup.$POPUP"
     --set "agents.popup.$i"
       icon="" icon.padding_left=0 icon.padding_right=0
       label="" label.padding_left=0 label.padding_right=14
       background.drawing=off background.height="$H_ROW"
-      click_script="${ROW_CLICK:-$SB --set agents popup.drawing=off}"
+      click_script="${ROW_CLICK:-$SB --set $POPUP popup.drawing=off}"
     "$@")
   i=$((i + 1))
 }
@@ -545,8 +554,8 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
   # Closing is just hiding: a click while the popup is UP must not rebuild it
   # first (see ai_usage.sh's identical guard — this pill had the same
   # rebuild-then-toggle flash before this).
-  if [ "$("$SB" --query agents 2>/dev/null | jq -r '.popup.drawing')" = "on" ]; then
-    "$SB" --set agents popup.drawing=off
+  if [ "$("$SB" --query "$POPUP" 2>/dev/null | jq -r '.popup.drawing')" = "on" ]; then
+    "$SB" --set "$POPUP" popup.drawing=off
     exit 0
   fi
 
@@ -564,7 +573,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
   done < <(zmx_records; desktop_records)
 
   if [ ${#files[@]} -eq 0 ]; then
-    "$SB" --add item agents.popup.0 popup.agents 2>/dev/null \
+    "$SB" --add item agents.popup.0 "popup.$POPUP" 2>/dev/null \
       --set agents.popup.0 icon.drawing=off label="no active agents" label.color="$SUBTEXT0"
   else
     # Never run `holt --json` here: landed-verdict checks can block on the
@@ -664,12 +673,12 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
   # settled above (see the early-exit guard), so toggling here would flip a
   # popup we just rebuilt right back off on a stray double-fire.
   [ ${#ARGS[@]} -gt 0 ] && "$SB" "${ARGS[@]}" 2>/dev/null
-  "$SB" --set agents popup.drawing=on
+  "$SB" --set "$POPUP" popup.drawing=on
   # SKETCHYBAR_BIN is what barpop resolves its own client from: unset, it
   # queries the TOP bar, finds no such item on a pill that moved to the
   # bottom one, and exits before it ever arms — leaving a dropdown nothing
   # closes but a second click on the pill.
-  SKETCHYBAR_BIN="$SB" /run/current-system/sw/bin/barpop arm agents 2>/dev/null &
+  SKETCHYBAR_BIN="$SB" /run/current-system/sw/bin/barpop arm "$POPUP" 2>/dev/null &
   exit 0
 fi
 
