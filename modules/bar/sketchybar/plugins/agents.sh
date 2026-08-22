@@ -30,13 +30,33 @@
 #   • `agents.sh row <sess> <pane>`          → popup-row click: go-to (left) or
 #                                              peek (⌥/right), per $BUTTON/$MODIFIER
 #
-# ── the pill: waiting always wins ─────────────────────────────────────────────
-# The pill can only show one number, so it can't average across states — it has
-# to pick the one worth interrupting you for. A permission prompt sitting idle
-# is more urgent than five agents quietly working, so `waiting` (renamed "ready"
-# in the UI — an agent blocked on a prompt is ready for YOUR turn) outranks
-# `working`, which outranks `idle` ("done"). The label carries the word, not
-# just the count: a bare "3" makes you open the popup to learn what kind of 3.
+# ── the pill: every state, in urgency order ───────────────────────────────────
+# The pill draws ONE SEGMENT PER STATE that has agents in it — a mark and a
+# count each — always in the same order: ready, working, done. It used to show
+# a single winning count ("2 ready", picked because a permission prompt beats
+# five agents quietly working), and the reason that had to go is that the
+# ranking hid the rest: "2 ready" and "2 ready, 9 working, 4 done" drew
+# identically, so the pill could not answer "is anything else going on" without
+# a click. Urgency still decides the ORDER (and which state colours the paw),
+# not what gets to exist.
+#
+# Words became marks for the same reason: "2 ready · 9 working · 4 done" is
+# most of a sentence in a bar that has a notch to stay clear of, and this is a
+# glanceable pill, not prose. The three marks are declared as a set beside
+# $PAW below; the popup still spells the words out.
+#
+# Positions are FIXED — a state with a count of 0 draws nothing, but the ones
+# that remain never reorder — so "is the red one there" is answerable by shape
+# and position without reading a number.
+#
+# SketchyBar can colour a label exactly once, so three colours means three
+# items: `agents` (the paw and the popup) plus agents.ready / .working / .done,
+# with a `bracket` drawing the one pill background behind whichever are
+# visible. That is why the segments carry no background of their own and no
+# background padding — the bracket owns both, and a segment that kept its own
+# would draw a second pill inside the first and space the marks like separate
+# items. They ARE clickable: each one's click_script is this script, so the
+# popup opens from anywhere on the pill.
 #
 # ── the popup: same grammar as ai_usage.sh's dropdown ─────────────────────────
 # Borrowed from the aiUsage pill (see its header comment for the full
@@ -90,6 +110,25 @@ source "$HOME/.config/sketchybar/plugins/ai-provider.sh"
 DIR=/tmp/haus-agents
 PLUGINS="$HOME/.config/sketchybar/plugins"
 PAW=$(printf '\xEF\x86\xB0')   # nf-fa-paw (U+F1B0) — on-theme for the cat rice
+
+# ── the three state marks ─────────────────────────────────────────────────────
+# One glyph per state, so the pill can say ALL of them at once (see the pill
+# section below) instead of only the most urgent. They are picked as a set, and
+# the thing that makes them a set is WEIGHT: a solid disc for the state that is
+# asking you something, an open ring for the ones still going, a bare stroke
+# for the ones that finished. Read down the pill and the ink thins exactly as
+# the urgency does — which is the part that still works in the corner of your
+# eye, where the colours are too small to separate.
+#
+# Semantics, not decoration: `?` is literally the question a permission prompt
+# is asking you; the ring is the codicon called `session_in_progress`; the tick
+# is a tick. A hammer was the obvious first pick for `working` and is NOT used
+# — at 17pt nf-md-hammer renders as a bare diagonal stroke, and its legible
+# cousin (nf-md-hammer_wrench) is the heaviest mark of the three, which puts
+# the loudest ink on the calmest state. Swap the one line if you disagree.
+MARK_WAITING=$(printf '\xEF\x81\x99')  # nf-fa-question_circle (U+F059)
+MARK_WORKING=$(printf '\xEE\xB1\xB7')  # nf-cod-session_in_progress (U+EC77)
+MARK_IDLE=$(printf '\xEF\x80\x8C')     # nf-fa-check (U+F00C)
 # The warm `holt --json` copy, and its whole protocol — the TTL, the one-winner
 # lock and the "only a complete result replaces the cache" rule — belong to
 # `holt-cache` (modules/ai/holt-cache.sh), which the AI room puts on PATH. This
@@ -108,10 +147,10 @@ state_style() {
     # RED, not PEACH. This is the one state on the whole bar that is asking
     # you to stop what you are doing, and peach was reading as a warning about
     # the agent rather than a request from it.
-    waiting) COL=$RED;   TAG="ready"   ;;
-    working) COL=$SKY;   TAG="working" ;;
-    idle)    COL=$GREEN; TAG="done"    ;;
-    *)       COL=$TEXT;  TAG="$1"      ;;
+    waiting) COL=$RED;   TAG="ready";   MARK=$MARK_WAITING ;;
+    working) COL=$SKY;   TAG="working"; MARK=$MARK_WORKING ;;
+    idle)    COL=$GREEN; TAG="done";    MARK=$MARK_IDLE    ;;
+    *)       COL=$TEXT;  TAG="$1";      MARK=""            ;;
   esac
 }
 
@@ -646,8 +685,30 @@ while IFS=$'\t' read -r _pr _epoch _kind st _rest; do
   esac
 done < <(zmx_records; desktop_records)
 
+# Hiding is all four items plus the bracket: a bracket whose members are all
+# hidden still draws its own background, so leaving it on would park an empty
+# pill in the bar exactly when there is nothing to report.
+hide_pill() {
+  "$SB" --set agents drawing=off \
+    --set agents.ready drawing=off \
+    --set agents.working drawing=off \
+    --set agents.done drawing=off \
+    --set agents.pill drawing=off
+}
+
+# seg <item> <state> <count> — one segment of the pill, hidden at zero.
+seg() {
+  if [ "$3" -gt 0 ]; then
+    state_style "$2"
+    "$SB" --set "$1" drawing=on icon="$MARK" icon.color="$COL" \
+      label="$3" label.color="$COL"
+  else
+    "$SB" --set "$1" drawing=off
+  fi
+}
+
 if [ $((working + waiting + idle)) -eq 0 ]; then
-  "$SB" --set agents drawing=off   # nothing running → no clutter
+  hide_pill                        # nothing running → no clutter
   exit 0
 fi
 
@@ -658,9 +719,15 @@ fi
 # with its script process — this line is the whole of the bar's half now.
 holt-cache kick "$HOLT_TTL" "$HOLT_TIMEOUT" >/dev/null 2>&1
 
-if   [ "$waiting" -gt 0 ]; then state_style waiting; n=$waiting
-elif [ "$working" -gt 0 ]; then state_style working; n=$working
-else                           state_style idle;    n=$idle
+# The paw takes the most urgent state's colour — the same ranking the label
+# used to encode on its own, kept because it is the one thing that reads
+# without focusing on the pill at all.
+if   [ "$waiting" -gt 0 ]; then state_style waiting
+elif [ "$working" -gt 0 ]; then state_style working
+else                           state_style idle
 fi
 "$SB" --set agents drawing=on icon="$PAW" icon.color="$COL" \
-  label="$n $TAG" label.color="$COL"
+  --set agents.pill drawing=on
+seg agents.ready   waiting "$waiting"
+seg agents.working working "$working"
+seg agents.done    idle    "$idle"
