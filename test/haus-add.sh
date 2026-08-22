@@ -374,4 +374,22 @@ has "add these by hand" "$out" "second room"
 after="$(cat "$tmp/consumer/flake.nix")"
 [ "$before" = "$after" ] || fail "second room: flake.nix was touched on the degrade path"
 
+# ---- 20: --module is validated like --as and --namespace, not written raw ----
+# (found by the pre-PR assurance pass: --module landed in flake.nix with no
+# check at all, unlike every other token this command writes there — a
+# publisher's own install instructions are exactly the untrusted text this
+# design otherwise guards, so a malformed --module must never reach the file.)
+new_consumer
+before="$(cat "$tmp/consumer/flake.nix")"
+set +e
+HAUS_ADD_ROOM_ROOMA="$room_a_rev" haus add --room --as rooma --namespace testroom \
+  --module '"default" or (builtins.trace "pwned" null)' "git+file://$tmp/room-a" \
+  >"$tmp/badmodule.out" 2>&1
+status=$?
+set -e
+[ "$status" -ne 0 ] || fail "bad --module: expected a non-zero exit"
+has "legal Nix identifier" "$(cat "$tmp/badmodule.out")" "bad --module"
+after="$(cat "$tmp/consumer/flake.nix")"
+[ "$before" = "$after" ] || fail "bad --module: flake.nix was touched"
+
 printf 'ok — haus add/desktop/remove: %s\n' "$show"

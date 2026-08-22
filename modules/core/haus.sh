@@ -1841,13 +1841,23 @@ settings_option_exists() {
 # installable fragment: `$ns` only ever needs escaping into a NIX STRING
 # LITERAL (inside the lambda body, ordinary Nix source), never into the CLI's
 # own flake-fragment parser, which is one fewer syntax to get quoting right in.
+#
+# Fails CLOSED, not open: exit 0 (taken), 1 (not taken), 2 (couldn't check —
+# a transient nix eval failure, NOT a proof the namespace is free). The
+# earlier cut folded 2 into 1, which reads a network blip or a broken host as
+# "go ahead" — silently the wrong direction for what is otherwise a courtesy
+# check standing in FRONT of a fetch and a lock. Found by the pre-PR
+# assurance pass, not by testing: nothing in test/haus-add.sh can make
+# `nix eval` itself fail without breaking every other assertion in the same
+# run, so this is reasoned about rather than fixture-proven.
 namespace_taken() { # host ns
   local host="$1" ns="$2" result
   result="$(
     cd "$CONSUMER" && nix eval --json ".#darwinConfigurations.$host" --apply "cfg:
       cfg.options.haus ? \"$ns\"" 2>/dev/null
-  )" || return 1
-  [ "$result" = "true" ]
+  )" || return 2
+  [ "$result" = "true" ] && return 0
+  return 1
 }
 
 # The value half of a namespace claim's collision check — sibling to
@@ -1855,11 +1865,14 @@ namespace_taken() { # host ns
 # haus._rooms.claimed.<ns> is, so a second `add --room` claiming a namespace
 # already claimed by a DIFFERENT origin can refuse before locking anything,
 # rather than discovering the E1 assertion's refusal only at the next
-# rebuild. Empty output means unclaimed (nothing has ever written this leaf).
+# rebuild. Prints the claimed origin (possibly empty, meaning unclaimed) and
+# returns 0 when the read succeeded; returns 1 with nothing printed when it
+# could not be answered at all — a DIFFERENT thing from "unclaimed", and the
+# caller has to tell them apart (same fail-closed fix as namespace_taken).
 namespace_claimed_by() { # host ns
   local host="$1" ns="$2"
   ( cd "$CONSUMER" && nix eval --raw ".#darwinConfigurations.$host" --apply "cfg:
-      cfg.config.haus._rooms.claimed.\"$ns\" or \"\"" 2>/dev/null ) || true
+      cfg.config.haus._rooms.claimed.\"$ns\" or \"\"" 2>/dev/null )
 }
 
 # Writes haus._rooms.claimed.<ns> = "<typed>" for one namespace, reusing the
@@ -1869,13 +1882,18 @@ namespace_claimed_by() { # host ns
 # write path at all. Stops one phase short of cmd_set's own: no
 # settings_apply, because `add` never rebuilds, same as it never rebuilds a
 # desktop selection. Returns non-zero (and writes nothing) on a genuine
-# collision — a differently-typed origin already claims this namespace.
+# collision — a differently-typed origin already claims this namespace — and
+# also on simply being unable to check, rather than reading "couldn't check"
+# as "unclaimed" and overwriting whatever is actually there with mkForce.
 rooms_claim_namespace() { # host name typed ns
   local host="$1" name="$2" typed="$3" ns="$4"
   local dir target existing
   dir="$(settings_host_dir)"
   target="$(settings_file "haus._rooms.claimed.$ns")"
-  existing="$(namespace_claimed_by "$host" "$ns")"
+  if ! existing="$(namespace_claimed_by "$host" "$ns")"; then
+    warn "couldn't check whether '$ns' is already claimed — not writing, to avoid overwriting a claim this machine couldn't be asked about. Re-run, or set it by hand: haus set _rooms.claimed.$ns \"$typed\""
+    return 1
+  fi
   if [ -n "$existing" ]; then
     if [ "$existing" = "$typed" ]; then
       return 0 # same room, re-added — nothing to do
@@ -3091,16 +3109,29 @@ EOF
     [ -z "$pickfile" ] || die "--file has nothing to name in a room — --room reads nothing at all."
     [ -z "$vendor" ] || die "--vendor doesn't apply to a room — it isn't a single file, it's a flake. Pin it as an input instead."
 
+    # $module lands in flake.nix the same way $name and each $ns do
+    # (extraModules = [ $name.darwinModules.$module ];) and gets the same
+    # identifier check they get — nothing here is exempt just because it has
+    # a default. An unvalidated --module would be the one token in this
+    # command's whole write path that a publisher's own copy-paste
+    # instructions could shape into more than an attribute name.
+    [[ "$module" =~ ^[A-Za-z_][A-Za-z0-9_\'-]*$ ]] || die "'--module $module' isn't a legal Nix identifier."
+
     host="$(host_name)"
-    local ns
+    local ns taken_status
     for ns in "${namespaces[@]}"; do
       [[ "$ns" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]] || die "'--namespace $ns' isn't a legal namespace component."
       case "$ns" in
         haus) die "'--namespace haus' — haus is the layer itself, not a namespace a room could claim." ;;
         my) die "'--namespace my' — haus.my.* is reserved for YOUR OWN private modules; a published room claims a plain haus.<name>." ;;
       esac
-      namespace_taken "$host" "$ns" \
-        && die "'haus.$ns' already exists on this machine — pick a namespace this room actually introduces, or re-read its docs."
+      taken_status=0
+      namespace_taken "$host" "$ns" || taken_status=$?
+      case "$taken_status" in
+        0) die "'haus.$ns' already exists on this machine — pick a namespace this room actually introduces, or re-read its docs." ;;
+        1) ;;
+        *) die "couldn't check whether 'haus.$ns' already exists on this machine (try: haus doctor) — refusing rather than guessing." ;;
+      esac
     done
   else
     [ "${#namespaces[@]}" -eq 0 ] || die "--namespace only applies to --room."
