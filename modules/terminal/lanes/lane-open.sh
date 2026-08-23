@@ -273,6 +273,12 @@ activate_line="  activate"
 # doesn't race the app's launch and land a stray default window beside it — and
 # an instance that comes up windowless is precisely what a pre-warm wants. The
 # lane's own `open -na` must never carry it: see the measurement above.
+#
+# Worth knowing rather than fixing here: the instance it leaves behind is
+# windowless AND a live Apple Events target, so a later `tell application
+# "Ghostty"` (scripts/new-window.sh, the ghostty backend below) may be answered
+# by it. That routing lottery predates this line — the flag it replaced did the
+# same — and what it costs is written up in scripts/focused-session.sh.
 warm_bg=""
 [ -n "$bg" ] && warm_bg="-g"
 
@@ -284,9 +290,21 @@ warm_bg=""
 # launcher a no-op needing no branch of its own — and empty on the ghostty
 # backend too, which has no AeroSpace to ask and whose AppleScript spawn simply
 # never activates.
+#
+# The APP is captured beside the window, and it is not belt-and-braces: some
+# window is not always AeroSpace's to name. A native-fullscreen app, an
+# unmanaged window, or an AeroSpace that simply answers late all give an empty
+# window id — and an empty one means `giveback` does nothing, which is ⌃↵
+# silently keeping the screen and looking exactly like plain ↵. `lsappinfo` is
+# LaunchServices' own view of who is frontmost, needs no grant and no Apple
+# Event, and re-activating that app is a coarser give-back than the window but
+# an enormously better one than none.
 prev_wid=""
+prev_app=""
 if [ -n "$bg" ] && [ "$backend" = aerospace ]; then
   prev_wid="$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)"
+  prev_app="$(/usr/bin/lsappinfo info -only bundleid "$(/usr/bin/lsappinfo front 2>/dev/null)" 2>/dev/null |
+    sed -n 's/.*"CFBundleIdentifier"="\([^"]*\)".*/\1/p')"
 fi
 
 # printf %q, not bash 5's ${var@Q}: /bin/bash on macOS is still 3.2, and this
@@ -332,10 +350,11 @@ fi
     # combined with a filter. One process, one window at this moment, no focus
     # anywhere in the question.
     #
-    # If the walk somehow comes back empty, the block does NOTHING. A lane that
-    # opened floating is a nuisance you can fix with the leader's ` ; a
-    # confidently mis-aimed `move-node-to-workspace` is a window you did not
-    # touch leaving the page you were reading it on.
+    # If the walk somehow comes back empty, the block moves NOTHING (it still
+    # gives the screen back). A lane that opened floating is a nuisance you can
+    # fix with the leader's ` ; a confidently mis-aimed
+    # `move-node-to-workspace` is a window you did not touch leaving the page
+    # you were reading it on.
     # ── giving the screen back ────────────────────────────────────────────
     # A background lane's window is opened the ordinary way, so it arrives with
     # focus; this hands focus back to whatever had it before the spawn. It runs
@@ -347,7 +366,12 @@ fi
     # block needs no branch of its own. Best effort throughout: a window that
     # has since closed is not worth a word, and there is nowhere here to say it.
     printf '  back=%q\n' "$prev_wid"
-    printf '  giveback() { [ -n "$back" ] && aerospace focus --window-id "$back" >/dev/null 2>&1; return 0; }\n'
+    printf '  backapp=%q\n' "$prev_app"
+    printf '  giveback() {\n'
+    printf '    [ -n "$back" ] && aerospace focus --window-id "$back" >/dev/null 2>&1 && return 0\n'
+    printf '    [ -n "$backapp" ] && /usr/bin/open -b "$backapp" >/dev/null 2>&1\n'
+    printf '    return 0\n'
+    printf '  }\n'
     printf '  gpid=""; p=$$\n'
     printf '  while [ -n "$p" ] && [ "$p" != 1 ]; do\n'
     printf '    case "$(ps -o comm= -p "$p" 2>/dev/null)" in\n'
@@ -437,9 +461,12 @@ fi
 if [ "$backend" = aerospace ]; then
   # `--title` is a FORCED title in Ghostty, not a starting value: the client
   # inside can't clobber it with OSC 2. That is not a nicety, it is the whole
-  # join: everything outside finds this lane by its window name
-  # (`aerospace list-windows | grep '^holt\.'`), without the per-pane state files
-  # the bar keeps today.
+  # join: everything outside finds this lane by its window name, without the
+  # per-pane state files the bar keeps today. Not by that name ALONE, mind — the
+  # title is instance-wide config, so a plain window opened later into this same
+  # process wears it too, and the readers that care (scripts/raise-session.sh,
+  # windows/scripts/resort-windows.sh) subtract the ids some zmx session has
+  # claimed with a `window=` label. See scripts/focused-session.sh's note.
   #
   # The AppleScript spawn (`new window with configuration`, 252 ms vs 366 ms
   # here, and no second Ghostty process per lane) was tried and REJECTED for

@@ -36,6 +36,18 @@ floaters=" @RESORT_FLOATERS@ "
 # the read.
 windows=$(aerospace list-windows --all --format '%{window-id}|%{app-bundle-id}|%{window-title}' 2>/dev/null)
 
+# Window ids that a zmx session has claimed with a `window=` label. Ghostty's
+# `--title` is INSTANCE-WIDE, so a plain ⌘N window opened into a lane's Ghostty
+# process is born wearing `holt.<repo>.<lane>` — and moving one of those to
+# T/<repo> is precisely "a window you did not touch leaving the page you were
+# reading it on". A plain window always has that label and a real lane never
+# does (its session is made by `zmx attach` inside the window, not by
+# launch.sh), so a claimed id is the impostor. Empty, and the lane branch below
+# behaves exactly as it did, on a machine with no zmx at all included.
+claimed=""
+command -v zmx >/dev/null 2>&1 &&
+    claimed=$(zmx ls 2>/dev/null | tr '\t' '\n' | sed -n 's/^window=//p')
+
 while IFS='|' read -r id bundle title; do
     id=$(echo "$id" | tr -d ' ')
     bundle=$(echo "$bundle" | sed 's/^ *//;s/ *$//')
@@ -62,8 +74,14 @@ while IFS='|' read -r id bundle title; do
                 # first: the repo basename may itself carry dots (hausfold.co),
                 # the lane name never does.
                 holt.*.*)
-                    repo="${title#holt.}"
-                    target="T/${repo%.*}"
+                    if [ -n "$claimed" ] && printf '%s\n' "$claimed" | grep -qFx "$id"; then
+                        # Wearing a lane's name, but some session holds it by
+                        # id: an ordinary terminal window, so an ordinary page.
+                        target="T"
+                    else
+                        repo="${title#holt.}"
+                        target="T/${repo%.*}"
+                    fi
                     ;;
                 *) target="T" ;;
             esac
