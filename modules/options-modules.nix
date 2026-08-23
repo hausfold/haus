@@ -1,7 +1,11 @@
 # The per-room options files, as a plain list of paths.
 #
-# These are the ONLY modules that declare `haus.*`, and they are pure
-# `{ lib, ... }` modules — no config, no pkgs, no darwin system. That purity is
+# These are the ONLY modules that declare `haus.*`, and they are pure MODULE
+# functions — `lib` and, in six of them, `config`; never pkgs, never anything
+# from the darwin system. `config` is what `evalModules` hands every module, so
+# taking it costs nothing and is how one option's default tracks another
+# (`developer.git.enable`, `shelf.watchScreenshots`); a default that reads
+# `config.` carries a `defaultText` so nothing has to force it. That purity is
 # what lets the option surface be evaluated on its own, on any platform, which
 # in turn is what lets it be RENDERED rather than hand-documented:
 #

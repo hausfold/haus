@@ -214,8 +214,13 @@ lib.mkIf config.haus.shelf.enable {
   # trigger this is not a thing the shelf cannot work without — it is one half
   # of a feature (`haus.shelf.watchScreenshots`, whose other half is the
   # `screenshotsFolder` key in the config drop), and a capture behaviour that
-  # changes machine-wide should be readable as a named option in `haus show`
-  # and the reference rather than inferred from an unrelated room being on. And
+  # changes machine-wide should be readable as a named option in `haus get`
+  # and the reference rather than inferred from an unrelated room being on.
+  # (That sentence used to say `haus show`, which reads a desktop FILE and no
+  # machine's resolved values — wrong surface for the argument it is making.)
+  # The option's DEFAULT does track the room since it began saying `true` on
+  # machines with no shelf to reach; what stays named and settable, and the
+  # whole point here, is the write itself. And
   # it is `mkDefault` rather than an outright write, because the thumbnail only
   # DELAYS the shelf, it does not defeat it (you can drag the thumbnail into
   # the notch yourself). The ladder from ../appearance applies — a desktop (900)
