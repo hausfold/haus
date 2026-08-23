@@ -344,7 +344,11 @@ let
   lidCfg = powerCfg.lidAwake;
   # Where agents-hook.sh drops one file per agent that is mid-turn. Written by
   # the user, read by root, never the other way round -- see lidawake.sh.
-  lidHoldDir = "${homeDir}/.local/state/haus/lidawake/holds";
+  lidHoldDir =
+    let
+      f = (import ../lib/state-files.nix).lidawake-holds;
+    in
+    "${homeDir}/${f.dir}/${f.name}";
   # The daemon's receipt that IT is the one holding `disablesleep`. Activation
   # needs it to undo a hold when the option is switched off, because switching
   # it off removes the only process that could otherwise put the key back.

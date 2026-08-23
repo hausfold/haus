@@ -1352,6 +1352,21 @@
             100 -> 1.000000
           '';
 
+          # ---- state-files -----------------------------------------------------
+          # ../lib/state-files.nix names the files under ~/.local/state/haus that
+          # one room WRITES and another READS. Those pairs are joined by nothing
+          # the compiler or the module system can see: one side is a shell
+          # script, the other is a `# pounce:` header, a Swift string, or a
+          # daemon's environment. A rename on one side is not an error anywhere
+          # and its symptom is the absence of a thing — a row that stops being
+          # listed, a pill stuck on Columns, a lid that sleeps mid-run.
+          #
+          # This pins the token that renames, in every file that spells it. It
+          # is emphatically NOT a mirror of the paths: Nix consumers import the
+          # attrset, and the second half below is what keeps them honest.
+          stateFiles = import ./modules/lib/state-files.nix;
+          stateFileEntries = nixpkgs.lib.mapAttrsToList (key: f: f // { inherit key; }) stateFiles;
+
           # ---- pounce-header-grammar -------------------------------------------
           # modules/launcher/header-grammar.nix is our third copy of pounce's
           # `# pounce: key = value` parser, and the only reader of `cheat` /
@@ -3135,6 +3150,63 @@
               echo 'type, not for the ones we ship.' >&2
               exit 1
             }
+            touch $out
+          '';
+
+          state-files = pkgs.runCommand "haus-state-files-ok" { } ''
+            mods=${./modules}
+            fail=0
+
+            # Half one: every file that spells a shared name still spells it.
+            # `grep -q` on a path that does not exist is an ERROR, not a miss,
+            # so the existence test is separate — otherwise a moved file reads
+            # as a passing check instead of a broken one, which is how this
+            # class of check goes blind rather than red.
+${builtins.concatStringsSep "\n" (
+              builtins.concatMap (
+                f:
+                map (rel: ''
+                  if [ ! -f "$mods/${nixpkgs.lib.removePrefix "modules/" rel}" ]; then
+                    echo '${rel} is listed in modules/lib/state-files.nix under' >&2
+                    echo '`${f.key}` and does not exist. Repoint the entry — do not' >&2
+                    echo 'drop it: an unlisted file is one nothing checks.' >&2
+                    fail=1
+                  else
+                    grep -qF -- '${f.name}' "$mods/${nixpkgs.lib.removePrefix "modules/" rel}" || {
+                      echo '${rel} no longer mentions `${f.name}`, which it shares with' >&2
+                      echo 'the other side of `${f.key}` in modules/lib/state-files.nix.' >&2
+                      echo 'If you renamed the file, rename it in every `literals` entry' >&2
+                      echo 'and here — one side alone is silent in both directions.' >&2
+                      fail=1
+                    }
+                    grep -qF -- '${f.dir}' "$mods/${nixpkgs.lib.removePrefix "modules/" rel}" || {
+                      echo '${rel} no longer mentions `${f.dir}`, the directory every' >&2
+                      echo 'shared haus state file lives in.' >&2
+                      fail=1
+                    }
+                  fi
+                '') f.literals
+              ) stateFileEntries
+            )}
+
+            # Half two: no .nix under modules/ may hand-spell a registered path.
+            # Without this the registry is just a sixth copy — the exact shape
+            # it exists to end. A room that needs one of these paths imports
+            # ../lib/state-files.nix and interpolates it.
+${builtins.concatStringsSep "\n" (
+              map (f: ''
+                stray=$(grep -rlnF --include='*.nix' -- '${f.dir}/${f.name}' "$mods" || true)
+                if [ -n "$stray" ]; then
+                  echo 'these .nix files hand-spell `${f.dir}/${f.name}`, which' >&2
+                  echo 'modules/lib/state-files.nix owns as `${f.key}`:' >&2
+                  echo "$stray" | sed 's|^|  |' >&2
+                  echo 'Import ../lib/state-files.nix and interpolate .dir/.name instead.' >&2
+                  fail=1
+                fi
+              '') stateFileEntries
+            )}
+
+            [ "$fail" = 0 ] || exit 1
             touch $out
           '';
 
