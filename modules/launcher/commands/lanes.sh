@@ -392,12 +392,18 @@ EOF
 
 # The curly quotes are display text, not shell quoting — shellcheck reads every
 # “ as a mistyped " and has no way to know the difference.
+#
+# Which is also why the braces below are not optional. In a UTF-8 locale bash
+# reads the closing ” as part of the identifier, so `“$term”` looks up a
+# variable named term” — unset, and this script runs under `set -u`, so the
+# search dies on the line that was about to show its results. shellcheck's one
+# warning near this class is the SC1111 disabled right here.
 # shellcheck disable=SC1111
-PROMPT="Matches for “$term”"
+PROMPT="Matches for “${term}”"
 ICON="text.magnifyingglass"
 # shellcheck disable=SC1111
 [ -n "$matches" ] ||
-  bail "No transcript mentions “$term”" \
+  bail "No transcript mentions “${term}”" \
     "searched $n live session(s) — ⌘⇧F searches every window's scrollback" \
     "text.magnifyingglass"
 

@@ -194,6 +194,14 @@ query=""
 # own rows, so the only way to try another word was Esc and start over. Every
 # query-driven list therefore carries this escape hatch as its last row (and, on
 # a miss, as its only one). `__again__` in the type slot means "ask me again".
+#
+# Its argument is display text, and this file quotes the user's words in it with
+# curly quotes — so BRACE every expansion that touches one: `“${query}”`, never
+# `“$query”`. In a UTF-8 locale (which is every real one here; LC_ALL=C is not
+# affected) bash reads the closing ” as part of the identifier, looks up a
+# variable named query”, and finds nothing — so the row loses the search term
+# and emits the ”'s leftover bytes as invalid UTF-8 into pounce's TSV. Silent
+# rather than fatal because this script has no `set -u`.
 again_row() {
   printf '%s\t%s\t%s\t\t%s\t__again__\t\t\t' \
     "Search again" "$1" "magnifyingglass" "Search"
@@ -363,7 +371,7 @@ while :; do
     ' "$mas_results")"
     rm -f "$mas_results"
     if [ -z "$list" ]; then
-      list="$(again_row "No Mac app matched “$query” — try different words")"
+      list="$(again_row "No Mac app matched “${query}” — try different words")"
     else
       list="$list
 $(again_row "Not what you wanted? Search the App Store again")"
@@ -442,7 +450,7 @@ $(again_row "Not what you wanted? Search the App Store again")"
     ' "$nix_results")"
     rm -f "$nix_results"
     if [ -z "$list" ]; then
-      list="$(again_row "No Nix package matched “$query” — try different words")"
+      list="$(again_row "No Nix package matched “${query}” — try different words")"
     else
       list="$list
 $(again_row "Not what you wanted? Search Nixpkgs again")"
