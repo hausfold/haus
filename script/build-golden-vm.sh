@@ -42,6 +42,11 @@ DESKTOP="${HAUS_VM_DESKTOP:-hacker}"
 GUEST_USER="${HAUS_VM_USER:-admin}"
 KEEP=
 
+# ${VAR} inside these, never $VAR, whenever the next character is one of this
+# file's ellipses or em dashes. bash reads a multi-byte character as part of the
+# identifier, so `say "… haus $REF…"` looks up a variable named REF… — which
+# under `set -u` is an unbound-variable death forty minutes into a build, and
+# without it a silently empty word. Cost one real run to find.
 say()  { printf '\033[38;5;103m🌫  %s\033[0m\n' "$*"; }
 warn() { printf '\033[38;5;179m⚠  %s\033[0m\n' "$*"; }
 die()  { printf '\033[38;5;167m✗  %s\033[0m\n' "$*" >&2; exit 1; }
@@ -150,7 +155,7 @@ EOS
 # NO flake.lock and bootstrap's unpinned `github:hausfold/haus`. The system
 # would be $REF and the first `haus rebuild` inside a clone would resolve
 # whatever main is by then — the exact drift --ref exists to prevent.
-say "pinning the guest's config to haus $REF…"
+say "pinning the guest's config to haus ${REF}…"
 guest <<EOS
 set -euo pipefail
 cd ~/.config/nix
@@ -357,7 +362,7 @@ BUILT=1
 if [ -n "$KEEP" ]; then
   say "leaving $NAME running at $IP (--keep)"
 else
-  say "stopping $NAME…"
+  say "stopping ${NAME}…"
   tart stop "$NAME" 2>/dev/null || true
   wait "$TART_PID" 2>/dev/null || true
 fi
