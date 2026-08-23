@@ -263,6 +263,11 @@ let
       pane's environment turns it off for a long unattended run. It is a backstop
       for the rules above, not permission to skip them: a prompt you triggered is
       still an interruption.
+
+      The line it draws is THIS screen, not the command: work you run over `ssh`
+      on another machine — a lane's own headless VM most of all — is never
+      gated, however loudly it redraws over there. Booting that VM with a window
+      on this display (`tart run` without `--no-graphics`) is.
     ''}
 
     Full guide: https://hausfold.co/docs/haus/rooms/ai/
@@ -661,8 +666,13 @@ in
       # prompt for exactly that slice — pointer/keyboard/focus/redraw — and returns
       # no opinion on everything else, so auto-mode is intact everywhere it was
       # already fine. It never refuses anything; the only verdict it can return is
-      # "ask". HAUS_DESKTOP_OK=1 in a pane turns it off there, the way
-      # BENCH_AGENT_SWITCH=1 does for activation. Details in the script's header.
+      # "ask". It reads the target, not the text: a segment that runs over ssh on
+      # another machine is dropped before the patterns see it, so a lane driving
+      # its own headless VM (`holt runtime up --backend tart`) is never prompted
+      # for a desktop nobody is looking at. HAUS_DESKTOP_OK=1 in a pane turns the
+      # whole thing off, the way BENCH_AGENT_SWITCH=1 does for activation.
+      # test/desktop-guard.bats pins both sides of the line; details in the
+      # script's header.
       (writeShellScriptBin "agent-desktop-guard" (builtins.readFile ./desktop-guard.sh))
 
       # `holt-cache` — one warm copy of `holt --json` for everything that reads
