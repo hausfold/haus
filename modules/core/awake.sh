@@ -13,7 +13,10 @@ STATE_FILE="$STATE_DIR/state"
 LABEL="${AWAKE_LAUNCHD_LABEL:-com.hausfold.awake}"
 LAUNCHCTL="${AWAKE_LAUNCHCTL_BIN:-/bin/launchctl}"
 CAFFEINATE="${AWAKE_CAFFEINATE_BIN:-/usr/bin/caffeinate}"
-SKETCHYBAR="${AWAKE_SKETCHYBAR_BIN:-/run/current-system/sw/bin/sketchybar}"
+# @sketchybar@ is substituted from haus.roster.sketchybar.binPath by
+# ../core/default.nix, and is empty on a machine with no bar — every use below
+# is behind an `[ -x ]` guard, which is also what makes the env override work.
+SKETCHYBAR="${AWAKE_SKETCHYBAR_BIN:-@sketchybar@}"
 # bar's optional SECOND bar (haus.bar.bottom.enable) — the same binary under a
 # second name, hence a second client to poke. Absent on a machine without it.
 BAR_BOTTOM="${AWAKE_BAR_BOTTOM_BIN:-/run/current-system/sw/bin/bar-bottom}"

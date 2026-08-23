@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# $BAR_TOP — GENERATED from haus.roster.sketchybar.binPath. The front-app pill is
+# a menu-bar item, so it is always the TOP bar's mach service; naming the binary
+# here by hand is what §5.4 is about.
+source "$HOME/.config/sketchybar/bar.sh"
+
 # Get the front app name
 FRONT_APP=$(osascript -e 'tell application "System Events" to get name of first application process whose frontmost is true')
 
@@ -9,10 +14,10 @@ FRONT_APP=$(osascript -e 'tell application "System Events" to get name of first 
 # fa-arrows (U+F047) for navigate; keep in sync with those scripts.
 if [ -f /tmp/sketchybar_resize_state ]; then
     GLYPH=$(printf '\xEF\x81\xBE')
-    /run/current-system/sw/bin/sketchybar --set "$NAME" label="$FRONT_APP $GLYPH"
+    "$BAR_TOP" --set "$NAME" label="$FRONT_APP $GLYPH"
 elif [ -f /tmp/sketchybar_navigate_state ]; then
     GLYPH=$(printf '\xEF\x81\x87')
-    /run/current-system/sw/bin/sketchybar --set "$NAME" label="$FRONT_APP $GLYPH"
+    "$BAR_TOP" --set "$NAME" label="$FRONT_APP $GLYPH"
 else
-    /run/current-system/sw/bin/sketchybar --set "$NAME" label="$FRONT_APP"
+    "$BAR_TOP" --set "$NAME" label="$FRONT_APP"
 fi

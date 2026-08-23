@@ -3,6 +3,9 @@
 exec 2>>/tmp/sketchybar_space.log
 set -x
 
+# $BAR_TOP — GENERATED from haus.roster.sketchybar.binPath. Workspace pills are
+# menu-bar items, so it is always the TOP bar's mach service (§5.4).
+source "$HOME/.config/sketchybar/bar.sh"
 source "$HOME/.config/sketchybar/colors.sh"
 # The focused pill's fill is peach rather than mauve while the focused window is
 # AeroSpace-fullscreen. Shared with aerospace_watcher.sh and launch_mode.sh so
@@ -37,7 +40,7 @@ WORKSPACE_ID="${NAME#space.}"
 if [ "$WORKSPACE_ID" = "$CURRENT_WORKSPACE" ] || [ "${CURRENT_WORKSPACE#"$WORKSPACE_ID"/}" != "$CURRENT_WORKSPACE" ]; then
     echo "  -> Active" >> /tmp/sketchybar_space.log
     # Active workspace - highlight it
-    /run/current-system/sw/bin/sketchybar --set $NAME \
+    "$BAR_TOP" --set $NAME \
         background.color=$(fullscreen_active_ws_color "$(aerospace_fullscreen)") \
         icon.color=$BASE \
         label.color=$BASE \
@@ -49,7 +52,7 @@ if [ "$WORKSPACE_ID" = "$CURRENT_WORKSPACE" ] || [ "${CURRENT_WORKSPACE#"$WORKSP
 elif echo "$WORKSPACES_WITH_WINDOWS" | grep -qE "^${WORKSPACE_ID}(/|\$)"; then
     echo "  -> Inactive with windows" >> /tmp/sketchybar_space.log
     # Inactive workspace with windows
-    /run/current-system/sw/bin/sketchybar --set $NAME \
+    "$BAR_TOP" --set $NAME \
         background.color=$SURFACE0 \
         icon.color=$TEXT \
         label.color=$TEXT \
@@ -57,5 +60,5 @@ elif echo "$WORKSPACES_WITH_WINDOWS" | grep -qE "^${WORKSPACE_ID}(/|\$)"; then
 else
     echo "  -> Empty" >> /tmp/sketchybar_space.log
     # Workspace is empty and not focused - hide it
-    /run/current-system/sw/bin/sketchybar --set $NAME drawing=off
+    "$BAR_TOP" --set $NAME drawing=off
 fi

@@ -308,6 +308,8 @@ let
       ""
       "<name>.appId"
       "<name>.appStoreId"
+      "<name>.bin"
+      "<name>.binPath"
       "<name>.brew"
       "<name>.cask"
       "<name>.enable"

@@ -1029,7 +1029,7 @@
     "roster": {
       "blurb": "One list of everything this machine has — apps, fonts, command-line tools. Each entry drives its launcher key, cheatsheet row, and installs it from whichever source it names: a Homebrew cask or formula, a Nixpkgs package, or the Mac App Store.",
       "kind": "shared",
-      "optionCount": 16,
+      "optionCount": 18,
       "options": {
         "haus.roster": {
           "desktopSafe": "recursive",
@@ -1039,6 +1039,12 @@
           "desktopSafe": true
         },
         "haus.roster.<name>.appStoreId": {
+          "desktopSafe": true
+        },
+        "haus.roster.<name>.bin": {
+          "desktopSafe": true
+        },
+        "haus.roster.<name>.binPath": {
           "desktopSafe": true
         },
         "haus.roster.<name>.brew": {
@@ -1707,7 +1713,7 @@
         "keys",
         "tour"
       ],
-      "optionCount": 32,
+      "optionCount": 34,
       "order": 200,
       "title": "Shared surfaces"
     },

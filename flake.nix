@@ -1352,6 +1352,32 @@
             100 -> 1.000000
           '';
 
+          # ---- roster-bin-paths ------------------------------------------------
+          # `haus.roster.<name>.binPath` is where a roster entry's executable
+          # lands, computed from that entry's source and `scope`. The whole
+          # point is that no room spells it. This is what keeps that true.
+          #
+          # It is a check rather than a comment because the failure it replaces
+          # SPREADS and nothing notices: the literal below was hand-written at
+          # sixteen call sites in nine files across three rooms, and it grew by
+          # one — from a PR in an unrelated room, with no reason to know — inside
+          # the first afternoon of the roadmap box that counted it.
+          #
+          # `allowed` is per path and each entry earns its line. Anything else
+          # naming one of these strings, comment or code, is the bug: a comment
+          # that spells a derived path is a copy that rots exactly like a
+          # `let` binding does, and this file has watched that happen.
+          rosterOwnedPaths = [
+            {
+              path = "/run/current-system/sw/bin/sketchybar";
+              option = "haus.roster.sketchybar.binPath";
+              allowed = {
+                "modules/options.nix" = "the option's own documentation — the definition site";
+                "modules/bar/barpop.swift" = "a runtime FALLBACK CHAIN, not an address: barpop tries $SKETCHYBAR_BIN (which the bar passes from binPath) first and only then walks this list, so it still finds a bar on a machine mid-migration";
+              };
+            }
+          ];
+
           # ---- state-files -----------------------------------------------------
           # ../lib/state-files.nix names the files under ~/.local/state/haus that
           # one room WRITES and another READS. Those pairs are joined by nothing
@@ -3150,6 +3176,64 @@
               echo 'type, not for the ones we ship.' >&2
               exit 1
             }
+            touch $out
+          '';
+
+          roster-bin-paths = pkgs.runCommand "haus-roster-bin-paths-ok" { } ''
+            mods=${./modules}
+            fail=0
+${builtins.concatStringsSep "\n" (
+              map (
+                p:
+                let
+                  files = builtins.attrNames p.allowed;
+                  say = text: "echo ${nixpkgs.lib.escapeShellArg text} >&2";
+                in
+                ''
+                  # `|| true` on the grep, then a separate emptiness test: a repo
+                  # where NOBODY names this path is the good state, and grep's
+                  # exit 1 must not read as a build failure.
+                  found=$(grep -rlF -- ${nixpkgs.lib.escapeShellArg p.path} "$mods" || true)
+                  stray=""
+                  for f in $found; do
+                    rel="modules/''${f#$mods/}"
+                    case "$rel" in
+                    ${builtins.concatStringsSep "\n                    " (map (a: "${a}) ;;") files)}
+                      *) stray="$stray $rel" ;;
+                    esac
+                  done
+                  if [ -n "$stray" ]; then
+                    ${say "these files spell ${p.path} by hand:"}
+                    for f in $stray; do echo "  $f" >&2; done
+                    echo >&2
+                    ${say "That path is computed — ${p.option} — from that roster entry's"}
+                    ${say "install source and its `scope`. Name the option instead:"}
+                    ${say "  a Nix room reads it directly;"}
+                    ${say "  a shell script takes it substituted, or from the generated"}
+                    ${say "  ~/.config/sketchybar/bar.sh (\$BAR_TOP / \$BAR_BOTTOM / \$SB)."}
+                    echo >&2
+                    ${say "The files that may still name it, and why:"}
+                    ${builtins.concatStringsSep "\n                    " (
+                      map (a: say "  ${a} — ${p.allowed.${a}}") files
+                    )}
+                    fail=1
+                  fi
+
+                  # And the allowlist itself must not go stale: a file listed
+                  # here that no longer names the path is an exemption outliving
+                  # its reason, which is how an allowlist becomes a hole.
+                  ${builtins.concatStringsSep "\n                  " (
+                    map (
+                      a:
+                      "grep -qF -- ${nixpkgs.lib.escapeShellArg p.path} "
+                      + "\"$mods/${nixpkgs.lib.removePrefix "modules/" a}\" 2>/dev/null || "
+                      + "{ ${say "${a} is exempted from the ${p.path} check and no longer names it. Drop the exemption."} ; fail=1; }"
+                    ) files
+                  )}
+                ''
+              ) rosterOwnedPaths
+            )}
+            [ "$fail" = 0 ] || exit 1
             touch $out
           '';
 

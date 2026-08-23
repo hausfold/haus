@@ -13,7 +13,16 @@ let
   # `awake` is both an end-user CLI and the program behind its launchd-owned
   # caffeinate assertion. Keeping one derivation here means the optional bar
   # pill is only a view/controller; the wake lock survives bar/shell restarts.
-  awake = pkgs.writeShellScriptBin "awake" (builtins.readFile ./awake.sh);
+  # `@sketchybar@` is haus.roster.sketchybar.binPath — where the ROSTER put the
+  # bar's binary, rather than a profile path this room guesses at. core does not
+  # depend on the bar room for it: the roster is the cross-room registry, and the
+  # `or ""` is the machine with no bar at all, which awake.sh's own `[ -x ]`
+  # guard already handles. See options-roadmap.md §5.4.
+  awake = pkgs.writeShellScriptBin "awake" (
+    builtins.replaceStrings [ "@sketchybar@" ] [
+      (config.haus.roster.sketchybar.binPath or "")
+    ] (builtins.readFile ./awake.sh)
+  );
 
   # `lidawake` is the other half of the same story and deliberately NOT another
   # verb on `awake`: caffeinate cannot cross a lid close, so this one drives

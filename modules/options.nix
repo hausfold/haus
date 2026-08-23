@@ -1,246 +1,338 @@
 # Host-provided identity. These are the values that are personal to YOU rather
 # than part of the rice — a host file (see hosts/example) sets them.
-{ lib, config, ... }:
+{
+  lib,
+  config,
+  username,
+  ...
+}:
 
 let
-  appType = lib.types.submodule {
-    options = {
-      enable = lib.mkOption {
-        type = lib.types.bool;
-        default = true;
-        description = "Whether this app participates in the shared launcher roster.";
-      };
-      order = lib.mkOption {
-        type = lib.types.int;
-        default = 1000;
-        description = "Roster order; lower values appear first. Ties are sorted by app id.";
-      };
-      key = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        example = "s";
-        description = ''
-          The leader letter for this app: tap Caps Lock then this key to
-          launch/focus it. Must be unique across the roster, and not one of
-          launch mode's own: `v` `f` `z` `,` `.` `` ` `` `-` `=` `/` `esc`, the
-          arrows and one digit per numbered workspace (`1`-`4` out of the box;
-          see haus.windows.numberedWorkspaces) are taken, and a rebuild refuses
-          them.
-
-          null (the default) means the entry is INSTALL-ONLY: it still
-          brings its cask/formula/package, but claims no leader key, no
-          cheatsheet row, and no launch-mode bubble. That is what lets one
-          roster hold both the apps you reach for by keyboard and the ones
-          you just want on the machine (and fonts, and CLI tools).
-        '';
-      };
-      name = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        example = "Slack";
-        description = ''
-          macOS application name, as passed to `open -a`. Required when
-          `key` is set (the launcher has nothing to open otherwise);
-          null is right for an install-only entry — a font, a CLI tool, or
-          an app you launch some other way.
-        '';
-      };
-      appId = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        example = "com.tinyspeck.slackmacgap";
-        description = ''
-          Bundle id, used for the AeroSpace `on-window-detected` auto-assign
-          rule (when this app is a member of a `haus.workspaces` entry),
-          the `float` rule below, and the wake-time re-sort. null skips both
-          — the app still launches, it just isn't herded anywhere or floated.
-          Find one with `osascript -e 'id of app "…"'`.
-        '';
-      };
-      float = lib.mkOption {
-        type = lib.types.bool;
-        default = false;
-        description = ''
-          Always float this app's windows instead of tiling them — an
-          AeroSpace `on-window-detected` rule generated from `appId`
-          (`run = 'layout floating'`). Right for a picker/dialog/status
-          window that would otherwise reflow the whole workspace every time
-          it opens (FaceTime, Trill's Settings/Inbox), not for something
-          you work inside. Requires `appId`; ignored (with a warning) without it.
-        '';
-      };
-      titleRegex = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        example = "^Picture in Picture$";
-        description = ''
-          Scope `float` to windows of this app whose title matches this
-          regex (AeroSpace's `window-title-regex-substring`), instead of
-          every window the app opens. null (default) floats all of them.
-
-          Some apps' windows report their title only AFTER AeroSpace has
-          already detected and tiled them once (a race, not a bug this
-          option can fix) — Ghostty is the known case, which is why
-          haus's own Ghostty float rule is hand-written in aerospace.toml
-          rather than generated from the roster. If a title rule flaps,
-          that race is almost certainly why. Ignored when `float` is false.
-        '';
-      };
-      label = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        example = "Slack";
-        description = "Cheatsheet caption for the leader key. null uses name.";
-      };
-      # ---- where it comes from -------------------------------------------
-      # Four sources, one per package manager, all optional. Set the one that
-      # applies and declaring the app is what installs it; set none and the
-      # entry is pure metadata for something already on the machine (Safari,
-      # Music, an app you drag in by hand).
-      cask = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        example = "slack";
-        description = ''
-          Homebrew cask that installs this app. When set, it's appended to
-          homebrew.casks so declaring the app also installs it. null means
-          "already present / installed some other way" (e.g. Safari, Music).
-        '';
-      };
-      brew = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        example = "ical-buddy";
-        description = ''
-          Homebrew FORMULA that installs this entry, appended to
-          homebrew.brews. For the command-line half of the roster — a tool
-          with no .app bundle, which usually means `key`, `name` and
-          `workspace` are all null.
-        '';
-      };
-      package = lib.mkOption {
-        type = lib.types.nullOr lib.types.package;
-        default = null;
-        example = lib.literalExpression "pkgs.orbstack";
-        description = ''
-          Nixpkgs package that installs this entry. Where it lands is
-          `scope`'s call.
-
-          A shared desktop can't set this one — it needs `pkgs`, and a data-only
-          desktop has no arguments. Use `packageName` there.
-        '';
-      };
-      packageName = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        example = "orbstack";
-        description = ''
-          The same source as `package`, NAMED rather than evaluated: an
-          attribute path into nixpkgs, so "orbstack" means `pkgs.orbstack` and
-          "python3Packages.black" means what it says. `scope` applies to it
-          identically.
-
-          This is the source a shared desktop can use — see `haus.apps.packs`,
-          and `modules/apps/packs/writing.nix` for a saved collection written
-          this way. Without it a data-only file could install from Homebrew and
-          the App Store but never from Nixpkgs, because reaching `pkgs` is
-          exactly what the data-only format forbids — the one gap in the four
-          sources.
-
-          Set this or `package`, never both; and it counts as a source like any
-          other, so pairing it with `cask` is the same mistake as pairing
-          `cask` with `brew`.
-        '';
-      };
-      scope = lib.mkOption {
-        type = lib.types.enum [
-          "user"
-          "system"
-        ];
-        default = "user";
-        description = ''
-          Which profile `package` installs into.
-
-          - "user" (default): home-manager's `home.packages`. Right for
-            anything you run as yourself — apps, editors, CLI tools.
-          - "system": nix-darwin's `environment.systemPackages`. Installed
-            once for the whole machine, so it's on PATH for root, for
-            non-login shells, and for launchd jobs — which is what a tool
-            invoked by a daemon, a `sudo` workflow, or an activation script
-            actually needs. (It is about REACH, not about the package
-            needing elevated privileges to install: `darwin-rebuild` runs
-            under sudo either way.)
-
-          Ignored when `package` is null — Homebrew has no such split.
-
-          **It is also a path, wherever a module addresses the binary.**
-          "system" is what puts the package at
-          `/run/current-system/sw/bin/<name>`, and a room that runs a tool
-          from launchd — where nothing nix-shaped is on PATH — has to spell
-          that path out. `sketchybar` is the live case: its launchd agent,
-          `barpop`, `bar-bottom` and every bar plugin name it that way, so
-          moving that entry to "user" leaves the bar pointing at nothing and
-          drawing nothing. Two neighbouring edits do the same thing without
-          touching `scope` at all — dropping its nixpkgs source
-          (`package = lib.mkForce null` with no `packageName`; merely ADDING
-          a `brew` does not, since the bar sets `package` at `mkDefault`),
-          and `enable = false`, which filters the entry out before anything
-          installs it.
-
-          So an entry haus itself declares and addresses by path is not the
-          plain metadata it looks like: the bar room asserts on all three,
-          and a room of yours that names a path should too.
-        '';
-      };
-      appStoreId = lib.mkOption {
-        type = lib.types.nullOr lib.types.int;
-        default = null;
-        example = 497799835;
-        description = ''
-          Mac App Store numeric app id (the digits in its store URL), so an
-          App Store app is declared in the same roster as everything else
-          rather than in a comment.
-
-          Recording it is always safe; INSTALLING from it is opt-in via
-          `haus.appStore.install`, because the App Store is the one
-          source that can't be fully automated: `mas` has no sign-in
-          command, and it cannot buy a paid app for the first time. Free
-          apps it can fetch; paid ones you purchase once in App Store.app
-          and every machine afterwards can install them.
-        '';
-      };
-      installedBy = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        example = "haus.shelf";
-        description = ''
-          The haus module that puts this app on disk, when none of the
-          four sources above describes it: the launcher and the shelf copy a
-          notarized bundle into /Applications from their own activation
-          step, which is neither a cask nor a package you can list.
-
-          Set BY haus, not by you. It exists so the roster can still
-          answer "who installed this?" for those apps — without it, a host
-          adding a leader key for Perch had to KNOW haus already ships
-          it, leave every source field null, and leave a comment explaining
-          the hole. This is that comment, as data.
-        '';
-      };
-      id = lib.mkOption {
-        type = lib.types.str;
-        default = "";
-        internal = true;
-        description = ''
-          The roster key this entry was declared under. Set BY ../roster
-          from the attribute name — the same "set by haus, not by you"
-          pattern as `installedBy` — so a resolved entry can be looked up
-          in a `haus.workspaces` entry's `apps` membership list
-          without roster and workspaces having to re-derive each other's
-          keys.
-        '';
-      };
-    };
+  # Where each install source puts an executable. `binPath` below is the only
+  # reader; it is spelled out here so the four answers sit in one place and a
+  # room that needs a path never has to know which of them applied.
+  #
+  # "user" is `/etc/profiles/per-user/<you>/bin`, NOT `~/.nix-profile/bin`:
+  # home-manager runs as a nix-darwin module with `useUserPackages = true`, which
+  # is what moves the per-user profile under /etc. Getting this wrong would be
+  # invisible at eval and a dead path at runtime, which is the whole failure
+  # this option exists to end.
+  profileBin = {
+    system = "/run/current-system/sw/bin";
+    user = "/etc/profiles/per-user/${username}/bin";
+    brew = "/opt/homebrew/bin";
   };
+
+  appType = lib.types.submodule (
+    { config, name, ... }:
+    {
+      options = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = true;
+          description = "Whether this app participates in the shared launcher roster.";
+        };
+        order = lib.mkOption {
+          type = lib.types.int;
+          default = 1000;
+          description = "Roster order; lower values appear first. Ties are sorted by app id.";
+        };
+        key = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          example = "s";
+          description = ''
+            The leader letter for this app: tap Caps Lock then this key to
+            launch/focus it. Must be unique across the roster, and not one of
+            launch mode's own: `v` `f` `z` `,` `.` `` ` `` `-` `=` `/` `esc`, the
+            arrows and one digit per numbered workspace (`1`-`4` out of the box;
+            see haus.windows.numberedWorkspaces) are taken, and a rebuild refuses
+            them.
+
+            null (the default) means the entry is INSTALL-ONLY: it still
+            brings its cask/formula/package, but claims no leader key, no
+            cheatsheet row, and no launch-mode bubble. That is what lets one
+            roster hold both the apps you reach for by keyboard and the ones
+            you just want on the machine (and fonts, and CLI tools).
+          '';
+        };
+        name = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          example = "Slack";
+          description = ''
+            macOS application name, as passed to `open -a`. Required when
+            `key` is set (the launcher has nothing to open otherwise);
+            null is right for an install-only entry — a font, a CLI tool, or
+            an app you launch some other way.
+          '';
+        };
+        appId = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          example = "com.tinyspeck.slackmacgap";
+          description = ''
+            Bundle id, used for the AeroSpace `on-window-detected` auto-assign
+            rule (when this app is a member of a `haus.workspaces` entry),
+            the `float` rule below, and the wake-time re-sort. null skips both
+            — the app still launches, it just isn't herded anywhere or floated.
+            Find one with `osascript -e 'id of app "…"'`.
+          '';
+        };
+        float = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+          description = ''
+            Always float this app's windows instead of tiling them — an
+            AeroSpace `on-window-detected` rule generated from `appId`
+            (`run = 'layout floating'`). Right for a picker/dialog/status
+            window that would otherwise reflow the whole workspace every time
+            it opens (FaceTime, Trill's Settings/Inbox), not for something
+            you work inside. Requires `appId`; ignored (with a warning) without it.
+          '';
+        };
+        titleRegex = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          example = "^Picture in Picture$";
+          description = ''
+            Scope `float` to windows of this app whose title matches this
+            regex (AeroSpace's `window-title-regex-substring`), instead of
+            every window the app opens. null (default) floats all of them.
+
+            Some apps' windows report their title only AFTER AeroSpace has
+            already detected and tiled them once (a race, not a bug this
+            option can fix) — Ghostty is the known case, which is why
+            haus's own Ghostty float rule is hand-written in aerospace.toml
+            rather than generated from the roster. If a title rule flaps,
+            that race is almost certainly why. Ignored when `float` is false.
+          '';
+        };
+        label = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          example = "Slack";
+          description = "Cheatsheet caption for the leader key. null uses name.";
+        };
+        # ---- where it comes from -------------------------------------------
+        # Four sources, one per package manager, all optional. Set the one that
+        # applies and declaring the app is what installs it; set none and the
+        # entry is pure metadata for something already on the machine (Safari,
+        # Music, an app you drag in by hand).
+        cask = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          example = "slack";
+          description = ''
+            Homebrew cask that installs this app. When set, it's appended to
+            homebrew.casks so declaring the app also installs it. null means
+            "already present / installed some other way" (e.g. Safari, Music).
+          '';
+        };
+        brew = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          example = "ical-buddy";
+          description = ''
+            Homebrew FORMULA that installs this entry, appended to
+            homebrew.brews. For the command-line half of the roster — a tool
+            with no .app bundle, which usually means `key`, `name` and
+            `workspace` are all null.
+          '';
+        };
+        package = lib.mkOption {
+          type = lib.types.nullOr lib.types.package;
+          default = null;
+          example = lib.literalExpression "pkgs.orbstack";
+          description = ''
+            Nixpkgs package that installs this entry. Where it lands is
+            `scope`'s call.
+
+            A shared desktop can't set this one — it needs `pkgs`, and a data-only
+            desktop has no arguments. Use `packageName` there.
+          '';
+        };
+        packageName = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          example = "orbstack";
+          description = ''
+            The same source as `package`, NAMED rather than evaluated: an
+            attribute path into nixpkgs, so "orbstack" means `pkgs.orbstack` and
+            "python3Packages.black" means what it says. `scope` applies to it
+            identically.
+
+            This is the source a shared desktop can use — see `haus.apps.packs`,
+            and `modules/apps/packs/writing.nix` for a saved collection written
+            this way. Without it a data-only file could install from Homebrew and
+            the App Store but never from Nixpkgs, because reaching `pkgs` is
+            exactly what the data-only format forbids — the one gap in the four
+            sources.
+
+            Set this or `package`, never both; and it counts as a source like any
+            other, so pairing it with `cask` is the same mistake as pairing
+            `cask` with `brew`.
+          '';
+        };
+        scope = lib.mkOption {
+          type = lib.types.enum [
+            "user"
+            "system"
+          ];
+          default = "user";
+          description = ''
+            Which profile `package` installs into.
+
+            - "user" (default): home-manager's `home.packages`. Right for
+              anything you run as yourself — apps, editors, CLI tools.
+            - "system": nix-darwin's `environment.systemPackages`. Installed
+              once for the whole machine, so it's on PATH for root, for
+              non-login shells, and for launchd jobs — which is what a tool
+              invoked by a daemon, a `sudo` workflow, or an activation script
+              actually needs. (It is about REACH, not about the package
+              needing elevated privileges to install: `darwin-rebuild` runs
+              under sudo either way.)
+
+            Ignored when `package` is null — Homebrew has no such split.
+
+            **It is also a path, wherever a module addresses the binary.**
+            "system" is what puts the package at
+            `/run/current-system/sw/bin/<name>`, and a room that runs a tool
+            from launchd — where nothing nix-shaped is on PATH — has to spell
+            that path out. `sketchybar` is the live case: its launchd agent,
+            `barpop`, `bar-bottom` and every bar plugin name it that way, so
+            moving that entry to "user" leaves the bar pointing at nothing and
+            drawing nothing. Two neighbouring edits do the same thing without
+            touching `scope` at all — dropping its nixpkgs source
+            (`package = lib.mkForce null` with no `packageName`; merely ADDING
+            a `brew` does not, since the bar sets `package` at `mkDefault`),
+            and `enable = false`, which filters the entry out before anything
+            installs it.
+
+            So an entry haus itself declares and addresses by path is not the
+            plain metadata it looks like: the bar room asserts on all three,
+            and a room of yours that names a path should too.
+          '';
+        };
+        bin = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          example = "icalBuddy";
+          description = ''
+            The executable this entry installs, when it is not the roster key.
+            `ical-buddy` ships `icalBuddy`; most entries ship their own name and
+            leave this null.
+
+            Only `binPath` reads it. It is not a source and it installs nothing —
+            set it when a room has to RUN this entry rather than launch its
+            bundle.
+          '';
+        };
+        binPath = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          readOnly = true;
+          description = ''
+            Where this entry's executable lands — **computed, not set.** The
+            answer `scope` implies, spelled once, so a room that runs a tool
+            names this instead of hardcoding a profile path:
+
+              haus.roster.sketchybar.binPath
+                → "/run/current-system/sw/bin/sketchybar"     scope = "system"
+                → "/etc/profiles/per-user/<you>/bin/sketchybar"  scope = "user"
+
+            null when nothing here installs an executable at a path haus can
+            name: a `cask`, an `appStoreId` or an `installedBy` entry puts an
+            .app somewhere rather than a binary. **That null is the point** — a
+            room can assert on it, where a hardcoded string would simply be
+            wrong and stay wrong.
+
+            Why it exists: `scope` reads as metadata about reach and is also a
+            filesystem contract, because "system" is what puts a package at
+            `/run/current-system/sw/bin`. Before this option, the one live case
+            — sketchybar, addressed by its launchd agent, `barpop`, `bar-bottom`,
+            `aerospace-notify.sh` and the bar plugins — spelled that path by hand
+            at sixteen call sites in nine files across three rooms, and moving
+            the entry between sources was a sixteen-spelling sweep that no check
+            could see. A host writing `scope = "user"` picked a documented value
+            and the bar stopped drawing, with nothing anywhere saying why.
+
+            The generalisable form: any roster entry another module addresses by
+            path has a scope precondition, and this is the registry carrying it
+            rather than each room re-deriving it.
+          '';
+        };
+        appStoreId = lib.mkOption {
+          type = lib.types.nullOr lib.types.int;
+          default = null;
+          example = 497799835;
+          description = ''
+            Mac App Store numeric app id (the digits in its store URL), so an
+            App Store app is declared in the same roster as everything else
+            rather than in a comment.
+
+            Recording it is always safe; INSTALLING from it is opt-in via
+            `haus.appStore.install`, because the App Store is the one
+            source that can't be fully automated: `mas` has no sign-in
+            command, and it cannot buy a paid app for the first time. Free
+            apps it can fetch; paid ones you purchase once in App Store.app
+            and every machine afterwards can install them.
+          '';
+        };
+        installedBy = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          example = "haus.shelf";
+          description = ''
+            The haus module that puts this app on disk, when none of the
+            four sources above describes it: the launcher and the shelf copy a
+            notarized bundle into /Applications from their own activation
+            step, which is neither a cask nor a package you can list.
+
+            Set BY haus, not by you. It exists so the roster can still
+            answer "who installed this?" for those apps — without it, a host
+            adding a leader key for Perch had to KNOW haus already ships
+            it, leave every source field null, and leave a comment explaining
+            the hole. This is that comment, as data.
+          '';
+        };
+        id = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          internal = true;
+          description = ''
+            The roster key this entry was declared under. Set BY ../roster
+            from the attribute name — the same "set by haus, not by you"
+            pattern as `installedBy` — so a resolved entry can be looked up
+            in a `haus.workspaces` entry's `apps` membership list
+            without roster and workspaces having to re-derive each other's
+            keys.
+          '';
+        };
+      };
+
+    config =
+      let
+        # The roster key is the executable's name for nearly every entry; `bin`
+        # is the escape hatch for the ones where it isn't.
+        binName = if config.bin != null then config.bin else name;
+      in
+      {
+        # Computed, never written. The rule is deliberately narrow: a path only
+        # where haus KNOWS one, null everywhere else. A cask or an App Store app
+        # installs a bundle rather than a binary, and `installedBy` covers the
+        # apps a room copies into /Applications itself — none of those has an
+        # executable at a path this layer can name, and guessing one would hand
+        # a room a string that is wrong instead of a null it can assert on.
+        binPath =
+          if config.package != null || config.packageName != null then
+            "${profileBin.${config.scope}}/${binName}"
+          else if config.brew != null then
+            "${profileBin.brew}/${binName}"
+          else
+            null;
+      };
+    }
+  );
 
   workspaceType = lib.types.submodule {
     options = {

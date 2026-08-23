@@ -4476,6 +4476,46 @@
     "readOnly": false,
     "type": "null or signed integer"
   },
+  "haus.roster.<name>.bin": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "The executable this entry installs, when it is not the roster key.\n`ical-buddy` ships `icalBuddy`; most entries ship their own name and\nleave this null.\n\nOnly `binPath` reads it. It is not a source and it installs nothing —\nset it when a room has to RUN this entry rather than launch its\nbundle.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"icalBuddy\""
+    },
+    "loc": [
+      "haus",
+      "roster",
+      "<name>",
+      "bin"
+    ],
+    "readOnly": false,
+    "type": "null or string"
+  },
+  "haus.roster.<name>.binPath": {
+    "declarations": [
+      "modules/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "null"
+    },
+    "description": "Where this entry's executable lands — **computed, not set.** The\nanswer `scope` implies, spelled once, so a room that runs a tool\nnames this instead of hardcoding a profile path:\n\n  haus.roster.sketchybar.binPath\n    → \"/run/current-system/sw/bin/sketchybar\"     scope = \"system\"\n    → \"/etc/profiles/per-user/<you>/bin/sketchybar\"  scope = \"user\"\n\nnull when nothing here installs an executable at a path haus can\nname: a `cask`, an `appStoreId` or an `installedBy` entry puts an\n.app somewhere rather than a binary. **That null is the point** — a\nroom can assert on it, where a hardcoded string would simply be\nwrong and stay wrong.\n\nWhy it exists: `scope` reads as metadata about reach and is also a\nfilesystem contract, because \"system\" is what puts a package at\n`/run/current-system/sw/bin`. Before this option, the one live case\n— sketchybar, addressed by its launchd agent, `barpop`, `bar-bottom`,\n`aerospace-notify.sh` and the bar plugins — spelled that path by hand\nat sixteen call sites in nine files across three rooms, and moving\nthe entry between sources was a sixteen-spelling sweep that no check\ncould see. A host writing `scope = \"user\"` picked a documented value\nand the bar stopped drawing, with nothing anywhere saying why.\n\nThe generalisable form: any roster entry another module addresses by\npath has a scope precondition, and this is the registry carrying it\nrather than each room re-deriving it.\n",
+    "loc": [
+      "haus",
+      "roster",
+      "<name>",
+      "binPath"
+    ],
+    "readOnly": true,
+    "type": "null or string"
+  },
   "haus.roster.<name>.brew": {
     "declarations": [
       "modules/options.nix"
