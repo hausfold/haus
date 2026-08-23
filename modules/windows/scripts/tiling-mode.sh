@@ -128,9 +128,13 @@ n=${#ids[@]}
 # The commands, accumulated as one `;`-joined string for the single eval below.
 # balance-sizes runs on the flat row, before any joining: it is what makes every
 # column start out equal, which is the assumption the width arithmetic rests on.
-cmds="flatten-workspace-tree --workspace $ws"
-cmds="$cmds; layout --workspace $ws --root h_tiles"
-cmds="$cmds; balance-sizes --workspace $ws"
+# The workspace name is quoted INSIDE the expression: `aerospace eval` splits on
+# whitespace like a shell and honours double quotes, and a workspace name is
+# haus.workspaces data — a name with a space in it would otherwise take the
+# whole batch apart, silently, since the eval's stderr is dropped below.
+cmds="flatten-workspace-tree --workspace \"$ws\""
+cmds="$cmds; layout --workspace \"$ws\" --root h_tiles"
+cmds="$cmds; balance-sizes --workspace \"$ws\""
 
 if [ "$next" = grid ] && [ "$n" -gt 1 ]; then
     # ceil(sqrt(n)) columns, filled base-first so the SHORT columns come first:
@@ -157,7 +161,12 @@ if [ "$next" = grid ] && [ "$n" -gt 1 ]; then
     read -r width gap < <("$HAUSRECT" "${ids[@]}" 2>/dev/null | awk '
         { x[NR] = $2; y[NR] = $3; w[NR] = $4; h[NR] = $5
           if (lo == "" || $2 < lo) lo = $2
-          if ($2 + $4 > hi) hi = $2 + $4 }
+          # NR == 1 rather than a bare `>`: an uninitialised awk variable
+          # compares as 0, so on a monitor whose tiled area ends left of the
+          # origin — anything placed to the LEFT of the primary display, where
+          # every x is negative — `hi` would stick at 0 and the width would come
+          # out as -min(x). `lo` has the guard already; this is its other half.
+          if (NR == 1 || $2 + $4 > hi) hi = $2 + $4 }
         END {
           for (i in x) for (j in x) if (i != j) {
             d = x[j] - (x[i] + w[i]); if (d > 0 && (g == 0 || d < g)) g = d
@@ -190,7 +199,15 @@ if [ "$next" = grid ] && [ "$n" -gt 1 ]; then
         j=0
         while [ "$j" -lt $((cols - 1)) ]; do
             d=$(( content * (counts[j] - last) * (cols - 1) / (n * cols) ))
-            [ "$d" -ne 0 ] && cmds="$cmds; resize --window-id ${ids[${starts[$j]}]} width $d"
+            # printf '%+d', never a bare "$d": `resize width <n>` takes an
+            # UNSIGNED number as an ABSOLUTE width and only a signed one as a
+            # delta. Every d here is negative today because `counts` is built
+            # non-decreasing, so `last` is the widest and nothing needs to grow
+            # — deal the columns tall-first instead and a bare "$d" would
+            # quietly SET a column to 179 points rather than shrink it by that
+            # much. Signed, the arithmetic stays true whatever the fill order.
+            [ "$d" -ne 0 ] &&
+                cmds="$cmds; resize --window-id ${ids[${starts[$j]}]} width $(printf '%+d' "$d")"
             j=$((j + 1))
         done
     fi

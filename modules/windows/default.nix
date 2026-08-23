@@ -625,7 +625,7 @@ lib.mkMerge [
           "haus.roster leader keys must not reuse a built-in launch-mode key; conflicting: "
           + lib.concatStringsSep ", " rosterBuiltinCollisions
           + ". Those letters are leader actions haus already binds (v clipboard, f Find Files, "
-          + "z reopen-last-app, , settings, . tiling cycle, ` resort, - / = resize, digits and "
+          + "z reopen-last-app, , settings, . tiling flip, ` resort, - / = resize, digits and "
           + "arrows for "
           + "workspaces). Pick another letter for the app, or set its key to null and reach it "
           + "from the palette. If the entry came from a shared desktop, override just "
