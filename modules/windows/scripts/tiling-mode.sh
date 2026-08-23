@@ -17,14 +17,30 @@
 #               5  one full-height fifth,    n  ceil(sqrt(n)) columns, same rule
 #                  then 2x2                     (no special case above 9)
 #
-# GLOBAL state on purpose (one file, not one per workspace): whichever workspace
-# is focused when you press the key is the one that gets reshaped, and the state
-# remembers which mode is ON. Pressing the key alternates, so landing back on a
-# mode you already picked reapplies it fresh -- the "spin the dial until it's
-# right again" feel, without a live daemon fighting your manual resizes in
+# The state is PER WORKSPACE, keyed by name in one file: whichever workspace is
+# focused when you press the key is the one that gets reshaped, and the file
+# remembers which mode is on THERE. Pressing the key alternates, so landing back
+# on a mode you already picked reapplies it fresh -- the "spin the dial until
+# it's right again" feel, without a live daemon fighting your manual resizes in
 # between presses. (AeroSpace fires no window-CLOSED event, only
 # on-window-detected for opens, so a continuously-enforced mode would have to
 # poll; a one-shot press needs nothing running between presses.)
+#
+# It was one machine-wide word until the bar started reading it. A global dial
+# is defensible for the KEY -- you press it until the workspace in front of you
+# looks right, and where the dial was last is as good a starting point as any --
+# but it is not defensible for a PILL: switch to a workspace you have never
+# cycled and a global state file would have the bar assert "Grid" over three
+# plain columns, with no press coming that would make it true. Keyed by
+# workspace, the pill can only ever claim what was actually done to the
+# workspace you are looking at.
+#
+# Trimmed to the last 32 entries on every write, because pages are workspaces
+# too (`T/<repo>`, made and evaporated by the lane machinery all day) and an
+# untrimmed file would accrete one line per page forever. Falling off the end
+# costs a workspace its remembered mode, which reads as "columns" and makes the
+# next press deal a grid -- the same thing a workspace you have never cycled
+# does.
 #
 # ── one eval, one reflow ─────────────────────────────────────────────────────
 # EVERY aerospace command below is concatenated into a SINGLE `aerospace eval`.
@@ -106,10 +122,12 @@ mkdir -p "$(dirname "$STATE")"
 ws=$("$AEROSPACE" list-workspaces --focused 2>/dev/null) || exit 0
 [ -z "$ws" ] && exit 0
 
-# The file holds the mode that is ON, and the press alternates. Anything else in
-# it — an empty file on a fresh machine, or the `spiral` that used to be the
-# third mode — reads as "not grid", so the first press lands on grid.
-case "$(cat "$STATE" 2>/dev/null)" in
+# `<workspace>\t<mode>`, last line for a workspace wins. Anything that doesn't
+# parse as a line for THIS workspace — a fresh machine, a workspace never
+# cycled, or the single bare `columns`/`spiral`/`grid` word the file used to
+# hold before it was keyed — reads as "not grid", so the first press lands on
+# grid.
+case "$(awk -F'\t' -v ws="$ws" '$1 == ws { m = $2 } END { print m }' "$STATE" 2>/dev/null)" in
     grid) next=columns ;;
     *) next=grid ;;
 esac
@@ -218,7 +236,15 @@ fi
 # every second press, on a keybinding nobody is reading a log for.
 "$AEROSPACE" eval -- "$cmds" >/dev/null 2>&1
 
-echo "$next" >"$STATE"
+# Rewrite in place: this workspace's old line dropped, the new one appended, the
+# whole thing trimmed from the FRONT so the most recently cycled workspaces are
+# the ones that survive. Written through a temp file in the same directory so a
+# reader (the bar, on its 2 s tick) never sees a half-written file.
+tmp="$STATE.$$"
+{
+    awk -F'\t' -v ws="$ws" '$1 != ws' "$STATE" 2>/dev/null
+    printf '%s\t%s\n' "$ws" "$next"
+} | tail -n 32 >"$tmp" && mv "$tmp" "$STATE"
 
 # Repaint the bar's tiling pill NOW rather than up to 2 s later on
 # aerospace_watcher.sh's next tick. Same shape as the fullscreen keybinding's

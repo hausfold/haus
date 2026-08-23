@@ -68,6 +68,6 @@ done
 # Unquoted on purpose — the helper echoes space-separated `key=value` words with
 # no spaces inside any value, and each has to reach sketchybar as its own arg.
 ARGS+=(--set front_app $(fullscreen_front_app_args "$FULLSCREEN"))
-[ "${BAR_TILING:-0}" = 1 ] && ARGS+=(--set tiling $(aerospace_tiling_args))
+[ "${BAR_TILING:-0}" = 1 ] && ARGS+=(--set tiling $(aerospace_tiling_args "$CURRENT"))
 
 /run/current-system/sw/bin/sketchybar "${ARGS[@]}"

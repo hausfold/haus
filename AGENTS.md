@@ -160,7 +160,10 @@ modules/
   terminal/               # shell: zsh, starship, git, yazi, ghostty + zmx + theming
                           #   + floatring (Swift, xcrun-compiled): the outline every
                           #   window float-term.sh spawns wears (haus.terminal.floatBorder)
-  windows/                # AeroSpace tiling
+  windows/                # AeroSpace tiling + hausrect (Swift, xcrun-compiled):
+                          #   on-screen window rects by window id, which AeroSpace
+                          #   has no way to report — the points scripts/
+                          #   tiling-mode.sh sizes its grid's columns in
   bar/                    # SketchyBar + barpop (Swift, xcrun-compiled): the pill
                           #   dropdowns' click-outside dismissal
   security/               # auth policy: Touch ID sudo + passwordless activation
@@ -344,10 +347,10 @@ mechanism, say so in one line.
   config lives in `/etc/nix/nix.custom.conf`. GC is our own weekly launchd job.
 - **The pounce build shells out to `/usr/bin/xcrun swiftc`** — needs Xcode CLT +
   the macOS build sandbox relaxed (Determinate's default). See the pounce repo.
-  So do this repo's four one-file Swift helpers, for the same reason (compiling
+  So do this repo's five one-file Swift helpers, for the same reason (compiling
   a Swift toolchain from source to build a few hundred lines against AppKit
   costs hours): `hausax` (core), `hausdisp` (displays), `barpop` (bar),
-  `floatring` (terminal).
+  `floatring` (terminal), `hausrect` (windows).
 
 ## Patterns
 

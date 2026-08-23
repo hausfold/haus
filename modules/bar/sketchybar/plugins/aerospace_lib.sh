@@ -76,12 +76,19 @@ fullscreen_active_ws_color() {
 # One window has no layout to be in, and a pill that said "Columns" over a
 # single maximised window would be furniture rather than information.
 #
-# It is a record of the last PRESS, not a live read of the tree: AeroSpace can
-# report a window's parent-container layout but not "is this workspace a grid",
-# and reconstructing that would cost a tree walk on a 2 s tick to answer a
-# question the state file already answers exactly. Open a window after dealing a
-# grid and the shape drifts from the label until the next press — which is the
-# same press that fixes the shape, so the label is never wrong for long.
+# It is a record of the last PRESS ON THIS WORKSPACE, not a live read of the
+# tree: AeroSpace can report a window's parent-container layout but not "is this
+# workspace a grid", and reconstructing that would cost a tree walk on a 2 s
+# tick to answer a question the state file already answers exactly. Open a
+# window after dealing a grid and the shape drifts from the label until the next
+# press — which is the same press that fixes the shape, so the label is never
+# wrong for long.
+#
+# The `$1 == ws` is the whole reason that last sentence is true. The state file
+# is keyed by workspace (windows/scripts/tiling-mode.sh), and was one
+# machine-wide word until this pill existed: under that, switching to a
+# workspace you had never cycled would light the pill with whatever the dial was
+# last set to somewhere else, and no press was coming to make it true.
 #
 # FLOATING windows are excluded from the count, because they are not in the tree
 # and tiling-mode.sh does not touch them: on this desk every Ghostty popup is
@@ -93,18 +100,23 @@ fullscreen_active_ws_color() {
 AEROSPACE_GRID_GLYPH=$(printf '\xEF\x80\x89')
 AEROSPACE_COLUMNS_GLYPH=$(printf '\xEF\x83\x9B')
 
-# The `--set tiling …` property arguments, for the caller's own batch. The
-# echoed words are space-free by construction, so the caller splits them
-# without quoting — the same contract fullscreen_front_app_args has.
+# The `--set tiling …` property arguments, for the caller's own batch. Takes the
+# focused workspace as its one argument — the caller has already asked for it,
+# and asking a second time would both cost another process on a 2 s tick and
+# open a window where the two answers disagree. The echoed words are space-free
+# by construction, so the caller splits them without quoting — the same contract
+# fullscreen_front_app_args has.
 aerospace_tiling_args() {
-    local tiled mode
-    tiled=$(/opt/homebrew/bin/aerospace list-windows --workspace focused \
+    local ws="$1" tiled mode
+    [ -z "$ws" ] && { echo "drawing=off"; return; }
+    tiled=$(/opt/homebrew/bin/aerospace list-windows --workspace "$ws" \
         --format '%{window-layout}' 2>/dev/null | grep -cv floating)
     if [ "${tiled:-0}" -lt 2 ]; then
         echo "drawing=off"
         return
     fi
-    mode=$(cat "$HOME/.local/state/haus/aerospace-tiling-mode" 2>/dev/null)
+    mode=$(awk -F'\t' -v ws="$ws" '$1 == ws { m = $2 } END { print m }' \
+        "$HOME/.local/state/haus/aerospace-tiling-mode" 2>/dev/null)
     if [ "$mode" = grid ]; then
         echo "drawing=on icon=$AEROSPACE_GRID_GLYPH label=Grid"
     else
