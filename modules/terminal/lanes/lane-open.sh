@@ -35,16 +35,18 @@
 #                 resolved to continue-the-newest or open-the-picker. Run it;
 #                 don't rebuild it, or a `holt <name> --pick` lands on the
 #                 picker holt just resolved away.
-#   HOLT_CHAT     the cwd the CONVERSATION lives in, which for a `holt child`
-#                 lane is the PARENT's checkout, not the lane's. Getting this
-#                 wrong is how a resumed child opens an empty session.
-#                 It is the parent's on the RESUME of a lane with no chat of
-#                 its own (holt's resume.go `chatHome`) and nowhere else: on
-#                 `open` — every `holt new`, and every `holt spawn --prompt` —
-#                 it is the lane's own checkout, because a first turn continues
-#                 nothing. Verified against holt 0.4.0 by dumping the hook's
-#                 environment, 2026-08-23. An empty spawned lane is NOT this
-#                 variable; see the scrub in the launcher below.
+#   HOLT_CHAT     the cwd the CONVERSATION lives in, which is NOT always the
+#                 lane's checkout: on the RESUME of a lane with no chat of its
+#                 own — a `holt child`, or a nested spawn — it is the PARENT's
+#                 checkout, because that is where the transcript this lane
+#                 belongs to lives (holt's resume.go, `chatHome`). Getting it
+#                 wrong is how a resumed child opens an empty session. On
+#                 `open` it is the lane's own checkout every time, `holt spawn
+#                 --prompt` included, because a first turn continues nothing.
+#                 Verified against holt 0.4.0 by dumping the hook's
+#                 environment, 2026-08-23; the same narrowing is still stated
+#                 flat in bar/sketchybar/plugins/agents-hook.sh. An empty
+#                 SPAWNED lane is not this variable — see the scrub below.
 #
 # Exit 0 = handled. Exit 3 = no opinion, use the built-in — which is what a
 # machine without zmx wants, so it stays exactly as good as it was before.
@@ -54,6 +56,61 @@ set -u
 # palette's Spawn Agent) with a bare PATH. Resolve our tools the way every
 # other rice script run from outside a shell does.
 export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/bin:/bin${PATH:+:$PATH}"
+
+# ── identities a lane must not inherit ───────────────────────────────────────
+# macOS `open` forwards the caller's environment to the app it launches — the
+# fact scripts/peek-run.sh already scrubs for and says so. It only bites when
+# an AGENT is the spawner (`holt spawn`, `holt child`, `holt new --open` from a
+# client's shell), because then the environment being forwarded is another
+# LANE's, and three things in it are wrong for the lane being born:
+#
+#   ZMX_SESSION       the fatal one. zmx injects it into every session it
+#                     hosts, and with it set `zmx attach <new> bash -lc …` does
+#                     not create the session HERE: the request goes to the
+#                     session it names, whose server makes the new one in ITS
+#                     OWN directory, with a default login shell, and DROPS the
+#                     command. Measured 2026-08-23 from a lane in haus, cwd
+#                     ~/code/workshop/haus: `zmx attach probe bash -lc 'sleep
+#                     45'` gave start_dir=<the LANE's checkout>, no `cmd=`, and
+#                     no sleep. That is the whole of the empty-lane bug — a row
+#                     with nothing in it, no client, and no window, because the
+#                     attach that was supposed to BECOME the window returned
+#                     instead. Only CREATION is affected; attaching to a
+#                     session that already exists is fine nested (measured the
+#                     same day), which is why scripts/raise-session.sh needs no
+#                     such line and scripts/launch.sh guards rather than scrubs.
+#   CLAUDE_CODE_*     the spawning CLIENT's conversation. agents-hook.sh
+#                     addresses the bar by $ZMX_SESSION and statusline.sh keys
+#                     its transcript map by it, so an heir to both would report
+#                     against the pane that made it; and a fresh agent holding
+#                     the spawner's session id and messaging socket is being
+#                     told it IS that conversation. Only the session-identity
+#                     names go: config-shaped ones (CLAUDE_CONFIG_DIR,
+#                     ANTHROPIC_*, and codex/opencode's CODEX_HOME and
+#                     OPENCODE_BIN_PATH) are a machine's settings and stay.
+#   HAUS_DESKTOP_OK   the one whose failure mode is someone's pointer moving:
+#                     a pane where the desktop guard was turned off for one
+#                     unattended run would hand every lane it spawns the same
+#                     exemption, on a Mac whose user is sitting at it.
+#
+# Named individually rather than swept by prefix: an unset that guesses is one
+# that silently takes a variable the next client needs.
+#
+# The scrub is HERE, in the hook process, and not only in the launcher, because
+# `open -a Ghostty` below leaks the same environment into the APPLICATION on a
+# cold start — and every window that instance opens afterwards (⌘N's
+# scripts/new-window.sh, restore-windows.sh, this file's own ghostty backend)
+# would inherit ZMX_SESSION and trip scripts/launch.sh's nested guard, so it
+# would get a bare `zsh -l` with no session at all: ⌘F, ⌘L, peek, restore and
+# the bar's rows quietly dead for the life of that Ghostty. Nothing in this
+# script reads any of these, so unsetting them up front costs nothing.
+leaked="ZMX_SESSION
+CLAUDECODE CLAUDE_CODE_SESSION_ID CLAUDE_CODE_HOST_SESSION_ID
+CLAUDE_CODE_CHILD_SESSION CLAUDE_CODE_MESSAGING_SOCKET
+CLAUDE_CODE_BRIDGE_SESSION_ID CLAUDE_CODE_ENTRYPOINT CLAUDE_PID
+HAUS_DESKTOP_OK"
+# shellcheck disable=SC2086 # deliberate word split: one name per unset argument
+unset $leaked
 
 command -v zmx >/dev/null 2>&1 || exit 3
 [ -n "${HOLT_COMMAND:-}" ] || exit 3
@@ -163,35 +220,13 @@ fi
   printf '#!/bin/bash\n'
   printf 'rm -f %q\n' "$launcher"
   printf 'export PATH="/opt/homebrew/bin:$PATH"\n'
-  # ── the window inherits the SPAWNER's environment ────────────────────────
-  # macOS `open` forwards the caller's environment to the app it launches —
-  # the same fact scripts/peek-run.sh scrubs for, and the one this file forgot.
-  # It only bites when an AGENT is the spawner (`holt spawn`, `holt child`,
-  # `holt new --open` from a client's shell), because then the environment
-  # being forwarded is another LANE's, and two identities in it are wrong for
-  # the window being born.
-  #
-  # ZMX_SESSION is the fatal one. zmx injects it into every session it hosts,
-  # and with it set `zmx attach <new> bash -lc …` does not create the session
-  # HERE: the request goes to the session ZMX_SESSION names, whose server makes
-  # the new one in ITS OWN directory, with a default login shell, and DROPS the
-  # command. Measured 2026-08-23, from a lane in haus and cwd ~/code/workshop/haus:
-  # `zmx attach probe bash -lc 'sleep 45'` produced start_dir=<the LANE's
-  # checkout>, no `cmd=`, and no sleep. That is the whole of the empty-lane bug
-  # — one row in `zmx ls` with nothing in it, no client, and no window, because
-  # the attach that was supposed to BECOME this window returned instead. Only
-  # CREATION is affected; attaching to a session that already exists is fine
-  # nested (measured the same day), which is why scripts/raise-session.sh needs
-  # no such line and scripts/launch.sh guards rather than scrubs.
-  #
-  # The client's own identity goes with it. agents-hook.sh addresses the bar by
-  # $ZMX_SESSION, so a client that inherited the spawner's would report the
-  # spawner's row; and a fresh agent handed CLAUDE_CODE_SESSION_ID, its
-  # messaging socket or CLAUDE_PID is being told it is the conversation that
-  # spawned it. Named individually rather than swept by prefix: an unset that
-  # guesses is one that silently takes a variable the next client needs.
-  printf 'unset ZMX_SESSION\n'
-  printf 'unset CLAUDECODE CLAUDE_CODE_SESSION_ID CLAUDE_CODE_CHILD_SESSION CLAUDE_CODE_MESSAGING_SOCKET CLAUDE_CODE_BRIDGE_SESSION_ID CLAUDE_CODE_ENTRYPOINT CLAUDE_PID\n'
+  # The same scrub again, inside the window. The one above cleans what THIS
+  # hook forwards; this one cleans what a Ghostty instance that was ALREADY
+  # running carries — the ghostty backend's AppleScript window is born inside
+  # whichever instance answers, which may have been cold-started from a lane's
+  # shell long before this run. Two lines, one list, no way for the window to
+  # come up holding another lane's session.
+  printf 'unset %s\n' "$(printf '%s' "$leaked" | tr '\n' ' ')"
   if [ "$backend" = aerospace ]; then
     printf '(\n'
     # ── which window is MINE ──────────────────────────────────────────────
