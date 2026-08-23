@@ -25,10 +25,13 @@
 # What this is NOT: an escaping story. It stops a desktop from DECLARING code —
 # no function, no activation script, no `imports` — and it keeps the leaves that
 # are later executed as commands host-only. It does not sanitise every string on
-# its way into a generated config; the one place a desktop-safe option takes
-# free-form keys (`attrs-of-string`) is narrowed here for exactly that reason,
-# and any option that later grows the same shape has to say so by naming that
-# validator.
+# its way into a generated config. TWO desktop-safe containers take keys that
+# are not a closed set, and `shellSafe` is what narrows both: `attrs-of-string`
+# for the values a room writes out as shell assignments, and `launcher-items`
+# for the free text after a palette address's prefix. Neither inherits that
+# from being a container — each names the validator that applies it, and an
+# option that later grows either shape has to do the same. There is no default
+# and no third answer.
 #
 # Everything here returns a LIST OF FAILURES rather than throwing. The seam in
 # flake.nix (`lib.checkDesktop`) is what throws; a list is what lets
@@ -195,9 +198,12 @@ let
           walk "${path}.${wildcard}" value.${key}
       ) (builtins.attrNames value);
 
-  # An id a person picked for an app, a workspace or a palette row. Not a fact
+  # An id a person picked for an app, a workspace or a focus scene. Not a fact
   # about the machine, so any ordinary name is fine — the rule exists to keep a
-  # key that is really a path or a shell fragment out of a generated file. A
+  # key that is really a path or a shell fragment out of a generated file. It
+  # covered palette rows too until 2026-08-23, which is the bug `launcher-items`
+  # below now explains: a container inherits this predicate because its keys ARE
+  # plain names, never because the three beside it have plain names. A
   # LEADING DIGIT is ordinary here and the first version of this refused it:
   # `workspaces."1"` is AeroSpace's most common naming, and `1password` is a
   # real app id.
@@ -209,12 +215,32 @@ let
   # import it, and a fourth hand-written copy of the grammar is the exact
   # failure its own header is about.
   itemGrammar = import ../launcher/item-grammar.nix;
+  # The `assert` is item-grammar.nix's own reason for existing, pointed back at
+  # this file. That list DRIFTS — pounce added `shortcut:` once already, and the
+  # mirror went on calling a valid key invalid until someone noticed — and both
+  # filters below key off the literal prefix. Renamed or dropped upstream, they
+  # become silent no-ops and this seam starts admitting Shortcuts UUIDs into
+  # shared desktops, while `pounce-item-grammar` stays green throughout: that
+  # check compares the mirror to pounce and knows nothing about who reads it. So
+  # the exclusion fails loudly the moment it stops excluding anything.
+  #
   # Every shape a DESKTOP may name: all of pounce's but `shortcut:`. The
   # launcher-items validator below says why, and both the accept list and the
   # sentence a rejected key gets are derived from this one filter, so a prefix
   # pounce adds arrives here already admitted.
-  desktopItemShapes = builtins.filter (s: !(lib.hasPrefix "shortcut:" s)) itemGrammar.shapes;
-  desktopItemPrefixes = builtins.filter (p: p != "shortcut:") itemGrammar.prefixes;
+  shortcutShapes = builtins.filter (s: lib.hasPrefix "shortcut:" s) itemGrammar.shapes;
+  desktopItemShapes =
+    assert shortcutShapes != [ ];
+    builtins.filter (s: !(lib.hasPrefix "shortcut:" s)) itemGrammar.shapes;
+  # The guard goes on BOTH, and this is the one that matters: Nix is lazy, and
+  # `desktopItemShapes` is forced only to build a REJECTION sentence. An assert
+  # there alone is decorative — measured, on the drift it is meant to catch —
+  # because the accept path never reaches it. `desktopItemPrefixes` is what
+  # `keyOk` forces for every item key a desktop writes, so that is where a
+  # renamed prefix has to stop being silent.
+  desktopItemPrefixes =
+    assert shortcutShapes != [ ];
+    builtins.filter (p: p != "shortcut:") itemGrammar.prefixes;
   hasItemPrefix = key: builtins.any (p: lib.hasPrefix p key) desktopItemPrefixes;
   desktopItemExpected =
     let
