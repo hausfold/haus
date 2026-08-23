@@ -239,6 +239,13 @@ lib.mkMerge [
     # so a rename inside a scene's shape cannot reach the launcher, and the
     # launcher's option surface never grows a copy of this room's.
     haus._contrib = {
+      # The bell's Accessibility grant is NOT contributed here, and the reason
+      # is the rule stated twelve lines up: it is SketchyBar's grant, not this
+      # room's. Bar generates a card for every pill it actually draws off its
+      # own `widgets.<n>.permissions` table, so the bell's card appears exactly
+      # when the bell does — a host that keeps the Focus room but turns
+      # `bar.widgets.focus` off would otherwise be asked for a grant for a pill
+      # that is not on screen.
       bar.focus.enable = true;
       launcher.focus = {
         enable = true;

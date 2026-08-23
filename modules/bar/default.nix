@@ -929,6 +929,7 @@ let
   # open form the single source the emission reads, so a bundled pill and a
   # stranger's arrive at the bar down the same path.
   widgetTable = import ./widgets.nix;
+  panes = import ../lib/settings-panes.nix;
   bundledNames = builtins.attrNames widgetTable;
   # The one entry in that table which draws no pill: a deprecated alias, folded
   # into the widget it names rather than pre-declared as one of its own.
@@ -964,6 +965,103 @@ let
   # below — so "is this pill live" is answered once.
   liveWidgets = builtins.filter (name: (widgets.${name}.enable or false) && contributed name) (
     lib.unique (itemOrder ++ userWidgetNames)
+  );
+
+  # ---- the bar's cards in core's manual-click deck ---------------------------
+  # `widgets.<n>.permissions` has always declared what a pill will ask macOS
+  # for; until now it was a declaration nobody read, which is how the calendar
+  # pill shipped without a word about Calendar access and the media pill's
+  # Automation note lived only inside one line of `haus doctor`. Generating the
+  # deck FROM that table is what stops the two drifting: a pill that gains a
+  # grant gains a card, in one edit, in the file that already had to know.
+  #
+  # One card per (live pill × grant), so a person is asked only about pills
+  # actually on their bar — and asked once per pill rather than once per
+  # service, because two pills wanting Automation are two different sentences
+  # about why.
+  permissionCopy = {
+    accessibility = {
+      label = "Accessibility";
+      pane = panes.accessibility;
+      needs = "reads or drives another app's interface";
+    };
+    automation = {
+      label = "Automation";
+      pane = panes.automation;
+      needs = "asks another app a question through AppleScript";
+    };
+    calendar = {
+      label = "Calendar";
+      pane = "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars";
+      needs = "reads your events";
+    };
+    contacts = {
+      label = "Contacts";
+      pane = "x-apple.systempreferences:com.apple.preference.security?Privacy_Contacts";
+      needs = "reads your contacts";
+    };
+    full-disk-access = {
+      label = "Full Disk Access";
+      pane = panes.fullDiskAccess;
+      needs = "reads a file macOS keeps behind Full Disk Access";
+    };
+    location = {
+      label = "Location";
+      pane = "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices";
+      needs = "needs to know where you are";
+    };
+    microphone = {
+      label = "Microphone";
+      pane = "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone";
+      needs = "listens";
+    };
+    photos = {
+      label = "Photos";
+      pane = "x-apple.systempreferences:com.apple.preference.security?Privacy_Photos";
+      needs = "reads your photo library";
+    };
+    reminders = {
+      label = "Reminders";
+      pane = "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders";
+      needs = "reads your reminders";
+    };
+    screen-recording = {
+      label = "Screen Recording";
+      pane = panes.screenRecording;
+      needs = "captures the screen";
+    };
+    # `network` is in the enum and is deliberately NOT here: nothing on macOS
+    # gates outbound network access behind a grant somebody clicks, so a card
+    # for it would be a step nobody can take. The enum records what a pill
+    # reaches for; the deck only ever carries what a person can actually do.
+  };
+
+  permissionCards = lib.listToAttrs (
+    lib.concatMap (
+      name:
+      map (
+        perm:
+        let
+          copy = permissionCopy.${perm};
+        in
+        {
+          name = "bar-${name}-${perm}";
+          value = {
+            order = 50;
+            title = "${copy.label} — the ${name} pill";
+            why = "The ${name} pill ${copy.needs}. macOS asks for this the first time the pill runs; every one of them degrades rather than breaking if you say no.";
+            cost = "the pill still draws, and the part of it that needs this stays empty";
+            # No `check` on any of these, and none is possible: macOS exposes
+            # no way to ask whether ANOTHER app holds a grant, and every API
+            # that reports one asks for it first — which a health check must
+            # never do. So these are taken on your word or not at all, and the
+            # wizard says so on each of them.
+            pane = copy.pane;
+            steps = [ "Turn sketchybar on in the list — the bar is what asks, whichever pill wanted it" ];
+          };
+        }
+      ) (lib.filter (perm: permissionCopy ? ${perm}) (widgets.${name}.permissions or [ ]))
+    ) liveWidgets
   );
 
   # A widget a rice declared, rendered as a SketchyBar block. Deliberately
@@ -1397,6 +1495,10 @@ let
   '';
 in
 lib.mkIf config.haus.bar.enable {
+  # One card per pill × grant, generated above from `widgets.<n>.permissions`.
+  # Core renders them; this room never learns what a wizard looks like.
+  haus._contrib.permissions = permissionCards;
+
   warnings =
     lib.optional
       (

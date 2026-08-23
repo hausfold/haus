@@ -70,6 +70,7 @@ let
   # which modules/host are loaded, so those are read out of config instead of
   # hardcoded.
   restartMap = import ../lib/restart-map.nix;
+  panes = import ../lib/settings-panes.nix;
   typedDomainsWritten = [
     "com.apple.dock"
     "com.apple.finder"
@@ -915,6 +916,26 @@ in
       # not the developer toolbelt.
       (import ../desktop-check.nix { inherit pkgs; })
 
+      # The manual-click deck, at share/haus/permissions.json — every entry any
+      # room wrote to `haus._contrib.permissions`, rendered for `haus
+      # permissions` and doctor's Permissions section to read at runtime.
+      #
+      # A file rather than a table inside haus.sh because haus.sh is a static
+      # `readFile` with no Nix values in it, and because the deck is a property
+      # of the GENERATION: roll back to a system without the snippets room and
+      # the espanso card goes with it, which is exactly right and is not
+      # something a script baked at build time could do. Same shape and same
+      # directory as options.json, and it rides the `share/haus` pathsToLink
+      # line below for the same reason — without it the package builds, joins
+      # the closure, and leaves nothing under /run/current-system/sw.
+      (writeTextFile {
+        name = "haus-permissions-deck";
+        destination = "/share/haus/permissions.json";
+        text = builtins.toJSON (
+          lib.mapAttrsToList (key: entry: entry // { inherit key; }) config.haus._contrib.permissions
+        );
+      })
+
       # `awake 3h` / `awake indefinitely` — a durable controller around macOS's
       # built-in caffeinate. Its assertion is launchd-owned below, so callers can
       # exit (or SketchyBar can reload) without accidentally allowing idle sleep.
@@ -971,6 +992,93 @@ in
   # a dependency of the system, and /run/current-system/sw/share/haus did
   # not exist. `haus options` reads it from there, so the directory has to be linked.
   environment.pathsToLink = [ "/share/haus" ];
+
+  # ---- core's own cards in the manual-click deck ------------------------------
+  # See modules/core/options.nix for the contract. Core contributes the steps
+  # that belong to no room: the grant the REBUILD itself needs, the toolchain
+  # every Swift helper compiles against, and the login-items gate Tahoe puts in
+  # front of every nix agent.
+  haus._contrib.permissions = {
+    # First in the deck, and not by alphabet: granting this is what lets the
+    # wizard read macOS's own permission database, so every later card can be
+    # confirmed by measurement instead of taken on trust. The one grant with no
+    # prompt API is therefore also the one with the clearest payoff.
+    core-full-disk-access = {
+      order = 10;
+      title = "Full Disk Access — the app you rebuild from";
+      why = ''
+        A rebuild writes a handful of macOS accessibility settings that only an
+        app holding Full Disk Access may write, and it writes them AS whichever
+        app ran it — your terminal, or an agent's pane. This is also what lets
+        `haus permissions` read macOS's own permission database, so the cards
+        below can be confirmed rather than guessed at.
+      '';
+      cost = "those settings are skipped on every rebuild from this app, and the rest of this deck can only be taken on your word";
+      # Only on a machine whose configuration actually writes a domain behind
+      # the grant. Contributed unconditionally it was a red ✗ and a warning at
+      # the end of EVERY rebuild — per app, so every agent pane too — on
+      # machines where the honest answer is the one doctor used to give:
+      # "this app has none, and nothing in this config needs it."
+      #
+      # `_haus_verdict` reads the built activation script's own `haus:` lines,
+      # the same reader `plan_permissions` uses, so the card appears on exactly
+      # the configurations that would skip a setting or abort without it.
+      applies = ''
+        [ -n "$(_haus_verdict needs-full-disk-access /run/current-system/activate)$(
+          _haus_verdict aborts-without-full-disk-access /run/current-system/activate)" ]
+      '';
+      # `has_fda` is haus.sh's own probe — a contributed snippet is eval'd
+      # inside `haus`, so its helpers are in scope. Cheap and read-only: one
+      # byte off the user TCC database, which is FDA-protected and nothing else.
+      check = "has_fda";
+      pane = panes.fullDiskAccess;
+      steps = [
+        "Find the app you ran haus from in the list — add it with + if it is not there"
+        "Turn it on"
+        "macOS usually wants the app quit and reopened; a stale entry sometimes has to be removed with − and added again"
+      ];
+    };
+
+    # Not a permission, and it belongs here anyway: it is a click, once, on a
+    # fresh machine, and getting it wrong fails a rebuild rather than costing a
+    # feature. Scoping the deck to TCC would have left the most consequential
+    # manual step on the machine out of it.
+    core-xcode-clt = {
+      order = 20;
+      title = "Xcode Command Line Tools";
+      why = ''
+        Five one-file Swift helpers compile against the system toolchain at
+        build time — the palette's signing, the bar's popup dismissal, the
+        window geometry reader — and `git` itself comes from here.
+      '';
+      cost = "a rebuild stops at the first Swift helper it reaches";
+      check = "/usr/bin/xcode-select -p >/dev/null 2>&1";
+      prompt = "/usr/bin/xcode-select --install";
+      promptLabel = "Start Apple's installer";
+    };
+
+    core-login-items = {
+      order = 60;
+      title = "Login Items — let the background agents start";
+      why = ''
+        macOS 26 gates background items that launch through /bin/sh, which is
+        how every nix agent starts. Something haus installed is bootstrapped
+        into launchd and is not running, and this is the usual reason.
+      '';
+      cost = "the tiler, the bar or the palette stay dead through every reboot";
+      # Gated on the SYMPTOM, so the card appears when something is actually
+      # wedged rather than on every Tahoe machine forever. `haus btm` is the
+      # deeper look, and needs a password this must never ask for.
+      applies = "_perm_agent_wedged";
+      check = "! _perm_agent_wedged";
+      pane = panes.loginItems;
+      steps = [
+        "Scroll to \"Allow in the Background\""
+        "Find the entries named \"sh\", subtitled \"Item from unidentified developer\""
+        "Turn them on, then reboot (already on but still blocked? off and on again forces the write)"
+      ];
+    };
+  };
 
   # The job is intentionally always present, even when the opt-in Bar pill is
   # hidden: `awake` is a rice-level capability usable from any shell. RunAtLoad

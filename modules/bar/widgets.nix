@@ -181,7 +181,12 @@
   focus = {
     default = null;
     movable = true;
-    permissions = [ ];
+    # The bell TOGGLES quiet, and modules/focus does that by pressing a hidden
+    # symbolic hotkey synthetically — which macOS lets an app do only with
+    # Accessibility. Declared `[ ]` until the manual-click deck started reading
+    # this table and the omission became visible: a palette-run scene inherits
+    # pounce's grant, so nothing ever asked on sketchybar's behalf.
+    permissions = [ "accessibility" ];
     interval = 30;
     description = "The Focus (Do-Not-Disturb) pill. Needs `haus.focus.enable`; setting this moves the pill but does not enable the Focus room by itself.";
   };

@@ -64,6 +64,7 @@ _haus() {
     'capture:turn this Mac'\''s current settings into config lines'
     'revert-settings:put back a haus capture snapshot'
     'doctor:check the machine'\''s health (Nix, CLT, the GUI agents)'
+    'permissions:walk every grant and click this Mac still needs a person for'
     'btm:check BTM daemon-gating (macOS 26 Tahoe+; no-op before)'
     'tour:take the guided haus tour'
     'show:inspect a desktop or room - a local file or a remote source - before you publish or trust it'

@@ -36,4 +36,32 @@
       type = lib.types.submodule { inherit options; };
       inherit description;
     };
+
+  # The same contract, for a receiver that renders a DECK rather than one
+  # feature: many rooms each write one keyed entry, and the receiver draws
+  # whatever it finds without knowing who wrote it.
+  #
+  # `mkExtensionPoint` is the right shape when the answer is "does this room
+  # want the thing at all" — one writer, one boolean, one pill. It is the wrong
+  # shape the moment two rooms have something to say, because they would be
+  # writing the same leaves over each other. `_contrib.permissions` is exactly
+  # that case: a dozen rooms each know about one manual click a fresh machine
+  # needs, and none of them knows about the others.
+  #
+  # The key is the SOURCE room's to choose, so make it name the room and the
+  # thing ("launcher-accessibility"), never just the grant — two rooms wanting
+  # Accessibility for two different apps is the normal case, and a bare
+  # "accessibility" key would silently let the second one win.
+  mkExtensionRegistry =
+    {
+      description,
+      options,
+    }:
+    lib.mkOption {
+      internal = true;
+      visible = false;
+      default = { };
+      type = lib.types.attrsOf (lib.types.submodule { inherit options; });
+      inherit description;
+    };
 }

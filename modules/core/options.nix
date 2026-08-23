@@ -7,6 +7,8 @@
 { lib, config, ... }:
 
 let
+  contrib = import ../lib/contrib.nix { inherit lib; };
+
   # §5.12's designation table — the same "read the fact, don't retype it" shape
   # the restart map already has. This file uses it for two things: the list of
   # keys `haus.accessibility` is allowed to expose (the `effective` class, and
@@ -137,6 +139,144 @@ in
 
 {
   options.haus = {
+    # ---- core's extension point: the manual-click deck ------------------------
+    # See ../lib/contrib.nix for the contract. Core is the RECEIVER: it renders
+    # `haus permissions` (the wizard) and doctor's Permissions section from
+    # whatever rooms wrote here, and knows nothing about any particular grant.
+    #
+    # Why a registry and not a hardcoded list in haus.sh: the list is a property
+    # of the ROOMS this machine turned on, not of haus. A machine with no
+    # launcher has nothing to say about pounce's Accessibility grant, and a
+    # hardcoded deck would say it anyway — which is the exact failure mode the
+    # wizard exists to remove, since a card you cannot act on trains people to
+    # skip the ones they can.     # skip. On `blank` only core's own three are in the deck, each gated so
+    # that a machine with nothing wrong shows none of them.
+    #
+    # Scope, decided deliberately: this is EVERY manual click a fresh machine
+    # needs, not only the TCC grants. A logout macOS is waiting for and a theme
+    # port that needs a click in an app's own preferences cost the same thing —
+    # a person's attention, once, on a machine they just built — and splitting
+    # them across three commands is why they got missed. What it must never
+    # grow is anything haus can do ITSELF: if a rebuild can write it, it is a
+    # setting and belongs in a room, not on a card.
+    _contrib.permissions = contrib.mkExtensionRegistry {
+      description = ''
+        One manual step a fresh machine needs, contributed by the room that
+        knows why. `haus permissions` walks the deck; `haus doctor` reports it
+        without touching anything.
+      '';
+      options = {
+        title = lib.mkOption {
+          type = lib.types.str;
+          description = "The card's heading. Lead with the grant or step, then the app: \"Accessibility — pounce\".";
+        };
+
+        order = lib.mkOption {
+          type = lib.types.int;
+          default = 50;
+          description = ''
+            Where the card sits in the deck, low first. Reserve the twenties for
+            steps that make LATER cards easier — Full Disk Access on the running
+            terminal is 10, because granting it is what lets the wizard read the
+            system TCC database and confirm the rest by measurement instead of
+            asking.
+          '';
+        };
+
+        why = lib.mkOption {
+          type = lib.types.str;
+          description = ''
+            One or two sentences: what this machine does with the grant. Written
+            for somebody who has never heard of the room — "pounce types your
+            clipboard into the app you were in" beats "pounce needs AX".
+          '';
+        };
+
+        cost = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          description = ''
+            What actually breaks without it, in the user's terms. Empty when the
+            answer is simply "the feature is absent". This is the half that earns
+            a skip: a card that cannot say what it costs is a card nobody should
+            feel bad about skipping.
+          '';
+        };
+
+        detail = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          description = ''
+            Shell whose stdout is printed under `why`, one indented line each.
+            For the specifics only this Mac knows: which apps are affected,
+            which entries are missing. A card whose subject is a LIST needs
+            this — the deck is rendered at build time and cannot name at build
+            time what only exists at runtime.
+          '';
+        };
+
+        applies = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          description = ''
+            Shell, exit 0 = this card is relevant on THIS Mac right now. For the
+            facts a build cannot know: the macOS version, whether an optional
+            binary landed, whether anything is actually queued. `null` = always.
+          '';
+        };
+
+        check = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          description = ''
+            Shell, exit 0 = already done. `null` means macOS exposes no way to
+            ask, and the card can then only ever be taken on the user's word —
+            which the wizard says out loud rather than drawing a green tick it
+            has not earned. It must never PROMPT: a check that asks is a check
+            that fires a permission dialog during `haus doctor`.
+          '';
+        };
+
+        prompt = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          description = ''
+            Shell that makes macOS ASK — the real system dialog, so the whole
+            grant is one click and no trip to System Settings. Only a handful of
+            services have such an API (Accessibility does; Full Disk Access does
+            not), so this is usually `null` and `pane` carries the card.
+          '';
+        };
+
+        promptLabel = lib.mkOption {
+          type = lib.types.str;
+          default = "Ask macOS now";
+          description = "The wizard's button text for `prompt`.";
+        };
+
+        pane = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          description = ''
+            The exact System Settings pane, as an `x-apple.systempreferences:`
+            URL. Deep-link the pane that grants THIS thing, never the top of
+            Privacy & Security — a permission you cannot find is the same as a
+            permission you do not have.
+          '';
+        };
+
+        steps = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ ];
+          description = ''
+            The clicks, once the pane is open, when they are not obvious. One
+            short imperative per entry. Skip it when the pane lands on a single
+            toggle with the app already listed.
+          '';
+        };
+      };
+    };
+
     # ---- accessibility ----
     # ../lib/reachability.nix's MEASURED classes, one option per key, and
     # deliberately NOTHING else: these are the keys in com.apple.universalaccess
