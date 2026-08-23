@@ -41,8 +41,12 @@ enter)
   exec ssh "$user@$ip"
   ;;
 teardown)
+  # `tart delete` takes no --force (measured against tart 2.30.6: it exits 64,
+  # "Unknown option"). It deletes a stopped VM and refuses a running one, so
+  # the stop above IS the force — best-effort, because a VM that is already
+  # stopped makes it fail, which is not a reason to leave the clone on disk.
   tart stop "$vm" 2>/dev/null || true
-  tart delete "$vm" --force
+  tart delete "$vm"
   ;;
 *)
   echo "unknown tart-adapter.sh subcommand: $cmd — want setup, enter, or teardown" >&2
