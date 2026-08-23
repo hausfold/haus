@@ -53,6 +53,22 @@ unset HAUS_TERM_WORKSPACE
 
 LOG=/tmp/haus-term-launch.log
 
+# Where the self-tile subshell leaves this window's AeroSpace id (and the pid of
+# the ghostty that owns it) for the exit path at the bottom of the file to read.
+# A FILE and not a variable because the id is worked out in a BACKGROUND
+# subshell — it has ~1 s of polling to do and a window not to hold up — and a
+# subshell cannot write back to its parent's environment.
+#
+# TRUNCATED on the way in, and that is the load-bearing line rather than
+# tidiness. Neither of the two commonest exits removes it: ⌘W and ⌘Q both SIGHUP
+# this script mid-`zmx attach`, so the `rm -f`s below never run and `$TMPDIR`
+# keeps the file for days while pids wrap at 99999. A later window that inherits
+# the pid AND fails its own self-tile (the "could not tell which window this is"
+# branch, which writes nothing) would otherwise read a DEAD window's id out of
+# it. Emptying it here means the worst that file can ever say is nothing.
+WINFILE="${TMPDIR:-/tmp}/haus-term-win.$$"
+: >"$WINFILE"
+
 log() { echo "[$(date '+%H:%M:%S')] $*" >>"$LOG"; }
 
 log "---- launch ----"
@@ -351,6 +367,13 @@ fi
             aerospace layout --window-id "$WID" tiling 2>>"$LOG"
             log "self-tiled window $WID onto workspace $WS"
             LABEL="window=$WID"
+            # And the same id to the exit path — see "closing our own window"
+            # at the bottom. Written only on the branch that TILED, because
+            # that is the only branch whose window ghostty then fails to close.
+            # The ghostty pid rides along: it is what tells that path the id
+            # still belongs to OUR instance rather than some other window a
+            # reused number now names.
+            printf '%s %s\n' "$WID" "$gpid" >"$WINFILE"
         else
             log "self-tile: could not tell which window this is — left floating, unlabelled"
         fi
@@ -417,8 +440,8 @@ log "zmx exited with code $rc"
 # (measured 2026-08-19) whatever the shell exited WITH: `exit 7` inside the
 # session still comes back 0 out here, because the code being read is zmx's
 # own, not the shell's. So 0 means "the session is over" and nothing else, and
-# the honest answer to that is to end this process too and let ghostty close
-# the surface.
+# the honest answer to that is to end this process too — and then to close the
+# window, which ghostty turns out not to do for us (next block).
 #
 # This fell through to `run_shell` unconditionally until 2026-08-19, and that
 # is what put TWO shells in every window: ^D ended the session and landed you
@@ -430,5 +453,90 @@ log "zmx exited with code $rc"
 #
 # A lane window has answered this way since it existed (lanes/lane-open.sh
 # execs `zmx attach` and holds only on a non-zero rc). Same rule, same reason.
-[ "$rc" -eq 0 ] && exit 0
+#
+# ── closing our own window ───────────────────────────────────────────────────
+# …because exiting is not enough, and that is a MEASURED ghostty behaviour
+# rather than a guess (2026-08-23, ghostty 1.3.1). `wait-after-command` is off,
+# so `Surface.childExited` prints "Process exited. Press any key to close the
+# terminal." and then calls `close()` — but for a window that AeroSpace has
+# TILED, inside a ghostty instance that owns other windows, that close never
+# lands. The window sits on the message until a keypress, which reaches the
+# very same `close()` through the key path and works. A/B, one variable at a
+# time, same instance, same script:
+#
+#   no AeroSpace call at all              → closes
+#   moved to another workspace, floating  → closes
+#   moved and tiled                       → HELD
+#   tiled in place                        → HELD
+#   moved and tiled, but `open -na` into  → closes (the instance QUITS, which
+#   its own ghostty instance                takes the window with it)
+#
+# That last row is why lanes never had this: lanes/lane-open.sh spawns a
+# dedicated instance, so `quit-after-last-window-closed` ends the process and
+# the broken close is invisible. A ⌘N window shares an instance and has no such
+# cover — and every window that reaches the self-tile above is tiled (the
+# nested, opted-out and quick-terminal guards exec before it, and those windows
+# are floating and close fine), so every ordinary one of them was asking for a
+# keypress it never should have needed.
+#
+# So we close it ourselves. `aerospace close` on the id the self-tile already
+# worked out, which is the same id the `window=` label joins on, and the same
+# id the tiler was trusted with a moment ago.
+#
+# THREE signals have to agree before anything closes, because that id is not
+# certain: the self-tile poll can answer for a SIBLING (the restore fan-out
+# opens several windows in one breath, and AeroSpace hands out focus on its own
+# schedule), which today costs a mis-tile and must never come to cost a
+# mis-close.
+#
+#   the id       what the self-tile wrote, and only that branch writes
+#   the owner    that window still belongs to the ghostty process we live in.
+#                Kills the whole cross-instance half of the risk in one line —
+#                every LANE is its own ghostty, so no answer here can ever
+#                close one, whatever the number says
+#   the focus    AeroSpace says that window is focused right now
+#
+# The focus test is the weakest of the three and is deliberately not asked to
+# carry the argument alone. It is exact for a ^D — you typed it in the window
+# that had focus — but `zmx attach` also returns 0 for a `zmx kill` fired from
+# the bar or the Lanes picker, and for a script inside the session calling
+# `exit`, and in those the focus can honestly be somewhere else. Then the
+# agreement fails and this does nothing: the window keeps ghostty's message and
+# the keypress it asks for, which is exactly where it was before this block.
+close_own_window() {
+    [ -s "$WINFILE" ] || return 0
+    local wid gpid as owner focused
+    read -r wid gpid <"$WINFILE" || return 0
+    [ -n "$wid" ] && [ -n "$gpid" ] || return 0
+
+    # The literal path for the same reason the backend probe above uses one: a
+    # Ghostty opened from the Dock inherits launchd's PATH, and aerospace is a
+    # cask that lives only under /opt/homebrew.
+    as=$(command -v aerospace 2>/dev/null)
+    [ -n "$as" ] || as=/opt/homebrew/bin/aerospace
+    [ -x "$as" ] || return 0
+
+    owner=$("$as" list-windows --monitor all --format '%{window-id}|%{app-pid}' 2>/dev/null |
+        awk -F'|' -v w="$wid" '$1 == w { print $2; exit }')
+    if [ "$owner" != "$gpid" ]; then
+        log "not closing: window $wid belongs to ${owner:-nothing} now, not our ghostty $gpid"
+        return 0
+    fi
+
+    focused=$("$as" list-windows --focused --format '%{window-id}' 2>/dev/null)
+    if [ "$focused" != "$wid" ]; then
+        log "not closing: window $wid is not the focused one (${focused:-none})"
+        return 0
+    fi
+
+    log "closing our own window $wid"
+    "$as" close --window-id "$wid" 2>>"$LOG"
+}
+
+if [ "$rc" -eq 0 ]; then
+    close_own_window
+    rm -f "$WINFILE"
+    exit 0
+fi
+rm -f "$WINFILE"
 run_shell
