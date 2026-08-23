@@ -142,6 +142,46 @@ if [ -z "$backend" ]; then
   if command -v aerospace >/dev/null 2>&1; then backend=aerospace; else backend=ghostty; fi
 fi
 
+# ── a lane that does not take the screen ─────────────────────────────────────
+# HAUS_LANE_BACKGROUND=1 opens the lane WITHOUT moving you to it: the window is
+# still created, still named holt.<repo>.<lane>, still tiled onto T/<repo>, and
+# the client still starts on its prompt — you simply stay where you are and go
+# and read it when you are ready (⌃⇥, the Lanes palette, the agents pill).
+#
+# Three separate things have to be told, because each takes focus for its own
+# reason and silencing two of three still steals the screen:
+#
+#   open -g                    LaunchServices activates the app it opens, and
+#                              with `-na` a brand-new instance activates by
+#                              construction.
+#   no --focus-follows-window  AeroSpace follows the window to T/<repo>, which
+#                              is precisely what that flag is FOR normally —
+#                              see the note on it below.
+#   no `activate`              the ghostty backend's AppleScript spawn asks for
+#                              the app front by hand.
+#
+# The palette's Spawn Agent sets it on ⌃↵, and it reaches here through `holt
+# spawn` because holt hands a seam os.Environ(). That same inheritance is why
+# it is DROPPED the instant it has been read, before either `open` below: the
+# variable would otherwise be part of the environment of the Ghostty PROCESS
+# this script starts, and every surface that instance goes on to make — the
+# cold-started instance's own first window, anything new-window.sh's
+# AppleScript lands there — would inherit it. A shell in one of those windows
+# would then have ⌘↵ and `holt <name>` silently open in the background with
+# nothing on screen to say why. Same early-drop launch.sh does for
+# HAUS_TERM_WORKSPACE and HAUS_ZMX_ATTACH, for the same reason.
+bg=""
+case "${HAUS_LANE_BACKGROUND:-}" in 1 | true | yes) bg=1 ;; esac
+unset HAUS_LANE_BACKGROUND
+
+# The three silences, resolved once so the branches below read as one word each.
+follow="--focus-follows-window "
+[ -n "$bg" ] && follow=""
+launch_bg=""
+[ -n "$bg" ] && launch_bg="-g"
+activate_line="  activate"
+[ -n "$bg" ] && activate_line="  -- background lane: deliberately not activating"
+
 # printf %q, not bash 5's ${var@Q}: /bin/bash on macOS is still 3.2, and this
 # script has no guarantee about which bash holt found first.
 #
@@ -229,7 +269,8 @@ fi
     # same-repo lane is somewhere else until this line runs. The one case that
     # really is a no-op — you were already standing on T/<repo> — costs nothing,
     # because the focus it follows to is the focus that window already has.
-    printf '  aerospace move-node-to-workspace --focus-follows-window --window-id "$WID" %q\n' "T/$repo"
+    printf '  aerospace move-node-to-workspace %s--window-id "$WID" %q\n' \
+      "$follow" "T/$repo"
     printf '  aerospace layout --window-id "$WID" tiling\n'
     printf ') >/dev/null 2>&1 &\n'
   fi
@@ -255,7 +296,8 @@ chmod +x "$launcher"
 # Ghostty and then polled for two seconds before opening its window. Fixed
 # 2026-08-19; same one-word bug was in scripts/new-window.sh.
 if ! pgrep -ix ghostty >/dev/null 2>&1; then
-  open -a Ghostty
+  # shellcheck disable=SC2086  # $launch_bg is a whole flag or nothing
+  open $launch_bg -a Ghostty
   for _ in $(seq 1 40); do
     pgrep -ix ghostty >/dev/null 2>&1 && break
     sleep 0.05
@@ -282,7 +324,8 @@ if [ "$backend" = aerospace ]; then
   #
   # `open -na` rather than `ghostty +new-window`, which refuses on macOS
   # ("not supported on this platform").
-  open -na Ghostty.app --args \
+  # shellcheck disable=SC2086  # $launch_bg is a whole flag or nothing
+  open $launch_bg -na Ghostty.app --args \
     --title="$sess" \
     --initial-command="$launcher" || exit 3
   exit 0
@@ -304,10 +347,15 @@ osa_str() {
   printf '"%s"' "$v"
 }
 
+# `activate` is a line rather than a literal so a background lane can drop it:
+# the window is still created and its id still returned, so the `gwindow=` join
+# is unaffected either way. (Best effort — this backend asks a RUNNING Ghostty
+# for a window, and AppKit may still order the new window front. The aerospace
+# backend, which is what this machine uses, has `open -g` and is exact.)
 gwid="$(
   /usr/bin/osascript -e "tell application \"Ghostty\"
   set w to (new window with configuration {command:$(osa_str "$launcher")})
-  activate
+$activate_line
   return id of w
 end tell" 2>/dev/null
 )"
