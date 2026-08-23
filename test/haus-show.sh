@@ -65,7 +65,7 @@ lacks() { printf '%s\n' "$out" | grep -qF -- "$1" && fail "$2: expected NOT to f
 run "$fixtures/valid-sample.nix"
 expect_status 0 "valid desktop"
 has "a desktop — data only" "valid desktop"
-has "9 options across 6 rooms" "valid desktop"
+has "10 options across 6 rooms" "valid desktop"
 has "haus.terminal.editorName" "valid desktop"
 # Filed under the ROOM a person meets, not the namespace they type. This is the
 # one thing the report adds over `checkDesktop` printing `true`.
@@ -73,6 +73,40 @@ has "Development" "valid desktop"
 has "Shared surfaces" "valid desktop"
 # And what stays theirs.
 has "Apps · Appearance" "valid desktop"
+
+# ---- 1a: the grammar this checker reaches OUT of itself for --------------------
+# `haus.launcher.items` is the one desktop-safe container whose key rule is not
+# spelled in modules/lib/desktop.nix: it is read from the launcher room's mirror
+# of pounce's address space (modules/launcher/item-grammar.nix), one directory
+# over. `haus show` runs the CHECKER OUT OF THE STORE, flattened into a single
+# directory by modules/desktop-check.nix, so that reach has to be staged as well
+# as work in the checkout.
+#
+# Nothing above catches it. Nix is lazy: the grammar is forced only by a file
+# that actually sets `haus.launcher.items`, so every flake check, every other
+# fixture and every desktop that leaves the palette alone stay green while the
+# command dies on exactly the desktops the grammar exists to admit. That is a
+# publisher's first command failing on their file and nobody else's.
+cat > "$tmp/palette-rows.nix" <<'PALETTE'
+{
+  haus.launcher.items."mode:filesearch".alias = "ff";
+}
+PALETTE
+run "$tmp/palette-rows.nix"
+expect_status 0 "palette rows"
+has "a desktop — data only" "palette rows"
+has "haus.launcher.items.mode:filesearch.alias" "palette rows"
+
+# And the refusing half of the same reach, so a staging that silently returned
+# an empty grammar could not pass by accepting everything.
+cat > "$tmp/palette-shortcut.nix" <<'PALETTE'
+{
+  haus.launcher.items."shortcut:0ECC8F7A-3A52-467A-84C0-511CCE1CB9B7".alias = "s";
+}
+PALETTE
+run "$tmp/palette-shortcut.nix"
+expect_status 1 "palette shortcut"
+has "one entry in one Mac's Shortcuts library" "palette shortcut"
 
 # ---- 1: a desktop that breaks a rule fails, naming every rule -----------------
 run "$fixtures/host-only-secret.nix"
@@ -238,7 +272,7 @@ has "$(gitc "$tmp/writer" rev-parse HEAD)" "repo source"
 has "the source's own date, not this fetch's" "repo source"
 has "stamped here, by the clock" "repo source"
 has "writer.nix, out of the fetched tree" "repo source"
-has "9 options across 6 rooms" "repo source"
+has "10 options across 6 rooms" "repo source"
 
 # Reading a fetched desktop is where attribution stops being per-file, so the
 # report has to say so — see the granularity assertions below.
@@ -398,7 +432,7 @@ printf '%s' "$out" | jq -e '
   and .class == "desktop"
   and .checked == true
   and .ok == true
-  and (.sets | length) == 9
+  and (.sets | length) == 10
   and (.rooms | map(.room)) == ["displays","development","bar","launcher","focus","haus"]
   and (.silent | length) == 7
 ' >/dev/null || fail "json valid: envelope is not the documented shape"
