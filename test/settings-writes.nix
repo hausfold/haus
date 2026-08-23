@@ -328,6 +328,37 @@ let
     "windows"
   ];
   excluded = [
+    # The lid is a launchd DAEMON the power room runs, not a macOS setting it
+    # curates: nothing here is written at activation and read back by a probe,
+    # the way every leaf in `leaves` is. What these five configure is
+    # modules/core/lidawake.sh, whose own behaviour test/lidawake.sh covers —
+    # including the `pmset disablesleep` write, which is the daemon's to make
+    # and not a value this table could ever assert a resting state for.
+    [
+      "power"
+      "lidAwake"
+      "enable"
+    ]
+    [
+      "power"
+      "lidAwake"
+      "linger"
+    ]
+    [
+      "power"
+      "lidAwake"
+      "maxHold"
+    ]
+    [
+      "power"
+      "lidAwake"
+      "requirePower"
+    ]
+    [
+      "power"
+      "lidAwake"
+      "while"
+    ]
     # Touch ID is what the security ROOM does, not a `defaults` key it curates.
     [
       "security"
