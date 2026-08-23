@@ -1711,14 +1711,20 @@ lib.mkIf config.haus.bar.enable {
       #                         arrangement is the direction that fails loudly.
       #                         Cheap to settle: flip it, `bench try switch`,
       #                         see whether the bar draws.
-      #   no nixpkgs source     `package = lib.mkForce null` with no
-      #                         `packageName` to stand in — this room sets
-      #                         `package` at mkDefault, so merely ADDING a
-      #                         `brew` does not do it (you get the tool twice
-      #                         and a working bar). Read as a pair, because
-      #                         `packageName` is the only nixpkgs source a
-      #                         data-only desktop can name, and refusing it
-      #                         would refuse the field's whole reason to exist.
+      #   no source at all      `package = lib.mkForce null` with no
+      #                         `packageName` and no `brew` — read as a TRIPLE
+      #                         now, via `binPath`, and the third one is why:
+      #                         a brew entry has a binPath (/opt/homebrew/bin)
+      #                         and the room follows it there, which is the
+      #                         arrangement this repo shipped until 2026-08-22.
+      #                         Testing only the nixpkgs pair refused it. This
+      #                         room sets `package` at mkDefault, so merely
+      #                         ADDING a brew does nothing either way (you get
+      #                         the tool twice and a working bar); the
+      #                         migration reaches this check only through
+      #                         `lib.mkForce null`. `packageName` is in the
+      #                         group because it is the only nixpkgs source a
+      #                         data-only desktop can name.
       #   enable = false        the documented way to drop a roster entry. It
       #                         filters out before `packagesFor` ever sees it,
       #                         so `package` and `scope` still read fine and
@@ -1730,21 +1736,32 @@ lib.mkIf config.haus.bar.enable {
       (
         let
           entry = config.haus.roster.sketchybar;
-          sourceless = entry.package == null && entry.packageName == null;
+          # Since `binPath`, "is there a sketchybar to address" is one question
+          # with one answer, and it is not the same question as "which nixpkgs
+          # source". A `brew` entry has a binPath — /opt/homebrew/bin — and the
+          # bar follows it there, which is the arrangement this room shipped
+          # until 2026-08-22 and is therefore the best-tested one in the file.
+          # The earlier `package == null && packageName == null` refused it.
+          sourceless = entry.binPath == null;
+          # Narrower than "scope != system": `scope` is IGNORED for a brew
+          # entry (the option says so), so reading it there would refuse a
+          # working bar over a field that did nothing.
+          fromNixpkgs = entry.package != null || entry.packageName != null;
+          userScope = fromNixpkgs && entry.scope != "system";
         in
-        lib.optional (!entry.enable || sourceless || entry.scope != "system") {
+        lib.optional (!entry.enable || sourceless || userScope) {
           assertion = false;
           message =
             "haus.bar.enable is on, but haus.roster.sketchybar "
             + (
               if !entry.enable then
-                "is disabled (enable = false), so it is filtered out of the roster before anything installs it"
+                "is disabled (enable = false), so it is filtered out of the roster before anything installs it, and haus.roster.sketchybar.binPath is null"
               else if sourceless then
-                "installs from no nixpkgs package — both `package` and `packageName` are null, so the system profile holds no sketchybar at all"
+                "installs nothing that leaves a binary at a path haus can name — `package`, `packageName` and `brew` are all null (a `cask` or an `appStoreId` would be a bundle, not a binary), so haus.roster.sketchybar.binPath is null"
               else
                 "has scope = \"${entry.scope}\", so its sketchybar lands in the per-user profile at ${barTopPath} — where the whole room would follow it (every address resolves through haus.roster.sketchybar.binPath), and where no bar has ever been run"
             )
-            + ". The launchd agent, barpop, bar-bottom, aerospace-notify.sh and every plugin address the binary as haus.roster.sketchybar.binPath, so a null one is a bar that never draws with nothing anywhere saying why, and a per-user one is an arrangement nothing here has been felt against. Leave haus.roster.sketchybar installing from nixpkgs (`package = pkgs.sketchybar`, or `packageName = \"sketchybar\"` from a data-only desktop) at scope = \"system\", or turn the bar off with haus.bar.enable = false.";
+            + ". The launchd agent, barpop, bar-bottom, aerospace-notify.sh and every plugin address the binary as haus.roster.sketchybar.binPath, so a null one is a bar that never draws with nothing anywhere saying why, and a per-user one is an arrangement nothing here has been felt against — untested rather than known broken, and one `bench try switch` from being settled either way. Leave haus.roster.sketchybar installing from nixpkgs (`package = pkgs.sketchybar`, or `packageName = \"sketchybar\"` from a data-only desktop) at scope = \"system\", or turn the bar off with haus.bar.enable = false.";
         }
       );
 

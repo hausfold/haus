@@ -17,12 +17,21 @@
 # nothing mechanical.
 #
 # `name` is the token that actually renames; `dir` is the shared convention.
-# `literals` lists every file that spells the name ITSELF, and is what
-# `nix flake check`'s `state-files` pins — each must exist, and must contain
-# both the name and the dir. Nix consumers are deliberately NOT listed: they
-# import this attrset, so there is nothing there to drift. The same check
-# refuses a `.nix` file under `modules/` that hand-spells a registered name,
-# which is what keeps that true.
+#
+# `literals` maps each file that spells the path ITSELF to the exact substring
+# it must contain, and is what `nix flake check`'s `state-files` pins. `null`
+# means the default `<dir>/<name>` — right wherever the file writes the path
+# out whole. **Where the file ASSEMBLES it, the operative line has to be named
+# instead**, and that is not fussiness: an earlier draft grepped for the bare
+# token, and renaming `mru="$state_dir/workspace-mru"` in the writer left the
+# check green, because the same word survives in the script's own header
+# comment and usage line. A check that a file's NAME can satisfy is a check
+# that cannot see the rename it exists to catch.
+#
+# Nix consumers are deliberately NOT listed: they import this attrset, so there
+# is nothing there to drift. The same check refuses a `.nix` file under
+# `modules/` that hand-spells a registered path, which is what keeps that
+# true.
 {
   any-page = {
     dir = ".local/state/haus";
@@ -30,10 +39,12 @@
     # windows writes it on every workspace change (the one hook that already
     # runs without the bar being on); the launcher's Pages row declares it as a
     # `whenFile`, which pounce stats on the summon keystroke.
-    literals = [
-      "modules/windows/scripts/workspace-mru.sh"
-      "modules/launcher/commands/pages.sh"
-    ];
+    literals = {
+      # Assembled from `$state_dir`, so the write itself is the operative line.
+      "modules/windows/scripts/workspace-mru.sh" = "\"$state_dir/any-page\"";
+      # A `# pounce:` header, which pounce stats on the ⌘Space keystroke.
+      "modules/launcher/commands/pages.sh" = "whenFile = ~/.local/state/haus/any-page";
+    };
   };
 
   workspace-mru = {
@@ -42,7 +53,9 @@
     # Written by the same windows hook; read by pounce's ⌃⇥ page walk, which the
     # launcher room points at the file through `pages.mruFile`. That side is
     # Nix and takes the path from here.
-    literals = [ "modules/windows/scripts/workspace-mru.sh" ];
+    literals = {
+      "modules/windows/scripts/workspace-mru.sh" = "mru=\"$state_dir/workspace-mru\"";
+    };
   };
 
   aerospace-tiling-mode = {
@@ -51,10 +64,10 @@
     # windows writes `<workspace>\t<mode>` when you cycle the layout; the bar's
     # aerospace pill reads the same two columns with the same awk to draw
     # Grid vs Columns. Two copies of one format, so the name is the cheap half.
-    literals = [
-      "modules/windows/scripts/tiling-mode.sh"
-      "modules/bar/sketchybar/plugins/aerospace_lib.sh"
-    ];
+    literals = {
+      "modules/windows/scripts/tiling-mode.sh" = null;
+      "modules/bar/sketchybar/plugins/aerospace_lib.sh" = null;
+    };
   };
 
   zen-tabs = {
@@ -62,10 +75,10 @@
     name = "zen-tabs";
     # terminal's `haustabs` helper writes the browser's tab state; the bar's
     # media pill reads it to name a playing tab.
-    literals = [
-      "modules/terminal/zen-tabs/haustabs.swift"
-      "modules/bar/sketchybar/plugins/media_lib.sh"
-    ];
+    literals = {
+      "modules/terminal/zen-tabs/haustabs.swift" = null;
+      "modules/bar/sketchybar/plugins/media_lib.sh" = null;
+    };
   };
 
   lidawake-holds = {
@@ -77,6 +90,8 @@
     # and hands it to launchd as `LIDAWAKE_HOLD_DIR`, so only the bar side is a
     # literal — and a rename there ends keep-awake with no symptom but a lid
     # that sleeps mid-run.
-    literals = [ "modules/bar/sketchybar/plugins/agents-hook.sh" ];
+    literals = {
+      "modules/bar/sketchybar/plugins/agents-hook.sh" = null;
+    };
   };
 }

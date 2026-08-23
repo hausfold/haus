@@ -1045,7 +1045,8 @@
           "desktopSafe": true
         },
         "haus.roster.<name>.binPath": {
-          "desktopSafe": true
+          "desktopSafe": false,
+          "reason": "haus-writes-it"
         },
         "haus.roster.<name>.brew": {
           "desktopSafe": true

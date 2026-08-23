@@ -3241,53 +3241,69 @@ ${builtins.concatStringsSep "\n" (
             mods=${./modules}
             fail=0
 
-            # Half one: every file that spells a shared name still spells it.
-            # `grep -q` on a path that does not exist is an ERROR, not a miss,
-            # so the existence test is separate — otherwise a moved file reads
-            # as a passing check instead of a broken one, which is how this
-            # class of check goes blind rather than red.
+            # Every file that spells a shared path still spells it, in the exact
+            # form the registry names. `grep -q` on a path that does not exist is
+            # an ERROR, not a miss, so the existence test is separate — otherwise
+            # a moved file reads as a passing check instead of a broken one,
+            # which is how this class of check goes blind rather than red.
 ${builtins.concatStringsSep "\n" (
               builtins.concatMap (
                 f:
-                map (rel: ''
-                  if [ ! -f "$mods/${nixpkgs.lib.removePrefix "modules/" rel}" ]; then
-                    echo '${rel} is listed in modules/lib/state-files.nix under' >&2
-                    echo '`${f.key}` and does not exist. Repoint the entry — do not' >&2
-                    echo 'drop it: an unlisted file is one nothing checks.' >&2
-                    fail=1
-                  else
-                    grep -qF -- '${f.name}' "$mods/${nixpkgs.lib.removePrefix "modules/" rel}" || {
-                      echo '${rel} no longer mentions `${f.name}`, which it shares with' >&2
-                      echo 'the other side of `${f.key}` in modules/lib/state-files.nix.' >&2
-                      echo 'If you renamed the file, rename it in every `literals` entry' >&2
-                      echo 'and here — one side alone is silent in both directions.' >&2
+                map (
+                  rel:
+                  let
+                    want = if f.literals.${rel} == null then "${f.dir}/${f.name}" else f.literals.${rel};
+                    path = "\"$mods/${nixpkgs.lib.removePrefix "modules/" rel}\"";
+                    say = text: "echo ${nixpkgs.lib.escapeShellArg text} >&2";
+                  in
+                  ''
+                    if [ ! -f ${path} ]; then
+                      ${say "${rel} is listed in modules/lib/state-files.nix under `${f.key}` and does not exist."}
+                      ${say "Repoint the entry — do not drop it: an unlisted file is one nothing checks."}
                       fail=1
-                    }
-                    grep -qF -- '${f.dir}' "$mods/${nixpkgs.lib.removePrefix "modules/" rel}" || {
-                      echo '${rel} no longer mentions `${f.dir}`, the directory every' >&2
-                      echo 'shared haus state file lives in.' >&2
-                      fail=1
-                    }
-                  fi
-                '') f.literals
+                    else
+                      grep -qF -- ${nixpkgs.lib.escapeShellArg want} ${path} || {
+                        ${say "${rel} no longer contains:"}
+                        ${say "  ${want}"}
+                        ${say "which is how it names `${f.key}`, shared with the other side in"}
+                        ${say "modules/lib/state-files.nix. If you renamed the state file, rename"}
+                        ${say "it in every listed file and here — one side alone is silent in"}
+                        ${say "BOTH directions: the reader stats a path nothing writes (a missing"}
+                        ${say "whenFile file reads as a yes, so the row is listed forever), or the"}
+                        ${say "writer fills a path nothing reads."}
+                        fail=1
+                      }
+                    fi
+                  ''
+                ) (builtins.attrNames f.literals)
               ) stateFileEntries
             )}
 
-            # Half two: no .nix under modules/ may hand-spell a registered path.
-            # Without this the registry is just a sixth copy — the exact shape
-            # it exists to end. A room that needs one of these paths imports
+            # No .nix under modules/ may hand-spell a registered path. Without
+            # this the registry is just one more copy — the exact shape it
+            # exists to end. A room that needs one of these imports
             # ../lib/state-files.nix and interpolates it.
 ${builtins.concatStringsSep "\n" (
-              map (f: ''
-                stray=$(grep -rlnF --include='*.nix' -- '${f.dir}/${f.name}' "$mods" || true)
-                if [ -n "$stray" ]; then
-                  echo 'these .nix files hand-spell `${f.dir}/${f.name}`, which' >&2
-                  echo 'modules/lib/state-files.nix owns as `${f.key}`:' >&2
-                  echo "$stray" | sed 's|^|  |' >&2
-                  echo 'Import ../lib/state-files.nix and interpolate .dir/.name instead.' >&2
-                  fail=1
-                fi
-              '') stateFileEntries
+              map (
+                f:
+                let
+                  say = text: "echo ${nixpkgs.lib.escapeShellArg text} >&2";
+                in
+                ''
+                  # The registry itself is excluded: it is the definition
+                  # site, and since `literals` names the operative line of each
+                  # file it necessarily quotes some of these paths whole.
+                  stray=$(grep -rlF --include='*.nix' -- ${nixpkgs.lib.escapeShellArg "${f.dir}/${f.name}"} "$mods" \
+                            | grep -v '/lib/state-files\.nix$' || true)
+                  if [ -n "$stray" ]; then
+                    ${say "these .nix files hand-spell ${f.dir}/${f.name}, which"}
+                    ${say "modules/lib/state-files.nix owns as `${f.key}`:"}
+                    echo "$stray" | sed 's|^|  |' >&2
+                    ${say "Import ../lib/state-files.nix and interpolate .dir/.name instead."}
+                    fail=1
+                  fi
+                ''
+              ) stateFileEntries
             )}
 
             [ "$fail" = 0 ] || exit 1

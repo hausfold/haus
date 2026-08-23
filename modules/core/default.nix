@@ -19,9 +19,17 @@ let
   # `or ""` is the machine with no bar at all, which awake.sh's own `[ -x ]`
   # guard already handles. See options-roadmap.md §5.4.
   awake = pkgs.writeShellScriptBin "awake" (
-    builtins.replaceStrings [ "@sketchybar@" ] [
-      (config.haus.roster.sketchybar.binPath or "")
-    ] (builtins.readFile ./awake.sh)
+    let
+      # `or` catches a MISSING attribute, not a null value, and `replaceStrings`
+      # throws on a null replacement — so a host that declares a metadata-only
+      # `haus.roster.sketchybar` with the bar off (no assertion to catch it)
+      # would fail the whole eval with a type error naming no option. Both
+      # halves are real: no entry at all, and an entry with nothing to install.
+      p = config.haus.roster.sketchybar.binPath or null;
+    in
+    builtins.replaceStrings [ "@sketchybar@" ] [ (if p == null then "" else p) ] (
+      builtins.readFile ./awake.sh
+    )
   );
 
   # `lidawake` is the other half of the same story and deliberately NOT another

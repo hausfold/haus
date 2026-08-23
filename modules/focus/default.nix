@@ -103,7 +103,16 @@ let
   # has no `sketchybar` roster entry at all, and this room deliberately works
   # without one. The empty string is what focus.sh's own `[ -x ]` guard already
   # expects for "no bar here".
-  sketchybarBin = lib.escapeShellArg (config.haus.roster.sketchybar.binPath or "");
+  sketchybarBin =
+    let
+      # `or` catches a missing ATTRIBUTE, not a null VALUE, and both happen: no
+      # roster entry at all, and an entry that installs nothing. The bar's own
+      # assertion would mask the second here (this room's uses are behind
+      # `haus.bar.enable`), which is exactly why it is handled rather than
+      # relied on.
+      p = config.haus.roster.sketchybar.binPath or null;
+    in
+    lib.escapeShellArg (if p == null then "" else p);
 
   engine = pkgs.runCommand "focus" { } ''
     mkdir -p $out/bin
@@ -283,7 +292,7 @@ lib.mkMerge [
           "-c"
           ''
             /bin/sleep 1
-            ${config.haus.roster.sketchybar.binPath or "/nonexistent/sketchybar"} --trigger focus_change 2>/dev/null || true
+            ${sketchybarBin} --trigger focus_change 2>/dev/null || true
             ${lib.optionalString config.haus.bar.bottom.enable "/run/current-system/sw/bin/bar-bottom --trigger focus_change 2>/dev/null || true"}
           ''
         ];
