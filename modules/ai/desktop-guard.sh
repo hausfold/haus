@@ -240,7 +240,7 @@ unpaired() { printf '%s' "$cmd" | tr ';&|' '\n\n\n' | grep -E "$1" | grep -Eqv "
 #     cluster rather than a standalone `-g`. The leading whitespace matters:
 #     without it `open ./my-great-file` exempts itself on the `-g` of "great".
 if unpaired '^ *open +(-[a-zA-Z]|[~./$"'"'"']|[a-z][a-z0-9+.-]*://)' 'open.*[[:space:]]-([a-zA-Z]*g|-background)'; then
-  ask "\`open\` brings an app or file to the front. Use \`open -g\` to launch it in the background, or ask the user to open it."
+  ask "\`open\` brings an app or file to the front. \`open -g\` launches without activating, but it does not promise a window — Ghostty under it opens none, and \`open\` exits 0 either way. Use it to RUN something, a VM to SEE something, or ask the user to open it."
 fi
 
 m 'osascript[^;&|]*activate' &&

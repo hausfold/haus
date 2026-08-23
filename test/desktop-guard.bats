@@ -63,6 +63,10 @@ silent() {
 }
 
 @test "the backgrounded and silent forms stay silent" {
+  # `-g` is silent because it takes no FOCUS, which is all this guard polices.
+  # It is not an endorsement: a backgrounded app need not open a window at all
+  # (Ghostty, measured 2026-08-23, opens none), which is why the guard's own
+  # message and modules/ai's instructions both say what `-g` is and is not for.
   silent 'open -g -a Ghostty'
   silent 'screencapture -x /tmp/shot.png'
   silent 'git commit -m "open the door, killall the noise"'
