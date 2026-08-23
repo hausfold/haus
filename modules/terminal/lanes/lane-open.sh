@@ -59,10 +59,15 @@ export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/s
 
 # ── identities a lane must not inherit ───────────────────────────────────────
 # macOS `open` forwards the caller's environment to the app it launches — the
-# fact scripts/peek-run.sh already scrubs for and says so. It only bites when
-# an AGENT is the spawner (`holt spawn`, `holt child`, `holt new --open` from a
-# client's shell), because then the environment being forwarded is another
-# LANE's, and three things in it are wrong for the lane being born:
+# fact scripts/peek-run.sh already scrubs for and says so. It bites whenever
+# the spawner is itself inside a zmx session, which is an agent's lane most of
+# the time (`holt spawn`, `holt child`, `holt new --open` from a client's
+# shell) but is EVERY ordinary Ghostty window too — scripts/launch.sh makes
+# each one a `term.<n>` session, so a person typing `holt <name>` in one after
+# a reboot, when no `holt.*` session is left alive and the resume is therefore
+# a creation, forwards it just the same. That is why both unsets below are
+# unconditional: do NOT gate them behind "is an agent spawning this". Three
+# things in that environment are wrong for the lane being born:
 #
 #   ZMX_SESSION       the fatal one. zmx injects it into every session it
 #                     hosts, and with it set `zmx attach <new> bash -lc …` does
