@@ -13,7 +13,7 @@ STATE_FILE="$STATE_DIR/state"
 LABEL="${AWAKE_LAUNCHD_LABEL:-com.hausfold.awake}"
 LAUNCHCTL="${AWAKE_LAUNCHCTL_BIN:-/bin/launchctl}"
 CAFFEINATE="${AWAKE_CAFFEINATE_BIN:-/usr/bin/caffeinate}"
-SKETCHYBAR="${AWAKE_SKETCHYBAR_BIN:-/opt/homebrew/opt/sketchybar/bin/sketchybar}"
+SKETCHYBAR="${AWAKE_SKETCHYBAR_BIN:-/run/current-system/sw/bin/sketchybar}"
 # bar's optional SECOND bar (haus.bar.bottom.enable) — the same binary under a
 # second name, hence a second client to poke. Absent on a machine without it.
 BAR_BOTTOM="${AWAKE_BAR_BOTTOM_BIN:-/run/current-system/sw/bin/bar-bottom}"

@@ -44,7 +44,7 @@ SYSTEM_PROFILER="${FOCUS_SYSTEM_PROFILER_BIN:-/usr/sbin/system_profiler}"
 # the reason focus does NOT depend on that room.
 HAUSDISP="${FOCUS_HAUSDISP_BIN:-/run/current-system/sw/bin/hausdisp}"
 DB="$HOME/Library/DoNotDisturb/DB/Assertions.json"
-SKETCHYBAR="/opt/homebrew/opt/sketchybar/bin/sketchybar"
+SKETCHYBAR="/run/current-system/sw/bin/sketchybar"
 BAR_BOTTOM="/run/current-system/sw/bin/bar-bottom"
 
 # Must match the AppleSymbolicHotKeys 175 binding written by default.nix.

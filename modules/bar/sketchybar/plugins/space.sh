@@ -37,7 +37,7 @@ WORKSPACE_ID="${NAME#space.}"
 if [ "$WORKSPACE_ID" = "$CURRENT_WORKSPACE" ] || [ "${CURRENT_WORKSPACE#"$WORKSPACE_ID"/}" != "$CURRENT_WORKSPACE" ]; then
     echo "  -> Active" >> /tmp/sketchybar_space.log
     # Active workspace - highlight it
-    /opt/homebrew/bin/sketchybar --set $NAME \
+    /run/current-system/sw/bin/sketchybar --set $NAME \
         background.color=$(fullscreen_active_ws_color "$(aerospace_fullscreen)") \
         icon.color=$BASE \
         label.color=$BASE \
@@ -49,7 +49,7 @@ if [ "$WORKSPACE_ID" = "$CURRENT_WORKSPACE" ] || [ "${CURRENT_WORKSPACE#"$WORKSP
 elif echo "$WORKSPACES_WITH_WINDOWS" | grep -qE "^${WORKSPACE_ID}(/|\$)"; then
     echo "  -> Inactive with windows" >> /tmp/sketchybar_space.log
     # Inactive workspace with windows
-    /opt/homebrew/bin/sketchybar --set $NAME \
+    /run/current-system/sw/bin/sketchybar --set $NAME \
         background.color=$SURFACE0 \
         icon.color=$TEXT \
         label.color=$TEXT \
@@ -57,5 +57,5 @@ elif echo "$WORKSPACES_WITH_WINDOWS" | grep -qE "^${WORKSPACE_ID}(/|\$)"; then
 else
     echo "  -> Empty" >> /tmp/sketchybar_space.log
     # Workspace is empty and not focused - hide it
-    /opt/homebrew/bin/sketchybar --set $NAME drawing=off
+    /run/current-system/sw/bin/sketchybar --set $NAME drawing=off
 fi

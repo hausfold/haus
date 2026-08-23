@@ -33,6 +33,10 @@ import Foundation
 let sketchybarBin: String = {
     let candidates = [
         ProcessInfo.processInfo.environment["SKETCHYBAR_BIN"] ?? "",
+        "/run/current-system/sw/bin/sketchybar",
+        // Where SketchyBar lived before it came from nixpkgs. Kept so a barpop
+        // from a new generation still finds the bar on a machine mid-migration,
+        // and harmless once the Homebrew formula is gone.
         "/opt/homebrew/opt/sketchybar/bin/sketchybar",
         "/opt/homebrew/bin/sketchybar",
         "/usr/local/bin/sketchybar",
