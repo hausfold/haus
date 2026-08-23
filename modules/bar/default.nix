@@ -1572,7 +1572,41 @@ lib.mkIf config.haus.bar.enable {
             "haus.bar.widgets.${name} claims an item id the bar already draws for itself (${lib.concatStringsSep ", " reservedItemIds}) — the logo, the front app, the workspace and launcher pills, the tour, and the id the aiUsage pill is drawn under. Two items of one name on one bar collide silently. Pick another name."
           else
             "haus.bar.widgets.\"${name}\" is not a usable pill name. A widget's name becomes the SketchyBar item id in `--add item <name> <side>`, which is a bare word in a generated shell script — a space or a dot there silently changes which item and which group the bar hears. Use letters, digits, `_` and `-`, starting with a letter or digit.";
-      }) (builtins.filter (name: !(validWidgetName name)) userWidgetNames);
+      }) (builtins.filter (name: !(validWidgetName name)) userWidgetNames)
+    ++
+      # ---- the one roster entry this room addresses by PATH -------------------
+      # `scope` reads as a question about REACH — which profile the package
+      # lands in — and for every other roster entry that is all it is. For
+      # sketchybar it is a filesystem contract: the launchd agent's
+      # ProgramArguments, `barpop`, `bar-bottom`, `aerospace-notify.sh` and the
+      # plugins all spell the binary `/run/current-system/sw/bin/sketchybar`
+      # (`barTopPath`, above), and only the system profile puts it there.
+      #
+      # So a host writing `haus.roster.sketchybar.scope = "user"` picks the
+      # DEFAULT every other entry uses and a documented in-range value, and the
+      # bar simply never draws: launchd points at a path with nothing behind
+      # it. Same for a host that swaps the package back out for a `brew`, since
+      # `scope` is ignored when `package` is null and the profile path is then
+      # empty. Both are one assignment away and neither is an error anywhere
+      # else, which is why this is an assertion and not a comment.
+      #
+      # The general shape — a roster entry another module names by path has a
+      # scope precondition, and the roster has no way to express it — is
+      # options-roadmap.md §5.4's open box. This is the one live case.
+      lib.optional
+        (config.haus.roster.sketchybar.package == null || config.haus.roster.sketchybar.scope != "system")
+        {
+          assertion = false;
+          message =
+            "haus.bar.enable is on, but haus.roster.sketchybar "
+            + (
+              if config.haus.roster.sketchybar.package == null then
+                "installs from no nixpkgs package (its `package` is null), so the system profile holds no sketchybar at all"
+              else
+                "has scope = \"user\", so its sketchybar lands in the home-manager profile"
+            )
+            + ". The bar addresses the binary as ${barTopPath} from its launchd agent, barpop, bar-bottom, aerospace-notify.sh and every plugin — a path only the system profile provides — so the bar would never draw and nothing else would say so. Set haus.roster.sketchybar = { package = pkgs.sketchybar; scope = \"system\"; }, or turn the bar off with haus.bar.enable = false.";
+        };
 
   # ---- the bundled pills, pre-declared as widgets -----------------------------
   # Every pill this repo ships exists in `haus.bar.widgets` on every machine,

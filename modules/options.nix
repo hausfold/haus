@@ -172,6 +172,18 @@ let
             under sudo either way.)
 
           Ignored when `package` is null — Homebrew has no such split.
+
+          **It is also a path, wherever a module addresses the binary.**
+          "system" is what puts the package at
+          `/run/current-system/sw/bin/<name>`, and a room that runs a tool
+          from launchd — where nothing nix-shaped is on PATH — has to spell
+          that path out. `sketchybar` is the live case: its launchd agent,
+          `barpop`, `bar-bottom` and every bar plugin name it that way, so
+          moving that entry to "user", or back to a `brew`, leaves the bar
+          pointing at nothing and drawing nothing. Changing `scope` or the
+          source on an entry haus itself declares is therefore not the
+          metadata edit it looks like — the bar room asserts on its own
+          entry, and a room of yours that names a path should too.
         '';
       };
       appStoreId = lib.mkOption {
