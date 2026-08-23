@@ -66,6 +66,9 @@ MAX_HOLD="${LIDAWAKE_MAX_HOLD:-28800}" # seconds; 0 = uncapped
 INTERVAL="${LIDAWAKE_INTERVAL:-5}"     # seconds between polls
 PMSET="${LIDAWAKE_PMSET_BIN:-/usr/bin/pmset}"
 MARKER="${LIDAWAKE_MARKER:-/var/db/haus-lidawake.held}"
+# Root's own timestamp for "this run started", written beside the marker so the
+# staleness test below has something to compare against that is not a clock.
+STAMP="${LIDAWAKE_STAMP:-${MARKER}.started}"
 
 # ── test seams (test/lidawake.sh) ────────────────────────────────────────────
 # A poll loop whose whole job is three time-dependent failsafes is exactly the
@@ -124,18 +127,16 @@ apply() {
 # At least one agent is mid-turn. Deliberately not "the directory is non-empty":
 # a hold that predates this process survived something that should have cleared
 # it (see the header), so it is evidence of a dead agent rather than a live one.
-# Real mtimes against a real start, never the test clock — staleness is a fact
-# about the filesystem and a fake clock must not be able to fake it away.
+#
+# `find -newer` against a file root stamped at startup, rather than reading each
+# mtime and comparing numbers. Two reasons, and the second is why this is not the
+# obvious `stat`: the comparison is against a real file rather than the test
+# clock, so a fake clock cannot fake staleness away — and `stat`'s mtime flag is
+# `-f %m` on BSD and `-c %Y` on GNU, which made the first version pass on this
+# Mac and fail on CI's Linux with every hold silently unreadable. `find -newer`
+# is the same word on both.
 holds_present() {
-    local f m
-    for f in "$HOLD_DIR"/*; do
-        [ -e "$f" ] || continue
-        m=$(/usr/bin/stat -f %m "$f" 2>/dev/null) || continue
-        if [ "$m" -ge "$STARTED_REAL" ]; then
-            return 0
-        fi
-    done
-    return 1
+    [ -n "$(find "$HOLD_DIR" -type f -newer "$STAMP" 2>/dev/null | head -n 1)" ]
 }
 
 held=0        # what we last successfully applied
@@ -146,10 +147,12 @@ tick=0
 
 trap 'apply 0; exit 0' TERM INT
 
-# The floor for both the staleness test above and failsafe 1 below. Real time in
-# both cases: this is about what survived a crash, not about what the loop thinks
-# the hour is.
-STARTED_REAL=$(/bin/date +%s)
+# The floor for the staleness test above: a file, so `find -newer` can compare
+# against it, and one this run owns rather than anything the hold directory or
+# the fake clock could influence. Anything in $HOLD_DIR older than this survived
+# something that should have removed it.
+mkdir -p "$(dirname "$STAMP")" 2>/dev/null || true
+: >"$STAMP"
 
 # Failsafe 1. Never inherit a predecessor's hold. Only ours, though — the marker
 # is what says so.
