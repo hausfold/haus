@@ -327,46 +327,19 @@ let
 
   # ---- every OTHER hausfold tool's skill ------------------------------------
   #
-  # A tool's `<tool>-skill` derivation lays out `$out/<skill-name>/SKILL.md`
-  # (the family standard, the workshop's notes/agent-surface.md §6), and a tool
-  # may ship more than one: holt ships `holt` (drive the lane lifecycle) and
-  # `handoff` (write the brief a `holt spawn --prompt-file` lane opens on).
+  # This is step 3 of the family agent-surface standard, and until haus#473 it
+  # was simply absent — the derivation existed and nothing linked it, so a haus
+  # machine had holt on PATH and no agent on it knew holt existed. The whole
+  # claim of the standard is that a haus user does nothing to get these.
   #
-  # This is step 3 of that standard, and until now it was simply absent — the
-  # derivation existed and nothing linked it, so a haus machine had holt on
-  # PATH and no agent on it knew holt existed. The whole claim of the standard
-  # is that a haus user does nothing to get these.
-  #
-  # Names are listed rather than read off the store with `builtins.readDir`:
-  # reading a derivation's output during evaluation is import-from-derivation,
-  # which would force a build every time somebody runs `haus get` to READ their
-  # config. A tool adding a skill is one word here, on the next lock bump.
-  # ⚠️ The names are UNVERIFIABLE from here, by construction: nothing checks that
-  # the derivation actually contains them, because the check would be a readDir
-  # on a store output — import-from-derivation. A name listed here that the
-  # pinned revision does not ship installs a DANGLING symlink, silently: eval,
-  # `nix flake check` and the home-files build are all green, because a
-  # home.file source pointing inside a store output is never existence-checked.
-  # So a new name and the lock bump that carries it are ONE commit.
-  toolSkills = [
-    {
-      drv = pkgs.holt-skill;
-      names = [
-        "holt"
-        "handoff"
-      ];
-    }
-  ];
-
-  # Flattened to one entry per skill, so the fan-out below is a plain product
-  # of clients × skills.
-  toolSkillList = lib.concatMap (
-    t:
-    map (name: {
-      inherit name;
-      inherit (t) drv;
-    }) t.names
-  ) toolSkills;
+  # The list, and the derivation that proves the names in it are real, live in
+  # ./tool-skills.nix — split out so `nix flake check` can build the thing this
+  # room puts on every machine's rebuild path (`.#tool-skills`).
+  toolSkills = import ./tool-skills.nix {
+    inherit pkgs lib;
+    inherit (pkgs) holt-skill;
+  };
+  inherit (toolSkills) toolSkillList;
 
   # One directory symlink per skill, into each installed client's own skills
   # directory — the same fan-out the haus skill gets, and the reason the
@@ -376,6 +349,9 @@ let
   # A directory symlink, not file-by-file: haus's own skill is split up only
   # because this-machine.md is rendered per host and has to sit beside the
   # store-built parts. Nothing here is per-host.
+  #
+  # Pointed at the checked copy rather than at the tool's own output, so the
+  # name in the path above is one the build has already found.
   toolSkillFiles = lib.optionalAttrs cfg.skill (
     lib.listToAttrs (
       lib.concatMap (
@@ -383,7 +359,7 @@ let
         map (
           skill:
           lib.nameValuePair "${agentHomes.${client}.skills}/${skill.name}" {
-            source = "${skill.drv}/${skill.name}";
+            source = "${toolSkills.checked}/${skill.name}";
           }
         ) toolSkillList
       ) fileClients
