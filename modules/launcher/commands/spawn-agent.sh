@@ -40,12 +40,14 @@
 # ⌃↵ is the same spawn as ↵ with HAUS_LANE_BACKGROUND=1 exported: the worktree,
 # the branch, the zmx session, the Ghostty window and the tile on T/<repo> are
 # all made exactly as usual, and the client starts on the prompt — but the
-# window is opened with `open -g` and AeroSpace is not told to follow it, so you
-# stay in whatever you were doing and visit the lane when you are ready (⌃⇥, the
-# Lanes palette, the bar's agents pill). The whole silence lives in
-# ~/.config/haus/lanes/lane-open.sh; this script only sets the variable. It is
-# what you want for "start this and I'll read it later", which is most spawns
-# that aren't the thing you are about to work on.
+# window opens where you cannot see it and the focus you had is handed straight
+# back, so you stay in whatever you were doing and visit the lane when you are
+# ready (⌃⇥, the Lanes palette, the bar's agents pill). The whole silence lives
+# in ~/.config/haus/lanes/lane-open.sh; this script only sets the variable — and
+# that file is also where the reason it is a give-back rather than an `open -g`
+# is written down, because `open -g` produced no window at all. It is what you
+# want for "start this and I'll read it later", which is most spawns that aren't
+# the thing you are about to work on.
 #
 # ⌘↵ and ⌥↵ fire on an EMPTY box too, which is the point of both: opening your
 # drafts is what you do INSTEAD of typing, and a screenshot is often the subject
