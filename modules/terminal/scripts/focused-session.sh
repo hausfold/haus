@@ -7,19 +7,39 @@
 # scrollback, ⌘L mines its URLs, ⌘↵ and ⌘N want its directory (lane-cwd.sh
 # builds on this).
 #
-# Two joins, tried in order, because the two kinds of window carry their
-# identity differently:
+# Two joins, because the two kinds of window carry their identity differently:
 #
-#   a LANE      the window title IS the session name. lanes/lane-open.sh spawns
-#               it with `open -na --title holt.<repo>.<lane>`, which Ghostty
-#               treats as a FORCED title — the client inside can't clobber it
-#               with OSC 2. String equality, nothing to look up.
-#   any other   the title is whatever the program inside last emitted, which is
-#               the right answer for a window switcher and useless as a key. So
-#               scripts/launch.sh stamps the window id it was given onto the
+#   any window  scripts/launch.sh stamps the window id it was given onto the
 #               session as a label, and that is the join. The label is refreshed
 #               on every attach, so a session reattached into a new window is
-#               never stale for longer than that attach.
+#               never stale for longer than that attach. Exact: an id is one
+#               window and always its own.
+#   a LANE      has no such label — its session is created by `zmx attach`
+#               inside the window rather than by launch.sh — but its window
+#               TITLE is the session name, because lanes/lane-open.sh spawns it
+#               with `open -na --title holt.<repo>.<lane>` and Ghostty treats
+#               that as a FORCED title the client inside can't clobber with
+#               OSC 2. String equality, nothing to look up.
+#
+# ── the label is asked FIRST, and that ordering is load-bearing ──────────────
+# The title used to win, on the reasoning that it is exact. It is not: Ghostty's
+# `--title` is INSTANCE-WIDE configuration, not a property of the one window it
+# was spawned for. So every window opened later inside that same Ghostty process
+# wears the lane's name too — and scripts/new-window.sh opens windows through
+# `tell application "Ghostty"`, which reaches whichever instance macOS routes it
+# to. Once every running instance is a lane's (which is the ordinary state of
+# this machine after a few spawns), a plain ⌘N terminal is BORN wearing some
+# lane's title.
+#
+# Title-first then answered with that lane's session, and every chord built on
+# this file acted on the wrong window: ⌘F searched the agent's scrollback, ⌘N
+# and ⌘↵ opened in the agent's checkout. MEASURED 2026-08-23 — a `term.*`
+# session created with `start_dir` pointing at a lane worktree three repos away
+# from the window it was opened from.
+#
+# A mistitled plain window still carries its own `window=` label, and a real
+# lane still carries no label at all, so asking the label first is right for
+# both and the title stays as the fallback it should always have been.
 #
 # ── two backends, because the tiler is optional ──────────────────────────────
 # AeroSpace is the fast path and the default where it exists: `aerospace
@@ -34,9 +54,9 @@
 # manager, no Accessibility grant and no helper process. On that machine the
 # id is the join for BOTH kinds of window, because lanes/lane-open.sh opens
 # lanes through the same API rather than as their own process, and stamps the
-# id it gets back as `gwindow=`. (The title join below still runs first and
-# still costs nothing; it simply has nothing to match there, since a lane
-# spawned that way wears the client's own title.)
+# id it gets back as `gwindow=`. (The title fallback below still costs
+# nothing; it simply has nothing to match there, since a lane spawned that way
+# wears the client's own title.)
 #
 # That single-instance detail is the whole reason the two backends can't be
 # mixed: `tell application "Ghostty"` reaches ONE process, so with a lane per
@@ -166,9 +186,11 @@ printf '%s' "$(zmx ls 2>/dev/null)" | awk -F'\t' -v want="$title" -v wid="$wid" 
       if (k == key)    win  = substr($i, p + 1)
     }
     if (name == "") next
-    if (name == want) { print name; exit }
-    if (wid != "" && win == wid) byid = name
+    # Label first — see the note at the top of this file on why the title
+    # cannot be trusted to be unique.
+    if (wid != "" && win == wid) { print name; exit }
+    if (name == want) bytitle = name
   }
-  END { if (byid != "") print byid }
+  END { if (bytitle != "") print bytitle }
 '
 exit 0

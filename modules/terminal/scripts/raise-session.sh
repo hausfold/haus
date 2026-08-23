@@ -23,8 +23,9 @@
 # Backends are lanes/lane-open.sh's, read the same way, for the same reason:
 #
 #   aerospace  a LANE is an exact window-title match (lane-open.sh forces the
-#              title to the session name). Anything else is found through the
-#              `window=` label scripts/launch.sh stamps.
+#              title to the session name), MINUS the impostors — see below.
+#              Anything else is found through the `window=` label
+#              scripts/launch.sh stamps.
 #   ghostty    both kinds are found through the `gwindow=` label — Ghostty's
 #              own stable window id — and raised with `activate window`, which
 #              needs no tiler and no Accessibility grant.
@@ -95,8 +96,24 @@ APPLESCRIPT
 
 case "$backend" in
   aerospace)
+    # A window WEARING a lane's title is not necessarily that lane's window.
+    # Ghostty's `--title` is INSTANCE-WIDE configuration rather than a property
+    # of the one window it was spawned for, so every window opened later inside
+    # a lane's Ghostty process — and scripts/new-window.sh opens windows through
+    # `tell application "Ghostty"`, which lands in whichever instance macOS
+    # routes it to — is BORN wearing that lane's name. Raising one of those puts
+    # a plain shell in front of someone looking for their agent.
+    #
+    # The discriminator was already in the room: a plain window carries its own
+    # `window=` label (launch.sh stamps it on every attach) and a real lane
+    # never does, because a lane's session is created by `zmx attach` inside the
+    # window rather than by launch.sh. So an id some session has CLAIMED is
+    # exactly an impostor, and skipping those leaves the real lane.
+    claimed=$(zmx ls 2>/dev/null | tr '\t' '\n' | sed -n 's/^window=//p')
     win=$(aerospace list-windows --all --format '%{window-id}|%{app-name}|%{window-title}' 2>/dev/null |
-      awk -F'|' -v t="$sess" '$2 == "Ghostty" && $3 == t { print $1; exit }')
+      awk -F'|' -v t="$sess" -v c="$claimed" '
+        BEGIN { n = split(c, a, "\n"); for (i = 1; i <= n; i++) if (a[i] != "") skip[a[i]] = 1 }
+        $2 == "Ghostty" && $3 == t && !($1 in skip) { print $1; exit }')
     if [ -z "$win" ]; then
       lw=$(label window)
       [ -n "$lw" ] && win=$(aerospace list-windows --all --format '%{window-id}' 2>/dev/null | grep -Fx "$lw")

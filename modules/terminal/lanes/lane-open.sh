@@ -220,14 +220,33 @@ fi
 # Three separate things have to be told, because each takes focus for its own
 # reason and silencing two of three still steals the screen:
 #
-#   open -g                    LaunchServices activates the app it opens, and
-#                              with `-na` a brand-new instance activates by
-#                              construction.
+#   focus handed back          `open -na` activates the instance it starts, by
+#                              construction — so the lane gives focus back to
+#                              whoever had it, rather than never taking it.
 #   no --focus-follows-window  AeroSpace follows the window to T/<repo>, which
 #                              is precisely what that flag is FOR normally —
 #                              see the note on it below.
 #   no `activate`              the ghostty backend's AppleScript spawn asks for
 #                              the app front by hand.
+#
+# ── why not `open -g`, which is the obvious answer ───────────────────────────
+# Because Ghostty launched into the background never opens a window at all.
+# MEASURED 2026-08-23, from a plain shell and away from any of this:
+#
+#   open -g -na Ghostty.app --args --title=probe --initial-command=<script>
+#
+# leaves a live Ghostty process with NO window, ever, and the initial-command
+# NEVER RUNS — so no zmx session, no client, no lane: a Dock icon and nothing
+# else. Nothing downstream could catch it either, because `open -na` returns
+# the moment LaunchServices accepts (spawn-agent.sh's own note says so), so
+# `holt spawn` exited 0 and the palette posted "… is working" over a lane that
+# had never started. That was every ⌃↵ spawn until this note.
+#
+# So the window is opened the ordinary way and the FOCUS is put back instead:
+# whoever held it before the spawn gets it back the moment the lane has been
+# moved off to T/<repo>. It costs a blink of the lane window on the page you
+# are standing on — it has to exist somewhere before AeroSpace can move it —
+# which is a far smaller price than a lane that isn't there at all.
 #
 # The palette's Spawn Agent sets it on ⌃↵, and it reaches here through `holt
 # spawn` because holt hands a seam os.Environ(). That same inheritance is why
@@ -246,10 +265,47 @@ unset HAUS_LANE_BACKGROUND
 # The three silences, resolved once so the branches below read as one word each.
 follow="--focus-follows-window "
 [ -n "$bg" ] && follow=""
-launch_bg=""
-[ -n "$bg" ] && launch_bg="-g"
 activate_line="  activate"
 [ -n "$bg" ] && activate_line="  -- background lane: deliberately not activating"
+
+# `-g` survives on the COLD START alone. That call is a pre-warm — its whole job
+# is to have the process up before the `-na` below, so that the lane's own spawn
+# doesn't race the app's launch and land a stray default window beside it — and
+# an instance that comes up windowless is precisely what a pre-warm wants. The
+# lane's own `open -na` must never carry it: see the measurement above.
+#
+# Worth knowing rather than fixing here: the instance it leaves behind is
+# windowless AND a live Apple Events target, so a later `tell application
+# "Ghostty"` (scripts/new-window.sh, the ghostty backend below) may be answered
+# by it. That routing lottery predates this line — the flag it replaced did the
+# same — and what it costs is written up in scripts/focused-session.sh.
+warm_bg=""
+[ -n "$bg" ] && warm_bg="-g"
+
+# Who holds the screen right now, so a background lane can give it back once it
+# has moved out of the way. Asked BEFORE anything is opened, because a moment
+# later the honest answer is the lane itself.
+#
+# Empty for a foreground lane, which is what makes the give-back inside the
+# launcher a no-op needing no branch of its own — and empty on the ghostty
+# backend too, which has no AeroSpace to ask and whose AppleScript spawn simply
+# never activates.
+#
+# The APP is captured beside the window, and it is not belt-and-braces: some
+# window is not always AeroSpace's to name. A native-fullscreen app, an
+# unmanaged window, or an AeroSpace that simply answers late all give an empty
+# window id — and an empty one means `giveback` does nothing, which is ⌃↵
+# silently keeping the screen and looking exactly like plain ↵. `lsappinfo` is
+# LaunchServices' own view of who is frontmost, needs no grant and no Apple
+# Event, and re-activating that app is a coarser give-back than the window but
+# an enormously better one than none.
+prev_wid=""
+prev_app=""
+if [ -n "$bg" ] && [ "$backend" = aerospace ]; then
+  prev_wid="$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)"
+  prev_app="$(/usr/bin/lsappinfo info -only bundleid "$(/usr/bin/lsappinfo front 2>/dev/null)" 2>/dev/null |
+    sed -n 's/.*"CFBundleIdentifier"="\([^"]*\)".*/\1/p')"
+fi
 
 # printf %q, not bash 5's ${var@Q}: /bin/bash on macOS is still 3.2, and this
 # script has no guarantee about which bash holt found first.
@@ -294,10 +350,28 @@ activate_line="  activate"
     # combined with a filter. One process, one window at this moment, no focus
     # anywhere in the question.
     #
-    # If the walk somehow comes back empty, the block does NOTHING. A lane that
-    # opened floating is a nuisance you can fix with the leader's ` ; a
-    # confidently mis-aimed `move-node-to-workspace` is a window you did not
-    # touch leaving the page you were reading it on.
+    # If the walk somehow comes back empty, the block moves NOTHING (it still
+    # gives the screen back). A lane that opened floating is a nuisance you can
+    # fix with the leader's ` ; a confidently mis-aimed
+    # `move-node-to-workspace` is a window you did not touch leaving the page
+    # you were reading it on.
+    # ── giving the screen back ────────────────────────────────────────────
+    # A background lane's window is opened the ordinary way, so it arrives with
+    # focus; this hands focus back to whatever had it before the spawn. It runs
+    # on EVERY exit from this block, not only the happy one — the two bails
+    # below are the cases where the lane stays put on the page you are standing
+    # on, which is exactly when leaving it focused as well would be worst.
+    #
+    # `$back` is empty for a foreground lane, so this is a no-op there and the
+    # block needs no branch of its own. Best effort throughout: a window that
+    # has since closed is not worth a word, and there is nowhere here to say it.
+    printf '  back=%q\n' "$prev_wid"
+    printf '  backapp=%q\n' "$prev_app"
+    printf '  giveback() {\n'
+    printf '    [ -n "$back" ] && aerospace focus --window-id "$back" >/dev/null 2>&1 && return 0\n'
+    printf '    [ -n "$backapp" ] && /usr/bin/open -b "$backapp" >/dev/null 2>&1\n'
+    printf '    return 0\n'
+    printf '  }\n'
     printf '  gpid=""; p=$$\n'
     printf '  while [ -n "$p" ] && [ "$p" != 1 ]; do\n'
     printf '    case "$(ps -o comm= -p "$p" 2>/dev/null)" in\n'
@@ -311,7 +385,7 @@ activate_line="  activate"
     printf '    esac\n'
     printf '    p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d " ")\n'
     printf '  done\n'
-    printf '  [ -n "$gpid" ] || exit 0\n'
+    printf '  [ -n "$gpid" ] || { giveback; exit 0; }\n'
     # The window does not exist for AeroSpace the instant the shell inside it
     # does, so this poll is a real wait rather than the no-op the old one was.
     # ONE window, or none. A fresh `open -na` process owns exactly one window,
@@ -327,7 +401,7 @@ activate_line="  activate"
     printf '    [ "$(printf "%%s\\n" "$mine" | grep -c .)" = 1 ] && { WID="$mine"; break; }\n'
     printf '    sleep 0.05\n'
     printf '  done\n'
-    printf '  [ -n "${WID:-}" ] || exit 0\n'
+    printf '  [ -n "${WID:-}" ] || { giveback; exit 0; }\n'
     # T/<repo>, not a single shared T: every lane of one repo tiles on its own
     # workspace page, so five agents across three repos stop fighting over one
     # tree. Workspace names may contain "/" (checked by hand against AeroSpace);
@@ -348,6 +422,10 @@ activate_line="  activate"
     printf '  aerospace move-node-to-workspace %s--window-id "$WID" %q\n' \
       "$follow" "T/$repo"
     printf '  aerospace layout --window-id "$WID" tiling\n'
+    # LAST, and only once the lane has left the visible workspace: give it back
+    # any earlier and AeroSpace would move a window that no longer has focus,
+    # which is the same mis-aim `--focused` used to make.
+    printf '  giveback\n'
     printf ') >/dev/null 2>&1 &\n'
   fi
   printf 'cd %q || exit 1\n' "$chat"
@@ -372,8 +450,8 @@ chmod +x "$launcher"
 # Ghostty and then polled for two seconds before opening its window. Fixed
 # 2026-08-19; same one-word bug was in scripts/new-window.sh.
 if ! pgrep -ix ghostty >/dev/null 2>&1; then
-  # shellcheck disable=SC2086  # $launch_bg is a whole flag or nothing
-  open $launch_bg -a Ghostty
+  # shellcheck disable=SC2086  # $warm_bg is a whole flag or nothing
+  open $warm_bg -a Ghostty
   for _ in $(seq 1 40); do
     pgrep -ix ghostty >/dev/null 2>&1 && break
     sleep 0.05
@@ -383,9 +461,12 @@ fi
 if [ "$backend" = aerospace ]; then
   # `--title` is a FORCED title in Ghostty, not a starting value: the client
   # inside can't clobber it with OSC 2. That is not a nicety, it is the whole
-  # join: everything outside finds this lane by its window name
-  # (`aerospace list-windows | grep '^holt\.'`), without the per-pane state files
-  # the bar keeps today.
+  # join: everything outside finds this lane by its window name, without the
+  # per-pane state files the bar keeps today. Not by that name ALONE, mind — the
+  # title is instance-wide config, so a plain window opened later into this same
+  # process wears it too, and the readers that care (scripts/raise-session.sh,
+  # windows/scripts/resort-windows.sh) subtract the ids some zmx session has
+  # claimed with a `window=` label. See scripts/focused-session.sh's note.
   #
   # The AppleScript spawn (`new window with configuration`, 252 ms vs 366 ms
   # here, and no second Ghostty process per lane) was tried and REJECTED for
@@ -400,8 +481,12 @@ if [ "$backend" = aerospace ]; then
   #
   # `open -na` rather than `ghostty +new-window`, which refuses on macOS
   # ("not supported on this platform").
-  # shellcheck disable=SC2086  # $launch_bg is a whole flag or nothing
-  open $launch_bg -na Ghostty.app --args \
+  #
+  # No `-g` here even for a background lane, however much it looks like the
+  # answer: Ghostty launched into the background opens no window and never runs
+  # its initial-command, so the whole lane silently fails to exist. The
+  # measurement, and what stands in its place, are in the background note above.
+  open -na Ghostty.app --args \
     --title="$sess" \
     --initial-command="$launcher" || exit 3
   exit 0
@@ -427,7 +512,9 @@ osa_str() {
 # the window is still created and its id still returned, so the `gwindow=` join
 # is unaffected either way. (Best effort — this backend asks a RUNNING Ghostty
 # for a window, and AppKit may still order the new window front. The aerospace
-# backend, which is what this machine uses, has `open -g` and is exact.)
+# backend, which is what this machine uses, cannot even try: `open -g` there
+# produces no window at all, so it lets the window take the screen and hands the
+# focus back afterwards. See the background note above.)
 gwid="$(
   /usr/bin/osascript -e "tell application \"Ghostty\"
   set w to (new window with configuration {command:$(osa_str "$launcher")})

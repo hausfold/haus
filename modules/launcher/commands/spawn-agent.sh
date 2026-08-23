@@ -34,18 +34,21 @@
 #   ⇧↵   newline — the task is often a list, not a sentence
 #   ⌘↵   capture a screenshot first, then spawn (this used to be a whole second
 #        palette entry, "Spawn Agent with Screenshot")
-#   ⌃↵   spawn in the background — everything happens, nothing takes the screen
+#   ⌃↵   spawn in the background — everything happens, and you keep the screen
 #   ⌥↵   your drafts
 #
 # ⌃↵ is the same spawn as ↵ with HAUS_LANE_BACKGROUND=1 exported: the worktree,
 # the branch, the zmx session, the Ghostty window and the tile on T/<repo> are
 # all made exactly as usual, and the client starts on the prompt — but the
-# window is opened with `open -g` and AeroSpace is not told to follow it, so you
-# stay in whatever you were doing and visit the lane when you are ready (⌃⇥, the
-# Lanes palette, the bar's agents pill). The whole silence lives in
-# ~/.config/haus/lanes/lane-open.sh; this script only sets the variable. It is
-# what you want for "start this and I'll read it later", which is most spawns
-# that aren't the thing you are about to work on.
+# lane blinks onto your page for as long as it takes AeroSpace to move it to
+# T/<repo>, and the focus you had is then handed straight back, so you stay in
+# whatever you were doing and visit the lane when you are
+# ready (⌃⇥, the Lanes palette, the bar's agents pill). The whole silence lives
+# in ~/.config/haus/lanes/lane-open.sh; this script only sets the variable — and
+# that file is also where the reason it is a give-back rather than an `open -g`
+# is written down, because `open -g` produced no window at all. It is what you
+# want for "start this and I'll read it later", which is most spawns that aren't
+# the thing you are about to work on.
 #
 # ⌘↵ and ⌥↵ fire on an EMPTY box too, which is the point of both: opening your
 # drafts is what you do INSTEAD of typing, and a screenshot is often the subject
@@ -201,11 +204,12 @@ repo="$(field "$repo_sel" 7)"
 # ⌃↵ is not chained either, for the opposite reason: a chained action holds the
 # palette up and KEY until the next step presents, and its only way out is an
 # 8-second fallback fade. Plain ↵ never notices, because the lane window it
-# opens takes the screen a moment later — but a background spawn opens nothing
-# you can see, so chaining it would park a spinner over your work for eight
-# seconds to announce a lane that is deliberately elsewhere. Unchained, the
-# palette lingers out normally and hands focus back to the app it stole it from,
-# which is exactly the promise ⌃↵ is making.
+# opens takes the screen a moment later and stays there — but a background lane
+# is gone off to T/<repo> within the same second, so chaining it would park a
+# spinner over your work for eight seconds to announce a lane that is
+# deliberately elsewhere. Unchained, the palette lingers out normally and hands
+# focus back to the app it stole it from, which is exactly the promise ⌃↵ is
+# making.
 #
 # --draft: every dismissal that isn't a commit keeps the text. This is the whole
 # insurance policy against the click-away.
@@ -431,12 +435,13 @@ if [ "$rc" -ne 0 ]; then
 fi
 
 # ── say so, when there is nothing to see ──────────────────────────────────
-# An ordinary spawn announces itself by taking the screen. A background one
-# announces itself by definition NOT taking the screen, so without this the
-# palette simply fades and you are left wondering whether ⌃↵ did anything at
-# all. A notification rather than a `notice` toast: `notice` is another pounce
-# window, which is a thing appearing in front of you — the one outcome ⌃↵ is
-# paying to avoid.
+# An ordinary spawn announces itself by KEEPING the screen — the lane is what
+# you are looking at when it is done. A background one gives the screen back
+# within the second, so without this the palette simply fades and you are left
+# wondering whether ⌃↵ did anything at all. A notification rather than a
+# `notice` toast: `notice` is another pounce window, which is a thing appearing
+# in front of you and waiting to be answered — the outcome ⌃↵ is paying to
+# avoid.
 if [ -n "${background:-}" ]; then
   /usr/bin/osascript -e "display notification \"$repo_name — $name is working\" with title \"haus · agent lane\"" >/dev/null 2>&1
 fi
