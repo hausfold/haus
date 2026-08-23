@@ -308,3 +308,10 @@ jobs:
       # Neither a build nor a lint can see either. Pure function, no Mac needed.
       - name: desktop guard tests
         run: bats test/desktop-guard.bats
+
+      # float-term's `recenter` — the pass that centres a spawned popup on the
+      # size it actually is. Pure arithmetic over two rectangles with AX and the
+      # screen probe stubbed, so it runs here rather than needing a Mac and a
+      # second display, which is what it took to FIND the bug.
+      - name: float-term recenter
+        run: bats test/float-term-recenter.bats
