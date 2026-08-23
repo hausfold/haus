@@ -19,6 +19,7 @@
 }@args:
 
 let
+  panes = import ../lib/settings-panes.nix;
   # Same reason modules/ai and modules/terminal read it this way: `hostname` is
   # a specialArg of the full builders and NOT of a bare `darwinModules.launcher`
   # import. Naming it above made this export refuse to evaluate for a consumer
@@ -1038,6 +1039,32 @@ let
   ];
 in
 lib.mkIf config.haus.launcher.enable {
+  # The palette's own card in core's manual-click deck. The grant is pounce's,
+  # so the sentence explaining it is this room's — core renders cards and knows
+  # nothing about any particular one.
+  haus._contrib.permissions.launcher-accessibility = {
+    order = 30;
+    title = "Accessibility — pounce";
+    why = ''
+      The palette types for you: auto-paste, emoji insertion, and every chord
+      that does something while a terminal is frontmost runs through pounce's
+      event tap. macOS calls all of that Accessibility.
+    '';
+    cost = "⌘Space still opens the palette, but pasting and the app chords do nothing at all";
+    applies = "command -v pounce >/dev/null 2>&1";
+    check = ''[ "$(pounce --check-accessibility 2>/dev/null)" = "true" ]'';
+    # Accessibility is one of the few services with a real prompt API, so this
+    # card never needs System Settings at all — the pane is the fallback for a
+    # stale entry that has to be removed and re-added.
+    prompt = "pounce --request-accessibility";
+    promptLabel = "Ask macOS now — one click, no Settings trip";
+    pane = panes.accessibility;
+    steps = [
+      "Turn Pounce on in the list"
+      "The first time, macOS also asks the keychain to allow codesign — choose Always Allow, or the grant is re-requested on every rebuild"
+    ];
+  };
+
   # Published so another room can run one of these scripts directly instead of
   # keeping a second copy of it — bar's logo pill is the first caller (the
   # option in ./options.nix says why a bar plugin can't resolve this itself).

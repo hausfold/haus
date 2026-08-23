@@ -20,6 +20,7 @@
 #   haus capture         turn this Mac's current settings into config lines + a snapshot
 #   haus revert-settings put back a 'haus capture' snapshot (Nix rollback can't touch macOS defaults)
 #   haus doctor          check the machine's health (Nix, CLT, the GUI agents)
+#   haus permissions     every grant and click this Mac still needs a person for
 #   haus btm             check BTM daemon-gating (macOS 26 Tahoe+; no-op before)
 #   haus tour            take the guided haus tour (it lives in the bar)
 #   haus show            inspect a desktop or room — a local file or a source you have
@@ -241,6 +242,11 @@ haus — the everyday CLI for a haus machine.
                       put back a 'haus capture' snapshot — Nix rollback rewinds
                       packages and agents, never macOS's own preferences
   haus doctor         check the machine's health (Nix, CLT, the GUI agents)
+  haus permissions    walk everything on this Mac that needs a person: each grant
+                      or click, why this machine wants it, and a button. Confirms
+                      what macOS lets it confirm and says so about the rest.
+                      --list reports without touching anything (so does doctor);
+                      --reset forgets the cards you marked done by hand
   haus btm            check BTM daemon-gating (macOS 26 Tahoe+; no-op before)
   haus tour           take the guided haus tour (haus tour reset re-arms it)
   haus show <src>     inspect a desktop or room before you publish or trust it:
@@ -1515,6 +1521,16 @@ cmd_rebuild() {
     say "the house stands."
   fi
   rm -f "$difffile"
+
+  # The one place a fresh machine is told its grants are missing. A rebuild is
+  # when the deck can first be right — the generation that installed it is the
+  # one now running — and it is also the moment somebody is looking. ONE line,
+  # never the wizard itself: opening System Settings at the end of a rebuild
+  # would take a screen nobody offered.
+  local unmet
+  unmet="$(_perm_unmet 2>/dev/null || echo 0)"
+  [ "${unmet:-0}" -eq 0 ] \
+    || warn "$unmet permission(s) macOS says you have not granted — walk them with: haus permissions"
 }
 
 # Family apps (pounce, perch…) ship as CI-published casks/formulae in
@@ -2498,7 +2514,7 @@ cmd_doctor() {
   echo
   say "GUI agents"
   local label name
-  for pair in "org.nixos.aerospace:AeroSpace" "org.nixos.sketchybar:sketchybar" "com.hausfold.pounce:pounce"; do
+  for pair in $(_haus_gui_agents); do
     label="${pair%%:*}"; name="${pair##*:}"
     if launchctl print "gui/$uid/$label" >/dev/null 2>&1; then
       if pgrep -qx "$name"; then ok "$name running"
@@ -2506,90 +2522,21 @@ cmd_doctor() {
     fi
   done
 
-  # Every TCC grant haus actually depends on, in ONE place, each with the
-  # System Settings pane that grants it. It was three grants reported in three
-  # different sections before, none of them linked — and a permission you can't
-  # find the pane for is the same as a permission you don't have.
+  # Every manual step this machine needs, in ONE place — rendered from the deck
+  # `haus permissions` walks, never from a second copy of it here. It was three
+  # grants reported in three different sections before, none of them linked and
+  # none of them aware of the rooms that had since grown cards of their own.
   #
-  # macOS has no API to ask "is <grant> given to <app>" for most of these, and
-  # the ones that exist answer only for the CALLING app. So this reports what it
-  # can measure, says plainly when it can't, and links the pane either way. The
-  # links are `x-apple.systempreferences:` URLs — not http, so `open` is the only
-  # thing that follows them, which is why they're printed as a command.
-  #
-  # Every row is per-APP, not per-machine: the answer legitimately differs
-  # between your terminal, an agent's pane and a shipped .app, and that
-  # asymmetry is itself the bug people hit (an agent-driven rebuild refusing
-  # where a hand-run one succeeds).
+  # doctor stays the READ-ONLY half: it opens nothing and prompts for nothing,
+  # because a health check that fires a permission dialog is a health check
+  # people stop running. Every card still wanting a person names the command
+  # that walks them.
   echo
   say "Permissions"
-  local pane="x-apple.systempreferences:com.apple.preference.security"
-
-  # Accessibility — pounce's auto-paste and emoji insertion (the #1 "why won't
-  # paste work" gotcha), bar's popover monitor, and the media pill's tab reach
-  # on Firefox forks, which expose no scriptable tab list at all.
-  if launchctl print "gui/$uid/com.hausfold.pounce" >/dev/null 2>&1; then
-    if command -v pounce >/dev/null 2>&1 && [ "$(pounce --check-accessibility 2>/dev/null)" = "true" ]; then
-      ok "Accessibility — pounce has it (auto-paste + emoji work)"
-    else
-      bad "Accessibility — pounce is missing it. Grant once: pounce --request-accessibility"
-      info "  or by hand: open '$pane?Privacy_Accessibility'"
-    fi
-  else
-    info "Accessibility — nothing here asks for it yet (pounce is off): open '$pane?Privacy_Accessibility'"
-  fi
-
-  # Full Disk Access — reported for the app running THIS command, because that is
-  # the identity `haus rebuild` writes TCC-protected domains under.
-  #
-  # The grant alone was never the actionable half: on a machine that declares
-  # nothing in a protected domain it costs nothing to lack it, and on one that
-  # declares an UNGUARDED key it costs the whole activation. So this crosses the
-  # capability with what the RUNNING system actually asks for, read out of the
-  # same announcement `haus plan` reads (core renders it from
-  # modules/lib/reachability.nix). A checklist that knows both can say which of
-  # the four combinations you are in instead of leaving you to work it out.
-  local fda_guarded fda_unguarded fda_all
-  fda_guarded="$(_haus_verdict needs-full-disk-access /run/current-system/activate)"
-  fda_unguarded="$(_haus_verdict aborts-without-full-disk-access /run/current-system/activate)"
-  # `paste -sd,` and not `-sd', '`: -d takes a LIST of delimiters and cycles
-  # through it, so a two-character one joins three items as "a,b c". Only one
-  # domain can appear today, which is exactly why this would have gone unseen.
-  fda_all="$(printf '%s\n%s\n' "$fda_unguarded" "$fda_guarded" | tr ',' '\n' | grep . | LC_ALL=C sort -u | paste -sd, - || true)"
-  if has_fda; then
-    if [ -n "$fda_all" ]; then
-      ok "Full Disk Access — this app has it, and this config needs it (${fda_all//,/, })"
-    else
-      ok "Full Disk Access — this app has it (nothing in this config needs it today)"
-    fi
-  elif [ -n "$fda_unguarded" ]; then
-    bad "Full Disk Access — this app hasn't got it and this config writes ${fda_unguarded//,/, } UNGUARDED, so 'haus rebuild' refuses rather than half-activate. Move those keys to haus.accessibility.*, or rebuild from an app that holds the grant: open '$pane?Privacy_AllFiles'"
-  elif [ -n "$fda_guarded" ]; then
-    warn "Full Disk Access — this app hasn't got it, so ${fda_guarded//,/, } is skipped on every rebuild from here (nothing else is affected; a rebuild from an app that has it applies them): open '$pane?Privacy_AllFiles'"
-  else
-    info "Full Disk Access — this app has none, and nothing in this config needs it. It is what haus.accessibility.* wants; without it those settings are skipped and nothing else: open '$pane?Privacy_AllFiles'"
-  fi
-
-  # Automation — the one grant with NO readable state: every API for it prompts,
-  # and prompting from a health check is worse than not knowing. So this reports
-  # whether anything on this machine will ask, which is the actionable half.
-  # haus.theme.systemAppearance drives System Events, and the media pill drives
-  # the scriptable browsers; both degrade to a warning rather than failing.
-  local hmgen appearance=""
-  hmgen="$(hm_generations /run/current-system/activate | head -1 | cut -f2 || true)"
-  # `|| true` because this whole `&&` chain IS the statement: under this script's
-  # `set -euo pipefail` a chain that ends false aborts doctor partway through,
-  # printing nothing after it — the same trap `settings_diff` hit, and the common
-  # case here (appearance unmanaged) is the false one.
-  if [ -n "$hmgen" ] && [ -f "$hmgen/activate" ] &&
-    grep -q 'hausSystemAppearance' "$hmgen/activate" 2>/dev/null; then
-    appearance=1
-  fi
-  if [ -n "$appearance" ]; then
-    info "Automation — haus.theme.systemAppearance drives System Events on every rebuild; without the grant the appearance silently stays put (the rebuild still succeeds): open '$pane?Privacy_Automation'"
-  else
-    info "Automation — nothing needs it unless you set haus.theme.systemAppearance, or ⌘-click the media pill to reach a browser tab: open '$pane?Privacy_Automation'"
-  fi
+  _perm_report
+  local pending
+  pending="$(_perm_pending 2>/dev/null || echo 0)"
+  [ "${pending:-0}" -eq 0 ] || info "$pending still want a person — walk them with: haus permissions"
 
   # Not a permission, and here anyway: the settings this RUNNING system declares
   # that macOS only reads at login. Same reader as everything above (`_haus_verdict`
@@ -2648,22 +2595,15 @@ cmd_doctor() {
   # Nebelung ports for roster apps. modules/theme/ports.nix drops each themeable
   # roster app's theme file where that app looks for it and writes what it could
   # NOT finish here — because a file on disk only makes a theme active for apps
-  # that read a fixed path. The ones needing a click are exactly what a health
-  # check is for: they look like "the theme didn't work" and are otherwise
-  # invisible. Absent file = the room is off (or predates this), so stay quiet.
-  local portsreport="$HOME/.config/haus/nebelung-ports.tsv"
-  if [ -s "$portsreport" ]; then
-    echo
-    say "Nebelung theme"
-    local status title detail
-    while IFS=$'\t' read -r status title detail; do
-      [ -n "$status" ] || continue
-      case "$status" in
-        done)          ok   "$title — themed ($detail)" ;;
-        step|manual)   info "$title — $detail" ;;
-      esac
-    done < "$portsreport"
-  fi
+  # that read a fixed path.
+  #
+  # The ones needing a click USED to be a section of their own here, listing
+  # every port including the finished ones. They are now theme's card in the
+  # Permissions deck above, which reads the same report through the card's
+  # `detail` — one place, and in the section a person is already scanning for
+  # things that want them. The `done` rows went with it: a health check saying
+  # "this theme applied correctly" about nine apps in a row is the noise that
+  # makes people skip the two lines underneath that matter.
 
   # Agents — whether an AI agent can usefully and safely drive this machine.
   # Three separate questions, all of which have bitten someone: does it have the
@@ -2746,6 +2686,385 @@ cmd_doctor() {
 # fix: the remedy is a toggle in the BTM store, which is GUI-only (sfltool can
 # dump it but not set it). So this DETECTS the condition and prints the one-time
 # manual fix. A pure no-op before Tahoe — nothing to gate there.
+# ---- the manual-click deck ---------------------------------------------------
+# Everything a fresh haus machine needs a PERSON for: the TCC grants, the login
+# items Tahoe gates, the theme ports an app only reads from its own preferences,
+# the logout macOS is waiting for. One deck, because they all cost the same
+# thing — somebody's attention, once — and splitting them across three commands
+# is why they got missed.
+#
+# The deck is DATA, written per-generation by modules/core/default.nix out of
+# whatever rooms contributed to `haus._contrib.permissions`. Nothing about any
+# particular grant is known here: this file walks cards. That is what makes the
+# deck correct on `blank`, where no room writes one, and correct after a
+# rollback, where the card for a room you no longer have goes with it.
+HAUS_PERMISSIONS="${HAUS_PERMISSIONS:-/run/current-system/sw/share/haus/permissions.json}"
+# Cards taken on the user's word, one key per line. Only ever consulted for a
+# card macOS gives no way to ask about — a real check always outranks it, in
+# both directions (see _perm_status).
+PERM_TAKEN="${XDG_STATE_HOME:-$HOME/.local/state}/haus/permissions-taken"
+
+# Each card as one record, ordered — fields separated by US and a card's steps
+# by RS, NOT by tabs.
+#
+# @tsv with `IFS=$'\t' read` looks right and silently loses every empty field:
+# tab is an IFS *whitespace* character, so bash collapses runs of them and
+# strips leading and trailing ones. A card with no `applies` therefore shifted
+# every field after it left, and the wizard ran its pane URL as a shell check —
+# no error, just cards quietly missing from the deck. US and RS are not
+# whitespace, so empties survive; `flat` has already removed every newline and
+# run of spaces from the prose, and no description contains a control character.
+_perm_deck() {
+  [ -r "$HAUS_PERMISSIONS" ] || return 0
+  jq -j '
+    def flat: (. // "") | gsub("\\s+"; " ") | sub("^ +"; "") | sub(" +$"; "");
+    # A shell snippet may legitimately span lines, and a raw newline would end
+    # the record halfway through the card. VT stands in for it here and
+    # _perm_code puts it back before anything is evaluated: prose is flattened,
+    # code is preserved exactly.
+    def code: (. // "") | gsub("\n"; "\u000b");
+    sort_by(.order, .key)[]
+    | [ .key, (.title|flat), (.why|flat), (.cost|flat), (.applies|code),
+        (.check|code), (.prompt|code), (.promptLabel|flat), (.pane // ""),
+        ((.steps // []) | map(flat) | join("\u001e")), (.detail|code) ]
+    | join("\u001f") + "\n"
+  ' "$HAUS_PERMISSIONS" 2>/dev/null || true
+}
+
+# A snippet as it was written: the deck carries a multi-line one with VT in
+# place of each newline (see _perm_deck), so nothing is evaluated before this
+# has put them back.
+_perm_code() { printf '%s' "$1" | tr '\013' '\n'; }
+
+# A card's snippet, run so it cannot take the caller with it: a subshell, so an
+# `exit` in a contributed check ends the check rather than `haus`, and silenced,
+# because a probe's stderr is noise on a machine where the answer is simply no.
+#
+# `</dev/null` is load-bearing, not tidiness: every caller runs INSIDE
+# `while read … < <(_perm_deck)`, so a snippet that reads stdin — a bare `grep`,
+# a `cat`, anything with a forgotten argument — eats the rest of the deck and
+# the loop ends early with status 0. Cards vanish and nothing says so, which is
+# the same silent-truncation failure the record encoding above was designed to
+# remove. `secretspec check` two hundred lines up closes its stdin for exactly
+# this reason.
+_perm_run() { ( eval "$(_perm_code "$1")" ) >/dev/null 2>&1 </dev/null; }
+
+# ok | unmet | taken | unknown.
+#
+# The distinction between `ok` and `taken` is the whole honesty of this command,
+# and it is trill's (Trill/UI/OnboardingAssistantPanel.swift, `confirmed` vs
+# `advanced`): `ok` is macOS agreeing, `taken` is the user saying so and nothing
+# more. Only the first earns a green tick. A card that HAS a check is never
+# `taken` — the check outranks the note in both directions, so marking one done
+# and then revoking it in System Settings reads as unmet again rather than
+# staying green off a stale file.
+_perm_status() {
+  local key="$1" check="$2"
+  if [ -n "$check" ]; then
+    if _perm_run "$check"; then echo ok; else echo unmet; fi
+  elif [ -f "$PERM_TAKEN" ] && grep -qxF "$key" "$PERM_TAKEN" 2>/dev/null; then
+    echo taken
+  else
+    echo unknown
+  fi
+}
+
+_perm_mark_taken() {
+  mkdir -p "$(dirname "$PERM_TAKEN")"
+  grep -qxF "$1" "$PERM_TAKEN" 2>/dev/null || printf '%s\n' "$1" >>"$PERM_TAKEN"
+}
+
+# Poll a check while the user is over in System Settings, so walking back to the
+# terminal finds the card already green rather than a prompt asking whether they
+# did it. `read -t 1` is both the one-second sleep and the escape hatch, which is
+# why there is no `sleep` here: a key ends the wait immediately.
+#   0 = macOS agreed   1 = timed out   2 = the user stopped waiting
+_perm_wait() {
+  local check="$1" i=0
+  info "waiting for macOS to agree — press any key to stop"
+  while [ "$i" -lt 90 ]; do
+    _perm_run "$check" && return 0
+    read -r -s -n 1 -t 1 _ 2>/dev/null && return 2
+    i=$((i + 1))
+  done
+  return 1
+}
+
+# The GUI agents haus installs, `<launchd label>:<process name>`. One list, read
+# by doctor's own section and by core's Login Items card — which is gated on a
+# wedged agent rather than on the macOS version, so it appears when something is
+# actually broken instead of on every Tahoe machine forever.
+_haus_gui_agents() {
+  printf '%s\n' org.nixos.aerospace:AeroSpace org.nixos.sketchybar:sketchybar com.hausfold.pounce:pounce
+}
+
+# Is anything bootstrapped into launchd but not running? That is the SYMPTOM
+# Background Task Management produces, and it is readable without sudo — unlike
+# the BTM store itself, which `haus btm` needs a password to open. A card gated
+# on a real wedge beats a card gated on "you are on macOS 26", which every Tahoe
+# machine would answer yes to whether or not anything was ever blocked.
+_perm_agent_wedged() {
+  local pair label name
+  for pair in $(_haus_gui_agents); do
+    label="${pair%%:*}"; name="${pair##*:}"
+    launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1 || continue
+    pgrep -qx "$name" || return 0
+  done
+  return 1
+}
+
+_perm_open_pane() {
+  # `x-apple.systempreferences:` is not http, so `open` is the only thing that
+  # follows it. Foreground and not `open -g` on purpose: this is the one place in
+  # haus that MAY take the screen, because the user just pressed the button that
+  # asks for it.
+  open "$1" >/dev/null 2>&1 || warn "couldn't open that pane — do it by hand: $1"
+}
+
+# The report half: every card, no interaction, nothing opened. `haus doctor`
+# renders its Permissions section from this, so the deck is described in exactly
+# one voice and doctor can never fall behind a room that added a card.
+_perm_report() {
+  local key title why cost applies check prompt plabel pane steps detail status any=""
+  while IFS=$'\037' read -r key title why cost applies check prompt plabel pane steps detail; do
+    [ -n "$key" ] || continue
+    [ -z "$applies" ] || _perm_run "$applies" || continue
+    any=1
+    status="$(_perm_status "$key" "$check")"
+    case "$status" in
+      ok) ok "$title" ;;
+      taken) ok "$title — on your word (macOS gives nothing to ask)" ;;
+      unmet) bad "$title — $why${cost:+ Without it: $cost}" ;;
+      unknown) info "$title — $why${cost:+ Without it: $cost}" ;;
+    esac
+    # The card's own runtime list, under it — which apps, which entries. Only
+    # for a card that still wants something: repeating the list under a green
+    # tick is noise, and this is the read-only report.
+    if [ -n "$detail" ] && [ "$status" != ok ] && [ "$status" != taken ]; then
+      { ( eval "$(_perm_code "$detail")" ) 2>/dev/null </dev/null || true; } \
+        | while IFS= read -r line || [ -n "$line" ]; do
+          [ -z "$line" ] || printf '     %s\n' "$line"
+        done
+    fi
+  done < <(_perm_deck)
+  [ -n "$any" ] || info "nothing on this machine needs a click — no enabled room asks for one"
+  return 0
+}
+
+# How many cards MEASURABLY are not done — macOS asked, macOS said no. This is
+# the count a rebuild is allowed to end on, because it is the only one that can
+# ever reach zero on its own: an unconfirmable card stays outstanding until
+# somebody says otherwise, and warning about it after every single rebuild
+# would train people to stop reading the last line.
+_perm_unmet() { _perm_count unmet; }
+
+# Everything still wanting a person, measurable or not. doctor's count, where a
+# fuller answer is the point and nothing is competing for the last line.
+_perm_pending() { _perm_count unmet unknown; }
+
+_perm_count() {
+  local key title why cost applies check prompt plabel pane steps detail want n=0
+  while IFS=$'\037' read -r key title why cost applies check prompt plabel pane steps detail; do
+    [ -n "$key" ] || continue
+    [ -z "$applies" ] || _perm_run "$applies" || continue
+    for want in "$@"; do
+      [ "$(_perm_status "$key" "$check")" = "$want" ] || continue
+      n=$((n + 1))
+      break
+    done
+  done < <(_perm_deck)
+  printf '%s' "$n"
+}
+
+# ---- haus permissions --------------------------------------------------------
+# The wizard: one card at a time, what it is for, and a button. Everything it can
+# measure it measures; everything it cannot it says so about and takes your word
+# for. It opens a System Settings pane only when you press the button that says
+# it will — the screen belongs to the person at it.
+cmd_permissions() {
+  case "${1:-}" in
+    --list | -l)
+      say "haus permissions"
+      _perm_report
+      return 0
+      ;;
+    --reset)
+      rm -f "$PERM_TAKEN"
+      say "forgot every card you'd marked done by hand — the measured ones are unaffected."
+      return 0
+      ;;
+    "") ;;
+    *) die "unknown flag '$1' — try: haus permissions [--list|--reset]" ;;
+  esac
+
+  [ -r "$HAUS_PERMISSIONS" ] \
+    || die "no permissions deck at $HAUS_PERMISSIONS (haus rebuild installs it)"
+
+  # gum draws the buttons and gum needs a terminal. Rather than half-work over a
+  # pipe, fall back to the report — which is the useful thing a script wanted
+  # anyway.
+  if [ ! -t 0 ] || [ ! -t 1 ]; then
+    _perm_report
+    return 0
+  fi
+  # It is on the wrapper's PATH, so this should be unreachable — and unguarded
+  # its absence is indistinguishable from pressing "Stop here", so the wizard
+  # would quit after one card and never say why.
+  command -v gum >/dev/null 2>&1 \
+    || die "the wizard needs gum, which ships with haus — try 'haus permissions --list' for the report, and 'haus doctor' for why this install is missing it."
+
+
+  local key title why cost applies check prompt plabel pane steps detail line
+  local -a cards=()
+  while IFS= read -r line; do cards+=("$line"); done < <(_perm_deck)
+
+  say "haus permissions — everything on this Mac that needs a person"
+  info "nothing here happens without you pressing for it; ⌃C leaves the rest alone"
+
+  local total=0 confirmed=0 word=0 left=0 quit=""
+  local card status choice step n waited
+  for card in ${cards[@]+"${cards[@]}"}; do
+    IFS=$'\037' read -r key title why cost applies check prompt plabel pane steps detail <<<"$card"
+    [ -n "$key" ] || continue
+    [ -z "$applies" ] || _perm_run "$applies" || continue
+    total=$((total + 1))
+
+    status="$(_perm_status "$key" "$check")"
+    if [ "$status" = ok ]; then
+      confirmed=$((confirmed + 1))
+      ok "$title"
+      continue
+    fi
+    if [ "$status" = taken ]; then
+      word=$((word + 1))
+      ok "$title — on your word"
+      continue
+    fi
+    if [ -n "$quit" ]; then
+      left=$((left + 1))
+      continue
+    fi
+
+    echo
+    say "$title"
+    info "$why"
+    # The specifics only this Mac knows — which apps, which entries. Run in the
+    # same subshell every other snippet gets, and simply absent when it prints
+    # nothing, so a card whose list has emptied does not draw a blank heading.
+    if [ -n "$detail" ]; then
+      # `|| [ -n "$line" ]` because a snippet whose output does not end in a
+      # newline leaves `read` returning false on its LAST line — which it has
+      # still read. Without it the final entry of every list silently vanishes.
+      # `|| true` because a `detail` is a LIST, and the natural way to write
+      # one is a grep or an awk that exits non-zero when the list is empty.
+      # Under `set -o pipefail` that status is the pipeline's, and it would end
+      # the wizard mid-walk with no message at all.
+      { ( eval "$(_perm_code "$detail")" ) 2>/dev/null </dev/null || true; } \
+        | while IFS= read -r line || [ -n "$line" ]; do
+        [ -z "$line" ] || printf '     %s\n' "$line"
+      done
+    fi
+    [ -z "$cost" ] || warn "without it: $cost"
+    [ -n "$check" ] || info "macOS gives no way to ask about this one, so nothing here can confirm it"
+
+    # The buttons, in the order they are worth pressing. A real system prompt
+    # beats a trip to Settings whenever the service has one, which is why it is
+    # first and why its label says what will happen.
+    local -a buttons=()
+    [ -z "$prompt" ] || buttons+=("$plabel")
+    [ -z "$pane" ] || buttons+=("Open System Settings")
+    if [ -n "$check" ]; then buttons+=("Check again"); else buttons+=("I've done it"); fi
+    buttons+=("Skip this one" "Stop here")
+
+    choice="$(printf '%s\n' "${buttons[@]}" | gum choose --header "$title")" || choice="Stop here"
+
+    case "$choice" in
+      "Stop here")
+        quit=1
+        left=$((left + 1))
+        ;;
+      "Skip this one")
+        left=$((left + 1))
+        ;;
+      "I've done it")
+        _perm_mark_taken "$key"
+        word=$((word + 1))
+        ok "noted — taken on your word, not measured"
+        ;;
+      "Check again")
+        if _perm_run "$check"; then
+          confirmed=$((confirmed + 1))
+          ok "$title"
+        else
+          left=$((left + 1))
+          bad "macOS still says no"
+        fi
+        ;;
+      *)
+        # A button that acts: fire the prompt, or open the pane and print the
+        # clicks. Then wait, so the walk back to the terminal lands on a card
+        # that has already turned green.
+        if [ -n "$prompt" ] && [ "$choice" = "$plabel" ]; then
+          _perm_run "$prompt" || true
+          info "macOS should be asking now — the dialog belongs to whichever app it is about"
+        else
+          _perm_open_pane "$pane"
+          n=0
+          # Same trailing-line rule as the detail loop above: `printf '%s'`
+          # emits no final newline, so the LAST step is read and then dropped
+          # by a bare `while read` — three steps print as two, silently.
+          while IFS= read -r step || [ -n "$step" ]; do
+            [ -n "$step" ] || continue
+            n=$((n + 1))
+            printf '     %d. %s\n' "$n" "$step"
+          done < <(printf '%s' "$steps" | tr '\036' '\n')
+        fi
+
+        if [ -n "$check" ]; then
+          # 0 agreed · 1 timed out · 2 you stopped waiting. The last one is a
+          # decision rather than a failure, and saying "not granted yet" to
+          # somebody who just pressed a key to move on reads as an argument.
+          _perm_wait "$check" && waited=0 || waited=$?
+          case "$waited" in
+            0)
+              confirmed=$((confirmed + 1))
+              ok "$title — macOS agrees"
+              ;;
+            2)
+              left=$((left + 1))
+              info "left for later — 'haus permissions' picks up where this stopped"
+              ;;
+            *)
+              left=$((left + 1))
+              warn "not granted yet — 'haus permissions' picks up where this left off"
+              ;;
+          esac
+        elif gum confirm "Done?" --affirmative "Yes" --negative "Not yet"; then
+          _perm_mark_taken "$key"
+          word=$((word + 1))
+          ok "noted — taken on your word"
+        else
+          left=$((left + 1))
+        fi
+        ;;
+    esac
+  done
+
+  echo
+  if [ "$total" -eq 0 ]; then
+    say "nothing on this machine needs a click"
+    info "no enabled room asks for one — that is the whole report, and it is a good one"
+    return 0
+  fi
+  say "$confirmed of $total confirmed by macOS"
+  [ "$word" -eq 0 ] || info "$word taken on your word — nothing here measured those"
+  if [ "$left" -gt 0 ]; then
+    warn "$left still waiting — run 'haus permissions' again whenever; it resumes, and never repeats what is done"
+  else
+    ok "nothing left waiting on you"
+  fi
+}
+
 cmd_btm() {
   local ver major
   ver="$(sw_vers -productVersion 2>/dev/null || echo 0)"; major="${ver%%.*}"
@@ -3510,6 +3829,7 @@ case "${1:-status}" in
   capture)     shift; cmd_capture "$@" ;;
   revert-settings) cmd_revert_settings "${2:-latest}" ;;
   doctor)      cmd_doctor ;;
+  permissions) cmd_permissions "${2:-}" ;;
   btm)         cmd_btm ;;
   tour)        cmd_tour "${2:-}" ;;
   show)        shift; cmd_show "$@" ;;
@@ -3517,5 +3837,5 @@ case "${1:-status}" in
   desktop)     cmd_desktop "${2:-}" ;;
   remove)      cmd_remove "${2:-}" "${3:-}" ;;
   -h|--help|help) usage ;;
-  *)           die "unknown command '$1' — try: rebuild update rollback generations status edit options set get unset reset plan diff capture revert-settings doctor btm tour show add desktop remove" ;;
+  *)           die "unknown command '$1' — try: rebuild update rollback generations status edit options set get unset reset plan diff capture revert-settings doctor permissions btm tour show add desktop remove" ;;
 esac

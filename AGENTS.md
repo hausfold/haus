@@ -98,7 +98,13 @@ modules/
   lib/contrib.nix         # extension points: how a room contributes a feature to
                           #   another room without reaching into its config, or
                           #   switching it on. The receiver declares the point
-                          #   (haus._contrib.<room>.<feature>), the source writes it
+                          #   (haus._contrib.<room>.<feature>), the source writes it.
+                          #   mkExtensionPoint is one feature, one writer;
+                          #   mkExtensionRegistry is a DECK many rooms each add a
+                          #   keyed entry to (haus._contrib.permissions is it today)
+  lib/settings-panes.nix  # System Settings deep links, spelled once — a wrong
+                          #   x-apple.systempreferences: URL lands on the front page
+                          #   with no error, and four rooms want Privacy_Accessibility
   lib/desktop.nix         # the DESKTOP SEAM's validator: the closed shape a desktop
                           #   file has to have, and the per-leaf desktop-safety walk
                           #   it runs off the room registry. Returns failures rather
@@ -387,6 +393,33 @@ mechanism, say so in one line.
     is the only thing on the machine that can fire on a click — AeroSpace has
     no mouse bindings) is the one room pair left with a real hard requirement,
     asserted for exactly that reason.
+- **A step a fresh machine needs a PERSON for** (a TCC grant, a login item to
+  allow, a theme an app only reads from its own preferences): it is a card in
+  the manual-click deck — one `haus._contrib.permissions.<room>-<thing>` entry
+  in the room that knows WHY, never a line in `haus.sh`. Core renders the deck
+  into `share/haus/permissions.json` per generation, and `haus permissions`
+  walks it while `haus doctor` reports it; neither knows anything about any
+  particular grant. That is what keeps the deck honest as rooms come and go —
+  on `blank` only core's three are in it, each gated so a healthy machine shows
+  none, and a rollback takes a room's cards with the room. Bar's are GENERATED
+  from `modules/bar/widgets.nix`'s own `permissions` table rather than
+  hand-written, which is the pattern to copy wherever a room already declares
+  what it will ask for. Three rules the schema is built around, and the honesty
+  of the command depends on all three:
+  - **`check` must never prompt.** Every API that reports an Automation grant
+    asks for it first, and a permission dialog fired by `haus doctor` is how
+    people learn to stop running `haus doctor`. No readable state means
+    `check = null`, which the wizard says out loud and then takes on the user's
+    word — it never draws a tick nothing earned.
+  - **`prompt` before `pane`.** Accessibility has a real prompt API, so
+    pounce's grant is one click and no trip to Settings. Most services have
+    none; those get a deep-linked `pane` from `modules/lib/settings-panes.nix`
+    and the clicks in `steps`.
+  - **Gate on the symptom, not the platform.** `core-login-items` is gated on
+    an agent actually being wedged (`_perm_agent_wedged`), not on "macOS ≥ 26",
+    because a card nobody can act on trains people to skip the ones they can.
+    Runtime facts go in `applies`; a runtime LIST goes in `detail`, whose stdout
+    prints under the card (theme's ports card names the apps that way).
 - **New SketchyBar plugin**: add
   `modules/bar/sketchybar/plugins/<name>.sh`, wire it into
   `modules/bar/sketchybar/sketchybarrc`. Follow an existing plugin.

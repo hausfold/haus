@@ -22,6 +22,7 @@
 }:
 
 let
+  panes = import ../lib/settings-panes.nix;
   withGUIWait = (import ../lib/gui-wait.nix).wrap;
 
   # `hausrect` — on-screen window rects by window id, the one thing AeroSpace
@@ -494,6 +495,33 @@ lib.mkMerge [
   }
 
   (lib.mkIf config.haus.windows.enable {
+    # The tiler's card in core's manual-click deck. AeroSpace asks for this
+    # itself the first time it runs, which is precisely why it belongs here
+    # anyway: the prompt arrives during a rebuild nobody is watching, gets
+    # dismissed, and the machine then looks like tiling is broken rather than
+    # ungranted.
+    haus._contrib.permissions.windows-accessibility = {
+      order = 35;
+      title = "Accessibility — AeroSpace";
+      why = ''
+        Moving, resizing and focusing other apps' windows is the entire job, and
+        macOS only lets an app touch another app's windows with Accessibility.
+      '';
+      cost = "AeroSpace runs and answers, and no window ever moves";
+      applies = "command -v aerospace >/dev/null 2>&1 && pgrep -qx AeroSpace";
+      # Functional, not declarative: macOS exposes no way to ask about another
+      # app's grant, but an AeroSpace that cannot see windows enumerates none.
+      # It reads the whole session, so an empty answer means the grant, never an
+      # empty desktop — the bar and the palette are windowless, but Finder,
+      # the terminal you are typing this in and every running app are not.
+      check = ''[ -n "$(aerospace list-windows --all 2>/dev/null)" ]'';
+      pane = panes.accessibility;
+      steps = [
+        "Turn AeroSpace on in the list"
+        "Then restart it: launchctl kickstart -k gui/$(id -u)/org.nixos.aerospace"
+      ];
+    };
+
     # A fresh host gets a useful terminal + browser. These are field-level
     # defaults, so keyed entries compose with them and can override by app id.
     haus.roster = {

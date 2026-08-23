@@ -17,6 +17,7 @@
 }:
 
 let
+  panes = import ../lib/settings-panes.nix;
   cfg = config.haus.snippets;
 
   # espanso reads YAML from ~/.config/espanso. Emit a readable match file from
@@ -33,6 +34,30 @@ let
   espanso = "/Applications/Espanso.app/Contents/MacOS/espanso";
 in
 lib.mkIf cfg.enable {
+  # Espanso's card in core's manual-click deck. The grant is the whole reason
+  # this room installs the CASK rather than pkgs.espanso (see the header): a
+  # stable signed identity means it is clicked once and never again, which is
+  # exactly the promise a card is allowed to make.
+  haus._contrib.permissions.snippets-accessibility = {
+    order = 40;
+    title = "Accessibility — Espanso";
+    why = ''
+      Text expansion works by watching what you type and typing the replacement
+      back. macOS calls both halves Accessibility, and there is no other route
+      to either.
+    '';
+    cost = "no snippet ever fires, and Espanso puts up its own warning window instead";
+    # No self-check: espanso answers only for itself, and the CLI's own status
+    # reports the daemon rather than the grant. macOS exposes nothing to ask
+    # about another app's Accessibility, so this card is honest about being
+    # takeable only on the user's word.
+    pane = panes.accessibility;
+    steps = [
+      "Turn Espanso on in the list"
+      "Granted once, it stays granted — the identity is stable across rebuilds and nixpkgs bumps"
+    ];
+  };
+
   # The signed app, not pkgs.espanso (see the header). A roster entry rather than
   # a bare cask, so it lands in the machine's one list — no key, because you
   # never launch espanso, you type at it.
