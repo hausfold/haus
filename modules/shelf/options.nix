@@ -3,7 +3,7 @@
 # Cross-cutting options (the app roster) stay in modules/options.nix.
 #
 # The shelf room's options — the file shelf under the notch.
-{ lib, ... }:
+{ lib, config, ... }:
 
 {
   options.haus = {
@@ -16,11 +16,24 @@
       '';
     };
 
+    # Tracks the room, the same way developer.{git,toolbelt}.enable track
+    # developer.enable. It reads `true` only where it can DO anything: every
+    # line of ../shelf/default.nix sits inside `mkIf shelf.enable`, so with the
+    # shelf off this switch was already inert — it just used to say `true`
+    # about it, on `minimal` and `blank` alike, so `haus get`, the `haus set`
+    # picker and the annotated host file all offered a knob with nothing behind
+    # it. The gate is not new; only its honesty is. (Not `haus show`: that
+    # reads a desktop FILE and never a machine's resolved values — the claim
+    # two files over in ../shelf/default.nix was wrong about which surface,
+    # and is corrected in the same breath.)
     shelf.watchScreenshots = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = config.haus.shelf.enable;
+      defaultText = lib.literalExpression "config.haus.shelf.enable";
       description = ''
         Set this Mac up so new screenshots reach the shelf on their own.
+        On with the shelf, off without it — and nothing here happens at all
+        unless `haus.shelf.enable` is on, whatever this says.
 
         It does NOT hand perch the folder — it cannot. A watched folder is a
         security-scoped bookmark, and only perch itself can mint one, out of a
