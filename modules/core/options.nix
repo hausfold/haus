@@ -1387,6 +1387,109 @@ in
             '';
           };
         };
+
+        # ---- the lid ----
+        # The one thing in this room that is NOT a timer, and the one thing
+        # `awake` cannot do: caffeinate does not cross a lid close (its own
+        # usage text says so), because lid-close sleep is a separate path in
+        # macOS. pmset's `disablesleep` is the only lever over it, it is
+        # root-only, and it is all-or-nothing -- so haus wraps it in a daemon
+        # that holds it for exactly as long as an agent is mid-turn. The
+        # daemon is modules/core/lidawake.sh; the signal it reads is written
+        # by modules/bar/sketchybar/plugins/agents-hook.sh, which is already
+        # the single writer of agent state for every client.
+        lidAwake = {
+          enable = lib.mkOption {
+            type = lib.types.bool;
+            default = false;
+            example = true;
+            description = ''
+              Let this Mac keep working with its lid shut.
+
+              Off by default, and deliberately: closing the lid is the one
+              gesture everybody reads as "stop", so haus will not quietly
+              redefine it. Turn it on and a root daemon holds macOS's
+              `disablesleep` -- the only lever over lid-close sleep, which
+              `awake`'s caffeinate assertion cannot reach -- for as long as
+              `while` says to.
+
+              What it cannot save you from: with the lid shut and no external
+              display there is no display at all, so an agent that takes
+              screenshots or drives the UI goes blind. Work that has to SEE
+              something belongs in a headless VM, whose display is virtual and
+              never depended on this one.
+            '';
+          };
+
+          while = lib.mkOption {
+            type = lib.types.enum [
+              "agents"
+              "always"
+            ];
+            default = "agents";
+            example = "always";
+            description = ''
+              When to hold the lid open, so to speak.
+
+              `agents` (the default) holds only while an agent is actually
+              mid-turn, and lets the Mac sleep once the last one stops -- the
+              answer to "let them finish, then behave normally". The signal is
+              the one the bar's agents pill already draws, reported by every
+              client haus knows (Claude Code, Codex, OpenCode), so nothing has
+              to be discovered or polled. An agent sitting at a permission
+              prompt does NOT hold: it is blocked on a human who is not there.
+
+              `always` is plain closed-display mode -- this Mac never sleeps on
+              a lid close, agents or no agents.
+            '';
+          };
+
+          requirePower = lib.mkOption {
+            type = lib.types.bool;
+            default = true;
+            example = false;
+            description = ''
+              Only hold the lid awake while plugged in.
+
+              On by default. A closed laptop on battery is the bad case and the
+              invisible one: no screen to tell you it is still working, a
+              battery going down, and in a bag nowhere for the heat to go. On
+              means unplugging is also how you say stop -- the hold releases
+              and the Mac sleeps normally.
+            '';
+          };
+
+          linger = lib.mkOption {
+            type = lib.types.ints.unsigned;
+            default = 5;
+            example = 1;
+            description = ''
+              Minutes to keep holding after the last agent stops.
+
+              Only `while = "agents"` has anything to linger for. The gap
+              between two turns is seconds, and sleeping inside it
+              would end the run you were trying to protect. This only ever
+              extends a hold that already exists; it never starts one. 0 sleeps
+              the moment the last agent goes idle.
+            '';
+          };
+
+          maxHold = lib.mkOption {
+            type = lib.types.either lib.types.ints.positive (lib.types.enum [ "never" ]);
+            default = 480;
+            example = "never";
+            description = ''
+              Minutes one unbroken hold may last, or `"never"` for no cap.
+
+              The failsafe. A client that dies without reporting leaves a hold
+              behind, and without this the Mac would simply never sleep again
+              with nothing on screen to say why. Past the cap the hold releases
+              and refuses to re-arm until the signal has actually cleared, so a
+              stuck hold costs one window rather than forever. 8 hours by
+              default -- long enough for an overnight run.
+            '';
+          };
+        };
       };
   };
 }
