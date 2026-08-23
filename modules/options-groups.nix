@@ -295,6 +295,11 @@ let
       "diskSleep.charger"
       "displaySleep.battery"
       "displaySleep.charger"
+      "lidAwake.enable"
+      "lidAwake.linger"
+      "lidAwake.maxHold"
+      "lidAwake.requirePower"
+      "lidAwake.while"
       "lowPowerMode.battery"
       "lowPowerMode.charger"
     ];
@@ -1098,6 +1103,7 @@ let
           "change my timezone"
           "set my region"
           "stop my laptop sleeping so fast"
+          "keep working with the lid closed"
         ];
       };
     };

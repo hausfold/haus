@@ -965,7 +965,7 @@
     "power": {
       "blurb": "Sleep timers and Low Power Mode, said separately for battery and charger — which is the whole point, and why this is built on `pmset` rather than on nix-darwin's own power options. Plus the lid: whether closing this Mac is allowed to end a run that agents are still in the middle of.",
       "kind": "host",
-      "optionCount": 8,
+      "optionCount": 13,
       "options": {
         "haus.power.computerSleep.battery": {
           "desktopSafe": false,
@@ -988,6 +988,26 @@
           "reason": "this-hardware"
         },
         "haus.power.displaySleep.charger": {
+          "desktopSafe": false,
+          "reason": "this-hardware"
+        },
+        "haus.power.lidAwake.enable": {
+          "desktopSafe": false,
+          "reason": "this-hardware"
+        },
+        "haus.power.lidAwake.linger": {
+          "desktopSafe": false,
+          "reason": "this-hardware"
+        },
+        "haus.power.lidAwake.maxHold": {
+          "desktopSafe": false,
+          "reason": "this-hardware"
+        },
+        "haus.power.lidAwake.requirePower": {
+          "desktopSafe": false,
+          "reason": "this-hardware"
+        },
+        "haus.power.lidAwake.while": {
           "desktopSafe": false,
           "reason": "this-hardware"
         },
@@ -1693,7 +1713,8 @@
           "change my git identity",
           "change my timezone",
           "set my region",
-          "stop my laptop sleeping so fast"
+          "stop my laptop sleeping so fast",
+          "keep working with the lid closed"
         ],
         "cli": null
       },
@@ -1705,7 +1726,7 @@
         "locale",
         "power"
       ],
-      "optionCount": 19,
+      "optionCount": 24,
       "order": 210,
       "title": "Your machine"
     },

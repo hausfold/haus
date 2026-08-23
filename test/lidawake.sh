@@ -19,7 +19,12 @@ mkdir -p "$TMP/bin" "$TMP/holds"
 
 # `pmset -g batt` reads the fake power source; `pmset -a disablesleep N` records
 # the write. Nothing else is called.
-cat >"$TMP/bin/pmset" <<'EOF'
+#
+# A function rather than a one-off heredoc because scenario 7 swaps in a FAILING
+# stub, and a suite where one scenario can quietly change the world every later
+# scenario runs in is worse than no suite: `scenario` puts this one back.
+good_pmset() {
+    cat >"$TMP/bin/pmset" <<'EOF'
 #!/usr/bin/env bash
 case "${1:-}" in
     -g)
@@ -36,7 +41,8 @@ case "${1:-}" in
         ;;
 esac
 EOF
-chmod +x "$TMP/bin/pmset"
+    chmod +x "$TMP/bin/pmset"
+}
 
 export LIDAWAKE_PMSET_BIN="$TMP/bin/pmset"
 export LIDAWAKE_TEST_LOG="$TMP/log"
@@ -69,6 +75,7 @@ assert_writes() {
 # as a `case` over ticks rather than as several processes that would each forget
 # the hold state the failsafes are made of.
 scenario() {
+    good_pmset
     : >"$LIDAWAKE_TEST_LOG"
     /bin/rm -rf "$TMP/holds" "$LIDAWAKE_MARKER"
     mkdir -p "$TMP/holds"
@@ -82,8 +89,8 @@ hook() {
 }
 
 # ── 1. hold while an agent works, release when it stops ──────────────────────
-# The leading 0 is failsafe 1: the loop clears disablesleep before its first
-# iteration, so it can never inherit a crashed predecessor's hold.
+# Two writes and no more: nothing is cleared on the way in, because no marker
+# says a previous run left a hold behind (scenario 8 is the case where one does).
 scenario
 hook '
 case "$1" in
@@ -92,7 +99,7 @@ case "$1" in
 esac'
 LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 LIDAWAKE_TICKS=5 \
     bash "$LIDAWAKE" >/dev/null
-assert_writes "0 1 0" "basic hold/release"
+assert_writes "1 0" "basic hold/release"
 [ ! -e "$LIDAWAKE_MARKER" ] || fail "basic: marker survived the release"
 
 # ── 2. two agents, and the hold outlives the first to finish ─────────────────
@@ -105,7 +112,7 @@ case "$1" in
 esac'
 LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 LIDAWAKE_TICKS=6 \
     bash "$LIDAWAKE" >/dev/null
-assert_writes "0 1 0" "two agents"
+assert_writes "1 0" "two agents"
 
 # ── 3. linger carries the hold across the gap between turns ──────────────────
 # The clock jumps rather than ticks: 100s after the agent stops is inside the
@@ -119,7 +126,7 @@ case "$1" in
 esac'
 LIDAWAKE_LINGER=300 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 LIDAWAKE_TICKS=3 \
     bash "$LIDAWAKE" >/dev/null
-assert_writes "0 1 0" "linger"
+assert_writes "1 0" "linger"
 
 # Same shape, but the next turn starts inside the linger: one unbroken hold, so
 # exactly one write. This is the case linger exists for.
@@ -132,7 +139,7 @@ case "$1" in
 esac'
 LIDAWAKE_LINGER=300 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 LIDAWAKE_TICKS=3 \
     bash "$LIDAWAKE" >/dev/null
-assert_writes "0 1" "linger spans two turns"
+assert_writes "1" "linger spans two turns"
 
 # ── 4. requirePower ──────────────────────────────────────────────────────────
 # On battery the hold is never taken, however hard the agents are working; plug
@@ -148,7 +155,7 @@ case "$1" in
 esac'
 LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=1 LIDAWAKE_TICKS=6 \
     bash "$LIDAWAKE" >/dev/null
-assert_writes "0 1 0" "requirePower"
+assert_writes "1 0" "requirePower"
 
 # ── 5. maxHold caps one continuous hold, and latches ─────────────────────────
 # The hold file never goes away — this is the stuck-client case. The cap must
@@ -165,7 +172,7 @@ case "$1" in
 esac'
 LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=600 LIDAWAKE_REQUIRE_POWER=0 LIDAWAKE_TICKS=5 \
     bash "$LIDAWAKE" >/dev/null
-assert_writes "0 1 0 1" "maxHold caps, latches, then re-arms"
+assert_writes "1 0 1" "maxHold caps, latches, then re-arms"
 
 # ── 6. while = "always" ──────────────────────────────────────────────────────
 # Plain closed-display mode: holds with an empty hold directory and never lets
@@ -174,7 +181,7 @@ scenario
 hook 'true'
 LIDAWAKE_MODE=always LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 \
     LIDAWAKE_TICKS=3 bash "$LIDAWAKE" >/dev/null
-assert_writes "0 1" "while=always"
+assert_writes "1" "while=always"
 [ -e "$LIDAWAKE_MARKER" ] || fail "while=always: no marker for activation to find"
 
 # ── 7. a refused pmset is not recorded as a hold ─────────────────────────────
@@ -195,7 +202,64 @@ case "$1" in
 esac'
 LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 LIDAWAKE_TICKS=2 \
     bash "$LIDAWAKE" >/dev/null
-assert_writes "0 1 1" "a refused write retries rather than pretending"
+assert_writes "1 1" "a refused write retries rather than pretending"
 [ ! -e "$LIDAWAKE_MARKER" ] || fail "refused write left a marker behind"
 
-printf 'ok - lidawake hold lifecycle, linger, requirePower, and the maxHold latch\n'
+# ── 8. failsafe 1 releases a previous run's hold, and only that ──────────────
+# The marker is the whole question: with one, a crashed predecessor's hold is
+# ours to clear; without one, a `disablesleep` somebody set by hand is not.
+scenario
+: >"$LIDAWAKE_MARKER"
+hook 'true'
+LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 LIDAWAKE_TICKS=1 \
+    bash "$LIDAWAKE" >/dev/null
+assert_writes "0" "a marked hold is released at startup"
+
+scenario
+hook 'true'
+LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 LIDAWAKE_TICKS=1 \
+    bash "$LIDAWAKE" >/dev/null
+assert_writes "" "an unmarked disablesleep is left alone"
+
+# ── 9. maxHold does not apply to while = "always" ────────────────────────────
+# `always` has no signal that could get stuck, so there is nothing for the cap
+# to protect against — and capping anyway would stop a docked, lid-shut Mac dead
+# at hour eight with nothing on screen to say why. One write, and it stays.
+scenario
+hook '
+case "$1" in
+  1) echo 1700 >'"$TMP"'/clock ;;
+  2) echo 9999 >'"$TMP"'/clock ;;
+esac'
+LIDAWAKE_MODE=always LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=600 LIDAWAKE_REQUIRE_POWER=0 \
+    LIDAWAKE_TICKS=3 bash "$LIDAWAKE" >/dev/null
+assert_writes "1" "while=always is never capped"
+
+# ── 10. a hold that outlived a reboot is not a hold ──────────────────────────
+# The failure this closes: a panic with a lane mid-turn leaves a file behind that
+# nothing will ever remove, and the next boot would hold the lid open for a full
+# maxHold window with no agent running at all. Real mtimes, so the fake clock
+# cannot paper over it — an old file is ignored, a fresh one still counts.
+# A stale hold ALONE must move nothing. This is the assertion that discriminates:
+# with staleness off, the same run holds immediately, and the "stale + fresh"
+# case below reads identically either way — so it cannot be the only one.
+scenario
+touch -t 202001010000 "$TMP/holds/from-before-the-reboot"
+hook 'true'
+LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 LIDAWAKE_TICKS=3 \
+    bash "$LIDAWAKE" >/dev/null
+assert_writes "" "a hold from before this daemon started is not a hold"
+[ ! -e "$LIDAWAKE_MARKER" ] || fail "a stale hold took the lid"
+
+# And a live agent arriving beside the stale one still works.
+scenario
+touch -t 202001010000 "$TMP/holds/from-before-the-reboot"
+hook '
+case "$1" in
+  2) : >'"$TMP"'/holds/live-agent ;;
+esac'
+LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 LIDAWAKE_TICKS=4 \
+    bash "$LIDAWAKE" >/dev/null
+assert_writes "1" "a live hold beside a stale one still counts"
+
+printf 'ok - lidawake hold lifecycle, linger, requirePower, the maxHold latch, and staleness\n'

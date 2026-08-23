@@ -107,7 +107,11 @@ st="${1:-working}"
 # `mkdir -p` on every call rather than once at the top: a hold that fails to
 # land must never cost the row its state, so this whole block is best-effort
 # and the writes below do not depend on it.
-lid_dir="${HAUS_LIDAWAKE_DIR:-$HOME/.local/state/haus/lidawake/holds}"
+# `${HOME:-}` for the reason $USER is defended at the top of this file: a hook
+# can arrive with almost no environment, and `set -u` would make an unset $HOME
+# abort the script HERE — before the state write below, costing the bar the row
+# this call exists to draw. Best-effort means best-effort.
+lid_dir="${HAUS_LIDAWAKE_DIR:-${HOME:-}/.local/state/haus/lidawake/holds}"
 # ZMX_SESSION for a terminal agent, the conversation id for a desktop one —
 # the same two keys the two stores below are filed under, so a row and its hold
 # always name each other. Sanitised because it becomes a filename.

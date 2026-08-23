@@ -27,16 +27,35 @@
 # THREE FAILSAFES, because a daemon that died mid-hold would otherwise leave a
 # Mac that never sleeps again and nothing on screen to say why:
 #
-#   1. It clears `disablesleep` on every start, before the loop. A crashed
-#      predecessor, a rebuild, a reboot — all of them land here first.
+#   1. It releases OUR hold on every start, before the loop — a crashed
+#      predecessor, a rebuild, a reboot all land here first. Guarded on the
+#      marker rather than run flat, because the activation block guards on it
+#      too and for the same reason: this room's contract is that haus writes
+#      only what the host asked for, and clearing a `disablesleep` somebody set
+#      by hand would break it. (The window in which a crash could leave a hold
+#      with no marker is the microseconds inside apply() between the pmset call
+#      and the marker write. maxHold covers it.)
 #   2. $LIDAWAKE_MAX_HOLD caps ONE continuous hold. Past it the hold releases
 #      and refuses to re-arm until the signal has actually cleared, so a hold
-#      file that outlived its agent costs one window rather than forever.
+#      file that outlived its agent costs one window rather than forever. It
+#      does not apply to `while = "always"`, which HAS no signal that could get
+#      stuck — capping there would just stop a closed-display Mac dead after
+#      eight hours with nothing on screen to say why.
 #   3. It owns a marker at $LIDAWAKE_MARKER for as long as it is holding.
 #      Activation reads that marker to undo a hold when the option is switched
 #      off — see the lidAwake block in modules/core/default.nix. Without it,
 #      `enable = false` would remove the only process that could put the key
 #      back.
+#
+# AND ONE THING THE HOLD FILES CANNOT DO FOR THEMSELVES. They are files, and a
+# file outlives what it describes — the very reason agents-hook.sh's own header
+# gives for deleting the /tmp state files it used to keep. A panic or a power
+# cut with a lane mid-turn leaves one behind with nobody to remove it. So this
+# daemon ignores any hold older than its own start: across a reboot every
+# survivor is stale by construction. The cost is that a daemon restarted while
+# agents really are working ignores them until their next turn re-touches the
+# file, which fails toward sleeping rather than toward never sleeping, and is
+# the right way round to be wrong.
 set -uo pipefail
 
 HOLD_DIR="${LIDAWAKE_HOLD_DIR:?lidawake: LIDAWAKE_HOLD_DIR is required}"
@@ -78,6 +97,12 @@ on_ac() {
 }
 
 # The one privileged act in this file. Everything else is arithmetic.
+#
+# A refusal is retried on the next tick rather than being fatal — it is far more
+# likely transient than permanent — but it is SAID only when it changes, because
+# the alternative is a line every five seconds forever into a log with no
+# rotation, which is how a disk fills up over a weekend.
+last_refusal=""
 apply() {
     if "$PMSET" -a disablesleep "$1" >/dev/null 2>&1; then
         if [ "$1" = 1 ]; then
@@ -86,17 +111,31 @@ apply() {
         else
             rm -f "$MARKER" 2>/dev/null || true
         fi
+        last_refusal=""
         return 0
     fi
-    say "pmset -a disablesleep $1 was refused — the lid still sleeps this Mac."
+    if [ "$last_refusal" != "$1" ]; then
+        say "pmset -a disablesleep $1 was refused — the lid still sleeps this Mac."
+        last_refusal="$1"
+    fi
     return 1
 }
 
-# Non-empty means at least one agent is mid-turn. `ls -A` rather than a glob, so
-# a directory nothing has ever written to reads as empty instead of as a literal
-# unexpanded pattern.
+# At least one agent is mid-turn. Deliberately not "the directory is non-empty":
+# a hold that predates this process survived something that should have cleared
+# it (see the header), so it is evidence of a dead agent rather than a live one.
+# Real mtimes against a real start, never the test clock — staleness is a fact
+# about the filesystem and a fake clock must not be able to fake it away.
 holds_present() {
-    [ -n "$(ls -A "$HOLD_DIR" 2>/dev/null)" ]
+    local f m
+    for f in "$HOLD_DIR"/*; do
+        [ -e "$f" ] || continue
+        m=$(/usr/bin/stat -f %m "$f" 2>/dev/null) || continue
+        if [ "$m" -ge "$STARTED_REAL" ]; then
+            return 0
+        fi
+    done
+    return 1
 }
 
 held=0        # what we last successfully applied
@@ -107,8 +146,17 @@ tick=0
 
 trap 'apply 0; exit 0' TERM INT
 
-# Failsafe 1. Never inherit a predecessor's hold — start from a known floor.
-apply 0
+# The floor for both the staleness test above and failsafe 1 below. Real time in
+# both cases: this is about what survived a crash, not about what the loop thinks
+# the hour is.
+STARTED_REAL=$(/bin/date +%s)
+
+# Failsafe 1. Never inherit a predecessor's hold. Only ours, though — the marker
+# is what says so.
+if [ -e "$MARKER" ]; then
+    say "a previous run left a hold behind — releasing it before starting."
+    apply 0
+fi
 
 say "watching $HOLD_DIR (mode=$MODE requirePower=$REQUIRE_POWER linger=${LINGER}s maxHold=${MAX_HOLD}s)"
 
@@ -143,8 +191,8 @@ while :; do
         else
             want=0
         fi
-    elif [ "$want" = 1 ] && [ "$held" = 1 ] && [ "$MAX_HOLD" -gt 0 ] &&
-        [ $((t - held_since)) -ge "$MAX_HOLD" ]; then
+    elif [ "$MODE" != always ] && [ "$want" = 1 ] && [ "$held" = 1 ] &&
+        [ "$MAX_HOLD" -gt 0 ] && [ $((t - held_since)) -ge "$MAX_HOLD" ]; then
         say "one hold has run ${MAX_HOLD}s — releasing it. Something is holding that should not be; the lid sleeps this Mac until the holds clear."
         capped=1
         want=0
