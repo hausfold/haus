@@ -345,7 +345,13 @@ let
 
   # Flattened to one entry per skill, so the fan-out below is a plain product
   # of clients × skills.
-  toolSkillList = lib.concatMap (t: map (name: { inherit name; inherit (t) drv; }) t.names) toolSkills;
+  toolSkillList = lib.concatMap (
+    t:
+    map (name: {
+      inherit name;
+      inherit (t) drv;
+    }) t.names
+  ) toolSkills;
 
   # One directory symlink per skill, into each installed client's own skills
   # directory — the same fan-out the haus skill gets, and the reason the
