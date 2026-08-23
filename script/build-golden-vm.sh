@@ -53,7 +53,7 @@ while [ $# -gt 0 ]; do
     --ref)     REF="${2:?--ref needs a git tag or rev}"; shift 2 ;;
     --desktop) DESKTOP="${2:?--desktop needs a name}"; shift 2 ;;
     --keep)    KEEP=1; shift ;;
-    -h|--help) sed -n '2,8p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,6p' "$0"; exit 0 ;;
     *) die "unknown flag $1 — try --help" ;;
   esac
 done
@@ -84,7 +84,13 @@ if [ -z "$REF" ]; then
   say "no --ref given; pinning to this checkout's latest tag: $REF"
 fi
 
-SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=10)
+# BatchMode matters more than it looks: without it a key that stopped working
+# turns this into an ssh password prompt nobody is at the keyboard to answer,
+# and the "unattended" build hangs until it is noticed. Same reasoning puts
+# `sudo -n` in every guest heredoc below — sudo's stdin here IS the script, so
+# a sudo that decided to prompt would eat the remaining lines as passwords.
+SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+          -o ConnectTimeout=10 -o BatchMode=yes)
 
 # guest — run a script on the VM, reading it from stdin. A heredoc rather than
 # an argument so nothing goes through two rounds of shell quoting: a lane name
@@ -108,7 +114,10 @@ say "booting $NAME headless…"
 # Mac. Backgrounded because `tart run` blocks until the VM stops.
 tart run "$NAME" --no-graphics &
 TART_PID=$!
-disown
+# NOT disowned, unlike tart-adapter.sh's copy of this line. That script has to
+# return while the VM keeps running; this one has to WAIT for the VM to finish
+# shutting down before it says the image is ready, or the next thing anyone
+# does is clone a disk that is still being written.
 
 IP=$(tart ip "$NAME" --wait 120) || die "$NAME never got an IP"
 say "$NAME is up at $IP"
@@ -133,18 +142,51 @@ bash /tmp/bootstrap.sh --defaults --desktop "$DESKTOP"
 EOS
 
 # --defaults scaffolds and stops: bootstrap only offers to raise the house when
-# it has a terminal to ask on. So the build and the switch are ours, with the
-# same ref overridden in so the image matches what we pinned above.
-say "building and switching the guest…"
+# it has a terminal to ask on. So the build and the switch are ours.
+#
+# The pin is written into the guest's own flake rather than passed as
+# --override-input, which would be the obvious thing and is the wrong thing:
+# --override-input implies --no-write-lock-file, so the image would ship with
+# NO flake.lock and bootstrap's unpinned `github:hausfold/haus`. The system
+# would be $REF and the first `haus rebuild` inside a clone would resolve
+# whatever main is by then — the exact drift --ref exists to prevent.
+say "pinning the guest's config to haus $REF…"
 guest <<EOS
 set -euo pipefail
-source /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh 2>/dev/null || true
-host=\$(scutil --get LocalHostName 2>/dev/null || hostname -s)
 cd ~/.config/nix
-nix build ".#darwinConfigurations.\$host.system" \
-  --override-input haus "github:hausfold/haus/$REF"
-sudo ./result/sw/bin/darwin-rebuild switch --flake ".#\$host" \
-  --override-input haus "github:hausfold/haus/$REF"
+sed -i '' 's|github:hausfold/haus"|github:hausfold/haus/$REF"|' flake.nix
+grep -q 'github:hausfold/haus/$REF' flake.nix || { echo "pin did not take — bootstrap's flake.nix shape changed" >&2; exit 1; }
+EOS
+
+# Two things an unattended first switch trips over that an interviewed one
+# does not. Both were found by running this script, not by reading it.
+say "building and switching the guest…"
+guest <<'EOS'
+set -euo pipefail
+
+# 1. home-manager BACKS UP files, it does not clobber them, so a dotfile the
+#    base image already shipped aborts the whole switch. bootstrap.sh's
+#    preflight prints these and tells a human to move them — nobody is here to
+#    read that. The cirruslabs base ships ~/.zprofile (Homebrew's shellenv) and
+#    a ~/.profile symlink to it, which is exactly the pair it names.
+for f in .profile .zprofile .zshrc .zshenv .bashrc .bash_profile; do
+  if [ -e ~/"$f" ] || [ -L ~/"$f" ]; then mv ~/"$f" ~/"$f.pre-haus"; fi
+done
+
+source /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh 2>/dev/null || true
+host=$(scutil --get LocalHostName 2>/dev/null || hostname -s)
+cd ~/.config/nix
+nix build ".#darwinConfigurations.$host.system"
+
+# 2. HOMEBREW_MAKE_JOBS=1 — felixkratz/formulae's sketchybar has no bottle for
+#    macOS 26, so a fresh Tahoe machine builds it from source, and its parallel
+#    make races on a bin/ dir that another job is still creating:
+#      error: unable to open output file 'bin/background.o'
+#    Serially it builds in 13 seconds. This is a REAL haus install bug, not a
+#    VM artifact — a person running the installer on a fresh Tahoe Mac hits it
+#    too — and the workaround lives here only so a forty-minute image build
+#    doesn't die at the last step while that is fixed properly upstream.
+sudo -n HOMEBREW_MAKE_JOBS=1 ./result/sw/bin/darwin-rebuild switch --flake ".#$host"
 EOS
 
 # ---- 3. the quiet pass -----------------------------------------------------
@@ -169,15 +211,39 @@ say "quiet pass — pre-granting TCC, clearing first-run alerts…"
 guest <<'EOS'
 set -euo pipefail
 db="/Library/Application Support/com.apple.TCC/TCC.db"
-grant() { # $1 service, $2 client path
-  sudo sqlite3 "$db" "INSERT OR REPLACE INTO access
+
+# Never fatal. A schema that moved under us is worth a warning and a dirty
+# image reported by step 4 — not throwing away a build that is already forty
+# minutes deep and otherwise good.
+grant() { # $1 service, $2 client path, $3 optional Apple-Events target bundle id
+  local target="${3:-UNUSED}" ttype=NULL
+  [ "$target" = UNUSED ] || ttype=0
+  sudo -n sqlite3 "$db" "INSERT OR REPLACE INTO access
     (service, client, client_type, auth_value, auth_reason, auth_version,
-     indirect_object_identifier, boot_uuid)
-    VALUES ('$1', '$2', 1, 2, 0, 1, 'UNUSED', 'UNUSED');"
+     indirect_object_identifier_type, indirect_object_identifier, boot_uuid)
+    VALUES ('$1', '$2', 1, 2, 0, 1, $ttype, '$target', 'UNUSED');" \
+    || echo "⚠ could not grant $1 to $2" >&2
 }
-for s in kTCCServiceScreenCapture kTCCServicePostEvent \
-         kTCCServiceAppleEvents kTCCServiceAccessibility; do
+for s in kTCCServiceScreenCapture kTCCServicePostEvent kTCCServiceAccessibility; do
   grant "$s" /usr/libexec/sshd-keygen-wrapper
+done
+
+# AppleEvents is the odd one, in two ways that each cost an hour to find.
+#
+# Its rows key on (client, TARGET bundle id), not on the client alone — so a
+# grant for System Events does nothing when the next line drives Terminal, and
+# you get a fresh prompt per app you touch. Grant every target this image will
+# ever be driven through.
+#
+# And the CLIENT is not who you would guess. The dialog macOS puts up says
+# "bash" — the shell the ssh session spawned — not sshd-keygen-wrapper and not
+# osascript. Grant all of them; a row that turns out to be inert costs nothing,
+# a missing one costs a hung build.
+for client in /bin/bash /bin/zsh /usr/bin/osascript \
+              /usr/libexec/sshd-keygen-wrapper /usr/libexec/sshd-session; do
+  for target in com.apple.systemevents com.apple.Terminal com.apple.finder; do
+    grant kTCCServiceAppleEvents "$client" "$target"
+  done
 done
 sw=$(pgrep -fl sleepwatcher | awk '{print $2}' | head -1 || true)
 if [ -n "$sw" ]; then
@@ -187,7 +253,18 @@ if [ -n "$sw" ]; then
 else
   echo "sleepwatcher not running — its prompt will appear on a later boot" >&2
 fi
-sudo killall tccd 2>/dev/null || true
+sudo -n killall tccd 2>/dev/null || true
+
+# The order of this pass is not cosmetic. A prompt that is ALREADY on screen
+# blocks every later request from the same client — writing the grant row
+# underneath it does not dismiss it, and the next `osascript` hangs forever
+# rather than failing. So the grants go first, and if one slipped through
+# anyway, the pending dialog has to be taken out by killing the process that
+# draws it. (Kill the blocked requester too: while it lives, the request is
+# still queued and the dialog comes straight back.)
+pkill -f /usr/bin/osascript 2>/dev/null || true
+killall UserNotificationCenter 2>/dev/null || true
+sleep 2
 EOS
 
 # 3b. Click away whatever is already on screen. Six of the nine alerts on the
@@ -205,8 +282,12 @@ on sweep(procName, prefs)
         repeat with w in windows
           repeat with p in prefs
             try
-              if exists (button p of w) then
-                click button p of w
+              -- `contents of p`: `repeat with p in prefs` binds a REFERENCE
+              -- into the list, and `button p of w` wants the string. Inside a
+              -- try, getting that wrong is zero clicks and no error.
+              set pname to contents of p
+              if exists (button pname of w) then
+                click button pname of w
                 set clicked to true
                 exit repeat
               end if
@@ -233,6 +314,14 @@ set -euo pipefail
 rm -f ~/Library/Group\ Containers/group.com.apple.usernoted/db2/db*
 killall usernoted 2>/dev/null || true
 killall NotificationCenter 2>/dev/null || true
+
+# The base image boots with a Terminal window full of somebody else's
+# scrollback (cirruslabs' own provisioning, restored by Terminal's
+# resume-windows). `killall` rather than an AppleScript `close every window`:
+# quitting an app needs no Apple Events, so this works even if every grant
+# above turned out to be inert.
+defaults write com.apple.Terminal NSQuitAlwaysKeepsWindows -bool false 2>/dev/null || true
+killall Terminal 2>/dev/null || true
 sleep 4
 EOS
 

@@ -395,7 +395,7 @@ let
         # One-time setup this file can't do for you:
         #   nix shell nixpkgs#tart          # or: brew install cirruslabs/cli/tart
         #   tart pull ghcr.io/cirruslabs/macos-tahoe-base:latest
-        #   ./script/build-golden-vm.sh     # bake haus INTO an image, in haus
+        #   build-golden-vm.sh              # in haus's script/ — bakes haus INTO an image
         #   export HOLT_TART_BASE=haus-golden
         #
         # Tahoe, not Sequoia: the guest findings this depends on — SIP off, the
