@@ -22,9 +22,15 @@
 # session (see holt's Spawn). Claude is then started in that checkout like any
 # other directory — no hook fires, nothing else to keep in sync.
 #
-# Repos come from $HAUS_REPO_ROOTS (colon-separated, default ~/code and the
-# usual siblings), scanned one and two levels deep for a main checkout — two so a
-# workshop-style parent dir full of repos resolves to its children — plus every
+# Repos come from $HAUS_REPO_ROOTS — colon-separated, written into the pounce
+# daemon's launchd environment from `haus.ai.repoRoots`, which is the only way
+# it can arrive: a GUI agent inherits nothing from your shell, so the list below
+# is a fallback for a hand-run rather than the thing you tune. Each entry is
+# read one of two ways, decided by the path itself: an entry that IS a repo is
+# offered as itself and never descended into (that is `~/.config/nix`, the
+# config flake this Mac is built from, without scanning `~/.config`), and
+# anything else is scanned one and two levels deep for a main checkout — two so
+# a workshop-style parent dir full of repos resolves to its children. Plus every
 # repo `holt` already knows, so a repo outside those roots that you have agent'd
 # before stays reachable.
 #
@@ -75,7 +81,7 @@
 # open, osascript, pounce) explicitly — the same prelude add-app.sh uses.
 export PATH="/etc/profiles/per-user/$USER/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
 
-ROOTS="${HAUS_REPO_ROOTS:-$HOME/code:$HOME/src:$HOME/Developer:$HOME/Projects}"
+ROOTS="${HAUS_REPO_ROOTS:-$HOME/code:$HOME/src:$HOME/Developer:$HOME/Projects:$HOME/.config/nix}"
 WT_REGISTRY="${CLAUDE_WT_BASE:-$HOME/.cache/claude-worktrees}/registry.tsv"
 # One drafts store for the command, not one per repo: you often start typing
 # before you have decided which repo it belongs to.
@@ -136,14 +142,34 @@ mkdir -p "$(dirname "$LOG")" 2>/dev/null || LOG=/dev/null
 # and a parent dir full of repos puts its children at depth 3
 # (~/code/workshop/pounce/.git). Only a .git DIRECTORY is a main checkout — a
 # .git *file* means a linked worktree, which must never be the base of another.
+#
+# A root that is ITSELF a repo is offered as itself and NOT scanned. That is
+# what lets `~/.config/nix` — one repo inside a directory full of things that
+# are not repos — be named directly, and it is also the right answer for a root
+# that happens to be a checkout: descending would offer its submodules and
+# vendored trees as spawn targets, which are not repos you work in.
 candidates="$(mktemp)" || exit 1
 trap 'rm -f "$candidates"' EXIT
 
 IFS=':' read -r -a roots <<<"$ROOTS"
 for root in "${roots[@]}"; do
+  # `haus.ai.repoRoots` is written by a person, so `~/code` is the natural
+  # spelling — and nothing between the option and here expands it: the value
+  # crosses a launchd plist and arrives as a literal. Prefix removal in a
+  # `case`, which also answers a bare `~` and needs no tilde on either side of
+  # a substitution (see the desc= line below for what that costs).
+  case "$root" in
+    '~') root="$HOME" ;;
+    '~/'*) root="$HOME/${root#\~/}" ;;
+  esac
   [ -d "$root" ] || continue
-  find "$root" -mindepth 1 -maxdepth 3 -type d -name .git -prune 2>/dev/null
-done | sed 's|/\.git$||' >>"$candidates"
+  if [ -d "$root/.git" ]; then
+    printf '%s\n' "${root%/}"
+    continue
+  fi
+  find "$root" -mindepth 1 -maxdepth 3 -type d -name .git -prune 2>/dev/null \
+    | sed 's|/\.git$||'
+done >>"$candidates"
 
 # Repos holt already knows (registry field 2 is each worktree's main checkout).
 [ -f "$WT_REGISTRY" ] && cut -f2 "$WT_REGISTRY" 2>/dev/null >>"$candidates"
@@ -154,10 +180,12 @@ list="$(
     stamp="$(stat -f '%m' "$repo/.git" 2>/dev/null)" || continue
     branch="$(git -C "$repo" branch --show-current 2>/dev/null)"
     open="$(awk -F'\t' -v m="$repo" '$2 == m' "$WT_REGISTRY" 2>/dev/null | wc -l | tr -d ' ')"
-    # Prefix REMOVAL, not `${repo/#$HOME/~}`: the anchored-replacement spelling
-    # silently returns the string unchanged on bash 5.3 (it still works on the
-    # 3.2 at /bin/bash), so every row would show an absolute path on one and a
-    # tilde on the other depending on which bash ran the command.
+    # Prefix REMOVAL, not `${repo/#$HOME/~}`: the REPLACEMENT half of an
+    # anchored substitution is itself tilde-expanded on bash 5.3, so that
+    # spelling puts $HOME back where it just took it out and every row shows an
+    # absolute path — while the 3.2 at /bin/bash leaves the `~` alone and shows
+    # a tilde. Escaping it (`\~`) only swaps which one is wrong: 5.3 gets the
+    # tilde, 3.2 gets a literal backslash. Measured on 3.2.57 and 5.3.15.
     desc="~${repo#$HOME}"
     [ -n "$branch" ] && desc="$desc · on $branch"
     [ "${open:-0}" -gt 0 ] && desc="$desc · $open worktree(s) open"
@@ -167,7 +195,7 @@ list="$(
 )"
 
 if [ -z "$list" ]; then
-  notice "No repositories found" "Set HAUS_REPO_ROOTS, or clone something under ~/code"
+  notice "No repositories found" "Add a path to haus.ai.repoRoots, or clone something under ~/code"
   exit 0
 fi
 

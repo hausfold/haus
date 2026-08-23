@@ -4,7 +4,7 @@
     "order": 100
   },
   "ai": {
-    "blurb": "The AI room: whether this machine runs coding agents at all, which clients it installs, which one the agent keybinding spawns, and the two files haus ships into every one of their homes — your instructions, and the `haus` skill. Spelled `haus.agents.*` before 2026-08-13, with the switch under `haus.developer.agents`; both are gone rather than aliased.",
+    "blurb": "The AI room: whether this machine runs coding agents at all, which clients it installs, which one the agent keybinding spawns, where the palette looks for a repo to spawn one on, and the two files haus ships into every one of their homes — your instructions, and the `haus` skill. Spelled `haus.agents.*` before 2026-08-13, with the switch under `haus.developer.agents`; both are gone rather than aliased.",
     "order": 80
   },
   "animations": {
@@ -195,9 +195,9 @@
       "owner": "appearance"
     },
     "ai": {
-      "blurb": "The AI room: whether this machine runs coding agents at all, which clients it installs, which one the agent keybinding spawns, and the two files haus ships into every one of their homes — your instructions, and the `haus` skill. Spelled `haus.agents.*` before 2026-08-13, with the switch under `haus.developer.agents`; both are gone rather than aliased.",
+      "blurb": "The AI room: whether this machine runs coding agents at all, which clients it installs, which one the agent keybinding spawns, where the palette looks for a repo to spawn one on, and the two files haus ships into every one of their homes — your instructions, and the `haus` skill. Spelled `haus.agents.*` before 2026-08-13, with the switch under `haus.developer.agents`; both are gone rather than aliased.",
       "kind": "room",
-      "optionCount": 5,
+      "optionCount": 6,
       "options": {
         "haus.ai.clients": {
           "desktopSafe": true
@@ -211,6 +211,9 @@
         "haus.ai.instructions": {
           "desktopSafe": false,
           "reason": "agent-context"
+        },
+        "haus.ai.repoRoots": {
+          "desktopSafe": true
         },
         "haus.ai.skill": {
           "desktopSafe": true
@@ -1501,6 +1504,7 @@
           "install codex",
           "which agent does the agent key spawn",
           "change my agent instructions",
+          "add my work repos to the spawn agent list",
           "what worktrees are open"
         ],
         "cli": "holt"
@@ -1511,7 +1515,7 @@
       "namespaces": [
         "ai"
       ],
-      "optionCount": 5,
+      "optionCount": 6,
       "order": 100,
       "title": "AI"
     },
