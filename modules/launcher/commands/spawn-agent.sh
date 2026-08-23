@@ -307,55 +307,50 @@ if [ "${#slug}" -gt 40 ]; then
 fi
 [ -n "$slug" ] || slug="agent"
 
-dir="$(holt spawn "$repo" "$slug" "$agent" 2>/dev/null)"
+# ── create the lane, and open it ──────────────────────────────────────────
+# ONE call. `holt spawn --prompt` creates the checkout, the branch and the
+# registry row, then drives holt's own `open` seam with the client invocation
+# it resolved — which on this machine is the very same
+# ~/.config/haus/lanes/lane-open.sh the terminal room writes into
+# ~/.config/holt/config.toml.
+#
+# It used to be this script's job to build that invocation and export five
+# HOLT_* variables by hand. That was holt's contract reimplemented outside
+# holt, and it drifted the moment either side moved: the argv shape (`--` for
+# a positional prompt, `--prompt=` for opencode's yargs) and the shell-quoting
+# of the command string both lived here, in a palette command, for the one
+# caller that happened to need them.
+#
+# Going through the seam rather than opening a window here is still the whole
+# point: one name — holt.<repo>.<lane> — becomes the zmx session, the Ghostty
+# window title AND the tile on T/<repo>, which is the join every other surface
+# (the bar's go-to, Lanes, resort-windows.sh) reads.
+#
+# The prompt goes in on STDIN, not in argv. A task typed with ⇧↵ spans lines
+# and routinely holds quotes and `$`; `--prompt-file -` means it never crosses
+# a command line at all, so there is nothing left to quote wrong.
+#
+# HAUS_AGENT_IMAGE is still honoured so an external caller can pre-attach a
+# file; ⌘↵ above is the in-palette way to the same argument.
+[ -n "${image:-}" ] || image="${HAUS_AGENT_IMAGE:-}"
+set -- spawn "$repo" "$slug" --agent "$agent" --prompt-file -
+[ -n "$image" ] && set -- "$@" --image "$image"
+
+# holt prints the lane's path on stdout BEFORE it drives the seam, so this
+# captures it whether the window opened or not — which is what the cleanup
+# below needs.
+dir="$(printf '%s' "$prompt" | holt "$@" 2>/dev/null)"
+rc=$?
 if [ -z "$dir" ] || [ ! -d "$dir" ]; then
   notice "Could not create the worktree" "Check that $repo_name has a commit to branch from"
   exit 1
 fi
 name="$(basename "$dir")"
 
-# ── open the lane ─────────────────────────────────────────────────────────
-# holt's `open` seam, called directly. `holt <repo>/<lane>` would be the tidier
-# spelling but it is the wrong ACT: holt resolves HOLT_COMMAND to a RESUME
-# there, and a lane created three lines ago has no conversation to resume — you
-# would get the client's session picker, or "no conversation found", instead of
-# the task you just typed. A spawner with no pane hands the seam the invocation
-# itself, which is precisely the contract the seam documents ("the exact client
-# invocation holt was about to exec — run it; don't rebuild it").
-#
-# What the seam then does with it is the whole reason to go through it rather
-# than opening a window here: one name — holt.<repo>.<lane> — becomes the zmx
-# session, the Ghostty window title AND the tile on T/<repo>, which is the join
-# every other surface (the bar's go-to, Lanes, resort-windows.sh) reads. A
-# window opened by hand here would have to reproduce all of that and drift.
-#
-# HOLT_COMMAND is a command STRING — the opener runs it through `bash -lc` —
-# so every part is %q-quoted in. That is what carries a prompt that spans lines
-# (⇧↵), holds quotes, or contains a `$` through to the client unmangled.
-#
-# HAUS_AGENT_IMAGE is still honoured so an external caller can pre-attach a
-# file; ⌘↵ above is the in-palette way to the same argument.
-[ -n "${image:-}" ] || image="${HAUS_AGENT_IMAGE:-}"
-cmd="$(printf 'holt agent start %q' "$agent")"
-[ -n "$image" ] && cmd="$cmd $(printf -- '--image %q' "$image")"
-# `--` then ONE quoted word: holt joins argv with spaces, so a prompt split
-# into several arguments here is what would flatten a list back into a sentence.
-cmd="$cmd -- $(printf '%q' "$prompt")"
-
-# HOLT_MAIN is the main checkout (the seam takes its basename for the page);
-# HOLT_CHAT is where the conversation lives, which for a spawn is the lane's
-# own checkout — there is no parent pane whose transcript this continues.
-HOLT_COMMAND="$cmd" \
-HOLT_NAME="$name" \
-HOLT_MAIN="$repo" \
-HOLT_PATH="$dir" \
-HOLT_CHAT="$dir" \
-  "$OPENER"
-rc=$?
-
-# Exit 3 is the seam saying "no opinion, use holt's built-in" — which here means
-# nothing opened, because holt is not the one driving. Treat it like any other
-# failure rather than leaving a worktree with no window.
+# rc 0 is the window; anything else means the lane exists with nothing on it.
+# 3 is holt saying no `open` seam is configured — impossible here, since the
+# OPENER check up top already refused that case, but it is not this script's
+# job to be the only thing standing between a rebuild gap and silent litter.
 #
 # This covers the seam REFUSING, not the lane failing later: the opener's last
 # act is `open -na`, which returns the moment LaunchServices accepts it, so

@@ -317,6 +317,58 @@ let
     )
   );
 
+  # ---- every OTHER hausfold tool's skill ------------------------------------
+  #
+  # A tool's `<tool>-skill` derivation lays out `$out/<skill-name>/SKILL.md`
+  # (the family standard, the workshop's notes/agent-surface.md §6), and a tool
+  # may ship more than one: holt ships `holt` (drive the lane lifecycle) and
+  # `handoff` (write the brief a `holt spawn --prompt-file` lane opens on).
+  #
+  # This is step 3 of that standard, and until now it was simply absent — the
+  # derivation existed and nothing linked it, so a haus machine had holt on
+  # PATH and no agent on it knew holt existed. The whole claim of the standard
+  # is that a haus user does nothing to get these.
+  #
+  # Names are listed rather than read off the store with `builtins.readDir`:
+  # reading a derivation's output during evaluation is import-from-derivation,
+  # which would force a build every time somebody runs `haus get` to READ their
+  # config. A tool adding a skill is one word here, on the next lock bump.
+  toolSkills = [
+    {
+      drv = pkgs.holt-skill;
+      names = [
+        "holt"
+        "handoff"
+      ];
+    }
+  ];
+
+  # Flattened to one entry per skill, so the fan-out below is a plain product
+  # of clients × skills.
+  toolSkillList = lib.concatMap (t: map (name: { inherit name; inherit (t) drv; }) t.names) toolSkills;
+
+  # One directory symlink per skill, into each installed client's own skills
+  # directory — the same fan-out the haus skill gets, and the reason the
+  # derivation names its own folders: what lands in ~/.claude/skills is decided
+  # by the TOOL, not by this file.
+  #
+  # A directory symlink, not file-by-file: haus's own skill is split up only
+  # because this-machine.md is rendered per host and has to sit beside the
+  # store-built parts. Nothing here is per-host.
+  toolSkillFiles = lib.optionalAttrs cfg.skill (
+    lib.listToAttrs (
+      lib.concatMap (
+        client:
+        map (
+          skill:
+          lib.nameValuePair "${agentHomes.${client}.skills}/${skill.name}" {
+            source = "${skill.drv}/${skill.name}";
+          }
+        ) toolSkillList
+      ) fileClients
+    )
+  );
+
   # The skill, installed file-by-file rather than as one directory symlink so
   # this-machine.md — rendered from THIS host, not from the rice — can sit inside
   # the same skill alongside the store-built parts.
@@ -684,7 +736,7 @@ in
   # collision on one path would be an error rather than a silent last-wins —
   # which is what makes splitting them safe.
   home-manager.users.${username}.home.file =
-    agentInstructionFiles // agentSkillFiles // agentRuntimeAdapterFiles;
+    agentInstructionFiles // agentSkillFiles // toolSkillFiles // agentRuntimeAdapterFiles;
 
   # ---- what the room contributes to other rooms -------------------------------
   # One write per extension point. Every value here is a fact about the AI room;
