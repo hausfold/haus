@@ -65,13 +65,26 @@ tour_drawing() {
 # lie this pill must never tell, because the fix a person reaches for is to
 # click it and start a second entry against the same hours.
 #
-# --max-time because a SketchyBar plugin is synchronous. Wi-Fi off fails fast
-# on DNS, but a captive portal or a half-up VPN accepts the connection and
-# never answers, and an unbounded curl there wedges the pill's update slot.
+# Three guards, because there are three ways to get a body that is not an
+# answer, and only the first is about the network:
+#
+#   -f          Harvest replies to an expired or rotated token with HTTP 401 and
+#               a JSON error body. `curl -s` alone exits 0 on that, the body
+#               parses, and `.time_entries | length` on it is `null | length` —
+#               which is 0, not an error. Straight back into the STOPPED arm and
+#               the "Start Timer" lie, with the network working perfectly.
+#   jq -e has() the shape, not just the parseability. The body has to be the
+#               thing this plugin reads before any caller treats it as data.
+#   --max-time  a SketchyBar plugin is synchronous. Wi-Fi off fails fast on DNS
+#               and was never the hazard; a captive portal or a half-up VPN
+#               accepts the connection and never answers. Two seconds because
+#               the poll's update_freq is three and its STOPPED path makes TWO
+#               of these calls — a bound above the tick lets one poll still be
+#               waiting when the next starts.
 harvest_get() {
   local body
-  body=$(curl -s --max-time 6 "${HEADERS[@]}" "$1") || return 1
-  printf '%s' "$body" | jq -e . >/dev/null 2>&1 || return 1
+  body=$(curl -sf --max-time 2 "${HEADERS[@]}" "$1") || return 1
+  printf '%s' "$body" | jq -e 'has("time_entries")' >/dev/null 2>&1 || return 1
   printf '%s' "$body"
 }
 
@@ -80,11 +93,20 @@ harvest_get() {
 # the muted colours say the duration behind it has stopped moving. Only the
 # colours are set, so the next successful poll restores them on its own.
 harvest_unreachable() {
+  # Whether there is anything worth keeping is a THREE-way question, and the
+  # middle answer is the one that bites: a `--query` fired while another pill is
+  # rebuilding its rows comes back EMPTY rather than with a value, because
+  # sketchybar's mach service cannot answer for ~150 ms while it works (the same
+  # window barpop polls through — modules/bar/barpop.swift). Reading that as
+  # "nothing to keep" would draw the em dash OVER the running timer's name,
+  # which is what this function exists to protect. So: a parseable answer with
+  # an empty label means never painted, and no parseable answer at all means
+  # keep what's there — the safe reading in both cases.
   local shown
-  shown=$("$SB" --query $NAME 2>/dev/null | jq -r '.label.value // ""' 2>/dev/null)
-  if [ -z "$shown" ]; then
-    # Nothing to keep — a bar that started with no network has never painted
-    # this pill. An em dash is the same "no answer" the github pill draws.
+  if shown=$("$SB" --query $NAME 2>/dev/null | jq -er '.label.value // ""' 2>/dev/null) \
+     && [ -z "$shown" ]; then
+    # Never painted — a bar that started with no network. An em dash is the same
+    # "no answer" the github pill draws.
     "$SB" --set $NAME icon="󰔟" icon.color=$OVERLAY0 label="—" \
       label.color=$OVERLAY0 background.color=$SURFACE0 drawing=$(tour_drawing)
   else
