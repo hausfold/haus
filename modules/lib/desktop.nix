@@ -203,6 +203,29 @@ let
   # real app id.
   plainId = key: builtins.match "[A-Za-z0-9][A-Za-z0-9_-]*" key != null;
 
+  # The palette's address space, READ from the launcher room's own mirror of
+  # pounce rather than restated here. `modules/launcher/item-grammar.nix` is
+  # data only — no `lib`, no `config` — precisely so more than one caller can
+  # import it, and a fourth hand-written copy of the grammar is the exact
+  # failure its own header is about.
+  itemGrammar = import ../launcher/item-grammar.nix;
+  # Every shape a DESKTOP may name: all of pounce's but `shortcut:`. The
+  # launcher-items validator below says why, and both the accept list and the
+  # sentence a rejected key gets are derived from this one filter, so a prefix
+  # pounce adds arrives here already admitted.
+  desktopItemShapes = builtins.filter (s: !(lib.hasPrefix "shortcut:" s)) itemGrammar.shapes;
+  desktopItemPrefixes = builtins.filter (p: p != "shortcut:") itemGrammar.prefixes;
+  desktopItemExpected =
+    let
+      n = builtins.length desktopItemShapes;
+      init = builtins.genList (i: builtins.elemAt desktopItemShapes i) (n - 1);
+    in
+    "(expected "
+    + builtins.concatStringsSep ", " init
+    + " or "
+    + builtins.elemAt desktopItemShapes (n - 1)
+    + ")";
+
   # No quote, backslash, dollar, backtick, newline or tab. Not a general
   # escaping story — a desktop's strings reach generated shell and JSON in
   # several rooms — but the characters that turn a value into syntax wherever
@@ -218,9 +241,39 @@ let
       keyOk = plainId;
       keySaid = _: "is not a plain workspace name";
     };
+    # A row of the palette, keyed by the ADDRESS pounce dispatches on rather
+    # than by a bare word. This was `plainId` until 2026-08-23 and could not
+    # match a single real key: every address carries a colon
+    # (`mode:filesearch`, `cmd:emoji`, `app:/Applications/Ghostty.app`), so no
+    # desktop could set an item at all — and the diagnostic told its author
+    # their key "is not a plain item id", a rule the option's own examples all
+    # break. Three containers next to each other legitimately want plain ids;
+    # this one never did, and inheriting their predicate is how it got one.
+    #
+    # What the seam decides is which KINDS of address a shared file may name.
+    # Whether a well-formed one exists on the machine is the launcher room's
+    # own assertion (`itemKeyProblem`), which runs on the MERGED config and so
+    # covers a desktop's keys and a host's identically — `mode:nonsense` from
+    # either fails the same build with the same sentence. Splitting it the
+    # other way would put a second, weaker copy of the grammar here and leave
+    # the room's message unreachable for exactly the files that need it most.
+    #
+    # `shortcut:<uuid>` is the one shape refused, and it is the display-UUID
+    # argument again: it names one entry in one Mac's Shortcuts library, which
+    # is a fact about that machine rather than a taste anyone can share, and it
+    # is unreadable to every reader but its author — the property that makes a
+    # desktop worth reading. The other four are tastes ("the file search
+    # window", "the emoji row", "the Appearance pane", "the app in
+    # /Applications"), and each is simply inert when the thing it names is
+    # absent, the same way `cmd:` naming a command this machine hasn't got is.
     launcher-items = entries {
-      keyOk = plainId;
-      keySaid = _: "is not a plain item id";
+      keyOk = key: builtins.any (p: lib.hasPrefix p key) desktopItemPrefixes;
+      keySaid =
+        key:
+        if lib.hasPrefix "shortcut:" key then
+          "names one entry in one Mac's Shortcuts library, which is a fact about that machine rather than a taste a desktop can share"
+        else
+          "is not an item key ${desktopItemExpected}";
     };
     # A scene's key is what a person types after `focus scene`, so it has to
     # survive a shell word as-is. `quiet` is refused separately, by the focus

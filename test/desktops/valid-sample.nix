@@ -32,6 +32,12 @@
       enable = true;
       interval = 10;
     };
+    # A palette row, keyed by pounce's own address space — the happy path of
+    # the rule `launcher-item-key.nix` and `launcher-item-shortcut.nix` fail
+    # from either side. A desktop may re-label, alias and key a row the
+    # palette already has; the two things it may not do are invent an address
+    # shape (there is nothing behind it) and name a Shortcuts UUID.
+    launcher.items."mode:filesearch".alias = "ff";
     # A list, so the check can read back what a host override does to one.
     launcher.autoQuit.exclude = [
       "from-desktop-a"

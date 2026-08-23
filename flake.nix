@@ -2670,6 +2670,8 @@
             test/desktops/host-only-widget-command.nix: haus.bar.widgets.<name>.command is host-only, so a shared desktop may not set it. It is a shell command this machine runs, and a desktop is a file you can read to know what it does. A leaf carrying a command is exactly what stops that being true.
             test/desktops/imports.nix: may not import modules — a desktop is one file's worth of values, and what it can reach has to be readable from that file alone
             test/desktops/internal-wiring.nix: haus._contrib is internal wiring between rooms, not a setting a desktop may write
+            test/desktops/launcher-item-key.nix: haus.launcher.items.filesearch is not an item key (expected cmd:<id>, app:<path>, setting:<pane>[?<anchor>] or mode:<name>)
+            test/desktops/launcher-item-shortcut.nix: haus.launcher.items.shortcut:0ECC8F7A-3A52-467A-84C0-511CCE1CB9B7 names one entry in one Mac's Shortcuts library, which is a fact about that machine rather than a taste a desktop can share
             test/desktops/missing-haus.nix: has no `haus` settings — a desktop is { haus = { … }; }
             test/desktops/module-internals.nix: may not set module-system internals
             test/desktops/nixpkgs.nix: may not set `nixpkgs.*`
@@ -2729,6 +2731,8 @@
             host-only-widget-command.nix class=desktop ok=false sets=2 rooms=bar silent=11
             imports.nix class=desktop ok=false sets=1 rooms=haus silent=12
             internal-wiring.nix class=desktop ok=false sets=1 rooms=- silent=12
+            launcher-item-key.nix class=desktop ok=false sets=1 rooms=launcher silent=11
+            launcher-item-shortcut.nix class=desktop ok=false sets=1 rooms=launcher silent=11
             missing-haus.nix class=desktop ok=false sets=0 rooms=- silent=12
             module-internals.nix class=desktop ok=false sets=1 rooms=haus silent=12
             nixpkgs.nix class=desktop ok=false sets=1 rooms=haus silent=12
@@ -2740,7 +2744,7 @@
             stray-key.nix class=desktop ok=false sets=1 rooms=haus silent=12
             unknown-option.nix class=desktop ok=false sets=1 rooms=appearance silent=11
             valid-other.nix class=desktop ok=true sets=1 rooms=haus silent=12
-            valid-sample.nix class=desktop ok=true sets=9 rooms=displays+development+bar+launcher+focus+haus silent=7
+            valid-sample.nix class=desktop ok=true sets=10 rooms=displays+development+bar+launcher+focus+haus silent=7
           '';
 
           # And one fixture read in full, because the table above says nothing
@@ -2760,6 +2764,7 @@
             focus  haus.focus.scenes.presenting.description = "no interruptions, no screensaver"
             focus  haus.focus.scenes.presenting.preventSleep = true
             launcher  haus.launcher.autoQuit.exclude = [ "from-desktop-a" "from-desktop-b" ]
+            launcher  haus.launcher.items.mode:filesearch.alias = "ff"
             development  haus.terminal.editorName = "neovim"
             haus  haus.ui.scale = 1.35
           '';
