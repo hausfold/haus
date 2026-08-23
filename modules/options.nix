@@ -179,11 +179,17 @@ let
           from launchd — where nothing nix-shaped is on PATH — has to spell
           that path out. `sketchybar` is the live case: its launchd agent,
           `barpop`, `bar-bottom` and every bar plugin name it that way, so
-          moving that entry to "user", or back to a `brew`, leaves the bar
-          pointing at nothing and drawing nothing. Changing `scope` or the
-          source on an entry haus itself declares is therefore not the
-          metadata edit it looks like — the bar room asserts on its own
-          entry, and a room of yours that names a path should too.
+          moving that entry to "user" leaves the bar pointing at nothing and
+          drawing nothing. Two neighbouring edits do the same thing without
+          touching `scope` at all — dropping its nixpkgs source
+          (`package = lib.mkForce null` with no `packageName`; merely ADDING
+          a `brew` does not, since the bar sets `package` at `mkDefault`),
+          and `enable = false`, which filters the entry out before anything
+          installs it.
+
+          So an entry haus itself declares and addresses by path is not the
+          plain metadata it looks like: the bar room asserts on all three,
+          and a room of yours that names a path should too.
         '';
       };
       appStoreId = lib.mkOption {

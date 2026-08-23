@@ -1582,31 +1582,48 @@ lib.mkIf config.haus.bar.enable {
       # plugins all spell the binary `/run/current-system/sw/bin/sketchybar`
       # (`barTopPath`, above), and only the system profile puts it there.
       #
-      # So a host writing `haus.roster.sketchybar.scope = "user"` picks the
-      # DEFAULT every other entry uses and a documented in-range value, and the
-      # bar simply never draws: launchd points at a path with nothing behind
-      # it. Same for a host that swaps the package back out for a `brew`, since
-      # `scope` is ignored when `package` is null and the profile path is then
-      # empty. Both are one assignment away and neither is an error anywhere
-      # else, which is why this is an assertion and not a comment.
+      # Three ways to lose it, and none of them is an error anywhere else:
+      #
+      #   scope = "user"        the DEFAULT every other roster entry uses, and a
+      #                         documented in-range value. The binary lands in
+      #                         the home-manager profile and launchd points at
+      #                         nothing.
+      #   no nixpkgs source     `package = lib.mkForce null` with no
+      #                         `packageName` to stand in — this room sets
+      #                         `package` at mkDefault, so merely ADDING a
+      #                         `brew` does not do it (you get the tool twice
+      #                         and a working bar). Read as a pair, because
+      #                         `packageName` is the only nixpkgs source a
+      #                         data-only desktop can name, and refusing it
+      #                         would refuse the field's whole reason to exist.
+      #   enable = false        the documented way to drop a roster entry. It
+      #                         filters out before `packagesFor` ever sees it,
+      #                         so `package` and `scope` still read fine and
+      #                         nothing is installed at all.
       #
       # The general shape — a roster entry another module names by path has a
       # scope precondition, and the roster has no way to express it — is
       # options-roadmap.md §5.4's open box. This is the one live case.
-      lib.optional
-        (config.haus.roster.sketchybar.package == null || config.haus.roster.sketchybar.scope != "system")
-        {
+      (
+        let
+          entry = config.haus.roster.sketchybar;
+          sourceless = entry.package == null && entry.packageName == null;
+        in
+        lib.optional (!entry.enable || sourceless || entry.scope != "system") {
           assertion = false;
           message =
             "haus.bar.enable is on, but haus.roster.sketchybar "
             + (
-              if config.haus.roster.sketchybar.package == null then
-                "installs from no nixpkgs package (its `package` is null), so the system profile holds no sketchybar at all"
+              if !entry.enable then
+                "is disabled (enable = false), so it is filtered out of the roster before anything installs it"
+              else if sourceless then
+                "installs from no nixpkgs package — both `package` and `packageName` are null, so the system profile holds no sketchybar at all"
               else
-                "has scope = \"user\", so its sketchybar lands in the home-manager profile"
+                "has scope = \"${entry.scope}\", so its sketchybar lands in the home-manager profile"
             )
-            + ". The bar addresses the binary as ${barTopPath} from its launchd agent, barpop, bar-bottom, aerospace-notify.sh and every plugin — a path only the system profile provides — so the bar would never draw and nothing else would say so. Set haus.roster.sketchybar = { package = pkgs.sketchybar; scope = \"system\"; }, or turn the bar off with haus.bar.enable = false.";
-        };
+            + ". The bar addresses the binary as ${barTopPath} from its launchd agent, barpop, bar-bottom, aerospace-notify.sh and every plugin — a path only the system profile provides — so the bar would never draw and nothing else would say so. Leave haus.roster.sketchybar installing from nixpkgs (`package = pkgs.sketchybar`, or `packageName = \"sketchybar\"` from a data-only desktop) at scope = \"system\", or turn the bar off with haus.bar.enable = false.";
+        }
+      );
 
   # ---- the bundled pills, pre-declared as widgets -----------------------------
   # Every pill this repo ships exists in `haus.bar.widgets` on every machine,
