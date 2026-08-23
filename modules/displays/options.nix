@@ -40,6 +40,7 @@
             lib.types.enum [
               "more-space"
               "default"
+              "slightly-larger-text"
               "larger-text"
               "largest-text"
             ]
@@ -47,19 +48,32 @@
           default = null;
           example = "larger-text";
           description = ''
-            The scaled resolution, as an intent rather than a pixel count — the
-            same four positions System Settings ▸ Displays offers, named:
+            The scaled resolution, as an intent rather than a pixel count —
+            the positions System Settings ▸ Displays offers, named:
 
-              more-space     the largest resolution the panel offers (smallest UI)
-              default        the panel's own default mode
-              larger-text    between the default and the smallest resolution
-              largest-text   the smallest resolution the panel offers (biggest UI)
+              more-space            the largest resolution the panel offers
+                                    (smallest UI)
+              default               the panel's own default mode
+              slightly-larger-text  between the default and larger-text
+              larger-text           between the default and the smallest
+                                    resolution
+              largest-text          the smallest resolution the panel offers
+                                    (biggest UI)
 
             Resolved per panel from the modes that panel actually reports, so the
             same value means the same *thing* on a 14" laptop and a 27" monitor
             rather than the same number of pixels. On the 14" MacBook Pro this was
-            developed on that resolves to 1800x1169 · 1512x982 · 1147x745 ·
-            1024x665.
+            developed on that resolves to 1800x1169 · 1512x982 · 1352x878 ·
+            1147x745 · 1024x665 — one name per position, matching that panel's
+            five.
+
+            `slightly-larger-text` earns its place on a big external panel, where
+            the ladder is long and the jumps are not evenly spaced: a 27" 5K
+            reports nine rungs, so `larger-text` lands four of them below the
+            default (2560x1440 → 1440x810, a wall of pixels) while
+            `slightly-larger-text` lands on 1920x1080. On a short ladder, where
+            `larger-text` is already the very next rung down, the two names agree
+            rather than inventing a rung that isn't there.
 
             Applied at each home-manager activation and set permanently, so it
             survives a reboot; re-applying an already-current mode is a no-op, so
