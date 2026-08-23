@@ -172,6 +172,24 @@ let
             under sudo either way.)
 
           Ignored when `package` is null — Homebrew has no such split.
+
+          **It is also a path, wherever a module addresses the binary.**
+          "system" is what puts the package at
+          `/run/current-system/sw/bin/<name>`, and a room that runs a tool
+          from launchd — where nothing nix-shaped is on PATH — has to spell
+          that path out. `sketchybar` is the live case: its launchd agent,
+          `barpop`, `bar-bottom` and every bar plugin name it that way, so
+          moving that entry to "user" leaves the bar pointing at nothing and
+          drawing nothing. Two neighbouring edits do the same thing without
+          touching `scope` at all — dropping its nixpkgs source
+          (`package = lib.mkForce null` with no `packageName`; merely ADDING
+          a `brew` does not, since the bar sets `package` at `mkDefault`),
+          and `enable = false`, which filters the entry out before anything
+          installs it.
+
+          So an entry haus itself declares and addresses by path is not the
+          plain metadata it looks like: the bar room asserts on all three,
+          and a room of yours that names a path should too.
         '';
       };
       appStoreId = lib.mkOption {
