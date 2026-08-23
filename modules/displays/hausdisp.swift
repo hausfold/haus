@@ -6,7 +6,7 @@
 //   hausdisp apply   <selector> <intent>    # set it, permanently, idempotently
 //
 // selector : internal | main | <persistent display UUID>
-// intent   : more-space | default | larger-text | largest-text
+// intent   : more-space | default | slightly-larger-text | larger-text | largest-text
 //
 // Why this exists: display scaling is the ONLY working "make everything bigger"
 // lever on macOS 26 — its text-size setting writes a value no running app
@@ -37,6 +37,10 @@ let kDisplayModeDefaultFlag: UInt32 = 0x0000_0004
 enum Intent: String, CaseIterable {
     case moreSpace = "more-space"
     case `default` = "default"
+    // Declared in ladder order: `describe` labels a rung with the FIRST intent
+    // that lands on it, and on a short ladder slightly-larger and larger-text
+    // collapse onto the same rung — the gentler name is the honest label there.
+    case slightlyLargerText = "slightly-larger-text"
     case largerText = "larger-text"
     case largestText = "largest-text"
 }
@@ -131,20 +135,35 @@ func ladder(for id: CGDirectDisplayID) -> (rungs: [Rung], defaultIndex: Int)? {
     return (rungs, defaultIndex)
 }
 
-/// Intent → rung. Relative to the panel's own default, so a panel with three
-/// scaled modes and one with nine both behave sensibly.
-func rung(for intent: Intent, rungs: [Rung], defaultIndex: Int) -> Rung {
-    let last = rungs.count - 1
+/// Intent → rung index. Relative to the panel's own default, so a panel with
+/// three scaled modes and one with nine both behave sensibly.
+func rungIndex(for intent: Intent, count: Int, defaultIndex: Int) -> Int {
+    let last = count - 1
     switch intent {
-    case .moreSpace: return rungs[0]
-    case .default: return rungs[defaultIndex]
-    case .largestText: return rungs[last]
+    case .moreSpace: return 0
+    case .default: return defaultIndex
+    case .largestText: return last
     case .largerText:
         // Halfway between default and smallest-points, rounded away from the
         // default, and never a no-op while a smaller rung exists.
         let mid = Int((Double(defaultIndex + last) / 2).rounded())
-        return rungs[min(max(mid, min(defaultIndex + 1, last)), last)]
+        return min(max(mid, min(defaultIndex + 1, last)), last)
+    case .slightlyLargerText:
+        // Halfway again, between default and larger-text, rounded TOWARD the
+        // default — "slightly" is the whole promise. A 27" 5K reports nine
+        // rungs and larger-text jumps four of them at once, which is a wall of
+        // pixels rather than a step; this is the rung a person actually wants
+        // when they dock a laptop. Never a no-op, and never past larger-text,
+        // so on a short ladder (where larger-text is already the next rung
+        // down) the two names simply agree.
+        let larger = rungIndex(for: .largerText, count: count, defaultIndex: defaultIndex)
+        let mid = Int((Double(defaultIndex + larger) / 2).rounded(.down))
+        return min(max(mid, min(defaultIndex + 1, last)), larger)
     }
+}
+
+func rung(for intent: Intent, rungs: [Rung], defaultIndex: Int) -> Rung {
+    rungs[rungIndex(for: intent, count: rungs.count, defaultIndex: defaultIndex)]
 }
 
 func describe(_ id: CGDirectDisplayID) {
