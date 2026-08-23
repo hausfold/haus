@@ -4237,6 +4237,116 @@
     "readOnly": false,
     "type": "null or positive integer, meaning >0, or value \"never\" (singular enum)"
   },
+  "haus.power.lidAwake.enable": {
+    "declarations": [
+      "modules/core/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Let this Mac keep working with its lid shut.\n\nOff by default, and deliberately: closing the lid is the one\ngesture everybody reads as \"stop\", so haus will not quietly\nredefine it. Turn it on and a root daemon holds macOS's\n`disablesleep` -- the only lever over lid-close sleep, which\n`awake`'s caffeinate assertion cannot reach -- for as long as\n`while` says to.\n\nWhat it cannot save you from: with the lid shut and no external\ndisplay there is no display at all, so an agent that takes\nscreenshots or drives the UI goes blind. Work that has to SEE\nsomething belongs in a headless VM, whose display is virtual and\nnever depended on this one.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "loc": [
+      "haus",
+      "power",
+      "lidAwake",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.power.lidAwake.linger": {
+    "declarations": [
+      "modules/core/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "5"
+    },
+    "description": "Minutes to keep holding after the last agent stops, under\n`while = \"agents\"`.\n\nThe gap between two turns is seconds, and sleeping inside it\nwould end the run you were trying to protect. This only ever\nextends a hold that already exists; it never starts one. 0 sleeps\nthe moment the last agent goes idle.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "1"
+    },
+    "loc": [
+      "haus",
+      "power",
+      "lidAwake",
+      "linger"
+    ],
+    "readOnly": false,
+    "type": "unsigned integer, meaning >=0"
+  },
+  "haus.power.lidAwake.maxHold": {
+    "declarations": [
+      "modules/core/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "480"
+    },
+    "description": "Minutes one unbroken hold may last before it is released anyway,\nor `\"never\"` for no cap.\n\nThe failsafe. A client that dies without reporting leaves a hold\nbehind, and without this the Mac would simply never sleep again\nwith nothing on screen to say why. Past the cap the hold releases\nand refuses to re-arm until the signal has actually cleared, so a\nstuck hold costs one window rather than forever. 8 hours by\ndefault -- long enough for an overnight run.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"never\""
+    },
+    "loc": [
+      "haus",
+      "power",
+      "lidAwake",
+      "maxHold"
+    ],
+    "readOnly": false,
+    "type": "positive integer, meaning >0, or value \"never\" (singular enum)"
+  },
+  "haus.power.lidAwake.requirePower": {
+    "declarations": [
+      "modules/core/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Only hold the lid awake while plugged in.\n\nOn by default. A closed laptop on battery is the bad case and the\ninvisible one: no screen to tell you it is still working, a\nbattery going down, and in a bag nowhere for the heat to go. On\nmeans unplugging is also how you say stop -- the hold releases\nand the Mac sleeps normally.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "loc": [
+      "haus",
+      "power",
+      "lidAwake",
+      "requirePower"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.power.lidAwake.while": {
+    "declarations": [
+      "modules/core/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"agents\""
+    },
+    "description": "When to hold the lid open, so to speak.\n\n`agents` (the default) holds only while an agent is actually\nmid-turn, and lets the Mac sleep once the last one stops -- the\nanswer to \"let them finish, then behave normally\". The signal is\nthe one the bar's agents pill already draws, reported by every\nclient haus knows (Claude Code, Codex, OpenCode), so nothing has\nto be discovered or polled. An agent sitting at a permission\nprompt does NOT hold: it is blocked on a human who is not there.\n\n`always` is plain closed-display mode -- this Mac never sleeps on\na lid close, agents or no agents.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"always\""
+    },
+    "loc": [
+      "haus",
+      "power",
+      "lidAwake",
+      "while"
+    ],
+    "readOnly": false,
+    "type": "one of \"agents\", \"always\""
+  },
   "haus.power.lowPowerMode.battery": {
     "declarations": [
       "modules/core/options.nix"
