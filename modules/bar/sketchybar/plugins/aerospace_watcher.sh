@@ -57,4 +57,4 @@ done
 # no spaces inside any value, and each has to reach sketchybar as its own arg.
 ARGS+=(--set front_app $(fullscreen_front_app_args "$FULLSCREEN"))
 
-/opt/homebrew/bin/sketchybar "${ARGS[@]}"
+/run/current-system/sw/bin/sketchybar "${ARGS[@]}"

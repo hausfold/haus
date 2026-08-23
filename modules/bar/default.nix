@@ -1,6 +1,7 @@
-# Bar — the pills along your menu bar. SketchyBar, launched via nix-darwin,
-# with the stray-agent eviction that keeps a rogue `brew services` instance from
-# stealing the lock file.
+# Bar — the pills along your menu bar. SketchyBar (from nixpkgs), launched via
+# nix-darwin, with the stray-agent eviction that keeps a rogue `brew services`
+# instance — the shape the Homebrew formula this room used to install left
+# behind — from stealing the lock file.
 #
 # The workspace pills are data-driven: WORKSPACES / ws_icon are generated from
 # haus._workspaces, LAUNCHER_KEYS from haus._launchers (the resolved
@@ -55,11 +56,17 @@ let
   # anyway. `bar-bottom --set cpu label=…` addresses the bottom bar exactly the
   # way `sketchybar --set` addresses the top one — same binary, second name,
   # second mach service — which is why this lands on PATH and not just in the
-  # launchd agent. It dangles at build time (Homebrew's prefix isn't in the
-  # sandbox) and resolves at run time, same as the agent's own ProgramArguments.
+  # launchd agent. It points at the PROFILE path, not at `${pkgs.sketchybar}`,
+  # for the same reason `barTopPath` does one binding down: the roster entry
+  # below is an `mkDefault`, so a host may install a different SketchyBar, and a
+  # store path baked in here would leave the bottom bar running a build the top
+  # one isn't — two mach services, two versions, no warning. Resolving through
+  # the profile means the second NAME follows whatever the roster installed. It
+  # dangles at build time, as it always has, and resolves at run time, same as
+  # the agent's own ProgramArguments.
   barBottom = pkgs.runCommand "bar-bottom" { } ''
     mkdir -p "$out/bin"
-    ln -s /opt/homebrew/opt/sketchybar/bin/sketchybar "$out/bin/bar-bottom"
+    ln -s /run/current-system/sw/bin/sketchybar "$out/bin/bar-bottom"
   '';
 
   # How each bar is addressed from a config file or a plugin. BOTH are absolute:
@@ -68,7 +75,14 @@ let
   # resolve — and barpop takes the same string as its SKETCHYBAR_BIN, which has
   # to be a path it can stat. The plugins have always spelled the top one out
   # this way; this is the generated blocks catching up.
-  barTopPath = "/opt/homebrew/bin/sketchybar";
+  #
+  # It is the profile path, not the store path: sketchybar's own rc, its plugins
+  # and the reload at the bottom of this file all name it, and a store path would
+  # freeze whichever build wrote each of those — the running bar and a plugin
+  # deployed a generation later would then be talking to two different binaries.
+  # Reached by way of the roster's `scope = "system"` below, which is what puts
+  # sketchybar in /run/current-system/sw/bin at all.
+  barTopPath = "/run/current-system/sw/bin/sketchybar";
   barBottomPath = "/run/current-system/sw/bin/bar-bottom";
 
   # Where each bar's rc LIVES, as the deployed ~/.config path rather than the
@@ -1639,9 +1653,16 @@ lib.mkIf config.haus.bar.enable {
     ]
   );
 
-  # SketchyBar (brew) + its tap. sketchybar-app-font renders the workspace pill
+  # SketchyBar, from nixpkgs. sketchybar-app-font renders the workspace pill
   # glyphs (an icon ligature font: `:ghostty:` → that app's logo).
-  homebrew.taps = [ "FelixKratz/formulae" ];
+  #
+  # NOT the FelixKratz tap it used to be, and the reason is a fresh Tahoe Mac:
+  # that formula has no bottle for macOS 26, so the first `darwin-rebuild switch`
+  # on a clean install built SketchyBar from source — and its parallel make races
+  # on a `bin/` dir another job is still creating (`unable to open output file
+  # 'bin/background.o'`), which fails the rebuild outright. Nixpkgs ships the same
+  # 2.24.0, prebuilt in the binary cache, so nothing is compiled on install.
+  #
   # Roster entries, not raw brews — a formula with no .app is still something the
   # machine has, and keeping it in the one list is what lets `haus` and the agent
   # skill answer "what's installed here?" completely. ical-buddy backs the opt-in
@@ -1656,7 +1677,14 @@ lib.mkIf config.haus.bar.enable {
   # top table there would draw the pill with no icalBuddy behind it — which
   # calendar.sh reports as a permanent, silent "No events".
   haus.roster = {
-    sketchybar.brew = lib.mkDefault "FelixKratz/formulae/sketchybar";
+    sketchybar = {
+      package = lib.mkDefault pkgs.sketchybar;
+      # System scope, not the default user one: the bar is a launchd agent, and
+      # the agent, its rc, its plugins and `bar-bottom` all address it by
+      # /run/current-system/sw/bin/sketchybar (see `barTopPath`), which only the
+      # system profile provides.
+      scope = lib.mkDefault "system";
+    };
   }
   // lib.optionalAttrs (builtins.elem "calendar" (topItems ++ bottomItems)) {
     ical-buddy.brew = lib.mkDefault "ical-buddy";
@@ -1698,7 +1726,7 @@ lib.mkIf config.haus.bar.enable {
   launchd.user.agents = {
     sketchybar = {
       serviceConfig = {
-        ProgramArguments = withGUIWait "/opt/homebrew/opt/sketchybar/bin/sketchybar";
+        ProgramArguments = withGUIWait barTopPath;
         KeepAlive = true;
         RunAtLoad = true;
         ProcessType = "Interactive";
@@ -1757,6 +1785,28 @@ lib.mkIf config.haus.bar.enable {
     # that outlives its plist keeps drawing a second bottom bar beside the
     # canonical one until logout. One-time migration, idempotent no-op after.
     /bin/launchctl bootout "gui/$uid/org.nixos.sill-bottom" 2>/dev/null || true
+
+    # The Homebrew SketchyBar this room installed until 2026-08-22. Nothing
+    # points at it any more — the agent, the rc, the plugins and `bar-bottom`
+    # all name /run/current-system/sw/bin/sketchybar — so it is inert, and
+    # `haus.homebrew.cleanup` defaults to "none", which means it sits there
+    # forever. Said rather than done: `brew uninstall` wants to run as the
+    # user, not as the root this script is, and haus does not delete things
+    # behind your back. It matters because the next `brew upgrade` would try
+    # to BUILD that formula on macOS 26 (no bottle) and fail — which is the
+    # whole reason this room moved to nixpkgs.
+    if [ -x /opt/homebrew/opt/sketchybar/bin/sketchybar ]; then
+      echo "[activation] bar: SketchyBar now comes from nixpkgs; the old formula is unused. Remove it with: brew uninstall sketchybar && brew untap FelixKratz/formulae" >&2
+      # And the half a user would otherwise discover as a pill that stopped
+      # working. TCC keys a grant to the BINARY, and sketchybar is a new one at
+      # a new path, so every grant the old one held — Accessibility for the
+      # focus pill's keypress, Automation for the front-app and media pills —
+      # is asked for again on first use. Said here rather than left to a
+      # silent no-op, because that is what an orphaned grant looks like: the
+      # pill draws, the click does nothing. (Homebrew moved the binary per
+      # `brew upgrade` for the same reason; this moves it per nixpkgs bump.)
+      echo "[activation] bar: it is a different binary, so macOS asks for SketchyBar's Accessibility and Automation grants again — approve them on first use, or run 'focus doctor'" >&2
+    fi
   '';
 
   home-manager.users.${username} =

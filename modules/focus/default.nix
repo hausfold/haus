@@ -264,7 +264,7 @@ lib.mkMerge [
           "-c"
           ''
             /bin/sleep 1
-            /opt/homebrew/opt/sketchybar/bin/sketchybar --trigger focus_change 2>/dev/null || true
+            /run/current-system/sw/bin/sketchybar --trigger focus_change 2>/dev/null || true
             ${lib.optionalString config.haus.bar.bottom.enable "/run/current-system/sw/bin/bar-bottom --trigger focus_change 2>/dev/null || true"}
           ''
         ];

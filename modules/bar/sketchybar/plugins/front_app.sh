@@ -9,10 +9,10 @@ FRONT_APP=$(osascript -e 'tell application "System Events" to get name of first 
 # fa-arrows (U+F047) for navigate; keep in sync with those scripts.
 if [ -f /tmp/sketchybar_resize_state ]; then
     GLYPH=$(printf '\xEF\x81\xBE')
-    /opt/homebrew/bin/sketchybar --set "$NAME" label="$FRONT_APP $GLYPH"
+    /run/current-system/sw/bin/sketchybar --set "$NAME" label="$FRONT_APP $GLYPH"
 elif [ -f /tmp/sketchybar_navigate_state ]; then
     GLYPH=$(printf '\xEF\x81\x87')
-    /opt/homebrew/bin/sketchybar --set "$NAME" label="$FRONT_APP $GLYPH"
+    /run/current-system/sw/bin/sketchybar --set "$NAME" label="$FRONT_APP $GLYPH"
 else
-    /opt/homebrew/bin/sketchybar --set "$NAME" label="$FRONT_APP"
+    /run/current-system/sw/bin/sketchybar --set "$NAME" label="$FRONT_APP"
 fi

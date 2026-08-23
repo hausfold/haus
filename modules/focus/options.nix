@@ -26,8 +26,10 @@
         Honest scope: focus flips the built-in Do Not Disturb, not named Focus
         modes, and it doesn't manage which apps break through — curate that
         once in System Settings. The keypress needs an Accessibility grant on
-        whatever app invokes focus (palette runs inherit pounce's; grant
-        sketchybar once for the pill). `focus doctor` walks the one-time steps.
+        whatever app invokes focus (palette runs inherit pounce's; the pill
+        needs one on sketchybar itself, and TCC keys that to the binary — so
+        it is asked again after a rebuild that moves it). `focus doctor` walks
+        those steps.
       '';
     };
 
