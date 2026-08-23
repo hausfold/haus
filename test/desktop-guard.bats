@@ -29,7 +29,13 @@ verdict() {
   printf '%s' "$1" | bash "$GUARD" | jq -r '.hookSpecificOutput.permissionDecisionReason // empty'
 }
 
-bash_json() { jq -n --arg c "$1" '{tool_name: "Bash", tool_input: {command: $c}}'; }
+# The command goes in through jq's STDIN, never `--arg`: one case here is a
+# 200 KB command (the size cap), and Linux caps a single argv element at 128 KB
+# — `jq: Argument list too long`, which fails as an empty verdict and therefore
+# reads as "the guard stayed silent". macOS has no such cap, so this is a trap
+# that only springs in CI. `-Rs` takes the whole of stdin as one raw string,
+# newlines and all, and `printf` is a builtin, so nothing crosses an exec.
+bash_json() { printf '%s' "$1" | jq -Rs '{tool_name: "Bash", tool_input: {command: .}}'; }
 
 # asks <command> / silent <command> — the two assertions this file is made of.
 asks() {
@@ -137,7 +143,7 @@ silent() {
   # 32 KB — where skipping means the desktop patterns see the WHOLE command,
   # so a huge remote one asks rather than slipping through.
   local big start
-  big="$(printf 'x%.0s' $(seq 1 200000))"
+  big="$(head -c 200000 /dev/zero | tr '\0' 'x')"
   start=$SECONDS
   silent "echo $big"
   [ $((SECONDS - start)) -lt 5 ] || { printf 'guard took %ss on a 200 KB command\n' "$((SECONDS - start))" >&2; return 1; }
