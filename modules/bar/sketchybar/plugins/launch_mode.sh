@@ -51,12 +51,13 @@ source "$HOME/.config/sketchybar/logo_config.sh"
 # plain "<key>:<ws>" string.)
 source "$HOME/.config/sketchybar/workspaces.sh"
 
-# $BAR_PAGES — GENERATED from haus.windows.enable, the same switch that decides
-# whether sketchybarrc adds the `page` item at all. Read here because this file
-# eval's its whole repaint as ONE sketchybar invocation: a `--set` naming an item
-# that was never added would land mid-batch. Unreachable today (launch mode is
-# an AeroSpace mode, so the leader implies the tiler implies the pill), which is
-# exactly why it would be a silent trap for whoever decouples them.
+# $BAR_PAGES / $BAR_TILING — GENERATED from haus.windows.enable, the same switch
+# that decides whether sketchybarrc adds the `page` and `tiling` items at all.
+# Read here because this file eval's its whole repaint as ONE sketchybar
+# invocation: a `--set` naming an item that was never added would land mid-batch.
+# Unreachable today (launch mode is an AeroSpace mode, so the leader implies the
+# tiler implies the pills), which is exactly why it would be a silent trap for
+# whoever decouples them.
 source "$HOME/.config/sketchybar/windows_config.sh"
 
 spaces() { sketchybar --query bar | jq -r '.items[] | select(startswith("space."))'; }
@@ -100,6 +101,10 @@ do_arm() {
     # do_disarm) rather than from a value computed here: its label is a
     # workspace name, and this batch is `eval`ed as one unquoted string.
     [ "${BAR_PAGES:-0}" = 1 ] && hide+=" --set page drawing=off updates=off"
+    # `tiling` goes with it, and for the same reason: it lives in this same left
+    # group, and the watcher's 2 s tick would otherwise paint it back on top of
+    # the picker row a beat after the leader armed.
+    [ "${BAR_TILING:-0}" = 1 ] && hide+=" --set tiling drawing=off updates=off"
 
     # Color the picker; collect open/active first for the left-ward ordering.
     local colors="" active="" closed=""
@@ -159,6 +164,7 @@ do_disarm() {
     done
     a+=" --set aerospace_watcher updates=on --set front_app drawing=on"
     [ "${BAR_PAGES:-0}" = 1 ] && a+=" --set page updates=on"
+    [ "${BAR_TILING:-0}" = 1 ] && a+=" --set tiling updates=on"
 
     # Restore the logo's two colours from the snapshot in the SAME batch, so the
     # left side repaints in a single frame. Restoring rather than recomputing is
@@ -175,6 +181,11 @@ do_disarm() {
     # one shell word.
     [ "${BAR_PAGES:-0}" = 1 ] &&
       "$HOME/.config/sketchybar/plugins/page.sh" >/dev/null 2>&1 &
+    # `tiling` needs no second process: it is painted by aerospace_watcher.sh,
+    # which the batch above has just un-frozen, so waking it is one trigger.
+    # Without it the pill would come back on the watcher's own tick — up to 2 s
+    # of a hole where a pill was, on every single leader tap.
+    [ "${BAR_TILING:-0}" = 1 ] && sketchybar --trigger aerospace_tiling_change
     rm -f "$SNAP"
 }
 

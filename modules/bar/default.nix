@@ -1213,11 +1213,19 @@ let
   # qualifies which workspace you are on, so it belongs with the workspace pills
   # and not among the movable readouts. It was `haus.bar.items.page` — a movable
   # pill, drawn only on `T/*` — until 2026-08-19.
+  #
+  # $BAR_TILING is the same question a third time: which SHAPE leader→. last
+  # dealt the focused workspace into (windows/scripts/tiling-mode.sh). Separate
+  # from $BAR_PAGES despite reading the same option today, because they gate two
+  # different pills whose reasons to exist are unrelated — a machine could
+  # plausibly want one and not the other, and one name meaning two things is how
+  # that becomes impossible to express.
   windowsConfigSh = ''
     #!/bin/bash
     # GENERATED from haus.windows.* by modules/bar/default.nix — do not edit.
     BAR_GRAVITY="${if config.haus.windows.enable && config.haus.windows.gravity then "1" else "0"}"
     BAR_PAGES="${if config.haus.windows.enable then "1" else "0"}"
+    BAR_TILING="${if config.haus.windows.enable then "1" else "0"}"
   '';
 
   # Bar position (haus.bar.position). Sourced by sketchybarrc — which sets

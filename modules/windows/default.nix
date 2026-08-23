@@ -23,6 +23,12 @@
 
 let
   withGUIWait = (import ../lib/gui-wait.nix).wrap;
+
+  # `hausrect` — on-screen window rects by window id, the one thing AeroSpace
+  # cannot report about itself. scripts/tiling-mode.sh sizes the grid's columns
+  # from it; see hausrect.swift for why the tiler has no answer and why this
+  # reads WINDOWS rather than displays.
+  hausrect = pkgs.callPackage ./package-hausrect.nix { };
   userPath = "/run/current-system/sw/bin:/etc/profiles/per-user/${username}/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin";
 
   # Absolute paths baked into the generated configs. AeroSpace's exec-and-forget
@@ -655,6 +661,13 @@ lib.mkMerge [
     # stays a raw homebrew.taps line: a tap isn't an app, and the roster models
     # what a machine HAS, not where Homebrew looks for it.
     homebrew.taps = [ "nikitabobko/tap" ];
+
+    # In the SYSTEM profile, so the path tiling-mode.sh spells out
+    # (/run/current-system/sw/bin/hausrect) is stable across rebuilds — the same
+    # literal-path convention the bar's plugins use for barpop, and for the same
+    # reason: a store path baked into a script would go stale the moment either
+    # side is rebuilt without the other.
+    environment.systemPackages = [ hausrect ];
     haus.roster.aerospace = {
       name = lib.mkDefault "AeroSpace";
       cask = lib.mkDefault "aerospace";
@@ -728,8 +741,10 @@ lib.mkMerge [
         text = resortScript;
         executable = true;
       };
-      # leader→. : cycle the focused workspace's tiling mode (columns ->
-      # spiral -> grid -> columns), one one-shot reflow per press.
+      # leader→. : alternate the focused workspace's tiling mode (columns <->
+      # grid), one one-shot reflow per press — a single `aerospace eval`, so the
+      # windows are laid out once rather than flying through every intermediate
+      # arrangement. Needs `hausrect` above for the grid's column widths.
       ".config/aerospace/tiling-mode.sh" = {
         source = ./scripts/tiling-mode.sh;
         executable = true;

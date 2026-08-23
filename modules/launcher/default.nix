@@ -455,7 +455,7 @@ let
       }
       {
         key = ".";
-        action = "Cycle tiling — spiral / grid / columns, one shot each press";
+        action = "Tiling — grid / columns, one shot each press";
       }
       {
         key = "`";

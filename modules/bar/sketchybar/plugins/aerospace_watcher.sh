@@ -25,10 +25,22 @@
 # 2 s later. The poll stays because that event is not the only route into the
 # state: focusing another window OF THE SAME APP changes which window's
 # fullscreen flag we're reading and fires no front_app_switched at all.
+#
+# The TILING pill rides here on the same terms — one more `aerospace` call per
+# tick, no extra sketchybar call — and for the same reason the fullscreen state
+# does: its other input is how many tiled windows the focused workspace holds,
+# and NOTHING announces a window opening or closing. leader→. fires
+# aerospace_tiling_change (again through ../aerospace-notify.sh) so a mode
+# change lands on the keypress; the count follows on the next tick.
 
 source "$HOME/.config/sketchybar/colors.sh"
 source "$HOME/.config/sketchybar/workspaces.sh"
 source "$HOME/.config/sketchybar/plugins/aerospace_lib.sh"
+# $BAR_TILING — GENERATED from haus.windows.enable, the same switch that decides
+# whether sketchybarrc adds the `tiling` item at all. Read here for the reason
+# launch_mode.sh reads $BAR_PAGES: this paints in ONE batch, and a `--set`
+# naming an item that was never added takes the whole batch down with it.
+source "$HOME/.config/sketchybar/windows_config.sh"
 
 CURRENT=$(/opt/homebrew/bin/aerospace list-workspaces --focused 2>/dev/null)
 WITH_WINDOWS=$(/opt/homebrew/bin/aerospace list-workspaces --monitor all --empty no 2>/dev/null)
@@ -56,5 +68,6 @@ done
 # Unquoted on purpose — the helper echoes space-separated `key=value` words with
 # no spaces inside any value, and each has to reach sketchybar as its own arg.
 ARGS+=(--set front_app $(fullscreen_front_app_args "$FULLSCREEN"))
+[ "${BAR_TILING:-0}" = 1 ] && ARGS+=(--set tiling $(aerospace_tiling_args))
 
 /run/current-system/sw/bin/sketchybar "${ARGS[@]}"
