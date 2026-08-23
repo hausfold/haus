@@ -66,7 +66,7 @@ let
   # the agent's own ProgramArguments.
   barBottom = pkgs.runCommand "bar-bottom" { } ''
     mkdir -p "$out/bin"
-    ln -s /run/current-system/sw/bin/sketchybar "$out/bin/bar-bottom"
+    ln -s ${barTopPath} "$out/bin/bar-bottom"
   '';
 
   # How each bar is addressed from a config file or a plugin. BOTH are absolute:
@@ -80,9 +80,22 @@ let
   # and the reload at the bottom of this file all name it, and a store path would
   # freeze whichever build wrote each of those — the running bar and a plugin
   # deployed a generation later would then be talking to two different binaries.
-  # Reached by way of the roster's `scope = "system"` below, which is what puts
-  # sketchybar in /run/current-system/sw/bin at all.
-  barTopPath = "/run/current-system/sw/bin/sketchybar";
+  # It comes from the ROSTER rather than being spelled here, and that is the
+  # point: `scope = "system"` is what puts sketchybar in
+  # /run/current-system/sw/bin at all, so the profile half of this path is the
+  # roster's answer rather than this room's guess. Before `binPath` existed the
+  # string was hand-written at sixteen call sites in nine files across three
+  # rooms, and moving the entry between install sources was a sixteen-spelling
+  # sweep no check could see — see options-roadmap.md §5.4.
+  #
+  # null only when the entry installs nothing, which the assertion further down
+  # is the real message for; the placeholder keeps eval alive long enough to
+  # print it and is deliberately not mistakable for a real path.
+  barTopPath =
+    let
+      p = config.haus.roster.sketchybar.binPath;
+    in
+    if p != null then p else "/nonexistent/haus-bar-has-no-sketchybar";
   barBottomPath = "/run/current-system/sw/bin/bar-bottom";
 
   # Where each bar's rc LIVES, as the deployed ~/.config path rather than the
@@ -1681,23 +1694,37 @@ lib.mkIf config.haus.bar.enable {
       # lands in — and for every other roster entry that is all it is. For
       # sketchybar it is a filesystem contract: the launchd agent's
       # ProgramArguments, `barpop`, `bar-bottom`, `aerospace-notify.sh` and the
-      # plugins all spell the binary `/run/current-system/sw/bin/sketchybar`
-      # (`barTopPath`, above), and only the system profile puts it there.
+      # plugins all address the binary as `barTopPath` above, which is
+      # `binPath` — the profile this `scope` chooses — and only the system
+      # profile puts a package where launchd can reach it.
       #
       # Three ways to lose it, and none of them is an error anywhere else:
       #
       #   scope = "user"        the DEFAULT every other roster entry uses, and a
-      #                         documented in-range value. The binary lands in
-      #                         the home-manager profile and launchd points at
-      #                         nothing.
-      #   no nixpkgs source     `package = lib.mkForce null` with no
-      #                         `packageName` to stand in — this room sets
-      #                         `package` at mkDefault, so merely ADDING a
-      #                         `brew` does not do it (you get the tool twice
-      #                         and a working bar). Read as a pair, because
-      #                         `packageName` is the only nixpkgs source a
-      #                         data-only desktop can name, and refusing it
-      #                         would refuse the field's whole reason to exist.
+      #                         documented in-range value. Since `binPath`, the
+      #                         path FOLLOWS this rather than being pinned to
+      #                         the system profile — so this arm no longer
+      #                         describes a dangling address, and the honest
+      #                         reason is narrower: no bar has ever been run out
+      #                         of the per-user profile, the room is written and
+      #                         felt at system scope, and refusing an untested
+      #                         arrangement is the direction that fails loudly.
+      #                         Cheap to settle: flip it, `bench try switch`,
+      #                         see whether the bar draws.
+      #   no source at all      `package = lib.mkForce null` with no
+      #                         `packageName` and no `brew` — read as a TRIPLE
+      #                         now, via `binPath`, and the third one is why:
+      #                         a brew entry has a binPath (/opt/homebrew/bin)
+      #                         and the room follows it there, which is the
+      #                         arrangement this repo shipped until 2026-08-22.
+      #                         Testing only the nixpkgs pair refused it. This
+      #                         room sets `package` at mkDefault, so merely
+      #                         ADDING a brew does nothing either way (you get
+      #                         the tool twice and a working bar); the
+      #                         migration reaches this check only through
+      #                         `lib.mkForce null`. `packageName` is in the
+      #                         group because it is the only nixpkgs source a
+      #                         data-only desktop can name.
       #   enable = false        the documented way to drop a roster entry. It
       #                         filters out before `packagesFor` ever sees it,
       #                         so `package` and `scope` still read fine and
@@ -1709,21 +1736,32 @@ lib.mkIf config.haus.bar.enable {
       (
         let
           entry = config.haus.roster.sketchybar;
-          sourceless = entry.package == null && entry.packageName == null;
+          # Since `binPath`, "is there a sketchybar to address" is one question
+          # with one answer, and it is not the same question as "which nixpkgs
+          # source". A `brew` entry has a binPath — /opt/homebrew/bin — and the
+          # bar follows it there, which is the arrangement this room shipped
+          # until 2026-08-22 and is therefore the best-tested one in the file.
+          # The earlier `package == null && packageName == null` refused it.
+          sourceless = entry.binPath == null;
+          # Narrower than "scope != system": `scope` is IGNORED for a brew
+          # entry (the option says so), so reading it there would refuse a
+          # working bar over a field that did nothing.
+          fromNixpkgs = entry.package != null || entry.packageName != null;
+          userScope = fromNixpkgs && entry.scope != "system";
         in
-        lib.optional (!entry.enable || sourceless || entry.scope != "system") {
+        lib.optional (!entry.enable || sourceless || userScope) {
           assertion = false;
           message =
             "haus.bar.enable is on, but haus.roster.sketchybar "
             + (
               if !entry.enable then
-                "is disabled (enable = false), so it is filtered out of the roster before anything installs it"
+                "is disabled (enable = false), so it is filtered out of the roster before anything installs it, and haus.roster.sketchybar.binPath is null"
               else if sourceless then
-                "installs from no nixpkgs package — both `package` and `packageName` are null, so the system profile holds no sketchybar at all"
+                "installs nothing that leaves a binary at a path haus can name — `package`, `packageName` and `brew` are all null (a `cask` or an `appStoreId` would be a bundle, not a binary), so haus.roster.sketchybar.binPath is null"
               else
-                "has scope = \"${entry.scope}\", so its sketchybar lands in the home-manager profile"
+                "has scope = \"${entry.scope}\", so its sketchybar lands in the per-user profile at ${barTopPath} — where the whole room would follow it (every address resolves through haus.roster.sketchybar.binPath), and where no bar has ever been run"
             )
-            + ". The bar addresses the binary as ${barTopPath} from its launchd agent, barpop, bar-bottom, aerospace-notify.sh and every plugin — a path only the system profile provides — so the bar would never draw and nothing else would say so. Leave haus.roster.sketchybar installing from nixpkgs (`package = pkgs.sketchybar`, or `packageName = \"sketchybar\"` from a data-only desktop) at scope = \"system\", or turn the bar off with haus.bar.enable = false.";
+            + ". The launchd agent, barpop, bar-bottom, aerospace-notify.sh and every plugin address the binary as haus.roster.sketchybar.binPath, so a null one is a bar that never draws with nothing anywhere saying why, and a per-user one is an arrangement nothing here has been felt against — untested rather than known broken, and one `bench try switch` from being settled either way. Leave haus.roster.sketchybar installing from nixpkgs (`package = pkgs.sketchybar`, or `packageName = \"sketchybar\"` from a data-only desktop) at scope = \"system\", or turn the bar off with haus.bar.enable = false.";
         }
       );
 
@@ -1842,8 +1880,8 @@ lib.mkIf config.haus.bar.enable {
       package = lib.mkDefault pkgs.sketchybar;
       # System scope, not the default user one: the bar is a launchd agent, and
       # the agent, its rc, its plugins and `bar-bottom` all address it by
-      # /run/current-system/sw/bin/sketchybar (see `barTopPath`), which only the
-      # system profile provides.
+      # `binPath` (see `barTopPath`), and only the system profile puts a
+      # package where a launchd job can reach it.
       scope = lib.mkDefault "system";
     };
   }
@@ -1949,7 +1987,7 @@ lib.mkIf config.haus.bar.enable {
 
     # The Homebrew SketchyBar this room installed until 2026-08-22. Nothing
     # points at it any more — the agent, the rc, the plugins and `bar-bottom`
-    # all name /run/current-system/sw/bin/sketchybar — so it is inert, and
+    # all resolve through `barTopPath` — so it is inert, and
     # `haus.homebrew.cleanup` defaults to "none", which means it sits there
     # forever. Said rather than done: `brew uninstall` wants to run as the
     # user, not as the root this script is, and haus does not delete things

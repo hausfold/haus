@@ -308,6 +308,8 @@ let
       ""
       "<name>.appId"
       "<name>.appStoreId"
+      "<name>.bin"
+      "<name>.binPath"
       "<name>.brew"
       "<name>.cask"
       "<name>.enable"
@@ -512,6 +514,12 @@ let
     locale = wholeNamespace "locale" "your-region";
     power = wholeNamespace "power" "this-hardware";
     roster = {
+      # Not merely host-only: `binPath` is `readOnly` with a definition from
+      # the submodule's own `config`, so a desktop OR a host writing it dies in
+      # the module system ("read-only, but it's set multiple times") instead of
+      # getting the seam's own diagnostic. `haus-writes-it` is the nearest true
+      # reason and the exact precedent — `installedBy` is the same shape.
+      "<name>.binPath" = "haus-writes-it";
       "<name>.installedBy" = "haus-writes-it";
       "<name>.package" = "needs-pkgs";
     };

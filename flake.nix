@@ -1352,6 +1352,47 @@
             100 -> 1.000000
           '';
 
+          # ---- roster-bin-paths ------------------------------------------------
+          # `haus.roster.<name>.binPath` is where a roster entry's executable
+          # lands, computed from that entry's source and `scope`. The whole
+          # point is that no room spells it. This is what keeps that true.
+          #
+          # It is a check rather than a comment because the failure it replaces
+          # SPREADS and nothing notices: the literal below was hand-written at
+          # sixteen call sites in nine files across three rooms, and it grew by
+          # one — from a PR in an unrelated room, with no reason to know — inside
+          # the first afternoon of the roadmap box that counted it.
+          #
+          # `allowed` is per path and each entry earns its line. Anything else
+          # naming one of these strings, comment or code, is the bug: a comment
+          # that spells a derived path is a copy that rots exactly like a
+          # `let` binding does, and this file has watched that happen.
+          rosterOwnedPaths = [
+            {
+              path = "/run/current-system/sw/bin/sketchybar";
+              option = "haus.roster.sketchybar.binPath";
+              allowed = {
+                "modules/options.nix" = "the option's own documentation — the definition site";
+                "modules/bar/barpop.swift" = "a runtime FALLBACK CHAIN, not an address: barpop tries $SKETCHYBAR_BIN (which the bar passes from binPath) first and only then walks this list, so it still finds a bar on a machine mid-migration";
+              };
+            }
+          ];
+
+          # ---- state-files -----------------------------------------------------
+          # ../lib/state-files.nix names the files under ~/.local/state/haus that
+          # one room WRITES and another READS. Those pairs are joined by nothing
+          # the compiler or the module system can see: one side is a shell
+          # script, the other is a `# pounce:` header, a Swift string, or a
+          # daemon's environment. A rename on one side is not an error anywhere
+          # and its symptom is the absence of a thing — a row that stops being
+          # listed, a pill stuck on Columns, a lid that sleeps mid-run.
+          #
+          # This pins the token that renames, in every file that spells it. It
+          # is emphatically NOT a mirror of the paths: Nix consumers import the
+          # attrset, and the second half below is what keeps them honest.
+          stateFiles = import ./modules/lib/state-files.nix;
+          stateFileEntries = nixpkgs.lib.mapAttrsToList (key: f: f // { inherit key; }) stateFiles;
+
           # ---- pounce-header-grammar -------------------------------------------
           # modules/launcher/header-grammar.nix is our third copy of pounce's
           # `# pounce: key = value` parser, and the only reader of `cheat` /
@@ -3135,6 +3176,137 @@
               echo 'type, not for the ones we ship.' >&2
               exit 1
             }
+            touch $out
+          '';
+
+          roster-bin-paths = pkgs.runCommand "haus-roster-bin-paths-ok" { } ''
+            mods=${./modules}
+            fail=0
+${builtins.concatStringsSep "\n" (
+              map (
+                p:
+                let
+                  files = builtins.attrNames p.allowed;
+                  say = text: "echo ${nixpkgs.lib.escapeShellArg text} >&2";
+                in
+                ''
+                  # `|| true` on the grep, then a separate emptiness test: a repo
+                  # where NOBODY names this path is the good state, and grep's
+                  # exit 1 must not read as a build failure.
+                  found=$(grep -rlF -- ${nixpkgs.lib.escapeShellArg p.path} "$mods" || true)
+                  stray=""
+                  for f in $found; do
+                    rel="modules/''${f#$mods/}"
+                    case "$rel" in
+                    ${builtins.concatStringsSep "\n                    " (map (a: "${a}) ;;") files)}
+                      *) stray="$stray $rel" ;;
+                    esac
+                  done
+                  if [ -n "$stray" ]; then
+                    ${say "these files spell ${p.path} by hand:"}
+                    for f in $stray; do echo "  $f" >&2; done
+                    echo >&2
+                    ${say "That path is computed — ${p.option} — from that roster entry's"}
+                    ${say "install source and its `scope`. Name the option instead:"}
+                    ${say "  a Nix room reads it directly;"}
+                    ${say "  a shell script takes it substituted, or from the generated"}
+                    ${say "  ~/.config/sketchybar/bar.sh (\$BAR_TOP / \$BAR_BOTTOM / \$SB)."}
+                    echo >&2
+                    ${say "The files that may still name it, and why:"}
+                    ${builtins.concatStringsSep "\n                    " (
+                      map (a: say "  ${a} — ${p.allowed.${a}}") files
+                    )}
+                    fail=1
+                  fi
+
+                  # And the allowlist itself must not go stale: a file listed
+                  # here that no longer names the path is an exemption outliving
+                  # its reason, which is how an allowlist becomes a hole.
+                  ${builtins.concatStringsSep "\n                  " (
+                    map (
+                      a:
+                      "grep -qF -- ${nixpkgs.lib.escapeShellArg p.path} "
+                      + "\"$mods/${nixpkgs.lib.removePrefix "modules/" a}\" 2>/dev/null || "
+                      + "{ ${say "${a} is exempted from the ${p.path} check and no longer names it. Drop the exemption."} ; fail=1; }"
+                    ) files
+                  )}
+                ''
+              ) rosterOwnedPaths
+            )}
+            [ "$fail" = 0 ] || exit 1
+            touch $out
+          '';
+
+          state-files = pkgs.runCommand "haus-state-files-ok" { } ''
+            mods=${./modules}
+            fail=0
+
+            # Every file that spells a shared path still spells it, in the exact
+            # form the registry names. `grep -q` on a path that does not exist is
+            # an ERROR, not a miss, so the existence test is separate — otherwise
+            # a moved file reads as a passing check instead of a broken one,
+            # which is how this class of check goes blind rather than red.
+${builtins.concatStringsSep "\n" (
+              builtins.concatMap (
+                f:
+                map (
+                  rel:
+                  let
+                    want = if f.literals.${rel} == null then "${f.dir}/${f.name}" else f.literals.${rel};
+                    path = "\"$mods/${nixpkgs.lib.removePrefix "modules/" rel}\"";
+                    say = text: "echo ${nixpkgs.lib.escapeShellArg text} >&2";
+                  in
+                  ''
+                    if [ ! -f ${path} ]; then
+                      ${say "${rel} is listed in modules/lib/state-files.nix under `${f.key}` and does not exist."}
+                      ${say "Repoint the entry — do not drop it: an unlisted file is one nothing checks."}
+                      fail=1
+                    else
+                      grep -qF -- ${nixpkgs.lib.escapeShellArg want} ${path} || {
+                        ${say "${rel} no longer contains:"}
+                        ${say "  ${want}"}
+                        ${say "which is how it names `${f.key}`, shared with the other side in"}
+                        ${say "modules/lib/state-files.nix. If you renamed the state file, rename"}
+                        ${say "it in every listed file and here — one side alone is silent in"}
+                        ${say "BOTH directions: the reader stats a path nothing writes (a missing"}
+                        ${say "whenFile file reads as a yes, so the row is listed forever), or the"}
+                        ${say "writer fills a path nothing reads."}
+                        fail=1
+                      }
+                    fi
+                  ''
+                ) (builtins.attrNames f.literals)
+              ) stateFileEntries
+            )}
+
+            # No .nix under modules/ may hand-spell a registered path. Without
+            # this the registry is just one more copy — the exact shape it
+            # exists to end. A room that needs one of these imports
+            # ../lib/state-files.nix and interpolates it.
+${builtins.concatStringsSep "\n" (
+              map (
+                f:
+                let
+                  say = text: "echo ${nixpkgs.lib.escapeShellArg text} >&2";
+                in
+                ''
+                  # The registry itself is excluded: it is the definition
+                  # site, and since `literals` names the operative line of each
+                  # file it necessarily quotes some of these paths whole.
+                  stray=$(grep -rlF --include='*.nix' -- ${nixpkgs.lib.escapeShellArg "${f.dir}/${f.name}"} "$mods" \
+                            | grep -v '/lib/state-files\.nix$' || true)
+                  if [ -n "$stray" ]; then
+                    ${say "these .nix files hand-spell ${f.dir}/${f.name}, which"}
+                    ${say "modules/lib/state-files.nix owns as `${f.key}`:"}
+                    echo "$stray" | sed 's|^|  |' >&2
+                    ${say "Import ../lib/state-files.nix and interpolate .dir/.name instead."}
+                    fail=1
+                  fi
+                ''
+              ) stateFileEntries
+            )}
+
+            [ "$fail" = 0 ] || exit 1
             touch $out
           '';
 

@@ -12,33 +12,43 @@
 # specifically the top bar's mach service — is written in the bar's own tree and
 # nowhere in the windows room.
 
+# bar.sh is that path, GENERATED from haus.roster.sketchybar.binPath — so the
+# top bar's binary is named once, where the roster's `scope` decided it, and
+# never spelled here. It used to be written out three times in this file alone,
+# and the count grew by one in haus#484 without anybody noticing (§5.4).
+# Sourced up front rather than beside the bottom-bar poke at the end, because
+# every branch below needs $BAR_TOP.
+if [ -r "$HOME/.config/sketchybar/bar.sh" ]; then
+    # shellcheck source=/dev/null
+    . "$HOME/.config/sketchybar/bar.sh"
+fi
+# No bar deployed (or a generation mid-switch): nothing to trigger, and the tour
+# hook at the bottom is a bar item too. Exit quietly rather than run a path that
+# is not there.
+[ -x "${BAR_TOP:-}" ] || exit 0
+
 if [ "$1" = fullscreen ]; then
     # Repaint on the keypress rather than up to 2s later on the watcher's next
     # poll. The watcher is what reads the new state and paints both pills; this
     # only wakes it. See plugins/aerospace_lib.sh.
-    /run/current-system/sw/bin/sketchybar --trigger aerospace_fullscreen_change
+    "$BAR_TOP" --trigger aerospace_fullscreen_change
     exit 0
 fi
 
 if [ "$1" = tiling ]; then
     # Wakes the watcher, which reads the mode file and paints the pill — the
     # same division of labour as `fullscreen` above.
-    /run/current-system/sw/bin/sketchybar --trigger aerospace_tiling_change
+    "$BAR_TOP" --trigger aerospace_tiling_change
     exit 0
 fi
 
-/run/current-system/sw/bin/sketchybar --trigger aerospace_workspace_change
+"$BAR_TOP" --trigger aerospace_workspace_change
 
 # The SECOND bar is a separate SketchyBar instance with its own mach service, so
 # the trigger above never reaches it — a pill placed there (the `page` one) would
-# only ever repaint on its own tick, which for a hidden item is never. bar.sh is
-# the generated file that knows where that binary is; source it for $BAR_BOTTOM
-# rather than writing the path a second time, and skip it when the bottom bar
+# only ever repaint on its own tick, which for a hidden item is never. $BAR_BOTTOM
+# comes from the same bar.sh sourced at the top; skip it when the bottom bar
 # isn't installed.
-if [ -r "$HOME/.config/sketchybar/bar.sh" ]; then
-    # shellcheck source=/dev/null
-    . "$HOME/.config/sketchybar/bar.sh"
-    [ -x "${BAR_BOTTOM:-}" ] && "$BAR_BOTTOM" --trigger aerospace_workspace_change
-fi
+[ -x "${BAR_BOTTOM:-}" ] && "$BAR_BOTTOM" --trigger aerospace_workspace_change
 # Haus-tour hook — one stat when no tour is mid-flight (plugins/tour.sh).
 { [ -f "$HOME/.local/state/haus/tour" ] && "$HOME/.config/sketchybar/plugins/tour.sh" event workspace; } >/dev/null 2>&1 &

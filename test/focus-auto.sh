@@ -41,9 +41,10 @@ build_engine() { # $1 = path to the scene table
         -e "s|@hooks@||" \
         -e "s|@scenes@|$1|" \
         -e "s|@switchAudio@||" \
+        -e "s|@sketchybar@|$TMP/bin/sketchybar|" \
         "$ROOT/modules/focus/focus.sh" >"$TMP/focus"
     chmod +x "$TMP/focus"
-    # The sed table above MIRRORS default.nix's ten --subst-var-by names, and a
+    # The sed table above MIRRORS default.nix's --subst-var-by names, and a
     # hand-copied mirror is the thing this family keeps getting caught by. A new
     # placeholder there would otherwise reach the engine unsubstituted and this
     # suite would keep passing, testing a script the module never builds. So the

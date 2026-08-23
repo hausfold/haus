@@ -33,6 +33,9 @@
 # aerospace_tiling_change (again through ../aerospace-notify.sh) so a mode
 # change lands on the keypress; the count follows on the next tick.
 
+# $BAR_TOP — GENERATED from haus.roster.sketchybar.binPath. Everything this loop
+# paints is a menu-bar item, so it is always the TOP bar's mach service (§5.4).
+source "$HOME/.config/sketchybar/bar.sh"
 source "$HOME/.config/sketchybar/colors.sh"
 source "$HOME/.config/sketchybar/workspaces.sh"
 source "$HOME/.config/sketchybar/plugins/aerospace_lib.sh"
@@ -70,4 +73,4 @@ done
 ARGS+=(--set front_app $(fullscreen_front_app_args "$FULLSCREEN"))
 [ "${BAR_TILING:-0}" = 1 ] && ARGS+=(--set tiling $(aerospace_tiling_args "$CURRENT"))
 
-/run/current-system/sw/bin/sketchybar "${ARGS[@]}"
+"$BAR_TOP" "${ARGS[@]}"

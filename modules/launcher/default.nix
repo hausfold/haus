@@ -20,6 +20,10 @@
 
 let
   panes = import ../lib/settings-panes.nix;
+  # Shared ~/.local/state/haus files (../lib/state-files.nix). Two of them are
+  # this room's, both written by windows: the ⌃⇥ walk's recency file below, and
+  # the `any-page` byte the Pages command declares as its `whenFile`.
+  stateFiles = import ../lib/state-files.nix;
   # Same reason modules/ai and modules/terminal read it this way: `hostname` is
   # a specialArg of the full builders and NOT of a bare `darwinModules.launcher`
   # import. Naming it above made this export refuse to evaluate for a consumer
@@ -736,7 +740,18 @@ let
     )
   );
 
-  # ---- validation: the two ways an items entry fails silently ----------------
+  # ---- validation: the ways an items entry fails silently ---------------------
+  #
+  # Deliberately not a count, because it has never stayed one. This header read
+  # "the two ways" from the day it was written until 2026-08-23, through a THIRD
+  # way added twenty lines ABOVE it (haus#427's `workspaces`, checked there
+  # against haus's own page ids) and a FOURTH that is not an items entry at all
+  # (`whenFile`, whose shared state path is pinned by ../lib/state-files.nix and
+  # `nix flake check`'s `state-files`). Neither PR touched the number, and
+  # neither had any reason to — a count in a section header is a claim about
+  # code nobody editing that code is looking at. So this names the SHAPE the
+  # checks below share and stops counting: a generated key that does nothing,
+  # with nothing anywhere saying so.
   #
   # pounce is deliberately lenient at runtime — a malformed entry is skipped so one
   # bad line can't cost you the whole map. That's right for a hand-edited file and
@@ -1613,7 +1628,7 @@ lib.mkIf config.haus.launcher.enable {
             modifiers = [ "ctrl" ];
             prefix = "T";
             bundleId = "com.mitchellh.ghostty";
-            mruFile = "/Users/${username}/.local/state/haus/workspace-mru";
+            mruFile = "/Users/${username}/${stateFiles.workspace-mru.dir}/${stateFiles.workspace-mru.name}";
           };
         }
         # The windows room's pointer chord (_contrib.launcher.mouseChords): a
