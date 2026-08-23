@@ -2524,6 +2524,74 @@
             desktopProjection.project self.darwinConfigurations.example.config
           );
 
+          # ---- settings-writes -------------------------------------------------
+          # §5.6's ten curated macOS settings groups share one policy — every
+          # leaf defaults to "write nothing", because a `defaults` write is
+          # one-way and going back stops writing rather than restoring. The
+          # policy is stated over DECLARATIONS, and every surface that could
+          # show it (the option's default, the generated reference, `haus
+          # show`) reads the declaration and is right. None of them holds the
+          # product: what a machine running this desktop actually WRITES.
+          #
+          # `test/settings-writes.nix` resolves all 66 leaves on each shipping
+          # desktop and reports the ones that come out non-quiet, tagged by who
+          # supplied the value. `desktop:` is the ordinary case and needs no
+          # argument — naming settings is what a desktop is for. `room:` is the
+          # one the policy never addressed: a module reached by some unrelated
+          # `enable` deciding a macOS setting on a machine that asked it
+          # nothing. Every `room:` row below had to be argued for, and the
+          # argument belongs in the comment beside it, not in a re-blessed
+          # snapshot.
+          settingsWrites = import ./test/settings-writes.nix {
+            lib = nixpkgs.lib;
+            root = ./.;
+            registry = import ./modules/options-groups.nix;
+          };
+          settingsWriteRows = builtins.concatMap (
+            name:
+            let
+              s = mkHaus {
+                inherit system;
+                username = "you";
+                hostname = "example";
+                desktop = desktopFiles.${name};
+              };
+            in
+            settingsWrites.rows {
+              inherit name;
+              inherit (s) config options;
+            }
+          ) (builtins.attrNames desktopFiles);
+          settingsWriteTable = builtins.concatStringsSep "\n" settingsWriteRows;
+
+          # Two rows, one leaf, no desktop among them — and that is the finding
+          # this table was built to keep visible, not an incidental shape.
+          #
+          # NOT ONE of the four shipping desktops names a single one of the 66
+          # leaves. The whole curated surface — hot corners, the clock, sound,
+          # locale, power, the firewall, animations, Stage Manager — is offered
+          # and unexercised by the product, exactly as §5.6 intended ("a place
+          # to make an opinion available, not to impose one"). So every row
+          # this check will ever gain starts life as a `room:` row, which is
+          # the class the policy was never addressed to.
+          #
+          # The two that exist: `haus.shelf.watchScreenshots` (haus#461, on by
+          # default) sets `haus.screenshots.thumbnail = mkDefault false`,
+          # because a capture macOS is still holding for its five-second
+          # floating thumbnail cannot reach the shelf. `hacker` and `everyday`
+          # run the shelf; `blank` and `minimal` do not. Argued and accepted:
+          # the write is scoped to a room the user switched on, the option's
+          # own description says the shelf does it, and naming the leaf in a
+          # host outranks the `mkDefault` and puts the thumbnail back.
+          #
+          # Adding a row here is a decision, not a formality. It means some
+          # room has started writing a macOS key on machines that asked it
+          # nothing, and going back will not restore what it overwrote.
+          expectedSettingsWriteTable = ''
+            everyday haus.screenshots.thumbnail = false room:modules/shelf
+            hacker haus.screenshots.thumbnail = false room:modules/shelf
+          '';
+
           # The OTHER entry point, and the one this step could most easily have
           # broken: a standalone export selects no desktop and must keep
           # evaluating exactly that way — the bare foundation plus one room,
@@ -3427,6 +3495,12 @@
           editor-choice = pkgs.runCommand "haus-editor-choice-ok" { } ''
             diff -u ${pkgs.writeText "expected" expectedEditorTable} \
                     ${pkgs.writeText "actual" (editorTable + "\n")}
+            touch $out
+          '';
+
+          settings-writes = pkgs.runCommand "haus-settings-writes-ok" { } ''
+            diff -u ${pkgs.writeText "expected" expectedSettingsWriteTable} \
+                    ${pkgs.writeText "actual" (settingsWriteTable + "\n")}
             touch $out
           '';
 

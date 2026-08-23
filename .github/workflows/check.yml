@@ -29,7 +29,7 @@ jobs:
       # example left to eval (see flake.nix `allSystems`).
       - run: nix eval .#darwinConfigurations.example.system.drvPath
       # The platform-independent checks are declared for Linux too precisely so
-      # they can run HERE — FIFTEEN of them, everything in flake.nix's `checks`
+      # they can run HERE — NINETEEN of them, everything in flake.nix's `checks`
       # before the `optionalAttrs (hasSuffix "-darwin" system)` line, which is
       # the only thing that decides the split and the only place to re-derive
       # this list from:
@@ -79,6 +79,22 @@ jobs:
       #                            a STOCK machine, which is a thing only a
       #                            fixture can catch, and the `stock` row is that
       #                            fixture
+      #   pounce-command-headers   every command script's `# pounce:` header
+      #                            re-parsed by this repo's own reader, so a
+      #                            header the daemon would silently half-read is
+      #                            a red check instead of a missing row
+      #   pounce-header-grammar    the header grammar itself against the LOCKED
+      #                            pounce's parser — the whitespace half of the
+      #                            same seam `pounce-command-keys` covers by key
+      #   userstyles-inline        every compiled userstyle is inlined, no
+      #                            @import left to fetch at page load
+      #   userstyles-important     and each one's declarations survive the site's
+      #                            own cascade
+      #
+      # ⚠️ Those four were declared for Linux and missing from this list until
+      # 2026-08-23, which is the fourth rot and the first in the SAFE direction:
+      # the checks were running and the census undercounted them. It said
+      # fifteen and the eval said nineteen.
       #
       # All but the last two mirror a rule that lives in another repo, in a
       # generated dotfile, in a shell script, or in a README — where drift is
@@ -100,7 +116,7 @@ jobs:
       #   nix eval --json .#checks.x86_64-linux   --apply builtins.attrNames
       #   nix eval --json .#checks.aarch64-darwin --apply builtins.attrNames
       #
-      # The darwin-only FOURTEEN fingerprint a real evaluated system, so they
+      # The darwin-only FIFTEEN fingerprint a real evaluated system, so they
       # stay guarded and don't run here — they fire on a Mac, by hand, or not at
       # all: catalogue (every desktop and compat alias raised as a real system),
       # fragment-compat (the retired top-level fragments' old spelling against
@@ -109,9 +125,12 @@ jobs:
       # desktop quietly stopping short of what the module defaults used to give),
       # accent-reach, scale-reach, font-reach, standalone-modules, ai-room,
       # app-collections, login-note, desktop-seam, editor-choice,
-      # bar-bottom-focus and bar-bottom-groups.
+      # bar-bottom-focus, bar-bottom-groups, and settings-writes (what each
+      # shipping desktop actually WRITES across §5.6's ten macOS settings
+      # groups, and which file supplied it — the layer below the declared
+      # `null` every other surface reads).
       #
-      # ⚠️ Two of those fourteen are the reason `nix flake check` on a Mac is
+      # ⚠️ Two of those fifteen are the reason `nix flake check` on a Mac is
       # not optional before a PR: the *-reach tables enumerate every generated
       # home file, so ANY new one is a missing row — and CI here can never see
       # it. main has merged red on exactly that at least twice.
