@@ -17,7 +17,7 @@ user="${HOLT_TART_USER:-admin}"
 case "$cmd" in
 setup)
   path="${3:?tart-adapter.sh setup needs the lane path as \$3}"
-  base="${HOLT_TART_BASE:?set HOLT_TART_BASE to a tart image already on this machine — e.g. \`tart pull ghcr.io/cirruslabs/macos-sequoia-base:latest\`, then export HOLT_TART_BASE=that image}"
+  base="${HOLT_TART_BASE:?set HOLT_TART_BASE to a tart image already on this machine — build one with the script/build-golden-vm.sh in haus (a bare \`tart pull ghcr.io/cirruslabs/macos-tahoe-base:latest\` works, but has no haus in it), then export HOLT_TART_BASE=that image}"
   if tart list --quiet 2>/dev/null | grep -qx "$vm"; then
     echo "tart VM $vm already exists — \`tart delete $vm --force\` to reset it" >&2
     exit 1

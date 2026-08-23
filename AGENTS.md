@@ -183,6 +183,9 @@ compat/presets.nix        # the RETIRED preset format as warning-emitting aliase
 test/desktops/            # one fixture per rule the desktop seam enforces, valid and
                           #   invalid; `desktop-seam` diffs the diagnostics they produce
 hosts/example/            # the template a consumer copies
+script/                   # operator scripts run BY HAND on a Mac, never by the
+                          #   flake: build-golden-vm.sh bakes the tart image
+                          #   `holt runtime up --backend tart` clones
 ```
 
 Each `modules/<room>` is a nix-darwin module; ones that need home config write
