@@ -83,6 +83,11 @@ notice() {
 # The lane opener is holt's own `open` seam, installed by the terminal room.
 # Checked HERE, before anything is created, for the reason the client check
 # below gives: a worktree with nothing to open it is litter.
+# NOTE: $OPENER is a PRECONDITION PROBE here and is never executed by this
+# script any more — `holt spawn --prompt` drives the same seam itself, reading
+# the path from ~/.config/holt/config.toml. Checked anyway, and here rather than
+# 250 lines down where it is used, because a lane with nothing to open it is
+# litter and this is before anything is created.
 OPENER="$HOME/.config/haus/lanes/lane-open.sh"
 for tool in holt zmx; do
   command -v "$tool" >/dev/null 2>&1 && continue
@@ -93,6 +98,22 @@ if [ ! -x "$OPENER" ]; then
   notice "No lane opener" "Rebuild haus — ~/.config/haus/lanes/lane-open.sh is missing"
   exit 1
 fi
+# holt has to be new enough to open a lane on a prompt. The lock bump and this
+# script move together, but a machine caught mid-ripple — or anyone with an
+# older holt earlier on PATH — would otherwise get "could not create the
+# worktree", which points at their repo instead of at the version skew. `--help`
+# prints to stderr, hence the redirect.
+if ! holt --help 2>&1 | grep -q -- '--prompt-file'; then
+  notice "holt is too old for Spawn Agent" "Rebuild haus — it needs holt with --prompt-file"
+  exit 1
+fi
+
+# Where the spawn path's evidence goes. A launchd GUI agent has no stderr a
+# person will ever read, and the toasts below are one line each — so without
+# this, holt's errors, the open seam's refusal reasons and lane-open.sh's own
+# output all vanish and every failure looks identical.
+LOG="${XDG_CACHE_HOME:-$HOME/.cache}/haus/spawn-agent.log"
+mkdir -p "$(dirname "$LOG")" 2>/dev/null || LOG=/dev/null
 
 # ── which repo ────────────────────────────────────────────────────────────
 # One line per candidate: "<mtime>\t<main checkout path>". Sorting on the .git
@@ -261,8 +282,8 @@ while :; do
 done
 
 # Only \r and stray leading/trailing space go; newlines and tabs are the user's
-# now that ⇧↵ can produce them, and `holt agent start` receives the prompt as a
-# single argv element, so a list survives as a list all the way into the client.
+# now that ⇧↵ can produce them, and the prompt reaches holt on stdin, so a list
+# survives as a list all the way into the client.
 prompt="$(printf '%s' "$prompt" | tr -d '\r' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
 if [ -z "$prompt" ]; then
   [ -n "$image" ] && rm -f "$image"
@@ -339,10 +360,10 @@ set -- spawn "$repo" "$slug" --agent "$agent" --prompt-file -
 # holt prints the lane's path on stdout BEFORE it drives the seam, so this
 # captures it whether the window opened or not — which is what the cleanup
 # below needs.
-dir="$(printf '%s' "$prompt" | holt "$@" 2>/dev/null)"
+dir="$(printf '%s' "$prompt" | holt "$@" 2>>"$LOG")"
 rc=$?
 if [ -z "$dir" ] || [ ! -d "$dir" ]; then
-  notice "Could not create the worktree" "Check that $repo_name has a commit to branch from"
+  notice "Could not create the worktree" "Why, in $LOG"
   exit 1
 fi
 name="$(basename "$dir")"
@@ -360,10 +381,18 @@ name="$(basename "$dir")"
 # than letting it flash shut, which is the evidence you would otherwise want
 # this branch to preserve.
 if [ "$rc" -ne 0 ]; then
-  # Nothing is holding the checkout, so take it back rather than leave a worktree
-  # nobody asked for. The branch goes with it — there is no work in it yet.
-  git -C "$repo" worktree remove --force "$dir" >/dev/null 2>&1
-  git -C "$repo" branch -D "worktree-$name" >/dev/null 2>&1
-  notice "Could not open the lane" "The worktree was removed; nothing changed"
+  # `holt drop`, not `git worktree remove`: the raw remove takes the checkout
+  # and the branch but leaves holt's REGISTRY ROW, so the lane goes on being
+  # listed by `holt`, `bench status` and the agents pill as a checkout that
+  # isn't there. drop is holt's own verb for "this will never land" — it takes
+  # the branch with it and records the reason in `holt reaped`, so nothing
+  # vanishes unrecorded. It refuses (exit 2) if something is genuinely standing
+  # in the checkout, and that refusal is the right answer rather than something
+  # to force past: this is the one path where the lane might not be empty.
+  if holt drop "$name" >>"$LOG" 2>&1; then
+    notice "Could not open the lane" "The lane was dropped; nothing changed"
+  else
+    notice "Could not open the lane" "Lane '$name' is still here — run holt"
+  fi
   exit 1
 fi

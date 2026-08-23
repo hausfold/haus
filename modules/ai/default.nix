@@ -192,7 +192,10 @@ let
     all of them at once.
 
     The same goes for `~/${agentHomes.${client}.skills}/haus/`, generated from
-    the haus revision this machine pins (`haus update` regenerates it). It does
+    the haus revision this machine pins (`haus update` regenerates it), and for
+    every other skill in that directory that haus installed — each hausfold tool
+    ships its own, so `holt/` and `handoff/` are holt's and are edited in
+    hausfold/holt, arriving here on a lock bump. It does
     NOT go for everything beside them: ${clientScopeNote.${client}} that you can
     edit live with no rebuild. `ls -l` the path before assuming which kind it is.
 
@@ -333,6 +336,13 @@ let
   # reading a derivation's output during evaluation is import-from-derivation,
   # which would force a build every time somebody runs `haus get` to READ their
   # config. A tool adding a skill is one word here, on the next lock bump.
+  # ⚠️ The names are UNVERIFIABLE from here, by construction: nothing checks that
+  # the derivation actually contains them, because the check would be a readDir
+  # on a store output — import-from-derivation. A name listed here that the
+  # pinned revision does not ship installs a DANGLING symlink, silently: eval,
+  # `nix flake check` and the home-files build are all green, because a
+  # home.file source pointing inside a store output is never existence-checked.
+  # So a new name and the lock bump that carries it are ONE commit.
   toolSkills = [
     {
       drv = pkgs.holt-skill;
