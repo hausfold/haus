@@ -315,6 +315,21 @@ mechanism, say so in one line.
   resets everything else), so the API-refresh window and the env-hint silencing
   live there too — an export in terminal or bench only reaches your interactive
   shell.
+- **Ghostty does not close a TILED window when its process exits**
+  (`modules/terminal/scripts/launch.sh`, measured on 1.3.1): with
+  `wait-after-command` off, `Surface.childExited` prints "Process exited. Press
+  any key to close the terminal." and calls `close()` — and that close is
+  silently dropped for a window AeroSpace has tiled, inside a ghostty instance
+  that owns other windows. The keypress it asks for reaches the same `close()`
+  and works, which is why it reads as "one extra ^D". Floating windows close;
+  so does a tiled one in an `open -na` instance of its own, because
+  `quit-after-last-window-closed` ends the process instead — that is the whole
+  reason lanes never showed it. So anything that spawns a window, tiles it and
+  expects it to close on exit has to close it itself: launch.sh does, with
+  `aerospace close` on the self-tile's own window id, gated on that id ALSO
+  being the focused one. The same hazard is live for a `new-window.sh` window
+  running a command (⌘G's gh-dash, an editor) — it is tiled from outside and
+  nothing closes it when the command quits.
 - **Touch ID + a multiplexer** (`modules/security`): `reattach = true` is
   required because sudo can run inside one (tmux/screen, or a `zmx` session —
   every terminal window is one); without pam_reattach the Touch ID prompt
