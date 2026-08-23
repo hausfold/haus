@@ -29,7 +29,7 @@ jobs:
       # example left to eval (see flake.nix `allSystems`).
       - run: nix eval .#darwinConfigurations.example.system.drvPath
       # The platform-independent checks are declared for Linux too precisely so
-      # they can run HERE — NINETEEN of them, everything in flake.nix's `checks`
+      # they can run HERE — TWENTY of them, everything in flake.nix's `checks`
       # before the `optionalAttrs (hasSuffix "-darwin" system)` line, which is
       # the only thing that decides the split and the only place to re-derive
       # this list from:
@@ -90,11 +90,15 @@ jobs:
       #                            @import left to fetch at page load
       #   userstyles-important     and each one's declarations survive the site's
       #                            own cascade
+      #   tool-skills              every skill name modules/ai lists is one the
+      #                            pinned tool actually ships — a home file, so
+      #                            a wrong name is a failed `haus rebuild`
       #
       # ⚠️ Those four were declared for Linux and missing from this list until
       # 2026-08-23, which is the fourth rot and the first in the SAFE direction:
       # the checks were running and the census undercounted them. It said
-      # fifteen and the eval said nineteen.
+      # fifteen and the eval said nineteen. `tool-skills` was added hours later,
+      # in the census's own edit, which is the habit this comment is asking for.
       #
       # All but the last two mirror a rule that lives in another repo, in a
       # generated dotfile, in a shell script, or in a README — where drift is

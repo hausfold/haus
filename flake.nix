@@ -291,9 +291,7 @@
       # The desktops this flake ships — names in modules/desktop-names.nix,
       # which `haus desktop`'s listing stages from the same source so the two
       # cannot drift apart.
-      desktopFiles = nixpkgs.lib.genAttrs (import ./modules/desktop-names.nix) (
-        n: ./desktops/${n}.nix
-      );
+      desktopFiles = nixpkgs.lib.genAttrs (import ./modules/desktop-names.nix) (n: ./desktops/${n}.nix);
       desktopLib = import ./modules/lib/desktop.nix {
         lib = nixpkgs.lib;
         registry = import ./modules/options-groups.nix;
@@ -1014,7 +1012,9 @@
           # E1: a claim that matches what's declared stops warning entirely —
           # this is the sentence the note said the message would lose once E1
           # landed, proven by the warning list coming back empty.
-          namespaceGuardWarningsClaimed = namespaceGuard.warningsFor (nsOptionsOf [ nsClaimedRoom ]) nsClaimTable;
+          namespaceGuardWarningsClaimed = namespaceGuard.warningsFor (nsOptionsOf [
+            nsClaimedRoom
+          ]) nsClaimTable;
           # Matches the `+ "\n"` the derivation below applies to the actual
           # side — an empty list becomes one blank line, not a zero-byte file.
           expectedNamespaceGuardWarningsClaimed = "\n";
@@ -1029,11 +1029,11 @@
             name: mods: claimed: hausVersion:
             let
               opts = nsOptionsOf mods;
-              failing = builtins.filter (r: !r.assertion) (
-                namespaceGuard.assertionsFor opts claimed hausVersion
-              );
+              failing = builtins.filter (r: !r.assertion) (namespaceGuard.assertionsFor opts claimed hausVersion);
             in
-            "${name} fatal=${toString (builtins.length failing)} ${nsShow (map (r: nsFirstLine r.message) failing)}";
+            "${name} fatal=${toString (builtins.length failing)} ${
+              nsShow (map (r: nsFirstLine r.message) failing)
+            }";
           namespaceGuardAssertTable = builtins.concatStringsSep "\n" [
             (nsAssertRow "stock" [ ] { } null)
             (nsAssertRow "unclaimed" [ nsPrivateRoom ] { } null)
@@ -3310,6 +3310,29 @@
           # the six files terminal actually installs, each non-empty, so a
           # renderer that silently produced nothing fails here rather than
           # landing an empty skill on someone's machine.
+          # Same hazard as `.#agent-skill` below, one repo boundary further out:
+          # modules/ai turns each of these into a home file, so a listed skill
+          # name the pinned tool revision doesn't ship fails `home-manager-files`
+          # and takes the whole `haus rebuild` with it. Building it IS the check
+          # — the derivation's own guard is what fails — and the loop below is
+          # the shape a rebuild depends on: every skill present and non-empty.
+          #
+          # It replaces a gap rather than a break: before this, the same wrong
+          # name was green all the way down and landed a dangling symlink in
+          # ~/.claude/skills instead. Loud in CI beats quiet in someone's home.
+          tool-skills = pkgs.runCommand "haus-tool-skills-ok" { } ''
+            skills=${self.packages.${system}.tool-skills}
+            found=0
+            for d in "$skills"/*; do
+              test -s "$d/SKILL.md" \
+                || { echo "tool skill is missing or empty: $(basename "$d")" >&2; exit 1; }
+              found=$((found + 1))
+            done
+            test "$found" -gt 0 \
+              || { echo "tool-skills built nothing at all" >&2; exit 1; }
+            touch $out
+          '';
+
           agent-skill = pkgs.runCommand "haus-agent-skill-ok" { } ''
             skill=${self.packages.${system}.agent-skill}
             for f in SKILL.md consumer-AGENTS.md consumer-CLAUDE.md \
@@ -3423,7 +3446,9 @@
                     ${pkgs.writeText "actual" (builtins.concatStringsSep "\n" namespaceGuardWarnings + "\n")}
 
             diff -u ${pkgs.writeText "expected" expectedNamespaceGuardWarningsClaimed} \
-                    ${pkgs.writeText "actual" (builtins.concatStringsSep "\n" namespaceGuardWarningsClaimed + "\n")}
+                    ${pkgs.writeText "actual" (
+                      builtins.concatStringsSep "\n" namespaceGuardWarningsClaimed + "\n"
+                    )}
 
             diff -u ${pkgs.writeText "expected" expectedNamespaceGuardAssertTable} \
                     ${pkgs.writeText "actual" (namespaceGuardAssertTable + "\n")}
@@ -3846,6 +3871,22 @@
             wmBindingsJson = self.packages.${system}.wm-bindings-json;
             launchKeysJson = self.packages.${system}.launch-keys-json;
           };
+
+          # `nix build .#tool-skills` — the OTHER hausfold tools' agent skills,
+          # copied through one derivation that fails if a listed name isn't
+          # there. modules/ai installs the result as home files, so this is on
+          # every machine's rebuild path and belongs in `checks` for the reason
+          # spelled out above `.#agent-skill`.
+          #
+          # `holt-skill` comes off the flake input rather than off `pkgs`: the
+          # `pkgs` here is a bare `legacyPackages` with no overlays applied,
+          # while the room reads the same derivation through holt's overlay.
+          tool-skills =
+            (import ./modules/ai/tool-skills.nix {
+              inherit pkgs;
+              inherit (nixpkgs) lib;
+              holt-skill = holt.packages.${system}.holt-skill;
+            }).checked;
 
           # `nix build .#agent-skill` — the skill that teaches an agent to change
           # THIS machine's config: the edit → `haus rebuild` → `haus rollback`
