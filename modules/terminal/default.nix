@@ -799,6 +799,16 @@ in
             setopt hist_ignore_dups
             setopt hist_find_no_dups
 
+            # `#` starts a comment at the prompt, as it does in a script. zsh
+            # leaves this OFF interactively, which means a pasted block with a
+            # comment line in it does not do what the block says: the comment
+            # runs as a command, prints "#: command not found", and — the part
+            # that actually costs you — every line AFTER it runs anyway. Paste
+            # a four-line recipe whose third line is "# now close the lid" and
+            # the fourth line undoes the second, in four seconds, silently.
+            # Every other shell here treats it as a comment; so should this one.
+            setopt interactive_comments
+
             zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}'
             zstyle ':completion:*' list-colors "''${(s.:.)LS_COLORS}"
             zstyle ':completion:*' menu no
