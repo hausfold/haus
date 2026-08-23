@@ -246,6 +246,14 @@ let
     takes focus or redraws the desktop interrupts someone mid-sentence — and
     unlike a bad edit, they can't undo it. So:
 
+    - **Want to SEE it work? Take a VM, not the screen.** A lane can boot its
+      own headless macOS and drive it as hard as it likes — click, type,
+      `killall Dock`, `haus rebuild`, screenshot — because none of it renders
+      here. That is the answer to "can I try the palette / the bar / this
+      keybind / the installer", and it is the FIRST thing to reach for, not
+      the fallback: `holt runtime up <lane> --backend tart`, then drive the
+      guest over `ssh`. The haus skill's **Seeing your change without taking
+      the screen** section has the whole loop, screenshots included.
     - **Prefer looking to touching.** `screencapture -x` is silent and steals
       nothing, and a screenshot-only `computer_batch` is the same. Reach for
       those before you reach for a click.
@@ -256,6 +264,16 @@ let
       yourself costs them their train of thought.
     - **One question beats one stolen focus.** In doubt, ask. You are not being
       helpful by guessing here.
+
+    **Asking for THIS screen is the last resort, and it has to earn it.** The
+    only good reason is something a VM genuinely cannot show you: the user's
+    own windows, their real data or accounts, hardware and display differences,
+    a guest that will not boot, or a grant that only exists on this Mac.
+    "Faster on the host", "only one click" and "just to check" are not reasons
+    — they are the whole class of interruption the VM exists to end. And if the
+    VM is out of reach (no `tart` on PATH, no image on disk), say so in one
+    line and hand the feel-test back; do not quietly fall through to the
+    pointer.
 
     ${lib.optionalString (client == "claude") ''
       `agent-desktop-guard` backs this up on Claude Code panes: a PreToolUse hook
@@ -413,12 +431,12 @@ let
   # Text + a script, machine-wide (not per-client the way the two blocks
   # above are — a VM isn't a thing Claude vs. Codex each get their own copy
   # of), gated on this room's own switch since that's what installs `holt`
-  # in the first place. Doesn't install `tart` itself, and doesn't pull a
-  # base image: those are real disk/network cost (tart's macOS base images
-  # run tens of GB) that a machine which never runs `holt runtime up` should
-  # not pay for just because the AI room is on. `holt runtime up` degrades
-  # cleanly (exitcode.Degradedf, "install it, then try again") when `tart`
-  # isn't on PATH, so shipping the adapter ahead of the binary is safe.
+  # and `tart` in the first place. It does NOT pull a base image: that is the
+  # real cost here (tart's macOS base images run tens of GB), it is a choice
+  # about which OS a lane tests on, and a machine that never runs `holt
+  # runtime up` should not pay for it just because the AI room is on. The
+  # adapter refuses with the exact commands when `HOLT_TART_BASE` is unset,
+  # so the missing half names itself the first time somebody needs it.
   agentRuntimeAdapterFiles = lib.optionalAttrs cfg.enable (
     let
       # System-config scope has no `config.home.homeDirectory` — that's a
@@ -441,8 +459,8 @@ let
         # Generated from haus.ai — edit modules/ai/default.nix (this text) or
         # modules/ai/runtime/tart-adapter.sh (the script), not this copy.
         #
-        # One-time setup this file can't do for you:
-        #   nix shell nixpkgs#tart          # or: brew install cirruslabs/cli/tart
+        # `tart` itself comes with this room. The one-time setup left, which
+        # this file can't do for you, is the IMAGE:
         #   tart pull ghcr.io/cirruslabs/macos-tahoe-base:latest
         #   build-golden-vm.sh              # in haus's script/ — bakes haus INTO an image
         #   export HOLT_TART_BASE=haus-golden
@@ -531,6 +549,7 @@ let
     | perch | the notch file shelf | ${onOff config.haus.shelf.enable} |
     | snippets | text expansion | ${onOff config.haus.snippets.enable} |
     | developer | the dev toolbelt | ${onOff config.haus.developer.enable} |
+    | ai | coding-agent tooling (`holt`, the lane VM) | ${onOff config.haus.ai.enable} |
 
     A room that's off means its options do nothing until you turn it on — say so
     rather than silently enabling a room to satisfy a small request.
@@ -670,6 +689,23 @@ in
       # `holt hook create` / `holt hook remove`. Its bash predecessor `wt.sh`
       # has been retired entirely; there is no fallback to roll back to.
       holt
+
+      # `tart` — the VM half of the same tool. A lane that needs to SEE a
+      # change work (the palette, the bar, a keybind, an installer run) takes
+      # its own headless macOS rather than the screen the user is sitting in
+      # front of, and the instructions this room writes now say so in the
+      # first bullet of "the screen belongs to the person at it". An
+      # instruction whose binary isn't there is worse than no instruction:
+      # the agent reads it, tries, fails, and reaches for the pointer
+      # anyway. So `tart` arrives WITH `holt`, not as a manual step beside
+      # it — the room already writes the adapter that drives it.
+      #
+      # The disk cost this room was once careful about is the IMAGES (tens of
+      # GB each), not this binary, and no image is pulled until someone runs
+      # `holt runtime up` — see the adapter's own `HOLT_TART_BASE` refusal.
+      # nixpkgs marks tart unfree (Fair Source); modules/core already sets
+      # `nixpkgs.config.allowUnfree`, so this evaluates on any haus machine.
+      tart
 
       # `claude-statusline` — the agent-worktree HUD for Claude Code's status bar
       # (terminal's claudeCodeSettings points the `statusLine` key here). Row 1 is
