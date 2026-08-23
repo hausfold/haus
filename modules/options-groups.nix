@@ -69,6 +69,7 @@ let
       "default"
       "enable"
       "instructions"
+      "repoRoots"
       "skill"
     ];
     animations = [ "" ];
@@ -745,7 +746,7 @@ let
     };
     ai = {
       order = 80;
-      blurb = "The AI room: whether this machine runs coding agents at all, which clients it installs, which one the agent keybinding spawns, and the two files haus ships into every one of their homes — your instructions, and the `haus` skill. Spelled `haus.agents.*` before 2026-08-13, with the switch under `haus.developer.agents`; both are gone rather than aliased.";
+      blurb = "The AI room: whether this machine runs coding agents at all, which clients it installs, which one the agent keybinding spawns, where the palette looks for a repo to spawn one on, and the two files haus ships into every one of their homes — your instructions, and the `haus` skill. Spelled `haus.agents.*` before 2026-08-13, with the switch under `haus.developer.agents`; both are gone rather than aliased.";
     };
     # 90 was `claude`, folded into `agents` on 2026-08-11: both of its options
     # describe a file EVERY client reads, at its own path. Left free rather than
@@ -1030,6 +1031,7 @@ let
           "install codex"
           "which agent does the agent key spawn"
           "change my agent instructions"
+          "add my work repos to the spawn agent list"
           "what worktrees are open"
         ];
       };

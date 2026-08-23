@@ -1233,6 +1233,16 @@ lib.mkIf config.haus.launcher.enable {
         # an interactive shell. Keep the selected client explicit here so a
         # palette spawn and a later `holt <name>` agree on its default.
         HAUS_AGENT_DEFAULT = agentContrib.default;
+        # …and where it looks for something to spawn ON (`haus.ai.repoRoots`).
+        # This env var is the ONLY channel: the command is a plain script the
+        # daemon spawns with this environment, and a launchd GUI agent inherits
+        # nothing from your shell — so an export in .zshrc never reached it and
+        # the script's own default list was, in practice, the whole feature.
+        # Always the room's own value — `_contrib` carries the list whether or
+        # not the room is on, and with it off the command is not installed to
+        # read it. The script's own fallback list is for a hand-run outside the
+        # daemon, and nothing else.
+        HAUS_REPO_ROOTS = lib.concatStringsSep ":" agentContrib.repoRoots;
         # Where the ssh plugin (and any command that respects the hook) opens a
         # terminal: a new tiled Ghostty window instead of stock Terminal.
         # See modules/terminal/scripts/pounce-terminal.sh.

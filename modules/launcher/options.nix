@@ -33,6 +33,16 @@ in
           default = "claude";
           description = "The client Spawn Agent starts — `haus.ai.default`.";
         };
+        repoRoots = lib.mkOption {
+          type = lib.types.listOf lib.types.str;
+          default = [ ];
+          description = ''
+            Where Spawn Agent looks for repositories — `haus.ai.repoRoots`,
+            verbatim, tildes and all. The launcher writes it into the pounce
+            daemon's environment as `HAUS_REPO_ROOTS`; expanding and reading it
+            is the command's business, not this room's.
+          '';
+        };
       };
     };
 

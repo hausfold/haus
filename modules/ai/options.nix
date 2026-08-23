@@ -139,6 +139,50 @@ in
       '';
     };
 
+    # Where the palette looks for something to spawn ON. It is an AI-room fact
+    # rather than a launcher one — the same list would answer "which repos can
+    # I lane into" for any surface that asked — so it lives here and reaches
+    # the palette through `_contrib.launcher.agents`, which is also the only
+    # way it can reach the pounce DAEMON at all: a launchd GUI agent inherits
+    # nothing from your shell, so the `$HAUS_REPO_ROOTS` this used to be was
+    # unsettable in the one process that reads it.
+    ai.repoRoots = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [
+        "~/code"
+        "~/src"
+        "~/Developer"
+        "~/Projects"
+        "~/.config/nix"
+      ];
+      example = [
+        "~/code"
+        "~/work/clients"
+        "~/.config/nix"
+      ];
+      description = ''
+        Where the palette's **Spawn Agent** finds repositories, most recently
+        touched first. A leading `~/` is expanded; a path that does not exist is
+        skipped in silence, so the default list can name four conventions and
+        cost nothing for the three you don't use.
+
+        Each entry is read TWO ways, and which one applies is decided by the
+        path itself:
+
+        - **a repo** (it has a `.git` directory) is offered as itself, and is
+          not descended into — that is how `~/.config/nix`, the config flake
+          this Mac is built from, is in the default list without `~/.config`
+          being scanned.
+        - **anything else** is scanned two levels deep for main checkouts, so
+          both `~/code/thing` and a parent directory full of repos
+          (`~/code/workshop/thing`) resolve.
+
+        Repos `holt` already knows are always offered too, whether or not they
+        are under a root here — so a one-off repo you have agent'd before stays
+        reachable, and this list is about the ones you have not.
+      '';
+    };
+
     # The two files the rice ships into an agent's home, one option each. Both
     # were `haus.claude.*` until 2026-08-11 and wrote only Claude Code's copy —
     # which made `ai.default = "codex"` a half-truth: the client spawned,
