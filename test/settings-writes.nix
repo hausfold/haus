@@ -28,6 +28,9 @@
 {
   lib,
   root,
+  # modules/options-groups.nix, so the inventory below can be checked against
+  # the registry that already fails closed on a new public leaf.
+  registry,
 }:
 
 let
@@ -38,6 +41,13 @@ let
   # namespaces, and the settings subtrees only for the two namespaces that
   # also hold room behaviour (`security` keeps `touchId`, `windows` keeps
   # AeroSpace).
+  #
+  # Explicit is not the same as unchecked. `coverage` below asserts this list
+  # ∪ `excluded` is exactly what the registry declares for those ten
+  # namespaces, so a new `haus.sound.*` leaf cannot be silently out of scope
+  # forever — it fails here until somebody decides which side it is on. That
+  # is the property `optionPaths` already has and a hand-copied list does
+  # not.
   #
   # `quiet` is the value that means "write nothing". It is `null` for 65 of
   # the 66; `haus.animations` spells the same thing `"system"`, and it is the
@@ -300,6 +310,102 @@ let
   # reason, as `desktopHere` in flake.nix.
   here = builtins.replaceStrings [ "${toString root}/" ] [ "" ];
 
+  # ---- fail closed against the registry ----------------------------------
+  # The ten namespaces §5.6's groups live in, and — for the two that also hold
+  # room behaviour — the leaves that are NOT curated macOS settings and are
+  # deliberately out of scope. Each exclusion is a decision, so each carries
+  # its reason.
+  namespaces = [
+    "animations"
+    "hotCorners"
+    "locale"
+    "lock"
+    "menuBar"
+    "power"
+    "screenshots"
+    "security"
+    "sound"
+    "windows"
+  ];
+  excluded = [
+    # Touch ID is what the security ROOM does, not a `defaults` key it curates.
+    [
+      "security"
+      "touchId"
+      "enable"
+    ]
+    [
+      "security"
+      "touchId"
+      "passwordlessRebuild"
+    ]
+    # AeroSpace's own behaviour. `windows` is the one settings group that lives
+    # in a room, and only its three com.apple.WindowManager subtrees are §5.6's.
+    [
+      "windows"
+      "accordionPadding"
+    ]
+    [
+      "windows"
+      "defaultLayout"
+    ]
+    [
+      "windows"
+      "defaultOrientation"
+    ]
+    [
+      "windows"
+      "enable"
+    ]
+    [
+      "windows"
+      "gravity"
+    ]
+    [
+      "windows"
+      "mouseFollowsFocus"
+    ]
+    [
+      "windows"
+      "mouseFullscreen"
+    ]
+    [
+      "windows"
+      "numberedWorkspaces"
+    ]
+  ];
+  # The registry names its leaves in full — "haus.sound.alertSound" — and the
+  # namespace option itself as plain "haus.animations", which is a leaf here
+  # like any other. Dropping the "haus" head is all the translation needed.
+  declaredPaths = lib.concatMap (
+    ns:
+    map (leaf: builtins.tail (lib.splitString "." leaf)) (
+      builtins.attrNames registry.namespaces.${ns}.options
+    )
+  ) namespaces;
+  inventoryPaths = map (l: l.path) leaves;
+  key = lib.concatStringsSep ".";
+  missing = lib.subtractLists (map key (inventoryPaths ++ excluded)) (map key declaredPaths);
+  stray = lib.subtractLists (map key declaredPaths) (map key inventoryPaths);
+  coverage =
+    lib.throwIf (missing != [ ])
+      ''
+        test/settings-writes.nix does not cover every leaf modules/options-groups.nix
+        declares for §5.6's ten namespaces, and an uncovered settings leaf is one this
+        check can never notice a room writing. Add each to `leaves`, or to `excluded`
+        with the reason it is not a curated macOS setting:
+
+          ${lib.concatStringsSep "\n  " missing}
+      ''
+      (
+        lib.throwIf (stray != [ ]) ''
+          test/settings-writes.nix names leaves the registry does not declare — a
+          rename or a removal upstream:
+
+            ${lib.concatStringsSep "\n  " stray}
+        '' true
+      );
+
   render =
     v:
     if v == null then
@@ -329,22 +435,43 @@ in
       config,
       options,
     }:
-    let
-      row =
-        leaf:
-        let
-          value = lib.getAttrFromPath ([ "haus" ] ++ leaf.path) config;
-          opt = lib.getAttrFromPath ([ "haus" ] ++ leaf.path) options;
-          files = lib.unique (map (d: here (toString d.file)) opt.definitionsWithLocations);
-          desktopFile = "desktops/${name}.nix";
-          origin = if builtins.elem desktopFile files then "desktop" else "room";
-          others = builtins.filter (f: f != desktopFile) files;
-          shown = if origin == "desktop" then [ desktopFile ] else others;
-        in
-        lib.optional (value != leaf.quiet) (
-          "${name} haus.${builtins.concatStringsSep "." leaf.path} = ${render value}"
-          + " ${origin}:${builtins.concatStringsSep "+" shown}"
-        );
-    in
-    builtins.concatMap row leaves;
+    lib.warnIf (!coverage) "unreachable" (
+      let
+        row =
+          leaf:
+          let
+            value = lib.getAttrFromPath ([ "haus" ] ++ leaf.path) config;
+            opt = lib.getAttrFromPath ([ "haus" ] ++ leaf.path) options;
+            files = lib.unique (map (d: here (toString d.file)) opt.definitionsWithLocations);
+            desktopFile = "desktops/${name}.nix";
+            fromDesktop = builtins.elem desktopFile files;
+            fromRoom = files != [ ] && files != [ desktopFile ];
+            # Every contributing file is shown, and the tag names the SET rather
+            # than a winner. Classifying by "does the desktop appear" would file a
+            # room writing at ordinary priority alongside a desktop that also
+            # names the leaf under the benign `desktop:` — hiding exactly the
+            # author this table exists to surface. `definitionsWithLocations`
+            # carries no priority, so the honest report is both, not a guess.
+            origin =
+              if fromDesktop && fromRoom then
+                "desktop+room"
+              else if fromDesktop then
+                "desktop"
+              else if fromRoom then
+                "room"
+              else
+                # No definition at all: the value is the option's own default. A
+                # settings leaf that is non-quiet by default is a policy breach
+                # with no author to name, so it gets its own tag rather than an
+                # empty `room:`.
+                "default";
+          in
+          lib.optional (value != leaf.quiet) (
+            "${name} haus.${builtins.concatStringsSep "." leaf.path} = ${render value}"
+            + " ${origin}"
+            + lib.optionalString (files != [ ]) ":${builtins.concatStringsSep "+" files}"
+          );
+      in
+      builtins.concatMap row leaves
+    );
 }

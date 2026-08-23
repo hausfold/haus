@@ -2545,6 +2545,7 @@
           settingsWrites = import ./test/settings-writes.nix {
             lib = nixpkgs.lib;
             root = ./.;
+            registry = import ./modules/options-groups.nix;
           };
           settingsWriteRows = builtins.concatMap (
             name:
