@@ -159,11 +159,11 @@
         "prebuilt": "prebuilt"
       },
       "locked": {
-        "lastModified": 1787458611,
-        "narHash": "sha256-ERwaSsZvDkdfZOJENELV1LDBA8lM7ub4zKArRgcqYko=",
+        "lastModified": 1787461144,
+        "narHash": "sha256-N25Ym+XmQg374R2a3GIXuZ6zp0sRu6EdqzKAvGOwlc4=",
         "owner": "hausfold",
         "repo": "perch",
-        "rev": "a74e42ad57e77bd000ab39a331ac7c804bb274b0",
+        "rev": "cb155263ffb3d61c7bb4160b098f8b1576999429",
         "type": "github"
       },
       "original": {
