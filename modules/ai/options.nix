@@ -31,10 +31,11 @@ in
       description = ''
         The AI room: coding-agent *tooling*. `holt` (agent worktrees),
         `agent-state` (the status writer behind the `agents` bar pill),
-        the agent-worktree statusline, `holt`'s `tart` runtime adapter (SPEC.md
-        §5.5 — `holt runtime up|enter|down --backend tart` stands a lane up in
-        a macOS VM; installing `tart` itself and pulling a base image are
-        still manual, one-time steps), and the client
+        the agent-worktree statusline, `tart` and the adapter that drives it
+        (SPEC.md §5.5 — `holt runtime up|enter|down --backend tart` stands a
+        lane up in its own headless macOS, so an agent can feel-test a desktop
+        change without touching the screen its user is sitting at; pulling a
+        base image is still a manual, one-time step), and the client
         config the Terminal room writes (Claude Code's settings.json keys, opencode's
         agent-state plugin). Which clients get installed is `ai.clients`.
 

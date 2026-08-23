@@ -108,16 +108,19 @@ change with a message naming what it does. Don't push unless asked.
 ## Seeing your change without taking the screen
 
 Someone is sitting in front of this Mac. Do not foreground an app, move the
-pointer or send a keystroke **here** just to look at your own work — that rule
-is in your global instructions, and on Claude Code panes `agent-desktop-guard`
-re-opens the permission prompt when you try.
+pointer or send a keystroke **here** just to look at your own work. On a
+machine that ships `haus.ai.instructions` you already have that rule in your
+global instructions, and on Claude Code panes `agent-desktop-guard` re-opens
+the permission prompt when you try — but it holds either way.
 
-Take a **VM** instead, and prefer it over asking. It is a second, disposable
-macOS you own outright: headless on the host, so nothing it draws reaches the
-user's display, and real enough to run `haus rebuild` and render the actual UI.
-Drive it as hard as you like. It wants the AI room on (`haus.ai.enable` —
-`references/this-machine.md` says whether it is), `tart` on `PATH`, and a base
-image named by `HOLT_TART_BASE`.
+Take a **VM** instead, and reach for it *before* handing the feel-test back —
+asking the user a question is never what the VM replaces; driving this desktop
+is. The VM is a second, disposable macOS you own outright: headless on the
+host, so nothing it draws reaches the user's display, and real enough to run
+`haus rebuild` and render the actual UI. Drive it as hard as you like. It wants
+the AI room on (`haus.ai.enable` — `references/this-machine.md`'s Rooms table
+says whether it is here) and a base image named by `HOLT_TART_BASE`; the room
+brings `tart` itself.
 
 ```sh
 holt runtime up    my-lane --backend tart   # clone the image, boot it headless
@@ -125,9 +128,11 @@ holt runtime enter my-lane --backend tart   # ssh in
 holt runtime down  my-lane --backend tart   # delete the clone
 ```
 
-Build an image that has haus *inside* it with `script/build-golden-vm.sh` in the
-haus repo. Cloning a bare `ghcr.io/cirruslabs/macos-tahoe-base` works, but a
-lane that clones one has no haus in it to test.
+Build an image that has haus *inside* it with `script/build-golden-vm.sh` —
+it lives in the <https://github.com/hausfold/haus> repo and is **not** shipped
+by the flake, so a machine with no checkout has to fetch it. Cloning a bare
+`ghcr.io/cirruslabs/macos-tahoe-base` needs nothing, but a lane that clones one
+has no haus in it to test.
 
 Driving it from the host, which is usually easier than sitting inside it:
 
