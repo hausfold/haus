@@ -297,3 +297,10 @@ jobs:
       # shape again; needs only git + jq + bats.
       - name: statusline render tests
         run: bats test/statusline.bats
+      # The PreToolUse guard, whose two failure modes are both silent and both
+      # bad: prompting for something the user cannot see (a lane's headless VM
+      # over ssh) trains click-through on the prompts that matter, and missing a
+      # real one lands as a window jumping in front of them mid-sentence.
+      # Neither a build nor a lint can see either. Pure function, no Mac needed.
+      - name: desktop guard tests
+        run: bats test/desktop-guard.bats
