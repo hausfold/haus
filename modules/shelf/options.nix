@@ -22,10 +22,11 @@
     # shelf off this switch was already inert — it just used to say `true`
     # about it, on `minimal` and `blank` alike, so `haus get`, the `haus set`
     # picker and the annotated host file all offered a knob with nothing behind
-    # it. The gate is not new; only its honesty is. (Not `haus show`: that
-    # reads a desktop FILE and never a machine's resolved values — the claim
-    # two files over in ../shelf/default.nix was wrong about which surface,
-    # and is corrected in the same breath.)
+    # it. The gate is not new; only its honesty is. (Not `haus show`: it reports
+    # the leaves a desktop FILE names, and no file names the leaf that argument
+    # was about — it does read resolved values for the ones it reports. The
+    # claim was in ../shelf/default.nix TWICE, twelve lines apart; the first
+    # correction reached one of them and stated a reason wider than the fact.)
     shelf.watchScreenshots = lib.mkOption {
       type = lib.types.bool;
       default = config.haus.shelf.enable;
