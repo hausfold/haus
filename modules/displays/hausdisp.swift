@@ -5,6 +5,23 @@
 //   hausdisp resolve <selector> <intent>    # print the target mode, change nothing
 //   hausdisp apply   <selector> <intent>    # set it, permanently, idempotently
 //
+// `list` also reports the two facts this room shipped a vocabulary for and could
+// not previously answer: what macOS CALLS each panel, and WHERE each one sits in
+// the global point space. Both are read-only and both are here rather than in a
+// second tool because `internal | main | <uuid>` — the selector this file already
+// resolves — is the vocabulary the question is asked in.
+//
+// The name is the load-bearing one. Two other rooms answer "is this the built-in
+// panel?" with the literal string "Built-in Retina Display" — windows, in the
+// per-monitor gap rows of the generated aerospace.toml, and terminal, in
+// float-term.sh's popup geometry — neither going through this room. That literal
+// is `NSScreen.localizedName`, which is a PRODUCT NAME: it is what this Mac's
+// panel happens to be called, not a property of being built in. AeroSpace 0.21.3
+// offers no keyword for it either (its monitor patterns are `main`, `secondary`,
+// a regex or an id — there is no `built-in`), so the literal cannot simply be
+// replaced. What it CAN be is checkable, on any Mac, with no second display
+// attached: `hausdisp list` now prints the name each room is matching against.
+//
 // selector : internal | main | <persistent display UUID>
 // intent   : more-space | default | slightly-larger-text | larger-text | largest-text
 //
@@ -25,6 +42,7 @@
 // yields exactly [1800x1169, 1512x982*, 1352x878, 1147x745, 1024x665], and the
 // intent mapping below reproduces the table that spike wrote out by hand — but it
 // now also works on a panel nobody has measured, which a hardcoded table cannot.
+import AppKit
 import ColorSync
 import CoreGraphics
 import Foundation
@@ -61,6 +79,38 @@ func activeDisplays() -> [CGDirectDisplayID] {
 func uuid(of id: CGDirectDisplayID) -> String? {
     guard let ref = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue() else { return nil }
     return CFUUIDCreateString(nil, ref) as String?
+}
+
+/// What macOS calls this panel — `NSScreen.localizedName`, the same string
+/// AeroSpace reports as `monitor-name` and matches its per-monitor config rows
+/// against, and the same one float-term.sh compares to.
+///
+/// Optional on purpose. NSScreen needs a window-server connection, so this is
+/// nil from a launchd daemon in another session, and a name is decoration here
+/// while the UUID is the identity — `list` prints what it got and the mode
+/// ladder is unaffected either way. AppKit is imported for this one call and
+/// nothing else: no NSApplication, so nothing is activated and no Dock tile
+/// appears.
+func localizedName(of id: CGDirectDisplayID) -> String? {
+    for screen in NSScreen.screens {
+        let key = NSDeviceDescriptionKey("NSScreenNumber")
+        guard let number = screen.deviceDescription[key] as? NSNumber else { continue }
+        if CGDirectDisplayID(number.uint32Value) == id { return screen.localizedName }
+    }
+    return nil
+}
+
+/// Where this display sits in the global point space, which is what
+/// "arrangement" means: the origin is the top-left corner relative to the main
+/// display's own (0, 0), with y growing DOWNWARD (CoreGraphics' orientation, not
+/// AppKit's). A monitor to the left of the main one therefore has a negative x.
+/// Read-only — moving a display is `CGConfigureDisplayOrigin`, and nothing here
+/// calls it.
+func arrangement(of id: CGDirectDisplayID) -> String {
+    let b = CGDisplayBounds(id)
+    let x = Int(b.origin.x.rounded())
+    let y = Int(b.origin.y.rounded())
+    return "at \(x),\(y)  \(Int(b.width.rounded()))x\(Int(b.height.rounded()))pt"
 }
 
 /// internal | main | <persistent UUID>. Returns nil when nothing matches, which is
@@ -169,7 +219,8 @@ func rung(for intent: Intent, rungs: [Rung], defaultIndex: Int) -> Rung {
 func describe(_ id: CGDirectDisplayID) {
     let kind = CGDisplayIsBuiltin(id) == 1 ? "internal" : "external"
     let main = CGDisplayIsMain(id) == 1 ? " main" : ""
-    print("— \(kind)\(main)  uuid=\(uuid(of: id) ?? "unknown")")
+    let name = localizedName(of: id).map { " name=\"\($0)\"" } ?? ""
+    print("— \(kind)\(main)  uuid=\(uuid(of: id) ?? "unknown")\(name)  \(arrangement(of: id))")
     guard let (rungs, defaultIndex) = ladder(for: id) else {
         print("  no usable modes reported")
         return
