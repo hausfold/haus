@@ -10,6 +10,11 @@ SKETCHYBAR="$SB"
 CACHE_FILE="/tmp/sketchybar-weather-location.json"
 CACHE_AGE=86400  # Cache location for 24 hours
 
+# Both fetches are bounded. Wi-Fi off fails fast on DNS, but a captive portal or
+# a half-up VPN accepts the connection and never answers — and a SketchyBar
+# plugin is synchronous, so an unbounded curl there wedges this pill's update
+# slot rather than falling through to the "--°" paint below.
+
 # Get location from IP (cached to avoid rate limits)
 get_location() {
     if [ -f "$CACHE_FILE" ]; then
@@ -21,7 +26,7 @@ get_location() {
         fi
     fi
 
-    location=$(curl -s "http://ip-api.com/json/?fields=lat,lon,city" 2>/dev/null)
+    location=$(curl -s --max-time 6 "http://ip-api.com/json/?fields=lat,lon,city" 2>/dev/null)
     if [ -n "$location" ] && echo "$location" | $JQ -e '.lat' >/dev/null 2>&1; then
         echo "$location" > "$CACHE_FILE"
         echo "$location"
@@ -39,7 +44,7 @@ LON=$(echo "$LOCATION" | $JQ -r '.lon')
 CITY=$(echo "$LOCATION" | $JQ -r '.city // "Unknown"')
 
 # Fetch comprehensive weather data from Open-Meteo
-WEATHER=$(curl -s "https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,apparent_temperature,weather_code,relative_humidity_2m,wind_speed_10m,wind_direction_10m,precipitation,cloud_cover,uv_index&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_sum,precipitation_probability_max,wind_speed_10m_max&hourly=temperature_2m,weather_code&timezone=auto&forecast_days=4" 2>/dev/null)
+WEATHER=$(curl -s --max-time 8 "https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,apparent_temperature,weather_code,relative_humidity_2m,wind_speed_10m,wind_direction_10m,precipitation,cloud_cover,uv_index&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,precipitation_sum,precipitation_probability_max,wind_speed_10m_max&hourly=temperature_2m,weather_code&timezone=auto&forecast_days=4" 2>/dev/null)
 
 if [ -z "$WEATHER" ] || ! echo "$WEATHER" | $JQ -e '.current' >/dev/null 2>&1; then
     $SKETCHYBAR --set $NAME icon="󰖐" label="--°"

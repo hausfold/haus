@@ -138,6 +138,11 @@ slack_set() { # $1 = on|off
         slack_api users.profile.get \
             | "$JQ" '{profile:{status_text:(.profile.status_text // ""), status_emoji:(.profile.status_emoji // ""), status_expiration:0}}' \
             >"$prev" 2>/dev/null || rm -f "$prev"
+        # jq writes nothing and exits 0 on an empty body, so a `users.profile.get`
+        # that never reached Slack leaves a zero-byte stash the `||` above cannot
+        # see. Drop it here — restoring FROM an empty stash is a request Slack
+        # rejects, and the `-s` test on the way out treats it as no stash at all.
+        [ -s "$prev" ] || rm -f "$prev"
         local body
         body=$("$JQ" -n --arg t "$SLACK_STATUS_TEXT" --arg e "$SLACK_STATUS_EMOJI" \
             '{profile:{status_text:$t,status_emoji:$e,status_expiration:0}}')
@@ -148,10 +153,20 @@ slack_set() { # $1 = on|off
                 | "$JQ" -e '.ok' >/dev/null || note "slack: dnd.setSnooze failed"
         fi
     else
-        if [ -f "$prev" ]; then
-            slack_api users.profile.set -H "Content-type: application/json; charset=utf-8" -d @"$prev" \
-                | "$JQ" -e '.ok' >/dev/null || note "slack: status restore failed"
-            rm -f "$prev"
+        if [ -s "$prev" ]; then
+            # Keep the stash when the restore did not land. Slack is a network
+            # call and leaving Focus is exactly when it can be missing (a train,
+            # a hotel portal, Wi-Fi off) — and the old unconditional `rm` threw
+            # away the ONLY record of the status you had before Focus, so the
+            # next successful toggle had nothing to put back and your Slack
+            # status stayed stuck on the focus one. Now the next `focus off`
+            # with a network retries it.
+            if slack_api users.profile.set -H "Content-type: application/json; charset=utf-8" -d @"$prev" \
+                | "$JQ" -e '.ok' >/dev/null; then
+                rm -f "$prev"
+            else
+                note "slack: status restore failed — keeping the stash, retried on the next 'focus off'"
+            fi
         else
             slack_api users.profile.set -H "Content-type: application/json; charset=utf-8" \
                 -d '{"profile":{"status_text":"","status_emoji":""}}' \

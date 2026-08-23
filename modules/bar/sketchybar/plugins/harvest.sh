@@ -53,6 +53,46 @@ tour_drawing() {
   fi
 }
 
+# One bounded GET, and the only way this plugin reads Harvest. It prints the
+# body only when the body is JSON we can actually read, so every caller can
+# tell "Harvest says nothing is running" apart from "Harvest was unreachable".
+#
+# Those two used to be the same thing here, and the mix-up was visible: an
+# empty body puts nothing on jq's stdout, `RUNNING_COUNT` comes out empty, and
+# `[ "" -gt "0" ]` is a bash *error* that the `if` reads as false. So a poll
+# with no network fell into the STOPPED arm and repainted a RUNNING timer as
+# "Start Timer", every three seconds, until the network came back — the one
+# lie this pill must never tell, because the fix a person reaches for is to
+# click it and start a second entry against the same hours.
+#
+# --max-time because a SketchyBar plugin is synchronous. Wi-Fi off fails fast
+# on DNS, but a captive portal or a half-up VPN accepts the connection and
+# never answers, and an unbounded curl there wedges the pill's update slot.
+harvest_get() {
+  local body
+  body=$(curl -s --max-time 6 "${HEADERS[@]}" "$1") || return 1
+  printf '%s' "$body" | jq -e . >/dev/null 2>&1 || return 1
+  printf '%s' "$body"
+}
+
+# Unreachable is a third state, not a stopped timer. Dim what is ALREADY on the
+# pill instead of repainting it: the label still names whatever was running, and
+# the muted colours say the duration behind it has stopped moving. Only the
+# colours are set, so the next successful poll restores them on its own.
+harvest_unreachable() {
+  local shown
+  shown=$("$SB" --query $NAME 2>/dev/null | jq -r '.label.value // ""' 2>/dev/null)
+  if [ -z "$shown" ]; then
+    # Nothing to keep — a bar that started with no network has never painted
+    # this pill. An em dash is the same "no answer" the github pill draws.
+    "$SB" --set $NAME icon="󰔟" icon.color=$OVERLAY0 label="—" \
+      label.color=$OVERLAY0 background.color=$SURFACE0 drawing=$(tour_drawing)
+  else
+    "$SB" --set $NAME icon.color=$OVERLAY0 label.color=$OVERLAY0 \
+      background.color=$SURFACE0 drawing=$(tour_drawing)
+  fi
+}
+
 # Handle click events
 if [ "$SENDER" = "mouse.clicked" ]; then
   # Right-click or modifier: Open Harvest app
@@ -62,7 +102,14 @@ if [ "$SENDER" = "mouse.clicked" ]; then
   fi
 
   # Left-click: Toggle timer
-  CURRENT_ENTRY=$(curl -s "${HEADERS[@]}" "$HARVEST_API_URL/time_entries?is_running=true&_=$TIMESTAMP")
+  CURRENT_ENTRY=$(harvest_get "$HARVEST_API_URL/time_entries?is_running=true&_=$TIMESTAMP") || {
+    # Say which thing went wrong. Falling through here used to reach the
+    # START arm with an empty entry list and report "No previous timer to
+    # restart" — a true sentence about a question nobody asked.
+    osascript -e 'display notification "Harvest is unreachable" with title "Harvest"'
+    harvest_unreachable
+    exit 0
+  }
   IS_RUNNING=$(echo "$CURRENT_ENTRY" | jq -r '.time_entries | length')
 
   if [ "$IS_RUNNING" -gt "0" ]; then
@@ -78,7 +125,7 @@ if [ "$SENDER" = "mouse.clicked" ]; then
       label="$PROJECT_NAME"
 
     # Stop the timer
-    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X PATCH "${HEADERS[@]}" "$HARVEST_API_URL/time_entries/$ENTRY_ID/stop")
+    HTTP_CODE=$(curl -s --max-time 10 -o /dev/null -w "%{http_code}" -X PATCH "${HEADERS[@]}" "$HARVEST_API_URL/time_entries/$ENTRY_ID/stop")
 
     if [ "$HTTP_CODE" -ne 200 ]; then
       osascript -e 'display notification "Failed to stop timer" with title "Harvest"'
@@ -87,7 +134,11 @@ if [ "$SENDER" = "mouse.clicked" ]; then
 
   else
     # START/RESTART the most recently used timer (sort by updated_at desc, skip running)
-    LAST_ENTRIES=$(curl -s "${HEADERS[@]}" "$HARVEST_API_URL/time_entries?per_page=10&_=$TIMESTAMP")
+    LAST_ENTRIES=$(harvest_get "$HARVEST_API_URL/time_entries?per_page=10&_=$TIMESTAMP") || {
+      osascript -e 'display notification "Harvest is unreachable" with title "Harvest"'
+      harvest_unreachable
+      exit 0
+    }
     ENTRY_ID=$(echo "$LAST_ENTRIES" | jq -r '[.time_entries[] | select(.is_running == false)] | sort_by(.updated_at) | reverse | .[0].id')
     PROJECT_NAME=$(echo "$LAST_ENTRIES" | jq -r '[.time_entries[] | select(.is_running == false)] | sort_by(.updated_at) | reverse | .[0] | .client.name // .project.name // "Timer"')
 
@@ -100,7 +151,7 @@ if [ "$SENDER" = "mouse.clicked" ]; then
         label="$PROJECT_NAME"
 
       # Restart the timer
-      HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X PATCH "${HEADERS[@]}" "$HARVEST_API_URL/time_entries/$ENTRY_ID/restart")
+      HTTP_CODE=$(curl -s --max-time 10 -o /dev/null -w "%{http_code}" -X PATCH "${HEADERS[@]}" "$HARVEST_API_URL/time_entries/$ENTRY_ID/restart")
 
       if [ "$HTTP_CODE" -ne 200 ] && [ "$HTTP_CODE" -ne 201 ]; then
         osascript -e 'display notification "Failed to restart timer" with title "Harvest"'
@@ -115,7 +166,10 @@ if [ "$SENDER" = "mouse.clicked" ]; then
 fi
 
 # Regular update: Always fetch fresh data from server
-RUNNING_ENTRY=$(curl -s "${HEADERS[@]}" "$HARVEST_API_URL/time_entries?is_running=true&_=$TIMESTAMP")
+RUNNING_ENTRY=$(harvest_get "$HARVEST_API_URL/time_entries?is_running=true&_=$TIMESTAMP") || {
+  harvest_unreachable
+  exit 0
+}
 RUNNING_COUNT=$(echo "$RUNNING_ENTRY" | jq -r '.time_entries | length // 0')
 
 if [ "$RUNNING_COUNT" -gt "0" ]; then
@@ -150,7 +204,10 @@ if [ "$RUNNING_COUNT" -gt "0" ]; then
     drawing=$(tour_drawing)
 else
   # Timer is STOPPED - show most recently used entry for quick resume
-  LATEST_ENTRIES=$(curl -s "${HEADERS[@]}" "$HARVEST_API_URL/time_entries?per_page=10&_=$TIMESTAMP")
+  LATEST_ENTRIES=$(harvest_get "$HARVEST_API_URL/time_entries?per_page=10&_=$TIMESTAMP") || {
+    harvest_unreachable
+    exit 0
+  }
   LATEST_ENTRY=$(echo "$LATEST_ENTRIES" | jq '[.time_entries[] | select(.is_running == false)] | sort_by(.updated_at) | reverse | .[0]')
   CLIENT=$(echo "$LATEST_ENTRY" | jq -r '.client.name // empty')
   PROJECT=$(echo "$LATEST_ENTRY" | jq -r '.project.name // empty')
