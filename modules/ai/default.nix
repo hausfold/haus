@@ -246,6 +246,14 @@ let
     takes focus or redraws the desktop interrupts someone mid-sentence — and
     unlike a bad edit, they can't undo it. So:
 
+    - **Want to SEE it work? Take a VM, not the screen.** A lane can boot its
+      own headless macOS and drive it as hard as it likes — click, type,
+      `killall Dock`, `haus rebuild`, screenshot — because none of it renders
+      here. That is the answer to "can I try the palette / the bar / this
+      keybind / the installer", and it is the FIRST thing to reach for, not
+      the fallback: `holt runtime up <lane> --backend tart`, then drive the
+      guest over `ssh`. The haus skill's **Seeing your change without taking
+      the screen** section has the whole loop, screenshots included.
     - **Prefer looking to touching.** `screencapture -x` is silent and steals
       nothing, and a screenshot-only `computer_batch` is the same. Reach for
       those before you reach for a click.
@@ -256,6 +264,16 @@ let
       yourself costs them their train of thought.
     - **One question beats one stolen focus.** In doubt, ask. You are not being
       helpful by guessing here.
+
+    **Asking for THIS screen is the last resort, and it has to earn it.** The
+    only good reason is something a VM genuinely cannot show you: the user's
+    own windows, their real data or accounts, hardware and display differences,
+    a guest that will not boot, or a grant that only exists on this Mac.
+    "Faster on the host", "only one click" and "just to check" are not reasons
+    — they are the whole class of interruption the VM exists to end. And if the
+    VM is out of reach (no `tart` on PATH, no image on disk), say so in one
+    line and hand the feel-test back; do not quietly fall through to the
+    pointer.
 
     ${lib.optionalString (client == "claude") ''
       `agent-desktop-guard` backs this up on Claude Code panes: a PreToolUse hook
