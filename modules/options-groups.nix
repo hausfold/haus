@@ -601,7 +601,7 @@ let
   validators = {
     roster-entries.rule = "Keys are plain app ids — letters, digits, `_` and `-` — because each one becomes a launcher row and an argument to an installer.";
     workspace-entries.rule = "Keys are plain workspace names, which is what AeroSpace and the bar's page pill both spell them as.";
-    launcher-items.rule = "Keys are palette addresses — `mode:<name>`, `cmd:<id>`, `setting:<pane>` or `app:</path/to.app>` — because each one names a row pounce already has. `shortcut:<uuid>` is the one shape a desktop may not name: it identifies one entry in one Mac's Shortcuts library, the same reason a display UUID is host-only.";
+    launcher-items.rule = "Keys are palette addresses — `cmd:<id>`, `app:<path>`, `setting:<pane>[?<anchor>]` or `mode:<name>`, spelled as `modules/launcher/item-grammar.nix` spells them — because each one names a row pounce already has, and carrying no quote, backslash, `$`, backtick, newline or tab, because the key is written out beside the values it configures. `shortcut:<uuid>` is the one shape a desktop may not name: it identifies one entry in one Mac's Shortcuts library, the same reason a display UUID is host-only.";
     scene-entries.rule = "Keys are plain scene names — what you type after `focus scene`, so a key has to survive as one shell word.";
     widget-entries.rule = "Keys are plain widget names, because each becomes a SketchyBar item name; a desktop may place and retune a pill, but `command` stays host-only so it can never add one that runs code.";
     display-selectors.rule = "Only the `internal` and `main` selectors: a display UUID names one physical panel on one desk, which is a fact about a machine rather than a taste a desktop can share.";

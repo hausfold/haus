@@ -1877,7 +1877,7 @@
       "rule": "Only the `internal` and `main` selectors: a display UUID names one physical panel on one desk, which is a fact about a machine rather than a taste a desktop can share."
     },
     "launcher-items": {
-      "rule": "Keys are palette addresses — `mode:<name>`, `cmd:<id>`, `setting:<pane>` or `app:</path/to.app>` — because each one names a row pounce already has. `shortcut:<uuid>` is the one shape a desktop may not name: it identifies one entry in one Mac's Shortcuts library, the same reason a display UUID is host-only."
+      "rule": "Keys are palette addresses — `cmd:<id>`, `app:<path>`, `setting:<pane>[?<anchor>]` or `mode:<name>`, spelled as `modules/launcher/item-grammar.nix` spells them — because each one names a row pounce already has, and carrying no quote, backslash, `$`, backtick, newline or tab, because the key is written out beside the values it configures. `shortcut:<uuid>` is the one shape a desktop may not name: it identifies one entry in one Mac's Shortcuts library, the same reason a display UUID is host-only."
     },
     "roster-entries": {
       "rule": "Keys are plain app ids — letters, digits, `_` and `-` — because each one becomes a launcher row and an argument to an installer."

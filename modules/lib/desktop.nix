@@ -215,6 +215,7 @@ let
   # pounce adds arrives here already admitted.
   desktopItemShapes = builtins.filter (s: !(lib.hasPrefix "shortcut:" s)) itemGrammar.shapes;
   desktopItemPrefixes = builtins.filter (p: p != "shortcut:") itemGrammar.prefixes;
+  hasItemPrefix = key: builtins.any (p: lib.hasPrefix p key) desktopItemPrefixes;
   desktopItemExpected =
     let
       n = builtins.length desktopItemShapes;
@@ -266,14 +267,25 @@ let
     # window", "the emoji row", "the Appearance pane", "the app in
     # /Applications"), and each is simply inert when the thing it names is
     # absent, the same way `cmd:` naming a command this machine hasn't got is.
+    #
+    # The shape rule does not replace `shellSafe`, it sits beside it. Every
+    # sibling container here keeps a syntax character out of its key —
+    # `plainId` does it for the three that take plain names, and free-form
+    # values go through `shellSafe` — and a desktop is precisely the untrusted
+    # file that rule exists for. A prefix test alone would admit
+    # `mode:"; $(…); "`, which pounce's own JSON survives and the sentence a
+    # renderer writes beside it does not. Cheap, and the seam says the
+    # constraint rather than relying on today's one consumer escaping properly.
     launcher-items = entries {
-      keyOk = key: builtins.any (p: lib.hasPrefix p key) desktopItemPrefixes;
+      keyOk = key: hasItemPrefix key && shellSafe key;
       keySaid =
         key:
         if lib.hasPrefix "shortcut:" key then
           "names one entry in one Mac's Shortcuts library, which is a fact about that machine rather than a taste a desktop can share"
+        else if !(hasItemPrefix key) then
+          "is not an item key ${desktopItemExpected}"
         else
-          "is not an item key ${desktopItemExpected}";
+          "may not contain quotes, backslashes, `$`, backticks, newlines or tabs";
     };
     # A scene's key is what a person types after `focus scene`, so it has to
     # survive a shell word as-is. `quiet` is refused separately, by the focus
