@@ -257,8 +257,14 @@ let
     - **Prefer looking to touching.** `screencapture -x` is silent and steals
       nothing, and a screenshot-only `computer_batch` is the same. Reach for
       those before you reach for a click.
-    - **Never foreground an app just to see it.** `open -g` launches without
-      activating. If something truly has to come to the front, ask first.
+    - **Never foreground an app just to see it — and `open -g` may not show it
+      to you either.** The flag launches without activating, which is what it
+      is for; it does not promise a *window*, and `open` exits 0 either way
+      because it returns the moment LaunchServices accepts. Measured
+      2026-08-23: `open -g -na Ghostty.app --args --initial-command=…` leaves a
+      live process with no window, ever, and the command never runs. So reach
+      for `-g` when you need something RUNNING, for a VM when you need to SEE
+      it, and ask first if something truly has to come to the front.
     - **Hand feel-tests back.** "Press ⌘Space and tell me what you see" costs
       two seconds and gets you a better answer than driving the palette
       yourself costs them their train of thought.
