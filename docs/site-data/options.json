@@ -232,7 +232,7 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "[\n  \"~/code\"\n  \"~/src\"\n  \"~/Developer\"\n  \"~/Projects\"\n  \"~/.config/nix\"\n]"
+      "text": "[ \"~/code\" \"~/src\" \"~/Developer\" \"~/Projects\" \"~/.config/nix\" ]"
     },
     "description": "Where the palette's **Spawn Agent** finds repositories, most recently\ntouched first. A leading `~/` is expanded; a path that does not exist is\nskipped in silence, so the default list can name four conventions and\ncost nothing for the three you don't use.\n\nEach entry is read TWO ways, and which one applies is decided by the\npath itself:\n\n- **a repo** (it has a `.git` directory) is offered as itself, and is\n  not descended into — that is how `~/.config/nix`, the config flake\n  this Mac is built from, is in the default list without `~/.config`\n  being scanned.\n- **anything else** is scanned two levels deep for main checkouts, so\n  both `~/code/thing` and a parent directory full of repos\n  (`~/code/workshop/thing`) resolve.\n\nRepos `holt` already knows are always offered too, whether or not they\nare under a root here — so a one-off repo you have agent'd before stays\nreachable, and this list is about the ones you have not.\n",
     "example": {

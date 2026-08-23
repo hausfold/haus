@@ -155,6 +155,14 @@ in
         "~/Projects"
         "~/.config/nix"
       ];
+      # Spelled on ONE line for ../host-template.jq — the same escape hatch
+      # `haus.wallpaper.debug.inputs` uses, and for the same reason: the
+      # annotated host file comments each default with `  # `, and its "is this
+      # still legal once uncommented" check un-comments only the line the option
+      # NAME is on. A default rendered across several lines leaves the rest
+      # commented, and the template stops parsing at the NEXT option — which is
+      # how this one first showed up, as `haus.ai.skill = true;` failing to parse.
+      defaultText = lib.literalExpression ''[ "~/code" "~/src" "~/Developer" "~/Projects" "~/.config/nix" ]'';
       example = [
         "~/code"
         "~/work/clients"
