@@ -53,6 +53,14 @@ unset HAUS_TERM_WORKSPACE
 
 LOG=/tmp/haus-term-launch.log
 
+# Where the self-tile subshell leaves this window's AeroSpace id for the exit
+# path at the bottom of the file to read. A variable can't carry it: the id is
+# worked out in a BACKGROUND subshell (it has ~1 s of polling to do and a window
+# to not hold up), and a subshell cannot write to its parent's environment.
+# `$$` is the same number on both sides — inside `( … )` bash keeps the parent's
+# pid — so the two halves agree on the path without passing it anywhere.
+WINFILE="${TMPDIR:-/tmp}/haus-term-win.$$"
+
 log() { echo "[$(date '+%H:%M:%S')] $*" >>"$LOG"; }
 
 log "---- launch ----"
@@ -351,6 +359,10 @@ fi
             aerospace layout --window-id "$WID" tiling 2>>"$LOG"
             log "self-tiled window $WID onto workspace $WS"
             LABEL="window=$WID"
+            # And the same id to the exit path — see "closing our own window"
+            # at the bottom. Written only on the branch that TILED, because
+            # that is the only branch whose window ghostty then fails to close.
+            printf '%s\n' "$WID" >"$WINFILE"
         else
             log "self-tile: could not tell which window this is — left floating, unlabelled"
         fi
@@ -430,5 +442,66 @@ log "zmx exited with code $rc"
 #
 # A lane window has answered this way since it existed (lanes/lane-open.sh
 # execs `zmx attach` and holds only on a non-zero rc). Same rule, same reason.
-[ "$rc" -eq 0 ] && exit 0
+#
+# ── closing our own window ───────────────────────────────────────────────────
+# …because exiting is not enough, and that is a MEASURED ghostty behaviour
+# rather than a guess (2026-08-23, ghostty 1.3.1). `wait-after-command` is off,
+# so `Surface.childExited` prints "Process exited. Press any key to close the
+# terminal." and then calls `close()` — but for a window that AeroSpace has
+# TILED, inside a ghostty instance that owns other windows, that close never
+# lands. The window sits on the message until a keypress, which reaches the
+# very same `close()` through the key path and works. A/B, one variable at a
+# time, same instance, same script:
+#
+#   no AeroSpace call at all              → closes
+#   moved to another workspace, floating  → closes
+#   moved and tiled                       → HELD
+#   tiled in place                        → HELD
+#   moved and tiled, but `open -na` into  → closes (the instance QUITS, which
+#   its own ghostty instance                takes the window with it)
+#
+# That last row is why lanes never had this: lanes/lane-open.sh spawns a
+# dedicated instance, so `quit-after-last-window-closed` ends the process and
+# the broken close is invisible. A ⌘N window shares an instance and has no such
+# cover — and every window this room opens is tiled, so every one of them was
+# asking for a keypress it never should have needed.
+#
+# So we close it ourselves. `aerospace close` on the id the self-tile already
+# worked out, which is the same id the `window=` label joins on, and the same
+# id the tiler was trusted with a moment ago. TWO signals have to agree before
+# anything is closed: that id, and the window AeroSpace says is focused right
+# now. A ^D you just typed came from the focused window by construction, so the
+# agreement costs nothing in the normal case — and a self-tile that latched
+# onto a NEIGHBOUR's id (the restore fan-out can do it: several windows open in
+# one breath and the focus poll can answer for a sibling) can then only fail
+# the way it already failed, by tiling the wrong window, never by CLOSING one.
+# Disagreement falls through to the old behaviour: the message, and a keypress.
+close_own_window() {
+    [ -s "$WINFILE" ] || return 0
+    local wid as focused
+    wid=$(cat "$WINFILE" 2>/dev/null)
+    [ -n "$wid" ] || return 0
+
+    # The literal path for the same reason the backend probe above uses one: a
+    # Ghostty opened from the Dock inherits launchd's PATH, and aerospace is a
+    # cask that lives only under /opt/homebrew.
+    as=$(command -v aerospace 2>/dev/null)
+    [ -n "$as" ] || as=/opt/homebrew/bin/aerospace
+    [ -x "$as" ] || return 0
+
+    focused=$("$as" list-windows --focused --format '%{window-id}' 2>/dev/null)
+    if [ "$focused" = "$wid" ]; then
+        log "closing our own window $wid"
+        "$as" close --window-id "$wid" 2>>"$LOG"
+    else
+        log "not closing: window $wid is not the focused one (${focused:-none})"
+    fi
+}
+
+if [ "$rc" -eq 0 ]; then
+    close_own_window
+    rm -f "$WINFILE"
+    exit 0
+fi
+rm -f "$WINFILE"
 run_shell
