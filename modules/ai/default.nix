@@ -192,7 +192,10 @@ let
     all of them at once.
 
     The same goes for `~/${agentHomes.${client}.skills}/haus/`, generated from
-    the haus revision this machine pins (`haus update` regenerates it). It does
+    the haus revision this machine pins (`haus update` regenerates it), and for
+    every other skill in that directory that haus installed — each hausfold tool
+    ships its own, so `holt/` and `handoff/` are holt's and are edited in
+    hausfold/holt, arriving here on a lock bump. It does
     NOT go for everything beside them: ${clientScopeNote.${client}} that you can
     edit live with no rebuild. `ls -l` the path before assuming which kind it is.
 
@@ -313,6 +316,71 @@ let
         lib.nameValuePair agentHomes.${client}.instructions {
           text = hausGuidance client + cfg.instructions;
         }
+      ) fileClients
+    )
+  );
+
+  # ---- every OTHER hausfold tool's skill ------------------------------------
+  #
+  # A tool's `<tool>-skill` derivation lays out `$out/<skill-name>/SKILL.md`
+  # (the family standard, the workshop's notes/agent-surface.md §6), and a tool
+  # may ship more than one: holt ships `holt` (drive the lane lifecycle) and
+  # `handoff` (write the brief a `holt spawn --prompt-file` lane opens on).
+  #
+  # This is step 3 of that standard, and until now it was simply absent — the
+  # derivation existed and nothing linked it, so a haus machine had holt on
+  # PATH and no agent on it knew holt existed. The whole claim of the standard
+  # is that a haus user does nothing to get these.
+  #
+  # Names are listed rather than read off the store with `builtins.readDir`:
+  # reading a derivation's output during evaluation is import-from-derivation,
+  # which would force a build every time somebody runs `haus get` to READ their
+  # config. A tool adding a skill is one word here, on the next lock bump.
+  # ⚠️ The names are UNVERIFIABLE from here, by construction: nothing checks that
+  # the derivation actually contains them, because the check would be a readDir
+  # on a store output — import-from-derivation. A name listed here that the
+  # pinned revision does not ship installs a DANGLING symlink, silently: eval,
+  # `nix flake check` and the home-files build are all green, because a
+  # home.file source pointing inside a store output is never existence-checked.
+  # So a new name and the lock bump that carries it are ONE commit.
+  toolSkills = [
+    {
+      drv = pkgs.holt-skill;
+      names = [
+        "holt"
+        "handoff"
+      ];
+    }
+  ];
+
+  # Flattened to one entry per skill, so the fan-out below is a plain product
+  # of clients × skills.
+  toolSkillList = lib.concatMap (
+    t:
+    map (name: {
+      inherit name;
+      inherit (t) drv;
+    }) t.names
+  ) toolSkills;
+
+  # One directory symlink per skill, into each installed client's own skills
+  # directory — the same fan-out the haus skill gets, and the reason the
+  # derivation names its own folders: what lands in ~/.claude/skills is decided
+  # by the TOOL, not by this file.
+  #
+  # A directory symlink, not file-by-file: haus's own skill is split up only
+  # because this-machine.md is rendered per host and has to sit beside the
+  # store-built parts. Nothing here is per-host.
+  toolSkillFiles = lib.optionalAttrs cfg.skill (
+    lib.listToAttrs (
+      lib.concatMap (
+        client:
+        map (
+          skill:
+          lib.nameValuePair "${agentHomes.${client}.skills}/${skill.name}" {
+            source = "${skill.drv}/${skill.name}";
+          }
+        ) toolSkillList
       ) fileClients
     )
   );
@@ -684,7 +752,7 @@ in
   # collision on one path would be an error rather than a silent last-wins —
   # which is what makes splitting them safe.
   home-manager.users.${username}.home.file =
-    agentInstructionFiles // agentSkillFiles // agentRuntimeAdapterFiles;
+    agentInstructionFiles // agentSkillFiles // toolSkillFiles // agentRuntimeAdapterFiles;
 
   # ---- what the room contributes to other rooms -------------------------------
   # One write per extension point. Every value here is a fact about the AI room;

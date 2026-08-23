@@ -184,17 +184,25 @@ in
       type = lib.types.bool;
       default = true;
       description = ''
-        Install the `haus` skill for every client in `ai.clients`, so an
-        agent asked to "install Slack" or "make everything bigger" edits your
-        host file and runs `haus rebuild` instead of guessing at dotfiles and
-        `brew install`.
+        Install every hausfold tool's agent skill for each client in
+        `ai.clients`, so an agent asked to "install Slack" or "make everything
+        bigger" edits your host file and runs `haus rebuild` instead of guessing
+        at dotfiles and `brew install` — and an agent asked "what worktrees do I
+        have open?" or "hand this off to a fresh session" reaches for `holt`
+        rather than `git worktree`.
+
+        Three skills today: `haus` (this machine's setup), and holt's own two —
+        `holt` (the lane lifecycle) and `handoff` (turning work into a brief a
+        cold session can act on, ending on the clipboard or in a new lane). Each
+        tool names its own skills; haus only decides that they are installed.
 
         One copy per client, in the directory that client scans:
         `~/.claude/skills/haus`, `~/.codex/skills/haus`,
-        `~/.config/opencode/skills/haus`. OpenCode also
+        `~/.config/opencode/skills/haus`, and the same three directories again
+        per skill. OpenCode also
         scans `~/.claude/skills`
         for Claude Code compatibility, and prefers its own copy when both
-        exist — so a machine running both clients sees the skill once, not
+        exist — so a machine running both clients sees each skill once, not
         twice.
 
         The skill's option reference is GENERATED from the haus revision this
