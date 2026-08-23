@@ -336,13 +336,10 @@ let
   # reading a derivation's output during evaluation is import-from-derivation,
   # which would force a build every time somebody runs `haus get` to READ their
   # config. A tool adding a skill is one word here, on the next lock bump.
-  # ⚠️ The names are UNVERIFIABLE from here, by construction: nothing checks that
-  # the derivation actually contains them, because the check would be a readDir
-  # on a store output — import-from-derivation. A name listed here that the
-  # pinned revision does not ship installs a DANGLING symlink, silently: eval,
-  # `nix flake check` and the home-files build are all green, because a
-  # home.file source pointing inside a store output is never existence-checked.
-  # So a new name and the lock bump that carries it are ONE commit.
+  #
+  # They cannot be READ from here, and they CAN be checked — see
+  # `checkedToolSkills` below, which is why a new name and the lock bump that
+  # carries it still belong in ONE commit, but no longer on trust.
   toolSkills = [
     {
       drv = pkgs.holt-skill;
@@ -363,6 +360,47 @@ let
     }) t.names
   ) toolSkills;
 
+  # The names above are unverifiable at EVAL time and entirely checkable at
+  # BUILD time, and the difference is the whole of this derivation. Listing what
+  # a tool ships needs `builtins.readDir` on a store output — IFD, ruled out
+  # above. Asserting that a name IS there needs no eval-time read at all: copying
+  # the listed folders through one `runCommand` makes each one a build
+  # DEPENDENCY rather than a promise.
+  #
+  # Without it a name the pinned revision doesn't ship installs a DANGLING
+  # symlink in the user's home, silently — eval, `nix flake check` and the
+  # home-files build all green, because a home.file source pointing inside a
+  # store output is never existence-checked. You find it the way you find any
+  # broken pointer: months later, wondering why the agent never learned the tool.
+  #
+  # Third site of one class, and the second fix of it copied from the first:
+  # modules/theme/ports.nix does exactly this for a nebelung port path, and
+  # terminal's `glowPlugin` for glow's. `SKILL.md` rather than the directory,
+  # since the family standard (the workshop's notes/agent-surface.md §6) is what
+  # the name is a promise about, and an empty folder would satisfy `-e`.
+  checkedToolSkills = pkgs.runCommand "haus-tool-skills" { } (
+    ''
+      mkdir -p $out
+    ''
+    + lib.concatMapStrings (skill: ''
+      if [ ! -e "${skill.drv}/${skill.name}/SKILL.md" ]; then
+        echo "haus.ai.skill: ${skill.drv.name} ships no skill named '${skill.name}'." >&2
+        echo "  expected ${skill.drv}/${skill.name}/SKILL.md" >&2
+        # Two remedies, because they belong to two different moments. A name is
+        # normally added here BEFORE the lock bump that carries it; the other
+        # case is a tool retiring a skill under a lock that already moved.
+        echo "Fix it whichever way is yours:" >&2
+        echo "  · nix flake update <tool> — the skill may land in a revision" >&2
+        echo "    newer than the one this lock pins" >&2
+        echo "  · drop the name from toolSkills in modules/ai/default.nix" >&2
+        exit 1
+      fi
+      # --no-preserve=mode: the store's own 0444/0555 would make the copied
+      # directory unwritable before its own contents land in it.
+      cp -R --no-preserve=mode "${skill.drv}/${skill.name}" "$out/${skill.name}"
+    '') toolSkillList
+  );
+
   # One directory symlink per skill, into each installed client's own skills
   # directory — the same fan-out the haus skill gets, and the reason the
   # derivation names its own folders: what lands in ~/.claude/skills is decided
@@ -371,6 +409,9 @@ let
   # A directory symlink, not file-by-file: haus's own skill is split up only
   # because this-machine.md is rendered per host and has to sit beside the
   # store-built parts. Nothing here is per-host.
+  #
+  # Pointed at `checkedToolSkills` rather than at the tool's own output, so the
+  # name in the path above is one the build has already found.
   toolSkillFiles = lib.optionalAttrs cfg.skill (
     lib.listToAttrs (
       lib.concatMap (
@@ -378,7 +419,7 @@ let
         map (
           skill:
           lib.nameValuePair "${agentHomes.${client}.skills}/${skill.name}" {
-            source = "${skill.drv}/${skill.name}";
+            source = "${checkedToolSkills}/${skill.name}";
           }
         ) toolSkillList
       ) fileClients
