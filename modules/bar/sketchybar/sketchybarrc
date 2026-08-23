@@ -199,6 +199,11 @@ done
 # covers the routes no event announces (focusing another window of the SAME app
 # fires no front_app_switched, and an AeroSpace restart fires nothing at all).
 sketchybar --add event aerospace_fullscreen_change
+# Fired by leader→. through ../aerospace-notify.sh, so the tiling pill further
+# down repaints on the keypress instead of up to 2 s later. Added HERE, above the
+# watcher, because the --subscribe two lines down names it: an event subscribed to
+# before it has been added is silently never delivered.
+sketchybar --add event aerospace_tiling_change
 
 sketchybar --add item aerospace_watcher left \
     --set aerospace_watcher \
@@ -206,7 +211,7 @@ sketchybar --add item aerospace_watcher left \
         updates=on \
         update_freq=2 \
         script="$HOME/.config/sketchybar/plugins/aerospace_watcher.sh" \
-    --subscribe aerospace_watcher front_app_switched space_change aerospace_fullscreen_change
+    --subscribe aerospace_watcher front_app_switched space_change aerospace_fullscreen_change aerospace_tiling_change
 
 # Empty-workspace reaction — when a ⌘Q leaves the focused workspace empty, pull
 # back to the most recent populated workspace ("gravity"). Non-drawing; see
@@ -288,6 +293,43 @@ if [ "$BAR_PAGES" = "1" ]; then
             script="$HOME/.config/sketchybar/plugins/page.sh" \
             click_script="$HOME/.config/sketchybar/plugins/page.sh click" \
         --subscribe page aerospace_workspace_change
+fi
+
+# Tiling shape — which layout leader→. last dealt the focused workspace into:
+# `Grid` (ceil(sqrt(n)) area-balanced columns) or `Columns` (AeroSpace's own
+# flat row). See windows/scripts/tiling-mode.sh for the shapes and
+# plugins/aerospace_lib.sh for what the pill will and won't claim to know.
+#
+# It draws only when the focused workspace holds MORE THAN ONE tiled window:
+# one window has no layout to be in, and floating windows (every Ghostty popup
+# on this desk) are not in the tree the mode reshapes, so they don't count.
+#
+# It sits after `page` and before the front app, with the rest of the "where am
+# I" cluster: workspace, page, shape, app. It is painted by
+# plugins/aerospace_watcher.sh rather than by a script of its own — the count it
+# needs has no event to hang off, so it rides the watcher's existing 2 s tick
+# for one more `aerospace` call and no extra sketchybar call. A mode change
+# doesn't wait for that tick: leader→. fires aerospace_tiling_change through
+# ../aerospace-notify.sh.
+#
+# updates=on for the same load-bearing reason as `page` and `bar_position`: the
+# item starts drawing=off, the bar default is updates=when_shown, and a hidden
+# item under that default is never dispatched to at all — so the very script
+# that would turn drawing back on could never run. It has no update_freq of its
+# own; the watcher is what wakes it.
+if [ "$BAR_TILING" = "1" ]; then
+    sketchybar --add item tiling left \
+        --set tiling \
+            drawing=off \
+            updates=on \
+            icon.font="${BAR_FONT}:Bold:$FS_ICON" \
+            icon.color=$OVERLAY1 \
+            icon.padding_left=10 \
+            icon.padding_right=6 \
+            label.color=$SUBTEXT0 \
+            label.padding_right=10 \
+            background.color=$SURFACE0 \
+            click_script="$HOME/.config/aerospace/tiling-mode.sh"
 fi
 
 # Front app name. The icon slot starts empty and stays empty in every state but

@@ -1,9 +1,11 @@
 #!/bin/bash
-# aerospace-notify.sh [fullscreen]
+# aerospace-notify.sh [fullscreen|tiling]
 #
 # AeroSpace's hooks into the bar. No argument is the workspace-change hook
 # (exec-on-workspace-change in aerospace.toml); `fullscreen` is the <mod>f
-# binding's second command.
+# binding's second command; `tiling` is what windows/scripts/tiling-mode.sh
+# calls on its way out, so the tiling pill repaints on the leader→. press
+# rather than up to 2 s later on aerospace_watcher.sh's own tick.
 #
 # Both live here rather than as `exec-and-forget sketchybar --trigger …` lines
 # in aerospace.toml so that the path to the MENU bar's sketchybar — and
@@ -15,6 +17,13 @@ if [ "$1" = fullscreen ]; then
     # poll. The watcher is what reads the new state and paints both pills; this
     # only wakes it. See plugins/aerospace_lib.sh.
     /run/current-system/sw/bin/sketchybar --trigger aerospace_fullscreen_change
+    exit 0
+fi
+
+if [ "$1" = tiling ]; then
+    # Wakes the watcher, which reads the mode file and paints the pill — the
+    # same division of labour as `fullscreen` above.
+    /run/current-system/sw/bin/sketchybar --trigger aerospace_tiling_change
     exit 0
 fi
 

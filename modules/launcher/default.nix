@@ -353,7 +353,7 @@ let
 
   # Launch-mode cheatsheet rows — generated from the app roster so the leader
   # page always matches AeroSpace's launcher, then the fixed leader
-  # actions (resize / clipboard / Find Files / reopen-last-app / tiling cycle /
+  # actions (resize / clipboard / Find Files / reopen-last-app / tiling flip /
   # resort / exit)
   # appended. The whole page disappears when keys.leader = "none": there is no
   # launch mode to document, and a page teaching an unbound key is worse than none.
@@ -455,7 +455,7 @@ let
       }
       {
         key = ".";
-        action = "Cycle tiling — spiral / grid / columns, one shot each press";
+        action = "Tiling — grid / columns, one shot each press";
       }
       {
         key = "`";
