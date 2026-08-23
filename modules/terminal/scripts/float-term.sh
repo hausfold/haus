@@ -54,7 +54,12 @@
 #         [--cols N --rows N] [--pin]
 #         --command CMD [-- EXTRA ghostty args…]
 #       Spawn a fresh Ghostty INSTANCE running CMD, centered at that geometry,
-#       and print its pid. macOS forces this exact shape:
+#       and print its pid. ⚠️ With `--cols/--rows`, the GRID decides the size and
+#       `--w/--h` decide only which rectangle gets centered — Ghostty rounds to
+#       whole cells and refuses to shrink below its grid, so the two disagree and
+#       the window is re-centred on its real size afterwards (`recenter`). Pass
+#       both only when you mean "this many columns, roughly this big".
+#       macOS forces this exact shape:
 #         - `ghostty -e …` / `+new-window` are unsupported from the CLI, so we
 #           must `open -na Ghostty.app` to get a fresh instance;
 #         - that instance's --window-position/-width flags are silently ignored
@@ -481,6 +486,71 @@ end tell
 APPLESCRIPT
 }
 
+# ── centre a window on the size it actually IS ──────────────────────────────
+# window_size PID — the real size of the window over AX, as "W H", or nothing.
+#
+# Needed because a Ghostty window does NOT become the size we ask for. `spawn`
+# takes a pixel size AND a cell grid (`--cols 80 --rows 20`), and the grid wins:
+# Ghostty rounds to whole cells and will not go below the grid it was launched
+# with, so `set_frame`'s size half is quietly refused while its position half
+# sticks. Measured 2026-08-23 on a 2560×1440 external: rebuild's popup asks for
+# 750×400 and is 942×554, planted at the origin that would have centred 750×400
+# — off by (942−750)/2 = 96pt right and (554−400)/2 = 77pt down. The centring
+# was correct for a box the window never was.
+window_size() {
+  local pid="$1" i out
+  [ -n "$pid" ] || return 0
+  for i in $(seq 1 25); do
+    out=$(osascript 2>/dev/null <<APPLESCRIPT
+tell application "System Events"
+  tell (first process whose unix id is $pid)
+    if (count windows) > 0 then
+      set {w, h} to size of window 1
+      return (w as text) & " " & (h as text)
+    end if
+  end tell
+end tell
+APPLESCRIPT
+)
+    case "$out" in ''|*[!0-9\ ]*) ;; *) printf '%s\n' "$out"; return 0 ;; esac
+    sleep 0.02
+  done
+}
+
+# recenter PID IX IY IW IH — re-centre a spawned window on its REAL size.
+#
+# The intended rect (IX IY IW IH) is only used to find the display: its centre
+# is on the target screen by construction, which is steadier than re-reading the
+# cursor — by the time this runs the pointer may have moved off the screen the
+# popup was resolved against, and a popup that jumps to another display because
+# the mouse did is worse than one that is off-centre.
+#
+# The size passed back to `set_frame` is the size the window already has, so the
+# half that Ghostty refuses is a no-op and only the position moves. That is also
+# why this cannot fight the grid: it never asks for a size at all.
+recenter() {
+  local pid="$1" ix="$2" iy="$3" iw="$4" ih="$5"
+  local aw ah sx sy sw sh nx ny
+  [ -n "$pid" ] || return 0
+  read -r aw ah <<< "$(window_size "$pid")"
+  case "${aw:-x}${ah:-x}" in *[!0-9]*|'') return 0 ;; esac
+  # Nothing to do when the window really is the size we asked for.
+  [ "$aw" = "$iw" ] && [ "$ah" = "$ih" ] && return 0
+  # Fields 5 and 6 (the gap column, and whether the probe hit a screen) belong
+  # to the tiled branch; centring needs the frame alone.
+  read -r sx sy sw sh _ _ <<< \
+    "$(HAUS_PROBE_X=$(( ix + iw / 2 )) HAUS_PROBE_Y=$(( iy + ih / 2 )) screen_probe)"
+  nx=$(( sx + (sw - aw) / 2 ))
+  ny=$(( sy + (sh - ah) / 2 ))
+  # A window wider or taller than the display centres to a negative origin,
+  # which puts its top-left off-screen and its title bar out of reach. Clamp to
+  # the visible frame's origin: overflowing off the RIGHT is recoverable, off
+  # the top-left is not.
+  [ "$nx" -lt "$sx" ] && nx="$sx"
+  [ "$ny" -lt "$sy" ] && ny="$sy"
+  set_frame "$pid" "$nx" "$ny" "$aw" "$ah" 10
+}
+
 # ── bring the new window to the front ───────────────────────────────────────
 # raise PID WID — claim focus for the window we just spawned, retrying briefly.
 #
@@ -610,14 +680,27 @@ spawn() {
   done
 
   # Flipping a window to floating makes aerospace restore its REMEMBERED
-  # floating frame, which would undo the placement above. Harmless when we only
-  # wanted "roughly centered", fatal in the two modes whose whole point is a
-  # frame that lines up with something — covering the summoning window
-  # (--match-focused) or the tiled desktop (--tiled) — so there, let aerospace
-  # have its say and then plant the frame again, last word ours.
+  # floating frame, which would undo the placement above — fatal in the two
+  # modes whose whole point is a frame that lines up with something: covering
+  # the summoning window (--match-focused) or the tiled desktop (--tiled). So
+  # there, let aerospace have its say and then plant the frame again, last word
+  # ours.
+  #
+  # ⚠️ This used to read "harmless when we only wanted roughly centered", and
+  # that clause was the bug: the centred modes are the ONLY ones where nothing
+  # gets the last word, so they are the only ones that can drift. They drifted
+  # for a different reason than aerospace's memory — see `recenter` — but the
+  # branch that would have corrected either was the one skipping them.
   if [ "$exact" = 1 ] && [ -n "$new_pid" ]; then
     sleep 0.05
     set_frame "$new_pid" "$pos_x" "$pos_y" "$win_w" "$win_h" 1
+  fi
+
+  # Centred modes: the window is whatever size the cell grid made it, so centre
+  # THAT rather than the size we asked for. After the float flip, so aerospace
+  # doesn't undo it; before raise/ring, so the outline follows the final frame.
+  if [ "$exact" != 1 ] && [ -n "$new_pid" ]; then
+    recenter "$new_pid" "$pos_x" "$pos_y" "$win_w" "$win_h"
   fi
 
   # Last word: the window is placed, floated and pinned — now make sure it's the
