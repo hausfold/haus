@@ -1464,10 +1464,10 @@ in
             default = 5;
             example = 1;
             description = ''
-              Minutes to keep holding after the last agent stops, under
-              `while = "agents"`.
+              Minutes to keep holding after the last agent stops.
 
-              The gap between two turns is seconds, and sleeping inside it
+              Only `while = "agents"` has anything to linger for. The gap
+              between two turns is seconds, and sleeping inside it
               would end the run you were trying to protect. This only ever
               extends a hold that already exists; it never starts one. 0 sleeps
               the moment the last agent goes idle.
@@ -1479,8 +1479,7 @@ in
             default = 480;
             example = "never";
             description = ''
-              Minutes one unbroken hold may last before it is released anyway,
-              or `"never"` for no cap.
+              Minutes one unbroken hold may last, or `"never"` for no cap.
 
               The failsafe. A client that dies without reporting leaves a hold
               behind, and without this the Mac would simply never sleep again

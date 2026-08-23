@@ -4267,7 +4267,7 @@
       "_type": "literalExpression",
       "text": "5"
     },
-    "description": "Minutes to keep holding after the last agent stops, under\n`while = \"agents\"`.\n\nThe gap between two turns is seconds, and sleeping inside it\nwould end the run you were trying to protect. This only ever\nextends a hold that already exists; it never starts one. 0 sleeps\nthe moment the last agent goes idle.\n",
+    "description": "Minutes to keep holding after the last agent stops.\n\nOnly `while = \"agents\"` has anything to linger for. The gap\nbetween two turns is seconds, and sleeping inside it\nwould end the run you were trying to protect. This only ever\nextends a hold that already exists; it never starts one. 0 sleeps\nthe moment the last agent goes idle.\n",
     "example": {
       "_type": "literalExpression",
       "text": "1"
@@ -4289,7 +4289,7 @@
       "_type": "literalExpression",
       "text": "480"
     },
-    "description": "Minutes one unbroken hold may last before it is released anyway,\nor `\"never\"` for no cap.\n\nThe failsafe. A client that dies without reporting leaves a hold\nbehind, and without this the Mac would simply never sleep again\nwith nothing on screen to say why. Past the cap the hold releases\nand refuses to re-arm until the signal has actually cleared, so a\nstuck hold costs one window rather than forever. 8 hours by\ndefault -- long enough for an overnight run.\n",
+    "description": "Minutes one unbroken hold may last, or `\"never\"` for no cap.\n\nThe failsafe. A client that dies without reporting leaves a hold\nbehind, and without this the Mac would simply never sleep again\nwith nothing on screen to say why. Past the cap the hold releases\nand refuses to re-arm until the signal has actually cleared, so a\nstuck hold costs one window rather than forever. 8 hours by\ndefault -- long enough for an overnight run.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"never\""
