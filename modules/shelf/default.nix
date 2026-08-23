@@ -324,6 +324,13 @@ lib.mkIf config.haus.shelf.enable {
       # The success line is printed from what actually happened rather than
       # from having tried: a rebuild that says it put the shelf back and
       # didn't is the bug this whole block exists to stop being invisible.
+      #
+      # ⚠️ `open -g` on an app bundle does NOT promise a window — haus#487
+      # measured Ghostty opening none under it — and `pgrep` below can only see
+      # a PROCESS, so a Perch that came back without drawing would print
+      # "shelf back up" from here. Unmeasured for Perch, and deliberately left
+      # alone rather than changed on a hunch: if the shelf is ever reported
+      # back and isn't there, this is the line, and the probe is the reason.
       if [ -n "$perchRelaunch" ] && [ -x "$perchExec" ]; then
         ${pkgs.coreutils}/bin/timeout 20 launchctl asuser "$perchUid" \
           sudo --user=${username} -- /usr/bin/open -g "$perchDest" || true
