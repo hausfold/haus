@@ -38,6 +38,13 @@
 #   HOLT_CHAT     the cwd the CONVERSATION lives in, which for a `holt child`
 #                 lane is the PARENT's checkout, not the lane's. Getting this
 #                 wrong is how a resumed child opens an empty session.
+#                 It is the parent's on the RESUME of a lane with no chat of
+#                 its own (holt's resume.go `chatHome`) and nowhere else: on
+#                 `open` — every `holt new`, and every `holt spawn --prompt` —
+#                 it is the lane's own checkout, because a first turn continues
+#                 nothing. Verified against holt 0.4.0 by dumping the hook's
+#                 environment, 2026-08-23. An empty spawned lane is NOT this
+#                 variable; see the scrub in the launcher below.
 #
 # Exit 0 = handled. Exit 3 = no opinion, use the built-in — which is what a
 # machine without zmx wants, so it stays exactly as good as it was before.
@@ -156,6 +163,35 @@ fi
   printf '#!/bin/bash\n'
   printf 'rm -f %q\n' "$launcher"
   printf 'export PATH="/opt/homebrew/bin:$PATH"\n'
+  # ── the window inherits the SPAWNER's environment ────────────────────────
+  # macOS `open` forwards the caller's environment to the app it launches —
+  # the same fact scripts/peek-run.sh scrubs for, and the one this file forgot.
+  # It only bites when an AGENT is the spawner (`holt spawn`, `holt child`,
+  # `holt new --open` from a client's shell), because then the environment
+  # being forwarded is another LANE's, and two identities in it are wrong for
+  # the window being born.
+  #
+  # ZMX_SESSION is the fatal one. zmx injects it into every session it hosts,
+  # and with it set `zmx attach <new> bash -lc …` does not create the session
+  # HERE: the request goes to the session ZMX_SESSION names, whose server makes
+  # the new one in ITS OWN directory, with a default login shell, and DROPS the
+  # command. Measured 2026-08-23, from a lane in haus and cwd ~/code/workshop/haus:
+  # `zmx attach probe bash -lc 'sleep 45'` produced start_dir=<the LANE's
+  # checkout>, no `cmd=`, and no sleep. That is the whole of the empty-lane bug
+  # — one row in `zmx ls` with nothing in it, no client, and no window, because
+  # the attach that was supposed to BECOME this window returned instead. Only
+  # CREATION is affected; attaching to a session that already exists is fine
+  # nested (measured the same day), which is why scripts/raise-session.sh needs
+  # no such line and scripts/launch.sh guards rather than scrubs.
+  #
+  # The client's own identity goes with it. agents-hook.sh addresses the bar by
+  # $ZMX_SESSION, so a client that inherited the spawner's would report the
+  # spawner's row; and a fresh agent handed CLAUDE_CODE_SESSION_ID, its
+  # messaging socket or CLAUDE_PID is being told it is the conversation that
+  # spawned it. Named individually rather than swept by prefix: an unset that
+  # guesses is one that silently takes a variable the next client needs.
+  printf 'unset ZMX_SESSION\n'
+  printf 'unset CLAUDECODE CLAUDE_CODE_SESSION_ID CLAUDE_CODE_CHILD_SESSION CLAUDE_CODE_MESSAGING_SOCKET CLAUDE_CODE_BRIDGE_SESSION_ID CLAUDE_CODE_ENTRYPOINT CLAUDE_PID\n'
   if [ "$backend" = aerospace ]; then
     printf '(\n'
     # ── which window is MINE ──────────────────────────────────────────────
