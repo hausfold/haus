@@ -487,7 +487,7 @@ APPLESCRIPT
 }
 
 # ── centre a window on the size it actually IS ──────────────────────────────
-# window_size PID — the real size of the window over AX, as "W H", or nothing.
+# window_frame PID — the window's real frame over AX, as "X Y W H", or nothing.
 #
 # Needed because a Ghostty window does NOT become the size we ask for. `spawn`
 # takes a pixel size AND a cell grid (`--cols 80 --rows 20`), and the grid wins:
@@ -497,57 +497,90 @@ APPLESCRIPT
 # 750×400 and is 942×554, planted at the origin that would have centred 750×400
 # — off by (942−750)/2 = 96pt right and (554−400)/2 = 77pt down. The centring
 # was correct for a box the window never was.
-window_size() {
+#
+# The POSITION comes back too, not just the size, because by the time this runs
+# the window may not be where we put it: `--pin` hands it to aerospace, which
+# moves it to the summoning workspace, and a workspace lives on a monitor. Its
+# own frame is the only honest answer to "which display is this on now".
+#
+# A low try count on purpose, the rule `place` states below: `set_frame` has
+# already polled up to 100× for the window to EXIST, so AX either answers here
+# on the first probe or is never going to — Accessibility declined, or the
+# process died because `--command` exited. Twenty-five rounds of osascript in
+# that case is seconds of dead time in front of a keypress.
+window_frame() {
   local pid="$1" i out
   [ -n "$pid" ] || return 0
-  for i in $(seq 1 25); do
+  for i in 1 2 3 4; do
     out=$(osascript 2>/dev/null <<APPLESCRIPT
 tell application "System Events"
   tell (first process whose unix id is $pid)
     if (count windows) > 0 then
+      set {x, y} to position of window 1
       set {w, h} to size of window 1
-      return (w as text) & " " & (h as text)
+      return (x as text) & " " & (y as text) & " " & (w as text) & " " & (h as text)
     end if
   end tell
 end tell
 APPLESCRIPT
 )
-    case "$out" in ''|*[!0-9\ ]*) ;; *) printf '%s\n' "$out"; return 0 ;; esac
+    case "$out" in ''|*[!0-9\ -]*) ;; *) printf '%s\n' "$out"; return 0 ;; esac
     sleep 0.02
   done
 }
 
 # recenter PID IX IY IW IH — re-centre a spawned window on its REAL size.
 #
-# The intended rect (IX IY IW IH) is only used to find the display: its centre
-# is on the target screen by construction, which is steadier than re-reading the
-# cursor — by the time this runs the pointer may have moved off the screen the
-# popup was resolved against, and a popup that jumps to another display because
-# the mouse did is worse than one that is off-centre.
+# The size passed to `set_frame` is the size the window already has, so the half
+# Ghostty refuses is a no-op and only the position moves. That is also why this
+# cannot fight the grid: it never asks for a size at all.
 #
-# The size passed back to `set_frame` is the size the window already has, so the
-# half that Ghostty refuses is a no-op and only the position moves. That is also
-# why this cannot fight the grid: it never asks for a size at all.
+# The display is resolved from the WINDOW's own centre rather than from the
+# cursor or from the rectangle geom picked. All four callers that reach here
+# pass `--pin`, so aerospace has already moved the window to the summoning
+# workspace — and with haus.windows.mouseFollowsFocus off (the default) that
+# workspace is routinely on a different monitor than the pointer. Centring on
+# the cursor's display would drag the window back off its own workspace.
+# The intended rect is the fallback for the one case a window's frame can't
+# answer: aerospace parks the windows of a hidden workspace off the bottom-right
+# corner, which is on no display at all (`hit` = 0).
 recenter() {
   local pid="$1" ix="$2" iy="$3" iw="$4" ih="$5"
-  local aw ah sx sy sw sh nx ny
+  local ax ay aw ah sx sy sw sh nx ny dx dy hit
   [ -n "$pid" ] || return 0
-  read -r aw ah <<< "$(window_size "$pid")"
-  case "${aw:-x}${ah:-x}" in *[!0-9]*|'') return 0 ;; esac
-  # Nothing to do when the window really is the size we asked for.
-  [ "$aw" = "$iw" ] && [ "$ah" = "$ih" ] && return 0
-  # Fields 5 and 6 (the gap column, and whether the probe hit a screen) belong
-  # to the tiled branch; centring needs the frame alone.
-  read -r sx sy sw sh _ _ <<< \
-    "$(HAUS_PROBE_X=$(( ix + iw / 2 )) HAUS_PROBE_Y=$(( iy + ih / 2 )) screen_probe)"
+  read -r ax ay aw ah <<< "$(window_frame "$pid")"
+  case "${ax:-x}${ay:-x}${aw:-x}${ah:-x}" in *[!0-9-]* | '') return 0 ;; esac
+  # The same floor `focused_frame` and `place` use: a frame AX reports as 0×0 —
+  # a window mid-teardown, or one that never finished drawing — is all digits
+  # and would pass the check above, then collapse the popup onto the exact
+  # centre of the screen. Every other reader of an AX size in this file gates
+  # here; this one is not the exception.
+  { [ "$aw" -ge 200 ] && [ "$ah" -ge 200 ]; } || return 0
+
+  read -r sx sy sw sh _ hit <<< \
+    "$(HAUS_PROBE_X=$(( ax + aw / 2 )) HAUS_PROBE_Y=$(( ay + ah / 2 )) screen_probe)"
+  if [ "${hit:-0}" != 1 ]; then
+    read -r sx sy sw sh _ _ <<< \
+      "$(HAUS_PROBE_X=$(( ix + iw / 2 )) HAUS_PROBE_Y=$(( iy + ih / 2 )) screen_probe)"
+  fi
+
   nx=$(( sx + (sw - aw) / 2 ))
   ny=$(( sy + (sh - ah) / 2 ))
-  # A window wider or taller than the display centres to a negative origin,
+  # A window wider or taller than the display centres to a NEGATIVE origin,
   # which puts its top-left off-screen and its title bar out of reach. Clamp to
   # the visible frame's origin: overflowing off the RIGHT is recoverable, off
   # the top-left is not.
   [ "$nx" -lt "$sx" ] && nx="$sx"
   [ "$ny" -lt "$sy" ] && ny="$sy"
+
+  # Ghostty rounds ANY size to whole cells, so a popup that passed no grid flags
+  # still misses its requested pixels by a few. Correcting that is a visible
+  # jump bought for nothing — move only when the window is off by more than
+  # rounding can explain.
+  dx=$(( nx - ax )); [ "$dx" -lt 0 ] && dx=$(( -dx ))
+  dy=$(( ny - ay )); [ "$dy" -lt 0 ] && dy=$(( -dy ))
+  { [ "$dx" -lt 20 ] && [ "$dy" -lt 20 ]; } && return 0
+
   set_frame "$pid" "$nx" "$ny" "$aw" "$ah" 10
 }
 
@@ -634,9 +667,18 @@ spawn() {
   read -r pos_x pos_y win_w win_h <<< "${frame:-$(geom ${size_args[@]+"${size_args[@]}"})}"
   # A frame the caller couldn't capture (empty, truncated, nonsense) must not
   # become a window at 0×0 — resolve it the ordinary way instead.
+  #
+  # And when that leaves us with no size flags at all — a `--frame` caller whose
+  # frame was unusable — the window is no longer aligned to anything, so it is
+  # not an exact mode any more. `exact` is set at arg-parse time and means "the
+  # caller asked for a mode that lines up with something"; here the thing it was
+  # to line up with is gone, and what geom just returned is a centred default.
+  # Leaving the flag set sends it down the re-plant branch, which re-asserts the
+  # origin of a size the window may not have.
   case "${pos_x:-x}${pos_y:-x}${win_w:-x}${win_h:-x}" in
     *[!0-9-]* | '')
-      read -r pos_x pos_y win_w win_h <<< "$(geom ${size_args[@]+"${size_args[@]}"})" ;;
+      read -r pos_x pos_y win_w win_h <<< "$(geom ${size_args[@]+"${size_args[@]}"})"
+      [ "${#size_args[@]}" -eq 0 ] && exact=0 ;;
   esac
 
   # Snapshot before spawn: existing ghostty pids so we can pick out the NEW
@@ -687,25 +729,39 @@ spawn() {
   # ours.
   #
   # ⚠️ This used to read "harmless when we only wanted roughly centered", and
-  # that clause was the bug: the centred modes are the ONLY ones where nothing
-  # gets the last word, so they are the only ones that can drift. They drifted
-  # for a different reason than aerospace's memory — see `recenter` — but the
-  # branch that would have corrected either was the one skipping them.
+  # that clause was the bug: the centred modes are the ones where nothing gets
+  # the last word, so they are the ones that drift. They drifted for a different
+  # reason than aerospace's memory — see `recenter` — but the branch that would
+  # have corrected either was the one skipping them.
+  #
+  # "the ones", not "the only ones": `exact` records what the CALLER asked for,
+  # not what geom resolved. geom degrades an unreadable --match-focused to a
+  # centred --pct 80 on its own (see its `on_screen` guard), and spawn cannot
+  # see that happen — such a window takes this branch and is re-planted at the
+  # origin of a size it may not have. Those callers pass no grid flags, so the
+  # miss is cell rounding rather than the 96pt above, which is why this is a
+  # note and not a second fix.
   if [ "$exact" = 1 ] && [ -n "$new_pid" ]; then
     sleep 0.05
     set_frame "$new_pid" "$pos_x" "$pos_y" "$win_w" "$win_h" 1
   fi
 
+  # Last word: the window is placed, floated and pinned — now make sure it's the
+  # one you're typing into.
+  #
+  # BEFORE recenter, not after: `raise`'s own header explains that the focus it
+  # claims is routinely handed straight back by a picker still tearing down, and
+  # its three tries are a race against that teardown. Putting an AX round trip
+  # in front of it starts that race late for no gain — only the ring has to
+  # follow the final frame.
+  raise "$new_pid" "$wid"
+
   # Centred modes: the window is whatever size the cell grid made it, so centre
   # THAT rather than the size we asked for. After the float flip, so aerospace
-  # doesn't undo it; before raise/ring, so the outline follows the final frame.
+  # doesn't undo it; before the ring, so the outline follows the final frame.
   if [ "$exact" != 1 ] && [ -n "$new_pid" ]; then
     recenter "$new_pid" "$pos_x" "$pos_y" "$win_w" "$win_h"
   fi
-
-  # Last word: the window is placed, floated and pinned — now make sure it's the
-  # one you're typing into.
-  raise "$new_pid" "$wid"
 
   # The outline goes on last, after every frame-setting pass above: floatring
   # follows the window from here on, so it can't be desynced by a late re-plant.
