@@ -15,6 +15,12 @@ let
   # pill is only a view/controller; the wake lock survives bar/shell restarts.
   awake = pkgs.writeShellScriptBin "awake" (builtins.readFile ./awake.sh);
 
+  # `lidawake` is the other half of the same story and deliberately NOT another
+  # verb on `awake`: caffeinate cannot cross a lid close, so this one drives
+  # pmset's `disablesleep`, which is root-only. Hence a daemon, and hence its
+  # own derivation -- there is no end-user CLI here, nothing to run by hand.
+  lidawake = pkgs.writeShellScriptBin "lidawake" (builtins.readFile ./lidawake.sh);
+
   # `hausax` — the effective appearance + accessibility oracle `haus diff`/`haus
   # plan` shell out to (and modules/theme, for systemAppearance). See
   # hausax.swift for why a plist read isn't enough on macOS 26.
@@ -334,6 +340,14 @@ let
   soundCfg = config.haus.sound;
   localeCfg = config.haus.locale;
   powerCfg = config.haus.power;
+  lidCfg = powerCfg.lidAwake;
+  # Where agents-hook.sh drops one file per agent that is mid-turn. Written by
+  # the user, read by root, never the other way round -- see lidawake.sh.
+  lidHoldDir = "${homeDir}/.local/state/haus/lidawake/holds";
+  # The daemon's receipt that IT is the one holding `disablesleep`. Activation
+  # needs it to undo a hold when the option is switched off, because switching
+  # it off removes the only process that could otherwise put the key back.
+  lidMarker = "/var/db/haus-lidawake.held";
   # 0–100 → the exponential macOS stores. See ../lib/alert-volume.nix.
   alertVolume = import ../lib/alert-volume.nix { inherit lib; };
   # An absolute path built from the enum, never a path the host typed. The
@@ -673,6 +687,23 @@ in
       ${lib.concatMapStringsSep "\n" (
         args: "pmset ${args} || echo \"warning: power: pmset ${args} was refused.\" >&2"
       ) pmsetArgs}
+    '')
+
+    # ---- haus.power.lidAwake, switched OFF ---------------------------------
+    # Turning the option off removes the daemon, and a removed daemon cannot
+    # put `disablesleep` back -- so this rebuild is the only thing left that
+    # can, and a Mac that silently stopped sleeping on a lid close is exactly
+    # the failure nobody would think to look for.
+    #
+    # Guarded on the daemon's own marker rather than run unconditionally: this
+    # room's contract everywhere else is "haus writes only what the host set",
+    # and clearing a key somebody set by hand would break it. The marker says
+    # the hold was OURS.
+    (lib.optionalString (!lidCfg.enable) ''
+      if [ -e ${lib.escapeShellArg lidMarker} ]; then
+        pmset -a disablesleep 0 || echo "warning: power: could not release the lidAwake hold — the lid may still not sleep this Mac." >&2
+        rm -f ${lib.escapeShellArg lidMarker}
+      fi
     '')
 
     # ---- restart map (notes/macos-settings-matrix.md §4) --------------------
@@ -1398,6 +1429,40 @@ in
       ];
       StandardOutPath = "/var/log/nix-gc.out.log";
       StandardErrorPath = "/var/log/nix-gc.err.log";
+    };
+  };
+
+  # ---- haus.power.lidAwake -> a root daemon over `pmset disablesleep` -------
+  # A DAEMON, not a user agent, for one reason: `disablesleep` is root-only,
+  # and the alternative was widening the sudoers drop-in the security room owns
+  # so a user-level script could call `pmset`. Activation is already root, so
+  # nix-darwin's own launchd.daemons costs nothing and keeps the privilege
+  # where it belongs. The user's side of this is one `touch`/`rm` in their own
+  # home (agents-hook.sh); root only ever reads it.
+  #
+  # KeepAlive, because the script is a poll loop rather than a one-shot: five
+  # seconds is the resolution at which "an agent started working" has to beat
+  # "the lid just closed", and a launchd StartInterval that spawned a fresh
+  # process that often would be worse on every axis.
+  launchd.daemons.haus-lidawake = lib.mkIf lidCfg.enable {
+    serviceConfig = {
+      Label = "com.hausfold.lidawake";
+      ProgramArguments = [ "${lidawake}/bin/lidawake" ];
+      KeepAlive = true;
+      RunAtLoad = true;
+      ProcessType = "Background";
+      StandardOutPath = "/var/log/haus-lidawake.log";
+      StandardErrorPath = "/var/log/haus-lidawake.log";
+      EnvironmentVariables = {
+        LIDAWAKE_HOLD_DIR = lidHoldDir;
+        LIDAWAKE_MARKER = lidMarker;
+        LIDAWAKE_MODE = lidCfg.while;
+        LIDAWAKE_REQUIRE_POWER = if lidCfg.requirePower then "1" else "0";
+        # The option speaks minutes, the way the rest of this room does; the
+        # script speaks seconds, the way sleep and epoch arithmetic do.
+        LIDAWAKE_LINGER = toString (lidCfg.linger * 60);
+        LIDAWAKE_MAX_HOLD = if lidCfg.maxHold == "never" then "0" else toString (lidCfg.maxHold * 60);
+      };
     };
   };
 

@@ -804,7 +804,7 @@ let
     };
     power = {
       order = 119;
-      blurb = "Sleep timers and Low Power Mode, said separately for battery and charger — which is the whole point, and why this is built on `pmset` rather than on nix-darwin's own power options.";
+      blurb = "Sleep timers and Low Power Mode, said separately for battery and charger — which is the whole point, and why this is built on `pmset` rather than on nix-darwin's own power options. Plus the lid: whether closing this Mac is allowed to end a run that agents are still in the middle of.";
     };
 
     # ---- the rooms ------------------------------------------------------------

@@ -88,6 +88,38 @@ fi
 
 st="${1:-working}"
 
+# ── the lid hold ──────────────────────────────────────────────────────────────
+# haus.power.lidAwake's root daemon (modules/core/lidawake.sh) watches this
+# directory and holds macOS's `disablesleep` for exactly as long as it is
+# non-empty, so a closed lid does not end a turn that is still running. One
+# empty file per agent, named for the row it belongs to.
+#
+# Only `working` holds. `waiting` is a permission prompt — blocked on a human
+# who, the lid being shut, is not there — and `idle`/`remove` are the whole
+# point of releasing.
+#
+# Written unconditionally, whether or not the option is on, for the same reason
+# this script is the single writer of everything else: the files are inert
+# without the daemon, and gating them behind a nix-substituted flag would put a
+# rebuild between you and a hook that already knows every transition. The
+# directory is the user's own; root only ever reads it.
+#
+# `mkdir -p` on every call rather than once at the top: a hold that fails to
+# land must never cost the row its state, so this whole block is best-effort
+# and the writes below do not depend on it.
+lid_dir="${HAUS_LIDAWAKE_DIR:-$HOME/.local/state/haus/lidawake/holds}"
+# ZMX_SESSION for a terminal agent, the conversation id for a desktop one —
+# the same two keys the two stores below are filed under, so a row and its hold
+# always name each other. Sanitised because it becomes a filename.
+lid_key=$(printf '%s' "${ZMX_SESSION:-desk.$desktop}" | tr -c 'a-zA-Z0-9._-' '-')
+if [ "$st" = working ]; then
+  if mkdir -p "$lid_dir" 2>/dev/null; then
+    : >"$lid_dir/$lid_key" 2>/dev/null || true
+  fi
+else
+  rm -f "$lid_dir/$lid_key" 2>/dev/null || true
+fi
+
 # Which client is reporting. An explicit second argument always wins — that's how
 # the OpenCode plugin and the Codex hooks name themselves. Claude Code's hooks
 # pass only the state (the wiring predates this argument and lives in the user's
