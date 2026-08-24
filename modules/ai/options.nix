@@ -196,7 +196,7 @@ in
     # which made `ai.default = "codex"` a half-truth: the client spawned,
     # with none of the operating context or the option knowledge the same
     # machine hands Claude. They are named for the ROOM, not the client, and
-    # terminal writes one copy per entry in `ai.clients` (renamed.nix keeps
+    # terminal writes one copy per entry in `ai.clients` (moved.nix keeps
     # the old names working, with a warning).
     ai.instructions = lib.mkOption {
       type = lib.types.lines;

@@ -168,7 +168,7 @@ in
   #                            chord.
   #   right-click-fullscreen   the same, on right-click, behind
   #                            haus.terminal.rightClickFullscreen. Retired with
-  #                            the option (see modules/renamed.nix).
+  #                            the option (see modules/moved.nix).
   #   unstick-mouse-selection  a selection left "stuck" after the mouse left the
   #                            pane. A zellij-server bug, gone with the server.
   #   naked-click-links        open the OSC 8 / regex link under a BARE click.

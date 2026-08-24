@@ -4,7 +4,7 @@
 # right size while every look was a finished PNG somebody had drawn. `minimal` is
 # not: it is GENERATED, from this machine's own palette, accent, tiling gaps and
 # lock edges, so it needs a room rather than a value — hence the move, and the
-# alias in ../renamed.nix that keeps the old name working.
+# alias below that keeps the old name working.
 #
 # `style` is the one axis every other option here reads as context. Today it has
 # exactly one generated look and the four inherited Nebelung ones; the shape is
