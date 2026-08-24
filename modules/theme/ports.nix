@@ -46,6 +46,13 @@
           theme = osConfig.haus.theme;
         };
 
+        # Asserting a path spelled INTO a store output, so a port the pinned
+        # nebelung doesn't render stops the build instead of landing a dangling
+        # symlink in ~/. This room is where that class was first fixed; the
+        # helper is that fix, moved somewhere the next room can find it —
+        # ../lib/checked-ref.nix has the why.
+        checkedRef = import ../lib/checked-ref.nix { inherit lib pkgs; };
+
         # Empty on a nebelung lock that predates the `ports` output. Every use
         # below degrades to "nothing to offer" rather than failing, so being
         # pinned behind it costs the report, not the build.
@@ -142,56 +149,40 @@
 
         report = lib.concatStringsSep "\n" (lib.mapAttrsToList line chosen);
 
-        # Nix interpolates a store path into a string without asserting anything is
-        # there, and home-manager's own `insertFile` ends in a bare `ln -s` — so a
-        # port whose file the pinned nebelung doesn't actually render lands in ~/
-        # as a DANGLING SYMLINK, with no error at build or activation. You find it
-        # months later wondering why the app looks stock, which is the exact
-        # outcome this room's header says it refuses to produce.
+        # A port whose file the pinned nebelung doesn't actually render would
+        # land in ~/ as a DANGLING SYMLINK, with no error at build or
+        # activation — you find it months later wondering why the app looks
+        # stock, which is the exact outcome this room's header says it refuses
+        # to produce. ../lib/checked-ref.nix is the whole mechanism and the
+        # reason it works; what belongs HERE is why this room is the riskiest
+        # place in the repo for it.
         #
-        # This is the room where that pointer is riskiest: `path` is re-spelled
-        # twice before it means anything — once for the flavor (../lib/nebelung.nix,
-        # whose own comment already notes "a mocha path under a latte root silently
-        # resolves to nothing") and once for `<accent>` — so two substitutions
-        # neither side validates stand between the metadata and a real file.
-        #
-        # Copying through one runCommand makes the referent a build DEPENDENCY
-        # rather than a promise: the same move terminal makes for the glamour port in
-        # its `glowPlugin`, which is the other place a nebelung path is spelled
-        # rather than resolved.
-        checked = pkgs.runCommand "nebelung-ports" { } (
-          ''
-            mkdir -p $out
-          ''
-          + lib.concatStrings (
-            # Every path here is quoted: a rendered port's filename routinely
-            # contains a space ("Catppuccin Mocha.xccolortheme"), which an
-            # unquoted `[ -e ]` reads as two arguments.
-            lib.mapAttrsToList (id: p: ''
-              if [ ! -e "${p.file}" ]; then
-                # The port's own metadata reaches this message, so it goes through
-                # escapeShellArg rather than into a double-quoted string: a `$` or a
-                # `"` in some future port's title would otherwise expand or garble
-                # the one line explaining why the build stopped.
-                echo "haus.theme.ports: the pinned nebelung renders no port file at" >&2
-                echo "  ${p.file}" >&2
-                echo "for" ${lib.escapeShellArg p.title} "(haus.roster.${id}) at flavor ${nb.flavor}, accent ${accent}." >&2
-                # Three remedies, because they belong to three different people.
-                # The rice AUTHOR bumps the pin; a CONSUMER of a rice can't — they
-                # hold the flake input transitively — so name the two levers that
-                # are theirs. The rice#249 question: who can this check fail on?
-                echo "Fix it whichever way is yours:" >&2
-                echo "  · drop haus.roster.${id}, if you don't need the app themed" >&2
-                echo "  · haus.theme.ports.enable = false, to turn the whole pass off" >&2
-                echo "  · (haus authors) nix flake update nebelung — the port's" >&2
-                echo "    metadata path may have moved upstream" >&2
-                exit 1
-              fi
-              mkdir -p "$out/${id}"
-              cp -r "${p.file}" "$out/${id}/${basename p.path}"
-            '') placed
-          )
-        );
+        # `path` is re-spelled twice before it means anything — once for the
+        # flavor (../lib/nebelung.nix, whose own comment already notes "a mocha
+        # path under a latte root silently resolves to nothing") and once for
+        # `<accent>` — so two substitutions neither side validates stand
+        # between another repo's metadata and a real file.
+        checked = checkedRef.collect {
+          name = "nebelung-ports";
+          refs = lib.mapAttrsToList (id: p: {
+            path = p.file;
+            install = "${id}/${basename p.path}";
+            problem = [
+              "haus.theme.ports: the pinned nebelung renders no port file at"
+              "  ${p.file}"
+              "for ${p.title} (haus.roster.${id}) at flavor ${nb.flavor}, accent ${accent}."
+            ];
+            # Three remedies, because they belong to three different people.
+            # The desktop AUTHOR bumps the pin; a CONSUMER of a desktop can't —
+            # they hold the flake input transitively — so name the two levers
+            # that are theirs. The rice#249 question: who can this check fail on?
+            remedies = [
+              "drop haus.roster.${id}, if you don't need the app themed"
+              "haus.theme.ports.enable = false, to turn the whole pass off"
+              "(haus authors) nix flake update nebelung — the port's metadata path may have moved upstream"
+            ];
+          }) placed;
+        };
       in
       {
         # Every id a room claims to handle must be a port nebelung still ships,

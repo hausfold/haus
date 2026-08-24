@@ -520,7 +520,13 @@ mechanism, say so in one line.
   exist), which is why `nix flake check`'s `theme-variants` pins the
   flavor/contrast → variant/subdir table as a golden file — and why the same
   rule lives in exactly one place on each side of the repo boundary (nebelung's
-  `variantDir`, this file). Raw dotfiles nix can't inject into (ghostty
+  `variantDir`, this file). **A path you spell INTO any store output — a
+  nebelung port, another tool's skill folder — gets
+  `modules/lib/checked-ref.nix`**, whose header has the why: unchecked, a wrong
+  one is green at eval, green at `nix flake check`, green through the
+  home-files build, and lands a DANGLING SYMLINK in the user's `~`, found
+  months later. `guard` for a builder with other work to do, `collect` when a
+  `home.file` source has to point at the result. Raw dotfiles nix can't inject into (ghostty
   `config`) reference the *rendered file*, not the flavor, so they need no
   per-flavor edit.
   - Adding a flavor means: a nebelung `VARIANTS` entry, one enum value in
