@@ -24,6 +24,8 @@
   holt-skill,
 }:
 let
+  checkedRef = import ../lib/checked-ref.nix { inherit lib pkgs; };
+
   # The one list. Adding a tool is a name here and an argument above.
   toolSkills = [
     {
@@ -47,52 +49,41 @@ let
 
   # The names above are unverifiable at EVAL time and entirely checkable at
   # BUILD time, and the difference is the whole of this derivation.
+  # ../lib/checked-ref.nix is that difference, written out once; what belongs
+  # HERE is which name is the promise.
   #
-  # LISTING what a tool ships needs `builtins.readDir` on a store output —
-  # import-from-derivation, which would force a build every time somebody runs
-  # `haus get` to READ their config. ASSERTING that a listed name is there needs
-  # no eval-time read at all: copying the listed folders through one
-  # `runCommand` makes each name a build DEPENDENCY rather than a promise.
+  # `SKILL.md` is what gets CHECKED and the folder is what gets INSTALLED,
+  # because the family standard (the workshop's notes/agent-surface.md §6) is
+  # what a name in the list above is a promise about — and an empty folder
+  # would satisfy `-e` while teaching an agent nothing.
   #
-  # Without it a name the pinned revision doesn't ship installs a DANGLING
-  # symlink in the user's home, silently — eval, `nix flake check` and the
-  # home-files build all green, because a home.file source pointing inside a
-  # store output is never existence-checked. You find it the way you find any
-  # broken pointer: months later, wondering why the agent never learned the tool.
-  #
-  # Third site of one class, and the second fix of it copied from the first:
-  # modules/theme/ports.nix does exactly this for a nebelung port path, and
-  # terminal's `glowPlugin` for glow's. `SKILL.md` rather than the directory,
-  # since the family standard is what the name is a promise about, and an empty
-  # folder would satisfy `-e`.
-  checked = pkgs.runCommand "haus-tool-skills" { } (
-    ''
-      mkdir -p $out
-    ''
-    + lib.concatMapStrings (skill: ''
-      if [ ! -e "${skill.drv}/${skill.name}/SKILL.md" ]; then
-        echo "haus.ai.skill: ${skill.drv.name} ships no skill named '${skill.name}'." >&2
-        echo "  expected ${skill.drv}/${skill.name}/SKILL.md" >&2
-        # Three remedies, because they belong to three different people — the
-        # question modules/theme/ports.nix asks out loud: who can this check
-        # fail on? A haus AUTHOR adds a name here before the lock bump that
-        # carries it, or after a tool retires one. A CONSUMER of haus holds the
-        # tool input transitively and can do neither, so name the lever that
-        # is theirs.
-        echo "Fix it whichever way is yours:" >&2
-        echo "  · nix flake update <tool> — the skill may land in a revision" >&2
-        echo "    newer than the one this lock pins" >&2
-        echo "  · drop the name from modules/ai/tool-skills.nix" >&2
-        echo "  · haus.ai.skill = false, to install no agent skills at all" >&2
-        exit 1
-      fi
-      # `mkdir` first, so two tools claiming one skill name fail here rather
-      # than nesting into $out/<name>/<name>. They would collide in the room's
-      # `listToAttrs` too; failing at the earlier of the two is the honest one.
-      mkdir "$out/${skill.name}"
-      cp -R "${skill.drv}/${skill.name}/." "$out/${skill.name}/"
-    '') toolSkillList
-  );
+  # Two tools claiming one skill name is a real collision here rather than a
+  # theoretical one, and the helper catches it: they would collide in the
+  # room's `listToAttrs` too, and failing at the earlier of the two is the
+  # honest one.
+  checked = checkedRef.collect {
+    name = "haus-tool-skills";
+    refs = map (skill: {
+      path = "${skill.drv}/${skill.name}/SKILL.md";
+      source = "${skill.drv}/${skill.name}";
+      install = skill.name;
+      problem = [
+        "haus.ai.skill: ${skill.drv.name} ships no skill named '${skill.name}'."
+        "  expected ${skill.drv}/${skill.name}/SKILL.md"
+      ];
+      # Three remedies, because they belong to three different people — the
+      # question modules/theme/ports.nix asks out loud: who can this check fail
+      # on? A haus AUTHOR adds a name to the list above before the lock bump
+      # that carries it, or after a tool retires one. A CONSUMER of haus holds
+      # the tool input transitively and can do neither, so name the lever that
+      # is theirs.
+      remedies = [
+        "nix flake update <tool> — the skill may land in a revision newer than the one this lock pins"
+        "drop the name from modules/ai/tool-skills.nix"
+        "haus.ai.skill = false, to install no agent skills at all"
+      ];
+    }) toolSkillList;
+  };
 in
 {
   inherit toolSkillList checked;

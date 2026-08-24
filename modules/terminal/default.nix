@@ -294,6 +294,9 @@ in
         scale = osConfig.haus.ui.scale;
         bar = osConfig.haus.bar;
       };
+      # Asserting a path spelled INTO a store output — here, the nebelung
+      # glamour port baked into the yazi plugin below. ../lib/checked-ref.nix.
+      checkedRef = import ../lib/checked-ref.nix { inherit lib pkgs; };
       nbFlavor = nb.flavor; # "mocha" | "latte"
       # The bat theme's name AND its filename, which whiskers title-cases:
       # "Catppuccin Mocha" / "Catppuccin Mocha.tmTheme". Named once because three
@@ -310,21 +313,37 @@ in
       # be passed explicitly with `-s`: baked into the yazi previewer plugin
       # (@glowStyle@ placeholder) and the `glow -p` opener below.
       glowStyle = "${nebelungRoot}/glow/themes/${nbFlavor}/catppuccin-${nbFlavor}-${accent}.json";
-      glowPlugin = pkgs.runCommand "glow.yazi" { } ''
-        # Nix interpolates a store path into a string without asserting anything is
-        # there, and accent-reach fingerprints this plugin's TEXT — the accent varies
-        # only INSIDE the path, so a missing referent would still read `moves`. This
-        # is the one place the build can see the file, so check it here.
-        [ -f "${glowStyle}" ] || {
-          echo "terminal: nebelung has no glamour port at ${glowStyle}" >&2
-          echo "  (haus.theme.flavor/accent moved past what the pinned nebelung ships)" >&2
-          echo "  Pick another accent, or — if you author haus — nix flake update nebelung." >&2
-          exit 1
-        }
-        cp -r ${./yazi/plugins/glow.yazi} $out
-        chmod -R +w $out
-        substituteInPlace $out/main.lua --subst-var-by glowStyle ${glowStyle}
-      '';
+      # The `guard` half of ../lib/checked-ref.nix rather than its `collect`:
+      # what gets installed is the PLUGIN, and the glamour style is baked into
+      # its text by substitution rather than copied. Why the check has to be
+      # here and cannot be a reach check: `accent-reach` fingerprints this
+      # plugin's TEXT, and the accent varies only INSIDE the path, so a missing
+      # referent would still read `moves`. This is the one place the build can
+      # see the file. `-f`, because a directory there would be as wrong as
+      # nothing.
+      glowPlugin = pkgs.runCommand "glow.yazi" { } (
+        checkedRef.guard [
+          {
+            path = glowStyle;
+            test = "-f";
+            problem = [
+              "terminal: the pinned nebelung renders no glamour port at"
+              "  ${glowStyle}"
+              "  (haus.theme.flavor/accent moved past what it ships)"
+            ];
+            remedies = [
+              "haus.theme.accent — pick one the pinned nebelung renders"
+              "haus.theme.flavor — the port matrix is rendered per flavor"
+              "(haus authors) nix flake update nebelung"
+            ];
+          }
+        ]
+        + ''
+          cp -r ${./yazi/plugins/glow.yazi} $out
+          chmod -R +w $out
+          substituteInPlace $out/main.lua --subst-var-by glowStyle ${glowStyle}
+        ''
+      );
 
       # A deliberately finite Git vocabulary, using the names that recur most
       # often in Oh My Zsh and other common alias sets. Avoid the notoriously
