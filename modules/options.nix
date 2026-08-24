@@ -197,21 +197,27 @@ let
 
             **It is also a path, wherever a module addresses the binary.**
             "system" is what puts the package at
-            `/run/current-system/sw/bin/<name>`, and a room that runs a tool
-            from launchd — where nothing nix-shaped is on PATH — has to spell
-            that path out. `sketchybar` is the live case: its launchd agent,
-            `barpop`, `bar-bottom` and every bar plugin name it that way, so
-            moving that entry to "user" leaves the bar pointing at nothing and
-            drawing nothing. Two neighbouring edits do the same thing without
-            touching `scope` at all — dropping its nixpkgs source
-            (`package = lib.mkForce null` with no `packageName`; merely ADDING
-            a `brew` does not, since the bar sets `package` at `mkDefault`),
-            and `enable = false`, which filters the entry out before anything
-            installs it.
+            `/run/current-system/sw/bin/<name>`, "user" at
+            `/etc/profiles/per-user/<you>/bin/<name>`, and a room that runs a
+            tool from launchd — where nothing nix-shaped is on PATH — has to
+            spell one of them out. `sketchybar` is the live case: its launchd
+            agent, `barpop`, `bar-bottom` and every bar plugin name it, and
+            they name it through `binPath`, so they FOLLOW this rather than
+            being pinned. Moving that entry to "user" was measured end to end
+            on 2026-08-24 and the bar drew, ticked, reloaded and dismissed its
+            dropdowns — the agent is a LaunchAgent in the user's own session,
+            so the per-user profile is in reach. What it does cost is
+            `/run/current-system/sw/bin/<name>` no longer existing, which
+            breaks anything OUTSIDE haus still spelling that literal.
 
-            So an entry haus itself declares and addresses by path is not the
-            plain metadata it looks like: the bar room asserts on all three,
-            and a room of yours that names a path should too.
+            What DOES leave the bar pointing at nothing is losing the source:
+            `package = lib.mkForce null` with no `packageName` and no `brew`
+            (merely ADDING a `brew` does not, since the bar sets `package` at
+            `mkDefault` and follows it to /opt/homebrew/bin), or
+            `enable = false`, which filters the entry out before anything
+            installs it. Both land as `binPath == null`, which is what the bar
+            room asserts on — and what a room of yours that names a path
+            should assert on too. `scope` is not the thing to refuse.
           '';
         };
         bin = lib.mkOption {
@@ -256,9 +262,13 @@ let
             could see. A host writing `scope = "user"` picked a documented value
             and the bar stopped drawing, with nothing anywhere saying why.
 
-            The generalisable form: any roster entry another module addresses by
-            path has a scope precondition, and this is the registry carrying it
-            rather than each room re-deriving it.
+            That is the failure this retired, and it retired it outright rather
+            than turning it into a rule: with every address computed from here,
+            `scope = "user"` was measured on 2026-08-24 to give a fully working
+            bar. So the generalisable form is not "a roster entry addressed by
+            path has a scope precondition" — it is that such an entry has ONE
+            address, computed here, and the only thing left for a room to refuse
+            is a null one.
           '';
         };
         appStoreId = lib.mkOption {
@@ -310,27 +320,27 @@ let
         };
       };
 
-    config =
-      let
-        # The roster key is the executable's name for nearly every entry; `bin`
-        # is the escape hatch for the ones where it isn't.
-        binName = if config.bin != null then config.bin else name;
-      in
-      {
-        # Computed, never written. The rule is deliberately narrow: a path only
-        # where haus KNOWS one, null everywhere else. A cask or an App Store app
-        # installs a bundle rather than a binary, and `installedBy` covers the
-        # apps a room copies into /Applications itself — none of those has an
-        # executable at a path this layer can name, and guessing one would hand
-        # a room a string that is wrong instead of a null it can assert on.
-        binPath =
-          if config.package != null || config.packageName != null then
-            "${profileBin.${config.scope}}/${binName}"
-          else if config.brew != null then
-            "${profileBin.brew}/${binName}"
-          else
-            null;
-      };
+      config =
+        let
+          # The roster key is the executable's name for nearly every entry; `bin`
+          # is the escape hatch for the ones where it isn't.
+          binName = if config.bin != null then config.bin else name;
+        in
+        {
+          # Computed, never written. The rule is deliberately narrow: a path only
+          # where haus KNOWS one, null everywhere else. A cask or an App Store app
+          # installs a bundle rather than a binary, and `installedBy` covers the
+          # apps a room copies into /Applications itself — none of those has an
+          # executable at a path this layer can name, and guessing one would hand
+          # a room a string that is wrong instead of a null it can assert on.
+          binPath =
+            if config.package != null || config.packageName != null then
+              "${profileBin.${config.scope}}/${binName}"
+            else if config.brew != null then
+              "${profileBin.brew}/${binName}"
+            else
+              null;
+        };
     }
   );
 

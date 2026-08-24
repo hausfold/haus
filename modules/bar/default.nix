@@ -1695,22 +1695,47 @@ lib.mkIf config.haus.bar.enable {
       # sketchybar it is a filesystem contract: the launchd agent's
       # ProgramArguments, `barpop`, `bar-bottom`, `aerospace-notify.sh` and the
       # plugins all address the binary as `barTopPath` above, which is
-      # `binPath` — the profile this `scope` chooses — and only the system
-      # profile puts a package where launchd can reach it.
+      # `binPath` — the profile this `scope` chooses.
       #
-      # Three ways to lose it, and none of them is an error anywhere else:
+      # `scope = "user"` used to be refused here, on two reasons in turn and
+      # neither of them measured: first "only the system profile puts a package
+      # where launchd can reach it", which `binPath` retired by making every
+      # address follow `scope`; then "no bar has ever been run out of the
+      # per-user profile", which was true and is no longer. It has now been run.
+      # Measured 2026-08-24 on a full `bench try switch` of this repo's own
+      # consumer, with the whole hacker desktop on:
       #
-      #   scope = "user"        the DEFAULT every other roster entry uses, and a
-      #                         documented in-range value. Since `binPath`, the
-      #                         path FOLLOWS this rather than being pinned to
-      #                         the system profile — so this arm no longer
-      #                         describes a dangling address, and the honest
-      #                         reason is narrower: no bar has ever been run out
-      #                         of the per-user profile, the room is written and
-      #                         felt at system scope, and refusing an untested
-      #                         arrangement is the direction that fails loudly.
-      #                         Cheap to settle: flip it, `bench try switch`,
-      #                         see whether the bar draws.
+      #   the agent            ~/Library/LaunchAgents/org.nixos.sketchybar.plist
+      #                        exec'd /etc/profiles/per-user/<you>/bin/sketchybar
+      #                        and stayed `state = running`. That is the answer
+      #                        to the reach worry, and it is structural rather
+      #                        than lucky: this room writes `launchd.user.agents`
+      #                        — a LaunchAgent in the user's own home, loaded
+      #                        into their Aqua session as their uid. There is no
+      #                        daemon anywhere in the bar, so there is no context
+      #                        that cannot read that user's profile.
+      #   both bars drew       CGWindowListCopyWindowInfo showed the menu bar's
+      #                        1512×36 backdrop at y=0 with its pill windows
+      #                        beside it, and `bar-bottom`'s 1512×32 at the
+      #                        bottom — the second name resolving through the
+      #                        system-profile symlink to the per-user binary.
+      #   the pills ticked     cpu 27% → 18% and the clock 3:06 → 3:07 over 70 s,
+      #                        weather, github and ai_usage all populated, the
+      #                        workspace pills carrying their app icons — which
+      #                        is `aerospace-notify.sh` and every plugin writing
+      #                        successfully through the generated bar.sh.
+      #   `--reload` worked    on both bars, each naming its own rc, silent and
+      #                        exit 0, `configuration loaded..` in both logs.
+      #   barpop resolved      armed and exited clean both with `SKETCHYBAR_BIN`
+      #                        set (how every click_script calls it) and with it
+      #                        unset, where its fallback chain skips the system
+      #                        profile's now absent copy and lands on PATH.
+      #   the palette's own    `reload-bar.sh` run under a BARE launchd PATH, the
+      #                        way pounce spawns it, still reloaded both bars —
+      #                        it exports the per-user bin dir itself.
+      #
+      # So the arm below refuses two things, and `scope` is not one of them:
+      #
       #   no source at all      `package = lib.mkForce null` with no
       #                         `packageName` and no `brew` — read as a TRIPLE
       #                         now, via `binPath`, and the third one is why:
@@ -1730,38 +1755,44 @@ lib.mkIf config.haus.bar.enable {
       #                         so `package` and `scope` still read fine and
       #                         nothing is installed at all.
       #
+      # Both are the same fact — `binPath == null`, a bar with no address — and
+      # the split exists only so the message can name the cause you actually
+      # wrote. What `scope` costs at "user" is real but is not this room's to
+      # refuse: the system profile stops carrying a `sketchybar` at all, so
+      # anything OUTSIDE haus that hardcodes the system spelling of `binPath`
+      # breaks. Inside haus nothing may hardcode it — flake check
+      # `roster-bin-paths` is what keeps that true, and it caught this very
+      # comment doing it — so the room's own default stays "system" for two
+      # reasons that are preference rather than requirement: it is the felt-in
+      # arrangement, and it leaves that spelling on disk for everyone else's
+      # scripts.
+      #
       # The general shape — a roster entry another module names by path has a
       # scope precondition, and the roster has no way to express it — is
-      # options-roadmap.md §5.4's open box. This is the one live case.
+      # options-roadmap.md §5.4's open box. It closed here by measurement rather
+      # than by machinery: the precondition turned out not to exist.
       (
         let
           entry = config.haus.roster.sketchybar;
-          # Since `binPath`, "is there a sketchybar to address" is one question
-          # with one answer, and it is not the same question as "which nixpkgs
-          # source". A `brew` entry has a binPath — /opt/homebrew/bin — and the
-          # bar follows it there, which is the arrangement this room shipped
-          # until 2026-08-22 and is therefore the best-tested one in the file.
-          # The earlier `package == null && packageName == null` refused it.
+          # "Is there a sketchybar to address" is one question with one answer,
+          # and it is not the same question as "which nixpkgs source". A `brew`
+          # entry has a binPath — /opt/homebrew/bin — and the bar follows it
+          # there, which is the arrangement this room shipped until 2026-08-22
+          # and is therefore the best-tested one in the file. The earlier
+          # `package == null && packageName == null` refused it.
           sourceless = entry.binPath == null;
-          # Narrower than "scope != system": `scope` is IGNORED for a brew
-          # entry (the option says so), so reading it there would refuse a
-          # working bar over a field that did nothing.
-          fromNixpkgs = entry.package != null || entry.packageName != null;
-          userScope = fromNixpkgs && entry.scope != "system";
         in
-        lib.optional (!entry.enable || sourceless || userScope) {
+        lib.optional (!entry.enable || sourceless) {
           assertion = false;
           message =
             "haus.bar.enable is on, but haus.roster.sketchybar "
             + (
               if !entry.enable then
                 "is disabled (enable = false), so it is filtered out of the roster before anything installs it, and haus.roster.sketchybar.binPath is null"
-              else if sourceless then
-                "installs nothing that leaves a binary at a path haus can name — `package`, `packageName` and `brew` are all null (a `cask` or an `appStoreId` would be a bundle, not a binary), so haus.roster.sketchybar.binPath is null"
               else
-                "has scope = \"${entry.scope}\", so its sketchybar lands in the per-user profile at ${barTopPath} — where the whole room would follow it (every address resolves through haus.roster.sketchybar.binPath), and where no bar has ever been run"
+                "installs nothing that leaves a binary at a path haus can name — `package`, `packageName` and `brew` are all null (a `cask` or an `appStoreId` would be a bundle, not a binary), so haus.roster.sketchybar.binPath is null"
             )
-            + ". The launchd agent, barpop, bar-bottom, aerospace-notify.sh and every plugin address the binary as haus.roster.sketchybar.binPath, so a null one is a bar that never draws with nothing anywhere saying why, and a per-user one is an arrangement nothing here has been felt against — untested rather than known broken, and one `bench try switch` from being settled either way. Leave haus.roster.sketchybar installing from nixpkgs (`package = pkgs.sketchybar`, or `packageName = \"sketchybar\"` from a data-only desktop) at scope = \"system\", or turn the bar off with haus.bar.enable = false.";
+            + ". The launchd agent, barpop, bar-bottom, aerospace-notify.sh and every plugin address the binary as haus.roster.sketchybar.binPath, so a null one is a bar that never draws with nothing anywhere saying why. Give haus.roster.sketchybar a source — `package = pkgs.sketchybar`, `packageName = \"sketchybar\"` from a data-only desktop, or a `brew` — or turn the bar off with haus.bar.enable = false. `scope` is free: both \"system\" and \"user\" were measured drawing a working bar on 2026-08-24, and every address in the room follows whichever you pick.";
         }
       );
 
@@ -1878,10 +1909,16 @@ lib.mkIf config.haus.bar.enable {
   haus.roster = {
     sketchybar = {
       package = lib.mkDefault pkgs.sketchybar;
-      # System scope, not the default user one: the bar is a launchd agent, and
-      # the agent, its rc, its plugins and `bar-bottom` all address it by
-      # `binPath` (see `barTopPath`), and only the system profile puts a
-      # package where a launchd job can reach it.
+      # System scope, not the default user one — a PREFERENCE now, not a
+      # requirement. `scope = "user"` was measured drawing a working bar on
+      # 2026-08-24 (the assertion above carries what was measured, and no
+      # longer refuses it), because this room's agent is a `launchd.user.agent`
+      # running as the user, not a daemon. "system" stays the default for the
+      # two reasons that survived: it is the arrangement the whole room is
+      # written and felt against, and it keeps a `sketchybar` in the system
+      # profile for anything OUTSIDE haus that hardcodes it there — a
+      # hand-written script, a stale dotfile, another tool. A host that would
+      # rather have the bar in its own profile may say so.
       scope = lib.mkDefault "system";
     };
   }
