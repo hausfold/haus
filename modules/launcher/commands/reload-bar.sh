@@ -8,9 +8,14 @@
 # A launchd GUI agent's PATH is bare (/usr/bin:/bin:/usr/sbin:/sbin) and the
 # pounce daemon hands its own environment straight to the command it spawns —
 # so a bare `sketchybar` is `command not found` here even though it resolves in
-# every interactive shell (it's a Homebrew binary). Resolve the tools
-# explicitly, the same set add-app.sh bakes in, and only claim success if the
-# reload actually happened — a notification that lies is worse than no command.
+# every interactive shell. Resolve the tools explicitly, the same set
+# add-app.sh bakes in, and only claim success if the reload actually happened —
+# a notification that lies is worse than no command.
+#
+# BOTH nix profiles are on the line below and both earn their place: the bar
+# comes from nixpkgs now rather than Homebrew, and `haus.roster.sketchybar.scope`
+# chooses which profile it lands in — either is a working bar (measured
+# 2026-08-24), so a PATH carrying only one of them would break the other.
 export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 notify() {

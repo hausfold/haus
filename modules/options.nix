@@ -17,6 +17,13 @@ let
   # is what moves the per-user profile under /etc. Getting this wrong would be
   # invisible at eval and a dead path at runtime, which is the whole failure
   # this option exists to end.
+  #
+  # `mkHaus` sets that flag (see flake.nix), so every machine built the ordinary
+  # way has it. A consumer that imports a bare `darwinModules.<room>` and wires
+  # home-manager itself owes it: without it the per-user profile is
+  # `~/.nix-profile/bin` and every "user"-scope `binPath` points at nothing.
+  # It matters more since the bar stopped refusing `scope = "user"` — that was
+  # the one room reaching a per-user path, and it used to reach it never.
   profileBin = {
     system = "/run/current-system/sw/bin";
     user = "/etc/profiles/per-user/${username}/bin";

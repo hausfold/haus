@@ -1948,8 +1948,11 @@ lib.mkIf config.haus.bar.enable {
   # barvitals rides along only when one of the two readouts it feeds is
   # actually drawn — a rice with neither pill on shouldn't carry a Swift build
   # in its closure for a sampler nothing calls. Both plugins reach it by its
-  # /run/current-system/sw/bin path, since they run from launchd's PATH where
-  # nothing nix-shaped is on it.
+  # /run/current-system/sw/bin path — an absolute one because a plugin's PATH is
+  # whatever the agent was given (`userPath` above, not a login shell's), and
+  # spelling it beats depending on that. It is `barpop`'s situation, not
+  # `sketchybar`'s: barvitals is this room's own systemPackages entry and has no
+  # roster `scope` to follow.
   environment.systemPackages = [
     barpop
   ]
