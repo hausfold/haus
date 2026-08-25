@@ -43,6 +43,23 @@ in
             is the command's business, not this room's.
           '';
         };
+        namer = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          description = ''
+            Whether this machine has a holt namer, and which — `haus.ai.namer`.
+            Spawn Agent needs to know because it has always named the lane
+            ITSELF, from a stopword slug of the prompt, and a name given to
+            `holt spawn` always wins: with a namer configured the command hands
+            holt no name at all and lets the brief name the lane. The slug
+            survives as the offline answer, handed down as
+            `HOLT_NAMER_FALLBACK`.
+
+            Reaches the command as `HAUS_LANE_NAMER`, the same way `repoRoots`
+            reaches it — a launchd GUI agent inherits nothing from a shell, so
+            the daemon's environment is the only channel.
+          '';
+        };
       };
     };
 

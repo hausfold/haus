@@ -1285,6 +1285,11 @@ lib.mkIf config.haus.launcher.enable {
         # read it. The script's own fallback list is for a hand-run outside the
         # daemon, and nothing else.
         HAUS_REPO_ROOTS = lib.concatStringsSep ":" agentContrib.repoRoots;
+        # Whether holt names lanes on this machine (`haus.ai.namer`). Empty is
+        # the answer as much as a value is: Spawn Agent names the lane itself
+        # unless something better will, and an unset variable in a stale
+        # launchd environment must read as "no namer" rather than as "unknown".
+        HAUS_LANE_NAMER = agentContrib.namer;
         # Where the ssh plugin (and any command that respects the hook) opens a
         # terminal: a new tiled Ghostty window instead of stock Terminal.
         # See modules/terminal/scripts/pounce-terminal.sh.

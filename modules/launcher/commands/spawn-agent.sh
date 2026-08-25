@@ -412,7 +412,30 @@ fi
 # HAUS_AGENT_IMAGE is still honoured so an external caller can pre-attach a
 # file; ⌘↵ above is the in-palette way to the same argument.
 [ -n "${image:-}" ] || image="${HAUS_AGENT_IMAGE:-}"
-set -- spawn "$repo" "$slug" --agent "$agent" --prompt-file -
+
+# WHO names the lane. A name given to `holt spawn` always wins — the namer is
+# only ever asked for a lane that has none — so passing "$slug" unconditionally
+# is the same as saying "never ask", which is what this command meant for as
+# long as asking cost nine seconds (see the slug's own comment above).
+#
+# With `haus.ai.namer` set, asking costs about a second, and the answer is a
+# name the stopword slug cannot reach: `agents-pill-wedge` out of "the agents
+# pill stops updating after the popup is closed twice in a row", where the slug
+# gives `agents-pill-stops-updating`. So hand holt no name and let the brief
+# name the lane.
+#
+# The slug is not wasted, it is DEMOTED: HOLT_NAMER_FALLBACK travels down to
+# the namer (holt hands a seam os.Environ(), so the adapter inherits it) and is
+# what the adapter prints when the API doesn't answer. Without it a namer that
+# fails falls back to holt's random word pair, which would make an offline
+# spawn strictly worse than it was before this command started asking.
+set -- spawn "$repo"
+if [ -n "${HAUS_LANE_NAMER:-}" ]; then
+  export HOLT_NAMER_FALLBACK="$slug"
+else
+  set -- "$@" "$slug"
+fi
+set -- "$@" --agent "$agent" --prompt-file -
 [ -n "$image" ] && set -- "$@" --image "$image"
 
 # ⌃↵. Not a holt flag and not an argument: "don't take the screen" is a fact
