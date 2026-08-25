@@ -1400,11 +1400,28 @@ in
           [hooks]
           open = "${config.home.homeDirectory}/.config/haus/lanes/lane-open.sh"
           resume = "${config.home.homeDirectory}/.config/haus/lanes/lane-open.sh"
+
+          # `focus` is the third seam, and the one only this room can
+          # answer: go to the window a lane is ALREADY in, rather than
+          # opening one. The lane→window join is lane-open.sh's. When
+          # there is nothing to raise — the session is detached, no
+          # window holds it — the hook defers and holt falls back to
+          # resume, which comes back through lane-open.sh and opens a
+          # properly placed one. Clicking a trill lane banner runs it.
+          focus = "${config.home.homeDirectory}/.config/haus/lanes/lane-focus.sh"
         '';
 
         # The lane opener itself — what holt's [hooks] above exec.
         ".config/haus/lanes/lane-open.sh" = {
           source = ./lanes/lane-open.sh;
+          executable = true;
+        };
+
+        # The `focus` seam's half: raise the window a lane is already in,
+        # through the same scripts/raise-session.sh the bar and ⌘F reach for,
+        # or defer to holt when there is no window to raise.
+        ".config/haus/lanes/lane-focus.sh" = {
+          source = ./lanes/lane-focus.sh;
           executable = true;
         };
 
