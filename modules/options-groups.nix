@@ -69,6 +69,11 @@ let
       "default"
       "enable"
       "instructions"
+      # Desktop-safe for the same reason `default` is: both name a program by
+      # id rather than by path, and neither can make a machine run something it
+      # doesn't already have — an id with no adapter file falls back to a
+      # random lane name, exactly as `default` falls back to what is installed.
+      "namer"
       "repoRoots"
       "skill"
     ];

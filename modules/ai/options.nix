@@ -139,6 +139,36 @@ in
       '';
     };
 
+    # What NAMES a lane that arrives with a task but no name. holt's own key,
+    # spelled verbatim: it runs one argv from
+    # `~/.config/holt/adapters/namer/<id>.toml` and reads a word off stdout, so
+    # haus only has to carry the id — the adapter file names the program, and
+    # holt never holds a key or knows a vendor.
+    ai.namer = lib.mkOption {
+      type = lib.types.str;
+      default = "";
+      example = "api";
+      description = ''
+        The holt namer adapter that turns a lane's first-turn brief into the
+        lane's name — `mobile-nav-jitter` instead of `cozy-otter`. Empty, the
+        default, means no namer: an unnamed lane keeps taking a random word
+        pair, which is what every install had before the key existed.
+
+        `claude` is holt's one built-in, and it costs 8-12s per lane — almost
+        all of it the client's own start-up rather than the model. Any other id
+        is a file you write: `~/.config/holt/adapters/namer/<id>.toml`, naming
+        a program that takes the brief on argv and prints one name. That file
+        is the HOST's, not the layer's, because it is where the model, the key
+        and its location get decided; haus deliberately carries only the id, so
+        a machine that hasn't written the adapter degrades to random names
+        rather than failing to build.
+
+        It cannot cost you a lane. Every failure — no adapter file, a missing
+        program, a timeout at holt's 30s ceiling, prose instead of a name — is
+        a warning and a fall back to the random pair.
+      '';
+    };
+
     # Where the palette looks for something to spawn ON. It is an AI-room fact
     # rather than a launcher one — the same list would answer "which repos can
     # I lane into" for any surface that asked — so it lives here and reaches

@@ -795,7 +795,7 @@ in
     # ⌃⌥⇧A was retired 2026-08-19 — `c` in that window's shell is the same act.
     development.agents = {
       enable = spawnable;
-      inherit (cfg) default;
+      inherit (cfg) default namer;
     };
 
     # Bar — the `agents` pill. Still opt-in per host (`haus.bar.items.agents`);
