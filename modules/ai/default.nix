@@ -805,7 +805,7 @@ in
     # Launcher — Spawn Agent, and the Agent Worktrees cards on the Tips page.
     launcher.agents = {
       enable = spawnable;
-      inherit (cfg) default repoRoots;
+      inherit (cfg) default repoRoots namer;
     };
   };
 }
