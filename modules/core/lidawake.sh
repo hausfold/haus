@@ -1,13 +1,30 @@
 #!/usr/bin/env bash
-# lidawake — keep this Mac running with its lid shut, for exactly as long as an
-# agent is actually mid-turn.
+# lidawake — keep this Mac awake for exactly as long as an agent is mid-turn.
 #
-# WHY THIS EXISTS AND `awake` DOES NOT COVER IT. `awake` holds a `caffeinate`
-# assertion, and caffeinate cannot cross a lid close — its own usage text says
-# so. Lid-close sleep is a separate path in macOS, and the only supported lever
-# over it is pmset's `disablesleep`, which is root-only. Hence a launchd DAEMON
-# rather than another verb on `awake`, and hence no end-user CLI here: there is
-# nothing to run by hand.
+# TWO LEVERS, one loop, chosen by $LIDAWAKE_DEPTH:
+#
+#   sleep   a `caffeinate -i` assertion. Stops IDLE sleep, which is what ends an
+#           agent's run when the lid is OPEN and nobody has touched the keyboard
+#           for ten minutes. Needs no privilege, so the AI room runs this one as
+#           a per-user launchd AGENT (haus.ai.keepAwake).
+#   lid     pmset's `disablesleep`. The deeper lever, and the only one that
+#           crosses a lid close. Root-only, so core runs it as a launchd DAEMON
+#           (haus.power.lidAwake).
+#
+# Both read the same signal and share every failsafe below, which is the whole
+# reason they are one file rather than two: the interesting part here is not
+# which key gets written but the three time-dependent guards around it, and a
+# second copy of those would rot.
+#
+# WHY NEITHER IS A VERB ON `awake`. `awake` is a DURABLE, user-owned assertion —
+# you asked for three hours, it survives a rebuild and a login. These are the
+# opposite: nobody asked, they last exactly as long as the work does, and one of
+# them is root. An agent-held keep-awake that stomped the coffee pill's state
+# would be a worse bug than the sleep it prevented.
+#
+# The name is historical and stayed on purpose: `lidAwake` shipped first and the
+# marker, the log and the daemon label are all spelled from it. It is the same
+# loop at a shallower depth, not a second feature.
 #
 # THE SIGNAL. modules/bar/sketchybar/plugins/agents-hook.sh is already the one
 # writer of agent state, for every client (Claude Code, Codex, OpenCode) and
@@ -30,7 +47,11 @@
 # total rather than on a single hold.
 #
 # THREE FAILSAFES, because a daemon that died mid-hold would otherwise leave a
-# Mac that never sleeps again and nothing on screen to say why:
+# Mac that never sleeps again and nothing on screen to say why. Failsafes 1 and
+# 3 are `lid` business only: a `sleep` hold is a CHILD PROCESS started with
+# `-w $$`, so it dies with this loop by construction and there is nothing for a
+# successor or for activation to clean up. That asymmetry is the point of using
+# a child rather than a written key for the shallow lever.
 #
 #   1. It releases OUR hold on every start, before the loop — a crashed
 #      predecessor, a rebuild, a reboot all land here first. Guarded on the
@@ -70,11 +91,13 @@ set -uo pipefail
 
 HOLD_DIR="${LIDAWAKE_HOLD_DIR:?lidawake: LIDAWAKE_HOLD_DIR is required}"
 MODE="${LIDAWAKE_MODE:-agents}"        # agents | always
+DEPTH="${LIDAWAKE_DEPTH:-lid}"         # lid | sleep -- see the header
 REQUIRE_POWER="${LIDAWAKE_REQUIRE_POWER:-1}"
 LINGER="${LIDAWAKE_LINGER:-300}"       # seconds
 MAX_HOLD="${LIDAWAKE_MAX_HOLD:-28800}" # seconds; 0 = uncapped
 INTERVAL="${LIDAWAKE_INTERVAL:-5}"     # seconds between polls
 PMSET="${LIDAWAKE_PMSET_BIN:-/usr/bin/pmset}"
+CAFFEINATE="${LIDAWAKE_CAFFEINATE_BIN:-/usr/bin/caffeinate}"
 MARKER="${LIDAWAKE_MARKER:-/var/db/haus-lidawake.held}"
 # Root's own timestamp for "this run started", written beside the marker so the
 # staleness test below has something to compare against that is not a clock.
@@ -132,7 +155,7 @@ on_ac() {
 # the alternative is a line every five seconds forever into a log with no
 # rotation, which is how a disk fills up over a weekend.
 last_refusal=""
-apply() {
+apply_lid() {
     if "$PMSET" -a disablesleep "$1" >/dev/null 2>&1; then
         if [ "$1" = 1 ]; then
             mkdir -p "$(dirname "$MARKER")" 2>/dev/null || true
@@ -151,6 +174,55 @@ apply() {
         last_refusal="$1"
     fi
     return 1
+}
+
+# The shallow lever: one `caffeinate -i` child, alive for exactly as long as the
+# hold is.
+#
+# `-w $$` is the whole reason this is a child process rather than a written key.
+# caffeinate exits when the pid it is waiting on exits, so if this loop is
+# SIGKILLed, crashes, or is torn down by a rebuild, the assertion goes with it —
+# no marker to reconcile, no failsafe 1, no way to leave a Mac that will not idle
+# sleep and nothing on screen to say why. The `lid` lever cannot work that way
+# (`disablesleep` is a key macOS keeps until someone puts it back), which is
+# exactly why that half needs the marker and this half does not.
+#
+# `-i` only: idle SYSTEM sleep. Not `-d` — an agent working is no reason to keep
+# the screen lit, and a display that never sleeps is both a battery cost and the
+# most visible way to get a feature like this switched off.
+caff_pid=""
+apply_sleep() {
+    if [ "$1" = 1 ]; then
+        caff_alive && return 0
+        "$CAFFEINATE" -i -w $$ &
+        caff_pid=$!
+        return 0
+    fi
+    caff_alive && kill "$caff_pid" 2>/dev/null
+    caff_pid=""
+    return 0
+}
+
+# Is our assertion actually up? Checked once per tick rather than once at
+# launch, and that is the whole design of this lever.
+#
+# `kill -0 $!` straight after `&` answers almost nothing: the fork exists before
+# the exec has had a chance to fail, so a missing or non-executable caffeinate
+# passes it and the loop then believes it is holding forever. Asking on every
+# tick instead catches the same birth failure one tick later AND every later
+# death — a caffeinate someone killed by hand, an OOM, a binary that exits on
+# its own — with one predicate and no start-up special case. The cost is up to
+# one $LIDAWAKE_INTERVAL of not holding, which is the same resolution the whole
+# loop already runs at.
+caff_alive() {
+    [ -n "$caff_pid" ] && kill -0 "$caff_pid" 2>/dev/null
+}
+
+apply() {
+    case "$DEPTH" in
+        sleep) apply_sleep "$1" ;;
+        *) apply_lid "$1" ;;
+    esac
 }
 
 # At least one agent is mid-turn. Deliberately not "the directory is non-empty":
@@ -187,13 +259,15 @@ mkdir -p "$(dirname "$STAMP")" 2>/dev/null || true
 : >"$STAMP"
 
 # Failsafe 1. Never inherit a predecessor's hold. Only ours, though — the marker
-# is what says so.
-if [ -e "$MARKER" ]; then
+# is what says so. `lid` only: a `sleep` hold was a child of the process that
+# is already gone, so it went with it (see apply_sleep) and there is no marker
+# to find.
+if [ "$DEPTH" != sleep ] && [ -e "$MARKER" ]; then
     say "a previous run left a hold behind — releasing it before starting."
     apply 0
 fi
 
-say "watching $HOLD_DIR (mode=$MODE requirePower=$REQUIRE_POWER linger=${LINGER}s maxHold=${MAX_HOLD}s)"
+say "watching $HOLD_DIR (depth=$DEPTH mode=$MODE requirePower=$REQUIRE_POWER linger=${LINGER}s maxHold=${MAX_HOLD}s)"
 
 while :; do
     [ -n "$TICK_HOOK" ] && "$TICK_HOOK" "$tick"
@@ -247,25 +321,50 @@ while :; do
 
     # On battery, a closed lid is a warm laptop in a bag with a draining battery
     # and no screen to say so. Refuse by default; the host can opt out.
-    if [ "$want" = 1 ] && [ "$REQUIRE_POWER" = 1 ] && ! on_ac; then
+    #
+    # `lid` only, and not for tidiness: the guard's whole argument is that
+    # nothing can stop a closed laptop cooking in a bag, and at `sleep` depth
+    # closing the lid still sleeps the Mac normally. Applying it there would
+    # mean an unplugged laptop, lid open, on a desk in front of you, sleeping
+    # mid-turn — refusing to protect the one case that is plainly safe.
+    if [ "$DEPTH" != sleep ] && [ "$want" = 1 ] && [ "$REQUIRE_POWER" = 1 ] && ! on_ac; then
         [ "$held" = 1 ] && say "unplugged — releasing (haus.power.lidAwake.requirePower)."
         want=0
+    fi
+
+    # `sleep` depth only: believe the process table over our own bookkeeping. If
+    # the child is gone while we think we are holding, we are not holding — say
+    # so once and let the arm below start a fresh one on this very tick.
+    if [ "$DEPTH" = sleep ] && [ "$held" = 1 ] && ! caff_alive; then
+        say "the caffeinate assertion is gone — re-taking it."
+        held=0
     fi
 
     if [ "$want" = 1 ] && [ "$held" = 0 ]; then
         if apply 1; then
             held=1
             held_since=$t
-            say "holding — a lid close no longer sleeps this Mac."
+            if [ "$DEPTH" = sleep ]; then
+                say "holding — idle sleep no longer ends a run (the lid still does)."
+            else
+                say "holding — a lid close no longer sleeps this Mac."
+            fi
         fi
     elif [ "$want" = 0 ] && [ "$held" = 1 ]; then
         apply 0 && held=0
-        say "released — a lid close sleeps this Mac again."
+        if [ "$DEPTH" = sleep ]; then
+            say "released — this Mac idle sleeps again."
+        else
+            say "released — a lid close sleeps this Mac again."
+        fi
     fi
 
     tick=$((tick + 1))
     [ "$TICKS" -gt 0 ] && [ "$tick" -ge "$TICKS" ] && break
-    [ "$INTERVAL" -gt 0 ] && sleep "$INTERVAL"
+    # A string test, not `-gt 0`: the suite drives the shallow lever at a
+    # fractional interval so a real child process has time to reach its first
+    # line, and `[ 0.2 -gt 0 ]` is an error rather than a comparison.
+    [ "$INTERVAL" != 0 ] && sleep "$INTERVAL"
 done
 
 exit 0

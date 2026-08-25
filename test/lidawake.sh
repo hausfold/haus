@@ -44,7 +44,31 @@ EOF
     chmod +x "$TMP/bin/pmset"
 }
 
+# The `sleep` depth's lever: a stub that records its start, stays alive so the
+# daemon's `kill -0` liveness check passes, and records its own death. Both
+# halves matter — a caffeinate that exits immediately must NOT count as a hold.
+good_caffeinate() {
+    cat >"$TMP/bin/caffeinate" <<'EOF'
+#!/usr/bin/env bash
+# Detach the inherited stdio FIRST. This stub outlives the daemon whenever a
+# scenario is testing a path that fails to release it, and a live child holding
+# the suite's own stdout pipe open means whatever is reading that pipe never
+# sees EOF — a broken assertion turns into a hang, which is the worst way for a
+# test to fail. The real caffeinate has the same shape and does not care,
+# because a daemon's stdout is a log file.
+exec >/dev/null 2>&1
+printf '1\n' >>"$LIDAWAKE_TEST_LOG"
+trap 'printf "0\n" >>"$LIDAWAKE_TEST_LOG"; exit 0' TERM
+# `& wait` rather than a bare sleep: bash runs a trap only between commands, so
+# a foreground `sleep 3600` would swallow the TERM for an hour.
+sleep 3600 &
+wait
+EOF
+    chmod +x "$TMP/bin/caffeinate"
+}
+
 export LIDAWAKE_PMSET_BIN="$TMP/bin/pmset"
+export LIDAWAKE_CAFFEINATE_BIN="$TMP/bin/caffeinate"
 export LIDAWAKE_TEST_LOG="$TMP/log"
 export LIDAWAKE_TEST_POWER="$TMP/power"
 export LIDAWAKE_HOLD_DIR="$TMP/holds"
@@ -68,6 +92,21 @@ writes() {
     tr '\n' ' ' <"$LIDAWAKE_TEST_LOG" | sed 's/ $//'
 }
 
+# The caffeinate stub records its release from its own TERM handler, which runs
+# in a process the suite does not wait on — so unlike every pmset assertion,
+# this one is not true the instant the daemon returns. Poll for it rather than
+# sleeping a flat guess; it lands in milliseconds and the ceiling only exists so
+# a genuine failure fails instead of hanging.
+await_writes() {
+    local i=0
+    while [ "$i" -lt 100 ]; do
+        [ "$(writes)" = "$1" ] && return 0
+        sleep 0.05
+        i=$((i + 1))
+    done
+    return 0
+}
+
 assert_writes() {
     local got
     got=$(writes)
@@ -80,6 +119,7 @@ assert_writes() {
 # the hold state the failsafes are made of.
 scenario() {
     good_pmset
+    good_caffeinate
     : >"$LIDAWAKE_TEST_LOG"
     /bin/rm -rf "$TMP/holds" "$LIDAWAKE_MARKER" "$LIDAWAKE_CAPSTAMP"
     mkdir -p "$TMP/holds"
@@ -316,3 +356,82 @@ LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 LIDAWAKE_TICKS=4 
 assert_writes "1" "a live hold beside a stale one still counts"
 
 printf 'ok - lidawake hold lifecycle, linger, requirePower, the maxHold latch, and staleness\n'
+
+# ── 11. depth = sleep holds a caffeinate child instead of the lid ────────────
+# The AI room's shallower lever (haus.ai.keepAwake = "idle"): it must take and
+# release on exactly the same signal, touch pmset not at all, and leave NO
+# marker — the marker exists so activation can undo a `disablesleep` the daemon
+# is no longer around to put back, and a caffeinate child has already died with
+# its parent by then. A marker here would make `enable = false` clear a key
+# nobody set.
+scenario
+hook '
+case "$1" in
+  1) : >'"$TMP"'/holds/lane-a ;;
+  3) rm -f '"$TMP"'/holds/lane-a ;;
+esac'
+LIDAWAKE_DEPTH=sleep LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 \
+    LIDAWAKE_INTERVAL=0.2 LIDAWAKE_TICKS=5 bash "$LIDAWAKE" >/dev/null
+await_writes "1 0"
+assert_writes "1 0" "depth=sleep holds and releases a caffeinate child"
+[ ! -e "$LIDAWAKE_MARKER" ] || fail "depth=sleep wrote a lid marker"
+
+# ── 11b. the shallow lever must not touch the deep lever's marker ────────────
+# Both depths can be running at once on a real machine — core's root daemon on
+# the lid, the AI room's user agent on idle sleep — and the marker means "WE set
+# disablesleep and activation may have to put it back". Only the root half can
+# have set it. So failsafe 1 is gated on depth: a `sleep` run that found one and
+# "released" it would clear root's receipt while the key stayed set, which is
+# the one state that leaves a Mac not sleeping with nothing left to say why.
+#
+# Asserted on the log line rather than on the writes, because at this depth
+# `apply 0` writes nothing either way — which is exactly how this could have
+# been wrong and still looked right.
+scenario
+: >"$LIDAWAKE_MARKER"
+hook 'true'
+out=$(LIDAWAKE_DEPTH=sleep LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 \
+    LIDAWAKE_TICKS=1 bash "$LIDAWAKE" 2>&1)
+case "$out" in
+    *"previous run left a hold"*)
+        fail "depth=sleep claimed the lid daemon's marker as its own" ;;
+esac
+[ -e "$LIDAWAKE_MARKER" ] || fail "depth=sleep deleted the lid daemon's marker"
+
+# ── 12. requirePower is a LID guard and must not reach the shallow lever ─────
+# On battery at `lid` depth the hold is refused outright (scenario 4). At
+# `sleep` depth the same refusal would mean an unplugged laptop, lid open, on
+# the desk in front of you, sleeping mid-turn — the one case that is plainly
+# safe. So requirePower stays ON here and the hold still happens.
+scenario
+printf 'battery\n' >"$LIDAWAKE_TEST_POWER"
+hook '
+case "$1" in
+  1) : >'"$TMP"'/holds/lane-a ;;
+  3) rm -f '"$TMP"'/holds/lane-a ;;
+esac'
+LIDAWAKE_DEPTH=sleep LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=1 \
+    LIDAWAKE_INTERVAL=0.2 LIDAWAKE_TICKS=5 bash "$LIDAWAKE" >/dev/null
+await_writes "1 0"
+assert_writes "1 0" "depth=sleep holds on battery, where depth=lid would refuse"
+
+# ── 13. a caffeinate that dies is noticed, every tick, not just at birth ─────
+# The `sleep` twin of scenario 7, and the reason the liveness check is per-tick
+# rather than once at launch: `kill -0 $!` straight after `&` sees the fork, not
+# the failed exec, so a caffeinate that cannot run would otherwise be believed
+# forever. Here the stub exits immediately and each tick re-takes it.
+scenario
+cat >"$TMP/bin/caffeinate" <<'EOF'
+#!/usr/bin/env bash
+printf '1\n' >>"$LIDAWAKE_TEST_LOG"
+exit 1
+EOF
+chmod +x "$TMP/bin/caffeinate"
+hook '
+case "$1" in
+  0) : >'"$TMP"'/holds/lane-a ;;
+esac'
+LIDAWAKE_DEPTH=sleep LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 \
+    LIDAWAKE_INTERVAL=0.2 LIDAWAKE_TICKS=3 bash "$LIDAWAKE" >/dev/null
+await_writes "1 1 1"
+assert_writes "1 1 1" "a caffeinate that exits at once is re-taken, not believed"
