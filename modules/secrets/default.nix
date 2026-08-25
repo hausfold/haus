@@ -188,8 +188,8 @@ in
     why = ''
       Some rooms need a value haus cannot know or invent: a webhook's shared
       secret, a token for an account that is yours. Each room declared what it
-      needs and why; the values themselves are entered once, into
-      ${if cfg.provider == null then "your secretspec provider" else "your ${cfg.provider} store"},
+      needs and why; the values themselves are entered once, into the store
+      `haus.secrets.provider` names${lib.optionalString (cfg.provider != null) " (${cfg.provider})"},
       and never land in a file this machine builds.
     '';
     cost =
