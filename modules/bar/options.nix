@@ -410,12 +410,12 @@ in
       };
     };
 
-    # The Focus room's pill: the bell that reports and toggles quiet.
+    # The Focus room's pill: the moon that reports and toggles quiet.
     #
     # Unlike `agents`, which the AI room switches on when a machine has
     # something to report, this one is simply "does the Focus room exist". The
     # pill's click_script is `~/.local/bin/focus`, a file only that room
-    # installs, so the bar drawing it without the room would draw a bell that
+    # installs, so the bar drawing it without the room would draw a moon that
     # does nothing, forever — the dormant-pill failure the whole `contributed`
     # gate exists to prevent.
     _contrib.bar.focus = contrib.mkExtensionPoint {

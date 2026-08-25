@@ -247,7 +247,7 @@ mute() {
     # its counts and the bracket behind them on the bar with the robot missing.
     # Each is gated on its own drawing state below, so the ones already hidden
     # (a state with nothing in it) are skipped and stay hidden on unmute.
-    for it in weather media battery wifi focus \
+    for it in weather media battery wifi focus trill \
               agents agents.ready agents.working agents.done agents.pill \
               elgato harvest github; do
         bar="$(bar_of "$it")"

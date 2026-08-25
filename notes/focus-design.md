@@ -35,7 +35,7 @@ concern with several surfaces, all driven by a single engine:
 
 ```
 focus (CLI engine, ~/.local/bin)      the state machine: on / off / toggle / status / doctor
-├── bar pill                        bell icon, accent-filled when quiet, click = toggle
+├── bar pill                        moon icon, accent-filled when quiet, click = toggle
 ├── pounce command                   "Toggle Focus" in the palette
 └── hooks                            slack (built in) + host-provided scripts, run with "on"/"off"
 ```
@@ -175,7 +175,7 @@ haus.focus = {
   missing (under `mechanism = "shortcut"`, it checks `shortcuts list`
   instead).
 - **bar**: `modules/bar/sketchybar/plugins/focus.sh` following the elgato
-  pattern (icon 󰂚 / 󰂛, `background.color=$ACCENT` when quiet,
+  pattern (icon 󰽥 / 󰖔, `background.color=$ACCENT` when quiet,
   `label.drawing=off`), subscribed to `mouse.clicked` + custom event
   `focus_change`, `update_freq=30`. Emitted into the bar only when
   `focus.enable` — but unlike elgato/harvest it is *not* behind
