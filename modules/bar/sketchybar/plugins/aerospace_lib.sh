@@ -76,13 +76,22 @@ fullscreen_active_ws_color() {
 # One window has no layout to be in, and a pill that said "Columns" over a
 # single maximised window would be furniture rather than information.
 #
-# It is a record of the last PRESS ON THIS WORKSPACE, not a live read of the
-# tree: AeroSpace can report a window's parent-container layout but not "is this
-# workspace a grid", and reconstructing that would cost a tree walk on a 2 s
-# tick to answer a question the state file already answers exactly. Open a
-# window after dealing a grid and the shape drifts from the label until the next
-# press — which is the same press that fixes the shape, so the label is never
-# wrong for long.
+# Two of the three modes are a record of the last PRESS ON THIS WORKSPACE
+# rather than a live read of the tree: AeroSpace reports a workspace's ROOT
+# layout, and both `columns` and `grid` are h_tiles there — the grid is nesting
+# underneath — so telling them apart would cost a tree walk on a 2 s tick to
+# answer a question the state file already answers exactly. Open a window after
+# dealing a grid and the shape drifts from the label until the next press —
+# which is the same press that fixes the shape, so the label is never wrong for
+# long.
+#
+# ACCORDION is the exception and is read live, because AeroSpace holds it
+# itself: h_accordion/v_accordion at the root is a fact about the workspace, it
+# survives every window opened after the press with no drift to correct, and
+# ⌥, (the "Accordion layout" chord, modules/windows/wm-bindings.nix) can put a
+# workspace into it without the dial ever hearing. Reading it costs nothing —
+# the format string of the `list-windows` call this already makes gains one
+# field, and the same call still answers the window count.
 #
 # The `$1 == ws` is the whole reason that last sentence is true. The state file
 # is keyed by workspace (windows/scripts/tiling-mode.sh), and was one
@@ -95,10 +104,13 @@ fullscreen_active_ws_color() {
 # one, so counting them would light the pill on a workspace holding one terminal
 # and a peek window.
 #
-# nf-fa-th_large (U+F009) and nf-fa-columns (U+F0DB) as raw UTF-8 — /bin/bash is
-# 3.2, whose printf has no \u/\U. Same trick as the fullscreen glyph above.
+# nf-fa-th_large (U+F009), nf-fa-columns (U+F0DB) and nf-fa-clone (U+F24D) as
+# raw UTF-8 — /bin/bash is 3.2, whose printf has no \u/\U. Same trick as the
+# fullscreen glyph above. Clone's two offset panes are the accordion: one on
+# top, the other showing past its edge.
 AEROSPACE_GRID_GLYPH=$(printf '\xEF\x80\x89')
 AEROSPACE_COLUMNS_GLYPH=$(printf '\xEF\x83\x9B')
+AEROSPACE_ACCORDION_GLYPH=$(printf '\xEF\x89\x8D')
 
 # The `--set tiling …` property arguments, for the caller's own batch. Takes the
 # focused workspace as its one argument — the caller has already asked for it,
@@ -107,14 +119,33 @@ AEROSPACE_COLUMNS_GLYPH=$(printf '\xEF\x83\x9B')
 # by construction, so the caller splits them without quoting — the same contract
 # fullscreen_front_app_args has.
 aerospace_tiling_args() {
-    local ws="$1" tiled mode
+    local ws="$1" out root tiled mode
     [ -z "$ws" ] && { echo "drawing=off"; return; }
-    tiled=$(/opt/homebrew/bin/aerospace list-windows --workspace "$ws" \
-        --format '%{window-layout}' 2>/dev/null | grep -cv floating)
+    # `<window-layout>|<workspace-root-container-layout>`, one line per window.
+    # Spaces stripped the way tiling-mode.sh strips them, so the fields split
+    # cleanly; the root layout is the same on every line, so the first will do.
+    out=$(/opt/homebrew/bin/aerospace list-windows --workspace "$ws" \
+        --format '%{window-layout}|%{workspace-root-container-layout}' \
+        2>/dev/null | tr -d ' ')
+    # Tested before anything reads it. The count below would already draw
+    # nothing (`grep -c` over an empty stream answers 0), so this is not what
+    # stops an unreachable AeroSpace lighting the pill — it is what keeps the
+    # root-layout split below from matching against an empty string, which is
+    # the line that would otherwise start guessing once the count path moves.
+    [ -z "$out" ] && { echo "drawing=off"; return; }
+    tiled=$(printf '%s\n' "$out" | grep -cv '^floating|')
     if [ "${tiled:-0}" -lt 2 ]; then
         echo "drawing=off"
         return
     fi
+    root=${out%%$'\n'*}
+    root=${root#*|}
+    case "$root" in
+        *accordion)
+            echo "drawing=on icon=$AEROSPACE_ACCORDION_GLYPH label=Accordion"
+            return
+            ;;
+    esac
     mode=$(awk -F'\t' -v ws="$ws" '$1 == ws { m = $2 } END { print m }' \
         "$HOME/.local/state/haus/aerospace-tiling-mode" 2>/dev/null)
     if [ "$mode" = grid ]; then

@@ -231,8 +231,10 @@ in
         completely, which makes an accordion workspace look like a fullscreen
         one.
 
-        Only read while a workspace is in the accordion layout, whether it got
-        there from haus.windows.defaultLayout or from the layout chord.
+        Only read while a workspace is in the accordion layout — whether it
+        got there from haus.windows.defaultLayout, from the layout chord, or
+        from the leader-key tiling dial, which carries accordion as one of its
+        three stops.
 
         Only meaningful with haus.windows.enable.
       '';
