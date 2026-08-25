@@ -226,6 +226,27 @@
     "readOnly": false,
     "type": "strings concatenated with \"\\n\""
   },
+  "haus.ai.namer": {
+    "declarations": [
+      "modules/ai/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "The holt namer adapter that turns a lane's first-turn brief into the\nlane's name — `mobile-nav-jitter` instead of `cozy-otter`. Empty, the\ndefault, means no namer: an unnamed lane keeps taking a random word\npair, which is what every install had before the key existed.\n\n`claude` is holt's one built-in, and it costs 8-12s per lane — almost\nall of it the client's own start-up rather than the model. Any other id\nis a file you write: `~/.config/holt/adapters/namer/<id>.toml`, naming\na program that takes the brief on argv and prints one name. That file\nis the HOST's, not the layer's, because it is where the model, the key\nand its location get decided; haus deliberately carries only the id, so\na machine that hasn't written the adapter degrades to random names\nrather than failing to build.\n\nIt cannot cost you a lane. Every failure — no adapter file, a missing\nprogram, a timeout at holt's 30s ceiling, prose instead of a name — is\na warning and a fall back to the random pair.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"api\""
+    },
+    "loc": [
+      "haus",
+      "ai",
+      "namer"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
   "haus.ai.repoRoots": {
     "declarations": [
       "modules/ai/options.nix"

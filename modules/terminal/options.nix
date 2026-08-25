@@ -78,6 +78,18 @@ in
           default = "claude";
           description = "The client the chords spawn — `haus.ai.default`.";
         };
+        namer = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          description = ''
+            The holt namer adapter id — `haus.ai.namer`. Rides this point
+            rather than being read off `haus.ai.*` for the same reason
+            `default` does: the AI room decides whether a lane gets named,
+            this room decides how holt's config spells it. Empty writes no
+            key at all, which is holt's own "no namer" default.
+          '';
+        };
+
         # No `clients` field on purpose. The list matters to what gets INSTALLED,
         # which is the AI room's own payload, not a contribution — a field here
         # that nothing reads would invite a future reader to trust it.

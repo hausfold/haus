@@ -55,6 +55,7 @@ let
   # on PATH, and the dotfiles this room themes. See modules/ai.
   agentContrib = config.haus._contrib.development.agents;
   agentDefault = agentContrib.default;
+  agentNamer = agentContrib.namer;
 
   # One client id → one package, from the one table (modules/lib/agent-packages.nix):
   # the AI room asserts each named client is buildable here, and this is where a
@@ -1376,9 +1377,18 @@ in
         # this generated file instead of inheriting a stale client selection.
         # A standalone Holt install can own the same file by hand.
         ".config/holt/config.toml".text = ''
-          # Generated from haus.ai.default — edit that option, not here.
+          # Generated from haus.ai.default + haus.ai.namer — edit those options, not here.
           agent = "${agentDefault}"
+          ${lib.optionalString (agentNamer != "") ''
 
+            # What names a lane that arrives with a task but no name
+            # (haus.ai.namer). holt runs ONE argv from
+            # ~/.config/holt/adapters/namer/${agentNamer}.toml and reads a word
+            # off stdout, so the adapter file is this MACHINE's rather than
+            # haus's — and without it holt falls back to a random word pair
+            # instead of failing the lane.
+            namer = "${agentNamer}"
+          ''}
           # `open` and `resume` are the two seams holt answers by exec'ing a
           # client; both are answered here by the same script, because with zmx
           # they are the same act — `zmx attach` creates the session or joins
