@@ -1436,6 +1436,131 @@ cmd_revert_settings() {
   return "$rc"
 }
 
+# ---- one card for the whole rebuild -----------------------------------------
+# On a Mac running trill, `haus rebuild` draws a single banner that fills up as
+# the build goes — the answer to "is it done yet" once you have looked away.
+# All of it soft: no trill, no card, no error, no delay, and HAUS_NO_BANNER=1
+# turns it off.
+#
+# It reads the STORE, never nix's output. The build phase keeps the terminal on
+# purpose (see below), and taking its stderr to parse `--log-format
+# internal-json` would quietly cost you nix's own progress bar — the one thing
+# that phase exists to show. So `--dry-run` lists the paths this rebuild needs
+# and a poller counts how many have appeared: same numbers, nothing of nix's
+# borrowed.
+#
+# That dry run happens BEFORE the build and in this shell, never beside it.
+# Measured 2026-08-25 in bench, which carries the same block: a `nix build
+# --dry-run` racing the real `nix build` over the same dirty flake made the
+# build exit non-zero with nothing printed, one run in three. Serial costs one
+# extra evaluation, which the real one then finds in nix's eval cache. Here it
+# costs nothing at all — the derivation is already resolved, so the dry run is
+# a store query (0.05 s measured), not an evaluation.
+#
+# The card is keyed, so every tick REPLACES it rather than stacking a second
+# banner, and the poll doubles as the heartbeat that keeps it on screen —
+# trill's dismiss clock is short by design, and a card nobody re-sends leaves.
+# A rebuild that dies takes its poller with it (trap) and its card with that.
+#
+# trill is deliberately not a flake input of this layer and must not become
+# one — this finds whatever the user already installed, or draws nothing.
+CARD_KEY=""
+CARD_TITLE=""
+CARD_PID=""
+# How many store paths this build needs, and which — measured once, up front.
+# Zero means there was never anything to watch.
+CARD_TOTAL=0
+CARD_PATHS=()
+
+# Same search holt's `notify` does (internal/commands/notify.go, `trillBinary`),
+# in the same order and for the same reason: Trill.app is routinely installed
+# while `trill` is on nobody's PATH, because the app binary IS the CLI. Keep the
+# two in step. `HAUS_TRILL` is authoritative when set — including set to something
+# that isn't there, which is how a machine says "no banners".
+trill_bin() {
+  local candidate
+  if [ -n "${HAUS_TRILL:-}" ]; then
+    [ -x "$HAUS_TRILL" ] && { printf '%s' "$HAUS_TRILL"; return 0; }
+    return 1
+  fi
+  for candidate in \
+      "$(command -v trill 2>/dev/null || true)" \
+      "$HOME/Applications/Trill.app/Contents/MacOS/Trill" \
+      "/Applications/Trill.app/Contents/MacOS/Trill"; do
+    [ -n "$candidate" ] && [ -x "$candidate" ] && { printf '%s' "$candidate"; return 0; }
+  done
+  return 1
+}
+
+# Was there ever anything to watch? A build with nothing to do is over before
+# you could look away, and a lone "done" banner for it is noise — so no bar, no
+# card. A failure is the exception: that one you want either way.
+card_drawn() { [ "$CARD_TOTAL" -gt 0 ]; }
+
+# card <percent|-> <kind|-> <body>. Never fails, never blocks: a banner is a
+# courtesy, and a build that stopped because one didn't draw would be absurd.
+card() {
+  [ -n "${HAUS_NO_BANNER:-}" ] && return 0
+  [ -n "$CARD_KEY" ] || return 0
+  [ "$2" = fault ] || card_drawn || return 0
+  local bin args=()
+  bin="$(trill_bin)" || return 0
+  args=(send --key "$CARD_KEY" --source haus --title "$CARD_TITLE" --body "$3")
+  [ "$1" = - ] || args+=(--progress "$1%")
+  [ "$2" = - ] || args+=(--kind "$2")
+  "$bin" "${args[@]}" >/dev/null 2>&1 || true
+  return 0
+}
+
+# The paths this build still needs: derivations it will build (whose outputs we
+# ask the store for) plus paths it will fetch (already store paths).
+card_targets() {
+  local line drvs=()
+  while IFS= read -r line; do
+    case "$line" in
+      "  /nix/store/"*.drv) drvs+=("${line#"  "}") ;;
+      "  /nix/store/"*)     printf '%s\n' "${line#"  "}" ;;
+    esac
+  done < <(cd "$CONSUMER" && nix build --dry-run "$@" 2>&1)
+  [ "${#drvs[@]}" -gt 0 ] && nix-store -q --outputs "${drvs[@]}" 2>/dev/null
+  return 0
+}
+
+# The background half, and the only part that runs beside the build: counting
+# files. No nix, no evaluation, nothing that can contend with the real one.
+card_ticker() {
+  local path done_n pct
+  while :; do
+    done_n=0
+    for path in "${CARD_PATHS[@]}"; do [ -e "$path" ] && done_n=$((done_n + 1)); done
+    # Capped at 99 while the build runs: the ending owns 100, and a card
+    # reading done while nix is still going is the one number nobody forgives.
+    pct=$(( done_n * 100 / CARD_TOTAL )); [ "$pct" -gt 99 ] && pct=99
+    # Re-sent even when the count hasn't moved — that is the heartbeat.
+    card "$pct" "pulse" "$done_n/$CARD_TOTAL paths"
+    sleep 2
+  done
+}
+
+card_watch() { # card_watch <installable> [nix args…] — measure now, poll after
+  [ -n "${HAUS_NO_BANNER:-}" ] && return 0
+  [ -n "$CARD_KEY" ] || return 0
+  trill_bin >/dev/null || return 0
+  local path
+  CARD_PATHS=()
+  while IFS= read -r path; do [ -n "$path" ] && CARD_PATHS+=("$path"); done < <(card_targets "$@")
+  CARD_TOTAL="${#CARD_PATHS[@]}"
+  [ "$CARD_TOTAL" -gt 0 ] || return 0
+  card_ticker & CARD_PID="$!"
+  return 0
+}
+
+card_stop() {
+  [ -n "$CARD_PID" ] && kill "$CARD_PID" 2>/dev/null
+  CARD_PID=""
+  return 0
+}
+
 cmd_rebuild() {
   local host drv sys old gen_before drvfile outfile difffile bt0
   host="$(host_name)"
@@ -1464,8 +1589,13 @@ cmd_rebuild() {
   # be able to say so. We only hide what we write down — this is the one phase
   # that narrates itself, so it keeps the terminal.
   bt0="$(now_ds)"
+  # The poller starts beside the build and is killed after it, whichever way
+  # the build ends; the trap covers the ways this function doesn't return.
+  trap card_stop EXIT
+  card_watch "$drv"
   ( cd "$CONSUMER" && nix build --print-out-paths --out-link "$CONSUMER/result" "$drv^*" ) >"$outfile" \
-    || die "build failed — nothing was changed."
+    || { card_stop; card - "fault" "build failed"; die "build failed — nothing was changed."; }
+  card_stop
   sys="$(cat "$outfile")"; rm -f "$outfile"
   phase_ok build "$(secs $(( $(now_ds) - bt0 )) )"
 
@@ -1474,6 +1604,10 @@ cmd_rebuild() {
   # current until the activation below swaps it.
   [ -n "$old" ] && bg closure_diff "$old" "$sys" "$difffile"
   bg_wait || warn "a background job failed — see $HAUS_LOG (continuing)"
+
+  # The bar's last stop before the ending. Activation is short and unmeasured
+  # — nothing here counts paths — so it gets one number rather than a crawl.
+  card 95 "pulse" "activating"
 
   # Activate exactly what we just built. The old route here was
   # `darwin-rebuild switch --flake`, which BUILDS again as root — a second
@@ -1497,8 +1631,15 @@ cmd_rebuild() {
     # The running system predates haus-activate — take the old, slower route
     # once; the switch it performs is what installs the fast one.
     run_phase activate heal legacy_switch "$host"
-  fi || die "activation failed partway — generation $gen_before is still on disk (haus rollback), and the log above says where it stopped."
+  fi || { card - "fault" "activation failed — $gen_before is still on disk"; die "activation failed partway — generation $gen_before is still on disk (haus rollback), and the log above says where it stopped."; }
   phase_ok activate "$HAUS_PHASE_ELAPSED" "$(activation_summary)"
+
+  # The ending replaces the bar on the same card, because it carries the same
+  # key — a second banner saying "and now it's done" is one banner too many.
+  local gen_now
+  gen_now="$(current_gen || echo '?')"
+  card 100 "done" "$([ "$gen_before" = "$gen_now" ] && echo "generation $gen_now" \
+    || echo "generation $gen_before → $gen_now")"
 
   # Generation + closure diff: the two lines that are actually about YOUR
   # machine rather than about the tools that rebuilt it.

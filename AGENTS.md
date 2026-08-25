@@ -305,6 +305,14 @@ mechanism, say so in one line.
 
 ## Gotchas
 
+- **`haus rebuild` draws a trill card** (a bar that fills as the build goes),
+  and `bench` carries the same block for `bench try`/`bench rebuild` — change
+  one, change the other. It counts paths appearing in the store rather than
+  reading nix's output, deliberately: the build phase keeps the terminal so
+  nix's own bar survives, and a `--dry-run` racing the real build made that
+  build exit non-zero with nothing printed (measured), which is why the dry run
+  is serial and in-shell. trill is not a flake input here and must not become
+  one — the CLI is found the way holt finds it, or no card is drawn.
 - **launchd GUI race**: GUI agents (AeroSpace, SketchyBar, pounce) launched at
   cold boot before the Aqua session is ready park with exit 78 (EX_CONFIG) and
   wedge. `modules/lib/gui-wait.nix` polls for Dock/Finder/SystemUIServer and
