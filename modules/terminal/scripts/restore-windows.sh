@@ -197,9 +197,9 @@ while IFS= read -r sess; do
       # it already solves and this script must not solve twice: Ghostty may not
       # be RUNNING (`quit-after-last-window-closed` is on, so "I quit Ghostty"
       # is the likeliest state anyone reaches for a restore in, and asking a
-      # dead Ghostty for a window over Apple Events simply fails), a denied
-      # Automation grant needs saying out loud rather than swallowing, and a
-      # runtime-spawned Ghostty window floats until something tiles it.
+      # dead Ghostty for a window over Apple Events simply fails), a caller with
+      # no Automation grant needs the `open -na` fallback rather than an error,
+      # and a runtime-spawned Ghostty window floats until something tiles it.
       #
       # launch.sh reads HAUS_ZMX_ATTACH and skips claiming a new name. No --cwd:
       # the directory is the session's own and zmx restores it on attach, so
