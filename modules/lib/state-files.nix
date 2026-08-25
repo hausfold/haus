@@ -83,6 +83,31 @@
     };
   };
 
+  lidawake-holding = {
+    dir = ".local/state/haus";
+    name = "lidawake/holding";
+    # The pill's half of the pair below: the AI room's keep-awake agent
+    # (haus.ai.keepAwake) creates this while it is holding a caffeinate
+    # assertion and removes it on release, and bar's caffeinate pill stats it to
+    # draw its "agents are holding this Mac awake" state.
+    #
+    # A FILE rather than a command, for the reason the pill's other read is a
+    # command: `awake status` can answer because core's CLI owns that state, and
+    # nothing owns this one but a poll loop with no CLI. The bar side is the
+    # only literal — the AI room takes the path from here and hands it to
+    # launchd as `LIDAWAKE_HELD_FILE` — and a rename there costs the pill its
+    # third state with no symptom at all, since a missing file is indistinguishable from
+    # "no hold right now".
+    #
+    # The LID half of the same feature deliberately has no entry: its receipt is
+    # /var/db/haus-lidawake.held, which is root's and lives outside this
+    # directory entirely.
+    literals = {
+      "modules/bar/sketchybar/plugins/caffeinate.sh" =
+        "HELD=\"$HOME/.local/state/haus/lidawake/holding\"";
+    };
+  };
+
   lidawake-holds = {
     dir = ".local/state/haus";
     name = "lidawake/holds";

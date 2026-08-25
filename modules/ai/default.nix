@@ -484,6 +484,71 @@ let
     }
   );
 
+  # ---- keeping the Mac awake while agents work (haus.ai.keepAwake) ----------
+  # The lever this room owns is the SHALLOW one: a `caffeinate` assertion, which
+  # needs no privilege and so runs as a per-user launchd agent here rather than
+  # as a root daemon in core. The deep lever (`pmset disablesleep`, the only
+  # thing that crosses a lid close) stays entirely core's; all this room does
+  # about it is ASK, by writing `haus.power.lidAwake.enable` at mkDefault below.
+  #
+  # The loop itself is core's `lidawake.sh`, read rather than copied, for the
+  # same reason `agent-state` reads bar's `agents-hook.sh`: two copies of three
+  # time-dependent failsafes would drift, and the drift would be invisible. What
+  # differs between the two installs is four environment variables, not a line
+  # of code.
+  keepAwakeOn = cfg.enable && cfg.keepAwake != "off";
+
+  # Every path this agent owns lives under the user's own state dir. The marker
+  # in particular must NOT be core's: at `sleep` depth nothing ever writes it,
+  # and pointing the two installs at one path would let a user agent mistake the
+  # root daemon's receipt for its own (test/lidawake.sh scenario 11b). $STAMP and
+  # $CAPSTAMP derive from it, which is the only reason it is named at all.
+  keepAwakeMarker = "/Users/${username}/.local/state/haus/lidawake/agent";
+
+  lidHolds =
+    let
+      f = (import ../lib/state-files.nix).lidawake-holds;
+    in
+    "/Users/${username}/${f.dir}/${f.name}";
+
+  # What bar's caffeinate pill stats to know an agent hold is up. Registered in
+  # state-files.nix because it crosses a room boundary; see the note there for
+  # why the lid half has no equivalent.
+  lidHolding =
+    let
+      f = (import ../lib/state-files.nix).lidawake-holding;
+    in
+    "/Users/${username}/${f.dir}/${f.name}";
+
+  agentAwake = pkgs.writeShellScriptBin "haus-agent-awake" (builtins.readFile ../core/lidawake.sh);
+
+  # Repaint the coffee pill the moment a hold changes, rather than leaving it to
+  # that pill's own 30s tick -- a cup that appears half a minute after the turn
+  # started reads as a broken pill rather than a slow one.
+  #
+  # BOTH bars, for the reason `awake`'s own poke_bar gives: haus.bar.bottom.items
+  # can move that pill to the second SketchyBar instance, which is a different
+  # binary with its own mach service, and a trigger for an event a bar never
+  # registered is a harmless no-op. The `[ -x ]` guards are what let the AI room
+  # write this without knowing whether the bar room is on at all -- on a machine
+  # with no bar the script runs, finds nothing, and exits 0.
+  #
+  # `binPath or null` for the reason focus's copy spells out: `or` catches a
+  # missing ATTRIBUTE, not a null VALUE, and both happen -- no roster entry, and
+  # an entry that installs nothing.
+  agentAwakePoke =
+    let
+      p = config.haus.roster.sketchybar.binPath or null;
+    in
+    pkgs.writeShellScript "haus-agent-awake-poke" ''
+      for bar in ${
+        lib.escapeShellArg (if p == null then "" else p)
+      } /run/current-system/sw/bin/bar-bottom; do
+        [ -n "$bar" ] && [ -x "$bar" ] && "$bar" --trigger caffeinate_change >/dev/null 2>&1
+      done
+      exit 0
+    '';
+
   onOff = b: if b then "on" else "off";
 
   # `toString 1.0` is "1.000000", which reads like a precision the option
@@ -684,23 +749,119 @@ in
     }
   ];
 
+  # ---- the profile: what this room ASKS of the power room --------------------
+  # modules/appearance/default.nix is the pattern and its header is the full
+  # argument; the ladder is the same one:
+  #
+  #   100   the host       haus.power.lidAwake.enable = false;  ← wins
+  #   900   the desktop
+  #   1000  here           haus.power.lidAwake.enable = true;
+  #   1500  the option's own default (false)
+  #
+  # mkDefault and not mkForce, deliberately. "The host wins" is the invariant the
+  # whole desktop seam is built on, and an AI-room switch that silently overrode
+  # a host's own `lidAwake.enable = false` would break it in the one direction
+  # nobody could debug: a Mac that stopped sleeping on a lid close, with the
+  # option that supposedly controls that set to false in the file you are
+  # reading. So the host keeps the last word and gets TOLD, in the warning
+  # below, that it used it. What it does not lose is the shallow lever -- the
+  # `idle` half runs regardless, so contradicting this option degrades the
+  # feature instead of switching it off.
+  haus.power.lidAwake.enable = lib.mkIf (cfg.enable && cfg.keepAwake == "lid") (lib.mkDefault true);
+
   # A pill with no room behind it is not a smaller feature, it is a dead one —
   # and the failure is silent, which is the whole reason this room warns by name
   # rather than quietly dropping the item. Not an assertion: the bar is still
   # correct without it, and a rebuild that refuses over a pill would be worse
   # than the pill being absent.
-  warnings = lib.optional (pillAsks != [ ] && !reportable) (
-    "${lib.concatStringsSep " and " pillAsks} asks for the agents pill, but the AI room is off "
-    + "(haus.ai.enable). Nothing "
-    + "writes agent-pane state on this machine, so the pill would stay dormant forever and the "
-    + "bar leaves it out."
-  );
+  warnings =
+    lib.optional (pillAsks != [ ] && !reportable) (
+      "${lib.concatStringsSep " and " pillAsks} asks for the agents pill, but the AI room is off "
+      + "(haus.ai.enable). Nothing "
+      + "writes agent-pane state on this machine, so the pill would stay dormant forever and the "
+      + "bar leaves it out."
+    )
+    # The host used its last word, which it is entitled to -- but the two
+    # options now say opposite things and only one of them is doing anything, so
+    # say which. Not an assertion: what you get is the shallower half of what you
+    # asked for, which is a working machine rather than a broken one.
+    ++ lib.optional (cfg.enable && cfg.keepAwake == "lid" && !config.haus.power.lidAwake.enable) (
+      "haus.ai.keepAwake = \"lid\" asks for the lid to be held, but this machine sets "
+      + "haus.power.lidAwake.enable = false and a host outranks the AI room's request. "
+      + "Agents still hold an idle-sleep assertion, so a run survives an untouched keyboard "
+      + "-- it does not survive closing the lid. Drop the lidAwake.enable line to get both, "
+      + "or set haus.ai.keepAwake = \"idle\" to say the shallower thing on purpose."
+    )
+    # The hold signal comes from the agent hooks this room installs. With the
+    # room off there is no hook, so the agent would poll an empty directory
+    # forever -- a launchd job doing nothing, which is worse than absent because
+    # it looks like the feature is on.
+    ++ lib.optional (!cfg.enable && cfg.keepAwake != "off") (
+      "haus.ai.keepAwake = \"${cfg.keepAwake}\" needs haus.ai.enable. The signal it waits on is "
+      + "written by the agent hooks this room installs, so with the room off nothing would ever "
+      + "report a turn and nothing is installed."
+    );
 
   # ---- the payload: the system profile ---------------------------------------
   # `with pkgs` because that is the shape modules/core wrote these in and the
   # comments below name bare `holt`. Nothing here is conditional on another
   # room — a machine with no terminal and no bar still gets a working `holt`
   # and a working `agent-state`.
+  # ---- the payload: the idle-sleep half, as a per-user agent -----------------
+  # Runs at BOTH stops, `idle` and `lid`, and that is on purpose rather than an
+  # oversight: `lid` is defined as "the idle half plus the lid", so the shallow
+  # assertion is never conditional on how the deep one went. It costs one poll
+  # loop and it means the tier that is guaranteed to work is always the one
+  # holding -- including on battery, where core's daemon releases by default
+  # (haus.power.lidAwake.requirePower), and in the window after a host has
+  # overruled the profile above.
+  #
+  # An AGENT, not a daemon, because `caffeinate` needs no privilege — the
+  # mirror image of the argument in core's header for why the lid half must be
+  # a daemon. KeepAlive for the reason core gives too: this is a poll loop, and
+  # a StartInterval respawning it every five seconds would be worse on every
+  # axis. It is deliberately NOT wrapped in gui-wait: it talks to no GUI
+  # process, so the cold-boot race those wrappers exist for cannot reach it.
+  launchd.user.agents.haus-agent-awake = lib.mkIf keepAwakeOn {
+    serviceConfig = {
+      Label = "com.hausfold.agent-awake";
+      ProgramArguments = [ "${agentAwake}/bin/haus-agent-awake" ];
+      KeepAlive = true;
+      RunAtLoad = true;
+      ProcessType = "Background";
+      StandardOutPath = "/tmp/haus-agent-awake.out.log";
+      StandardErrorPath = "/tmp/haus-agent-awake.err.log";
+      EnvironmentVariables = {
+        LIDAWAKE_DEPTH = "sleep";
+        LIDAWAKE_HOLD_DIR = lidHolds;
+        LIDAWAKE_MARKER = keepAwakeMarker;
+        LIDAWAKE_HELD_FILE = lidHolding;
+        LIDAWAKE_ON_CHANGE = "${agentAwakePoke}";
+        # The SHAPE of a hold is the power room's to tune and this agent reads
+        # the same dial rather than growing a second one -- `haus.ai.keepAwake`
+        # is a switch, not a copy of the knobs. Two of the five are deliberately
+        # not inherited: `while` just below, and `requirePower`, which the
+        # script ignores at this depth anyway (it is a guard about a closed
+        # laptop in a bag, and here the lid still sleeps the Mac).
+        # NOT `haus.power.lidAwake.while`. That option's other stop, `always`,
+        # means plain closed-display mode -- hold regardless of what any agent
+        # is doing -- and it is a coherent thing to want from the LID feature.
+        # Inheriting it here would turn `haus.ai.keepAwake = "idle"` into a
+        # permanent, agent-independent caffeinate, uncapped as well (maxHold
+        # does not apply to `always`, which has no signal that could get stuck).
+        # This option's only word is "while my agents work", at both stops, so
+        # the signal is spelled out rather than borrowed.
+        LIDAWAKE_MODE = "agents";
+        LIDAWAKE_LINGER = toString (config.haus.power.lidAwake.linger * 60);
+        LIDAWAKE_MAX_HOLD =
+          if config.haus.power.lidAwake.maxHold == "never" then
+            "0"
+          else
+            toString (config.haus.power.lidAwake.maxHold * 60);
+      };
+    };
+  };
+
   environment.systemPackages = lib.mkIf cfg.enable (
     with pkgs;
     [

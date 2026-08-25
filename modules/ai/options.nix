@@ -191,6 +191,71 @@ in
     # way it can reach the pounce DAEMON at all: a launchd GUI agent inherits
     # nothing from your shell, so the `$HAUS_REPO_ROOTS` this used to be was
     # unsettable in the one process that reads it.
+    # ---- keeping the Mac awake while agents work ----------------------------
+    # A PROFILE, in the sense modules/appearance/default.nix uses the word: the
+    # AI room owns the intent ("let my agents finish"), the power room owns the
+    # machinery, and this option answers the first by writing the second at
+    # `mkDefault`. The room boundary is what makes that the right shape --
+    # `disablesleep` is nothing to do with coding agents, and `haus.ai` has no
+    # business knowing what a pmset key is.
+    ai.keepAwake = lib.mkOption {
+      type = lib.types.enum [
+        "off"
+        "idle"
+        "lid"
+      ];
+      default = "off";
+      example = "idle";
+      description = ''
+        Let agents hold this Mac awake while they are mid-turn.
+
+        Three stops, each one deeper than the last:
+
+        `off` (the default) -- agents get no say. macOS sleeps on its own
+        schedule and a run that was still going is simply over.
+
+        `idle` -- a `caffeinate` assertion for exactly as long as an agent is
+        working. This is the gap most people actually hit: with the lid OPEN
+        and nobody at the keyboard, `haus.power.displaySleep` and
+        `haus.power.computerSleep` end an overnight run without anything having
+        closed. Needs no privilege, and works on battery, because closing the
+        lid still sleeps the Mac -- so the laptop-cooking-in-a-bag case this
+        cannot happen.
+
+        `lid` -- the above, plus turning on `haus.power.lidAwake`, whose root
+        daemon holds macOS's `disablesleep`. That is the only lever that
+        crosses a lid close, and shutting the lid is the one gesture everybody
+        reads as "stop", so it is the stop you have to name deliberately.
+
+        The signal is the one the bar's agents pill already draws, reported by
+        every client haus knows, and an agent parked at a permission prompt
+        does NOT hold: it is blocked on a human who is not there.
+
+        What this sets rather than owns: `lid` writes
+        `haus.power.lidAwake.enable` at `mkDefault`, so a host that names that
+        option itself always wins and is told, in a warning, that it did. How
+        long a hold lingers past the last turn and how long one may last stay
+        where the machinery is (`haus.power.lidAwake.linger` and `.maxHold`),
+        and both stops read them -- this is a switch, not a second copy of the
+        dial.
+
+        Two knobs there do NOT reach this option. `requirePower` guards the
+        **lid** hold only: its argument is that nothing can stop a closed
+        laptop cooking in a bag, and at the `idle` stop the lid still sleeps
+        the Mac, so an unplugged laptop sitting open on a desk is exactly the
+        case worth protecting. And `while = "always"` -- plain closed-display
+        mode -- shapes the lid daemon alone; this option means "while my agents
+        work" at both stops and never turns into an unconditional hold.
+
+        Host-only, so a shared desktop may not set it: `lid` reaches into
+        `haus.power.*`, which is a namespace about one machine's hardware, and
+        starts a root daemon there.
+
+        Needs `ai.enable`: the hold signal is written by the agent hooks this
+        room installs, so with the room off nothing would ever report a turn.
+      '';
+    };
+
     ai.repoRoots = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [
