@@ -1937,9 +1937,10 @@ in
       #
       # Set as whole arrays, not merged into: these two events are rice plumbing
       # pointing at a rice-controlled /run/current-system path, and there is no
-      # sensible second handler for "make me a worktree". Every OTHER hook event
-      # in the file is untouched — including the four agent-state hooks, which
-      # stay yours (see modules/bar/options.nix).
+      # sensible second handler for "make me a worktree". Every other hook
+      # ENTRY in the file survives: the four agent-state hooks stay yours (see
+      # modules/bar/options.nix) — on Notification and Stop haus appends its own
+      # entry beside yours, never in place of them.
       #
       # The `&& mv` is load-bearing: this program's PreToolUse filter is the
       # first one here that can ERROR on user-shaped data (`map` over a
@@ -1955,6 +1956,14 @@ in
       # before a tool call moves the pointer, takes focus or redraws the desktop —
       # the counterweight to the `defaultMode = "auto"` two lines below, which is
       # right for files and wrong for the screen. It refuses nothing.
+      # Notification/Stop get `holt hook notify` APPENDED the same way: it turns
+      # "this lane is blocked on its user" / "this lane finished" into a trill
+      # banner — an ask parked on trill's ledge, or a done. Appended, never set:
+      # those two events also carry the user's own agent-state hooks (the bar's
+      # agents pill — see modules/bar), which must survive every rebuild. The
+      # hook itself is holt's and exits 0 no matter what — no trill installed,
+      # daemon down, garbage payload — so wiring it on a machine without trill
+      # is a silent no-op, never a broken session.
       # Claude Code settings/hooks/statusline are agent tooling; a machine that
       # runs no agents should not have its ~/.claude/settings.json rewritten.
       home.activation.claudeCodeSettings = lib.mkIf agentsCfg.enable (
@@ -1967,6 +1976,8 @@ in
             ${pkgs.jq}/bin/jq ".hooks.WorktreeCreate = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook create\"}]}]
               | .hooks.WorktreeRemove = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook remove\"}]}]
               | .hooks.PreToolUse = (((.hooks.PreToolUse // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/agent-desktop-guard\") | not))) + [{matcher: \"Bash|mcp__computer-use__.*\", hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/agent-desktop-guard\"}]}])
+              | .hooks.Notification = (((.hooks.Notification // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/holt hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook notify\"}]}])
+              | .hooks.Stop = (((.hooks.Stop // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/holt hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook notify\"}]}])
               | .permissions.defaultMode = \"auto\"
               | .tui = \"fullscreen\"
               | .disableAgentView = true
