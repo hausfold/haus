@@ -34,12 +34,18 @@ source "$HOME/.config/sketchybar/bar.sh"
 # names nothing of ours. `/run/current-system/sw/bin` is
 # `environment.systemPackages`, stable across rebuilds.
 #
-# `|| true` because every caller is an arm that reports a failure — a notifier
+# `|| true` because most callers are arms that report a failure — a notifier
 # that could itself fail the script would swallow the message it carries.
+#
+#   notify <body> [kind] [sf-symbol]
+#
+# The kind is a parameter rather than a constant because one of these is not a
+# failure: "no previous timer to restart" is an answer, and trill colours a
+# fault differently from a note.
 notify() {
-  /run/current-system/sw/bin/haus-notify --source haus.bar.harvest --kind fault \
-    --symbol exclamationmark.triangle --title Harvest --body "$1" \
-    >/dev/null 2>&1 || true
+  /run/current-system/sw/bin/haus-notify --source haus.bar.harvest \
+    --kind "${2:-fault}" --symbol "${3:-exclamationmark.triangle}" \
+    --title Harvest --body "$1" >/dev/null 2>&1 || true
 }
 
 # Helper to format duration
@@ -197,7 +203,7 @@ if [ "$SENDER" = "mouse.clicked" ]; then
         "$SB" --trigger harvest_update
       fi
     else
-      notify "No previous timer to restart"
+      notify "No previous timer to restart" note clock.badge.questionmark
     fi
   fi
 

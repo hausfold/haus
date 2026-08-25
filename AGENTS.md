@@ -316,7 +316,11 @@ mechanism, say so in one line.
   `/run/current-system/sw/bin`. `trill` itself is on PATH the same way — a
   wrapper (`modules/core/trill.sh`), not a symlink, because whether Trill.app
   exists is a runtime fact and a link into a missing bundle is a `trill` that
-  `command -v` finds and every call fails on.
+  `command -v` finds and every call fails on. `HAUS_NOTIFY=apple|trill|off` is
+  the escape hatch — how you test the fallback path, or silence the shim while
+  debugging something noisy. A flag `haus-notify` doesn't know is warned about
+  and dropped rather than refused: a haus bug must not cost the user the
+  message haus was trying to send.
 - `nixfmt` formats `.nix` files.
 
 ## Gotchas

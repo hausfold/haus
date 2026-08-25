@@ -57,6 +57,7 @@ source_name="haus"
 kind=""
 urgency=""
 symbol=""
+thread=""
 # Actions are repeatable and there is no array in POSIX sh, so they accumulate
 # into a newline-delimited list and are split back into argv below.
 actions_count=0
@@ -70,7 +71,13 @@ while [ $# -gt 0 ]; do
         --kind)    kind="${2:-}"; shift 2 || usage ;;
         --urgency) urgency="${2:-}"; shift 2 || usage ;;
         --symbol)  symbol="${2:-}"; shift 2 || usage ;;
+        --thread)  thread="${2:-}"; shift 2 || usage ;;
         --action)
+            # Refused rather than passed through: newline is IFS *whitespace*,
+            # so an empty value collapses in the split below and trill gets a
+            # dangling `--action` — exit 1, and a "haus bug" line for what is
+            # really a caller's empty string.
+            [ -n "${2:-}" ] || { printf 'haus-notify: --action needs a value\n' >&2; shift 2 || true; continue; }
             # Held as a newline-delimited list; `set --` rebuilds the argv from
             # it below, with IFS set to newline so a label with spaces survives.
             trill_extra="${trill_extra}--action
@@ -80,7 +87,18 @@ ${2:-}
             shift 2 || usage
             ;;
         -h|--help) usage ;;
-        *) printf 'haus-notify: unknown argument: %s\n' "$1" >&2; usage ;;
+        *)
+            # NOT `usage`, which exits — and exiting here means the banner is
+            # never drawn by either renderer. A flag this doesn't know is a
+            # haus bug, and the cost of a haus bug must not be the user missing
+            # the thing haus was trying to tell them. So: say so where it can
+            # be found, drop the flag, keep going. (`--thread` reaching a
+            # version of this script that predated it is exactly how that
+            # happened once: a `⌃↵` background lane spawn drew nothing at all.)
+            printf 'haus-notify: ignoring unknown argument: %s\n' "$1" >&2
+            logger -t haus-notify "ignoring unknown argument: $1" 2>/dev/null || true
+            shift
+            ;;
     esac
 done
 
@@ -113,13 +131,19 @@ set -- send --title "$title" --source "$source_name"
 [ -n "$kind" ]    && set -- "$@" --kind "$kind"
 [ -n "$urgency" ] && set -- "$@" --urgency "$urgency"
 [ -n "$symbol" ]  && set -- "$@" --symbol "$symbol"
+[ -n "$thread" ]  && set -- "$@" --thread "$thread"
 if [ "$actions_count" -gt 0 ]; then
     old_ifs="$IFS"
     IFS='
 '
+    # `set -f` is not optional: IFS controls word SPLITTING, and pathname
+    # expansion still runs on each field afterwards. Without it an action label
+    # of `*` reaches trill as every file in the cwd.
+    set -f
     # Unquoted on purpose — this is the word split the newline IFS exists for.
     # shellcheck disable=SC2086
     set -- "$@" $trill_extra
+    set +f
     IFS="$old_ifs"
 fi
 

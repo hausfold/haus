@@ -65,9 +65,10 @@ export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/s
 # draws it when its daemon answers, macOS's own banner when it doesn't, and
 # `~/.config/trill/rules.json` is where you route or silence it — matching on
 # the `--source` below. It exits 0 whatever happens, so a missed banner can
-# never be why this script failed.#
-# Addressed absolutely because this runs under launchd (the pounce daemon /
-# a bar plugin), whose PATH names nothing of ours. That path is
+# never be why this script failed.
+#
+# Addressed absolutely because this runs under launchd (the pounce daemon), whose
+# PATH names nothing of ours. That path is
 # `environment.systemPackages` — stable across rebuilds, the same reason
 # `haus-activate` is reachable there.
 #

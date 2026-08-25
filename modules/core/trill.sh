@@ -32,9 +32,14 @@ set -u
 
 # $TRILL_APP first, so a person testing a branch build can point at it without
 # touching the desktop. Then the two places every install source puts a bundle.
+#
+# Both are `:-` guarded. `set -u` plus a bare `$HOME` exits **1**, and 1 is a
+# code the caller reads as "trill ran and rejected the call" rather than "no
+# Trill.app" — a launchd context with no HOME would be misdiagnosed as a bug in
+# whatever asked for the banner.
 for candidate in \
     "${TRILL_APP:-}" \
-    "$HOME/Applications/Trill.app" \
+    "${HOME:-}/Applications/Trill.app" \
     "/Applications/Trill.app"
 do
     [ -n "$candidate" ] || continue
