@@ -3891,6 +3891,8 @@
                   "volume"
                   "calendar"
                   "caffeinate"
+                  "trill"
+                  "github"
                   "agents"
                   "aiUsage"
                   "elgato"

@@ -906,6 +906,31 @@ let
               script="$HOME/.config/sketchybar/plugins/harvest.sh" \
           --subscribe harvest mouse.clicked harvest_update system_woke
     '';
+    # The bell that opens trill's inbox. It is drawn with an icon and no label
+    # because it has no count to carry (see widgets.nix), and the plugin turns
+    # its own drawing off on a Mac with no Trill.app — which is most of them,
+    # since trill is deliberately not a haus flake input.
+    #
+    # `updates=on` is what makes that reversible, and it is load-bearing rather
+    # than tidy: BOTH bars default to `updates=when_shown`, which SketchyBar
+    # applies to EVENT DELIVERY and not only to the tick, so a pill that hid
+    # itself is never dispatched to again and the script that would unhide it
+    # never runs. Installing Trill.app would otherwise leave the bell invisible
+    # until the next rebuild. See AGENTS.md's box on exactly this trap.
+    trill = ''
+      ${sb} --add item trill ${side} \
+          --set trill \
+              update_freq=30 \
+              updates=on \
+              icon="󰂚" \
+              icon.color=$TEXT \
+              icon.padding_left=10 \
+              icon.padding_right=10 \
+              background.color=$SURFACE0 \
+              label.drawing=off \
+              script="$HOME/.config/sketchybar/plugins/trill.sh" \
+          --subscribe trill mouse.clicked system_woke
+    '';
   };
   # Item blocks sit in an attrset (no inherent order), so emission follows these
   # fixed left-to-right orders — only the ones each bar owns are drawn.
@@ -917,6 +942,10 @@ let
     "wifi"
   ];
   extraOrder = [
+    # Beside the Focus pill, which `itemOrder` slots in just before this list:
+    # the bell and the moon are the two halves of one question — what is
+    # reaching me, and is anything allowed to — so they read as a pair.
+    "trill"
     "agents"
     "aiUsage"
     "github"
@@ -1186,7 +1215,7 @@ let
   # (it rides the Focus room), so under the old shape there was no way to ask
   # for it without the room. The open form removes that accident:
   # `widgets.focus.enable = true` is now a thing a desktop can write, and with
-  # the room off it would draw a bell whose click_script is a
+  # the room off it would draw a moon whose click_script is a
   # `~/.local/bin/focus` only that room installs — a pill that does nothing,
   # forever. Same gate, said once now instead of per bar.
   #

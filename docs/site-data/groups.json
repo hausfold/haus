@@ -305,7 +305,7 @@
     "bar": {
       "blurb": "The menu bar, and which pills it draws.",
       "kind": "room",
-      "optionCount": 81,
+      "optionCount": 83,
       "options": {
         "haus.bar.aiUsage.provider": {
           "desktopSafe": true
@@ -356,6 +356,9 @@
           "desktopSafe": true
         },
         "haus.bar.bottom.items.memory": {
+          "desktopSafe": true
+        },
+        "haus.bar.bottom.items.trill": {
           "desktopSafe": true
         },
         "haus.bar.bottom.items.volume": {
@@ -483,6 +486,9 @@
           "desktopSafe": true
         },
         "haus.bar.items.memory": {
+          "desktopSafe": true
+        },
+        "haus.bar.items.trill": {
           "desktopSafe": true
         },
         "haus.bar.items.volume": {
@@ -1690,7 +1696,7 @@
         "menuBar",
         "bar"
       ],
-      "optionCount": 93,
+      "optionCount": 95,
       "order": 60,
       "title": "Bar"
     },
