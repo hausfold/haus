@@ -1,6 +1,6 @@
 #!/bin/bash
 # pounce: name = New Agent Lane
-# pounce: description = Agent lane in the focused window's repo, no questions asked
+# pounce: description = Agent lane in this page's repo, no questions asked
 # pounce: icon = sparkles
 # pounce: cheat = agent lane
 
@@ -20,6 +20,11 @@
 # ghostty on), because pressed from anywhere else it inherits no repo, falls
 # back to $HOME and refuses. Spawn Agent, which asks which repo instead of
 # inheriting one, is the answer there.
+#
+# What it inherits from a PAGE is stronger than what it inherits from a window:
+# standing on `T/<repo>` decides the repo outright, and only the exact directory
+# inside it comes from the focused window. lane-cwd.sh's `--page` header has the
+# why.
 #
 # Being a palette command rather than an AeroSpace `exec-and-forget` is what
 # makes the chord addressable at all: an app-scoped hotkey fires an ItemTarget

@@ -213,10 +213,19 @@ sketchybar --add item aerospace_watcher left \
         script="$HOME/.config/sketchybar/plugins/aerospace_watcher.sh" \
     --subscribe aerospace_watcher front_app_switched space_change aerospace_fullscreen_change aerospace_tiling_change
 
-# Empty-workspace reaction — when a ⌘Q leaves the focused workspace empty, pull
-# back to the most recent populated workspace ("gravity"). Non-drawing; see
+# Empty-workspace reaction — when the focused workspace loses its last window,
+# whether to a ⌘Q or to the close of one window on a lane page, pull back to the
+# most recent populated workspace ("gravity"). Non-drawing; see
 # plugins/empty_workspace.sh for the quit-vs-switch detection and the
 # quit-in-place guard that keeps it off a workspace you merely navigated to.
+#
+# THREE events, because a workspace empties two ways. front_app_switched is the
+# ⌘Q tell; space_windows_change is the one for the last WINDOW on a page closing
+# while its app lives on elsewhere (⌘W on a lane, a ⌃D that ends a shell), which
+# changes no front app and so was invisible to gravity until it was subscribed;
+# and aerospace_workspace_change is what keeps "which workspace am I on" current
+# across a page walk that switches no app, which the second tell's
+# same-workspace guard depends on. The plugin's header has the whole tell.
 #
 # $BAR_GRAVITY is GENERATED from haus.windows.gravity (which
 # haus.appearance.reduceMotion sets off — it is the biggest unasked movement
@@ -230,7 +239,7 @@ if [ "$BAR_GRAVITY" = "1" ]; then
             drawing=off \
             updates=on \
             script="$HOME/.config/sketchybar/plugins/empty_workspace.sh" \
-        --subscribe empty_workspace front_app_switched
+        --subscribe empty_workspace front_app_switched space_windows_change aerospace_workspace_change
 fi
 
 # Reopen-last-closed-app recorder — pushes a quit app's bundle id onto a stack

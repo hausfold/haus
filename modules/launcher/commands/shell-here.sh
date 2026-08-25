@@ -1,6 +1,6 @@
 #!/bin/bash
 # pounce: name = New Shell Window
-# pounce: description = Shell window in the focused window's directory, on its page
+# pounce: description = Shell window in this page's repo, beside the lanes on it
 # pounce: icon = terminal
 
 # The heir of zellij's Super n. Pounce's Ghostty-scoped ⌘N fires
@@ -11,14 +11,19 @@
 # which knows nothing about "here"):
 #
 #   · the cwd is the focused window's, asked of zmx by lane-cwd.sh (the same
-#     resolver ⌘↵'s lane-spawn.sh uses)
+#     resolver ⌘↵'s lane-spawn.sh uses) — with --page, so a window whose
+#     directory belongs to some OTHER repo than the page you are standing on
+#     does not get to decide. The page wins the repo, the window still wins the
+#     subdirectory inside it. lane-cwd.sh's header has the why.
 #   · the "no place for a human shell" hop OUT of an agent worktree still
 #     happens, because it lives in terminal's zshrc — the fresh login shell
 #     fires it wherever it's born
 #   · --stay (⌘⇧N, via shell-here-stay.sh) still suppresses that hop, now as
 #     HAUS_STAY=1 in the WINDOW's environment. This is why the spawn is
 #     AppleScript (`surface configuration` carries `environment variables`)
-#     rather than Ghostty's native new_window, which can't set env at all.
+#     rather than Ghostty's native new_window, which can't set env at all. It
+#     also suppresses the page correction below, for the same one reason: --stay
+#     means do not move me, and the page's repo is somewhere else to be moved to.
 #   · and "here" is a PLACE as well as a directory: pressed in a window
 #     standing on a lane page (T/<repo>), the chord hands that page down as
 #     HAUS_TERM_WORKSPACE so the new window tiles beside the lane it was asked
@@ -47,7 +52,16 @@ say() { osascript -e "display notification \"$1\" with title \"haus · shell her
 # (which the laneCommands filter should have made unreachable) fall back to $HOME rather than
 # dying on a missing file.
 cwd=""
-[ -x "$HOME/.config/haus/lanes/lane-cwd.sh" ] && cwd="$("$HOME/.config/haus/lanes/lane-cwd.sh")"
+# --page for the plain chord, NOTHING for --stay. Both halves of ⌘⇧N mean the
+# same thing — do not move me — and the page correction is a move: a lane window
+# of repo A that has been dragged onto page `T/B` would answer B's main checkout
+# for a chord whose entire promise is "stay in this worktree". So the shifted key
+# keeps the old, purely window-local answer, and the two chords differ in one
+# idea spelled two ways rather than in two ideas.
+page_flag=(--page)
+[ -n "$stay" ] && page_flag=()
+[ -x "$HOME/.config/haus/lanes/lane-cwd.sh" ] &&
+  cwd="$("$HOME/.config/haus/lanes/lane-cwd.sh" "${page_flag[@]}")"
 [ -n "$cwd" ] && [ -d "$cwd" ] || cwd="$HOME"
 
 # The ghostty-config DEFAULT command — terminal's scripts/launch.sh — not a bare
@@ -64,13 +78,8 @@ cwd=""
 shell="$HOME/.config/haus/term/launch.sh"
 
 # The window AeroSpace sees before this one, so the tile poll below can tell
-# the new window from the one the chord was pressed in (both are Ghostty). Its
-# WORKSPACE comes out of the same line, because the two questions have one
-# honest moment: the chord was just pressed, so the focused window is the one
-# it was pressed in, and the workspace under it is the one the user is looking
-# at.
-focused="$(aerospace list-windows --focused --format '%{window-id}|%{workspace}' 2>/dev/null)"
-before="${focused%%|*}"
+# the new window from the one the chord was pressed in (both are Ghostty).
+before="$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)"
 
 # Only a PAGE is handed down — a workspace with a "/" in it, the same test
 # windows/scripts/workspace-mru.sh uses. Bare T needs no passing on (it is what
@@ -79,9 +88,16 @@ before="${focused%%|*}"
 # windows live on T" survives, "…unless you are on a lane's page" is the new
 # half. launch.sh checks the name against the live workspace list before it
 # moves anything, so a page that evaporated between here and there is harmless.
+#
+# `list-workspaces --focused`, not the focused WINDOW's workspace: the page you
+# are looking at is the question, and it is the same one lane-cwd.sh --page
+# asked a moment ago — so the directory and the page can never disagree about
+# which repo this window is for. They differ exactly when focus has not caught
+# up with a page walk, which is the case this whole chord kept getting wrong.
 page=""
-case "$focused" in
-  *\|*/*) page="${focused#*|}" ;;
+ws="$(aerospace list-workspaces --focused 2>/dev/null)"
+case "$ws" in
+  */*) page="$ws" ;;
 esac
 
 # One osascript for both chords, where there were two near-identical heredocs

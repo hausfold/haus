@@ -51,6 +51,21 @@ export SHELL="/bin/zsh"
 WANT_WS="${HAUS_TERM_WORKSPACE:-}"
 unset HAUS_TERM_WORKSPACE
 
+# ── and whether to take the user WITH it ─────────────────────────────────────
+# A move that leaves you behind is the right default and a deliberate one: it is
+# what keeps ⌘N from ever moving the screen under you (the T branch below says
+# so). But a chord whose whole point is "put me somewhere else" — ⌘T's neutral
+# terminal, launcher/commands/shell-plain.sh — needs the other half, and it
+# cannot do the move itself: the window is born on the page the chord was
+# pressed on, and only this script, from inside it, knows with certainty which
+# window it is.
+#
+# So the spawner says. Read and dropped in the same breath as the workspace name
+# above, for the same reason — every path out of this file ends in a shell that
+# would otherwise carry one chord's intent into everything it spawns.
+WANT_FOLLOW="${HAUS_TERM_FOLLOW:-}"
+unset HAUS_TERM_FOLLOW
+
 LOG=/tmp/haus-term-launch.log
 
 # Where the self-tile subshell leaves this window's AeroSpace id (and the pid of
@@ -354,7 +369,16 @@ fi
                 # it is what keeps ⌘N from ever moving the screen under you.
                 log "self-tile: window $WID is already on $CUR"
             elif [ "$WS" = T ]; then
-                aerospace move-node-to-workspace --window-id "$WID" T 2>>"$LOG"
+                # Un-followed, unless the spawner asked otherwise: a plain shell
+                # window sent home to T must not drag you off the page you are
+                # reading. HAUS_TERM_FOLLOW is the one caller that means the
+                # opposite — see the note at the top of this file.
+                if [ -n "$WANT_FOLLOW" ]; then
+                    aerospace move-node-to-workspace --focus-follows-window \
+                        --window-id "$WID" T 2>>"$LOG"
+                else
+                    aerospace move-node-to-workspace --window-id "$WID" T 2>>"$LOG"
+                fi
             else
                 # A page, and the window is NOT on it: the workspace changed in
                 # the beat between the chord and this subshell. Follow the

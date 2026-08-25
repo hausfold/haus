@@ -73,6 +73,12 @@ in
     "screenshots"
     "camera"
     "filesearch"
+    # The odd one, and pounce's own comment says so: every other mode swaps the
+    # palette's CONTENTS, while this opens pounce's own Settings WINDOW. It is a
+    # mode all the same, because `mode:` addresses "a built-in window pounce can
+    # put in front of you" — which is what buys the settings window a hotkey, a
+    # `pounce run` target and an `items` entry for free.
+    "settings"
   ];
 
   # `ItemTarget.problem`'s fallback text, built rather than restated so the

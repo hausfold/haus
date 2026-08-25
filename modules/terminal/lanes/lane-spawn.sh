@@ -43,6 +43,11 @@
 # reads the focused window's title and asks zmx or zellij, whichever is behind
 # it. Anything else — Finder, a plain shell — has no repo to speak of and falls
 # back, because a lane in $HOME beats a refusal.
+#
+# It is asked with --page, so the PAGE you are standing on gets the last word
+# about WHICH REPO: `T/<repo>` is a statement of intent, and a window whose
+# directory belongs to some other repo (or to none) does not get to overrule
+# it. The window still decides the exact directory inside that repo.
 set -u
 
 # Run from the pounce daemon (and formerly AeroSpace's exec-and-forget), neither
@@ -67,7 +72,10 @@ command -v holt >/dev/null 2>&1 || {
   exit 0
 }
 
-cwd="$("$(dirname "$0")/lane-cwd.sh")"
+# --page: the PAGE outranks the window. Standing on `T/<repo>` says which repo
+# this lane is for more reliably than the window under the keystroke does — see
+# lane-cwd.sh's own header. Without a page under you it changes nothing.
+cwd="$("$(dirname "$0")/lane-cwd.sh" --page)"
 [ -n "$cwd" ] && [ -d "$cwd" ] || cwd="$fallback"
 
 cd "$cwd" || {

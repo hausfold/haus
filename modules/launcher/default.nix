@@ -173,6 +173,12 @@ let
   # a file the daemon read at boot.
   shellSpawnKey = "n";
   laneSpawnKey = "return";
+  # ⌘T's key. Separate from shellSpawnKey because the two chords answer
+  # different questions — ⌘N is "a shell for what I am working on", ⌘T is "a
+  # shell for nothing" — and a host that rebinds one has no reason to move the
+  # other. Free because terminal/ghostty/config unbinds cmd+t: this desktop has
+  # no tabs.
+  plainSpawnKey = "t";
 
   # Every pounce setting the daemon reads ONCE at startup, as one opaque word —
   # the activation marker's whole content, see home.activation.kickstartPounce.
@@ -194,12 +200,12 @@ let
   #             both taps once at startup, so turning lanes on or off has to
   #             bounce the daemon or ⌘N/⌃⇥ keep last boot's meaning until the
   #             next log-in.
-  #   shellSpawnKey / laneSpawnKey  which KEYS the two Ghostty-scoped chords
-  #             ride on. Same tap, armed at the same moment: the 2026-08-18
-  #             ⌘P → ⌘N and ⌃⌘A → ⌘↵ moves changed only these, so without them
-  #             in the hash the rebuild would land, the docs would say ⌘N/⌘↵,
-  #             and the running daemon would keep answering the old chords
-  #             until the next log-in.
+  #   shellSpawnKey / laneSpawnKey / plainSpawnKey  which KEYS the three
+  #             Ghostty-scoped spawn chords ride on. Same tap, armed at the same
+  #             moment: the 2026-08-18 ⌘P → ⌘N and ⌃⌘A → ⌘↵ moves changed only
+  #             these, so without them in the hash the rebuild would land, the
+  #             docs would say ⌘N/⌘↵, and the running daemon would keep answering
+  #             the old chords until the next log-in.
   #   mouse     the windows room's pointer chord — a SECOND tap, but armed at
   #             that same one moment, so the same trap: MouseChords captures
   #             the whole chord when it arms, and moving the button (or moving
@@ -215,7 +221,7 @@ let
         autoQuit = config.haus.launcher.autoQuit;
         fnKey = config.haus.launcher.fnKey;
         lanes = lanesEnabled;
-        inherit shellSpawnKey laneSpawnKey;
+        inherit shellSpawnKey laneSpawnKey plainSpawnKey;
         # ⌘G and ⌘B are armed in the same one-shot appHotkeys block, so
         # toggling either feature has to bounce the daemon or the chord keeps
         # last boot's meaning — dead, or live over a command that is no longer
@@ -1016,6 +1022,7 @@ let
     screenshots = "Screenshot browser";
     camera = "Camera preview";
     filesearch = "Find Files";
+    settings = "Pounce's own settings window";
   };
   humanize =
     id:
@@ -1116,18 +1123,20 @@ lib.mkIf config.haus.launcher.enable {
   haus.launcher.items = lib.mkMerge [
     { "mode:emoji".hotkey = lib.mkDefault "fn"; }
 
-    # The three rows that act on THE WINDOW YOU WERE LOOKING AT — ⌘↵'s agent
-    # lane, ⌘N's shell window and its ⌘⇧N --stay twin — are listed only on the
-    # terminal pages.
+    # The three rows that INHERIT WHERE YOU ARE — ⌘↵'s agent lane, ⌘N's shell
+    # window and its ⌘⇧N --stay twin — are listed only on the terminal pages.
     #
-    # Not tidiness: each of them asks lane-cwd.sh for the focused window's
-    # directory, and a window with no zmx session behind it (a browser, Finder,
-    # anything that isn't a terminal) answers nothing. New Agent Lane then falls
+    # Not tidiness: each of them asks lane-cwd.sh, which answers from the PAGE
+    # you are standing on first (`--page`, for the two that create something in
+    # a repo) and from the focused window otherwise. Off a page and over a
+    # window with no zmx session behind it — a browser, Finder, anything that
+    # isn't a terminal — both halves answer nothing. New Agent Lane then falls
     # back to $HOME, finds it isn't a git repo and refuses out loud; New Shell
     # Window opens a shell in $HOME. Offering a row where it can only disappoint
-    # you is worse than not offering it, and the palette still has the row that
-    # DOES work from anywhere — Spawn Agent asks which repo instead of
-    # inheriting one, which is exactly why it is not in this list.
+    # you is worse than not offering it, and the palette still has the two rows
+    # that DO work from anywhere — Spawn Agent asks which repo instead of
+    # inheriting one, and ⌘T's New Terminal Window inherits nothing at all,
+    # which is exactly why neither is in this list.
     #
     # The page name covers it AND every <page>/<repo> lane page (lane-open.sh
     # tiles them there), the same prefix the ⌃⇥ walk reads. mkDefault, so a host
@@ -1548,6 +1557,18 @@ lib.mkIf config.haus.launcher.enable {
                       "shift"
                     ];
                     target = "cmd:peek-stay";
+                  }
+                  # ⌘T — a NEUTRAL terminal: home directory, no repo, on the
+                  # base of whatever workspace you are on rather than on the
+                  # lane page you were standing on. The escape hatch from the
+                  # page ownership ⌘N and ⌘↵ now obey — see
+                  # commands/shell-plain.sh. Outside the lanes block because it
+                  # inherits nothing and so needs nothing: with the agent
+                  # clients off it is the only spawn chord left alive.
+                  {
+                    key = plainSpawnKey;
+                    modifiers = [ "cmd" ];
+                    target = "cmd:shell-plain";
                   }
                 ]
                 ++ lib.optional config.haus.terminal.ghDash.enable {
