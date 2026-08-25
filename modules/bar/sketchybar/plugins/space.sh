@@ -1,8 +1,5 @@
 #!/bin/bash
 
-exec 2>>/tmp/sketchybar_space.log
-set -x
-
 # $BAR_TOP — GENERATED from haus.roster.sketchybar.binPath. Workspace pills are
 # menu-bar items, so it is always the TOP bar's mach service (§5.4).
 source "$HOME/.config/sketchybar/bar.sh"
@@ -16,13 +13,9 @@ source "$HOME/.config/sketchybar/plugins/aerospace_lib.sh"
 
 # Get current workspace from AeroSpace
 CURRENT_WORKSPACE=$(/opt/homebrew/bin/aerospace list-workspaces --focused)
-AEROSPACE_EXIT_CODE=$?
 
 # Get all non-empty workspaces (workspaces with windows)
 WORKSPACES_WITH_WINDOWS=$(/opt/homebrew/bin/aerospace list-workspaces --monitor all --empty no)
-
-# Log for debugging
-echo "$(date) - Item: $NAME, ID: ${NAME#space.}, Current: $CURRENT_WORKSPACE (Exit: $AEROSPACE_EXIT_CODE), Windows: $WORKSPACES_WITH_WINDOWS" >> /tmp/sketchybar_space.log
 
 # Extract workspace ID from item name (space.1 -> 1, space.C -> C)
 WORKSPACE_ID="${NAME#space.}"
@@ -38,7 +31,6 @@ WORKSPACE_ID="${NAME#space.}"
 # front app names which page; this names which workspace, and the two only read
 # as a pair if both are lit.
 if [ "$WORKSPACE_ID" = "$CURRENT_WORKSPACE" ] || [ "${CURRENT_WORKSPACE#"$WORKSPACE_ID"/}" != "$CURRENT_WORKSPACE" ]; then
-    echo "  -> Active" >> /tmp/sketchybar_space.log
     # Active workspace - highlight it
     "$BAR_TOP" --set $NAME \
         background.color=$(fullscreen_active_ws_color "$(aerospace_fullscreen)") \
@@ -50,7 +42,6 @@ if [ "$WORKSPACE_ID" = "$CURRENT_WORKSPACE" ] || [ "${CURRENT_WORKSPACE#"$WORKSP
 # page (windows/scripts/workspace-mru.sh), so a `T` whose windows all live on
 # `T/*` is somewhere you can go, not an empty workspace to hide.
 elif echo "$WORKSPACES_WITH_WINDOWS" | grep -qE "^${WORKSPACE_ID}(/|\$)"; then
-    echo "  -> Inactive with windows" >> /tmp/sketchybar_space.log
     # Inactive workspace with windows
     "$BAR_TOP" --set $NAME \
         background.color=$SURFACE0 \
@@ -58,7 +49,6 @@ elif echo "$WORKSPACES_WITH_WINDOWS" | grep -qE "^${WORKSPACE_ID}(/|\$)"; then
         label.color=$TEXT \
         drawing=on
 else
-    echo "  -> Empty" >> /tmp/sketchybar_space.log
     # Workspace is empty and not focused - hide it
     "$BAR_TOP" --set $NAME drawing=off
 fi
