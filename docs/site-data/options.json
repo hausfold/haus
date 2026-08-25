@@ -226,6 +226,27 @@
     "readOnly": false,
     "type": "strings concatenated with \"\\n\""
   },
+  "haus.ai.keepAwake": {
+    "declarations": [
+      "modules/ai/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"off\""
+    },
+    "description": "Let agents hold this Mac awake while they are mid-turn.\n\nThree stops, each one deeper than the last:\n\n`off` (the default) -- agents get no say. macOS sleeps on its own\nschedule and a run that was still going is simply over.\n\n`idle` -- a `caffeinate` assertion for exactly as long as an agent is\nworking. This is the gap most people actually hit: with the lid OPEN\nand nobody at the keyboard, `haus.power.displaySleep` and\n`haus.power.computerSleep` end an overnight run without anything having\nclosed. Needs no privilege, and works on battery, because closing the\nlid still sleeps the Mac -- so the laptop-cooking-in-a-bag case this\ncannot happen.\n\n`lid` -- the above, plus turning on `haus.power.lidAwake`, whose root\ndaemon holds macOS's `disablesleep`. That is the only lever that\ncrosses a lid close, and shutting the lid is the one gesture everybody\nreads as \"stop\", so it is the stop you have to name deliberately.\n\nThe signal is the one the bar's agents pill already draws, reported by\nevery client haus knows, and an agent parked at a permission prompt\ndoes NOT hold: it is blocked on a human who is not there.\n\nWhat this sets rather than owns: `lid` writes\n`haus.power.lidAwake.enable` at `mkDefault`, so a host that names that\noption itself always wins and is told, in a warning, that it did. How\nlong a hold lingers past the last turn, how long one may last, and\nwhether it needs the charger stay where the machinery is\n(`haus.power.lidAwake.linger`, `.maxHold`, `.requirePower`) -- this is\na switch, not a second copy of the dial.\n\nNeeds `ai.enable`: the hold signal is written by the agent hooks this\nroom installs, so with the room off nothing would ever report a turn.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"idle\""
+    },
+    "loc": [
+      "haus",
+      "ai",
+      "keepAwake"
+    ],
+    "readOnly": false,
+    "type": "one of \"off\", \"idle\", \"lid\""
+  },
   "haus.ai.namer": {
     "declarations": [
       "modules/ai/options.nix"

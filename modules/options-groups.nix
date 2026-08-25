@@ -69,6 +69,10 @@ let
       "default"
       "enable"
       "instructions"
+      # A desktop may hold an opinion about whether agents keep the Mac awake --
+      # it is a way of working, not a fact about one machine, and a host
+      # overrides it with a plain assignment like any other.
+      "keepAwake"
       # Desktop-safe for the same reason `default` is: both name a program by
       # id rather than by path, and neither can make a machine run something it
       # doesn't already have — an id with no adapter file falls back to a
