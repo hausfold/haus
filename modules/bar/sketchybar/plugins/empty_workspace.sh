@@ -109,15 +109,25 @@ log "event: sender=${SENDER:-none} prev=$prev cur=$cur_pid|$cur_name focused=$fo
 # close would read as a transition that never happened.
 nonempty=$($AEROSPACE list-workspaces --monitor all --empty no 2>/dev/null)
 now_full=0
-[ -n "$focused" ] && [ -n "$nonempty" ] && grep -qx "$focused" <<<"$nonempty" && now_full=1
+[ -n "$focused" ] && [ -n "$nonempty" ] && grep -qxF "$focused" <<<"$nonempty" && now_full=1
 seen=$(cat "$SEEN" 2>/dev/null)
 seen_ws=${seen%%|*}
 seen_full=${seen#*|}
 [ -n "$focused" ] && printf '%s|%s' "$focused" "$now_full" > "$SEEN"
 
+# Deliberately NOT gated on `SENDER = space_windows_change`, even though that is
+# the event this tell was added for. Every event rewrites the record above, so a
+# front_app_switched landing between the window closing and the
+# space_windows_change — with AeroSpace already done reaping — would record
+# `<ws>|0` and the real tell would then see "was already empty" and throw the
+# close away. That ordering is ordinary (closing the last window on a page often
+# yields frontmost to another app), and the miss is unrecoverable: there is no
+# second close to catch. Firing from any sender costs nothing, because the
+# TRANSITION is what is being tested, not the event — and a ⌘Q that reaches this
+# line first simply fires the same fork the quit tell would have.
 emptied=0
-if [ "${SENDER:-}" = space_windows_change ] && [ -n "$focused" ] &&
-   [ "$focused" = "$seen_ws" ] && [ "$seen_full" = "1" ] && [ "$now_full" = "0" ]; then
+if [ -n "$focused" ] && [ "$focused" = "$seen_ws" ] &&
+   [ "$seen_full" = "1" ] && [ "$now_full" = "0" ]; then
     emptied=1
 fi
 
@@ -160,7 +170,7 @@ echo "$nonce" > "$TOKEN"
         # said so — so this costs it one round trip and breaks on the first
         # pass. The QUIT path is the one that has to wait for the reap.
         nonempty=$($AEROSPACE list-workspaces --monitor all --empty no 2>/dev/null)
-        grep -qx "$focused" <<<"$nonempty" || { reaped=1; break; }
+        grep -qxF "$focused" <<<"$nonempty" || { reaped=1; break; }
         sleep 0.01
     done
     [ "$reaped" = 1 ] || { log "  [fork] '$focused' still has windows → skip"; exit 0; }
@@ -176,7 +186,7 @@ echo "$nonce" > "$TOKEN"
         local w=$1 c
         [ -z "$w" ] && return
         [ "$w" = "$focused" ] && return
-        grep -qx "$w" <<<"$nonempty" || return
+        grep -qxF "$w" <<<"$nonempty" || return
         for c in "${ordered[@]}"; do [ "$c" = "$w" ] && return; done
         ordered+=("$w")
     }

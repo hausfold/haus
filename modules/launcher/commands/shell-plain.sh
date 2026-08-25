@@ -2,7 +2,7 @@
 # pounce: name = New Terminal Window
 # pounce: description = Plain shell in your home directory, off any repo's page
 # pounce: icon = macwindow
-# pounce: cheat = neutral terminal
+# pounce: cheat = new terminal
 
 # ⌘T — the NEUTRAL terminal, and the escape hatch from page ownership.
 #
@@ -16,9 +16,9 @@
 # launch.sh moves it home un-followed, by design, so ⌘N can never move the
 # screen under you).
 #
-# So this chord does the two things the others deliberately don't: it goes to
-# the base workspace FIRST — taking you with it — and then opens a shell in
-# $HOME with nothing handed down.
+# So this chord does the two things the others deliberately don't: it opens a
+# shell in $HOME with nothing handed down, and it takes you WITH the window to
+# the base workspace instead of sending it there behind your back.
 #
 # ── why ⌘T ───────────────────────────────────────────────────────────────────
 # It is the chord every Mac terminal spells "new terminal", and this desktop had
@@ -27,12 +27,19 @@
 # layout model inside one tile. The letter is also the workspace this lands on,
 # which is a coincidence worth keeping.
 #
-# ── why the workspace switch comes first ─────────────────────────────────────
-# windows floats every runtime-spawned Ghostty window onto the workspace that is
-# focused when it is born (aerospace.toml's on-window-detected rule), so
-# switching before the spawn means the window is born at home and launch.sh's
-# self-tile has nothing to move. The alternative — spawn, then move — is the
-# path that gives you a window on a workspace you are not looking at.
+# ── why this script never touches AeroSpace ──────────────────────────────────
+# The obvious shape — switch workspace, then spawn — is wrong twice. It moves
+# the screen BEFORE it knows the spawn can even work, so a denied Automation
+# grant teleports you off your page and then fails; and it hands focus to
+# whatever the base workspace had, which the tile poll every other spawn script
+# runs cannot then tell apart from the window being born.
+#
+# The window places ITSELF instead, from inside, where terminal's launch.sh
+# knows with certainty which window it is — the same rule shell-here.sh's own
+# "no move-node here" note states. Two variables carry the whole request:
+# HAUS_TERM_WORKSPACE names where, and HAUS_TERM_FOLLOW says take the user with
+# it, which is the half ⌘N deliberately does not ask for (a plain shell sent
+# home to T must never drag you off the page you are reading).
 set -u
 
 # A palette command runs under the pounce daemon's launchd environment, whose
@@ -52,27 +59,24 @@ say() { osascript -e "display notification \"$1\" with title \"haus · new termi
 # that leaves it unchanged, which is the honest answer — a neutral terminal
 # asked for on the browser workspace belongs there, not teleported to T.
 #
-# With no tiler at all there is no workspace to name and nothing to switch to;
-# the window still opens, macOS still places it, and this whole block is skipped.
+# With no tiler at all there is no workspace to name; the window still opens,
+# macOS still places it, and launch.sh's self-tile skips itself the same way.
 base=""
 if command -v aerospace >/dev/null 2>&1; then
   ws="$(aerospace list-workspaces --focused 2>/dev/null)"
   base="${ws%%/*}"
-  [ -n "$base" ] && [ "$base" != "$ws" ] && aerospace workspace "$base" >/dev/null 2>&1
 fi
 
 # The ghostty-config DEFAULT command — terminal's scripts/launch.sh — not a bare
 # login shell, for the reason shell-here.sh spells out: launch.sh claims a
 # `term.<n>` zmx session and stamps the `window=` label every other chord joins
 # on. A neutral window is still a real window; ⌘F, ⌘L and the bar's rows have to
-# work in it.
+# work in it. It is also what reads the two variables below.
 shell="$HOME/.config/haus/term/launch.sh"
 
-# HAUS_TERM_WORKSPACE is passed even though launch.sh's default IS the terminal
-# workspace: the default is the literal `T`, and this chord means "the base of
-# wherever I am". On a machine where those are the same string it changes
-# nothing; on the browser workspace it is the difference between a window that
-# stays where you asked for it and one that flies to T behind your back.
+# AppleScript string literals escape backslash and double-quote and nothing
+# else — the same hand-rolled quoting as terminal's new-window.sh, for the same
+# reason: the workspace name comes from somewhere else.
 osa_str() {
   local v="$1"
   v="${v//\\/\\\\}"
@@ -81,29 +85,13 @@ osa_str() {
 }
 
 env_list=""
-[ -n "$base" ] && env_list=", environment variables:{$(osa_str "HAUS_TERM_WORKSPACE=$base")}"
-
-before=""
-command -v aerospace >/dev/null 2>&1 &&
-  before="$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)"
+if [ -n "$base" ]; then
+  env_list=", environment variables:{$(osa_str "HAUS_TERM_WORKSPACE=$base"), $(osa_str "HAUS_TERM_FOLLOW=1")}"
+fi
 
 if ! osascript -e "tell application \"Ghostty\" to new window with configuration {initial working directory:$(osa_str "$HOME"), command:$(osa_str "$shell")$env_list}" >/dev/null 2>&1; then
   say "couldn't ask Ghostty for a window — grant Pounce → Ghostty under Privacy & Security → Automation."
   exit 0
-fi
-
-# windows floats every runtime-spawned ghostty window (the on-window-detected
-# title race — see aerospace.toml), so tile this one by hand once it has focus.
-# Same before/after poll as shell-here.sh, and honest for the same reason: this
-# runs OUTSIDE the new window, so there is a real "before" to compare against.
-if command -v aerospace >/dev/null 2>&1; then
-  for _ in $(seq 1 20); do
-    wid="$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)"
-    [ -n "$wid" ] && [ "$wid" != "$before" ] && break
-    sleep 0.05
-  done
-  [ -n "${wid:-}" ] && [ "$wid" != "$before" ] &&
-    aerospace layout --window-id "$wid" tiling >/dev/null 2>&1
 fi
 
 exit 0

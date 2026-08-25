@@ -21,7 +21,9 @@
 #   · --stay (⌘⇧N, via shell-here-stay.sh) still suppresses that hop, now as
 #     HAUS_STAY=1 in the WINDOW's environment. This is why the spawn is
 #     AppleScript (`surface configuration` carries `environment variables`)
-#     rather than Ghostty's native new_window, which can't set env at all.
+#     rather than Ghostty's native new_window, which can't set env at all. It
+#     also suppresses the page correction below, for the same one reason: --stay
+#     means do not move me, and the page's repo is somewhere else to be moved to.
 #   · and "here" is a PLACE as well as a directory: pressed in a window
 #     standing on a lane page (T/<repo>), the chord hands that page down as
 #     HAUS_TERM_WORKSPACE so the new window tiles beside the lane it was asked
@@ -50,7 +52,16 @@ say() { osascript -e "display notification \"$1\" with title \"haus · shell her
 # (which the laneCommands filter should have made unreachable) fall back to $HOME rather than
 # dying on a missing file.
 cwd=""
-[ -x "$HOME/.config/haus/lanes/lane-cwd.sh" ] && cwd="$("$HOME/.config/haus/lanes/lane-cwd.sh" --page)"
+# --page for the plain chord, NOTHING for --stay. Both halves of ⌘⇧N mean the
+# same thing — do not move me — and the page correction is a move: a lane window
+# of repo A that has been dragged onto page `T/B` would answer B's main checkout
+# for a chord whose entire promise is "stay in this worktree". So the shifted key
+# keeps the old, purely window-local answer, and the two chords differ in one
+# idea spelled two ways rather than in two ideas.
+page_flag=(--page)
+[ -n "$stay" ] && page_flag=()
+[ -x "$HOME/.config/haus/lanes/lane-cwd.sh" ] &&
+  cwd="$("$HOME/.config/haus/lanes/lane-cwd.sh" "${page_flag[@]}")"
 [ -n "$cwd" ] && [ -d "$cwd" ] || cwd="$HOME"
 
 # The ghostty-config DEFAULT command — terminal's scripts/launch.sh — not a bare

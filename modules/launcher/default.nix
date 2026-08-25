@@ -1122,18 +1122,20 @@ lib.mkIf config.haus.launcher.enable {
   haus.launcher.items = lib.mkMerge [
     { "mode:emoji".hotkey = lib.mkDefault "fn"; }
 
-    # The three rows that act on THE WINDOW YOU WERE LOOKING AT — ⌘↵'s agent
-    # lane, ⌘N's shell window and its ⌘⇧N --stay twin — are listed only on the
-    # terminal pages.
+    # The three rows that INHERIT WHERE YOU ARE — ⌘↵'s agent lane, ⌘N's shell
+    # window and its ⌘⇧N --stay twin — are listed only on the terminal pages.
     #
-    # Not tidiness: each of them asks lane-cwd.sh for the focused window's
-    # directory, and a window with no zmx session behind it (a browser, Finder,
-    # anything that isn't a terminal) answers nothing. New Agent Lane then falls
+    # Not tidiness: each of them asks lane-cwd.sh, which answers from the PAGE
+    # you are standing on first (`--page`, for the two that create something in
+    # a repo) and from the focused window otherwise. Off a page and over a
+    # window with no zmx session behind it — a browser, Finder, anything that
+    # isn't a terminal — both halves answer nothing. New Agent Lane then falls
     # back to $HOME, finds it isn't a git repo and refuses out loud; New Shell
     # Window opens a shell in $HOME. Offering a row where it can only disappoint
-    # you is worse than not offering it, and the palette still has the row that
-    # DOES work from anywhere — Spawn Agent asks which repo instead of
-    # inheriting one, which is exactly why it is not in this list.
+    # you is worse than not offering it, and the palette still has the two rows
+    # that DO work from anywhere — Spawn Agent asks which repo instead of
+    # inheriting one, and ⌘T's New Terminal Window inherits nothing at all,
+    # which is exactly why neither is in this list.
     #
     # The page name covers it AND every <page>/<repo> lane page (lane-open.sh
     # tiles them there), the same prefix the ⌃⇥ walk reads. mkDefault, so a host
