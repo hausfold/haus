@@ -114,6 +114,22 @@ let
     in
     lib.escapeShellArg (if p == null then "" else p);
 
+  # ---- where the Slack token comes from --------------------------------------
+  # Empty means haus holds it: this room declares SLACK_USER_TOKEN to the
+  # secrets room and reads it back through the one accessor. A host that sets
+  # `tokenCommand` fetches the value its own way, and the declaration is
+  # withdrawn with it — the same shape the github room's HMAC secret has.
+  #
+  # The absolute path is deliberate: focus runs the command with `/bin/bash -c`
+  # from the bar, the palette and launchd alike, and the bar's plugins are the
+  # standing proof that PATH there is not a shell's PATH.
+  slackHausHolds = cfg.slack.tokenCommand == "";
+  slackTokenCommand =
+    if slackHausHolds then
+      "/run/current-system/sw/bin/haus-secret --reason ${lib.escapeShellArg "haus focus: set your Slack status and snooze notifications while quiet"} SLACK_USER_TOKEN"
+    else
+      cfg.slack.tokenCommand;
+
   engine = pkgs.runCommand "focus" { } ''
     mkdir -p $out/bin
     substitute ${./focus.sh} $out/bin/focus \
@@ -121,7 +137,7 @@ let
       --subst-var-by sketchybar ${sketchybarBin} \
       --subst-var-by keyCode ${toString keyCode} \
       --subst-var-by slackEnabled ${if cfg.slack.enable then "1" else "0"} \
-      --subst-var-by slackTokenCommand ${shq cfg.slack.tokenCommand} \
+      --subst-var-by slackTokenCommand ${shq slackTokenCommand} \
       --subst-var-by slackStatusText ${shq cfg.slack.statusText} \
       --subst-var-by slackStatusEmoji ${shq cfg.slack.statusEmoji} \
       --subst-var-by slackSnooze ${if cfg.slack.snooze then "1" else "0"} \
@@ -246,6 +262,21 @@ lib.mkMerge [
           '';
         }
       ];
+
+    # What this room needs from the secrets room. Only with Slack on and only
+    # when haus is the one holding the token: an entry the wizard asks for and
+    # nothing reads is worse than no entry at all.
+    haus._contrib.secrets.focus-slack = lib.mkIf (cfg.slack.enable && slackHausHolds) {
+      name = "SLACK_USER_TOKEN";
+      why = ''
+        Lets quiet reach Slack: while you are in it, your Slack status says so
+        and Slack's own notifications are snoozed on every device you are
+        signed in on, phone included. It is a personal user token, so it acts
+        as you and nothing else on this Mac reads it.
+      '';
+      cost = "quiet still silences this Mac, but Slack keeps notifying you and your status stays as it was";
+      obtain = "a Slack user token (xoxp-…) with the scopes users.profile:write and dnd:write — api.slack.com/apps → your app → OAuth & Permissions";
+    };
 
     # ---- what the room contributes to other rooms -------------------------------
     # Two writes, both inside this module's own `mkIf cfg.enable`, so each says

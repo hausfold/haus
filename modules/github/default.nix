@@ -62,6 +62,24 @@ let
   subscribersDir = "${configDir}/subscribers";
   secretFile = "${stateDir}/secret";
 
+  # ---- where the HMAC secret comes from --------------------------------------
+  # An empty `secretCommand` no longer means "misconfigured": it means this room
+  # asks the secrets room to hold the value, which is what the declaration below
+  # does. So there are two shapes here, and the room only DECLARES a need in the
+  # first — a host that fetches the secret its own way is not asking haus to
+  # hold one, and a manifest entry nothing reads would be a value the wizard
+  # asks for and never uses.
+  secretName = "GITHUB_WEBHOOK_SECRET";
+  hausHoldsSecret = cfg.secretCommand == "";
+  secretCommand =
+    if hausHoldsSecret then
+      "haus-secret --reason ${lib.escapeShellArg "haus-github-receiver: verify the signature on incoming GitHub deliveries"} ${secretName}"
+    else
+      cfg.secretCommand;
+  # The same thing said to a PERSON, in the manual-click card below: the reason
+  # above is for the audit log, not for a reader following instructions.
+  secretShowCommand = if hausHoldsSecret then "haus-secret ${secretName}" else cfg.secretCommand;
+
   userPath = "/run/current-system/sw/bin:/etc/profiles/per-user/${username}/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 
   receiver = pkgs.callPackage ./receiver.nix { };
@@ -99,8 +117,8 @@ let
 
   # ---- the receiver's wrapper ------------------------------------------------
   # The secret is fetched HERE rather than in an activation script, and that is
-  # the load-bearing choice: activation runs as root, and the usual answer to
-  # `secretCommand` is `secretspec get`, which on the default provider reads the
+  # the load-bearing choice: activation runs as root, and the answer to
+  # `secretCommand` is `haus-secret`, which on the default provider reads the
   # user's login keychain. Root cannot. Running it from the agent also means a
   # rotated secret is one `launchctl kickstart` away instead of a rebuild.
   #
@@ -114,13 +132,13 @@ let
     mkdir -p "${stateDir}"
     chmod 700 "${stateDir}"
 
-    if secret=$(${cfg.secretCommand} 2>/dev/null) && [ -n "$secret" ]; then
+    if secret=$(${secretCommand} 2>/dev/null) && [ -n "$secret" ]; then
       printf '%s' "$secret" >"${secretFile}.new" && mv -f "${secretFile}.new" "${secretFile}"
     fi
     rm -f "${secretFile}.new"
 
     if [ ! -s "${secretFile}" ]; then
-      echo "haus-github-receiver: no secret from \`${cfg.secretCommand}\` and none cached" >&2
+      echo "haus-github-receiver: no secret from \`${secretCommand}\` and none cached" >&2
       exit 78
     fi
 
@@ -179,16 +197,16 @@ let
 in
 lib.mkMerge [
   # ---- assertions -----------------------------------------------------------
-  # A hard requirement with no substitute, which is exactly when a build-time
-  # assertion is the right tool (AGENTS.md, "Room A needs a capability room B
-  # provides"). There is no degraded receiver that accepts unsigned deliveries,
-  # and there should not be: the signature is the entire auth story.
+  # The tunnel's two, and not the secret's any more. There is still no degraded
+  # receiver that accepts unsigned deliveries — but "no secret yet" stopped
+  # being a build-time fact when the secrets room grew a deck: this room
+  # declares the value it needs, the receiver stays dormant with exit 78 until
+  # somebody enters it, and the manual-click deck is what asks. Refusing to
+  # BUILD a machine over a value that is entered after the first rebuild is the
+  # wrong end of that (AGENTS.md, "Room A needs a capability room B provides" —
+  # functional, with a substitute).
   {
     assertions = [
-      {
-        assertion = !cfg.enable || cfg.secretCommand != "";
-        message = "haus.github.enable needs haus.github.secretCommand: the webhook's HMAC signature is the receiver's whole auth story, and a receiver with no secret would have to trust anyone who found the hostname.";
-      }
       {
         assertion = !cfg.tunnel.enable || cfg.enable;
         message = "haus.github.tunnel.enable is on but haus.github.enable is off, so the tunnel would forward deliveries to a port nothing is listening on.";
@@ -285,9 +303,25 @@ lib.mkMerge [
       detail = "github-signal drift 2>/dev/null | sed 's/^/run: /'";
       steps = [
         "Run the command printed above — it creates or repairs the hook with the events this machine reads"
-        "Set the hook's secret to the same value `${cfg.secretCommand}` prints"
+        "Set the hook's secret to the same value `${secretShowCommand}` prints"
         "`github-signal status` should then show the scope as covered within the hour"
       ];
+    };
+
+    # What this room needs from the secrets room, in the secrets room's own
+    # words: a NEED, never a value. Only when haus is the one holding it — see
+    # `hausHoldsSecret` above.
+    haus._contrib.secrets.github-webhook = lib.mkIf hausHoldsSecret {
+      name = secretName;
+      why = ''
+        Signs the events GitHub sends this Mac. The same string goes in the
+        webhook's own settings on GitHub and stays here; every delivery carries
+        an HMAC of its body under it, and the receiver drops anything that does
+        not match — which is the entire reason a public hostname pointed at
+        your laptop is safe.
+      '';
+      cost = "the receiver refuses to start, so deliveries go nowhere and every surface that watches GitHub keeps polling";
+      obtain = "make one up (`openssl rand -hex 32`), then paste the same value into the hook on GitHub";
     };
 
     haus._contrib.permissions.github-tunnel = lib.mkIf cfg.tunnel.enable {

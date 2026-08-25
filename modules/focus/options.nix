@@ -40,19 +40,25 @@
         description = ''
           Also set a Slack status and snooze Slack notifications (all devices,
           phone included) while quiet. Off by default: it needs a personal
-          Slack user token (scopes users.profile:write + dnd:write) provided
-          via tokenCommand. The previous status is saved and restored on
+          Slack user token (scopes users.profile:write + dnd:write), which haus
+          asks you for once (`haus-secret --check`) unless tokenCommand names
+          another way to fetch it. The previous status is saved and restored on
           turning it off.
         '';
       };
       tokenCommand = lib.mkOption {
         type = lib.types.str;
         default = "";
-        example = "security find-generic-password -s focus-slack -w";
+        example = "op read op://private/slack/token";
         description = ''
           Shell command that prints the Slack user token (xoxp-…) to stdout.
-          Keychain-first so no secret ever lands in the store or a dotfile:
-            security add-generic-password -s focus-slack -a $USER -w 'xoxp-…'
+          A command rather than a value so no secret ever lands in the store or
+          a dotfile.
+
+          EMPTY (the default) means haus holds it: with `slack.enable` on, this
+          room declares SLACK_USER_TOKEN to the secrets room, `haus-secret
+          --check` asks for it once, and `haus.secrets.provider` decides where
+          it is kept. Set this only to fetch the token some other way.
         '';
       };
       statusText = lib.mkOption {

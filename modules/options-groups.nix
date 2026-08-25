@@ -352,7 +352,10 @@ let
       "shadow"
       "thumbnail"
     ];
-    secrets = [ "provider" ];
+    secrets = [
+      "project"
+      "provider"
+    ];
     security = [
       "firewall.allowSigned"
       "firewall.allowSignedApp"
@@ -567,7 +570,10 @@ let
       "<name>.package" = "needs-pkgs";
     };
     screenshots.location = "local-path";
-    secrets.provider = "secret";
+    secrets = {
+      project = "secret";
+      provider = "secret";
+    };
     # `editor` is a shell command this layer executes, so it stays here
     # forever; `editorName` is the desktop-safe half of that pair — a closed
     # enum over the editors the room installs, which is how a desktop says
