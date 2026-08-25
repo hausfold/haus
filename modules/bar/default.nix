@@ -906,6 +906,23 @@ let
               script="$HOME/.config/sketchybar/plugins/harvest.sh" \
           --subscribe harvest mouse.clicked harvest_update system_woke
     '';
+    # The bell that opens trill's inbox. It is drawn with an icon and no label
+    # because it has no count to carry (see widgets.nix), and the plugin turns
+    # its own drawing off on a Mac with no Trill.app — which is most of them,
+    # since trill is deliberately not a haus flake input.
+    trill = ''
+      ${sb} --add item trill ${side} \
+          --set trill \
+              update_freq=30 \
+              icon="󰂚" \
+              icon.color=$TEXT \
+              icon.padding_left=10 \
+              icon.padding_right=10 \
+              background.color=$SURFACE0 \
+              label.drawing=off \
+              script="$HOME/.config/sketchybar/plugins/trill.sh" \
+          --subscribe trill mouse.clicked system_woke
+    '';
   };
   # Item blocks sit in an attrset (no inherent order), so emission follows these
   # fixed left-to-right orders — only the ones each bar owns are drawn.
@@ -917,6 +934,10 @@ let
     "wifi"
   ];
   extraOrder = [
+    # Beside the Focus pill, which `itemOrder` slots in just before this list:
+    # the bell and the moon are the two halves of one question — what is
+    # reaching me, and is anything allowed to — so they read as a pair.
+    "trill"
     "agents"
     "aiUsage"
     "github"

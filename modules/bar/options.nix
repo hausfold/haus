@@ -1186,9 +1186,9 @@ in
       description = ''
         Which SketchyBar pills to draw, one bool each. The core pills —
         `clock`, `weather`, `media`, `battery`, `wifi` — default true; the extras
-        — the readouts `cpu`, `memory`, `volume`, `calendar`, `caffeinate`
-        and the personal `agents`, `aiUsage`, `elgato`, `harvest` —
-        default false. Set
+        — the readouts `cpu`, `memory`, `volume`, `calendar`, `caffeinate`, the
+        doors `trill` and `github`, and the personal `agents`, `aiUsage`,
+        `elgato`, `harvest` — default false. Set
         only what you want to change:
 
           haus.bar.items = {
@@ -1276,8 +1276,9 @@ in
 
         The set is the five core pills (`clock`, `weather`, `media`, `battery`,
         `wifi`) plus the `haus.bar.items` extras (`cpu`, `memory`, `volume`,
-        `calendar`, `caffeinate`, `agents`, `aiUsage`, `elgato`, `harvest`), plus
-        the Focus pill when `haus.focus.enable` is on. The whole left side
+        `calendar`, `caffeinate`, `trill`, `github`, `agents`, `aiUsage`,
+        `elgato`, `harvest`), plus the Focus pill when `haus.focus.enable` is
+        on. The whole left side
         (workspace pills, front app, the leader picker) and the tour stay on the
         menu bar.
 

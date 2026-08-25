@@ -172,6 +172,19 @@
     description = "A Harvest time-tracking pill; needs a ~/.config/sketchybar/harvest_secrets.sh you provide. Click to stop the running timer or restart the last one. Like the Elgato pill it draws dim when Harvest can't be reached, keeping the label that names what was running — an API it can't ask is not the same thing as a timer that isn't running, and the two used to look identical.";
   };
 
+  # trill is NOT a haus flake input and no room installs it (the workshop's
+  # AGENTS.md keeps it deliberately out of the family lock graph), so this pill
+  # is the one bundled widget whose subject the desktop does not ship. That is
+  # the same shape terminal's `holt hook notify` already has: wired here,
+  # silently absent on a Mac without Trill.app, never a broken bar.
+  trill = {
+    default = false;
+    movable = true;
+    permissions = [ ];
+    interval = 30;
+    description = "Opens trill's inbox — the notification compositor's history window — in one click, from a bar that is always on screen. It exists because the alternative doesn't work here: trill's own menu-bar item lives in macOS's menu bar, which `haus.bar.enable` hides (`_HIHideMenuBar`), so on a Mac running this desktop the inbox is only reachable by hover-revealing a bar that is meant to stay out of the way. LEFT-CLICK opens the inbox, RIGHT-CLICK (or ⌥-click) opens it filtered to the asks — the questions parked on trill's ledge that are still waiting on you. The pill draws nothing at all when Trill.app isn't installed, because a control for an app you don't have is noise rather than an invitation; with the app installed but its daemon down it draws dim, which is the same distinction the elgato and harvest pills already make between \"switched off\" and \"can't be reached\". It carries no count yet: trill's inbox grew unread state in hausfold/trill#25, but no CLI verb reads it back out, and a badge computed by reading another app's SQLite behind its back is exactly the kind of claim that rots when the schema moves.";
+  };
+
   # The Focus pill is bundled and movable but is NOT in `bar.items`: it rides
   # the Focus room's contribution rather than an opt-in bool, which is the one asymmetry
   # the old tables carried and this one keeps. `default = null` says exactly
@@ -188,6 +201,6 @@
     # pounce's grant, so nothing ever asked on sketchybar's behalf.
     permissions = [ "accessibility" ];
     interval = 30;
-    description = "The Focus (Do-Not-Disturb) pill. Needs `haus.focus.enable`; setting this moves the pill but does not enable the Focus room by itself.";
+    description = "The Focus (Do-Not-Disturb) pill, drawn as a moon: a plain crescent while notifications are getting through, a crescent-and-stars on mauve while the Mac is quiet. It wore a bell until the `trill` pill above wanted one — a bell is what a notification IS, and two bells side by side (one struck) made the bar ask you to remember which was which, where every operating system that has ever shipped a Do-Not-Disturb switch has drawn it as a moon. Needs `haus.focus.enable`; setting this moves the pill but does not enable the Focus room by itself.";
   };
 }
