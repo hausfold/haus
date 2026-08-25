@@ -33,7 +33,7 @@ launcher, focus, secrets. Pull just what you want into your own flake:
 }
 ```
 
-**theme, wallpaper, shelf, snippets and apps aren't standalone modules** — they ride
+**theme, wallpaper, shelf, trill, snippets and apps aren't standalone modules** — they ride
 along with the full `mkHaus` house. (apps needs the roster resolver next to
 it to install anything, which is the same reason the roster isn't exported
 either.)
@@ -68,6 +68,15 @@ darwinConfigurations.mymac = inputs.haus.mkHaus {
   input and copies to a fixed `/Applications/Perch.app` path. Its command
   line door, `perch add <path>...`, lands on `PATH` as a link into that
   bundle.
+
+- **trill** — `haus.trill.enable` installs the trill notification compositor
+  through Nix via its flake input and copies it to a fixed
+  `/Applications/Trill.app`: its Full Disk Access grant is keyed per app path,
+  so a store path would drop the grant on every version bump. It adds nothing
+  to `PATH` — `trill` already resolves on a haus machine through a wrapper that
+  finds the bundle wherever it is, this room included. Off by default; haus
+  draws its banners through trill either way (`haus-notify`), falling back to
+  Apple's banner when no compositor answers.
 
 - **focus** — `haus.focus.*` for the Focus/DND hotkey, Slack status, and
   shell hooks.

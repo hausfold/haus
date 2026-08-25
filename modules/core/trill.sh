@@ -24,9 +24,18 @@
 # process it execs IS trill, so `trill ask`'s pill indices and `trill doctor`'s
 # exit 5 come back untouched.
 #
-# ⚠️ This shadows a `trill` from anywhere later on PATH. Today nothing else
-# ships one — trill is not a haus flake input and has no cask — and when it
-# becomes one, this file is what that room replaces, not something it stacks on.
+# ⚠️ This shadows a `trill` from anywhere later on PATH, and it must stay the
+# ONLY `bin/trill` haus ships — two packages putting that name in
+# /run/current-system/sw/bin is a file collision the system build refuses, not a
+# harmless duplicate.
+#
+# This comment used to say the room that made trill a flake input would REPLACE
+# this file. It doesn't, and shouldn't: ../trill (haus.trill.enable) places the
+# bundle at /Applications/Trill.app — the second candidate below — and puts
+# nothing on PATH. The room is also off by default and there is no cask, so on
+# most machines Trill.app is somewhere this file has to go looking for. Build
+# time cannot answer a runtime question; that is the whole argument, and having
+# a room does not change it.
 
 set -u
 

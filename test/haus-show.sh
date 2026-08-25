@@ -434,7 +434,7 @@ printf '%s' "$out" | jq -e '
   and .ok == true
   and (.sets | length) == 10
   and (.rooms | map(.room)) == ["displays","development","bar","launcher","focus","haus"]
-  and (.silent | length) == 7
+  and (.silent | length) == 8
 ' >/dev/null || fail "json valid: envelope is not the documented shape"
 # Data on stdout, diagnostics on stderr, and NO human rendering mixed in.
 lacks "🌫" "json valid"

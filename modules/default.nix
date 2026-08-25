@@ -73,6 +73,12 @@
     ./security
     ./launcher
     ./shelf
+    # The notification compositor. After ./shelf because it is the same shape —
+    # a family app placed at a fixed /Applications path so its permission grant
+    # survives a version bump — and before ./focus because quiet hours are
+    # trill's, not focus's, and a reader meeting them in that order is not
+    # surprised twice.
+    ./trill
     ./focus
     # The GitHub room: the machine's webhook endpoint, and the signal the bar's
     # octocat pill and the AI room's lane cache both read instead of polling.
