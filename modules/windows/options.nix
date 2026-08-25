@@ -246,8 +246,10 @@ in
     #
     # The option is windows's because the behaviour is (it moves you between
     # AeroSpace workspaces), but the code that implements it is a non-drawing
-    # SketchyBar item — front_app_switched is the only cheap signal a ⌘Q gives,
-    # and aerospace.toml has no hook for it. So bar READS this option the same
+    # SketchyBar item — the bar's event stream is the only place either tell
+    # exists (front_app_switched for a ⌘Q, space_windows_change for the last
+    # window on a page closing), and aerospace.toml has no hook for either. So
+    # bar READS this option the same
     # way it already reads windows.enable, and with the bar off there is nothing
     # to switch off: gravity was never running.
     windows.gravity = lib.mkOption {
@@ -255,12 +257,19 @@ in
       default = true;
       example = false;
       description = ''
-        When a ⌘Q leaves the focused workspace empty, pull back to the most
+        When the focused workspace loses its last window, pull back to the most
         recently populated one instead of leaving you on a blank screen.
+
+        Both ways a workspace empties count: a ⌘Q that takes every window of an
+        app at once, and the close of the LAST window on a page — a ⌘W on a lane,
+        a ⌃D that ends a shell — while that app carries on in windows elsewhere.
+        The second matters most on the `T/<repo>` lane pages, which are not
+        persistent: without it you were left standing on a page that no longer
+        appears in any list, with nothing on it.
 
         It fires only for a workspace you EMPTIED — never for one you
         deliberately navigated to that happens to be empty — so in ordinary use
-        it is the difference between quitting the last app on a space and then
+        it is the difference between closing the last thing on a space and then
         having to find your way off it.
 
         Turn it off if a screen that changes without you touching it is worse
@@ -269,7 +278,7 @@ in
         for, and one whole display's worth of content replaced in a blink is
         exactly what a vestibular trigger looks like.
 
-        Needs both `haus.windows.enable` and `haus.bar.enable`: the quit is
+        Needs both `haus.windows.enable` and `haus.bar.enable`: the emptying is
         detected from the bar's own event stream (see
         modules/bar/sketchybar/plugins/empty_workspace.sh for why there is no
         AeroSpace hook for it), so with no bar there is no gravity either way.

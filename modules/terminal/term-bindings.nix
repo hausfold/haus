@@ -67,7 +67,7 @@ rec {
         {
           key = "⌘ ↵";
           chords = [ "cmd+return" ];
-          action = "New agent lane in this window's repo";
+          action = "New agent lane in this page's repo";
         }
       ];
     }
@@ -85,7 +85,12 @@ rec {
             "cmd+n"
             "cmd+shift+n"
           ];
-          action = "New shell window — hop out of a worktree / stay";
+          action = "New shell window in this page's repo — hop out of a worktree / stay";
+        }
+        {
+          key = "⌘ T";
+          chords = [ "cmd+t" ];
+          action = "New terminal window — home directory, off any repo's page";
         }
         {
           key = "⌃ ⇥ / ⌃ ⇧ ⇥";

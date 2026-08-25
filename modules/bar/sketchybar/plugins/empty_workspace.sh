@@ -1,11 +1,39 @@
 #!/bin/bash
-# empty_workspace.sh — when a ⌘Q empties the focused workspace, pull back to the
-# most recent non-empty workspace ("gravity").
+# empty_workspace.sh — when the focused workspace loses its last window, pull
+# back to the most recent non-empty one ("gravity").
 #
-# Why this lives in a SketchyBar plugin and not a keybinding: it runs off macOS's
-# front_app_switched event, which fires on a ⌘Q (and on every workspace switch,
-# which is how we cheaply keep a focused-workspace history without touching
-# aerospace.toml).
+# Why this lives in a SketchyBar plugin and not a keybinding: AeroSpace has no
+# hook for either thing that empties a workspace. The bar's event stream has
+# both — front_app_switched for a ⌘Q, space_windows_change for a window that
+# closed on its own — and aerospace_workspace_change keeps the "where am I"
+# half honest between them.
+#
+# ── TWO ways a workspace empties, and they need different tells ──────────────
+#
+#   a QUIT       ⌘Q takes every window of an app at once. front_app_switched
+#                fires; the detection is below.
+#   a CLOSE      the last WINDOW on a page goes (⌘W, a ⌃D that ends a shell,
+#                `zmx kill` from the bar) while the app lives on in other
+#                windows elsewhere. NOTHING about the front app changes, so the
+#                quit path never saw it — and a lane page is deliberately not
+#                persistent, so what you were left standing on was a workspace
+#                that no longer exists in any list, with nothing on it and no
+#                chord that means "off". That is what space_windows_change is
+#                subscribed for.
+#
+# The CLOSE tell is a transition rather than a state, and it has to be: an empty
+# workspace you NAVIGATED to must not be pulled out from under you, and once you
+# are standing on one the two look identical. So every event records whether the
+# workspace under you had windows, and gravity fires only when a
+# space_windows_change finds that the SAME workspace has just gone from having
+# them to having none. Walking onto an empty page records `empty` and never
+# transitions; walking onto a full one and closing its last window does.
+#
+# That is also why aerospace_workspace_change is in the subscription list: it is
+# the only event that fires on every page walk, so it is what keeps the recorded
+# workspace equal to the one you are actually on. Without it a page you reached
+# without changing apps would still carry the PREVIOUS workspace's record, and
+# the same-workspace guard would throw the close away.
 #
 # Detecting a quit (vs. a plain app-switch or visiting an already-empty space):
 #   each event records the frontmost app's PID; on the next event, if that PID
@@ -31,13 +59,15 @@
 # pointer the way it could before. Gravity is a single hop again, with no
 # flicker through an intermediate workspace to fix that pointer up.
 #
-# Wired as a non-drawing item subscribed to front_app_switched in sketchybarrc.
+# Wired as a non-drawing item in sketchybarrc, subscribed to front_app_switched,
+# space_windows_change and aerospace_workspace_change.
 
 export PATH="/run/current-system/sw/bin:/opt/homebrew/bin:/usr/bin:/bin:$PATH"
 
 AEROSPACE=/opt/homebrew/bin/aerospace
 
 STATE=/tmp/sketchybar_empty_ws.state    # "<pid>|<name>" of last frontmost app
+SEEN=/tmp/sketchybar_empty_ws.seen      # "<workspace>|<1 if it had windows>", last event
 HIST=/tmp/sketchybar_empty_ws.hist      # focused-workspace history, most recent LAST
 TOKEN=/tmp/sketchybar_empty_ws.token    # latest-event nonce; guards the fork
 LOG=/tmp/sketchybar_empty_ws.log
@@ -66,23 +96,59 @@ if [ -n "$focused" ] && [ "$focused" != "$prev_focused" ]; then
     tail -12 "$HIST" > "$HIST.t" 2>/dev/null && mv "$HIST.t" "$HIST"
 fi
 
-log "event: prev=$prev cur=$cur_pid|$cur_name focused=$focused prev_focused=$prev_focused"
+log "event: sender=${SENDER:-none} prev=$prev cur=$cur_pid|$cur_name focused=$focused prev_focused=$prev_focused"
 
-# Only a QUIT is interesting: previous frontmost recorded and now dead.
-[ -n "$prev_pid" ] || { log "  no prev → skip"; exit 0; }
-if kill -0 "$prev_pid" 2>/dev/null; then log "  prev alive → switch, skip"; exit 0; fi
-case "$prev_name" in Pounce|pounce*) log "  prev is palette → skip"; exit 0 ;; esac
-case "$cur_name"  in Pounce|pounce*) log "  cur is palette → skip";  exit 0 ;; esac
+# ── did the workspace under you just lose its last window? ───────────────────
+# `--empty no` never lists an empty workspace, so "is $focused in this list" IS
+# the emptiness question — the same call and the same rule as the fork below and
+# as windows/scripts/workspace-mru.sh's page test. One extra AeroSpace round
+# trip (~4 ms) per event, which is what buys the transition the CLOSE tell needs.
+# The `-n` guard is not tidiness: with no answer from AeroSpace at all `nonempty`
+# is empty, a herestring of it is still ONE empty line, and `grep -qx ""` matches
+# it — so an unanswered workspace would record itself as populated and the next
+# close would read as a transition that never happened.
+nonempty=$($AEROSPACE list-workspaces --monitor all --empty no 2>/dev/null)
+now_full=0
+[ -n "$focused" ] && [ -n "$nonempty" ] && grep -qx "$focused" <<<"$nonempty" && now_full=1
+seen=$(cat "$SEEN" 2>/dev/null)
+seen_ws=${seen%%|*}
+seen_full=${seen#*|}
+[ -n "$focused" ] && printf '%s|%s' "$focused" "$now_full" > "$SEEN"
 
-# ...and only a quit IN PLACE. If the focused workspace moved since the last
-# event, you navigated here (a leader launch, a ⌘⇥ landing, a manual hop) and
-# whatever died elsewhere is none of gravity's business. An empty workspace you
-# chose is not one you emptied.
-[ "$focused" = "$prev_focused" ] || { log "  moved '$prev_focused' → '$focused', not a quit in place → skip"; exit 0; }
+emptied=0
+if [ "${SENDER:-}" = space_windows_change ] && [ -n "$focused" ] &&
+   [ "$focused" = "$seen_ws" ] && [ "$seen_full" = "1" ] && [ "$now_full" = "0" ]; then
+    emptied=1
+fi
 
-log "  QUIT detected (prev '$prev_name' dead) → fork"
+# The QUIT tell, as a function so the two triggers read as the two triggers
+# rather than as one long chain of exits with a branch through the middle.
+# Returns 0 when this event is a quit in place.
+quit_in_place() {
+    # Previous frontmost recorded and now dead.
+    [ -n "$prev_pid" ] || { log "  no prev → skip"; return 1; }
+    if kill -0 "$prev_pid" 2>/dev/null; then log "  prev alive → switch, skip"; return 1; fi
+    case "$prev_name" in Pounce|pounce*) log "  prev is palette → skip"; return 1 ;; esac
+    case "$cur_name"  in Pounce|pounce*) log "  cur is palette → skip";  return 1 ;; esac
 
-nonce="$cur_pid.$prev_pid"
+    # ...and only a quit IN PLACE. If the focused workspace moved since the last
+    # event, you navigated here (a leader launch, a ⌘⇥ landing, a manual hop) and
+    # whatever died elsewhere is none of gravity's business. An empty workspace you
+    # chose is not one you emptied.
+    [ "$focused" = "$prev_focused" ] ||
+        { log "  moved '$prev_focused' → '$focused', not a quit in place → skip"; return 1; }
+
+    log "  QUIT detected (prev '$prev_name' dead) → fork"
+    return 0
+}
+
+if [ "$emptied" = 1 ]; then
+    log "  EMPTIED in place ('$focused' lost its last window) → fork"
+else
+    quit_in_place || exit 0
+fi
+
+nonce="$cur_pid.$prev_pid.${SENDER:-}"
 echo "$nonce" > "$TOKEN"
 (
     # Act the instant the window is reaped — tight poll, not a fixed sleep, so
@@ -90,6 +156,9 @@ echo "$nonce" > "$TOKEN"
     # non-empty set is reused below, so this costs no extra AeroSpace calls.
     reaped=0
     for _ in $(seq 1 20); do
+        # The CLOSE path already knows it is empty — the outer `nonempty` above
+        # said so — so this costs it one round trip and breaks on the first
+        # pass. The QUIT path is the one that has to wait for the reap.
         nonempty=$($AEROSPACE list-workspaces --monitor all --empty no 2>/dev/null)
         grep -qx "$focused" <<<"$nonempty" || { reaped=1; break; }
         sleep 0.01

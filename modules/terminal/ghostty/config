@@ -112,8 +112,15 @@ confirm-close-surface = false
 # Ghostty, so a chord it consumes never arrives, and a chord it doesn't consume
 # should reach the shell rather than do something Ghostty made up.
 
-# ⌘T — no tabs. A window is a pane in this desktop (windows/AeroSpace tiles
-# them), and a Ghostty tab would nest a second layout model inside one tile.
+# ⌘T — consumed by pounce (cmd:shell-plain): a NEUTRAL terminal, home directory
+# and no repo, on the base workspace rather than on the lane page you were
+# standing on. It is the escape hatch from the page ownership ⌘N and ⌘↵ obey.
+#
+# The unbind is still what makes that possible, and for the reason it always
+# had: no tabs. A window is a pane in this desktop (windows/AeroSpace tiles
+# them), and a Ghostty tab would nest a second layout model inside one tile — so
+# the chord every Mac terminal spells "new terminal" was free for the thing that
+# actually opens one here.
 keybind = cmd+t=unbind
 # ⌘⇧T likewise: it was "new tab at this pane's cwd", which is what ⌘N means now.
 keybind = cmd+shift+t=unbind
