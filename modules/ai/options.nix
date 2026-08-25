@@ -219,8 +219,8 @@ in
         and nobody at the keyboard, `haus.power.displaySleep` and
         `haus.power.computerSleep` end an overnight run without anything having
         closed. Needs no privilege, and works on battery, because closing the
-        lid still sleeps the Mac -- so the laptop-cooking-in-a-bag case this
-        cannot happen.
+        lid still sleeps the Mac, so the closed-laptop-cooking-in-a-bag case
+        this stop cannot cause.
 
         `lid` -- the above, plus turning on `haus.power.lidAwake`, whose root
         daemon holds macOS's `disablesleep`. That is the only lever that
