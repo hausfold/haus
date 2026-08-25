@@ -6,7 +6,7 @@
 # to a room of its own (../wallpaper) when the generated `minimal` look landed:
 # that desktop reads the palette, the accent, the tiling gaps and the flake's own
 # lock edges, which is more than one enum on the theme can carry.
-# ../renamed.nix keeps the old name working.
+# ../wallpaper/options.nix keeps the old name working.
 #
 # haus.theme.systemAppearance defaults to "unmanaged" — nothing moves unless a
 # host (or the bootstrap interview) opts in — and is applied with osascript for
