@@ -138,10 +138,33 @@ slack_set() { # $1 = on|off
     fi
     local prev="$STATE_DIR/slack-prev.json"
     if [ "$1" = on ]; then
-        # Stash whatever status was there so turning it off can put it back.
-        slack_api users.profile.get \
-            | "$JQ" '{profile:{status_text:(.profile.status_text // ""), status_emoji:(.profile.status_emoji // ""), status_expiration:0}}' \
-            >"$prev" 2>/dev/null || rm -f "$prev"
+        # Stash whatever status was there so turning it off can put it back —
+        # but only when there is nothing stashed already. An existing stash means
+        # the last `focus off` could not reach Slack and kept it (see the restore
+        # arm below), so the status Slack is showing RIGHT NOW is the focus one:
+        # re-stashing would record the focus status as the thing to return to and
+        # make it stick forever, which is the exact failure the keeping was for.
+        #
+        # And it has to be tested before the capture rather than after, because a
+        # `>"$prev"` redirect truncates at the moment the pipeline is set up, not
+        # when jq writes — so an offline `focus on` would empty the kept stash
+        # before anything downstream got a chance to notice.
+        if [ ! -s "$prev" ]; then
+            # Through a temp file for the same reason: nothing is allowed to
+            # shorten $prev until we have a whole replacement in hand. jq writes
+            # nothing and exits 0 on an empty body, and Slack answers HTTP 200
+            # with {"ok":false,…} for an expired token — both produce a file that
+            # is not a status, so the shape is checked before it becomes one.
+            local tmp="$prev.tmp"
+            if slack_api users.profile.get \
+                | "$JQ" -e 'select(.ok == true)
+                    | {profile:{status_text:(.profile.status_text // ""), status_emoji:(.profile.status_emoji // ""), status_expiration:0}}' \
+                >"$tmp" 2>/dev/null && [ -s "$tmp" ]; then
+                mv -f "$tmp" "$prev"
+            else
+                rm -f "$tmp" "$prev"
+            fi
+        fi
         local body
         body=$("$JQ" -n --arg t "$SLACK_STATUS_TEXT" --arg e "$SLACK_STATUS_EMOJI" \
             '{profile:{status_text:$t,status_emoji:$e,status_expiration:0}}')
@@ -152,10 +175,20 @@ slack_set() { # $1 = on|off
                 | "$JQ" -e '.ok' >/dev/null || note "slack: dnd.setSnooze failed"
         fi
     else
-        if [ -f "$prev" ]; then
-            slack_api users.profile.set -H "Content-type: application/json; charset=utf-8" -d @"$prev" \
-                | "$JQ" -e '.ok' >/dev/null || note "slack: status restore failed"
-            rm -f "$prev"
+        if [ -s "$prev" ]; then
+            # Keep the stash when the restore did not land. Slack is a network
+            # call and leaving Focus is exactly when it can be missing (a train,
+            # a hotel portal, Wi-Fi off) — and the old unconditional `rm` threw
+            # away the ONLY record of the status you had before Focus, so the
+            # next successful toggle had nothing to put back and your Slack
+            # status stayed stuck on the focus one. Now the next `focus off`
+            # with a network retries it.
+            if slack_api users.profile.set -H "Content-type: application/json; charset=utf-8" -d @"$prev" \
+                | "$JQ" -e '.ok' >/dev/null; then
+                rm -f "$prev"
+            else
+                note "slack: status restore failed — keeping the stash, retried on the next 'focus off'"
+            fi
         else
             slack_api users.profile.set -H "Content-type: application/json; charset=utf-8" \
                 -d '{"profile":{"status_text":"","status_emoji":""}}' \
