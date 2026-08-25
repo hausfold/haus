@@ -50,7 +50,16 @@ export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/s
 # cause here is the Automation (Apple Events) grant: the pounce daemon needs
 # System Settings → Privacy & Security → Automation → Pounce → Ghostty, and a
 # denied grant makes osascript error while the chord looks simply dead.
-say() { osascript -e "display notification \"$1\" with title \"haus · new terminal\"" >/dev/null 2>&1; }
+# Everything this desktop puts on screen goes through `haus-notify`: trill
+# draws it when its daemon answers, macOS's own banner when it doesn't, and
+# `~/.config/trill/rules.json` is where you route or silence it — matching on
+# the `--source` below. It exits 0 whatever happens, so a missed banner can
+# never be why this script failed.
+#
+# By name, not by path: the PATH exported just above names
+# `/run/current-system/sw/bin`, which is where it lands.
+say() { haus-notify --source haus.terminal --kind fault --symbol exclamationmark.triangle \
+    --title "haus · new terminal" --body "$1" >/dev/null 2>&1; }
 
 # ── where "off the page" is ──────────────────────────────────────────────────
 # The BASE of the workspace you are on, not a hardcoded T: a page is
