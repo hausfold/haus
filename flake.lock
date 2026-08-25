@@ -25,11 +25,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1787477229,
-        "narHash": "sha256-DmsQvC0LN3b4Fg6fudl/HLI4iWEiiy1+nmqCerxT95E=",
+        "lastModified": 1787625982,
+        "narHash": "sha256-lI4t/StkqaKlN6th09IByWipoARPK0H4gCqocVI/VTk=",
         "owner": "hausfold",
         "repo": "holt",
-        "rev": "c8c1056c2f09c7292578da86033331a33ce2e5e8",
+        "rev": "90b2f50abfea6db4401dc90d71af294b1391d67e",
         "type": "github"
       },
       "original": {
