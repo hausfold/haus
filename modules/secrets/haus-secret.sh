@@ -93,6 +93,17 @@ wanted() {
   done <"$TABLE"
 }
 
+# The OPTIONAL half of the same table, as `name<TAB>why`. `secretspec check`
+# reports these (`○ NAME … (optional)`) but never asks for one — its whole job
+# is the required set — so `--check` asks about them itself, or a value a room
+# declared as "nice to have" could only ever be entered by hand.
+optional() {
+  local keys name required why obtain
+  while IFS=$'\t' read -r keys name required why obtain; do
+    if [ "$required" != "1" ]; then printf '%s\t%s\n' "$name" "$why"; fi
+  done <"$TABLE"
+}
+
 # "Is anything waiting on me?", answered two different ways on purpose.
 #
 # With a provider that has no per-item ACL (any of the cloud ones), asking it is
@@ -166,8 +177,27 @@ case "${1:-}" in
   # secretspec's own fill loop: it asks for each missing value and writes it to
   # the provider. Interactive on purpose — haus never handles the value.
   "$SECRETSPEC" check --file "$MANIFEST" --reason "$FILL_REASON"
+  # The optional ones, one question each. Asked every run rather than only when
+  # empty: knowing which are already set means reading them, and on the login
+  # keychain that is a dialog per secret — a cost worth paying when a person
+  # typed `--check`, but not one to pay for a question they can answer with a
+  # keystroke. Entering a value again simply overwrites it with itself.
+  while IFS=$'\t' read -r name why; do
+    printf '\n%s is optional — %s\n' "$name" "$why"
+    printf 'Set it now? [y/N] '
+    # No tty (a script, a hook, `haus doctor`) is a no, quietly.
+    # 2>… BEFORE the </dev/tty it silences: redirections are applied left to
+    # right, so the other order reports the failure to the real stderr first.
+    read -r answer 2>/dev/null </dev/tty || answer=""
+    case "$answer" in
+    [yY]*) "$SECRETSPEC" set --file "$MANIFEST" --reason "$FILL_REASON" "$name" ;;
+    *) printf 'Skipped. `haus-secret --check` asks again.\n' ;;
+    esac
+  done < <(optional)
   # What the run confirmed, for the deck's sake. Written only on success, and
   # only ever read on a provider this machine may not interrogate quietly.
+  # REQUIRED names only: an optional one that was skipped is not a machine
+  # waiting on anybody.
   mkdir -p "$(dirname "$STAMP")"
   wanted >"$STAMP"
   ;;
