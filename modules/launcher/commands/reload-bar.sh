@@ -18,10 +18,16 @@
 # 2026-08-24), so a PATH carrying only one of them would break the other.
 export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
 
+# Everything this desktop puts on screen goes through `haus-notify`: trill
+# draws it when its daemon answers, macOS's own banner when it doesn't, and
+# `~/.config/trill/rules.json` is where you route or silence it — matching on
+# the `--source` below. It exits 0 whatever happens, so a missed banner can
+# never be why this script failed.
+#
+# By name, not by path: the PATH exported just above starts with
+# `/run/current-system/sw/bin`, which is where it lands.
 notify() {
-  osascript -e 'on run argv' \
-    -e 'display notification (item 1 of argv) with title (item 2 of argv)' \
-    -e 'end run' -- "$1" "$2" >/dev/null 2>&1
+  haus-notify --source haus.bar --title "$2" --body "$1" >/dev/null 2>&1
 }
 
 # Both bars, when there are two. haus.bar.bottom.enable runs a SECOND

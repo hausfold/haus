@@ -527,7 +527,12 @@ fi
 # in front of you and waiting to be answered — the outcome ⌃↵ is paying to
 # avoid.
 if [ -n "${background:-}" ]; then
-  /usr/bin/osascript -e "display notification \"$repo_name — $name is working\" with title \"haus · agent lane\"" >/dev/null 2>&1
+  # Through haus-notify, so trill draws it when it can and `rules.json` can
+  # route it — this is the one banner here that is news rather than a failure,
+  # so it is a `pulse` and it threads on the lane name.
+  /run/current-system/sw/bin/haus-notify --source haus.lane --kind pulse --symbol play.circle \
+    --thread "$name" --title "haus · agent lane" \
+    --body "$repo_name — $name is working" >/dev/null 2>&1
 fi
 # Explicitly, so the spawn's exit status is the spawn's and not a notification's.
 exit 0

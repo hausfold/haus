@@ -34,9 +34,13 @@ if [ "${1:-}" = "custom" ]; then
         'text returned of (display dialog "Stay awake for how many whole hours?" default answer "3" with title "Keep Awake" buttons {"Cancel", "Start"} default button "Start" cancel button "Cancel")' \
         2>/dev/null) || exit 0
     if ! "$AWAKE" "${HOURS}h" >/dev/null 2>&1; then
-        /usr/bin/osascript -e \
-            'display notification "Use a whole number from 1 to 8760." with title "Keep Awake"' \
-            >/dev/null 2>&1 || true
+        # Through haus-notify, so trill draws it when it can and `rules.json`
+        # can route it. Absolute: SketchyBar runs plugins under launchd's bare
+        # PATH. `|| true` — a failed banner must not fail the arm reporting a
+        # failure.
+        /run/current-system/sw/bin/haus-notify --source haus.bar.awake --kind fault \
+            --symbol exclamationmark.triangle --title "Keep Awake" \
+            --body "Use a whole number from 1 to 8760." >/dev/null 2>&1 || true
     fi
     exit 0
 fi
@@ -49,9 +53,9 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
         # instead of running a command that silently changes nothing. A control
         # that appears to do nothing is how someone concludes the pill is broken.
         if [ -e "$HELD" ] && [ "$("$AWAKE" status --raw 2>/dev/null | cut -f1)" = "off" ]; then
-            /usr/bin/osascript -e \
-                'display notification "It releases when they stop." with title "Agents are holding this Mac awake"' \
-                >/dev/null 2>&1 || true
+            /run/current-system/sw/bin/haus-notify --source haus.bar.awake --symbol robot \
+                --title "Agents are holding this Mac awake" \
+                --body "It releases when they stop." >/dev/null 2>&1 || true
         else
             "$AWAKE" off >/dev/null 2>&1 || true
         fi

@@ -527,7 +527,9 @@ if [ -z "$gwid" ]; then
   # The classic cause is the Automation (Apple Events) grant, and a chord that
   # fails silently is the one thing this script can't afford — the same
   # notification scripts/new-window.sh gives for the same failure.
-  osascript -e 'display notification "couldn'"'"'t ask Ghostty for a window — check Privacy & Security → Automation." with title "haus · agent lane"' >/dev/null 2>&1
+  /run/current-system/sw/bin/haus-notify --source haus.lane --kind fault --symbol exclamationmark.triangle \
+    --title "haus · agent lane" \
+    --body "couldn't ask Ghostty for a window — check Privacy & Security → Automation." >/dev/null 2>&1
   exit 3
 fi
 

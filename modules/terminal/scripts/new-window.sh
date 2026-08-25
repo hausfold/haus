@@ -195,7 +195,9 @@ fi
 if [ "$spawned" != 1 ]; then
   # Failing silently is the one sin a chord can't afford. Both paths gone means
   # something bigger than a missing grant — no Ghostty on the machine, usually.
-  osascript -e 'display notification "couldn'"'"'t open a Ghostty window — is Ghostty installed?" with title "haus · new window"' >/dev/null 2>&1
+  /run/current-system/sw/bin/haus-notify --source haus.terminal --kind fault \
+    --symbol exclamationmark.triangle --title "haus · new window" \
+    --body "couldn't open a Ghostty window — is Ghostty installed?" >/dev/null 2>&1
   exit 1
 fi
 

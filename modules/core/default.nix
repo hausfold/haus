@@ -38,6 +38,26 @@ let
   # own derivation -- there is no end-user CLI here, nothing to run by hand.
   lidawake = pkgs.writeShellScriptBin "lidawake" (builtins.readFile ./lidawake.sh);
 
+  # `trill` on PATH. A wrapper, not a symlink into the bundle, because nix has
+  # to decide at build time and whether Trill.app exists is a runtime fact — a
+  # link to a bundle that isn't there is a `trill` that `command -v` finds and
+  # every call fails on. Same job perch's `perch-cli-link` does in
+  # modules/shelf, one indirection further out for the same reason that room's
+  # link points at /Applications rather than the store. See the script header.
+  trill = pkgs.writeShellScriptBin "trill" (builtins.readFile ./trill.sh);
+
+  # The one notification surface for everything this desktop ships: trill when
+  # its daemon answers, Apple's own banner when it doesn't, nothing when
+  # HAUS_NOTIFY says so. No option gates it — `~/.config/trill/rules.json`
+  # already routes and drops by `source`, hot-reloaded, and a second dial in
+  # front of that would be a worse one. The trill wrapper goes in by STORE
+  # PATH, not by name: half these callers are launchd-spawned and run on a bare
+  # PATH that names nothing of ours (the trap pounce's command scripts each
+  # carry a prelude for).
+  hausNotify = pkgs.writeShellScriptBin "haus-notify" (
+    builtins.replaceStrings [ "@trill@" ] [ "${trill}/bin/trill" ] (builtins.readFile ./haus-notify.sh)
+  );
+
   # `hausax` — the effective appearance + accessibility oracle `haus diff`/`haus
   # plan` shell out to (and modules/theme, for systemAppearance). See
   # hausax.swift for why a plist read isn't enough on macOS 26.
@@ -902,6 +922,14 @@ in
       # must sit at a stable /run/current-system path for security's
       # passwordless-sudo rule to match it. See the script's header.
       (writeShellScriptBin "haus-activate" (builtins.readFile ./haus-activate.sh))
+
+      # `trill`, and the shim every haus script notifies through. Unconditional
+      # beside `haus` and `hausax`, and for the same reason: a desktop that
+      # tells you things is the product, not the developer toolbelt. Neither
+      # requires trill to be installed — the wrapper explains its absence in a
+      # line, and haus-notify silently falls through to Apple's banner.
+      trill
+      hausNotify
 
       # The oracle `haus diff`/`haus plan` (and modules/theme's appearance block)
       # use to tell a declared setting that actually took effect from one macOS

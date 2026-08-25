@@ -148,7 +148,9 @@ APPLESCRIPT
     # without a word anywhere. Say it, the way every other script that drives
     # Ghostty over Apple Events says it.
     if [ "$rc" -ne 0 ]; then
-      /usr/bin/osascript -e 'display notification "couldn'"'"'t ask Ghostty which window is focused — check Privacy & Security → Automation." with title "haus · terminal"' >/dev/null 2>&1
+      /run/current-system/sw/bin/haus-notify --source haus.terminal --kind fault --symbol exclamationmark.triangle \
+        --title "haus · terminal" \
+        --body "couldn't ask Ghostty which window is focused — check Privacy & Security → Automation." >/dev/null 2>&1
       exit 0
     fi
     [ -n "$out" ] || exit 0

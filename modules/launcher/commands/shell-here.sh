@@ -46,7 +46,17 @@ stay=""
 # cause here is the Automation (Apple Events) grant: the pounce daemon needs
 # System Settings → Privacy & Security → Automation → Pounce → Ghostty, and a
 # denied grant makes osascript error while the chord looks simply dead.
-say() { osascript -e "display notification \"$1\" with title \"haus · shell here\"" >/dev/null 2>&1; }
+# Everything this desktop puts on screen goes through `haus-notify`: trill
+# draws it when its daemon answers, macOS's own banner when it doesn't, and
+# `~/.config/trill/rules.json` is where you route or silence it — matching on
+# the `--source` below. It exits 0 whatever happens, so a missed banner can
+# never be why this script failed.#
+# Addressed absolutely because this runs under launchd (the pounce daemon /
+# a bar plugin), whose PATH names nothing of ours. That path is
+# `environment.systemPackages` — stable across rebuilds, the same reason
+# `haus-activate` is reachable there.
+say() { /run/current-system/sw/bin/haus-notify --source haus.terminal --kind fault --symbol exclamationmark.triangle \
+    --title "haus · shell here" --body "$1" >/dev/null 2>&1; }
 
 # The resolver is installed by the terminal room's agents block; without it
 # (which the laneCommands filter should have made unreachable) fall back to $HOME rather than
