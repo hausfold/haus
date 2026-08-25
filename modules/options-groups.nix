@@ -69,9 +69,6 @@ let
       "default"
       "enable"
       "instructions"
-      # A desktop may hold an opinion about whether agents keep the Mac awake --
-      # it is a way of working, not a fact about one machine, and a host
-      # overrides it with a plain assignment like any other.
       "keepAwake"
       # Desktop-safe for the same reason `default` is: both name a program by
       # id rather than by path, and neither can make a machine run something it
@@ -477,6 +474,14 @@ let
   # they could. The name is the option's; the sentence is the table's.
   hostOnly = {
     ai.instructions = "agent-context";
+    # The one AI leaf that reaches OUT of its own namespace: `keepAwake =
+    # "lid"` turns on `haus.power.lidAwake`, and `power` is host-only entire
+    # (below) for a reason that does not stop applying just because the
+    # request arrives from another room. A desktop that could set this would be
+    # setting `haus.power.*` through a side door -- and starting a root daemon
+    # while it was there. `this-hardware` is that namespace's own sentence, and
+    # it is the true one here too.
+    ai.keepAwake = "this-hardware";
     bar = {
       "calendar.me" = "identity";
       "elgato.host" = "one-network";

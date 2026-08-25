@@ -191,11 +191,16 @@ apply_lid() {
 # the screen lit, and a display that never sleeps is both a battery cost and the
 # most visible way to get a feature like this switched off.
 caff_pid=""
+caff_started=-1 # the tick we last spawned on, for the birth-failure test below
 apply_sleep() {
     if [ "$1" = 1 ]; then
         caff_alive && return 0
-        "$CAFFEINATE" -i -w $$ &
+        # stderr to /dev/null for the reason the marker write has it: a
+        # $CAFFEINATE that does not exist makes the shell print an exec error
+        # here, every tick, into a log with no rotation.
+        "$CAFFEINATE" -i -w $$ 2>/dev/null &
         caff_pid=$!
+        caff_started=$tick
         return 0
     fi
     caff_alive && kill "$caff_pid" 2>/dev/null
@@ -247,6 +252,7 @@ held_since=0  # when this continuous hold began
 last_hold=0   # last tick at which the raw signal said work is happening
 capped=0      # MAX_HOLD tripped; refuse to re-arm until the signal clears
 capstamp_ok=0 # this cap's stamp landed, so "newer than the cap" is answerable
+hold_pending=0 # a `sleep` hold taken but not yet announced (see below)
 tick=0
 
 trap 'apply 0; exit 0' TERM INT
@@ -267,7 +273,13 @@ if [ "$DEPTH" != sleep ] && [ -e "$MARKER" ]; then
     apply 0
 fi
 
-say "watching $HOLD_DIR (depth=$DEPTH mode=$MODE requirePower=$REQUIRE_POWER linger=${LINGER}s maxHold=${MAX_HOLD}s)"
+# requirePower is only reported where it is consulted — a banner naming a guard
+# this depth ignores is how you spend an afternoon debugging the wrong thing.
+if [ "$DEPTH" = sleep ]; then
+    say "watching $HOLD_DIR (depth=$DEPTH mode=$MODE linger=${LINGER}s maxHold=${MAX_HOLD}s)"
+else
+    say "watching $HOLD_DIR (depth=$DEPTH mode=$MODE requirePower=$REQUIRE_POWER linger=${LINGER}s maxHold=${MAX_HOLD}s)"
+fi
 
 while :; do
     [ -n "$TICK_HOOK" ] && "$TICK_HOOK" "$tick"
@@ -333,25 +345,56 @@ while :; do
     fi
 
     # `sleep` depth only: believe the process table over our own bookkeeping. If
-    # the child is gone while we think we are holding, we are not holding — say
-    # so once and let the arm below start a fresh one on this very tick.
+    # the child is gone while we think we are holding, we are not holding — let
+    # the arm below start a fresh one on this very tick.
+    #
+    # WHICH of the two failures this is matters, because they want opposite
+    # logging. A child that lived a while and then died is an event worth a line
+    # each time. A child that never survives the tick it was born on is a
+    # $CAFFEINATE that cannot run at all — and saying so every five seconds
+    # forever is the same unrotated-log hazard apply_lid's `last_refusal` exists
+    # to avoid, made worse by the arm below cheerfully announcing a hold it does
+    # not have. So a birth failure is said once and the hold is never claimed.
     if [ "$DEPTH" = sleep ] && [ "$held" = 1 ] && ! caff_alive; then
-        say "the caffeinate assertion is gone — re-taking it."
+        if [ $((tick - caff_started)) -le 1 ]; then
+            if [ "$last_refusal" != birth ]; then
+                say "$CAFFEINATE will not stay running — idle sleep still ends a run."
+                last_refusal=birth
+            fi
+        else
+            say "the caffeinate assertion is gone — re-taking it."
+            last_refusal=""
+        fi
         held=0
+    fi
+
+    # Announce a `sleep` hold only once its child has survived a tick.
+    #
+    # apply_sleep cannot answer "did it start" at the moment it spawns — the
+    # fork exists before the exec has had a chance to fail — so saying "holding"
+    # there would print a line that is false whenever $CAFFEINATE cannot run,
+    # and print it on every one of the loop's re-arm attempts. Deferring by one
+    # tick costs nothing (the assertion is up either way; only the log line
+    # waits) and makes the log's word for it true.
+    if [ "$DEPTH" = sleep ] && [ "$hold_pending" = 1 ] && [ "$held" = 1 ] && caff_alive; then
+        say "holding — idle sleep no longer ends a run (the lid still does)."
+        hold_pending=0
     fi
 
     if [ "$want" = 1 ] && [ "$held" = 0 ]; then
         if apply 1; then
             held=1
             held_since=$t
+            # At `sleep` depth the announcement waits a tick — see hold_pending.
             if [ "$DEPTH" = sleep ]; then
-                say "holding — idle sleep no longer ends a run (the lid still does)."
+                hold_pending=1
             else
                 say "holding — a lid close no longer sleeps this Mac."
             fi
         fi
     elif [ "$want" = 0 ] && [ "$held" = 1 ]; then
         apply 0 && held=0
+        hold_pending=0
         if [ "$DEPTH" = sleep ]; then
             say "released — this Mac idle sleeps again."
         else

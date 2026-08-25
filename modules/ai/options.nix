@@ -234,10 +234,22 @@ in
         What this sets rather than owns: `lid` writes
         `haus.power.lidAwake.enable` at `mkDefault`, so a host that names that
         option itself always wins and is told, in a warning, that it did. How
-        long a hold lingers past the last turn, how long one may last, and
-        whether it needs the charger stay where the machinery is
-        (`haus.power.lidAwake.linger`, `.maxHold`, `.requirePower`) -- this is
-        a switch, not a second copy of the dial.
+        long a hold lingers past the last turn and how long one may last stay
+        where the machinery is (`haus.power.lidAwake.linger` and `.maxHold`),
+        and both stops read them -- this is a switch, not a second copy of the
+        dial.
+
+        Two knobs there do NOT reach this option. `requirePower` guards the
+        **lid** hold only: its argument is that nothing can stop a closed
+        laptop cooking in a bag, and at the `idle` stop the lid still sleeps
+        the Mac, so an unplugged laptop sitting open on a desk is exactly the
+        case worth protecting. And `while = "always"` -- plain closed-display
+        mode -- shapes the lid daemon alone; this option means "while my agents
+        work" at both stops and never turns into an unconditional hold.
+
+        Host-only, so a shared desktop may not set it: `lid` reaches into
+        `haus.power.*`, which is a namespace about one machine's hardware, and
+        starts a root daemon there.
 
         Needs `ai.enable`: the hold signal is written by the agent hooks this
         room installs, so with the room off nothing would ever report a turn.

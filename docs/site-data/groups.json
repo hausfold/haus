@@ -213,7 +213,8 @@
           "reason": "agent-context"
         },
         "haus.ai.keepAwake": {
-          "desktopSafe": true
+          "desktopSafe": false,
+          "reason": "this-hardware"
         },
         "haus.ai.namer": {
           "desktopSafe": true

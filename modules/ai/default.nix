@@ -775,18 +775,26 @@ in
       RunAtLoad = true;
       ProcessType = "Background";
       StandardOutPath = "/tmp/haus-agent-awake.out.log";
-      StandardErrorPath = "/tmp/haus-agent-awake.out.log";
+      StandardErrorPath = "/tmp/haus-agent-awake.err.log";
       EnvironmentVariables = {
         LIDAWAKE_DEPTH = "sleep";
         LIDAWAKE_HOLD_DIR = lidHolds;
         LIDAWAKE_MARKER = keepAwakeMarker;
-        # The signal and the shape of a hold are the power room's to tune, and
-        # this agent reads the same dial rather than growing a second one --
-        # `haus.ai.keepAwake` is a switch, not a copy of the knobs. requirePower
-        # is the one that is absent, and the script ignores it at this depth
-        # anyway: it is a guard about a closed laptop in a bag, and at this
-        # depth the lid still sleeps the Mac.
-        LIDAWAKE_MODE = config.haus.power.lidAwake.while;
+        # The SHAPE of a hold is the power room's to tune and this agent reads
+        # the same dial rather than growing a second one -- `haus.ai.keepAwake`
+        # is a switch, not a copy of the knobs. Two of the five are deliberately
+        # not inherited: `while` just below, and `requirePower`, which the
+        # script ignores at this depth anyway (it is a guard about a closed
+        # laptop in a bag, and here the lid still sleeps the Mac).
+        # NOT `haus.power.lidAwake.while`. That option's other stop, `always`,
+        # means plain closed-display mode -- hold regardless of what any agent
+        # is doing -- and it is a coherent thing to want from the LID feature.
+        # Inheriting it here would turn `haus.ai.keepAwake = "idle"` into a
+        # permanent, agent-independent caffeinate, uncapped as well (maxHold
+        # does not apply to `always`, which has no signal that could get stuck).
+        # This option's only word is "while my agents work", at both stops, so
+        # the signal is spelled out rather than borrowed.
+        LIDAWAKE_MODE = "agents";
         LIDAWAKE_LINGER = toString (config.haus.power.lidAwake.linger * 60);
         LIDAWAKE_MAX_HOLD =
           if config.haus.power.lidAwake.maxHold == "never" then

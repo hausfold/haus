@@ -355,7 +355,6 @@ LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 LIDAWAKE_TICKS=4 
     bash "$LIDAWAKE" >/dev/null
 assert_writes "1" "a live hold beside a stale one still counts"
 
-printf 'ok - lidawake hold lifecycle, linger, requirePower, the maxHold latch, and staleness\n'
 
 # ── 11. depth = sleep holds a caffeinate child instead of the lid ────────────
 # The AI room's shallower lever (haus.ai.keepAwake = "idle"): it must take and
@@ -431,7 +430,18 @@ hook '
 case "$1" in
   0) : >'"$TMP"'/holds/lane-a ;;
 esac'
-LIDAWAKE_DEPTH=sleep LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 \
-    LIDAWAKE_INTERVAL=0.2 LIDAWAKE_TICKS=3 bash "$LIDAWAKE" >/dev/null
-await_writes "1 1 1"
-assert_writes "1 1 1" "a caffeinate that exits at once is re-taken, not believed"
+out=$(LIDAWAKE_DEPTH=sleep LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 \
+    LIDAWAKE_INTERVAL=0.2 LIDAWAKE_TICKS=4 bash "$LIDAWAKE" 2>&1)
+await_writes "1 1 1 1"
+assert_writes "1 1 1 1" "a caffeinate that exits at once is re-taken, not believed"
+# ...and says so ONCE, without ever claiming the hold it does not have. A loop
+# that logged both lines per tick would put ~6 MB a day into a log with no
+# rotation, and every line of it would be false.
+[ "$(printf '%s\n' "$out" | grep -c "will not stay running")" = 1 ] ||
+    fail "a lever that cannot start said so more than once"
+case "$out" in
+    *"holding — idle sleep"*)
+        fail "claimed a hold while the lever was failing to start" ;;
+esac
+
+printf 'ok - lidawake hold lifecycle, linger, requirePower, the maxHold latch, and staleness\n'
