@@ -36,11 +36,16 @@
 #      with no marker is the microseconds inside apply() between the pmset call
 #      and the marker write. maxHold covers it.)
 #   2. $LIDAWAKE_MAX_HOLD caps ONE continuous hold. Past it the hold releases
-#      and refuses to re-arm until the signal has actually cleared, so a hold
-#      file that outlived its agent costs one window rather than forever. It
-#      does not apply to `while = "always"`, which HAS no signal that could get
-#      stuck — capping there would just stop a closed-display Mac dead after
-#      eight hours with nothing on screen to say why.
+#      and latches off, so a hold file that outlived its agent costs one window
+#      rather than forever. TWO things clear the latch, and the second is the
+#      one that makes the promise true: the signal going away entirely, OR a
+#      hold appearing that is NEWER than the moment we capped. Without the
+#      second, a leaked file — which by definition nothing will ever remove —
+#      would hold the latch down for good, and every real agent that started
+#      work afterwards would find the feature silently dead. It does not apply
+#      to `while = "always"`, which HAS no signal that could get stuck —
+#      capping there would just stop a closed-display Mac dead after eight
+#      hours with nothing on screen to say why.
 #   3. It owns a marker at $LIDAWAKE_MARKER for as long as it is holding.
 #      Activation reads that marker to undo a hold when the option is switched
 #      off — see the lidAwake block in modules/core/default.nix. Without it,
@@ -69,6 +74,11 @@ MARKER="${LIDAWAKE_MARKER:-/var/db/haus-lidawake.held}"
 # Root's own timestamp for "this run started", written beside the marker so the
 # staleness test below has something to compare against that is not a clock.
 STAMP="${LIDAWAKE_STAMP:-${MARKER}.started}"
+# The same trick a second time, for the maxHold latch: stamped at the moment we
+# cap, so "a hold newer than this" means an agent that started work AFTER the
+# cap — the one thing that distinguishes real new work from the leaked file that
+# tripped the cap in the first place.
+CAPSTAMP="${LIDAWAKE_CAPSTAMP:-${MARKER}.capped}"
 
 # ── test seams (test/lidawake.sh) ────────────────────────────────────────────
 # A poll loop whose whole job is three time-dependent failsafes is exactly the
@@ -135,9 +145,11 @@ apply() {
 # `-f %m` on BSD and `-c %Y` on GNU, which made the first version pass on this
 # Mac and fail on CI's Linux with every hold silently unreadable. `find -newer`
 # is the same word on both.
-holds_present() {
-    [ -n "$(find "$HOLD_DIR" -type f -newer "$STAMP" 2>/dev/null | head -n 1)" ]
+holds_newer_than() {
+    [ -n "$(find "$HOLD_DIR" -type f -newer "$1" 2>/dev/null | head -n 1)" ]
 }
+
+holds_present() { holds_newer_than "$STAMP"; }
 
 held=0        # what we last successfully applied
 held_since=0  # when this continuous hold began
@@ -191,12 +203,16 @@ while :; do
     if [ "$capped" = 1 ]; then
         if [ "$want" = 0 ]; then
             capped=0
+        elif holds_newer_than "$CAPSTAMP"; then
+            say "an agent started work after the cap — the latch is off and the lid can hold again."
+            capped=0
         else
             want=0
         fi
     elif [ "$MODE" != always ] && [ "$want" = 1 ] && [ "$held" = 1 ] &&
         [ "$MAX_HOLD" -gt 0 ] && [ $((t - held_since)) -ge "$MAX_HOLD" ]; then
-        say "one hold has run ${MAX_HOLD}s — releasing it. Something is holding that should not be; the lid sleeps this Mac until the holds clear."
+        say "one hold has run ${MAX_HOLD}s — releasing it. Something is holding that should not be; the lid sleeps this Mac until the holds clear or an agent starts a fresh turn."
+        : >"$CAPSTAMP" 2>/dev/null || true
         capped=1
         want=0
     fi

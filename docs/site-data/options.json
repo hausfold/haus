@@ -4331,7 +4331,7 @@
       "_type": "literalExpression",
       "text": "480"
     },
-    "description": "Minutes one unbroken hold may last, or `\"never\"` for no cap.\n\nThe failsafe. A client that dies without reporting leaves a hold\nbehind, and without this the Mac would simply never sleep again\nwith nothing on screen to say why. Past the cap the hold releases\nand refuses to re-arm until the signal has actually cleared, so a\nstuck hold costs one window rather than forever. 8 hours by\ndefault -- long enough for an overnight run.\n",
+    "description": "Minutes one unbroken hold may last, or `\"never\"` for no cap.\n\nThe failsafe. A client that dies without reporting leaves a hold\nbehind, and without this the Mac would simply never sleep again\nwith nothing on screen to say why. Past the cap the hold releases\nand stays off until either the holds clear or an agent starts a\nfresh turn -- so a stuck hold costs one window rather than\nforever, and a leaked one, which nothing will ever remove, still\ngets out of a real agent's way. 8 hours by default -- long enough\nfor an overnight run.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"never\""

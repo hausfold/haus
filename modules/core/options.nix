@@ -1624,9 +1624,11 @@ in
               The failsafe. A client that dies without reporting leaves a hold
               behind, and without this the Mac would simply never sleep again
               with nothing on screen to say why. Past the cap the hold releases
-              and refuses to re-arm until the signal has actually cleared, so a
-              stuck hold costs one window rather than forever. 8 hours by
-              default -- long enough for an overnight run.
+              and stays off until either the holds clear or an agent starts a
+              fresh turn -- so a stuck hold costs one window rather than
+              forever, and a leaked one, which nothing will ever remove, still
+              gets out of a real agent's way. 8 hours by default -- long enough
+              for an overnight run.
             '';
           };
         };

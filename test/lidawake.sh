@@ -77,7 +77,7 @@ assert_writes() {
 scenario() {
     good_pmset
     : >"$LIDAWAKE_TEST_LOG"
-    /bin/rm -rf "$TMP/holds" "$LIDAWAKE_MARKER"
+    /bin/rm -rf "$TMP/holds" "$LIDAWAKE_MARKER" "$LIDAWAKE_MARKER.capped"
     mkdir -p "$TMP/holds"
     printf 'ac\n' >"$LIDAWAKE_TEST_POWER"
     printf '1000\n' >"$LIDAWAKE_NOW_FILE"
@@ -173,6 +173,29 @@ esac'
 LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=600 LIDAWAKE_REQUIRE_POWER=0 LIDAWAKE_TICKS=5 \
     bash "$LIDAWAKE" >/dev/null
 assert_writes "1 0 1" "maxHold caps, latches, then re-arms"
+
+# ── 5b. the cap must not outlive the leak that tripped it ────────────────────
+# The case scenario 5 cannot reach, and the one that actually happens: a lane
+# force-killed mid-turn never gets its SessionEnd, so its hold file is never
+# removed and the signal NEVER clears. Latching until it does would mean one
+# leaked file kills the feature for good — the option's own promise is that a
+# stuck hold "costs one window rather than forever". So a hold that appears
+# AFTER the cap is a real agent starting real work, and it re-arms.
+#
+# Note the stuck file is still there at the end: the fix is not that it went
+# away, it is that it stopped mattering.
+scenario
+hook '
+case "$1" in
+  0) : >'"$TMP"'/holds/stuck ;;
+  1) echo 1700 >'"$TMP"'/clock ;;
+  2) echo 1800 >'"$TMP"'/clock ;;
+  3) : >'"$TMP"'/holds/a-real-agent; echo 1900 >'"$TMP"'/clock ;;
+esac'
+LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=600 LIDAWAKE_REQUIRE_POWER=0 LIDAWAKE_TICKS=5 \
+    bash "$LIDAWAKE" >/dev/null
+assert_writes "1 0 1" "a new agent re-arms a capped hold, leak or no leak"
+[ -e "$TMP/holds/stuck" ] || fail "5b: the test's own premise went missing"
 
 # ── 6. while = "always" ──────────────────────────────────────────────────────
 # Plain closed-display mode: holds with an empty hold directory and never lets
