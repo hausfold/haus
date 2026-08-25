@@ -23,9 +23,15 @@
 # never a value.
 set -euo pipefail
 
-MANIFEST="$HOME/.config/haus/secretspec.toml"
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+MANIFEST="$CONFIG_HOME/haus/secretspec.toml"
+STAMP="${XDG_STATE_HOME:-$HOME/.local/state}/haus/secrets/confirmed"
 SECRETSPEC=@secretspec@
 TABLE=@table@
+# 1 when this Mac's provider keys an "always allow" to the READING BINARY, the
+# way the macOS login keychain does — see `ok` below for why that decides how
+# this machine is allowed to answer "is it filled in?".
+PROVIDER_ITEM_ACL=@providerItemAcl@
 
 REPORT_REASON="haus-secret: report which of this machine's declared secrets have a value (no value is read out)"
 FILL_REASON="haus-secret --check: fill in the values this machine's rooms are missing"
@@ -37,9 +43,10 @@ haus-secret — the secrets this machine's rooms declared
   haus-secret <NAME>              print one value on stdout
   haus-secret --reason <why> NAME the same, with a reason for the audit log
   haus-secret --list              what the rooms on this Mac need, and why
+  haus-secret --wanted            just the names, one per line (asks nothing)
   haus-secret --status            which of them have a value (never prompts,
                                   never prints a value)
-  haus-secret --ok                exit 0 if every REQUIRED value is present
+  haus-secret --ok                exit 0 if nothing is waiting on you
   haus-secret --check             fill in what is missing, interactively
 EOF
 }
@@ -61,23 +68,59 @@ EOF
   exit 1
 }
 
-# The declarations, rendered at build time: key, name, required, why, obtain.
+# The declarations, rendered at build time: key(s), name, required, why, obtain.
 # Prose rather than a machine format — this is the "what is this Mac asking me
 # for, and why" answer, and nothing parses it back.
 list() {
   [ -s "$TABLE" ] || no_manifest
-  local key name required why obtain kind
-  while IFS=$'\t' read -r key name required why obtain; do
+  local keys name required why obtain kind
+  while IFS=$'\t' read -r keys name required why obtain; do
     if [ "$required" = "1" ]; then kind=required; else kind=optional; fi
-    printf '%s  (%s, for the %s room)\n' "$name" "$kind" "${key%%-*}"
+    printf '%s  (%s, wanted by %s)\n' "$name" "$kind" "$keys"
     printf '  %s\n' "$why"
     if [ -n "$obtain" ]; then printf '  where: %s\n' "$obtain"; fi
     printf '\n'
   done <"$TABLE"
 }
 
-# /bin/bash is macOS's own 3.2 — no arrays here, so the read path spells the
-# reason'd and unreasoned calls out rather than splatting one.
+# Names only, and REQUIRED names only — the set `--ok` answers about. Reads the
+# build-time table and nothing else, so it is safe anywhere: no provider, no
+# prompt, no network.
+wanted() {
+  local keys name required why obtain
+  while IFS=$'\t' read -r keys name required why obtain; do
+    if [ "$required" = "1" ]; then printf '%s\n' "$name"; fi
+  done <"$TABLE"
+}
+
+# "Is anything waiting on me?", answered two different ways on purpose.
+#
+# With a provider that has no per-item ACL (any of the cloud ones), asking it is
+# free and truthful, so ask: a value rotated away underneath the machine shows
+# up immediately.
+#
+# With the login keychain it is NOT free. macOS keys each item's "always allow"
+# to the exact binary that read it, so the first read after secretspec's store
+# path moves raises a modal dialog per secret — and `haus doctor` /
+# `haus permissions` are the two callers here. A wizard that fires permission
+# dialogs is the thing the manual-click deck exists to end, so on that provider
+# this answers from a STAMP `--check` wrote instead: your word, recorded, rather
+# than a green tick nothing earned. `--status` is the live look, and it is only
+# ever run because a person typed it.
+ok() {
+  [ -f "$MANIFEST" ] || return 0 # nothing declared is nothing missing
+  if [ "$PROVIDER_ITEM_ACL" != "1" ]; then
+    if "$SECRETSPEC" check --file "$MANIFEST" --no-prompt --reason "$REPORT_REASON" \
+      >/dev/null 2>&1; then return 0; else return 1; fi
+  fi
+  local name
+  while read -r name; do
+    [ -f "$STAMP" ] || return 1
+    grep -qxF "$name" "$STAMP" || return 1
+  done < <(wanted)
+  return 0
+}
+
 reason=""
 if [ "${1:-}" = "--reason" ]; then
   [ $# -ge 3 ] || die "--reason takes a sentence and a secret name"
@@ -86,29 +129,35 @@ if [ "${1:-}" = "--reason" ]; then
 fi
 
 case "${1:-}" in
-"" | --help | -h)
+--help | -h)
   usage
+  ;;
+
+"")
+  usage >&2
+  exit 2
   ;;
 
 --list)
   list
   ;;
 
+--wanted)
+  [ -s "$TABLE" ] || no_manifest
+  wanted
+  ;;
+
 --status)
   [ -f "$MANIFEST" ] || no_manifest
   # `check --explain` is a value-free resolution trace: it names which secrets
-  # resolve and which are empty, prompts for nothing, and prints no value. It
-  # is the only report here that asks the PROVIDER anything, which is what the
-  # fixed reason above is for.
+  # resolve and which are empty, prompts for nothing, and prints no value. On
+  # the login keychain it can still raise a keychain dialog (see `ok`), which is
+  # why nothing runs this on your behalf.
   exec "$SECRETSPEC" check --file "$MANIFEST" --explain --reason "$REPORT_REASON"
   ;;
 
 --ok)
-  # Nothing declared is nothing missing — a machine with no secret-wanting room
-  # is healthy, not unconfigured.
-  [ -f "$MANIFEST" ] || exit 0
-  exec "$SECRETSPEC" check --file "$MANIFEST" --no-prompt --reason "$REPORT_REASON" \
-    >/dev/null 2>&1
+  ok
   ;;
 
 --check)
@@ -116,7 +165,11 @@ case "${1:-}" in
   list
   # secretspec's own fill loop: it asks for each missing value and writes it to
   # the provider. Interactive on purpose — haus never handles the value.
-  exec "$SECRETSPEC" check --file "$MANIFEST" --reason "$FILL_REASON"
+  "$SECRETSPEC" check --file "$MANIFEST" --reason "$FILL_REASON"
+  # What the run confirmed, for the deck's sake. Written only on success, and
+  # only ever read on a provider this machine may not interrogate quietly.
+  mkdir -p "$(dirname "$STAMP")"
+  wanted >"$STAMP"
   ;;
 
 -*)

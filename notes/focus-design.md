@@ -131,10 +131,11 @@ what Focus can't do: tell your **teammates** and silence your **phone**.
   (one-time: create a tiny personal Slack app, install to workspace)
 
 The token is identity, so per the house rule it never enters the rice: a
-`tokenCommand` option the host sets, Keychain-first
-(`security find-generic-password -s focus-slack -w`). Same spirit as the
-harvest pill's secrets file, but command-shaped so nothing secret ever
-touches disk in plaintext.
+`tokenCommand` option the host sets. SINCE the secrets room grew a deck, the
+default is to set nothing — the room declares SLACK_USER_TOKEN, `haus-secret
+--check` asks for it once, and `tokenCommand` is only for fetching the value
+some other way. Same spirit as the harvest pill's secrets file, but nothing
+secret ever touches disk in plaintext.
 
 Slack is implemented as the first built-in **hook** — the extension point
 is generic:
@@ -158,7 +159,7 @@ haus.focus = {
   focus = "Do Not Disturb";           # only meaningful under mechanism = "shortcut"
   slack = {
     enable = false;                   # off by default: needs a token
-    tokenCommand = "";                # e.g. "security find-generic-password -s focus-slack -w"
+    tokenCommand = "";                # empty = haus holds it (haus-secret --check)
     status = { text = "heads down"; emoji = ":no_bell:"; };
     snooze = true;                    # also dnd.setSnooze while quiet
   };

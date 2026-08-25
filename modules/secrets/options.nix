@@ -78,6 +78,12 @@ in
         that knows why. The secrets room renders the deck into
         ~/.config/haus/secretspec.toml; `haus-secret` reads, lists and fills
         it, and `haus doctor` reports what is still empty.
+
+        The KEY is the source room's to choose, and it names the room and the
+        thing ("github-webhook", "focus-slack") — same rule as the permissions
+        deck, and here it is also what `haus-secret --list` prints as who
+        wants a value. The `name` below is the value's own address, and the
+        two are deliberately not the same: two rooms may want one value.
       '';
       options = {
         name = lib.mkOption {

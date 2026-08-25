@@ -42,7 +42,8 @@
   # `secretspec check` lists what's missing). A cloud provider ("gcsm",
   # "awssm", "bws", "onepassword", …) makes values follow you to the next Mac;
   # you configure its credentials outside Nix. WHICH secrets exist is each
-  # project's committed secretspec.toml, not an option here.
+  # project's committed secretspec.toml; what the ROOMS on this machine need is
+  # declared by the rooms themselves — `haus-secret --list` after a rebuild.
   # haus.secrets.provider = "keyring";
 
   # Text expansion (espanso): type a trigger, get the expansion, in any app —

@@ -129,6 +129,11 @@ let
       "/run/current-system/sw/bin/haus-secret --reason ${lib.escapeShellArg "haus focus: set your Slack status and snooze notifications while quiet"} SLACK_USER_TOKEN"
     else
       cfg.slack.tokenCommand;
+  slackTokenHint =
+    if slackHausHolds then
+      "run: haus-secret --check   (it asks for SLACK_USER_TOKEN and stores it in your provider)"
+    else
+      "haus.focus.slack.tokenCommand printed nothing: ${cfg.slack.tokenCommand}";
 
   engine = pkgs.runCommand "focus" { } ''
     mkdir -p $out/bin
@@ -138,6 +143,7 @@ let
       --subst-var-by keyCode ${toString keyCode} \
       --subst-var-by slackEnabled ${if cfg.slack.enable then "1" else "0"} \
       --subst-var-by slackTokenCommand ${shq slackTokenCommand} \
+      --subst-var-by slackTokenHint ${shq slackTokenHint} \
       --subst-var-by slackStatusText ${shq cfg.slack.statusText} \
       --subst-var-by slackStatusEmoji ${shq cfg.slack.statusEmoji} \
       --subst-var-by slackSnooze ${if cfg.slack.snooze then "1" else "0"} \
@@ -275,6 +281,10 @@ lib.mkMerge [
         as you and nothing else on this Mac reads it.
       '';
       cost = "quiet still silences this Mac, but Slack keeps notifying you and your status stays as it was";
+      # The room degrades rather than breaks without it — focus.sh skips the
+      # Slack leg and says so — which is exactly what `required = false` is for:
+      # nothing on this Mac should draw a red ✗ over a partial degradation.
+      required = false;
       obtain = "a Slack user token (xoxp-…) with the scopes users.profile:write and dnd:write — api.slack.com/apps → your app → OAuth & Permissions";
     };
 

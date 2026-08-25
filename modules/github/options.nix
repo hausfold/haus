@@ -85,9 +85,12 @@ in
         actually happens, which is both faster to notice a merge and far less
         traffic on your API budget.
 
-        Needs `secretCommand` set: the delivery signature is the entire auth
-        story, so a receiver with no secret is a receiver that would have to
-        trust anyone who found the hostname.
+        The delivery signature is the entire auth story, so the receiver needs
+        the shared secret before it will start: this room declares
+        GITHUB_WEBHOOK_SECRET to the secrets room and `haus-secret --check`
+        asks you for it once. Until it has one the receiver stays dormant and
+        says so in its log — the build is fine, the bridge simply isn't up.
+        `secretCommand` is there for fetching that value some other way.
       '';
     };
 

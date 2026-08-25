@@ -2669,9 +2669,9 @@ cmd_doctor() {
     # doctor may never be the thing that pops a dialog.
     if [ -f "$HOME/.config/haus/secretspec.toml" ] && command -v haus-secret >/dev/null 2>&1; then
       if haus-secret --ok; then
-        ok "every secret this machine's rooms declared has a value"
+        ok "no room on this Mac is waiting on a secret value"
       else
-        bad "rooms on this Mac are missing secret values — 'haus-secret --status' says which, 'haus-secret --check' fills them"
+        bad "a room here is waiting on a secret value — 'haus-secret --status' says which (and whether the provider is even reachable), 'haus-secret --check' fills them in"
       fi
     fi
     # If your config flake declares secrets, verify their values are present.

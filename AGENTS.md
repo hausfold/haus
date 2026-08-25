@@ -620,15 +620,6 @@ mechanism, say so in one line.
     <working|waiting|idle|remove> <client>`), which is why the wirings the AI
     room writes for opencode and codex never need to know where a bar keeps its
     plugins.
-  One more lives in **`modules/secrets`** for the same reason:
-  **`haus-secret`** — the single door to the values the ROOMS declared
-  (`haus._contrib.secrets` → `~/.config/haus/secretspec.toml`). A room's wiring
-  says `haus-secret <NAME>` and never learns which provider this Mac uses;
-  `--list` / `--status` / `--check` are the person's half. It deliberately does
-  NOT invent a `--reason` for a read: secretspec's `require_reason` policy is
-  what makes an agent write down why before it may read a value, and a wrapper
-  that supplied one would hand every agent on the machine a blanket excuse.
-
   - `holt-cache` exists because `holt --json` is an investigation rather than a
     listing — `holt list` self-heals through a parked reap sweep on the way in,
     and that sweep AND the JSON encoder each dump `lsof -d cwd` machine-wide
@@ -637,6 +628,15 @@ mechanism, say so in one line.
     agents popup redraws on a 10 s tick; the Lanes palette opens inside pounce's
     8-second loading skeleton), so the TTL + one-winner lock live in front of
     both.
+
+  One more lives in **`modules/secrets`** for the same reason:
+  **`haus-secret`** — the single door to the values the ROOMS declared
+  (`haus._contrib.secrets` → `~/.config/haus/secretspec.toml`). A room's wiring
+  says `haus-secret <NAME>` and never learns which provider this Mac uses;
+  `--list` / `--status` / `--check` are the person's half. It deliberately does
+  NOT invent a `--reason` for a read: secretspec's `require_reason` policy is
+  what makes an agent write down why before it may read a value, and a wrapper
+  that supplied one would hand every agent on the machine a blanket excuse.
 
   All are plain bash embedded via `builtins.readFile`, so a rebuild re-installs
   them on `PATH`. Agent worktrees themselves are **`holt`**

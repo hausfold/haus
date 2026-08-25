@@ -116,11 +116,20 @@ let
     ) names
   );
 
+  # Does this machine's provider key an "always allow" to the reading BINARY?
+  # The login keychain does, which is what makes an innocent-looking presence
+  # check able to raise a modal dialog after any rebuild that moves secretspec's
+  # store path (AGENTS.md's own secretspec gotcha). Unknown counts as yes: with
+  # `provider = null` the answer lives in a file the user hand-manages, and the
+  # safe assumption is the one that never interrupts them.
+  providerItemAcl = if cfg.provider == null || lib.hasPrefix "keyring" cfg.provider then "1" else "0";
+
   hausSecret = pkgs.runCommand "haus-secret" { } ''
     mkdir -p $out/bin
     substitute ${./haus-secret.sh} $out/bin/haus-secret \
       --subst-var-by secretspec ${pkgs.secretspec}/bin/secretspec \
-      --subst-var-by table ${table}
+      --subst-var-by table ${table} \
+      --subst-var-by providerItemAcl ${providerItemAcl}
     chmod 555 $out/bin/haus-secret
   '';
 
@@ -179,9 +188,15 @@ in
   # filled in one sitting, by one command, and a wizard that asked five times in
   # a row for the same thing is a wizard people learn to skip.
   #
-  # `check` is a LIVE read (`secretspec check --no-prompt`), not a stamp: it
-  # prompts for nothing and prints nothing, so it obeys the deck's own rule, and
-  # it stays true when a value is rotated away underneath the machine.
+  # `check` obeys the deck's "never prompt" rule the only way it can, and that
+  # is provider-dependent rather than universal: on a cloud provider it is a
+  # live `secretspec check --no-prompt`, and on the login keychain — where a
+  # presence check IS a read, and a read can raise an ACL dialog — it answers
+  # from the stamp `haus-secret --check` wrote. `haus-secret`'s own `ok` has the
+  # argument. `detail` therefore names what is WANTED rather than what is
+  # missing: it is rendered on this machine's behalf, so it may not ask the
+  # provider anything either. `--status` is the live look, and it is in `steps`
+  # because a person has to be the one to run it.
   haus._contrib.permissions.secrets-values = lib.mkIf (entries != [ ]) {
     order = 40;
     title = "Secret values — ${toString (lib.length names)} this Mac's rooms asked for";
@@ -198,10 +213,11 @@ in
       else
         lib.concatStringsSep "; " costs;
     check = "haus-secret --ok";
-    detail = "haus-secret --status 2>&1";
+    detail = "haus-secret --wanted | sed 's/^/wanted: /'";
     steps = [
-      "haus-secret --list  — what each value is for, and where to get it"
-      "haus-secret --check — asks for each missing value and writes it to your provider"
+      "haus-secret --list   — what each value is for, and where to get it"
+      "haus-secret --status — which ones your provider already has"
+      "haus-secret --check  — asks for each missing value and writes it to your provider"
     ];
   };
 }

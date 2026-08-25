@@ -348,6 +348,13 @@
               # assertions and contributions, and step 3 of the rooms plan is what
               # decides whether Blank carries it.
               ./modules/ai
+              # The secrets room, for the mirror-image reason: it RECEIVES a
+              # deck (haus._contrib.secrets) that rooms below write, and it is
+              # the only thing that renders those declarations into a manifest
+              # and installs `haus-secret` to read them. Without it a partial
+              # import of `focus` with the Slack leg on would point at a binary
+              # nothing installed, evaluate cleanly, and quietly never work.
+              ./modules/secrets
               ./modules/core
               implementation
             ];
@@ -1373,7 +1380,8 @@
               option = "haus.roster.sketchybar.binPath";
               allowed = {
                 "modules/options.nix" = "the option's own documentation — the definition site";
-                "modules/bar/barpop.swift" = "a runtime FALLBACK CHAIN, not an address: barpop tries $SKETCHYBAR_BIN (which the bar passes from binPath) first and only then walks this list, so it still finds a bar on a machine mid-migration";
+                "modules/bar/barpop.swift" =
+                  "a runtime FALLBACK CHAIN, not an address: barpop tries $SKETCHYBAR_BIN (which the bar passes from binPath) first and only then walks this list, so it still finds a bar on a machine mid-migration";
               };
             }
           ];
@@ -3180,9 +3188,9 @@
           '';
 
           roster-bin-paths = pkgs.runCommand "haus-roster-bin-paths-ok" { } ''
-            mods=${./modules}
-            fail=0
-${builtins.concatStringsSep "\n" (
+                        mods=${./modules}
+                        fail=0
+            ${builtins.concatStringsSep "\n" (
               map (
                 p:
                 let
@@ -3233,20 +3241,20 @@ ${builtins.concatStringsSep "\n" (
                 ''
               ) rosterOwnedPaths
             )}
-            [ "$fail" = 0 ] || exit 1
-            touch $out
+                        [ "$fail" = 0 ] || exit 1
+                        touch $out
           '';
 
           state-files = pkgs.runCommand "haus-state-files-ok" { } ''
-            mods=${./modules}
-            fail=0
+                        mods=${./modules}
+                        fail=0
 
-            # Every file that spells a shared path still spells it, in the exact
-            # form the registry names. `grep -q` on a path that does not exist is
-            # an ERROR, not a miss, so the existence test is separate — otherwise
-            # a moved file reads as a passing check instead of a broken one,
-            # which is how this class of check goes blind rather than red.
-${builtins.concatStringsSep "\n" (
+                        # Every file that spells a shared path still spells it, in the exact
+                        # form the registry names. `grep -q` on a path that does not exist is
+                        # an ERROR, not a miss, so the existence test is separate — otherwise
+                        # a moved file reads as a passing check instead of a broken one,
+                        # which is how this class of check goes blind rather than red.
+            ${builtins.concatStringsSep "\n" (
               builtins.concatMap (
                 f:
                 map (
@@ -3279,11 +3287,11 @@ ${builtins.concatStringsSep "\n" (
               ) stateFileEntries
             )}
 
-            # No .nix under modules/ may hand-spell a registered path. Without
-            # this the registry is just one more copy — the exact shape it
-            # exists to end. A room that needs one of these imports
-            # ../lib/state-files.nix and interpolates it.
-${builtins.concatStringsSep "\n" (
+                        # No .nix under modules/ may hand-spell a registered path. Without
+                        # this the registry is just one more copy — the exact shape it
+                        # exists to end. A room that needs one of these imports
+                        # ../lib/state-files.nix and interpolates it.
+            ${builtins.concatStringsSep "\n" (
               map (
                 f:
                 let
@@ -3306,8 +3314,8 @@ ${builtins.concatStringsSep "\n" (
               ) stateFileEntries
             )}
 
-            [ "$fail" = 0 ] || exit 1
-            touch $out
+                        [ "$fail" = 0 ] || exit 1
+                        touch $out
           '';
 
           pounce-header-grammar = pkgs.runCommand "haus-pounce-header-grammar-ok" { } ''
