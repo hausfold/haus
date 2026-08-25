@@ -1983,14 +1983,27 @@ in
       # before a tool call moves the pointer, takes focus or redraws the desktop —
       # the counterweight to the `defaultMode = "auto"` two lines below, which is
       # right for files and wrong for the screen. It refuses nothing.
-      # Notification/Stop get `holt hook notify` APPENDED the same way: it turns
-      # "this lane is blocked on its user" / "this lane finished" into a trill
-      # banner — an ask parked on trill's ledge, or a done. Appended, never set:
-      # those two events also carry the user's own agent-state hooks (the bar's
-      # agents pill — see modules/bar), which must survive every rebuild. The
-      # hook itself is holt's and exits 0 no matter what — no trill installed,
-      # daemon down, garbage payload — so wiring it on a machine without trill
-      # is a silent no-op, never a broken session.
+      # FOUR events get `holt hook notify` APPENDED the same way, and they are
+      # two directions of one thing. Notification and Stop turn "this lane is
+      # blocked on its user" / "this lane finished" into a trill banner — an ask
+      # parked on trill's ledge, or a done. UserPromptSubmit and PostToolUse
+      # take an answered ask back DOWN: the user typed, or a tool actually ran,
+      # which is what approving a permission prompt leads to. Without those two
+      # the ledge kept saying "waiting on you" while the agent was already ten
+      # minutes into the work.
+      #
+      # PostToolUse fires on every tool call in every pane, so the cost matters:
+      # holt gates the whole path behind one marker file per outstanding fin, so
+      # an ordinary tool call reads one directory and stops — no registry read,
+      # no launch of Trill.app's binary. Drop that event from the list if you
+      # would rather pay nothing at all; the fin then clears at the end of the
+      # turn instead, when Stop replaces it.
+      #
+      # Appended, never set: all four also carry the user's own agent-state
+      # hooks (the bar's agents pill — see modules/bar), which must survive
+      # every rebuild. The hook itself is holt's and exits 0 no matter what — no
+      # trill installed, daemon down, garbage payload — so wiring it on a
+      # machine without trill is a silent no-op, never a broken session.
       # Claude Code settings/hooks/statusline are agent tooling; a machine that
       # runs no agents should not have its ~/.claude/settings.json rewritten.
       home.activation.claudeCodeSettings = lib.mkIf agentsCfg.enable (
@@ -2005,6 +2018,8 @@ in
               | .hooks.PreToolUse = (((.hooks.PreToolUse // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/agent-desktop-guard\") | not))) + [{matcher: \"Bash|mcp__computer-use__.*\", hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/agent-desktop-guard\"}]}])
               | .hooks.Notification = (((.hooks.Notification // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/holt hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook notify\"}]}])
               | .hooks.Stop = (((.hooks.Stop // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/holt hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook notify\"}]}])
+              | .hooks.UserPromptSubmit = (((.hooks.UserPromptSubmit // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/holt hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook notify\"}]}])
+              | .hooks.PostToolUse = (((.hooks.PostToolUse // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/holt hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook notify\"}]}])
               | .permissions.defaultMode = \"auto\"
               | .tui = \"fullscreen\"
               | .disableAgentView = true
