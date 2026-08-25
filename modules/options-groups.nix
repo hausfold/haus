@@ -223,6 +223,21 @@ let
       "shellAliases"
       "signingKey"
     ];
+    github = [
+      "backstop"
+      "coverageRefresh"
+      "enable"
+      "forwardTo"
+      "hooks"
+      "hooks.*.events"
+      "hooks.*.scope"
+      "port"
+      "secretCommand"
+      "tunnel.credentialsFile"
+      "tunnel.enable"
+      "tunnel.hostname"
+      "tunnel.id"
+    ];
     homebrew = [
       "adopt"
       "autoUpdate"
@@ -514,6 +529,20 @@ let
     git = wholeNamespace "git" "identity" // {
       shellAliases = "runs-a-command";
     };
+    # The room's own split, and it is the whole shape of the room in one table:
+    # the INTERVALS and the switch are opinions anyone can hold, and everything
+    # that names a hostname you own, an organisation you belong to, a secret, a
+    # file on this disk or a port on your network is yours alone.
+    github = {
+      forwardTo = "one-network";
+      hooks = "your-account";
+      "hooks.*.events" = "your-account";
+      "hooks.*.scope" = "your-account";
+      secretCommand = "secret";
+      "tunnel.credentialsFile" = "local-path";
+      "tunnel.hostname" = "your-account";
+      "tunnel.id" = "your-account";
+    };
     keys."leaderExtras.*.command" = "runs-a-command";
     launcher.signingIdentity = "keychain";
     locale = wholeNamespace "locale" "your-region";
@@ -577,6 +606,7 @@ let
     runs-a-command.why = "It is a shell command this machine runs, and a desktop is a file you can read to know what it does. A leaf carrying a command is exactly what stops that being true.";
     secret.why = "It points at a secret, or at the store this machine keeps its secrets in, so it belongs to one person on one Mac.";
     this-hardware.why = "Sleep and power behaviour depends on the machine underneath it: whether it has a battery at all, and how this particular one is carried around.";
+    your-account.why = "It names something inside one person's GitHub or Cloudflare account — an organisation whose repositories this Mac watches, a hostname you own, the tunnel that carries traffic to your desk. A desktop that set it would point a stranger's machine at your account, and in the webhook's case would tell them where to send deliveries.";
     your-network.why = "It names a Wi-Fi network you join, which is a fact about a place rather than a taste anyone can share. It is why the trigger beside it counts SCREENS instead of naming one: a count is a shape every desk can have, and an SSID exists in exactly one building.";
     your-region.why = "Language, region, units and keyboard layout are facts about the person at the keyboard; a desktop that set them would change what your Mac speaks.";
   };
@@ -640,6 +670,7 @@ let
     displays = "displays";
     focus = "focus";
     fonts = "appearance";
+    github = "development";
     homebrew = "apps";
     hotCorners = "windows";
     launcher = "launcher";
@@ -863,6 +894,10 @@ let
     };
     # 210 was `collar` — Touch ID for sudo — until 2026-08-16. It is part of
     # `security` above now, and the slot is left free rather than backfilled.
+    github = {
+      order = 205;
+      blurb = "This machine's GitHub webhook endpoint: the tunnel, the receiver, and the hooks it wants to exist. Rooms that watch GitHub read its signal and poll on a long backstop instead of a short one. haus never writes to GitHub — it holds no token, and `haus doctor` prints the `gh` command that closes a gap rather than running it.";
+    };
     secrets = {
       order = 220;
       blurb = "Where secret values come from on this machine.";

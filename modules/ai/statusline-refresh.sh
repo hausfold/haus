@@ -52,6 +52,19 @@ LOCK="$CACHE_DIR/refresh.lock"
 CONSUMER="${HAUS_CONSUMER:-$HOME/.config/nix}"   # same knob `haus` uses
 NAG="$CACHE_DIR/lock-nag.tsv"
 NAG_TTL=1800    # seconds; flake pins move on a human cadence, not a 15s one
+PANEL_COVERED="$CACHE_DIR/.panel-covered"
+
+# ---- the GitHub bridge, where there is one ----------------------------------
+# statusline.sh stretches the panel's TTL when this flag is present, so the
+# whole judgement is made HERE, in the fetch path, for the reason every other
+# consumer makes it in theirs: this is the one place that knows which
+# repositories the panel is actually about. No bridge, no flag, no change.
+if [ -r "$HOME/.config/haus/github/signal.sh" ]; then
+  # shellcheck source=/dev/null
+  . "$HOME/.config/haus/github/signal.sh"
+else
+  haus_gh_covers() { return 1; }
+fi
 
 mtime() { # mtime <file> — modification time in epoch seconds, 0 when unknown
   # `stat -f %m` is BSD/macOS, which is where this runs. On GNU coreutils -f means
@@ -306,6 +319,16 @@ if [ "$usage_only" = 0 ]; then
   done
 
   mv "$PANEL.tmp" "$PANEL"
+
+  # EVERY slug, not any: one repo the bridge will never speak for is enough to
+  # make a stretched TTL a lie about that row's PR state.
+  # shellcheck disable=SC2207
+  panel_slugs=($(cut -f1 "$PANEL" 2>/dev/null | sort -u))
+  if [ "${#panel_slugs[@]}" -gt 0 ] && haus_gh_covers "${panel_slugs[@]}"; then
+    : >"$PANEL_COVERED"
+  else
+    rm -f "$PANEL_COVERED"
+  fi
 fi
 
 # --- Opencode usage feed: query local sqlite db for daily/monthly API token cost ---

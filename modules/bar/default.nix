@@ -1512,6 +1512,28 @@ lib.mkIf config.haus.bar.enable {
   # Core renders them; this room never learns what a wizard looks like.
   haus._contrib.permissions = permissionCards;
 
+  # The octocat pill's push door. It TRIGGERS rather than fetches: github.sh
+  # already knows when it should cross the network (and now asks the bridge as
+  # part of deciding), so all a delivery has to do is wake it. Doing the fetch
+  # here instead would be a second copy of that decision, in a room that cannot
+  # see the pill's sources.
+  #
+  # No event filter: every event this machine subscribes to can change what the
+  # pill counts, and the tick it wakes is the thing that decides whether the
+  # cache is actually stale.
+  haus._contrib.github.subscribers.bar-github-pill =
+    lib.mkIf (builtins.elem "github" (topItems ++ bottomItems))
+      {
+        command = ''
+          # $SB routes to whichever bar carries the pill — BAR_ITEM is the
+          # fallback bar.sh reads when there is no $BAR_NAME, which is exactly
+          # the case here: a subscriber has no bar, it has a delivery.
+          BAR_ITEM=github
+          source "$HOME/.config/sketchybar/bar.sh"
+          "$SB" --trigger github_update
+        '';
+      };
+
   warnings =
     lib.optional
       (

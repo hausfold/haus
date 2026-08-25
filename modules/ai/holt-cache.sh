@@ -54,6 +54,25 @@ CACHE="$DIR/holt.json"
 KICK="$DIR/.holt-kick"
 LOCK="$DIR/.holt-refresh.lock"
 LOCK_STALE=90                   # recover a refresher killed before it released
+COVERED="$DIR/.holt-covered"    # every lane's repo is behind the GitHub bridge
+
+# ---- the GitHub bridge, where there is one ----------------------------------
+# `holt --json` asks GitHub about every lane's pull request, which is most of
+# what makes it expensive. With a webhook bridge on this machine (haus.github)
+# that question has a push answer, so the kick throttle stretches from seconds
+# to `HAUS_GH_BACKSTOP` and collapses to zero the moment a delivery lands.
+#
+# Absent, every function below is defined to say "no" and the throttle is
+# exactly what it always was. That is the only acceptable failure direction
+# here: a bridge that cannot be confirmed must never be assumed.
+if [ -r "$HOME/.config/haus/github/signal.sh" ]; then
+  # shellcheck source=/dev/null
+  . "$HOME/.config/haus/github/signal.sh"
+else
+  haus_gh_covers() { return 1; }
+  haus_gh_fresh_since() { return 1; }
+fi
+HAUS_GH_BACKSTOP="${HAUS_GH_BACKSTOP:-0}"
 
 now() { date +%s; }
 
@@ -74,6 +93,24 @@ release_lock() {
   fi
 }
 
+# Does the bridge cover EVERY lane's repo? Answered here, in the fetch path,
+# because this is the one place that knows which repositories the answer is
+# about — and answered as a flag file so the callers, which run on a 10s bar
+# tick and inside pounce's loading skeleton, spend a `stat` rather than a `jq`.
+#
+# All of them, not any: one lane in a repo GitHub will never tell us about is
+# enough to make a stretched interval a lie about that lane's PR.
+note_coverage() {
+  local slugs
+  # shellcheck disable=SC2207
+  slugs=($(jq -r '(.lanes // [])[] | .repo // empty' "$CACHE" 2>/dev/null | sort -u))
+  if [ "${#slugs[@]}" -gt 0 ] && haus_gh_covers "${slugs[@]}"; then
+    : >"$COVERED"
+  else
+    rm -f "$COVERED"
+  fi
+}
+
 # Run holt, bounded, and install the result only if it parses. Prints nothing.
 refresh() {
   local token="$1" timeout="$2" tmp
@@ -86,6 +123,7 @@ refresh() {
   if { /usr/bin/perl -e 'alarm shift; exec @ARGV' "$timeout" holt --json >"$tmp"; } 2>/dev/null &&
     jq -e '(.lanes // []) | type == "array"' "$tmp" >/dev/null 2>&1; then
     mv -f "$tmp" "$CACHE"
+    note_coverage
     release_lock "$token"
     return 0
   fi
@@ -138,6 +176,15 @@ case "${1:-read}" in
     ttl="${2:-20}"
     timeout="${3:-60}"
     command -v holt >/dev/null 2>&1 || exit 0
+    # Push shortens a poll, it never removes one: covered, the throttle becomes
+    # the bridge's backstop rather than the caller's seconds, and a delivery
+    # that landed after the cache was written puts it back to the caller's —
+    # never below it. `holt --json` dumps `lsof -d cwd` machine-wide twice per
+    # run, so a delivery must cancel the stretch rather than buy a faster
+    # refresh than an un-bridged machine gets.
+    if [ -f "$COVERED" ] && [ "$HAUS_GH_BACKSTOP" -gt "$ttl" ]; then
+      haus_gh_fresh_since "$CACHE" || ttl="$HAUS_GH_BACKSTOP"
+    fi
     n=$(now)
     [ $((n - $(mtime "$KICK"))) -ge "$ttl" ] || exit 0
     token=$(claim "$n") || exit 0
