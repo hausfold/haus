@@ -373,6 +373,9 @@ let
       "followSystemAppearance"
       "watchScreenshots"
     ];
+    trill = [
+      "enable"
+    ];
     snippets = [
       "enable"
       "matches"
@@ -701,6 +704,7 @@ let
     sound = "appearance";
     terminal = "development";
     theme = "appearance";
+    trill = "trill";
     wallpaper = "appearance";
     windows = "windows";
     zen = "development";
@@ -891,6 +895,10 @@ let
       order = 160;
       blurb = "The notch file shelf. Perch is the app behind it.";
     };
+    trill = {
+      order = 165;
+      blurb = "The notification compositor haus already draws through. Trill is the app behind it; this switch is whether haus owns the bundle.";
+    };
     focus = {
       order = 170;
       blurb = "One quiet switch: Do Not Disturb, optional Slack status, and your hooks — plus the named scenes around it.";
@@ -1069,6 +1077,25 @@ let
           "turn the notch shelf on"
           "turn perch off"
           "stop the shelf appearing in the notch"
+        ];
+      };
+    };
+    trill = {
+      title = "Trill";
+      order = 85;
+      blurb = "The notification compositor: quiet, scriptable banners with their own rules file, drawn instead of macOS's. haus has *drawn through* trill since `haus-notify` landed — finding it at runtime and falling back to Apple's banner when it isn't there — so this switch is the narrower question of whether haus installs and pins the bundle, at a fixed path its Full Disk Access grant can survive.";
+      agent = {
+        # `trill`, unlike the shelf's `null`: the room installs no binary, but
+        # the runtime verb is real and already on PATH here (../core/trill.sh
+        # answers it whether or not this room is on). Pointing an agent at
+        # `haus.trill.enable` for "silence this app" would be the wrong half —
+        # routing lives in ~/.config/trill/rules.json and nothing in the option
+        # tree says so.
+        cli = "trill send|ask|resolve|ping · trill doctor (exit 5 = can't tell)";
+        asks = [
+          "install trill"
+          "let haus manage my notification banners"
+          "stop haus notifications falling back to Apple's banner"
         ];
       };
     };

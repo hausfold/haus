@@ -6002,6 +6002,23 @@
     "readOnly": false,
     "type": "string"
   },
+  "haus.trill.enable": {
+    "declarations": [
+      "modules/trill/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "The trill notification compositor, installed from its own flake and\ncopied to a fixed `/Applications/Trill.app`.\n\nhaus has drawn its banners through trill since `haus-notify` landed, but\nby *finding* it at runtime — PATH, then `~/Applications`, then\n`/Applications` — and falling back to Apple's banner when nothing\nanswered. That still works and is still the fallback. What this switch\nadds is the other half: the bundle actually being there, at a path that\ndoes not move, pinned by this machine's flake lock like every other room.\n\nWhy the path is fixed rather than a store path: trill's whole\n`trill doctor` and System Mirror surface is a **Full Disk Access** grant,\nand macOS keys a TCC grant per app *path* and signing identity. A store\npath changes on every version bump, so the grant would drop on the\nrebuild that installed the fix you wanted. `/Applications/Trill.app` is\nwhere a drag-install or a cask would have put it, so an existing grant\ncarries over rather than being asked for again.\n\nOff by default, and not only out of taste: there is no `trill` cask and\nthe `trill` command already resolves without this room, so turning it on\nis a decision to have haus own the bundle.\n\nIt does **not** put `trill` on PATH — `modules/core/trill.sh` already\ndoes, for every install source including this one, and a second\n`bin/trill` would be a build-time collision rather than a redundancy.\n",
+    "loc": [
+      "haus",
+      "trill",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
   "haus.ui.scale": {
     "declarations": [
       "modules/options.nix"

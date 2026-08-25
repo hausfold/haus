@@ -48,6 +48,23 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # The notification compositor. Its overlay puts `trill` and `trill-skill` in
+    # pkgs; modules/trill places the app at a fixed /Applications path, which is
+    # the whole reason the room exists — trill's Full Disk Access grant is keyed
+    # per app path and would drop on every store-path bump. Same shape as perch:
+    # what gets BUILT is trill's CI-built, notarized release ZIP, pinned by
+    # version + sha256 inside trill's own `nix/release.nix`, and this input has
+    # no `ref`, so it tracks trill's default branch like any other.
+    #
+    # ⚠️ trill is a flake input WITHOUT being one of bench's `FAMILY` repos —
+    # bench's 🚨 by that array is the explanation. Adding an input is not the
+    # same act as putting a repo on the ship chain, and this is the first place
+    # in the family where the two come apart.
+    trill = {
+      url = "github:hausfold/trill";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # The agent-worktree substrate — a standalone Go binary, the rewrite of
     # the rice's old bash `wt.sh` (now retired entirely). Its overlay puts
     # `holt` in pkgs, and core ships it on PATH as the only worktree-lifecycle
@@ -73,6 +90,7 @@
       nebelung,
       pounce,
       perch,
+      trill,
       holt,
       nix-index-database,
     }:
@@ -131,6 +149,7 @@
               nixpkgs.overlays = [
                 pounce.overlays.default
                 perch.overlays.default
+                trill.overlays.default
                 holt.overlays.default
               ];
             }
@@ -2312,6 +2331,7 @@
                   nixpkgs.overlays = [
                     pounce.overlays.default
                     perch.overlays.default
+                    trill.overlays.default
                     holt.overlays.default
                   ];
                 }
@@ -2388,6 +2408,7 @@
                       nixpkgs.overlays = [
                         pounce.overlays.default
                         perch.overlays.default
+                        trill.overlays.default
                         holt.overlays.default
                       ];
                     }
@@ -2763,39 +2784,39 @@
             ) desktopFixtures
           );
           expectedDesktopShowTable = ''
-            activation.nix class=desktop ok=false sets=1 rooms=haus silent=12
-            dynamic-host-only.nix class=desktop ok=false sets=1 rooms=haus silent=12
-            dynamic-unknown.nix class=desktop ok=false sets=1 rooms=haus silent=12
-            extra-key.nix class=desktop ok=false sets=1 rooms=haus silent=12
-            file-attr.nix class=desktop ok=false sets=1 rooms=haus silent=12
+            activation.nix class=desktop ok=false sets=1 rooms=haus silent=13
+            dynamic-host-only.nix class=desktop ok=false sets=1 rooms=haus silent=13
+            dynamic-unknown.nix class=desktop ok=false sets=1 rooms=haus silent=13
+            extra-key.nix class=desktop ok=false sets=1 rooms=haus silent=13
+            file-attr.nix class=desktop ok=false sets=1 rooms=haus silent=13
             function.nix class=room ok=true sets=0 rooms=- silent=0
-            group-not-option.nix class=desktop ok=false sets=1 rooms=appearance silent=11
-            home-manager.nix class=desktop ok=false sets=1 rooms=haus silent=12
-            host-only-command.nix class=desktop ok=false sets=1 rooms=haus silent=12
-            host-only-hardware.nix class=desktop ok=false sets=1 rooms=displays silent=11
-            host-only-identity.nix class=desktop ok=false sets=1 rooms=host silent=12
-            host-only-package.nix class=desktop ok=false sets=1 rooms=appearance silent=11
-            host-only-path.nix class=desktop ok=false sets=1 rooms=development silent=11
-            host-only-secret.nix class=desktop ok=false sets=2 rooms=focus+security silent=10
-            host-only-signing.nix class=desktop ok=false sets=1 rooms=launcher silent=11
-            host-only-widget-command.nix class=desktop ok=false sets=2 rooms=bar silent=11
-            imports.nix class=desktop ok=false sets=1 rooms=haus silent=12
-            internal-wiring.nix class=desktop ok=false sets=1 rooms=- silent=12
-            launcher-item-key.nix class=desktop ok=false sets=1 rooms=launcher silent=11
-            launcher-item-shell.nix class=desktop ok=false sets=1 rooms=launcher silent=11
-            launcher-item-shortcut.nix class=desktop ok=false sets=1 rooms=launcher silent=11
-            missing-haus.nix class=desktop ok=false sets=0 rooms=- silent=12
-            module-internals.nix class=desktop ok=false sets=1 rooms=haus silent=12
-            nixpkgs.nix class=desktop ok=false sets=1 rooms=haus silent=12
-            non-attrset.nix class=desktop ok=false sets=0 rooms=- silent=12
-            priority-instruction.nix class=desktop ok=false sets=1 rooms=haus silent=12
-            reserved-prefix.nix class=desktop ok=false sets=1 rooms=- silent=12
-            scene-name.nix class=desktop ok=false sets=1 rooms=focus silent=11
-            shell-in-free-key.nix class=desktop ok=false sets=1 rooms=bar silent=11
-            stray-key.nix class=desktop ok=false sets=1 rooms=haus silent=12
-            unknown-option.nix class=desktop ok=false sets=1 rooms=appearance silent=11
-            valid-other.nix class=desktop ok=true sets=1 rooms=haus silent=12
-            valid-sample.nix class=desktop ok=true sets=10 rooms=displays+development+bar+launcher+focus+haus silent=7
+            group-not-option.nix class=desktop ok=false sets=1 rooms=appearance silent=12
+            home-manager.nix class=desktop ok=false sets=1 rooms=haus silent=13
+            host-only-command.nix class=desktop ok=false sets=1 rooms=haus silent=13
+            host-only-hardware.nix class=desktop ok=false sets=1 rooms=displays silent=12
+            host-only-identity.nix class=desktop ok=false sets=1 rooms=host silent=13
+            host-only-package.nix class=desktop ok=false sets=1 rooms=appearance silent=12
+            host-only-path.nix class=desktop ok=false sets=1 rooms=development silent=12
+            host-only-secret.nix class=desktop ok=false sets=2 rooms=focus+security silent=11
+            host-only-signing.nix class=desktop ok=false sets=1 rooms=launcher silent=12
+            host-only-widget-command.nix class=desktop ok=false sets=2 rooms=bar silent=12
+            imports.nix class=desktop ok=false sets=1 rooms=haus silent=13
+            internal-wiring.nix class=desktop ok=false sets=1 rooms=- silent=13
+            launcher-item-key.nix class=desktop ok=false sets=1 rooms=launcher silent=12
+            launcher-item-shell.nix class=desktop ok=false sets=1 rooms=launcher silent=12
+            launcher-item-shortcut.nix class=desktop ok=false sets=1 rooms=launcher silent=12
+            missing-haus.nix class=desktop ok=false sets=0 rooms=- silent=13
+            module-internals.nix class=desktop ok=false sets=1 rooms=haus silent=13
+            nixpkgs.nix class=desktop ok=false sets=1 rooms=haus silent=13
+            non-attrset.nix class=desktop ok=false sets=0 rooms=- silent=13
+            priority-instruction.nix class=desktop ok=false sets=1 rooms=haus silent=13
+            reserved-prefix.nix class=desktop ok=false sets=1 rooms=- silent=13
+            scene-name.nix class=desktop ok=false sets=1 rooms=focus silent=12
+            shell-in-free-key.nix class=desktop ok=false sets=1 rooms=bar silent=12
+            stray-key.nix class=desktop ok=false sets=1 rooms=haus silent=13
+            unknown-option.nix class=desktop ok=false sets=1 rooms=appearance silent=12
+            valid-other.nix class=desktop ok=true sets=1 rooms=haus silent=13
+            valid-sample.nix class=desktop ok=true sets=10 rooms=displays+development+bar+launcher+focus+haus silent=8
           '';
 
           # And one fixture read in full, because the table above says nothing
@@ -4181,6 +4202,7 @@
         // nixpkgs.lib.optionalAttrs isDarwin {
           pounce = pounce.packages.${system}.default;
           perch = perch.packages.${system}.default;
+          trill = trill.packages.${system}.default;
         }
       );
 

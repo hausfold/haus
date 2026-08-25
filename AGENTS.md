@@ -323,7 +323,10 @@ mechanism, say so in one line.
   `/run/current-system/sw/bin`. `trill` itself is on PATH the same way — a
   wrapper (`modules/core/trill.sh`), not a symlink, because whether Trill.app
   exists is a runtime fact and a link into a missing bundle is a `trill` that
-  `command -v` finds and every call fails on. `HAUS_NOTIFY=apple|trill|off` is
+  `command -v` finds and every call fails on. **`haus.trill.enable` does not
+  change that** — the room installs the bundle at `/Applications/Trill.app`,
+  which is the wrapper's second candidate, and adds no `bin/trill` of its own;
+  a second one would be a build-time file collision, not a redundancy. `HAUS_NOTIFY=apple|trill|off` is
   the escape hatch — how you test the fallback path, or silence the shim while
   debugging something noisy. A flag `haus-notify` doesn't know is warned about
   and dropped rather than refused: a haus bug must not cost the user the
@@ -338,8 +341,13 @@ mechanism, say so in one line.
   reading nix's output, deliberately: the build phase keeps the terminal so
   nix's own bar survives, and a `--dry-run` racing the real build made that
   build exit non-zero with nothing printed (measured), which is why the dry run
-  is serial and in-shell. trill is not a flake input here and must not become
-  one — the CLI is found the way holt finds it, or no card is drawn.
+  is serial and in-shell. **The card must keep finding the CLI at RUNTIME** —
+  the way `holt notify` does, or no card is drawn. trill IS a flake input now
+  (`haus.trill.enable`, ../modules/trill), but that room is off by default and
+  a machine without it still has `haus-notify` and this card; wiring either to
+  `pkgs.trill` would make a rebuild's own progress bar depend on a room nobody
+  turned on. That is what the old wording ("must not become an input") was
+  protecting, and it is still the rule — it was just stated one level too wide.
 - **launchd GUI race**: GUI agents (AeroSpace, SketchyBar, pounce) launched at
   cold boot before the Aqua session is ready park with exit 78 (EX_CONFIG) and
   wedge. `modules/lib/gui-wait.nix` polls for Dock/Finder/SystemUIServer and
