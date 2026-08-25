@@ -55,6 +55,11 @@ in
             survives as the offline answer, handed down as
             `HOLT_NAMER_FALLBACK`.
 
+            `claude`, holt's built-in, is passed through but deliberately not
+            acted on: it reads no environment (so it cannot honour the floor)
+            and costs 8-12s (so it would outlive the chained prompt's own
+            8-second fade). The command's own comment carries the reasoning.
+
             Reaches the command as `HAUS_LANE_NAMER`, the same way `repoRoots`
             reaches it — a launchd GUI agent inherits nothing from a shell, so
             the daemon's environment is the only channel.
