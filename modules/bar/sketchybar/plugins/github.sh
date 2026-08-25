@@ -128,6 +128,31 @@ STATE="$HOME/.local/state/haus/github"
 STAMP="$STATE/stamp"
 FETCHING="$STATE/fetching"
 LOCK="$STATE/lock"
+COVERED="$STATE/pill-covered"
+
+# ---- the GitHub bridge, where there is one ----------------------------------
+# This pill is the one thing in the bar that crosses the network, which is why
+# its refresh floor is 60s and its default 300. With haus.github's webhook
+# bridge on this machine there is a push answer to "has anything changed", so
+# the tick fetches the moment a delivery lands instead of waiting out the
+# interval — and where the host has raised `haus.github.backstop` above that
+# interval, the interval itself stretches to it.
+#
+# Sourced rather than forked: the tick is synchronous and runs every few
+# seconds. Absent, both functions say no and this pill behaves exactly as it
+# always has.
+#
+# Note the state directory is SHARED with the receiver, which is deliberate:
+# both are "what this Mac knows about GitHub", and a person debugging a stale
+# pill wants `last` and `stamp` in one `ls`.
+if [ -r "$HOME/.config/haus/github/signal.sh" ]; then
+  # shellcheck source=/dev/null
+  . "$HOME/.config/haus/github/signal.sh"
+else
+  haus_gh_covers() { return 1; }
+  haus_gh_fresh_since() { return 1; }
+fi
+HAUS_GH_BACKSTOP="${HAUS_GH_BACKSTOP:-0}"
 
 ITEM="${NAME:-github}"
 now=$(date +%s)
@@ -550,6 +575,7 @@ do_fetch() {
     esac
   done
 
+  note_coverage
   date +%s > "$STAMP"
   rm -f "$FETCHING"
   rmdir "$LOCK" 2>/dev/null
@@ -557,6 +583,47 @@ do_fetch() {
   # caller belongs to, so a pill on the bottom bar isn't woken by an event sent
   # to the menu bar's mach service and nothing else.
   "$SB" --trigger github_update 2>/dev/null
+}
+
+# May this pill stretch its interval? Only if every configured source names a
+# scope the bridge covers — and the sources are typed, so that is answerable
+# rather than guessed:
+#
+#   ci        carries its owner explicitly.
+#   search    is a GitHub search filter, so the scope is whatever `org:`,
+#             `user:` and `repo:` qualifiers it names. A filter that names NONE
+#             is unbounded by construction and can never be covered.
+#   command   is arbitrary code whose subject nothing here can know. Never
+#             covered, and that is the honest answer rather than a limitation.
+#
+# Written as a flag by the fetch path for the same reason every other consumer
+# does it there: the tick reads a `stat`, not a parse.
+note_coverage() {
+  local i tok found scopes=()
+  for ((i = 0; i < n_sources; i++)); do
+    case "${S_KIND[$i]}" in
+      ci)
+        [ -n "${S_ORG[$i]}" ] || { rm -f "$COVERED"; return; }
+        scopes+=("${S_ORG[$i]}")
+        ;;
+      search)
+        found=0
+        for tok in ${S_PAYLOAD[$i]}; do
+          case "$tok" in
+            org:?* | user:?*) scopes+=("${tok#*:}"); found=1 ;;
+            repo:?*) scopes+=("${tok#repo:}"); found=1 ;;
+          esac
+        done
+        [ "$found" = 1 ] || { rm -f "$COVERED"; return; }
+        ;;
+      *) rm -f "$COVERED"; return ;;
+    esac
+  done
+  if [ "${#scopes[@]}" -gt 0 ] && haus_gh_covers "${scopes[@]}"; then
+    : >"$COVERED"
+  else
+    rm -f "$COVERED"
+  fi
 }
 
 # Detach a fetch. `setsid`-less on macOS, so a subshell with its own stdio is
@@ -887,7 +954,23 @@ esac
 # repaint never waits on a decision about the network.
 render
 last=$(stamp_epoch)
-if [ "$last" -eq 0 ] || [ $((now - last)) -ge "${BAR_GITHUB_REFRESH:-300}" ]; then
+# Push shortens a poll, it never removes one: `haus_gh_fresh_since` is the
+# "something actually happened" door, the interval underneath it is the
+# backstop, and with no bridge both fall back to what they always were.
+#
+# PUSH_FLOOR is why the door has a sill. This pill's option carries a 60s floor
+# enforced by its very type, because a fetch is a full `gh` pass over every
+# configured source and GitHub's authed budget is shared with every other `gh`
+# on the machine. A bare `|| haus_gh_fresh_since` hands that floor to whoever is
+# pushing: an org hook subscribed to `workflow_run` turns one push into roughly
+# two deliveries per workflow, each waking this pill, and the only remaining
+# bound would be how long a fetch takes. So the delivery cancels the WAIT, not
+# the floor — worst case one fetch a minute, which is what the option promised.
+PUSH_FLOOR=60
+refresh="${BAR_GITHUB_REFRESH:-300}"
+[ -f "$COVERED" ] && [ "$HAUS_GH_BACKSTOP" -gt "$refresh" ] && refresh="$HAUS_GH_BACKSTOP"
+if [ "$last" -eq 0 ] || [ $((now - last)) -ge "$refresh" ] ||
+  { [ $((now - last)) -ge "$PUSH_FLOOR" ] && haus_gh_fresh_since "$STAMP"; }; then
   spawn_fetch
 fi
 exit 0

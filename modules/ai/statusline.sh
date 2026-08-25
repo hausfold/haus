@@ -43,9 +43,36 @@ CACHE_DIR="${CLAUDE_STATUSLINE_CACHE:-$HOME/.cache/claude-statusline}"
 PANEL="$CACHE_DIR/panel.tsv"
 # Refresher: the rice ships it on PATH as `claude-statusline-refresh`; fall back
 # to the sibling script when running straight out of ~/.claude (pre-rebuild).
-REFRESHER="$(command -v claude-statusline-refresh 2>/dev/null || echo "$HOME/.claude/statusline-refresh.sh")"
+#
+# `CLAUDE_STATUSLINE_REFRESHER` overrides both, and exists for the same reason
+# `CLAUDE_STATUSLINE_CACHE` does: a test needs to observe the STALENESS DECISION
+# without the real refresher's network calls. PATH cannot stand in for it — the
+# line above prepends the system profile, so a stub in a temp dir can never
+# shadow an installed `claude-statusline-refresh`, and test/statusline.bats was
+# firing the real one against its temp cache while its header claimed otherwise.
+REFRESHER="${CLAUDE_STATUSLINE_REFRESHER:-$(command -v claude-statusline-refresh 2>/dev/null || echo "$HOME/.claude/statusline-refresh.sh")}"
 TTL=15          # seconds before the sister-repo panel is considered stale
 MAX_ROWS=8      # cap child rows; extras collapse into a "+N more" line
+PANEL_COVERED="$CACHE_DIR/.panel-covered"   # written by the refresher; see below
+
+# ---- the GitHub bridge, where there is one ----------------------------------
+# The panel's cost is one `gh pr list` per sister repo, which is why its TTL is
+# 15 seconds rather than 5. With haus.github's webhook bridge on this machine
+# that question has a push answer, so the TTL stretches to the bridge's backstop
+# and drops to zero the instant a delivery lands — faster to notice a merge AND
+# a fraction of the API traffic.
+#
+# Sourced, never forked: this is the render path, and it runs on every prompt.
+# The refresher writes `.panel-covered` because it is the half that knows which
+# repositories the panel is about. No bridge, and every function says no — which
+# leaves the TTL exactly what it has always been.
+if [ -r "$HOME/.config/haus/github/signal.sh" ]; then
+  # shellcheck source=/dev/null
+  . "$HOME/.config/haus/github/signal.sh"
+else
+  haus_gh_fresh_since() { return 1; }
+fi
+HAUS_GH_BACKSTOP="${HAUS_GH_BACKSTOP:-0}"
 
 # 256-colour palette — muted, rice-consistent (cf. `holt`: 103 gray, 167 red).
 c() { printf '\033[38;5;%sm' "$1"; }
@@ -638,7 +665,13 @@ emit "$row1"
 stale=1
 if [ -f "$PANEL" ]; then
   age=$(( $(date +%s) - $(mtime "$PANEL") ))
-  [ "$age" -lt "$TTL" ] && stale=0
+  ttl=$TTL
+  [ -f "$PANEL_COVERED" ] && [ "$HAUS_GH_BACKSTOP" -gt "$ttl" ] && ttl=$HAUS_GH_BACKSTOP
+  # Back to $TTL, never below it. A delivery cancels the STRETCH; it does not
+  # buy a faster poll than an un-bridged machine gets, or an org hook's
+  # workflow_run storm would turn every prompt into a `gh pr list` per repo.
+  haus_gh_fresh_since "$PANEL" && ttl=$TTL
+  [ "$age" -lt "$ttl" ] && stale=0
 fi
 [ "$stale" = 1 ] && [ -x "$REFRESHER" ] && { nohup "$REFRESHER" >/dev/null 2>&1 & disown 2>/dev/null || true; }
 

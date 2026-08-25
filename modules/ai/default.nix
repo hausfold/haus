@@ -642,6 +642,25 @@ let
   '';
 in
 {
+  # ---- what the room hears from the GitHub bridge ----------------------------
+  # A lane's row is mostly a question about its pull request, which is the
+  # expensive half of `holt --json` and the reason holt-cache exists at all.
+  # Where haus.github's bridge covers every lane's repo, that question has a
+  # push answer: this wakes the cache, and holt-cache's own gate decides whether
+  # there is anything to fetch (it has just been told there is).
+  #
+  # A poke rather than the work: `kick` is already the throttled, one-winner,
+  # detached door, and a subscriber that ran `holt --json` itself would be a
+  # second one racing it.
+  haus._contrib.github.subscribers.ai-lanes = lib.mkIf cfg.enable {
+    events = [
+      "pull_request"
+      "pull_request_review"
+      "workflow_run"
+    ];
+    command = "holt-cache kick 5 >/dev/null 2>&1";
+  };
+
   # ---- what the room asks of itself -----------------------------------------
   # These were terminal's, because terminal was where the agent options happened to
   # be read. They are the AI room's invariants: they name only `haus.ai.*`,

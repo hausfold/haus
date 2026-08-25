@@ -2960,6 +2960,275 @@
     "readOnly": false,
     "type": "string"
   },
+  "haus.github.backstop": {
+    "declarations": [
+      "modules/github/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "300"
+    },
+    "description": "How long a covered surface may go without asking GitHub anyway, in\nseconds.\n\nPush shortens a poll; it never removes one. Nothing distinguishes \"no\ndeliveries because nothing happened\" from \"no deliveries because the\ntunnel died\" — GitHub sends no heartbeat — so every consumer keeps a\nslow poll under the bridge and this is it. Raise it if you trust the\ntunnel and want the quiet; lower it toward the un-bridged interval if a\nstale readout would cost you something.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "900"
+    },
+    "loc": [
+      "haus",
+      "github",
+      "backstop"
+    ],
+    "readOnly": false,
+    "type": "integer between 60 and 3600 (both inclusive)"
+  },
+  "haus.github.coverageRefresh": {
+    "declarations": [
+      "modules/github/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "3600"
+    },
+    "description": "How often, in seconds, to re-ask GitHub what the declared hooks look\nlike — are they active, what events are they subscribed to, did the last\ndelivery land.\n\nSlow on purpose. It is the answer to \"may I stop polling\", which changes\non a human cadence (someone edits a hook) rather than a machine one, and\nit costs an authenticated API call per declared hook. Consumers never\nmake this call themselves; they read its cached answer.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "21600"
+    },
+    "loc": [
+      "haus",
+      "github",
+      "coverageRefresh"
+    ],
+    "readOnly": false,
+    "type": "integer between 300 and 86400 (both inclusive)"
+  },
+  "haus.github.enable": {
+    "declarations": [
+      "modules/github/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Receive GitHub webhook deliveries on this machine.\n\nGitHub → a Cloudflare tunnel → a loopback receiver here, which proves\nthe delivery's signature, writes down that it happened, forwards the raw\nbytes to anything in `forwardTo`, and wakes whichever rooms asked to\nhear about it. Nothing on GitHub changes: there is no token anywhere in\nthis room.\n\nWhat it buys is latency and quiet. The surfaces that watch GitHub — the\nbar's octocat pill, the agent statusline's PR column, the lanes popup —\nall poll, because a poll is the only thing that works with no bridge.\nWith one, they poll on a long backstop and refresh the moment something\nactually happens, which is both faster to notice a merge and far less\ntraffic on your API budget.\n\nNeeds `secretCommand` set: the delivery signature is the entire auth\nstory, so a receiver with no secret is a receiver that would have to\ntrust anyone who found the hostname.\n",
+    "loc": [
+      "haus",
+      "github",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.github.forwardTo": {
+    "declarations": [
+      "modules/github/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ ]"
+    },
+    "description": "Where to repeat each verified delivery, verbatim — same body, same\n`X-Hub-Signature-256`, same event and delivery headers — as `host:port`.\n\nVerbatim is the point. The far end verifies the signature itself and\ntrusts nothing about this process, so putting haus's receiver in front\nof an app that already speaks GitHub webhooks changes nothing about that\napp. `127.0.0.1:42787` is trill's own bridge, which is the case this\nexists for: trill keeps mapping deliveries into banners exactly as it\ndid when GitHub called it directly.\n\nFire-and-forget, five second timeout, and never waited on: a slow\nforward target must not be able to spend GitHub's delivery timeout.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"127.0.0.1:42787\"\n]"
+    },
+    "loc": [
+      "haus",
+      "github",
+      "forwardTo"
+    ],
+    "readOnly": false,
+    "type": "list of string"
+  },
+  "haus.github.hooks": {
+    "declarations": [
+      "modules/github/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ ]"
+    },
+    "description": "The hooks this machine WANTS to exist on GitHub. Declaring one creates\nnothing: haus holds no token and never writes to GitHub. What the\ndeclaration does is make two questions answerable.\n\nThe first is coverage. A room only stops polling a repository once\nsomething says deliveries for it will actually arrive, and \"an active\nhook whose scope covers this repository, whose event list includes what\nI read, and whose last delivery GitHub did not record as failed\" is that\nsomething. `github-signal` asks GitHub for those facts on a slow timer\nand caches the answer; the surfaces read the cache.\n\nThe second is drift. `haus doctor` diffs this list against the hooks\nthat really exist and prints the `gh api` command that closes the gap —\na missing event being the failure worth catching, because a hook\nsubscribed to four of the five events you care about looks entirely\nhealthy from every side.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  {\n    events = [\n      \"pull_request\"\n      \"workflow_run\"\n    ];\n    scope = \"org:hausfold\";\n  }\n]"
+    },
+    "loc": [
+      "haus",
+      "github",
+      "hooks"
+    ],
+    "readOnly": false,
+    "type": "list of (submodule)"
+  },
+  "haus.github.hooks.*.events": {
+    "declarations": [
+      "modules/github/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[\n  \"issue_comment\"\n  \"pull_request\"\n  \"pull_request_review\"\n  \"pull_request_review_comment\"\n  \"workflow_run\"\n]"
+    },
+    "description": "The GitHub event names the hook should be subscribed to, spelled\nas GitHub spells them.\n\nThe default is the set the surfaces in this house actually read:\npull request lifecycle and reviews for \"is this landable\", CI\nruns for \"is main red\", comments for \"did someone say my name\".\n`pull_request_review` earns its place specifically — approvals\nare what turn a row green, and a hook without it looks like it\nis working while the one state you check most never arrives.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"pull_request\"\n]"
+    },
+    "loc": [
+      "haus",
+      "github",
+      "hooks",
+      "*",
+      "events"
+    ],
+    "readOnly": false,
+    "type": "list of string"
+  },
+  "haus.github.hooks.*.scope": {
+    "declarations": [
+      "modules/github/options.nix"
+    ],
+    "description": "What the hook is attached to: `org:<name>` for an organisation\nhook (which covers every repository in it, including ones\ncreated later) or `repo:<owner>/<name>` for a single repository.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"org:hausfold\""
+    },
+    "loc": [
+      "haus",
+      "github",
+      "hooks",
+      "*",
+      "scope"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.github.port": {
+    "declarations": [
+      "modules/github/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "42786"
+    },
+    "description": "The loopback port the receiver binds. Never exposed: the public leg is\nthe tunnel's, and the socket is 127.0.0.1 only.\n\nIt is an option because it has to agree with two other things — the\ntunnel's ingress (which this room writes, so that half is automatic) and\nwhatever else on the Mac already wants the port. trill's own GitHub\nbridge listens on 42787, which is why the default sits one below it:\nthe usual arrangement is deliveries landing here and being forwarded\nthere, and the two cannot share a socket.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "8099"
+    },
+    "loc": [
+      "haus",
+      "github",
+      "port"
+    ],
+    "readOnly": false,
+    "type": "16 bit unsigned integer; between 0 and 65535 (both inclusive)"
+  },
+  "haus.github.secretCommand": {
+    "declarations": [
+      "modules/github/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "Shell printing the webhook's HMAC secret on stdout — the same string\nentered in GitHub's hook settings. Run once per activation, and its\noutput is written to `~/.local/state/haus/github/secret` (mode 600),\nwhich is what the receiver reads.\n\nA command rather than a value so the secret never enters the Nix store,\nwhere it would be world-readable and preserved in every generation.\n`secretspec get <name>` is the intended shape — `haus.secrets.provider`\nalready decides where that reads from on this machine.\n\nAn empty command with the room enabled is an error rather than a\ndegradation: there is no reduced-function receiver that skips signature\nchecks, and there should not be.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"secretspec get github_webhook_secret\""
+    },
+    "loc": [
+      "haus",
+      "github",
+      "secretCommand"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.github.tunnel.credentialsFile": {
+    "declarations": [
+      "modules/github/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "The tunnel credentials `cloudflared tunnel create` wrote. Defaults to\n`~/.cloudflared/<id>.json`, which is where it puts them.\n\nNamed rather than inlined because it is a secret cloudflared owns and\nrotates on its own terms — haus points at it and never reads it. The\nagent is also gated on this file existing, so a machine that has not run\nthe one-time bootstrap gets a dormant agent rather than a crash loop.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"/Users/you/.cloudflared/6209f5f4-f8a2-4501-8af9-a8bb24777a89.json\""
+    },
+    "loc": [
+      "haus",
+      "github",
+      "tunnel",
+      "credentialsFile"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.github.tunnel.enable": {
+    "declarations": [
+      "modules/github/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Run `cloudflared` for the hook's public hostname, pointed at the\nreceiver's loopback port.\n\nhaus writes the ingress config (hostname → `127.0.0.1:<port>`) so the\nport stays a single number in one place, but it never creates the\ntunnel or its credentials: `cloudflared tunnel login`, `tunnel create`\nand `tunnel route dns` are a one-time errand with a browser in it, and\n`haus doctor` carries the card that says so. Until the credentials file\nexists the agent stays dormant rather than crash-looping.\n\nSeparate from `enable` because the two are genuinely separable: a Mac\nreachable some other way (a static address, someone else's tunnel, a\nrelay) wants the receiver without this.\n",
+    "loc": [
+      "haus",
+      "github",
+      "tunnel",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.github.tunnel.hostname": {
+    "declarations": [
+      "modules/github/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "The public hostname the tunnel answers on — the same URL entered in\nGitHub's hook settings, minus the scheme and path.\n\nIt must already be routed to the tunnel (`cloudflared tunnel route dns\n<tunnel> <hostname>`), which is part of the same one-time errand as\ncreating it.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"hooks.example.com\""
+    },
+    "loc": [
+      "haus",
+      "github",
+      "tunnel",
+      "hostname"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
+  "haus.github.tunnel.id": {
+    "declarations": [
+      "modules/github/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"\""
+    },
+    "description": "The Cloudflare tunnel's UUID, as `cloudflared tunnel create` printed it.\n\nThe UUID rather than the name: the name is a label that can be reused\nacross accounts, and the credentials file is named for the UUID, so this\nis the one spelling where the config and the credentials cannot end up\ndescribing different tunnels.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"6209f5f4-f8a2-4501-8af9-a8bb24777a89\""
+    },
+    "loc": [
+      "haus",
+      "github",
+      "tunnel",
+      "id"
+    ],
+    "readOnly": false,
+    "type": "string"
+  },
   "haus.homebrew.adopt": {
     "declarations": [
       "modules/core/options.nix"

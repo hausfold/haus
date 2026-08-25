@@ -94,6 +94,10 @@
     "blurb": "Your commit identity, plus the GitHub owner this machine's work lives under — set your own. It stays in [your host file](/internals/flakes/#your-config-is-a-thin-consumer).",
     "order": 10
   },
+  "github": {
+    "blurb": "This machine's GitHub webhook endpoint: the tunnel, the receiver, and the hooks it wants to exist. Rooms that watch GitHub read its signal and poll on a long backstop instead of a short one. haus never writes to GitHub — it holds no token, and `haus doctor` prints the `gh` command that closes a gap rather than running it.",
+    "order": 205
+  },
   "homebrew": {
     "blurb": "How rebuilds treat Homebrew packages you did not declare.",
     "order": 230
@@ -131,6 +135,9 @@
     },
     "this-hardware": {
       "why": "Sleep and power behaviour depends on the machine underneath it: whether it has a battery at all, and how this particular one is carried around."
+    },
+    "your-account": {
+      "why": "It names something inside one person's GitHub or Cloudflare account — an organisation whose repositories this Mac watches, a hostname you own, the tunnel that carries traffic to your desk. A desktop that set it would point a stranger's machine at your account, and in the webhook's case would tell them where to send deliveries."
     },
     "your-network": {
       "why": "It names a Wi-Fi network you join, which is a fact about a place rather than a taste anyone can share. It is why the trigger beside it counts SCREENS instead of naming one: a count is a shape every desk can have, and an SSID exists in exactly one building."
@@ -723,6 +730,62 @@
       },
       "order": 10,
       "owner": "host"
+    },
+    "github": {
+      "blurb": "This machine's GitHub webhook endpoint: the tunnel, the receiver, and the hooks it wants to exist. Rooms that watch GitHub read its signal and poll on a long backstop instead of a short one. haus never writes to GitHub — it holds no token, and `haus doctor` prints the `gh` command that closes a gap rather than running it.",
+      "kind": "room",
+      "optionCount": 13,
+      "options": {
+        "haus.github.backstop": {
+          "desktopSafe": true
+        },
+        "haus.github.coverageRefresh": {
+          "desktopSafe": true
+        },
+        "haus.github.enable": {
+          "desktopSafe": true
+        },
+        "haus.github.forwardTo": {
+          "desktopSafe": false,
+          "reason": "one-network"
+        },
+        "haus.github.hooks": {
+          "desktopSafe": false,
+          "reason": "your-account"
+        },
+        "haus.github.hooks.*.events": {
+          "desktopSafe": false,
+          "reason": "your-account"
+        },
+        "haus.github.hooks.*.scope": {
+          "desktopSafe": false,
+          "reason": "your-account"
+        },
+        "haus.github.port": {
+          "desktopSafe": true
+        },
+        "haus.github.secretCommand": {
+          "desktopSafe": false,
+          "reason": "secret"
+        },
+        "haus.github.tunnel.credentialsFile": {
+          "desktopSafe": false,
+          "reason": "local-path"
+        },
+        "haus.github.tunnel.enable": {
+          "desktopSafe": true
+        },
+        "haus.github.tunnel.hostname": {
+          "desktopSafe": false,
+          "reason": "your-account"
+        },
+        "haus.github.tunnel.id": {
+          "desktopSafe": false,
+          "reason": "your-account"
+        }
+      },
+      "order": 205,
+      "owner": "development"
     },
     "homebrew": {
       "blurb": "How rebuilds treat Homebrew packages you did not declare.",
@@ -1641,9 +1704,10 @@
       "namespaces": [
         "terminal",
         "zen",
-        "developer"
+        "developer",
+        "github"
       ],
-      "optionCount": 20,
+      "optionCount": 33,
       "order": 40,
       "title": "Development"
     },

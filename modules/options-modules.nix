@@ -45,6 +45,7 @@
   ./launcher/options.nix
   ./shelf/options.nix
   ./focus/options.nix
+  ./github/options.nix
   ./secrets/options.nix
   ./snippets/options.nix
 ]

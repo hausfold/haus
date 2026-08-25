@@ -51,7 +51,7 @@ config and the pounce/theme sources live elsewhere.
 
 | Want to change… | Repo |
 |---|---|
-| the desktop: macOS defaults, tiling (windows), the menu bar (bar), the shell (terminal), Touch ID + firewall (security), secrets plumbing (secrets), Pounce wiring (launcher), the notch shelf (shelf), Focus/DND (focus), accent + Light/Dark (theme), the generated desktop (wallpaper), the apps every machine gets + what opens which file type (apps) | `~/code/workshop/haus` ← **you are here** |
+| the desktop: macOS defaults, tiling (windows), the menu bar (bar), the shell (terminal), Touch ID + firewall (security), secrets plumbing (secrets), Pounce wiring (launcher), the notch shelf (shelf), Focus/DND (focus), the GitHub webhook bridge (github), accent + Light/Dark (theme), the generated desktop (wallpaper), the apps every machine gets + what opens which file type (apps) | `~/code/workshop/haus` ← **you are here** |
 | the pounce palette app or its command scripts | `~/code/workshop/pounce` |
 | colors / the theme palette | `~/code/workshop/nebelung` |
 | one machine's personal apps / identity / secrets | `~/.config/nix` (or that machine's own config) |
@@ -181,6 +181,14 @@ modules/
                           #   plus haus.focus.scenes — the same switch with more than one
                           #   member (quiet is the built-in, and the name is reserved).
                           #   Declarative only: a person enters a scene, no trigger daemon
+  github/                 # the GitHub webhook bridge: a loopback receiver (Swift,
+                          #   xcrun-compiled) behind a cloudflared tunnel, plus the one
+                          #   SIGNAL every surface that watches GitHub reads instead of
+                          #   polling. haus holds no token and never writes to GitHub —
+                          #   `haus.github.hooks` is a DECLARATION `haus doctor` diffs
+                          #   against reality. Rooms hear deliveries through
+                          #   haus._contrib.github.subscribers, never by reading this
+                          #   room's config
   secrets/                # secretspec: declarative secrets, provider chosen per host
 desktops/                 # the desktops this flake ships: hacker (the builder's
                           #   default), blank, everyday, minimal. Data only, one per

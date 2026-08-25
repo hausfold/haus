@@ -74,6 +74,12 @@
     ./launcher
     ./shelf
     ./focus
+    # The GitHub room: the machine's webhook endpoint, and the signal the bar's
+    # octocat pill and the AI room's lane cache both read instead of polling.
+    # After ./bar and ./ai because both write to the extension point it
+    # declares, though the module system's laziness means the order is
+    # editorial rather than load-bearing.
+    ./github
     ./secrets
     ./snippets
   ];
