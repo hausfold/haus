@@ -166,6 +166,21 @@ in
         It cannot cost you a lane. Every failure — no adapter file, a missing
         program, a timeout at holt's 30s ceiling, prose instead of a name — is
         a warning and a fall back to the random pair.
+
+        **The offline floor is the adapter's to honour.** The palette's Spawn
+        Agent has always named the lane itself, from a stopword slug of your
+        prompt, and it stops doing that when this is set — so it hands the slug
+        down as `HOLT_NAMER_FALLBACK` and expects an adapter that cannot reach
+        its model to print that instead of failing. holt neither sets nor reads
+        that variable; it only passes the environment through. An adapter that
+        ignores it makes an offline spawn fall to the random pair, which is
+        worse than the slug the palette would have used.
+
+        `claude` is excluded from the palette path for exactly that reason: its
+        argv is fixed and reads no environment, so it cannot meet the contract —
+        and at 8-12s it would outlive the palette's own 8-second chain fade.
+        Set it and hand-run `holt spawn` still asks it; Spawn Agent keeps its
+        slug.
       '';
     };
 

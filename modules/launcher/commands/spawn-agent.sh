@@ -22,6 +22,15 @@
 # session (see holt's Spawn). Claude is then started in that checkout like any
 # other directory — no hook fires, nothing else to keep in sync.
 #
+# $HAUS_LANE_NAMER is the same shape and arrives the same way (`haus.ai.namer`,
+# through the daemon's launchd environment) and decides WHO names the lane, far
+# below. It has no hand-run fallback on purpose: reading it out of holt's own
+# config.toml would be holt's contract reimplemented in a palette command, which
+# is the drift this script's spawn block was rewritten to stop. So a hand-run of
+# this file names the lane the old way, from the slug. It is also only as fresh
+# as the daemon: the plist environment is re-read on agent reload, so for one
+# generation after `haus.ai.namer` changes the two can disagree.
+#
 # Repos come from $HAUS_REPO_ROOTS — colon-separated, written into the pounce
 # daemon's launchd environment from `haus.ai.repoRoots`, which is the only way
 # it can arrive: a GUI agent inherits nothing from your shell, so the list below
@@ -418,19 +427,43 @@ fi
 # is the same as saying "never ask", which is what this command meant for as
 # long as asking cost nine seconds (see the slug's own comment above).
 #
-# With `haus.ai.namer` set, asking costs about a second, and the answer is a
+# An ADAPTER namer changes that trade. `haus.ai.namer = "api"` measured 0.7-1.1s
+# for the whole spawn on the machine this was written on, and the answer is a
 # name the stopword slug cannot reach: `agents-pill-wedge` out of "the agents
 # pill stops updating after the popup is closed twice in a row", where the slug
 # gives `agents-pill-stops-updating`. So hand holt no name and let the brief
 # name the lane.
 #
-# The slug is not wasted, it is DEMOTED: HOLT_NAMER_FALLBACK travels down to
-# the namer (holt hands a seam os.Environ(), so the adapter inherits it) and is
-# what the adapter prints when the API doesn't answer. Without it a namer that
-# fails falls back to holt's random word pair, which would make an offline
-# spawn strictly worse than it was before this command started asking.
+# holt's BUILT-IN namer is excluded, and the exclusion is the load-bearing half:
+#
+#   - It costs 8-12s (holt's own namer.go says so), and it is asked BEFORE the
+#     worktree exists, so the whole wait lands between Return and the window.
+#     The prompt step is `--chain enter`, whose only way out is an 8-second
+#     fallback fade — the skeleton would usually fade before the lane arrived.
+#     That nine-second freeze is the exact reason the slug exists at all.
+#   - Its argv is fixed and reads no environment, so it cannot honour the floor
+#     below. An offline spawn would drop to holt's random word pair, which is
+#     strictly WORSE than the slug this command has always had.
+#
+# The slug is not wasted for an adapter namer, it is DEMOTED: HOLT_NAMER_FALLBACK
+# travels down to it (holt hands a seam os.Environ() and never sets cmd.Env, so
+# the adapter inherits it) and is what the adapter prints when its model can't
+# answer. That is a contract between THIS command and a host-written adapter,
+# not a holt feature — holt neither sets nor reads the variable, it only passes
+# the environment through, and an adapter that ignores it degrades to the random
+# pair. `haus.ai.namer`'s description states the contract; the built-in is
+# excluded here because it provably cannot meet it.
+#
+# Exported unconditionally-empty, like HAUS_LANE_BACKGROUND below and for the
+# same reason: nothing stale in the launchd environment may become a floor for
+# a spawn that never asked for one.
+case "${HAUS_LANE_NAMER:-}" in
+  "" | claude) laneNamer="" ;;
+  *) laneNamer="$HAUS_LANE_NAMER" ;;
+esac
+export HOLT_NAMER_FALLBACK=""
 set -- spawn "$repo"
-if [ -n "${HAUS_LANE_NAMER:-}" ]; then
+if [ -n "$laneNamer" ]; then
   export HOLT_NAMER_FALLBACK="$slug"
 else
   set -- "$@" "$slug"
