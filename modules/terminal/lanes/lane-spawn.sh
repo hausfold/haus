@@ -61,7 +61,21 @@ export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/s
 # and a global chord that silently does nothing is worse than one that isn't
 # bound — you press it again, harder, and conclude the rebuild didn't land.
 # Everything below that gives up says so on screen first.
-say() { osascript -e "display notification \"$1\" with title \"haus · agent lane\"" >/dev/null 2>&1; }
+# Everything this desktop puts on screen goes through `haus-notify`: trill
+# draws it when its daemon answers, macOS's own banner when it doesn't, and
+# `~/.config/trill/rules.json` is where you route or silence it — matching on
+# the `--source` below. It exits 0 whatever happens, so a missed banner can
+# never be why this script failed.
+#
+# Addressed absolutely because this runs under launchd (the pounce daemon), whose
+# PATH names nothing of ours. That path is
+# `environment.systemPackages` — stable across rebuilds, the same reason
+# `haus-activate` is reachable there.
+#
+# `--kind fault` because every caller of this is a refusal — that is what the
+# header above is about — and trill colours a fault differently from a note.
+say() { /run/current-system/sw/bin/haus-notify --source haus.lane --kind fault --symbol exclamationmark.triangle \
+    --title "haus · agent lane" --body "$1" >/dev/null 2>&1; }
 
 # Where a chord pressed over a browser puts you. It only helps if it happens to
 # be a repo; when it isn't, `refuse` is what the user actually gets.

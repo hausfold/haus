@@ -74,7 +74,17 @@ pounce_focus_available() {
 }
 
 note() { printf 'focus: %s\n' "$*" >&2; }
-notify() { /usr/bin/osascript -e "display notification \"$1\" with title \"focus\"" >/dev/null 2>&1 || true; }
+# Everything this desktop puts on screen goes through `haus-notify`: trill
+# draws it when its daemon answers, macOS's own banner when it doesn't, and
+# `~/.config/trill/rules.json` is where you route or silence it — matching on
+# the `--source` below. It exits 0 whatever happens, so a missed banner can
+# never be why this script failed.
+#
+# Addressed absolutely because this runs under launchd (the pounce daemon), whose
+# PATH names nothing of ours. That path is
+# `environment.systemPackages` — stable across rebuilds, the same reason
+# `haus-activate` is reachable there.
+notify() { /run/current-system/sw/bin/haus-notify --source haus.focus --title focus --body "$1" >/dev/null 2>&1 || true; }
 poke_bar() {
     [ -x "$SKETCHYBAR" ] && "$SKETCHYBAR" --trigger focus_change >/dev/null 2>&1 || true
     [ -x "$BAR_BOTTOM" ] && "$BAR_BOTTOM" --trigger focus_change >/dev/null 2>&1 || true

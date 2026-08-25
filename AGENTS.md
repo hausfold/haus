@@ -301,6 +301,26 @@ mechanism, say so in one line.
   statements — set `home-manager.users.${username}` once per module. Pass it as
   a module *function* (`{ lib, pkgs, ... }: {...}`) when you need
   home-manager's `lib.hm`.
+- **Never write `osascript -e 'display notification …'` again.** Everything this
+  desktop puts on screen goes through `haus-notify` (`modules/core/haus-notify.sh`),
+  which draws through **trill** when its daemon answers and falls back to
+  Apple's banner when it doesn't. Give every call its own `--source`
+  (`haus.bar.harvest`, `haus.lane`, …): that string is what
+  `~/.config/trill/rules.json` matches on, so it is the difference between a
+  user being able to silence one noisy pill and having to silence the desktop.
+  No `haus.*` option gates it — rules.json is the dial, and a second one in
+  front of it would be worse. Address it as
+  `/run/current-system/sw/bin/haus-notify` from anything launchd spawns (bar
+  plugins, pounce commands, the lane scripts); a bare `haus-notify` is fine
+  only where the script has already exported a PATH that names
+  `/run/current-system/sw/bin`. `trill` itself is on PATH the same way — a
+  wrapper (`modules/core/trill.sh`), not a symlink, because whether Trill.app
+  exists is a runtime fact and a link into a missing bundle is a `trill` that
+  `command -v` finds and every call fails on. `HAUS_NOTIFY=apple|trill|off` is
+  the escape hatch — how you test the fallback path, or silence the shim while
+  debugging something noisy. A flag `haus-notify` doesn't know is warned about
+  and dropped rather than refused: a haus bug must not cost the user the
+  message haus was trying to send.
 - `nixfmt` formats `.nix` files.
 
 ## Gotchas

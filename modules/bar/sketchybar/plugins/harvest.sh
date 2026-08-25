@@ -24,6 +24,29 @@ source "$HOME/.config/sketchybar/colors.sh"
 # reads $BAR_NAME, which SketchyBar exports into everything it runs.
 source "$HOME/.config/sketchybar/bar.sh"
 
+# Everything this pill puts on screen goes through `haus-notify`: trill draws
+# it when its daemon answers, macOS's own banner when it doesn't, and
+# `~/.config/trill/rules.json` routes or silences it by the `--source` below
+# — which matters more here than anywhere else in the bar, because a Harvest
+# outage means one of these per click for as long as it lasts.
+#
+# Addressed absolutely: SketchyBar runs its plugins under launchd, whose PATH
+# names nothing of ours. `/run/current-system/sw/bin` is
+# `environment.systemPackages`, stable across rebuilds.
+#
+# `|| true` because most callers are arms that report a failure — a notifier
+# that could itself fail the script would swallow the message it carries.
+#
+#   notify <body> [kind] [sf-symbol]
+#
+# The kind is a parameter rather than a constant because one of these is not a
+# failure: "no previous timer to restart" is an answer, and trill colours a
+# fault differently from a note.
+notify() {
+  /run/current-system/sw/bin/haus-notify --source haus.bar.harvest \
+    --kind "${2:-fault}" --symbol "${3:-exclamationmark.triangle}" \
+    --title Harvest --body "$1" >/dev/null 2>&1 || true
+}
 
 # Helper to format duration
 format_duration() {
@@ -128,7 +151,7 @@ if [ "$SENDER" = "mouse.clicked" ]; then
     # Say which thing went wrong. Falling through here used to reach the
     # START arm with an empty entry list and report "No previous timer to
     # restart" — a true sentence about a question nobody asked.
-    osascript -e 'display notification "Harvest is unreachable" with title "Harvest"'
+    notify "Harvest is unreachable"
     harvest_unreachable
     exit 0
   }
@@ -150,14 +173,14 @@ if [ "$SENDER" = "mouse.clicked" ]; then
     HTTP_CODE=$(curl -s --max-time 10 -o /dev/null -w "%{http_code}" -X PATCH "${HEADERS[@]}" "$HARVEST_API_URL/time_entries/$ENTRY_ID/stop")
 
     if [ "$HTTP_CODE" -ne 200 ]; then
-      osascript -e 'display notification "Failed to stop timer" with title "Harvest"'
+      notify "Failed to stop timer"
       "$SB" --trigger harvest_update
     fi
 
   else
     # START/RESTART the most recently used timer (sort by updated_at desc, skip running)
     LAST_ENTRIES=$(harvest_get "$HARVEST_API_URL/time_entries?per_page=10&_=$TIMESTAMP") || {
-      osascript -e 'display notification "Harvest is unreachable" with title "Harvest"'
+      notify "Harvest is unreachable"
       harvest_unreachable
       exit 0
     }
@@ -176,11 +199,11 @@ if [ "$SENDER" = "mouse.clicked" ]; then
       HTTP_CODE=$(curl -s --max-time 10 -o /dev/null -w "%{http_code}" -X PATCH "${HEADERS[@]}" "$HARVEST_API_URL/time_entries/$ENTRY_ID/restart")
 
       if [ "$HTTP_CODE" -ne 200 ] && [ "$HTTP_CODE" -ne 201 ]; then
-        osascript -e 'display notification "Failed to restart timer" with title "Harvest"'
+        notify "Failed to restart timer"
         "$SB" --trigger harvest_update
       fi
     else
-      osascript -e 'display notification "No previous timer to restart" with title "Harvest"'
+      notify "No previous timer to restart" note clock.badge.questionmark
     fi
   fi
 

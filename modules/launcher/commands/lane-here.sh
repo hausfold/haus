@@ -45,7 +45,9 @@ set -u
 # can't afford, which is the whole subject of lane-spawn.sh's own header.
 spawn="$HOME/.config/haus/lanes/lane-spawn.sh"
 [ -x "$spawn" ] || {
-  osascript -e 'display notification "lane-spawn.sh is missing — the terminal room installs it; rebuild." with title "haus · agent lane"' >/dev/null 2>&1
+  /run/current-system/sw/bin/haus-notify --source haus.lane --kind fault --symbol exclamationmark.triangle \
+    --title "haus · agent lane" \
+    --body "lane-spawn.sh is missing — the terminal room installs it; rebuild." >/dev/null 2>&1
   exit 0
 }
 
