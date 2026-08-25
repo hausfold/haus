@@ -118,6 +118,27 @@ STAMP="${LIDAWAKE_STAMP:-${MARKER}.started}"
 # cover. A cap whose stamp did not land simply never lifts — the behaviour from
 # before the latch had an escape hatch at all, and the safe direction to fail in.
 CAPSTAMP="${LIDAWAKE_CAPSTAMP:-${MARKER}.capped}"
+# Optional, and purely so something on screen can say a hold is up: a file that
+# exists for exactly as long as this run is holding. Unset by default, because
+# the LID depth already has one -- $MARKER is world-readable in /var/db and
+# means precisely this -- and because root must never write into the user's
+# home (see the privilege note above). It is the `sleep` depth, running as the
+# USER, that has nothing to point a pill at.
+#
+# Deliberately not the same file as $MARKER even where both exist: the marker
+# is a RECEIPT that activation acts on, and a reader that merely wants to draw
+# a cup must not be able to make a rebuild think it has a key to put back.
+HELD_FILE="${LIDAWAKE_HELD_FILE:-}"
+# Run whenever a hold is taken or released, so a surface that draws $HELD_FILE
+# can repaint at once instead of waiting out its own update interval — the bar's
+# caffeinate pill ticks every 30s, and a cup that appears half a minute after
+# the turn started reads as a broken pill rather than a slow one.
+#
+# Only the `sleep` depth is ever given one, and that is not a policy choice: the
+# lid daemon is ROOT, and a user's SketchyBar mach service is not addressable
+# from there. It is also why this is a command handed in rather than a
+# `sketchybar` call written here — this file knows nothing about bars.
+ON_CHANGE="${LIDAWAKE_ON_CHANGE:-}"
 
 # ── test seams (test/lidawake.sh) ────────────────────────────────────────────
 # A poll loop whose whole job is three time-dependent failsafes is exactly the
@@ -224,10 +245,33 @@ caff_alive() {
 }
 
 apply() {
+    local rc
     case "$DEPTH" in
-        sleep) apply_sleep "$1" ;;
-        *) apply_lid "$1" ;;
+        sleep)
+            apply_sleep "$1"
+            rc=$?
+            ;;
+        *)
+            apply_lid "$1"
+            rc=$?
+            ;;
     esac
+    # Only on a lever that actually moved. A receipt for a hold that was refused
+    # would put a cup on the menu bar over a Mac that is going to sleep anyway,
+    # which is worse than no cup at all.
+    if [ "$rc" = 0 ] && [ -n "$HELD_FILE" ]; then
+        if [ "$1" = 1 ]; then
+            mkdir -p "$(dirname "$HELD_FILE")" 2>/dev/null || true
+            : 2>/dev/null >"$HELD_FILE" || true
+        else
+            rm -f "$HELD_FILE" 2>/dev/null || true
+        fi
+        # After the file, never before: a reader woken by this must find the
+        # world it is being told about. Backgrounded and muted because a bar
+        # that is slow, wedged or absent is not this loop's problem to wait on.
+        [ -n "$ON_CHANGE" ] && ("$ON_CHANGE" >/dev/null 2>&1 &)
+    fi
+    return $rc
 }
 
 # At least one agent is mid-turn. Deliberately not "the directory is non-empty":
@@ -263,6 +307,12 @@ trap 'apply 0; exit 0' TERM INT
 # something that should have removed it.
 mkdir -p "$(dirname "$STAMP")" 2>/dev/null || true
 : >"$STAMP"
+
+# A receipt outlives what it describes, exactly like a hold file does — a
+# SIGKILL or a panic mid-hold leaves one behind, and the pill would then draw a
+# cup forever over a Mac that sleeps perfectly well. Nothing this run has not
+# taken itself is ours to claim, so start from nothing.
+[ -n "$HELD_FILE" ] && rm -f "$HELD_FILE" 2>/dev/null
 
 # Failsafe 1. Never inherit a predecessor's hold. Only ours, though — the marker
 # is what says so. `lid` only: a `sleep` hold was a child of the process that

@@ -511,7 +511,43 @@ let
     in
     "/Users/${username}/${f.dir}/${f.name}";
 
+  # What bar's caffeinate pill stats to know an agent hold is up. Registered in
+  # state-files.nix because it crosses a room boundary; see the note there for
+  # why the lid half has no equivalent.
+  lidHolding =
+    let
+      f = (import ../lib/state-files.nix).lidawake-holding;
+    in
+    "/Users/${username}/${f.dir}/${f.name}";
+
   agentAwake = pkgs.writeShellScriptBin "haus-agent-awake" (builtins.readFile ../core/lidawake.sh);
+
+  # Repaint the coffee pill the moment a hold changes, rather than leaving it to
+  # that pill's own 30s tick -- a cup that appears half a minute after the turn
+  # started reads as a broken pill rather than a slow one.
+  #
+  # BOTH bars, for the reason `awake`'s own poke_bar gives: haus.bar.bottom.items
+  # can move that pill to the second SketchyBar instance, which is a different
+  # binary with its own mach service, and a trigger for an event a bar never
+  # registered is a harmless no-op. The `[ -x ]` guards are what let the AI room
+  # write this without knowing whether the bar room is on at all -- on a machine
+  # with no bar the script runs, finds nothing, and exits 0.
+  #
+  # `binPath or null` for the reason focus's copy spells out: `or` catches a
+  # missing ATTRIBUTE, not a null VALUE, and both happen -- no roster entry, and
+  # an entry that installs nothing.
+  agentAwakePoke =
+    let
+      p = config.haus.roster.sketchybar.binPath or null;
+    in
+    pkgs.writeShellScript "haus-agent-awake-poke" ''
+      for bar in ${
+        lib.escapeShellArg (if p == null then "" else p)
+      } /run/current-system/sw/bin/bar-bottom; do
+        [ -n "$bar" ] && [ -x "$bar" ] && "$bar" --trigger caffeinate_change >/dev/null 2>&1
+      done
+      exit 0
+    '';
 
   onOff = b: if b then "on" else "off";
 
@@ -780,6 +816,8 @@ in
         LIDAWAKE_DEPTH = "sleep";
         LIDAWAKE_HOLD_DIR = lidHolds;
         LIDAWAKE_MARKER = keepAwakeMarker;
+        LIDAWAKE_HELD_FILE = lidHolding;
+        LIDAWAKE_ON_CHANGE = "${agentAwakePoke}";
         # The SHAPE of a hold is the power room's to tune and this agent reads
         # the same dial rather than growing a second one -- `haus.ai.keepAwake`
         # is a switch, not a copy of the knobs. Two of the five are deliberately

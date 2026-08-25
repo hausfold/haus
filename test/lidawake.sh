@@ -77,6 +77,8 @@ export LIDAWAKE_MARKER="$TMP/marker"
 # left to default off $LIDAWAKE_MARKER, so a scenario can put something
 # UNWRITABLE at the path and drive the "this cap's stamp did not land" branch.
 export LIDAWAKE_CAPSTAMP="$TMP/capstamp"
+# The pill's receipt: exists for exactly as long as a hold does.
+export LIDAWAKE_HELD_FILE="$TMP/held"
 export LIDAWAKE_NOW_FILE="$TMP/clock"
 export LIDAWAKE_TICK_HOOK="$TMP/hook"
 export LIDAWAKE_INTERVAL=0
@@ -121,7 +123,7 @@ scenario() {
     good_pmset
     good_caffeinate
     : >"$LIDAWAKE_TEST_LOG"
-    /bin/rm -rf "$TMP/holds" "$LIDAWAKE_MARKER" "$LIDAWAKE_CAPSTAMP"
+    /bin/rm -rf "$TMP/holds" "$LIDAWAKE_MARKER" "$LIDAWAKE_CAPSTAMP" "$LIDAWAKE_HELD_FILE"
     mkdir -p "$TMP/holds"
     printf 'ac\n' >"$LIDAWAKE_TEST_POWER"
     printf '1000\n' >"$LIDAWAKE_NOW_FILE"
@@ -443,5 +445,58 @@ case "$out" in
     *"holding — idle sleep"*)
         fail "claimed a hold while the lever was failing to start" ;;
 esac
+
+# ── 14. the receipt the bar draws from tracks the hold, at both depths ───────
+# One file, present exactly while this run is holding. The bar's caffeinate pill
+# stats it to draw its "agents are holding this" state, so the two failures that
+# matter are a receipt left behind (a cup over a Mac that sleeps fine) and a
+# receipt for a hold that was refused (the same, with no hold at all).
+for depth in lid sleep; do
+    scenario
+    hook '
+case "$1" in
+  1) : >'"$TMP"'/holds/lane-a ;;
+  3) rm -f '"$TMP"'/holds/lane-a ;;
+esac'
+    LIDAWAKE_DEPTH="$depth" LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 \
+        LIDAWAKE_INTERVAL=0.2 LIDAWAKE_TICKS=3 bash "$LIDAWAKE" >/dev/null
+    [ -e "$LIDAWAKE_HELD_FILE" ] || fail "$depth: no receipt while holding"
+
+    scenario
+    hook '
+case "$1" in
+  1) : >'"$TMP"'/holds/lane-a ;;
+  3) rm -f '"$TMP"'/holds/lane-a ;;
+esac'
+    LIDAWAKE_DEPTH="$depth" LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 \
+        LIDAWAKE_INTERVAL=0.2 LIDAWAKE_TICKS=5 bash "$LIDAWAKE" >/dev/null
+    [ ! -e "$LIDAWAKE_HELD_FILE" ] || fail "$depth: receipt survived the release"
+done
+
+# A receipt from a run that was SIGKILLed mid-hold is not this run's to keep.
+scenario
+: >"$LIDAWAKE_HELD_FILE"
+hook 'true'
+LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 LIDAWAKE_TICKS=1 \
+    bash "$LIDAWAKE" >/dev/null
+[ ! -e "$LIDAWAKE_HELD_FILE" ] || fail "a previous run's receipt was inherited"
+
+# A refused lever writes no receipt: scenario 7's failing pmset, asked again.
+scenario
+cat >"$TMP/bin/pmset" <<'EOF'
+#!/usr/bin/env bash
+case "${1:-}" in
+    -g) printf "Now drawing from 'AC Power'\n" ;;
+    -a) printf '%s\n' "${3:-}" >>"$LIDAWAKE_TEST_LOG"; [ "${3:-}" != 1 ] ;;
+esac
+EOF
+chmod +x "$TMP/bin/pmset"
+hook '
+case "$1" in
+  0) : >'"$TMP"'/holds/lane-a ;;
+esac'
+LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=0 LIDAWAKE_REQUIRE_POWER=0 LIDAWAKE_TICKS=2 \
+    bash "$LIDAWAKE" >/dev/null
+[ ! -e "$LIDAWAKE_HELD_FILE" ] || fail "a refused hold still wrote a receipt"
 
 printf 'ok - lidawake hold lifecycle, linger, requirePower, the maxHold latch, and staleness\n'

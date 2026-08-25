@@ -12,6 +12,21 @@ source "$HOME/.config/sketchybar/bar.sh"
 
 
 AWAKE="/run/current-system/sw/bin/awake"
+# An agent hold, which is NOT yours: haus.ai.keepAwake's agent creates this
+# while it is holding a caffeinate assertion for a coding agent that is mid-turn
+# (modules/lib/state-files.nix registers the path; a rename on either side is
+# invisible, hence the entry). Absent on a machine with the AI room off, with
+# keepAwake off, or with nothing working right now -- all three read the same
+# here, and correctly so: the question this pill answers is "is something
+# keeping this Mac awake", not "could something".
+#
+# Only the shallow half has a file. `keepAwake = "lid"` also runs core's root
+# daemon over `disablesleep`, whose receipt is /var/db/haus-lidawake.held -- but
+# that stop runs the agent too, so this file is up either way and the pill never
+# needs to read root's. A machine using haus.power.lidAwake DIRECTLY, with no
+# keepAwake, gets no pill state: that is the power room's feature, and it has
+# never had one.
+HELD="$HOME/.local/state/haus/lidawake/holding"
 
 if [ "${1:-}" = "custom" ]; then
     "$SB" --set caffeinate popup.drawing=off
@@ -28,7 +43,18 @@ fi
 
 if [ "${SENDER:-}" = "mouse.clicked" ]; then
     if [ "${BUTTON:-}" = "right" ]; then
-        "$AWAKE" off >/dev/null 2>&1 || true
+        # Right-click means "allow sleep", and it can only ever speak for YOUR
+        # assertion. An agent hold is released by the agent finishing its turn
+        # and by nothing else -- so when that is the only thing holding, say so
+        # instead of running a command that silently changes nothing. A control
+        # that appears to do nothing is how someone concludes the pill is broken.
+        if [ -e "$HELD" ] && [ "$("$AWAKE" status --raw 2>/dev/null | cut -f1)" = "off" ]; then
+            /usr/bin/osascript -e \
+                'display notification "It releases when they stop." with title "Agents are holding this Mac awake"' \
+                >/dev/null 2>&1 || true
+        else
+            "$AWAKE" off >/dev/null 2>&1 || true
+        fi
         "$SB" --set caffeinate popup.drawing=off
     else
         # The toggle first and alone, so opening costs what it always did; then
@@ -72,17 +98,41 @@ case "$MODE" in
         ;;
 esac
 
+# Three things can be true at once, and the pill has to distinguish them
+# because they have different answers to "can I make this stop":
+#
+#   yours          you asked for it; right-click ends it
+#   agents         nobody asked; it ends when the turn does
+#   both           yours is the one you can act on, so yours takes the label
+#
+# The BACKGROUND says whose it is and the ICON COLOUR says whether agents are in
+# it, which is what lets the two compose without a fourth combination to draw. A
+# plain agent hold deliberately keeps the idle background: it is not a state you
+# put the Mac in, so a pill lit up like one you chose would misreport who is
+# responsible every night.
+AGENTS=0
+[ -e "$HELD" ] && AGENTS=1
+
 if [ "$ACTIVE" -eq 1 ]; then
     # Label is drawing: tuck the icon close to it (idle padding is symmetric so
     # the lone icon stays centred; the countdown needs the tighter gap).
     "$SB" --set caffeinate \
-        icon.color="$BASE" \
+        icon.color="$([ "$AGENTS" -eq 1 ] && printf '%s' "$SAPPHIRE" || printf '%s' "$BASE")" \
         icon.padding_right=4 \
         label="$LABEL" \
         label.drawing=on \
         label.color="$BASE" \
         background.color="$PEACH" \
         --set caffeinate.stop label.color="$RED"
+elif [ "$AGENTS" -eq 1 ]; then
+    "$SB" --set caffeinate \
+        icon.color="$SAPPHIRE" \
+        icon.padding_right=4 \
+        label="ai" \
+        label.drawing=on \
+        label.color="$SAPPHIRE" \
+        background.color="$SURFACE0" \
+        --set caffeinate.stop label.color="$OVERLAY0"
 else
     "$SB" --set caffeinate \
         icon.color="$TEXT" \
