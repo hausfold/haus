@@ -1,7 +1,7 @@
 #!/bin/bash
 # One-shot tiling reset for the FOCUSED workspace, cycled by leader -> period
 # (modules/windows/launch-keys.nix reserves the key, modules/windows/default.nix
-# wires the binding). Two modes:
+# wires the binding). Three modes:
 #
 #   columns   AeroSpace's own flat row — what you get with nothing pressed,
 #             every window a full-height column of equal width.
@@ -16,13 +16,24 @@
 #               4  2x2                       9  3x3
 #               5  one full-height fifth,    n  ceil(sqrt(n)) columns, same rule
 #                  then 2x2                     (no special case above 9)
+#   accordion AeroSpace's h_accordion on the workspace root: the windows stay
+#             one flat row, but the focused one takes the space and its
+#             neighbours are left as slivers either side
+#             (haus.windows.accordionPadding is how wide those slivers are).
+#             Unlike the other two this is not a shape this script deals — it
+#             is a layout AeroSpace itself holds per workspace, so it survives
+#             every window opened and closed after the press, with no drift and
+#             nothing to reapply. Which is also why the bar reads it LIVE
+#             (%{workspace-root-container-layout}) and only falls back to the
+#             state file below to tell grid from columns.
 #
 # The state is PER WORKSPACE, keyed by name in one file: whichever workspace is
 # focused when you press the key is the one that gets reshaped, and the file
-# remembers which mode is on THERE. Pressing the key alternates, so landing back
-# on a mode you already picked reapplies it fresh -- the "spin the dial until
-# it's right again" feel, without a live daemon fighting your manual resizes in
-# between presses. (AeroSpace fires no window-CLOSED event, only
+# remembers which mode is on THERE. Pressing the key advances one stop --
+# columns -> grid -> accordion -> columns -- so coming back round to a mode you
+# already picked reapplies it fresh: the "spin the dial until it's right again"
+# feel, without a live daemon fighting your manual resizes in between presses.
+# (AeroSpace fires no window-CLOSED event, only
 # on-window-detected for opens, so a continuously-enforced mode would have to
 # poll; a one-shot press needs nothing running between presses.)
 #
@@ -122,26 +133,60 @@ mkdir -p "$(dirname "$STATE")"
 ws=$("$AEROSPACE" list-workspaces --focused 2>/dev/null) || exit 0
 [ -z "$ws" ] && exit 0
 
-# `<workspace>\t<mode>`, last line for a workspace wins. Anything that doesn't
-# parse as a line for THIS workspace — a fresh machine, a workspace never
-# cycled, or the single bare `columns`/`spiral`/`grid` word the file used to
-# hold before it was keyed — reads as "not grid", so the first press lands on
-# grid.
-case "$(awk -F'\t' -v ws="$ws" '$1 == ws { m = $2 } END { print m }' "$STATE" 2>/dev/null)" in
-    grid) next=columns ;;
-    *) next=grid ;;
-esac
-
+# `<workspace>\t<mode>`, last line for a workspace wins — read below, once the
+# window scan has also fetched the workspace's root layout.
+#
 # Floating windows are not in the tree and must not be counted: every Ghostty
 # popup on this desk is one (aerospace.toml floats them all on detection, and
 # terminal's launch.sh tiles back only the windows that are really terminals).
+#
+# The ROOT LAYOUT rides along on the same call — third field, same list, no
+# second process — because the dial below needs it. It is identical on every
+# line (it is a property of the workspace, not of a window), so it is read off
+# whichever line arrives, floating ones included.
 ids=()
-while IFS='|' read -r id layout; do
+rootLayout=
+while IFS='|' read -r id layout wsRoot; do
     [ -z "$id" ] && continue
+    rootLayout=$wsRoot
     [ "$layout" = floating ] && continue
     ids+=("$id")
-done < <("$AEROSPACE" list-windows --workspace "$ws" --format '%{window-id}|%{window-layout}' 2>/dev/null | tr -d ' ')
+done < <("$AEROSPACE" list-windows --workspace "$ws" --format \
+    '%{window-id}|%{window-layout}|%{workspace-root-container-layout}' \
+    2>/dev/null | tr -d ' ')
 n=${#ids[@]}
+
+# Where the dial is NOW, which is what the next stop is measured from. Two
+# sources, in this order, and the order is the point:
+#
+#   the ROOT LAYOUT, when it is an accordion. AeroSpace holds that itself, so it
+#     is true however the workspace got there — including through ⌥, (the
+#     "Accordion layout" chord, modules/windows/wm-bindings.nix), which this
+#     script never hears about. Trusting the file over it would mean pressing
+#     `.` on a workspace the bar is calling Accordion and getting a grid,
+#     because the file still remembered the stop before the chord.
+#   the STATE FILE otherwise. `columns` and `grid` are indistinguishable in
+#     AeroSpace — both are h_tiles at the root, the grid being nesting
+#     underneath — so the file is the only thing that can tell those two apart.
+#
+# Which is exactly the split the bar's pill makes (bar/sketchybar/plugins/
+# aerospace_lib.sh), deliberately: the pill is the only readout of where the
+# dial is, so the two have to answer from the same evidence or the pill starts
+# describing a stop the next press won't move on from.
+#
+# Anything that parses as neither — a fresh machine, a workspace never cycled,
+# or the single bare `columns`/`spiral`/`grid` word the file used to hold before
+# it was keyed — reads as columns, so the first press lands on grid.
+case "$rootLayout" in
+    *accordion) here=accordion ;;
+    *) here=$(awk -F'\t' -v ws="$ws" '$1 == ws { m = $2 } END { print m }' \
+        "$STATE" 2>/dev/null) ;;
+esac
+case "$here" in
+    grid) next=accordion ;;
+    accordion) next=columns ;;
+    *) next=grid ;;
+esac
 
 # The commands, accumulated as one `;`-joined string for the single eval below.
 # balance-sizes runs on the flat row, before any joining: it is what makes every
@@ -150,8 +195,16 @@ n=${#ids[@]}
 # whitespace like a shell and honours double quotes, and a workspace name is
 # haus.workspaces data — a name with a space in it would otherwise take the
 # whole batch apart, silently, since the eval's stderr is dropped below.
+# accordion is the one mode that IS a root layout, so it rides the same reset
+# the other two already do rather than adding a step: h_accordion instead of
+# h_tiles, and the grid block below is skipped. Coming back out of it needs
+# nothing either — the next press names h_tiles here and the workspace is a
+# flat row again.
+root=h_tiles
+[ "$next" = accordion ] && root=h_accordion
+
 cmds="flatten-workspace-tree --workspace \"$ws\""
-cmds="$cmds; layout --workspace \"$ws\" --root h_tiles"
+cmds="$cmds; layout --workspace \"$ws\" --root $root"
 cmds="$cmds; balance-sizes --workspace \"$ws\""
 
 if [ "$next" = grid ] && [ "$n" -gt 1 ]; then
@@ -231,9 +284,10 @@ if [ "$next" = grid ] && [ "$n" -gt 1 ]; then
     fi
 fi
 
-# stderr is dropped because `layout --root h_tiles` prints a "already in the
-# requested mode" tip (and exits 0) on a workspace that was already columns —
-# every second press, on a keybinding nobody is reading a log for.
+# stderr is dropped because `layout --root <x>` prints a "already in the
+# requested mode" tip (and exits 0) whenever the workspace is already in the
+# root layout the press is asking for — the columns->grid step every time round
+# the dial, on a keybinding nobody is reading a log for.
 "$AEROSPACE" eval -- "$cmds" >/dev/null 2>&1
 
 # Rewrite in place: this workspace's old line dropped, the new one appended, the

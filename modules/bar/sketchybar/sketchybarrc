@@ -296,9 +296,11 @@ if [ "$BAR_PAGES" = "1" ]; then
 fi
 
 # Tiling shape — which layout leader→. last dealt the focused workspace into:
-# `Grid` (ceil(sqrt(n)) area-balanced columns) or `Columns` (AeroSpace's own
-# flat row). See windows/scripts/tiling-mode.sh for the shapes and
-# plugins/aerospace_lib.sh for what the pill will and won't claim to know.
+# `Grid` (ceil(sqrt(n)) area-balanced columns), `Columns` (AeroSpace's own flat
+# row) or `Accordion` (the focused window takes the space, its neighbours left
+# as slivers). See windows/scripts/tiling-mode.sh for the shapes and
+# plugins/aerospace_lib.sh for what the pill will and won't claim to know —
+# accordion it reads live from AeroSpace, the other two from the state file.
 #
 # It draws only when the focused workspace holds MORE THAN ONE tiled window:
 # one window has no layout to be in, and floating windows (every Ghostty popup

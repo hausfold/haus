@@ -63,7 +63,9 @@
     name = "aerospace-tiling-mode";
     # windows writes `<workspace>\t<mode>` when you cycle the layout; the bar's
     # aerospace pill reads the same two columns with the same awk to draw
-    # Grid vs Columns. Two copies of one format, so the name is the cheap half.
+    # Grid vs Columns. (Accordion, the third stop, is not in here at all — both
+    # sides read that one live off AeroSpace's own root layout.) Two copies of
+    # one format, so the name is the cheap half.
     literals = {
       "modules/windows/scripts/tiling-mode.sh" = null;
       "modules/bar/sketchybar/plugins/aerospace_lib.sh" = null;

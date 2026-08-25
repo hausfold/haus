@@ -653,7 +653,7 @@ lib.mkMerge [
           "haus.roster leader keys must not reuse a built-in launch-mode key; conflicting: "
           + lib.concatStringsSep ", " rosterBuiltinCollisions
           + ". Those letters are leader actions haus already binds (v clipboard, f Find Files, "
-          + "z reopen-last-app, , settings, . tiling flip, ` resort, - / = resize, digits and "
+          + "z reopen-last-app, , settings, . tiling cycle, ` resort, - / = resize, digits and "
           + "arrows for "
           + "workspaces). Pick another letter for the app, or set its key to null and reach it "
           + "from the palette. If the entry came from a shared desktop, override just "
@@ -769,10 +769,12 @@ lib.mkMerge [
         text = resortScript;
         executable = true;
       };
-      # leader→. : alternate the focused workspace's tiling mode (columns <->
-      # grid), one one-shot reflow per press — a single `aerospace eval`, so the
-      # windows are laid out once rather than flying through every intermediate
-      # arrangement. Needs `hausrect` above for the grid's column widths.
+      # leader→. : advance the focused workspace's tiling mode one stop
+      # (columns -> grid -> accordion -> columns), one one-shot reflow per press
+      # — a single `aerospace eval`, so the windows are laid out once rather
+      # than flying through every intermediate arrangement. Needs `hausrect`
+      # above for the grid's column widths; accordion needs nothing, being a
+      # root layout AeroSpace holds per workspace itself.
       ".config/aerospace/tiling-mode.sh" = {
         source = ./scripts/tiling-mode.sh;
         executable = true;

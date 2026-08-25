@@ -6088,7 +6088,7 @@
       "_type": "literalExpression",
       "text": "80"
     },
-    "description": "How much room an accordion layout leaves for the windows either side\nof the focused one, in points. Bigger means a narrower focused window\nwith more of the stack peeking out; `0` hides the neighbours\ncompletely, which makes an accordion workspace look like a fullscreen\none.\n\nOnly read while a workspace is in the accordion layout, whether it got\nthere from haus.windows.defaultLayout or from the layout chord.\n\nOnly meaningful with haus.windows.enable.\n",
+    "description": "How much room an accordion layout leaves for the windows either side\nof the focused one, in points. Bigger means a narrower focused window\nwith more of the stack peeking out; `0` hides the neighbours\ncompletely, which makes an accordion workspace look like a fullscreen\none.\n\nOnly read while a workspace is in the accordion layout — whether it\ngot there from haus.windows.defaultLayout, from the layout chord, or\nfrom the leader-key tiling dial, which carries accordion as one of its\nthree stops.\n\nOnly meaningful with haus.windows.enable.\n",
     "example": {
       "_type": "literalExpression",
       "text": "30"
