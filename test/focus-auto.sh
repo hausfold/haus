@@ -35,6 +35,7 @@ build_engine() { # $1 = path to the scene table
         -e "s|@keyCode@|105|" \
         -e "s|@slackEnabled@|0|" \
         -e "s|@slackTokenCommand@|''|" \
+        -e "s|@slackTokenHint@|'run: haus-secret --check'|" \
         -e "s|@slackStatusText@|'heads down'|" \
         -e "s|@slackStatusEmoji@|':no_bell:'|" \
         -e "s|@slackSnooze@|0|" \
