@@ -56,6 +56,11 @@ KEY_CODE=@keyCode@
 
 SLACK_ENABLED=@slackEnabled@
 SLACK_TOKEN_CMD=@slackTokenCommand@
+# What to tell somebody whose token is missing, which depends on WHO holds it:
+# haus (an unset tokenCommand — the value is one `haus-secret --check` away) or
+# the host's own command. Substituted rather than decided here, because only the
+# module knows which shape is in force.
+SLACK_TOKEN_HINT=@slackTokenHint@
 SLACK_STATUS_TEXT=@slackStatusText@
 SLACK_STATUS_EMOJI=@slackStatusEmoji@
 SLACK_SNOOZE=@slackSnooze@
@@ -143,7 +148,7 @@ slack_set() { # $1 = on|off
     [ "$SLACK_ENABLED" = 1 ] || return 0
     TOK=$(slack_token)
     if [ -z "$TOK" ]; then
-        note "slack: tokenCommand printed nothing — skipping (see 'focus doctor')"
+        note "slack: no token yet — skipping (see 'focus doctor')"
         return 0
     fi
     local prev="$STATE_DIR/slack-prev.json"
@@ -967,8 +972,8 @@ doctor() {
     if [ "$SLACK_ENABLED" = 1 ]; then
         TOK=$(slack_token)
         if [ -z "$TOK" ]; then
-            echo "  [!!] slack: tokenCommand printed nothing — stash a token first, e.g."
-            echo "       security add-generic-password -s focus-slack -a \$USER -w 'xoxp-…'"
+            echo "  [!!] slack: no token yet —"
+            echo "       $SLACK_TOKEN_HINT"
         elif slack_api auth.test -X POST | "$JQ" -e '.ok' >/dev/null 2>&1; then
             echo "  [ok] slack: token accepted"
         else

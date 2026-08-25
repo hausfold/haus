@@ -101,7 +101,9 @@ modules/
                           #   (haus._contrib.<room>.<feature>), the source writes it.
                           #   mkExtensionPoint is one feature, one writer;
                           #   mkExtensionRegistry is a DECK many rooms each add a
-                          #   keyed entry to (haus._contrib.permissions is it today)
+                          #   keyed entry to — haus._contrib.permissions (the manual-click
+                          #   deck) and haus._contrib.secrets (what each room
+                          #   needs a secret VALUE for) are the two today
   lib/settings-panes.nix  # System Settings deep links, spelled once — a wrong
                           #   x-apple.systempreferences: URL lands on the front page
                           #   with no error, and four rooms want Privacy_Accessibility
@@ -189,7 +191,12 @@ modules/
                           #   against reality. Rooms hear deliveries through
                           #   haus._contrib.github.subscribers, never by reading this
                           #   room's config
-  secrets/                # secretspec: declarative secrets, provider chosen per host
+  secrets/                # secretspec: declarative secrets, provider chosen per host.
+                          #   Also the DECK every other room declares its own needs
+                          #   into (haus._contrib.secrets): names and prose, never
+                          #   values, rendered into one manifest at
+                          #   ~/.config/haus/secretspec.toml and read back through
+                          #   the `haus-secret` CLI this room installs
 desktops/                 # the desktops this flake ships: hacker (the builder's
                           #   default), blank, everyday, minimal. Data only, one per
                           #   host, no stacking
@@ -376,7 +383,13 @@ mechanism, say so in one line.
   rebuild that changes secretspec's store path re-prompts once per secret.
   Harmless (approve again); cloud providers (gcsm/awssm/bws/…) have no per-item
   ACL. Login-keychain items do NOT sync via iCloud — a clean wipe means
-  `secretspec check` + re-entering values.
+  `secretspec check` + re-entering values. A machine now has TWO manifests and
+  they are not the same thing: a project's own committed `secretspec.toml`
+  (secretspec finds it by walking up from the cwd) and haus's generated
+  `~/.config/haus/secretspec.toml`, which only `haus-secret` reads. They are
+  separate secretspec PROJECTS, so the same NAME in both is two items in the
+  provider — `haus.secrets.project` points the generated one at an existing
+  project when you would rather share than re-enter.
 - **Determinate owns the nix daemon** (`modules/core`): `nix.enable = false`;
   config lives in `/etc/nix/nix.custom.conf`. GC is our own weekly launchd job.
 - **The pounce build shells out to `/usr/bin/xcrun swiftc`** — needs Xcode CLT +
@@ -635,6 +648,15 @@ mechanism, say so in one line.
     agents popup redraws on a 10 s tick; the Lanes palette opens inside pounce's
     8-second loading skeleton), so the TTL + one-winner lock live in front of
     both.
+
+  One more lives in **`modules/secrets`** for the same reason:
+  **`haus-secret`** — the single door to the values the ROOMS declared
+  (`haus._contrib.secrets` → `~/.config/haus/secretspec.toml`). A room's wiring
+  says `haus-secret <NAME>` and never learns which provider this Mac uses;
+  `--list` / `--status` / `--check` are the person's half. It deliberately does
+  NOT invent a `--reason` for a read: secretspec's `require_reason` policy is
+  what makes an agent write down why before it may read a value, and a wrapper
+  that supplied one would hand every agent on the machine a blanket excuse.
 
   All are plain bash embedded via `builtins.readFile`, so a rebuild re-installs
   them on `PATH`. Agent worktrees themselves are **`holt`**

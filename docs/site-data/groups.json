@@ -1191,8 +1191,12 @@
     "secrets": {
       "blurb": "Where secret values come from on this machine.",
       "kind": "room",
-      "optionCount": 1,
+      "optionCount": 2,
       "options": {
+        "haus.secrets.project": {
+          "desktopSafe": false,
+          "reason": "secret"
+        },
         "haus.secrets.provider": {
           "desktopSafe": false,
           "reason": "secret"
@@ -1857,7 +1861,7 @@
         "security",
         "secrets"
       ],
-      "optionCount": 16,
+      "optionCount": 17,
       "order": 120,
       "title": "Security"
     },

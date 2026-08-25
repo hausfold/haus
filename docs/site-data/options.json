@@ -2640,7 +2640,7 @@
       "_type": "literalExpression",
       "text": "false"
     },
-    "description": "Also set a Slack status and snooze Slack notifications (all devices,\nphone included) while quiet. Off by default: it needs a personal\nSlack user token (scopes users.profile:write + dnd:write) provided\nvia tokenCommand. The previous status is saved and restored on\nturning it off.\n",
+    "description": "Also set a Slack status and snooze Slack notifications (all devices,\nphone included) while quiet. Off by default: it needs a personal\nSlack user token (scopes users.profile:write + dnd:write), which haus\nasks you for once (`haus-secret --check`) unless tokenCommand names\nanother way to fetch it. The previous status is saved and restored on\nturning it off.\n",
     "loc": [
       "haus",
       "focus",
@@ -2712,10 +2712,10 @@
       "_type": "literalExpression",
       "text": "\"\""
     },
-    "description": "Shell command that prints the Slack user token (xoxp-…) to stdout.\nKeychain-first so no secret ever lands in the store or a dotfile:\n  security add-generic-password -s focus-slack -a $USER -w 'xoxp-…'\n",
+    "description": "Shell command that prints the Slack user token (xoxp-…) to stdout.\nA command rather than a value so no secret ever lands in the store or\na dotfile.\n\nEMPTY (the default) means haus holds it: with `slack.enable` on, this\nroom declares SLACK_USER_TOKEN to the secrets room, `haus-secret\n--check` asks for it once, and `haus.secrets.provider` decides where\nit is kept. Set this only to fetch the token some other way.\n",
     "example": {
       "_type": "literalExpression",
-      "text": "\"security find-generic-password -s focus-slack -w\""
+      "text": "\"op read op://private/slack/token\""
     },
     "loc": [
       "haus",
@@ -3031,7 +3031,7 @@
       "_type": "literalExpression",
       "text": "false"
     },
-    "description": "Receive GitHub webhook deliveries on this machine.\n\nGitHub → a Cloudflare tunnel → a loopback receiver here, which proves\nthe delivery's signature, writes down that it happened, forwards the raw\nbytes to anything in `forwardTo`, and wakes whichever rooms asked to\nhear about it. Nothing on GitHub changes: there is no token anywhere in\nthis room.\n\nWhat it buys is latency and quiet. The surfaces that watch GitHub — the\nbar's octocat pill, the agent statusline's PR column, the lanes popup —\nall poll, because a poll is the only thing that works with no bridge.\nWith one, they poll on a long backstop and refresh the moment something\nactually happens, which is both faster to notice a merge and far less\ntraffic on your API budget.\n\nNeeds `secretCommand` set: the delivery signature is the entire auth\nstory, so a receiver with no secret is a receiver that would have to\ntrust anyone who found the hostname.\n",
+    "description": "Receive GitHub webhook deliveries on this machine.\n\nGitHub → a Cloudflare tunnel → a loopback receiver here, which proves\nthe delivery's signature, writes down that it happened, forwards the raw\nbytes to anything in `forwardTo`, and wakes whichever rooms asked to\nhear about it. Nothing on GitHub changes: there is no token anywhere in\nthis room.\n\nWhat it buys is latency and quiet. The surfaces that watch GitHub — the\nbar's octocat pill, the agent statusline's PR column, the lanes popup —\nall poll, because a poll is the only thing that works with no bridge.\nWith one, they poll on a long backstop and refresh the moment something\nactually happens, which is both faster to notice a merge and far less\ntraffic on your API budget.\n\nThe delivery signature is the entire auth story, so the receiver needs\nthe shared secret before it will start: this room declares\nGITHUB_WEBHOOK_SECRET to the secrets room and `haus-secret --check`\nasks you for it once. Until it has one the receiver stays dormant and\nsays so in its log — the build is fine, the bridge simply isn't up.\n`secretCommand` is there for fetching that value some other way.\n",
     "loc": [
       "haus",
       "github",
@@ -3153,10 +3153,10 @@
       "_type": "literalExpression",
       "text": "\"\""
     },
-    "description": "Shell printing the webhook's HMAC secret on stdout — the same string\nentered in GitHub's hook settings. Run once per activation, and its\noutput is written to `~/.local/state/haus/github/secret` (mode 600),\nwhich is what the receiver reads.\n\nA command rather than a value so the secret never enters the Nix store,\nwhere it would be world-readable and preserved in every generation.\n`secretspec get <name>` is the intended shape — `haus.secrets.provider`\nalready decides where that reads from on this machine.\n\nAn empty command with the room enabled is an error rather than a\ndegradation: there is no reduced-function receiver that skips signature\nchecks, and there should not be.\n",
+    "description": "Shell printing the webhook's HMAC secret on stdout — the same string\nentered in GitHub's hook settings. Run when the receiver starts, and\nits output is cached in `~/.local/state/haus/github/secret` (mode 600),\nwhich is what the receiver reads.\n\nA command rather than a value so the secret never enters the Nix store,\nwhere it would be world-readable and preserved in every generation.\n\nEMPTY (the default) means haus holds it: this room declares\nGITHUB_WEBHOOK_SECRET to the secrets room, `haus-secret --check` asks\nyou for it once, and `haus.secrets.provider` decides where it is kept.\nSet this only to fetch the value some other way — and note that doing\nso withdraws the declaration, since a manifest entry nothing reads is a\nvalue the wizard would ask for and never use.\n\nEither way an absent value is a dormant receiver, not a broken build:\nit exits 78 (EX_CONFIG) and says so in its log, because there is no\nreduced-function receiver that skips signature checks and there should\nnot be.\n",
     "example": {
       "_type": "literalExpression",
-      "text": "\"secretspec get github_webhook_secret\""
+      "text": "\"op read op://private/github-webhook/secret\""
     },
     "loc": [
       "haus",
@@ -5202,6 +5202,27 @@
     "readOnly": false,
     "type": "null or boolean"
   },
+  "haus.secrets.project": {
+    "declarations": [
+      "modules/secrets/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "\"haus\""
+    },
+    "description": "The secretspec PROJECT name the room-declared manifest carries, which\nis the namespace its values are stored under: on the keyring provider\ntwo projects asking for GITHUB_TOKEN are two separate keychain items.\n\nThe default keeps this machine's rooms in their own namespace, which\nis what you want on a fresh Mac. Point it at a project you already\nhave — the name in your config flake's own secretspec.toml, usually —\nand any value already entered there under the same secret NAME is\nfound straight away, with nothing to re-enter and nothing duplicated.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "\"nix\""
+    },
+    "loc": [
+      "haus",
+      "secrets",
+      "project"
+    ],
+    "readOnly": false,
+    "type": "string matching the pattern [A-Za-z0-9_-]+"
+  },
   "haus.secrets.provider": {
     "declarations": [
       "modules/secrets/options.nix"
@@ -5210,7 +5231,7 @@
       "_type": "literalExpression",
       "text": "\"keyring\""
     },
-    "description": "The secretspec provider that supplies secret VALUES on this machine.\nThe secrets room writes it to ~/.config/secretspec/config.toml as the\ndefault provider, so `secretspec run / check / set` work without\nflags. Any provider string secretspec accepts, URIs included:\n\"keyring\" (macOS login keychain — local, no accounts), \"onepassword\",\n\"bws\" (Bitwarden Secrets Manager), \"gcsm\" (Google Cloud Secret\nManager), \"awssm\" (AWS Secrets Manager), \"vault\", \"pass\",\n\"protonpass\", \"lastpass\", \"dotenv\", \"env\", or a scoped URI like\n\"onepassword://account@vault\".\n\nWHICH secrets exist is not declared here — that's each project's\ncommitted secretspec.toml. Cloud providers authenticate with their own\ncredentials, configured outside Nix (e.g. `gcloud auth\napplication-default login` for gcsm); that login is the one manual\nstep on a new Mac. null skips writing the config file entirely — run\n`secretspec config init` yourself.\n",
+    "description": "The secretspec provider that supplies secret VALUES on this machine.\nThe secrets room writes it to ~/.config/secretspec/config.toml as the\ndefault provider, so `secretspec run / check / set` work without\nflags. Any provider string secretspec accepts, URIs included:\n\"keyring\" (macOS login keychain — local, no accounts), \"onepassword\",\n\"bws\" (Bitwarden Secrets Manager), \"gcsm\" (Google Cloud Secret\nManager), \"awssm\" (AWS Secrets Manager), \"vault\", \"pass\",\n\"protonpass\", \"lastpass\", \"dotenv\", \"env\", or a scoped URI like\n\"onepassword://account@vault\".\n\nWHICH secrets a PROJECT needs is still that project's own committed\nsecretspec.toml. What the ROOMS on this machine need is declared by\nthe rooms themselves and rendered to ~/.config/haus/secretspec.toml —\nsee `haus-secret --list`. Cloud providers authenticate with their own\ncredentials, configured outside Nix (e.g. `gcloud auth\napplication-default login` for gcsm); that login is the one manual\nstep on a new Mac. null skips writing the config file entirely — run\n`secretspec config init` yourself.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"gcsm\""

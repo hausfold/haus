@@ -2664,6 +2664,16 @@ cmd_doctor() {
     provider="$(sed -n 's/^provider *= *"\(.*\)"/\1/p' "$HOME/.config/secretspec/config.toml" 2>/dev/null | head -1)"
     if [ -n "$provider" ]; then ok "secretspec on PATH (default provider: $provider)"
     else warn "no default provider — set haus.secrets.provider, or run: secretspec config init"; fi
+    # What the ROOMS on this machine declared (haus._contrib.secrets, rendered
+    # by the secrets room). `--ok` prompts for nothing and prints nothing —
+    # doctor may never be the thing that pops a dialog.
+    if [ -f "$HOME/.config/haus/secretspec.toml" ] && command -v haus-secret >/dev/null 2>&1; then
+      if haus-secret --ok; then
+        ok "no room on this Mac is waiting on a secret value"
+      else
+        bad "a room here is waiting on a secret value — 'haus-secret --status' says which (and whether the provider is even reachable), 'haus-secret --check' fills them in"
+      fi
+    fi
     # If your config flake declares secrets, verify their values are present.
     # </dev/null keeps check from prompting; missing values are for `set`.
     if [ -f "$CONSUMER/secretspec.toml" ]; then

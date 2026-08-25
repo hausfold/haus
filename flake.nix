@@ -348,6 +348,13 @@
               # assertions and contributions, and step 3 of the rooms plan is what
               # decides whether Blank carries it.
               ./modules/ai
+              # The secrets room, for the mirror-image reason: it RECEIVES a
+              # deck (haus._contrib.secrets) that rooms below write, and it is
+              # the only thing that renders those declarations into a manifest
+              # and installs `haus-secret` to read them. Without it a partial
+              # import of `focus` with the Slack leg on would point at a binary
+              # nothing installed, evaluate cleanly, and quietly never work.
+              ./modules/secrets
               ./modules/core
               implementation
             ];

@@ -85,9 +85,12 @@ in
         actually happens, which is both faster to notice a merge and far less
         traffic on your API budget.
 
-        Needs `secretCommand` set: the delivery signature is the entire auth
-        story, so a receiver with no secret is a receiver that would have to
-        trust anyone who found the hostname.
+        The delivery signature is the entire auth story, so the receiver needs
+        the shared secret before it will start: this room declares
+        GITHUB_WEBHOOK_SECRET to the secrets room and `haus-secret --check`
+        asks you for it once. Until it has one the receiver stays dormant and
+        says so in its log — the build is fine, the bridge simply isn't up.
+        `secretCommand` is there for fetching that value some other way.
       '';
     };
 
@@ -111,21 +114,27 @@ in
     github.secretCommand = lib.mkOption {
       type = lib.types.str;
       default = "";
-      example = "secretspec get github_webhook_secret";
+      example = "op read op://private/github-webhook/secret";
       description = ''
         Shell printing the webhook's HMAC secret on stdout — the same string
-        entered in GitHub's hook settings. Run once per activation, and its
-        output is written to `~/.local/state/haus/github/secret` (mode 600),
+        entered in GitHub's hook settings. Run when the receiver starts, and
+        its output is cached in `~/.local/state/haus/github/secret` (mode 600),
         which is what the receiver reads.
 
         A command rather than a value so the secret never enters the Nix store,
         where it would be world-readable and preserved in every generation.
-        `secretspec get <name>` is the intended shape — `haus.secrets.provider`
-        already decides where that reads from on this machine.
 
-        An empty command with the room enabled is an error rather than a
-        degradation: there is no reduced-function receiver that skips signature
-        checks, and there should not be.
+        EMPTY (the default) means haus holds it: this room declares
+        GITHUB_WEBHOOK_SECRET to the secrets room, `haus-secret --check` asks
+        you for it once, and `haus.secrets.provider` decides where it is kept.
+        Set this only to fetch the value some other way — and note that doing
+        so withdraws the declaration, since a manifest entry nothing reads is a
+        value the wizard would ask for and never use.
+
+        Either way an absent value is a dormant receiver, not a broken build:
+        it exits 78 (EX_CONFIG) and says so in its log, because there is no
+        reduced-function receiver that skips signature checks and there should
+        not be.
       '';
     };
 
