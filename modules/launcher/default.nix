@@ -1022,6 +1022,7 @@ let
     screenshots = "Screenshot browser";
     camera = "Camera preview";
     filesearch = "Find Files";
+    settings = "Pounce's own settings window";
   };
   humanize =
     id:

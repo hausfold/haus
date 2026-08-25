@@ -1373,7 +1373,8 @@
               option = "haus.roster.sketchybar.binPath";
               allowed = {
                 "modules/options.nix" = "the option's own documentation — the definition site";
-                "modules/bar/barpop.swift" = "a runtime FALLBACK CHAIN, not an address: barpop tries $SKETCHYBAR_BIN (which the bar passes from binPath) first and only then walks this list, so it still finds a bar on a machine mid-migration";
+                "modules/bar/barpop.swift" =
+                  "a runtime FALLBACK CHAIN, not an address: barpop tries $SKETCHYBAR_BIN (which the bar passes from binPath) first and only then walks this list, so it still finds a bar on a machine mid-migration";
               };
             }
           ];
@@ -3010,18 +3011,29 @@
               # here and the guard below — the part that says DON'T DELETE THIS
               # CHECK — would never print. An empty file is what makes it speak.
 
-              # `static let modes = ["launcher", "clipboard", …]` → one per line.
-              sed -n 's/.*static let modes = \[\(.*\)\].*/\1/p' "$src" \
-                | tr -d ' "' | tr ',' '\n' | grep . > theirs-modes || true
-              # The fallback text of ItemTarget.problem. That literal is built by
-              # CONCATENATION in Swift and wraps across lines once it grew a
-              # fourth shape, so the source is flattened first: join every line,
-              # then delete each `" + "` seam, leaving one string to grep. Doing
-              # it on the raw file is how this check broke when pounce added
-              # `setting:` — the closing paren moved into the next literal, the
-              # pattern matched nothing, and the guard below fired instead of
-              # the diff that would have named the missing shape.
+              # The source, FLATTENED: join every line, then delete each
+              # `" + "` seam. Both extractions below read this rather than the
+              # raw file, and both for the same reason — a Swift literal that
+              # outgrows one line is still one value, and a line-oriented
+              # pattern stops seeing it the moment it wraps.
+              #
+              # That has now bitten twice. `ItemTarget.problem`'s text is built
+              # by CONCATENATION and wrapped once it grew a fourth shape, moving
+              # the closing paren into the next literal (pounce's `setting:`).
+              # And `static let modes` wrapped when it grew `settings`
+              # (2026-08-25), which is what took CI red on main: the pattern
+              # matched nothing, `theirs-modes` came out empty, and the guard
+              # below fired instead of the diff that would have named the one
+              # new mode. Flattening first is the fix for the class, not the
+              # instance.
               tr '\n' ' ' < "$src" | sed 's/" *+ *"//g' > flat
+
+              # `static let modes = ["launcher", "clipboard", …]` → one per line.
+              # `[^]]*` rather than `.*`: on the flattened file a greedy capture
+              # would run past the array's own `]` and swallow the error text's
+              # `setting:<pane>[?<anchor>]` with it.
+              sed -n 's/.*static let modes = \[\([^]]*\)\].*/\1/p' flat \
+                | tr -d ' "' | tr ',' '\n' | grep . > theirs-modes || true
               # The `mode:` error also starts "(expected", but its literal has
               # no closing paren before the quote, so this pattern takes only
               # the shape list.
@@ -3180,9 +3192,9 @@
           '';
 
           roster-bin-paths = pkgs.runCommand "haus-roster-bin-paths-ok" { } ''
-            mods=${./modules}
-            fail=0
-${builtins.concatStringsSep "\n" (
+                        mods=${./modules}
+                        fail=0
+            ${builtins.concatStringsSep "\n" (
               map (
                 p:
                 let
@@ -3233,20 +3245,20 @@ ${builtins.concatStringsSep "\n" (
                 ''
               ) rosterOwnedPaths
             )}
-            [ "$fail" = 0 ] || exit 1
-            touch $out
+                        [ "$fail" = 0 ] || exit 1
+                        touch $out
           '';
 
           state-files = pkgs.runCommand "haus-state-files-ok" { } ''
-            mods=${./modules}
-            fail=0
+                        mods=${./modules}
+                        fail=0
 
-            # Every file that spells a shared path still spells it, in the exact
-            # form the registry names. `grep -q` on a path that does not exist is
-            # an ERROR, not a miss, so the existence test is separate — otherwise
-            # a moved file reads as a passing check instead of a broken one,
-            # which is how this class of check goes blind rather than red.
-${builtins.concatStringsSep "\n" (
+                        # Every file that spells a shared path still spells it, in the exact
+                        # form the registry names. `grep -q` on a path that does not exist is
+                        # an ERROR, not a miss, so the existence test is separate — otherwise
+                        # a moved file reads as a passing check instead of a broken one,
+                        # which is how this class of check goes blind rather than red.
+            ${builtins.concatStringsSep "\n" (
               builtins.concatMap (
                 f:
                 map (
@@ -3279,11 +3291,11 @@ ${builtins.concatStringsSep "\n" (
               ) stateFileEntries
             )}
 
-            # No .nix under modules/ may hand-spell a registered path. Without
-            # this the registry is just one more copy — the exact shape it
-            # exists to end. A room that needs one of these imports
-            # ../lib/state-files.nix and interpolates it.
-${builtins.concatStringsSep "\n" (
+                        # No .nix under modules/ may hand-spell a registered path. Without
+                        # this the registry is just one more copy — the exact shape it
+                        # exists to end. A room that needs one of these imports
+                        # ../lib/state-files.nix and interpolates it.
+            ${builtins.concatStringsSep "\n" (
               map (
                 f:
                 let
@@ -3306,8 +3318,8 @@ ${builtins.concatStringsSep "\n" (
               ) stateFileEntries
             )}
 
-            [ "$fail" = 0 ] || exit 1
-            touch $out
+                        [ "$fail" = 0 ] || exit 1
+                        touch $out
           '';
 
           pounce-header-grammar = pkgs.runCommand "haus-pounce-header-grammar-ok" { } ''
