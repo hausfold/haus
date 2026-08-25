@@ -49,6 +49,10 @@ export LIDAWAKE_TEST_LOG="$TMP/log"
 export LIDAWAKE_TEST_POWER="$TMP/power"
 export LIDAWAKE_HOLD_DIR="$TMP/holds"
 export LIDAWAKE_MARKER="$TMP/marker"
+# The maxHold latch's own stamp. Exported as a seam like the rest rather than
+# left to default off $LIDAWAKE_MARKER, so a scenario can put something
+# UNWRITABLE at the path and drive the "this cap's stamp did not land" branch.
+export LIDAWAKE_CAPSTAMP="$TMP/capstamp"
 export LIDAWAKE_NOW_FILE="$TMP/clock"
 export LIDAWAKE_TICK_HOOK="$TMP/hook"
 export LIDAWAKE_INTERVAL=0
@@ -77,7 +81,7 @@ assert_writes() {
 scenario() {
     good_pmset
     : >"$LIDAWAKE_TEST_LOG"
-    /bin/rm -rf "$TMP/holds" "$LIDAWAKE_MARKER" "$LIDAWAKE_MARKER.capped"
+    /bin/rm -rf "$TMP/holds" "$LIDAWAKE_MARKER" "$LIDAWAKE_CAPSTAMP"
     mkdir -p "$TMP/holds"
     printf 'ac\n' >"$LIDAWAKE_TEST_POWER"
     printf '1000\n' >"$LIDAWAKE_NOW_FILE"
@@ -196,6 +200,32 @@ LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=600 LIDAWAKE_REQUIRE_POWER=0 LIDAWAKE_TICKS=
     bash "$LIDAWAKE" >/dev/null
 assert_writes "1 0 1" "a new agent re-arms a capped hold, leak or no leak"
 [ -e "$TMP/holds/stuck" ] || fail "5b: the test's own premise went missing"
+
+# ── 5c. a cap whose stamp did not land latches HARDER, not softer ────────────
+# The failure mode 5b's escape hatch opens up, and the worst one in the file: if
+# the cap stamp cannot be written, "a hold newer than the cap" has no floor to be
+# newer THAN. Answer it wrong — by falling back to whatever stale stamp is on
+# disk — and the cap lifts on the very next tick, releasing and re-arming
+# forever, which is precisely the Mac-that-never-sleeps this daemon exists to
+# prevent. So an unwritable stamp must mean the latch never lifts at all.
+#
+# A DIRECTORY at the stamp path, because it is the one way to make a write fail
+# that reads the same on macOS and on CI's Linux — `chmod`/`chflags` differ, and
+# the suite runs on both.
+scenario
+mkdir -p "$LIDAWAKE_CAPSTAMP"
+hook '
+case "$1" in
+  0) : >'"$TMP"'/holds/stuck ;;
+  1) echo 1700 >'"$TMP"'/clock ;;
+  2) echo 1800 >'"$TMP"'/clock ;;
+  3) : >'"$TMP"'/holds/a-real-agent; echo 1900 >'"$TMP"'/clock ;;
+  4) echo 2600 >'"$TMP"'/clock ;;
+esac'
+LIDAWAKE_LINGER=0 LIDAWAKE_MAX_HOLD=600 LIDAWAKE_REQUIRE_POWER=0 LIDAWAKE_TICKS=6 \
+    bash "$LIDAWAKE" >/dev/null 2>&1
+assert_writes "1 0" "an unwritable cap stamp keeps the latch down"
+
 
 # ── 6. while = "always" ──────────────────────────────────────────────────────
 # Plain closed-display mode: holds with an empty hold directory and never lets

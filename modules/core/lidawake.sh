@@ -21,8 +21,13 @@
 #
 # WHY THE HOOK WRITES AND ROOT ONLY READS. The hold directory lives in the
 # user's home and is written by the user's own hook; this daemon is root and
-# never writes into it. Privilege flows one way only, and the worst a stray hold
-# file can cost you is one $LIDAWAKE_MAX_HOLD window (below).
+# never writes into it. Privilege flows one way only, and a stray hold file
+# costs you one $LIDAWAKE_MAX_HOLD window (below) — one PER FILE, since the cap
+# now lifts for a hold that appears after it. Whoever can write that directory
+# can therefore hold the lid indefinitely by using a fresh name each window.
+# That is the user themselves, holding their own machine awake, which is the
+# whole feature; it is stated here so nobody reads failsafe 2 as a bound on the
+# total rather than on a single hold.
 #
 # THREE FAILSAFES, because a daemon that died mid-hold would otherwise leave a
 # Mac that never sleeps again and nothing on screen to say why:
@@ -78,6 +83,17 @@ STAMP="${LIDAWAKE_STAMP:-${MARKER}.started}"
 # cap, so "a hold newer than this" means an agent that started work AFTER the
 # cap — the one thing that distinguishes real new work from the leaked file that
 # tripped the cap in the first place.
+#
+# It is only ever trustworthy if it is THIS cap's stamp. A stale one — left by an
+# earlier cap and not overwritten because the write failed — sits in the past, so
+# every hold on disk is "newer" than it and the latch lifts on the very next
+# tick: the cap would release and re-arm forever, which is the never-sleeps-again
+# failure this whole file exists to prevent. So the latch consults `capstamp_ok`
+# rather than the file's existence: it starts 0 every run and is set only by a
+# write that actually succeeded, which is why no run can inherit a predecessor's
+# stamp and why deleting one at startup would test nothing this does not already
+# cover. A cap whose stamp did not land simply never lifts — the behaviour from
+# before the latch had an escape hatch at all, and the safe direction to fail in.
 CAPSTAMP="${LIDAWAKE_CAPSTAMP:-${MARKER}.capped}"
 
 # ── test seams (test/lidawake.sh) ────────────────────────────────────────────
@@ -120,7 +136,10 @@ apply() {
     if "$PMSET" -a disablesleep "$1" >/dev/null 2>&1; then
         if [ "$1" = 1 ]; then
             mkdir -p "$(dirname "$MARKER")" 2>/dev/null || true
-            : >"$MARKER" 2>/dev/null || true
+            # `2>/dev/null` FIRST: redirections apply left to right, so with
+            # it last the shell's "Permission denied" for $MARKER goes to the
+            # still-live stderr — into the unrotated daemon log, every tick.
+            : 2>/dev/null >"$MARKER" || true
         else
             rm -f "$MARKER" 2>/dev/null || true
         fi
@@ -155,6 +174,7 @@ held=0        # what we last successfully applied
 held_since=0  # when this continuous hold began
 last_hold=0   # last tick at which the raw signal said work is happening
 capped=0      # MAX_HOLD tripped; refuse to re-arm until the signal clears
+capstamp_ok=0 # this cap's stamp landed, so "newer than the cap" is answerable
 tick=0
 
 trap 'apply 0; exit 0' TERM INT
@@ -203,7 +223,7 @@ while :; do
     if [ "$capped" = 1 ]; then
         if [ "$want" = 0 ]; then
             capped=0
-        elif holds_newer_than "$CAPSTAMP"; then
+        elif [ "$capstamp_ok" = 1 ] && holds_newer_than "$CAPSTAMP"; then
             say "an agent started work after the cap — the latch is off and the lid can hold again."
             capped=0
         else
@@ -212,7 +232,15 @@ while :; do
     elif [ "$MODE" != always ] && [ "$want" = 1 ] && [ "$held" = 1 ] &&
         [ "$MAX_HOLD" -gt 0 ] && [ $((t - held_since)) -ge "$MAX_HOLD" ]; then
         say "one hold has run ${MAX_HOLD}s — releasing it. Something is holding that should not be; the lid sleeps this Mac until the holds clear or an agent starts a fresh turn."
-        : >"$CAPSTAMP" 2>/dev/null || true
+        # See CAPSTAMP's own note: a cap whose stamp did not land must latch
+        # HARDER, not softer, so the flag is what the clause above consults
+        # rather than the file's existence.
+        if : 2>/dev/null >"$CAPSTAMP"; then
+            capstamp_ok=1
+        else
+            capstamp_ok=0
+            say "could not write $CAPSTAMP — this cap holds until the holds clear."
+        fi
         capped=1
         want=0
     fi
