@@ -2879,9 +2879,25 @@ cmd_doctor() {
       fi
     fi
     # If your config flake declares secrets, verify their values are present.
-    # </dev/null keeps check from prompting; missing values are for `set`.
+    # Missing values are for `set`; --no-prompt is what keeps the check from
+    # trying to fill them in here, and the </dev/null stays for the stdin
+    # hygiene every doctor probe wants (see `_perm_run` below).
+    #
+    # The --reason is not decoration: `require_reason` (secretspec's own
+    # default, "agents") refuses a bare `check` run from an AGENT pane, and a
+    # refusal is indistinguishable from a missing value here — so without it
+    # doctor drew a red "missing secret values" on a machine whose secrets are
+    # all present, but only when an agent ran it. What it resolves is presence
+    # and what it prints is never a value, which is the reason `haus-secret`'s
+    # report paths give too. It does NOT inherit their other guard: those gate
+    # a live check on `PROVIDER_ITEM_ACL`, and this call has no such gate, so
+    # on the login keychain a rebuild that moved secretspec's store path can
+    # still make THIS line raise one dialog per secret in the consumer's own
+    # manifest. Pre-existing, and the deck's rule says it should not stay.
     if [ -f "$CONSUMER/secretspec.toml" ]; then
-      if (cd "$CONSUMER" && secretspec check </dev/null >/dev/null 2>&1); then
+      if (cd "$CONSUMER" && secretspec check --no-prompt \
+        --reason "haus doctor: report whether this config flake's declared secrets have values (no value is read out)" \
+        </dev/null >/dev/null 2>&1); then
         ok "all secrets in $CONSUMER/secretspec.toml have values"
       else
         bad "missing secret values — run: cd $CONSUMER && secretspec check"
