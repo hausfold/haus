@@ -1465,8 +1465,9 @@ cmd_revert_settings() {
 # (homebrew fetching, activation) still need a re-send every two seconds.
 #
 # The card must keep finding trill at RUNTIME (`trill_bin`), never through
-# `pkgs.trill`: `haus.trill.enable` is off by default, so wiring a rebuild's own
-# progress bar to that room would make it depend on a room nobody turned on.
+# `pkgs.trill`: `haus.notifications.compositor` is off by default, so wiring a
+# rebuild's own progress bar to that room would make it depend on a room nobody
+# turned on.
 # This finds whatever the machine already has, or draws nothing.
 CARD_KEY=""
 CARD_TITLE=""

@@ -323,8 +323,9 @@ mechanism, say so in one line.
   `/run/current-system/sw/bin`. `trill` itself is on PATH the same way — a
   wrapper (`modules/core/trill.sh`), not a symlink, because whether Trill.app
   exists is a runtime fact and a link into a missing bundle is a `trill` that
-  `command -v` finds and every call fails on. **`haus.trill.enable` does not
-  change that** — the room installs the bundle at `/Applications/Trill.app`,
+  `command -v` finds and every call fails on. **`haus.notifications.compositor`
+  does not change that** — the room installs the bundle at
+  `/Applications/Trill.app`,
   which is the wrapper's second candidate, and adds no `bin/trill` of its own;
   a second one would be a build-time file collision, not a redundancy. `HAUS_NOTIFY=apple|trill|off` is
   the escape hatch — how you test the fallback path, or silence the shim while
@@ -343,7 +344,8 @@ mechanism, say so in one line.
   build exit non-zero with nothing printed (measured), which is why the dry run
   is serial and in-shell. **The card must keep finding the CLI at RUNTIME** —
   the way `holt notify` does, or no card is drawn. trill IS a flake input now
-  (`haus.trill.enable`, ../modules/trill), but that room is off by default and
+  (`haus.notifications.compositor`, ../modules/notifications), but that room is
+  off by default and
   a machine without it still has `haus-notify` and this card; wiring either to
   `pkgs.trill` would make a rebuild's own progress bar depend on a room nobody
   turned on. That is what the old wording ("must not become an input") was

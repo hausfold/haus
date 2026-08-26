@@ -373,8 +373,8 @@ let
       "followSystemAppearance"
       "watchScreenshots"
     ];
-    trill = [
-      "enable"
+    notifications = [
+      "compositor"
     ];
     snippets = [
       "enable"
@@ -696,6 +696,7 @@ let
     launcher = "launcher";
     lock = "security";
     menuBar = "bar";
+    notifications = "notifications";
     screenshots = "appearance";
     secrets = "security";
     security = "security";
@@ -704,7 +705,6 @@ let
     sound = "appearance";
     terminal = "development";
     theme = "appearance";
-    trill = "trill";
     wallpaper = "appearance";
     windows = "windows";
     zen = "development";
@@ -895,9 +895,9 @@ let
       order = 160;
       blurb = "The notch file shelf. Perch is the app behind it.";
     };
-    trill = {
+    notifications = {
       order = 165;
-      blurb = "The notification compositor haus already draws through. Trill is the app behind it; this switch is whether haus owns the bundle.";
+      blurb = "The notification compositor haus already draws through. Trill is the app behind it; this switch is whether haus owns the bundle. It is NOT where a banner's routing lives — that is `~/.config/trill/rules.json`, and haus deliberately puts no second dial in front of it.";
     };
     focus = {
       order = 170;
@@ -1080,17 +1080,17 @@ let
         ];
       };
     };
-    trill = {
-      title = "Trill";
+    notifications = {
+      title = "Notifications";
       order = 85;
-      blurb = "The notification compositor: quiet, scriptable banners with their own rules file, drawn instead of macOS's. haus has *drawn through* trill since `haus-notify` landed — finding it at runtime and falling back to Apple's banner when it isn't there — so this switch is the narrower question of whether haus installs and pins the bundle, at a fixed path its Full Disk Access grant can survive.";
+      blurb = "How this desktop's own banners get drawn. haus has *drawn through* trill since `haus-notify` landed — finding it at runtime and falling back to Apple's banner when it isn't there — and that is unconditional, in ../core, whatever this room says. What lives HERE is the narrower question of whether haus installs and pins the bundle, at a fixed path its Full Disk Access grant can survive. Named for the subject rather than the app, like every other room since the 2026-08-16 sweep (../moved.nix).";
       agent = {
         # `trill`, unlike the shelf's `null`: the room installs no binary, but
         # the runtime verb is real and already on PATH here (../core/trill.sh
         # answers it whether or not this room is on). Pointing an agent at
-        # `haus.trill.enable` for "silence this app" would be the wrong half —
-        # routing lives in ~/.config/trill/rules.json and nothing in the option
-        # tree says so.
+        # `haus.notifications.compositor` for "silence this app" would be the
+        # wrong half — routing lives in ~/.config/trill/rules.json and nothing
+        # in the option tree says so.
         cli = "trill send|ask|resolve|ping · trill doctor (exit 5 = can't tell)";
         asks = [
           "install trill"

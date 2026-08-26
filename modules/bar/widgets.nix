@@ -172,7 +172,8 @@
     description = "A Harvest time-tracking pill; needs a ~/.config/sketchybar/harvest_secrets.sh you provide. Click to stop the running timer or restart the last one. Like the Elgato pill it draws dim when Harvest can't be reached, keeping the label that names what was running — an API it can't ask is not the same thing as a timer that isn't running, and the two used to look identical.";
   };
 
-  # trill IS a haus flake input now, and `haus.trill.enable` installs the bundle
+  # trill IS a haus flake input now, and `haus.notifications.compositor` installs
+  # the bundle
   # — but that room is off by default and Trill.app is just as often the user's
   # own install, so this pill still cannot assume its subject is there. That is
   # the same shape terminal's `holt hook notify` already has: wired here,

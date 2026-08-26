@@ -2,12 +2,19 @@
 # lives next to the code that implements it; modules/default.nix imports them all.
 # Cross-cutting options (the app roster) stay in modules/options.nix.
 #
-# The trill room's options — the notification compositor.
+# The notifications room's options — how this desktop's own banners get drawn.
+#
+# There is deliberately no `notifications.enable` here, and the missing name is
+# the point: `haus.notifications.enable = false` would read as "this Mac draws
+# no haus notifications", which is false on every machine. `haus-notify` is
+# unconditional in ../core and falls back to Apple's banner when no compositor
+# answers. The room is the subject; `compositor` is the one question it actually
+# decides.
 { lib, ... }:
 
 {
   options.haus = {
-    trill.enable = lib.mkOption {
+    notifications.compositor = lib.mkOption {
       type = lib.types.bool;
       default = false;
       description = ''
@@ -17,9 +24,10 @@
         haus has drawn its banners through trill since `haus-notify` landed, but
         by *finding* it at runtime — PATH, then `~/Applications`, then
         `/Applications` — and falling back to Apple's banner when nothing
-        answered. That still works and is still the fallback. What this switch
-        adds is the other half: the bundle actually being there, at a path that
-        does not move, pinned by this machine's flake lock like every other room.
+        answered. That still works, is still the fallback, and is not gated on
+        this switch. What this adds is the other half: the bundle actually being
+        there, at a path that does not move, pinned by this machine's flake lock
+        like every other room.
 
         Why the path is fixed rather than a store path: trill's whole
         `trill doctor` and System Mirror surface is a **Full Disk Access** grant,
@@ -36,6 +44,11 @@
         It does **not** put `trill` on PATH — `modules/core/trill.sh` already
         does, for every install source including this one, and a second
         `bin/trill` would be a build-time collision rather than a redundancy.
+
+        It does **not** decide what happens to any individual notification
+        either. Routing, dropping and rewriting by `source` all live in
+        `~/.config/trill/rules.json`, hot-reloaded, and haus deliberately puts
+        no second dial in front of it.
       '';
     };
   };

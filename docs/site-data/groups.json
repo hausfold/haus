@@ -1041,6 +1041,18 @@
       "order": 115,
       "owner": "bar"
     },
+    "notifications": {
+      "blurb": "The notification compositor haus already draws through. Trill is the app behind it; this switch is whether haus owns the bundle. It is NOT where a banner's routing lives — that is `~/.config/trill/rules.json`, and haus deliberately puts no second dial in front of it.",
+      "kind": "room",
+      "optionCount": 1,
+      "options": {
+        "haus.notifications.compositor": {
+          "desktopSafe": true
+        }
+      },
+      "order": 165,
+      "owner": "notifications"
+    },
     "power": {
       "blurb": "Sleep timers and Low Power Mode, said separately for battery and charger — which is the whole point, and why this is built on `pmset` rather than on nix-darwin's own power options. Plus the lid: whether closing this Mac is allowed to end a run that agents are still in the middle of.",
       "kind": "host",
@@ -1386,18 +1398,6 @@
       "order": 190,
       "owner": "haus"
     },
-    "trill": {
-      "blurb": "The notification compositor haus already draws through. Trill is the app behind it; this switch is whether haus owns the bundle.",
-      "kind": "room",
-      "optionCount": 1,
-      "options": {
-        "haus.trill.enable": {
-          "desktopSafe": true
-        }
-      },
-      "order": 165,
-      "owner": "trill"
-    },
     "ui": {
       "blurb": "One number for \"make the interface bigger\", applied across haus's own surfaces.",
       "kind": "shared",
@@ -1610,6 +1610,10 @@
       "order": 75,
       "owner": "development"
     }
+  },
+  "notifications": {
+    "blurb": "The notification compositor haus already draws through. Trill is the app behind it; this switch is whether haus owns the bundle. It is NOT where a banner's routing lives — that is `~/.config/trill/rules.json`, and haus deliberately puts no second dial in front of it.",
+    "order": 165
   },
   "power": {
     "blurb": "Sleep timers and Low Power Mode, said separately for battery and charger — which is the whole point, and why this is built on `pmset` rather than on nix-darwin's own power options. Plus the lid: whether closing this Mac is allowed to end a run that agents are still in the middle of.",
@@ -1855,6 +1859,25 @@
       "order": 70,
       "title": "Launcher"
     },
+    "notifications": {
+      "agent": {
+        "asks": [
+          "install trill",
+          "let haus manage my notification banners",
+          "stop haus notifications falling back to Apple's banner"
+        ],
+        "cli": "trill send|ask|resolve|ping · trill doctor (exit 5 = can't tell)"
+      },
+      "blurb": "How this desktop's own banners get drawn. haus has *drawn through* trill since `haus-notify` landed — finding it at runtime and falling back to Apple's banner when it isn't there — and that is unconditional, in ../core, whatever this room says. What lives HERE is the narrower question of whether haus installs and pins the bundle, at a fixed path its Full Disk Access grant can survive. Named for the subject rather than the app, like every other room since the 2026-08-16 sweep (../moved.nix).",
+      "exports": [],
+      "kind": "room",
+      "namespaces": [
+        "notifications"
+      ],
+      "optionCount": 1,
+      "order": 85,
+      "title": "Notifications"
+    },
     "security": {
       "agent": {
         "asks": [
@@ -1920,25 +1943,6 @@
       "optionCount": 4,
       "order": 110,
       "title": "Text expansion"
-    },
-    "trill": {
-      "agent": {
-        "asks": [
-          "install trill",
-          "let haus manage my notification banners",
-          "stop haus notifications falling back to Apple's banner"
-        ],
-        "cli": "trill send|ask|resolve|ping · trill doctor (exit 5 = can't tell)"
-      },
-      "blurb": "The notification compositor: quiet, scriptable banners with their own rules file, drawn instead of macOS's. haus has *drawn through* trill since `haus-notify` landed — finding it at runtime and falling back to Apple's banner when it isn't there — so this switch is the narrower question of whether haus installs and pins the bundle, at a fixed path its Full Disk Access grant can survive.",
-      "exports": [],
-      "kind": "room",
-      "namespaces": [
-        "trill"
-      ],
-      "optionCount": 1,
-      "order": 85,
-      "title": "Trill"
     },
     "windows": {
       "agent": {
@@ -2008,10 +2012,6 @@
   "tour": {
     "blurb": "The first-run tutor.",
     "order": 190
-  },
-  "trill": {
-    "blurb": "The notification compositor haus already draws through. Trill is the app behind it; this switch is whether haus owns the bundle.",
-    "order": 165
   },
   "ui": {
     "blurb": "One number for \"make the interface bigger\", applied across haus's own surfaces.",

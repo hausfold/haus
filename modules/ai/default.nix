@@ -195,7 +195,7 @@ let
     the haus revision this machine pins (`haus update` regenerates it), and for
     every other skill in that directory that haus installed — each hausfold tool
     ships its own, so `holt/` and `handoff/` are holt's and are edited in
-    hausfold/holt, arriving here on a lock bump.${lib.optionalString config.haus.trill.enable " `trill/` is trill's, the same way, and is here because `haus.trill.enable` is on."} It does
+    hausfold/holt, arriving here on a lock bump.${lib.optionalString config.haus.notifications.compositor " `trill/` is trill's, the same way, and is here because `haus.notifications.compositor` is on."} It does
     NOT go for everything beside them: ${clientScopeNote.${client}} that you can
     edit live with no rebuild. `ls -l` the path before assuming which kind it is.
 
@@ -368,7 +368,7 @@ let
   toolSkills = import ./tool-skills.nix {
     inherit pkgs lib;
     inherit (pkgs) holt-skill trill-skill;
-    trillEnabled = config.haus.trill.enable;
+    trillEnabled = config.haus.notifications.compositor;
   };
   inherit (toolSkills) toolSkillList;
 

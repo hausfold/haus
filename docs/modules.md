@@ -69,10 +69,10 @@ darwinConfigurations.mymac = inputs.haus.mkHaus {
   line door, `perch add <path>...`, lands on `PATH` as a link into that
   bundle.
 
-- **trill** — `haus.trill.enable` installs the trill notification compositor
-  through Nix via its flake input and copies it to a fixed
-  `/Applications/Trill.app`: its Full Disk Access grant is keyed per app path,
-  so a store path would drop the grant on every version bump. It adds nothing
+- **notifications** — `haus.notifications.compositor` installs the trill
+  notification compositor through Nix via its flake input and copies it to a
+  fixed `/Applications/Trill.app`: its Full Disk Access grant is keyed per app
+  path, so a store path would drop the grant on every version bump. It adds nothing
   to `PATH` — `trill` already resolves on a haus machine through a wrapper that
   finds the bundle wherever it is, this room included. Off by default; haus
   draws its banners through trill either way (`haus-notify`), falling back to
