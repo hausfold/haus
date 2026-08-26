@@ -180,10 +180,15 @@ let
   # windows leaves at those same edges (../lib/gaps.nix, the one owner of every
   # number in aerospace.toml's [gaps] block), and the pill at each edge gives up
   # its own outer padding so the two land on the same line — at every
-  # haus.ui.scale, and through any later change to the gaps. It was a hardcoded
-  # 10 in both rcs, which put the pills 6pt OUTSIDE the windows on an external
-  # display and 4pt inside them on the built-in: two different wrongs from one
-  # constant that had nothing to do with the edge it was drawn against.
+  # haus.ui.scale, and through any later change to the gaps.
+  #
+  # It was a hardcoded 10 in both rcs, and where that landed was an accident of
+  # whichever pill happened to be outermost: the menu bar's logo edge sat at 14
+  # (10 + its own 4) and its clock edge at 18 (10 + the clock's 8), against a
+  # 20pt window gap on an external display and a 10pt one on the built-in. So
+  # every edge was wrong, each by a different amount, and in opposite directions
+  # on the two displays — which is what a constant with no relationship to the
+  # edge it is drawn against buys.
   #
   # `outermost` rather than a per-monitor pair, because SketchyBar has no
   # per-display padding: an instance draws one bar across every screen with one
@@ -217,6 +222,14 @@ let
   # outward from its own edge, so a `right` group reads outside-in and a `left`
   # group inside-out from the first item added. `center` has no screen edge and
   # is skipped.
+  #
+  # A multi-item pill is the one place `head` names a member rather than the
+  # edge itself: `agents` is four items under a bracket, and on the RIGHT its
+  # segments are reversed, so the member at the screen edge is `agents.done`
+  # while this addresses `agents`. It comes out exact anyway — every member of
+  # that pill carries 0 already and the bracket's own padding moves nothing — so
+  # this is a note rather than a hole. A future bracket pill whose members
+  # carried real padding would want the whole SET zeroed on the edge side.
   edgePad =
     sb: side: names:
     lib.optionalString (names != [ ] && (side == "left" || side == "right")) ''

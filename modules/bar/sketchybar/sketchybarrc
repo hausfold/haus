@@ -64,9 +64,10 @@ source "$HOME/.config/sketchybar/logo_config.sh"
 # file. It is windows's outer SIDE gap (modules/lib/gaps.nix) verbatim — the
 # space left beside the tiled windows below — and the pill at each edge gives up
 # its own outer padding so the two line up exactly, at every haus.ui.scale. It
-# was a hardcoded 10, which drew the pills 6pt OUTSIDE the windows on an
-# external display and 4pt inside them on the built-in: two different wrongs
-# from one number that had nothing to do with the edge it was drawn against.
+# was a hardcoded 10, and where that landed was an accident of whichever pill
+# was outermost — the logo edge at 14, the clock edge at 18, against a 20pt
+# window gap on an external display and a 10pt one on the built-in. Every edge
+# wrong, each by a different amount, in opposite directions on the two screens.
 # SketchyBar has one padding for every screen it draws on, so this is the WIDEST
 # gap any attached display could want; see `barPadX` in ../default.nix.
 #
