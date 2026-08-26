@@ -78,7 +78,7 @@
     # survives a version bump — and before ./focus because quiet hours are
     # trill's, not focus's, and a reader meeting them in that order is not
     # surprised twice.
-    ./trill
+    ./notifications
     ./focus
     # The GitHub room: the machine's webhook endpoint, and the signal the bar's
     # octocat pill and the AI room's lane cache both read instead of polling.

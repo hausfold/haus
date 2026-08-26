@@ -39,6 +39,22 @@
     # would be permanent furniture protecting nobody. It would also defeat the
     # point — the whole change is that those words stop appearing.
 
+    # 2026-08-26 — `haus.trill.enable` -> `haus.notifications.compositor`, and
+    # `modules/trill` -> `modules/notifications`. The room landed 2026-08-25,
+    # nine days after the sweep above, and was the only one left named for the
+    # app rather than for the subject — exactly the shape `pounce` -> `launcher`
+    # and `perch` -> `shelf` were rewritten out of. The leaf changed too:
+    # `enable` would have claimed the room decides whether this Mac draws haus
+    # notifications, and it doesn't — ../core/haus-notify.sh is unconditional and
+    # falls back to Apple's banner. `compositor` is the question the room
+    # actually answers.
+    #
+    # No entry, for the same reason the sweep above took none and the `agents` ->
+    # `ai` move spells out: the layer has one consumer, its host moves in the
+    # same sweep, and an alias for a one-day-old spelling is permanent furniture
+    # protecting nobody. It would also defeat the point — the whole change is
+    # that `haus.trill` stops appearing.
+
     # 2026-08-19 — `jcode` is no longer a coding-agent client the layer knows
     # about, so it leaves modules/lib/agents.nix and with it the enums of
     # `haus.ai.clients`, `haus.ai.default` and `haus.bar.aiUsage.provider`.

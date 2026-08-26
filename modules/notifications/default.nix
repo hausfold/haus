@@ -1,7 +1,20 @@
-# Trill — the notification compositor, installed through Nix (the `trill` flake
-# input's overlay puts `pkgs.trill` in scope). The flake wraps trill's CI-built,
-# Developer-ID-signed, notarized release .app (macOS 26 blocks a from-source Nix
-# build — see the trill repo), so `pkgs.trill` is that exact bundle in the store.
+# The notifications room — Trill, the notification compositor, installed through
+# Nix (the `trill` flake input's overlay puts `pkgs.trill` in scope). The flake
+# wraps trill's CI-built, Developer-ID-signed, notarized release .app (macOS 26
+# blocks a from-source Nix build — see the trill repo), so `pkgs.trill` is that
+# exact bundle in the store.
+#
+# NAMED FOR THE SUBJECT, NOT THE APP, like every other room since the 2026-08-16
+# sweep that took `pounce` to `launcher` and `perch` to `shelf` (../moved.nix
+# records it, and why those spellings got no alias). This room shipped nine days
+# after that sweep wearing the old shape — `haus.trill.enable` — and moved to
+# `haus.notifications.compositor` for the same reason the others did.
+#
+# The switch is `compositor` rather than `enable` on purpose:
+# `haus.notifications.enable = false` would read as "this Mac draws no haus
+# notifications", and that is false on every machine. ../core/haus-notify.sh is
+# unconditional and falls back to Apple's banner when nothing answers. The room
+# is the subject; whether haus owns the bundle is the one question it decides.
 #
 # THE PATH IS THE POINT. trill is a normal background app, not a launchd daemon:
 # it is LSUIElement, it registers itself as a login item through SMAppService,
@@ -62,13 +75,13 @@ let
   # the one that was deleted.
   lsregister = "/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister";
 in
-lib.mkIf config.haus.trill.enable {
+lib.mkIf config.haus.notifications.compositor {
   # The bundle is copied to a fixed /Applications path by this module's
   # activation step (see the header on why the path must be fixed), so
   # `installedBy` is the only honest source field.
   haus.roster.trill = {
     name = lib.mkDefault "Trill";
-    installedBy = lib.mkDefault "haus.trill";
+    installedBy = lib.mkDefault "haus.notifications";
   };
 
   system.activationScripts.postActivation.text = ''

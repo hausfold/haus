@@ -44,7 +44,7 @@
   ./security/options.nix
   ./launcher/options.nix
   ./shelf/options.nix
-  ./trill/options.nix
+  ./notifications/options.nix
   ./focus/options.nix
   ./github/options.nix
   ./secrets/options.nix

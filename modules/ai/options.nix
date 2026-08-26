@@ -358,7 +358,8 @@ in
         own two — `holt` (the lane lifecycle) and `handoff` (turning work into a
         brief a cold session can act on, ending on the clipboard or in a new
         lane). A tool whose room is OPTIONAL adds its own only when that room is
-        on: `trill` (sending a notification) arrives with `haus.trill.enable`,
+        on: `trill` (sending a notification) arrives with
+        `haus.notifications.compositor`,
         because a skill for an app this Mac doesn't have is worse than none.
         That switch is about the ROOM, not about the app: `haus-notify` and the
         `trill` command find a hand-installed Trill.app at runtime whatever this

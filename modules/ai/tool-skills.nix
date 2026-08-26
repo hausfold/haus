@@ -33,7 +33,8 @@ let
   #
   # `enable` is what makes an optional tool's skill honest. holt is on every
   # haus machine, so its skill is never wrong to have. trill's room is off by
-  # default (`haus.trill.enable`), and a skill teaching an agent to drive an app
+  # default (`haus.notifications.compositor`), and a skill teaching an agent to
+  # drive an app
   # this Mac does not have is worse than no skill at all — the workshop's
   # notes/agent-surface.md §4. So the ROOM passes the switch and installs
   # nothing when it is off, while flake.nix passes nothing and takes the default

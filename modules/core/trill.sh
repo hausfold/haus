@@ -30,7 +30,8 @@
 # harmless duplicate.
 #
 # This comment used to say the room that made trill a flake input would REPLACE
-# this file. It doesn't, and shouldn't: ../trill (haus.trill.enable) places the
+# this file. It doesn't, and shouldn't: ../notifications
+# (haus.notifications.compositor) places the
 # bundle at /Applications/Trill.app — the second candidate below — and puts
 # nothing on PATH. The room is also off by default and there is no cask, so on
 # most machines Trill.app is somewhere this file has to go looking for. Build

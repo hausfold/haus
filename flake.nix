@@ -49,7 +49,8 @@
     };
 
     # The notification compositor. Its overlay puts `trill` and `trill-skill` in
-    # pkgs; modules/trill places the app at a fixed /Applications path, which is
+    # pkgs; modules/notifications places the app at a fixed /Applications path,
+    # which is
     # the whole reason the room exists — trill's Full Disk Access grant is keyed
     # per app path and would drop on every store-path bump. Same shape as perch:
     # what gets BUILT is trill's CI-built, notarized release ZIP, pinned by
@@ -4106,7 +4107,8 @@
           # trill is DARWIN ONLY — its flake outputs no Linux systems, while
           # this set spans allSystems — so Linux gets `null` and the entry drops
           # out of the list. `trillEnabled` is deliberately not passed: the room
-          # gates the INSTALL on `haus.trill.enable`, and this check has to prove
+          # gates the INSTALL on `haus.notifications.compositor`, and this check
+          # has to prove
           # trill's skill name whatever any one machine turns on, or the name
           # rots until the first person switches the room on.
           #
