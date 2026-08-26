@@ -203,7 +203,9 @@ lib.mkIf config.haus.notifications.compositor {
         #     and trill would simply never start.
         #
         # A trill the user quit on purpose, on a machine that already has it,
-        # matches neither and stays quit.
+        # matches neither and stays quit — and the `elif` at the end of this
+        # block is where it says so, because a rebuild that ends with no
+        # compositor must not end in silence.
         trillRelaunch=""
         [ -e "$trillMarker" ] || trillRelaunch=1
         if /usr/bin/pgrep -qU "$trillUid" -f "^$trillExec$"; then
@@ -313,6 +315,18 @@ lib.mkIf config.haus.notifications.compositor {
           else
             echo "warning: trill: the compositor did not answer on its socket after three tries. Start it with \`open -g /Applications/Trill.app\`, or leave it — it returns at your next login. Until then haus-notify falls back to Apple's banner and, on a machine running agent lanes, parked \`trill ask\` fins stay on screen until you click them." >&2
           fi
+        elif [ -z "$trillRelaunch" ]; then
+          # Say so, even though staying quit is the right call. The branch above
+          # deliberately leaves a trill the user quit on purpose quit — but every
+          # word this room prints about the compositor lives INSIDE that branch,
+          # so the one activation that ends with no compositor is also the only
+          # one that ends in silence, and the two outcomes are indistinguishable
+          # from the rebuild's output. Measured on mbp 2026-08-26: quit from the
+          # menu at 03:19:37, `pgrep` a second later at 03:19:38, no compositor
+          # for the next forty minutes — while the github room's receiver went on
+          # accepting deliveries into a socket nobody was behind. Losing that race
+          # is allowed; not being told is what cost the forty minutes.
+          echo "trill: left quit — it was not running when this activation swapped the bundle, so nothing was started. Bring it back with \`open -g /Applications/Trill.app\`, or leave it: it returns at your next login. Until then haus-notify falls back to Apple's banner, the bar's bell draws dim, and parked \`trill ask\` fins stay on screen until you click them." >&2
         fi
       fi
 
