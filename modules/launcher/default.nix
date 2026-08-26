@@ -510,7 +510,9 @@ let
 
   # The Terminal cards, from the SAME table that names the Ghostty-scoped chords
   # armed below (../terminal/term-bindings.nix). So every terminal chord on this
-  # cheatsheet is one this file really arms. That used to be enforced by an
+  # cheatsheet is one this file really arms — except ⌘⌥R, which Ghostty binds
+  # natively to its own `reset` action and this file only RESERVES (see the
+  # riceChords comment below). That used to be enforced by an
   # assertion in terminal against zellij's config.kdl; there is no kdl now, and
   # nothing here can read another room's generated JSON, so what keeps them
   # honest is that the table and the appHotkeys list sit one screen apart in
@@ -1692,8 +1694,9 @@ lib.mkIf config.haus.launcher.enable {
           }
         ]
         ++ wmPages
-        # The terminal's keys (Keys page) and its mouse gestures (Tips), from
-        # terminal's table — see termPages in the let-block.
+        # The terminal's keys (Keys page), and on Tips its mouse gestures plus
+        # the ⌘⌥R / `reset` repair pair — all from terminal's own table; see
+        # termPages in the let-block.
         ++ termPages
         # The whole page is conditional — a cheatsheet teaching keys that do
         # nothing would be worse than no page. Keys must stay true to the

@@ -73,8 +73,9 @@ let
   # It used to be cross-checked against zellij's config.kdl in both directions —
   # every bind taught, every taught chord bound — and that assertion is gone with
   # the kdl. There is nothing left for it to read: the chords it described are
-  # now pounce appHotkeys entries (modules/launcher), and a Nix assertion cannot
-  # see into another room's generated JSON. The table and the appHotkeys list are
+  # now pounce appHotkeys entries (modules/launcher) — all but ⌘⌥R, which
+  # ghostty/config binds natively — and a Nix assertion cannot see into another
+  # room's generated JSON. The table and the appHotkeys list are
   # kept honest by living one screen apart and by the chord glyphs being derived
   # rather than typed.
   termBindings = import ./term-bindings.nix {
@@ -873,13 +874,27 @@ in
             #
             # The two halves, which is why neither line is redundant:
             #   stty sane   the KERNEL tty — canonical mode, echo, signals,
-            #               CR/NL and output processing. Apple's ncurses is
-            #               6.0.20150808, which predates the 2016 commit that
-            #               moved termios repair into `tput reset`, so on macOS
-            #               tput alone leaves a shell in raw mode with no echo
-            #               (measured). The cost of `sane` over what tset does
-            #               is a custom erase key: it restores the stock set
-            #               rather than preserving yours.
+            #               CR/NL and output processing. Needed because the
+            #               `tput` this reaches is Apple's, and Apple's is
+            #               ncurses 6.0.20150808 — older than the 2016 commit
+            #               that moved termios repair into `tput reset`, so it
+            #               alone leaves a shell in raw mode with no echo
+            #               (measured). A host that puts a nix ncurses ahead of
+            #               /usr/bin gets a tput that would do this half too;
+            #               the line stays either way, since the machine this
+            #               ships to is the one with the old one. Its cost over
+            #               what tset does is a custom erase key: `sane`
+            #               restores the stock control characters rather than
+            #               preserving yours.
+            #   the drain   the typeahead you mashed into a terminal that was
+            #               not listening. `stty sane` restores modes without
+            #               flushing the input queue, so without this every
+            #               blind keystroke arrives the moment the line editor
+            #               starts reading and RUNS — measured: 12 characters
+            #               and a return, still queued, still executed. rst
+            #               discards them with TCSAFLUSH; zsh can just read
+            #               them. Guarded on a tty so `reset` in a pipeline
+            #               reads nothing.
             #   tput reset  the EMULATOR — the terminal's own rs1/rs2/rs3 reset
             #               strings out of terminfo. The explicit printf ahead
             #               of it turns off the modes a crashed TUI leaves
@@ -903,6 +918,9 @@ in
                 return
               fi
               stty sane 2>/dev/null
+              if [[ -t 0 ]]; then
+                while read -t 0 -k 1 -u 0 _; do :; done
+              fi
               printf '\033[?1000l\033[?1002l\033[?1003l\033[?1006l\033[?1004l\033[?2004l\033[?2026l\033[?1049l'
               tput reset 2>/dev/null || printf '\033c\033[!p\033[?3;4l\033[4l\033>'
             }
