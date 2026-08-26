@@ -1,7 +1,14 @@
-# The terminal's own hotkeys — the Ghostty-scoped chords pounce's event tap
-# consumes (modules/launcher's appHotkeys) — declared ONCE here and read by
+# The terminal's own hotkeys — mostly the Ghostty-scoped chords pounce's event
+# tap consumes (modules/launcher's appHotkeys) — declared ONCE here and read by
 # modules/launcher/default.nix, which renders the Terminal cards on the
 # cheatsheet's Keys page (and the mouse rows on Tips).
+#
+# "Mostly": ⌘⇧R is bound by GHOSTTY, in ghostty/config, because `reset` is one
+# of the 85 native actions and so does not need to shell out. It belongs in
+# this table anyway, and its `chords` entry matters MORE rather than less — a
+# haus.launcher.items hotkey on it would be registered globally by pounce and
+# would swallow the chord before Ghostty ever saw it, which is the same silent
+# theft the reservation exists to stop.
 #
 # Same shape, and the same reason, as ../windows/wm-bindings.nix: a working key
 # that appears on no page, or a page teaching a key that moved, are both drift
@@ -137,6 +144,29 @@ rec {
         chords = [ "cmd+b" ];
         action = "Build+activate this window's whole holt lane";
       };
+    }
+    # Unbreaking a terminal: two rows because the breakage has two halves and
+    # neither tool fixes both. The chord resets the EMULATOR (Ghostty's own
+    # `reset` action — alt screen, charset, mouse reporting), which is the half
+    # that works when the shell is too wedged to take a command; `reset` itself
+    # is the shell function in ../terminal/default.nix's zshrc, which repairs
+    # the pty's termios as well and costs ~8 ms against the stock binary's
+    # ~1000. Taught here rather than on Keys because the thing that is hard to
+    # remember is not the chord, it's that the two are complementary.
+    {
+      title = "Terminal · When it breaks";
+      page = "Tips";
+      items = [
+        {
+          key = "⌘ ⇧ R";
+          chords = [ "cmd+shift+r" ];
+          action = "Reset the display — works when typing doesn't";
+        }
+        {
+          key = "reset";
+          action = "Repairs the tty too — 8 ms, not the stock 1 s";
+        }
+      ];
     }
     # The mouse half: real terminal behaviour, no chord to check, and workflow
     # rather than key reference — so it lives on Tips beside the other

@@ -73,8 +73,9 @@ let
   # It used to be cross-checked against zellij's config.kdl in both directions —
   # every bind taught, every taught chord bound — and that assertion is gone with
   # the kdl. There is nothing left for it to read: the chords it described are
-  # now pounce appHotkeys entries (modules/launcher), and a Nix assertion cannot
-  # see into another room's generated JSON. The table and the appHotkeys list are
+  # now pounce appHotkeys entries (modules/launcher) — all but ⌘⇧R, which
+  # ghostty/config binds natively — and a Nix assertion cannot see into another
+  # room's generated JSON. The table and the appHotkeys list are
   # kept honest by living one screen apart and by the chord glyphs being derived
   # rather than typed.
   termBindings = import ./term-bindings.nix {
@@ -858,6 +859,71 @@ in
               unset _wt_main
             fi
             unset HAUS_STAY
+
+            # `reset`, minus 1979. The stock one is /usr/bin/reset — a link to
+            # tset(1) — and it spends a full second in a sleep(1) 3BSD added so
+            # mechanical printer-and-ink terminals could settle down. Measured
+            # here: 1012 ms for the system binary, 7-10 ms for the two lines
+            # below, which is the difference between a repair you reach for and
+            # one you sit through. It is a FUNCTION shadowing the command, on
+            # purpose and in the same spirit as the `cat`/`ls` aliases above:
+            # `reset` is the muscle memory, and a second name is one more thing
+            # to remember at the exact moment you can't see what you're typing.
+            # Interactive shells only — zsh functions are not exported, so a
+            # script that calls `reset` still gets the real tset.
+            #
+            # The two halves, which is why neither line is redundant:
+            #   stty sane   the KERNEL tty — canonical mode, echo, signals,
+            #               CR/NL and output processing. Needed because the
+            #               `tput` this reaches is Apple's, and Apple's is
+            #               ncurses 6.0.20150808 — older than the 2016 commit
+            #               that moved termios repair into `tput reset`, so it
+            #               alone leaves a shell in raw mode with no echo
+            #               (measured). A host that puts a nix ncurses ahead of
+            #               /usr/bin gets a tput that would do this half too;
+            #               the line stays either way, since the machine this
+            #               ships to is the one with the old one. Its cost over
+            #               what tset does is a custom erase key: `sane`
+            #               restores the stock control characters rather than
+            #               preserving yours.
+            #   the drain   the typeahead you mashed into a terminal that was
+            #               not listening. `stty sane` restores modes without
+            #               flushing the input queue, so without this every
+            #               blind keystroke arrives the moment the line editor
+            #               starts reading and RUNS — measured: 12 characters
+            #               and a return, still queued, still executed. rst
+            #               discards them with TCSAFLUSH; zsh can just read
+            #               them. Guarded on a tty so `reset` in a pipeline
+            #               reads nothing.
+            #   tput reset  the EMULATOR — the terminal's own rs1/rs2/rs3 reset
+            #               strings out of terminfo. The explicit printf ahead
+            #               of it turns off the modes a crashed TUI leaves
+            #               armed that not every reset string covers: mouse
+            #               reporting (1000/1002/1003/1006), focus events,
+            #               bracketed paste, synchronized output, alt screen.
+            #
+            # `reset -I && tput reset` is the more common recipe and it is a
+            # TRAP on this desktop: with TERM=xterm-ghostty and no TERMINFO in
+            # the environment — sudo, su, ssh out to an older host — tset can't
+            # find the entry and PROMPTS "Terminal type?", so the command you
+            # typed blind hangs forever waiting for an answer you can't see it
+            # asking for (measured). Nothing here consults terminfo before it
+            # has already made the tty readable, and tput failing just falls
+            # through to the hardcoded VT sequence.
+            reset() {
+              # Arguments are tset's job (`reset -Q`, `reset vt100`): hand those
+              # to the real binary rather than half-implementing TERM negotiation.
+              if (( $# )); then
+                command reset "$@"
+                return
+              fi
+              stty sane 2>/dev/null
+              if [[ -t 0 ]]; then
+                while read -t 0 -k 1 -u 0 _; do :; done
+              fi
+              printf '\033[?1000l\033[?1002l\033[?1003l\033[?1006l\033[?1004l\033[?2004l\033[?2026l\033[?1049l'
+              tput reset 2>/dev/null || printf '\033c\033[!p\033[?3;4l\033[4l\033>'
+            }
 
             # The chpwd hook that renamed the zellij tab after the repo is
             # gone with the tabs. A window's name is not ours to write: for a

@@ -510,7 +510,9 @@ let
 
   # The Terminal cards, from the SAME table that names the Ghostty-scoped chords
   # armed below (../terminal/term-bindings.nix). So every terminal chord on this
-  # cheatsheet is one this file really arms. That used to be enforced by an
+  # cheatsheet is one this file really arms — except ⌘⇧R, which Ghostty binds
+  # natively to its own `reset` action and this file only RESERVES (see the
+  # riceChords comment below). That used to be enforced by an
   # assertion in terminal against zellij's config.kdl; there is no kdl now, and
   # nothing here can read another room's generated JSON, so what keeps them
   # honest is that the table and the appHotkeys list sit one screen apart in
@@ -912,7 +914,11 @@ let
   # they all belong in this list: pounce's own tap consumes them only over
   # Ghostty, so an item hotkey on ⌘F would build green and then lose that key
   # inside the terminal alone — the worst shape a clash can take, since it works
-  # everywhere you test it and dies where you use it.
+  # everywhere you test it and dies where you use it. ⌘⇧R is the one entry this
+  # room does not arm — Ghostty binds it itself, to its native `reset` action —
+  # and it needs reserving for the same reason with one more step in the middle:
+  # an item hotkey is registered GLOBALLY, so it wins over a Ghostty keybind as
+  # surely as it wins over an app-scoped tap.
   #
   # termBindings covers every one of them, both halves of a folded row included
   # (its `chords` list is what makes that true), and it is feature-aware — ⌘G
@@ -1688,8 +1694,9 @@ lib.mkIf config.haus.launcher.enable {
           }
         ]
         ++ wmPages
-        # The terminal's keys (Keys page) and its mouse gestures (Tips), from
-        # terminal's table — see termPages in the let-block.
+        # The terminal's keys (Keys page), and on Tips its mouse gestures plus
+        # the ⌘⇧R / `reset` repair pair — all from terminal's own table; see
+        # termPages in the let-block.
         ++ termPages
         # The whole page is conditional — a cheatsheet teaching keys that do
         # nothing would be worse than no page. Keys must stay true to the
