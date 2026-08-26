@@ -170,6 +170,18 @@ keybind = cmd+c=copy_to_clipboard
 # Ghostty's default: ⌘R reads as "reload" to muscle memory, and a Ghostty-level
 # binding would act on the surface an agent is drawing into.
 keybind = cmd+r=unbind
+# ⌘⌥R — Ghostty's own `reset` action, and one of the only chords on this page
+# that is Ghostty's rather than pounce's: `reset` is a native action, so unlike
+# every chord that has to shell out it has somewhere to live here. It is the
+# EMULATOR half of the repair the `reset` shell function does — it fixes the
+# surface (alt screen, charset, mouse reporting, a cursor a dead TUI hid) and
+# leaves the pty's termios alone, which is exactly the half you need when the
+# shell is too wedged to run a command at all. Typing `reset` blind into the
+# readable screen it gives you back finishes the job. ⌘R deliberately stays
+# released (above): this sits one modifier away instead, off the muscle-memory
+# path of a chord that means "reload" — and it is free everywhere, in Ghostty's
+# own defaults, in pounce's appHotkeys and in AeroSpace's binds.
+keybind = cmd+alt+r=reset
 # ⌘W → ghostty's close_window, its own default, restored. Under zellij this was
 # unbound so the chord could close the focused PANE instead of silently killing
 # the whole client. A window is the pane now, and closing it DETACHES its zmx

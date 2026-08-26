@@ -912,7 +912,11 @@ let
   # they all belong in this list: pounce's own tap consumes them only over
   # Ghostty, so an item hotkey on ⌘F would build green and then lose that key
   # inside the terminal alone — the worst shape a clash can take, since it works
-  # everywhere you test it and dies where you use it.
+  # everywhere you test it and dies where you use it. ⌘⌥R is the one entry this
+  # room does not arm — Ghostty binds it itself, to its native `reset` action —
+  # and it needs reserving for the same reason with one more step in the middle:
+  # an item hotkey is registered GLOBALLY, so it wins over a Ghostty keybind as
+  # surely as it wins over an app-scoped tap.
   #
   # termBindings covers every one of them, both halves of a folded row included
   # (its `chords` list is what makes that true), and it is feature-aware — ⌘G
