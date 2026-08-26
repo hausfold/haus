@@ -313,7 +313,7 @@ lib.mkIf config.haus.notifications.compositor {
           if [ -n "$trillUp" ]; then
             echo "trill: compositor back up (its socket answers)" >&2
           else
-            echo "warning: trill: the compositor did not answer on its socket after three tries. Start it with \`open -g /Applications/Trill.app\`, or leave it — it returns at your next login. Until then haus-notify falls back to Apple's banner and, on a machine running agent lanes, parked \`trill ask\` fins stay on screen until you click them." >&2
+            echo "warning: trill: the compositor did not answer on its socket after three tries. Start it with \`open -g /Applications/Trill.app\`, or leave it — it returns at your next login. Until then haus-notify falls back to Apple's banner and, on a machine running agent lanes, asks parked on trill's ledge go unanswered — the ledge is drawn by the app, so while it is down there is no fin on screen to click." >&2
           fi
         elif [ -z "$trillRelaunch" ]; then
           # Say so, even though staying quit is the right call. The branch above
@@ -326,7 +326,17 @@ lib.mkIf config.haus.notifications.compositor {
           # for the next forty minutes — while the github room's receiver went on
           # accepting deliveries into a socket nobody was behind. Losing that race
           # is allowed; not being told is what cost the forty minutes.
-          echo "trill: left quit — it was not running when this activation swapped the bundle, so nothing was started. Bring it back with \`open -g /Applications/Trill.app\`, or leave it: it returns at your next login. Until then haus-notify falls back to Apple's banner, the bar's bell draws dim, and parked \`trill ask\` fins stay on screen until you click them." >&2
+          #
+          # What the line may NOT claim is that anything is left on screen to
+          # click. The ledge is an NSPanel the running app draws
+          # (trill's `Compositor/LedgePanelController.swift`), and parked asks
+          # come back only at the next launch and only with history on
+          # (`App/AppRuntime.swift`, `restoreParked` behind `guard let
+          # database`) — so while trill is down a parked ask is unanswered, not
+          # visible. `checked` rather than `swapped the bundle` for the same
+          # reason: the `pgrep` above runs BEFORE the swap, and on the ditto
+          # failure path there is no swap at all.
+          echo "trill: left quit — it was not running when this activation checked, so nothing was started. Bring it back with \`open -g /Applications/Trill.app\`, or leave it: it returns at your next login. Until then haus-notify falls back to Apple's banner, the bar's trill bell draws dim if you run one, and asks parked on trill's ledge go unanswered." >&2
         fi
       fi
 
