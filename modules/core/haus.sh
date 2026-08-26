@@ -1471,6 +1471,9 @@ cmd_revert_settings() {
 CARD_KEY=""
 CARD_TITLE=""
 CARD_PID=""
+# The generation that was current when the rebuild started — what a cancelled
+# run points the user back at.
+CARD_GEN=""
 # The pid the poller watches: it exits with us even when we die by a signal
 # nothing can trap, so a kill -9'd build can't leave a banner ticking forever.
 CARD_PARENT="$$"
@@ -1582,7 +1585,10 @@ card_watch() { # card_watch <installable> [nix args…] — measure now, poll af
 
 card_stop() {
   [ -n "$CARD_PID" ] || return 0
-  kill "$CARD_PID" 2>/dev/null
+  # `|| true` because the poller may already be gone: a bare `kill` that returns
+  # 1 aborts this function under `set -e`, and from the EXIT trap that becomes
+  # the whole rebuild's exit status.
+  kill "$CARD_PID" 2>/dev/null || true
   # Reaped, not just signalled: a `trill send` the poller had already forked
   # would otherwise land after the ending card and supersede it, leaving "99%"
   # on screen for a build that finished.
@@ -1597,6 +1603,9 @@ card_stop() {
 card_cancelled() {
   card_stop
   card - "fault" "cancelled"
+  # A ⌃C during activation leaves the same half-applied state the activation
+  # failure path warns about, so say the same thing rather than exiting mute.
+  warn "cancelled — if activation had started, generation ${CARD_GEN:-?} is still on disk (haus rollback)."
   exit 130
 }
 
@@ -1628,11 +1637,11 @@ cmd_rebuild() {
   # be able to say so. We only hide what we write down — this is the one phase
   # that narrates itself, so it keeps the terminal.
   bt0="$(now_ds)"
-  # Name the card, then start the poller beside the build. Without the two
-  # assignments every `card` call below returns early and the whole feature is
-  # inert — which is exactly how it shipped in this branch's first draft, and
-  # what the pre-PR assurance pass caught.
-  CARD_KEY="haus-rebuild"; CARD_TITLE="$host · rebuild"
+  # Name the card, then start the poller beside the build. These two
+  # assignments are what arms the whole feature: `card` returns early on an
+  # empty CARD_KEY, so without them every call below is a no-op and nothing
+  # ever draws.
+  CARD_KEY="haus-rebuild"; CARD_TITLE="$host · rebuild"; CARD_GEN="$gen_before"
   trap card_stop EXIT
   trap card_cancelled INT TERM
   card_watch "$drv"
@@ -1690,6 +1699,10 @@ cmd_rebuild() {
   gen_now="$(current_gen || echo '?')"
   card 100 "done" "$([ "$gen_before" = "$gen_now" ] && echo "generation $gen_now" \
     || echo "generation $gen_before → $gen_now")"
+  # Done with the card. Release the handlers, or a ⌃C through the tail of this
+  # function replaces the ending with "cancelled" for a machine that already
+  # switched.
+  trap - INT TERM EXIT
 
   # Generation + closure diff: the two lines that are actually about YOUR
   # machine rather than about the tools that rebuilt it.
