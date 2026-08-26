@@ -334,3 +334,12 @@ jobs:
       # second display, which is what it took to FIND the bug.
       - name: float-term recenter
         run: bats test/float-term-recenter.bats
+
+      # raise-session's lane→window join — the answer to "which window is this
+      # agent in?", which a trill banner click, ⌘F's ⏎ and the bar's agent rows
+      # all go through. The bug it guards was an awk parse error that only fired
+      # once TWO plain windows carried a label, and the runner's awk tolerates
+      # the input that kills macOS's — so the suite stubs awk to reproduce
+      # one-true-awk's rule, and would pass on the old code without it.
+      - name: raise-session lane join
+        run: bats test/raise-session-lane-join.bats
