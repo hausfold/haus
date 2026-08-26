@@ -109,10 +109,25 @@ case "$backend" in
     # never does, because a lane's session is created by `zmx attach` inside the
     # window rather than by launch.sh. So an id some session has CLAIMED is
     # exactly an impostor, and skipping those leaves the real lane.
-    claimed=$(zmx ls 2>/dev/null | tr '\t' '\n' | sed -n 's/^window=//p')
+    #
+    # SPACE-separated, and never a newline: `awk -v` is not a variable
+    # assignment, it is a piece of awk SOURCE, and macOS's one-true-awk
+    # (`awk version 20200816`, /usr/bin/awk) refuses a literal newline inside a
+    # string literal — `awk: newline in string`, exit 2, NOTHING on stdout.
+    # This list is empty or one id most of the time, so the program parsed
+    # fine and the join worked; the second plain window to earn a `window=`
+    # label put a newline in it and killed the awk, silently, for every lane at
+    # once. `win` came back empty, a lane has no `window=` label of its own to
+    # fall back on, and the caller read that as "no window holds this session"
+    # — so clicking a lane's trill banner opened a SECOND window beside the one
+    # it was meant to raise, and ⌘F's ⏎ and the bar's agent rows did their own
+    # version of the same. Ids are digits by construction, so a space is a safe
+    # join, and `split(c, a, " ")` is awk's default-FS split: runs of
+    # whitespace, leading and trailing ignored. (MEASURED 2026-08-26.)
+    claimed=$(zmx ls 2>/dev/null | tr '\t' '\n' | sed -n 's/^window=//p' | tr '\n' ' ')
     win=$(aerospace list-windows --all --format '%{window-id}|%{app-name}|%{window-title}' 2>/dev/null |
       awk -F'|' -v t="$sess" -v c="$claimed" '
-        BEGIN { n = split(c, a, "\n"); for (i = 1; i <= n; i++) if (a[i] != "") skip[a[i]] = 1 }
+        BEGIN { n = split(c, a, " "); for (i = 1; i <= n; i++) if (a[i] != "") skip[a[i]] = 1 }
         $2 == "Ghostty" && $3 == t && !($1 in skip) { print $1; exit }')
     if [ -z "$win" ]; then
       lw=$(label window)
