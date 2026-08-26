@@ -4102,11 +4102,25 @@
           # `holt-skill` comes off the flake input rather than off `pkgs`: the
           # `pkgs` here is a bare `legacyPackages` with no overlays applied,
           # while the room reads the same derivation through holt's overlay.
+          #
+          # trill is DARWIN ONLY — its flake outputs no Linux systems, while
+          # this set spans allSystems — so Linux gets `null` and the entry drops
+          # out of the list. `trillEnabled` is deliberately not passed: the room
+          # gates the INSTALL on `haus.trill.enable`, and this check has to prove
+          # trill's skill name whatever any one machine turns on, or the name
+          # rots until the first person switches the room on.
+          #
+          # ⚠️ That proof is DARWIN's alone. CI runs `nix flake check` on Linux,
+          # where the null above drops the entry and the name is checked by
+          # nobody — so it rides on `nix flake check` from a Mac before a PR,
+          # the same pre-merge pass the *-reach tables already make
+          # non-optional (.github/workflows/check.yml says so at its census).
           tool-skills =
             (import ./modules/ai/tool-skills.nix {
               inherit pkgs;
               inherit (nixpkgs) lib;
               holt-skill = holt.packages.${system}.holt-skill;
+              trill-skill = if isDarwin then trill.packages.${system}.trill-skill else null;
             }).checked;
 
           # `nix build .#agent-skill` — the skill that teaches an agent to change

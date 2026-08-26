@@ -22,11 +22,32 @@
   pkgs,
   lib,
   holt-skill,
+  trill-skill ? null,
+  trillEnabled ? true,
 }:
 let
   checkedRef = import ../lib/checked-ref.nix { inherit lib pkgs; };
 
-  # The one list. Adding a tool is a name here and an argument above.
+  # The one list. Adding a tool is a name here and an argument above — plus,
+  # when the tool is OPTIONAL on a machine, the switch its room is gated on.
+  #
+  # `enable` is what makes an optional tool's skill honest. holt is on every
+  # haus machine, so its skill is never wrong to have. trill's room is off by
+  # default (`haus.trill.enable`), and a skill teaching an agent to drive an app
+  # this Mac does not have is worse than no skill at all — the workshop's
+  # notes/agent-surface.md §4. So the ROOM passes the switch and installs
+  # nothing when it is off, while flake.nix passes nothing and takes the default
+  # — the `.#tool-skills` check therefore covers every name whatever any one
+  # machine turns on, which is the point: a name that rots in trill's output has
+  # to fail before a merge, not on the first person who switches the room on.
+  # ⚠️ "Before a merge" means a Mac: CI checks this on Linux, where the null
+  # below drops trill out entirely. flake.nix's comment above `.#tool-skills`
+  # is where that is written down.
+  #
+  # A null `drv` is the other gate, and it is a platform fact rather than a
+  # choice: trill's flake outputs darwin systems only, while this repo's
+  # `packages` and `checks` both span allSystems, so flake.nix hands us `null`
+  # on Linux and the entry drops out rather than breaking the eval.
   toolSkills = [
     {
       drv = holt-skill;
@@ -35,7 +56,16 @@ let
         "handoff"
       ];
     }
+    {
+      drv = trill-skill;
+      enable = trillEnabled;
+      names = [ "trill" ];
+    }
   ];
+
+  # Both the install list and the check below are built from this, so a skill
+  # can never be installed from a name the check did not prove.
+  active = lib.filter (t: t.drv != null && (t.enable or true)) toolSkills;
 
   # Flattened to one entry per skill, so the fan-out in the room is a plain
   # product of clients × skills.
@@ -45,7 +75,7 @@ let
       inherit name;
       inherit (t) drv;
     }) t.names
-  ) toolSkills;
+  ) active;
 
   # The names above are unverifiable at EVAL time and entirely checkable at
   # BUILD time, and the difference is the whole of this derivation.

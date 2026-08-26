@@ -195,7 +195,7 @@ let
     the haus revision this machine pins (`haus update` regenerates it), and for
     every other skill in that directory that haus installed — each hausfold tool
     ships its own, so `holt/` and `handoff/` are holt's and are edited in
-    hausfold/holt, arriving here on a lock bump. It does
+    hausfold/holt, arriving here on a lock bump.${lib.optionalString config.haus.trill.enable " `trill/` is trill's, the same way, and is here because `haus.trill.enable` is on."} It does
     NOT go for everything beside them: ${clientScopeNote.${client}} that you can
     edit live with no rebuild. `ls -l` the path before assuming which kind it is.
 
@@ -359,9 +359,16 @@ let
   # The list, and the derivation that proves the names in it are real, live in
   # ./tool-skills.nix — split out so `nix flake check` can build the thing this
   # room puts on every machine's rebuild path (`.#tool-skills`).
+  #
+  # `trillEnabled` is the one thing this file adds to the list: holt is on every
+  # machine, trill's room is off by default, and an agent skill for an app this
+  # Mac doesn't have is worse than none (the workshop's notes/agent-surface.md
+  # §4). Gated HERE rather than in that file so the `.#tool-skills` check still
+  # proves trill's skill name whatever any one machine turns on.
   toolSkills = import ./tool-skills.nix {
     inherit pkgs lib;
-    inherit (pkgs) holt-skill;
+    inherit (pkgs) holt-skill trill-skill;
+    trillEnabled = config.haus.trill.enable;
   };
   inherit (toolSkills) toolSkillList;
 
