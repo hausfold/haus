@@ -95,48 +95,75 @@ lib.mkIf config.haus.trill.enable {
       # 01:17:17, relaunched, killed again 01:17:30 by the second activation,
       # then dead for three minutes until someone went looking.
       #
-      # `set -o noclobber` plus `>` is the atomic create-or-fail every shell
-      # has — one O_EXCL open, and the holder's pid goes in by the same
-      # redirect. ⚠️ Not /usr/bin/shlock, which looks purpose-built and is
-      # not: measured here, it refuses a lock whose recorded pid has already
-      # exited, so a single crashed activation would wedge every rebuild
-      # after it. The pid is what lets a waiter tell a live holder from a
-      # dead one — /var/run only clears at boot, and `set -e` means any abort
-      # inside this block leaves the lock file behind.
+      # `ln -s` is the atomic create-or-fail, and the holder's pid IS the link
+      # target — one syscall, so unlike ../ai's `mkdir` locks there is never a
+      # moment when the lock exists but nobody owns it yet. ⚠️ That moment is
+      # not theoretical: the first cut of this used `mkdir` and then wrote the
+      # pid, and two waiters both read the empty lock, both deleted it and both
+      # walked straight into the install — no lock at all, measured. The pid is
+      # what lets a waiter tell a live holder from a dead one; /var/run only
+      # clears at boot, and `set -e` means any abort in here leaves the lock.
+      #
+      # ⚠️ No EXIT trap to clean it up, deliberately. This snippet is
+      # concatenated into one activation script with every other room's, so a
+      # trap here would replace theirs — and it would fire at the END of the
+      # whole rebuild, by which time the lock it deletes may belong to the NEXT
+      # activation. The dead-pid reclaim below is the cleanup.
       trillLocked=""
       trillWaited=0
-      trillOrphan=0
-      while [ "$trillWaited" -lt 120 ]; do
-        if ( set -o noclobber; /bin/echo "$$" > "$trillLock" ) 2>/dev/null; then
+      while [ "$trillWaited" -lt 240 ]; do
+        if /bin/ln -s "$$" "$trillLock" 2>/dev/null; then
           trillLocked=1
           break
         fi
-        trillHolder="$(/bin/cat "$trillLock" 2>/dev/null || true)"
+        # Failing with nothing there is not contention, it is a path this
+        # script cannot use. Say so in one line rather than spending four
+        # minutes proving it and then blaming a lock nobody was holding.
+        if [ ! -L "$trillLock" ] && [ ! -e "$trillLock" ]; then
+          echo "warning: trill: cannot create $trillLock; installing without a lock." >&2
+          break
+        fi
+        # The holder may finish by installing exactly what this generation
+        # wants, and then there is nothing left to wait for — the re-read below
+        # will see it. Without this a second lane sits through the holder's
+        # whole relaunch only to learn it had no work to do.
+        if [ "$(/bin/cat "$trillMarker" 2>/dev/null)" = "${pkgs.trill}" ]; then
+          break
+        fi
+        trillHolder="$(/usr/bin/readlink "$trillLock" 2>/dev/null || true)"
+        trillAlive=1
+        # ⚠️ A `-z` test, not an empty `case` arm. Shell spells an empty
+        # pattern as a pair of single quotes, and Nix escapes that pair inside
+        # an indented string by adding a third — which reaches bash as a parse
+        # error the moment activation runs. (Writing the pair in THIS comment
+        # is the same trap: it ends the Nix string. Hence the words.)
         if [ -z "$trillHolder" ]; then
-          # Created but not yet written — the winner is microseconds from
-          # filling it in. ⚠️ Breaking on the FIRST empty read is how a lock
-          # turns into no lock at all: both waiters see an empty file, both
-          # delete it, and both walk straight into the install. Measured
-          # exactly that way while writing this. Only a lock that stays empty
-          # for five seconds was really abandoned mid-create.
-          trillOrphan=$(( trillOrphan + 1 ))
-          if [ "$trillOrphan" -ge 5 ]; then /bin/rm -f "$trillLock" || true; fi
-        elif ! /bin/kill -0 "$trillHolder" 2>/dev/null; then
-          /bin/rm -f "$trillLock" || true
-          trillOrphan=0
+          trillAlive=""
         else
-          trillOrphan=0
+          case "$trillHolder" in
+            *[!0-9]*) trillAlive="" ;;
+            *) /bin/kill -0 "$trillHolder" 2>/dev/null || trillAlive="" ;;
+          esac
+        fi
+        if [ -z "$trillAlive" ]; then
+          # Reclaim through a rename, so there is a single winner: of two
+          # waiters that both saw a dead holder only one `mv` finds a link to
+          # move, and the loser loops and re-acquires normally. Deleting in
+          # place would let the loser delete the winner's fresh lock.
+          /bin/mv "$trillLock" "$trillLock.stale.$$" 2>/dev/null || true
+          /bin/rm -f "$trillLock.stale.$$" || true
         fi
         /bin/sleep 1
         trillWaited=$(( trillWaited + 1 ))
       done
-      # Two minutes is far past this block's own worst case (~one minute of
-      # timeouts), so failing here means something is genuinely stuck. Go
-      # ahead unlocked rather than skip: activation must never leave
-      # /Applications disagreeing with the generation it has just made
-      # current.
-      if [ -z "$trillLocked" ]; then
-        echo "warning: trill: another activation has held $trillLock for two minutes; installing anyway." >&2
+      # Four minutes is past this block's own worst case — a couple of seconds
+      # for `pkill` to settle, then three relaunch attempts at 35 s each — so
+      # exhausting it means something is genuinely stuck. Go ahead unlocked
+      # rather than skip: activation must never leave /Applications disagreeing
+      # with the generation it has just made current. Only the exhausted loop
+      # says so; both breaks above explain themselves.
+      if [ -z "$trillLocked" ] && [ "$trillWaited" -ge 240 ]; then
+        echo "warning: trill: another activation has held $trillLock for four minutes; installing anyway." >&2
       fi
 
       # Read the marker again, now that nobody else is mid-swap. Two lanes
@@ -214,8 +241,9 @@ lib.mkIf config.haus.trill.enable {
         # Start it again in the user's GUI session — activation runs as root, and
         # root's session is not the one with a menu bar in it (the same reason
         # ../core's activateSettings call goes through asuser). `-g` so a rebuild
-        # never steals focus, `timeout` because `open` waits on LaunchServices and
-        # this is the one unbounded call in the block, and `open` rather than
+        # never steals focus, `timeout` on everything that talks to LaunchServices
+        # or to trill's socket because neither has a clock of its own, and
+        # `open` rather than
         # exec'ing the binary because the TCC identity has to be the app's — which
         # is the entire point of this room.
         #
@@ -242,11 +270,25 @@ lib.mkIf config.haus.trill.enable {
           # fired on a trill that was seconds from answering.
           trillUp=""
           for _ in 1 2 3; do
-            ${pkgs.coreutils}/bin/timeout 20 launchctl asuser "$trillUid" \
-              sudo --user=${username} -- /usr/bin/open -g "$trillDest" || true
+            # `open` returning 0 never proves a process exists — but non-zero
+            # proves one doesn't, so don't spend a probe on it. That is the whole
+            # cost of a rebuild with no Aqua session to open into (ssh, CI, a
+            # lane's own VM), where `launchctl asuser` fails at once: three quick
+            # failures instead of 45 s of probing a socket nobody is behind.
+            if ! ${pkgs.coreutils}/bin/timeout 20 launchctl asuser "$trillUid" \
+                   sudo --user=${username} -- /usr/bin/open -g "$trillDest"; then
+              /bin/sleep 1
+              continue
+            fi
             trillProbed=0
             while [ "$trillProbed" -lt 75 ]; do
-              if launchctl asuser "$trillUid" sudo --user=${username} -- \
+              # ⚠️ A clock on the ping too. trill's CLI reads its reply with none
+              # of its own (`roundTrip`, Trill/CLI/TrillCLI.swift), so a daemon
+              # that accepts the connection and then wedges — the first-launch
+              # state this retry loop exists for — would block activation for
+              # ever, as root, holding $trillLock.
+              if ${pkgs.coreutils}/bin/timeout 5 launchctl asuser "$trillUid" \
+                   sudo --user=${username} -- \
                    "$trillExec" ping >/dev/null 2>&1; then trillUp=1; break; fi
               /bin/sleep 0.2
               trillProbed=$(( trillProbed + 1 ))
