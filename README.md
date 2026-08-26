@@ -88,7 +88,9 @@ The `haus` one carries an option reference **generated from the revision you're
 pinned to**, so it can only describe options you have — "install Slack" or "make
 everything bigger" becomes an edit to your host file, applied and verifiable.
 Beside it, `holt` and `handoff` come from holt: "what worktrees do I have open?"
-and "hand this off to a fresh session" work without you wiring anything.
+and "hand this off to a fresh session" work without you wiring anything. A tool
+whose room is optional joins them when you switch it on — `trill` with
+`haus.trill.enable`.
 → [coding agents](https://hausfold.co/docs/haus/rooms/ai/)
 
 ## more

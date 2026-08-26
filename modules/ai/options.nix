@@ -354,10 +354,18 @@ in
         have open?" or "hand this off to a fresh session" reaches for `holt`
         rather than `git worktree`.
 
-        Three skills today: `haus` (this machine's setup), and holt's own two —
-        `holt` (the lane lifecycle) and `handoff` (turning work into a brief a
-        cold session can act on, ending on the clipboard or in a new lane). Each
-        tool names its own skills; haus only decides that they are installed.
+        Three skills on any machine: `haus` (this machine's setup), and holt's
+        own two — `holt` (the lane lifecycle) and `handoff` (turning work into a
+        brief a cold session can act on, ending on the clipboard or in a new
+        lane). A tool whose room is OPTIONAL adds its own only when that room is
+        on: `trill` (sending a notification) arrives with `haus.trill.enable`,
+        because a skill for an app this Mac doesn't have is worse than none.
+        That switch is about the ROOM, not about the app: `haus-notify` and the
+        `trill` command find a hand-installed Trill.app at runtime whatever this
+        option says, and such a machine gets no `trill` skill until the room is
+        switched on.
+        Each tool names its own skills; haus only decides that they are
+        installed.
 
         One copy per client, in the directory that client scans:
         `~/.claude/skills/haus`, `~/.codex/skills/haus`,
