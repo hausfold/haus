@@ -1452,21 +1452,31 @@ cmd_revert_settings() {
 # That dry run happens BEFORE the build and in this shell, never beside it.
 # Measured 2026-08-25 in bench, which carries the same block: a `nix build
 # --dry-run` racing the real `nix build` over the same dirty flake made the
-# build exit non-zero with nothing printed, one run in three. Serial costs one
-# extra evaluation, which the real one then finds in nix's eval cache. Here it
-# costs nothing at all — the derivation is already resolved, so the dry run is
-# a store query (0.05 s measured), not an evaluation.
+# build exit non-zero with nothing printed, one run in three. Serial is free
+# here because the derivation is already resolved — 0.05 s measured, a store
+# query rather than an evaluation. (Cold, with nothing of this closure in the
+# narinfo cache, it is a substituter query pass and can take longer; it is still
+# work the build itself would do a second later.)
 #
 # The card is keyed, so every tick REPLACES it rather than stacking a second
 # banner, and the poll doubles as the heartbeat that keeps it on screen —
 # trill's dismiss clock is short by design, and a card nobody re-sends leaves.
-# A rebuild that dies takes its poller with it (trap) and its card with that.
+# That is what `card_hold` is for: the two stretches with no paths to count
+# (homebrew fetching, activation) still need a re-send every two seconds.
 #
-# trill is deliberately not a flake input of this layer and must not become
-# one — this finds whatever the user already installed, or draws nothing.
+# The card must keep finding trill at RUNTIME (`trill_bin`), never through
+# `pkgs.trill`: `haus.trill.enable` is off by default, so wiring a rebuild's own
+# progress bar to that room would make it depend on a room nobody turned on.
+# This finds whatever the machine already has, or draws nothing.
 CARD_KEY=""
 CARD_TITLE=""
 CARD_PID=""
+# The generation that was current when the rebuild started — what a cancelled
+# run points the user back at.
+CARD_GEN=""
+# The pid the poller watches: it exits with us even when we die by a signal
+# nothing can trap, so a kill -9'd build can't leave a banner ticking forever.
+CARD_PARENT="$$"
 # How many store paths this build needs, and which — measured once, up front.
 # Zero means there was never anything to watch.
 CARD_TOTAL=0
@@ -1513,7 +1523,11 @@ card() {
 }
 
 # The paths this build still needs: derivations it will build (whose outputs we
-# ask the store for) plus paths it will fetch (already store paths).
+# ask the store for) plus paths it will fetch (already store paths). The two
+# globs are the whole contract with nix's output — if a future nix changes the
+# indentation or prints `…drv^out`, this quietly finds nothing and no card is
+# drawn, which is the safe direction to fail in. Verified against Determinate
+# Nix 3.15.1 / 2.33.0, 2026-08-25.
 card_targets() {
   local line drvs=()
   while IFS= read -r line; do
@@ -1530,7 +1544,7 @@ card_targets() {
 # files. No nix, no evaluation, nothing that can contend with the real one.
 card_ticker() {
   local path done_n pct
-  while :; do
+  while kill -0 "$CARD_PARENT" 2>/dev/null; do
     done_n=0
     for path in "${CARD_PATHS[@]}"; do [ -e "$path" ] && done_n=$((done_n + 1)); done
     # Capped at 99 while the build runs: the ending owns 100, and a card
@@ -1540,6 +1554,20 @@ card_ticker() {
     card "$pct" "pulse" "$done_n/$CARD_TOTAL paths"
     sleep 2
   done
+}
+
+# The same heartbeat for a phase that has no paths to count — homebrew fetching
+# in the background, activation running as root. Without it the card would be
+# gone before the longest silent stretch of the job ended: trill's dismiss clock
+# is short by design, and only a re-send holds a card on screen.
+card_hold() { # card_hold <percent> <body>
+  card_stop
+  card_drawn || return 0
+  [ -n "$CARD_KEY" ] || return 0
+  card "$1" "pulse" "$2"
+  ( while kill -0 "$CARD_PARENT" 2>/dev/null; do sleep 2; card "$1" "pulse" "$2"; done ) &
+  CARD_PID="$!"
+  return 0
 }
 
 card_watch() { # card_watch <installable> [nix args…] — measure now, poll after
@@ -1556,9 +1584,29 @@ card_watch() { # card_watch <installable> [nix args…] — measure now, poll af
 }
 
 card_stop() {
-  [ -n "$CARD_PID" ] && kill "$CARD_PID" 2>/dev/null
+  [ -n "$CARD_PID" ] || return 0
+  # `|| true` because the poller may already be gone: a bare `kill` that returns
+  # 1 aborts this function under `set -e`, and from the EXIT trap that becomes
+  # the whole rebuild's exit status.
+  kill "$CARD_PID" 2>/dev/null || true
+  # Reaped, not just signalled: a `trill send` the poller had already forked
+  # would otherwise land after the ending card and supersede it, leaving "99%"
+  # on screen for a build that finished.
+  wait "$CARD_PID" 2>/dev/null || true
   CARD_PID=""
   return 0
+}
+
+# ⌃C is not a failure and not a success; it is a question that stopped being
+# asked. Say so and leave, rather than letting the bar sit there claiming a
+# build is in flight.
+card_cancelled() {
+  card_stop
+  card - "fault" "cancelled"
+  # A ⌃C during activation leaves the same half-applied state the activation
+  # failure path warns about, so say the same thing rather than exiting mute.
+  warn "cancelled — if activation had started, generation ${CARD_GEN:-?} is still on disk (haus rollback)."
+  exit 130
 }
 
 cmd_rebuild() {
@@ -1589,13 +1637,21 @@ cmd_rebuild() {
   # be able to say so. We only hide what we write down — this is the one phase
   # that narrates itself, so it keeps the terminal.
   bt0="$(now_ds)"
-  # The poller starts beside the build and is killed after it, whichever way
-  # the build ends; the trap covers the ways this function doesn't return.
+  # Name the card, then start the poller beside the build. These two
+  # assignments are what arms the whole feature: `card` returns early on an
+  # empty CARD_KEY, so without them every call below is a no-op and nothing
+  # ever draws.
+  CARD_KEY="haus-rebuild"; CARD_TITLE="$host · rebuild"; CARD_GEN="$gen_before"
   trap card_stop EXIT
+  trap card_cancelled INT TERM
   card_watch "$drv"
   ( cd "$CONSUMER" && nix build --print-out-paths --out-link "$CONSUMER/result" "$drv^*" ) >"$outfile" \
     || { card_stop; card - "fault" "build failed"; die "build failed — nothing was changed."; }
-  card_stop
+  # Not `card_stop`: `bg_wait` below joins the homebrew half, which by its own
+  # comment can run for minutes on a 200 MB cask. Hold the bar where the build
+  # left it and keep beating, or the card would leave during the longest silent
+  # stretch of the rebuild and come back as a different banner.
+  card_hold 99 "homebrew"
   sys="$(cat "$outfile")"; rm -f "$outfile"
   phase_ok build "$(secs $(( $(now_ds) - bt0 )) )"
 
@@ -1605,9 +1661,11 @@ cmd_rebuild() {
   [ -n "$old" ] && bg closure_diff "$old" "$sys" "$difffile"
   bg_wait || warn "a background job failed — see $HAUS_LOG (continuing)"
 
-  # The bar's last stop before the ending. Activation is short and unmeasured
-  # — nothing here counts paths — so it gets one number rather than a crawl.
-  card 95 "pulse" "activating"
+  # The bar's last stop before the ending. Nothing here counts paths, so it
+  # holds at 99 and beats — 99 rather than 95 because a bar that goes backwards
+  # reads as the build losing ground, and holds rather than fires once because
+  # activation outlives trill's dismiss clock.
+  card_hold 99 "activating"
 
   # Activate exactly what we just built. The old route here was
   # `darwin-rebuild switch --flake`, which BUILDS again as root — a second
@@ -1631,15 +1689,20 @@ cmd_rebuild() {
     # The running system predates haus-activate — take the old, slower route
     # once; the switch it performs is what installs the fast one.
     run_phase activate heal legacy_switch "$host"
-  fi || { card - "fault" "activation failed — $gen_before is still on disk"; die "activation failed partway — generation $gen_before is still on disk (haus rollback), and the log above says where it stopped."; }
+  fi || { card_stop; card - "fault" "activation failed — $gen_before is still on disk"; die "activation failed partway — generation $gen_before is still on disk (haus rollback), and the log above says where it stopped."; }
   phase_ok activate "$HAUS_PHASE_ELAPSED" "$(activation_summary)"
 
   # The ending replaces the bar on the same card, because it carries the same
   # key — a second banner saying "and now it's done" is one banner too many.
+  card_stop
   local gen_now
   gen_now="$(current_gen || echo '?')"
   card 100 "done" "$([ "$gen_before" = "$gen_now" ] && echo "generation $gen_now" \
     || echo "generation $gen_before → $gen_now")"
+  # Done with the card. Release the handlers, or a ⌃C through the tail of this
+  # function replaces the ending with "cancelled" for a machine that already
+  # switched.
+  trap - INT TERM EXIT
 
   # Generation + closure diff: the two lines that are actually about YOUR
   # machine rather than about the tools that rebuilt it.
