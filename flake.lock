@@ -245,11 +245,11 @@
         "prebuilt": "prebuilt_2"
       },
       "locked": {
-        "lastModified": 1787723800,
-        "narHash": "sha256-Xbp6RUjR+CXy+XMIWqlMsAZMyGAtyBFruJA1JbJLfdo=",
+        "lastModified": 1787724161,
+        "narHash": "sha256-wXFNZBaW9XnJhpnr30jKfHBboxSHGhMQOqD6a0XOA5I=",
         "owner": "hausfold",
         "repo": "trill",
-        "rev": "dbef8d5e82c85234e65de389f0883c5de4f36bc3",
+        "rev": "7c776ca2b130d89e90c465fe1a5e8b4ae78f1e4e",
         "type": "github"
       },
       "original": {
