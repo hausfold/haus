@@ -70,13 +70,17 @@ source "$HOME/.config/sketchybar/bar.sh"
 # Not a fullscreen risk: a bar is pulled off-screen on a fullscreen space by
 # space TYPE, not by window level (SLSSpaceGetType == 4, and show_in_fullscreen
 # is off), so the level can't leak the strip over a fullscreen app.
+#
+# $BAR_PAD_X is the side edge, generated from windows's outer side gap exactly
+# as on the menu bar — the two bars line up with the windows, and with each
+# other, from one number. See sketchybarrc's --bar block.
 "$SB" --bar \
     height=$BAR_BOTTOM_HEIGHT \
     blur_radius=30 \
     position=bottom \
     topmost=window \
-    padding_left=10 \
-    padding_right=10 \
+    padding_left=$BAR_PAD_X \
+    padding_right=$BAR_PAD_X \
     margin=0 \
     corner_radius=0 \
     color=0x00000000 \

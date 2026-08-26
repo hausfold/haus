@@ -1866,6 +1866,15 @@
                 "gen windows outer.top" =
                   capture aerospace ".*outer[.]top = [[][{] monitor[.][^=]+= ([0-9]+) [}], ([0-9]+)[]].*";
                 "gen bar FS_ICON" = capture ".config/sketchybar/sizes.sh" ".*FS_ICON=\"([0-9.]+)\".*";
+                # The bar's SIDE edge, and the one number in this table that is
+                # not the bar's own: it IS windows's outer side gap
+                # (modules/lib/gaps.nix), so the outermost pill lines up with
+                # the tiled window below it.
+                # A plain multiplier where the type above holds at its ceiling —
+                # a gap is tuned, not measured against a band macOS owns — which
+                # is why it climbs past 1.25 while FS_ICON does not. It stopping
+                # would mean the bar had gone back to a padding of its own.
+                "gen bar BAR_PAD_X" = capture ".config/sketchybar/sizes.sh" ".*BAR_PAD_X=\"([0-9]+)\".*";
               };
             };
           # Four full evaluations, bound once — the rows are cheap, the systems
@@ -1929,6 +1938,7 @@
           # all four scales. Both halves self-sort (`attrNames`), so nothing can
           # be added in a spot that hides it.
           expectedScaleTable = ''
+            gen bar BAR_PAD_X 20 28 50 60
             gen bar FS_ICON 17.0 21.0 21.0 21.0
             gen ghostty font-size 19 27 48 57
             gen pounce scale 1.0 1.4 2.0 2.0
@@ -1943,7 +1953,7 @@
             file .config/haus/term/float-term.sh moves
             file .config/opencode/skills/haus/references/this-machine.md moves
             file .config/pounce/config.json ceiling
-            file .config/sketchybar/sizes.sh ceiling
+            file .config/sketchybar/sizes.sh moves
             file .config/sketchybar/top_items.sh ceiling
             file .config/sketchybar/tour_item.sh ceiling
             file .config/sketchybar/workspaces.sh ceiling
