@@ -55,6 +55,13 @@
   ...
 }:
 
+let
+  # Same path ../apps holds for its duti pins, and held for the same reason:
+  # LaunchServices keeps its record of an app BY PATH, so a bundle replaced at
+  # a fixed path has to be re-registered or `open` answers from the record of
+  # the one that was deleted.
+  lsregister = "/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister";
+in
 lib.mkIf config.haus.trill.enable {
   # The bundle is copied to a fixed /Applications path by this module's
   # activation step (see the header on why the path must be fixed), so
@@ -71,101 +78,190 @@ lib.mkIf config.haus.trill.enable {
     trillMarker="/Library/Application Support/haus/trill.installed-from"
     trillExec="$trillDest/Contents/MacOS/Trill"
     trillUid="$(/usr/bin/id -u -- ${username})"
+    trillLock="/var/run/haus-trill-install.lock"
     if [ "$(/bin/cat "$trillMarker" 2>/dev/null)" != "${pkgs.trill}" ]; then
-      echo "trill: installing ${pkgs.trill} → $trillDest" >&2
 
-      # Same two reasons the shelf has, decided BEFORE the swap:
+      # ⚠️ ONE INSTALL AT A TIME. Nothing serialises `darwin-rebuild switch`,
+      # so parallel agent lanes routinely activate at the same moment — and
+      # this block's shape is lethal under that. A stops trill, swaps the
+      # bundle, relaunches it; B's `pkill` then lands on the instance A just
+      # started, and B relaunches into a LaunchServices record for a path
+      # whose bundle was replaced twice in fifteen seconds. `open` accepts,
+      # starts nothing, and the rebuild ends with NO compositor. The symptom
+      # is not "trill is gone" — it is "my banners stopped clearing
+      # themselves", because every `trill resolve` an agent hook fires after
+      # that exits 2 into the void and the fins nobody answered sit there
+      # until a human clicks them. Measured on mbp 2026-08-26: killed
+      # 01:17:17, relaunched, killed again 01:17:30 by the second activation,
+      # then dead for three minutes until someone went looking.
       #
-      #   * trill is up right now — the swap below deletes the bundle out from
-      #     under it and it exits, and NOTHING starts it again (no launch agent;
-      #     it registers itself as a login item), so the machine draws no
-      #     banners for the rest of the session. Every room on this desktop
-      #     speaks through `haus-notify`, which would silently fall back to
-      #     Apple's banner — so the symptom is not "trill is gone", it is
-      #     "my rules.json stopped working";
-      #   * there is no marker at all — this room's first install, and an app
-      #     that has never been launched has never registered itself as a login
-      #     item either, so without this it would not come up at the next login
-      #     and trill would simply never start.
-      #
-      # A trill the user quit on purpose, on a machine that already has it,
-      # matches neither and stays quit.
-      trillRelaunch=""
-      [ -e "$trillMarker" ] || trillRelaunch=1
-      if /usr/bin/pgrep -qU "$trillUid" -f "^$trillExec$"; then
-        trillRelaunch=1
-        # Stop it on purpose instead of letting the rm pull the rug: a process
-        # whose bundle has been deleted can still be alive when we relaunch, and
-        # `open` would then just re-activate that stale instance — running the
-        # OLD binary out of a bundle that no longer exists — instead of starting
-        # the new build. SIGTERM rather than an AppleScript `quit` because
-        # sending an Apple event from activation would want an Automation
-        # consent dialog, and activation is the one place that must never block
-        # on one.
-        #
-        # ⚠️ The pattern is anchored on the APP executable, and it has to stay
-        # that way. `Contents/MacOS/Trill` is also the `trill` CLI — every
-        # `haus-notify`, every `holt notify` from an agent pane, every
-        # `trill ask` blocking on a pill is that same binary — so an unanchored
-        # `pkill -f trill` would kill the caller's own short-lived CLI processes
-        # mid-call, and `trill ask` answers exit 75 when its socket dies.
-        # `^…$` matches only the argv[0]-alone daemon launch. `-U` so this is
-        # one login session's trill, not every trill on a fast-user-switched
-        # machine — the relaunch below can only put ONE user's back.
-        /usr/bin/pkill -U "$trillUid" -f "^$trillExec$" || true
-        trillStopped=""
-        for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-          /usr/bin/pgrep -qU "$trillUid" -f "^$trillExec$" || { trillStopped=1; break; }
-          /bin/sleep 0.2
-        done
-        # Three seconds is a long time for a UIElement app to acknowledge a
-        # TERM. If it hasn't, the relaunch would find a survivor and do nothing,
-        # so make sure there is nothing to find.
-        if [ -z "$trillStopped" ]; then
-          /usr/bin/pkill -9 -U "$trillUid" -f "^$trillExec$" || true
-          /bin/sleep 0.5
+      # `set -o noclobber` plus `>` is the atomic create-or-fail every shell
+      # has — one O_EXCL open, and the holder's pid goes in by the same
+      # redirect. ⚠️ Not /usr/bin/shlock, which looks purpose-built and is
+      # not: measured here, it refuses a lock whose recorded pid has already
+      # exited, so a single crashed activation would wedge every rebuild
+      # after it. The pid is what lets a waiter tell a live holder from a
+      # dead one — /var/run only clears at boot, and `set -e` means any abort
+      # inside this block leaves the lock file behind.
+      trillLocked=""
+      trillWaited=0
+      trillOrphan=0
+      while [ "$trillWaited" -lt 120 ]; do
+        if ( set -o noclobber; /bin/echo "$$" > "$trillLock" ) 2>/dev/null; then
+          trillLocked=1
+          break
         fi
-      fi
-
-      if /usr/bin/ditto "$trillStore" "$trillDest.new"; then
-        /bin/rm -rf "$trillDest"
-        /bin/mv "$trillDest.new" "$trillDest"
-        /bin/mkdir -p "$(/usr/bin/dirname "$trillMarker")"
-        /usr/bin/printf '%s' "${pkgs.trill}" > "$trillMarker"
-      else
-        echo "trill: ditto failed; leaving any existing $trillDest in place" >&2
-        /bin/rm -rf "$trillDest.new"
-      fi
-
-      # Start it again in the user's GUI session — activation runs as root, and
-      # root's session is not the one with a menu bar in it (the same reason
-      # ../core's activateSettings call goes through asuser). `-g` so a rebuild
-      # never steals focus, `timeout` because `open` waits on LaunchServices and
-      # this is the one unbounded call in the block, and `open` rather than
-      # exec'ing the binary because the TCC identity has to be the app's — which
-      # is the entire point of this room.
-      #
-      # The success line is printed from what actually happened rather than from
-      # having tried. Unlike the shelf, the probe here is honest about more than
-      # a process: trill's socket is what `haus-notify` needs, so `trill ping`
-      # answers the question a rebuild actually cares about — "can this machine
-      # draw a banner again" — and `open -g` not promising a window costs
-      # nothing, because trill has none.
-      if [ -n "$trillRelaunch" ] && [ -x "$trillExec" ]; then
-        ${pkgs.coreutils}/bin/timeout 20 launchctl asuser "$trillUid" \
-          sudo --user=${username} -- /usr/bin/open -g "$trillDest" || true
-        trillUp=""
-        for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-          if launchctl asuser "$trillUid" sudo --user=${username} -- \
-               "$trillExec" ping >/dev/null 2>&1; then trillUp=1; break; fi
-          /bin/sleep 0.2
-        done
-        if [ -n "$trillUp" ]; then
-          echo "trill: compositor back up (its socket answers)" >&2
+        trillHolder="$(/bin/cat "$trillLock" 2>/dev/null || true)"
+        if [ -z "$trillHolder" ]; then
+          # Created but not yet written — the winner is microseconds from
+          # filling it in. ⚠️ Breaking on the FIRST empty read is how a lock
+          # turns into no lock at all: both waiters see an empty file, both
+          # delete it, and both walk straight into the install. Measured
+          # exactly that way while writing this. Only a lock that stays empty
+          # for five seconds was really abandoned mid-create.
+          trillOrphan=$(( trillOrphan + 1 ))
+          if [ "$trillOrphan" -ge 5 ]; then /bin/rm -f "$trillLock" || true; fi
+        elif ! /bin/kill -0 "$trillHolder" 2>/dev/null; then
+          /bin/rm -f "$trillLock" || true
+          trillOrphan=0
         else
-          echo "warning: trill: the compositor did not answer on its socket. It will return at your next login; until then haus-notify falls back to Apple's banner and nothing else is affected." >&2
+          trillOrphan=0
+        fi
+        /bin/sleep 1
+        trillWaited=$(( trillWaited + 1 ))
+      done
+      # Two minutes is far past this block's own worst case (~one minute of
+      # timeouts), so failing here means something is genuinely stuck. Go
+      # ahead unlocked rather than skip: activation must never leave
+      # /Applications disagreeing with the generation it has just made
+      # current.
+      if [ -z "$trillLocked" ]; then
+        echo "warning: trill: another activation has held $trillLock for two minutes; installing anyway." >&2
+      fi
+
+      # Read the marker again, now that nobody else is mid-swap. Two lanes
+      # rebuilding the SAME trill both saw a stale marker on the way in, and
+      # without this the second one takes the compositor down again to install
+      # bytes that are already in place.
+      if [ "$(/bin/cat "$trillMarker" 2>/dev/null)" = "${pkgs.trill}" ]; then
+        echo "trill: ${pkgs.trill} was installed by another activation while this one waited" >&2
+      else
+        echo "trill: installing ${pkgs.trill} → $trillDest" >&2
+
+        # Same two reasons the shelf has, decided BEFORE the swap:
+        #
+        #   * trill is up right now — the swap below deletes the bundle out from
+        #     under it and it exits, and NOTHING starts it again (no launch agent;
+        #     it registers itself as a login item), so the machine draws no
+        #     banners for the rest of the session. Every room on this desktop
+        #     speaks through `haus-notify`, which would silently fall back to
+        #     Apple's banner — so the symptom is not "trill is gone", it is
+        #     "my rules.json stopped working";
+        #   * there is no marker at all — this room's first install, and an app
+        #     that has never been launched has never registered itself as a login
+        #     item either, so without this it would not come up at the next login
+        #     and trill would simply never start.
+        #
+        # A trill the user quit on purpose, on a machine that already has it,
+        # matches neither and stays quit.
+        trillRelaunch=""
+        [ -e "$trillMarker" ] || trillRelaunch=1
+        if /usr/bin/pgrep -qU "$trillUid" -f "^$trillExec$"; then
+          trillRelaunch=1
+          # Stop it on purpose instead of letting the rm pull the rug: a process
+          # whose bundle has been deleted can still be alive when we relaunch, and
+          # `open` would then just re-activate that stale instance — running the
+          # OLD binary out of a bundle that no longer exists — instead of starting
+          # the new build. SIGTERM rather than an AppleScript `quit` because
+          # sending an Apple event from activation would want an Automation
+          # consent dialog, and activation is the one place that must never block
+          # on one.
+          #
+          # ⚠️ The pattern is anchored on the APP executable, and it has to stay
+          # that way. `Contents/MacOS/Trill` is also the `trill` CLI — every
+          # `haus-notify`, every `holt notify` from an agent pane, every
+          # `trill ask` blocking on a pill is that same binary — so an unanchored
+          # `pkill -f trill` would kill the caller's own short-lived CLI processes
+          # mid-call, and `trill ask` answers exit 75 when its socket dies.
+          # `^…$` matches only the argv[0]-alone daemon launch. `-U` so this is
+          # one login session's trill, not every trill on a fast-user-switched
+          # machine — the relaunch below can only put ONE user's back.
+          /usr/bin/pkill -U "$trillUid" -f "^$trillExec$" || true
+          trillStopped=""
+          for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+            /usr/bin/pgrep -qU "$trillUid" -f "^$trillExec$" || { trillStopped=1; break; }
+            /bin/sleep 0.2
+          done
+          # Three seconds is a long time for a UIElement app to acknowledge a
+          # TERM. If it hasn't, the relaunch would find a survivor and do nothing,
+          # so make sure there is nothing to find.
+          if [ -z "$trillStopped" ]; then
+            /usr/bin/pkill -9 -U "$trillUid" -f "^$trillExec$" || true
+            /bin/sleep 0.5
+          fi
+        fi
+
+        if /usr/bin/ditto "$trillStore" "$trillDest.new"; then
+          /bin/rm -rf "$trillDest"
+          /bin/mv "$trillDest.new" "$trillDest"
+          /bin/mkdir -p "$(/usr/bin/dirname "$trillMarker")"
+          /usr/bin/printf '%s' "${pkgs.trill}" > "$trillMarker"
+        else
+          echo "trill: ditto failed; leaving any existing $trillDest in place" >&2
+          /bin/rm -rf "$trillDest.new"
+        fi
+
+        # Start it again in the user's GUI session — activation runs as root, and
+        # root's session is not the one with a menu bar in it (the same reason
+        # ../core's activateSettings call goes through asuser). `-g` so a rebuild
+        # never steals focus, `timeout` because `open` waits on LaunchServices and
+        # this is the one unbounded call in the block, and `open` rather than
+        # exec'ing the binary because the TCC identity has to be the app's — which
+        # is the entire point of this room.
+        #
+        # The success line is printed from what actually happened rather than from
+        # having tried. Unlike the shelf, the probe here is honest about more than
+        # a process: trill's socket is what `haus-notify` needs, so `trill ping`
+        # answers the question a rebuild actually cares about — "can this machine
+        # draw a banner again" — and `open -g` not promising a window costs
+        # nothing, because trill has none.
+        if [ -n "$trillRelaunch" ] && [ -x "$trillExec" ]; then
+          # ⚠️ Re-register BEFORE opening. LaunchServices keys its record of an
+          # app by PATH, and the bundle at this one just changed inode, version
+          # and code signature under it — so `open` can answer from the record of
+          # the bundle we deleted, accept the launch, return 0 and start nothing.
+          # Same ordering ../apps uses before its duti pins, and the same reason.
+          ${lsregister} -f "$trillDest" 2>/dev/null || true
+
+          # Three tries, not one. `open` returning 0 means LaunchServices took
+          # the request, never that a process exists — so the socket probe is the
+          # only real answer, and a probe that comes back empty deserves another
+          # ask rather than a warning. 15 s per attempt because the FIRST launch
+          # of a freshly-ditto'd notarized bundle re-runs Gatekeeper's check, and
+          # that alone can outlast the 3 s this used to allow: the old warning
+          # fired on a trill that was seconds from answering.
+          trillUp=""
+          for _ in 1 2 3; do
+            ${pkgs.coreutils}/bin/timeout 20 launchctl asuser "$trillUid" \
+              sudo --user=${username} -- /usr/bin/open -g "$trillDest" || true
+            trillProbed=0
+            while [ "$trillProbed" -lt 75 ]; do
+              if launchctl asuser "$trillUid" sudo --user=${username} -- \
+                   "$trillExec" ping >/dev/null 2>&1; then trillUp=1; break; fi
+              /bin/sleep 0.2
+              trillProbed=$(( trillProbed + 1 ))
+            done
+            if [ -n "$trillUp" ]; then break; fi
+          done
+          if [ -n "$trillUp" ]; then
+            echo "trill: compositor back up (its socket answers)" >&2
+          else
+            echo "warning: trill: the compositor did not answer on its socket after three tries. Start it with \`open -g /Applications/Trill.app\`, or leave it — it returns at your next login. Until then haus-notify falls back to Apple's banner and, on a machine running agent lanes, parked \`trill ask\` fins stay on screen until you click them." >&2
+          fi
         fi
       fi
+
+      if [ -n "$trillLocked" ]; then /bin/rm -f "$trillLock" || true; fi
     fi
   '';
 }
