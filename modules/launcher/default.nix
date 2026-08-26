@@ -510,7 +510,7 @@ let
 
   # The Terminal cards, from the SAME table that names the Ghostty-scoped chords
   # armed below (../terminal/term-bindings.nix). So every terminal chord on this
-  # cheatsheet is one this file really arms — except ⌘⌥R, which Ghostty binds
+  # cheatsheet is one this file really arms — except ⌘⇧R, which Ghostty binds
   # natively to its own `reset` action and this file only RESERVES (see the
   # riceChords comment below). That used to be enforced by an
   # assertion in terminal against zellij's config.kdl; there is no kdl now, and
@@ -914,7 +914,7 @@ let
   # they all belong in this list: pounce's own tap consumes them only over
   # Ghostty, so an item hotkey on ⌘F would build green and then lose that key
   # inside the terminal alone — the worst shape a clash can take, since it works
-  # everywhere you test it and dies where you use it. ⌘⌥R is the one entry this
+  # everywhere you test it and dies where you use it. ⌘⇧R is the one entry this
   # room does not arm — Ghostty binds it itself, to its native `reset` action —
   # and it needs reserving for the same reason with one more step in the middle:
   # an item hotkey is registered GLOBALLY, so it wins over a Ghostty keybind as
@@ -1695,7 +1695,7 @@ lib.mkIf config.haus.launcher.enable {
         ]
         ++ wmPages
         # The terminal's keys (Keys page), and on Tips its mouse gestures plus
-        # the ⌘⌥R / `reset` repair pair — all from terminal's own table; see
+        # the ⌘⇧R / `reset` repair pair — all from terminal's own table; see
         # termPages in the let-block.
         ++ termPages
         # The whole page is conditional — a cheatsheet teaching keys that do

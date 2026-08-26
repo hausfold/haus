@@ -73,7 +73,7 @@ let
   # It used to be cross-checked against zellij's config.kdl in both directions —
   # every bind taught, every taught chord bound — and that assertion is gone with
   # the kdl. There is nothing left for it to read: the chords it described are
-  # now pounce appHotkeys entries (modules/launcher) — all but ⌘⌥R, which
+  # now pounce appHotkeys entries (modules/launcher) — all but ⌘⇧R, which
   # ghostty/config binds natively — and a Nix assertion cannot see into another
   # room's generated JSON. The table and the appHotkeys list are
   # kept honest by living one screen apart and by the chord glyphs being derived

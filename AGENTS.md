@@ -610,11 +610,11 @@ mechanism, say so in one line.
   Ghostty's config unbinds each of them so the tap is not racing a built-in;
   those three files move together or the cheatsheet starts lying.
   - ONE chord is the exception, and it is the shape of exception to look for:
-    **⌘⌥R is bound by GHOSTTY**, in `modules/terminal/ghostty/config`, because
+    **⌘⇧R is bound by GHOSTTY**, in `modules/terminal/ghostty/config`, because
     `reset` is one of those 85 actions — a terminal chord that shells out to
     nothing has no reason to ride the tap. It still belongs in
     `term-bindings.nix`, and its `chords` entry matters MORE rather than less:
-    `haus.launcher.items` hotkeys are registered GLOBALLY, so one on ⌘⌥R would
+    `haus.launcher.items` hotkeys are registered GLOBALLY, so one on ⌘⇧R would
     beat a Ghostty keybind as surely as it beats an app-scoped tap. The rule is
     "a chord that runs a COMMAND is pounce's", not "every chord is".
 - **Every window is a `zmx` session** (`modules/terminal/scripts/launch.sh`,

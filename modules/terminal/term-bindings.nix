@@ -3,7 +3,7 @@
 # modules/launcher/default.nix, which renders the Terminal cards on the
 # cheatsheet's Keys page (and the mouse rows on Tips).
 #
-# "Mostly": ⌘⌥R is bound by GHOSTTY, in ghostty/config, because `reset` is one
+# "Mostly": ⌘⇧R is bound by GHOSTTY, in ghostty/config, because `reset` is one
 # of the 85 native actions and so does not need to shell out. It belongs in
 # this table anyway, and its `chords` entry matters MORE rather than less — a
 # haus.launcher.items hotkey on it would be registered globally by pounce and
@@ -158,8 +158,8 @@ rec {
       page = "Tips";
       items = [
         {
-          key = "⌘ ⌥ R";
-          chords = [ "cmd+alt+r" ];
+          key = "⌘ ⇧ R";
+          chords = [ "cmd+shift+r" ];
           action = "Reset the display — works when typing doesn't";
         }
         {
