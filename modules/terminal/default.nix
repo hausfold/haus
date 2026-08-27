@@ -114,12 +114,23 @@ let
 in
 {
   # ---- what this room contributes to other rooms ------------------------------
-  # Nothing, since 2026-08-18. This room used to hand windows the agent-spawn
-  # chord's script (`_contrib.windows.agents`, when the chord was the global
-  # ⌃⌘A); ⌘↵ is a Ghostty-scoped pounce hotkey now, and pounce reaches the same
-  # script through its own `cmd:lane-here` command rather than through an
-  # option. The file this room installs at
-  # ~/.config/haus/lanes/lane-spawn.sh is still the one thing the chord runs.
+  # One thing: the script AeroSpace runs after focus changes. A lane blocked on
+  # you parks a trill fin, and lanes/lane-seen.sh takes it down once you are
+  # looking at that lane's window — which only the tiler can report, because two
+  # lanes are two windows of one app. Presentation only, in the contract's
+  # sense: with no windows room the fin still clears when the session moves
+  # (holt's own hooks), just later.
+  #
+  # This room used to hand windows the agent-spawn chord's script as well
+  # (`_contrib.windows.agents`, when the chord was the global ⌃⌘A); ⌘↵ is a
+  # Ghostty-scoped pounce hotkey now, and pounce reaches the same script through
+  # its own `cmd:lane-here` command rather than through an option. The file this
+  # room installs at ~/.config/haus/lanes/lane-spawn.sh is still the one thing
+  # the chord runs.
+  haus._contrib.windows.laneSeen = {
+    enable = agentsCfg.enable;
+    script = "/Users/${username}/.config/haus/lanes/lane-seen.sh";
+  };
 
   # The agent assertions that used to sit here — default-not-in-clients, clients
   # without the tooling, a client nixpkgs can't build — are the AI room's own
@@ -1491,6 +1502,15 @@ in
           executable = true;
         };
 
+        # The other end of that seam: focusing a lane's window YOURSELF — no
+        # banner clicked — takes its parked fin down. modules/windows runs it
+        # from AeroSpace's `on-focus-changed`, which is why the script's own
+        # first act is to establish that there is nothing to do.
+        ".config/haus/lanes/lane-seen.sh" = {
+          source = ./lanes/lane-seen.sh;
+          executable = true;
+        };
+
         # The chord's half: what pounce's Ghostty-scoped ⌘↵ runs, through the
         # launcher's `cmd:lane-here` command. A chord pointing at a file that
         # isn't there is the one failure mode a rebuild can't warn about.
@@ -2057,6 +2077,14 @@ in
       # which is what approving a permission prompt leads to. Without those two
       # the ledge kept saying "waiting on you" while the agent was already ten
       # minutes into the work.
+      #
+      # A third way down is not a hook at all and does not live here:
+      # lanes/lane-seen.sh clears a lane's fin when you FOCUS its window, which
+      # is the earlier signal — you can read a question and think for a minute
+      # before typing, and the ledge should stop flagging it the moment you are
+      # standing in front of it. These two stay because focus is not always
+      # observable (no tiler, a lane answered from the Claude Code desktop app)
+      # and because answering from somewhere else must still clear it.
       #
       # PostToolUse fires on every tool call in every pane, so the cost matters:
       # holt gates the whole path behind one marker file per outstanding fin, so

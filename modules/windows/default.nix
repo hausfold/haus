@@ -354,7 +354,23 @@ let
   # `*-lazy-center` rather than plain `center` in both: lazy leaves the pointer
   # alone when it is already inside the thing that took focus, so the setting
   # fires on the jumps that lose the cursor and not on the ones that don't.
-  focusChanged = lib.optionalString cfg.mouseFollowsFocus "'move-mouse window-lazy-center'";
+  #
+  # The second entry is not about the pointer at all: it is whatever room asked
+  # to be told that focus moved (`haus._contrib.windows.laneSeen`, declared in
+  # options.nix — today the terminal room's agent lanes, taking a lane's parked
+  # trill fin down once you are looking at its window). AeroSpace is the only
+  # thing on this Mac that reports focus moving between two windows of ONE app,
+  # and two lanes are both Ghostty, so this list is where it has to hang.
+  #
+  # Rendered from the contribution rather than from a `config.haus.ai` read: the
+  # source room decides whether it has anything to run, this room decides how it
+  # is run, and a source that is off — or a path it never wrote — leaves the
+  # callback empty rather than pointing at a file that isn't there.
+  laneSeen = config.haus._contrib.windows.laneSeen;
+  focusChanged = lib.concatStringsSep ", " (
+    lib.optional cfg.mouseFollowsFocus "'move-mouse window-lazy-center'"
+    ++ lib.optional (laneSeen.enable && laneSeen.script != "") "'exec-and-forget ${laneSeen.script}'"
+  );
   monitorChanged = lib.optionalString cfg.mouseFollowsFocus "'move-mouse monitor-lazy-center'";
 
   aerospaceToml =
