@@ -178,7 +178,8 @@ in
 
         `claude` is excluded from the palette path for exactly that reason: its
         argv is fixed and reads no environment, so it cannot meet the contract —
-        and at 8-12s it would outlive the palette's own 8-second chain fade.
+        and at 8-12s it is asked before the worktree exists, so the whole wait
+        lands between Return and the lane with nothing on screen.
         Set it and hand-run `holt spawn` still asks it; Spawn Agent keeps its
         slug.
       '';

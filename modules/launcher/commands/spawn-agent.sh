@@ -254,10 +254,18 @@ repo="$(field "$repo_sel" 7)"
 # text missed rather than vanishing: a step that closes with no window, no lane
 # and no message is indistinguishable from the palette having dropped the
 # keystroke, which is exactly how this read from the outside.
-if [ -z "$repo" ] || [ ! -d "$repo/.git" ]; then
+if [ -z "$repo" ]; then
   typed="$(payload_of "$repo_sel" | tr '\n\t' '  ')"
   notice "No repo matches “${typed}”" \
     "Add its parent to haus.ai.repoRoots, or spawn there once from a terminal" \
+    "folder.badge.questionmark"
+  exit 0
+fi
+# A row WAS picked and its checkout is gone — a repo moved or deleted since the
+# list was built, or a stale holt registry row. Different miss, different words:
+# `payload_of` here would hand back the whole tab-joined row.
+if [ ! -d "$repo/.git" ]; then
+  notice "$repo_name is not there any more" "Nothing at $repo — moved, or removed" \
     "folder.badge.questionmark"
   exit 0
 fi
@@ -280,8 +288,13 @@ fi
 #       a one-line header with a screenful of half-drawn rows under it. The
 #       palette lingers out at once instead, and `haus-notify` says the lane is
 #       up when it actually is.
-#   ⌃↵  the lane window takes the screen a moment later and stays there, so
-#       there is nothing for a skeleton to bridge.
+#   ⌃↵  its next act IS a window, so this is the one Return a chain could
+#       honestly bridge — `--chain ctrl,opt` would do it. Left unchained on
+#       purpose: the skeleton's header is one line tall however tall the box
+#       was, so a multi-line prompt hands back a screenful of half-drawn rows,
+#       and one behaviour for every Return ("the box goes, then the lane
+#       arrives") is worth more than covering a second of dead air. Revisit if
+#       a namer adapter ever makes that second into five.
 #
 # --draft: every dismissal that isn't a commit keeps the text. This is the whole
 # insurance policy against the click-away.
@@ -476,10 +489,13 @@ fi
 # holt's BUILT-IN namer is excluded, and the exclusion is the load-bearing half:
 #
 #   - It costs 8-12s (holt's own namer.go says so), and it is asked BEFORE the
-#     worktree exists, so the whole wait lands between Return and the window.
-#     The prompt step is `--chain enter`, whose only way out is an 8-second
-#     fallback fade — the skeleton would usually fade before the lane arrived.
-#     That nine-second freeze is the exact reason the slug exists at all.
+#     worktree exists, so the whole wait lands between Return and the lane.
+#     That was nine seconds of frozen palette back when the prompt step was
+#     `--chain enter`, and it is the exact reason the slug exists at all. The
+#     chain is gone now and the argument is if anything stronger: the box
+#     closes at once, so those nine seconds are nine seconds in which NOTHING
+#     is on screen and the only sign the spawn took is a banner that hasn't
+#     arrived yet.
 #   - Its argv is fixed and reads no environment, so it cannot honour the floor
 #     below. An offline spawn would drop to holt's random word pair, which is
 #     strictly WORSE than the slug this command has always had.
