@@ -328,11 +328,46 @@ if [ "${1:-}" = "row" ] && [ "${2:-}" = "zmx" ]; then
     # machine. ⌘F's ⏎ calls the same script; this pair used to be two copies of
     # it, both AeroSpace-only.
     #
-    # --or-open: a session with no window is detached and still running — the
-    # whole point of zmx — so the script opens one onto it rather than
-    # pretending nothing is there. Which is also why the reopen isn't spelled
-    # out here any more: it is the same backend question as the raise.
-    "$HOME/.config/haus/term/raise-session.sh" --or-open "$zsess" >/dev/null 2>&1
+    # A session with no window is detached and still running — the whole point
+    # of zmx — so a row always opens one rather than pretending nothing is
+    # there. WHICH window depends on what the session is, and for a lane that
+    # stopped being an edge case the day a background spawn stopped opening one
+    # at all (lanes/lane-open.sh): every never-visited lane arrives here with no
+    # window. `--or-open` would answer it with a BARE one — born on whatever
+    # page you are standing on, floated by windows' on-window-detected rule and
+    # never tiled onto T/<repo> (raise-session.sh's own `open_window`). So ask
+    # scruff for a lane instead: that drives the resume seam, which is
+    # lane-open.sh's foreground path, and the window lands titled and tiled on
+    # the repo's page. Everything that is not a lane keeps `--or-open`, which is
+    # exactly right for a `term.<n>` window someone closed.
+    #
+    # The session name → <repo>/<lane> join is the REGISTRY, read the way
+    # lanes/lane-seen.sh reads it and for the reason stated there: `<repo>` may
+    # carry a dot (hausfold.co), so no split of `holt.<repo>.<lane>` can tell
+    # that dot from the separator. No registry, or no row for this session, and
+    # this falls back to the bare window rather than doing nothing.
+    if ! "$HOME/.config/haus/term/raise-session.sh" "$zsess" >/dev/null 2>&1; then
+      pair=""
+      reg="${SCRUFF_BASE:-${HOLT_BASE:-$HOME/.cache/claude-worktrees}}/registry.tsv"
+      [ -r "$reg" ] && pair="$(
+        awk -F'\t' -v want="$zsess" '
+          {
+            n = split($2, p, "/")
+            if (n == 0 || $1 == "") next
+            if ("holt." p[n] "." $1 == want) { print p[n] "/" $1; exit }
+          }
+        ' "$reg"
+      )"
+      # A plain redirect, never `$(…)`: a command substitution stays open until
+      # every inherited descriptor is closed, so the window scruff leaves running
+      # would hold this plugin open for the life of the lane (the same trap
+      # launcher/commands/lanes.sh documents at its own `open_lane`).
+      if [ -n "$pair" ]; then
+        scruff "$pair" >/dev/null 2>&1
+      else
+        "$HOME/.config/haus/term/raise-session.sh" --or-open "$zsess" >/dev/null 2>&1
+      fi
+    fi
   fi
   "$SB" --set "$POPUP" popup.drawing=off
   exit 0

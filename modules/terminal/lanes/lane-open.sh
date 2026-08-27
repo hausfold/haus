@@ -16,6 +16,12 @@
 # modules/bar/sketchybar/plugins/agents.sh). With this backend it's a string
 # equality.
 #
+# Only the FIRST of the three is a lane, though, and that is deliberate: a
+# BACKGROUND lane (HAUS_LANE_BACKGROUND=1, the palette's plain-Return spawn) is
+# the session alone, with no window and no tile until you go and look at it. The
+# window is the view, not the lane — the note further down says why it has to be
+# that way round.
+#
 # ── why the window is not the session ────────────────────────────────────────
 # A zellij pane dies with its tab, so closing one had to mean parking the work.
 # A zmx session outlives every client attached to it, so ⌘W closes the WINDOW
@@ -170,7 +176,7 @@ held="$SCRUFF_COMMAND"'
 rc=$?
 [ "$rc" -eq 0 ] && exit 0
 zmx set . state= client= label= since= >/dev/null 2>&1
-printf "\n\033[1;31m▲ the lane exited %s\033[0m — window held so you can read why.\n" "$rc"
+printf "\n\033[1;31m▲ the lane exited %s\033[0m — held so you can read why.\n" "$rc"
 printf "  enter → close · s + enter → shell in %s\n" "$PWD"
 read -r _ans || _ans=
 [ "$_ans" = s ] && exec bash -l
@@ -212,138 +218,210 @@ if [ -z "$backend" ]; then
 fi
 
 # ── a lane that does not take the screen ─────────────────────────────────────
-# HAUS_LANE_BACKGROUND=1 opens the lane WITHOUT you seeing or feeling it: the
-# window is still created, still named holt.<repo>.<lane>, still tiled onto
-# T/<repo>, and the client still starts on its prompt — you simply stay where
-# you are and go and read it when you are ready (⌃⇥, the Lanes palette, the
-# agents pill).
+# HAUS_LANE_BACKGROUND=1 opens the lane without you seeing or feeling it, and
+# the way it does that is by opening NO WINDOW AT ALL. The lane is its zmx
+# session: the client comes up in a detached PTY, on its prompt, in the same
+# millisecond it would have otherwise — and a window is born the first time you
+# go and look at it, placed properly on T/<repo> by this script's own foreground
+# path. Three doors, all of them ending at `resume` → here: clicking the lane's
+# trill fin runs `scruff focus` → lane-focus.sh, which finds no window and defers;
+# the bar's agents pill and the Lanes palette each try a raise first and then ask
+# `scruff <repo>/<lane>` outright (bar/sketchybar/plugins/agents.sh,
+# launcher/commands/lanes.sh).
 #
-# On the aerospace backend the silence is in how the window is BORN, two facts
-# working together (both MEASURED 2026-08-27 on Ghostty 1.3.1):
+# That is a change of SHAPE rather than a tuning, and what forced it is that
+# every way of making a real window's birth invisible failed on a fact nothing
+# in this repo owns:
 #
-#   no activation   the lane's Ghostty is exec'd from the app bundle directly
-#                   rather than through `open -na`. LaunchServices never hears
-#                   about the launch, so nothing is activated: the window
-#                   opens, the initial-command runs, and focus stays exactly
-#                   where it was — there is nothing to hand back.
-#   no visible birth  the window is asked for at --window-position 25000,25000,
-#                   which macOS clamps to a 1-px sliver at the bottom-right
-#                   corner (measured: frame x=1511 on a 1512-wide display). So
-#                   the moment before the self-tile block walks it off to
-#                   T/<repo> shows nothing rather than a full window blinking
-#                   over your page — which is what a background spawn used to
-#                   cost.
+#   `open -g -na Ghostty.app`  opens no window, ever, and never runs its
+#                   initial-command (MEASURED 2026-08-23): a Dock icon, no
+#                   session, no client, and `scruff spawn` exiting 0 over a lane
+#                   that never existed.
+#   direct exec of the bundle's binary, asked for at
+#   --window-position 25000,25000
+#                   fixed the FOCUS half for good — LaunchServices never hears
+#                   the launch, so nothing activates — but not the seeing half:
+#                   a terminal still flashed over the page you were standing on
+#                   (reported off a live machine 2026-08-27, feel-testing #529).
+#                   The room already knew why, one file over:
+#                   scripts/float-term.sh's own header says a fresh macOS
+#                   instance's `--window-position/-width` flags "are silently
+#                   ignored (it inherits a saved-state frame)", which is why
+#                   THAT script gave up on the flags and drives the frame
+#                   through AX after the window exists. A position you cannot
+#                   set before the first paint cannot hide a birth, and AX
+#                   arrives too late by construction.
+#   an `on-window-detected` rule that moves it
+#                   loses the race every window rule in this repo loses:
+#                   windows/scripts/launch.sh's own note is that a window
+#                   "appears on the current workspace and then
+#                   on-window-detected yanks it to its assigned one".
 #
-# Two more silences ride along, because each would take the screen on its own:
+# A window whose first paint you don't control cannot be made invisible from out
+# here. A window that does not exist can. So the promise is kept by
+# construction, and everything that was buying a quieter birth went with the
+# window it was protecting: the direct exec, the clamped position, the `-g`
+# pre-warm, the focus giveback and its captured previous window, and the
+# notification for a lane stranded off-screen.
 #
-#   no --focus-follows-window  AeroSpace follows the window to T/<repo>, which
-#                              is precisely what that flag is FOR normally —
-#                              see the note on it below.
-#   no `activate`              the ghostty backend's AppleScript spawn asks for
-#                              the app front by hand.
-#
-# ── why not `open -g`, which is the obvious answer ───────────────────────────
-# Because Ghostty launched into the background never opens a window at all.
-# MEASURED 2026-08-23, from a plain shell and away from any of this:
-#
-#   open -g -na Ghostty.app --args --title=probe --initial-command=<script>
-#
-# leaves a live Ghostty process with NO window, ever, and the initial-command
-# NEVER RUNS — so no zmx session, no client, no lane: a Dock icon and nothing
-# else. Nothing downstream could catch it either, because `open -na` returns
-# the moment LaunchServices accepts (spawn-agent.sh's own note says so), so
-# `scruff spawn` exited 0 and the palette posted "… is working" over a lane that
-# had never started. That was every background spawn until this note (⌃↵ at
-# the time; the plain Return now).
-#
-# The direct exec is the answer `open -g` was reaching for, and it degrades
-# rather than breaks: a machine whose Ghostty.app is somewhere the lookup
-# below doesn't find still spawns through a plain `open -na`, pays the old
-# blink, and has the focus handed back once the lane has been moved off to
-# T/<repo>. The giveback inside the launcher serves both paths — the fallback
-# needs it every time, and the direct exec keeps it as a regression net that
-# only fires if the lane's own instance somehow ended up holding focus.
+# What you give up: ⌃⇥ to T/<repo> shows a background lane only once you have
+# opened it. What you get beyond the silence: the window that eventually appears
+# is a LANE's window — tiled, titled, joined — rather than one born wrong in a
+# corner and teleported.
 #
 # The palette's Spawn Agent sets it by DEFAULT — a plain Return — and clears it
 # on ⌃↵, the "spawn and follow it" chord. It reaches here through `scruff spawn`
-# because scruff hands a seam os.Environ(). That same inheritance is why
-# it is DROPPED the instant it has been read, before either `open` below: the
-# variable would otherwise be part of the environment of the Ghostty PROCESS
-# this script starts, and every surface that instance goes on to make — the
-# cold-started instance's own first window, anything new-window.sh's
-# AppleScript lands there — would inherit it. A shell in one of those windows
-# would then have ⌘↵ and `scruff <name>` silently open in the background with
-# nothing on screen to say why. Same early-drop launch.sh does for
-# HAUS_TERM_WORKSPACE and HAUS_ZMX_ATTACH, for the same reason.
+# because scruff hands a seam os.Environ(). That same inheritance is why it is
+# DROPPED the instant it has been read: the variable would otherwise sit in the
+# environment of everything this lane goes on to run, and a shell in there would
+# have ⌘↵ and `scruff <name>` silently open in the background with nothing on
+# screen to say why. Same early-drop launch.sh does for HAUS_TERM_WORKSPACE and
+# HAUS_ZMX_ATTACH, for the same reason.
 bg=""
 case "${HAUS_LANE_BACKGROUND:-}" in 1 | true | yes) bg=1 ;; esac
 unset HAUS_LANE_BACKGROUND
 
-# The three silences, resolved once so the branches below read as one word each.
-follow="--focus-follows-window "
-[ -n "$bg" ] && follow=""
-activate_line="  activate"
-[ -n "$bg" ] && activate_line="  -- background lane: deliberately not activating"
+if [ -n "$bg" ]; then
+  # ── the windowless birth ───────────────────────────────────────────────────
+  # `zmx run <name> -d` is the one call in zmx's surface that CREATES a session
+  # with no client attached (measured 2026-08-27): the session comes up on a
+  # login shell, the argv is typed into it, and `-d` returns instead of
+  # attaching. `exec` in front of it is what makes the session's root process
+  # the client itself rather than a shell holding one — so this lane ends on a
+  # clean exit and holds on a bad one exactly as a windowed lane does, and
+  # nothing downstream can tell which way it was born. Both backends take this
+  # path: there is no window, so there is nothing for either of them to place.
+  #
+  # A session that is ALREADY up is left strictly alone. `zmx run` TYPES, and
+  # typing into a live agent's PTY hands the client a line of shell as if you
+  # had pressed the keys. This is the background half of "open and resume are
+  # the same act": a background resume of a lane that is still running has
+  # nothing to do, because there is no window to place either. `zmx list`
+  # rather than `zmx get`, whose "not found or unresponsive" answers two
+  # questions with one word — and of the two mistakes available here, treating
+  # a live session as absent is the one that types into it.
+  #
+  # It fails CLOSED. `zmx list` answering nothing because the daemon is busy or
+  # the socket is unhappy is not "no session", and reading it as one is exactly
+  # the mistake above — so a listing that fails takes the lane back to scruff
+  # rather than typing on a hunch.
+  # Every bail below takes the temp launcher with it. `mktemp` already ran, and
+  # only a launcher that RUNS deletes itself — measured as a real leak, one empty
+  # `open.XXXXXX` per background resume of a live lane, which is the commonest
+  # path through this block.
+  live="$(zmx list --short 2>/dev/null)" || { rm -f "$launcher"; exit 3; }
+  if printf '%s\n' "$live" | grep -Fxq "$sess"; then
+    rm -f "$launcher"
+    exit 0
+  fi
 
-# `-g` survives on the COLD START alone. That call is a pre-warm — its whole job
-# is to have the process up before the `-na` below, so that the lane's own spawn
-# doesn't race the app's launch and land a stray default window beside it — and
-# an instance that comes up windowless is precisely what a pre-warm wants. The
-# lane's own `open -na` must never carry it: see the measurement above.
-#
-# Worth knowing rather than fixing here: the instance it leaves behind is
-# windowless AND a live Apple Events target, so a later `tell application
-# "Ghostty"` (scripts/new-window.sh, the ghostty backend below) may be answered
-# by it. That routing lottery predates this line — the flag it replaced did the
-# same — and what it costs is written up in scripts/focused-session.sh.
-warm_bg=""
-[ -n "$bg" ] && warm_bg="-g"
+  {
+    printf '#!/bin/bash\n'
+    # The arrival marker the hook below waits on — FIRST, before anything that
+    # could fail, because its whole job is to say "the launcher ran".
+    printf 'touch %q\n' "$launcher.ok"
+    printf 'rm -f %q\n' "$launcher"
+    # Same PATH line the windowed launcher below carries, for the same reason:
+    # this script is typed into a login shell whose profile is the machine's, and
+    # the two `zmx` calls under it must resolve whatever that profile did.
+    printf 'export PATH="/opt/homebrew/bin:$PATH"\n'
+    printf 'unset %s\n' "$(printf '%s' "$leaked" | tr '\n' ' ')"
+    # …and then PUT ZMX_SESSION BACK, because on this path the one in the
+    # environment is the RIGHT one. `$leaked` exists to strip the SPAWNER's
+    # identity, and on the windowed path the `zmx attach` that follows re-injects
+    # the lane's own — there is no attach here, so the scrub would leave the
+    # client with none at all, and everything that addresses a lane BY session
+    # goes quiet at once: agents-hook.sh returns before writing a `state` label
+    # (so the agents pill has no row for this lane — one of the three doors this
+    # note promises), the lidAwake hold is never taken, statusline.sh never files
+    # the session→transcript row ⌘F and the Links picker read, and the hold's own
+    # `zmx set .` errors out instead of clearing the row of a lane that died.
+    # Measured 2026-08-27: `zmx set .` answers `requires ZMX_SESSION`, rc 1.
+    printf 'export ZMX_SESSION=%q\n' "$sess"
+    # A window's scrollback starts empty; this session's starts with the line
+    # zmx typed to create it (`exec bash /…/open.XXXXXX; echo
+    # ZMX_TASK_COMPLETED:$?`). Screen AND scrollback, so the first thing in the
+    # lane's history is the client — that history is what the bar's peek and
+    # ⌘F read.
+    printf 'printf "\\033[H\\033[2J\\033[3J"\n'
+    # TERM, because there is no terminal emulator on the other end to set one:
+    # zmx gives an unattached session `dumb` (measured), and a client that
+    # believes it is on a dumb terminal draws like it. Whatever is chosen here is
+    # the client's for LIFE — attaching a window later does not change a running
+    # process's environment — so it has to be a value the client can RESOLVE, not
+    # the one its future window will use.
+    #
+    # And the resolution is the whole subtlety: `xterm-ghostty` lives in the app
+    # bundle's own terminfo tree, which Ghostty exports as TERMINFO to the
+    # processes IT starts (modules/terminal/default.nix says so). A background
+    # lane descends from the pounce daemon instead, so a bare `infocmp
+    # xterm-ghostty` fails there — measured 2026-08-27: rc 1 in a clean
+    # environment, rc 0 with TERMINFO pointed at the bundle. So point it, and
+    # claim xterm-ghostty only when that lookup actually answers; otherwise take
+    # xterm-256color, which every machine can resolve. A TERM with no terminfo
+    # entry is the shape that hangs `tset` and blanks a TUI.
+    printf 'gterminfo=/Applications/Ghostty.app/Contents/Resources/terminfo\n'
+    printf 'if [ -d "$gterminfo" ] && TERMINFO="$gterminfo" /usr/bin/infocmp xterm-ghostty >/dev/null 2>&1; then\n'
+    printf '  export TERMINFO="$gterminfo" TERM=xterm-ghostty\n'
+    printf 'else\n'
+    printf '  export TERM=xterm-256color\n'
+    printf 'fi\n'
+    printf 'unset gterminfo\n'
+    # COLORTERM is the other half of the same claim, and the one that actually
+    # decides whether a client draws in 24-bit colour: xterm-256color's terminfo
+    # says 256, Ghostty sets COLORTERM=truecolor in every window it opens, and a
+    # lane whose window will be a Ghostty is entitled to say so from the start.
+    printf 'export COLORTERM=truecolor\n'
+    # No `lwindow=`/`gwindow=` clear here, deliberately: a label lives IN its
+    # session and dies with it, and the guard above means this launcher only ever
+    # runs for a session that did not exist a moment ago. There is nothing stale
+    # to clear, and a line whose premise is false is worse than no line.
+    printf 'cd %q || exit 1\n' "$chat"
+    printf 'exec bash -lc %q\n' "$held"
+  } >"$launcher"
+  chmod +x "$launcher"
 
-# ── how a background lane's window is born ───────────────────────────────────
-# The direct exec from the background note above. $took is the generated
-# launcher's word for which path spawned it: 1 means `open -na`, which
-# activates by construction, so the giveback below must always run; empty
-# means the direct exec, where focus was never taken and the giveback is only
-# a regression net. The bundle is looked up rather than assumed — a machine
-# that keeps Ghostty.app somewhere else simply takes the `open -na` path and
-# the old blink, which is a degradation and not a failure.
-ghostty_bin=""
-took=1
-if [ -n "$bg" ] && [ "$backend" = aerospace ]; then
-  for app in /Applications/Ghostty.app "$HOME/Applications/Ghostty.app"; do
-    if [ -x "$app/Contents/MacOS/ghostty" ]; then
-      ghostty_bin="$app/Contents/MacOS/ghostty"
-      took=""
-      break
+  # `cd` FIRST: zmx takes a new session's start_dir from its caller's cwd, and
+  # start_dir is how a session is mapped back to a checkout by the bar's agent
+  # rows (bar/sketchybar/plugins/agents.sh) and the Lanes palette
+  # (launcher/commands/lanes.sh). A lane whose start_dir is the palette daemon's
+  # cwd is a lane neither of them can place.
+  cd "$chat" || { rm -f "$launcher"; exit 3; }
+  zmx run "$sess" -d exec bash "$launcher" >/dev/null 2>&1 || { rm -f "$launcher"; exit 3; }
+
+  # ── did the launcher actually run? ────────────────────────────────────────
+  # `zmx run` is two acts — create the session, then type into it — and its exit
+  # status covers the request rather than either act (measured 2026-08-27: it
+  # answers 0 even for a socket dir it cannot use). So the launcher signs its own
+  # arrival with a marker beside itself, and this waits for THAT.
+  #
+  # Not for the session, which is the version of this loop that could cost you a
+  # checkout: exit 3 is a REFUSAL for a spawn — `scruff spawn` opens through this
+  # hook and has no built-in to fall back to — so spawn-agent.sh treats it as a
+  # lane that never started and runs `scruff drop`. A client that exits 0 inside
+  # this window (a `--version`, a config error that ends cleanly) takes its
+  # session with it, and polling for the session would call that a failure and
+  # delete the worktree and branch out from under a lane that ran perfectly.
+  # The marker is written before the client is exec'd, so it cannot lie in that
+  # direction.
+  for _ in $(seq 1 40); do
+    if [ -e "$launcher.ok" ]; then
+      rm -f "$launcher.ok"
+      exit 0
     fi
+    sleep 0.05
   done
+  # Nothing ever ran: no session, no client, nothing typed. Refusing is right
+  # here — it is what lets spawn-agent.sh clean up the checkout it made.
+  rm -f "$launcher" "$launcher.ok"
+  exit 3
 fi
 
-# Who holds the screen right now, so a background lane can give it back once it
-# has moved out of the way. Asked BEFORE anything is opened, because a moment
-# later the honest answer is the lane itself.
-#
-# Empty for a foreground lane, which is what makes the give-back inside the
-# launcher a no-op needing no branch of its own — and empty on the ghostty
-# backend too, which has no AeroSpace to ask and whose AppleScript spawn simply
-# never activates.
-#
-# The APP is captured beside the window, and it is not belt-and-braces: some
-# window is not always AeroSpace's to name. A native-fullscreen app, an
-# unmanaged window, or an AeroSpace that simply answers late all give an empty
-# window id — and an empty one means `giveback` does nothing, which is an
-# ordinary background spawn silently keeping the screen and looking exactly like
-# the ⌃↵ that asked to be followed. `lsappinfo` is LaunchServices' own view of
-# who is frontmost, needs no grant and no Apple Event, and re-activating that
-# app is a coarser give-back than the window but an enormously better one than
-# none.
-prev_wid=""
-prev_app=""
-if [ -n "$bg" ] && [ "$backend" = aerospace ]; then
-  prev_wid="$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)"
-  prev_app="$(/usr/bin/lsappinfo info -only bundleid "$(/usr/bin/lsappinfo front 2>/dev/null)" 2>/dev/null |
-    sed -n 's/.*"CFBundleIdentifier"="\([^"]*\)".*/\1/p')"
-fi
+# Everything below opens a WINDOW, so everything below is a FOREGROUND lane —
+# the two silences a background one used to ask for (no --focus-follows-window,
+# so AeroSpace doesn't walk you to T/<repo>; no AppleScript `activate`) went with
+# the block above, which is why both are plain literals again rather than the
+# variables they were while one caller wanted them empty.
 
 # printf %q, not bash 5's ${var@Q}: /bin/bash on macOS is still 3.2, and this
 # script has no guarantee about which bash scruff found first.
@@ -388,58 +466,11 @@ fi
     # combined with a filter. One process, one window at this moment, no focus
     # anywhere in the question.
     #
-    # If the walk somehow comes back empty, the block moves NOTHING (it still
-    # gives the screen back). A lane that opened floating is a nuisance you can
-    # fix with the leader's ` ; a confidently mis-aimed
+    # If the walk somehow comes back empty, the block moves NOTHING. A lane
+    # that opened floating is a nuisance you can fix with the leader's ` ;
+    # a confidently mis-aimed
     # `move-node-to-workspace` is a window you did not touch leaving the page
     # you were reading it on.
-    # ── giving the screen back ────────────────────────────────────────────
-    # On the `open -na` fallback ($took=1) the window arrives with focus, so
-    # this hands focus back to whatever had it before the spawn, on EVERY exit
-    # from this block, not only the happy one — the two bails below are the
-    # cases where the lane stays put on the page you are standing on, which is
-    # exactly when leaving it focused as well would be worst.
-    #
-    # On the direct-exec path ($took empty) focus never moved, and a giveback
-    # that ran anyway would YANK it: the user had those seconds to focus a
-    # third window, and re-asserting the pre-spawn one would steal from it. So
-    # there it fires only if this lane's own instance somehow holds focus — a
-    # future Ghostty that self-activates on launch — and stays silent
-    # otherwise. The gpid guard is a real line, not left to "empty matches
-    # nothing": `list-windows --focused` can answer EMPTY too (a
-    # native-fullscreen app, an unmanaged window, a late AeroSpace — the same
-    # cases the prev_wid capture above lists), and empty = empty would have
-    # fired the net on the exact path where focus was never taken.
-    #
-    # `$back` is empty for a foreground lane, so this is a no-op there and the
-    # block needs no branch of its own. Best effort throughout: a window that
-    # has since closed is not worth a word, and there is nowhere here to say it.
-    #
-    # vanish() is the bails' other half, and only for the silent birth: a
-    # $took=1 bail strands a VISIBLE floating window on the page you are
-    # standing on — a nuisance you can see and fix — but a direct-exec bail
-    # strands a 1-px sliver in a screen corner, a lane that exists and works
-    # with nothing on any page to say so. ⌃⇥ will never find it (no tile ever
-    # landed on T/<repo>), so say where it went: the agents pill and `scruff`
-    # both raise it by session name, which is exactly what they are for.
-    printf '  back=%q\n' "$prev_wid"
-    printf '  backapp=%q\n' "$prev_app"
-    printf '  took=%q\n' "$took"
-    printf '  giveback() {\n'
-    printf '    if [ -z "$took" ]; then\n'
-    printf '      [ -n "$gpid" ] || return 0\n'
-    printf '      [ "$(aerospace list-windows --focused --format "%%{app-pid}" 2>/dev/null)" = "$gpid" ] || return 0\n'
-    printf '    fi\n'
-    printf '    [ -n "$back" ] && aerospace focus --window-id "$back" >/dev/null 2>&1 && return 0\n'
-    printf '    [ -n "$backapp" ] && /usr/bin/open -b "$backapp" >/dev/null 2>&1\n'
-    printf '    return 0\n'
-    printf '  }\n'
-    printf '  vanish() {\n'
-    printf '    [ -z "$took" ] || return 0\n'
-    printf '    /run/current-system/sw/bin/haus-notify --source haus.lane --kind fault --symbol eye.slash \\\n'
-    printf '      --thread %q --title "haus · agent lane" \\\n' "$sess"
-    printf '      --body %q >/dev/null 2>&1\n' "$sess opened out of sight and could not be tiled — raise it from the agents pill, or scruff"
-    printf '  }\n'
     # ── the exact window→session join ──────────────────────────────────
     # A lane had none on this backend until now: its session is created by
     # the `zmx attach` at the end of this launcher rather than by
@@ -509,7 +540,7 @@ fi
     printf '    esac\n'
     printf '    p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d " ")\n'
     printf '  done\n'
-    printf '  [ -n "$gpid" ] || { vanish; giveback; stamp ""; exit 0; }\n'
+    printf '  [ -n "$gpid" ] || { stamp ""; exit 0; }\n'
     # The window does not exist for AeroSpace the instant the shell inside it
     # does, so this poll is a real wait rather than the no-op the old one was.
     # ONE window, or none. A fresh `open -na` process owns exactly one window,
@@ -525,7 +556,7 @@ fi
     printf '    [ "$(printf "%%s\\n" "$mine" | grep -c .)" = 1 ] && { WID="$mine"; break; }\n'
     printf '    sleep 0.05\n'
     printf '  done\n'
-    printf '  [ -n "${WID:-}" ] || { vanish; giveback; stamp ""; exit 0; }\n'
+    printf '  [ -n "${WID:-}" ] || { stamp ""; exit 0; }\n'
     # T/<repo>, not a single shared T: every lane of one repo tiles on its own
     # workspace page, so five agents across three repos stop fighting over one
     # tree. Workspace names may contain "/" (checked by hand against AeroSpace);
@@ -543,16 +574,11 @@ fi
     # same-repo lane is somewhere else until this line runs. The one case that
     # really is a no-op — you were already standing on T/<repo> — costs nothing,
     # because the focus it follows to is the focus that window already has.
-    printf '  aerospace move-node-to-workspace %s--window-id "$WID" %q\n' \
-      "$follow" "T/$repo"
+    printf '  aerospace move-node-to-workspace --focus-follows-window --window-id "$WID" %q\n' \
+      "T/$repo"
     printf '  aerospace layout --window-id "$WID" tiling\n'
-    # LAST, and only once the lane has left the visible workspace: give it back
-    # any earlier and AeroSpace would move a window that no longer has focus,
-    # which is the same mis-aim `--focused` used to make.
-    printf '  giveback\n'
-    # LAST, after the screen has gone back: the label is allowed to land late
-    # (a chord pressed in the first quarter-second simply gets the title join),
-    # focus is not.
+    # LAST: the label is allowed to land late — a chord pressed in the first
+    # quarter-second simply gets the title join — and the move is not.
     printf '  stamp "$WID"\n'
     printf ') >/dev/null 2>&1 &\n'
   fi
@@ -578,13 +604,11 @@ chmod +x "$launcher"
 # Ghostty and then polled for two seconds before opening its window. Fixed
 # 2026-08-19; same one-word bug was in scripts/new-window.sh.
 #
-# The direct-exec path skips the pre-warm outright: it involves no
-# LaunchServices launch to race, and the windowless instance a `-g` pre-warm
-# leaves behind is exactly the Apple Events lottery entrant the note above
-# warns about — spawning one for a path that cannot need it would be all cost.
-if [ -z "$ghostty_bin" ] && ! pgrep -ix ghostty >/dev/null 2>&1; then
-  # shellcheck disable=SC2086  # $warm_bg is a whole flag or nothing
-  open $warm_bg -a Ghostty
+# No `-g` on this pre-warm any more: it only ever carried one for a background
+# lane, and a background lane no longer reaches this line at all (the windowless
+# block above returns long before it).
+if ! pgrep -ix ghostty >/dev/null 2>&1; then
+  open -a Ghostty
   for _ in $(seq 1 40); do
     pgrep -ix ghostty >/dev/null 2>&1 && break
     sleep 0.05
@@ -615,43 +639,14 @@ if [ "$backend" = aerospace ]; then
   # `open -na` rather than `ghostty +new-window`, which refuses on macOS
   # ("not supported on this platform").
   #
-  # No `-g` here even for a background lane, however much it looks like the
-  # answer: Ghostty launched into the background opens no window and never runs
-  # its initial-command, so the whole lane silently fails to exist. The
-  # measurement, and what stands in its place — the direct exec below — are in
-  # the background note above.
-  if [ -n "$ghostty_bin" ]; then
-    # A background lane's window, born silent: exec'ing the bundle's binary
-    # skips LaunchServices, so nothing activates, and the clamped
-    # --window-position keeps the birth frame to a 1-px corner sliver until
-    # the launcher's self-tile block moves it to T/<repo>. Backgrounded and
-    # nohup'd because this hook exits immediately and the app must outlive it.
-    #
-    # BOTH stdio redirects are load-bearing, not tidy: a direct exec inherits
-    # this hook's fds, the hook inherits scruff's, and `scruff spawn`'s stdout is
-    # a command substitution in spawn-agent.sh — a Ghostty holding that pipe
-    # open would hang the palette for the life of the lane. (`open -na` never
-    # had the problem; LaunchServices launches carry no fds.)
-    #
-    # `&` cannot fail, which `open -na` could (a refused launch exits non-zero
-    # → exit 3 → scruff reports and the palette drops the lane). The kill -0
-    # probe below buys that reporting back for the launch failures that show
-    # inside 200ms — a bad dylib, translocation, an instant crash. A death
-    # after that is the same blindness `open -na` already has: it, too,
-    # returns before the window exists (the note in the launcher section
-    # above), and the launcher's holds keep the evidence if the lane dies.
-    nohup "$ghostty_bin" \
-      --title="$sess" \
-      --initial-command="$launcher" \
-      --window-position-x=25000 \
-      --window-position-y=25000 >/dev/null 2>&1 &
-    sleep 0.2
-    kill -0 $! 2>/dev/null || exit 3
-  else
-    open -na Ghostty.app --args \
-      --title="$sess" \
-      --initial-command="$launcher" || exit 3
-  fi
+  # And never `-g`, however much it looks like the answer for a quiet spawn:
+  # Ghostty launched into the background opens no window and never runs its
+  # initial-command, so the whole lane silently fails to exist. That
+  # measurement, and what a lane that must not be seen does instead — no window
+  # at all — are in the background note above.
+  open -na Ghostty.app --args \
+    --title="$sess" \
+    --initial-command="$launcher" || exit 3
   exit 0
 fi
 
@@ -671,17 +666,15 @@ osa_str() {
   printf '"%s"' "$v"
 }
 
-# `activate` is a line rather than a literal so a background lane can drop it:
-# the window is still created and its id still returned, so the `gwindow=` join
-# is unaffected either way. (Best effort — this backend asks a RUNNING Ghostty
-# for a window, and AppKit may still order the new window front. The aerospace
-# backend, which is what this machine uses, cannot even try: `open -g` there
-# produces no window at all, so it lets the window take the screen and hands the
-# focus back afterwards. See the background note above.)
+# `activate` is unconditional now. It was a variable so a background lane could
+# drop it, and it was never enough anyway — this backend asks a RUNNING Ghostty
+# for a window, and AppKit may order that window front whatever the script says.
+# A lane that must not be seen opens no window on either backend; see the
+# background note above.
 gwid="$(
   /usr/bin/osascript -e "tell application \"Ghostty\"
   set w to (new window with configuration {command:$(osa_str "$launcher")})
-$activate_line
+  activate
   return id of w
 end tell" 2>/dev/null
 )"
