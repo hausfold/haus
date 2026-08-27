@@ -648,7 +648,11 @@ mechanism, say so in one line.
   session is named `term.<n>`, lowest n that no session holds; a lane is
   `holt.<repo>.<lane>` and belongs to `lanes/lane-open.sh`.
   `scripts/focused-session.sh` is the one window→session join — by forced window
-  title for a lane, by a `window=` label for everything else.
+  title for a lane, by a `window=` label for everything else. AeroSpace's
+  `on-focus-changed` runs `lanes/lane-seen.sh` over that join (wired in
+  `modules/windows`), which is how a lane's parked trill fin comes down when you
+  go to its window YOURSELF instead of clicking the banner — holt's own hooks
+  only see the session move, not you arriving.
   - **A NEW window is always a NEW session, and only `restore-windows.sh` ever
     reattaches one.** "Lowest n that no session holds", not "lowest n that is
     not ATTACHED": a `term.<n>` left by a closed window is a live shell in some

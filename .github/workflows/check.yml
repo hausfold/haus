@@ -262,6 +262,10 @@ jobs:
           # broken row build reads as "the palette closed itself" — which is
           # exactly the bug #430 was opened for. Both are plain bash with no
           # @placeholder@ substitution, so they lint as-is.
+          # lane-seen.sh joins lane-cwd.sh in the list for the same reason and one
+          # more: AeroSpace runs it detached on EVERY focus change
+          # (`exec-and-forget`), so nothing it prints or returns reaches anyone
+          # — a broken one is a lane fin that simply never comes down.
           # modules/core/haus-notify.sh and modules/core/trill.sh are the whole
           # desktop's notification path — every banner haus draws goes through
           # one of them, from a bar plugin, a launchd job or a pounce command,
@@ -278,7 +282,7 @@ jobs:
           # haus.focus.scenes.<name>.when it also runs from launchd on a timer,
           # where a non-zero is not just invisible but silently stops your Mac
           # entering the scenes you declared.
-          shellcheck --severity=warning bootstrap.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/awake.sh modules/core/lidawake.sh test/lidawake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/holt-cache.sh modules/launcher/commands/lanes.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh
+          shellcheck --severity=warning bootstrap.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/awake.sh modules/core/lidawake.sh test/lidawake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/holt-cache.sh modules/launcher/commands/lanes.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
       # lidawake's three failsafes, over a fake pmset and a fake clock. Every
@@ -343,3 +347,12 @@ jobs:
       # one-true-awk's rule, and would pass on the old code without it.
       - name: raise-session lane join
         run: bats test/raise-session-lane-join.bats
+
+      # lane-seen's other half of that join, read backwards: the focused
+      # window's session name back to the trill key holt gave that lane's fin.
+      # The boundary between `<repo>` and `<lane>` cannot be found in the string
+      # — `hausfold.co` is one of ours — so it comes from holt's registry, and
+      # the failure mode of getting it wrong is silent: `trill resolve` is
+      # idempotent, so a wrong key exits 0 and the fin just stays up.
+      - name: lane-seen key join
+        run: bats test/lane-seen.bats

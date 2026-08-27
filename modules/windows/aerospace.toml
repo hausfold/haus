@@ -50,11 +50,16 @@ default-root-container-layout = '@DEFAULT_LAYOUT@'
 
 default-root-container-orientation = '@DEFAULT_ORIENTATION@'
 
-# Both empty unless the pointer should follow focus. Two hooks rather than one:
-# the second alone would leave the pointer behind whenever focus moves between
-# two windows on the same display, which is most of the time. Both are lazy
-# re-centres, so nothing moves while the pointer is already inside whatever took
-# focus.
+# The pointer half is empty unless it should follow focus, and is two hooks
+# rather than one: the second alone would leave the pointer behind whenever
+# focus moves between two windows on the same display, which is most of the
+# time. Both are lazy re-centres, so nothing moves while the pointer is already
+# inside whatever took focus.
+#
+# on-focus-changed carries one more thing when the ai room is on — lane-seen.sh,
+# which takes a lane's parked trill fin down once you are looking at its window.
+# Focus between two windows of ONE app is a thing only the tiler sees, and two
+# lanes are both Ghostty.
 on-focus-changed = [@FOCUS_CHANGED@]
 on-focused-monitor-changed = [@MONITOR_CHANGED@]
 automatically-unhide-macos-hidden-apps = true

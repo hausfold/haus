@@ -61,10 +61,49 @@ let
           ${loginMap.note windowManagerDomain}
         '';
       };
+
+  contrib = import ../lib/contrib.nix { inherit lib; };
 in
 
 {
   options.haus = {
+    # ---- the Windows room's extension points ----------------------------------
+    # See modules/lib/contrib.nix for the contract. AeroSpace is the only thing
+    # on this Mac that sees focus move between two windows of ONE app, so a room
+    # with something to do on that event has nowhere else to hang it — and the
+    # alternative, this room reading `config.haus.ai.*` to decide, is exactly
+    # what the contract exists to stop.
+    _contrib.windows.laneSeen = contrib.mkExtensionPoint {
+      description = ''
+        A script AeroSpace runs, detached, after focus changes.
+
+        Today's one writer is the terminal room's agent lanes: a lane blocked on
+        you parks a trill fin, and going to its window is the earliest honest
+        signal that you have seen it — earlier than the answer holt's own hooks
+        wait for. Off, or with this room off, the fin still comes down when the
+        session moves; what is lost is the moment, not the behaviour.
+
+        It runs on EVERY focus change, so whatever is named here has to reach
+        its own "nothing to do" answer in a stat or two.
+      '';
+      options = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+          description = "Whether AeroSpace should run the script below on focus changes.";
+        };
+        script = lib.mkOption {
+          type = lib.types.str;
+          default = "";
+          description = ''
+            Absolute path to the executable. A path under `~`, not a store path:
+            AeroSpace re-reads its config on rebuild but a callback captured at a
+            store path from a rebuild ago is one nothing can heal.
+          '';
+        };
+      };
+    };
+
     # core + terminal are the floor and have no switch (system, shell). Of the
     # rooms you can SEE, all six have one — windows, bar, launcher, shelf, focus,
     # security — and turning one off drops its packages, agents and config
