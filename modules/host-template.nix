@@ -6,7 +6,7 @@
 # option list, as data rather than as prose, for `haus set`'s picker and the
 # zsh completion. One derivation for both because they are the same query, and
 # because the count self-check at the bottom then guards both files at once:
-# the failure that check exists to catch (a renderer edit that silently halves
+# the failure that check exists to catch (a jq edit that silently halves the
 # list) is exactly as invisible in the catalogue as in the template.
 #
 # WHY THIS EXISTS. The option surface used to be discoverable in exactly one
@@ -37,7 +37,7 @@ in
 pkgs.runCommand "haus-host-template-${version}"
   {
     nativeBuildInputs = [
-      pkgs.python3
+      pkgs.jq
       pkgs.nixfmt
     ];
     meta = {
@@ -50,15 +50,20 @@ pkgs.runCommand "haus-host-template-${version}"
     tmpl="$out/share/haus/host-options.nix"
     catalogue="$out/share/haus/options.json"
 
-    # One pass renders both files and prints the number of settable options it
-    # found — the count every guard below compares against. See
-    # host-template.py for why this is Python and the skill's reference is Nix.
-    want=$(python3 ${./host-template.py} \
-      --options ${optionsJSON}/share/doc/nixos/options.json \
-      --groups ${optionsJSON}/share/doc/nixos/groups.json \
-      --version ${lib.escapeShellArg version} \
-      --template "$tmpl" \
-      --catalogue "$catalogue")
+    jq -r \
+      --slurpfile groups ${optionsJSON}/share/doc/nixos/groups.json \
+      --arg hausVersion ${lib.escapeShellArg version} \
+      -f ${./host-template.jq} \
+      ${optionsJSON}/share/doc/nixos/options.json \
+      > "$tmpl"
+
+    # The same list as data: type, default, and one line of prose per path, for
+    # anything that has to answer "what can I set?" without evaluating the
+    # config. See options-catalogue.jq's header.
+    jq \
+      -f ${./options-catalogue.jq} \
+      ${optionsJSON}/share/doc/nixos/options.json \
+      > "$catalogue"
 
     # A template that rendered empty would be worse than none: someone would
     # conclude haus has no options rather than that the render broke.
@@ -100,8 +105,12 @@ pkgs.runCommand "haus-host-template-${version}"
     nixfmt < parseable.nix > /dev/null \
       || { echo "host template does not parse once its option lines are uncommented" >&2; exit 1; }
 
-    # Every option the renderer found must have reached the file. Cheap, and
-    # it's what stops a filter change from silently halving it.
+    # Every option in the JSON that a host file can actually set must be present.
+    # Cheap, and it's what stops a jq filter change from silently halving the file.
+    want=$(jq -r '[to_entries[]
+                   | select(.key | startswith("haus."))
+                   | select(.key | test("<|\\*") | not)] | length' \
+             ${optionsJSON}/share/doc/nixos/options.json)
     got=$(grep -c '^  haus\.' uncommented.nix || true)
     [ "$got" = "$want" ] \
       || { echo "host template has $got settable options, expected $want" >&2; exit 1; }
@@ -111,11 +120,21 @@ pkgs.runCommand "haus-host-template-${version}"
     # surface as a picker that simply doesn't list your option — indistinguish-
     # able from that option not existing at your pin, which is a thing this file
     # is otherwise designed to tell you truthfully.
-    got=$(grep -c '^  "haus\.' "$catalogue")
+    got=$(jq 'length' "$catalogue")
     [ "$got" = "$want" ] \
       || { echo "options catalogue has $got entries, expected $want" >&2; exit 1; }
 
-    # The per-entry shape check — every entry carrying the facts a picker
-    # prompts from, with the right types — runs inside the renderer, against
-    # the data it built rather than against the file it wrote.
+    # Every entry must carry the facts a picker prompts from, WITH THE RIGHT
+    # SHAPE. `has()` is not the check to make here: it is true for a key whose
+    # value is null, so an entry of four nulls would pass it while the value
+    # prompt silently degraded to a free-text box for an enum — the exact
+    # failure this is for, and it looks like it worked until the rebuild rejects
+    # the value. `default` is the one that legitimately may be null (an option
+    # with no default at all), so it is the one checked by presence.
+    jq -e 'all(.[]; (.type | type == "string")
+                    and (.summary | type == "string")
+                    and (.literal | type == "boolean")
+                    and has("default"))' \
+      "$catalogue" >/dev/null \
+      || { echo "options catalogue has entries with a missing or mistyped type/literal/summary" >&2; exit 1; }
   ''
