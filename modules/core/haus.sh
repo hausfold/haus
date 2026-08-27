@@ -330,8 +330,8 @@ heal() { # run "$@"; on the cache-corruption signature, wipe the caches and retr
 }
 
 # ---- the Full Disk Access guard ---------------------------------------------
-# §5.12 of the workshop's notes/options-roadmap.md, and the sharpest edge in the
-# whole option surface: `system.defaults.universalaccess.*` is TCC-protected, and
+# The sharpest edge in the whole option surface:
+# `system.defaults.universalaccess.*` is TCC-protected, and
 # the write succeeds only if the app RESPONSIBLE for the rebuild holds Full Disk
 # Access. nix-darwin emits it unguarded into an activation script running under
 # `set -e`, two thirds of the way in — so without the grant activation aborts
@@ -460,7 +460,7 @@ closure_diff() { nix store diff-closures "$1" "$2" >"$3" 2>/dev/null || true; }
 legacy_switch() { ( cd "$CONSUMER" && sudo /run/current-system/sw/bin/darwin-rebuild switch --flake ".#$1" ); }
 
 # ---- reversibility: plan / diff / capture / revert-settings ----------------
-# §5.11 of the workshop's notes/options-roadmap.md. A shared engine, because
+# A shared engine, because
 # `haus plan` (what WOULD change) and `haus diff` (what's declared vs what
 # macOS actually has right now) are the same comparison run against two
 # different activation scripts — a fresh build for plan, the running system
@@ -662,7 +662,7 @@ settings_diff() {
         fi
         ;;
       noop)
-        warn "$domain $key: declared $declared — this domain is a KNOWN SILENT NO-OP on macOS 26 (writes, no effect; see notes/macos-settings-matrix.md)"
+        warn "$domain $key: declared $declared — this domain is a KNOWN SILENT NO-OP on macOS 26 (writes, no effect; see haus docs/macos-settings.md)"
         flagged=$((flagged + 1))
         ;;
       appearance)
@@ -3367,8 +3367,7 @@ cmd_tour() {
 # ---- acquisition step D: add / desktop / remove -----------------------------
 # `haus add`, `haus desktop` and `haus remove` all write ONE file — flake.nix —
 # and never rebuild: acquisition never activates, and anything this cannot
-# verify, it prints instead of writing. Design: the workshop's
-# notes/rooms-desktops.md, "Step D, designed".
+# verify, it prints instead of writing.
 #
 # The subject's string goes into a Nix expression (the input URL), so it is
 # escaped as a Nix string rather than pasted — the same rule and the same

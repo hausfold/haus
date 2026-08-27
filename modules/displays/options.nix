@@ -28,8 +28,8 @@
       gives us for "make EVERYTHING bigger", system-wide, including apps haus
       knows nothing about. macOS's own text-size setting writes a value no running
       app re-reads, while the accessibility scalars that do work affect contrast
-      or motion rather than system-wide size — measured, not assumed (the
-      workshop's notes/macos-settings-matrix.md records the sweep). So
+      or motion rather than system-wide size — measured, not assumed (haus's
+      `docs/macos-settings.md` records the sweep). So
       `haus.ui.scale` and `haus.fonts` make *haus's own tools* bigger, and
       this makes the *Mac* bigger.
     '';

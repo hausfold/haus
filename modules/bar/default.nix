@@ -150,7 +150,7 @@ let
   popupAlign = side: "popup.align=${side}";
 
   # haus.workspaces drives the pills now (workspace membership earns
-  # one, not an app field — see notes/options-roadmap.md §5.4); the keyed
+  # one, not an app field); the keyed
   # roster subset still drives the leader picker.
   launchers = config.haus._launchers;
   workspaces = config.haus._workspaces;

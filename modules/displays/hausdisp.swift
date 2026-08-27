@@ -28,7 +28,7 @@
 // Why this exists: display scaling is the ONLY working "make everything bigger"
 // lever on macOS 26 — its text-size setting writes a value no running app
 // re-reads, while the working accessibility scalars affect contrast or motion,
-// not system-wide size (see the workshop's notes/macos-settings-matrix.md). It is
+// not system-wide size (see `docs/macos-settings.md`). It is
 // public CoreGraphics, so the rice ships ~150 lines of Swift instead of taking a
 // Homebrew dependency on displayplacer (which isn't in nixpkgs anyway).
 //

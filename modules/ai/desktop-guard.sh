@@ -123,7 +123,7 @@ cmd=$(j '.tool_input.command')
 
 # ---- another machine's screen is not this screen ---------------------------
 # A lane feel-tests the desktop in its OWN headless macOS VM (`scruff runtime up
-# --backend tart`, written up in the WORKSHOP's notes/agent-vm.md — not a
+# --backend tart`, written up in the workshop's `docs/agent-vm.md` — not a
 # file in this repo), driven entirely over ssh: `ssh
 # admin@<guest> 'haus rebuild'`, `… 'sketchybar --reload …'`, `… 'killall
 # Dock'`. Not one of those is visible to the person at this Mac — the guest

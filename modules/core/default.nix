@@ -98,7 +98,7 @@ let
   devCfg = config.haus.developer;
   fontsCfg = config.haus.fonts;
 
-  # ---- restart map (notes/macos-settings-matrix.md §4) ----------------------
+  # ---- restart map (`docs/macos-settings.md`) ----------------------
   # See modules/lib/restart-map.nix for what each value means and why. The
   # typed domains here are unconditional because the rice writes every one of
   # them via mkDefault on every rebuild (dock.autohide, the finder block,
@@ -768,7 +768,7 @@ in
       fi
     '')
 
-    # ---- restart map (notes/macos-settings-matrix.md §4) --------------------
+    # ---- restart map (`docs/macos-settings.md`) --------------------
     # Every process below reads its plist domain once, at LAUNCH — the finder
     # sort order, the view style and the POSIX-path title, the Control Center
     # layout — are baked into the running process the moment it starts.

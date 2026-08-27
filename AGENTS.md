@@ -220,8 +220,8 @@ add their own cask/brew).
 ### Desktops
 
 A **desktop** is a complete, data-only answer to "what should this Mac feel
-like?", and a finished configuration runs **exactly one** (the model is the
-workshop's `notes/rooms-desktops.md`). `mkHaus` takes a `desktop` argument,
+like?", and a finished configuration runs **exactly one** — the full model is
+[`docs/model.md`](./docs/model.md). `mkHaus` takes a `desktop` argument,
 defaulting to `./desktops/hacker.nix`. `desktop = null` is the low-level
 composition escape hatch: by itself it selects the bare haus foundation, or it
 makes room for one `lib.desktop` passed through `extraModules`. A standalone

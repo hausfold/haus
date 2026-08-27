@@ -96,7 +96,7 @@ silent() {
   silent "ssh admin@192.168.64.5 'killall Dock; open -a Pounce; aerospace focus left'"
 }
 
-@test "the capture round trip in the workshop's notes/agent-vm.md is silent end to end" {
+@test "the VM capture round trip is silent end to end" {
   silent 'ssh admin@$(tart ip scruff-lane) "/usr/sbin/screencapture -x /tmp/s.png" && scp admin@$(tart ip scruff-lane):/tmp/s.png ./shot.png'
 }
 

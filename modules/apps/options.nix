@@ -122,7 +122,7 @@
     # A saved app collection, named. `pack` used to be a top-level concept a
     # consumer stacked beside a whole rice; it is something this room offers
     # now, because "what's on this machine" is the question the Apps room
-    # already answers (the workshop's notes/rooms-desktops.md, step 5).
+    # already answers (`docs/model.md`).
     #
     # One switch per shipped pack rather than a list of names: the switch is
     # then an ordinary desktop-safe boolean the registry can classify, the

@@ -45,7 +45,7 @@
 #         This is the routing half: an agent handed "make my mac quiet" and a
 #         flat list of option leaves has no way to reach `haus.focus.*`.
 #
-# The family standard these serve is the workshop's `notes/agent-surface.md`.
+# The family standard these serve is the workshop's `docs/agent-surface.md`.
 # `room-registry` requires both on every room, for the same reason it already
 # requires a title and a blurb: a room that shipped without them is a room the
 # agent silently can't route to, which reads to the user as haus not supporting
@@ -957,7 +957,7 @@ let
   # sentence for itself, which is how the docs ended up describing "35 rooms" —
   # one per namespace, with module names (`core`, `terminal`, `windows`) where a
   # product name belongs. Rooms are the unit the product model names
-  # (workshop's notes/rooms-desktops.md); namespaces are how they are spelled
+  # (`docs/model.md`); namespaces are how they are spelled
   # in a host file.
   #
   # The last two entries are not product rooms — they are the owners

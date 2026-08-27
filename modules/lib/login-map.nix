@@ -8,8 +8,8 @@
 #                     when the honest answer to the second question is "nothing
 #                     this rebuild can do — log out"?
 #
-# §5.6 of the workshop's notes/options-roadmap.md refused to ship three settings
-# groups for exactly one reason: `com.apple.WindowManager` and
+# Three settings groups were once refused for exactly one reason:
+# `com.apple.WindowManager` and
 # `com.apple.loginwindow` have no live-reload path on macOS 26, and "a group that
 # silently needs a logout is worse than no group". Half of that was closed in
 # haus#353 — activation announces every logout-only domain the built

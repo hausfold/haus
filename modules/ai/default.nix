@@ -2,7 +2,7 @@
 # first-class part of the machine rather than three binaries you happen to have.
 #
 # This is the first room declared as a CROSS-ROOM CAPABILITY (the contract is
-# notes/rooms-desktops.md, "Rooms cooperate"). The room owns the capability: its
+# `docs/model.md`, "Rooms cooperate"). The room owns the capability: its
 # switch, its clients, the `scruff` worktree lifecycle and the files written into
 # every client's home. What it adds to OTHER rooms — the terminal's agent
 # chords, the bar's `agents` pill, the launcher's Spawn Agent — it adds through
@@ -348,7 +348,7 @@ let
   #
   # `trillEnabled` is the one thing this file adds to the list: scruff is on every
   # machine, trill's room is off by default, and an agent skill for an app this
-  # Mac doesn't have is worse than none (the workshop's notes/agent-surface.md
+  # Mac doesn't have is worse than none (the workshop's `docs/agent-surface.md`
   # §4). Gated HERE rather than in that file so the `.#tool-skills` check still
   # proves trill's skill name whatever any one machine turns on.
   toolSkills = import ./tool-skills.nix {

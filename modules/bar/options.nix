@@ -15,7 +15,7 @@ let
   # The names, defaults and descriptions all come out of ./widgets.nix, which
   # is the ONE table both this file and default.nix read. It used to be two
   # hand-written attrsets right here (`core` and `extra`), which is exactly the
-  # shape §5.9 of the workshop's notes/options-roadmap.md was written about: a
+  # shape this room was refactored out of: a
   # closed submodule that grew a leaf every time a pill shipped, in three places
   # each time (here, `bar.bottom.items`, and the block table in default.nix).
   #

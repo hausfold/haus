@@ -15,7 +15,7 @@
 # peek (bar/…/agents.sh). Under zellij they all called
 # `zellij action dump-screen`; the replacement is `zmx history` / `zmx tail`,
 # and that only exists if the window's shell is INSIDE a session. So the session
-# is the read API, exactly as it is for a lane — see notes/zellij-exit.md.
+# is the read API, exactly as it is for a lane.
 #
 # ── the name ─────────────────────────────────────────────────────────────────
 # `term.<n>`, lowest n that no session holds. A NEW window is always a new
