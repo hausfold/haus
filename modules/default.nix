@@ -92,5 +92,11 @@
     # the newest and depends on none of them: it reads haus.ai.enable only to
     # assert against a lane shim with no lanes to shim.
     ./portless
+    # The local Anthropic proxy. Its options are `haus.ai.meridian.*` — the AI
+    # room's address, this room's files; modules/meridian/options.nix says why.
+    # After ./portless because it is the same shape one room over: an npm-only
+    # service under launchd, differing only in which side of the user boundary
+    # it has to run on.
+    ./meridian
   ];
 }

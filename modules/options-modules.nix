@@ -49,5 +49,6 @@
   ./github/options.nix
   ./secrets/options.nix
   ./portless/options.nix
+  ./meridian/options.nix
   ./snippets/options.nix
 ]
