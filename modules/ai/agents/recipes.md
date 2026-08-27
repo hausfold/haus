@@ -209,6 +209,29 @@ haus.snippets.matches = [
 ];
 ```
 
+## "My dev servers keep fighting over port 3000"
+
+```nix
+haus.portless.enable = true;
+```
+
+Every dev server gets a name instead of a number — `https://myapp.localhost`,
+real HTTPS, no port suffix. One proxy on :443 hands out the ports, so two
+projects that both default to 3000 stop colliding and a restarted server keeps
+the browser tab you already had open.
+
+The reason it is worth turning on even for one project is agent lanes. `holt`
+puts several agents in several worktrees of the SAME repo, so several copies of
+the same `npm run dev` want the same port; the second one dies, or quietly takes
+the next number while every hardcoded URL still points at the first. With this
+on, each lane gets its own hostname: run `portless-lane` in a lane instead of
+`npm run dev` and it serves at `<lane>.<repo>.localhost` — `wiggly-crane.haus.localhost`.
+Outside a lane, plain `portless` is the same thing without the renaming.
+
+One click is needed once: `haus permissions` has a card for trusting portless'
+local certificate authority, which is what stops the browser warning. haus will
+not install a CA for you during a rebuild.
+
 ## "It's hard to read" / accessibility
 
 Two different layers, and the difference matters:

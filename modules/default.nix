@@ -88,5 +88,9 @@
     ./github
     ./secrets
     ./snippets
+    # Named .localhost URLs for dev servers. Last among the rooms because it is
+    # the newest and depends on none of them: it reads haus.ai.enable only to
+    # assert against a lane shim with no lanes to shim.
+    ./portless
   ];
 }
