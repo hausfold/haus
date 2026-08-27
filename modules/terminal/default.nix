@@ -1428,8 +1428,19 @@ in
 
             appearance="$obsidian/appearance.json"
             if [ -e "$appearance" ] && ! readableObsidianJson "$appearance"; then
-              [ -x /usr/bin/brctl ] && \
-                $DRY_RUN_CMD /usr/bin/brctl download "$appearance" >/dev/null 2>&1 || true
+              if [ -x /usr/bin/brctl ]; then
+                $DRY_RUN_CMD /usr/bin/brctl download "$appearance" || true
+                # brctl asks; it does not promise the bytes have landed by the
+                # time it returns. Ten tries at 200ms is the whole budget —
+                # past that the provider is still fetching over the network,
+                # and this vault gets themed on the next rebuild rather than
+                # holding one up.
+                tries=0
+                while [ $tries -lt 10 ] && ! readableObsidianJson "$appearance"; do
+                  ${pkgs.coreutils}/bin/sleep 0.2
+                  tries=$((tries + 1))
+                done
+              fi
             fi
             if [ -e "$appearance" ] && ! readableObsidianJson "$appearance"; then
               echo "warning: iCloud has not downloaded $appearance; Nebelung is installed in this vault but not selected: $vault" >&2
@@ -1449,7 +1460,7 @@ in
                 | .enabledCssSnippets = ((.enabledCssSnippets // []) | map(select(. != \"nebelung\")))" \
                 "$base" > "$tmp"; then
                 rm -f "$tmp" "$tmp.base"
-                echo "warning: $appearance is not readable JSON; leaving this vault untouched" >&2
+                echo "warning: could not rewrite $appearance; leaving this vault untouched" >&2
                 exit 0
               fi
               mv "$tmp" "$appearance"

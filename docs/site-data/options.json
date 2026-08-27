@@ -5972,7 +5972,7 @@
       "_type": "literalExpression",
       "text": "[ ]"
     },
-    "description": "Home-relative paths to existing Obsidian vaults that should use the\nNebelung theme. On each activation, Terminal copies the rendered\ntheme.css + manifest.json into each vault's .obsidian/themes/Nebelung/\ndirectory, selects Nebelung's dark appearance in appearance.json, and\nremoves the obsolete \"nebelung\" CSS snippet from the enabled list.\n\nEmpty (the default) leaves every vault untouched. Paths must be\nrelative to the user's home, may not contain \"..\", and are skipped\nwith a warning unless their .obsidian directory already exists.\n",
+    "description": "Home-relative paths to existing Obsidian vaults that should use the\nNebelung theme. On each activation, Terminal copies the rendered\ntheme.css + manifest.json into each vault's .obsidian/themes/Nebelung/\ndirectory, selects Nebelung's dark appearance in appearance.json, and\nremoves the obsolete \"nebelung\" CSS snippet from the enabled list.\n\nEmpty (the default) leaves every vault untouched. Paths must be\nrelative to the user's home, may not contain \"..\", and are skipped\nwith a warning unless their .obsidian directory already exists.\n\nA vault whose appearance.json iCloud has evicted, or that holds JSON\nTerminal cannot parse, gets the theme files but keeps its own\nappearance settings, with a warning naming the vault. Activation\nnever fails over a vault.\n",
     "example": {
       "_type": "literalExpression",
       "text": "[\n  \"Library/Mobile Documents/iCloud~md~obsidian/Documents/notes\"\n]"
