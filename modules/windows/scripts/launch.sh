@@ -28,4 +28,39 @@ if [ -n "$ws" ] && [ -x "$HOME/.config/aerospace/workspace-mru.sh" ]; then
     ws="$("$HOME/.config/aerospace/workspace-mru.sh" resolve "$ws")"
 fi
 [ -n "$ws" ] && aerospace workspace "$ws"
+
+# Focus a window we can SEE rather than activating the app, whenever the target
+# workspace already holds one of this app's windows.
+#
+# `open -a` on a running app is macOS's ⌘⇥, and it raises the app's own last KEY
+# window — a per-app fact macOS keeps, which knows nothing about pages. AeroSpace
+# follows that focus, so activating Ghostty a beat after switching to `T/<repo>`
+# can land you back on whichever Ghostty window macOS remembers, and bare T is
+# the usual holder of it (plain windows are sent home to T). That is the whole
+# "`caps t` ignores the page I was on, but only when T has windows in it" bug:
+# the resolve above is right, the activation drags you off it. With no window of
+# the app on the target workspace there is nothing to raise and the switch
+# sticks, which is why an EMPTY T never showed it.
+#
+# Matching is on AeroSpace's `%{app-name}` against the roster name we were
+# handed. A roster name that is not the bundle's display name simply finds
+# nothing and falls through to `open -a`, which is the old behaviour.
+#
+# The switch above already focused the workspace's OWN last-focused window, which
+# is a better answer than any window this script could pick — so the common case
+# is to notice that we have arrived and stop, touching nothing.
+if [ -n "$ws" ]; then
+    focused="$(aerospace list-windows --focused --format '%{app-name}|%{workspace}' 2>/dev/null)"
+    if [ "${focused%%|*}" = "$app" ] && [ "${focused#*|}" = "$ws" ]; then
+        exit 0
+    fi
+
+    wid="$(aerospace list-windows --workspace "$ws" --format '%{window-id}|%{app-name}' 2>/dev/null |
+             awk -F'|' -v want="$app" '$2 == want { print $1; exit }')"
+    if [ -n "$wid" ]; then
+        aerospace focus --window-id "$wid" 2>/dev/null
+        exit 0
+    fi
+fi
+
 open -a "$app"
