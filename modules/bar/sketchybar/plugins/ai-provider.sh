@@ -6,10 +6,12 @@
 # Two readers use it, and they used to carry their own copy of the same case
 # block — which is how the aiUsage pill grew an OpenAI mark for Codex while the
 # agents pill still drew every client as the same anonymous robot:
-#   • ai_usage.sh — one row per provider REPORTING USAGE
-#     (claude/codex/opencode/pi), where opencode and pi are really
-#     bring-your-own-key front ends, so their mark comes from the model behind
-#     them rather than from the client itself.
+#   • ai_usage.sh — one row per provider REPORTING USAGE (claude/codex/opencode),
+#     where opencode is really a bring-your-own-key front end, so its mark comes
+#     from the model behind it rather than from opencode itself. pi is NOT in
+#     that list — nothing writes a usage row for it — but it has an arm below
+#     anyway, because the OTHER reader draws running panes and would otherwise
+#     give a pi lane the anonymous robot.
 #   • agents.sh   — one row per RUNNING AGENT PANE, whose client id is written
 #     into the state file by agents-hook.sh. No model is known there; the
 #     second argument is simply empty and the generic mark is right.

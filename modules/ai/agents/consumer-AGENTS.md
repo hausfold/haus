@@ -12,7 +12,8 @@ hosts/<hostname>/settings/*.nix  one ordinary module per `haus set` override
 ```
 
 This file is the one set of instructions, for every agent — Claude Code, Codex,
-OpenCode, pi, Cursor, Copilot all read it, directly or through a one-line pointer.
+OpenCode, pi, Cursor, Copilot all read it, directly or through a one-line
+pointer.
 The `CLAUDE.md` beside it is that pointer and holds no rules of its own.
 
 ## Working here

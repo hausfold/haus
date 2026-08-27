@@ -2213,8 +2213,14 @@ in
       # would be the rice arguing with you:
       #   hideThinkingBlock       — thinking folded away by default.
       #   modelThinkingLevels     — think hard on the Anthropic models by
-      #     default. Object-merged with YOURS winning, so this fills in models
-      #     you have never named and never overrules a level you set.
+      #     default.
+      #
+      # Both are guarded on `has()` rather than merged, and the object one is
+      # the reason why: `{ours} + (.yours // {})` looks like seed-once and
+      # isn't. A level you CHANGED wins, but one you DELETED in `/settings`
+      # comes back at the next rebuild — which is precisely the arguing this
+      # split exists to avoid. `has()` asks the only question that separates
+      # "never had an opinion" from "had one and dropped it".
       #
       # And `packages` is a union, never a set: `ai.pi.packages` is added beside
       # whatever `pi install` put there, so the file stays yours. The corollary
@@ -2243,10 +2249,13 @@ in
             ${pkgs.jq}/bin/jq --argjson add "$packages" ".tuiMode = \"fullscreen\"
               | .quietStartup = true
               | (if has(\"hideThinkingBlock\") then . else .hideThinkingBlock = true end)
-              | .modelThinkingLevels = ({\"anthropic/claude-opus-5\": \"high\", \"anthropic/claude-fable-5\": \"high\", \"anthropic/claude-sonnet-5\": \"high\"} + (.modelThinkingLevels // {}))
+              | (if has(\"modelThinkingLevels\") then . else .modelThinkingLevels = {\"anthropic/claude-opus-5\": \"high\", \"anthropic/claude-fable-5\": \"high\", \"anthropic/claude-sonnet-5\": \"high\"} end)
               | .packages = ((.packages // []) + (\$add - (.packages // [])))" \
               "$base" > "$tmp" && mv "$tmp" "$settings"
-            rm -f "$tmp.base"
+            # Both, not just the base: when jq fails the `&& mv` short-circuits
+            # and a half-written "$tmp" would otherwise sit beside pi's real
+            # settings file forever, looking like something it should read.
+            rm -f "$tmp" "$tmp.base"
           ' "$HOME/.pi/agent/settings.json" ${lib.escapeShellArg (builtins.toJSON agentsCfg.pi.packages)}
         ''
       );

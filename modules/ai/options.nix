@@ -138,10 +138,17 @@ in
         session for that cwd, and `pi` continues the newest session in that
         checkout (`pi --continue`, with `pi --resume`'s picker behind it). They
         share one `scruff` branch/parking/reap
-        lifecycle, and they all light up the `agents` bar pill — the opencode
+        lifecycle.
+
+        Three of the four light up the `agents` bar pill — the opencode
         plugin and the codex hooks are written for
         you; only Claude Code's stay yours to wire, because Claude owns its own
-        settings.json (see `haus.bar.items.agents`).
+        settings.json (see `haus.bar.items.agents`). `pi` is the exception and
+        will stay one until somebody writes the extension: it reports its
+        state through an extension API rather than a hook file, so a pi lane
+        spawns, resumes and reaps like any other and simply does not appear in
+        the pill. It reports no usage either, so naming it in
+        `haus.bar.aiUsage.provider` selects a row that never has a number.
 
         Two of them ask before reading a folder they have not seen, and a lane's
         checkout is always one — so `scruff` copies the decision you already made

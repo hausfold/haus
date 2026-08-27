@@ -703,8 +703,10 @@ mechanism, say so in one line.
     installs into the bar's plugin dir, so the PATH copy and the bar copy can
     never drift. Every client's hooks call it (`agent-state
     <working|waiting|idle|remove> <client>`), which is why the wirings the AI
-    room writes for opencode, codex and pi never need to know where a bar keeps its
-    plugins.
+    room writes for opencode and codex never need to know where a bar keeps
+    its plugins. pi has no such wiring yet — it has an extension API rather
+    than a hook file, and nobody has written the extension — so a pi lane is
+    a client the palette spawns and the pill cannot see.
   - `scruff-cache` exists because `scruff --json` is an investigation rather than a
     listing — `scruff list` self-heals through a parked reap sweep on the way in,
     and that sweep AND the JSON encoder each dump `lsof -d cwd` machine-wide
