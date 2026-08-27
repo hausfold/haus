@@ -162,11 +162,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1787844164,
-        "narHash": "sha256-kCK7ccwT8YFt6KWDORes0jWXF+NC+eL4+VAssasKcYk=",
+        "lastModified": 1787847615,
+        "narHash": "sha256-ZF7DmLMlbNZ4SU3TQz5p3/msZ8HhOhvBCwHS0BwM0Rg=",
         "owner": "hausfold",
         "repo": "pounce",
-        "rev": "0566ef46de1cf6d7a2a090956353e1df1cc44308",
+        "rev": "2ffbe46438b15a1b8e917b87119e73c6ff166fbb",
         "type": "github"
       },
       "original": {
