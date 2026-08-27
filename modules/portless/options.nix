@@ -20,7 +20,7 @@
           open, and cookies and localStorage stop leaking between apps that used
           to share an origin.
 
-          The reason it is in haus at all is agent lanes. `holt` puts N agents in
+          The reason it is in haus at all is agent lanes. `scruff` puts N agents in
           N worktrees of the SAME repo, so N copies of `npm run dev` want the
           same port — the second one dies, or quietly takes 3001 and every
           hardcoded URL now points at the wrong lane. portless already knows
@@ -122,13 +122,13 @@
           default = config.haus.ai.enable;
           defaultText = lib.literalExpression "config.haus.ai.enable";
           description = ''
-            In a `holt` lane, register the lane's dev server under
+            In a `scruff` lane, register the lane's dev server under
             `<lane>.<repo>.localhost` — `wiggly-crane.haus.localhost` — rather
             than the name portless infers on its own.
 
             It infers a good one already: inside a git worktree it prefixes the
             branch, so a lane lands on `<branch>.<project>.localhost` with no help
-            from us. The gap is cosmetic and entirely holt's fault — holt's
+            from us. The gap is cosmetic and entirely scruff's fault — scruff's
             branches are `worktree-<lane>` and portless splits a branch on `/`,
             so the prefix comes out as the whole `worktree-wiggly-crane` rather
             than the lane name you actually call it. This registers the shorter

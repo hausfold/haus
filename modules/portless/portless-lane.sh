@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# portless-lane — run a dev server in a holt lane under `<lane>.<repo>.localhost`.
+# portless-lane — run a dev server in a scruff lane under `<lane>.<repo>.localhost`.
 #
 # portless already names a worktree well on its own: inside one it prefixes the
 # git branch, so a lane lands on `<branch>.<project>.localhost` with no help from
-# anybody. The gap this closes is cosmetic and is holt's fault, not portless':
-# `branchToPrefix` splits a branch on "/" and takes the last segment, and holt's
+# anybody. The gap this closes is cosmetic and is scruff's fault, not portless':
+# `branchToPrefix` splits a branch on "/" and takes the last segment, and scruff's
 # branches are `worktree-<lane>` with a DASH — so the prefix comes out as the
 # whole `worktree-wiggly-crane` rather than the `wiggly-crane` you call the lane.
 # There is no flag to override just the prefix (--name replaces the base name and
@@ -49,8 +49,8 @@ die() {
 }
 
 # ── who am I ─────────────────────────────────────────────────────────────────
-# The lane is the checkout's own directory name, which is what holt named it and
-# what you type at `holt <name>`. The repo is the MAIN checkout's basename, the
+# The lane is the checkout's own directory name, which is what scruff named it and
+# what you type at `scruff <name>`. The repo is the MAIN checkout's basename, the
 # same join lane-open.sh makes for its zmx session name — `git rev-parse
 # --git-common-dir` points into the main checkout's .git from inside a worktree.
 common_dir=$(git rev-parse --git-common-dir 2>/dev/null) || die "not in a git repo"
@@ -84,8 +84,8 @@ lane=$(label "$(basename "$toplevel")")
 repo=$(label "$(basename "$main_checkout")")
 name="$lane.$repo"
 
-# NOTE the second label is the REPO's directory name, which is what holt calls it
-# and what you type at `holt <name>` — not portless' own inferred project name,
+# NOTE the second label is the REPO's directory name, which is what scruff calls it
+# and what you type at `scruff <name>` — not portless' own inferred project name,
 # which comes from package.json and can differ. When they differ you simply get
 # two working names for one server (`wiggly-crane.haus` here, portless'
 # `worktree-wiggly-crane.myapp` beside it), which is the cheap direction for

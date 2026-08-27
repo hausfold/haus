@@ -70,15 +70,16 @@
     # the rice's old bash `wt.sh` (now retired entirely). Its overlay puts
     # `scruff` in pkgs, and core ships it on PATH as the only worktree-lifecycle
     # CLI the rice knows.
-    # ⚠️ The INPUT is `scruff`; the URL still names `hausfold/holt`, and that is
-    # not a leftover. The repo renames in the tool's own Phase 3 (its
-    # docs/rename.md §5) — until it does, `github:hausfold/scruff` is a 404 and
-    # this flake would not evaluate. Bilingual 0.5.0 is what lets the NAME move
-    # here first: its overlay exports `scruff` and `holt` as the same
-    # derivations, so nothing has to move in step. Repoint the URL once the
-    # rename lands; GitHub's redirect means nothing breaks in the meantime.
+    # The repo was `hausfold/holt` until 2026-08-27, and the INPUT NAME moved
+    # first (#538) while the URL waited on the rename. Both halves are `scruff`
+    # now. GitHub's rename redirect is why this is worth a comment rather than
+    # being invisible: `github:hausfold/holt` still resolves, so an input left
+    # on the old name looks healthy right up until the redirect stops — which
+    # is what the workshop's `bench status` is checking when it flags a FAMILY
+    # repo as RENAMED. A lock node from before this landed still says `holt`
+    # under `repo`; `nix flake update scruff` is what moves it.
     scruff = {
-      url = "github:hausfold/holt";
+      url = "github:hausfold/scruff";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -95,7 +96,7 @@
     # hand-picked 256-colour index.
     #
     # ⚠️ Second repo on trill's footing: a flake input and a lock source WITHOUT
-    # being one of bench's `FAMILY` repos. (scruff/holt is an input too and is
+    # being one of bench's `FAMILY` repos. (scruff is an input too and is
     # NOT such a repo — it is in FAMILY. trill and snug are the only two where
     # the two questions come apart.) Adding an input is not the same act as
     # putting a repo on the ship chain — bench's 🚨 by that array is the argument.

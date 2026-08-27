@@ -760,7 +760,7 @@ mechanism, say so in one line.
 
   All are plain bash embedded via `builtins.readFile`, so a rebuild re-installs
   them on `PATH`. Agent worktrees themselves are **`scruff`**
-  ([its own repo](https://github.com/hausfold/holt)), taken as a flake input.
+  ([its own repo](https://github.com/hausfold/scruff)), taken as a flake input.
   `haus`, the workshop's `bench` and `scruff` are named apart on purpose so they
   never shadow each other — `haus` = your machine, `bench` = the family repos,
   `scruff` = the worktree tool. (User-facing docs: the

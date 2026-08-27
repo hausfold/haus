@@ -5,7 +5,7 @@
 # it at `https://<name>.localhost` with no port and no certificate warning.
 #
 # Why the layer ships it rather than leaving it a per-project devDependency: agent
-# lanes. `holt` puts N agents in N worktrees of the SAME repo, which means N
+# lanes. `scruff` puts N agents in N worktrees of the SAME repo, which means N
 # copies of the same `npm run dev` all wanting the same port — the second one
 # dies with EADDRINUSE, or silently takes the next number and every hardcoded URL
 # in the project now points at a different lane's server. That is a machine-wide
