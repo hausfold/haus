@@ -350,6 +350,29 @@ mechanism, say so in one line.
   `pkgs.trill` would make a rebuild's own progress bar depend on a room nobody
   turned on. That is what the old wording ("must not become an input") was
   protecting, and it is still the rule — it was just stated one level too wide.
+- **`sudo --user=` from activation keeps ROOT's `HOME`.** macOS's
+  `/etc/sudoers` ships `Defaults env_keep += "HOME MAIL"`, so the
+  `launchctl asuser <uid> sudo --user=${username} --` shape every room uses to
+  act in the user's GUI session runs the command as the user while handing it
+  `HOME=/var/root`. `open` then passes its own environment to the app it
+  launches, so a relaunched GUI app carries the wrong home for its whole life —
+  measured on mbp 2026-08-26, `ps eww` on a live Trill and Perch both showed it,
+  and it is what broke trill's lane banners: `holt focus` looked for
+  `$HOME/.cache/claude-worktrees` under `/var/root` and died `permission denied`
+  in 5 ms, raising no window and logging nothing. **Pass `-H`** — it is the sudo
+  flag that beats the keep list (`sudoers(5)`'s `always_set_home` exists for
+  this exact pairing). Fixing it in the child, as hausfold/trill#42 does, is one
+  patch per child; the launch is the cause.
+  - **It is a launch bug, not a blanket one.** `defaults`, `activateSettings`
+    and hausax's input-source writes all go through **CFPreferences, which never
+    reads `$HOME`** — `cfprefsd` is keyed by uid and takes the home from the
+    password database (measured: `env HOME=<tmpdir> defaults write` still lands
+    in `~/Library/Preferences`); `hausax post-notification`, the one that isn't
+    CFPreferences, posts to the distributed notification center and has no home
+    to read either. So `modules/core`'s six sites deliberately carry no `-H`,
+    with the reasoning written above them. The test for a new site is whether it
+    launches an app or execs something that reads `$HOME` — not which file it
+    is in.
 - **launchd GUI race**: GUI agents (AeroSpace, SketchyBar, pounce) launched at
   cold boot before the Aqua session is ready park with exit 78 (EX_CONFIG) and
   wedge. `modules/lib/gui-wait.nix` polls for Dock/Finder/SystemUIServer and

@@ -332,8 +332,15 @@ lib.mkIf config.haus.shelf.enable {
       # alone rather than changed on a hunch: if the shelf is ever reported
       # back and isn't there, this is the line, and the probe is the reason.
       if [ -n "$perchRelaunch" ] && [ -x "$perchExec" ]; then
+        # ⚠️ `-H`. macOS's /etc/sudoers ships `Defaults env_keep += "HOME MAIL"`,
+        # so `sudo --user=` from activation keeps ROOT's HOME, and `open` hands
+        # its environment to the app it launches — without this flag Perch comes
+        # back running as you with `HOME=/var/root`, and anything the shelf
+        # spawns reads root's home. Measured on mbp 2026-08-26 with `ps eww`,
+        # alongside the same bug in ../notifications, where it cost trill its
+        # lane banners outright.
         ${pkgs.coreutils}/bin/timeout 20 launchctl asuser "$perchUid" \
-          sudo --user=${username} -- /usr/bin/open -g "$perchDest" || true
+          sudo -H --user=${username} -- /usr/bin/open -g "$perchDest" || true
         perchUp=""
         for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
           if /usr/bin/pgrep -qU "$perchUid" -f "^$perchExec$"; then perchUp=1; break; fi

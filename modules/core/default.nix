@@ -620,6 +620,26 @@ in
   # So we emit the same command shape ourselves, guarded: on refusal, say why
   # and carry on. Degrading to "the setting didn't apply" is the correct
   # failure; a half-activated Mac is not.
+  # ---- why none of the `sudo --user=` calls below carry `-H` -------------
+  # macOS's /etc/sudoers ships `Defaults env_keep += "HOME MAIL"`, so a plain
+  # `sudo --user=` from activation runs the command as you while handing it
+  # ROOT's HOME. That is a real bug wherever the command LAUNCHES something on
+  # your behalf — ../notifications and ../shelf both pass `-H` for exactly that
+  # reason, and the comment there has the measurement.
+  #
+  # It is NOT a bug in this file, and the flag is left off on purpose rather
+  # than sprayed on for safety: every command below reaches a preference domain
+  # through CFPreferences (`defaults`, `activateSettings`, hausax's Text Input
+  # Sources writes), and CFPreferences does not read $HOME at all — cfprefsd is
+  # keyed by uid and resolves the home from the password database. Measured
+  # 2026-08-26: `env HOME=<tmpdir> defaults write <domain> ...` still lands the
+  # plist in ~/Library/Preferences and reads back fine, with nothing written
+  # under the fake HOME. hausax names no home path anywhere in hausax.swift,
+  # and post-notification goes to the distributed notification center.
+  #
+  # So the rule for a NEW site here is the distinction, not the flag: if it
+  # launches an app, or execs something that reads `$HOME`, it needs `-H`; if it
+  # only writes a preference, a `-H` would read as load-bearing and isn't.
   system.activationScripts.postActivation.text = lib.mkMerge [
     (lib.optionalString (a11ySet != { }) ''
       hausAccessibility() {
