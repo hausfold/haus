@@ -4531,9 +4531,9 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "true"
+      "text": "config.haus.ai.enable"
     },
-    "description": "In a `holt` lane, register the lane's dev server under\n`<lane>.<repo>.localhost` — `wiggly-crane.haus.localhost` — rather\nthan the name portless infers on its own.\n\nIt infers a good one already: inside a git worktree it prefixes the\nbranch, so a lane lands on `<branch>.<project>.localhost` with no help\nfrom us. The gap is cosmetic and entirely holt's fault — holt's\nbranches are `worktree-<lane>` and portless splits a branch on `/`,\nso the prefix comes out as the whole `worktree-wiggly-crane` rather\nthan the lane name you actually call it. This registers the shorter\nname alongside; both work.\n\nNeeds `haus.ai.enable`, since that is what puts lanes on the machine.\n",
+    "description": "In a `holt` lane, register the lane's dev server under\n`<lane>.<repo>.localhost` — `wiggly-crane.haus.localhost` — rather\nthan the name portless infers on its own.\n\nIt infers a good one already: inside a git worktree it prefixes the\nbranch, so a lane lands on `<branch>.<project>.localhost` with no help\nfrom us. The gap is cosmetic and entirely holt's fault — holt's\nbranches are `worktree-<lane>` and portless splits a branch on `/`,\nso the prefix comes out as the whole `worktree-wiggly-crane` rather\nthan the lane name you actually call it. This registers the shorter\nname alongside; both work.\n\nTemporary by design: vercel-labs/portless#398 adds `--prefix` and\n`PORTLESS_PREFIX`, which does the same job one level down. When it\nlands, the shim goes and a lane simply exports the variable.\n\nFollows `haus.ai.enable`, since that is what puts lanes on the\nmachine — turning portless on for its own sake never drags a lane\nshim onto a desktop that has no lanes. Setting it true anyway is a\nwarning rather than a refusal: the shim already falls back to plain\n`portless run` outside a worktree, so the worst case is a command\nthat behaves exactly like the one underneath it.\n",
     "loc": [
       "haus",
       "portless",

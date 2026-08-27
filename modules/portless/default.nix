@@ -84,16 +84,18 @@ in
 lib.mkIf cfg.enable {
   haus.portless.package = lib.mkDefault (pkgs.callPackage ./package.nix { });
 
-  assertions = [
-    {
-      assertion = cfg.lanes.enable -> config.haus.ai.enable;
-      message = ''
-        haus.portless.lanes.enable needs haus.ai.enable — lanes are the AI room's,
-        and without it there is nothing on this machine for the shim to name.
-        Turn haus.ai on, or set haus.portless.lanes.enable = false.
-      '';
-    }
-  ];
+  # A WARNING and not an assertion, which is the #415 rule read correctly: a
+  # substitute exists, so a build-time refusal is the wrong tool. `portless-lane`
+  # already exec's plain `portless run` when it is not in a worktree, so on a
+  # machine with no lanes the shim is simply portless with a longer name — a
+  # lesser-but-real fallback, never a broken command. Asserting here would let an
+  # unrelated room turn OFF decide whether this one may be turned on.
+  warnings = lib.optional (cfg.lanes.enable && !config.haus.ai.enable) ''
+    haus.portless.lanes.enable is on with haus.ai.enable off: `portless-lane` is
+    installed, but lanes are the AI room's and there are none on this machine, so
+    it will behave exactly like plain `portless`. Turn haus.ai on for the lane
+    naming, or set haus.portless.lanes.enable = false to drop the command.
+  '';
 
   environment.systemPackages = [ cfg.package ] ++ lib.optional cfg.lanes.enable portlessLane;
 
@@ -124,18 +126,26 @@ lib.mkIf cfg.enable {
       app.
     '';
     cost = "every dev URL opens with a certificate warning you have to click through";
-    # Read-only and silent: `security find-certificate` reads the System keychain
-    # and never prompts, which is the one hard rule a card's check has to keep.
-    # It answers "is the CA installed", which is the whole question — trust
-    # settings and the certificate arrive together through `portless trust`.
+    # BOTH keychains, because `portless trust` writes whichever one it can:
+    # elevated it lands in /Library/Keychains/System.keychain, and run as you —
+    # which is how this card runs it — it lands in your LOGIN keychain instead.
+    # A check that knew only about the system one would leave the card
+    # outstanding forever after a click that actually worked, which is a card
+    # nobody can clear and the exact dishonesty the deck's rules exist to stop.
+    #
+    # Read-only and silent either way: `find-certificate` searches for a
+    # certificate and never prompts, which is the one hard rule a check has to
+    # keep. `-a` so a missing keychain is an empty result rather than an error.
     check = ''
-      /usr/bin/security find-certificate -c "portless Local CA" \
-        /Library/Keychains/System.keychain >/dev/null 2>&1
+      /usr/bin/security find-certificate -a -c "portless Local CA" \
+        "$HOME/Library/Keychains/login.keychain-db" 2>/dev/null | grep -q . ||
+      /usr/bin/security find-certificate -a -c "portless Local CA" \
+        /Library/Keychains/System.keychain 2>/dev/null | grep -q .
     '';
     prompt = "${lib.getExe cfg.package} trust";
     promptLabel = "Trust the portless CA now";
     steps = [
-      "Approve the macOS prompt — it is adding one certificate authority to the System keychain"
+      "Approve the macOS prompt — it is adding one certificate authority to your login keychain"
       "Undo it any time with `portless clean`, which removes the CA along with portless' other state"
     ];
   };

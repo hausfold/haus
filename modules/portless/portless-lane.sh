@@ -28,19 +28,25 @@
 #
 # Derived, then probed upward: the hash is what makes it stable, the probe is
 # what makes it correct, and a lane is what makes a collision unlikely enough
-# that the probe almost never moves. $HOLT_PORT wins if holt handed us one.
+# that the probe almost never moves.
+#
+# The range is deliberately OUTSIDE portless' own 4000-4999 auto-assign window.
+# Sharing it looked tidy and was backwards: portless hands 4000-4999 to apps it
+# assigns itself, so a lane's hashed port and some other app's assigned port
+# could land on the same number, and `port_free` only catches that if the other
+# server is already listening — a window this script cannot close, since nothing
+# is bound until `portless run` gets there. Disjoint ranges close it by
+# construction. HAUS_PORTLESS_PORT pins the number by hand if you need it.
 set -euo pipefail
 
 portless=@portless@
-lane_fallback_base=4000
-lane_fallback_span=1000
+lane_base=5200
+lane_span=600
 
 die() {
   printf 'portless-lane: %s\n' "$1" >&2
   exit 1
 }
-
-command -v git >/dev/null 2>&1 || die "git is not on PATH"
 
 # ── who am I ─────────────────────────────────────────────────────────────────
 # The lane is the checkout's own directory name, which is what holt named it and
@@ -62,11 +68,20 @@ if [ "$main_checkout" = "$toplevel" ]; then
   exec "$portless" run "$@"
 fi
 
-lane=$(basename "$toplevel")
-# $HOLT_MAIN first, for the same reason lane-open.sh prefers it over the cwd: it
-# is the main checkout holt RECORDED, and it is right even from a `holt child`
-# worktree of a sibling repo, where walking up from here would name the parent's.
-repo=$(basename "${HOLT_MAIN:-$main_checkout}")
+# Hostname labels, so the names below cannot be rejected by the thing they are
+# names for: `portless alias` refuses an underscore outright, and a capital in a
+# hostname is a difference nobody means. Everything else a directory name can
+# hold is already legal.
+label() { printf '%s' "$1" | tr '[:upper:]_' '[:lower:]-'; }
+
+lane=$(label "$(basename "$toplevel")")
+# git, and deliberately NOT $HOLT_MAIN. That looked like the better source —
+# lane-open.sh prefers it — and measuring it said otherwise: HOLT_MAIN is a HOOK
+# variable that LEAKS into the pane it opens and every shell started from there,
+# so a pane opened on repo A that cd's into a worktree of repo B still carries
+# A's path. Trusting it named a `myapp` worktree `wiggly-crane.haus` in exactly
+# that setup. Walking up from the cwd cannot be wrong about the cwd.
+repo=$(label "$(basename "$main_checkout")")
 name="$lane.$repo"
 
 # NOTE the second label is the REPO's directory name, which is what holt calls it
@@ -77,9 +92,8 @@ name="$lane.$repo"
 # this to be wrong in.
 
 # ── the port ─────────────────────────────────────────────────────────────────
-# cksum over the name, folded into portless' own 4000-4999 range so the two
-# allocators cannot disagree about who owns what. cksum rather than a hash
-# written out in awk: it is POSIX, it is one fork, and nothing here is
+# cksum over the name, folded into the private range above. cksum rather than a
+# hash written out in awk: it is POSIX, it is one fork, and nothing here is
 # cryptographic — "the same name lands on the same number" is the whole spec.
 hash_port() { printf '%s' "$1" | cksum | cut -d' ' -f1; }
 
@@ -87,16 +101,16 @@ hash_port() { printf '%s' "$1" | cksum | cut -d' ' -f1; }
 # and cannot be defeated by a PATH that has no netcat on it.
 port_free() { ! (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
 
-if [ -n "${HOLT_PORT:-}" ]; then
-  port=$HOLT_PORT
+if [ -n "${HAUS_PORTLESS_PORT:-}" ]; then
+  port=$HAUS_PORTLESS_PORT
 else
-  port=$((lane_fallback_base + $(hash_port "$name") % lane_fallback_span))
+  port=$((lane_base + $(hash_port "$name") % lane_span))
   tries=0
   while ! port_free "$port"; do
-    port=$((lane_fallback_base + (port - lane_fallback_base + 1) % lane_fallback_span))
+    port=$((lane_base + (port - lane_base + 1) % lane_span))
     tries=$((tries + 1))
-    [ "$tries" -lt "$lane_fallback_span" ] ||
-      die "no free port in ${lane_fallback_base}-$((lane_fallback_base + lane_fallback_span - 1))"
+    [ "$tries" -lt "$lane_span" ] ||
+      die "no free port in ${lane_base}-$((lane_base + lane_span - 1))"
   done
 fi
 
@@ -109,4 +123,32 @@ fi
 
 printf 'portless-lane: %s -> :%s\n' "$name.localhost" "$port" >&2
 
-exec "$portless" run --app-port "$port" "$@"
+# NOT exec, which is the whole reason this script outlives the command it runs:
+# an alias is a STATIC route and portless never reaps it, so exec'ing away would
+# leave one dead entry in routes.json per lane name ever used, forever.
+#
+# Backgrounded and `wait`ed rather than run in the foreground, which is the part
+# that took a measurement to get right: bash defers a trap until the CURRENT
+# command finishes, so with the dev server in the foreground a TERM to this
+# script does nothing until the server exits on its own — the alias outlived the
+# lane exactly as if there were no trap at all. `wait` is interruptible, so the
+# handler runs the moment the signal lands; it forwards the signal on and waits
+# again, and the alias goes when the server does. The exit status stays the dev
+# server's.
+"$portless" run --app-port "$port" "$@" &
+child=$!
+
+# Inlined rather than a helper: a function reached only from a trap string looks
+# uncalled to shellcheck (SC2329), and writeShellApplication runs shellcheck.
+trap 'kill -TERM "$child" 2>/dev/null || true' TERM
+trap 'kill -INT "$child" 2>/dev/null || true' INT
+
+status=0
+wait "$child" || status=$?
+# A second wait: the first returns as soon as the signal is handled, while the
+# child is still shutting down. Without it the alias can go before the server it
+# points at, and a request in that window reaches the proxy with nowhere to go.
+wait "$child" 2>/dev/null || true
+
+"$portless" alias --remove "$name" >/dev/null 2>&1 || true
+exit "$status"

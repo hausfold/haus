@@ -3,7 +3,7 @@
 # Cross-cutting options (the app roster) stay in modules/options.nix.
 #
 # portless' options — named .localhost URLs for local dev servers.
-{ lib, ... }:
+{ config, lib, ... }:
 
 {
   options.haus = {
@@ -112,7 +112,8 @@
       lanes = {
         enable = lib.mkOption {
           type = lib.types.bool;
-          default = true;
+          default = config.haus.ai.enable;
+          defaultText = lib.literalExpression "config.haus.ai.enable";
           description = ''
             In a `holt` lane, register the lane's dev server under
             `<lane>.<repo>.localhost` — `wiggly-crane.haus.localhost` — rather
@@ -130,7 +131,12 @@
             `PORTLESS_PREFIX`, which does the same job one level down. When it
             lands, the shim goes and a lane simply exports the variable.
 
-            Needs `haus.ai.enable`, since that is what puts lanes on the machine.
+            Follows `haus.ai.enable`, since that is what puts lanes on the
+            machine — turning portless on for its own sake never drags a lane
+            shim onto a desktop that has no lanes. Setting it true anyway is a
+            warning rather than a refusal: the shim already falls back to plain
+            `portless run` outside a worktree, so the worst case is a command
+            that behaves exactly like the one underneath it.
           '';
         };
       };
