@@ -10,6 +10,10 @@
 # a zmx session, a Ghostty window forced to its name, tiled on that repo's own
 # T/<repo> page.
 #
+# Return files it and gets out of your way: the box closes at once, the lane is
+# built on that repo's page without taking the screen, and a banner says so when
+# it is actually running. ⌃↵ is the one that brings the window to you.
+#
 # Why it exists: the same thing by hand is caps→t to a terminal, cd to the repo,
 # ⌃⌘A for a lane, then type the prompt — and the worktree ends up
 # with whatever name Claude generated (`luminous-twirling-codd`), which is the
@@ -45,25 +49,44 @@
 #
 # ── the prompt step's five Returns ────────────────────────────────────────────
 #
-#   ↵    spawn on what you typed
+#   ↵    spawn — in the BACKGROUND, and give the screen straight back
 #   ⇧↵   newline — the task is often a list, not a sentence
 #   ⌘↵   capture a screenshot first, then spawn (this used to be a whole second
 #        palette entry, "Spawn Agent with Screenshot")
-#   ⌃↵   spawn in the background — everything happens, and you keep the screen
+#   ⌃↵   spawn and FOLLOW it: the lane window takes the screen, as it used to
 #   ⌥↵   your drafts
 #
-# ⌃↵ is the same spawn as ↵ with HAUS_LANE_BACKGROUND=1 exported: the worktree,
-# the branch, the zmx session, the Ghostty window and the tile on T/<repo> are
-# all made exactly as usual, and the client starts on the prompt — but the
-# window is born unactivated and clamped to a 1-px sliver in a screen corner,
-# so nothing flashes and focus never leaves what you were doing while
-# AeroSpace walks it off to T/<repo>; you visit the lane when you are
-# ready (⌃⇥, the Lanes palette, the bar's agents pill). The whole silence lives
-# in ~/.config/haus/lanes/lane-open.sh; this script only sets the variable — and
-# that file is also where the reason it is a direct exec rather than an
-# `open -g` is written down, because `open -g` produced no window at all. It is
-# what you want for "start this and I'll read it later", which is most spawns
-# that aren't the thing you are about to work on.
+# ⇧↵ is deliberately NOT in the action bar. `shift` there is hint-only in pounce
+# (Items.swift: the field editor inserts the newline itself, whatever the spec
+# says), so dropping it costs nothing but the pixels — and four chords across
+# the bottom of the box was one more than it could show without crowding.
+#
+# ── which way round ↵ and ⌃↵ go, and why ──────────────────────────────────────
+#
+# Background is the DEFAULT, and ⌃↵ is the one that takes the screen. The two
+# spawns are the same code path either way — one exported variable,
+# HAUS_LANE_BACKGROUND, read by ~/.config/haus/lanes/lane-open.sh — so this is
+# purely which one you get for free. The worktree, the branch, the zmx session,
+# the Ghostty window and the tile on T/<repo> are made exactly as usual in both,
+# and the client starts on the prompt in both.
+#
+# Backgrounding is the right default because of what a spawn IS: you describe a
+# task in a sentence and hand it to somebody else. Almost none of those are the
+# thing you are about to sit and watch — you keep doing what you were doing and
+# visit the lane when it has something to show (⌃⇥, the Lanes palette, the bar's
+# agents pill). Making the common case the plain Return means the palette can
+# get out of the way completely: box → gone → banner when the lane is up.
+#
+# Nothing else moves while that happens: a backgrounded lane's window is born
+# unactivated and clamped to a 1-px sliver in a screen corner, so it never
+# flashes and focus never leaves what you were doing while AeroSpace walks it
+# off to T/<repo>. The whole silence lives in ~/.config/haus/lanes/lane-open.sh;
+# this script only sets the variable — and that file is also where the reason it
+# is a direct exec rather than an `open -g` is written down, because `open -g`
+# produced no window at all.
+#
+# ⌃↵ is for the spawn you ARE about to work in: the lane window comes to you and
+# stays, and there is no notification because you are looking at it.
 #
 # ⌘↵ and ⌥↵ fire on an EMPTY box too, which is the point of both: opening your
 # drafts is what you do INSTEAD of typing, and a screenshot is often the subject
@@ -226,35 +249,47 @@ repo_sel="$(printf '%s\n' "$list" | pounce -p "Spawn Agent — which repo?" -i "
 [ -z "$repo_sel" ] && exit 0
 repo_name="$(field "$repo_sel" 2)"
 repo="$(field "$repo_sel" 7)"
-# Free text that matched no row has an empty payload — there is nothing sensible
-# to spawn on, so treat it as a miss rather than guessing a repo.
-[ -n "$repo" ] && [ -d "$repo/.git" ] || exit 0
+# Free text that matched no row commits as "<action>\t<what you typed>" and
+# carries no path in field 7 — there is nothing sensible to spawn on. Say which
+# text missed rather than vanishing: a step that closes with no window, no lane
+# and no message is indistinguishable from the palette having dropped the
+# keystroke, which is exactly how this read from the outside.
+if [ -z "$repo" ] || [ ! -d "$repo/.git" ]; then
+  typed="$(payload_of "$repo_sel" | tr '\n\t' '  ')"
+  notice "No repo matches “${typed}”" \
+    "Add its parent to haus.ai.repoRoots, or spawn there once from a terminal" \
+    "folder.badge.questionmark"
+  exit 0
+fi
 
 # ── what should it do ─────────────────────────────────────────────────────
 #
-# --chain enter,opt: BOTH of those Returns are answered by another `pounce`
-# (the spawn's own loading window, or the drafts list), so the window holds its
-# skeleton instead of fading out and back in. ⌘↵ is deliberately NOT chained:
-# its next act is `screencapture -i`, which needs the palette off the screen —
-# a crosshair over a loading spinner is not a UI.
+# --chain opt, and ONLY opt. ⌥↵ is answered by another `pounce` (the drafts
+# list) within milliseconds, so the window holds its skeleton instead of fading
+# out and straight back in.
 #
-# ⌃↵ is not chained either, for the opposite reason: a chained action holds the
-# palette up and KEY until the next step presents, and its only way out is an
-# 8-second fallback fade. Plain ↵ never notices, because the lane window it
-# opens takes the screen a moment later and stays there — but a background lane
-# is gone off to T/<repo> within the same second, so chaining it would park a
-# spinner over your work for eight seconds to announce a lane that is
-# deliberately elsewhere. Unchained, the palette lingers out normally and hands
-# focus back to the app it stole it from, which is exactly the promise ⌃↵ is
-# making.
+# Every other Return is unchained, each for its own reason:
+#
+#   ⌘↵  its next act is `screencapture -i`, which needs the palette off the
+#       screen — a crosshair over a loading spinner is not a UI.
+#   ↵   the spawn it starts is a BACKGROUND lane: it is gone off to T/<repo>
+#       within the second and there is deliberately nothing to look at here.
+#       Chaining it parked a skeleton over your work until the 8-second
+#       fallback fade — and a skeleton is a lie twice over, because the window
+#       is never resized when loading begins, so a tall multi-line prompt left
+#       a one-line header with a screenful of half-drawn rows under it. The
+#       palette lingers out at once instead, and `haus-notify` says the lane is
+#       up when it actually is.
+#   ⌃↵  the lane window takes the screen a moment later and stays there, so
+#       there is nothing for a skeleton to bridge.
 #
 # --draft: every dismissal that isn't a commit keeps the text. This is the whole
 # insurance policy against the click-away.
 ask() {
   # $1: text the box opens with (a draft coming back for editing, or empty).
-  printf '' | pounce --chain enter,opt \
+  printf '' | pounce --chain opt \
     --draft "$DRAFT_KEY" \
-    --actions "Spawn|shift:New line|cmd:With a screenshot|ctrl:Background|opt:Drafts" \
+    --actions "Spawn|cmd:With a screenshot|ctrl:Spawn and follow|opt:Drafts" \
     --query "$1" \
     -p "What should the agent do in $repo_name?" -i "sparkles"
 }
@@ -294,7 +329,10 @@ draft_picker() {
 # return you to what you were typing instead of ending the spawn.
 image=""
 seed=""
-background=""
+# Background unless ⌃↵ says otherwise — see "which way round ↵ and ⌃↵ go" at the
+# top. Set BEFORE the loop and only ever cleared, so a trip out to the drafts
+# list and back can't quietly rearm it.
+background=1
 while :; do
   prompt_sel="$(ask "$seed")"
   # Dismissed. A screenshot captured on the way here belongs to a spawn that
@@ -308,9 +346,10 @@ while :; do
 
   case "$action" in
     ctrl)
-      # Same spawn, one exported variable. Nothing else about the path changes,
-      # so a background lane is never a second code path that can rot.
-      background=1
+      # "I'm going to work in this one." Same spawn, one exported variable
+      # cleared — so foreground and background are never two code paths that
+      # can rot apart.
+      background=""
       ;;
     opt)
       # Leaving the box deliberately is a COMMIT, not a dismissal, so the daemon
@@ -454,9 +493,10 @@ fi
 # pair. `haus.ai.namer`'s description states the contract; the built-in is
 # excluded here because it provably cannot meet it.
 #
-# Exported unconditionally-empty, like HAUS_LANE_BACKGROUND below and for the
-# same reason: nothing stale in the launchd environment may become a floor for
-# a spawn that never asked for one.
+# Exported unconditionally — empty unless this spawn set it — for the same
+# reason HAUS_LANE_BACKGROUND below is written on every path: nothing stale in
+# the launchd environment may become a floor for a spawn that never asked for
+# one.
 case "${HAUS_LANE_NAMER:-}" in
   "" | claude) laneNamer="" ;;
   *) laneNamer="$HAUS_LANE_NAMER" ;;
@@ -471,11 +511,12 @@ fi
 set -- "$@" --agent "$agent" --prompt-file -
 [ -n "$image" ] && set -- "$@" --image "$image"
 
-# ⌃↵. Not a holt flag and not an argument: "don't take the screen" is a fact
-# about how THIS machine opens a window, which is lane-open.sh's business and
-# nobody else's — holt only has to carry it, and it does, because it hands a
-# seam os.Environ(). Exported unconditionally-empty otherwise so nothing stale
-# in the launchd environment can turn an ordinary spawn silent.
+# The default, cleared by ⌃↵. Not a holt flag and not an argument: "don't take
+# the screen" is a fact about how THIS machine opens a window, which is
+# lane-open.sh's business and nobody else's — holt only has to carry it, and it
+# does, because it hands a seam os.Environ(). Exported even when empty, so
+# nothing stale in the launchd environment can silence a ⌃↵ spawn that asked to
+# be followed.
 export HAUS_LANE_BACKGROUND="${background:-}"
 
 # holt prints the lane's path on stdout BEFORE it drives the seam, so this
@@ -519,13 +560,18 @@ if [ "$rc" -ne 0 ]; then
 fi
 
 # ── say so, when there is nothing to see ──────────────────────────────────
-# An ordinary spawn announces itself by KEEPING the screen — the lane is what
-# you are looking at when it is done. A background one gives the screen back
-# within the second, so without this the palette simply fades and you are left
-# wondering whether ⌃↵ did anything at all. A notification rather than a
-# `notice` toast: `notice` is another pounce window, which is a thing appearing
-# in front of you and waiting to be answered — the outcome ⌃↵ is paying to
-# avoid.
+# The default spawn gives the screen back within the second, and the palette is
+# already gone by the time holt finishes — so without this, Return on a
+# paragraph you just typed produces nothing you can see at all, and you are left
+# wondering whether it took. This banner IS the receipt, and it fires when the
+# lane genuinely exists rather than when the box closed.
+#
+# ⌃↵ gets none: the lane window is what you are looking at when it lands, and a
+# banner about the thing on your screen is noise.
+#
+# A notification rather than a `notice` toast: `notice` is another pounce
+# window, which is a thing appearing in front of you and waiting to be answered
+# — the outcome a background spawn is paying to avoid.
 if [ -n "${background:-}" ]; then
   # Through haus-notify, so trill draws it when it can and `rules.json` can
   # route it — this is the one banner here that is news rather than a failure,
