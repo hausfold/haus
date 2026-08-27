@@ -188,113 +188,99 @@ let
     (`~/.config/nix/hosts/${hostname}/default.nix`, unless `HAUS_CONSUMER` says
     otherwise). Change it there, then `haus rebuild` — a hand-edit here either
     fails outright or is reverted by the next rebuild. Every coding agent this
-    machine installs gets the same text at its own path, so a change lands for
-    all of them at once.
+    machine installs reads the same text at its own path.
 
-    The same goes for `~/${agentHomes.${client}.skills}/haus/`, generated from
-    the haus revision this machine pins (`haus update` regenerates it), and for
-    every other skill in that directory that haus installed — each hausfold tool
-    ships its own, so `holt/` and `handoff/` are holt's and are edited in
-    hausfold/holt, arriving here on a lock bump.${lib.optionalString config.haus.notifications.compositor " `trill/` is trill's, the same way, and is here because `haus.notifications.compositor` is on."} It does
-    NOT go for everything beside them: ${clientScopeNote.${client}} that you can
-    edit live with no rebuild. `ls -l` the path before assuming which kind it is.
+    `~/${agentHomes.${client}.skills}/haus/` is generated too, from the haus
+    revision this machine pins (`haus update` regenerates it), as is every other
+    skill haus installed. `holt/` and `handoff/` are holt's, edited in
+    hausfold/holt;${lib.optionalString config.haus.notifications.compositor " `trill/` is trill's, here because `haus.notifications.compositor` is on;"} they arrive on a lock bump. Not everything beside them
+    is generated: ${clientScopeNote.${client}} that you can edit live with no
+    rebuild. `ls -l` the path before assuming which kind it is.
 
     # Agent worktrees & the `holt` tool
 
-    `holt` (shipped by haus, on PATH) manages **agent worktrees** for any
-    git repo. ${laneChordProse} Closing a pane never loses work — uncommitted
-    edits are parked as
-    a `wip:` commit and only already-merged branches are reaped. Resume a parked
-    session with `holt` (lists every worktree across all repos) or
-    `holt <name>`; sweep landed ones on demand with `holt reap`.
+    `holt` (shipped by haus, on PATH) manages **agent worktrees** for any git
+    repo. ${laneChordProse} Checkouts live under
+    `~/.cache/claude-worktrees/<repo>/<name>` whichever client you are.
 
-    Checkouts live under `~/.cache/claude-worktrees/<repo>/<name>` whichever
-    client you are — the path name is historical, not a claim about who owns it.
+    Closing a pane never loses work: uncommitted edits are parked as a `wip:`
+    commit, and only already-merged branches are reaped. Resume with `holt`
+    (lists every worktree across all repos) or `holt <name>`; sweep landed ones
+    on demand with `holt reap`.
 
     **Cross-repo work uses `holt child`, never a raw `git worktree add`.** To
     work on a DIFFERENT repo than the pane you're in (e.g. a parent pane editing
-    a sub-repo), create the worktree with:
+    a sub-repo):
 
         cd "$(holt child /path/to/other/repo)"
 
     A raw `git worktree add` never touches the registry, so the statusline HUD
-    never learns to query that repo's GitHub — the worktree and its PR go
-    **invisible in the bar** (they only surface, unattributed with a `◇`, in the
-    `~` home pane). `holt child` does the same worktree add but registers it
-    under the spawning pane, so its PR shows as a child row where you're working.
+    never learns to query that repo's GitHub and the worktree and its PR go
+    **invisible in the bar**. `holt child` registers it under the spawning pane,
+    so its PR shows as a child row where you're working.
 
     **Setting work aside uses `holt park`, never `git stash`.** The stash stack
     is NOT per-worktree — it lives in the shared `.git` dir, so every agent
     worktree of a repo and the main checkout push and pop the SAME stack, and
     parallel agents routinely pop each other's entries into a tree that never
     asked for them. `holt park [label]` instead commits the whole dirty tree as
-    one `wip:` commit on the branch only this pane has checked out (the same
-    thing the remove hook does on pane close); `holt unpark` rewinds it, putting
-    those changes back uncommitted. It refuses to unpark a wip commit you've
-    already pushed, so it can never turn into a force-push.
+    one `wip:` commit on the branch only this pane has checked out; `holt
+    unpark` rewinds it, putting those changes back uncommitted. Unpark refuses a
+    wip commit you've already pushed, so it can never become a force-push.
 
     **A session that keeps committing after its PR merged needs `holt reship`.**
     GitHub deletes the head branch on merge, so those later commits have no
-    remote and no PR — and `holt` deliberately won't reap that branch. `holt`
-    marks it `+N` in the state column (`live+3`), the bar shows an orange `N^`
-    instead of the ⏏ it used to, and `holt reship [name]` pushes the branch and
-    opens the follow-up PR.
+    remote and no PR, and `holt` deliberately won't reap that branch. It marks
+    the lane `+N` in the state column (`live+3`) and the bar shows an orange
+    `N^`; `holt reship [name]` pushes the branch and opens the follow-up PR.
 
     # The screen belongs to the person at it
 
     This Mac is in use while you work on it. Anything that moves the pointer,
-    takes focus or redraws the desktop interrupts someone mid-sentence — and
-    unlike a bad edit, they can't undo it. So:
+    takes focus or redraws the desktop interrupts someone mid-sentence, and
+    unlike a bad edit they can't undo it.
 
-    - **Want to SEE it work? Take a VM, not the screen.** A lane can boot its
-      own headless macOS and drive it as hard as it likes — click, type,
+    - **To SEE it work, take a VM, not the screen.** A lane boots its own
+      headless macOS and can be driven as hard as you like — click, type,
       `killall Dock`, `haus rebuild`, screenshot — because none of it renders
       here. That is the answer to "can I try the palette / the bar / this
-      keybind / the installer", and it is the FIRST thing to reach for, not
-      the fallback: `holt runtime up <lane> --backend tart`, then drive the
-      guest over `ssh`. The haus skill's **Seeing your change without taking
-      the screen** section has the whole loop, screenshots included.
+      keybind / the installer", and it is the FIRST thing to reach for:
+      `holt runtime up <lane> --backend tart`, then drive the guest over `ssh`.
+      The haus skill's **Seeing your change without taking the screen** has the
+      whole loop.
     - **Prefer looking to touching.** `screencapture -x` is silent and steals
-      nothing, and a screenshot-only `computer_batch` is the same. Reach for
-      those before you reach for a click.
-    - **Never foreground an app just to see it — and `open -g` may not show it
-      to you either.** The flag launches without activating, which is what it
-      is for; it does not promise a *window*, and `open` exits 0 either way
-      because it returns the moment LaunchServices accepts. Measured
-      2026-08-23: `open -g -na Ghostty.app --args --initial-command=…` leaves a
-      live process with no window, ever, and the command never runs. So reach
-      for `-g` when you need something RUNNING, for a VM when you need to SEE
-      it, and ask first if something truly has to come to the front.
-    - **Hand feel-tests back.** "Press ⌘Space and tell me what you see" costs
-      two seconds and gets you a better answer than driving the palette
-      yourself costs them their train of thought.
-    - **One question beats one stolen focus.** In doubt, ask. You are not being
-      helpful by guessing here.
+      nothing; a screenshot-only `computer_batch` is the same. Reach for those
+      before a click.
+    - **`open -g` does not promise a window.** It launches without activating
+      and exits 0 either way, because it returns the moment LaunchServices
+      accepts — `open -g -na Ghostty.app --args --initial-command=…` leaves a
+      live process with no window and never runs the command. Use `-g` to make
+      something RUN, a VM to SEE it, and ask before bringing anything forward.
+    - **Hand feel-tests back, and ask when in doubt.** "Press ⌘Space and tell me
+      what you see" costs two seconds; driving the palette yourself costs them
+      their train of thought.
 
-    **Asking for THIS screen is the last resort, and it has to earn it.** The
-    only good reason is something a VM genuinely cannot show you: the user's
-    own windows, their real data or accounts, hardware and display differences,
-    a guest that will not boot, or a grant that only exists on this Mac.
-    "Faster on the host", "only one click" and "just to check" are not reasons
-    — they are the whole class of interruption the VM exists to end. And if the
-    VM is out of reach (no `tart` on PATH, no image on disk), say so in one
-    line and hand the feel-test back; do not quietly fall through to the
-    pointer.
+    **Asking for THIS screen is the last resort.** It is earned only by
+    something a VM cannot show: the user's own windows, their real data or
+    accounts, hardware and display differences, a guest that won't boot, or a
+    grant that exists only on this Mac. "Faster on the host", "only one click"
+    and "just to check" are not reasons. If the VM is out of reach (no `tart`,
+    no image on disk), say so in one line and hand the feel-test back rather
+    than falling through to the pointer.
 
     ${lib.optionalString (client == "claude") ''
-      `agent-desktop-guard` backs this up on Claude Code panes: a PreToolUse hook
-      that re-opens the permission prompt before a tool call that would move the
-      pointer, take focus or redraw the desktop — which matters because those
-      panes otherwise run in permission mode `auto`. It refuses nothing; it only
-      puts the decision back in front of the user, and `HAUS_DESKTOP_OK=1` in a
-      pane's environment turns it off for a long unattended run. It is a backstop
-      for the rules above, not permission to skip them: a prompt you triggered is
+      `agent-desktop-guard` backs this up on Claude Code panes: a PreToolUse
+      hook that re-opens the permission prompt before a call that would move the
+      pointer, take focus or redraw the desktop — those panes otherwise run in
+      permission mode `auto`. It refuses nothing, and `HAUS_DESKTOP_OK=1` in a
+      pane's environment turns it off for a long unattended run. It is a
+      backstop, not permission to skip the above: a prompt you triggered is
       still an interruption.
 
-      The line it draws is THIS screen, not the command: work you run over `ssh`
-      on another machine — a lane's own headless VM most of all — is never
-      gated, however loudly it redraws over there. Booting that VM with a window
-      on this display (`tart run` without `--no-graphics`) is.
+      The line is THIS screen, not the command. Work you run over `ssh` on
+      another machine — a lane's own headless VM most of all — is never gated,
+      however loudly it redraws over there. Booting that VM with a window on
+      this display (`tart run` without `--no-graphics`) is.
     ''}
 
     Full guide: https://hausfold.co/docs/haus/rooms/ai/
