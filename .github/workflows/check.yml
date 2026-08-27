@@ -237,6 +237,10 @@ jobs:
           shellcheck --version
           # bootstrap.sh reaches every new installer via hausfold.co/hacker.sh;
           # haus.sh + awake.sh ship onto every machine as end-user CLIs.
+          # haus-activate.sh joins them: it is the privileged half of every
+          # rebuild, runs as root, and its one message is the one a user sees
+          # when an activation fails — the worst line in the set to have a
+          # syntax error in.
           # statusline-refresh.sh is linted for a different reason: it runs
           # DETACHED with its output discarded, so a non-zero anywhere in it is
           # completely invisible — the bar just quietly stops updating.
@@ -282,7 +286,7 @@ jobs:
           # haus.focus.scenes.<name>.when it also runs from launchd on a timer,
           # where a non-zero is not just invisible but silently stops your Mac
           # entering the scenes you declared.
-          shellcheck --severity=warning bootstrap.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/awake.sh modules/core/lidawake.sh test/lidawake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh
+          shellcheck --severity=warning bootstrap.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/lidawake.sh test/lidawake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
       # lidawake's three failsafes, over a fake pmset and a fake clock. Every
@@ -347,6 +351,16 @@ jobs:
       # one-true-awk's rule, and would pass on the old code without it.
       - name: raise-session lane join
         run: bats test/raise-session-lane-join.bats
+
+      # The `haus rebuild` phase painter and the colour gate both end-user CLIs
+      # grew with it. Two silent failure modes: a repaint that assumes a width
+      # corrupts the screen only on a window narrower than the author's (52
+      # columns and below for the finished `activate` row, 13 and below for the
+      # stub — measured in real ptys, which is what the last test here builds),
+      # and an ungated escape is invisible to anyone watching colour. Needs only
+      # bash + python3 + bats, no Nix and no Mac.
+      - name: phase painter and colour gate
+        run: bats test/phase-painter.bats
 
       # lane-seen's other half of that join, read backwards: the focused
       # window's session name back to the trill key scruff gave that lane's fin.
