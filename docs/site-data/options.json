@@ -154,7 +154,7 @@
       "_type": "literalExpression",
       "text": "[ ]"
     },
-    "description": "Which coding-agent clients to install. `claude` is Claude Code, `codex`\nis OpenAI Codex, `opencode` is OpenCode. The ⌘↵ lane chord starts\nwhichever one `ai.default` names, all of them through `scruff new`.\n\nA list rather than one bool per client, matching `developer.languages`\n— a client added later doesn't change this option's shape.\n\nThis is the option that makes `ai.default` honest. Naming a client\nyou have not installed used to fail *at spawn time*, inside the pane,\nafter the worktree already existed: a flash of\n`codex is unavailable`, and litter to reap. `ai.default` must now\nbe a member of this list, so the same mistake fails the rebuild\ninstead, with both values named.\n\nOverride a client's package the usual Nix way — an overlay on\n`claude-code`, `codex` or `opencode` — rather than dropping the client\nhere and installing your own copy alongside; two derivations shipping\nthe same `bin/` name collide in one profile.\n\nIgnored entirely when `ai.enable` is off — see `haus._ai.clients`, the\nresolved list every room actually installs from. Before step 4 this was\nan assertion instead (\"clients are set but the room is off\"), which was\nright while the list defaulted from the room's own switch and wrong\nafterwards: a desktop names the clients, so a host turning the room off\nwould have had to blank the desktop's list as well to get a rebuild at\nall. One switch now removes the room, which is what \"clean removal when\ndisabled\" means.\n",
+    "description": "Which coding-agent clients to install. `claude` is Claude Code, `codex`\nis OpenAI Codex, `opencode` is OpenCode, `pi` is pi. The ⌘↵ lane chord\nstarts whichever one `ai.default` names, all of them through\n`scruff new`.\n\n`pi` brings one thing the other three don't: `ai.pi.packages`, the\nthird-party resources it loads. See there before installing it.\n\nA list rather than one bool per client, matching `developer.languages`\n— a client added later doesn't change this option's shape.\n\nThis is the option that makes `ai.default` honest. Naming a client\nyou have not installed used to fail *at spawn time*, inside the pane,\nafter the worktree already existed: a flash of\n`codex is unavailable`, and litter to reap. `ai.default` must now\nbe a member of this list, so the same mistake fails the rebuild\ninstead, with both values named.\n\nOverride a client's package the usual Nix way — an overlay on\n`claude-code`, `codex`, `opencode` or `pi-coding-agent` — rather than\ndropping the client here and installing your own copy alongside; two\nderivations shipping the same `bin/` name collide in one profile.\n\nIgnored entirely when `ai.enable` is off — see `haus._ai.clients`, the\nresolved list every room actually installs from. Before step 4 this was\nan assertion instead (\"clients are set but the room is off\"), which was\nright while the list defaulted from the room's own switch and wrong\nafterwards: a desktop names the clients, so a host turning the room off\nwould have had to blank the desktop's list as well to get a rebuild at\nall. One switch now removes the room, which is what \"clean removal when\ndisabled\" means.\n",
     "example": {
       "_type": "literalExpression",
       "text": "[\n  \"claude\"\n  \"codex\"\n]"
@@ -165,7 +165,7 @@
       "clients"
     ],
     "readOnly": false,
-    "type": "list of (one of \"claude\", \"codex\", \"opencode\")"
+    "type": "list of (one of \"claude\", \"codex\", \"opencode\", \"pi\")"
   },
   "haus.ai.default": {
     "declarations": [
@@ -175,7 +175,7 @@
       "_type": "literalExpression",
       "text": "\"claude\""
     },
-    "description": "The coding agent started by the ⌘↵ lane chord, by the palette's\n**Spawn Agent** command and by the `c` shell\nalias, and used to reopen worktrees with no client recorded yet. Each spawned worktree records its\nown client, so changing this affects new work but never reopens an\nexisting Codex or OpenCode task in Claude.\n\nMust be one of `ai.clients` — see there.\n\nThis option chooses the client and nothing else about how a lane opens.\n`claude` can make its own worktree (its native `--worktree` flag, which\nfires `scruff hook create`), but haus does not use it: that flag runs the\nclient in the pane it was launched from and never asks scruff's `[hooks]\nopen`, which is the seam a lane's own window arrives through. So every\nclient goes through `scruff new`, producing the same checkout, branch and\nregistry entry from the outside — and the lane stays resumable, because\nClaude keys a transcript to the directory it started in.\nResuming follows the client too: `codex` reopens\nits cwd-filtered `codex resume` picker, `opencode` continues its latest\nsession for that cwd. They share one `scruff` branch/parking/reap\nlifecycle, and they all light up the `agents` bar pill — the opencode\nplugin and the codex hooks are written for\nyou; only Claude Code's stay yours to wire, because Claude owns its own\nsettings.json (see `haus.bar.items.agents`).\n",
+    "description": "The coding agent started by the ⌘↵ lane chord, by the palette's\n**Spawn Agent** command and by the `c` shell\nalias, and used to reopen worktrees with no client recorded yet. Each spawned worktree records its\nown client, so changing this affects new work but never reopens an\nexisting Codex or OpenCode task in Claude.\n\nMust be one of `ai.clients` — see there.\n\nThis option chooses the client and nothing else about how a lane opens.\n`claude` can make its own worktree (its native `--worktree` flag, which\nfires `scruff hook create`), but haus does not use it: that flag runs the\nclient in the pane it was launched from and never asks scruff's `[hooks]\nopen`, which is the seam a lane's own window arrives through. So every\nclient goes through `scruff new`, producing the same checkout, branch and\nregistry entry from the outside — and the lane stays resumable, because\nClaude keys a transcript to the directory it started in.\nResuming follows the client too: `codex` reopens\nits cwd-filtered `codex resume` picker, `opencode` continues its latest\nsession for that cwd, and `pi` continues the newest session in that\ncheckout (`pi --continue`, with `pi --resume`'s picker behind it). They\nshare one `scruff` branch/parking/reap\nlifecycle.\n\nThree of the four light up the `agents` bar pill — the opencode\nplugin and the codex hooks are written for\nyou; only Claude Code's stay yours to wire, because Claude owns its own\nsettings.json (see `haus.bar.items.agents`). `pi` is the exception and\nwill stay one until somebody writes the extension: it reports its\nstate through an extension API rather than a hook file, so a pi lane\nspawns, resumes and reaps like any other and simply does not appear in\nthe pill. It reports no usage either, so naming it in\n`haus.bar.aiUsage.provider` selects a row that never has a number.\n\nTwo of them ask before reading a folder they have not seen, and a lane's\ncheckout is always one — so `scruff` copies the decision you already made\nabout the repo onto the worktree it just made: Claude Code's\n`hasTrustDialogAccepted`, and pi's `~/.pi/agent/trust.json`. It only\never propagates a yes; an untrusted repo still prompts, which is\ncorrect.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"codex\""
@@ -186,7 +186,7 @@
       "default"
     ],
     "readOnly": false,
-    "type": "one of \"claude\", \"codex\", \"opencode\""
+    "type": "one of \"claude\", \"codex\", \"opencode\", \"pi\""
   },
   "haus.ai.enable": {
     "declarations": [
@@ -213,7 +213,7 @@
       "_type": "literalExpression",
       "text": "\"\""
     },
-    "description": "Your always-on, cross-project operating context — the \"instructions\"\nslot every client has under a different name. Written once per client\nin `ai.clients`, to the path that client actually reads:\n`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`,\n`~/.config/opencode/AGENTS.md`.\n\nWrite it client-neutrally: the same text reaches whichever agent the ⌘A\npane spawns, so a line about a Claude-only skill or file path is noise\nto the others. When set, haus prepends three short sections of its\nown — a note that the file is generated and where to actually edit it\n(with THAT client's path), the `scruff` worktree etiquette, since haus\nships `scruff` and that rule is what keeps it working, and the screen\netiquette that pairs with `agent-desktop-guard` — then your text.\n\nEmpty (the default) writes nothing at all, for any client, so a\nhand-managed instructions file is never clobbered just to inject\nhaus's note. If you set it and one of those paths already holds a file\nyou wrote by hand, home-manager moves yours aside as `<file>.backup`\nrather than refusing — quiet, so check for one before the first rebuild\nafter setting this.\n\nWith `ai.clients` empty (a machine haus installs no client on)\nevery known client's path is written instead of none: the list being\nempty means haus installs none, not that no agent runs here.\n",
+    "description": "Your always-on, cross-project operating context — the \"instructions\"\nslot every client has under a different name. Written once per client\nin `ai.clients`, to the path that client actually reads:\n`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`,\n`~/.config/opencode/AGENTS.md`, `~/.pi/agent/AGENTS.md`.\n\nWrite it client-neutrally: the same text reaches whichever agent the ⌘A\npane spawns, so a line about a Claude-only skill or file path is noise\nto the others. When set, haus prepends three short sections of its\nown — a note that the file is generated and where to actually edit it\n(with THAT client's path), the `scruff` worktree etiquette, since haus\nships `scruff` and that rule is what keeps it working, and the screen\netiquette that pairs with `agent-desktop-guard` — then your text.\n\nEmpty (the default) writes nothing at all, for any client, so a\nhand-managed instructions file is never clobbered just to inject\nhaus's note. If you set it and one of those paths already holds a file\nyou wrote by hand, home-manager moves yours aside as `<file>.backup`\nrather than refusing — quiet, so check for one before the first rebuild\nafter setting this.\n\nWith `ai.clients` empty (a machine haus installs no client on)\nevery known client's path is written instead of none: the list being\nempty means haus installs none, not that no agent runs here.\n",
     "example": {
       "_type": "literalExpression",
       "text": "''\n  # How I work\n  Ship small, verified changes; ask before anything hard to reverse…\n''"
@@ -268,6 +268,28 @@
     "readOnly": false,
     "type": "string"
   },
+  "haus.ai.pi.packages": {
+    "declarations": [
+      "modules/ai/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ \"npm:pi-web-access\" \"npm:pi-subagents\" \"npm:@juicesharp/rpiv-ask-user-question\" \"npm:@juicesharp/rpiv-todo\" ]"
+    },
+    "description": "pi packages — extensions, skills, prompt templates and themes — merged\ninto `packages` in `~/.pi/agent/settings.json` at every rebuild.\n\nThe four in the default are what make pi comparable to the other\nclients in this room rather than a smaller thing beside them. pi ships\ndeliberately without sub-agents, a todo list, a way to ask its user a\nquestion mid-turn, or web access, and says so: its answer is that you\ninstall a package or have it write you one. So a haus machine that\ninstalled pi and stopped would be handing you a client that visibly\ncannot do what the pane next to it does.\n\n- `pi-web-access` — fetch and read a URL.\n- `pi-subagents` — spawn sub-agents for fan-out work.\n- `@juicesharp/rpiv-ask-user-question` — a mid-turn question with\n  options, instead of guessing.\n- `@juicesharp/rpiv-todo` — the visible task list a long turn needs.\n\nSet to `[ ]` for a pi with nothing but its own built-in tools. haus\nMERGES rather than owns: anything you added with `pi install` stays,\nand this list is added beside it, so the file is still yours. The\nconsequence of merging is that removing an entry from this list does\nNOT uninstall it — run `pi remove <source>` once, and it will not come\nback.\n\nCost, stated plainly: each entry is an npm fetch the first time pi\nstarts after a rebuild, and pi runs an extension's code in its own\nprocess. That is the same trust you extend to the client itself, but it\nis a second decision and this option is where you make it.\n\nHost-only, and this is the one leaf in the room where that matters\nmost: a shared desktop naming a package here would be shipping code\nthat runs on your machine inside a file you read as data.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[ ]"
+    },
+    "loc": [
+      "haus",
+      "ai",
+      "pi",
+      "packages"
+    ],
+    "readOnly": false,
+    "type": "list of string"
+  },
   "haus.ai.repoRoots": {
     "declarations": [
       "modules/ai/options.nix"
@@ -297,7 +319,7 @@
       "_type": "literalExpression",
       "text": "true"
     },
-    "description": "Install every hausfold tool's agent skill for each client in\n`ai.clients`, so an agent asked to \"install Slack\" or \"make everything\nbigger\" edits your host file and runs `haus rebuild` instead of guessing\nat dotfiles and `brew install` — and an agent asked \"what worktrees do I\nhave open?\" or \"hand this off to a fresh session\" reaches for `scruff`\nrather than `git worktree`.\n\nThree skills on any machine: `haus` (this machine's setup), and scruff's\nown two — `scruff` (the lane lifecycle) and `handoff` (turning work into a\nbrief a cold session can act on, ending on the clipboard or in a new\nlane). A tool whose room is OPTIONAL adds its own only when that room is\non: `trill` (sending a notification) arrives with\n`haus.notifications.compositor`,\nbecause a skill for an app this Mac doesn't have is worse than none.\nThat switch is about the ROOM, not about the app: `haus-notify` and the\n`trill` command find a hand-installed Trill.app at runtime whatever this\noption says, and such a machine gets no `trill` skill until the room is\nswitched on.\nEach tool names its own skills; haus only decides that they are\ninstalled.\n\nOne copy per client, in the directory that client scans:\n`~/.claude/skills/haus`, `~/.codex/skills/haus`,\n`~/.config/opencode/skills/haus`, and the same three directories again\nper skill. OpenCode also\nscans `~/.claude/skills`\nfor Claude Code compatibility, and prefers its own copy when both\nexist — so a machine running both clients sees each skill once, not\ntwice.\n\nThe skill's option reference is GENERATED from the haus revision this\nmachine is pinned to, so it can only ever describe options that\nactually exist here — and it is regenerated by `haus update`. It also\ncarries this host's current state (which rooms are on, where the host\nfile is) and a starter AGENTS.md + CLAUDE.md pair for your config repo —\nthe rules in the first, a one-line import in the second, so a session\nopened there is oriented whichever client it runs.\n\nUnrelated to the clients' own settings, which follow\n`haus.ai.enable`. This is a plain file drop: with\n`ai.clients` empty — a machine haus installs no client on, which\ncan still have one from npm or Homebrew — every known client's directory\ngets a copy rather than none. Set false to leave every client's skills\ndirectory alone.\n",
+    "description": "Install every hausfold tool's agent skill for each client in\n`ai.clients`, so an agent asked to \"install Slack\" or \"make everything\nbigger\" edits your host file and runs `haus rebuild` instead of guessing\nat dotfiles and `brew install` — and an agent asked \"what worktrees do I\nhave open?\" or \"hand this off to a fresh session\" reaches for `scruff`\nrather than `git worktree`.\n\nThree skills on any machine: `haus` (this machine's setup), and scruff's\nown two — `scruff` (the lane lifecycle) and `handoff` (turning work into a\nbrief a cold session can act on, ending on the clipboard or in a new\nlane). A tool whose room is OPTIONAL adds its own only when that room is\non: `trill` (sending a notification) arrives with\n`haus.notifications.compositor`,\nbecause a skill for an app this Mac doesn't have is worse than none.\nThat switch is about the ROOM, not about the app: `haus-notify` and the\n`trill` command find a hand-installed Trill.app at runtime whatever this\noption says, and such a machine gets no `trill` skill until the room is\nswitched on.\nEach tool names its own skills; haus only decides that they are\ninstalled.\n\nOne copy per client, in the directory that client scans:\n`~/.claude/skills/haus`, `~/.codex/skills/haus`,\n`~/.config/opencode/skills/haus`, `~/.pi/agent/skills/haus`, and the\nsame four directories again\nper skill. OpenCode also\nscans `~/.claude/skills`\nfor Claude Code compatibility, and prefers its own copy when both\nexist — so a machine running both clients sees each skill once, not\ntwice. pi reads `~/.agents/skills` on top of its own directory for the\nsame reason, and deduplicates the same way.\n\nThe skill's option reference is GENERATED from the haus revision this\nmachine is pinned to, so it can only ever describe options that\nactually exist here — and it is regenerated by `haus update`. It also\ncarries this host's current state (which rooms are on, where the host\nfile is) and a starter AGENTS.md + CLAUDE.md pair for your config repo —\nthe rules in the first, a one-line import in the second, so a session\nopened there is oriented whichever client it runs.\n\nUnrelated to the clients' own settings, which follow\n`haus.ai.enable`. This is a plain file drop: with\n`ai.clients` empty — a machine haus installs no client on, which\ncan still have one from npm or Homebrew — every known client's directory\ngets a copy rather than none. Set false to leave every client's skills\ndirectory alone.\n",
     "loc": [
       "haus",
       "ai",
@@ -506,7 +528,7 @@
       "_type": "literalExpression",
       "text": "\"latest\""
     },
-    "description": "Which AI provider to display in the main pill: `latest` (default, automatically\nshows whichever provider reported most recently), or one of\n`claude`, `codex`, `opencode`.\nClicking the pill always displays the full dropdown with all reporting providers.\n\nNote this is about *usage readouts*, not about which client `scruff` can\nspawn: a provider reports here whenever it has data for your account —\nCodex notably does so from a ChatGPT login alone, with no CLI installed\n— so it is deliberately not tied to `haus.ai.clients`.\n",
+    "description": "Which AI provider to display in the main pill: `latest` (default, automatically\nshows whichever provider reported most recently), or one of\n`claude`, `codex`, `opencode`, `pi`.\nClicking the pill always displays the full dropdown with all reporting providers.\n\nNote this is about *usage readouts*, not about which client `scruff` can\nspawn: a provider reports here whenever it has data for your account —\nCodex notably does so from a ChatGPT login alone, with no CLI installed\n— so it is deliberately not tied to `haus.ai.clients`.\n",
     "example": {
       "_type": "literalExpression",
       "text": "\"claude\""
@@ -518,7 +540,7 @@
       "provider"
     ],
     "readOnly": false,
-    "type": "one of \"latest\", \"claude\", \"codex\", \"opencode\""
+    "type": "one of \"latest\", \"claude\", \"codex\", \"opencode\", \"pi\""
   },
   "haus.bar.battery.hideOver": {
     "declarations": [
