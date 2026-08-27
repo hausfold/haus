@@ -290,8 +290,24 @@ lib.mkIf config.haus.notifications.compositor {
             # cost of a rebuild with no Aqua session to open into (ssh, CI, a
             # lane's own VM), where `launchctl asuser` fails at once: three quick
             # failures instead of 45 s of probing a socket nobody is behind.
+            #
+            # ⚠️ `-H`, and it is load-bearing. macOS's /etc/sudoers ships
+            # `Defaults env_keep += "HOME MAIL"`, so a plain `sudo --user=` run
+            # from activation hands the target user ROOT's HOME — and `open`
+            # passes its own environment through to the app it launches, so
+            # trill would come up as you while carrying `HOME=/var/root`.
+            # Measured on mbp 2026-08-26: `ps eww` on the live Trill showed
+            # exactly that, and it is what broke the lane banners —
+            # ActionRouter spawned `holt focus`, holt looked for
+            # `$HOME/.cache/claude-worktrees` under /var/root and failed
+            # `permission denied` in 5 ms, with no window raised, nothing
+            # logged and nothing in `ps` slow enough to catch. `-H` is the sudo
+            # flag that beats the keep list (sudoers(5)'s `always_set_home`
+            # documents that pairing); fixing it per-child, as
+            # hausfold/trill#42 does, is one patch per child, and the launch is
+            # the cause.
             if ! ${pkgs.coreutils}/bin/timeout 20 launchctl asuser "$trillUid" \
-                   sudo --user=${username} -- /usr/bin/open -g "$trillDest"; then
+                   sudo -H --user=${username} -- /usr/bin/open -g "$trillDest"; then
               /bin/sleep 1
               continue
             fi
@@ -302,8 +318,16 @@ lib.mkIf config.haus.notifications.compositor {
               # that accepts the connection and then wedges — the first-launch
               # state this retry loop exists for — would block activation for
               # ever, as root, holding $trillLock.
+              # `-H` here for the same reason as the launch above. Not a
+              # bundle-resolution question — `$trillExec` is the absolute
+              # binary inside `$trillDest`, so this probe answers about
+              # /Applications either way, which is the bundle activation just
+              # installed and exactly what we want to hear about. It is that
+              # this execs trill's own CLI AS you, and a probe run in a
+              # different environment than the launch it is checking on is a
+              # probe that can disagree with reality.
               if ${pkgs.coreutils}/bin/timeout 5 launchctl asuser "$trillUid" \
-                   sudo --user=${username} -- \
+                   sudo -H --user=${username} -- \
                    "$trillExec" ping >/dev/null 2>&1; then trillUp=1; break; fi
               /bin/sleep 0.2
               trillProbed=$(( trillProbed + 1 ))
