@@ -84,7 +84,7 @@ modules/
   options-modules.nix     # the per-room options.nix list — shared by both renderers below
   options-groups.nix      # the ROOM REGISTRY: every public namespace and darwinModules
                           #   export, its owning room, and whether desktop data may set
-                          #   each leaf — plus the twelve rooms themselves, each with the
+                          #   each leaf — plus the thirteen rooms themselves, each with the
                           #   title and sentence a renderer lays its catalogue out from.
                           #   `room-registry` fails on anything unmapped or unnamed
   moved.nix               # aliases for options that changed ADDRESS inside haus.*. Read
