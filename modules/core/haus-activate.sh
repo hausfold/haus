@@ -37,7 +37,20 @@ set -euo pipefail
 PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 export PATH
 
-die() { printf '\033[38;5;167m✗  %s\033[0m\n' "$*" >&2; exit 1; }
+# The whole of this script's output is that one `die`, and it goes to STDERR —
+# so the gate reads fd 2, where haus.sh and haus-show.sh read fd 1. Gating on
+# stdout here would answer about the wrong stream: `haus rebuild` runs this
+# inside a phase whose stdout is the rebuild log, with the terminal still on
+# stderr, which is exactly when the message is worth painting. Otherwise the
+# same rule as everywhere: NO_COLOR off, CLICOLOR_FORCE on through a pipe, and
+# an empty C_* so the same printf falls back to clean text.
+if { [ -t 2 ] || [ -n "${CLICOLOR_FORCE:-}" ]; } && [ -z "${NO_COLOR:-}" ]; then
+  C_OFF=$'\033[0m'; C_ERR=$'\033[38;5;167m'   # rose — failure
+else
+  C_OFF=; C_ERR=
+fi
+
+die() { printf '%s✗  %s%s\n' "$C_ERR" "$*" "$C_OFF" >&2; exit 1; }
 
 [ -n "${1:-}" ] || die "usage: sudo haus-activate <system>   (./result, or a /nix/store/…-darwin-system-… path)"
 [ "$(id -u)" -eq 0 ] || die "must run as root — try: sudo /run/current-system/sw/bin/haus-activate $1"

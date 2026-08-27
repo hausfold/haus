@@ -43,12 +43,33 @@ CONSUMER="${HAUS_CONSUMER:-$HOME/.config/nix}"
 # landmark check below reads the same thing settings_write's TX helpers do.
 FLAKE="$CONSUMER/flake.nix"
 
-say()  { printf '\033[38;5;103m🌫  %s\033[0m\n' "$*"; }
-warn() { printf '\033[38;5;179m⚠  %s\033[0m\n' "$*"; }
-die()  { printf '\033[38;5;167m✗  %s\033[0m\n' "$*" >&2; exit 1; }
-ok()   { printf '  \033[38;5;108m✓\033[0m %s\n' "$*"; }
-bad()  { printf '  \033[38;5;167m✗\033[0m %s\n' "$*"; }
-info() { printf '  \033[38;5;103mⓘ\033[0m %s\n' "$*"; }
+# ---- palette ----------------------------------------------------------------
+# Colour is a courtesy, never load-bearing. Every escape below is gated: emitted
+# only when stdout is a TTY (so `haus status | less`, CI logs and an agent pane
+# all stay plain) and when NO_COLOR is unset (https://no-color.org); set
+# CLICOLOR_FORCE=1 to force it back on through a pipe. When off, every C_* var
+# is the empty string, so the exact same printf lines fall back to clean text —
+# and alignment survives because colour only ever wraps AROUND a pre-padded
+# field, never inside a %-Ns width (an escape counted as width shears the
+# column). This is `bench`'s block, spelled the same way on purpose: the family
+# standard is docs/cli-presentation.md in the workshop, and the drift it exists
+# to stop starts with two tools disagreeing about one role.
+if { [ -t 1 ] || [ -n "${CLICOLOR_FORCE:-}" ]; } && [ -z "${NO_COLOR:-}" ]; then
+  C_OFF=$'\033[0m'
+  C_FOG=$'\033[38;5;103m'   # primary accent — the fog itself
+  C_OK=$'\033[38;5;108m'    # sage — current / healthy
+  C_WARN=$'\033[38;5;179m'  # amber — stale / wants attention
+  C_ERR=$'\033[38;5;167m'   # rose — failure
+else
+  C_OFF=; C_FOG=; C_OK=; C_WARN=; C_ERR=
+fi
+
+say()  { printf '%s🌫  %s%s\n' "$C_FOG" "$*" "$C_OFF"; }
+warn() { printf '%s⚠  %s%s\n' "$C_WARN" "$*" "$C_OFF"; }
+die()  { printf '%s✗  %s%s\n' "$C_ERR" "$*" "$C_OFF" >&2; exit 1; }
+ok()   { printf '  %s✓%s %s\n' "$C_OK" "$C_OFF" "$*"; }
+bad()  { printf '  %s✗%s %s\n' "$C_ERR" "$C_OFF" "$*"; }
+info() { printf '  %sⓘ%s %s\n' "$C_FOG" "$C_OFF" "$*"; }
 
 # Every verb here drives THIS machine's config, so the config has to exist —
 # with one exception. `haus show` reads a desktop someone is about to publish or
@@ -99,9 +120,171 @@ HAUS_LOG="$HAUS_LOG_DIR/rebuild.log"
 VERBOSE="${HAUS_VERBOSE:-}"
 [ -t 1 ] || VERBOSE=1
 
-phase_start() { [ -n "$VERBOSE" ] || printf '  \033[38;5;103m·\033[0m %-9s ' "$1"; }
-phase_ok()    { printf '\r  \033[38;5;108m✓\033[0m %-9s %6s  \033[38;5;103m%s\033[0m\n' "$1" "$2" "${3:-}"; }
-phase_bad()   { printf '\r  \033[38;5;167m✗\033[0m %-9s %6s\n' "$1" "$2"; }
+# ---- the phase painter ------------------------------------------------------
+# The phase lines are a LIVE REGION of exactly one line: `phase_start` leaves a
+# stub, the phase runs, `phase_ok`/`phase_bad` repaint over it. `\r` returns to
+# column 0 of the current PHYSICAL row rather than of the logical line, so a
+# painted line that soft-wraps rewrites only its LAST row and orphans every row
+# above it. The finished `activate` row runs ~52 cells ("12 services · homebrew
+# changed"), which corrupted every terminal 53 columns or narrower. The fix is
+# to measure the window and fold — never to assume a width, and never to clamp
+# the content and hope. See docs/cli-presentation.md in the workshop.
+#
+# NOT `tput cols`: terminfo carries a STATIC size (80 for every xterm-* entry),
+# and ncurses only overrides it from the real window when LINES/COLUMNS are
+# exported — measured in a 40-column pty, `tput cols` answers 80, so a painter
+# built on it folds to a width the window hasn't had since 1978. `stty size`
+# asks the kernel (TIOCGWINSZ), the only source that tracks a resize, and it
+# reads /dev/tty rather than `<&1` because this runs inside `$( )`, where fd 1
+# is the substitution's pipe and never the terminal.
+#
+# A rebuild paints four rows, not ten a second, so this measures per row and
+# wants no SIGWINCH trap: a window resized mid-phase is re-measured before the
+# row that lands after it. `tput` is still the fallback for the one case where
+# `stty` can't answer, where a stale 80 beats no number.
+PHASE_COLS=80
+# What "no window" folds to. A file has no columns, so nothing is truncated into
+# one: every tier's test is `avail >= …`, and an avail this wide takes the first.
+PHASE_UNBOUNDED=100000
+phase_measure() {
+  local sz
+  # Folding is a courtesy to a WINDOW, so it is gated on the same fd the escapes
+  # are. `haus rebuild >build.log` from an 80-column terminal must not put an
+  # `…` in the log — the window it was launched from is not a fact about the
+  # file, and a truncated summary in a log is a summary someone has to go and
+  # re-run the rebuild for.
+  if [ ! -t 1 ]; then PHASE_COLS="$PHASE_UNBOUNDED"; return 0; fi
+  # `|| true` is load-bearing, not defensive. `tput` exits 2 with TERM unset,
+  # and under `set -e` the command after the final `||` is the one case the
+  # shell does NOT exempt — so without it, `ssh mac haus rebuild` (no pty, so
+  # sshd sets no TERM and there is no controlling terminal) died with status 2
+  # and NOTHING on either stream, after a successful evaluation and before
+  # anything activated. Measured. The two `case` lines below already treat an
+  # empty answer as "ask something else"; they just never got to run.
+  sz="$(stty size 2>/dev/null </dev/tty)" && PHASE_COLS="${sz#* }" \
+    || PHASE_COLS="$(tput cols 2>/dev/null || true)"
+  case "$PHASE_COLS" in '' | *[!0-9]*) PHASE_COLS="${COLUMNS:-80}" ;; esac
+  case "$PHASE_COLS" in '' | *[!0-9]*) PHASE_COLS=80 ;; esac
+}
+
+# Cells the stub on screen occupies, 0 when there is none. It is BOTH the "may I
+# repaint?" flag — verbose mode and anything that isn't a terminal never paint
+# one, so no cursor escape can reach a pipe or a file — and the reflow check:
+# `\r` is only sound while the stub still fits one screen row, so a window that
+# narrowed past it mid-phase gets a fresh line rather than a corrupt one.
+PHASE_STUB=0
+
+# One phase row, folded to the window. The layout is
+# "  <glyph> <label> <elapsed>  <detail>": a 4-cell gutter, then three fields
+# that give up cells in reverse order of what they carry — the detail first,
+# then the padding that made it a table, then the elapsed, then the label
+# itself, down to a floor of the glyph alone.
+#
+# Widths are counted with ${#…}, which is CHARACTERS under a UTF-8 locale: every
+# field here is ASCII and every glyph is one cell, so characters and cells are
+# the same number. The labels and the detail are ours, not a source's; the day
+# one carries an emoji this needs a real cell count (docs/cli-presentation.md
+# §"Width is counted in the wrong unit").
+phase_row() { # phase_row <colour> <glyph> <label> <elapsed> [detail]
+  local col="$1" glyph="$2" label="$3" el="$4" detail="${5:-}"
+  local avail elw labelw base dw
+
+  # Never write into the last column: a line whose width EQUALS the terminal's
+  # leaves the cursor past the edge and the terminal wraps it anyway.
+  avail=$(( PHASE_COLS - 1 ))
+
+  # Measured, not assumed. `%6s` and `%-9s` are minimums, so a phase past a
+  # thousand seconds renders "1234.5s" — seven cells where a hardcoded six
+  # would have overflowed the edge, which is the bug this painter exists to
+  # stop.
+  elw=6;    [ "${#el}" -gt "$elw" ] && elw="${#el}"
+  labelw=9; [ "${#label}" -gt "$labelw" ] && labelw="${#label}"
+  base=$(( 4 + labelw + 1 + elw ))
+
+  # The tier is chosen from the WINDOW and only then clamped to the content.
+  # Asking "is the detail short?" first answers a different question from "is
+  # there room?", and drops a column on a terminal that had space for it.
+  if [ -n "$detail" ] && [ "$avail" -ge $(( base + 4 )) ]; then
+    dw=$(( avail - base - 2 ))
+    # Truncate INSIDE the field, so the columns to its left stay put.
+    [ "${#detail}" -gt "$dw" ] && detail="${detail:0:$((dw - 1))}…"
+    printf '  %s%s%s %-*s %*s  %s%s%s\n' \
+      "$col" "$glyph" "$C_OFF" "$labelw" "$label" "$elw" "$el" "$C_FOG" "$detail" "$C_OFF"
+  elif [ "$avail" -ge "$base" ]; then
+    printf '  %s%s%s %-*s %*s\n' "$col" "$glyph" "$C_OFF" "$labelw" "$label" "$elw" "$el"
+  elif [ -n "$el" ] && [ "$avail" -ge $(( 4 + ${#label} + 1 + ${#el} )) ]; then
+    # list: the padding that made it a table is the first thing to go.
+    printf '  %s%s%s %s %s\n' "$col" "$glyph" "$C_OFF" "$label" "$el"
+  elif [ "$avail" -ge $(( 4 + ${#label} )) ]; then
+    printf '  %s%s%s %s\n' "$col" "$glyph" "$C_OFF" "$label"
+  elif [ "$avail" -ge 3 ]; then
+    # bare: the 3-cell gutter collapses to one space, and the label truncates.
+    dw=$(( avail - 2 ))
+    [ "${#label}" -gt "$dw" ] && label="${label:0:$((dw - 1))}…"
+    printf '%s%s%s %s\n' "$col" "$glyph" "$C_OFF" "$label"
+  elif [ "$avail" -ge 1 ]; then
+    # The floor is the glyph: below one cell there is nothing honest to draw.
+    printf '%s%s%s\n' "$col" "$glyph" "$C_OFF"
+  else
+    printf '\n'
+  fi
+}
+
+# The stub wears the same gutter and label column the finished row lands in, so
+# the repaint covers it exactly. It folds for the row's reason and one more: a
+# stub that wrapped would put `\r` on the wrong screen row for the rest of the
+# phase.
+phase_start() {
+  # Two conditions, and the second is not redundant: VERBOSE is forced on off a
+  # terminal (see its assignment above), so today it implies this. Saying it
+  # here too keeps the function true on its own — PHASE_STUB is what licenses
+  # every cursor escape below, and it must never be set by a painter that had
+  # no terminal to paint on, whatever a distant assignment happens to do.
+  if [ -n "$VERBOSE" ] || [ ! -t 1 ]; then PHASE_STUB=0; return 0; fi
+  phase_measure
+  local label="$1" avail labelw w
+  avail=$(( PHASE_COLS - 1 ))
+  labelw=9; [ "${#label}" -gt "$labelw" ] && labelw="${#label}"
+  w=$(( 4 + labelw + 1 ))
+  if [ "$avail" -ge "$w" ]; then
+    printf '  %s·%s %-*s ' "$C_FOG" "$C_OFF" "$labelw" "$label"
+  elif [ "$avail" -ge 1 ]; then
+    printf '%s·%s' "$C_FOG" "$C_OFF"; w=1
+  else
+    w=0
+  fi
+  PHASE_STUB="$w"
+}
+
+# Repaint over the stub. `[2K` wipes the whole line rather than trusting the new
+# row to be at least as wide as the stub, which a folded row need not be.
+#
+# It leads with `\r[2K` on a terminal even when this phase left NO stub, which
+# is `build`'s case: nix keeps the terminal for its own progress bar, so nothing
+# was painted to cover — but something else was, and returning to column 0 of a
+# line somebody else may have left half-written is exactly the recovery the old
+# unconditional `\r` gave every row. At column 0 of a clean line it costs
+# nothing.
+#
+# The one time it must NOT: a window that narrowed past the stub during the
+# phase. `\r` then reaches the wrong screen row, so the row lands on a fresh
+# line instead and one stale stub stays on screen — a reflow cannot be modelled,
+# and a stale line is honest where a corrupt one is not.
+#
+# Off a terminal none of it is written at all: piped, in CI or in a log, a live
+# region degrades to one plain line per state change and no cursor escape ever
+# reaches a file.
+phase_repaint() { # phase_repaint <colour> <glyph> <label> <elapsed> [detail]
+  phase_measure
+  if [ -t 1 ]; then
+    if [ "$PHASE_STUB" -gt $(( PHASE_COLS - 1 )) ]; then printf '\n'
+    else printf '\r\033[2K'; fi
+  fi
+  PHASE_STUB=0
+  phase_row "$@"
+}
+phase_ok()  { phase_repaint "$C_OK" '✓' "$1" "$2" "${3:-}"; }
+phase_bad() { phase_repaint "$C_ERR" '✗' "$1" "$2"; }
 secs()        { printf '%d.%01ds' $(( $1 / 10 )) $(( $1 % 10 )); }
 # Deciseconds, from bash's own clock. NOT `date +%s%N`: that's a GNU extension,
 # and BSD date prints a literal "N" — which only shows up as broken arithmetic
@@ -275,6 +458,12 @@ haus — the everyday CLI for a haus machine.
                       explicitly (default: blank) so removing your selected
                       desktop can't silently fall back to the opinionated one.
                       Never rebuilds.
+
+colour and width
+  Colour is written only when stdout is a terminal and NO_COLOR is unset.
+  CLICOLOR_FORCE=1 forces it back on through a pipe. The rebuild's phase lines
+  fold to the window and repaint in place on a terminal, and degrade to one
+  plain line each — no cursor escapes, no truncation — anywhere else.
 EOF
 }
 
@@ -1712,7 +1901,8 @@ cmd_rebuild() {
   else
     local gen_after changed n
     gen_after="$(current_gen || echo '?')"
-    printf '  \033[38;5;108m✓\033[0m %-9s %6s  \033[38;5;103m%s\033[0m\n' generation '' \
+    phase_measure
+    phase_row "$C_OK" '✓' generation '' \
       "$([ "$gen_before" = "$gen_after" ] && echo "$gen_after (unchanged)" || echo "$gen_before → $gen_after")"
     n="$(wc -l <"$difffile" 2>/dev/null | tr -d ' ')"; n="${n:-0}"
     echo
@@ -3903,12 +4093,12 @@ cmd_desktop() {
     say "desktops"
     printf '%s\n' "$builtin_list" | while IFS= read -r n; do
       [ -n "$n" ] || continue
-      if [ "$n" = "$current" ]; then printf '  \033[38;5;108m→\033[0m %-12s built in\n' "$n"
+      if [ "$n" = "$current" ]; then printf '  %s→%s %-12s built in\n' "$C_OK" "$C_OFF" "$n"
       else printf '    %-12s built in\n' "$n"; fi
     done
     if [ -n "$pinned" ]; then
       printf '%s\n' "$pinned" | while IFS= read -r n; do
-        if [ "$n" = "$current" ]; then printf '  \033[38;5;108m→\033[0m %-12s pinned\n' "$n"
+        if [ "$n" = "$current" ]; then printf '  %s→%s %-12s pinned\n' "$C_OK" "$C_OFF" "$n"
         else printf '    %-12s pinned\n' "$n"; fi
       done
     fi

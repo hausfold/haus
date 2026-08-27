@@ -33,18 +33,70 @@ export PATH
 # its own; on a machine the system profile's copy is the pin you actually run.
 CHECK="${HAUS_DESKTOP_CHECK:-/run/current-system/sw/share/haus/desktop-check}"
 
-# `scrub` (defined below, beside the reasoning) strips C0 controls. It is
-# applied in the HELPERS rather than at each call site: every one of these takes
-# a message that can carry a source's bytes — a path, a URL, a diagnostic, a
-# value — and a rule that has to be remembered per call is a rule with a hole in
-# it. On haus's own ASCII literals it does nothing.
-say()   { printf '\033[38;5;103m🌫  %s\033[0m\n' "$(printf '%s' "$*" | scrub)"; }
-die()   { printf '\033[38;5;167m✗  %s\033[0m\n' "$(printf '%s' "$*" | scrub)" >&2; exit 2; }
-field() { printf '  \033[38;5;103m%-9s\033[0m %s\n' "$1" "$(printf '%s' "$2" | scrub)"; }
-good()  { printf '  \033[38;5;108m✓\033[0m %s\n' "$*"; }
-bad()   { printf '  \033[38;5;167m✗\033[0m %s\n' "$(printf '%s' "$*" | scrub)"; }
-note()  { printf '  \033[38;5;179m⚠\033[0m %s\n' "$*"; }
-dim()   { printf '  \033[38;5;103m%s\033[0m\n' "$*"; }
+# ---- palette ----------------------------------------------------------------
+# The same gate, spelled the same way, as haus.sh and `bench`: escapes only when
+# stdout is a TTY and NO_COLOR is unset, CLICOLOR_FORCE=1 to force them through a
+# pipe, every C_* empty when off so the same printf falls back to clean text. It
+# matters more here than anywhere else in the family, because this command's
+# whole audience is a publisher's CI log and an agent reading a report — the two
+# places a raw \033[38;5;103m is pure noise. The family standard is
+# docs/cli-presentation.md in the workshop.
+#
+# Colour lives OUTSIDE every %-Ns width below, so alignment is identical with it
+# off. Those widths are still hardcoded (44 and 46 cells, plus their gutter):
+# this report is not a live region, so a narrow window soft-wraps it rather than
+# corrupting it, and folding them is the shared painter's job.
+if { [ -t 1 ] || [ -n "${CLICOLOR_FORCE:-}" ]; } && [ -z "${NO_COLOR:-}" ]; then
+  C_OFF=$'\033[0m'
+  C_FOG=$'\033[38;5;103m'   # primary accent — the fog itself
+  C_OK=$'\033[38;5;108m'    # sage — current / healthy
+  C_WARN=$'\033[38;5;179m'  # amber — stale / wants attention
+  C_ERR=$'\033[38;5;167m'   # rose — failure
+  # One grey for one role, family-wide. haus used 243 and `bench` 245 for the
+  # same "secondary detail" — the closest thing to a real drift in the palette
+  # audit, and two greys where the tools sit side by side on one screen.
+  C_MUT=$'\033[38;5;245m'   # muted grey — secondary detail
+else
+  C_OFF=; C_FOG=; C_OK=; C_WARN=; C_ERR=; C_MUT=
+fi
+
+# ---- everything a stranger wrote passes through here -------------------------
+# `toJSON` escapes quotes, backslashes and the three whitespace controls, and
+# nothing else — so ESC survives a desktop's own values and its own attribute
+# NAMES all the way to `jq -r`, which decodes it back to a raw byte. Measured:
+# an accent of "\u001b[7A\u001b[2K…" reaches the terminal intact.
+#
+# That is not cosmetic here. `sets` is printed AFTER the class line and after
+# the list of broken rules, so a file that can move the cursor can repaint
+# "not a desktop — it breaks the rules below" as "a desktop — data only, and
+# haus checked it". The exit code stays honest; the screen is what the audience
+# reads. Step A shipped this hole with an input that had been handed to you by
+# someone; a source arrives from a stranger, which is what makes it bite.
+#
+# Tab survives, because it is the field separator the render loops read on.
+# `--json` needs none of this: jq re-escapes controls on the way out.
+scrub() { LC_ALL=C tr -d '\000-\010\013\014\016-\037\177'; }
+
+# `scrub` is defined immediately above rather than beside the rest of the
+# reasoning, and that placement is load-bearing: every helper below calls it, so
+# a `die` that fires before its definition prints `scrub: command not found` and
+# then an EMPTY message. The earliest ones are exactly the ones that matter —
+# an unknown flag, and "this machine's haus predates 'haus show', run 'haus
+# update' first" — so the report's most important error was `✗ ` and nothing
+# else. Found by this room's own colour-gate test, which could not decide which
+# `die` it had reached.
+#
+# It is applied in the HELPERS rather than at each call site: every one of these
+# takes a message that can carry a source's bytes — a path, a URL, a diagnostic,
+# a value — and a rule that has to be remembered per call is a rule with a hole
+# in it. On haus's own ASCII literals it does nothing.
+say()   { printf '%s🌫  %s%s\n' "$C_FOG" "$(printf '%s' "$*" | scrub)" "$C_OFF"; }
+die()   { printf '%s✗  %s%s\n' "$C_ERR" "$(printf '%s' "$*" | scrub)" "$C_OFF" >&2; exit 2; }
+field() { printf '  %s%-9s%s %s\n' "$C_FOG" "$1" "$C_OFF" "$(printf '%s' "$2" | scrub)"; }
+good()  { printf '  %s✓%s %s\n' "$C_OK" "$C_OFF" "$*"; }
+bad()   { printf '  %s✗%s %s\n' "$C_ERR" "$C_OFF" "$(printf '%s' "$*" | scrub)"; }
+note()  { printf '  %s⚠%s %s\n' "$C_WARN" "$C_OFF" "$*"; }
+dim()   { printf '  %s%s%s\n' "$C_FOG" "$*" "$C_OFF"; }
 plural() { [ "$1" = 1 ] || printf s; }
 # `leaf` is the one word in this report with an irregular plural, and the
 # obvious `leaf$(plural n)` spells it "leafes".
@@ -159,23 +211,6 @@ CHECK="$(cd -- "$CHECK" >/dev/null && pwd -P)"
 # to evaluate.
 nix_string() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/\$/\\$/g'; }
 
-# ---- everything a stranger wrote passes through here -------------------------
-# `toJSON` escapes quotes, backslashes and the three whitespace controls, and
-# nothing else — so ESC survives a desktop's own values and its own attribute
-# NAMES all the way to `jq -r`, which decodes it back to a raw byte. Measured:
-# an accent of "\u001b[7A\u001b[2K…" reaches the terminal intact.
-#
-# That is not cosmetic here. `sets` is printed AFTER the class line and after
-# the list of broken rules, so a file that can move the cursor can repaint
-# "not a desktop — it breaks the rules below" as "a desktop — data only, and
-# haus checked it". The exit code stays honest; the screen is what the audience
-# reads. Step A shipped this hole with an input that had been handed to you by
-# someone; a source arrives from a stranger, which is what makes it bite.
-#
-# Tab survives, because it is the field separator the render loops read on.
-# `--json` needs none of this: jq re-escapes controls on the way out.
-scrub() { LC_ALL=C tr -d '\000-\010\013\014\016-\037\177'; }
-
 # Nix's own sentence out of a captured stderr, not a guess.
 #
 # Step A used the last non-blank line, which is right for a parse error and
@@ -276,7 +311,7 @@ else
   # the freshest language the report has. Every other command here can afford a
   # cache; the one whose whole output is "where did this come from, and how old
   # is it" cannot.
-  [ -n "$json" ] || printf '\033[38;5;103m🌫  fetching %s …\033[0m\n' "$subject" >&2
+  [ -n "$json" ] || printf '%s🌫  fetching %s …%s\n' "$C_FOG" "$subject" "$C_OFF" >&2
   fetched="$(
     NIX_PATH='' nix eval --impure --json \
       --option tarball-ttl 0 \
@@ -787,7 +822,8 @@ render_machine() {
     printf '\n'
     note "$n $(leaves "$n") your own config outranks — the desktop does not move $(if [ "$n" = 1 ]; then printf it; else printf them; fi)"
     emit overridden | while IFS=$'\t' read -r path cur prop type inside; do
-      printf '      %-44s \033[38;5;103mstays %s\033[0m   \033[38;5;243m(it asks for %s)\033[0m\n' "$path" "$cur" "$prop"
+      printf '      %-44s %sstays %s%s   %s(it asks for %s)%s\n' \
+        "$path" "$C_FOG" "$cur" "$C_OFF" "$C_MUT" "$prop" "$C_OFF"
     done
   fi
 
@@ -799,8 +835,8 @@ render_machine() {
     printf '\n'
     field "changes" "$n $(leaves "$n")"
     emit changes | while IFS=$'\t' read -r path cur prop type inside; do
-      printf '      %-44s \033[38;5;103m%s → %s\033[0m' "$path" "$cur" "$prop"
-      case "$type" in listOf) printf '   \033[38;5;179m⚠ a list: replaced whole, not merged\033[0m' ;; esac
+      printf '      %-44s %s%s → %s%s' "$path" "$C_FOG" "$cur" "$prop" "$C_OFF"
+      case "$type" in listOf) printf '   %s⚠ a list: replaced whole, not merged%s' "$C_WARN" "$C_OFF" ;; esac
       printf '\n'
     done
   fi
@@ -813,8 +849,8 @@ render_machine() {
     printf '\n'
     field "unranked" "$n $(leaves "$n") inside a list-like option"
     emit unranked | while IFS=$'\t' read -r path cur prop type inside; do
-      printf '      %-44s \033[38;5;103m%s → %s\033[0m   \033[38;5;243m(inside %s)\033[0m\n' \
-        "$path" "$cur" "$prop" "$inside"
+      printf '      %-44s %s%s → %s%s   %s(inside %s)%s\n' \
+        "$path" "$C_FOG" "$cur" "$prop" "$C_OFF" "$C_MUT" "$inside" "$C_OFF"
     done
     dim "Entries inside a container have no option of their own to rank, so haus"
     dim "can show you the values and not which one wins. 'haus plan' settles it."
@@ -828,7 +864,7 @@ render_machine() {
     printf '\n'
     note "$n $(leaves "$n") this machine's haus has never heard of"
     emit unknown | while IFS=$'\t' read -r path cur prop type inside; do
-      printf '      %-44s \033[38;5;167m%s\033[0m\n' "$path" "$prop"
+      printf '      %-44s %s%s%s\n' "$path" "$C_ERR" "$prop" "$C_OFF"
     done
     dim "The desktop was written against a different haus than you have pinned."
     dim "'haus update' moves your pin; nothing here changes the file."
@@ -844,7 +880,7 @@ render_machine() {
     field "turns off" "$n $(leaves "$n") the desktop you have sets and this one does not"
     jq -r '.drops[] | "\(.path)\t\(.current // "—")"' <<<"$becomes" | scrub |
       while IFS=$'\t' read -r path cur; do
-        printf '      %-44s \033[38;5;103m%s → whatever haus decides\033[0m\n' "$path" "$cur"
+        printf '      %-44s %s%s → whatever haus decides%s\n' "$path" "$C_FOG" "$cur" "$C_OFF"
       done
   fi
 
@@ -886,7 +922,7 @@ render_desktop() {
     # inside a flake check over a directory of fixtures and noise here, where
     # the filename is already the second line of the report.
     jq -r --arg abs "$abs" '.failures[] | ltrimstr($abs + ": ")' <<<"$report" | scrub |
-      while IFS= read -r line; do printf '    \033[38;5;167m·\033[0m %s\n' "$line"; done
+      while IFS= read -r line; do printf '    %s·%s %s\n' "$C_ERR" "$C_OFF" "$line"; done
   fi
   printf '\n'
 
@@ -896,11 +932,11 @@ render_desktop() {
     field "sets" "$nsets option$(plural "$nsets") across $nrooms room$(plural "$nrooms")"
     printf '\n'
     while IFS= read -r room; do
-      printf '    \033[38;5;108m%s\033[0m\n' \
-        "$(jq -r --arg r "$room" '.rooms[] | select(.room == $r) | .title' <<<"$report" | scrub)"
+      printf '    %s%s%s\n' "$C_OK" \
+        "$(jq -r --arg r "$room" '.rooms[] | select(.room == $r) | .title' <<<"$report" | scrub)" "$C_OFF"
       jq -r --arg r "$room" '.sets[] | select(.room == $r) | "\(.path)\t\(.value)"' <<<"$report" | scrub |
         while IFS=$'\t' read -r path value; do
-          printf '      %-46s \033[38;5;103m%s\033[0m\n' "$path" "$value"
+          printf '      %-46s %s%s%s\n' "$path" "$C_FOG" "$value" "$C_OFF"
         done
     done < <(jq -r '.rooms[].room' <<<"$report")
     # A leaf no registry namespace owns cannot survive in a PASSING desktop —
@@ -908,7 +944,7 @@ render_desktop() {
     # to see it rather than have it silently dropped from the listing.
     jq -r '.sets[] | select(.room == null) | "\(.path)\t\(.value)"' <<<"$report" | scrub |
       while IFS=$'\t' read -r path value; do
-        printf '      %-46s \033[38;5;167m%s\033[0m\n' "$path" "$value"
+        printf '      %-46s %s%s%s\n' "$path" "$C_ERR" "$value" "$C_OFF"
       done
     # Attribution, not decoration. The guard's unit is the store path, so a
     # fetched desktop could have read any file its publisher shipped beside it,
@@ -925,7 +961,7 @@ render_desktop() {
   silent="$(jq -r '[.silent[].title] | join(" · ")' <<<"$report")"
   if [ -n "$silent" ]; then
     field "silent" "$silent"
-    printf '            \033[38;5;103mthose rooms stay whatever your host and haus decide\033[0m\n'
+    printf '            %sthose rooms stay whatever your host and haus decide%s\n' "$C_FOG" "$C_OFF"
   else
     field "silent" "nothing — it has an opinion about every room"
   fi
