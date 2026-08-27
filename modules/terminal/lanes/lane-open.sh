@@ -212,17 +212,29 @@ if [ -z "$backend" ]; then
 fi
 
 # ── a lane that does not take the screen ─────────────────────────────────────
-# HAUS_LANE_BACKGROUND=1 opens the lane WITHOUT moving you to it: the window is
-# still created, still named holt.<repo>.<lane>, still tiled onto T/<repo>, and
-# the client still starts on its prompt — you simply stay where you are and go
-# and read it when you are ready (⌃⇥, the Lanes palette, the agents pill).
+# HAUS_LANE_BACKGROUND=1 opens the lane WITHOUT you seeing or feeling it: the
+# window is still created, still named holt.<repo>.<lane>, still tiled onto
+# T/<repo>, and the client still starts on its prompt — you simply stay where
+# you are and go and read it when you are ready (⌃⇥, the Lanes palette, the
+# agents pill).
 #
-# Three separate things have to be told, because each takes focus for its own
-# reason and silencing two of three still steals the screen:
+# On the aerospace backend the silence is in how the window is BORN, two facts
+# working together (both MEASURED 2026-08-27 on Ghostty 1.3.1):
 #
-#   focus handed back          `open -na` activates the instance it starts, by
-#                              construction — so the lane gives focus back to
-#                              whoever had it, rather than never taking it.
+#   no activation   the lane's Ghostty is exec'd from the app bundle directly
+#                   rather than through `open -na`. LaunchServices never hears
+#                   about the launch, so nothing is activated: the window
+#                   opens, the initial-command runs, and focus stays exactly
+#                   where it was — there is nothing to hand back.
+#   no visible birth  the window is asked for at --window-position 25000,25000,
+#                   which macOS clamps to a 1-px sliver at the bottom-right
+#                   corner (measured: frame x=1511 on a 1512-wide display). So
+#                   the moment before the self-tile block walks it off to
+#                   T/<repo> shows nothing rather than a full window blinking
+#                   over your page — which is what ⌃↵ used to cost.
+#
+# Two more silences ride along, because each would take the screen on its own:
+#
 #   no --focus-follows-window  AeroSpace follows the window to T/<repo>, which
 #                              is precisely what that flag is FOR normally —
 #                              see the note on it below.
@@ -242,11 +254,13 @@ fi
 # `holt spawn` exited 0 and the palette posted "… is working" over a lane that
 # had never started. That was every ⌃↵ spawn until this note.
 #
-# So the window is opened the ordinary way and the FOCUS is put back instead:
-# whoever held it before the spawn gets it back the moment the lane has been
-# moved off to T/<repo>. It costs a blink of the lane window on the page you
-# are standing on — it has to exist somewhere before AeroSpace can move it —
-# which is a far smaller price than a lane that isn't there at all.
+# The direct exec is the answer `open -g` was reaching for, and it degrades
+# rather than breaks: a machine whose Ghostty.app is somewhere the lookup
+# below doesn't find still spawns through a plain `open -na`, pays the old
+# blink, and has the focus handed back once the lane has been moved off to
+# T/<repo>. The giveback inside the launcher serves both paths — the fallback
+# needs it every time, and the direct exec keeps it as a regression net that
+# only fires if the lane's own instance somehow ended up holding focus.
 #
 # The palette's Spawn Agent sets it on ⌃↵, and it reaches here through `holt
 # spawn` because holt hands a seam os.Environ(). That same inheritance is why
@@ -281,6 +295,26 @@ activate_line="  activate"
 # same — and what it costs is written up in scripts/focused-session.sh.
 warm_bg=""
 [ -n "$bg" ] && warm_bg="-g"
+
+# ── how a background lane's window is born ───────────────────────────────────
+# The direct exec from the background note above. $took is the generated
+# launcher's word for which path spawned it: 1 means `open -na`, which
+# activates by construction, so the giveback below must always run; empty
+# means the direct exec, where focus was never taken and the giveback is only
+# a regression net. The bundle is looked up rather than assumed — a machine
+# that keeps Ghostty.app somewhere else simply takes the `open -na` path and
+# the old blink, which is a degradation and not a failure.
+ghostty_bin=""
+took=1
+if [ -n "$bg" ] && [ "$backend" = aerospace ]; then
+  for app in /Applications/Ghostty.app "$HOME/Applications/Ghostty.app"; do
+    if [ -x "$app/Contents/MacOS/ghostty" ]; then
+      ghostty_bin="$app/Contents/MacOS/ghostty"
+      took=""
+      break
+    fi
+  done
+fi
 
 # Who holds the screen right now, so a background lane can give it back once it
 # has moved out of the way. Asked BEFORE anything is opened, because a moment
@@ -356,21 +390,51 @@ fi
     # `move-node-to-workspace` is a window you did not touch leaving the page
     # you were reading it on.
     # ── giving the screen back ────────────────────────────────────────────
-    # A background lane's window is opened the ordinary way, so it arrives with
-    # focus; this hands focus back to whatever had it before the spawn. It runs
-    # on EVERY exit from this block, not only the happy one — the two bails
-    # below are the cases where the lane stays put on the page you are standing
-    # on, which is exactly when leaving it focused as well would be worst.
+    # On the `open -na` fallback ($took=1) the window arrives with focus, so
+    # this hands focus back to whatever had it before the spawn, on EVERY exit
+    # from this block, not only the happy one — the two bails below are the
+    # cases where the lane stays put on the page you are standing on, which is
+    # exactly when leaving it focused as well would be worst.
+    #
+    # On the direct-exec path ($took empty) focus never moved, and a giveback
+    # that ran anyway would YANK it: the user had those seconds to focus a
+    # third window, and re-asserting the pre-spawn one would steal from it. So
+    # there it fires only if this lane's own instance somehow holds focus — a
+    # future Ghostty that self-activates on launch — and stays silent
+    # otherwise. The gpid guard is a real line, not left to "empty matches
+    # nothing": `list-windows --focused` can answer EMPTY too (a
+    # native-fullscreen app, an unmanaged window, a late AeroSpace — the same
+    # cases the prev_wid capture above lists), and empty = empty would have
+    # fired the net on the exact path where focus was never taken.
     #
     # `$back` is empty for a foreground lane, so this is a no-op there and the
     # block needs no branch of its own. Best effort throughout: a window that
     # has since closed is not worth a word, and there is nowhere here to say it.
+    #
+    # vanish() is the bails' other half, and only for the silent birth: a
+    # $took=1 bail strands a VISIBLE floating window on the page you are
+    # standing on — a nuisance you can see and fix — but a direct-exec bail
+    # strands a 1-px sliver in a screen corner, a lane that exists and works
+    # with nothing on any page to say so. ⌃⇥ will never find it (no tile ever
+    # landed on T/<repo>), so say where it went: the agents pill and `holt`
+    # both raise it by session name, which is exactly what they are for.
     printf '  back=%q\n' "$prev_wid"
     printf '  backapp=%q\n' "$prev_app"
+    printf '  took=%q\n' "$took"
     printf '  giveback() {\n'
+    printf '    if [ -z "$took" ]; then\n'
+    printf '      [ -n "$gpid" ] || return 0\n'
+    printf '      [ "$(aerospace list-windows --focused --format "%%{app-pid}" 2>/dev/null)" = "$gpid" ] || return 0\n'
+    printf '    fi\n'
     printf '    [ -n "$back" ] && aerospace focus --window-id "$back" >/dev/null 2>&1 && return 0\n'
     printf '    [ -n "$backapp" ] && /usr/bin/open -b "$backapp" >/dev/null 2>&1\n'
     printf '    return 0\n'
+    printf '  }\n'
+    printf '  vanish() {\n'
+    printf '    [ -z "$took" ] || return 0\n'
+    printf '    /run/current-system/sw/bin/haus-notify --source haus.lane --kind fault --symbol eye.slash \\\n'
+    printf '      --thread %q --title "haus · agent lane" \\\n' "$sess"
+    printf '      --body %q >/dev/null 2>&1\n' "$sess opened out of sight and could not be tiled — raise it from the agents pill, or holt"
     printf '  }\n'
     printf '  gpid=""; p=$$\n'
     printf '  while [ -n "$p" ] && [ "$p" != 1 ]; do\n'
@@ -385,7 +449,7 @@ fi
     printf '    esac\n'
     printf '    p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d " ")\n'
     printf '  done\n'
-    printf '  [ -n "$gpid" ] || { giveback; exit 0; }\n'
+    printf '  [ -n "$gpid" ] || { vanish; giveback; exit 0; }\n'
     # The window does not exist for AeroSpace the instant the shell inside it
     # does, so this poll is a real wait rather than the no-op the old one was.
     # ONE window, or none. A fresh `open -na` process owns exactly one window,
@@ -401,7 +465,7 @@ fi
     printf '    [ "$(printf "%%s\\n" "$mine" | grep -c .)" = 1 ] && { WID="$mine"; break; }\n'
     printf '    sleep 0.05\n'
     printf '  done\n'
-    printf '  [ -n "${WID:-}" ] || { giveback; exit 0; }\n'
+    printf '  [ -n "${WID:-}" ] || { vanish; giveback; exit 0; }\n'
     # T/<repo>, not a single shared T: every lane of one repo tiles on its own
     # workspace page, so five agents across three repos stop fighting over one
     # tree. Workspace names may contain "/" (checked by hand against AeroSpace);
@@ -449,7 +513,12 @@ chmod +x "$launcher"
 # NEVER matched — every lane took the cold-start branch, activated a running
 # Ghostty and then polled for two seconds before opening its window. Fixed
 # 2026-08-19; same one-word bug was in scripts/new-window.sh.
-if ! pgrep -ix ghostty >/dev/null 2>&1; then
+#
+# The direct-exec path skips the pre-warm outright: it involves no
+# LaunchServices launch to race, and the windowless instance a `-g` pre-warm
+# leaves behind is exactly the Apple Events lottery entrant the note above
+# warns about — spawning one for a path that cannot need it would be all cost.
+if [ -z "$ghostty_bin" ] && ! pgrep -ix ghostty >/dev/null 2>&1; then
   # shellcheck disable=SC2086  # $warm_bg is a whole flag or nothing
   open $warm_bg -a Ghostty
   for _ in $(seq 1 40); do
@@ -485,10 +554,40 @@ if [ "$backend" = aerospace ]; then
   # No `-g` here even for a background lane, however much it looks like the
   # answer: Ghostty launched into the background opens no window and never runs
   # its initial-command, so the whole lane silently fails to exist. The
-  # measurement, and what stands in its place, are in the background note above.
-  open -na Ghostty.app --args \
-    --title="$sess" \
-    --initial-command="$launcher" || exit 3
+  # measurement, and what stands in its place — the direct exec below — are in
+  # the background note above.
+  if [ -n "$ghostty_bin" ]; then
+    # A background lane's window, born silent: exec'ing the bundle's binary
+    # skips LaunchServices, so nothing activates, and the clamped
+    # --window-position keeps the birth frame to a 1-px corner sliver until
+    # the launcher's self-tile block moves it to T/<repo>. Backgrounded and
+    # nohup'd because this hook exits immediately and the app must outlive it.
+    #
+    # BOTH stdio redirects are load-bearing, not tidy: a direct exec inherits
+    # this hook's fds, the hook inherits holt's, and `holt spawn`'s stdout is
+    # a command substitution in spawn-agent.sh — a Ghostty holding that pipe
+    # open would hang the palette for the life of the lane. (`open -na` never
+    # had the problem; LaunchServices launches carry no fds.)
+    #
+    # `&` cannot fail, which `open -na` could (a refused launch exits non-zero
+    # → exit 3 → holt reports and the palette drops the lane). The kill -0
+    # probe below buys that reporting back for the launch failures that show
+    # inside 200ms — a bad dylib, translocation, an instant crash. A death
+    # after that is the same blindness `open -na` already has: it, too,
+    # returns before the window exists (the note in the launcher section
+    # above), and the launcher's holds keep the evidence if the lane dies.
+    nohup "$ghostty_bin" \
+      --title="$sess" \
+      --initial-command="$launcher" \
+      --window-position-x=25000 \
+      --window-position-y=25000 >/dev/null 2>&1 &
+    sleep 0.2
+    kill -0 $! 2>/dev/null || exit 3
+  else
+    open -na Ghostty.app --args \
+      --title="$sess" \
+      --initial-command="$launcher" || exit 3
+  fi
   exit 0
 fi
 
