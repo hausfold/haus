@@ -285,14 +285,16 @@ in
         "default"
         "compact"
       ];
-      # In-room taste, so it stays: it is only visible once `launcher.enable` is
-      # on, and a launcher that is drawn should be drawn the tuned way.
-      default = "compact";
+      # Matches pounce's own default. Compact hides the list until you type,
+      # which reads as an empty palette to anyone who has not been told
+      # otherwise — not the first thing a new machine should show.
+      default = "default";
       description = ''
-        The palette's proportions. `compact` is narrower with tighter rows and
-        keeps its list hidden until you type — haus's tuned look, and what it
-        shipped before this option existed. `default` is the palette's roomier layout,
-        which shows the top results the moment it opens.
+        The palette's proportions. `default` is the palette's roomier layout,
+        which shows the top results the moment it opens — pounce's own default,
+        and haus's. `compact` is narrower with tighter rows and keeps its list
+        hidden until you type; it also turns off the Stage, whose tiles are
+        exactly the "something on an empty query" compact exists to avoid.
 
         This is shape, not size: how BIG the palette is drawn is
         haus.launcher.scale. The two compose — a compact palette at scale 1.4

@@ -30,7 +30,7 @@
     "haus.keys.windowNav": "alt",
     "haus.shelf.enable": true,
     "haus.launcher.enable": true,
-    "haus.launcher.windowMode": "compact",
+    "haus.launcher.windowMode": "default",
     "haus.windows.enable": true,
     "haus.windows.mouseFullscreen": "right",
     "haus.bar.clock.mode": "full",

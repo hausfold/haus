@@ -3962,9 +3962,9 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "\"compact\""
+      "text": "\"default\""
     },
-    "description": "The palette's proportions. `compact` is narrower with tighter rows and\nkeeps its list hidden until you type — haus's tuned look, and what it\nshipped before this option existed. `default` is the palette's roomier layout,\nwhich shows the top results the moment it opens.\n\nThis is shape, not size: how BIG the palette is drawn is\nhaus.launcher.scale. The two compose — a compact palette at scale 1.4\nis still the compact layout, just readable from further away.\n",
+    "description": "The palette's proportions. `default` is the palette's roomier layout,\nwhich shows the top results the moment it opens — pounce's own default,\nand haus's. `compact` is narrower with tighter rows and keeps its list\nhidden until you type; it also turns off the Stage, whose tiles are\nexactly the \"something on an empty query\" compact exists to avoid.\n\nThis is shape, not size: how BIG the palette is drawn is\nhaus.launcher.scale. The two compose — a compact palette at scale 1.4\nis still the compact layout, just readable from further away.\n",
     "loc": [
       "haus",
       "launcher",
