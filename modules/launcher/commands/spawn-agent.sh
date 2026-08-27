@@ -596,9 +596,14 @@ fi
 # without this, Return on a paragraph you just typed produces nothing you can see
 # at all and you are left wondering whether it took. This banner IS the receipt,
 # and it fires when the lane genuinely exists rather than when the box closed.
-# Clicking it is also the ordinary way to get the lane's window: the click runs
-# `scruff focus`, which finds no window, defers, and comes back through
-# lane-open.sh's foreground path with one tiled on T/<repo>.
+#
+# It is a RECEIPT and nothing more — `haus-notify`'s actions are URL-only, so
+# there is nothing to click here. The clickable door is scruff's own fin, which
+# trill parks when the lane blocks or finishes (`scruff hook notify`, wired in
+# terminal/default.nix): that click runs `scruff focus`, which finds no window,
+# defers, and comes back through lane-open.sh's foreground path with one tiled on
+# T/<repo>. Until the lane says something, the doors are the bar's agents pill
+# and the Lanes palette.
 #
 # ⌃↵ gets none: the lane window is what you are looking at when it lands, and a
 # banner about the thing on your screen is noise.

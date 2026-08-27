@@ -222,9 +222,12 @@ fi
 # the way it does that is by opening NO WINDOW AT ALL. The lane is its zmx
 # session: the client comes up in a detached PTY, on its prompt, in the same
 # millisecond it would have otherwise — and a window is born the first time you
-# go and look at it (a trill banner, the agents pill, the Lanes palette), placed
-# properly on T/<repo> by this script's own foreground path, because all three
-# of those doors end at `scruff focus` → lane-focus.sh → resume → here.
+# go and look at it, placed properly on T/<repo> by this script's own foreground
+# path. Three doors, all of them ending at `resume` → here: clicking the lane's
+# trill fin runs `scruff focus` → lane-focus.sh, which finds no window and defers;
+# the bar's agents pill and the Lanes palette each try a raise first and then ask
+# `scruff <repo>/<lane>` outright (bar/sketchybar/plugins/agents.sh,
+# launcher/commands/lanes.sh).
 #
 # That is a change of SHAPE rather than a tuning, and what forced it is that
 # every way of making a real window's birth invisible failed on a fact nothing
@@ -297,18 +300,44 @@ if [ -n "$bg" ]; then
   # rather than `zmx get`, whose "not found or unresponsive" answers two
   # questions with one word — and of the two mistakes available here, treating
   # a live session as absent is the one that types into it.
-  if zmx list --short 2>/dev/null | grep -Fxq "$sess"; then
+  #
+  # It fails CLOSED. `zmx list` answering nothing because the daemon is busy or
+  # the socket is unhappy is not "no session", and reading it as one is exactly
+  # the mistake above — so a listing that fails takes the lane back to scruff
+  # rather than typing on a hunch.
+  # Every bail below takes the temp launcher with it. `mktemp` already ran, and
+  # only a launcher that RUNS deletes itself — measured as a real leak, one empty
+  # `open.XXXXXX` per background resume of a live lane, which is the commonest
+  # path through this block.
+  live="$(zmx list --short 2>/dev/null)" || { rm -f "$launcher"; exit 3; }
+  if printf '%s\n' "$live" | grep -Fxq "$sess"; then
+    rm -f "$launcher"
     exit 0
   fi
 
   {
     printf '#!/bin/bash\n'
+    # The arrival marker the hook below waits on — FIRST, before anything that
+    # could fail, because its whole job is to say "the launcher ran".
+    printf 'touch %q\n' "$launcher.ok"
     printf 'rm -f %q\n' "$launcher"
     # Same PATH line the windowed launcher below carries, for the same reason:
     # this script is typed into a login shell whose profile is the machine's, and
     # the two `zmx` calls under it must resolve whatever that profile did.
     printf 'export PATH="/opt/homebrew/bin:$PATH"\n'
     printf 'unset %s\n' "$(printf '%s' "$leaked" | tr '\n' ' ')"
+    # …and then PUT ZMX_SESSION BACK, because on this path the one in the
+    # environment is the RIGHT one. `$leaked` exists to strip the SPAWNER's
+    # identity, and on the windowed path the `zmx attach` that follows re-injects
+    # the lane's own — there is no attach here, so the scrub would leave the
+    # client with none at all, and everything that addresses a lane BY session
+    # goes quiet at once: agents-hook.sh returns before writing a `state` label
+    # (so the agents pill has no row for this lane — one of the three doors this
+    # note promises), the lidAwake hold is never taken, statusline.sh never files
+    # the session→transcript row ⌘F and the Links picker read, and the hold's own
+    # `zmx set .` errors out instead of clearing the row of a lane that died.
+    # Measured 2026-08-27: `zmx set .` answers `requires ZMX_SESSION`, rc 1.
+    printf 'export ZMX_SESSION=%q\n' "$sess"
     # A window's scrollback starts empty; this session's starts with the line
     # zmx typed to create it (`exec bash /…/open.XXXXXX; echo
     # ZMX_TASK_COMPLETED:$?`). Screen AND scrollback, so the first thing in the
@@ -317,28 +346,36 @@ if [ -n "$bg" ]; then
     printf 'printf "\\033[H\\033[2J\\033[3J"\n'
     # TERM, because there is no terminal emulator on the other end to set one:
     # zmx gives an unattached session `dumb` (measured), and a client that
-    # believes it is on a dumb terminal draws like it. This value is the
-    # client's for LIFE — attaching a window later does not change a running
-    # process's environment — so it is the honest one: the window that
-    # eventually attaches IS Ghostty, and xterm-ghostty is only claimed when
-    # this machine can actually resolve it.
-    printf 'if /usr/bin/infocmp xterm-ghostty >/dev/null 2>&1; then\n'
-    printf '  export TERM=xterm-ghostty\n'
+    # believes it is on a dumb terminal draws like it. Whatever is chosen here is
+    # the client's for LIFE — attaching a window later does not change a running
+    # process's environment — so it has to be a value the client can RESOLVE, not
+    # the one its future window will use.
+    #
+    # And the resolution is the whole subtlety: `xterm-ghostty` lives in the app
+    # bundle's own terminfo tree, which Ghostty exports as TERMINFO to the
+    # processes IT starts (modules/terminal/default.nix says so). A background
+    # lane descends from the pounce daemon instead, so a bare `infocmp
+    # xterm-ghostty` fails there — measured 2026-08-27: rc 1 in a clean
+    # environment, rc 0 with TERMINFO pointed at the bundle. So point it, and
+    # claim xterm-ghostty only when that lookup actually answers; otherwise take
+    # xterm-256color, which every machine can resolve. A TERM with no terminfo
+    # entry is the shape that hangs `tset` and blanks a TUI.
+    printf 'gterminfo=/Applications/Ghostty.app/Contents/Resources/terminfo\n'
+    printf 'if [ -d "$gterminfo" ] && TERMINFO="$gterminfo" /usr/bin/infocmp xterm-ghostty >/dev/null 2>&1; then\n'
+    printf '  export TERMINFO="$gterminfo" TERM=xterm-ghostty\n'
     printf 'else\n'
     printf '  export TERM=xterm-256color\n'
     printf 'fi\n'
+    printf 'unset gterminfo\n'
     # COLORTERM is the other half of the same claim, and the one that actually
     # decides whether a client draws in 24-bit colour: xterm-256color's terminfo
     # says 256, Ghostty sets COLORTERM=truecolor in every window it opens, and a
     # lane whose window will be a Ghostty is entitled to say so from the start.
     printf 'export COLORTERM=truecolor\n'
-    # Stale joins from the window this lane had LAST time. A windowless birth
-    # has no id to stamp, and one left over from before names whatever window
-    # AeroSpace has since handed that number to — the impostor bug with the
-    # sides swapped (scripts/raise-session.sh's note). `zmx set .` is the
-    # "current session" idiom agents-hook.sh uses; inside the session that is
-    # this one.
-    printf 'command -v zmx >/dev/null 2>&1 && zmx set . "lwindow=" "gwindow=" >/dev/null 2>&1\n'
+    # No `lwindow=`/`gwindow=` clear here, deliberately: a label lives IN its
+    # session and dies with it, and the guard above means this launcher only ever
+    # runs for a session that did not exist a moment ago. There is nothing stale
+    # to clear, and a line whose premise is false is worse than no line.
     printf 'cd %q || exit 1\n' "$chat"
     printf 'exec bash -lc %q\n' "$held"
   } >"$launcher"
@@ -349,17 +386,34 @@ if [ -n "$bg" ]; then
   # rows (bar/sketchybar/plugins/agents.sh) and the Lanes palette
   # (launcher/commands/lanes.sh). A lane whose start_dir is the palette daemon's
   # cwd is a lane neither of them can place.
-  cd "$chat" || exit 3
-  zmx run "$sess" -d exec bash "$launcher" >/dev/null 2>&1 || exit 3
+  cd "$chat" || { rm -f "$launcher"; exit 3; }
+  zmx run "$sess" -d exec bash "$launcher" >/dev/null 2>&1 || { rm -f "$launcher"; exit 3; }
 
-  # Did it come up? `zmx run` is two acts — create, then type — and its exit
-  # status covers the request rather than the session. Exit 3 hands the lane
-  # back to scruff's built-in rather than reporting one that isn't there, which
-  # is the contract every other bail in this file keeps.
+  # ── did the launcher actually run? ────────────────────────────────────────
+  # `zmx run` is two acts — create the session, then type into it — and its exit
+  # status covers the request rather than either act (measured 2026-08-27: it
+  # answers 0 even for a socket dir it cannot use). So the launcher signs its own
+  # arrival with a marker beside itself, and this waits for THAT.
+  #
+  # Not for the session, which is the version of this loop that could cost you a
+  # checkout: exit 3 is a REFUSAL for a spawn — `scruff spawn` opens through this
+  # hook and has no built-in to fall back to — so spawn-agent.sh treats it as a
+  # lane that never started and runs `scruff drop`. A client that exits 0 inside
+  # this window (a `--version`, a config error that ends cleanly) takes its
+  # session with it, and polling for the session would call that a failure and
+  # delete the worktree and branch out from under a lane that ran perfectly.
+  # The marker is written before the client is exec'd, so it cannot lie in that
+  # direction.
   for _ in $(seq 1 40); do
-    zmx list --short 2>/dev/null | grep -Fxq "$sess" && exit 0
+    if [ -e "$launcher.ok" ]; then
+      rm -f "$launcher.ok"
+      exit 0
+    fi
     sleep 0.05
   done
+  # Nothing ever ran: no session, no client, nothing typed. Refusing is right
+  # here — it is what lets spawn-agent.sh clean up the checkout it made.
+  rm -f "$launcher" "$launcher.ok"
   exit 3
 fi
 
