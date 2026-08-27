@@ -269,6 +269,16 @@ let
       `scruff runtime up <lane> --backend tart`, then drive the guest over `ssh`.
       The haus skill's **Seeing your change without taking the screen** has the
       whole loop.
+    - **Spawning a lane never takes the screen.** Put `HAUS_LANE_BACKGROUND=1`
+      in front of `scruff spawn` — the `holt spawn` the handoff skill names is
+      the same binary — and the lane opens without the user feeling it: on a
+      tiled machine the window is born off-screen and walked to `T/<repo>`, the
+      client still starts on its prompt, and focus stays where it was. The
+      palette's **Spawn Agent** sets it on a plain ↵ and clears it on ⌃↵, the
+      "spawn and follow it" chord; do the same, and clear it only when the user
+      asked to be TAKEN to the new lane. This is *how* to spawn when asked, not
+      licence to spawn unasked. With nothing on screen, the line you report —
+      repo, lane, branch — is their only receipt that it took.
     - **Prefer looking to touching.** `screencapture -x` is silent and steals
       nothing; a screenshot-only `computer_batch` is the same. Reach for those
       before a click.
