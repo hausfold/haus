@@ -16,7 +16,7 @@ Only Claude-specific wiring belongs below.
 |---|---|---|
 | Project instructions | `AGENTS.md`, imported above | Claude Code reads only `CLAUDE.md`, so this file exists purely to import it. |
 | Session bootstrap | `.claude/settings.json` → `SessionStart` → `.agents/setup.sh` | Same script Codex and OpenCode call. Installs Nix in cloud containers, no-ops locally. |
-| Worktree hooks | `~/.claude/settings.json` (yours, not the repo's) → `holt hook create` / `holt hook remove` | Claude owns and rewrites that file, so `modules/terminal` merges these two keys in at activation rather than owning it. Self-healing: every rebuild re-asserts them. |
+| Worktree hooks | `~/.claude/settings.json` (yours, not the repo's) → `scruff hook create` / `scruff hook remove` | Claude owns and rewrites that file, so `modules/terminal` merges these two keys in at activation rather than owning it. Self-healing: every rebuild re-asserts them. |
 
 **Not to be confused with the product surface.** This table is about *hacking
 on haus*. What haus **ships to a user's machine** — `haus.ai.instructions`,

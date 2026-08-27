@@ -68,9 +68,16 @@
 
     # The agent-worktree substrate — a standalone Go binary, the rewrite of
     # the rice's old bash `wt.sh` (now retired entirely). Its overlay puts
-    # `holt` in pkgs, and core ships it on PATH as the only worktree-lifecycle
+    # `scruff` in pkgs, and core ships it on PATH as the only worktree-lifecycle
     # CLI the rice knows.
-    holt = {
+    # ⚠️ The INPUT is `scruff`; the URL still names `hausfold/holt`, and that is
+    # not a leftover. The repo renames in the tool's own Phase 3 (its
+    # docs/rename.md §5) — until it does, `github:hausfold/scruff` is a 404 and
+    # this flake would not evaluate. Bilingual 0.5.0 is what lets the NAME move
+    # here first: its overlay exports `scruff` and `holt` as the same
+    # derivations, so nothing has to move in step. Repoint the URL once the
+    # rename lands; GitHub's redirect means nothing breaks in the meantime.
+    scruff = {
       url = "github:hausfold/holt";
       inputs.nixpkgs.follows = "nixpkgs";
     };
@@ -92,7 +99,7 @@
       pounce,
       perch,
       trill,
-      holt,
+      scruff,
       nix-index-database,
     }:
     let
@@ -151,7 +158,7 @@
                 pounce.overlays.default
                 perch.overlays.default
                 trill.overlays.default
-                holt.overlays.default
+                scruff.overlays.default
               ];
             }
             home-manager.darwinModules.home-manager
@@ -2157,7 +2164,7 @@
           # ---- ai-room ---------------------------------------------------------
           # The AI room is the first room declared as a CROSS-ROOM CAPABILITY
           # (notes/rooms-desktops.md), and the claim it makes is behavioural, not
-          # structural: turning it on brings its own clients and `holt` whatever
+          # structural: turning it on brings its own clients and `scruff` whatever
           # else the machine has, and what it adds to the terminal, the bar and
           # the launcher arrives only with those rooms. A comment cannot hold
           # that; six evaluated machines can.
@@ -2165,7 +2172,7 @@
           # Every row below is read off a REAL evaluated system rather than off
           # the option that produced it, because the failure this guards against
           # is precisely a contribution that is decided in one place and drawn in
-          # another. `holt` is a system package, a client is a home one, the
+          # another. `scruff` is a system package, a client is a home one, the
           # alias is the terminal's, the pill is a generated bar file and the
           # cards are the launcher's JSON — five different plumbings, one table.
           aiRoomAt =
@@ -2197,7 +2204,7 @@
               inherit cfg;
               # The room's own payload: does this machine get the worktree tool
               # and at least one client, whatever else it has?
-              holt = yn (hasPkg cfg.environment.systemPackages "holt");
+              scruff = yn (hasPkg cfg.environment.systemPackages "scruff");
               client = yn (hasPkg hm.home.packages "claude-code");
               # What it contributes, as each receiving room actually rendered it.
               alias = hm.programs.zsh.shellAliases.c or "(none)";
@@ -2208,7 +2215,7 @@
             # The rice as shipped: every receiver present, so every contribution
             # should be drawn.
             hacker = [ ];
-            # The room ALONE. No bar, no launcher — the clients and `holt` must
+            # The room ALONE. No bar, no launcher — the clients and `scruff` must
             # still arrive, and nothing may fail for want of a receiver. It ASKS
             # for the pill: a request whose receiving room is absent has to be
             # inert, not an error.
@@ -2270,21 +2277,21 @@
               let
                 r = aiRoomAt aiRoomFixtures.${name};
               in
-              "${name} holt=${r.holt} client=${r.client} alias=${r.alias} pill=${r.pill} cards=${r.cards}"
+              "${name} scruff=${r.scruff} client=${r.client} alias=${r.alias} pill=${r.pill} cards=${r.cards}"
             ) (builtins.attrNames aiRoomFixtures)
           );
           # `hacker pill=no` is not a miss: the rice ships the agents pill OFF
           # (it is an extra, like every personal readout), and a host turns it on.
           # The fixtures that exercise the seam ask for it explicitly.
           expectedAiRoomTable = ''
-            ai-alone holt=yes client=yes alias=claude pill=no cards=no
-            ai-off holt=no client=no alias=(none) pill=no cards=no
-            ai-with-bar holt=yes client=yes alias=claude pill=yes cards=no
-            ai-with-launcher holt=yes client=yes alias=claude pill=no cards=yes
-            bottom-pill-without-ai holt=no client=no alias=(none) pill=no cards=no
-            hacker holt=yes client=yes alias=claude pill=no cards=yes
-            no-rice-clients holt=yes client=no alias=(none) pill=yes cards=no
-            pill-without-ai holt=no client=no alias=(none) pill=no cards=no
+            ai-alone scruff=yes client=yes alias=claude pill=no cards=no
+            ai-off scruff=no client=no alias=(none) pill=no cards=no
+            ai-with-bar scruff=yes client=yes alias=claude pill=yes cards=no
+            ai-with-launcher scruff=yes client=yes alias=claude pill=no cards=yes
+            bottom-pill-without-ai scruff=no client=no alias=(none) pill=no cards=no
+            hacker scruff=yes client=yes alias=claude pill=no cards=yes
+            no-rice-clients scruff=yes client=no alias=(none) pill=yes cards=no
+            pill-without-ai scruff=no client=no alias=(none) pill=no cards=no
           '';
 
           # There is no old-address fixture, on purpose: `haus.agents.*` and
@@ -2343,7 +2350,7 @@
                     pounce.overlays.default
                     perch.overlays.default
                     trill.overlays.default
-                    holt.overlays.default
+                    scruff.overlays.default
                   ];
                 }
                 home-manager.darwinModules.home-manager
@@ -2420,7 +2427,7 @@
                         pounce.overlays.default
                         perch.overlays.default
                         trill.overlays.default
-                        holt.overlays.default
+                        scruff.overlays.default
                       ];
                     }
                     home-manager.darwinModules.home-manager
@@ -4110,9 +4117,9 @@
           # every machine's rebuild path and belongs in `checks` for the reason
           # spelled out above `.#agent-skill`.
           #
-          # `holt-skill` comes off the flake input rather than off `pkgs`: the
+          # `scruff-skill` comes off the flake input rather than off `pkgs`: the
           # `pkgs` here is a bare `legacyPackages` with no overlays applied,
-          # while the room reads the same derivation through holt's overlay.
+          # while the room reads the same derivation through scruff's overlay.
           #
           # trill is DARWIN ONLY — its flake outputs no Linux systems, while
           # this set spans allSystems — so Linux gets `null` and the entry drops
@@ -4131,7 +4138,7 @@
             (import ./modules/ai/tool-skills.nix {
               inherit pkgs;
               inherit (nixpkgs) lib;
-              holt-skill = holt.packages.${system}.holt-skill;
+              scruff-skill = scruff.packages.${system}.scruff-skill;
               trill-skill = if isDarwin then trill.packages.${system}.trill-skill else null;
             }).checked;
 

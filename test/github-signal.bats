@@ -127,7 +127,7 @@ fresh_since() {
 
 @test "sourcing defines only the two contract functions and HAUS_GH_ names" {
   # A library sourced into hot paths must not shadow a caller's helper. Both
-  # holt-cache.sh and statusline.sh already have their own `mtime`, which is
+  # scruff-cache.sh and statusline.sh already have their own `mtime`, which is
   # why this file's is `haus_gh_mtime`.
   run bash -c '
     before=$(declare -F | awk "{print \$3}" | sort)

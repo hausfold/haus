@@ -97,7 +97,7 @@ silent() {
 }
 
 @test "the capture round trip in the workshop's notes/agent-vm.md is silent end to end" {
-  silent 'ssh admin@$(tart ip holt-lane) "/usr/sbin/screencapture -x /tmp/s.png" && scp admin@$(tart ip holt-lane):/tmp/s.png ./shot.png'
+  silent 'ssh admin@$(tart ip scruff-lane) "/usr/sbin/screencapture -x /tmp/s.png" && scp admin@$(tart ip scruff-lane):/tmp/s.png ./shot.png'
 }
 
 @test "a local command beside a remote one is still gated" {
@@ -158,11 +158,11 @@ silent() {
 # ---- tart itself -------------------------------------------------------------
 
 @test "a headless VM boots silently, a windowed one asks" {
-  silent 'tart run holt-lane --no-graphics --dir=work:/lane &'
-  silent 'tart clone tahoe-base holt-lane; tart ip holt-lane --wait 60'
-  silent 'holt runtime up my-lane --backend tart'
-  asks 'tart run holt-lane'
-  asks 'tart run holt-lane --dir=work:/lane'
+  silent 'tart run scruff-lane --no-graphics --dir=work:/lane &'
+  silent 'tart clone tahoe-base scruff-lane; tart ip scruff-lane --wait 60'
+  silent 'scruff runtime up my-lane --backend tart'
+  asks 'tart run scruff-lane'
+  asks 'tart run scruff-lane --dir=work:/lane'
 }
 
 # ---- the contract ------------------------------------------------------------

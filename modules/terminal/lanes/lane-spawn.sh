@@ -2,13 +2,13 @@
 # lane-spawn.sh — "start an agent here", bound OUTSIDE the multiplexer.
 #
 # This is the other half of the lane chord ⌘↵. lane-open.sh
-# answers holt's open/resume seam (what a lane looks like once it exists); this
+# answers scruff's open/resume seam (what a lane looks like once it exists); this
 # answers the chord (which repo a new lane is FOR).
 #
 # ── why this is not a zellij bind ────────────────────────────────────────────
 # ⌘A used to be `bind "Super a" { Run … }` in config.kdl, and zellij's only way
 # to run a command IS to open a pane for it. Under the zellij backend that pane
-# was the lane, so it cost nothing. Under zmx the lane is a window, and `holt
+# was the lane, so it cost nothing. Under zmx the lane is a window, and `scruff
 # new` returns in well under a second — so the pane appeared, flashed, and
 # close_on_exit tore it down again. That flash isn't a bug in the pane, it is
 # the pane being the wrong mechanism.
@@ -57,7 +57,7 @@ export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/s
 
 # ── saying no out loud ───────────────────────────────────────────────────────
 # This runs under the pounce daemon: no terminal, no stdout anyone
-# will ever see. So `holt new` refusing ("not inside a git repo") is invisible,
+# will ever see. So `scruff new` refusing ("not inside a git repo") is invisible,
 # and a global chord that silently does nothing is worse than one that isn't
 # bound — you press it again, harder, and conclude the rebuild didn't land.
 # Everything below that gives up says so on screen first.
@@ -81,8 +81,8 @@ say() { /run/current-system/sw/bin/haus-notify --source haus.lane --kind fault -
 # be a repo; when it isn't, `refuse` is what the user actually gets.
 fallback="${HAUS_LANE_FALLBACK:-$HOME}"
 
-command -v holt >/dev/null 2>&1 || {
-  say "holt isn't on PATH — nothing to spawn a lane with."
+command -v scruff >/dev/null 2>&1 || {
+  say "scruff isn't on PATH — nothing to spawn a lane with."
   exit 0
 }
 
@@ -97,24 +97,24 @@ cd "$cwd" || {
   exit 0
 }
 
-# `holt new` needs a repo, and refuses without one — to a terminal that isn't
+# `scruff new` needs a repo, and refuses without one — to a terminal that isn't
 # there. Ask the same question here, where the answer can still be shown. The
 # check is git's own rather than a .git test, so a worktree, a submodule and a
-# plain checkout all pass exactly as holt would judge them.
+# plain checkout all pass exactly as scruff would judge them.
 if ! git rev-parse --git-dir >/dev/null 2>&1; then
   say "$(basename "$cwd") isn't a git repo — focus a window in one, then press ⌘↵."
   exit 0
 fi
 
-# `--open`, not bare `holt new`. holt 0.2.94 (its #42, 2026-08-17) split the two
-# halves that used to share one spelling: bare `holt new` now CREATES the lane
-# and prints its path — `cd "$(holt new)"` — and only `--open` still ends by
+# `--open`, not bare `scruff new`. scruff 0.2.94 (its #42, 2026-08-17) split the two
+# halves that used to share one spelling: bare `scruff new` now CREATES the lane
+# and prints its path — `cd "$(scruff new)"` — and only `--open` still ends by
 # opening a session in it. This line kept the old spelling, so from that release
 # on ⌘↵ (and the palette's New Agent Lane behind it) made the worktree, printed
 # the path to a daemon with no stdout, and exited 0: no window, no client, no
-# error — the chord looked dead while `holt` quietly filled up with lanes.
+# error — the chord looked dead while `scruff` quietly filled up with lanes.
 #
-# The agent is holt's own default (`agent = …` in ~/.config/holt/config.toml,
+# The agent is scruff's own default (`agent = …` in ~/.config/scruff/config.toml,
 # generated from haus.ai.default), so no --agent here: the chord starts whatever
 # the machine's default client is, which is what that option promises.
-exec holt new --open
+exec scruff new --open

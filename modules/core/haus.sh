@@ -1483,7 +1483,7 @@ CARD_PARENT="$$"
 CARD_TOTAL=0
 CARD_PATHS=()
 
-# Same search holt's `notify` does (internal/commands/notify.go, `trillBinary`),
+# Same search scruff's `notify` does (internal/commands/notify.go, `trillBinary`),
 # in the same order and for the same reason: Trill.app is routinely installed
 # while `trill` is on nobody's PATH, because the app binary IS the CLI. Keep the
 # two in step. `HAUS_TRILL` is authoritative when set — including set to something

@@ -13,7 +13,7 @@
 # newline inside a string literal and dies with `awk: newline in string`, exit
 # 2, nothing on stdout. With zero or one plain window labelled the list had no
 # newline and everything worked; the SECOND one broke the join for every lane at
-# once, silently. Downstream, `holt focus` read the empty answer as "no window
+# once, silently. Downstream, `scruff focus` read the empty answer as "no window
 # holds this session" and opened a SECOND window beside the one it was asked to
 # raise — which is how it reached a person: clicking a lane's trill banner
 # spawned a new lane window instead of going to the open one. ⌘F's ⏎ and the

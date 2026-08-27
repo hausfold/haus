@@ -622,7 +622,7 @@ in
       default = true;
       description = ''
         Sweep the logo through the six hausfold accents — mauve, teal, green,
-        yellow, peach, pink, the order the site runs them (nebelung → holt →
+        yellow, peach, pink, the order the site runs them (nebelung → scruff →
         perch → trill → pounce → hacker) — while the pointer is over it,
         then settle back.
         It is the bar's copy of the mark on hausfold.co, where hovering the `⌂`
@@ -691,7 +691,7 @@ in
         ${lib.concatMapStringsSep ", " (c: "`${c}`") agentClients}.
         Clicking the pill always displays the full dropdown with all reporting providers.
 
-        Note this is about *usage readouts*, not about which client `holt` can
+        Note this is about *usage readouts*, not about which client `scruff` can
         spawn: a provider reports here whenever it has data for your account —
         Codex notably does so from a ChatGPT login alone, with no CLI installed
         — so it is deliberately not tied to `haus.ai.clients`.

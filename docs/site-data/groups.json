@@ -1661,7 +1661,7 @@
           "add my work repos to the spawn agent list",
           "what worktrees are open"
         ],
-        "cli": "holt"
+        "cli": "scruff"
       },
       "blurb": "Coding agents: which clients this machine installs, the worktree lifecycle around them, and the instructions and `haus` skill every client reads.",
       "exports": [],

@@ -57,7 +57,7 @@ export USER="${USER:-$(id -un)}"
 export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:$PATH"
 
 # Only track agents the rice can actually take you to. Two shapes qualify: a zmx
-# session — for a lane, $ZMX_SESSION is its window title and its holt lane all at
+# session — for a lane, $ZMX_SESSION is its window title and its scruff lane all at
 # once — and a DESKTOP-APP session, which has no session but does have a window.
 # A bare-terminal agent is neither — nothing to peek, no window to raise — so it
 # stays invisible here as it always has.
@@ -151,8 +151,8 @@ if [ -n "${ZMX_SESSION:-}" ]; then
     zmx set . state= client= label= since= convo= >/dev/null 2>&1
     exit 0
   fi
-  # The lane name, not the cwd's basename. `holt child` runs a child lane's
-  # CONVERSATION in the parent's checkout (holt's HOLT_CHAT), so for those the
+  # The lane name, not the cwd's basename. `scruff child` runs a child lane's
+  # CONVERSATION in the parent's checkout (scruff's SCRUFF_CHAT), so for those the
   # cwd basename names the wrong lane — while the session name is
   # `holt.<repo>.<lane>` by construction (terminal/lanes/lane-open.sh). Anything
   # not opened by that hook keeps the old cwd-basename answer.
@@ -225,7 +225,7 @@ if [ -n "$desktop" ]; then
     # The same six columns the pane path writes, so agents.sh's two readers
     # differ only in where they find the row and never in how they parse it.
     # The session slot says `desktop` because the popup shows it verbatim when
-    # there is no holt lane to join against, and "desktop" is the true answer
+    # there is no scruff lane to join against, and "desktop" is the true answer
     # to "where is this agent" in a way a uuid is not.
     printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
       "$st" "desktop" "$key" "$(basename "$cwd")" "$(date +%s)" "$agent" > "$f"

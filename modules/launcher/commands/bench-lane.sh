@@ -1,16 +1,16 @@
 #!/bin/bash
 # pounce: name = Build This Lane
-# pounce: description = bench try lane switch — this worktree plus its holt children
+# pounce: description = bench try lane switch — this worktree plus its scruff children
 # pounce: icon = hammer
 
-# ⌘B's target. Build+activate the focused window's whole holt LANE — this
-# worktree PLUS every `holt child` worktree spawned from it, however many repos
+# ⌘B's target. Build+activate the focused window's whole scruff LANE — this
+# worktree PLUS every `scruff child` worktree spawned from it, however many repos
 # it touches, in ONE rebuild ("b" for bench, since ⌘L is Links).
 #
 # Unlike try-batch (which needs an open PR per repo) this tests the LOCAL
 # checkouts, uncommitted edits included, so it's the fast loop for a cross-repo
 # change mid-flight. Press it from the lane's PARENT worktree; bench refuses if
-# it isn't one, or if it has no holt children (see bench's own
+# it isn't one, or if it has no scruff children (see bench's own
 # cmd_try/detect_lane).
 #
 # Runs UNGATED: bench's BENCH_AGENT_SWITCH check only fires for an agent

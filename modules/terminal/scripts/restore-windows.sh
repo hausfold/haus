@@ -104,7 +104,7 @@ parked=$(
       if (name != "" && (clients == "" || clients == "0")) print name
     }' | awk '
       /^term\./ { n = substr($0, 6) + 0; terms[n] = $0; if (n > max) max = n; next }
-      /^holt\./ { lanes[++l] = $0 }
+      /^scruff\./ { lanes[++l] = $0 }
       END {
         for (i = 1; i <= max; i++) if (i in terms) print terms[i]
         for (i = 1; i <= l; i++) print lanes[i]

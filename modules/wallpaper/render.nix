@@ -69,7 +69,7 @@ let
   # light one — the same swap the site makes.
   family = map (n: palette.${n}) [
     "mauve" # nebelung
-    "teal" # holt
+    "teal" # scruff
     "green" # perch
     "yellow" # trill
     "peach" # pounce

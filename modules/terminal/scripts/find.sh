@@ -239,14 +239,14 @@ build_corpus() {
     # A lane is `holt.<repo>.<lane>`, and the `holt.` prefix is on every single
     # one — pure width spent on nothing, in a column whose whole job is telling
     # rows apart. `<repo>.<lane>` is what you would navigate by, and it is
-    # exactly the key the bar's popup joins holt on. A plain window keeps its
+    # exactly the key the bar's popup joins scruff on. A plain window keeps its
     # `term.<n>` as-is: it is already short, and the number is the only thing
     # distinguishing one shell from another.
     #
     # No de-duplication pass here, unlike the zellij version, which had to
     # number `workshop.1`, `workshop.2` because several panes could share one
     # tab name. A zmx session name is unique by construction.
-    awk -F'\t' '{ n = $1; sub(/^holt\./, "", n); printf "%s\t%s\n", $1, n }' \
+    awk -F'\t' '{ n = $1; sub(/^scruff\./, "", n); printf "%s\t%s\n", $1, n }' \
         "$dir/panes.raw" >"$dir/labels.tsv"
 
     : >"$dir/panes.tsv"

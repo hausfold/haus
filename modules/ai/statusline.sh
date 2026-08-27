@@ -21,15 +21,15 @@
 #          PR state), and name. Active rows lead; reapable ⏏ rows come last so
 #          Claude Code clipping never hides work that still needs attention.
 #
-# Lineage: `holt hook create` records each worktree's parent (the cwd it was spawned
+# Lineage: `scruff hook create` records each worktree's parent (the cwd it was spawned
 # from) in its registry; the refresher carries that into panel.tsv, and a
 # session lists only the rows whose parent == its own cwd.
 #
 # The status token is a single mutually-exclusive slot:
-#     ⏏  (orange)   branch is merged/landed → `holt` reaps it on pane close
+#     ⏏  (orange)   branch is merged/landed → `scruff` reaps it on pane close
 #     N^ (orange)   the PR merged and N commits landed on the branch SINCE: work
 #                   no PR covers and nothing pushed (GitHub deleted the remote
-#                   branch at merge). `holt reship` opens the follow-up.
+#                   branch at merge). `scruff reship` opens the follow-up.
 #     N^ (blue)     N commits on the branch, not yet merged
 #     +A -D         uncommitted line changes (green/red), when no commits yet
 #     (empty)       nothing differs from main → show nothing (no "clean")
@@ -74,7 +74,7 @@ else
 fi
 HAUS_GH_BACKSTOP="${HAUS_GH_BACKSTOP:-0}"
 
-# 256-colour palette — muted, rice-consistent (cf. `holt`: 103 gray, 167 red).
+# 256-colour palette — muted, rice-consistent (cf. `scruff`: 103 gray, 167 red).
 c() { printf '\033[38;5;%sm' "$1"; }
 DOT=$(c 108); DIM=$(c 244); NAME=$'\033[1m'
 AHEAD=$(c 75); ADD=$(c 71); DEL=$(c 167); PURGE=$(c 173); WARN=$(c 179)
@@ -110,9 +110,9 @@ render_status() {
   local ahead=${1:-0} files=${2:-0} ins=${3:-0} del=${4:-0} pr="$5" purge=${6:-0}
   local st="" state="${pr##* }" relanded=""
   # merged+K (see the refresher): the PR merged, then K more commits landed on the
-  # branch. ⏏ — "nothing left here, holt reaps it on pane close" — is a LIE about
+  # branch. ⏏ — "nothing left here, scruff reaps it on pane close" — is a LIE about
   # that pane: those K commits have no PR, no remote branch (GitHub deleted it at
-  # merge), and `holt` correctly refuses to reap them. The bar said done while the
+  # merge), and `scruff` correctly refuses to reap them. The bar said done while the
   # work sat there, which is how un-shipped commits went unnoticed. Show the count
   # instead, in the same orange: it is the same "this branch needs you" hue.
   case "$state" in merged+*) relanded="${state#merged+}" ;; esac
@@ -190,7 +190,7 @@ j() { printf '%s' "$in" | jq -r "$1 // empty"; }
 cwd=$(j '.workspace.current_dir // .cwd'); [ -z "$cwd" ] && cwd="$PWD"
 # The $HOME pane is the catch-all: it alone also surfaces "orphan" worktrees
 # (ones with no recorded parent — e.g. a raw `git worktree add` that skipped
-# `holt child`), so a stray worktree is never fully invisible, while every other
+# `scruff child`), so a stray worktree is never fully invisible, while every other
 # session stays quiet and shows only the worktrees it actually spawned.
 is_home=0; [ "$cwd" = "$HOME" ] && is_home=1
 wt_name=$(j '.worktree.name // .workspace.git_worktree')
@@ -403,13 +403,13 @@ if [ "$is_wt" = 1 ] && [ "${files:-0}" -eq 0 ] && g merge-base --is-ancestor HEA
   # `commit…` entry in its reflog to say it ever had one. Ancestry can't tell
   # work that landed from work that never existed, so a lane spawned five
   # seconds ago is an ancestor of the default branch too, and row 1 opened with
-  # ⏏ — which reads as "merged", and is meant to mean "holt reaps this on pane
+  # ⏏ — which reads as "merged", and is meant to mean "scruff reaps this on pane
   # close". Both are the wrong thing to say about an empty branch: the honest
   # token for it is no token at all (the muted ● below).
   #
-  # Same two facts holt's `landed.verdict: fresh` is built from (SPEC.md §3.5),
+  # Same two facts scruff's `landed.verdict: fresh` is built from (SPEC.md §3.5),
   # deliberately duplicated rather than shelled out to: this runs on every
-  # render of every prompt, and `holt --json` walks every lane on the machine.
+  # render of every prompt, and `scruff --json` walks every lane on the machine.
   # The reflog is the half that does the work — a branch that merged by
   # fast-forward has no commits of its own left to count either, and only its
   # reflog remembers that it ever did anything. An EMPTY reflog (gc'd entries,
@@ -715,7 +715,7 @@ while IFS=$'\t' read -r pslug pname pahead pfiles pins pdel ppr pparent; do
   bullet="$pst"; [ -z "$bullet" ] && bullet="${DOT}●${R}"
   bulletplain=$(plain "$bullet"); bulletlen=${#bulletplain}
   # An orphan has no recorded parent — a raw `git worktree add` that skipped
-  # `holt child`, so nothing in the registry knows who owns it. It rides in
+  # `scruff child`, so nothing in the registry knows who owns it. It rides in
   # front of the repo name because the bullet slot is the STATUS token now
   # (rice#…, "Prioritize active Claude statusline rows"), which is what took
   # the old leading ◇ away and left orphans rendering identically to real

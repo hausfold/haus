@@ -3,8 +3,8 @@
 #
 # A tool's `<tool>-skill` derivation lays out `$out/<skill-name>/SKILL.md` (the
 # family standard, the workshop's notes/agent-surface.md §6), and a tool may
-# ship more than one: holt ships `holt` (drive the lane lifecycle) and `handoff`
-# (write the brief a `holt spawn --prompt-file` lane opens on).
+# ship more than one: scruff ships `scruff` (drive the lane lifecycle) and `handoff`
+# (write the brief a `scruff spawn --prompt-file` lane opens on).
 #
 # Split out of modules/ai/default.nix so `nix flake check` can build it. The
 # room installs the result as home files, which puts it on every machine's
@@ -21,7 +21,7 @@
 {
   pkgs,
   lib,
-  holt-skill,
+  scruff-skill,
   trill-skill ? null,
   trillEnabled ? true,
 }:
@@ -31,7 +31,7 @@ let
   # The one list. Adding a tool is a name here and an argument above — plus,
   # when the tool is OPTIONAL on a machine, the switch its room is gated on.
   #
-  # `enable` is what makes an optional tool's skill honest. holt is on every
+  # `enable` is what makes an optional tool's skill honest. scruff is on every
   # haus machine, so its skill is never wrong to have. trill's room is off by
   # default (`haus.notifications.compositor`), and a skill teaching an agent to
   # drive an app
@@ -51,9 +51,9 @@ let
   # on Linux and the entry drops out rather than breaking the eval.
   toolSkills = [
     {
-      drv = holt-skill;
+      drv = scruff-skill;
       names = [
-        "holt"
+        "scruff"
         "handoff"
       ];
     }

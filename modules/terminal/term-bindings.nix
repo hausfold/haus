@@ -142,7 +142,7 @@ rec {
       ++ lib.optional benchLaneEnabled {
         key = "⌘ B";
         chords = [ "cmd+b" ];
-        action = "Build+activate this window's whole holt lane";
+        action = "Build+activate this window's whole scruff lane";
       };
     }
     # Unbreaking a terminal: two rows because the breakage has two halves and

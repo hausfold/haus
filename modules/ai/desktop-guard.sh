@@ -122,7 +122,7 @@ cmd=$(j '.tool_input.command')
 [ -n "$cmd" ] || exit 0
 
 # ---- another machine's screen is not this screen ---------------------------
-# A lane feel-tests the desktop in its OWN headless macOS VM (`holt runtime up
+# A lane feel-tests the desktop in its OWN headless macOS VM (`scruff runtime up
 # --backend tart`, written up in the WORKSHOP's notes/agent-vm.md — not a
 # file in this repo), driven entirely over ssh: `ssh
 # admin@<guest> 'haus rebuild'`, `… 'sketchybar --reload …'`, `… 'killall
@@ -268,10 +268,10 @@ fi
 
 # The VM exemption above holds only while the VM is headless. `tart run`
 # without --no-graphics opens the guest's window, full size, on this display —
-# the one command in the whole tart flow that IS screen theft. `holt runtime up
+# the one command in the whole tart flow that IS screen theft. `scruff runtime up
 # --backend tart` already boots headless; this is for a hand-run one.
 if unpaired '^ *tart +run([[:space:]]|$)' 'tart +run.*--no-graphics'; then
-  ask "\`tart run\` without \`--no-graphics\` opens the VM's window on the user's display. Boot it headless — that is what \`holt runtime up --backend tart\` does."
+  ask "\`tart run\` without \`--no-graphics\` opens the VM's window on the user's display. Boot it headless — that is what \`scruff runtime up --backend tart\` does."
 fi
 
 m '(darwin-rebuild +switch|haus +rebuild|BENCH_AGENT_SWITCH=[^ ]* +.*try +.*switch)' &&

@@ -64,7 +64,7 @@
 # AeroSpace is the fast path and the default where it exists: `aerospace
 # list-windows --focused` is a ~4 ms round trip to a daemon that already tracks
 # every window. But windows is a ROOM, and a machine can perfectly well run
-# Ghostty, zmx, holt and agents with no tiler at all — on which this file was
+# Ghostty, zmx, scruff and agents with no tiler at all — on which this file was
 # the single reason every chord above went dead, and the reason lanes carried a
 # build-time assertion demanding the tiler (modules/terminal/default.nix).
 #

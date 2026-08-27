@@ -292,7 +292,7 @@ in
                      rather than noticed.
           accent     haus.theme.accent's hex, flat.
           spectrum   the whole family at once: a conic sweep through the six
-                     product accents — nebelung, holt, perch, trill, pounce,
+                     product accents — nebelung, scruff, perch, trill, pounce,
                      hacker — clipped to the stroke. This is the ⌂ as it
                      looks with a pointer on it on hausfold.co, held still.
 
@@ -352,7 +352,7 @@ in
         "nebelung"
         "pounce"
         "perch"
-        "holt"
+        "scruff"
       ];
       # Spelled on ONE line for ../host-template.jq: the annotated host file
       # comments each default with `  # ` and the "is it still legal once
@@ -360,7 +360,7 @@ in
       # default that renders across several lines leaves the rest commented and
       # the file stops parsing. The template's own build catches that loudly —
       # this is the escape hatch it's telling you to use.
-      defaultText = lib.literalExpression ''[ "self" "nebelung" "pounce" "perch" "holt" ]'';
+      defaultText = lib.literalExpression ''[ "self" "nebelung" "pounce" "perch" "scruff" ]'';
       example = [
         "self"
         "nixpkgs"

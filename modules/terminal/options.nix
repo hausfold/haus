@@ -58,7 +58,7 @@ in
         The AI room's agent lifecycle bindings, as the terminal renders them:
         the `c` alias — the client, in the checkout the shell is already in —
         and the cheatsheet cards the launcher draws from the same table. The
-        chord that spawns a fresh `holt` worktree is not here — a lane is a
+        chord that spawns a fresh `scruff` worktree is not here — a lane is a
         window, so it is ⌘↵, a Ghostty-scoped launcher hotkey firing
         `cmd:lane-here`. There is no chord for the resident agent: ⌃⌥⇧A ran one
         until 2026-08-19, and `c` was always the shorter way to type it.
@@ -82,11 +82,11 @@ in
           type = lib.types.str;
           default = "";
           description = ''
-            The holt namer adapter id — `haus.ai.namer`. Rides this point
+            The scruff namer adapter id — `haus.ai.namer`. Rides this point
             rather than being read off `haus.ai.*` for the same reason
             `default` does: the AI room decides whether a lane gets named,
-            this room decides how holt's config spells it. Empty writes no
-            key at all, which is holt's own "no namer" default.
+            this room decides how scruff's config spells it. Empty writes no
+            key at all, which is scruff's own "no namer" default.
           '';
         };
 
