@@ -69,10 +69,20 @@ cwd=""
 # for a chord whose entire promise is "stay in this worktree". So the shifted key
 # keeps the old, purely window-local answer, and the two chords differ in one
 # idea spelled two ways rather than in two ideas.
+#
+# `${page_flag[@]+"${page_flag[@]}"}` and not a bare `"${page_flag[@]}"`: this
+# script's shebang is /bin/bash, macOS ships 3.2, and there `set -u` makes an
+# EMPTY array's expansion an unbound-variable error — the exact trap
+# scripts/new-window.sh and float-term.sh already carry a note about. So the
+# --stay branch, the one branch that empties the array, killed the command
+# substitution outright (exit 127, stderr swallowed by the daemon), cwd came
+# back empty and the fallback below sent every ⌘⇧N to $HOME. Which is to say
+# the chord whose whole promise is "stay in this worktree" was, from the day it
+# was written, the one chord guaranteed to leave it. Measured 2026-08-27.
 page_flag=(--page)
 [ -n "$stay" ] && page_flag=()
 [ -x "$HOME/.config/haus/lanes/lane-cwd.sh" ] &&
-  cwd="$("$HOME/.config/haus/lanes/lane-cwd.sh" "${page_flag[@]}")"
+  cwd="$("$HOME/.config/haus/lanes/lane-cwd.sh" ${page_flag[@]+"${page_flag[@]}"})"
 [ -n "$cwd" ] && [ -d "$cwd" ] || cwd="$HOME"
 
 # The ghostty-config DEFAULT command — terminal's scripts/launch.sh — not a bare

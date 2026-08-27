@@ -15,11 +15,18 @@
 #               never stale for longer than that attach. Exact: an id is one
 #               window and always its own.
 #   a LANE      has no such label — its session is created by `zmx attach`
-#               inside the window rather than by launch.sh — but its window
-#               TITLE is the session name, because lanes/lane-open.sh spawns it
-#               with `open -na --title holt.<repo>.<lane>` and Ghostty treats
-#               that as a FORCED title the client inside can't clobber with
-#               OSC 2. String equality, nothing to look up.
+#               inside the window rather than by launch.sh — so lanes/lane-open.sh
+#               writes `lwindow=` instead, from the id its self-tile block
+#               already had to look up. Exact the same way, and a KEY OF ITS
+#               OWN because two other scripts read `window=` as the impostor
+#               discriminator on the invariant "a plain window always has it, a
+#               real lane never does" (windows/scripts/resort-windows.sh,
+#               scripts/raise-session.sh).
+#   …or its     TITLE, which is the session name, because lanes/lane-open.sh
+#   TITLE       spawns it with `open -na --title holt.<repo>.<lane>` and
+#               Ghostty treats that as a FORCED title the client inside can't
+#               clobber with OSC 2. String equality, nothing to look up — and
+#               the LAST resort, for the reason below.
 #
 # ── the label is asked FIRST, and that ordering is load-bearing ──────────────
 # The title used to win, on the reasoning that it is exact. It is not: Ghostty's
@@ -37,9 +44,21 @@
 # session created with `start_dir` pointing at a lane worktree three repos away
 # from the window it was opened from.
 #
-# A mistitled plain window still carries its own `window=` label, and a real
-# lane still carries no label at all, so asking the label first is right for
-# both and the title stays as the fallback it should always have been.
+# A mistitled plain window still carries its own `window=` label, so asking the
+# label first is right for it and the title stays the fallback it should always
+# have been.
+#
+# ── and the title cannot save a window with NO session ──────────────────────
+# The one window the ordering above could not rescue is a window that has no
+# session to be labelled: scripts/new-window.sh runs a bare login shell rather
+# than launch.sh, so ⌘G's gh-dash and every editor window carry no label AND,
+# opened into a lane's Ghostty process, wear that lane's instance-wide title.
+# Nothing out-ranked the title there, so a chord pressed in gh-dash answered
+# the agent's session — ⌘N opened in its checkout, ⌘F searched its scrollback.
+# That is why a lane now stamps `lwindow=` (lanes/lane-open.sh): once every
+# REAL lane answers by id, the title match is only ever reached by a window
+# that owns no session, and a wrong answer there degrades to no answer, which
+# every caller already handles.
 #
 # ── two backends, because the tiler is optional ──────────────────────────────
 # AeroSpace is the fast path and the default where it exists: `aerospace
@@ -92,8 +111,11 @@ case "$backend" in
 
     title="$(focused '%{window-title}')"
     wid="$(focused '%{window-id}')"
-    # The label launch.sh stamps with an AeroSpace window id.
+    # The label launch.sh stamps with an AeroSpace window id, and the one
+    # lanes/lane-open.sh stamps with the same id space from its self-tile
+    # block. Two keys rather than one shared one — see the header.
     key=window
+    key2=lwindow
     ;;
 
   ghostty)
@@ -162,6 +184,10 @@ APPLESCRIPT
     # wrong window exactly when a machine has both. Written by launch.sh for a
     # plain window and by lanes/lane-open.sh for a lane.
     key=gwindow
+    # No second key here: on this backend lanes/lane-open.sh spawns a lane
+    # through the same AppleScript API as everything else and stamps the id it
+    # gets back as `gwindow=`, so both kinds of window already answer by id.
+    key2=
     ;;
 
   *)
@@ -171,9 +197,13 @@ esac
 
 # One `zmx ls` for both joins: it is a socket round-trip per session, and these
 # chords are pressed from a keystroke.
-printf '%s' "$(zmx ls 2>/dev/null)" | awk -F'\t' -v want="$title" -v wid="$wid" -v key="$key" '
+#
+# NO APOSTROPHES BELOW THIS LINE, comments included: the awk program is one
+# single-quoted shell string, so a lone `'` inside it closes the quote and the
+# whole file stops parsing. `bash -n` catches it; nothing else does.
+printf '%s' "$(zmx ls 2>/dev/null)" | awk -F'\t' -v want="$title" -v wid="$wid" -v key="$key" -v key2="$key2" '
   {
-    name = ""; win = ""
+    name = ""; win = ""; alt = ""
     for (i = 1; i <= NF; i++) {
       p = index($i, "=")
       if (p == 0) continue
@@ -186,13 +216,64 @@ printf '%s' "$(zmx ls 2>/dev/null)" | awk -F'\t' -v want="$title" -v wid="$wid" 
       # Only up to the FIRST "=": a label value can carry its own.
       if (k == "name") name = substr($i, p + 1)
       if (k == key)    win  = substr($i, p + 1)
+      # The lane key, when this backend has one. Same id space as `key`, and
+      # never on the same session — one is written by launch.sh for a plain
+      # window, the other by lanes/lane-open.sh for a lane.
+      if (key2 != "" && k == key2) alt = substr($i, p + 1)
     }
     if (name == "") next
     # Label first — see the note at the top of this file on why the title
     # cannot be trusted to be unique.
-    if (wid != "" && win == wid) { print name; exit }
-    if (name == want) bytitle = name
+    #
+    # `byid` and not a bare `exit`: awk RUNS THE END BLOCK on exit, so a run
+    # that had already banked a title match on an EARLIER row printed the
+    # label answer and then the title answer, both. `zmx ls` sorts by name,
+    # which puts every `holt.*` lane ahead of every `term.*`, so this fired
+    # for the commonest shape there is — a plain window born wearing the
+    # instance-wide title of a lane, focused, resolving correctly by its own
+    # `window=` label on a later row. The caller does
+    # `sess="$(focused-session.sh)"`, so what it got was a TWO-LINE session
+    # name, which then matched no session anywhere: ⌘N and ⌘↵ fell through to
+    # $HOME (or, with --page, to the main checkout of the page repo — "⌘N
+    # hopped me out of my worktree"), ⌘F searched nothing, ⌘L found no links.
+    # Intermittent only in that it needed a mistitled window AND its namesake
+    # lane to still be alive.
+    # MEASURED 2026-08-27 against a live `zmx ls`: window 67269 (`term.2`,
+    # titled `holt.haus.spawn-agent-pounce`) answered `term.2` and
+    # `holt.haus.spawn-agent-pounce` on two lines.
+    if (wid != "" && (win == wid || alt == wid)) { byid = name; exit }
+    # The title is only consulted for a session that has NO window label at
+    # all. A session that carries one and did not match `wid` above is, by
+    # construction, running in some OTHER window — so a title match against
+    # it is the instance-wide-title impostor and nothing else. That is the
+    # last window this file could not rescue: one with no session of its own
+    # to be labelled (scripts/new-window.sh runs a bare login shell, so ⌘G
+    # gh-dash and editor windows have none) and a lane title it was merely
+    # born wearing. It used to answer with that lane, so ⌘N opened in the
+    # agent checkout and ⌘F searched the agent scrollback; now it answers
+    # nothing, which every caller already handles.
+    #
+    # It is safe to be this strict only because a lane is unlabelled far more
+    # readily than it is mislabelled: lanes/lane-open.sh CLEARS `lwindow=`
+    # the moment it starts placing a window and only stamps once it knows the
+    # id, clears it again on both of its bail paths, and
+    # scripts/raise-session.sh clears it when it reopens a window whose id it
+    # cannot learn. A lane with no stamp — one from before this label
+    # existed, one whose self-tile could not find itself, one still settling
+    # — resolves by title exactly as it always did.
+    #
+    # The one hole left is the one `window=` has always had, now shared: ⌘W
+    # parks a session whose window is gone, and nothing clears the label
+    # until that lane is next opened. Should AeroSpace hand that id to some
+    # other window first, the window resolves to the parked session. Ids are
+    # not recycled quickly and a park is usually followed by a resume, so
+    # this is the same accepted risk launch.sh takes when it says its label
+    # is only ever as fresh as the last attach — not a new one.
+    if (name == want && win == "" && alt == "") bytitle = name
   }
-  END { if (bytitle != "") print bytitle }
+  END {
+    if (byid != "") print byid
+    else if (bytitle != "") print bytitle
+  }
 '
 exit 0

@@ -9,8 +9,9 @@
 # Usage: lane-cwd.sh [--page]
 #
 # The answer is one hop past scripts/focused-session.sh, which does the hard
-# half — window → zmx session, by forced title for a lane and by the `window=`
-# label for everything else. `zmx ls` then reports that session's directory.
+# half — window → zmx session, by window id (the `lwindow=` label for a lane,
+# `window=` for everything else) and only then by a lane's forced title.
+# `zmx ls` then reports that session's directory.
 #
 # A window with no session — a browser, Finder, the quick terminal — prints
 # NOTHING; the caller picks its own fallback, because "from anywhere" beats a

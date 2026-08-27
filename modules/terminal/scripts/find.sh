@@ -38,8 +38,9 @@
 # The one that has focus. pounce's Ghostty-scoped tap fires this from the
 # daemon, and the palette panel never appears, so nothing has taken focus away
 # from the terminal by the time we run. scripts/focused-session.sh turns that
-# window into a session name — a lane by its forced title, anything else by the
-# `window=` label scripts/launch.sh stamps.
+# window into a session name — by window id, which is the `lwindow=` label
+# lanes/lane-open.sh stamps for a lane and the `window=` one scripts/launch.sh
+# stamps for everything else, and only then by a lane's forced title.
 #
 # This is a two-stage script and it stays two-stage, though the reason changed.
 # Under zellij, stage 1 ran inside a throwaway 1% pane and could not detach

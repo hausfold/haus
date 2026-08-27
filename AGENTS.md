@@ -647,8 +647,10 @@ mechanism, say so in one line.
   and the bar's agent peek. `zmx history` / `zmx tail` is that read API. The
   session is named `term.<n>`, lowest n that no session holds; a lane is
   `holt.<repo>.<lane>` and belongs to `lanes/lane-open.sh`.
-  `scripts/focused-session.sh` is the one window→session join — by forced window
-  title for a lane, by a `window=` label for everything else. AeroSpace's
+  `scripts/focused-session.sh` is the one window→session join — by window id,
+  which is the `lwindow=` label lanes/lane-open.sh stamps for a lane and the
+  `window=` one launch.sh stamps for everything else, and only then by the
+  forced window title, for a lane that carries no stamp. AeroSpace's
   `on-focus-changed` runs `lanes/lane-seen.sh` over that join (wired in
   `modules/windows`), which is how a lane's parked trill fin comes down when you
   go to its window YOURSELF instead of clicking the banner — holt's own hooks

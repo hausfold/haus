@@ -440,6 +440,62 @@ fi
     printf '      --thread %q --title "haus · agent lane" \\\n' "$sess"
     printf '      --body %q >/dev/null 2>&1\n' "$sess opened out of sight and could not be tiled — raise it from the agents pill, or holt"
     printf '  }\n'
+    # ── the exact window→session join ──────────────────────────────────
+    # A lane had none on this backend until now: its session is created by
+    # the `zmx attach` at the end of this launcher rather than by
+    # scripts/launch.sh, so nothing ever wrote a `window=` label and
+    # scripts/focused-session.sh had to fall through to matching the window
+    # TITLE. That fallback is not safe here — Ghostty's `--title` is
+    # INSTANCE-WIDE configuration rather than a property of the one window it
+    # was spawned for, so any window opened LATER into this lane's own
+    # Ghostty process is BORN wearing this lane's name. We already hold the
+    # id AeroSpace gave us; writing it down is the whole fix.
+    #
+    # A KEY OF ITS OWN, and that is load-bearing rather than fussy. Two other
+    # scripts read `window=` as the impostor discriminator on precisely the
+    # invariant "a plain window always has it, a real lane never does" —
+    # windows/scripts/resort-windows.sh subtracts those ids before healing a
+    # lane onto T/<repo>, and scripts/raise-session.sh before raising one.
+    # Stamping `window=` here would put every real lane in both skip lists:
+    # a resort would stop healing lanes, and a click on an agent banner would
+    # open a SECOND window beside the one it meant to raise. `lwindow=` adds
+    # an exact join without touching the invariant either of them rests on.
+    #
+    # It is written on EVERY exit from this block, empty on the two bails,
+    # and that is the point rather than tidiness: a lane that resumes into a
+    # new window after its old one was closed would otherwise keep the dead
+    # id, and an id AeroSpace later hands to some other window would resolve
+    # that window to this session. An empty stamp costs nothing — the title
+    # join below is exactly as good as it was before this label existed.
+    #
+    # Same retry as the ghostty backend's `gwindow=` stamp at the foot of
+    # this file, for the same reason: the session does not exist until that
+    # `zmx attach` creates it, a few milliseconds from now.
+    # ── a RESUME starts out mislabelled, so unlabel it first ─────────────
+    # holt wires `resume` to this same script, and a resumed lane still
+    # carries the `lwindow=` of the window it had LAST time — a dead id, or
+    # worse, one AeroSpace has since handed to something else. The stamp at
+    # the foot of this block only lands after the pid walk, the window poll
+    # (up to 2 s) and the move, and for that whole gap
+    # scripts/focused-session.sh sees a label that does not match this window
+    # and, on its strength, refuses the title join — so every chord in the
+    # lane you just walked back into answers NOTHING and falls back to $HOME.
+    # An unlabelled window is the honest state while this settles, and the
+    # title join covers it exactly as it did before the label existed.
+    #
+    # ONE attempt, not `stamp ""`: on a resume the session is already there
+    # so it lands immediately, and on a FIRST open there is nothing to clear
+    # and a retry loop would sit here for three seconds before the walk below
+    # even starts.
+    printf '  command -v zmx >/dev/null 2>&1 && zmx set %q "lwindow=" >/dev/null 2>&1\n' "$sess"
+    printf '  stamp() {\n'
+    printf '    command -v zmx >/dev/null 2>&1 || return 0\n'
+    printf '    for _ in $(seq 1 60); do\n'
+    printf '      zmx set %q "lwindow=$1" >/dev/null 2>&1 && break\n' "$sess"
+    printf '      sleep 0.05\n'
+    printf '    done\n'
+    printf '    return 0\n'
+    printf '  }\n'
     printf '  gpid=""; p=$$\n'
     printf '  while [ -n "$p" ] && [ "$p" != 1 ]; do\n'
     printf '    case "$(ps -o comm= -p "$p" 2>/dev/null)" in\n'
@@ -453,7 +509,7 @@ fi
     printf '    esac\n'
     printf '    p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d " ")\n'
     printf '  done\n'
-    printf '  [ -n "$gpid" ] || { vanish; giveback; exit 0; }\n'
+    printf '  [ -n "$gpid" ] || { vanish; giveback; stamp ""; exit 0; }\n'
     # The window does not exist for AeroSpace the instant the shell inside it
     # does, so this poll is a real wait rather than the no-op the old one was.
     # ONE window, or none. A fresh `open -na` process owns exactly one window,
@@ -469,7 +525,7 @@ fi
     printf '    [ "$(printf "%%s\\n" "$mine" | grep -c .)" = 1 ] && { WID="$mine"; break; }\n'
     printf '    sleep 0.05\n'
     printf '  done\n'
-    printf '  [ -n "${WID:-}" ] || { vanish; giveback; exit 0; }\n'
+    printf '  [ -n "${WID:-}" ] || { vanish; giveback; stamp ""; exit 0; }\n'
     # T/<repo>, not a single shared T: every lane of one repo tiles on its own
     # workspace page, so five agents across three repos stop fighting over one
     # tree. Workspace names may contain "/" (checked by hand against AeroSpace);
@@ -494,6 +550,10 @@ fi
     # any earlier and AeroSpace would move a window that no longer has focus,
     # which is the same mis-aim `--focused` used to make.
     printf '  giveback\n'
+    # LAST, after the screen has gone back: the label is allowed to land late
+    # (a chord pressed in the first quarter-second simply gets the title join),
+    # focus is not.
+    printf '  stamp "$WID"\n'
     printf ') >/dev/null 2>&1 &\n'
   fi
   printf 'cd %q || exit 1\n' "$chat"
