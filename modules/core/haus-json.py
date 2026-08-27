@@ -99,40 +99,84 @@ def cmd_compact(args):
 
 
 def cmd_lines(args):
-    """Every element of a list, one per line."""
+    """Every element of a list, one per line.
+
+    `--strip-prefix` is jq's `ltrimstr`: a checker's failures are absolute
+    paths, and the reader has already said which file it is reading.
+    """
     value = walk(load(args), args.path, args.key)
     if value is MISSING or value is None:
         return 0
-    for item in value:
-        print(raw(item))
+    for item in selected(value, args.where) if args.where else value:
+        text = raw(item)
+        if args.strip_prefix and text.startswith(args.strip_prefix):
+            text = text[len(args.strip_prefix):]
+        print(text)
     return 0
 
 
 def cmd_length(args):
+    """How many, optionally of the ones `--where` keeps."""
     value = walk(load(args), args.path, args.key)
-    print(0 if value is MISSING or value is None else len(value))
+    if value is MISSING or value is None:
+        print(0)
+    elif args.where:
+        print(len(selected(value, args.where)))
+    else:
+        print(len(value))
     return 0
+
+
+def selected(items, where):
+    """`select(.k == v)`. A `where` of `k=null` matches an absent or null field."""
+    if not where:
+        return list(items)
+    key, _, want = where.partition("=")
+    if want == "null":
+        return [i for i in items if i.get(key) is None]
+    return [i for i in items if i.get(key) is not None and str(i.get(key)) == want]
 
 
 def cmd_rows(args):
     """Tab-separated fields from every element of a list.
 
-    `--where k=v` keeps only the elements whose field `k` equals `v`; a field
-    that is absent or null renders as `--null-as` (default the empty string),
-    which is what the jq `// "—"` fallbacks did at each call site.
+    A field is `name` or `name=fallback`, and the fallback is what renders when
+    the field is absent or null — the jq `// "—"` at each call site, per field
+    rather than per row. Every renderer here reads its rows back with
+    `IFS=$'\\t' read`, where TAB is an IFS *whitespace* character: bash collapses
+    a run of them, so an empty field silently shifts every later one left. Give
+    each field a non-empty fallback and that cannot happen.
+
+    `--where k=v` keeps only the elements whose field `k` equals `v`.
     """
     value = walk(load(args), args.path, args.key)
     if value is MISSING or value is None:
         return 0
-    key, _, want = (args.where or "").partition("=")
-    for item in value:
-        if args.where and str(item.get(key)) != want:
-            continue
+    for item in selected(value, args.where):
         cells = []
         for field in args.fields:
-            cell = item.get(field)
-            cells.append(args.null_as if cell is None else raw(cell))
+            name, _, fallback = field.partition("=")
+            cell = item.get(name)
+            cells.append(fallback or args.null_as if cell is None else raw(cell))
         print("\t".join(cells))
+    return 0
+
+
+def cmd_pluck(args):
+    """One field from every element, as a JSON array — jq's `[.sets[].path]`."""
+    value = walk(load(args), args.path, args.key) or []
+    field = args.fields[0] if args.fields else None
+    picked = [i.get(field) for i in selected(value, args.where)] if field else list(value)
+    print(json.dumps(picked, separators=(",", ":"), ensure_ascii=False))
+    return 0
+
+
+def cmd_join(args):
+    """One field from every element, joined — jq's `[.silent[].title] | join(…)`."""
+    value = walk(load(args), args.path, args.key) or []
+    field = args.fields[0] if args.fields else None
+    picked = [i.get(field) for i in selected(value, args.where)] if field else list(value)
+    print(args.sep.join("" if i is None else raw(i) for i in picked))
     return 0
 
 
@@ -243,6 +287,131 @@ def cmd_perm_deck(args):
     return 0
 
 
+# ---- `haus show`'s three records --------------------------------------------
+# The reader builds JSON as well as reading it, and these are the three places
+# it does. They are subcommands rather than a filter because each one IS a
+# documented shape: `origin` and the `--json` envelope are read by other
+# people's CI, so the shape belongs somewhere a person can find it by name.
+
+
+def cmd_show_origin(args):
+    """Where a fetched source came from, and how old that is.
+
+    `file` is null for a source that had no pick — a `file` shape IS the file.
+    """
+    fetched = load(args)
+    print(
+        json.dumps(
+            {
+                "typed": args.typed,
+                "shape": args.shape,
+                "file": args.pick or None,
+                "tree": fetched.get("tree"),
+                "rev": fetched.get("rev"),
+                "lastModified": fetched.get("lastModified"),
+                "narHash": fetched.get("narHash"),
+                "fetchedAt": int(args.at),
+            },
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+    )
+    return 0
+
+
+def cmd_show_verdicts(args):
+    """What each leaf the file sets would actually do on THIS machine.
+
+      overridden  something here outranks a desktop, so the file's value does
+                  not land — the single most useful line in the report
+      unranked    a leaf under a recursive container, which has no option node,
+                  so the values compare but the winner cannot be named
+      unknown     this machine's haus has no such option: the file was written
+                  against a different one than you have pinned
+      unchanged   it already says that
+      changes     it moves
+    """
+    machine = json.loads(args.machine)
+    report = json.loads(args.report)
+    have = {leaf["path"]: leaf for leaf in machine.get("leaves") or []}
+
+    def verdict(want, leaf):
+        if leaf is None or (not leaf.get("ranked") and leaf.get("inside") is None):
+            return "unknown"
+        if leaf.get("ranked") and leaf.get("prio", 0) < 900:
+            return "overridden"
+        if leaf.get("value") == want:
+            return "unchanged"
+        if not leaf.get("ranked"):
+            return "unranked"
+        return "changes"
+
+    leaves = []
+    for item in report.get("sets") or []:
+        leaf = have.get(item["path"])
+        leaves.append(
+            {
+                "path": item["path"],
+                "proposed": item["value"],
+                "current": (leaf or {}).get("value"),
+                "prio": (leaf or {}).get("prio"),
+                "type": (leaf or {}).get("type"),
+                "inside": (leaf or {}).get("inside"),
+                "verdict": verdict(item["value"], leaf),
+            }
+        )
+    print(
+        json.dumps(
+            {
+                "host": machine.get("host"),
+                "desktop": machine.get("desktop"),
+                "leaves": leaves,
+                "drops": [
+                    {"path": path, "current": have.get(path, {}).get("value")}
+                    for path in machine.get("dropped") or []
+                ],
+            },
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+    )
+    return 0
+
+
+def cmd_show_envelope(args):
+    """haus's first `--json` verb, and the envelope the rest of the sweep copies.
+
+    `ok` is NULL when nothing was checked, never `true`. A room and an
+    unreadable file are both "not a failed desktop", and a consumer reading
+    `.ok` alone must not be told they passed — `.ok == true` has to mean the
+    checker said so. `failures` still carries the reason an unreadable file had
+    no reading, because throwing that away leaves the caller with an exit code
+    and no sentence.
+    """
+    report = json.loads(args.report) if args.report else None
+    desktop = args.klass == "desktop"
+    failures = []
+    if args.klass != "room":
+        failures = list((report or {}).get("failures") or [])
+        if args.reason:
+            failures.append(args.reason)
+    envelope = {
+        "schemaVersion": 1,
+        "file": (report or {}).get("file") or args.file_,
+        "origin": json.loads(args.origin),
+        "class": args.klass,
+        "checked": desktop,
+        "ok": (report or {}).get("ok") if desktop else None,
+        "failures": failures,
+        "sets": (report or {}).get("sets") if desktop else [],
+        "rooms": (report or {}).get("rooms") if desktop else [],
+        "silent": (report or {}).get("silent") if desktop else [],
+        "machine": json.loads(args.machine),
+    }
+    print(json.dumps(envelope, indent=2, ensure_ascii=False))
+    return 0
+
+
 COMMANDS = {
     "get": cmd_get,
     "has": cmd_has,
@@ -250,6 +419,8 @@ COMMANDS = {
     "lines": cmd_lines,
     "length": cmd_length,
     "rows": cmd_rows,
+    "pluck": cmd_pluck,
+    "join": cmd_join,
     "encode-string": cmd_encode_string,
     "parse": cmd_parse,
     "str-or-json": cmd_str_or_json,
@@ -257,6 +428,9 @@ COMMANDS = {
     "commit-subjects": cmd_commit_subjects,
     "defaults-block": cmd_defaults_block,
     "perm-deck": cmd_perm_deck,
+    "show-origin": cmd_show_origin,
+    "show-verdicts": cmd_show_verdicts,
+    "show-envelope": cmd_show_envelope,
 }
 
 
@@ -270,7 +444,18 @@ def main():
     ap.add_argument("--default", help="printed when the path is absent or null")
     ap.add_argument("--where", help="rows: keep elements whose field=value")
     ap.add_argument("--null-as", default="", help="rows: how an absent field renders")
-    ap.add_argument("--sep", default="\t", help="catalogue-rows: field separator")
+    ap.add_argument("--sep", default="\t", help="catalogue-rows/join: separator")
+    ap.add_argument("--strip-prefix", help="lines: drop this prefix from each line")
+    ap.add_argument("--typed", help="show-origin: the source as the user typed it")
+    ap.add_argument("--pick", default="", help="show-origin: the file picked out of the tree")
+    ap.add_argument("--shape", help="show-origin: file | tree | repo")
+    ap.add_argument("--at", default="0", help="show-origin: the fetch timestamp")
+    ap.add_argument("--machine", default="null", help="show-*: the machine's leaves, as JSON")
+    ap.add_argument("--report", default="", help="show-*: the checker's report, as JSON")
+    ap.add_argument("--origin", default="null", help="show-envelope: the origin record")
+    ap.add_argument("--class", dest="klass", help="show-envelope: desktop | room")
+    ap.add_argument("--file-", dest="file_", default="", help="show-envelope: the file read")
+    ap.add_argument("--reason", default="", help="show-envelope: why it could not be read")
     args = ap.parse_args()
     return COMMANDS[args.command](args)
 

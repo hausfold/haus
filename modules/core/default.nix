@@ -471,13 +471,9 @@ let
     fonts = fontsCfg;
   };
 
-  # The JSON reading `haus` and its completion do, as named subcommands rather
-  # than as filters spread across forty call sites. Its own package because two
-  # things need it on a path — the `haus` wrapper and the generated completion
-  # — and neither should carry a python of its own.
-  hausJson = pkgs.writeShellScriptBin "haus-json" ''
-    exec ${lib.getExe pkgs.python3} ${./haus-json.py} "$@"
-  '';
+  # The JSON reading `haus`, its completion and `haus show` do, as named
+  # subcommands rather than as filters spread across seventy call sites.
+  hausJson = import ./haus-json.nix { inherit pkgs lib; };
 
   # Naming a family the rice was never given a package for is silent tofu:
   # Ghostty just falls back and the powerline/icon glyphs vanish. Cheap to spot.

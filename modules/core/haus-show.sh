@@ -21,9 +21,9 @@
 # file rather than two that agree today. See modules/desktop-check.nix.
 set -euo pipefail
 
-# APPENDED, unlike haus.sh's own prefix. This script needs `nix` and `jq` and
-# nothing else, and the flake wrapper (`nix run …#show`) pins its own jq on the
-# front for a runner that may have none — prepending here would put a system jq
+# APPENDED, unlike haus.sh's own prefix. This script needs `nix` and `haus-json`
+# and nothing else, and the flake wrapper (`nix run …#show`) pins its own on the
+# front for a runner that may have none — prepending here would put a system one
 # ahead of the pinned one and quietly undo that. The tail is the fallback for a
 # bare login-item or sudo shell with almost nothing on PATH.
 PATH="${PATH:-}:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/bin:/bin"
@@ -163,7 +163,7 @@ nix_string() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/\$/\
 # ---- everything a stranger wrote passes through here -------------------------
 # `toJSON` escapes quotes, backslashes and the three whitespace controls, and
 # nothing else — so ESC survives a desktop's own values and its own attribute
-# NAMES all the way to `jq -r`, which decodes it back to a raw byte. Measured:
+# NAMES all the way to the reader, which decodes it back to a raw byte. Measured:
 # an accent of "\u001b[7A\u001b[2K…" reaches the terminal intact.
 #
 # That is not cosmetic here. `sets` is printed AFTER the class line and after
@@ -174,7 +174,7 @@ nix_string() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/\$/\
 # someone; a source arrives from a stranger, which is what makes it bite.
 #
 # Tab survives, because it is the field separator the render loops read on.
-# `--json` needs none of this: jq re-escapes controls on the way out.
+# `--json` needs none of this: the encoder re-escapes controls on the way out.
 scrub() { LC_ALL=C tr -d '\000-\010\013\014\016-\037\177'; }
 
 # Nix's own sentence out of a captured stderr, not a guess.
@@ -290,7 +290,7 @@ else
   )" || die "could not fetch $subject. Nix says:
    $(whynot "$err")"
 
-  tree="$(jq -r .tree <<<"$fetched")"
+  tree="$(haus-json get tree <<<"$fetched")"
 
   # A `file` source's store path IS the file — a single blob named `…-source`,
   # not a directory and not called anything.nix. A repo's is a directory, and
@@ -343,13 +343,9 @@ $(printf '     %s\n' "${cands[@]}")" ;;
   # branches on it.
   shape="file"
   [ -d "$tree" ] && shape="tree"
-  [ "$(jq -r '.rev // ""' <<<"$fetched")" = "" ] || shape="repo"
-  origin="$(jq --arg typed "$subject" --arg pick "$pick" --arg shape "$shape" \
-    --argjson at "$(date +%s)" \
-    '{ typed: $typed, shape: $shape,
-       file: (if $pick == "" then null else $pick end),
-       tree: .tree, rev: .rev, lastModified: .lastModified, narHash: .narHash,
-       fetchedAt: $at }' <<<"$fetched")"
+  [ "$(haus-json get rev --default '' <<<"$fetched")" = "" ] || shape="repo"
+  origin="$(haus-json show-origin --typed "$subject" --pick "$pick" --shape "$shape" \
+    --at "$(date +%s)" <<<"$fetched")"
 fi
 
 # ---- act two: read. Guarded, and why that is not optional --------------------
@@ -405,7 +401,7 @@ if [ -z "$asroom" ]; then
     die "$subject could not be evaluated. Nix says:
    $(whynot "$err")"
   }
-  class="$(jq -r .class <<<"$report")"
+  class="$(haus-json get class <<<"$report")"
 fi
 
 # When the reader could not read it, ask Nix why — outside the `tryEval` that
@@ -457,7 +453,7 @@ fi
 CONSUMER="${HAUS_CONSUMER:-$HOME/.config/nix}"
 machine='null'
 machine_why=""
-if [ -z "$nodiff" ] && [ "$class" = desktop ] && [ "$(jq -r .ok <<<"$report")" = true ] \
+if [ -z "$nodiff" ] && [ "$class" = desktop ] && [ "$(haus-json get ok <<<"$report")" = true ] \
    && [ -f "$CONSUMER/flake.nix" ]; then
   # Values are rendered on BOTH sides by the same `toPretty`, so "did this move?"
   # is one string comparison rather than a guess about how two renderers spell a
@@ -580,11 +576,11 @@ else
 NIXQ
 )"
   q="${q//@HOST@/$(nix_string "${HAUS_HOST:-}")}"
-  q="${q//@PATHS@/$(nix_string "$(jq -c '[.sets[].path]' <<<"$report")")}"
+  q="${q//@PATHS@/$(nix_string "$(haus-json pluck sets path <<<"$report")")}"
   if machine="$(
       nix eval --no-update-lock-file --json "$CONSUMER#darwinConfigurations" --apply "$q" 2>"$err"
     )"; then
-    machine_why="$(jq -r '.error // ""' <<<"$machine")"
+    machine_why="$(haus-json get error --default '' <<<"$machine")"
     [ -z "$machine_why" ] || machine='null'
   else
     machine_why="$(whynot "$err")"
@@ -605,30 +601,7 @@ fi
 #   drops       the desktop you have sets it and this one does not
 becomes='null'
 if [ "$machine" != null ]; then
-  becomes="$(jq -n --argjson m "$machine" --argjson r "$report" '
-    ($r.sets | map({ key: .path, value: .value }) | from_entries) as $want
-    | ($m.leaves | map({ key: .path, value: . }) | from_entries) as $have
-    | {
-        host: $m.host,
-        desktop: $m.desktop,
-        leaves: ($r.sets | map(
-          . as $s | ($have[$s.path] // null) as $h | {
-            path: $s.path,
-            proposed: $s.value,
-            current: ($h.value // null),
-            prio: ($h.prio // null),
-            type: ($h.type // null),
-            inside: ($h.inside // null),
-            verdict: (
-              if $h == null or (($h.ranked | not) and $h.inside == null) then "unknown"
-              elif $h.ranked and $h.prio < 900 then "overridden"
-              elif $h.value == $s.value then "unchanged"
-              elif ($h.ranked | not) then "unranked"
-              else "changes"
-              end)
-          })),
-        drops: ($m.dropped | map(. as $p | { path: $p, current: (($have[$p] // {}).value // null) }))
-      }')"
+  becomes="$(haus-json show-verdicts --machine "$machine" --report "$report")"
 fi
 
 if [ -n "$json" ]; then
@@ -649,23 +622,8 @@ if [ -n "$json" ]; then
   # for every input schemaVersion 1 could accept, and non-null only for sources
   # that used to be an error. Nobody's reader breaks, so nobody is made to
   # update one.
-  jq -n --arg class "$class" --arg file "$abs" --arg reason "$reason" \
-     --argjson origin "$origin" \
-     --argjson machine "$becomes" \
-     --argjson report "${report:-null}" '{
-    schemaVersion: 1,
-    file: ($report.file // $file),
-    origin: $origin,
-    class: $class,
-    checked: ($class == "desktop"),
-    ok: (if $class == "desktop" then $report.ok else null end),
-    failures: (if $class == "room" then []
-               else ($report.failures // []) + (if $reason == "" then [] else [$reason] end) end),
-    sets: (if $class == "desktop" then $report.sets else [] end),
-    rooms: (if $class == "desktop" then $report.rooms else [] end),
-    silent: (if $class == "desktop" then $report.silent else [] end),
-    machine: $machine
-  }'
+  haus-json show-envelope --class "$class" --file- "$abs" --reason "$reason" \
+     --origin "$origin" --machine "$becomes" --report "${report:-}"
 fi
 
 # Where it came from, and how old that is. A local file has no origin at all —
@@ -677,11 +635,11 @@ render_origin() {
     field "read" "$abs"
     return 0
   fi
-  shape="$(jq -r .shape <<<"$origin")"
-  rev="$(jq -r '.rev // ""' <<<"$origin")"
-  lm="$(jq -r '.lastModified // ""' <<<"$origin")"
+  shape="$(haus-json get shape <<<"$origin")"
+  rev="$(haus-json get rev --default '' <<<"$origin")"
+  lm="$(haus-json get lastModified --default '' <<<"$origin")"
 
-  field "origin" "$(jq -r .typed <<<"$origin")"
+  field "origin" "$(haus-json get typed <<<"$origin")"
   if [ -n "$rev" ]; then
     field "revision" "$rev"
     # The SOURCE's date, said as the source's. `lastModified` on a git node is
@@ -692,13 +650,13 @@ render_origin() {
   else
     field "revision" "none — this shape has no revision and no date of any kind"
   fi
-  field "fetched" "$(human_date "$(jq -r .fetchedAt <<<"$origin")") — stamped here, by the clock"
+  field "fetched" "$(human_date "$(haus-json get fetchedAt <<<"$origin")") — stamped here, by the clock"
   if [ -n "$asroom" ]; then
     # Nothing was read, and saying which file WOULD have been read is the
     # inference this command refuses to make about code.
     field "read" "nothing — you said this is code, so nothing was evaluated"
-  elif [ -n "$(jq -r '.file // ""' <<<"$origin")" ]; then
-    field "read" "$(jq -r .file <<<"$origin"), out of the fetched tree"
+  elif [ -n "$(haus-json get file --default '' <<<"$origin")" ]; then
+    field "read" "$(haus-json get file <<<"$origin"), out of the fetched tree"
   else
     field "read" "the fetched file"
   fi
@@ -763,8 +721,8 @@ render_machine() {
     return 0
   }
 
-  host="$(jq -r .host <<<"$becomes")"
-  desktop="$(jq -r '.desktop // "none"' <<<"$becomes")"
+  host="$(haus-json get host <<<"$becomes")"
+  desktop="$(haus-json get desktop --default none <<<"$becomes")"
   printf '\n'
   field "becomes" "$CONSUMER · host $host · desktop $desktop"
 
@@ -774,10 +732,11 @@ render_machine() {
   # (a container's entry has none) was handing its container's name to `$type`
   # and leaving `$inside` blank — which rendered as "(inside )".
   emit() {
-    jq -r --arg v "$1" '.leaves[] | select(.verdict == $v)
-      | "\(.path)\t\(.current // "not set")\t\(.proposed)\t\(.type // "-")\t\(.inside // "-")"' <<<"$becomes" | scrub
+    haus-json rows leaves \
+      path 'current=not set' proposed 'type=-' 'inside=-' \
+      --where "verdict=$1" <<<"$becomes" | scrub
   }
-  count() { jq -r --arg v "$1" '[.leaves[] | select(.verdict == $v)] | length' <<<"$becomes"; }
+  count() { haus-json length leaves --where "verdict=$1" <<<"$becomes"; }
 
   # 1. What the file cannot do here. First, because it is the only section a
   #    reader has no other way to learn, and because it silently un-does part of
@@ -838,11 +797,11 @@ render_machine() {
   #    machine — the module system keeps only the winning definition, so the
   #    room default underneath the current desktop is not in the tree. Say that
   #    rather than print a number nobody can stand behind.
-  n="$(jq -r '.drops | length' <<<"$becomes")"
+  n="$(haus-json length drops <<<"$becomes")"
   if [ "$n" -gt 0 ]; then
     printf '\n'
     field "turns off" "$n $(leaves "$n") the desktop you have sets and this one does not"
-    jq -r '.drops[] | "\(.path)\t\(.current // "—")"' <<<"$becomes" | scrub |
+    haus-json rows drops path 'current=—' <<<"$becomes" | scrub |
       while IFS=$'\t' read -r path cur; do
         printf '      %-44s \033[38;5;103m%s → whatever haus decides\033[0m\n' "$path" "$cur"
       done
@@ -862,9 +821,9 @@ render_desktop() {
   [ -n "$json" ] && return 0
   local ok nsets nrooms nfail room silent
 
-  ok="$(jq -r .ok <<<"$report")"
-  nsets="$(jq -r '.sets | length' <<<"$report")"
-  nrooms="$(jq -r '.rooms | length' <<<"$report")"
+  ok="$(haus-json get ok <<<"$report")"
+  nsets="$(haus-json length sets <<<"$report")"
+  nrooms="$(haus-json length rooms <<<"$report")"
 
   say "$subject"
   printf '\n'
@@ -879,13 +838,13 @@ render_desktop() {
   if [ "$ok" = true ]; then
     good "every leaf it sets is a public option a shared desktop may set"
   else
-    nfail="$(jq -r '.failures | length' <<<"$report")"
+    nfail="$(haus-json length failures <<<"$report")"
     bad "$nfail rule$(plural "$nfail") broken — this file cannot be selected as a desktop"
     printf '\n'
     # The checker names the file on every line, which is what makes it useful
     # inside a flake check over a directory of fixtures and noise here, where
     # the filename is already the second line of the report.
-    jq -r --arg abs "$abs" '.failures[] | ltrimstr($abs + ": ")' <<<"$report" | scrub |
+    haus-json lines failures --strip-prefix "$abs: " <<<"$report" | scrub |
       while IFS= read -r line; do printf '    \033[38;5;167m·\033[0m %s\n' "$line"; done
   fi
   printf '\n'
@@ -897,16 +856,16 @@ render_desktop() {
     printf '\n'
     while IFS= read -r room; do
       printf '    \033[38;5;108m%s\033[0m\n' \
-        "$(jq -r --arg r "$room" '.rooms[] | select(.room == $r) | .title' <<<"$report" | scrub)"
-      jq -r --arg r "$room" '.sets[] | select(.room == $r) | "\(.path)\t\(.value)"' <<<"$report" | scrub |
+        "$(haus-json rows rooms title --where "room=$room" <<<"$report" | scrub)"
+      haus-json rows sets path value --where "room=$room" <<<"$report" | scrub |
         while IFS=$'\t' read -r path value; do
           printf '      %-46s \033[38;5;103m%s\033[0m\n' "$path" "$value"
         done
-    done < <(jq -r '.rooms[].room' <<<"$report")
+    done < <(haus-json rows rooms room <<<"$report")
     # A leaf no registry namespace owns cannot survive in a PASSING desktop —
     # the checker refuses it — but a failing one is exactly where a reader wants
     # to see it rather than have it silently dropped from the listing.
-    jq -r '.sets[] | select(.room == null) | "\(.path)\t\(.value)"' <<<"$report" | scrub |
+    haus-json rows sets path value --where room=null <<<"$report" | scrub |
       while IFS=$'\t' read -r path value; do
         printf '      %-46s \033[38;5;167m%s\033[0m\n' "$path" "$value"
       done
@@ -922,7 +881,7 @@ render_desktop() {
   fi
   printf '\n'
 
-  silent="$(jq -r '[.silent[].title] | join(" · ")' <<<"$report")"
+  silent="$(haus-json join silent title --sep ' · ' <<<"$report")"
   if [ -n "$silent" ]; then
     field "silent" "$silent"
     printf '            \033[38;5;103mthose rooms stay whatever your host and haus decide\033[0m\n'
@@ -946,7 +905,7 @@ case "$class" in
     [ -n "$json" ] || {
       say "$subject"
       printf '\n'
-      bad "$(jq -r --arg abs "$abs" '.failures[0] | ltrimstr($abs + ": ")' <<<"$report" | scrub)"
+      bad "$(haus-json lines failures --strip-prefix "$abs: " <<<"$report" | head -1 | scrub)"
       [ -z "$reason" ] || {
         printf '\n'
         dim "Nix says: $reason"
@@ -956,7 +915,7 @@ case "$class" in
     ;;
   desktop)
     render_desktop
-    [ "$(jq -r .ok <<<"$report")" = true ] && exit 0
+    [ "$(haus-json get ok <<<"$report")" = true ] && exit 0
     exit 1
     ;;
 esac

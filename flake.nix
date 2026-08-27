@@ -4186,7 +4186,9 @@
           # me" is the whole bug report. Every system, not just darwin: nothing
           # in the desktop rules is a Mac, and a publisher's runner is Linux.
           show = pkgs.writeShellScriptBin "haus-show" ''
-            export PATH="$PATH:${nixpkgs.lib.makeBinPath [ pkgs.jq ]}"
+            export PATH="$PATH:${
+              nixpkgs.lib.makeBinPath [ (import ./modules/core/haus-json.nix { inherit pkgs; }) ]
+            }"
             export HAUS_DESKTOP_CHECK="''${HAUS_DESKTOP_CHECK:-${desktopCheck}/share/haus/desktop-check}"
             exec ${pkgs.bash}/bin/bash ${./modules/core/haus-show.sh} "$@"
           '';
