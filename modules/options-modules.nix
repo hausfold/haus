@@ -48,5 +48,6 @@
   ./focus/options.nix
   ./github/options.nix
   ./secrets/options.nix
+  ./portless/options.nix
   ./snippets/options.nix
 ]

@@ -4491,6 +4491,113 @@
     "readOnly": false,
     "type": "boolean"
   },
+  "haus.portless.enable": {
+    "declarations": [
+      "modules/portless/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Give every local dev server a stable, named URL instead of a port\nnumber: `https://myapp.localhost` rather than `http://localhost:3000`,\nwith real HTTPS and no browser warning. A reverse proxy on :443 routes\neach name to a port it assigned itself, so two projects that both\ndefault to 3000 stop fighting, a restarted server keeps the tab you had\nopen, and cookies and localStorage stop leaking between apps that used\nto share an origin.\n\nThe reason it is in haus at all is agent lanes. `holt` puts N agents in\nN worktrees of the SAME repo, so N copies of `npm run dev` want the\nsame port — the second one dies, or quietly takes 3001 and every\nhardcoded URL now points at the wrong lane. portless already knows\nabout worktrees: inside one it prefixes the branch, so each lane gets\nits own hostname without anybody choosing a number. `lanes` below is\nwhat makes that name the lane's, rather than the branch's.\n\nOff by default: it runs a root daemon on :443 and puts a local\ncertificate authority in your system trust store. The CA is a card in\n`haus permissions` rather than something a rebuild does behind your\nback — see `haus.portless.trustCA`.\n",
+    "loc": [
+      "haus",
+      "portless",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.portless.https": {
+    "declarations": [
+      "modules/portless/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Serve HTTPS with HTTP/2. On means portless mints a per-hostname\ncertificate from its own local CA, which is the half that needs the\ntrust-store card. Off serves plain HTTP and needs no CA at all — the\nright setting if you want the naming without the certificate.\n",
+    "loc": [
+      "haus",
+      "portless",
+      "https"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.portless.lanes.enable": {
+    "declarations": [
+      "modules/portless/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "config.haus.ai.enable"
+    },
+    "description": "In a `holt` lane, register the lane's dev server under\n`<lane>.<repo>.localhost` — `wiggly-crane.haus.localhost` — rather\nthan the name portless infers on its own.\n\nIt infers a good one already: inside a git worktree it prefixes the\nbranch, so a lane lands on `<branch>.<project>.localhost` with no help\nfrom us. The gap is cosmetic and entirely holt's fault — holt's\nbranches are `worktree-<lane>` and portless splits a branch on `/`,\nso the prefix comes out as the whole `worktree-wiggly-crane` rather\nthan the lane name you actually call it. This registers the shorter\nname alongside; both work.\n\nTemporary by design: vercel-labs/portless#398 adds `--prefix` and\n`PORTLESS_PREFIX`, which does the same job one level down. When it\nlands, the shim goes and a lane simply exports the variable.\n\nFollows `haus.ai.enable`, since that is what puts lanes on the\nmachine — turning portless on for its own sake never drags a lane\nshim onto a desktop that has no lanes. Setting it true anyway is a\nwarning rather than a refusal: the shim already falls back to plain\n`portless run` outside a worktree, so the worst case is a command\nthat behaves exactly like the one underneath it.\n",
+    "loc": [
+      "haus",
+      "portless",
+      "lanes",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.portless.port": {
+    "declarations": [
+      "modules/portless/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "443"
+    },
+    "description": "The port the proxy listens on. 443 is what makes the URLs plain\n(`https://myapp.localhost`, no `:port` suffix) and is why the daemon\nruns as root. Move it above 1024 and the daemon drops to a user agent —\nthe URLs then carry the port, which costs most of the point.\n",
+    "loc": [
+      "haus",
+      "portless",
+      "port"
+    ],
+    "readOnly": false,
+    "type": "16 bit unsigned integer; between 0 and 65535 (both inclusive)"
+  },
+  "haus.portless.tlds": {
+    "declarations": [
+      "modules/portless/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "[ \"localhost\" ]"
+    },
+    "description": "The suffixes routes are served under, first one primary. `.localhost`\nis the one that needs no DNS at all — browsers resolve it to 127.0.0.1\nby rule, not by lookup. Anything else has to resolve some other way,\nwhich on this machine means `portless hosts sync`.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "[\n  \"localhost\"\n  \"dev.example.com\"\n]"
+    },
+    "loc": [
+      "haus",
+      "portless",
+      "tlds"
+    ],
+    "readOnly": false,
+    "type": "list of string"
+  },
+  "haus.portless.trustCA": {
+    "declarations": [
+      "modules/portless/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Whether to put a card in `haus permissions` for the one-time\n`portless trust` — adding portless' local CA to the system trust store,\nwhich is what stops the browser warning on every `.localhost` name.\n\nA CARD and not an activation step, deliberately. A rebuild runs as root\nand could write the trust store without asking; a certificate authority\nyour browser will believe for anything is not a thing a machine should\ninstall while you are looking the other way. Set this false if you would\nrather run `portless trust` yourself, or are happy clicking through the\nwarning.\n",
+    "loc": [
+      "haus",
+      "portless",
+      "trustCA"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
   "haus.power.computerSleep.battery": {
     "declarations": [
       "modules/core/options.nix"

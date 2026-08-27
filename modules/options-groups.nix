@@ -376,6 +376,14 @@ let
     notifications = [
       "compositor"
     ];
+    portless = [
+      "enable"
+      "https"
+      "lanes.enable"
+      "port"
+      "trustCA"
+      "tlds"
+    ];
     snippets = [
       "enable"
       "matches"
@@ -697,6 +705,7 @@ let
     lock = "security";
     menuBar = "bar";
     notifications = "notifications";
+    portless = "development";
     screenshots = "appearance";
     secrets = "security";
     security = "security";
@@ -906,6 +915,10 @@ let
     snippets = {
       order = 180;
       blurb = "Text expansion via espanso.";
+    };
+    portless = {
+      order = 185;
+      blurb = "Named .localhost URLs for dev servers, with real HTTPS: `https://myapp.localhost` instead of `http://localhost:3000`. One proxy on :443 owns the machine's ports, which is what stops N agent lanes of one repo fighting over the same one.";
     };
     tour = {
       order = 190;

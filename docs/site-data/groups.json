@@ -1053,6 +1053,33 @@
       "order": 165,
       "owner": "notifications"
     },
+    "portless": {
+      "blurb": "Named .localhost URLs for dev servers, with real HTTPS: `https://myapp.localhost` instead of `http://localhost:3000`. One proxy on :443 owns the machine's ports, which is what stops N agent lanes of one repo fighting over the same one.",
+      "kind": "room",
+      "optionCount": 6,
+      "options": {
+        "haus.portless.enable": {
+          "desktopSafe": true
+        },
+        "haus.portless.https": {
+          "desktopSafe": true
+        },
+        "haus.portless.lanes.enable": {
+          "desktopSafe": true
+        },
+        "haus.portless.port": {
+          "desktopSafe": true
+        },
+        "haus.portless.tlds": {
+          "desktopSafe": true
+        },
+        "haus.portless.trustCA": {
+          "desktopSafe": true
+        }
+      },
+      "order": 185,
+      "owner": "development"
+    },
     "power": {
       "blurb": "Sleep timers and Low Power Mode, said separately for battery and charger — which is the whole point, and why this is built on `pmset` rather than on nix-darwin's own power options. Plus the lid: whether closing this Mac is allowed to end a run that agents are still in the middle of.",
       "kind": "host",
@@ -1615,6 +1642,10 @@
     "blurb": "The notification compositor haus already draws through. Trill is the app behind it; this switch is whether haus owns the bundle. It is NOT where a banner's routing lives — that is `~/.config/trill/rules.json`, and haus deliberately puts no second dial in front of it.",
     "order": 165
   },
+  "portless": {
+    "blurb": "Named .localhost URLs for dev servers, with real HTTPS: `https://myapp.localhost` instead of `http://localhost:3000`. One proxy on :443 owns the machine's ports, which is what stops N agent lanes of one repo fighting over the same one.",
+    "order": 185
+  },
   "power": {
     "blurb": "Sleep timers and Low Power Mode, said separately for battery and charger — which is the whole point, and why this is built on `pmset` rather than on nix-darwin's own power options. Plus the lid: whether closing this Mac is allowed to end a run that agents are still in the middle of.",
     "order": 119
@@ -1734,10 +1765,11 @@
       "namespaces": [
         "terminal",
         "zen",
+        "portless",
         "developer",
         "github"
       ],
-      "optionCount": 33,
+      "optionCount": 39,
       "order": 40,
       "title": "Development"
     },
