@@ -1387,8 +1387,30 @@ in
       # choices so Obsidian keeps ownership of every unrelated setting. Copies
       # are deliberate: these directories often sync through iCloud, where a
       # /nix/store symlink would be dangling on every other device.
+      #
+      # ⚠️ A synced vault's own JSON is not reliably READABLE, and that is what
+      # makes this the only activation script here that has to check. iCloud
+      # evicts small files it thinks are cold, leaving a `dataless` stub with
+      # the real size in its stat — so every emptiness test still passes.
+      # Touching one normally blocks while the file provider fetches it, but
+      # activation runs with dataless materialisation OFF (the same policy every
+      # launchd job inherits), so the read fails outright with EDEADLK. That
+      # surfaced as a bare `jq: error: Resource deadlock avoided` in the middle
+      # of a rebuild — no filename, no vault, and an aborted activation, because
+      # jq's failure took the whole script down with it. `brctl download` asks
+      # the provider for the bytes without needing the policy; if the file still
+      # won't read, or won't parse, this leaves that vault's settings untouched
+      # and says which vault and why. A themed editor is never worth a machine
+      # that won't finish switching.
       home.activation.obsidianNebelung = lib.mkIf (terminalCfg.obsidianVaults != [ ]) (
         lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+          # One byte is enough: a dataless stub fails the read, an evicted file
+          # that brctl has since fetched does not, and an empty file is fine
+          # either way (the seed path below handles that).
+          readableObsidianJson() {
+            ${pkgs.coreutils}/bin/head -c 1 "$1" >/dev/null 2>&1
+          }
+
           installObsidianNebelung() {
             vaultRel="$1"
             vault="$HOME/$vaultRel"
@@ -1404,6 +1426,16 @@ in
             $DRY_RUN_CMD install -m 0644 "${obsidianTheme}/theme.css" "$themeDir/theme.css"
             $DRY_RUN_CMD install -m 0644 "${obsidianTheme}/manifest.json" "$themeDir/manifest.json"
 
+            appearance="$obsidian/appearance.json"
+            if [ -e "$appearance" ] && ! readableObsidianJson "$appearance"; then
+              [ -x /usr/bin/brctl ] && \
+                $DRY_RUN_CMD /usr/bin/brctl download "$appearance" >/dev/null 2>&1 || true
+            fi
+            if [ -e "$appearance" ] && ! readableObsidianJson "$appearance"; then
+              echo "warning: iCloud has not downloaded $appearance; Nebelung is installed in this vault but not selected: $vault" >&2
+              return 0
+            fi
+
             run sh -c '
               appearance="$0"
               tmp="$appearance.hm-seed"
@@ -1417,17 +1449,18 @@ in
                 | .enabledCssSnippets = ((.enabledCssSnippets // []) | map(select(. != \"nebelung\")))" \
                 "$base" > "$tmp"; then
                 rm -f "$tmp" "$tmp.base"
-                exit 1
+                echo "warning: $appearance is not readable JSON; leaving this vault untouched" >&2
+                exit 0
               fi
               mv "$tmp" "$appearance"
               rm -f "$tmp.base"
-            ' "$obsidian/appearance.json"
+            ' "$appearance"
           }
 
           ${lib.concatMapStringsSep "\n" (
             vault: "installObsidianNebelung ${lib.escapeShellArg vault}"
           ) terminalCfg.obsidianVaults}
-          unset -f installObsidianNebelung
+          unset -f installObsidianNebelung readableObsidianJson
         ''
       );
 
