@@ -247,6 +247,42 @@
     "readOnly": false,
     "type": "one of \"off\", \"idle\", \"lid\""
   },
+  "haus.ai.meridian.enable": {
+    "declarations": [
+      "modules/meridian/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "description": "Serve your Claude Max subscription to every Anthropic-compatible client\non this Mac, from a proxy on loopback. Point a tool at\n`http://127.0.0.1:3456` with any API key and it talks to your\nsubscription rather than to a metered API key — which is what makes an\nagent that is not Claude Code (pi, opencode, crush, an editor plugin)\ncost what the subscription already costs instead of billing per token.\n\nIt is not an agent and does not need one: `haus.ai.enable` is about\nwhether this machine runs coding agents, and this is an ENDPOINT that is\nuseful to anything speaking the Anthropic wire format. So the two\nswitches are independent — turning agents off never takes the proxy away\nfrom a client haus does not install.\n\nThe credential is Claude Code's. meridian reads the OAuth token out of\nthe login keychain (`Claude Code-credentials`) or\n`~/.claude/.credentials.json`, which is why this is a per-user launchd\nagent rather than a daemon: a root daemon can see neither. Signing in is\na card in `haus permissions` — until you have, the proxy answers 401 and\nthe clients pointed at it look broken.\n\nhaus does not point anything at it. The file that tells a client to use\nthe proxy is that client's own (`~/.pi/agent/models.json`,\n`~/.config/opencode/…`) and haus writes none of them — see the AI room's\n`clientScopeNote`. This room's job ends at \"the port answers\".\n",
+    "loc": [
+      "haus",
+      "ai",
+      "meridian",
+      "enable"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
+  "haus.ai.meridian.port": {
+    "declarations": [
+      "modules/meridian/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "3456"
+    },
+    "description": "The port the proxy listens on, upstream's default. Every client you\npoint at it names this number, so moving it means editing each of those\nfiles by hand — it is here for the machine that already has something on\n3456, not as a thing to tune.\n\nThe bind address is 127.0.0.1 and is not an option. A proxy that answers\nfor your subscription with no authentication is safe on loopback and is\nan open account on any other interface, so this room does not offer the\nleaf that would make that a one-word change.\n",
+    "loc": [
+      "haus",
+      "ai",
+      "meridian",
+      "port"
+    ],
+    "readOnly": false,
+    "type": "16 bit unsigned integer; between 0 and 65535 (both inclusive)"
+  },
   "haus.ai.namer": {
     "declarations": [
       "modules/ai/options.nix"

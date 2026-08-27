@@ -199,6 +199,20 @@ modules/
                           #   values, rendered into one manifest at
                           #   ~/.config/haus/secretspec.toml and read back through
                           #   the `haus-secret` CLI this room installs
+  portless/               # haus.portless: named .localhost URLs for dev servers.
+                          #   A ROOT daemon on :443 (that is what makes the URLs
+                          #   carry no port), built from the npm tarball with no
+                          #   lockfile because portless has zero runtime deps
+  meridian/               # haus.ai.meridian: a loopback Anthropic API served
+                          #   from your Claude Max subscription, so an agent that
+                          #   is not Claude Code spends the subscription instead
+                          #   of a metered key. The one room whose namespace and
+                          #   directory disagree, and its options.nix says why.
+                          #   A per-USER launchd agent, opposite portless beside
+                          #   it: it authenticates by reading Claude Code's OAuth
+                          #   token out of the login keychain, which root cannot
+                          #   see. buildNpmPackage against a lockfile committed
+                          #   here, because the npm tarball ships none
 desktops/                 # the desktops this flake ships: hacker (the builder's
                           #   default), blank, everyday, minimal. Data only, one per
                           #   host, no stacking
