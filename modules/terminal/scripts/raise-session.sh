@@ -22,10 +22,13 @@
 #
 # Backends are lanes/lane-open.sh's, read the same way, for the same reason:
 #
-#   aerospace  a LANE is an exact window-title match (lane-open.sh forces the
-#              title to the session name), MINUS the impostors — see below.
-#              Anything else is found through the `window=` label
-#              scripts/launch.sh stamps.
+#   aerospace  a LANE is the `lwindow=` label lane-open.sh's self-tile block
+#              stamps with the AeroSpace window id it already had to look up —
+#              exact, and asked first. Failing that (a lane reopened by
+#              `open_window` below, which has no id to stamp, or one whose
+#              self-tile bailed) it is an exact window-title match, MINUS the
+#              impostors — see below. Anything else is found through the
+#              `window=` label scripts/launch.sh stamps.
 #   ghostty    both kinds are found through the `gwindow=` label — Ghostty's
 #              own stable window id — and raised with `activate window`, which
 #              needs no tiler and no Accessibility grant.
@@ -69,6 +72,15 @@ open_window() {
   case "$backend" in
     aerospace)
       open -na Ghostty.app --args --title="$sess" --initial-command="zmx attach $sess"
+      # This spawn never learns the AeroSpace id of the window it just made —
+      # `open -na` returns as soon as LaunchServices accepts — so the
+      # `lwindow=` label lanes/lane-open.sh stamps is now WRONG rather than
+      # merely absent: it names the window that used to hold this session.
+      # Clear it, and the title join below carries this lane exactly as well
+      # as it did before that label existed. Leaving a dead id there would
+      # hand this session to whatever window AeroSpace next gives that number
+      # to, which is the impostor bug over again with the sides swapped.
+      zmx set "$sess" "lwindow=" >/dev/null 2>&1
       ;;
     ghostty)
       # Same spawn lanes/lane-open.sh uses on this backend, and the same
@@ -124,11 +136,29 @@ case "$backend" in
     # version of the same. Ids are digits by construction, so a space is a safe
     # join, and `split(c, a, " ")` is awk's default-FS split: runs of
     # whitespace, leading and trailing ignored. (MEASURED 2026-08-26.)
-    claimed=$(zmx ls 2>/dev/null | tr '\t' '\n' | sed -n 's/^window=//p' | tr '\n' ' ')
-    win=$(aerospace list-windows --all --format '%{window-id}|%{app-name}|%{window-title}' 2>/dev/null |
-      awk -F'|' -v t="$sess" -v c="$claimed" '
-        BEGIN { n = split(c, a, " "); for (i = 1; i <= n; i++) if (a[i] != "") skip[a[i]] = 1 }
-        $2 == "Ghostty" && $3 == t && !($1 in skip) { print $1; exit }')
+    # ── the exact join, asked first ─────────────────────────────────────
+    # lanes/lane-open.sh's self-tile block stamps the AeroSpace window id it
+    # looked up as `lwindow=`, which makes a lane answerable by id the way a
+    # plain window always was. Checked against the live window list rather
+    # than trusted: a session outlives its window (⌘W parks one), so the
+    # label can name an id nobody holds — exactly as `window=` can, and
+    # handled here exactly as it is below.
+    #
+    # It does not replace the title scan, it precedes it. A lane reopened by
+    # `open_window` above carries no id to stamp, and a self-tile that bailed
+    # (no Ghostty ancestor, an ambiguous window list) never wrote one, so the
+    # scan stays the answer for both.
+    win=""
+    lw=$(label lwindow)
+    [ -n "$lw" ] && win=$(aerospace list-windows --all --format '%{window-id}' 2>/dev/null | grep -Fx "$lw")
+
+    if [ -z "$win" ]; then
+      claimed=$(zmx ls 2>/dev/null | tr '\t' '\n' | sed -n 's/^window=//p' | tr '\n' ' ')
+      win=$(aerospace list-windows --all --format '%{window-id}|%{app-name}|%{window-title}' 2>/dev/null |
+        awk -F'|' -v t="$sess" -v c="$claimed" '
+          BEGIN { n = split(c, a, " "); for (i = 1; i <= n; i++) if (a[i] != "") skip[a[i]] = 1 }
+          $2 == "Ghostty" && $3 == t && !($1 in skip) { print $1; exit }')
+    fi
     if [ -z "$win" ]; then
       lw=$(label window)
       [ -n "$lw" ] && win=$(aerospace list-windows --all --format '%{window-id}' 2>/dev/null | grep -Fx "$lw")
