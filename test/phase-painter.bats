@@ -449,3 +449,63 @@ PYEOF
     fi
   done
 }
+
+# ── snug's bash painter, reached through HAUS_UI_SH ──────────────────────────
+# haus.sh is `builtins.readFile`'d into a store binary, so `dirname $0` is
+# /nix/store and there is no checkout beside it — the wrapper in
+# modules/core/default.nix hands it snug's `share/ui.sh` as an absolute path
+# instead. These two cases are the whole contract of that hand-off: it takes
+# when the path is real, and it costs the caller NOTHING when it is not.
+#
+# A fresh shell each time, not the sourced-in-process one from setup(): the
+# thing under test is what happens at load, under `set -euo pipefail`.
+
+haus_sh() { # haus_sh <env…> — load haus.sh as a library and run the snippet
+  local snippet="${!#}"
+  run env "${@:1:$#-1}" HAUS_CONSUMER="$HAUS_CONSUMER" HAUS_LIB=1 "$BASH" -c \
+    "set -euo pipefail; source '$SUBJECT'; $snippet"
+}
+
+@test "haus.sh sources the painter HAUS_UI_SH points at" {
+  local ui="$BATS_TEST_TMPDIR/ui.sh"
+  cat > "$ui" <<'UI'
+ui_say() { printf 'FIXTURE %s\n' "$*"; }
+UI
+  haus_sh HAUS_UI_SH="$ui" 'ui_say hello'
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$output" = "FIXTURE hello" ]
+}
+
+@test "haus.sh loads with HAUS_UI_SH unset, and with it pointing at nothing" {
+  # The measured failure shape this guard exists for, and haus.sh's `set -euo
+  # pipefail` makes both halves of it fatal: an unset variable dies on `-u`, and
+  # a `source` of a missing path exits 1 under `-e`. Either kills `haus` at LOAD
+  # time — before any verb ran, with nothing on either stream and nothing
+  # activated. That is the worst possible failure mode for a courtesy, and it is
+  # the same shape as the `tput` bug the width probe carries a `|| true` for.
+  #
+  # An older generation, a rollback, or a developer who exported the variable at
+  # a path they have since deleted all land here, so it is not hypothetical.
+  haus_sh -u HAUS_UI_SH 'echo LOADED'
+  [ "$status" -eq 0 ] || { echo "unset HAUS_UI_SH killed haus.sh: $output"; false; }
+  [ "$output" = LOADED ]
+
+  haus_sh HAUS_UI_SH="$BATS_TEST_TMPDIR/nope/ui.sh" 'echo LOADED'
+  [ "$status" -eq 0 ] || { echo "a missing HAUS_UI_SH killed haus.sh: $output"; false; }
+  [ "$output" = LOADED ]
+}
+
+@test "the painter it loads is snug's, and still draws inside haus.sh" {
+  # Not a fixture: the real file, so a rename or a moved marker in snug fails
+  # here rather than on somebody's machine. Skipped when there is no snug
+  # checkout beside this one — CI for THIS repo has no reason to clone it, and
+  # snug's own bash job is where that file is actually tested.
+  local ui="$BATS_TEST_DIRNAME/../../snug/share/ui.sh"
+  [ -r "$ui" ] || skip "no snug checkout beside haus (looked in $ui)"
+  haus_sh HAUS_UI_SH="$ui" SNUG_ASCII=1 'ui_say drawn; ui_ok also drawn'
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  # ui.sh puts every human line on fd 2 — which is exactly why haus.sh's own
+  # verbs are NOT yet routed through it. `run` merges the streams, so seeing
+  # them here is the assertion that it drew, not that it drew on stdout.
+  [[ "$output" == *drawn* ]] || { echo "got: $output"; false; }
+}
