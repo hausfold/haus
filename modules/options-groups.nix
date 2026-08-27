@@ -75,6 +75,9 @@ let
       # doesn't already have — an id with no adapter file falls back to a
       # random lane name, exactly as `default` falls back to what is installed.
       "namer"
+      # Host-only (below): it is the one leaf in this room that puts
+      # third-party code on the machine.
+      "pi.packages"
       "repoRoots"
       "skill"
     ];
@@ -513,6 +516,12 @@ let
     # while it was there. `this-hardware` is that namespace's own sentence, and
     # it is the true one here too.
     ai.keepAwake = "this-hardware";
+    # Not a command this machine runs on a timer, but the same sentence's
+    # concern one step earlier: every entry is npm or git source pi fetches and
+    # then executes in its own process. A desktop is a file you read to know
+    # what it does, and a leaf that names code to run is what stops that being
+    # true — whether the running is a shell or a client's plugin loader.
+    ai."pi.packages" = "runs-a-command";
     bar = {
       "calendar.me" = "identity";
       "elgato.host" = "one-network";

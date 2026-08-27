@@ -2816,7 +2816,7 @@ cmd_doctor() {
   # a rebuild from an agent pane actually complete — that third one is Full Disk
   # Access, and it moved to the Permissions section above with the other grants.
   #
-  # AGENTS.md is the file that matters: Codex, OpenCode, Cursor, Copilot and
+  # AGENTS.md is the file that matters: Codex, OpenCode, pi, Cursor, Copilot and
   # anything else that speaks agents.md read it, while Claude Code reads only
   # CLAUDE.md. So a repo with just a CLAUDE.md orients exactly one client — worth
   # saying out loud, since the agent keybind can spawn any of them.
@@ -2829,7 +2829,7 @@ cmd_doctor() {
   local skilldir=""
   local d
   for d in "$HOME/.claude/skills/haus" "$HOME/.codex/skills/haus" \
-           "$HOME/.config/opencode/skills/haus"; do
+           "$HOME/.config/opencode/skills/haus" "$HOME/.pi/agent/skills/haus"; do
     if [ -f "$d/SKILL.md" ]; then
       skilldir="$d"
       break

@@ -83,7 +83,8 @@ install` and dotfiles the next rebuild overwrites.
 
 So the layer ships it. `haus.ai.skill` writes a skill for every hausfold tool
 on the machine into the directory each client you named actually reads
-(`~/.claude/skills/…`, `~/.codex/skills/…`, `~/.config/opencode/skills/…`).
+(`~/.claude/skills/…`, `~/.codex/skills/…`, `~/.config/opencode/skills/…`,
+`~/.pi/agent/skills/…`).
 The `haus` one carries an option reference **generated from the revision you're
 pinned to**, so it can only describe options you have — "install Slack" or "make
 everything bigger" becomes an edit to your host file, applied and verifiable.

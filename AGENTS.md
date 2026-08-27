@@ -31,11 +31,13 @@ adds only its own host (identity, private apps, secrets).
 > `share/haus/`, and the state dirs `~/.local/state/haus`, `~/.config/haus/`,
 > `~/.cache/haus/`, `/Library/Application Support/haus/`. The agent skill
 > installs as `haus/` inside each client's skills directory
-> (`~/.claude/skills/`, `~/.codex/skills/`, `~/.config/opencode/skills/`) and
+> (`~/.claude/skills/`, `~/.codex/skills/`, `~/.config/opencode/skills/`,
+> `~/.pi/agent/skills/`) and
 > its frontmatter `name:` is `haus`.
 
 **This file is the one set of instructions, for every agent** — Claude Code,
-Codex, OpenCode, Cursor, Copilot alike, directly or through a one-line pointer.
+Codex, OpenCode, pi, Cursor, Copilot alike, directly or through a one-line
+pointer.
 Per-client wiring lives in that client's own file; the content stays here or in
 [`.agents/`](./.agents/README.md). That's the rule for this repo's *own* files.
 haus also **ships** agent config to end users — `haus.ai.instructions`,
@@ -701,7 +703,7 @@ mechanism, say so in one line.
     installs into the bar's plugin dir, so the PATH copy and the bar copy can
     never drift. Every client's hooks call it (`agent-state
     <working|waiting|idle|remove> <client>`), which is why the wirings the AI
-    room writes for opencode and codex never need to know where a bar keeps its
+    room writes for opencode, codex and pi never need to know where a bar keeps its
     plugins.
   - `scruff-cache` exists because `scruff --json` is an investigation rather than a
     listing — `scruff list` self-heals through a parked reap sweep on the way in,
