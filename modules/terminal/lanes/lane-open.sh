@@ -401,22 +401,40 @@ fi
     # third window, and re-asserting the pre-spawn one would steal from it. So
     # there it fires only if this lane's own instance somehow holds focus — a
     # future Ghostty that self-activates on launch — and stays silent
-    # otherwise. $gpid is resolved at call time; on the bail where it was
-    # never found, an empty gpid matches no focused pid and the net stays shut.
+    # otherwise. The gpid guard is a real line, not left to "empty matches
+    # nothing": `list-windows --focused` can answer EMPTY too (a
+    # native-fullscreen app, an unmanaged window, a late AeroSpace — the same
+    # cases the prev_wid capture above lists), and empty = empty would have
+    # fired the net on the exact path where focus was never taken.
     #
     # `$back` is empty for a foreground lane, so this is a no-op there and the
     # block needs no branch of its own. Best effort throughout: a window that
     # has since closed is not worth a word, and there is nowhere here to say it.
+    #
+    # vanish() is the bails' other half, and only for the silent birth: a
+    # $took=1 bail strands a VISIBLE floating window on the page you are
+    # standing on — a nuisance you can see and fix — but a direct-exec bail
+    # strands a 1-px sliver in a screen corner, a lane that exists and works
+    # with nothing on any page to say so. ⌃⇥ will never find it (no tile ever
+    # landed on T/<repo>), so say where it went: the agents pill and `holt`
+    # both raise it by session name, which is exactly what they are for.
     printf '  back=%q\n' "$prev_wid"
     printf '  backapp=%q\n' "$prev_app"
     printf '  took=%q\n' "$took"
     printf '  giveback() {\n'
     printf '    if [ -z "$took" ]; then\n'
+    printf '      [ -n "$gpid" ] || return 0\n'
     printf '      [ "$(aerospace list-windows --focused --format "%%{app-pid}" 2>/dev/null)" = "$gpid" ] || return 0\n'
     printf '    fi\n'
     printf '    [ -n "$back" ] && aerospace focus --window-id "$back" >/dev/null 2>&1 && return 0\n'
     printf '    [ -n "$backapp" ] && /usr/bin/open -b "$backapp" >/dev/null 2>&1\n'
     printf '    return 0\n'
+    printf '  }\n'
+    printf '  vanish() {\n'
+    printf '    [ -z "$took" ] || return 0\n'
+    printf '    /run/current-system/sw/bin/haus-notify --source haus.lane --kind fault --symbol eye.slash \\\n'
+    printf '      --thread %q --title "haus · agent lane" \\\n' "$sess"
+    printf '      --body %q >/dev/null 2>&1\n' "$sess opened out of sight and could not be tiled — raise it from the agents pill, or holt"
     printf '  }\n'
     printf '  gpid=""; p=$$\n'
     printf '  while [ -n "$p" ] && [ "$p" != 1 ]; do\n'
@@ -431,7 +449,7 @@ fi
     printf '    esac\n'
     printf '    p=$(ps -o ppid= -p "$p" 2>/dev/null | tr -d " ")\n'
     printf '  done\n'
-    printf '  [ -n "$gpid" ] || { giveback; exit 0; }\n'
+    printf '  [ -n "$gpid" ] || { vanish; giveback; exit 0; }\n'
     # The window does not exist for AeroSpace the instant the shell inside it
     # does, so this poll is a real wait rather than the no-op the old one was.
     # ONE window, or none. A fresh `open -na` process owns exactly one window,
@@ -447,7 +465,7 @@ fi
     printf '    [ "$(printf "%%s\\n" "$mine" | grep -c .)" = 1 ] && { WID="$mine"; break; }\n'
     printf '    sleep 0.05\n'
     printf '  done\n'
-    printf '  [ -n "${WID:-}" ] || { giveback; exit 0; }\n'
+    printf '  [ -n "${WID:-}" ] || { vanish; giveback; exit 0; }\n'
     # T/<repo>, not a single shared T: every lane of one repo tiles on its own
     # workspace page, so five agents across three repos stop fighting over one
     # tree. Workspace names may contain "/" (checked by hand against AeroSpace);
@@ -543,15 +561,28 @@ if [ "$backend" = aerospace ]; then
     # skips LaunchServices, so nothing activates, and the clamped
     # --window-position keeps the birth frame to a 1-px corner sliver until
     # the launcher's self-tile block moves it to T/<repo>. Backgrounded and
-    # nohup'd because this hook exits immediately and the app must outlive it;
-    # `&` cannot fail, which is the same blindness `open -na` already has —
-    # it, too, returns before the window exists (the note in the launcher
-    # section above), and the same holds keep the evidence if the lane dies.
+    # nohup'd because this hook exits immediately and the app must outlive it.
+    #
+    # BOTH stdio redirects are load-bearing, not tidy: a direct exec inherits
+    # this hook's fds, the hook inherits holt's, and `holt spawn`'s stdout is
+    # a command substitution in spawn-agent.sh — a Ghostty holding that pipe
+    # open would hang the palette for the life of the lane. (`open -na` never
+    # had the problem; LaunchServices launches carry no fds.)
+    #
+    # `&` cannot fail, which `open -na` could (a refused launch exits non-zero
+    # → exit 3 → holt reports and the palette drops the lane). The kill -0
+    # probe below buys that reporting back for the launch failures that show
+    # inside 200ms — a bad dylib, translocation, an instant crash. A death
+    # after that is the same blindness `open -na` already has: it, too,
+    # returns before the window exists (the note in the launcher section
+    # above), and the launcher's holds keep the evidence if the lane dies.
     nohup "$ghostty_bin" \
       --title="$sess" \
       --initial-command="$launcher" \
       --window-position-x=25000 \
       --window-position-y=25000 >/dev/null 2>&1 &
+    sleep 0.2
+    kill -0 $! 2>/dev/null || exit 3
   else
     open -na Ghostty.app --args \
       --title="$sess" \
