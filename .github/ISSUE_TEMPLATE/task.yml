@@ -2,17 +2,26 @@
 #
 # The four blocks below are the PR body's four blocks, on purpose: an issue
 # filled in this way IS the PR body, written before the work instead of after.
-# A lane picks it up and lands a PR whose body is this one with Verify ticked.
-name: Task
-description: Work we've already decided to do — the spec a lane picks up
+# Whoever does the work opens a PR whose body is this one with Verify ticked.
+#
+# ⚠️ This form is MAINTAINER-FACING on a chooser that strangers read, so its
+# title and description have one job before anything else: let a reporter rule
+# it out in one glance. Words that only mean something inside the workshop —
+# "lane", "spec", "ripple" — cost a reporter a re-read here and buy nothing,
+# since the people who fill this in already know the flow.
+name: Task (for maintainers)
+description: Work we've already decided to do, written up so someone can pick it up
 labels: ["task"]
 body:
   - type: markdown
     attributes:
       value: |
-        For work that's already decided. Reporting a problem? Use **Bug
-        report**. Suggesting something? Use **Idea**. Both of those become one
-        of these after triage.
+        **This one's for us.** It's not a place to report a problem or ask for
+        something — it's how we write down work that's already been decided.
+
+        Reporting a problem? Use **Bug report**. Suggesting something? Use
+        **Idea**. We turn those into one of these ourselves once we've decided
+        to do them.
   - type: textarea
     id: what
     attributes:
@@ -40,6 +49,6 @@ body:
     id: watchout
     attributes:
       label: Watch out
-      description: Blast radius. Other repos, other lanes, anything that has to land first or ripple after.
+      description: Blast radius. Other repos, other people's branches, anything that has to land before or after this.
     validations:
       required: false
