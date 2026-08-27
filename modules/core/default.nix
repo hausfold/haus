@@ -1047,7 +1047,7 @@ in
   # mtime, which is why terminal installed config.kdl as a real file; Ghostty
   # watches and reloads its own config, from a store symlink, for free.
   #
-  # The AI room's payload used to be gated in here too — `holt`, the two
+  # The AI room's payload used to be gated in here too — `scruff`, the two
   # statusline scripts and `agent-state`, hosted by core because core is where
   # a system profile is written. They are modules/ai's own now (2026-08-19):
   # the room that owns a capability owns its payload, and it writes this same

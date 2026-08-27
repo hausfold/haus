@@ -1,9 +1,9 @@
 #!/bin/bash
-# holt-cache — one warm copy of `holt --json`, shared by everything that reads it.
+# scruff-cache — one warm copy of `scruff --json`, shared by everything that reads it.
 #
 # WHY THIS EXISTS
 #
-# `holt --json` is not a listing, it is an INVESTIGATION. `holt list` self-heals
+# `scruff --json` is not a listing, it is an INVESTIGATION. `scruff list` self-heals
 # on the way in (a parked reap sweep), and both that sweep and the JSON encoder
 # ask `occupancy.Collect(LSOF(), …)` — a machine-wide `lsof -d cwd`, twice per
 # run — before the per-lane landed/PR verdicts spend their own time in git and
@@ -18,7 +18,7 @@
 #                            Window.startLoading) — a picker that takes longer
 #                            than that doesn't just feel slow, it vanishes
 #
-# So both read this cache and neither runs holt on its own hot path. It was
+# So both read this cache and neither runs scruff on its own hot path. It was
 # agents.sh's private block until the palette needed the same thing; the lock
 # protocol below is subtle enough that a second copy of it was the wrong answer.
 #
@@ -28,20 +28,20 @@
 # own max age and decide what a miss means.
 #
 # usage:
-#   holt-cache path             the cache file's path
-#   holt-cache age              seconds since it was last written (huge if none)
-#   holt-cache read [max-age]   print it if younger than max-age (default 900),
+#   scruff-cache path             the cache file's path
+#   scruff-cache age              seconds since it was last written (huge if none)
+#   scruff-cache read [max-age]   print it if younger than max-age (default 900),
 #                               else exit 1
-#   holt-cache kick [ttl] [timeout]
+#   scruff-cache kick [ttl] [timeout]
 #                               refresh in the BACKGROUND if the last kick is
 #                               older than ttl (default 20s). One winner among
 #                               concurrent callers; returns immediately
-#   holt-cache sync [timeout]   refresh in the FOREGROUND, bounded by timeout
+#   scruff-cache sync [timeout]   refresh in the FOREGROUND, bounded by timeout
 #                               (default 6s — deliberately UNDER the 8s the
 #                               skeleton fades at, since a default equal to the
 #                               deadline is a default that always misses it),
 #                               and print the result. Exit 1 if
-#                               holt was too slow or answered with nonsense —
+#                               scruff was too slow or answered with nonsense —
 #                               the caller then decides between a stale read
 #                               and saying so out loud
 set -u
@@ -50,14 +50,14 @@ export USER="${USER:-$(id -un)}"
 export PATH="/etc/profiles/per-user/$USER/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/bin:/bin${PATH:+:$PATH}"
 
 DIR="${CLAUDE_STATUSLINE_CACHE:-$HOME/.cache/claude-statusline}"
-CACHE="$DIR/holt.json"
-KICK="$DIR/.holt-kick"
-LOCK="$DIR/.holt-refresh.lock"
+CACHE="$DIR/scruff.json"
+KICK="$DIR/.scruff-kick"
+LOCK="$DIR/.scruff-refresh.lock"
 LOCK_STALE=90                   # recover a refresher killed before it released
-COVERED="$DIR/.holt-covered"    # every lane's repo is behind the GitHub bridge
+COVERED="$DIR/.scruff-covered"    # every lane's repo is behind the GitHub bridge
 
 # ---- the GitHub bridge, where there is one ----------------------------------
-# `holt --json` asks GitHub about every lane's pull request, which is most of
+# `scruff --json` asks GitHub about every lane's pull request, which is most of
 # what makes it expensive. With a webhook bridge on this machine (haus.github)
 # that question has a push answer, so the kick throttle stretches from seconds
 # to `HAUS_GH_BACKSTOP` and collapses to zero the moment a delivery lands.
@@ -111,16 +111,16 @@ note_coverage() {
   fi
 }
 
-# Run holt, bounded, and install the result only if it parses. Prints nothing.
+# Run scruff, bounded, and install the result only if it parses. Prints nothing.
 refresh() {
   local token="$1" timeout="$2" tmp
   mkdir -p "$DIR"
-  tmp=$(mktemp "$DIR/.holt-json.XXXXXX") || { release_lock "$token"; return 1; }
+  tmp=$(mktemp "$DIR/.scruff-json.XXXXXX") || { release_lock "$token"; return 1; }
   # The braces + redirect are not decoration: when the alarm fires, bash itself
   # reports the signal ("Alarm clock: 14") on ITS stderr, not the command's, so
   # a `2>/dev/null` on the perl call alone leaves a timeout printing noise into
   # whatever ran this.
-  if { /usr/bin/perl -e 'alarm shift; exec @ARGV' "$timeout" holt --json >"$tmp"; } 2>/dev/null &&
+  if { /usr/bin/perl -e 'alarm shift; exec @ARGV' "$timeout" scruff --json >"$tmp"; } 2>/dev/null &&
     jq -e '(.lanes // []) | type == "array"' "$tmp" >/dev/null 2>&1; then
     mv -f "$tmp" "$CACHE"
     note_coverage
@@ -175,11 +175,11 @@ case "${1:-read}" in
   kick)
     ttl="${2:-20}"
     timeout="${3:-60}"
-    command -v holt >/dev/null 2>&1 || exit 0
+    command -v scruff >/dev/null 2>&1 || exit 0
     # Push shortens a poll, it never removes one: covered, the throttle becomes
     # the bridge's backstop rather than the caller's seconds, and a delivery
     # that landed after the cache was written puts it back to the caller's —
-    # never below it. `holt --json` dumps `lsof -d cwd` machine-wide twice per
+    # never below it. `scruff --json` dumps `lsof -d cwd` machine-wide twice per
     # run, so a delivery must cancel the stretch rather than buy a faster
     # refresh than an un-bridged machine gets.
     if [ -f "$COVERED" ] && [ "$HAUS_GH_BACKSTOP" -gt "$ttl" ]; then
@@ -200,10 +200,10 @@ case "${1:-read}" in
 
   sync)
     timeout="${2:-6}"
-    command -v holt >/dev/null 2>&1 || exit 1
+    command -v scruff >/dev/null 2>&1 || exit 1
     n=$(now)
     # No lock, no refresh — somebody else is already paying this cost, and
-    # `holt --json` is not a cheap thing to run twice at once. The caller falls
+    # `scruff --json` is not a cheap thing to run twice at once. The caller falls
     # back to a stale read, which is what the other run is about to replace.
     token=$(claim "$n") || exit 1
     touch "$KICK"

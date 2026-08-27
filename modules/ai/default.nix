@@ -3,7 +3,7 @@
 #
 # This is the first room declared as a CROSS-ROOM CAPABILITY (the contract is
 # notes/rooms-desktops.md, "Rooms cooperate"). The room owns the capability: its
-# switch, its clients, the `holt` worktree lifecycle and the files written into
+# switch, its clients, the `scruff` worktree lifecycle and the files written into
 # every client's home. What it adds to OTHER rooms — the terminal's agent
 # chords, the bar's `agents` pill, the launcher's Spawn Agent — it adds through
 # extension points those rooms declare (modules/lib/contrib.nix), so a machine
@@ -11,7 +11,7 @@
 # switches a bar on.
 #
 # The payload lives here too, as of 2026-08-19. It used to be hosted by the
-# rooms that happened to own the two PROFILES it needs — `holt`, the statusline
+# rooms that happened to own the two PROFILES it needs — `scruff`, the statusline
 # pair and `agent-state` by modules/core (a system profile), the instructions
 # preamble, the `haus` skill and its `this-machine.md` renderer by
 # modules/terminal (a home one) — each gated on this room's switch from a
@@ -154,10 +154,10 @@ let
   };
 
   # Rice-owned preamble for each client's instructions file. The rice ships
-  # `holt` (core) on PATH to every machine, and agent worktrees live OUTSIDE the
+  # `scruff` (core) on PATH to every machine, and agent worktrees live OUTSIDE the
   # repo tree (~/.cache/claude-worktrees/…), so a worktree agent's instructions
   # walk never reaches the project/workshop AGENTS.md — only THIS file + the
-  # repo's own checked-out one are guaranteed read. So the general `holt`
+  # repo's own checked-out one are guaranteed read. So the general `scruff`
   # etiquette every agent needs travels HERE, WITH the tool — not just in the
   # workshop repo end users don't have. Prepended to the host's own
   # `haus.ai.instructions`.
@@ -192,47 +192,47 @@ let
 
     `~/${agentHomes.${client}.skills}/haus/` is generated too, from the haus
     revision this machine pins (`haus update` regenerates it), as is every other
-    skill haus installed. `holt/` and `handoff/` are holt's, edited in
+    skill haus installed. `scruff/` and `handoff/` are scruff's, edited in
     hausfold/holt;${lib.optionalString config.haus.notifications.compositor " `trill/` is trill's, here because `haus.notifications.compositor` is on;"} they arrive on a lock bump. Not everything beside them
     is generated: ${clientScopeNote.${client}} that you can edit live with no
     rebuild. `ls -l` the path before assuming which kind it is.
 
-    # Agent worktrees & the `holt` tool
+    # Agent worktrees & the `scruff` tool
 
-    `holt` (shipped by haus, on PATH) manages **agent worktrees** for any git
+    `scruff` (shipped by haus, on PATH) manages **agent worktrees** for any git
     repo. ${laneChordProse} Checkouts live under
     `~/.cache/claude-worktrees/<repo>/<name>` whichever client you are.
 
     Closing a pane never loses work: uncommitted edits are parked as a `wip:`
-    commit, and only already-merged branches are reaped. Resume with `holt`
-    (lists every worktree across all repos) or `holt <name>`; sweep landed ones
-    on demand with `holt reap`.
+    commit, and only already-merged branches are reaped. Resume with `scruff`
+    (lists every worktree across all repos) or `scruff <name>`; sweep landed ones
+    on demand with `scruff reap`.
 
-    **Cross-repo work uses `holt child`, never a raw `git worktree add`.** To
+    **Cross-repo work uses `scruff child`, never a raw `git worktree add`.** To
     work on a DIFFERENT repo than the pane you're in (e.g. a parent pane editing
     a sub-repo):
 
-        cd "$(holt child /path/to/other/repo)"
+        cd "$(scruff child /path/to/other/repo)"
 
     A raw `git worktree add` never touches the registry, so the statusline HUD
     never learns to query that repo's GitHub and the worktree and its PR go
-    **invisible in the bar**. `holt child` registers it under the spawning pane,
+    **invisible in the bar**. `scruff child` registers it under the spawning pane,
     so its PR shows as a child row where you're working.
 
-    **Setting work aside uses `holt park`, never `git stash`.** The stash stack
+    **Setting work aside uses `scruff park`, never `git stash`.** The stash stack
     is NOT per-worktree — it lives in the shared `.git` dir, so every agent
     worktree of a repo and the main checkout push and pop the SAME stack, and
     parallel agents routinely pop each other's entries into a tree that never
-    asked for them. `holt park [label]` instead commits the whole dirty tree as
-    one `wip:` commit on the branch only this pane has checked out; `holt
+    asked for them. `scruff park [label]` instead commits the whole dirty tree as
+    one `wip:` commit on the branch only this pane has checked out; `scruff
     unpark` rewinds it, putting those changes back uncommitted. Unpark refuses a
     wip commit you've already pushed, so it can never become a force-push.
 
-    **A session that keeps committing after its PR merged needs `holt reship`.**
+    **A session that keeps committing after its PR merged needs `scruff reship`.**
     GitHub deletes the head branch on merge, so those later commits have no
-    remote and no PR, and `holt` deliberately won't reap that branch. It marks
+    remote and no PR, and `scruff` deliberately won't reap that branch. It marks
     the lane `+N` in the state column (`live+3`) and the bar shows an orange
-    `N^`; `holt reship [name]` pushes the branch and opens the follow-up PR.
+    `N^`; `scruff reship [name]` pushes the branch and opens the follow-up PR.
 
     # The screen belongs to the person at it
 
@@ -245,7 +245,7 @@ let
       `killall Dock`, `haus rebuild`, screenshot — because none of it renders
       here. That is the answer to "can I try the palette / the bar / this
       keybind / the installer", and it is the FIRST thing to reach for:
-      `holt runtime up <lane> --backend tart`, then drive the guest over `ssh`.
+      `scruff runtime up <lane> --backend tart`, then drive the guest over `ssh`.
       The haus skill's **Seeing your change without taking the screen** has the
       whole loop.
     - **Prefer looking to touching.** `screencapture -x` is silent and steals
@@ -339,21 +339,21 @@ let
   #
   # This is step 3 of the family agent-surface standard, and until haus#473 it
   # was simply absent — the derivation existed and nothing linked it, so a haus
-  # machine had holt on PATH and no agent on it knew holt existed. The whole
+  # machine had scruff on PATH and no agent on it knew scruff existed. The whole
   # claim of the standard is that a haus user does nothing to get these.
   #
   # The list, and the derivation that proves the names in it are real, live in
   # ./tool-skills.nix — split out so `nix flake check` can build the thing this
   # room puts on every machine's rebuild path (`.#tool-skills`).
   #
-  # `trillEnabled` is the one thing this file adds to the list: holt is on every
+  # `trillEnabled` is the one thing this file adds to the list: scruff is on every
   # machine, trill's room is off by default, and an agent skill for an app this
   # Mac doesn't have is worse than none (the workshop's notes/agent-surface.md
   # §4). Gated HERE rather than in that file so the `.#tool-skills` check still
   # proves trill's skill name whatever any one machine turns on.
   toolSkills = import ./tool-skills.nix {
     inherit pkgs lib;
-    inherit (pkgs) holt-skill trill-skill;
+    inherit (pkgs) scruff-skill trill-skill;
     trillEnabled = config.haus.notifications.compositor;
   };
   inherit (toolSkills) toolSkillList;
@@ -421,20 +421,20 @@ let
     )
   );
 
-  # holt's tart runtime adapter (SPEC.md §5.5 in hausfold/holt) — the "real
-  # tart backend" holt#52's own commit message left as a follow-up here.
-  # `holt runtime up|enter|down --backend tart` is otherwise a dead end: the
+  # scruff's tart runtime adapter (SPEC.md §5.5 in hausfold/holt) — the "real
+  # tart backend" hausfold/holt#52's own commit message left as a follow-up here.
+  # `scruff runtime up|enter|down --backend tart` is otherwise a dead end: the
   # command exists but every machine refuses it with "no runtime adapter
   # tart" because nothing has ever written the TOML it looks for.
   #
   # Text + a script, machine-wide (not per-client the way the two blocks
   # above are — a VM isn't a thing Claude vs. Codex each get their own copy
-  # of), gated on this room's own switch since that's what installs `holt`
+  # of), gated on this room's own switch since that's what installs `scruff`
   # and `tart` in the first place. It does NOT pull a base image: that is the
   # real cost here (tart's macOS base images run tens of GB), it is a choice
-  # about which OS a lane tests on, and a machine that never runs `holt
+  # about which OS a lane tests on, and a machine that never runs `scruff
   # runtime up` should not pay for it just because the AI room is on. The
-  # adapter refuses with the exact commands when `HOLT_TART_BASE` is unset,
+  # adapter refuses with the exact commands when `SCRUFF_TART_BASE` is unset,
   # so the missing half names itself the first time somebody needs it.
   agentRuntimeAdapterFiles = lib.optionalAttrs cfg.enable (
     let
@@ -450,11 +450,11 @@ let
         source = ./runtime/tart-adapter.sh;
         executable = true;
       };
-      # setup/enter/teardown are each ONE argv holt execs with no shell (same
-      # shape as holt's own hooks), so all three just hand off to the script
+      # setup/enter/teardown are each ONE argv scruff execs with no shell (same
+      # shape as scruff's own hooks), so all three just hand off to the script
       # above with a subcommand — see its header for why the multi-step tart
       # dance can't live in this file directly.
-      ".config/holt/adapters/runtime/tart.toml".text = ''
+      ".config/scruff/adapters/runtime/tart.toml".text = ''
         # Generated from haus.ai — edit modules/ai/default.nix (this text) or
         # modules/ai/runtime/tart-adapter.sh (the script), not this copy.
         #
@@ -462,7 +462,7 @@ let
         # this file can't do for you, is the IMAGE:
         #   tart pull ghcr.io/cirruslabs/macos-tahoe-base:latest
         #   build-golden-vm.sh              # in haus's script/ — bakes haus INTO an image
-        #   export HOLT_TART_BASE=haus-golden
+        #   export SCRUFF_TART_BASE=haus-golden
         #
         # Tahoe, not Sequoia: the guest findings this depends on — SIP off, the
         # TCC rows that let `screencapture`/`osascript` work over SSH, the
@@ -613,7 +613,7 @@ let
     | perch | the notch file shelf | ${onOff config.haus.shelf.enable} |
     | snippets | text expansion | ${onOff config.haus.snippets.enable} |
     | developer | the dev toolbelt | ${onOff config.haus.developer.enable} |
-    | ai | coding-agent tooling (`holt`, the lane VM) | ${onOff config.haus.ai.enable} |
+    | ai | coding-agent tooling (`scruff`, the lane VM) | ${onOff config.haus.ai.enable} |
 
     A room that's off means its options do nothing until you turn it on — say so
     rather than silently enabling a room to satisfy a small request.
@@ -702,13 +702,13 @@ in
 {
   # ---- what the room hears from the GitHub bridge ----------------------------
   # A lane's row is mostly a question about its pull request, which is the
-  # expensive half of `holt --json` and the reason holt-cache exists at all.
+  # expensive half of `scruff --json` and the reason scruff-cache exists at all.
   # Where haus.github's bridge covers every lane's repo, that question has a
-  # push answer: this wakes the cache, and holt-cache's own gate decides whether
+  # push answer: this wakes the cache, and scruff-cache's own gate decides whether
   # there is anything to fetch (it has just been told there is).
   #
   # A poke rather than the work: `kick` is already the throttled, one-winner,
-  # detached door, and a subscriber that ran `holt --json` itself would be a
+  # detached door, and a subscriber that ran `scruff --json` itself would be a
   # second one racing it.
   haus._contrib.github.subscribers.ai-lanes = lib.mkIf cfg.enable {
     events = [
@@ -716,7 +716,7 @@ in
       "pull_request_review"
       "workflow_run"
     ];
-    command = "holt-cache kick 5 >/dev/null 2>&1";
+    command = "scruff-cache kick 5 >/dev/null 2>&1";
   };
 
   # ---- what the room asks of itself -----------------------------------------
@@ -797,8 +797,8 @@ in
 
   # ---- the payload: the system profile ---------------------------------------
   # `with pkgs` because that is the shape modules/core wrote these in and the
-  # comments below name bare `holt`. Nothing here is conditional on another
-  # room — a machine with no terminal and no bar still gets a working `holt`
+  # comments below name bare `scruff`. Nothing here is conditional on another
+  # room — a machine with no terminal and no bar still gets a working `scruff`
   # and a working `agent-state`.
   # ---- the payload: the idle-sleep half, as a per-user agent -----------------
   # Runs at BOTH stops, `idle` and `lid`, and that is on purpose rather than an
@@ -858,16 +858,16 @@ in
   environment.systemPackages = lib.mkIf cfg.enable (
     with pkgs;
     [
-      # holt — agent worktrees, its own product now (hausfold/holt, taken as
+      # scruff — agent worktrees, its own product now (hausfold/holt, taken as
       # a flake input). Every caller the rice owns is on it: terminal's
-      # ⌘↵ runs `holt new --open` (bare `holt new` only prints the path since
-      # holt 0.2.94), pounce's Spawn Agent goes through `holt spawn`, and
+      # ⌘↵ runs `scruff new --open` (bare `scruff new` only prints the path since
+      # scruff 0.2.94), pounce's Spawn Agent goes through `scruff spawn`, and
       # the Claude Code WorktreeCreate/WorktreeRemove hooks — which terminal
       # DECLARES into ~/.claude/settings.json and re-asserts on every rebuild
       # (see modules/terminal, home.activation.claudeCodeSettings) — point at
-      # `holt hook create` / `holt hook remove`. Its bash predecessor `wt.sh`
+      # `scruff hook create` / `scruff hook remove`. Its bash predecessor `wt.sh`
       # has been retired entirely; there is no fallback to roll back to.
-      holt
+      scruff
 
       # `tart` — the VM half of the same tool. A lane that needs to SEE a
       # change work (the palette, the bar, a keybind, an installer run) takes
@@ -876,12 +876,12 @@ in
       # first bullet of "the screen belongs to the person at it". An
       # instruction whose binary isn't there is worse than no instruction:
       # the agent reads it, tries, fails, and reaches for the pointer
-      # anyway. So `tart` arrives WITH `holt`, not as a manual step beside
+      # anyway. So `tart` arrives WITH `scruff`, not as a manual step beside
       # it — the room already writes the adapter that drives it.
       #
       # The disk cost this room was once careful about is the IMAGES (tens of
       # GB each), not this binary, and no image is pulled until someone runs
-      # `holt runtime up` — see the adapter's own `HOLT_TART_BASE` refusal.
+      # `scruff runtime up` — see the adapter's own `SCRUFF_TART_BASE` refusal.
       # nixpkgs marks tart unfree (Fair Source); modules/core already sets
       # `nixpkgs.config.allowUnfree`, so this evaluates on any haus machine.
       tart
@@ -890,11 +890,11 @@ in
       # (terminal's claudeCodeSettings points the `statusLine` key here). Row 1 is
       # THIS session's worktree name + one status token (⏏ purge / N^ commits —
       # blue when unmerged, orange when they landed AFTER the PR merged and no PR
-      # covers them / +A -D uncommitted); rows below list sister `holt` worktrees across
+      # covers them / +A -D uncommitted); rows below list sister `scruff` worktrees across
       # ALL repos, with GitHub PR state. Cheap local git runs in the render path;
       # the cross-repo + `gh` enumeration is done detached by the companion
       # `claude-statusline-refresh` and cached (stale-while-revalidate), so the bar
-      # never blocks. Reads `holt`'s registry — same agent-worktree flow, same home.
+      # never blocks. Reads `scruff`'s registry — same agent-worktree flow, same home.
       # It doubles as the writer for bar's `aiUsage` pill: Claude Code hands
       # every render the account's 5-hour + weekly rate-limit percentages, so the
       # render path stashes them to ~/.cache/claude-statusline/usage-claude.tsv —
@@ -927,15 +927,15 @@ in
       # already fine. It never refuses anything; the only verdict it can return is
       # "ask". It reads the target, not the text: a segment that runs over ssh on
       # another machine is dropped before the patterns see it, so a lane driving
-      # its own headless VM (`holt runtime up --backend tart`) is never prompted
+      # its own headless VM (`scruff runtime up --backend tart`) is never prompted
       # for a desktop nobody is looking at. HAUS_DESKTOP_OK=1 in a pane turns the
       # whole thing off, the way BENCH_AGENT_SWITCH=1 does for activation.
       # test/desktop-guard.bats pins both sides of the line; details in the
       # script's header.
       (writeShellScriptBin "agent-desktop-guard" (builtins.readFile ./desktop-guard.sh))
 
-      # `holt-cache` — one warm copy of `holt --json` for everything that reads
-      # lanes. `holt --json` self-heals on the way in and dumps `lsof` twice
+      # `scruff-cache` — one warm copy of `scruff --json` for everything that reads
+      # lanes. `scruff --json` self-heals on the way in and dumps `lsof` twice
       # before it answers, which is seconds even with no lanes registered; the
       # bar's agents popup redraws on a 10s tick and the Lanes palette opens
       # under pounce's 8-SECOND loading skeleton, so neither can run it inline.
@@ -943,7 +943,7 @@ in
       # block started, because the room that owns the capability owns its
       # payload — and because the launcher's picker needs it on a machine whose
       # bar is off. Its header has the numbers.
-      (writeShellScriptBin "holt-cache" (builtins.readFile ./holt-cache.sh))
+      (writeShellScriptBin "scruff-cache" (builtins.readFile ./scruff-cache.sh))
     ]
   );
 

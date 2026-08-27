@@ -93,7 +93,7 @@ jobs:
       #   tool-skills              every skill name modules/ai lists is one the
       #                            pinned tool actually ships — a home file, so
       #                            a wrong name is a failed `haus rebuild`.
-      #                            ⚠️ holt's two only, HERE: trill outputs
+      #                            ⚠️ scruff's two only, HERE: trill outputs
       #                            darwin systems alone, so its skill drops out
       #                            of the list on this runner and its name is
       #                            proven by the Mac pass below, not by CI
@@ -253,9 +253,9 @@ jobs:
           # how the `modules/core/` → `modules/ai/` move in #402 surfaced: the
           # job had been failing on it, invisibly, behind the apt stall this
           # commit's parent removed. Move a script, fix the path here.
-          # holt-cache.sh and lanes.sh join for statusline-refresh.sh's reason.
-          # holt-cache's whole job is to run DETACHED with its output discarded
-          # (`holt-cache kick`), so a non-zero in it is invisible and the bar and
+          # scruff-cache.sh and lanes.sh join for statusline-refresh.sh's reason.
+          # scruff-cache's whole job is to run DETACHED with its output discarded
+          # (`scruff-cache kick`), so a non-zero in it is invisible and the bar and
           # the Lanes picker simply go on serving a cache nothing refreshes.
           # lanes.sh is the palette command a person opens by hand, but its
           # stderr goes to the pounce daemon and nowhere a user looks, so a
@@ -282,7 +282,7 @@ jobs:
           # haus.focus.scenes.<name>.when it also runs from launchd on a timer,
           # where a non-zero is not just invisible but silently stops your Mac
           # entering the scenes you declared.
-          shellcheck --severity=warning bootstrap.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/awake.sh modules/core/lidawake.sh test/lidawake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/holt-cache.sh modules/launcher/commands/lanes.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh
+          shellcheck --severity=warning bootstrap.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/awake.sh modules/core/lidawake.sh test/lidawake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
       # lidawake's three failsafes, over a fake pmset and a fake clock. Every
@@ -310,11 +310,11 @@ jobs:
       # rebuild that changes something — silence, which no lint can catch.
       - name: haus plan parser tests
         run: bash test/haus-plan.sh
-      # The refresher is `holt`'s reader, and it fails in the one way nobody sees:
+      # The refresher is `scruff`'s reader, and it fails in the one way nobody sees:
       # it runs detached under `set -e`, so any non-zero leaves the LAST panel.tsv
       # in place and the bar keeps showing worktrees that were reaped hours ago —
       # no error, no empty bar, just a confidently stale one. Same hermetic shape
-      # as holt's own acceptance suite (throwaway repos, shim gh, redirected cache).
+      # as scruff's own acceptance suite (throwaway repos, shim gh, redirected cache).
       - name: statusline refresher tests
         run: bats test/statusline-refresh.bats
       # The render path's counterpart suite. Its subject is the Fable/Mythos row
@@ -349,9 +349,9 @@ jobs:
         run: bats test/raise-session-lane-join.bats
 
       # lane-seen's other half of that join, read backwards: the focused
-      # window's session name back to the trill key holt gave that lane's fin.
+      # window's session name back to the trill key scruff gave that lane's fin.
       # The boundary between `<repo>` and `<lane>` cannot be found in the string
-      # — `hausfold.co` is one of ours — so it comes from holt's registry, and
+      # — `hausfold.co` is one of ours — so it comes from scruff's registry, and
       # the failure mode of getting it wrong is silent: `trill resolve` is
       # idempotent, so a wrong key exits 0 and the fin just stays up.
       - name: lane-seen key join

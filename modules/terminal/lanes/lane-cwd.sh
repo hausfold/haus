@@ -35,11 +35,11 @@
 # whenever it already belongs to the page's repo, so ⌘N in a subdirectory still
 # opens there and ⌘↵ inside a lane's worktree still spawns a sibling lane. Only
 # a directory whose repo DISAGREES with the page is overridden, and then with
-# that repo's main checkout — holt's own `main` for the lanes it knows about,
+# that repo's main checkout — scruff's own `main` for the lanes it knows about,
 # which is where the page's name came from in the first place (lane-open.sh
-# names it `basename $HOLT_MAIN`).
+# names it `basename $SCRUFF_MAIN`).
 #
-# With no page under you, no holt registry, or no repo answer either side, this
+# With no page under you, no scruff registry, or no repo answer either side, this
 # flag changes nothing at all.
 #
 # stdout: the directory, or empty. Exit 0 either way.
@@ -52,7 +52,7 @@ want_page=0
 
 # ── which repo does a directory belong to ────────────────────────────────────
 # The MAIN checkout's basename, which is exactly the string a page is named
-# after: lanes/lane-open.sh builds `T/<repo>` from `basename $HOLT_MAIN`. So
+# after: lanes/lane-open.sh builds `T/<repo>` from `basename $SCRUFF_MAIN`. So
 # this is the same question asked from the other end, and the two answers are
 # comparable by string equality.
 #
@@ -86,17 +86,17 @@ if [ "$want_page" = 1 ] && command -v aerospace >/dev/null 2>&1; then
 fi
 
 # ── that repo name, as a directory ───────────────────────────────────────────
-# holt's registry is the only thing on the machine that knows where a repo named
+# scruff's registry is the only thing on the machine that knows where a repo named
 # `<repo>` actually lives, and `main` is the field the page name was derived
-# from. Read through holt-cache (modules/ai) rather than `holt --json`, whose
+# from. Read through scruff-cache (modules/ai) rather than `scruff --json`, whose
 # lsof sweep costs seconds — and with a WEEK of slack, because the one field
 # read here is a path that does not move while a lane's state does. A cold cache
 # gets one bounded foreground sync; anything longer belongs nowhere near a
 # keystroke, and no answer simply means no correction.
 page_dir=""
-if [ -n "$page_repo" ] && command -v jq >/dev/null 2>&1 && command -v holt-cache >/dev/null 2>&1; then
-  json="$(holt-cache read 604800 2>/dev/null)"
-  [ -n "$json" ] || json="$(holt-cache sync 2 2>/dev/null)"
+if [ -n "$page_repo" ] && command -v jq >/dev/null 2>&1 && command -v scruff-cache >/dev/null 2>&1; then
+  json="$(scruff-cache read 604800 2>/dev/null)"
+  [ -n "$json" ] || json="$(scruff-cache sync 2 2>/dev/null)"
   if [ -n "$json" ]; then
     page_dir="$(
       printf '%s' "$json" |

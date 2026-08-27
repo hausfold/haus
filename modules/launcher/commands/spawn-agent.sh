@@ -17,19 +17,19 @@
 # Why it exists: the same thing by hand is caps→t to a terminal, cd to the repo,
 # ⌃⌘A for a lane, then type the prompt — and the worktree ends up
 # with whatever name Claude generated (`luminous-twirling-codd`), which is the
-# name you then have to recognise in `holt`, in the statusline, and on the branch.
+# name you then have to recognise in `scruff`, in the statusline, and on the branch.
 # Naming it from the prompt is the whole point; the palette is just the shortest
 # path to doing it.
 #
-# The worktree is made by `holt spawn`, NOT by a client-native worktree command: a
+# The worktree is made by `scruff spawn`, NOT by a client-native worktree command: a
 # palette command has no pane, so it must not be recorded as anybody's child
-# session (see holt's Spawn). Claude is then started in that checkout like any
+# session (see scruff's Spawn). Claude is then started in that checkout like any
 # other directory — no hook fires, nothing else to keep in sync.
 #
 # $HAUS_LANE_NAMER is the same shape and arrives the same way (`haus.ai.namer`,
 # through the daemon's launchd environment) and decides WHO names the lane, far
-# below. It has no hand-run fallback on purpose: reading it out of holt's own
-# config.toml would be holt's contract reimplemented in a palette command, which
+# below. It has no hand-run fallback on purpose: reading it out of scruff's own
+# config.toml would be scruff's contract reimplemented in a palette command, which
 # is the drift this script's spawn block was rewritten to stop. So a hand-run of
 # this file names the lane the old way, from the slug. It is also only as fresh
 # as the daemon: the plist environment is re-read on agent reload, so for one
@@ -44,7 +44,7 @@
 # config flake this Mac is built from, without scanning `~/.config`), and
 # anything else is scanned one and two levels deep for a main checkout — two so
 # a workshop-style parent dir full of repos resolves to its children. Plus every
-# repo `holt` already knows, so a repo outside those roots that you have agent'd
+# repo `scruff` already knows, so a repo outside those roots that you have agent'd
 # before stays reachable.
 #
 # ── the prompt step's five Returns ────────────────────────────────────────────
@@ -109,7 +109,7 @@
 # `--draft` files it on every dismissal; ⌥↵ hands it back through `--query`, in
 # the box, editable, rather than just re-running it.
 
-# A launchd GUI agent's PATH is bare; resolve our tools (holt, zmx, git,
+# A launchd GUI agent's PATH is bare; resolve our tools (scruff, zmx, git,
 # open, osascript, pounce) explicitly — the same prelude add-app.sh uses.
 export PATH="/etc/profiles/per-user/$USER/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
 
@@ -132,16 +132,16 @@ notice() {
     | pounce -p "Spawn Agent" -i "sparkles" >/dev/null
 }
 
-# The lane opener is holt's own `open` seam, installed by the terminal room.
+# The lane opener is scruff's own `open` seam, installed by the terminal room.
 # Checked HERE, before anything is created, for the reason the client check
 # below gives: a worktree with nothing to open it is litter.
 # NOTE: $OPENER is a PRECONDITION PROBE here and is never executed by this
-# script any more — `holt spawn --prompt` drives the same seam itself, reading
-# the path from ~/.config/holt/config.toml. Checked anyway, and here rather than
+# script any more — `scruff spawn --prompt` drives the same seam itself, reading
+# the path from ~/.config/scruff/config.toml. Checked anyway, and here rather than
 # 250 lines down where it is used, because a lane with nothing to open it is
 # litter and this is before anything is created.
 OPENER="$HOME/.config/haus/lanes/lane-open.sh"
-for tool in holt zmx; do
+for tool in scruff zmx; do
   command -v "$tool" >/dev/null 2>&1 && continue
   notice "$tool is unavailable" "Rebuild haus, then try again"
   exit 1
@@ -150,19 +150,19 @@ if [ ! -x "$OPENER" ]; then
   notice "No lane opener" "Rebuild haus — ~/.config/haus/lanes/lane-open.sh is missing"
   exit 1
 fi
-# holt has to be new enough to open a lane on a prompt. The lock bump and this
+# scruff has to be new enough to open a lane on a prompt. The lock bump and this
 # script move together, but a machine caught mid-ripple — or anyone with an
-# older holt earlier on PATH — would otherwise get "could not create the
+# older scruff earlier on PATH — would otherwise get "could not create the
 # worktree", which points at their repo instead of at the version skew. `--help`
 # prints to stderr, hence the redirect.
-if ! holt --help 2>&1 | grep -q -- '--prompt-file'; then
-  notice "holt is too old for Spawn Agent" "Rebuild haus — it needs holt with --prompt-file"
+if ! scruff --help 2>&1 | grep -q -- '--prompt-file'; then
+  notice "scruff is too old for Spawn Agent" "Rebuild haus — it needs scruff with --prompt-file"
   exit 1
 fi
 
 # Where the spawn path's evidence goes. A launchd GUI agent has no stderr a
 # person will ever read, and the toasts below are one line each — so without
-# this, holt's errors, the open seam's refusal reasons and lane-open.sh's own
+# this, scruff's errors, the open seam's refusal reasons and lane-open.sh's own
 # output all vanish and every failure looks identical.
 LOG="${XDG_CACHE_HOME:-$HOME/.cache}/haus/spawn-agent.log"
 mkdir -p "$(dirname "$LOG")" 2>/dev/null || LOG=/dev/null
@@ -203,7 +203,7 @@ for root in "${roots[@]}"; do
     | sed 's|/\.git$||'
 done >>"$candidates"
 
-# Repos holt already knows (registry field 2 is each worktree's main checkout).
+# Repos scruff already knows (registry field 2 is each worktree's main checkout).
 [ -f "$WT_REGISTRY" ] && cut -f2 "$WT_REGISTRY" 2>/dev/null >>"$candidates"
 
 list="$(
@@ -231,14 +231,14 @@ if [ -z "$list" ]; then
   exit 0
 fi
 
-agent="$(holt agent default 2>/dev/null)"
+agent="$(scruff agent default 2>/dev/null)"
 [ -n "$agent" ] || agent="claude"
 # Belt to the assertion's braces. `haus.ai.clients` makes the default
 # client present at BUILD time, but this script runs long after that — the
-# client can still be missing on a machine driving `holt` without the rice, or
+# client can still be missing on a machine driving `scruff` without the rice, or
 # with a hand-managed install that moved. Checking here, before anything is
-# created, is the difference between a toast and the old failure: `holt spawn`
-# succeeds, the pane opens, and only `holt agent start` inside it finds nothing —
+# created, is the difference between a toast and the old failure: `scruff spawn`
+# succeeds, the pane opens, and only `scruff agent start` inside it finds nothing —
 # leaving a dead pane and a worktree nobody asked for.
 if ! command -v "$agent" >/dev/null 2>&1; then
   notice "$agent is not installed" "Add it to haus.ai.clients, or change haus.ai.default"
@@ -262,7 +262,7 @@ if [ -z "$repo" ]; then
   exit 0
 fi
 # A row WAS picked and its checkout is gone — a repo moved or deleted since the
-# list was built, or a stale holt registry row. Different miss, different words:
+# list was built, or a stale scruff registry row. Different miss, different words:
 # `payload_of` here would hand back the whole tab-joined row.
 if [ ! -d "$repo/.git" ]; then
   notice "$repo_name is not there any more" "Nothing at $repo — moved, or removed" \
@@ -401,7 +401,7 @@ while :; do
 done
 
 # Only \r and stray leading/trailing space go; newlines and tabs are the user's
-# now that ⇧↵ can produce them, and the prompt reaches holt on stdin, so a list
+# now that ⇧↵ can produce them, and the prompt reaches scruff on stdin, so a list
 # survives as a list all the way into the client.
 prompt="$(printf '%s' "$prompt" | tr -d '\r' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
 if [ -z "$prompt" ]; then
@@ -411,7 +411,7 @@ fi
 
 # ── name the worktree after the task ──────────────────────────────────────
 # The naming win: a branch called `bar-pill-flickers` instead of Claude's
-# generated `luminous-twirling-codd`. `holt spawn` takes the next free suffix if
+# generated `luminous-twirling-codd`. `scruff spawn` takes the next free suffix if
 # that name is already in use.
 #
 # The FIRST few words are not the name — "can you look into why the bar pill
@@ -448,15 +448,15 @@ fi
 [ -n "$slug" ] || slug="agent"
 
 # ── create the lane, and open it ──────────────────────────────────────────
-# ONE call. `holt spawn --prompt` creates the checkout, the branch and the
-# registry row, then drives holt's own `open` seam with the client invocation
+# ONE call. `scruff spawn --prompt` creates the checkout, the branch and the
+# registry row, then drives scruff's own `open` seam with the client invocation
 # it resolved — which on this machine is the very same
 # ~/.config/haus/lanes/lane-open.sh the terminal room writes into
-# ~/.config/holt/config.toml.
+# ~/.config/scruff/config.toml.
 #
 # It used to be this script's job to build that invocation and export five
-# HOLT_* variables by hand. That was holt's contract reimplemented outside
-# holt, and it drifted the moment either side moved: the argv shape (`--` for
+# SCRUFF_* variables by hand. That was scruff's contract reimplemented outside
+# scruff, and it drifted the moment either side moved: the argv shape (`--` for
 # a positional prompt, `--prompt=` for opencode's yargs) and the shell-quoting
 # of the command string both lived here, in a palette command, for the one
 # caller that happened to need them.
@@ -474,7 +474,7 @@ fi
 # file; ⌘↵ above is the in-palette way to the same argument.
 [ -n "${image:-}" ] || image="${HAUS_AGENT_IMAGE:-}"
 
-# WHO names the lane. A name given to `holt spawn` always wins — the namer is
+# WHO names the lane. A name given to `scruff spawn` always wins — the namer is
 # only ever asked for a lane that has none — so passing "$slug" unconditionally
 # is the same as saying "never ask", which is what this command meant for as
 # long as asking cost nine seconds (see the slug's own comment above).
@@ -483,12 +483,12 @@ fi
 # for the whole spawn on the machine this was written on, and the answer is a
 # name the stopword slug cannot reach: `agents-pill-wedge` out of "the agents
 # pill stops updating after the popup is closed twice in a row", where the slug
-# gives `agents-pill-stops-updating`. So hand holt no name and let the brief
+# gives `agents-pill-stops-updating`. So hand scruff no name and let the brief
 # name the lane.
 #
-# holt's BUILT-IN namer is excluded, and the exclusion is the load-bearing half:
+# scruff's BUILT-IN namer is excluded, and the exclusion is the load-bearing half:
 #
-#   - It costs 8-12s (holt's own namer.go says so), and it is asked BEFORE the
+#   - It costs 8-12s (scruff's own namer.go says so), and it is asked BEFORE the
 #     worktree exists, so the whole wait lands between Return and the lane.
 #     That was nine seconds of frozen palette back when the prompt step was
 #     `--chain enter`, and it is the exact reason the slug exists at all. The
@@ -497,14 +497,14 @@ fi
 #     is on screen and the only sign the spawn took is a banner that hasn't
 #     arrived yet.
 #   - Its argv is fixed and reads no environment, so it cannot honour the floor
-#     below. An offline spawn would drop to holt's random word pair, which is
+#     below. An offline spawn would drop to scruff's random word pair, which is
 #     strictly WORSE than the slug this command has always had.
 #
-# The slug is not wasted for an adapter namer, it is DEMOTED: HOLT_NAMER_FALLBACK
-# travels down to it (holt hands a seam os.Environ() and never sets cmd.Env, so
+# The slug is not wasted for an adapter namer, it is DEMOTED: SCRUFF_NAMER_FALLBACK
+# travels down to it (scruff hands a seam os.Environ() and never sets cmd.Env, so
 # the adapter inherits it) and is what the adapter prints when its model can't
 # answer. That is a contract between THIS command and a host-written adapter,
-# not a holt feature — holt neither sets nor reads the variable, it only passes
+# not a scruff feature — scruff neither sets nor reads the variable, it only passes
 # the environment through, and an adapter that ignores it degrades to the random
 # pair. `haus.ai.namer`'s description states the contract; the built-in is
 # excluded here because it provably cannot meet it.
@@ -513,32 +513,41 @@ fi
 # reason HAUS_LANE_BACKGROUND below is written on every path: nothing stale in
 # the launchd environment may become a floor for a spawn that never asked for
 # one.
+#
+# ⚠️ BOTH spellings go out, and this is the one place in the room where that is
+# not belt-and-braces. The reader is a hand-written adapter in the operator's
+# own ~/.config — a file haus does not ship, cannot see and cannot rewrite — so
+# the usual "flip both ends together" does not apply: an adapter written against
+# HOLT_NAMER_FALLBACK would simply stop seeing a floor, and the only symptom is
+# an offline spawn quietly landing on a random word pair instead of the slug.
+# The old spelling comes out once the adapters on this machine have moved (the
+# tool's own docs/rename.md §8.1).
 case "${HAUS_LANE_NAMER:-}" in
   "" | claude) laneNamer="" ;;
   *) laneNamer="$HAUS_LANE_NAMER" ;;
 esac
-export HOLT_NAMER_FALLBACK=""
+export SCRUFF_NAMER_FALLBACK="" HOLT_NAMER_FALLBACK=""
 set -- spawn "$repo"
 if [ -n "$laneNamer" ]; then
-  export HOLT_NAMER_FALLBACK="$slug"
+  export SCRUFF_NAMER_FALLBACK="$slug" HOLT_NAMER_FALLBACK="$slug"
 else
   set -- "$@" "$slug"
 fi
 set -- "$@" --agent "$agent" --prompt-file -
 [ -n "$image" ] && set -- "$@" --image "$image"
 
-# The default, cleared by ⌃↵. Not a holt flag and not an argument: "don't take
+# The default, cleared by ⌃↵. Not a scruff flag and not an argument: "don't take
 # the screen" is a fact about how THIS machine opens a window, which is
-# lane-open.sh's business and nobody else's — holt only has to carry it, and it
+# lane-open.sh's business and nobody else's — scruff only has to carry it, and it
 # does, because it hands a seam os.Environ(). Exported even when empty, so
 # nothing stale in the launchd environment can silence a ⌃↵ spawn that asked to
 # be followed.
 export HAUS_LANE_BACKGROUND="${background:-}"
 
-# holt prints the lane's path on stdout BEFORE it drives the seam, so this
+# scruff prints the lane's path on stdout BEFORE it drives the seam, so this
 # captures it whether the window opened or not — which is what the cleanup
 # below needs.
-dir="$(printf '%s' "$prompt" | holt "$@" 2>>"$LOG")"
+dir="$(printf '%s' "$prompt" | scruff "$@" 2>>"$LOG")"
 rc=$?
 if [ -z "$dir" ] || [ ! -d "$dir" ]; then
   notice "Could not create the worktree" "Why, in $LOG"
@@ -547,7 +556,7 @@ fi
 name="$(basename "$dir")"
 
 # rc 0 is the window; anything else means the lane exists with nothing on it.
-# 3 is holt saying no `open` seam is configured — impossible here, since the
+# 3 is scruff saying no `open` seam is configured — impossible here, since the
 # OPENER check up top already refused that case, but it is not this script's
 # job to be the only thing standing between a rebuild gap and silent litter.
 #
@@ -559,25 +568,25 @@ name="$(basename "$dir")"
 # than letting it flash shut, which is the evidence you would otherwise want
 # this branch to preserve.
 if [ "$rc" -ne 0 ]; then
-  # `holt drop`, not `git worktree remove`: the raw remove takes the checkout
-  # and the branch but leaves holt's REGISTRY ROW, so the lane goes on being
-  # listed by `holt`, `bench status` and the agents pill as a checkout that
-  # isn't there. drop is holt's own verb for "this will never land" — it takes
-  # the branch with it and records the reason in `holt reaped`, so nothing
+  # `scruff drop`, not `git worktree remove`: the raw remove takes the checkout
+  # and the branch but leaves scruff's REGISTRY ROW, so the lane goes on being
+  # listed by `scruff`, `bench status` and the agents pill as a checkout that
+  # isn't there. drop is scruff's own verb for "this will never land" — it takes
+  # the branch with it and records the reason in `scruff reaped`, so nothing
   # vanishes unrecorded. It refuses (exit 2) if something is genuinely standing
   # in the checkout, and that refusal is the right answer rather than something
   # to force past: this is the one path where the lane might not be empty.
-  if holt drop "$name" >>"$LOG" 2>&1; then
+  if scruff drop "$name" >>"$LOG" 2>&1; then
     notice "Could not open the lane" "The lane was dropped; nothing changed"
   else
-    notice "Could not open the lane" "Lane '$name' is still here — run holt"
+    notice "Could not open the lane" "Lane '$name' is still here — run scruff"
   fi
   exit 1
 fi
 
 # ── say so, when there is nothing to see ──────────────────────────────────
 # The default spawn gives the screen back within the second, and the palette is
-# already gone by the time holt finishes — so without this, Return on a
+# already gone by the time scruff finishes — so without this, Return on a
 # paragraph you just typed produces nothing you can see at all, and you are left
 # wondering whether it took. This banner IS the receipt, and it fires when the
 # lane genuinely exists rather than when the box closed.

@@ -47,15 +47,17 @@ in
           type = lib.types.str;
           default = "";
           description = ''
-            Whether this machine has a holt namer, and which — `haus.ai.namer`.
+            Whether this machine has a scruff namer, and which — `haus.ai.namer`.
             Spawn Agent needs to know because it has always named the lane
             ITSELF, from a stopword slug of the prompt, and a name given to
-            `holt spawn` always wins: with a namer configured the command hands
-            holt no name at all and lets the brief name the lane. The slug
+            `scruff spawn` always wins: with a namer configured the command hands
+            scruff no name at all and lets the brief name the lane. The slug
             survives as the offline answer, handed down as
-            `HOLT_NAMER_FALLBACK`.
+            `SCRUFF_NAMER_FALLBACK` (and, for one release, as its pre-rename
+            spelling `HOLT_NAMER_FALLBACK` too, so a hand-written adapter keeps
+            its floor).
 
-            `claude`, holt's built-in, is passed through but deliberately not
+            `claude`, scruff's built-in, is passed through but deliberately not
             acted on: it reads no environment (so it cannot honour the floor)
             and costs 8-12s, all of it between Return and the lane, with the
             palette already gone. The command's own comment carries the reasoning.

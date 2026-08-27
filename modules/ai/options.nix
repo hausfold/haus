@@ -29,17 +29,17 @@ in
       default = false;
       defaultText = lib.literalExpression "false";
       description = ''
-        The AI room: coding-agent *tooling*. `holt` (agent worktrees),
+        The AI room: coding-agent *tooling*. `scruff` (agent worktrees),
         `agent-state` (the status writer behind the `agents` bar pill),
         the agent-worktree statusline, `tart` and the adapter that drives it
-        (SPEC.md §5.5 — `holt runtime up|enter|down --backend tart` stands a
+        (SPEC.md §5.5 — `scruff runtime up|enter|down --backend tart` stands a
         lane up in its own headless macOS, so an agent can feel-test a desktop
         change without touching the screen its user is sitting at; pulling a
         base image is still a manual, one-time step), and the client
         config the Terminal room writes (Claude Code's settings.json keys, opencode's
         agent-state plugin). Which clients get installed is `ai.clients`.
 
-        On, this room brings its clients, `holt` and the lifecycle wiring on its
+        On, this room brings its clients, `scruff` and the lifecycle wiring on its
         own. What it adds to OTHER rooms it adds only when they are present: the
         `c` alias arrives with the terminal, the
         `agents` pill with the bar, the agent commands with the launcher. None
@@ -67,7 +67,7 @@ in
       description = ''
         Which coding-agent clients to install. `claude` is Claude Code, `codex`
         is OpenAI Codex, `opencode` is OpenCode. The ⌘↵ lane chord starts
-        whichever one `ai.default` names, all of them through `holt new`.
+        whichever one `ai.default` names, all of them through `scruff new`.
 
         A list rather than one bool per client, matching `developer.languages`
         — a client added later doesn't change this option's shape.
@@ -123,15 +123,15 @@ in
 
         This option chooses the client and nothing else about how a lane opens.
         `claude` can make its own worktree (its native `--worktree` flag, which
-        fires `holt hook create`), but haus does not use it: that flag runs the
-        client in the pane it was launched from and never asks holt's `[hooks]
+        fires `scruff hook create`), but haus does not use it: that flag runs the
+        client in the pane it was launched from and never asks scruff's `[hooks]
         open`, which is the seam a lane's own window arrives through. So every
-        client goes through `holt new`, producing the same checkout, branch and
+        client goes through `scruff new`, producing the same checkout, branch and
         registry entry from the outside — and the lane stays resumable, because
         Claude keys a transcript to the directory it started in.
         Resuming follows the client too: `codex` reopens
         its cwd-filtered `codex resume` picker, `opencode` continues its latest
-        session for that cwd. They share one `holt` branch/parking/reap
+        session for that cwd. They share one `scruff` branch/parking/reap
         lifecycle, and they all light up the `agents` bar pill — the opencode
         plugin and the codex hooks are written for
         you; only Claude Code's stay yours to wire, because Claude owns its own
@@ -139,24 +139,24 @@ in
       '';
     };
 
-    # What NAMES a lane that arrives with a task but no name. holt's own key,
+    # What NAMES a lane that arrives with a task but no name. scruff's own key,
     # spelled verbatim: it runs one argv from
-    # `~/.config/holt/adapters/namer/<id>.toml` and reads a word off stdout, so
+    # `~/.config/scruff/adapters/namer/<id>.toml` and reads a word off stdout, so
     # haus only has to carry the id — the adapter file names the program, and
-    # holt never holds a key or knows a vendor.
+    # scruff never holds a key or knows a vendor.
     ai.namer = lib.mkOption {
       type = lib.types.str;
       default = "";
       example = "api";
       description = ''
-        The holt namer adapter that turns a lane's first-turn brief into the
+        The scruff namer adapter that turns a lane's first-turn brief into the
         lane's name — `mobile-nav-jitter` instead of `cozy-otter`. Empty, the
         default, means no namer: an unnamed lane keeps taking a random word
         pair, which is what every install had before the key existed.
 
-        `claude` is holt's one built-in, and it costs 8-12s per lane — almost
+        `claude` is scruff's one built-in, and it costs 8-12s per lane — almost
         all of it the client's own start-up rather than the model. Any other id
-        is a file you write: `~/.config/holt/adapters/namer/<id>.toml`, naming
+        is a file you write: `~/.config/scruff/adapters/namer/<id>.toml`, naming
         a program that takes the brief on argv and prints one name. That file
         is the HOST's, not the layer's, because it is where the model, the key
         and its location get decided; haus deliberately carries only the id, so
@@ -164,23 +164,29 @@ in
         rather than failing to build.
 
         It cannot cost you a lane. Every failure — no adapter file, a missing
-        program, a timeout at holt's 30s ceiling, prose instead of a name — is
+        program, a timeout at scruff's 30s ceiling, prose instead of a name — is
         a warning and a fall back to the random pair.
 
         **The offline floor is the adapter's to honour.** The palette's Spawn
         Agent has always named the lane itself, from a stopword slug of your
         prompt, and it stops doing that when this is set — so it hands the slug
-        down as `HOLT_NAMER_FALLBACK` and expects an adapter that cannot reach
-        its model to print that instead of failing. holt neither sets nor reads
+        down as `SCRUFF_NAMER_FALLBACK` and expects an adapter that cannot reach
+        its model to print that instead of failing. scruff neither sets nor reads
         that variable; it only passes the environment through. An adapter that
         ignores it makes an offline spawn fall to the random pair, which is
         worse than the slug the palette would have used.
+
+        For one release the slug also goes down as `HOLT_NAMER_FALLBACK`, the
+        spelling this variable had before the rename, so an adapter you wrote
+        against the old name keeps its floor without an edit. Move your adapter
+        to the new spelling — and to `~/.config/scruff/adapters/` — while both
+        still work.
 
         `claude` is excluded from the palette path for exactly that reason: its
         argv is fixed and reads no environment, so it cannot meet the contract —
         and at 8-12s it is asked before the worktree exists, so the whole wait
         lands between Return and the lane with nothing on screen.
-        Set it and hand-run `holt spawn` still asks it; Spawn Agent keeps its
+        Set it and hand-run `scruff spawn` still asks it; Spawn Agent keeps its
         slug.
       '';
     };
@@ -296,7 +302,7 @@ in
           both `~/code/thing` and a parent directory full of repos
           (`~/code/workshop/thing`) resolve.
 
-        Repos `holt` already knows are always offered too, whether or not they
+        Repos `scruff` already knows are always offered too, whether or not they
         are under a root here — so a one-off repo you have agent'd before stays
         reachable, and this list is about the ones you have not.
       '';
@@ -327,8 +333,8 @@ in
         pane spawns, so a line about a Claude-only skill or file path is noise
         to the others. When set, haus prepends three short sections of its
         own — a note that the file is generated and where to actually edit it
-        (with THAT client's path), the `holt` worktree etiquette, since haus
-        ships `holt` and that rule is what keeps it working, and the screen
+        (with THAT client's path), the `scruff` worktree etiquette, since haus
+        ships `scruff` and that rule is what keeps it working, and the screen
         etiquette that pairs with `agent-desktop-guard` — then your text.
 
         Empty (the default) writes nothing at all, for any client, so a
@@ -352,11 +358,11 @@ in
         `ai.clients`, so an agent asked to "install Slack" or "make everything
         bigger" edits your host file and runs `haus rebuild` instead of guessing
         at dotfiles and `brew install` — and an agent asked "what worktrees do I
-        have open?" or "hand this off to a fresh session" reaches for `holt`
+        have open?" or "hand this off to a fresh session" reaches for `scruff`
         rather than `git worktree`.
 
-        Three skills on any machine: `haus` (this machine's setup), and holt's
-        own two — `holt` (the lane lifecycle) and `handoff` (turning work into a
+        Three skills on any machine: `haus` (this machine's setup), and scruff's
+        own two — `scruff` (the lane lifecycle) and `handoff` (turning work into a
         brief a cold session can act on, ending on the clipboard or in a new
         lane). A tool whose room is OPTIONAL adds its own only when that room is
         on: `trill` (sending a notification) arrives with

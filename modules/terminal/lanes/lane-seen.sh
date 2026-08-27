@@ -7,7 +7,7 @@
 # — and the fin is still parked on the ledge asking you to go somewhere you are
 # already standing.
 #
-# holt's own hook (`holt hook notify`) already resolves a lane's ask when the
+# scruff's own hook (`scruff hook notify`) already resolves a lane's ask when the
 # session MOVES: you typed an answer, or a permission prompt was approved and a
 # tool ran. That is the honest signal for "the question was answered" and it
 # stays. But it is not the signal for "I have seen it": you can focus a lane,
@@ -33,22 +33,47 @@ export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/s
 dwell="${HAUS_LANE_SEEN_DWELL:-1}"
 
 # ── is any fin up at all? ────────────────────────────────────────────────────
-# holt writes one empty file per fin it put up, under its state dir, and names
+# scruff writes one empty file per fin it put up, under its state dir, and names
 # it after the key it used — `holt/<repo>/<lane>` with the slashes flattened to
 # dots, which is byte-for-byte the zmx session name lanes/lane-open.sh gives
 # that lane (`holt.<repo>.<lane>`). So the join is string equality and there is
 # nothing to parse: `<repo>` may itself carry a dot (hausfold.co), and no split
 # of the session name can tell that dot from the separator.
 #
-# It is holt's CACHE, not its record — holt says so at internal/commands/
+# 🚨 That key is still spelled `holt`, and so is the session name, on purpose —
+# it is the ONE string in this room the scruff rename could not take. The key is
+# a literal in the tool (`"holt/" + lane`, internal/commands/notify.go), not
+# something haus chooses, and the marker filename IS the session name. Rename
+# either half here and the join silently stops matching: no error, no log, and
+# every lane's fin stays parked on trill's ledge forever. Both move together,
+# in the release that moves the tool's own key — its docs/rename.md §5.
+#
+# It is scruff's CACHE, not its record — scruff says so at internal/commands/
 # notify.go — so it is only ever read here, never written or removed, and a
 # stale one costs one idempotent `trill resolve` that finds nothing.
 #
-# If holt ever moves or renames it, `$asks` stops existing and the gate opens
+# If scruff ever moves or renames it, `$asks` stops existing and the gate opens
 # rather than closing: the fallback is to resolve on every lane focus, which is
 # chattier but still correct. A rename of the FILES inside it would be the one
 # shape that fails silently, which is why the naming is spelled out above.
-state="${HOLT_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/holt}"
+#
+# The state dir mirrors the tool's own ladder (internal/compat's `Dir`, reached
+# from internal/commands/env.go): the new spelling wins when it exists AND when
+# neither does, and the old one answers only on a machine that already has it.
+# Guessing `scruff` outright would read an empty directory on every Mac that
+# ran the tool before the rename, and guessing `holt` would strand every fresh
+# one — a stat is what tells the two apart.
+state="${SCRUFF_STATE:-${HOLT_STATE:-}}"
+if [ -z "$state" ]; then
+  state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
+  if [ -d "$state_home/scruff" ]; then
+    state="$state_home/scruff"
+  elif [ -d "$state_home/holt" ]; then
+    state="$state_home/holt"
+  else
+    state="$state_home/scruff"
+  fi
+fi
 asks="$state/asks"
 if [ -d "$asks" ]; then
   # Fork-free on purpose: this runs on every focus change, and an `ls` here
@@ -64,7 +89,7 @@ fi
 # focused — a plain shell, a browser, Finder — either answers with a name that
 # does not start `holt.` or answers nothing.
 #
-# A Claude pane running OUTSIDE any lane gets a fin too (holt keys it by
+# A Claude pane running OUTSIDE any lane gets a fin too (scruff keys it by
 # session id), and this file deliberately cannot resolve those: the window
 # carries no id to join on, and the pane's own PostToolUse takes it down the
 # moment you type anything.
@@ -83,13 +108,13 @@ esac
 sleep "$dwell"
 [ "$("$focused" 2>/dev/null)" = "$sess" ] || exit 0
 
-# ── the session name, back as the key holt gave the fin ──────────────────────
-# holt's registry is a TSV whose location is fixed by holt's own SPEC (§10):
+# ── the session name, back as the key scruff gave the fin ──────────────────────
+# scruff's registry is a TSV whose location is fixed by scruff's own SPEC (§10):
 # name, main, branch, path, parent, agent. Read directly rather than through
-# `holt --json`, whose lsof sweep costs seconds, and rather than through
-# holt-cache, whose whole point is tolerating staleness — a lane that appeared
+# `scruff --json`, whose lsof sweep costs seconds, and rather than through
+# scruff-cache, whose whole point is tolerating staleness — a lane that appeared
 # thirty seconds ago is exactly the one waiting on you.
-reg="${HOLT_BASE:-$HOME/.cache/claude-worktrees}/registry.tsv"
+reg="${SCRUFF_BASE:-${HOLT_BASE:-$HOME/.cache/claude-worktrees}}/registry.tsv"
 [ -r "$reg" ] || exit 0
 
 key="$(

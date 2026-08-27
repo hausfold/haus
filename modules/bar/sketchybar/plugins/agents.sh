@@ -11,7 +11,7 @@
 # desktop_records below, and nothing after that point knows the difference.
 #
 #   • a zmx session → labels on the session itself. No file, and so no pruning:
-#     labels are in-memory and die with the session. A LANE's holt join is by
+#     labels are in-memory and die with the session. A LANE's scruff join is by
 #     NAME (`holt.<repo>.<lane>`, forced by terminal/lanes/lane-open.sh); a
 #     plain window's is by the `cwd` zmx reports for it.
 #   • a desktop-app session → one file per conversation under
@@ -73,16 +73,16 @@
 # for staleness, never data" yields to the overflow count, which is the one
 # number that has to be legible as an aside rather than as another agent.
 #
-# ── the holt join ──────────────────────────────────────────────────────────────
+# ── the scruff join ──────────────────────────────────────────────────────────────
 # `agents-hook.sh` only ever knew state + a checkout basename, which is NOT
-# unique — `holt child` names a child lane after its parent pane's own lane, so
+# unique — `scruff child` names a child lane after its parent pane's own lane, so
 # a single agent that spawned an out-of-repo worktree reports the same basename
 # for two different repos (see AGENTS.md's "workshop worktree can't see child
 # repos" section). The `.cwd` sibling breaks the tie: it's the one thing that
-# maps 1:1 to a `holt --json` lane's `.path`. That command can spend seconds on
+# maps 1:1 to a `scruff --json` lane's `.path`. That command can spend seconds on
 # landed-verdict network checks, so the update path refreshes a TTL cache in the
 # background and the click path only reads the last valid result. When the cache
-# is still empty, or a pane's cwd isn't a holt lane at all, the block just draws
+# is still empty, or a pane's cwd isn't a scruff lane at all, the block just draws
 # no repo and no PR verdict — degrading to what the pill showed before this
 # existed, not an error or a blocked popup.
 set -u
@@ -143,15 +143,15 @@ BOT=$(printf '\xF3\xB0\x9A\xA9')  # nf-md-robot (U+F06A9)
 MARK_WAITING=$(printf '\xEF\x81\x99')  # nf-fa-question_circle (U+F059)
 MARK_WORKING=$(printf '\xEE\xB1\xB7')  # nf-cod-session_in_progress (U+EC77)
 MARK_IDLE=$(printf '\xEF\x80\x8C')     # nf-fa-check (U+F00C)
-# The warm `holt --json` copy, and its whole protocol — the TTL, the one-winner
+# The warm `scruff --json` copy, and its whole protocol — the TTL, the one-winner
 # lock and the "only a complete result replaces the cache" rule — belong to
-# `holt-cache` (modules/ai/holt-cache.sh), which the AI room puts on PATH. This
+# `scruff-cache` (modules/ai/scruff-cache.sh), which the AI room puts on PATH. This
 # block was where all of it was written; the Lanes palette then needed exactly
 # the same cache under a much harder deadline, and a second copy of a lock
 # protocol is a drift bug waiting to be found the hard way.
-HOLT_TTL=20                     # Holt itself keeps forge answers cached for 120s
-HOLT_MAX_AGE=900                # persistent failure eventually drops stale PR rows
-HOLT_TIMEOUT=60                 # bound a wedged git/gh call before lock recovery
+SCRUFF_TTL=20                     # scruff itself keeps forge answers cached for 120s
+SCRUFF_MAX_AGE=900                # persistent failure eventually drops stale PR rows
+SCRUFF_TIMEOUT=60                 # bound a wedged git/gh call before lock recovery
 
 # state → colour + human tag. waiting (a permission prompt) is the urgent one,
 # and is worded "ready" throughout the UI — it means "ready for your turn",
@@ -216,7 +216,7 @@ zmx_records() {
       since = (f["since"] == "" ? f["created"] : f["since"])
       # The session directory is `start_dir` in zmx 0.7.0 and was `cwd`, a
       # file:// URL with the host in it ("file://Mac/Users/…"), before that;
-      # the holt join below wants the plain path either way. This is not a
+      # the scruff join below wants the plain path either way. This is not a
       # label — zmx rejects any label value containing a slash — it is a field
       # zmx keeps itself, which is why the hook does not have to.
       cwd = (f["start_dir"] != "" ? f["start_dir"] : f["cwd"])
@@ -464,7 +464,7 @@ detail() { # detail <left> <left-color> <right> <right-color>
     label="$3" label.color="$4" label.font="${BAR_FONT}:Regular:${FS_SMALL}"
 }
 
-# ── the holt join, in ONE jq ──────────────────────────────────────────────────
+# ── the scruff join, in ONE jq ──────────────────────────────────────────────────
 # This used to be five `jq` invocations per agent — lane lookup, repo, verdict,
 # ahead, dirty. At ~7 ms a spawn against a 24 KB registry that is ~385 ms of
 # the half-second it took an eleven-agent popup to open, all of it spent
@@ -509,9 +509,9 @@ lane_lookup() { # lane_lookup <path-key> <name-key> → 0 and sets L_* on a hit
   [ -n "$LANE_TABLE" ] || return 1
   # NAME FIRST, PATH SECOND, and the order is the whole correctness of the
   # join — testing both keys in one pass would hand the row to whichever lane
-  # `holt --json` happens to list first. For a `holt child` zmx lane BOTH keys
+  # `scruff --json` happens to list first. For a `scruff child` zmx lane BOTH keys
   # match, and they match DIFFERENT lanes: the cwd is the PARENT's checkout
-  # (lane-open.sh's HOLT_CHAT contract), while the session name is this lane's
+  # (lane-open.sh's SCRUFF_CHAT contract), while the session name is this lane's
   # own. Path-wins there draws a child under its parent's repo, PR verdict and
   # dirty flag — the exact confusion the name key exists to prevent.
   [ -n "$2" ] && lane_scan name "$2" && return 0
@@ -531,23 +531,23 @@ pr_style() {
   # that is the whole point of the row. A lane that genuinely outran its merged
   # PR has diverged from main, so its verdict is "no" — the old `verdict == yes`
   # gate meant this case could never draw, and the single most actionable state
-  # holt knows about rendered as its exact opposite, "no PR yet".
+  # scruff knows about rendered as its exact opposite, "no PR yet".
   if [ "$L_AHEAD" -gt 0 ] && [ "$L_PR" -gt 0 ]; then
     PR_TEXT="$GIT_PR +$L_AHEAD unshipped"; PR_COL="$PEACH"; return
   fi
   case "$L_VERDICT" in
     yes) PR_TEXT="$GIT_MERGE merged"; PR_COL="$GREEN" ;;
-    # holt's own advisory verdict (merge-tree-empty): the tree matches main,
+    # scruff's own advisory verdict (merge-tree-empty): the tree matches main,
     # but that can't tell a squash-merge from a branch that never diverged.
     contained) PR_TEXT="$GIT_MERGE maybe merged"; PR_COL="$OVERLAY1" ;;
     # Nothing landed and nothing to ship. Drawing "no PR yet" on every fresh
     # lane was a row per agent that said only "this is a normal branch".
     #
-    # holt's `fresh` (via never-diverged — the lane has never committed) lands
+    # scruff's `fresh` (via never-diverged — the lane has never committed) lands
     # here too, and deliberately: it is the state whose whole content is "nothing
     # has happened yet". It used to arrive as `yes`, because a branch cut from
     # main is trivially an ancestor of it, so every lane drew a green `merged`
-    # row from the second it was spawned. Needs a holt that reports it
+    # row from the second it was spawned. Needs a scruff that reports it
     # (hausfold/holt#48); an older one still says `yes`, and still draws
     # `merged` — the pill is the reader here, not the judge.
     *) PR_TEXT="" ;;
@@ -587,10 +587,10 @@ if [ "${SENDER:-}" = "mouse.clicked" ] || [ "${1:-}" = "click" ]; then
     "$SB" --add item agents.popup.0 "popup.$POPUP" 2>/dev/null \
       --set agents.popup.0 icon.drawing=off label="no active agents" label.color="$SUBTEXT0"
   else
-    # Never run `holt --json` here: landed-verdict checks can block on the
+    # Never run `scruff --json` here: landed-verdict checks can block on the
     # network for seconds. The update path below keeps this cache warm; a first
     # click before it lands deliberately gets the existing no-lane fallback.
-    lanes_json="$(holt-cache read "$HOLT_MAX_AGE" 2>/dev/null)"
+    lanes_json="$(scruff-cache read "$SCRUFF_MAX_AGE" 2>/dev/null)"
     [ -n "$lanes_json" ] || lanes_json="{}"
 
     waiting=0 working=0 idle=0
@@ -640,7 +640,7 @@ if [ "${SENDER:-}" = "mouse.clicked" ] || [ "${1:-}" = "click" ]; then
 
       # Two joins, one table (see lane_lookup). A zmx session named
       # `holt.<repo>.<lane>` (terminal/lanes/lane-open.sh) joins on that name
-      # QUALIFIED BY REPO, which is why it carries the repo at all: `holt
+      # QUALIFIED BY REPO, which is why it carries the repo at all: `scruff
       # child` gives a child lane its parent's NAME, so two live lanes in
       # different repos share one and a cwd join would send a child to the
       # parent's row. Everything else joins on the checkout path.
@@ -732,12 +732,12 @@ if [ $((working + waiting + idle)) -eq 0 ]; then
   exit 0
 fi
 
-# `holt --json` computes landed verdicts live and can spend seconds in git/gh.
+# `scruff --json` computes landed verdicts live and can spend seconds in git/gh.
 # Kick it from the normal update path (push events plus the 10s visible tick),
-# never from mouse.clicked. `holt-cache kick` owns the throttle, the one-winner
+# never from mouse.clicked. `scruff-cache kick` owns the throttle, the one-winner
 # election and the reparenting that keeps SketchyBar from reaping the slow work
 # with its script process — this line is the whole of the bar's half now.
-holt-cache kick "$HOLT_TTL" "$HOLT_TIMEOUT" >/dev/null 2>&1
+scruff-cache kick "$SCRUFF_TTL" "$SCRUFF_TIMEOUT" >/dev/null 2>&1
 
 # The bot takes the most urgent state's colour — the same ranking the label
 # used to encode on its own, kept because it is the one thing that reads

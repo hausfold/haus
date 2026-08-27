@@ -10,13 +10,13 @@
 #     session `holt.<repo>.<lane>`; trill knows the same fin as
 #     `holt/<repo>/<lane>`. No split of the session name can recover that —
 #     `<repo>` may itself carry a dot (`hausfold.co` is one of ours) — so the
-#     boundary comes from holt's registry, and the dotted-repo case below is
+#     boundary comes from scruff's registry, and the dotted-repo case below is
 #     the one a naive `${sess##*.}` gets wrong every time.
 #   * it does NOTHING the rest of the time. No fin parked, no lane focused,
 #     focus that moved on again: each must exit without launching trill.
 #
 # Everything the subject touches is an env-var away — HOME (the focused-session
-# join), HOLT_STATE (holt's ask markers), HOLT_BASE (its registry) — so this
+# join), SCRUFF_STATE (scruff's ask markers), SCRUFF_BASE (its registry) — so this
 # needs no Mac, no tiler and no Trill.app.
 #
 # ⚠️ trill is stubbed TWICE on purpose. The subject calls the name `trill`,
@@ -32,21 +32,21 @@ setup() {
   SUBJECT="$BATS_TEST_DIRNAME/../modules/terminal/lanes/lane-seen.sh"
 
   export HOME="$BATS_TEST_TMPDIR/home"
-  export HOLT_STATE="$BATS_TEST_TMPDIR/state"
-  export HOLT_BASE="$BATS_TEST_TMPDIR/base"
+  export SCRUFF_STATE="$BATS_TEST_TMPDIR/state"
+  export SCRUFF_BASE="$BATS_TEST_TMPDIR/base"
   export HAUS_LANE_SEEN_DWELL=0
 
   CALLS="$BATS_TEST_TMPDIR/calls"
   export CALLS
 
-  mkdir -p "$HOME/.config/haus/term" "$HOLT_STATE/asks" "$HOLT_BASE" \
+  mkdir -p "$HOME/.config/haus/term" "$SCRUFF_STATE/asks" "$SCRUFF_BASE" \
     "$BATS_TEST_TMPDIR/bin" "$BATS_TEST_TMPDIR/Trill.app/Contents/MacOS"
 
   # Two lanes, one of them in a repo whose NAME contains a dot.
   {
     printf 'ci-main-branch\t/w/hausfold.co\tworktree-ci-main-branch\t/p\t/m\tclaude\n'
     printf 'workshop\t/w/haus\tworktree-workshop\t/p\t/m\tclaude\n'
-  } >"$HOLT_BASE/registry.tsv"
+  } >"$SCRUFF_BASE/registry.tsv"
 
   cat >"$BATS_TEST_TMPDIR/bin/trill" <<'STUB'
 #!/usr/bin/env bash
@@ -73,8 +73,8 @@ STUB
 
 calls() { cat "$CALLS" 2>/dev/null || true; }
 
-@test "a dotted repo name is split where holt's registry says, not at the last dot" {
-  touch "$HOLT_STATE/asks/holt.hausfold.co.ci-main-branch"
+@test "a dotted repo name is split where scruff's registry says, not at the last dot" {
+  touch "$SCRUFF_STATE/asks/holt.hausfold.co.ci-main-branch"
   focus_answers holt.hausfold.co.ci-main-branch holt.hausfold.co.ci-main-branch
 
   run -0 bash "$SUBJECT"
@@ -82,7 +82,7 @@ calls() { cat "$CALLS" 2>/dev/null || true; }
 }
 
 @test "a lane with no fin outstanding costs nothing" {
-  touch "$HOLT_STATE/asks/holt.haus.workshop"
+  touch "$SCRUFF_STATE/asks/holt.haus.workshop"
   focus_answers holt.hausfold.co.ci-main-branch holt.hausfold.co.ci-main-branch
 
   run -0 bash "$SUBJECT"
@@ -99,7 +99,7 @@ calls() { cat "$CALLS" 2>/dev/null || true; }
 }
 
 @test "no ask dir at all opens the gate rather than closing it" {
-  rm -rf "$HOLT_STATE/asks"
+  rm -rf "$SCRUFF_STATE/asks"
   focus_answers holt.haus.workshop holt.haus.workshop
 
   run -0 bash "$SUBJECT"
@@ -107,7 +107,7 @@ calls() { cat "$CALLS" 2>/dev/null || true; }
 }
 
 @test "focus that moved on again is not a lane you looked at" {
-  touch "$HOLT_STATE/asks/holt.haus.workshop"
+  touch "$SCRUFF_STATE/asks/holt.haus.workshop"
   focus_answers holt.haus.workshop term.something-else
 
   run -0 bash "$SUBJECT"
@@ -115,7 +115,7 @@ calls() { cat "$CALLS" 2>/dev/null || true; }
 }
 
 @test "a window that is not a lane is left alone" {
-  touch "$HOLT_STATE/asks/holt.haus.workshop"
+  touch "$SCRUFF_STATE/asks/holt.haus.workshop"
   focus_answers term.abc123 term.abc123
 
   run -0 bash "$SUBJECT"
@@ -123,7 +123,7 @@ calls() { cat "$CALLS" 2>/dev/null || true; }
 }
 
 @test "a lane the registry has never heard of resolves nothing" {
-  touch "$HOLT_STATE/asks/holt.haus.ghost"
+  touch "$SCRUFF_STATE/asks/holt.haus.ghost"
   focus_answers holt.haus.ghost holt.haus.ghost
 
   run -0 bash "$SUBJECT"

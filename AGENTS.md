@@ -138,8 +138,8 @@ modules/
                           #   Its assertions, and what it CONTRIBUTES to the terminal,
                           #   the bar and the launcher through those rooms' extension
                           #   points (lib/contrib.nix). Owns its payload in BOTH
-                          #   profiles: holt + the statusline pair + agent-state +
-                          #   agent-desktop-guard + holt-cache (system), and the
+                          #   profiles: scruff + the statusline pair + agent-state +
+                          #   agent-desktop-guard + scruff-cache (system), and the
                           #   instructions/skill files (home, written into the same
                           #   user terminal writes — home-manager merges the two, and
                           #   a path collision is an error)
@@ -209,7 +209,7 @@ test/desktops/            # one fixture per rule the desktop seam enforces, vali
 hosts/example/            # the template a consumer copies
 script/                   # operator scripts run BY HAND on a Mac, never by the
                           #   flake: build-golden-vm.sh bakes the tart image
-                          #   `holt runtime up --backend tart` clones
+                          #   `scruff runtime up --backend tart` clones
 ```
 
 Each `modules/<room>` is a nix-darwin module; ones that need home config write
@@ -343,7 +343,7 @@ mechanism, say so in one line.
   nix's own bar survives, and a `--dry-run` racing the real build made that
   build exit non-zero with nothing printed (measured), which is why the dry run
   is serial and in-shell. **The card must keep finding the CLI at RUNTIME** —
-  the way `holt notify` does, or no card is drawn. trill IS a flake input now
+  the way `scruff notify` does, or no card is drawn. trill IS a flake input now
   (`haus.notifications.compositor`, ../modules/notifications), but that room is
   off by default and
   a machine without it still has `haus-notify` and this card; wiring either to
@@ -357,7 +357,7 @@ mechanism, say so in one line.
   `HOME=/var/root`. `open` then passes its own environment to the app it
   launches, so a relaunched GUI app carries the wrong home for its whole life —
   measured on mbp 2026-08-26, `ps eww` on a live Trill and Perch both showed it,
-  and it is what broke trill's lane banners: `holt focus` looked for
+  and it is what broke trill's lane banners: `scruff focus` looked for
   `$HOME/.cache/claude-worktrees` under `/var/root` and died `permission denied`
   in 5 ms, raising no window and logging nothing. **Pass `-H`** — it is the sudo
   flag that beats the keep list (`sudoers(5)`'s `always_set_home` exists for
@@ -646,14 +646,22 @@ mechanism, say so in one line.
   cannot READ one, and three shipped features read a window: ⌘F find, ⌘L links,
   and the bar's agent peek. `zmx history` / `zmx tail` is that read API. The
   session is named `term.<n>`, lowest n that no session holds; a lane is
-  `holt.<repo>.<lane>` and belongs to `lanes/lane-open.sh`.
+  `holt.<repo>.<lane>` and belongs to `lanes/lane-open.sh`. **That prefix is
+  still spelled `holt` after the scruff rename, deliberately** — it is not
+  haus's name to choose. The tool keys a lane's parked trill fin as
+  `holt/<repo>/<lane>` (a literal in `internal/commands/notify.go`) and names
+  its marker file after that key with the slashes flattened to dots, so the
+  session name IS the marker name and the two have to match byte for byte.
+  Rename either half here and `lanes/lane-seen.sh` silently stops joining: no
+  error, no log, and every lane's fin stays parked forever. Both move in the
+  release that moves the tool's own key — its `docs/rename.md` §5.
   `scripts/focused-session.sh` is the one window→session join — by window id,
   which is the `lwindow=` label lanes/lane-open.sh stamps for a lane and the
   `window=` one launch.sh stamps for everything else, and only then by the
   forced window title, for a lane that carries no stamp. AeroSpace's
   `on-focus-changed` runs `lanes/lane-seen.sh` over that join (wired in
   `modules/windows`), which is how a lane's parked trill fin comes down when you
-  go to its window YOURSELF instead of clicking the banner — holt's own hooks
+  go to its window YOURSELF instead of clicking the banner — scruff's own hooks
   only see the session move, not you arriving.
   - **A NEW window is always a NEW session, and only `restore-windows.sh` ever
     reattaches one.** "Lowest n that no session holds", not "lowest n that is
@@ -685,9 +693,9 @@ mechanism, say so in one line.
 
   Four more live in **`modules/ai`**, which writes the system profile they land
   in, because the room that owns a capability owns its payload:
-  **`statusline.sh`** / `statusline-refresh.sh` (the agent HUD, reading `holt`'s
+  **`statusline.sh`** / `statusline-refresh.sh` (the agent HUD, reading `scruff`'s
   registry), **`agent-state`** (the one writer of agent state behind bar's
-  `agents` pill), and **`holt-cache`** (the one warm copy of `holt --json`).
+  `agents` pill), and **`scruff-cache`** (the one warm copy of `scruff --json`).
   - `agent-state` has no source file of its own: `modules/ai` `readFile`s
     `modules/bar/sketchybar/plugins/agents-hook.sh`, the same script bar
     installs into the bar's plugin dir, so the PATH copy and the bar copy can
@@ -695,8 +703,8 @@ mechanism, say so in one line.
     <working|waiting|idle|remove> <client>`), which is why the wirings the AI
     room writes for opencode and codex never need to know where a bar keeps its
     plugins.
-  - `holt-cache` exists because `holt --json` is an investigation rather than a
-    listing — `holt list` self-heals through a parked reap sweep on the way in,
+  - `scruff-cache` exists because `scruff --json` is an investigation rather than a
+    listing — `scruff list` self-heals through a parked reap sweep on the way in,
     and that sweep AND the JSON encoder each dump `lsof -d cwd` machine-wide
     before any lane's landed/PR verdict touches git or `gh`, so it costs seconds
     with zero lanes registered. Neither consumer can pay that inline (the bar's
@@ -714,11 +722,11 @@ mechanism, say so in one line.
   that supplied one would hand every agent on the machine a blanket excuse.
 
   All are plain bash embedded via `builtins.readFile`, so a rebuild re-installs
-  them on `PATH`. Agent worktrees themselves are **`holt`**
+  them on `PATH`. Agent worktrees themselves are **`scruff`**
   ([its own repo](https://github.com/hausfold/holt)), taken as a flake input.
-  `haus`, the workshop's `bench` and `holt` are named apart on purpose so they
+  `haus`, the workshop's `bench` and `scruff` are named apart on purpose so they
   never shadow each other — `haus` = your machine, `bench` = the family repos,
-  `holt` = the worktree tool. (User-facing docs: the
+  `scruff` = the worktree tool. (User-facing docs: the
   [AI room](https://hausfold.co/docs/haus/rooms/ai/) and the
   [haus reference](https://hausfold.co/docs/haus/reference/haus/).)
 - **New pounce command**: generic ones live in the

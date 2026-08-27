@@ -18,26 +18,6 @@
         "type": "github"
       }
     },
-    "holt": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1787817449,
-        "narHash": "sha256-MDa/cB3ug0KbPG3VKQv4Gxi/gSfH6kiGh386L++uF0U=",
-        "owner": "hausfold",
-        "repo": "holt",
-        "rev": "74bef2d77158e0f807a19de530af0506dae19f38",
-        "type": "github"
-      },
-      "original": {
-        "owner": "hausfold",
-        "repo": "holt",
-        "type": "github"
-      }
-    },
     "home-manager": {
       "inputs": {
         "nixpkgs": [
@@ -226,7 +206,6 @@
     "root": {
       "inputs": {
         "catppuccin": "catppuccin",
-        "holt": "holt",
         "home-manager": "home-manager",
         "nebelung": "nebelung",
         "nix-darwin": "nix-darwin",
@@ -234,7 +213,28 @@
         "nixpkgs": "nixpkgs_2",
         "perch": "perch",
         "pounce": "pounce",
+        "scruff": "scruff",
         "trill": "trill"
+      }
+    },
+    "scruff": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1787817449,
+        "narHash": "sha256-MDa/cB3ug0KbPG3VKQv4Gxi/gSfH6kiGh386L++uF0U=",
+        "owner": "hausfold",
+        "repo": "holt",
+        "rev": "74bef2d77158e0f807a19de530af0506dae19f38",
+        "type": "github"
+      },
+      "original": {
+        "owner": "hausfold",
+        "repo": "holt",
+        "type": "github"
       }
     },
     "trill": {

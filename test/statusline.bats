@@ -145,7 +145,7 @@ vis() {
 }
 
 @test "a lane that has never committed leads with ●, not ⏏" {
-  # ⏏ says "landed, and holt reaps this on pane close" — and it is read as
+  # ⏏ says "landed, and scruff reaps this on pane close" — and it is read as
   # "merged". A branch cut from main is trivially an ancestor of main, so the
   # ancestry test alone put that on every agent from the second it spawned.
   # The fixture branch is exactly that lane: created, never committed.
@@ -212,7 +212,7 @@ vis() {
 
 @test "an orphan worktree is marked, and only in the \$HOME pane" {
   # No recorded parent (trailing field empty) — a raw `git worktree add` that
-  # skipped `holt child`, so nothing in the registry knows who owns it. The
+  # skipped `scruff child`, so nothing in the registry knows who owns it. The
   # $HOME pane is the only one that surfaces those, and the ◇ is the "adopt or
   # reap me" flag: a child and an orphan must not render identically.
   printf 'hausfold/pounce\tstray\t1\t0\t0\t0\t#7 open\t\n' \

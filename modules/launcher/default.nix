@@ -1288,7 +1288,7 @@ lib.mkIf config.haus.launcher.enable {
         POUNCE_EXTRA_COMMAND_DIRS = "${riceCommands}";
         # The Spawn Agent command runs underneath this launchd environment, not
         # an interactive shell. Keep the selected client explicit here so a
-        # palette spawn and a later `holt <name>` agree on its default.
+        # palette spawn and a later `scruff <name>` agree on its default.
         HAUS_AGENT_DEFAULT = agentContrib.default;
         # …and where it looks for something to spawn ON (`haus.ai.repoRoots`).
         # This env var is the ONLY channel: the command is a plain script the
@@ -1300,7 +1300,7 @@ lib.mkIf config.haus.launcher.enable {
         # read it. The script's own fallback list is for a hand-run outside the
         # daemon, and nothing else.
         HAUS_REPO_ROOTS = lib.concatStringsSep ":" agentContrib.repoRoots;
-        # Whether holt names lanes on this machine (`haus.ai.namer`). Empty is
+        # Whether scruff names lanes on this machine (`haus.ai.namer`). Empty is
         # the answer as much as a value is: Spawn Agent names the lane itself
         # unless something better will, and an unset variable in a stale
         # launchd environment must read as "no namer" rather than as "unknown".
@@ -1584,7 +1584,7 @@ lib.mkIf config.haus.launcher.enable {
                   target = "cmd:gh-dash";
                 }
                 ++ lib.optional config.haus.developer.enable {
-                  # ⌘B — build+activate this window's whole holt lane
+                  # ⌘B — build+activate this window's whole scruff lane
                   # (`bench try lane switch`; "b" for bench, since ⌘L is Links).
                   key = "b";
                   modifiers = [ "cmd" ];
@@ -1754,7 +1754,7 @@ lib.mkIf config.haus.launcher.enable {
         # for agents and a folder picker that had long since folded into Peek.
         # What's left below is workflow: the things a key list can't say.
         #
-        # The agent worktree loop. `holt` is shipped BY the rice (a flake input on
+        # The agent worktree loop. `scruff` is shipped BY the rice (a flake input on
         # PATH), unlike the family's `bench`, which the old card taught to every
         # install that had never seen the workshop — so these rows are true on any
         # machine running this rice. Off when no agent client is installed, same
@@ -1765,23 +1765,23 @@ lib.mkIf config.haus.launcher.enable {
             page = "Tips";
             items = [
               {
-                key = "holt";
+                key = "scruff";
                 action = "List every agent worktree, live or parked";
               }
               {
-                key = "holt <name>";
+                key = "scruff <name>";
                 action = "Rebuild a parked one and resume its session";
               }
               {
-                key = "holt park";
+                key = "scruff park";
                 action = "Set this tree aside as a wip: commit (not git stash)";
               }
               {
-                key = "holt reship";
+                key = "scruff reship";
                 action = "PR merged but you kept committing? Ship the rest";
               }
               {
-                key = "holt reap";
+                key = "scruff reap";
                 action = "Delete the worktrees whose branches landed";
               }
             ];

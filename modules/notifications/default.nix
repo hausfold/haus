@@ -221,7 +221,7 @@ lib.mkIf config.haus.notifications.compositor {
           #
           # ⚠️ The pattern is anchored on the APP executable, and it has to stay
           # that way. `Contents/MacOS/Trill` is also the `trill` CLI — every
-          # `haus-notify`, every `holt notify` from an agent pane, every
+          # `haus-notify`, every `scruff notify` from an agent pane, every
           # `trill ask` blocking on a pill is that same binary — so an unanchored
           # `pkill -f trill` would kill the caller's own short-lived CLI processes
           # mid-call, and `trill ask` answers exit 75 when its socket dies.
@@ -298,7 +298,7 @@ lib.mkIf config.haus.notifications.compositor {
             # trill would come up as you while carrying `HOME=/var/root`.
             # Measured on mbp 2026-08-26: `ps eww` on the live Trill showed
             # exactly that, and it is what broke the lane banners —
-            # ActionRouter spawned `holt focus`, holt looked for
+            # ActionRouter spawned `scruff focus`, scruff looked for
             # `$HOME/.cache/claude-worktrees` under /var/root and failed
             # `permission denied` in 5 ms, with no window raised, nothing
             # logged and nothing in `ps` slow enough to catch. `-H` is the sudo

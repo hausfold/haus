@@ -40,7 +40,7 @@
 >
 > **One bug found on the way out**, unrelated to the plan and older than it: both
 > `zmx ls` readers looked only for a `cwd=` field, and zmx 0.7.0 emits
-> `start_dir=` instead. Every zmx row reached the holt join with an empty path,
+> `start_dir=` instead. Every zmx row reached the scruff join with an empty path,
 > and `lane-cwd.sh`'s zmx branch always fell through to `$HOME`.
 >
 > **What the pre-PR assurance pass caught, because it is the shape of mistake
@@ -120,7 +120,7 @@ in two ways that turn out to be the same way:
 
 - **zellij can only run a command by opening a pane for it.** `Run` is the
   only action of its kind. Under the zellij backend that pane WAS the lane,
-  so it cost nothing; under zmx `holt new` returns as soon as it has asked
+  so it cost nothing; under zmx `scruff new` returns as soon as it has asked
   for a window, so the pane appeared, flashed and was torn down again. That
   is not a bug in the bind. It is a pane being used as a process launcher.
 - **⌘A only ever reached zellij by falling through Ghostty.**
@@ -328,7 +328,7 @@ its own phase (Phase 3) ahead of everything that depends on it:
 
 | Surface | Today | After |
 |---|---|---|
-| `holt` | worktree registry + hooks | **survives untouched** — worktrees, not panes |
+| `scruff` | worktree registry + hooks | **survives untouched** — worktrees, not panes |
 | `float-term.sh` + `floatring` | spawns Ghostty windows already | **survives** — zero zellij references |
 | windows / AeroSpace | tiles Ghostty windows | **survives and grows**: layout + enumeration + focus |
 | `modules/windows/wm-bindings.nix` | the WM chord table + cheatsheet cards | **survives**, absorbs the pane-navigation rows |
@@ -350,7 +350,7 @@ its own phase (Phase 3) ahead of everything that depends on it:
 | `agents-peek.sh` | `subscribe --pane-id --ansi -s 300` (`:17`) | `zmx tail` / `history --vt` |
 | `agents-hook.sh` | `$ZELLIJ_PANE_ID` gate (`:53`), `zellij pipe` broadcast (`:123`) | zmx session id; broadcast drops (no plugin to feed) |
 | `statusline.sh` | keys rows on `$ZELLIJ_PANE_ID` (`:179`), writes the transcript map (`:177-192`) | zmx session id — **same PR as `links.sh`** |
-| `spawn-agent.sh` (pounce) | `holt` + a zellij tab for the repo (`:83`) | AppleScript `new window` + surface configuration |
+| `spawn-agent.sh` (pounce) | `scruff` + a zellij tab for the repo (`:83`) | AppleScript `new window` + surface configuration |
 | `new-tab-here.sh` (⌘⇧T) | new zellij tab, cwd inherited | AppleScript `new window`, cwd in the surface config |
 | `peek.sh` / `peek-run.sh` (Super-y) | yazi peek in a tab; `modules/terminal/yazi/plugins/peek-open.yazi/main.lua:8` depends on the tab spawn | new window; the yazi plugin moves with it |
 | `pounce-terminal.sh` | `POUNCE_TERMINAL_LAUNCHER` (`modules/launcher/default.nix:785`) | new window |

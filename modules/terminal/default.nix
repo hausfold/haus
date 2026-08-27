@@ -92,8 +92,8 @@ let
     keybind = cmd+g=unbind
   '';
   benchLaneGhosttyBind = lib.optionalString devCfg.enable ''
-    # ⌘B — consumed by pounce (cmd:bench-lane): build+activate this window's holt
-    # LANE — this worktree plus every `holt child` worktree spawned from it — in
+    # ⌘B — consumed by pounce (cmd:bench-lane): build+activate this window's scruff
+    # LANE — this worktree plus every `scruff child` worktree spawned from it — in
     # one rebuild (`bench try lane switch`; "b" for bench, since ⌘L is Links).
     # Ghostty has no default binding on this chord; unbound defensively, same
     # reasoning as cmd+enter above, so a future default can't steal it.
@@ -119,7 +119,7 @@ in
   # looking at that lane's window — which only the tiler can report, because two
   # lanes are two windows of one app. Presentation only, in the contract's
   # sense: with no windows room the fin still clears when the session moves
-  # (holt's own hooks), just later.
+  # (scruff's own hooks), just later.
   #
   # This room used to hand windows the agent-spawn chord's script as well
   # (`_contrib.windows.agents`, when the chord was the global ⌃⌘A); ⌘↵ is a
@@ -140,7 +140,7 @@ in
   # Agent lanes used to ASSERT haus.windows.enable here, and that was one room
   # deciding another room's business. What actually needed the tiler was never
   # the lane — the zmx session that outlives its window, the hold-on-error, the
-  # bar row, holt's registry are all tiler-free — it was PLACEMENT (which has no
+  # bar row, scruff's registry are all tiler-free — it was PLACEMENT (which has no
   # meaning without pages) and the window→session JOIN, which was spelled
   # AeroSpace in three scripts because AeroSpace was always there. Since
   # 2026-08-19 the join has a second spelling in Ghostty's own scripting API
@@ -612,7 +612,7 @@ in
       # so nobody has to rediscover it: gh-dash has a FOURTH view — the local
       # repo's branches, each with its PR and checks — behind an `FF_REPO_VIEW`
       # env-var feature flag, and it looks like the git-side twin of the agent
-      # HUD (holt's branches, seen from GitHub). It is not usable yet, in two
+      # HUD (scruff's branches, seen from GitHub). It is not usable yet, in two
       # distinct ways, both measured on 4.25.2 rather than guessed:
       #
       #   1. Flag on, cwd outside a git repo → gh-dash doesn't degrade, it EXITS
@@ -647,11 +647,11 @@ in
         EDITOR = terminalCfg.editor;
         VISUAL = terminalCfg.editor;
         # 🚨 The name is a cross-repo contract — don't rename it here alone.
-        # `holt` reads it as the LOWEST rung of `defaultAgent`
-        # (`internal/commands/env.go`), below `~/.config/holt/config.toml`'s
+        # `scruff` reads it as the LOWEST rung of `defaultAgent`
+        # (`internal/commands/env.go`), below `~/.config/scruff/config.toml`'s
         # `agent =` — which this module also writes, but only under
         # `haus.ai.enable`. So this is what answers for a machine with the
-        # agent room off, and it is the only rung a standalone holt install
+        # agent room off, and it is the only rung a standalone scruff install
         # gets for free.
         HAUS_AGENT_DEFAULT = agentDefault;
       };
@@ -687,7 +687,7 @@ in
         # member — so the client the palette is about to spawn is on PATH by
         # construction, rather than discovered missing inside the pane.
         ++ map (c: agentPackages.${c}) agentClients
-        # zmx — what a lane opens into. `lane-open.sh` defers to holt's
+        # zmx — what a lane opens into. `lane-open.sh` defers to scruff's
         # built-in if it can't find zmx, so a missing binary degrades to a pane
         # rather than a dead lane; shipping the package is what stops it having
         # to find out at spawn time. From nixpkgs rather than upstream's flake:
@@ -793,7 +793,7 @@ in
               fpath=($_haus_comps $fpath)
 
               # A completion symlinked out of an agent worktree outlives the
-              # worktree: holt reaps the checkout, the link dangles, and
+              # worktree: scruff reaps the checkout, the link dangles, and
               # compinit (which reads the first line of every file it globs)
               # names the missing path in EVERY shell after that. A reaped
               # worktree never comes back, so drop links pointing into one.
@@ -1449,29 +1449,29 @@ in
         '';
       }
       // lib.optionalAttrs agentsCfg.enable {
-        # Holt's durable machine default. launchd daemons and zmx sessions
-        # can outlive the environment that started them, so `holt new` resolves
+        # scruff's durable machine default. launchd daemons and zmx sessions
+        # can outlive the environment that started them, so `scruff new` resolves
         # this generated file instead of inheriting a stale client selection.
-        # A standalone Holt install can own the same file by hand.
-        ".config/holt/config.toml".text = ''
+        # A standalone scruff install can own the same file by hand.
+        ".config/scruff/config.toml".text = ''
           # Generated from haus.ai.default + haus.ai.namer — edit those options, not here.
           agent = "${agentDefault}"
           ${lib.optionalString (agentNamer != "") ''
 
             # What names a lane that arrives with a task but no name
-            # (haus.ai.namer). holt runs ONE argv from
-            # ~/.config/holt/adapters/namer/${agentNamer}.toml and reads a word
+            # (haus.ai.namer). scruff runs ONE argv from
+            # ~/.config/scruff/adapters/namer/${agentNamer}.toml and reads a word
             # off stdout, so the adapter file is this MACHINE's rather than
-            # haus's — and without it holt falls back to a random word pair
+            # haus's — and without it scruff falls back to a random word pair
             # instead of failing the lane.
             namer = "${agentNamer}"
           ''}
-          # `open` and `resume` are the two seams holt answers by exec'ing a
+          # `open` and `resume` are the two seams scruff answers by exec'ing a
           # client; both are answered here by the same script, because with zmx
           # they are the same act — `zmx attach` creates the session or joins
           # the live one.
           #
-          # The path is under ~, not a store path: holt's own docs list "a hook
+          # The path is under ~, not a store path: scruff's own docs list "a hook
           # pointing at a store path from a rebuild ago" as a way for this to
           # break, and home.file below keeps this one current.
           [hooks]
@@ -1482,13 +1482,13 @@ in
           # answer: go to the window a lane is ALREADY in, rather than
           # opening one. The lane→window join is lane-open.sh's. When
           # there is nothing to raise — the session is detached, no
-          # window holds it — the hook defers and holt falls back to
+          # window holds it — the hook defers and scruff falls back to
           # resume, which comes back through lane-open.sh and opens a
           # properly placed one. Clicking a trill lane banner runs it.
           focus = "${config.home.homeDirectory}/.config/haus/lanes/lane-focus.sh"
         '';
 
-        # The lane opener itself — what holt's [hooks] above exec.
+        # The lane opener itself — what scruff's [hooks] above exec.
         ".config/haus/lanes/lane-open.sh" = {
           source = ./lanes/lane-open.sh;
           executable = true;
@@ -1496,7 +1496,7 @@ in
 
         # The `focus` seam's half: raise the window a lane is already in,
         # through the same scripts/raise-session.sh the bar and ⌘F reach for,
-        # or defer to holt when there is no window to raise.
+        # or defer to scruff when there is no window to raise.
         ".config/haus/lanes/lane-focus.sh" = {
           source = ./lanes/lane-focus.sh;
           executable = true;
@@ -2005,10 +2005,10 @@ in
       #     (`claude agents`, `--bg`, /background, its on-demand daemon) and the
       #     "← for agents" toolbar hint that advertises it. Undocumented key,
       #     equivalent to CLAUDE_CODE_DISABLE_AGENT_VIEW=1. Parallel Claude
-      #     sessions here go through `holt` + zmx windows (core/terminal), not the
+      #     sessions here go through `scruff` + zmx windows (core/terminal), not the
       #     in-app view, so the hint is pure noise — kill it at the rice level.
       #   statusLine  — point Claude Code's status bar at `claude-statusline`
-      #     (core ships it on PATH). It renders THIS session's `holt` worktree +
+      #     (core ships it on PATH). It renders THIS session's `scruff` worktree +
       #     the sister worktrees in flight across every repo — the agent-worktree
       #     HUD the built-in bar can't give. refreshInterval keeps the sister
       #     list current while the main session sits idle watching other panes.
@@ -2069,7 +2069,7 @@ in
       # before a tool call moves the pointer, takes focus or redraws the desktop —
       # the counterweight to the `defaultMode = "auto"` two lines below, which is
       # right for files and wrong for the screen. It refuses nothing.
-      # FOUR events get `holt hook notify` APPENDED the same way, and they are
+      # FOUR events get `scruff hook notify` APPENDED the same way, and they are
       # two directions of one thing. Notification and Stop turn "this lane is
       # blocked on its user" / "this lane finished" into a trill banner — an ask
       # parked on trill's ledge, or a done. UserPromptSubmit and PostToolUse
@@ -2077,6 +2077,18 @@ in
       # which is what approving a permission prompt leads to. Without those two
       # the ledge kept saying "waiting on you" while the agent was already ten
       # minutes into the work.
+      #
+      # ⚠️ Those four filter on BOTH spellings of the command — `scruff hook
+      # notify` and its predecessor `holt hook notify` — and that is the whole
+      # reason the append is safe across the rename. The filter only ever drops
+      # what it is about to insert, so a rename that dropped the old spelling
+      # from the filter would leave the OLD entry in place and append the new
+      # one beside it: every agent pane would fire two notifications, forever,
+      # and no rebuild would ever clean it up (this is an append, not the
+      # assignment WorktreeCreate/Remove use, which self-heal). The `holt` rung
+      # comes out one release after every settings.json on the machine has been
+      # rewritten once — the tool's own docs/rename.md §8.1 is where that is
+      # tracked.
       #
       # A third way down is not a hook at all and does not live here:
       # lanes/lane-seen.sh clears a lane's fin when you FOCUS its window, which
@@ -2087,7 +2099,7 @@ in
       # and because answering from somewhere else must still clear it.
       #
       # PostToolUse fires on every tool call in every pane, so the cost matters:
-      # holt gates the whole path behind one marker file per outstanding fin, so
+      # scruff gates the whole path behind one marker file per outstanding fin, so
       # an ordinary tool call reads one directory and stops — no registry read,
       # no launch of Trill.app's binary. Drop that event from the list if you
       # would rather pay nothing at all; the fin then clears at the end of the
@@ -2095,7 +2107,7 @@ in
       #
       # Appended, never set: all four also carry the user's own agent-state
       # hooks (the bar's agents pill — see modules/bar), which must survive
-      # every rebuild. The hook itself is holt's and exits 0 no matter what — no
+      # every rebuild. The hook itself is scruff's and exits 0 no matter what — no
       # trill installed, daemon down, garbage payload — so wiring it on a
       # machine without trill is a silent no-op, never a broken session.
       # Claude Code settings/hooks/statusline are agent tooling; a machine that
@@ -2107,13 +2119,13 @@ in
             mkdir -p "''${settings%/*}"
             tmp="$settings.hm-seed"
             if [ -s "$settings" ]; then base="$settings"; else base="$tmp.base"; printf "{}" > "$base"; fi
-            ${pkgs.jq}/bin/jq ".hooks.WorktreeCreate = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook create\"}]}]
-              | .hooks.WorktreeRemove = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook remove\"}]}]
+            ${pkgs.jq}/bin/jq ".hooks.WorktreeCreate = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook create\"}]}]
+              | .hooks.WorktreeRemove = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook remove\"}]}]
               | .hooks.PreToolUse = (((.hooks.PreToolUse // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/agent-desktop-guard\") | not))) + [{matcher: \"Bash|mcp__computer-use__.*\", hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/agent-desktop-guard\"}]}])
-              | .hooks.Notification = (((.hooks.Notification // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/holt hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook notify\"}]}])
-              | .hooks.Stop = (((.hooks.Stop // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/holt hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook notify\"}]}])
-              | .hooks.UserPromptSubmit = (((.hooks.UserPromptSubmit // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/holt hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook notify\"}]}])
-              | .hooks.PostToolUse = (((.hooks.PostToolUse // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/holt hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/holt hook notify\"}]}])
+              | .hooks.Notification = (((.hooks.Notification // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") == null and index(\"/run/current-system/sw/bin/holt hook notify\") == null))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
+              | .hooks.Stop = (((.hooks.Stop // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") == null and index(\"/run/current-system/sw/bin/holt hook notify\") == null))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
+              | .hooks.UserPromptSubmit = (((.hooks.UserPromptSubmit // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") == null and index(\"/run/current-system/sw/bin/holt hook notify\") == null))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
+              | .hooks.PostToolUse = (((.hooks.PostToolUse // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") == null and index(\"/run/current-system/sw/bin/holt hook notify\") == null))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
               | .permissions.defaultMode = \"auto\"
               | .tui = \"fullscreen\"
               | .disableAgentView = true

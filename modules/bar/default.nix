@@ -2263,7 +2263,7 @@ lib.mkIf config.haus.bar.enable {
       # the rice's own mark, so it wears the rice's own accent.
       #
       # BAR_LOGO_SWEEP_COLORS is the six hausfold accents in the order the
-      # conic gradient on hausfold.co runs them (nebelung → holt → perch →
+      # conic gradient on hausfold.co runs them (nebelung → scruff → perch →
       # trill → pounce → hacker, i.e. mauve → teal → green → yellow → peach
       # → pink). Those are dark-mode's `--a-*` tokens, and every one of them
       # resolves to a nebelung palette key, which is the whole reason the bar

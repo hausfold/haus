@@ -230,7 +230,7 @@ else
     # a fresh session beside the restored ones, or you would come back to your
     # desk plus one empty window on top of it.
     parked_ours=$(printf '%s\n' "$sessions" |
-        awk -F'\t' '$2 == "0" && ($1 ~ /^term\./ || $1 ~ /^holt\./)' | grep -c .)
+        awk -F'\t' '$2 == "0" && ($1 ~ /^term\./ || $1 ~ /^scruff\./)' | grep -c .)
     if [ "@restore@" = 1 ] &&
        [ "$parked_ours" -gt 0 ] &&
        ! printf '%s\n' "$sessions" | awk -F'\t' '$2 != "0"' | grep -q . &&

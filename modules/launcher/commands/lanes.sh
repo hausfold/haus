@@ -4,19 +4,19 @@
 # pounce: icon = point.3.connected.trianglepath.dotted
 # pounce: submenu = true
 
-# The lane picker: every agent worktree holt knows about, fuzzy-filtered by
+# The lane picker: every agent worktree scruff knows about, fuzzy-filtered by
 # pounce, Enter focuses the lane's window. Three sources joined by the session
 # name (holt.<repo>.<lane>, the same join every zmx surface uses):
 #
-#   holt-cache    a warm copy of `holt --json` — repo, branch, live/parked,
-#                 last commit. NEVER `holt --json` on the open path; see below
+#   scruff-cache    a warm copy of `scruff --json` — repo, branch, live/parked,
+#                 last commit. NEVER `scruff --json` on the open path; see below
 #   zmx ls        the live sessions — and the agent's own state (working /
 #                 waiting / done), which agents-hook.sh keeps as labels
 #
 # A lane with a window is focused through terminal/scripts/raise-session.sh,
 # which knows how this machine finds a window (a forced title through AeroSpace,
 # or a Ghostty window id where there is no tiler). A parked lane — no session,
-# no window — is reopened with `holt <repo>/<name>`, which spawns the window
+# no window — is reopened with `scruff <repo>/<name>`, which spawns the window
 # through the open seam.
 #
 # ── the 8-second cliff ───────────────────────────────────────────────────────
@@ -31,13 +31,13 @@
 # machine with no lanes registered. Hence `bail`, and hence not one silent exit
 # below.
 #
-# The same cliff is why `holt --json` is not run here. It is an investigation,
-# not a listing: `holt list` self-heals on the way in (a parked reap sweep) and
+# The same cliff is why `scruff --json` is not run here. It is an investigation,
+# not a listing: `scruff list` self-heals on the way in (a parked reap sweep) and
 # both that sweep and the JSON encoder dump `lsof -d cwd` machine-wide — twice
 # per run, before any lane's landed/PR verdict spends its own time in git and
 # `gh`. That is seconds with ZERO lanes registered, which is the answer to "is
 # it slow because of the reap": near enough, and the constant half of it is
-# the two lsof dumps rather than the sweep. `holt-cache` (modules/ai) keeps one
+# the two lsof dumps rather than the sweep. `scruff-cache` (modules/ai) keeps one
 # warm copy for the bar and for this picker; a cold cache is refreshed in the
 # BACKGROUND and this open renders from what zmx already knows.
 #
@@ -53,7 +53,7 @@
 # rows, Enter focusing the session it came from. `--actions` labels that Return
 # so the action bar says "Search transcripts" the moment the filter comes up
 # empty; it used to be an undocumented `/` prefix with nothing on screen to
-# suggest it existed, and a typo'd lane name fell through to `holt <typo>/<typo>`,
+# suggest it existed, and a typo'd lane name fell through to `scruff <typo>/<typo>`,
 # which does not search anything — it SPAWNS A LANE. A leading `/` is still
 # accepted and stripped, because that is the spelling the old header taught.
 # It is NOT a guaranteed escape hatch, and don'"'"'t document it as one: pounce
@@ -98,10 +98,10 @@ bail() {
   exit 0
 }
 
-command -v holt >/dev/null 2>&1 ||
-  bail "holt isn't on PATH" "the lane picker has nothing to read" "questionmark.circle"
+command -v scruff >/dev/null 2>&1 ||
+  bail "scruff isn't on PATH" "the lane picker has nothing to read" "questionmark.circle"
 command -v jq >/dev/null 2>&1 ||
-  bail "jq isn't on PATH" "the lane picker can't parse holt's listing" "questionmark.circle"
+  bail "jq isn't on PATH" "the lane picker can't parse scruff's listing" "questionmark.circle"
 
 # ── zmx: session name → "state<TAB>client<TAB>dir", the labels agents-hook.sh
 # keeps, plus the directory zmx keeps itself ─────────────────────────────────
@@ -138,47 +138,47 @@ focus_session() {
   # and raise it" (the bar's agents popup and ⌘F's ⏎ were the other two), all
   # three matching a forced window title through AeroSpace — which answers
   # nothing on a machine with no tiler, so every row here fell through to a
-  # holt reopen and opened a SECOND window onto a session that already had one.
+  # scruff reopen and opened a SECOND window onto a session that already had one.
   #
   # A dead lane still has no window, still returns non-zero, and still falls
-  # through to the caller's holt reopen. No --or-open: that is the caller's
-  # decision here, and `holt` does more than attach (it can wake a parked lane).
+  # through to the caller's scruff reopen. No --or-open: that is the caller's
+  # decision here, and `scruff` does more than attach (it can wake a parked lane).
   "$HOME/.config/haus/term/raise-session.sh" "$1" >/dev/null 2>&1
 }
 
 # Wake a parked lane, and SAY SO when it can't be woken.
 #
-# This was `exec holt <repo>/<lane>` — which is right up to the moment the row
+# This was `exec scruff <repo>/<lane>` — which is right up to the moment the row
 # was built from a cache that has since gone stale. A lane reaped in that
-# window is gone from holt's registry, `matchLane` answers "no lane named …"
-# (holt's drop.go) and exits non-zero, and that message goes to the pounce
+# window is gone from scruff's registry, `matchLane` answers "no lane named …"
+# (scruff's drop.go) and exits non-zero, and that message goes to the pounce
 # daemon's stderr, which nobody reads. A row commit is `.linger`, so the window
 # has already faded by then: the palette closes and nothing happens — the exact
 # failure `bail` exists to end, arriving through the one door that had no
-# `bail` in it. holt's own words go in the row, so a refusal for some OTHER
+# `bail` in it. scruff's own words go in the row, so a refusal for some OTHER
 # reason (a dirty tree, a git error) doesn't get reported as "the lane is gone".
-# holt's stderr goes to a FILE rather than through `$(…)`: a command
+# scruff's stderr goes to a FILE rather than through `$(…)`: a command
 # substitution stays open until every inherited descriptor is closed, so a
-# window holt spawns and leaves running would hold this script open forever.
-# A plain redirect waits for holt and nothing else — the lifetime `exec` had.
+# window scruff spawns and leaves running would hold this script open forever.
+# A plain redirect waits for scruff and nothing else — the lifetime `exec` had.
 open_lane() {
   local log err rc
   log="$(mktemp "${TMPDIR:-/tmp}/haus-lane-open.XXXXXX" 2>/dev/null)" || log=""
   if [ -n "$log" ]; then
-    holt "$1/$2" >/dev/null 2>"$log"
+    scruff "$1/$2" >/dev/null 2>"$log"
     rc=$?
     err="$(tr '\n' ' ' <"$log" | cut -c1-160)"
     rm -f "$log"
   else
-    holt "$1/$2" >/dev/null 2>&1
+    scruff "$1/$2" >/dev/null 2>&1
     rc=$?
     err=""
   fi
   [ "$rc" -eq 0 ] && exit 0
-  bail "Could not open $1 · $2" "${err:-holt exited $rc}" "questionmark.circle"
+  bail "Could not open $1 · $2" "${err:-scruff exited $rc}" "questionmark.circle"
 }
 
-# `holt.<repo>.<lane>` → `<repo>/<lane>`, holt's own address for the lane. The
+# `holt.<repo>.<lane>` → `<repo>/<lane>`, scruff's own address for the lane. The
 # lane name is dot-free and a repo name is not (hausfold.co), so the split is at
 # the LAST dot, never the first.
 lane_address() {
@@ -193,21 +193,21 @@ states="$(zmx_states)"
 # cache inside $FRESH is served as-is; past it we pay for one bounded refresh,
 # and a refresh that doesn't land inside the skeleton's budget falls back to
 # whatever is on disk while a full-length one warms up behind us.
-lanes_json="$(holt-cache read "$FRESH" 2>/dev/null)"
+lanes_json="$(scruff-cache read "$FRESH" 2>/dev/null)"
 if [ -n "$lanes_json" ]; then
-  [ "$(holt-cache age 2>/dev/null || echo 0)" -ge "$KICK_AFTER" ] &&
-    holt-cache kick "$KICK_AFTER" >/dev/null 2>&1
+  [ "$(scruff-cache age 2>/dev/null || echo 0)" -ge "$KICK_AFTER" ] &&
+    scruff-cache kick "$KICK_AFTER" >/dev/null 2>&1
 else
-  lanes_json="$(holt-cache sync "$SYNC_BOUND" 2>/dev/null)"
+  lanes_json="$(scruff-cache sync "$SYNC_BOUND" 2>/dev/null)"
   if [ -z "$lanes_json" ]; then
-    lanes_json="$(holt-cache read "$STALE" 2>/dev/null)"
-    holt-cache kick 0 >/dev/null 2>&1
+    lanes_json="$(scruff-cache read "$STALE" 2>/dev/null)"
+    scruff-cache kick 0 >/dev/null 2>&1
   fi
 fi
 # One probe before the real pass: a lane list jq refuses takes the whole picker
-# down with it, INCLUDING the zmx-only rows that never needed holt at all —
+# down with it, INCLUDING the zmx-only rows that never needed scruff at all —
 # and this is the pass whose stderr is discarded, so it would fail as an empty
-# window rather than as an error. `holt-cache` only ever installs a validated
+# window rather than as an error. `scruff-cache` only ever installs a validated
 # result, so this should be unreachable; it costs one spawn to keep it that way.
 printf '%s' "$lanes_json" | jq -e '(.lanes // []) | type == "array"' >/dev/null 2>&1 ||
   lanes_json='{}'
@@ -223,7 +223,7 @@ rows="$(
       | add // {}
     ) as $live
     # state precedence: the agent'"'"'s own label (working/waiting/done) beats
-    # holt'"'"'s registry state (live/parked) — the label is what the agents pill
+    # scruff'"'"'s registry state (live/parked) — the label is what the agents pill
     # shows, and the picker should agree with the bar.
     | (
         { waiting: 0, working: 1, done: 2, idle: 2,
@@ -265,7 +265,7 @@ rows="$(
       ] as $fresh
     | ($known + $fresh)
     # Most urgent first, then alphabetically — an empty query is the common
-    # open, and "whatever order holt walked the registry in" is not an answer.
+    # open, and "whatever order scruff walked the registry in" is not an answer.
     | sort_by([ ($rank[.state] // 9), .repo, .lane ])
     | .[]
     | [ "\(.repo) · \(.lane)",
@@ -285,12 +285,12 @@ if [ -z "$rows" ]; then
     # Read the PICK, not the exit status: Esc and a commit differ in what comes
     # back on stdout, and only one of them means "yes, spawn one".
     choice="$(printf 'Spawn an agent lane…\t%s\tsparkles\tSpawn\tLanes\n' \
-      "no lanes yet — holt has nothing parked and nothing running" |
+      "no lanes yet — scruff has nothing parked and nothing running" |
       pounce -p "$PROMPT" -i "$ICON")"
     [ -n "$choice" ] && exec "$spawn"
     exit 0
   fi
-  bail "No lanes yet" "holt has nothing parked and nothing running" "zzz"
+  bail "No lanes yet" "scruff has nothing parked and nothing running" "zzz"
 fi
 
 # --chain enter: the TYPED-text commit is never the end — it re-invokes the
@@ -320,7 +320,7 @@ case "$picked" in
     lane="${picked##* · }"
     sess="holt.${repo}.${lane}"
     focus_session "$sess" && exit 0
-    # No window: parked (or the window was ⌘W'd). holt's open seam spawns it back.
+    # No window: parked (or the window was ⌘W'd). scruff's open seam spawns it back.
     open_lane "$repo" "$lane"
     ;;
 esac
@@ -360,7 +360,7 @@ EOF
 wait
 
 # Keyed by the loop INDEX, never by the session name. A lane name is its branch
-# minus `worktree-` (holt's Entry.Name), and a branch may hold a slash — which
+# minus `worktree-` (scruff's Entry.Name), and a branch may hold a slash — which
 # in `$tmp/$sess` is a directory that doesn't exist, so that one lane's redirect
 # fails, its subshell writes nothing, and it silently never matches anything.
 # The second pass walks the same list in the same order, so the index is a
@@ -414,8 +414,8 @@ sess="$(printf '%s' "$selected" | cut -f7)"
 [ -n "$sess" ] || exit 0
 focus_session "$sess" && exit 0
 # Session alive but its window ⌘W'd: same wake-up the lane rows get — and ONLY
-# for a lane. A `term.<n>` shell is not a holt address, and handing one to
-# `holt` spawns a lane in a repo named "term".
+# for a lane. A `term.<n>` shell is not a scruff address, and handing one to
+# `scruff` spawns a lane in a repo named "term".
 case "$sess" in
   holt.*)
     address="$(lane_address "$sess")"

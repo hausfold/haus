@@ -1,7 +1,7 @@
 #!/bin/bash
-# lane-open.sh — holt's `open`/`resume` seam, backed by zmx + a Ghostty window.
+# lane-open.sh — scruff's `open`/`resume` seam, backed by zmx + a Ghostty window.
 #
-# holt's built-in behaviour execs the client in the pane you ran it from, and
+# scruff's built-in behaviour execs the client in the pane you ran it from, and
 # the pane IS the lane. Here there is no pane, and three things carry a lane
 # instead, all named the same:
 #
@@ -21,29 +21,29 @@
 # A zmx session outlives every client attached to it, so ⌘W closes the WINDOW
 # and the agent keeps thinking. That falls out of the design rather than being
 # implemented here: this script only ever runs `zmx attach`, which creates the
-# session on first call and re-attaches on every call after. `holt <name>` on a
+# session on first call and re-attaches on every call after. `scruff <name>` on a
 # lane whose session is still up therefore reopens a window onto a live
 # conversation instead of resuming a transcript — no client-side --continue, no
 # session picker, nothing to resolve.
 #
 # ── the seam contract ────────────────────────────────────────────────────────
-# holt hands action seams their situation as HOLT_* in the environment ONLY —
+# scruff hands action seams their situation as SCRUFF_* in the environment ONLY —
 # stdin is inherited from the caller, not JSON (internal/config/config.go's
 # `run`, `action == true`). The two that matter:
 #
-#   HOLT_COMMAND  the exact client invocation holt was about to exec, already
+#   SCRUFF_COMMAND  the exact client invocation scruff was about to exec, already
 #                 resolved to continue-the-newest or open-the-picker. Run it;
-#                 don't rebuild it, or a `holt <name> --pick` lands on the
-#                 picker holt just resolved away.
-#   HOLT_CHAT     the cwd the CONVERSATION lives in, which is NOT always the
+#                 don't rebuild it, or a `scruff <name> --pick` lands on the
+#                 picker scruff just resolved away.
+#   SCRUFF_CHAT     the cwd the CONVERSATION lives in, which is NOT always the
 #                 lane's checkout: on the RESUME of a lane with no chat of its
-#                 own — a `holt child`, or a nested spawn — it is the PARENT's
+#                 own — a `scruff child`, or a nested spawn — it is the PARENT's
 #                 checkout, because that is where the transcript this lane
-#                 belongs to lives (holt's resume.go, `chatHome`). Getting it
+#                 belongs to lives (scruff's resume.go, `chatHome`). Getting it
 #                 wrong is how a resumed child opens an empty session. On
-#                 `open` it is the lane's own checkout every time, `holt spawn
+#                 `open` it is the lane's own checkout every time, `scruff spawn
 #                 --prompt` included, because a first turn continues nothing.
-#                 Verified against holt 0.4.0 by dumping the hook's
+#                 Verified against scruff 0.4.0 by dumping the hook's
 #                 environment, 2026-08-23; the same narrowing is still stated
 #                 flat in bar/sketchybar/plugins/agents-hook.sh. An empty
 #                 SPAWNED lane is not this variable — see the scrub below.
@@ -52,7 +52,7 @@
 # machine without zmx wants, so it stays exactly as good as it was before.
 set -u
 
-# A hook is exec'd by holt, which may itself have been started by launchd (the
+# A hook is exec'd by scruff, which may itself have been started by launchd (the
 # palette's Spawn Agent) with a bare PATH. Resolve our tools the way every
 # other rice script run from outside a shell does.
 export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/bin:/bin${PATH:+:$PATH}"
@@ -61,9 +61,9 @@ export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/s
 # macOS `open` forwards the caller's environment to the app it launches — the
 # fact scripts/peek-run.sh already scrubs for and says so. It bites whenever
 # the spawner is itself inside a zmx session, which is an agent's lane most of
-# the time (`holt spawn`, `holt child`, `holt new --open` from a client's
+# the time (`scruff spawn`, `scruff child`, `scruff new --open` from a client's
 # shell) but is EVERY ordinary Ghostty window too — scripts/launch.sh makes
-# each one a `term.<n>` session, so a person typing `holt <name>` in one after
+# each one a `term.<n>` session, so a person typing `scruff <name>` in one after
 # a reboot, when no `holt.*` session is left alive and the resume is therefore
 # a creation, forwards it just the same. That is why both unsets below are
 # unconditional: do NOT gate them behind "is an agent spawning this". Three
@@ -118,29 +118,29 @@ HAUS_DESKTOP_OK"
 unset $leaked
 
 command -v zmx >/dev/null 2>&1 || exit 3
-[ -n "${HOLT_COMMAND:-}" ] || exit 3
-[ -n "${HOLT_NAME:-}" ] || exit 3
+[ -n "${SCRUFF_COMMAND:-}" ] || exit 3
+[ -n "${SCRUFF_NAME:-}" ] || exit 3
 
-chat="${HOLT_CHAT:-${HOLT_PATH:-}}"
+chat="${SCRUFF_CHAT:-${SCRUFF_PATH:-}}"
 [ -d "$chat" ] || exit 3
 
 # ── the name ─────────────────────────────────────────────────────────────────
-# NOT bare $HOLT_NAME. `holt child` names a child lane after the parent pane's
+# NOT bare $SCRUFF_NAME. `scruff child` names a child lane after the parent pane's
 # own lane, so one agent that spawned an out-of-repo worktree owns two lanes
 # with the SAME name in different repos — the exact ambiguity that forced
 # agents.sh to keep a `.cwd` sibling file per pane just to tell them apart.
 # Qualifying by the main checkout's basename makes the session name unique by
 # construction, so nothing downstream needs a tiebreaker.
 #
-# HOLT_MAIN, not HOLT_REPO: the latter is a remote slug and is empty for a repo
+# SCRUFF_MAIN, not SCRUFF_REPO: the latter is a remote slug and is empty for a repo
 # that has never been pushed, which is a perfectly ordinary lane.
-repo="$(basename "${HOLT_MAIN:-$chat}")"
-sess="holt.${repo}.${HOLT_NAME}"
+repo="$(basename "${SCRUFF_MAIN:-$chat}")"
+sess="holt.${repo}.${SCRUFF_NAME}"
 
 # ── the launcher ─────────────────────────────────────────────────────────────
 # Ghostty's `initial-command` is split shell-style, so passing an already-quoted
 # `zmx attach … bash -lc '…'` through `open --args` means three levels of
-# quoting over a $HOLT_COMMAND we don't control. A throwaway script is one
+# quoting over a $SCRUFF_COMMAND we don't control. A throwaway script is one
 # level, and deletes itself the moment it has run.
 run_dir="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/haus-lanes"
 mkdir -p "$run_dir" 2>/dev/null || exit 3
@@ -166,7 +166,7 @@ launcher="$(mktemp "$run_dir/open.XXXXXX")" || exit 3
 # them drops the row (agents.sh skips a session with no `state`), which is the
 # truth: this window is now a held error, not an agent. `zmx set .` is the same
 # "." = current session idiom agents-hook.sh uses, so the hold needs no name.
-held="$HOLT_COMMAND"'
+held="$SCRUFF_COMMAND"'
 rc=$?
 [ "$rc" -eq 0 ] && exit 0
 zmx set . state= client= label= since= >/dev/null 2>&1
@@ -177,9 +177,9 @@ read -r _ans || _ans=
 exit "$rc"'
 
 # ── which backend places this lane ───────────────────────────────────────────
-# windows is a ROOM, and a machine can run Ghostty, zmx, holt and agents with
+# windows is a ROOM, and a machine can run Ghostty, zmx, scruff and agents with
 # no tiler at all. Everything that makes a lane a lane — the zmx session that
-# outlives its window, the hold-on-error, the bar row, holt's registry — is
+# outlives its window, the hold-on-error, the bar row, scruff's registry — is
 # already tiler-free; only PLACEMENT and the window→session JOIN ever needed
 # AeroSpace, and this is the file that decides both. So it has two backends:
 #
@@ -252,7 +252,7 @@ fi
 # NEVER RUNS — so no zmx session, no client, no lane: a Dock icon and nothing
 # else. Nothing downstream could catch it either, because `open -na` returns
 # the moment LaunchServices accepts (spawn-agent.sh's own note says so), so
-# `holt spawn` exited 0 and the palette posted "… is working" over a lane that
+# `scruff spawn` exited 0 and the palette posted "… is working" over a lane that
 # had never started. That was every background spawn until this note (⌃↵ at
 # the time; the plain Return now).
 #
@@ -265,14 +265,14 @@ fi
 # only fires if the lane's own instance somehow ended up holding focus.
 #
 # The palette's Spawn Agent sets it by DEFAULT — a plain Return — and clears it
-# on ⌃↵, the "spawn and follow it" chord. It reaches here through `holt spawn`
-# because holt hands a seam os.Environ(). That same inheritance is why
+# on ⌃↵, the "spawn and follow it" chord. It reaches here through `scruff spawn`
+# because scruff hands a seam os.Environ(). That same inheritance is why
 # it is DROPPED the instant it has been read, before either `open` below: the
 # variable would otherwise be part of the environment of the Ghostty PROCESS
 # this script starts, and every surface that instance goes on to make — the
 # cold-started instance's own first window, anything new-window.sh's
 # AppleScript lands there — would inherit it. A shell in one of those windows
-# would then have ⌘↵ and `holt <name>` silently open in the background with
+# would then have ⌘↵ and `scruff <name>` silently open in the background with
 # nothing on screen to say why. Same early-drop launch.sh does for
 # HAUS_TERM_WORKSPACE and HAUS_ZMX_ATTACH, for the same reason.
 bg=""
@@ -346,7 +346,7 @@ if [ -n "$bg" ] && [ "$backend" = aerospace ]; then
 fi
 
 # printf %q, not bash 5's ${var@Q}: /bin/bash on macOS is still 3.2, and this
-# script has no guarantee about which bash holt found first.
+# script has no guarantee about which bash scruff found first.
 #
 # The self-tile block is lifted from zellij/launch.sh, for the reason its own
 # comment gives: windows floats every ghostty window spawned at runtime, because
@@ -420,7 +420,7 @@ fi
     # standing on — a nuisance you can see and fix — but a direct-exec bail
     # strands a 1-px sliver in a screen corner, a lane that exists and works
     # with nothing on any page to say so. ⌃⇥ will never find it (no tile ever
-    # landed on T/<repo>), so say where it went: the agents pill and `holt`
+    # landed on T/<repo>), so say where it went: the agents pill and `scruff`
     # both raise it by session name, which is exactly what they are for.
     printf '  back=%q\n' "$prev_wid"
     printf '  backapp=%q\n' "$prev_app"
@@ -438,7 +438,7 @@ fi
     printf '    [ -z "$took" ] || return 0\n'
     printf '    /run/current-system/sw/bin/haus-notify --source haus.lane --kind fault --symbol eye.slash \\\n'
     printf '      --thread %q --title "haus · agent lane" \\\n' "$sess"
-    printf '      --body %q >/dev/null 2>&1\n' "$sess opened out of sight and could not be tiled — raise it from the agents pill, or holt"
+    printf '      --body %q >/dev/null 2>&1\n' "$sess opened out of sight and could not be tiled — raise it from the agents pill, or scruff"
     printf '  }\n'
     # ── the exact window→session join ──────────────────────────────────
     # A lane had none on this backend until now: its session is created by
@@ -472,7 +472,7 @@ fi
     # this file, for the same reason: the session does not exist until that
     # `zmx attach` creates it, a few milliseconds from now.
     # ── a RESUME starts out mislabelled, so unlabel it first ─────────────
-    # holt wires `resume` to this same script, and a resumed lane still
+    # scruff wires `resume` to this same script, and a resumed lane still
     # carries the `lwindow=` of the window it had LAST time — a dead id, or
     # worse, one AeroSpace has since handed to something else. The stamp at
     # the foot of this block only lands after the pid walk, the window poll
@@ -628,13 +628,13 @@ if [ "$backend" = aerospace ]; then
     # nohup'd because this hook exits immediately and the app must outlive it.
     #
     # BOTH stdio redirects are load-bearing, not tidy: a direct exec inherits
-    # this hook's fds, the hook inherits holt's, and `holt spawn`'s stdout is
+    # this hook's fds, the hook inherits scruff's, and `scruff spawn`'s stdout is
     # a command substitution in spawn-agent.sh — a Ghostty holding that pipe
     # open would hang the palette for the life of the lane. (`open -na` never
     # had the problem; LaunchServices launches carry no fds.)
     #
     # `&` cannot fail, which `open -na` could (a refused launch exits non-zero
-    # → exit 3 → holt reports and the palette drops the lane). The kill -0
+    # → exit 3 → scruff reports and the palette drops the lane). The kill -0
     # probe below buys that reporting back for the launch failures that show
     # inside 200ms — a bad dylib, translocation, an instant crash. A death
     # after that is the same blindness `open -na` already has: it, too,

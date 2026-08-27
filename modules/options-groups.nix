@@ -1122,7 +1122,7 @@ let
       order = 100;
       blurb = "Coding agents: which clients this machine installs, the worktree lifecycle around them, and the instructions and `haus` skill every client reads.";
       agent = {
-        cli = "holt";
+        cli = "scruff";
         asks = [
           "install claude code"
           "install codex"

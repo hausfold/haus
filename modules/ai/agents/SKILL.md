@@ -119,13 +119,13 @@ is. The VM is a second, disposable macOS you own outright: headless on the
 host, so nothing it draws reaches the user's display, and real enough to run
 `haus rebuild` and render the actual UI. Drive it as hard as you like. It wants
 the AI room on (`haus.ai.enable` — `references/this-machine.md`'s Rooms table
-says whether it is here) and a base image named by `HOLT_TART_BASE`; the room
+says whether it is here) and a base image named by `SCRUFF_TART_BASE`; the room
 brings `tart` itself.
 
 ```sh
-holt runtime up    my-lane --backend tart   # clone the image, boot it headless
-holt runtime enter my-lane --backend tart   # ssh in
-holt runtime down  my-lane --backend tart   # delete the clone
+scruff runtime up    my-lane --backend tart   # clone the image, boot it headless
+scruff runtime enter my-lane --backend tart   # ssh in
+scruff runtime down  my-lane --backend tart   # delete the clone
 ```
 
 Build an image that has haus *inside* it with `script/build-golden-vm.sh` —
@@ -137,7 +137,7 @@ has no haus in it to test.
 Driving it from the host, which is usually easier than sitting inside it:
 
 ```sh
-guest=$(tart ip holt-my-lane)
+guest=$(tart ip scruff-my-lane)
 ssh admin@"$guest" 'haus rebuild'
 ssh admin@"$guest" '/usr/sbin/screencapture -x /tmp/s.png'   # real pixels
 scp admin@"$guest":/tmp/s.png ./shot.png                     # fetch it, then look
@@ -157,7 +157,7 @@ Four things that are easy to get wrong:
   per call — but they *are* in every screenshot until something dismisses them.
 - **Keep it headless.** `tart run` without `--no-graphics` opens the guest's
   window on the user's display — the one command in this whole flow that really
-  is screen theft. The adapter behind `holt runtime up` already passes it.
+  is screen theft. The adapter behind `scruff runtime up` already passes it.
 
 None of this is gated on the user's Mac: work that runs over `ssh` somewhere
 else is never a desktop interruption, however loudly it redraws over there.

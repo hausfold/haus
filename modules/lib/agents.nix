@@ -11,14 +11,14 @@
 # new client would have to be added in both or the bar would refuse to
 # display a client the palette could happily spawn.
 #
-# `specFor()` in holt (hausfold/holt, internal/commands/agent.go) is the one
+# `specFor()` in scruff (hausfold/holt, internal/commands/agent.go) is the one
 # copy that CANNOT be folded in: it's the same set on the Go side, and a Go
 # binary can't read Nix. Adding a client means editing there too.
 #
 # Every client here is installed from nixpkgs, so it also needs a derivation in
 # modules/lib/agent-packages.nix. And what a client id must have in every case
-# is a `holt` spec: the id is what `ai.default` is typed against, and a default
-# holt can't spawn is the dead-pane failure `ai.clients` exists to end.
+# is a `scruff` spec: the id is what `ai.default` is typed against, and a default
+# scruff can't spawn is the dead-pane failure `ai.clients` exists to end.
 #
 # And two tables in the AI room (modules/ai/default.nix) are keyed BY these ids
 # rather than derived from them,

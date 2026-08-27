@@ -4,7 +4,7 @@
 #   ./script/build-golden-vm.sh [--base tahoe-base] [--name haus-golden]
 #                               [--ref v2026.08.22] [--desktop hacker] [--keep]
 #
-# `holt runtime up <lane> --backend tart` clones an image and boots it headless
+# `scruff runtime up <lane> --backend tart` clones an image and boots it headless
 # (modules/ai/runtime/tart-adapter.sh). Which image is the whole question: a
 # bare cirruslabs base has no Nix and no haus in it, so a lane that clones one
 # has nothing to test. This script produces the other end — a stopped VM with
@@ -372,15 +372,15 @@ cat <<EOF
 $(say "$NAME is built, from haus $REF.")
 
   Hand a lane its own copy:
-      holt runtime up   <lane> --backend tart
-      holt runtime enter <lane> --backend tart
-      holt runtime down <lane> --backend tart
+      scruff runtime up   <lane> --backend tart
+      scruff runtime enter <lane> --backend tart
+      scruff runtime down <lane> --backend tart
 
   Point the adapter at this image:
-      export HOLT_TART_BASE=$NAME
+      export SCRUFF_TART_BASE=$NAME
 
   Look at a lane's screen without touching your own:
-      ip=\$(tart ip holt-<lane>)
+      ip=\$(tart ip scruff-<lane>)
       ssh $GUEST_USER@\$ip '/usr/sbin/screencapture -x /tmp/s.png'
       scp $GUEST_USER@\$ip:/tmp/s.png ./shot.png
 EOF
