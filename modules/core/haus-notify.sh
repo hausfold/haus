@@ -94,7 +94,7 @@ ${2:-}
             # the thing haus was trying to tell them. So: say so where it can
             # be found, drop the flag, keep going. (`--thread` reaching a
             # version of this script that predated it is exactly how that
-            # happened once: a `⌃↵` background lane spawn drew nothing at all.)
+            # happened once: a backgrounded agent-lane spawn drew nothing at all.)
             printf 'haus-notify: ignoring unknown argument: %s\n' "$1" >&2
             logger -t haus-notify "ignoring unknown argument: $1" 2>/dev/null || true
             shift

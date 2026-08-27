@@ -231,7 +231,8 @@ fi
 #                   corner (measured: frame x=1511 on a 1512-wide display). So
 #                   the moment before the self-tile block walks it off to
 #                   T/<repo> shows nothing rather than a full window blinking
-#                   over your page — which is what ⌃↵ used to cost.
+#                   over your page — which is what a background spawn used to
+#                   cost.
 #
 # Two more silences ride along, because each would take the screen on its own:
 #
@@ -252,7 +253,8 @@ fi
 # else. Nothing downstream could catch it either, because `open -na` returns
 # the moment LaunchServices accepts (spawn-agent.sh's own note says so), so
 # `holt spawn` exited 0 and the palette posted "… is working" over a lane that
-# had never started. That was every ⌃↵ spawn until this note.
+# had never started. That was every background spawn until this note (⌃↵ at
+# the time; the plain Return now).
 #
 # The direct exec is the answer `open -g` was reaching for, and it degrades
 # rather than breaks: a machine whose Ghostty.app is somewhere the lookup
@@ -262,8 +264,9 @@ fi
 # needs it every time, and the direct exec keeps it as a regression net that
 # only fires if the lane's own instance somehow ended up holding focus.
 #
-# The palette's Spawn Agent sets it on ⌃↵, and it reaches here through `holt
-# spawn` because holt hands a seam os.Environ(). That same inheritance is why
+# The palette's Spawn Agent sets it by DEFAULT — a plain Return — and clears it
+# on ⌃↵, the "spawn and follow it" chord. It reaches here through `holt spawn`
+# because holt hands a seam os.Environ(). That same inheritance is why
 # it is DROPPED the instant it has been read, before either `open` below: the
 # variable would otherwise be part of the environment of the Ghostty PROCESS
 # this script starts, and every surface that instance goes on to make — the
@@ -328,11 +331,12 @@ fi
 # The APP is captured beside the window, and it is not belt-and-braces: some
 # window is not always AeroSpace's to name. A native-fullscreen app, an
 # unmanaged window, or an AeroSpace that simply answers late all give an empty
-# window id — and an empty one means `giveback` does nothing, which is ⌃↵
-# silently keeping the screen and looking exactly like plain ↵. `lsappinfo` is
-# LaunchServices' own view of who is frontmost, needs no grant and no Apple
-# Event, and re-activating that app is a coarser give-back than the window but
-# an enormously better one than none.
+# window id — and an empty one means `giveback` does nothing, which is an
+# ordinary background spawn silently keeping the screen and looking exactly like
+# the ⌃↵ that asked to be followed. `lsappinfo` is LaunchServices' own view of
+# who is frontmost, needs no grant and no Apple Event, and re-activating that
+# app is a coarser give-back than the window but an enormously better one than
+# none.
 prev_wid=""
 prev_app=""
 if [ -n "$bg" ] && [ "$backend" = aerospace ]; then
