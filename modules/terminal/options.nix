@@ -308,6 +308,11 @@ in
         Empty (the default) leaves every vault untouched. Paths must be
         relative to the user's home, may not contain "..", and are skipped
         with a warning unless their .obsidian directory already exists.
+
+        A vault whose appearance.json iCloud has evicted, or that holds JSON
+        Terminal cannot parse, gets the theme files but keeps its own
+        appearance settings, with a warning naming the vault. Activation
+        never fails over a vault.
       '';
     };
 
