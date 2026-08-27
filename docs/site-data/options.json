@@ -4566,7 +4566,7 @@
     ],
     "default": {
       "_type": "literalExpression",
-      "text": "[\n  \"localhost\"\n]"
+      "text": "[ \"localhost\" ]"
     },
     "description": "The suffixes routes are served under, first one primary. `.localhost`\nis the one that needs no DNS at all — browsers resolve it to 127.0.0.1\nby rule, not by lookup. Anything else has to resolve some other way,\nwhich on this machine means `portless hosts sync`.\n",
     "example": {

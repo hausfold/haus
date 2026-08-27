@@ -80,6 +80,13 @@
       tlds = lib.mkOption {
         type = lib.types.listOf lib.types.str;
         default = [ "localhost" ];
+        # One line, because the host template renders each default as a single
+        # commented assignment and uncomments exactly one line per option. A list
+        # default that nixfmt wraps across lines leaves its own continuation
+        # commented out, and `host-template`'s parse check fails — see the note
+        # in modules/host-template.nix. `haus.wallpaper.debug.inputs` is the
+        # other option that needs this.
+        defaultText = lib.literalExpression ''[ "localhost" ]'';
         example = [
           "localhost"
           "dev.example.com"
