@@ -2253,8 +2253,28 @@ in
               | .packages = ((.packages // []) + (\$add - (.packages // [])))" \
               "$base" > "$tmp" && mv "$tmp" "$settings"
             # Both, not just the base: when jq fails the `&& mv` short-circuits
-            # and a half-written "$tmp" would otherwise sit beside pi's real
-            # settings file forever, looking like something it should read.
+            # and a half-written "$tmp" would otherwise sit beside the real
+            # settings file forever, looking like something pi should read.
+            #
+            # 🚨 NO APOSTROPHE ANYWHERE IN THIS BLOCK, comments included. The
+            # whole script is ONE single-quoted `sh -c` argument, so a lone
+            # apostrophe in a COMMENT ends that argument early and every word
+            # after it re-parses. Not a style nit — it is how this activation
+            # died on 2026-08-27. The comment above used to read "beside pi"
+            # plus an apostrophe plus "s real": the quote ended at pi, the two
+            # arguments on the closing line were swallowed into the wreckage,
+            # `$1` arrived empty, and `jq --argjson add` got an empty string.
+            # jq exits 2 with "invalid JSON text passed to --argjson", which
+            # aborts activation BEFORE /run/current-system moves — so the Mac
+            # silently keeps its old generation and every later step never
+            # runs. A comment written to explain a safety measure is what
+            # broke the thing it explained.
+            #
+            # It built fine, too: the stray apostrophe happened to pair with
+            # the one on the closing line, so the script stayed syntactically
+            # valid while meaning something else entirely. Nothing catches
+            # that but running it. Say "the real settings file", never
+            # possessives, and keep every quoted word double-quoted.
             rm -f "$tmp" "$tmp.base"
           ' "$HOME/.pi/agent/settings.json" ${lib.escapeShellArg (builtins.toJSON agentsCfg.pi.packages)}
         ''
