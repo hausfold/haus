@@ -82,6 +82,32 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # How the family's CLIs put a line on screen. One Go package the Go tools
+    # import and one binary the bash ones drive — `haus.sh`, `haus-show.sh` and
+    # the workshop's `bench` are bash and are staying bash, so the binary is the
+    # only way they reach the same table, spinner and colour tiers. core ships it
+    # on PATH unconditionally, beside `trill` and `haus-notify`, for the same
+    # reason those are unconditional: what a haus machine PRINTS is the product.
+    #
+    # The standard it implements is the workshop's `docs/cli-presentation.md`,
+    # which binds five repos — so the runtime is a repo of its own rather than a
+    # module here, and the colour ROLES resolve against nebelung, never a
+    # hand-picked 256-colour index.
+    #
+    # ⚠️ Second repo on trill's footing: a flake input and a lock source WITHOUT
+    # being one of bench's `FAMILY` repos. (scruff/holt is an input too and is
+    # NOT such a repo — it is in FAMILY. trill and snug are the only two where
+    # the two questions come apart.) Adding an input is not the same act as
+    # putting a repo on the ship chain — bench's 🚨 by that array is the argument.
+    #
+    # `follows` is not decoration here. snug's overlay hands back a package built
+    # from snug's OWN nixpkgs, so without this the layer evaluates and realises a
+    # second nixpkgs and a second Go toolchain to produce one ~2 MB binary.
+    snug = {
+      url = "github:hausfold/snug";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     nix-index-database = {
       url = "github:nix-community/nix-index-database";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -100,6 +126,7 @@
       perch,
       trill,
       scruff,
+      snug,
       nix-index-database,
     }:
     let
@@ -159,6 +186,7 @@
                 perch.overlays.default
                 trill.overlays.default
                 scruff.overlays.default
+                snug.overlays.default
               ];
             }
             home-manager.darwinModules.home-manager
@@ -2351,6 +2379,7 @@
                     perch.overlays.default
                     trill.overlays.default
                     scruff.overlays.default
+                    snug.overlays.default
                   ];
                 }
                 home-manager.darwinModules.home-manager
@@ -2428,6 +2457,7 @@
                         perch.overlays.default
                         trill.overlays.default
                         scruff.overlays.default
+                        snug.overlays.default
                       ];
                     }
                     home-manager.darwinModules.home-manager

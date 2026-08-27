@@ -951,6 +951,20 @@ in
       trill
       hausNotify
 
+      # `snug` — the one binary every bash script in the family draws through.
+      # Unconditional for exactly the reason `trill` above is: what a haus
+      # machine PRINTS is the product, not the developer toolbelt. `haus.sh` and
+      # `haus-show.sh` are bash and staying bash, so this is the only way they
+      # reach the same table, spinner and colour tiers the Go tools get by
+      # importing the package. The standard is the workshop's
+      # docs/cli-presentation.md; the roles resolve against nebelung.
+      #
+      # A machine can still find itself without it — a shell running an older
+      # generation, or a script invoked off a PATH that doesn't include the
+      # system profile — so callers must degrade rather than assume, the same
+      # contract `haus-notify` keeps toward trill.
+      snug
+
       # The oracle `haus diff`/`haus plan` (and modules/theme's appearance block)
       # use to tell a declared setting that actually took effect from one macOS
       # silently ignored — see hausax.swift.

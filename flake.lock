@@ -214,6 +214,7 @@
         "perch": "perch",
         "pounce": "pounce",
         "scruff": "scruff",
+        "snug": "snug",
         "trill": "trill"
       }
     },
@@ -234,6 +235,26 @@
       "original": {
         "owner": "hausfold",
         "repo": "holt",
+        "type": "github"
+      }
+    },
+    "snug": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1787826931,
+        "narHash": "sha256-FIoidLhjXxkcBc1qWCWFd7rXhYqsXFwrRXTsKg4Lm/g=",
+        "owner": "hausfold",
+        "repo": "snug",
+        "rev": "c683505fe1cb0e32f2638258bdce27e0154a4b34",
+        "type": "github"
+      },
+      "original": {
+        "owner": "hausfold",
+        "repo": "snug",
         "type": "github"
       }
     },
