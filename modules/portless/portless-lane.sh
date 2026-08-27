@@ -11,6 +11,11 @@
 # the prefix is still prepended in front of it), so the short name is registered
 # alongside as a static route. Both work; this one is the one you can say aloud.
 #
+# That paragraph has an expiry date: vercel-labs/portless#398 adds `--prefix`
+# and PORTLESS_PREFIX, which is this shim's whole job done one level down. When
+# it lands and the pin moves past it, delete this file and have lane-open.sh
+# export PORTLESS_PREFIX="$lane" instead.
+#
 # The port is chosen HERE and handed to portless with --app-port, rather than
 # letting portless assign one and then reading it back. Two reasons, and the
 # second is the load-bearing one:

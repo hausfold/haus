@@ -126,6 +126,10 @@
             than the lane name you actually call it. This registers the shorter
             name alongside; both work.
 
+            Temporary by design: vercel-labs/portless#398 adds `--prefix` and
+            `PORTLESS_PREFIX`, which does the same job one level down. When it
+            lands, the shim goes and a lane simply exports the variable.
+
             Needs `haus.ai.enable`, since that is what puts lanes on the machine.
           '';
         };
