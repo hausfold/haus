@@ -214,7 +214,7 @@ let
     `~/${agentHomes.${client}.skills}/haus/` is generated too, from the haus
     revision this machine pins (`haus update` regenerates it), as is every other
     skill haus installed. `scruff/` and `handoff/` are scruff's, edited in
-    hausfold/holt;${lib.optionalString config.haus.notifications.compositor " `trill/` is trill's, here because `haus.notifications.compositor` is on;"} they arrive on a lock bump. Not everything beside them
+    hausfold/scruff;${lib.optionalString config.haus.notifications.compositor " `trill/` is trill's, here because `haus.notifications.compositor` is on;"} they arrive on a lock bump. Not everything beside them
     is generated: ${clientScopeNote.${client}} that you can edit live with no
     rebuild. `ls -l` the path before assuming which kind it is.
 
@@ -270,8 +270,8 @@ let
       The haus skill's **Seeing your change without taking the screen** has the
       whole loop.
     - **Spawning a lane never takes the screen.** Put `HAUS_LANE_BACKGROUND=1`
-      in front of `scruff spawn` — the `holt spawn` the handoff skill names is
-      the same binary — and the lane opens without the user feeling it: on a
+      in front of `scruff spawn` — the same binary the handoff skill's
+      `/handoff spawn` drives — and the lane opens without the user feeling it: on a
       tiled machine the window is born off-screen and walked to `T/<repo>`, the
       client still starts on its prompt, and focus stays where it was. The
       palette's **Spawn Agent** sets it on a plain ↵ and clears it on ⌃↵, the
@@ -452,8 +452,8 @@ let
     )
   );
 
-  # scruff's tart runtime adapter (SPEC.md §5.5 in hausfold/holt) — the "real
-  # tart backend" hausfold/holt#52's own commit message left as a follow-up here.
+  # scruff's tart runtime adapter (SPEC.md §5.5 in hausfold/scruff) — the "real
+  # tart backend" hausfold/scruff#52's own commit message left as a follow-up here.
   # `scruff runtime up|enter|down --backend tart` is otherwise a dead end: the
   # command exists but every machine refuses it with "no runtime adapter
   # tart" because nothing has ever written the TOML it looks for.
@@ -912,7 +912,7 @@ in
   environment.systemPackages = lib.mkIf cfg.enable (
     with pkgs;
     [
-      # scruff — agent worktrees, its own product now (hausfold/holt, taken as
+      # scruff — agent worktrees, its own product now (hausfold/scruff, taken as
       # a flake input). Every caller the rice owns is on it: terminal's
       # ⌘↵ runs `scruff new --open` (bare `scruff new` only prints the path since
       # scruff 0.2.94), pounce's Spawn Agent goes through `scruff spawn`, and

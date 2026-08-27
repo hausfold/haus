@@ -583,7 +583,7 @@ pr_style() {
     # has happened yet". It used to arrive as `yes`, because a branch cut from
     # main is trivially an ancestor of it, so every lane drew a green `merged`
     # row from the second it was spawned. Needs a scruff that reports it
-    # (hausfold/holt#48); an older one still says `yes`, and still draws
+    # (hausfold/scruff#48); an older one still says `yes`, and still draws
     # `merged` — the pill is the reader here, not the judge.
     *) PR_TEXT="" ;;
   esac

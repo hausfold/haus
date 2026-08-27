@@ -11,7 +11,7 @@
 # new client would have to be added in both or the bar would refuse to
 # display a client the palette could happily spawn.
 #
-# `specFor()` in scruff (hausfold/holt, internal/commands/agent.go) is the one
+# `specFor()` in scruff (hausfold/scruff, internal/commands/agent.go) is the one
 # copy that CANNOT be folded in: it's the same set on the Go side, and a Go
 # binary can't read Nix. Adding a client means editing there too — and scruff is a
 # flake input, so the id has to land THERE first and ripple down, or every lane

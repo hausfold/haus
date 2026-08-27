@@ -220,7 +220,7 @@ real HTTPS, no port suffix. One proxy on :443 hands out the ports, so two
 projects that both default to 3000 stop colliding and a restarted server keeps
 the browser tab you already had open.
 
-The reason it is worth turning on even for one project is agent lanes. `holt`
+The reason it is worth turning on even for one project is agent lanes. `scruff`
 puts several agents in several worktrees of the SAME repo, so several copies of
 the same `npm run dev` want the same port; the second one dies, or quietly takes
 the next number while every hardcoded URL still points at the first. With this

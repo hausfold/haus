@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# scruff's tart runtime adapter (SPEC.md §5.5 in hausfold/holt) — the "real
-# tart backend" hausfold/holt#52 deliberately left as a follow-up in this repo.
+# scruff's tart runtime adapter (SPEC.md §5.5 in hausfold/scruff) — the "real
+# tart backend" hausfold/scruff#52 deliberately left as a follow-up in this repo.
 # scruff execs a runtime adapter's setup/enter/teardown as ONE argv, no shell, so
 # the multi-step tart dance (clone, boot headless with a shared dir, wait
 # for an IP, ssh in) lives here instead of in tart.toml, which just calls
