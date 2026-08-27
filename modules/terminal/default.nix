@@ -1453,6 +1453,18 @@ in
         # can outlive the environment that started them, so `scruff new` resolves
         # this generated file instead of inheriting a stale client selection.
         # A standalone scruff install can own the same file by hand.
+        #
+        # ⚠️ THIS FILE existing is what moves scruff's whole config directory.
+        # scruff resolves it as an either/or stat (`compat.Dir`): `~/.config/
+        # scruff` when it exists, `~/.config/holt` only while it is the one
+        # holding the machine's files — not a search path, and every ADAPTER
+        # rides the same answer. So the rebuild that first writes this line is
+        # the rebuild that stops a hand-written `~/.config/holt/adapters/namer/
+        # <id>.toml` being found, and lane names fall back to a random word pair
+        # with the warning going to a launchd stderr nobody reads. That move is
+        # the operator's — `haus.ai.namer`'s description carries the two
+        # commands — because the adapter is theirs and may be a file haus has
+        # never seen.
         ".config/scruff/config.toml".text = ''
           # Generated from haus.ai.default + haus.ai.namer — edit those options, not here.
           agent = "${agentDefault}"
