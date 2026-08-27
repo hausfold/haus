@@ -193,15 +193,27 @@ states="$(zmx_states)"
 # cache inside $FRESH is served as-is; past it we pay for one bounded refresh,
 # and a refresh that doesn't land inside the skeleton's budget falls back to
 # whatever is on disk while a full-length one warms up behind us.
-lanes_json="$(scruff-cache read "$FRESH" 2>/dev/null)"
-if [ -n "$lanes_json" ]; then
-  [ "$(scruff-cache age 2>/dev/null || echo 0)" -ge "$KICK_AFTER" ] &&
-    scruff-cache kick "$KICK_AFTER" >/dev/null 2>&1
-else
+#
+# LANES_FORCE_FRESH is ⌘↵'s doing (see the picker below): a person who can see
+# the list is stale wants the LIVE answer, not the warm copy however young it
+# is — so skip the $FRESH read entirely and sync in the foreground. Still
+# bounded by $SYNC_BOUND, because a re-exec'd open presents back into the same
+# 8-second skeleton every other open honours; a scruff too slow for that budget
+# falls back to the last good answer rather than blanking the picker.
+if [ -n "${LANES_FORCE_FRESH:-}" ]; then
   lanes_json="$(scruff-cache sync "$SYNC_BOUND" 2>/dev/null)"
-  if [ -z "$lanes_json" ]; then
-    lanes_json="$(scruff-cache read "$STALE" 2>/dev/null)"
-    scruff-cache kick 0 >/dev/null 2>&1
+  [ -n "$lanes_json" ] || lanes_json="$(scruff-cache read "$STALE" 2>/dev/null)"
+else
+  lanes_json="$(scruff-cache read "$FRESH" 2>/dev/null)"
+  if [ -n "$lanes_json" ]; then
+    [ "$(scruff-cache age 2>/dev/null || echo 0)" -ge "$KICK_AFTER" ] &&
+      scruff-cache kick "$KICK_AFTER" >/dev/null 2>&1
+  else
+    lanes_json="$(scruff-cache sync "$SYNC_BOUND" 2>/dev/null)"
+    if [ -z "$lanes_json" ]; then
+      lanes_json="$(scruff-cache read "$STALE" 2>/dev/null)"
+      scruff-cache kick 0 >/dev/null 2>&1
+    fi
   fi
 fi
 # One probe before the real pass: a lane list jq refuses takes the whole picker
@@ -301,12 +313,27 @@ fi
 # That is fine — focusing a window is a fast next act — but it does mean the
 # lane half of this picker has no skeleton to present into, which is why
 # `open_lane` reports a failure as a fresh row rather than into the old window.
-# --actions: with the filter empty, name what Return does with what you typed.
-# That bar is the only place the transcript search can announce itself, because
-# it is the only chrome pounce draws when nothing matched.
+# --actions: with the filter empty, name what Return does with what you typed —
+# that bar is the only place the transcript search can announce itself, because
+# it is the only chrome pounce draws when nothing matched — and name ⌘↵ so the
+# refresh below is discoverable rather than folklore.
+# --chain enter,cmd: the typed-text Return (transcript search) and ⌘↵ (refresh)
+# both re-present into this window, so chaining holds the skeleton for each
+# instead of fading out and popping back. A plain row pick is `.plain` and
+# lingers whatever this says (see the comment above `focus_session`).
 selected="$(printf '%s\n' "$rows" |
-  pounce -p "$PROMPT" -i "$ICON" --chain enter --actions "Search transcripts")" || exit 0
+  pounce -p "$PROMPT" -i "$ICON" --chain enter,cmd \
+    --actions "Search transcripts|cmd:Refresh")" || exit 0
 [ -n "$selected" ] || exit 0
+
+# ⌘↵ anywhere means "the list is stale, read it live" — no matter what row was
+# under the cursor. Re-exec so the whole picker rebuilds from a forced sync,
+# rather than threading a fresh lane list back through the row/search branches
+# below. The re-exec presents into the held skeleton this commit chained.
+if [ "$(printf '%s' "$selected" | cut -f1)" = "cmd" ]; then
+  exec env LANES_FORCE_FRESH=1 "$0"
+fi
+
 picked="$(printf '%s' "$selected" | cut -f2)"
 [ -n "$picked" ] || exit 0
 
