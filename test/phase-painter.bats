@@ -271,16 +271,37 @@ NOTTY
 
 @test "haus-show.sh emits no escape into a pipe, and every one under CLICOLOR_FORCE" {
   # `die` is the one painted line reachable with no nix and no fixture, and it
-  # goes through the same gate as the whole report.
-  run bash -c "bash '$SHOW' /nope.nix 2>&1"
+  # goes through the same gate as the whole report. HAUS_DESKTOP_CHECK points at
+  # a directory that merely EXISTS so the "no such file" die is the one that
+  # fires: without it, a machine with no /run/current-system (every CI runner)
+  # trips the checker-missing die three steps earlier instead, and the test
+  # would be asserting about a different message on each platform.
+  local ck="$BATS_TEST_TMPDIR"
+  run bash -c "HAUS_DESKTOP_CHECK='$ck' bash '$SHOW' /nope.nix 2>&1"
   [[ "$output" != *$'\033['* ]]
   [[ "$output" == *"no such file"* ]]
 
-  run bash -c "CLICOLOR_FORCE=1 bash '$SHOW' /nope.nix 2>&1"
+  run bash -c "CLICOLOR_FORCE=1 HAUS_DESKTOP_CHECK='$ck' bash '$SHOW' /nope.nix 2>&1"
   [[ "$output" == *$'\033[38;5;167m'* ]]
 
-  run bash -c "NO_COLOR=1 CLICOLOR_FORCE=1 bash '$SHOW' /nope.nix 2>&1"
+  run bash -c "NO_COLOR=1 CLICOLOR_FORCE=1 HAUS_DESKTOP_CHECK='$ck' bash '$SHOW' /nope.nix 2>&1"
   [[ "$output" != *$'\033['* ]]
+}
+
+@test "haus show's earliest errors say what they mean" {
+  # Every helper scrubs its message, so a `die` that fired before `scrub` was
+  # defined printed `scrub: command not found` and then an EMPTY message —
+  # `✗ ` and nothing else. The two earliest dies are the two that most need
+  # words: an unknown flag, and "this machine's haus predates 'haus show'".
+  # Pre-existing; found because the gate test above could not tell which `die`
+  # it had reached on a runner with no /run/current-system.
+  run bash -c "HAUS_DESKTOP_CHECK=/definitely/not/here bash '$SHOW' /nope.nix 2>&1"
+  [[ "$output" == *"haus update"* ]] || { echo "blank checker error: $output"; false; }
+  [[ "$output" != *"command not found"* ]]
+
+  run bash -c "bash '$SHOW' --nope 2>&1"
+  [[ "$output" == *"unknown flag"* ]] || { echo "blank flag error: $output"; false; }
+  [[ "$output" != *"command not found"* ]]
 }
 
 @test "no CLI in this room hardcodes an escape outside its palette block" {

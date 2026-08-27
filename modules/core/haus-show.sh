@@ -60,11 +60,36 @@ else
   C_OFF=; C_FOG=; C_OK=; C_WARN=; C_ERR=; C_MUT=
 fi
 
-# `scrub` (defined below, beside the reasoning) strips C0 controls. It is
-# applied in the HELPERS rather than at each call site: every one of these takes
-# a message that can carry a source's bytes — a path, a URL, a diagnostic, a
-# value — and a rule that has to be remembered per call is a rule with a hole in
-# it. On haus's own ASCII literals it does nothing.
+# ---- everything a stranger wrote passes through here -------------------------
+# `toJSON` escapes quotes, backslashes and the three whitespace controls, and
+# nothing else — so ESC survives a desktop's own values and its own attribute
+# NAMES all the way to `jq -r`, which decodes it back to a raw byte. Measured:
+# an accent of "\u001b[7A\u001b[2K…" reaches the terminal intact.
+#
+# That is not cosmetic here. `sets` is printed AFTER the class line and after
+# the list of broken rules, so a file that can move the cursor can repaint
+# "not a desktop — it breaks the rules below" as "a desktop — data only, and
+# haus checked it". The exit code stays honest; the screen is what the audience
+# reads. Step A shipped this hole with an input that had been handed to you by
+# someone; a source arrives from a stranger, which is what makes it bite.
+#
+# Tab survives, because it is the field separator the render loops read on.
+# `--json` needs none of this: jq re-escapes controls on the way out.
+scrub() { LC_ALL=C tr -d '\000-\010\013\014\016-\037\177'; }
+
+# `scrub` is defined immediately above rather than beside the rest of the
+# reasoning, and that placement is load-bearing: every helper below calls it, so
+# a `die` that fires before its definition prints `scrub: command not found` and
+# then an EMPTY message. The earliest ones are exactly the ones that matter —
+# an unknown flag, and "this machine's haus predates 'haus show', run 'haus
+# update' first" — so the report's most important error was `✗ ` and nothing
+# else. Found by this room's own colour-gate test, which could not decide which
+# `die` it had reached.
+#
+# It is applied in the HELPERS rather than at each call site: every one of these
+# takes a message that can carry a source's bytes — a path, a URL, a diagnostic,
+# a value — and a rule that has to be remembered per call is a rule with a hole
+# in it. On haus's own ASCII literals it does nothing.
 say()   { printf '%s🌫  %s%s\n' "$C_FOG" "$(printf '%s' "$*" | scrub)" "$C_OFF"; }
 die()   { printf '%s✗  %s%s\n' "$C_ERR" "$(printf '%s' "$*" | scrub)" "$C_OFF" >&2; exit 2; }
 field() { printf '  %s%-9s%s %s\n' "$C_FOG" "$1" "$C_OFF" "$(printf '%s' "$2" | scrub)"; }
@@ -185,23 +210,6 @@ CHECK="$(cd -- "$CHECK" >/dev/null && pwd -P)"
 # path, or a crafted URL, inject Nix into an expression this command is about
 # to evaluate.
 nix_string() { printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/\$/\\$/g'; }
-
-# ---- everything a stranger wrote passes through here -------------------------
-# `toJSON` escapes quotes, backslashes and the three whitespace controls, and
-# nothing else — so ESC survives a desktop's own values and its own attribute
-# NAMES all the way to `jq -r`, which decodes it back to a raw byte. Measured:
-# an accent of "\u001b[7A\u001b[2K…" reaches the terminal intact.
-#
-# That is not cosmetic here. `sets` is printed AFTER the class line and after
-# the list of broken rules, so a file that can move the cursor can repaint
-# "not a desktop — it breaks the rules below" as "a desktop — data only, and
-# haus checked it". The exit code stays honest; the screen is what the audience
-# reads. Step A shipped this hole with an input that had been handed to you by
-# someone; a source arrives from a stranger, which is what makes it bite.
-#
-# Tab survives, because it is the field separator the render loops read on.
-# `--json` needs none of this: jq re-escapes controls on the way out.
-scrub() { LC_ALL=C tr -d '\000-\010\013\014\016-\037\177'; }
 
 # Nix's own sentence out of a captured stderr, not a guess.
 #
