@@ -77,17 +77,17 @@ let
   visible = optionsEval.options // {
     haus = lib.filterAttrs (name: _: !(lib.hasPrefix "_" name)) optionsEval.options.haus;
   };
-  doc = pkgs.nixosOptionsDoc {
-    options = visible;
-    warningsAreErrors = false;
-    transformOptions =
-      opt:
-      opt
-      // {
-        declarations = map relative opt.declarations;
-      };
-  };
-  optionsJSON = doc.optionsJSON;
+  optionsJSON =
+    (pkgs.nixosOptionsDoc {
+      options = visible;
+      warningsAreErrors = false;
+      transformOptions =
+        opt:
+        opt
+        // {
+          declarations = map relative opt.declarations;
+        };
+    }).optionsJSON;
   registry = import ./options-groups.nix;
   # Keep the old top-level namespace lookups during the cross-repo rollout.
   # The versioned registry lives under `namespaces`; these aliases let an older
@@ -107,10 +107,3 @@ pkgs.runCommand "haus-options-json"
     chmod -R u+w "$out"
     cp "$groupsJSONPath" "$out/share/doc/nixos/groups.json"
   ''
-# The same option data as an eval-time attrset, beside the derivation that
-# serialises it. A renderer written in Nix (ai/agents/options-md.nix) reads
-# this and never has to parse options.json back out at build time; the two are
-# the same `nixosOptionsDoc` call, so they cannot describe different options.
-// {
-  inherit (doc) optionsNix;
-}

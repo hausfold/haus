@@ -34,14 +34,7 @@ let
 
   # The same option metadata hausfold.co's reference is rendered from — one
   # evaluation, so the page and the skill can't disagree about what an option is.
-  optionsDoc = import ../../options-doc.nix { inherit pkgs lib; };
-
-  # Rendered in Nix from that evaluation's own attrset, not from the JSON it
-  # also writes — the reference is a build-time render of data we already hold,
-  # so there is nothing to parse back out.
-  optionsMD = pkgs.writeText "haus-options.md" (
-    import ./options-md.nix { inherit lib; } optionsDoc.optionsNix
-  );
+  optionsJSON = import ../../options-doc.nix { inherit pkgs lib; };
 
   # ---- references/rooms.md: the routing layer above options.md --------------
   # `options.md` is a flat list of every leaf, and it is authoritative — but it
@@ -106,6 +99,7 @@ let
 in
 pkgs.runCommand "haus-agent-skill-${version}"
   {
+    nativeBuildInputs = [ pkgs.jq ];
     meta = {
       description = "Agent skill teaching a coding agent to change a haus machine's config";
       inherit version;
@@ -127,7 +121,9 @@ pkgs.runCommand "haus-agent-skill-${version}"
 
     cp ${roomsMD} "$out/references/rooms.md"
 
-    cp ${optionsMD} "$out/references/options.md"
+    jq -r -f ${./options-md.jq} \
+      ${optionsJSON}/share/doc/nixos/options.json \
+      > "$out/references/options.md"
 
     # A skill whose option reference silently rendered empty would be worse than
     # no skill: the agent would conclude haus has no options rather than
