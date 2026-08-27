@@ -364,9 +364,23 @@ mechanism, say so in one line.
   runtime-fact problem `trill.sh`'s wrapper exists for. Guard with
   `command -v snug` and fall through to plain `printf`, exactly as
   `haus-notify` falls through to Apple's banner.
+  **`HAUS_UI_SH` is what those shells fall through TO.** snug ships a bash half
+  of the same spec at `share/ui.sh`, *inside its own derivation* beside
+  `bin/snug`, and `modules/core`'s wrapper hands `haus.sh` that store path with
+  `--set-default`. It has to be handed in: `haus.sh` is `builtins.readFile`'d
+  into a store binary, so `dirname $0` is /nix/store and a haus user has no
+  checkout of anything to look beside. That is why the file lives in
+  `hausfold/snug` and not in the workshop where it was written. Source it
+  guarded — `[ -r "${HAUS_UI_SH:-}" ]`, never a bare `source`: under
+  `set -euo pipefail` an unset variable and a missing path are BOTH fatal, and
+  either kills `haus` at load time with nothing on either stream.
+  `test/phase-painter.bats` holds both halves of that.
   Being reachable is not the same as being adopted: converting haus's own
   painters is separate work, and this bullet is not a licence to half-convert
-  one on the way past.
+  one on the way past. `haus.sh` sources ui.sh today and still draws with its
+  own escapes on purpose — ui.sh puts every human line on fd 2 and gates colour
+  on it, while `say`/`ok`/`info` here write to fd 1, so moving one without the
+  other would put escapes into `haus status | less`.
 - `nixfmt` formats `.nix` files.
 
 ## Gotchas

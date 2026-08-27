@@ -891,7 +891,24 @@ in
       # so the two never shadow each other.)
       #
       # Wrapped rather than bare because two of its tools have to be THERE, not
-      # merely usually there. `gum` draws `haus set`'s picker and is in nixpkgs
+      # merely usually there — and because of `HAUS_UI_SH`, which is a path
+      # rather than a tool.
+      #
+      # `haus.sh` is `builtins.readFile`'d into this store binary, so it has no
+      # checkout to look beside: `dirname $0` is /nix/store, and a haus user has
+      # no clone of anything. `--set-default` hands it snug's bash painter
+      # (`share/ui.sh`, which ships inside snug's own derivation next to
+      # `bin/snug`) as an absolute store path, which is the only way this script
+      # can reach it at all. `-default` rather than `--set` so a developer can
+      # point it at a working copy for an afternoon without rebuilding.
+      #
+      # This is why that file lives in hausfold/snug rather than in the workshop
+      # where it was written: the workshop is a developer checkout, and the
+      # end-user CLI is the caller that most needs a painter when `snug` itself
+      # is off PATH. `haus.sh` still degrades when the variable points at
+      # nothing — same contract `haus-notify` keeps toward trill.
+      #
+      # The two tools: `gum` draws `haus set`'s picker and is in nixpkgs
       # but in nobody's profile — bootstrap.sh fetches it ad-hoc with `nix build
       # nixpkgs#gum`, which is exactly the sort of thing an end-user command must
       # not need. `jq` parses every value `haus set` writes and reads the options
@@ -916,7 +933,8 @@ in
               # `nixfmt: command not found` on its very first edit.
               nixfmt
             ]
-          }
+          } \
+            --set-default HAUS_UI_SH ${snug}/share/ui.sh
         '';
       })
 

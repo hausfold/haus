@@ -43,6 +43,31 @@ CONSUMER="${HAUS_CONSUMER:-$HOME/.config/nix}"
 # landmark check below reads the same thing settings_write's TX helpers do.
 FLAKE="$CONSUMER/flake.nix"
 
+# ---- snug's bash painter ----------------------------------------------------
+# `share/ui.sh` is snug's bash half — the same spec as the `snug` binary, at
+# lower fidelity, for a shell that cannot see the binary. `HAUS_UI_SH` is an
+# absolute store path set by the wrapper in modules/core/default.nix, because
+# this script is `builtins.readFile`'d into a store binary: it has no checkout
+# to look beside, and a haus user has no clone of anything to look in.
+#
+# GUARDED, never assumed — the same contract this script keeps toward trill.
+# `${VAR:-}` and `-r` rather than a bare `source`: under `set -euo pipefail` an
+# unset variable is fatal and a `source` of a missing path exits 1, which would
+# kill `haus` at load time, before any verb ran, with nothing on either stream.
+# That is the worst possible failure mode for a courtesy, and it is exactly the
+# shape of the `tput` bug ui.sh itself was written not to inherit.
+#
+# ⚠️ Sourced but not yet drawn through. The verbs below keep their own escapes,
+# their own gate and their own streams until the whole painter moves together
+# (step 7 of the workshop's docs/cli-presentation.md): ui.sh puts every human
+# line on fd 2 and gates colour on it, while `say`/`ok`/`info` here write to
+# fd 1, so switching one without the other would put escapes into
+# `haus status | less` and take `ok` lines out of a pipeline that expects them.
+if [ -r "${HAUS_UI_SH:-}" ]; then
+  # shellcheck source=/dev/null
+  source "$HAUS_UI_SH"
+fi
+
 # ---- palette ----------------------------------------------------------------
 # Colour is a courtesy, never load-bearing. Every escape below is gated: emitted
 # only when stdout is a TTY (so `haus status | less`, CI logs and an agent pane
