@@ -1,7 +1,7 @@
-# The declarative source of truth for §4 of the workshop's
-# notes/options-roadmap.md, answering the spike in
-# notes/macos-settings-matrix.md (macOS 26.6, run 2026-07-25 on real hardware,
-# not recalled from docs). nix-darwin's own restart logic is one line —
+# The declarative source of truth for which domain needs which restart,
+# answering the sweep in `docs/macos-settings.md` (macOS 26.6, run 2026-07-25
+# on real hardware, not recalled from docs). nix-darwin's own restart logic is
+# one line —
 # `killall Dock`, and only when a `dock.*` option changed — and stops there:
 # Finder, the menu bar and Control Center all leave their write in the plist
 # and wait for a logout unless something restarts them.
@@ -39,7 +39,7 @@
 #   "notify:<DistributedNotificationName>"
 #     — post that distributed notification. The third verb, added 2026-08-08
 #       for the locale family, which has no process to kill: EVERY app is the
-#       consumer. Measured on 26.6.1 (workshop notes/probes/locale-sweep.sh): a
+#       consumer. Measured on 26.6.1 (the workshop's script/probes/locale-sweep.sh): a
 #       `defaults write` into the region keys reaches newly launched processes
 #       only — an app already running never sees it, not even through
 #       Locale.autoupdatingCurrent, the API documented to track changes.

@@ -8,7 +8,7 @@
 # exists before writing it: `com.apple.sound.beep.sound` takes an absolute path,
 # validates nothing, and a path that doesn't resolve makes the alert SILENT
 # rather than falling back to the default beep (measured by ear 2026-08-08 —
-# see the workshop's notes/macos-settings-matrix.md). A release that retires a
+# see `docs/macos-settings.md`). A release that retires a
 # sound must degrade to a warning, never to a machine that stopped beeping.
 [
   "Basso"

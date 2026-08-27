@@ -17,9 +17,8 @@ that leads with this image has to say so, or the first reply is "I installed it
 and it doesn't look like that."
 
 The scene it answers to lives in the workshop's `assets/SHOTLIST.md`; the
-reshoot was tracked in its `notes/launch-phase-1.md` §0, which records the
-measurement in full. Both are updated in the same round as this change, so the
-frame is described in two repos — when it is reshot again, they move together.
+reshoot is tracked in `hausfold/ops`'s `todo/launch-phase-1.md`, which records
+the measurement in full. All three move together when it is reshot again.
 
 **Nothing renders any of these — not this repo, and not hausfold.co either.**
 The README carried `hero.png` and `hacker-banner-gray-bg-rounded.png` until

@@ -107,7 +107,7 @@ launch_used_letters() {
 # different module shapes, which is exactly the split-brain the rice's
 # modules/roster removed. Which WORKSPACE an app owns is a similar split now:
 # the roster entry only ever names ITSELF, haus.workspaces.<id>.apps is
-# what claims it — see notes/options-roadmap.md §5.4.)
+# what claims it.)
 write_app_module() {
   local target="$1" resolved_app_id="${2:-$app_id}"
   local id_value id_lit key_lit name_lit app_id_lit icon_lit label_lit token_lit

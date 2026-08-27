@@ -1,6 +1,6 @@
-# The declarative source of truth for §5.12 of the workshop's
-# notes/options-roadmap.md — the sibling of ./restart-map.nix, in the same shape,
-# answering the question that comes one step earlier.
+# The declarative source of truth for what a `defaults write` can reach — the
+# sibling of ./restart-map.nix, in the same shape, answering the question that
+# comes one step earlier.
 #
 # restart-map.nix says what has to happen AFTER a `defaults write` for anyone to
 # feel it. This says whether the write can happen AT ALL, and what it does when
@@ -57,7 +57,7 @@
 # Per key for a domain that has a mixed answer, or once for the whole domain via
 # `effect` when every key shares one. Swept 2026-07-25 on real hardware from an
 # FDA-holding Ghostty, run twice with byte-identical results and a clean restore
-# both times (workshop notes/macos-settings-matrix.md).
+# both times (`docs/macos-settings.md`).
 #   "effective"   — the write lands AND `NSWorkspace` confirms macOS honours it.
 #                   `hausax` is the oracle that keeps it honest (`haus diff`
 #                   compares against the NSWorkspace read, not the plist).

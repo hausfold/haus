@@ -2,7 +2,7 @@
 # proves the names below are real.
 #
 # A tool's `<tool>-skill` derivation lays out `$out/<skill-name>/SKILL.md` (the
-# family standard, the workshop's notes/agent-surface.md §6), and a tool may
+# family standard, the workshop's `docs/agent-surface.md`), and a tool may
 # ship more than one: scruff ships `scruff` (drive the lane lifecycle) and `handoff`
 # (write the brief a `scruff spawn --prompt-file` lane opens on).
 #
@@ -36,7 +36,7 @@ let
   # default (`haus.notifications.compositor`), and a skill teaching an agent to
   # drive an app
   # this Mac does not have is worse than no skill at all — the workshop's
-  # notes/agent-surface.md §4. So the ROOM passes the switch and installs
+  # `docs/agent-surface.md`. So the ROOM passes the switch and installs
   # nothing when it is off, while flake.nix passes nothing and takes the default
   # — the `.#tool-skills` check therefore covers every name whatever any one
   # machine turns on, which is the point: a name that rots in trill's output has
@@ -84,7 +84,7 @@ let
   # HERE is which name is the promise.
   #
   # `SKILL.md` is what gets CHECKED and the folder is what gets INSTALLED,
-  # because the family standard (the workshop's notes/agent-surface.md §6) is
+  # because the family standard (the workshop's `docs/agent-surface.md`) is
   # what a name in the list above is a promise about — and an empty folder
   # would satisfy `-e` while teaching an agent nothing.
   #

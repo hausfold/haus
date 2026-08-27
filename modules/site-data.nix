@@ -7,9 +7,9 @@
 # anyway; it stopped being tolerable when the site moved to its own repo
 # (`hausfold/hausfold.co`, 2026-08-08).
 #
-# The family's rule for this shape is in the workshop's notes/options-roadmap.md
-# §7: *mirror only what fits in one expression and can be pinned by a golden
-# test; anything table-shaped becomes an output of the repo that owns it.*
+# The family's rule for this shape: *mirror only what fits in one expression
+# and can be pinned by a golden test; anything table-shaped becomes an output
+# of the repo that owns it.*
 # This derivation is the output; `docs/site-data/` in this repo is the committed
 # copy of it, and the `site-data-current` flake check is the pin. The site then
 # reads three plain files out of a checkout, and the drift check stays here,

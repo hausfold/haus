@@ -10,7 +10,7 @@
 # will be. That left a real gap: a DESKTOP could not say "this Mac is a neovim
 # Mac", because the layer installed helix unconditionally and every other value
 # of `editor` named a binary nothing had put on PATH — a broken $EDITOR dressed
-# as a choice (workshop's notes/rooms-desktops.md, carried out of step 4).
+# as a choice (`docs/model.md`).
 #
 # So the choice is over a closed set the room can actually deliver, and it is
 # the enum — not the command — that a desktop sets. `editor` still exists and

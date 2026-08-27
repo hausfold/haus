@@ -1,9 +1,8 @@
 # What `haus show <src>` reports about one file, as DATA.
 #
-# The command is the publisher's pre-share check and the consumer's first look
-# (the workshop's notes/rooms-desktops.md, Acquisition steps A and B): read a
-# file, say what class it is, run the desktop checker over it, and list what it
-# would set and what it leaves alone.
+# The command is the publisher's pre-share check and the consumer's first look:
+# read a file, say what class it is, run the desktop checker over it, and list
+# what it would set and what it leaves alone.
 #
 # THIS file only ever sees a path that is already on disk. Fetching a remote
 # source is the command's own job and happens before this is called, in a

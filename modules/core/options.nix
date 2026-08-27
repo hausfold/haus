@@ -509,8 +509,8 @@ in
     #
     # Default "system" = write nothing, the same policy every other curated
     # macOS settings group follows ("a group is a place to make an opinion
-    # available, not to impose one; a desktop is where an opinion belongs" —
-    # notes/options-roadmap.md §5.6). It was briefly drafted the other way
+    # available, not to impose one; a desktop is where an opinion belongs").
+    # It was briefly drafted the other way
     # round, defaulting to "fast", and the argument against that is the one hot
     # corners already made: these keys land on machines that have been running
     # for years, macOS keeps no memory of a prior value, and a rice that speeds
@@ -1243,7 +1243,7 @@ in
 
     # ---- sound ----
     # §5.6's "Sound" group, spiked 2026-08-08 (workshop
-    # notes/macos-settings-matrix.md). Everything here writes live: no restart,
+    # `docs/macos-settings.md`). Everything here writes live: no restart,
     # no logout, no Full Disk Access. Two keys are typed by nix-darwin
     # (beep.volume, beep.feedback), two go through CustomUserPreferences, and
     # the startup chime isn't a plist at all.

@@ -2,7 +2,7 @@
 # actually stores in NSGlobalDomain's `com.apple.sound.beep.volume`.
 #
 # The key is NOT a fraction. Measured against CoreAudio's live alert volume on
-# macOS 26.6.1 (workshop notes/probes/sound-sweep.sh, `osascript -e 'get volume
+# macOS 26.6.1 (the workshop's script/probes/sound-sweep.sh, `osascript -e 'get volume
 # settings'` as the oracle — not a plist read-back):
 #
 #   stored 1.0        → 100        stored 0.5        →  31

@@ -11,8 +11,7 @@
 # activates nothing — a remote source is fetched into the store and read there,
 # and your config is never part of the evaluation.
 #
-# Acquisition steps A and B in the workshop's notes/rooms-desktops.md. The
-# what-your-machine-becomes diff (C) comes later, and the place it slots into
+# The what-your-machine-becomes diff comes later, and the place it slots into
 # this frame is marked below so a later step extends it rather than reinventing
 # it.
 #
@@ -632,7 +631,8 @@ if [ "$machine" != null ]; then
 fi
 
 if [ -n "$json" ]; then
-  # Data on stdout, diagnostics on stderr — notes/agent-surface.md's rule. This
+  # Data on stdout, diagnostics on stderr — the rule in the workshop's
+# `docs/agent-surface.md`. This
   # is haus's first --json verb, so the envelope is the one the rest of the
   # sweep copies: a schemaVersion, and `checked` said out loud rather than left
   # to be inferred from an empty failure list.

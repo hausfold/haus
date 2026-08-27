@@ -11,6 +11,5 @@
 # to pounce rather than to Ghostty is the one that governs the whole chord
 # layer: `ghostty +list-actions` on 1.3.1 lists 85 actions and none of them runs
 # a command. A chord that DOES something has to be hosted somewhere that can
-# shell out, and pounce's tap is the only app-scoped one of those — see
-# notes/zellij-exit.md, decision 4.
+# shell out, and pounce's tap is the only app-scoped one of those.
 exec "$HOME/.config/haus/term/find.sh" launch pane

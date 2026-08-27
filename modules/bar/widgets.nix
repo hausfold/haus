@@ -7,8 +7,8 @@
 # It exists because `haus.bar.items` was a CLOSED submodule of bools that grew
 # by one every time a pill shipped: sixteen leaves, sixteen more in
 # `bar.bottom.items`, and no way at all for a rice that isn't this one to add a
-# seventeenth. `haus.bar.widgets.<name>` is the open form (the workshop's
-# notes/options-roadmap.md §5.9), and the rule that keeps the old surface
+# seventeenth. `haus.bar.widgets.<name>` is the open form, and the rule that
+# keeps the old surface
 # meaning exactly what it meant is here: EVERY bundled pill is pre-declared as a
 # widget, and `bar.items.<name>` is sugar that sets that widget's `enable`.
 #

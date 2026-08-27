@@ -8,7 +8,7 @@
 # namespace, one on/off. No aliases — modules/moved.nix says why.
 #
 # The room is the first proof of the cross-room contract in
-# notes/rooms-desktops.md: AI OWNS the capability, and the rooms that present it
+# `docs/model.md`: AI OWNS the capability, and the rooms that present it
 # (Development's terminal binds, the Bar's pill, the Launcher's commands) own
 # the extension points it writes to. See modules/ai/default.nix.
 { lib, config, ... }:

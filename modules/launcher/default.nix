@@ -1549,7 +1549,7 @@ lib.mkIf config.haus.launcher.enable {
         # They were zellij binds until zellij was removed, and pounce is where
         # they landed rather than Ghostty for one measured reason:
         # `ghostty +list-actions` on 1.3.1 lists 85 actions and NONE of them
-        # runs a command (notes/zellij-exit.md, decision 4). Ghostty's config
+        # runs a command. Ghostty's config
         # unbinds each of these so the tap is not racing a built-in — see
         # modules/terminal/ghostty/config's chord-layer block, which is the
         # other half of this list and has to move with it.

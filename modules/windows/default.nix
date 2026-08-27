@@ -62,7 +62,7 @@ let
 
   # Which workspace (if any) an app's window herds to, resolved by
   # ../workspaces from haus.workspaces.*.apps — the app itself no longer
-  # carries a `workspace` field (see notes/options-roadmap.md §5.4).
+  # carries a `workspace` field.
   appWorkspaceId = a: config.haus._appWorkspace.${a.id} or null;
 
   # The resolved keymap: chords + the glyphs that document them, from one table.
@@ -190,8 +190,7 @@ let
   );
 
   # ...and the named ones, keyed off the WORKSPACE rather than an app (several
-  # apps can share one workspace and one throw — see notes/options-roadmap.md
-  # §5.4).
+  # apps can share one workspace and one throw).
   launchMoves = lib.optionalString (k.leader != null) (
     lib.concatMapStrings (
       ws:
@@ -305,8 +304,7 @@ let
   ) apps;
 
   # `float` entries — the generalised shape the three FaceTime/Trill/Ghostty
-  # rules used to be hardcoded as (notes/options-roadmap.md §5.4's "window
-  # rules beyond assignment" box). Ghostty stays hand-written in aerospace.toml
+  # rules used to be hardcoded as. Ghostty stays hand-written in aerospace.toml
   # (its rule is startup-vs-runtime, not a plain always-float — see the
   # comment there), so it never sets `float` itself. `titleRegex` scopes the
   # float to matching windows only; AeroSpace has no primitive for centering a

@@ -9,7 +9,7 @@
 # It was `presets/large-print.nix`, a top-level file a consumer stacked into
 # `extraModules` beside a whole rice. Under the rooms model whole selections do
 # not stack, so a cross-cutting CONCERN that is still useful becomes a
-# room-owned profile instead (notes/rooms-desktops.md, step 5). Same four
+# room-owned profile instead (`docs/model.md`). Same four
 # values, one address, and it is desktop-safe: a desktop may name it, and a host
 # may override any single value it sets with a plain assignment.
 #

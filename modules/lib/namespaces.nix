@@ -10,7 +10,7 @@
 # from anyone.
 #
 # What that collision looks like was measured, not guessed
-# (`notes/probes/namespace-collision.nix` in the workshop):
+# (the workshop's `script/probes/namespace-collision.nix`):
 #
 #   same leaf, both fully described   throws, naming two store paths and no author
 #   same leaf, one of them bare       merges, silently

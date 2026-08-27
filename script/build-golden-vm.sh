@@ -24,7 +24,7 @@
 # image from some other macOS — a hand-installed one, an MDM-managed one — and
 # every step below dies on a modal nobody can click.
 #
-# Measured on a Tahoe 26.6.2 guest, 2026-08-22 (workshop notes/agent-vm.md):
+# Measured on a Tahoe 26.6.2 guest, 2026-08-22 (the workshop's `docs/agent-vm.md`):
 #
 #   - A TCC prompt does not BLOCK. The row is written `auth_value = 2` at the
 #     same instant the dialog appears, so the command returns real data while
@@ -196,7 +196,7 @@ EOS
 
 # ---- 3. the quiet pass -----------------------------------------------------
 # What the first boot leaves on the desktop, and what each part of this
-# removes, is in workshop's notes/agent-vm.md §3.2. Order matters: grant first
+# removes, is in the workshop's `docs/agent-vm.md`. Order matters: grant first
 # (so nothing new is posted), then click what is already up, then wipe the
 # notification store.
 say "quiet pass — pre-granting TCC, clearing first-run alerts…"
@@ -353,7 +353,7 @@ EOS
 if [ -n "$leftovers" ]; then
   warn "dialogs still on the guest's screen:"
   printf '%s\n' "$leftovers" | sed 's/^/    /'
-  warn "every clone of this image inherits them — see workshop notes/agent-vm.md §3.2"
+  warn "every clone of this image inherits them — see the workshop's docs/agent-vm.md"
 else
   say "clean desktop"
 fi

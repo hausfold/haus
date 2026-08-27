@@ -1,7 +1,7 @@
 # The desktop seam's structural validator.
 #
 # A DESKTOP is a complete, data-only answer to "what should this Mac feel
-# like?" (the workshop's notes/rooms-desktops.md). One host selects exactly one,
+# like?" (`docs/model.md`). One host selects exactly one,
 # and its whole trust story is that a person can read the file and know what it
 # can do. That only holds if the shape is CLOSED — checked here, before a single
 # module is evaluated:
@@ -344,7 +344,7 @@ let
     # The whole desktop/host split in one option. `internal` and `main` say
     # WHICH SCREEN YOU MEAN in words that are true on any Mac; a UUID names one
     # physical panel on one desk, which is a hardware fact and belongs to a host
-    # (notes/rooms-desktops.md). So a desktop may say "make the built-in panel
+    # (`docs/model.md`). So a desktop may say "make the built-in panel
     # larger" and may not mention the monitor at the office.
     display-selectors = entries {
       keyOk =

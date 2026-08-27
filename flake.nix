@@ -219,8 +219,8 @@
       riceLib = rec {
         # ---- desktops ---------------------------------------------------------
         # A DESKTOP is a complete answer to "what should this Mac feel like?",
-        # and a host selects exactly one (the workshop's
-        # notes/rooms-desktops.md). It is the whole selection — which is why it
+        # and a host selects exactly one (`docs/model.md`). It is the whole
+        # selection — which is why it
         # gets a closed schema and a trust boundary rather than a stray-key
         # check.
         #
@@ -1357,7 +1357,7 @@
           #
           # The right-hand column is not a re-derivation of the formula: it is
           # what CoreAudio reported when each value was written on macOS 26.6.1
-          # (workshop notes/probes/sound-sweep.sh, `osascript -e 'get volume
+          # (the workshop's script/probes/sound-sweep.sh, `osascript -e 'get volume
           # settings'`). Recomputing the same maths a second time would only
           # check the code against itself; these numbers came off the machine.
           alertVolumeTable = builtins.concatStringsSep "\n" (
@@ -2163,7 +2163,7 @@
 
           # ---- ai-room ---------------------------------------------------------
           # The AI room is the first room declared as a CROSS-ROOM CAPABILITY
-          # (notes/rooms-desktops.md), and the claim it makes is behavioural, not
+          # (`docs/model.md`), and the claim it makes is behavioural, not
           # structural: turning it on brings its own clients and `scruff` whatever
           # else the machine has, and what it adds to the terminal, the bar and
           # the launcher arrives only with those rooms. A comment cannot hold
@@ -2457,7 +2457,7 @@
           ) registeredExports;
 
           # ---- desktop-seam ----------------------------------------------------
-          # Step 3 of the workshop's notes/rooms-desktops.md: a host selects
+          # `docs/model.md`, "The user journey": a host selects
           # EXACTLY ONE desktop, a desktop is data with a closed shape, and the
           # person who chose it still wins with a plain assignment.
           #

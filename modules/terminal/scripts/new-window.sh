@@ -13,7 +13,7 @@
 #
 # ── why AppleScript and not `open -na` ───────────────────────────────────────
 # 252 ms into the running instance vs 366 ms and a whole second Ghostty process
-# per window (measured 2026-08-16, notes/zellij-exit.md). More importantly a
+# per window, measured 2026-08-16. More importantly a
 # `surface configuration` record carries `initial working directory`, `command`
 # and `environment variables` natively, where `open --args` has to spell each one
 # out as a flag. It does still spell them out, below: `open -na` is the FALLBACK
@@ -155,7 +155,7 @@ fi
 #
 # `open -na` needs no grant at all, because launching an app is not automating
 # one. It costs a second Ghostty process and ~366 ms against the event's ~252 ms
-# (notes/zellij-exit.md, measured for exactly this argv shape), and it carries
+# (measured 2026-08-16 for exactly this argv shape), and it carries
 # cwd and command as config flags rather than natively. `--initial-command=`, NOT
 # `-e`: macOS refuses to run the terminal from the CLI at all, so `ghostty -e …`
 # is unsupported there (scripts/float-term.sh:63) and every `open -na` this room

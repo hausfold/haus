@@ -1,6 +1,6 @@
 # Extension points — how one room contributes a feature to another.
 #
-# The contract (notes/rooms-desktops.md, "Rooms cooperate"): rooms may talk to
+# The contract (`docs/model.md`, "Rooms cooperate"): rooms may talk to
 # other rooms, but never by reaching into each other's config and never by
 # switching each other on. The RECEIVING room declares an extension point; the
 # SOURCE room writes to it; the receiver renders whatever it finds there inside

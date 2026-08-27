@@ -96,6 +96,9 @@ whose room is optional joins them when you switch it on — `trill` with
 ## more
 
 - [Modules](docs/modules.md) — one room in your own flake, `mkHaus`, the identity knobs
+- [The model](docs/model.md) — layer, room, desktop, host, and what each one owns
+- [macOS settings](docs/macos-settings.md) — what a desktop can actually set, measured
+- [The focus room](docs/focus.md) — how it flips a real macOS Focus, scenes, triggers
 - [Making it yours](https://hausfold.co/docs/haus/desktops/customizing/) · [Keeping it current](https://hausfold.co/docs/haus/keeping-it-current/) · [Leaving](https://hausfold.co/docs/haus/leaving/)
 - [`AGENTS.md`](./AGENTS.md) — hacking on the house
 

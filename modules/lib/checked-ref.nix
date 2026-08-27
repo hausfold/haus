@@ -32,7 +32,7 @@
 # the previous site's shell by hand, and each time from a different room. The
 # third site's own comment states the pattern in general terms and names its
 # own precedent, and still did not reach the fourth author, because it is prose
-# inside a section about themes. The workshop's `notes/drift.md` row
+# inside a section about themes. The workshop's `docs/drift.md` row
 # twenty-four is exactly this: prose does not travel, and the follow-up it
 # names is this file.
 #
@@ -46,7 +46,7 @@
 #
 # ## The API
 #
-# `notes/drift.md` sketched this as `checkedRef drv path`. One function can't
+# The workshop's `docs/drift.md` sketched this as `checkedRef drv path`. One function can't
 # serve both consumers, and the difference is not cosmetic: two of the three
 # sites need the referent COPIED into `$out`, because what points at it is a
 # `home.file` source, and a check whose result nothing consumes is a check on

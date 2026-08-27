@@ -5,8 +5,8 @@
 #
 # A COLLECTION is a data-only file that touches ONE option family,
 # `haus.roster`. It used to be a top-level concept stacked beside a whole rice;
-# it is something the Apps room OFFERS now (the workshop's
-# notes/rooms-desktops.md, step 5), because "what's on this machine" is the
+# it is something the Apps room OFFERS now (`docs/model.md`, "What a desktop
+# is"), because "what's on this machine" is the
 # question that room already answers, and a saved collection is not a peer of a
 # room or a desktop.
 #
@@ -110,7 +110,7 @@
     };
   };
 
-  # ---- what's ALSO deliberately missing, since notes/options-roadmap.md §5.4 --
+  # ---- what's ALSO deliberately missing ------------------------------------
   #
   # WORKSPACE ownership moved off the roster entry entirely (a workspace names
   # its own members now, not the other way round), so this file can no longer

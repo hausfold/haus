@@ -12,8 +12,8 @@
 //               "reduceMotion":bool,"reduceTransparency":bool}
 //
 // Why this exists: on macOS 26, com.apple.Accessibility writes succeed and
-// change nothing — the plist flips, NSWorkspace does not (see the workshop's
-// notes/macos-settings-matrix.md). A settings command that only reads plists
+// change nothing — the plist flips, NSWorkspace does not (see
+// `docs/macos-settings.md`). A settings command that only reads plists
 // would call that write "applied" when it silently did nothing. This is the
 // oracle `haus diff` / `haus plan` use for the keys with a measured
 // write-vs-effect gap; every other domain's plist read is reliable (the
