@@ -136,29 +136,42 @@ case "$backend" in
     # version of the same. Ids are digits by construction, so a space is a safe
     # join, and `split(c, a, " ")` is awk's default-FS split: runs of
     # whitespace, leading and trailing ignored. (MEASURED 2026-08-26.)
-    # ── the exact join, asked first ─────────────────────────────────────
+    # ── the exact join ──────────────────────────────────────────────────
     # lanes/lane-open.sh's self-tile block stamps the AeroSpace window id it
     # looked up as `lwindow=`, which makes a lane answerable by id the way a
-    # plain window always was. Checked against the live window list rather
-    # than trusted: a session outlives its window (⌘W parks one), so the
-    # label can name an id nobody holds — exactly as `window=` can, and
+    # plain window always was — and answers the ceiling the title scan below
+    # cannot reach on its own, an impostor with no session and so no label to
+    # be subtracted by (test/raise-session-lane-join.bats says as much in its
+    # "one labelled plain window" case). Checked against the live window list
+    # rather than trusted: a session outlives its window (⌘W parks one), so
+    # the label can name an id nobody holds — exactly as `window=` can, and
     # handled here exactly as it is below.
     #
-    # It does not replace the title scan, it precedes it. A lane reopened by
-    # `open_window` above carries no id to stamp, and a self-tile that bailed
-    # (no Ghostty ancestor, an ambiguous window list) never wrote one, so the
-    # scan stays the answer for both.
-    win=""
+    # It does not replace the scan. A lane reopened by `open_window` above
+    # carries no id to stamp, a self-tile that bailed never wrote one, and a
+    # lane from before this label existed has none, so the scan is still the
+    # answer for all three.
+    #
+    # Resolved BEFORE the scan and applied AFTER it, which costs one listing
+    # this could in principle skip. That is deliberate: the two statements
+    # below are pinned BYTE FOR BYTE by that bats suite, which extracts them
+    # with `sed -n '/^    claimed=/,/^        \$2 == "Ghostty"/p'` and evals
+    # the result under `set -u`. Wrapping them in an `if` re-indents the awk
+    # body, the extraction yields nothing, and every case in the suite fails
+    # on an empty answer. A raise is a click or a ⏎, not a keystroke on the
+    # typing path, so the spare `aerospace list-windows` is worth more as a
+    # test that keeps working.
+    lwin=""
     lw=$(label lwindow)
-    [ -n "$lw" ] && win=$(aerospace list-windows --all --format '%{window-id}' 2>/dev/null | grep -Fx "$lw")
+    [ -n "$lw" ] && lwin=$(aerospace list-windows --all --format '%{window-id}' 2>/dev/null | grep -Fx "$lw")
 
-    if [ -z "$win" ]; then
-      claimed=$(zmx ls 2>/dev/null | tr '\t' '\n' | sed -n 's/^window=//p' | tr '\n' ' ')
-      win=$(aerospace list-windows --all --format '%{window-id}|%{app-name}|%{window-title}' 2>/dev/null |
-        awk -F'|' -v t="$sess" -v c="$claimed" '
-          BEGIN { n = split(c, a, " "); for (i = 1; i <= n; i++) if (a[i] != "") skip[a[i]] = 1 }
-          $2 == "Ghostty" && $3 == t && !($1 in skip) { print $1; exit }')
-    fi
+    claimed=$(zmx ls 2>/dev/null | tr '\t' '\n' | sed -n 's/^window=//p' | tr '\n' ' ')
+    win=$(aerospace list-windows --all --format '%{window-id}|%{app-name}|%{window-title}' 2>/dev/null |
+      awk -F'|' -v t="$sess" -v c="$claimed" '
+        BEGIN { n = split(c, a, " "); for (i = 1; i <= n; i++) if (a[i] != "") skip[a[i]] = 1 }
+        $2 == "Ghostty" && $3 == t && !($1 in skip) { print $1; exit }')
+    # The id beats the title, whatever the scan turned up.
+    [ -n "$lwin" ] && win="$lwin"
     if [ -z "$win" ]; then
       lw=$(label window)
       [ -n "$lw" ] && win=$(aerospace list-windows --all --format '%{window-id}' 2>/dev/null | grep -Fx "$lw")
