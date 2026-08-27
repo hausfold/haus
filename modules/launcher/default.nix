@@ -325,6 +325,11 @@ let
     "restore-windows.sh"
   ];
 
+  # Copy Text from Screen's image → text half (see ./hausocr.swift). Owned by
+  # this room because its one caller is a palette command; the capture UI is
+  # macOS's own and the clipboard is pbcopy, so the helper is the whole feature.
+  hausocr = pkgs.callPackage ./hausocr.nix { };
+
   # This rice's palette commands (see ./commands — one self-describing script
   # each, metadata in a `# pounce:` header). The generated app-font lookup is
   # private command data, not self-describing, so pounce ignores it.
@@ -332,6 +337,7 @@ let
     mkdir -p $out
     cp ${./commands}/*.sh $out/
     substituteInPlace $out/add-app.sh --replace-fail '@hostname@' '${hostname}'
+    substituteInPlace $out/copy-text.sh --replace-fail '@hausocr@' '${hausocr}/bin/hausocr'
     chmod 555 $out/*.sh
     install -m555 ${appIconMap} $out/app-icon-map
     # Pounce discovers every top-level file as a command. Keep picker payloads
@@ -1093,6 +1099,31 @@ lib.mkIf config.haus.launcher.enable {
     ];
   };
 
+  # Two palette commands capture the screen through macOS's own crosshair —
+  # Copy Text from Screen (⌘⇧2) and Spawn Agent's ⌘↵ screenshot attach — and
+  # `screencapture` is attributed to the daemon that ran it, so the grant is
+  # Pounce's. Ungranted, macOS asks by itself on the first capture; the card
+  # exists for the machine where that dialog was dismissed, because the
+  # DEGRADED state is silent: captures come back wallpaper-only, which reads
+  # as "No text found" here and an empty desktop there, with nothing in any
+  # log. No `check` and no `prompt`, for the bar cards' reason — every API
+  # that reports Screen Recording asks for it first, and only the daemon
+  # itself could call the request API.
+  haus._contrib.permissions.launcher-screen-recording = {
+    order = 31;
+    title = "Screen Recording — pounce";
+    why = ''
+      Copy Text from Screen and Spawn Agent's screenshot both run macOS's own
+      area capture from the palette, and macOS books that against Pounce.
+      It asks on the first capture; this card is for putting the grant back
+      if that dialog was dismissed.
+    '';
+    cost = "captures quietly come back wallpaper-only — Copy Text always finds no text, the agent screenshot shows an empty desktop";
+    applies = "command -v pounce >/dev/null 2>&1";
+    pane = panes.screenRecording;
+    steps = [ "Turn Pounce on in the list" ];
+  };
+
   # Published so another room can run one of these scripts directly instead of
   # keeping a second copy of it — bar's logo pill is the first caller (the
   # option in ./options.nix says why a bar plugin can't resolve this itself).
@@ -1127,7 +1158,15 @@ lib.mkIf config.haus.launcher.enable {
   # not a merge. (mkMerge rather than `//` so the second element can stay an
   # unevaluated mkIf.)
   haus.launcher.items = lib.mkMerge [
-    { "mode:emoji".hotkey = lib.mkDefault "fn"; }
+    {
+      "mode:emoji".hotkey = lib.mkDefault "fn";
+
+      # Copy Text from Screen sits beside macOS's own capture family: ⌘⇧3/4/5
+      # take pixels, ⌘⇧2 takes the text — the key the established OCR-capture
+      # tools train, and one macOS itself leaves unbound. mkDefault, so a host
+      # rebinds or nulls it without mkForce.
+      "cmd:copy-text".hotkey = lib.mkDefault "cmd+shift+2";
+    }
 
     # The three rows that INHERIT WHERE YOU ARE — ⌘↵'s agent lane, ⌘N's shell
     # window and its ⌘⇧N --stay twin — are listed only on the terminal pages.
