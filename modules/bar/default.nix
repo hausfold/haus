@@ -175,6 +175,67 @@ let
   };
   inherit (bar) sizes;
 
+  # ---- the side edges: where the outermost pill stops -------------------------
+  # The bar's left and right padding is NOT a tuned number. It IS the window gap
+  # windows leaves at those same edges (../lib/gaps.nix, the one owner of every
+  # number in aerospace.toml's [gaps] block), and the pill at each edge gives up
+  # its own outer padding so the two land on the same line — at every
+  # haus.ui.scale, and through any later change to the gaps.
+  #
+  # It was a hardcoded 10 in both rcs, and where that landed was an accident of
+  # whichever pill happened to be outermost: the menu bar's logo edge sat at 14
+  # (10 + its own 4) and its clock edge at 18 (10 + the clock's 8), against a
+  # 20pt window gap on an external display and a 10pt one on the built-in. So
+  # every edge was wrong, each by a different amount, and in opposite directions
+  # on the two displays — which is what a constant with no relationship to the
+  # edge it is drawn against buys.
+  #
+  # `outermost` rather than a per-monitor pair, because SketchyBar has no
+  # per-display padding: an instance draws one bar across every screen with one
+  # padding, so this has to be a single number for a machine whose displays want
+  # 10 and 20. The widest is the safe direction and it is the same reason
+  # wallpaper takes `outermost` — inset further than the windows on the narrower
+  # display reads as deliberate, where the other choice puts pills outboard of
+  # the window edge on the wider one, which is the thing that looks broken.
+  # (Exact on an external, then, and up to 10pt inset on the built-in alone.)
+  gaps = import ../lib/gaps.nix {
+    inherit lib;
+    scale = config.haus.ui.scale;
+    bar = cfg;
+  };
+
+  # The inset itself: the bar's padding IS the window gap, in full, and the pill
+  # at each edge gives up its own outer padding to make that true (`edgePad`).
+  barPadX = gaps.outermost.left;
+
+  # The outermost pill's outer padding is spent on nothing — there is no
+  # neighbour out there, only the screen, and the bar's padding is already the
+  # whole gap. Zeroing it is what keeps the identity exact for pills that carry
+  # their own separation (the clock and the graph pills use 8 where the default
+  # is 4), and it is the ONLY form that also works for the bracket pills: a
+  # bracket's members draw their padding INSIDE the pill (see the `agents.pill`
+  # comment below), so setting one to 4 widens the pill by 4 rather than pushing
+  # it in, while 0 is what those members already carry. So the rule is "the
+  # outer edge belongs to the bar", said once, with no per-pill table to drift.
+  #
+  # `head` is the outermost one in both directions — SketchyBar packs a group
+  # outward from its own edge, so a `right` group reads outside-in and a `left`
+  # group inside-out from the first item added. `center` has no screen edge and
+  # is skipped.
+  #
+  # A multi-item pill is the one place `head` names a member rather than the
+  # edge itself: `agents` is four items under a bracket, and on the RIGHT its
+  # segments are reversed, so the member at the screen edge is `agents.done`
+  # while this addresses `agents`. It comes out exact anyway — every member of
+  # that pill carries 0 already and the bracket's own padding moves nothing — so
+  # this is a note rather than a hole. A future bracket pill whose members
+  # carried real padding would want the whole SET zeroed on the edge side.
+  edgePad =
+    sb: side: names:
+    lib.optionalString (names != [ ] && (side == "left" || side == "right")) ''
+      ${sb} --set ${itemId (builtins.head names)} background.padding_${side}=0
+    '';
+
   # ---- the bar's type FAMILY, from the same option as the terminal's ----------
   # Everything in the bar except the workspace logos is drawn in this. It used to
   # be the literal "Hack Nerd Font", written into the rc, four plugins and six
@@ -1281,7 +1342,10 @@ let
     # GENERATED from haus.bar.widgets (which haus.bar.items, and the rooms that
     # contribute a pill, write into) by modules/bar/default.nix — do not edit.
   ''
-  + lib.concatMapStrings (widgetBlock barTopPath "right") topItems;
+  + lib.concatMapStrings (widgetBlock barTopPath "right") topItems
+  # The menu bar's only edge group is `right`; its left edge is the hand-written
+  # logo, which zeroes its own padding_left in sketchybarrc for the same reason.
+  + edgePad barTopPath "right" topItems;
 
   # The same blocks again, emitted against the OTHER bar and grouped by side.
   # $SB is set by bar.sh, which bar-bottomrc sources before this file — an
@@ -1301,7 +1365,11 @@ let
       names = bottomGroup side;
     in
     lib.optionalString (names != [ ]) (
-      "\n# --- ${side} ---\n" + lib.concatMapStrings (widgetBlock "$SB" side) names
+      "\n# --- ${side} ---\n"
+      + lib.concatMapStrings (widgetBlock "$SB" side) names
+      # Both of the bottom bar's outer groups get the same treatment as the menu
+      # bar's.
+      + edgePad "$SB" side names
     )
   ) bottomSides;
 
@@ -2145,6 +2213,14 @@ lib.mkIf config.haus.bar.enable {
         # doesn't pay the band's 4pt of clearance.
         BAR_HEIGHT="${toString bar.barHeight}"
         BAR_BOTTOM_HEIGHT="${toString bar.bottomHeight}"
+        # The bar's left/right padding, which is windows's outer SIDE gap
+        # (../lib/gaps.nix) verbatim — so the outermost pill's edge lands on the
+        # tiled window's edge below it, at every haus.ui.scale and through any
+        # later change to the gaps. Unlike the heights above it DOES scale: a
+        # window gap is a tuned gap, not a measurement of a band macOS owns.
+        # The pill at each edge gives up its own outer padding to make the sum
+        # come out (`edgePad` in ../default.nix, and the logo in sketchybarrc).
+        BAR_PAD_X="${toString barPadX}"
         # The family every pill draws in, from haus.fonts.mono.name — the
         # same one Ghostty uses. Here rather than in the rc for the reason the
         # sizes are: the rc and four plugins all name it, and a font written in

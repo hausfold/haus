@@ -59,6 +59,18 @@ source "$HOME/.config/sketchybar/logo_config.sh"
 # strip of dead wallpaper along the edge (which is what windows's hardcoded 40 left
 # behind when this bar went 40 -> 36) or as tiled windows under the pills.
 #
+# $BAR_PAD_X is the left/right padding, and it is GENERATED for the same reason
+# $BAR_HEIGHT is: it belongs to the window edge beside it rather than to this
+# file. It is windows's outer SIDE gap (modules/lib/gaps.nix) verbatim — the
+# space left beside the tiled windows below — and the pill at each edge gives up
+# its own outer padding so the two line up exactly, at every haus.ui.scale. It
+# was a hardcoded 10, and where that landed was an accident of whichever pill
+# was outermost — the logo edge at 14, the clock edge at 18, against a 20pt
+# window gap on an external display and a 10pt one on the built-in. Every edge
+# wrong, each by a different amount, in opposite directions on the two screens.
+# SketchyBar has one padding for every screen it draws on, so this is the WIDEST
+# gap any attached display could want; see `barPadX` in ../default.nix.
+#
 # topmost is mode-dependent and set once here: only a fixed `bottom` bar is
 # lifted above the windows, so their drop-shadows stop painting the strip.
 # `auto` is deliberately excluded even though it resolves to bottom while
@@ -70,8 +82,8 @@ sketchybar --bar \
     blur_radius=30 \
     position=$(bar_position) \
     topmost=$(bar_topmost) \
-    padding_left=10 \
-    padding_right=10 \
+    padding_left=$BAR_PAD_X \
+    padding_right=$BAR_PAD_X \
     margin=0 \
     corner_radius=0 \
     color=0x00000000 \
@@ -127,6 +139,14 @@ sketchybar --default \
 # dead code. They live in the palette, and in the haus menu, instead: written
 # once, and searchable there.
 #
+# `background.padding_left=0` where every other pill has 4: this is the
+# LEFTMOST item on the bar, so that padding would sit between the pill and the
+# screen edge — and the bar's own $BAR_PAD_X already IS that edge, the window
+# gap windows leaves beside the tiled windows below. The generated item files do
+# the same to whichever pill ends up outermost in each group (`edgePad` in
+# ../default.nix); the logo is the one edge written by hand. Its padding_right
+# is untouched — that one is a gutter to the next pill, not an edge.
+#
 # `updates=on` rather than the default `when_shown`: the state tick has to keep
 # running while leader mode has the left side of the bar swapped out, or the
 # pill comes back wearing whatever colour it wore when the leader was armed.
@@ -152,7 +172,7 @@ sketchybar --add item haus.logo left \
         label.drawing=off \
         icon.padding_left=10 \
         icon.padding_right=10 \
-        background.padding_left=4 \
+        background.padding_left=0 \
         background.padding_right=4 \
         background.color=$SURFACE0 \
         updates=on \
