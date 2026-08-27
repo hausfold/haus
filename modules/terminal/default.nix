@@ -115,9 +115,9 @@ in
 {
   # ---- what this room contributes to other rooms ------------------------------
   # One thing: the script AeroSpace runs after focus changes. A lane blocked on
-  # you parks a trill fin, and lanes/lane-seen.sh takes it down once you are
-  # looking at that lane's window — which only the tiler can report, because two
-  # lanes are two windows of one app. Presentation only, in the contract's
+  # you parks a trill fin, and lanes/lane-seen.sh takes down the fin of every
+  # lane on the page you just landed on — which only the tiler can report,
+  # because two lanes are two windows of one app. Presentation only, in the contract's
   # sense: with no windows room the fin still clears when the session moves
   # (holt's own hooks), just later.
   #
@@ -130,6 +130,53 @@ in
   haus._contrib.windows.laneSeen = {
     enable = agentsCfg.enable;
     script = "/Users/${username}/.config/haus/lanes/lane-seen.sh";
+  };
+
+  # ---- the second half of that trigger --------------------------------------
+  # `on-focus-changed` answers "you arrived". It cannot answer the other half:
+  # the fin that goes up while you are ALREADY sitting on the lane's page, with
+  # a sibling window focused. Nothing about the desktop changes then — no focus
+  # moves, no workspace switches — so there is no window-manager event to hang
+  # this on at all. The event is holt writing its marker, and launchd can watch
+  # a directory for exactly that.
+  #
+  # A longer dwell than the focus trigger's, and the number is trill's, not a
+  # guess: an ask banners for six seconds before it parks on the ledge
+  # (BannerQueue's displayDuration). Resolving inside that window would make a
+  # banner vanish out from under someone mid-read — trill's own resolver
+  # machinery refuses to poll for the same reason — so this waits until the fin
+  # is only a ledge entry and takes THAT down.
+  #
+  # No RunAtLoad: at login there is no fin worth clearing, and a run that early
+  # would ask AeroSpace questions before it has windows to answer with.
+  # ── and the one line that arms it on a machine that has never had a fin ────
+  # A WatchPaths entry is armed when the plist is LOADED, and nix-darwin only
+  # reloads a user agent whose plist actually changed — so a watch that found
+  # nothing to watch on install stays unarmed across every later rebuild, until
+  # a logout. holt creates its marker dir lazily, the first time a lane blocks
+  # on you, which on a fresh machine is comfortably after this.
+  #
+  # `extraActivation`, not `home.activation`, and the difference is the whole
+  # point: nix-darwin runs extraActivation ~10 steps BEFORE `userLaunchd` and
+  # home-manager's own activation well after it, so only this one is in place
+  # when the agent loads. It runs as root, hence `install -d -o`.
+  #
+  # It creates nothing holt would not create itself, and an empty dir is
+  # exactly what "no lane is waiting" looks like to the script.
+  system.activationScripts.extraActivation.text = lib.mkIf agentsCfg.enable ''
+    install -d -o ${username} -g staff "/Users/${username}/.local/state/holt/asks"
+  '';
+
+  launchd.user.agents.haus-lane-seen = lib.mkIf agentsCfg.enable {
+    serviceConfig = {
+      ProgramArguments = [ "/Users/${username}/.config/haus/lanes/lane-seen.sh" ];
+      WatchPaths = [ "/Users/${username}/.local/state/holt/asks" ];
+      RunAtLoad = false;
+      ProcessType = "Background";
+      EnvironmentVariables = {
+        HAUS_LANE_SEEN_DWELL = "7";
+      };
+    };
   };
 
   # The agent assertions that used to sit here — default-not-in-clients, clients
@@ -1502,9 +1549,12 @@ in
           executable = true;
         };
 
-        # The other end of that seam: focusing a lane's window YOURSELF — no
-        # banner clicked — takes its parked fin down. modules/windows runs it
-        # from AeroSpace's `on-focus-changed`, which is why the script's own
+        # The other end of that seam: arriving at a lane YOURSELF — no banner
+        # clicked — takes its parked fin down, whether you focused its window
+        # or the one tiled beside it. Two triggers, both above: modules/windows
+        # runs it from AeroSpace's `on-focus-changed`, and the launchd agent
+        # runs it when a fin appears while you are already there. The first
+        # fires on every focus change on the Mac, which is why the script's own
         # first act is to establish that there is nothing to do.
         ".config/haus/lanes/lane-seen.sh" = {
           source = ./lanes/lane-seen.sh;
@@ -2079,10 +2129,11 @@ in
       # minutes into the work.
       #
       # A third way down is not a hook at all and does not live here:
-      # lanes/lane-seen.sh clears a lane's fin when you FOCUS its window, which
-      # is the earlier signal — you can read a question and think for a minute
-      # before typing, and the ledge should stop flagging it the moment you are
-      # standing in front of it. These two stay because focus is not always
+      # lanes/lane-seen.sh clears a lane's fin once you are LOOKING at it — its
+      # window on the page you have focused, whether or not it holds the
+      # keyboard — which is the earlier signal. You can read a question and
+      # think for a minute before typing, and the ledge should stop flagging it
+      # the moment you are standing in front of it. These two stay because focus is not always
       # observable (no tiler, a lane answered from the Claude Code desktop app)
       # and because answering from somewhere else must still clear it.
       #

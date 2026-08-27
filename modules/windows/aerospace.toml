@@ -57,9 +57,9 @@ default-root-container-orientation = '@DEFAULT_ORIENTATION@'
 # inside whatever took focus.
 #
 # on-focus-changed carries one more thing when the ai room is on — lane-seen.sh,
-# which takes a lane's parked trill fin down once you are looking at its window.
-# Focus between two windows of ONE app is a thing only the tiler sees, and two
-# lanes are both Ghostty.
+# which takes down the parked trill fin of every lane on the page you just
+# landed on. Focus between two windows of ONE app is a thing only the tiler
+# sees, and two lanes are both Ghostty.
 on-focus-changed = [@FOCUS_CHANGED@]
 on-focused-monitor-changed = [@MONITOR_CHANGED@]
 automatically-unhide-macos-hidden-apps = true

@@ -357,8 +357,8 @@ let
   #
   # The second entry is not about the pointer at all: it is whatever room asked
   # to be told that focus moved (`haus._contrib.windows.laneSeen`, declared in
-  # options.nix — today the terminal room's agent lanes, taking a lane's parked
-  # trill fin down once you are looking at its window). AeroSpace is the only
+  # options.nix — today the terminal room's agent lanes, taking down the parked
+  # trill fin of every lane on the page you are looking at). AeroSpace is the only
   # thing on this Mac that reports focus moving between two windows of ONE app,
   # and two lanes are both Ghostty, so this list is where it has to hang.
   #

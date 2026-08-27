@@ -78,10 +78,11 @@ in
         A script AeroSpace runs, detached, after focus changes.
 
         Today's one writer is the terminal room's agent lanes: a lane blocked on
-        you parks a trill fin, and going to its window is the earliest honest
-        signal that you have seen it — earlier than the answer holt's own hooks
-        wait for. Off, or with this room off, the fin still comes down when the
-        session moves; what is lost is the moment, not the behaviour.
+        you parks a trill fin, and arriving at the page its window is tiled on
+        is the earliest honest signal that you have seen it — earlier than the
+        answer holt's own hooks wait for. Off, or with this room off, the fin
+        still comes down when the session moves; what is lost is the moment,
+        not the behaviour.
 
         It runs on EVERY focus change, so whatever is named here has to reach
         its own "nothing to do" answer in a stat or two.
