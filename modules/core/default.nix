@@ -471,6 +471,14 @@ let
     fonts = fontsCfg;
   };
 
+  # The JSON reading `haus` and its completion do, as named subcommands rather
+  # than as filters spread across forty call sites. Its own package because two
+  # things need it on a path — the `haus` wrapper and the generated completion
+  # — and neither should carry a python of its own.
+  hausJson = pkgs.writeShellScriptBin "haus-json" ''
+    exec ${lib.getExe pkgs.python3} ${./haus-json.py} "$@"
+  '';
+
   # Naming a family the rice was never given a package for is silent tofu:
   # Ghostty just falls back and the powerline/icon glyphs vanish. Cheap to spot.
   fontFamilyUnprovided =
@@ -894,11 +902,10 @@ in
       # merely usually there. `gum` draws `haus set`'s picker and is in nixpkgs
       # but in nobody's profile — bootstrap.sh fetches it ad-hoc with `nix build
       # nixpkgs#gum`, which is exactly the sort of thing an end-user command must
-      # not need. `jq` parses every value `haus set` writes and reads the options
-      # catalogue, and it ships only with the developer toolbelt below, so a
-      # machine with `haus.developer.toolbelt.enable = false` had a `haus set` that
-      # died on `jq: command not found`. A suffix, not a prefix: this guarantees
-      # the tools resolve, it doesn't shadow the ones you chose.
+      # not need. `haus-json` reads every value `haus set` writes and the whole
+      # options catalogue, and it is on no profile at all. A suffix, not a
+      # prefix: this guarantees the tools resolve, it doesn't shadow the ones
+      # you chose.
       (symlinkJoin {
         name = "haus";
         paths = [ (writeShellScriptBin "haus" (builtins.readFile ./haus.sh)) ];
@@ -907,12 +914,12 @@ in
           wrapProgram "$out/bin/haus" --suffix PATH : ${
             lib.makeBinPath [
               gum
-              jq
+              hausJson
               # `haus add`/`desktop`/`remove` verify a mechanical flake.nix edit
               # by re-parsing it (modules/host-template.nix's trick, aimed at a
               # mutation instead of a render). Same must-be-THERE reasoning as
-              # jq: the toolbelt is what installs nixfmt today, so a machine
-              # with it off would otherwise have an `add` that dies on
+              # haus-json: the toolbelt is what installs nixfmt today, so a
+              # machine with it off would otherwise have an `add` that dies on
               # `nixfmt: command not found` on its very first edit.
               nixfmt
             ]
@@ -925,11 +932,12 @@ in
       # template, never from an evaluation. Lands on fpath through system-path's
       # /share/zsh, which is why this is a package rather than a terminal dotfile:
       # `haus` is system-wide, and its completion should not depend on a room a
-      # machine can turn off. jq's path is substituted in for the same reason.
+      # machine can turn off. haus-json's path is substituted in for the same
+      # reason.
       (writeTextFile {
         name = "haus-zsh-completion";
         destination = "/share/zsh/site-functions/_haus";
-        text = builtins.replaceStrings [ "@jq@" ] [ (lib.getExe jq) ] (
+        text = builtins.replaceStrings [ "@hausjson@" ] [ (lib.getExe hausJson) ] (
           builtins.readFile ./haus-completion.zsh
         );
       })

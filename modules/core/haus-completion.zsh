@@ -22,9 +22,9 @@
 # `compset -P` below makes the `haus.`-prefixed spelling complete too, since
 # `haus set` accepts both.
 #
-# jq's store path is substituted in at build time (@jq@): it ships only with the
-# developer toolbelt, and a completion that silently stopped working on a
-# toolbelt-off machine would look like the option list being empty.
+# haus-json's store path is substituted in at build time (@hausjson@): it is an
+# internal helper on no profile at all, and a completion that silently stopped
+# working would look like the option list being empty.
 
 _haus_option_paths() {
   local catalogue=${HAUS_CATALOGUE:-/run/current-system/sw/share/haus/options.json}
@@ -35,8 +35,7 @@ _haus_option_paths() {
   compset -P 'haus.'
 
   local -a paths
-  paths=( ${(f)"$( @jq@ -r 'to_entries[] | "\(.key[5:]):\(.value.summary)"' \
-                    -- $catalogue 2>/dev/null )"} )
+  paths=( ${(f)"$( @hausjson@ catalogue-rows --sep : -f $catalogue 2>/dev/null )"} )
   (( $#paths )) || return 1
   _describe -t haus-options 'haus option' paths
 }

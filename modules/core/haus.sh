@@ -32,7 +32,7 @@
 set -euo pipefail
 
 # A bare/sudo/login-item shell may have almost nothing on PATH; make sure the
-# tools we call (nix, darwin-rebuild, jq, git) resolve wherever we're invoked.
+# tools we call (nix, darwin-rebuild, haus-json, git) resolve wherever we're invoked.
 PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/etc/profiles/per-user/$(id -un)/bin:/usr/bin:/bin:/usr/sbin:/sbin:${PATH:-}"
 export PATH
 
@@ -291,7 +291,7 @@ gen_date() { date -r "$(stat -f %m "$SYSPROFILES/system-$1-link" 2>/dev/null || 
 host_name() { # the darwinConfiguration to build — the one host in your flake
   if [ -n "${HAUS_HOST:-}" ]; then echo "$HAUS_HOST"; return; fi
   nix eval --json "$CONSUMER#darwinConfigurations" --apply builtins.attrNames 2>/dev/null \
-    | jq -r '.[0]' 2>/dev/null \
+    | haus-json get '[0]' 2>/dev/null \
     | grep . \
     || { scutil --get LocalHostName 2>/dev/null || hostname -s; }
 }
@@ -652,7 +652,7 @@ settings_diff() {
           flagged=$((flagged + 1))
           continue
         fi
-        live="$(printf '%s' "$ax_json" | jq -r --arg k "$key" '.[$k]')" || true
+        live="$(printf '%s' "$ax_json" | haus-json get '@' --key "$key")" || true
         case "$live" in true) live=1 ;; false) live=0 ;; esac
         if [ "$declared" = "$live" ]; then
           matched=$((matched + 1))
@@ -671,7 +671,7 @@ settings_diff() {
         # inert write rather than the effect. hausax has the real answer.
         live=unknown
         if [ -n "$ax_json" ]; then
-          live="$(printf '%s' "$ax_json" | jq -r '.appearance // "unknown"')" || live=unknown
+          live="$(printf '%s' "$ax_json" | haus-json get appearance --default unknown)" || live=unknown
         fi
         warn "$domain $key: declared $declared — writing this key is a KNOWN NO-OP in BOTH directions on macOS 26 (measured; the appearance system only mirrors it). macOS is effectively showing $live. Use haus.theme.systemAppearance instead."
         flagged=$((flagged + 1))
@@ -1304,18 +1304,10 @@ capture_domain_block() {
   local domain="$1" json body
   json="$(defaults export "$domain" - 2>/dev/null | plutil -convert json -o - - 2>/dev/null)" || return 0
   [ -n "$json" ] && [ "$json" != "null" ] && [ "$json" != "{}" ] || return 0
-  # Rendered into a variable first, not streamed straight to stdout: a jq
-  # failure must skip the WHOLE domain, not print an opening `= {` with no
+  # Rendered into a variable first, not streamed straight to stdout: a failed
+  # render must skip the WHOLE domain, not print an opening `= {` with no
   # closing `};` (a truncated block would be worse than the domain missing).
-  body="$(
-    printf '%s\n' "$json" | jq -r '
-      to_entries[] |
-      if (.value | type) == "array" or (.value | type) == "object"
-      then "    # " + .key + " — nested value, add it by hand if you need it"
-      else "    " + (.key | @json) + " = " + (.value | tojson) + ";"
-      end
-    '
-  )" || return 0
+  body="$(printf '%s\n' "$json" | haus-json defaults-block)" || return 0
   printf '  system.defaults.CustomUserPreferences."%s" = {\n%s\n  };\n' "$domain" "$body"
 }
 
@@ -1775,7 +1767,7 @@ fetch_changelog() { # <owner> <repo> <old> <new> <outfile>
   curl -fsSL --max-time 5 \
     -H 'accept: application/vnd.github+json' \
     "https://api.github.com/repos/$1/$2/compare/$3...$4" 2>/dev/null \
-    | jq -r '.commits[]?.commit.message | split("\n")[0]' 2>/dev/null | head -15 >"$5" || true
+    | haus-json commit-subjects 2>/dev/null | head -15 >"$5" || true
 }
 
 # The whole brew half of an update, as ONE job — family apps first, then a
@@ -1795,21 +1787,21 @@ cmd_update() {
   # touching anything. So an unchecked name here doesn't fail loudly, it turns
   # `haus update` into a permanent no-op that then reports "already at the
   # latest".
-  jq -e --arg n "$input" '.nodes[$n] != null' "$CONSUMER/flake.lock" >/dev/null 2>&1 \
+  haus-json has 'nodes.@' --key "$input" -f "$CONSUMER/flake.lock" 2>/dev/null \
     || die "no input named '$input' in this config — 'haus desktop' lists what's pinned, or run 'haus update' with no name to pull haus itself."
 
   local old new otype oowner orepo logfile old_nar new_nar
-  old="$(jq -r --arg n "$input" '.nodes[$n].locked.rev // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
-  old_nar="$(jq -r --arg n "$input" '.nodes[$n].locked.narHash // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
-  otype="$(jq -r --arg n "$input" '.nodes[$n].original.type // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
+  old="$(haus-json get 'nodes.@.locked.rev' --key "$input" --default '' -f "$CONSUMER/flake.lock" 2>/dev/null || true)"
+  old_nar="$(haus-json get 'nodes.@.locked.narHash' --key "$input" --default '' -f "$CONSUMER/flake.lock" 2>/dev/null || true)"
+  otype="$(haus-json get 'nodes.@.original.type' --key "$input" --default '' -f "$CONSUMER/flake.lock" 2>/dev/null || true)"
 
   if [ "$input" = haus ]; then say "pulling the latest haus …"
   else say "pulling the latest '$input' …"
   fi
   ( cd "$CONSUMER" && heal nix flake update "$input" )
 
-  new="$(jq -r --arg n "$input" '.nodes[$n].locked.rev // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
-  new_nar="$(jq -r --arg n "$input" '.nodes[$n].locked.narHash // ""' "$CONSUMER/flake.lock" 2>/dev/null || true)"
+  new="$(haus-json get 'nodes.@.locked.rev' --key "$input" --default '' -f "$CONSUMER/flake.lock" 2>/dev/null || true)"
+  new_nar="$(haus-json get 'nodes.@.locked.narHash' --key "$input" --default '' -f "$CONSUMER/flake.lock" 2>/dev/null || true)"
 
   if [ -n "$old" ] && [ "$old" = "$new" ]; then
     say "already at the latest ${input} (${new:0:12}) — rebuilding anyway."
@@ -1821,8 +1813,8 @@ cmd_update() {
     # not just "has a rev": a non-GitHub git source has a rev too, and no
     # owner/repo to compare with GitHub's API.
     if [ "$otype" = github ]; then
-      oowner="$(jq -r --arg n "$input" '.nodes[$n].original.owner // ""' "$CONSUMER/flake.lock")"
-      orepo="$(jq -r --arg n "$input" '.nodes[$n].original.repo // ""' "$CONSUMER/flake.lock")"
+      oowner="$(haus-json get 'nodes.@.original.owner' --key "$input" --default '' -f "$CONSUMER/flake.lock")"
+      orepo="$(haus-json get 'nodes.@.original.repo' --key "$input" --default '' -f "$CONSUMER/flake.lock")"
       if [ -n "$oowner" ] && [ -n "$orepo" ]; then
         logfile="$(mktemp)"
         bg fetch_changelog "$oowner" "$orepo" "$old" "$new" "$logfile"
@@ -1892,17 +1884,17 @@ cmd_status() {
   echo
   say "pinned haus"
   if [ -f "$CONSUMER/flake.lock" ]; then
-    lockrev="$(jq -r '.nodes.haus.locked.rev // "?"' "$CONSUMER/flake.lock")"
-    lockdate="$(jq -r '.nodes.haus.locked.lastModified // 0' "$CONSUMER/flake.lock")"
+    lockrev="$(haus-json get nodes.haus.locked.rev --default ? -f "$CONSUMER/flake.lock")"
+    lockdate="$(haus-json get nodes.haus.locked.lastModified --default 0 -f "$CONSUMER/flake.lock")"
     if [ "$lockdate" != "0" ]; then
       printf '  %s  (%s)\n' "${lockrev:0:12}" "$(date -r "$lockdate" '+%Y-%m-%d' 2>/dev/null || echo '?')"
     else
       printf '  %s\n' "${lockrev:0:12}"
     fi
     # Is upstream haus ahead of what you've pinned? Best-effort, offline-safe.
-    owner="$(jq -r '.nodes.haus.original.owner // "hausfold"' "$CONSUMER/flake.lock")"
-    repo="$(jq -r '.nodes.haus.original.repo // "haus"' "$CONSUMER/flake.lock")"
-    ref="$(jq -r '.nodes.haus.original.ref // "HEAD"' "$CONSUMER/flake.lock")"
+    owner="$(haus-json get nodes.haus.original.owner --default hausfold -f "$CONSUMER/flake.lock")"
+    repo="$(haus-json get nodes.haus.original.repo --default haus -f "$CONSUMER/flake.lock")"
+    ref="$(haus-json get nodes.haus.original.ref --default HEAD -f "$CONSUMER/flake.lock")"
     url="https://github.com/$owner/$repo.git"
     remoterev="$(git ls-remote "$url" "$ref" 2>/dev/null | awk 'NR==1{print $1}')"
     if [ -n "$remoterev" ] && [ "$remoterev" != "$lockrev" ]; then
@@ -2184,7 +2176,7 @@ settings_eval_json() {
 }
 
 settings_print_json() {
-  jq -r 'if type == "string" then . else tojson end'
+  haus-json str-or-json
 }
 
 # True when a path is GONE rather than broken. An `attrsOf` key exists only
@@ -2207,15 +2199,15 @@ settings_literal() {
   # JSON covers booleans, numbers, null, lists and attrsets. A bare token is the
   # ergonomic string form (`haus set theme.accent teal`). Quoted strings also
   # work when a caller wants to distinguish "true" from the boolean true.
-  if parsed="$(printf '%s' "$raw" | jq -c '.' 2>/dev/null)"; then
+  if parsed="$(printf '%s' "$raw" | haus-json parse 2>/dev/null)"; then
     lines="$(printf '%s\n' "$parsed" | wc -l | tr -d ' ')"
   else
     lines=0
   fi
   if [ "$lines" = 1 ]; then
-    printf 'builtins.fromJSON %s' "$(jq -Rn --arg value "$parsed" '$value')"
+    printf 'builtins.fromJSON %s' "$(printf '%s' "$parsed" | haus-json encode-string)"
   else
-    jq -Rn --arg value "$raw" '$value'
+    printf '%s' "$raw" | haus-json encode-string
   fi
 }
 
@@ -2279,7 +2271,7 @@ settings_tx_rollback() {
 
 # The offline options catalogue — every settable `haus.*` path with its type,
 # its default and one line of prose, rendered from THIS machine's pinned haus by
-# the same derivation as the annotated host file (modules/options-catalogue.jq).
+# the same derivation as the annotated host file (modules/host-template.py).
 #
 # It is READ, never evaluated, and that is the whole point. `settings_option_
 # exists` answers "is this settable?" by evaluating the entire darwin config,
@@ -2344,7 +2336,7 @@ settings_pick() {
   # Path AND prose in the row, because the filter matches the whole line: you
   # can search for `flavor` or for `light mode` and land on the same option.
   sel="$(
-    jq -r 'to_entries[] | "\(.key[5:])\t\(.value.summary)"' "$HAUS_CATALOGUE" \
+    haus-json catalogue-rows -f "$HAUS_CATALOGUE" \
       | awk -F'\t' '{ printf "%-38s %s\n", $1, $2 }' \
       | gum filter --height 20 --placeholder 'which option?' --prompt 'haus set '
   )" || return 1
@@ -2353,9 +2345,9 @@ settings_pick() {
   path="${sel%% *}"
   [ -n "$path" ] || return 1
 
-  type="$(jq -r --arg p "haus.$path" '.[$p].type' "$HAUS_CATALOGUE")"
-  default="$(jq -r --arg p "haus.$path" '.[$p].default // ""' "$HAUS_CATALOGUE")"
-  literal="$(jq -r --arg p "haus.$path" '.[$p].literal' "$HAUS_CATALOGUE")"
+  type="$(haus-json get '@.type' --key "haus.$path" -f "$HAUS_CATALOGUE")"
+  default="$(haus-json get '@.default' --key "haus.$path" --default '' -f "$HAUS_CATALOGUE")"
+  literal="$(haus-json get '@.literal' --key "haus.$path" -f "$HAUS_CATALOGUE")"
   say "$path"
   info "type: $type"
   [ -n "$default" ] && info "default: $default"
@@ -2385,7 +2377,7 @@ settings_pick() {
     # whole list into one string the moment someone pressed Enter. Those get an
     # empty box, with the default still on screen above it.
     prefill=""
-    if [ "$literal" = true ] && printf '%s' "$default" | jq . >/dev/null 2>&1; then
+    if [ "$literal" = true ] && printf '%s' "$default" | haus-json parse >/dev/null 2>&1; then
       prefill="$default"
     fi
     value="$(gum input --value "$prefill" --placeholder "${default:-value}" \
@@ -2943,23 +2935,11 @@ PERM_TAKEN="${XDG_STATE_HOME:-$HOME/.local/state}/haus/permissions-taken"
 # strips leading and trailing ones. A card with no `applies` therefore shifted
 # every field after it left, and the wizard ran its pane URL as a shell check —
 # no error, just cards quietly missing from the deck. US and RS are not
-# whitespace, so empties survive; `flat` has already removed every newline and
+# whitespace, so empties survive; the deck has already removed every newline and
 # run of spaces from the prose, and no description contains a control character.
 _perm_deck() {
   [ -r "$HAUS_PERMISSIONS" ] || return 0
-  jq -j '
-    def flat: (. // "") | gsub("\\s+"; " ") | sub("^ +"; "") | sub(" +$"; "");
-    # A shell snippet may legitimately span lines, and a raw newline would end
-    # the record halfway through the card. VT stands in for it here and
-    # _perm_code puts it back before anything is evaluated: prose is flattened,
-    # code is preserved exactly.
-    def code: (. // "") | gsub("\n"; "\u000b");
-    sort_by(.order, .key)[]
-    | [ .key, (.title|flat), (.why|flat), (.cost|flat), (.applies|code),
-        (.check|code), (.prompt|code), (.promptLabel|flat), (.pane // ""),
-        ((.steps // []) | map(flat) | join("\u001e")), (.detail|code) ]
-    | join("\u001f") + "\n"
-  ' "$HAUS_PERMISSIONS" 2>/dev/null || true
+  haus-json perm-deck -f "$HAUS_PERMISSIONS" 2>/dev/null || true
 }
 
 # A snippet as it was written: the deck carries a multi-line one with VT in
@@ -3572,7 +3552,7 @@ flake_remove_input() { # name
 desktop_rhs_for_pinned() { # name
   local name="$1"
   [ -f "$CONSUMER/flake.lock" ] || return 1
-  local locked; locked="$(jq -c --arg n "$name" '.nodes[$n].locked // empty' "$CONSUMER/flake.lock" 2>/dev/null)"
+  local locked; locked="$(haus-json compact 'nodes.@.locked' --key "$name" -f "$CONSUMER/flake.lock" 2>/dev/null)"
   [ -n "$locked" ] || return 1
   local lockfile; lockfile="$(mktemp)"
   printf '%s' "$locked" >"$lockfile"
@@ -3717,9 +3697,9 @@ EOF
     || die "$source stopped passing between the two reads above — try again."
 
   local class ok origin
-  class="$(jq -r .class <<<"$report")"
-  ok="$(jq -r .ok <<<"$report")"
-  origin="$(jq -c .origin <<<"$report")"
+  class="$(haus-json get class <<<"$report")"
+  ok="$(haus-json get ok <<<"$report")"
+  origin="$(haus-json compact origin <<<"$report")"
   if [ -n "$room" ]; then
     [ "$class" = room ] || die "$source is a desktop, not a room — drop --room and --namespace."
   else
@@ -3729,10 +3709,10 @@ EOF
   [ "$origin" != null ] || die "haus add takes a source to fetch, not a local path already on this machine."
 
   local typed shape pick rev
-  typed="$(jq -r .typed <<<"$origin")"
-  shape="$(jq -r .shape <<<"$origin")"
-  pick="$(jq -r '.file // ""' <<<"$origin")"
-  rev="$(jq -r '.rev // ""' <<<"$origin")"
+  typed="$(haus-json get typed <<<"$origin")"
+  shape="$(haus-json get shape <<<"$origin")"
+  pick="$(haus-json get file --default '' <<<"$origin")"
+  rev="$(haus-json get rev --default '' <<<"$origin")"
 
   local name="$as"
   [ -n "$name" ] || name="$(derive_input_name "$typed" "$shape")"
@@ -3815,7 +3795,7 @@ EOF
     mkdir -p "$CONSUMER/desktops"
     local dest="$CONSUMER/desktops/$name.nix"
     [ -e "$dest" ] && die "$dest already exists — pick a different --as."
-    local src_abs; src_abs="$(jq -r .file <<<"$report")"
+    local src_abs; src_abs="$(haus-json get file <<<"$report")"
     if [ -n "$doprint" ]; then
       say "would copy $src_abs -> desktops/$name.nix and set: desktop = ./desktops/$name.nix;"
       return 0
@@ -3881,7 +3861,7 @@ cmd_desktop() {
   local check="${HAUS_DESKTOP_CHECK:-/run/current-system/sw/share/haus/desktop-check}"
   [ -r "$check/desktops.json" ] \
     || die "no desktop list at $check — this machine's haus predates 'haus desktop'; run 'haus update' first."
-  local builtin_list; builtin_list="$(jq -r '.[]' "$check/desktops.json")"
+  local builtin_list; builtin_list="$(haus-json lines -f "$check/desktops.json")"
 
   # The current selection, read the same landmark way it is written — a
   # grep, not an eval: "what does this machine have" should cost nothing and
