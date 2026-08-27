@@ -6,13 +6,13 @@
 #
 # The palette front door to a named agent worktree. Pick a repo, type what you
 # want done, and this creates a worktree named after the task and drops the
-# configured default (Claude Code, Codex or OpenCode) into it, as a LANE:
-# a zmx session, a Ghostty window forced to its name, tiled on that repo's own
-# T/<repo> page.
+# configured default (Claude Code, Codex or OpenCode) into it, as a LANE: a zmx
+# session, and — the moment anything is looking at it — a Ghostty window forced
+# to its name, tiled on that repo's own T/<repo> page.
 #
-# Return files it and gets out of your way: the box closes at once, the lane is
-# built on that repo's page without taking the screen, and a banner says so when
-# it is actually running. ⌃↵ is the one that brings the window to you.
+# Return files it and gets out of your way: the box closes at once, the lane
+# comes up with NO window anywhere, and a banner says so when it is actually
+# running. ⌃↵ is the one that opens the window and brings it to you.
 #
 # Why it exists: the same thing by hand is caps→t to a terminal, cd to the repo,
 # ⌃⌘A for a lane, then type the prompt — and the worktree ends up
@@ -49,7 +49,7 @@
 #
 # ── the prompt step's five Returns ────────────────────────────────────────────
 #
-#   ↵    spawn — in the BACKGROUND, and give the screen straight back
+#   ↵    spawn — in the BACKGROUND: nothing appears anywhere
 #   ⇧↵   newline — the task is often a list, not a sentence
 #   ⌘↵   capture a screenshot first, then spawn (this used to be a whole second
 #        palette entry, "Spawn Agent with Screenshot")
@@ -66,9 +66,10 @@
 # Background is the DEFAULT, and ⌃↵ is the one that takes the screen. The two
 # spawns are the same code path either way — one exported variable,
 # HAUS_LANE_BACKGROUND, read by ~/.config/haus/lanes/lane-open.sh — so this is
-# purely which one you get for free. The worktree, the branch, the zmx session,
-# the Ghostty window and the tile on T/<repo> are made exactly as usual in both,
-# and the client starts on the prompt in both.
+# purely which one you get for free. The worktree, the branch and the zmx
+# session are made exactly as usual in both, and the client starts on the prompt
+# in both. The WINDOW is the difference: ⌃↵ opens it now, tiled on T/<repo>, and
+# ↵ opens none at all until something goes looking for the lane.
 #
 # Backgrounding is the right default because of what a spawn IS: you describe a
 # task in a sentence and hand it to somebody else. Almost none of those are the
@@ -77,13 +78,16 @@
 # agents pill). Making the common case the plain Return means the palette can
 # get out of the way completely: box → gone → banner when the lane is up.
 #
-# Nothing else moves while that happens: a backgrounded lane's window is born
-# unactivated and clamped to a 1-px sliver in a screen corner, so it never
-# flashes and focus never leaves what you were doing while AeroSpace walks it
-# off to T/<repo>. The whole silence lives in ~/.config/haus/lanes/lane-open.sh;
-# this script only sets the variable — and that file is also where the reason it
-# is a direct exec rather than an `open -g` is written down, because `open -g`
-# produced no window at all.
+# Nothing else moves while that happens, and the reason is that a backgrounded
+# lane opens NO WINDOW: it is a detached zmx session with the client on its
+# prompt, and the window is born the first time you go to it (the banner, the
+# agents pill, the Lanes palette — all three end at a properly tiled lane
+# window). So there is nothing to flash and nothing to hand focus back to. Two
+# earlier attempts to keep a real window and make its birth quiet — `open -g`,
+# then a direct exec at a clamped off-screen position — are written up where the
+# silence lives, ~/.config/haus/lanes/lane-open.sh; this script only ever set the
+# variable. The one thing to know here: a background lane is NOT on T/<repo>
+# until you have opened it once.
 #
 # ⌃↵ is for the spawn you ARE about to work in: the lane window comes to you and
 # stays, and there is no notification because you are looking at it.
@@ -462,9 +466,9 @@ fi
 # caller that happened to need them.
 #
 # Going through the seam rather than opening a window here is still the whole
-# point: one name — holt.<repo>.<lane> — becomes the zmx session, the Ghostty
-# window title AND the tile on T/<repo>, which is the join every other surface
-# (the bar's go-to, Lanes, resort-windows.sh) reads.
+# point: one name — holt.<repo>.<lane> — becomes the zmx session, and the Ghostty
+# window title AND the tile on T/<repo> whenever a window exists, which is the
+# join every other surface (the bar's go-to, Lanes, resort-windows.sh) reads.
 #
 # The prompt goes in on STDIN, not in argv. A task typed with ⇧↵ spans lines
 # and routinely holds quotes and `$`; `--prompt-file -` means it never crosses
@@ -537,16 +541,16 @@ set -- "$@" --agent "$agent" --prompt-file -
 [ -n "$image" ] && set -- "$@" --image "$image"
 
 # The default, cleared by ⌃↵. Not a scruff flag and not an argument: "don't take
-# the screen" is a fact about how THIS machine opens a window, which is
-# lane-open.sh's business and nobody else's — scruff only has to carry it, and it
+# the screen" is a fact about whether THIS machine opens a window at all, which
+# is lane-open.sh's business and nobody else's — scruff only has to carry it, and it
 # does, because it hands a seam os.Environ(). Exported even when empty, so
 # nothing stale in the launchd environment can silence a ⌃↵ spawn that asked to
 # be followed.
 export HAUS_LANE_BACKGROUND="${background:-}"
 
 # scruff prints the lane's path on stdout BEFORE it drives the seam, so this
-# captures it whether the window opened or not — which is what the cleanup
-# below needs.
+# captures it whether the seam got as far as a session or not — which is what
+# the cleanup below needs.
 dir="$(printf '%s' "$prompt" | scruff "$@" 2>>"$LOG")"
 rc=$?
 if [ -z "$dir" ] || [ ! -d "$dir" ]; then
@@ -555,18 +559,20 @@ if [ -z "$dir" ] || [ ! -d "$dir" ]; then
 fi
 name="$(basename "$dir")"
 
-# rc 0 is the window; anything else means the lane exists with nothing on it.
-# 3 is scruff saying no `open` seam is configured — impossible here, since the
-# OPENER check up top already refused that case, but it is not this script's
+# rc 0 is a lane that started; anything else means the lane exists with nothing
+# on it. 3 is scruff saying no `open` seam is configured — impossible here, since
+# the OPENER check up top already refused that case, but it is not this script's
 # job to be the only thing standing between a rebuild gap and silent litter.
 #
-# This covers the seam REFUSING, not the lane failing later: the opener's last
-# act is `open -na`, which returns the moment LaunchServices accepts it, so
-# nothing after that — the launcher script, `zmx attach`, the client itself —
-# can reach this exit status. Those failures are caught where they happen
-# instead: lane-open.sh holds the window open on a non-zero client exit rather
-# than letting it flash shut, which is the evidence you would otherwise want
-# this branch to preserve.
+# This covers the seam REFUSING, not the lane failing later. A ⌃↵ spawn's last
+# act is `open -na`, which returns the moment LaunchServices accepts it; a
+# background spawn's is `zmx run -d`, which returns as soon as the session is up.
+# Either way nothing after that — the launcher script, `zmx attach`, the client
+# itself — can reach this exit status. Those failures are caught where they
+# happen instead: lane-open.sh's hold keeps a non-zero client exit on screen (or,
+# for a background lane, in the session's scrollback) rather than letting it
+# flash shut, which is the evidence you would otherwise want this branch to
+# preserve.
 if [ "$rc" -ne 0 ]; then
   # `scruff drop`, not `git worktree remove`: the raw remove takes the checkout
   # and the branch but leaves scruff's REGISTRY ROW, so the lane goes on being
@@ -585,11 +591,14 @@ if [ "$rc" -ne 0 ]; then
 fi
 
 # ── say so, when there is nothing to see ──────────────────────────────────
-# The default spawn gives the screen back within the second, and the palette is
-# already gone by the time scruff finishes — so without this, Return on a
-# paragraph you just typed produces nothing you can see at all, and you are left
-# wondering whether it took. This banner IS the receipt, and it fires when the
-# lane genuinely exists rather than when the box closed.
+# The default spawn puts nothing on any screen — no window, no tile, nothing to
+# glance at — and the palette is already gone by the time scruff finishes, so
+# without this, Return on a paragraph you just typed produces nothing you can see
+# at all and you are left wondering whether it took. This banner IS the receipt,
+# and it fires when the lane genuinely exists rather than when the box closed.
+# Clicking it is also the ordinary way to get the lane's window: the click runs
+# `scruff focus`, which finds no window, defers, and comes back through
+# lane-open.sh's foreground path with one tiled on T/<repo>.
 #
 # ⌃↵ gets none: the lane window is what you are looking at when it lands, and a
 # banner about the thing on your screen is noise.

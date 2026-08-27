@@ -16,10 +16,17 @@
 #
 # ── why not raise-session.sh --or-open ───────────────────────────────────────
 # Because --or-open opens a BARE window onto the session, and a lane's window
-# is not bare: lane-open.sh tiles it onto T/<repo>, forces the title the
-# AeroSpace backend joins on, and hands focus back where the spawn found it.
+# is not bare: lane-open.sh tiles it onto T/<repo> and forces the title the
+# AeroSpace backend joins on.
 # Deferring instead sends scruff through resume → lane-open.sh, and the window
 # that appears is a lane's, not a shell that happens to hold one.
+#
+# Since lane-open.sh's background spawn stopped opening a window at all, that
+# defer is not an edge case any more — it is how EVERY background lane gets its
+# first window. Clicking a "… is working" banner lands here, finds nothing to
+# raise, defers, and resume opens the lane properly placed on T/<repo>. Anything
+# that "fixes" this script by reaching for --or-open takes that away and leaves
+# a bare untiled window in its place.
 set -u
 
 # The situation arrives as SCRUFF_* (scruff's action-seam protocol; stdin belongs
