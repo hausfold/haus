@@ -348,6 +348,25 @@ mechanism, say so in one line.
   debugging something noisy. A flag `haus-notify` doesn't know is warned about
   and dropped rather than refused: a haus bug must not cost the user the
   message haus was trying to send.
+- **`snug` is on PATH, and it is where a line on the TERMINAL comes from** —
+  the counterpart to the `haus-notify` rule above, which governs the screen.
+  It is a flake input (`inputs.snug`, `hausfold/snug`) whose overlay puts the
+  binary in `pkgs`, and `modules/core` ships it unconditionally beside `trill`
+  and `haus-notify`: `haus.sh` and `haus-show.sh` are bash and staying bash, so
+  the binary is the only way they reach the same table, spinner and colour
+  tiers a Go caller gets by importing the package. Callers name a **role**
+  (`accent`, `ok`, `warn`, `err`, `muted`, …) and never a 256-colour index —
+  roles resolve against nebelung. The standard is the workshop's
+  `docs/cli-presentation.md`; how a thing is DRAWN is snug's repo, and *whether*
+  haus should print it is still this one.
+  **Degrade, never assume.** A shell on an older generation, or a script
+  invoked off a PATH without the system profile, has no `snug` — the same
+  runtime-fact problem `trill.sh`'s wrapper exists for. Guard with
+  `command -v snug` and fall through to plain `printf`, exactly as
+  `haus-notify` falls through to Apple's banner.
+  Being reachable is not the same as being adopted: converting haus's own
+  painters is separate work, and this bullet is not a licence to half-convert
+  one on the way past.
 - `nixfmt` formats `.nix` files.
 
 ## Gotchas
