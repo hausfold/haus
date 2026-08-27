@@ -440,7 +440,7 @@ fi
     printf '      --thread %q --title "haus · agent lane" \\\n' "$sess"
     printf '      --body %q >/dev/null 2>&1\n' "$sess opened out of sight and could not be tiled — raise it from the agents pill, or holt"
     printf '  }\n'
-      # ── the exact window→session join ────────────────────────────────────
+    # ── the exact window→session join ──────────────────────────────────
     # A lane had none on this backend until now: its session is created by
     # the `zmx attach` at the end of this launcher rather than by
     # scripts/launch.sh, so nothing ever wrote a `window=` label and
@@ -471,6 +471,23 @@ fi
     # Same retry as the ghostty backend's `gwindow=` stamp at the foot of
     # this file, for the same reason: the session does not exist until that
     # `zmx attach` creates it, a few milliseconds from now.
+    # ── a RESUME starts out mislabelled, so unlabel it first ─────────────
+    # holt wires `resume` to this same script, and a resumed lane still
+    # carries the `lwindow=` of the window it had LAST time — a dead id, or
+    # worse, one AeroSpace has since handed to something else. The stamp at
+    # the foot of this block only lands after the pid walk, the window poll
+    # (up to 2 s) and the move, and for that whole gap
+    # scripts/focused-session.sh sees a label that does not match this window
+    # and, on its strength, refuses the title join — so every chord in the
+    # lane you just walked back into answers NOTHING and falls back to $HOME.
+    # An unlabelled window is the honest state while this settles, and the
+    # title join covers it exactly as it did before the label existed.
+    #
+    # ONE attempt, not `stamp ""`: on a resume the session is already there
+    # so it lands immediately, and on a FIRST open there is nothing to clear
+    # and a retry loop would sit here for three seconds before the walk below
+    # even starts.
+    printf '  command -v zmx >/dev/null 2>&1 && zmx set %q "lwindow=" >/dev/null 2>&1\n' "$sess"
     printf '  stamp() {\n'
     printf '    command -v zmx >/dev/null 2>&1 || return 0\n'
     printf '    for _ in $(seq 1 60); do\n'

@@ -253,13 +253,22 @@ printf '%s' "$(zmx ls 2>/dev/null)" | awk -F'\t' -v want="$title" -v wid="$wid" 
     # agent checkout and ⌘F searched the agent scrollback; now it answers
     # nothing, which every caller already handles.
     #
-    # It is safe to be this strict only because the label is kept FRESH
-    # rather than merely written: lanes/lane-open.sh stamps `lwindow=` on
-    # every open and CLEARS it on both of its bail paths, and
+    # It is safe to be this strict only because a lane is unlabelled far more
+    # readily than it is mislabelled: lanes/lane-open.sh CLEARS `lwindow=`
+    # the moment it starts placing a window and only stamps once it knows the
+    # id, clears it again on both of its bail paths, and
     # scripts/raise-session.sh clears it when it reopens a window whose id it
     # cannot learn. A lane with no stamp — one from before this label
-    # existed, or one whose self-tile could not find itself — still resolves
-    # by title exactly as it always did.
+    # existed, one whose self-tile could not find itself, one still settling
+    # — resolves by title exactly as it always did.
+    #
+    # The one hole left is the one `window=` has always had, now shared: ⌘W
+    # parks a session whose window is gone, and nothing clears the label
+    # until that lane is next opened. Should AeroSpace hand that id to some
+    # other window first, the window resolves to the parked session. Ids are
+    # not recycled quickly and a park is usually followed by a resume, so
+    # this is the same accepted risk launch.sh takes when it says its label
+    # is only ever as fresh as the last attach — not a new one.
     if (name == want && win == "" && alt == "") bytitle = name
   }
   END {
