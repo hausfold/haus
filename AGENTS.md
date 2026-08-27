@@ -435,10 +435,10 @@ mechanism, say so in one line.
   config lives in `/etc/nix/nix.custom.conf`. GC is our own weekly launchd job.
 - **The pounce build shells out to `/usr/bin/xcrun swiftc`** — needs Xcode CLT +
   the macOS build sandbox relaxed (Determinate's default). See the pounce repo.
-  So do this repo's five one-file Swift helpers, for the same reason (compiling
+  So do this repo's six one-file Swift helpers, for the same reason (compiling
   a Swift toolchain from source to build a few hundred lines against AppKit
   costs hours): `hausax` (core), `hausdisp` (displays), `barpop` (bar),
-  `floatring` (terminal), `hausrect` (windows).
+  `floatring` (terminal), `hausrect` (windows), `hausocr` (launcher).
 
 ## Patterns
 
