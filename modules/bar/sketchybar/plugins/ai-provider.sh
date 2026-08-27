@@ -8,7 +8,10 @@
 # agents pill still drew every client as the same anonymous robot:
 #   • ai_usage.sh — one row per provider REPORTING USAGE (claude/codex/opencode),
 #     where opencode is really a bring-your-own-key front end, so its mark comes
-#     from the model behind it rather than from opencode itself.
+#     from the model behind it rather than from opencode itself. pi is NOT in
+#     that list — nothing writes a usage row for it — but it has an arm below
+#     anyway, because the OTHER reader draws running panes and would otherwise
+#     give a pi lane the anonymous robot.
 #   • agents.sh   — one row per RUNNING AGENT PANE, whose client id is written
 #     into the state file by agents-hook.sh. No model is known there; the
 #     second argument is simply empty and the generic mark is right.
@@ -75,6 +78,19 @@ provider_style() {
         openai* | gpt*)       P_ICON=":openai:"; P_FONT="$appfont"; P_NAME="Opencode (${model:-gpt})";    P_COLOR="$TEAL" ;;
         "")                   P_ICON="󰏫";       P_FONT="$nerd";    P_NAME="Opencode" ;;
         *)                    P_ICON="󰏫";       P_FONT="$nerd";    P_NAME="Opencode (${model:-api})" ;;
+      esac
+      ;;
+    pi)
+      # Same story as opencode, one letter shorter: pi is a harness you point at
+      # a provider, so the model is the honest mark. π for the client itself —
+      # a Greek letter every terminal font has, which the nerd-font fallback
+      # would otherwise have to guess at.
+      case "$model" in
+        google* | gemini*)    P_ICON="✦";       P_FONT="$nerd";    P_NAME="pi (${model:-gemini})"; P_COLOR="$LAVENDER" ;;
+        anthropic* | claude*) P_ICON=":claude:"; P_FONT="$appfont"; P_NAME="pi (${model:-claude})"; P_COLOR="$FLAMINGO" ;;
+        openai* | gpt*)       P_ICON=":openai:"; P_FONT="$appfont"; P_NAME="pi (${model:-gpt})";    P_COLOR="$TEAL" ;;
+        "")                   P_ICON="π";       P_FONT="$nerd";    P_NAME="pi" ;;
+        *)                    P_ICON="π";       P_FONT="$nerd";    P_NAME="pi (${model:-api})" ;;
       esac
       ;;
     *)

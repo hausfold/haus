@@ -66,8 +66,12 @@ in
       ];
       description = ''
         Which coding-agent clients to install. `claude` is Claude Code, `codex`
-        is OpenAI Codex, `opencode` is OpenCode. The ⌘↵ lane chord starts
-        whichever one `ai.default` names, all of them through `scruff new`.
+        is OpenAI Codex, `opencode` is OpenCode, `pi` is pi. The ⌘↵ lane chord
+        starts whichever one `ai.default` names, all of them through
+        `scruff new`.
+
+        `pi` brings one thing the other three don't: `ai.pi.packages`, the
+        third-party resources it loads. See there before installing it.
 
         A list rather than one bool per client, matching `developer.languages`
         — a client added later doesn't change this option's shape.
@@ -80,9 +84,9 @@ in
         instead, with both values named.
 
         Override a client's package the usual Nix way — an overlay on
-        `claude-code`, `codex` or `opencode` — rather than dropping the client
-        here and installing your own copy alongside; two derivations shipping
-        the same `bin/` name collide in one profile.
+        `claude-code`, `codex`, `opencode` or `pi-coding-agent` — rather than
+        dropping the client here and installing your own copy alongside; two
+        derivations shipping the same `bin/` name collide in one profile.
 
         Ignored entirely when `ai.enable` is off — see `haus._ai.clients`, the
         resolved list every room actually installs from. Before step 4 this was
@@ -131,11 +135,87 @@ in
         Claude keys a transcript to the directory it started in.
         Resuming follows the client too: `codex` reopens
         its cwd-filtered `codex resume` picker, `opencode` continues its latest
-        session for that cwd. They share one `scruff` branch/parking/reap
-        lifecycle, and they all light up the `agents` bar pill — the opencode
+        session for that cwd, and `pi` continues the newest session in that
+        checkout (`pi --continue`, with `pi --resume`'s picker behind it). They
+        share one `scruff` branch/parking/reap
+        lifecycle.
+
+        Three of the four light up the `agents` bar pill — the opencode
         plugin and the codex hooks are written for
         you; only Claude Code's stay yours to wire, because Claude owns its own
-        settings.json (see `haus.bar.items.agents`).
+        settings.json (see `haus.bar.items.agents`). `pi` is the exception and
+        will stay one until somebody writes the extension: it reports its
+        state through an extension API rather than a hook file, so a pi lane
+        spawns, resumes and reaps like any other and simply does not appear in
+        the pill. It reports no usage either, so naming it in
+        `haus.bar.aiUsage.provider` selects a row that never has a number.
+
+        Two of them ask before reading a folder they have not seen, and a lane's
+        checkout is always one — so `scruff` copies the decision you already made
+        about the repo onto the worktree it just made: Claude Code's
+        `hasTrustDialogAccepted`, and pi's `~/.pi/agent/trust.json`. It only
+        ever propagates a yes; an untrusted repo still prompts, which is
+        correct.
+      '';
+    };
+
+    # pi's third-party resource list, under pi's own name for it. `packages`,
+    # not `extensions`, because that is the key this ends up written to
+    # (`~/.pi/agent/settings.json`) and an option that renamed it would be one
+    # more thing to translate when reading pi's docs — the same reasoning as
+    # `ai.namer` spelling scruff's id verbatim.
+    #
+    # This exists as an option, while every key haus merges into Claude Code's
+    # settings.json is hardcoded, because of what the two do. Those are display
+    # keys: a boolean changes how a pane draws. A pi package is npm or git
+    # source that pi FETCHES on first start and then EXECUTES in-process — the
+    # only leaf in this room that puts third-party code on the machine — so
+    # there has to be a way to say no that isn't "don't install pi".
+    ai.pi.packages = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [
+        "npm:pi-web-access"
+        "npm:pi-subagents"
+        "npm:@juicesharp/rpiv-ask-user-question"
+        "npm:@juicesharp/rpiv-todo"
+      ];
+      # One line, for ../host-template.jq — see `ai.repoRoots` for why a
+      # multi-line default breaks the annotated host file's parse.
+      defaultText = lib.literalExpression ''[ "npm:pi-web-access" "npm:pi-subagents" "npm:@juicesharp/rpiv-ask-user-question" "npm:@juicesharp/rpiv-todo" ]'';
+      example = [ ];
+      description = ''
+        pi packages — extensions, skills, prompt templates and themes — merged
+        into `packages` in `~/.pi/agent/settings.json` at every rebuild.
+
+        The four in the default are what make pi comparable to the other
+        clients in this room rather than a smaller thing beside them. pi ships
+        deliberately without sub-agents, a todo list, a way to ask its user a
+        question mid-turn, or web access, and says so: its answer is that you
+        install a package or have it write you one. So a haus machine that
+        installed pi and stopped would be handing you a client that visibly
+        cannot do what the pane next to it does.
+
+        - `pi-web-access` — fetch and read a URL.
+        - `pi-subagents` — spawn sub-agents for fan-out work.
+        - `@juicesharp/rpiv-ask-user-question` — a mid-turn question with
+          options, instead of guessing.
+        - `@juicesharp/rpiv-todo` — the visible task list a long turn needs.
+
+        Set to `[ ]` for a pi with nothing but its own built-in tools. haus
+        MERGES rather than owns: anything you added with `pi install` stays,
+        and this list is added beside it, so the file is still yours. The
+        consequence of merging is that removing an entry from this list does
+        NOT uninstall it — run `pi remove <source>` once, and it will not come
+        back.
+
+        Cost, stated plainly: each entry is an npm fetch the first time pi
+        starts after a rebuild, and pi runs an extension's code in its own
+        process. That is the same trust you extend to the client itself, but it
+        is a second decision and this option is where you make it.
+
+        Host-only, and this is the one leaf in the room where that matters
+        most: a shared desktop naming a package here would be shipping code
+        that runs on your machine inside a file you read as data.
       '';
     };
 
@@ -340,7 +420,7 @@ in
         slot every client has under a different name. Written once per client
         in `ai.clients`, to the path that client actually reads:
         `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`,
-        `~/.config/opencode/AGENTS.md`.
+        `~/.config/opencode/AGENTS.md`, `~/.pi/agent/AGENTS.md`.
 
         Write it client-neutrally: the same text reaches whichever agent the ⌘A
         pane spawns, so a line about a Claude-only skill or file path is noise
@@ -390,12 +470,14 @@ in
 
         One copy per client, in the directory that client scans:
         `~/.claude/skills/haus`, `~/.codex/skills/haus`,
-        `~/.config/opencode/skills/haus`, and the same three directories again
+        `~/.config/opencode/skills/haus`, `~/.pi/agent/skills/haus`, and the
+        same four directories again
         per skill. OpenCode also
         scans `~/.claude/skills`
         for Claude Code compatibility, and prefers its own copy when both
         exist — so a machine running both clients sees each skill once, not
-        twice.
+        twice. pi reads `~/.agents/skills` on top of its own directory for the
+        same reason, and deduplicates the same way.
 
         The skill's option reference is GENERATED from the haus revision this
         machine is pinned to, so it can only ever describe options that

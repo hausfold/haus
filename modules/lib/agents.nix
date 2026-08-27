@@ -13,7 +13,9 @@
 #
 # `specFor()` in scruff (hausfold/holt, internal/commands/agent.go) is the one
 # copy that CANNOT be folded in: it's the same set on the Go side, and a Go
-# binary can't read Nix. Adding a client means editing there too.
+# binary can't read Nix. Adding a client means editing there too — and scruff is a
+# flake input, so the id has to land THERE first and ripple down, or every lane
+# spawned with the new client dies on `unknown agent`.
 #
 # Every client here is installed from nixpkgs, so it also needs a derivation in
 # modules/lib/agent-packages.nix. And what a client id must have in every case
@@ -31,4 +33,5 @@
   "claude"
   "codex"
   "opencode"
+  "pi"
 ]

@@ -204,7 +204,7 @@
     "ai": {
       "blurb": "The AI room: whether this machine runs coding agents at all, which clients it installs, which one the agent keybinding spawns, where the palette looks for a repo to spawn one on, and the two files haus ships into every one of their homes — your instructions, and the `haus` skill. Spelled `haus.agents.*` before 2026-08-13, with the switch under `haus.developer.agents`; both are gone rather than aliased.",
       "kind": "room",
-      "optionCount": 8,
+      "optionCount": 9,
       "options": {
         "haus.ai.clients": {
           "desktopSafe": true
@@ -225,6 +225,10 @@
         },
         "haus.ai.namer": {
           "desktopSafe": true
+        },
+        "haus.ai.pi.packages": {
+          "desktopSafe": false,
+          "reason": "runs-a-command"
         },
         "haus.ai.repoRoots": {
           "desktopSafe": true
@@ -1669,7 +1673,7 @@
       "namespaces": [
         "ai"
       ],
-      "optionCount": 8,
+      "optionCount": 9,
       "order": 100,
       "title": "AI"
     },

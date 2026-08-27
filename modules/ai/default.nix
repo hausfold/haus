@@ -42,6 +42,10 @@ let
   cfg = config.haus.ai;
   agentPackages = import ../lib/agent-packages.nix pkgs;
 
+  # The pi release that first accepted `--`. Named once, read by the assertion
+  # below and by nothing else; the pin that satisfies it is in that same file.
+  piFloor = "0.84.3";
+
   # This room's own resolved client list, under the name the moved blocks below
   # already used. `clients` (just below) is the same value; both names are kept
   # because the assertions read one and the home payload the other.
@@ -132,12 +136,20 @@ let
   #   codex debug prompt-input   → ~/.codex/AGENTS.md and ~/.codex/skills/*
   #                                appear in the model-visible prompt
   #   opencode debug skill       → lists ~/.config/opencode/skills/*
+  #   pi --verbose               → names the context files and skills it loaded
   #
   # OpenCode also scans `~/.claude/skills` for Claude Code compatibility, so a
   # machine running both clients has two copies of this skill in its reach. That
   # is safe on purpose: the same probe shows opencode deduplicating by frontmatter
   # `name` and preferring its OWN directory, so the skill is offered once. (Its
   # docs only say "ensure skill names are unique", which is why this was probed.)
+  #
+  # pi has the same overlap and one more of its own: besides `~/.pi/agent/skills`
+  # it reads `~/.agents/skills` unconditionally, and it implements the Agent
+  # Skills standard, so it would find a haus skill written anywhere in that set.
+  # Its own directory is still the one named here, because that is the one this
+  # room can promise is haus's — `~/.agents/skills` is a shared address several
+  # clients read and the user's own hand-wired skills live in.
   agentHomes = {
     claude = {
       instructions = ".claude/CLAUDE.md";
@@ -150,6 +162,14 @@ let
     opencode = {
       instructions = ".config/opencode/AGENTS.md";
       skills = ".config/opencode/skills";
+    };
+    # pi keeps everything under one agent directory, `~/.pi/agent`, and reads
+    # `AGENTS.md` there as its global context file. `CLAUDE.md` works too — pi
+    # accepts either name — but AGENTS.md is the one the family standardises on
+    # and the one pi's own docs name first.
+    pi = {
+      instructions = ".pi/agent/AGENTS.md";
+      skills = ".pi/agent/skills";
     };
   };
 
@@ -178,6 +198,7 @@ let
     claude = "`settings.json` is Claude Code's own, and a host may wire individual skills as out-of-store symlinks";
     codex = "`config.toml` and `hooks.json` are Codex's own, and a host may wire individual skills as out-of-store symlinks";
     opencode = "`opencode.json` is OpenCode's own, and a host may wire individual skills or plugins as out-of-store symlinks";
+    pi = "`settings.json`, `models.json` and `trust.json` are pi's own — haus merges a few keys into the first at rebuild and owns none of the three — and a host may wire individual skills or extensions as out-of-store symlinks";
   };
 
   hausGuidance = client: ''
@@ -739,6 +760,29 @@ in
         "haus.ai.clients names ${lib.concatStringsSep ", " unavailableClients}, which "
         + "nixpkgs does not build for ${pkgs.stdenv.hostPlatform.system}. Installing nothing "
         + "would only move the failure into the agent pane; drop it from ai.clients.";
+    }
+    # The one client with a VERSION floor, and the tripwire for the override in
+    # modules/lib/agent-packages.nix rather than a check on nixpkgs.
+    #
+    # `--` — end-of-options — reached pi in 0.84.3, and every earlier version
+    # answers `Error: Unknown option: --`. scruff's pi spec puts a `--` before the
+    # first-turn prompt (a brief typed into Spawn Agent very often starts with a
+    # dash, which is a flag otherwise), so an older pi turns every PROMPTED lane
+    # into a pane that dies before the agent draws. A lane opened with no prompt
+    # would keep working, which is what makes this worth asserting instead of
+    # leaving to be discovered: the failure is intermittent by workflow.
+    #
+    # This passes today because that file pins 0.84.3 itself. It is here for the
+    # day someone deletes the pin — when nixpkgs has caught up, this stays quiet;
+    # when it has not, this is the named refusal instead of the dead pane.
+    {
+      assertion = !(lib.elem "pi" clients) || lib.versionAtLeast agentPackages.pi.version piFloor;
+      message =
+        "haus.ai.clients names pi, but this pkgs builds pi ${agentPackages.pi.version} and "
+        + "scruff needs ${piFloor} or later: `--` (end-of-options) landed in ${piFloor}, and "
+        + "without it every lane spawned WITH a prompt dies on `Error: Unknown option: --` "
+        + "before the agent draws. Restore the version pin in "
+        + "modules/lib/agent-packages.nix, or drop pi from ai.clients.";
     }
   ];
 

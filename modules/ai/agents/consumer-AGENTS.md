@@ -12,7 +12,8 @@ hosts/<hostname>/settings/*.nix  one ordinary module per `haus set` override
 ```
 
 This file is the one set of instructions, for every agent — Claude Code, Codex,
-OpenCode, Cursor, Copilot all read it, directly or through a one-line pointer.
+OpenCode, pi, Cursor, Copilot all read it, directly or through a one-line
+pointer.
 The `CLAUDE.md` beside it is that pointer and holds no rules of its own.
 
 ## Working here
@@ -43,7 +44,8 @@ The `CLAUDE.md` beside it is that pointer and holds no rules of its own.
 - **Don't invent option names.** The authoritative list for the revision this
   machine is pinned to is `references/options.md` inside the `haus` skill —
   `~/.claude/skills/haus/`, `~/.codex/skills/haus/` or
-  `~/.config/opencode/skills/haus/`, whichever your client uses. It's plain
+  `~/.config/opencode/skills/haus/`, `~/.pi/agent/skills/haus/`, whichever your
+  client uses. It's plain
   markdown, so read it by path even if your client never loads it as a skill.
 - **Ask before touching identity or secrets** — git identity, signing keys,
   `haus.secrets.*`.
@@ -54,7 +56,8 @@ The `haus` skill carries the full option reference, worked recipes, and this
 machine's current state. Read it before making changes; it is generated from
 this machine's pinned haus, so it can't drift from what's actually settable
 here. haus installs one copy per client it manages — `~/.claude/skills/`,
-`~/.codex/skills/`, `~/.config/opencode/skills/` — and they are ordinary
+`~/.codex/skills/`, `~/.config/opencode/skills/`, `~/.pi/agent/skills/` — and
+they are ordinary
 markdown, so read whichever one is on disk even if it isn't yours.
 
 `haus doctor` checks the machine's health. <https://hausfold.co/docs/> has the

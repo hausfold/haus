@@ -2193,5 +2193,71 @@ in
           ' "$HOME/.codex/hooks.json" "/run/current-system/sw/bin/agent-state"
         ''
       );
+
+      # pi — the same idea in pi's own settings file, and the same split every
+      # merge here makes between "what makes this a haus lane" and "what is
+      # yours". Two keys are RE-ASSERTED every rebuild, two are only SEEDED when
+      # the file has no opinion yet, and the package list is UNIONED.
+      #
+      # Re-asserted, because they are how a lane looks rather than what you
+      # think about it:
+      #   tuiMode = "fullscreen"  — the alt-screen renderer, the same choice
+      #     `.tui = "fullscreen"` makes for Claude Code above, so two panes side
+      #     by side are the same shape. Ghostty's ⇧-drag selection still reaches
+      #     the alt-screen, so it costs nothing.
+      #   quietStartup = true     — drop pi's startup header. A lane pane opens
+      #     already knowing what it is; the statusline carries the rest.
+      #
+      # Seeded once, because they are taste and pi lets you change them from
+      # `/settings` mid-session — a rebuild that reverted what you just chose
+      # would be the rice arguing with you:
+      #   hideThinkingBlock       — thinking folded away by default.
+      #   modelThinkingLevels     — think hard on the Anthropic models by
+      #     default.
+      #
+      # Both are guarded on `has()` rather than merged, and the object one is
+      # the reason why: `{ours} + (.yours // {})` looks like seed-once and
+      # isn't. A level you CHANGED wins, but one you DELETED in `/settings`
+      # comes back at the next rebuild — which is precisely the arguing this
+      # split exists to avoid. `has()` asks the only question that separates
+      # "never had an opinion" from "had one and dropped it".
+      #
+      # And `packages` is a union, never a set: `ai.pi.packages` is added beside
+      # whatever `pi install` put there, so the file stays yours. The corollary
+      # is in that option's docs — dropping an entry from the Nix list does not
+      # uninstall it, because haus does not own this array and must not delete
+      # from it.
+      #
+      # `agentsCfg`, not `config.haus.…`: everything from here down is inside
+      # `home-manager.users.<name>`, where `config` is home-manager's own and
+      # has no `haus`. The let-binding at the top of this file is the outer one.
+      #
+      # Gated on pi actually being installed, unlike the Claude block above
+      # which follows the room alone. The difference is what the two write: a
+      # statusline path and some hooks help a hand-installed Claude Code and
+      # cost a machine without one nothing, while this seeds a list of npm
+      # sources — a settings file naming code to fetch, for a client that isn't
+      # here, is litter with a sharp edge.
+      home.activation.piSettings = lib.mkIf (agentsCfg.enable && lib.elem "pi" agentClients) (
+        lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+          run sh -c '
+            settings="$0"
+            packages="$1"
+            mkdir -p "''${settings%/*}"
+            tmp="$settings.hm-seed"
+            if [ -s "$settings" ]; then base="$settings"; else base="$tmp.base"; printf "{}" > "$base"; fi
+            ${pkgs.jq}/bin/jq --argjson add "$packages" ".tuiMode = \"fullscreen\"
+              | .quietStartup = true
+              | (if has(\"hideThinkingBlock\") then . else .hideThinkingBlock = true end)
+              | (if has(\"modelThinkingLevels\") then . else .modelThinkingLevels = {\"anthropic/claude-opus-5\": \"high\", \"anthropic/claude-fable-5\": \"high\", \"anthropic/claude-sonnet-5\": \"high\"} end)
+              | .packages = ((.packages // []) + (\$add - (.packages // [])))" \
+              "$base" > "$tmp" && mv "$tmp" "$settings"
+            # Both, not just the base: when jq fails the `&& mv` short-circuits
+            # and a half-written "$tmp" would otherwise sit beside pi's real
+            # settings file forever, looking like something it should read.
+            rm -f "$tmp" "$tmp.base"
+          ' "$HOME/.pi/agent/settings.json" ${lib.escapeShellArg (builtins.toJSON agentsCfg.pi.packages)}
+        ''
+      );
     };
 }
