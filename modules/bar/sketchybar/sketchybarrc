@@ -214,8 +214,10 @@ done
 # and the focused workspace pill's peach fill) — see plugins/aerospace_lib.sh
 # for why it lives here rather than in front_app.sh.
 #
-# aerospace_fullscreen_change is fired by the <mod>f binding, through
-# aerospace-notify.sh, so the paint lands on the keypress; the 2s poll still
+# aerospace_fullscreen_change is fired by the <mod>f guard script
+# (fullscreen-toggle.sh, in the windows room), through aerospace-notify.sh, so
+# the paint lands on the keypress — and fires ONLY when the state actually
+# changed, so a press the guard blocks paints nothing. The 2s poll still
 # covers the routes no event announces (focusing another window of the SAME app
 # fires no front_app_switched, and an AeroSpace restart fires nothing at all).
 sketchybar --add event aerospace_fullscreen_change

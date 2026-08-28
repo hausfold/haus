@@ -38,7 +38,7 @@ fi
 # Toggle-ON: only with company. Count the windows on the focused workspace;
 # a solo window gets nothing, because the toggle's only effect would be
 # arming the mode against windows that don't exist yet.
-ws="$("$AP" list-workspaces --focused 2>/dev/null)"
+ws="$("$AP" list-workspaces --focused 2>/dev/null || echo "")"
 count="$("$AP" list-windows --workspace "$ws" --count 2>/dev/null || echo 0)"
 
 if [ "$count" -gt 1 ]; then
