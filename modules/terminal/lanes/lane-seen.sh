@@ -57,22 +57,14 @@ dwell="${HAUS_LANE_SEEN_DWELL:-1}"
 # chattier but still correct. A rename of the FILES inside it would be the one
 # shape that fails silently, which is why the naming is spelled out above.
 #
-# The state dir mirrors the tool's own ladder (internal/compat's `Dir`, reached
-# from internal/commands/env.go): the new spelling wins when it exists AND when
-# neither does, and the old one answers only on a machine that already has it.
-# Guessing `scruff` outright would read an empty directory on every Mac that
-# ran the tool before the rename, and guessing `holt` would strand every fresh
-# one — a stat is what tells the two apart.
-state="${SCRUFF_STATE:-${HOLT_STATE:-}}"
+# The state dir is scruff's own, full stop as of 1.1.0 (docs/rename.md §8.1):
+# $SCRUFF_STATE, then the scruff-named state dir. The holt-named fallback the
+# 1.0.x binary still answered to died with the compat half — a machine that ran
+# the tool before the rename has its leases re-created under the new name, and
+# 90-second leases make that cost nothing.
+state="${SCRUFF_STATE:-}"
 if [ -z "$state" ]; then
-  state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
-  if [ -d "$state_home/scruff" ]; then
-    state="$state_home/scruff"
-  elif [ -d "$state_home/holt" ]; then
-    state="$state_home/holt"
-  else
-    state="$state_home/scruff"
-  fi
+  state="${XDG_STATE_HOME:-$HOME/.local/state}/scruff"
 fi
 asks="$state/asks"
 if [ -d "$asks" ]; then
@@ -114,7 +106,9 @@ sleep "$dwell"
 # `scruff --json`, whose lsof sweep costs seconds, and rather than through
 # scruff-cache, whose whole point is tolerating staleness — a lane that appeared
 # thirty seconds ago is exactly the one waiting on you.
-reg="${SCRUFF_BASE:-${HOLT_BASE:-$HOME/.cache/claude-worktrees}}/registry.tsv"
+reg="${SCRUFF_BASE:-$(
+  if [ -f "$HOME/.cache/scruff/registry.tsv" ]; then echo "$HOME/.cache/scruff"; \
+  else echo "$HOME/.cache/claude-worktrees"; fi)}/registry.tsv"
 [ -r "$reg" ] || exit 0
 
 key="$(

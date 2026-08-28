@@ -75,8 +75,8 @@ fi
 label() { printf '%s' "$1" | tr '[:upper:]_' '[:lower:]-'; }
 
 lane=$(label "$(basename "$toplevel")")
-# git, and deliberately NOT $HOLT_MAIN. That looked like the better source —
-# lane-open.sh prefers it — and measuring it said otherwise: HOLT_MAIN is a HOOK
+# git, and deliberately NOT $SCRUFF_MAIN. That looked like the better source —
+# lane-open.sh prefers it — and measuring it said otherwise: SCRUFF_MAIN is a HOOK
 # variable that LEAKS into the pane it opens and every shell started from there,
 # so a pane opened on repo A that cd's into a worktree of repo B still carries
 # A's path. Trusting it named a `myapp` worktree `wiggly-crane.haus` in exactly

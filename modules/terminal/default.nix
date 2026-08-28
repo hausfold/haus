@@ -801,7 +801,11 @@ in
               # unmounted volume comes back, and a link YOU made is yours to
               # fix, not ours to delete.
               for _haus_stale in $_haus_comps[1]/*(-@N); do
-                [[ "$(readlink -- "$_haus_stale")" == "$HOME/.cache/claude-worktrees/"* ]] &&
+                # Either base: the scruff-named one, and the legacy path until
+                # its one-release symlink is removed (scruff's docs/rename.md
+                # §8.2 — the legacy spelling dies with that symlink at 1.2.0).
+                [[ "$(readlink -- "$_haus_stale")" == "$HOME/.cache/scruff/"* ||
+                   "$(readlink -- "$_haus_stale")" == "$HOME/.cache/claude-worktrees/"* ]] &&
                   rm -f -- "$_haus_stale"
               done
             elif [[ -d ~/.zsh-completions ]]; then
@@ -864,7 +868,12 @@ in
             # editor's integrated one, ssh) opened deliberately inside a
             # worktree must not be teleported out of it.
             if [[ "$TERM_PROGRAM" == ghostty ]] &&
-               [[ -z "$CLAUDECODE" && -z "$HAUS_STAY" && "$PWD" == "$HOME/.cache/claude-worktrees/"* ]]; then
+               [[ -z "$CLAUDECODE" && -z "$HAUS_STAY" &&
+                  ( "$PWD" == "$HOME/.cache/scruff/"* || "$PWD" == "$HOME/.cache/claude-worktrees/"* ) ]]; then
+              # Either base name: scruff's own, and the legacy path until its
+              # one-release symlink goes (docs/rename.md §8.2, at 1.2.0). A
+              # lane opened through the symlink has a PWD spelling the legacy
+              # way but the SAME gitdir as its scruff-named spelling.
               _wt_main="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
               [[ -n "$_wt_main" ]] && cd "''${_wt_main:h}"
               unset _wt_main
@@ -1498,16 +1507,17 @@ in
         # this generated file instead of inheriting a stale client selection.
         # A standalone scruff install can own the same file by hand.
         #
-        # ⚠️ THIS FILE existing is what moves scruff's whole config directory.
-        # scruff resolves it as an either/or stat (`compat.Dir`): `~/.config/
-        # scruff` when it exists, `~/.config/holt` only while it is the one
-        # holding the machine's files — not a search path, and every ADAPTER
-        # rides the same answer. So the rebuild that first writes this line is
-        # the rebuild that stops a hand-written `~/.config/holt/adapters/namer/
-        # <id>.toml` being found, and lane names fall back to a random word pair
-        # with the warning going to a launchd stderr nobody reads. That move is
-        # the operator's — `haus.ai.namer`'s description carries the two
-        # commands — because the adapter is theirs and may be a file haus has
+        # ⚠️ At scruff 1.0.x this file was what STOPPED scruff finding a
+        # hand-written `~/.config/holt` config dir (the binary stat'd either
+        # the scruff-named or the holt-named one). That either/or ended at
+        # 1.1.0: scruff reads `~/.config/scruff` and nothing else, and every
+        # ADAPTER rides the same answer. So the rebuild that first wrote this
+        # line (or, past 1.1.0, any rebuild) orphans a hand-written
+        # `~/.config/holt/adapters/namer/<id>.toml` that was not moved — lane
+        # names fall back to a random word pair with the warning going to a
+        # launchd stderr nobody reads. That move is the operator's —
+        # `haus.ai.namer`'s description carries the two commands — because the
+        # adapter is theirs and may be a file haus has
         # never seen.
         ".config/scruff/config.toml".text = ''
           # Generated from haus.ai.default + haus.ai.namer — edit those options, not here.
@@ -2134,17 +2144,16 @@ in
       # the ledge kept saying "waiting on you" while the agent was already ten
       # minutes into the work.
       #
-      # ⚠️ Those four filter on BOTH spellings of the command — `scruff hook
-      # notify` and its predecessor `holt hook notify` — and that is the whole
-      # reason the append is safe across the rename. The filter only ever drops
-      # what it is about to insert, so a rename that dropped the old spelling
-      # from the filter would leave the OLD entry in place and append the new
-      # one beside it: every agent pane would fire two notifications, forever,
-      # and no rebuild would ever clean it up (this is an append, not the
-      # assignment WorktreeCreate/Remove use, which self-heal). The `holt` rung
-      # comes out one release after every settings.json on the machine has been
-      # rewritten once — the tool's own docs/rename.md §8.1 is where that is
-      # tracked.
+      # The filter drops only what it is about to insert — the append's whole
+      # safety is there (this is an append, not the assignment
+      # WorktreeCreate/Remove use, which self-heal). It filtered on BOTH
+      # spellings of the command through the rename (`scruff hook notify` and
+      # its predecessor `holt hook notify`), because dropping the old spelling
+      # from the filter before the old entries were cleaned would have left
+      # them in place beside the new one: every agent pane firing two
+      # notifications, forever. The `holt` rung came out at 1.1.0
+      # (docs/rename.md §8.1) — every settings.json has been rewritten with
+      # the new spelling by then, so the plain filter self-heals the rest.
       #
       # A third way down is not a hook at all and does not live here:
       # lanes/lane-seen.sh clears a lane's fin when you FOCUS its window, which
@@ -2178,10 +2187,10 @@ in
             ${pkgs.jq}/bin/jq ".hooks.WorktreeCreate = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook create\"}]}]
               | .hooks.WorktreeRemove = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook remove\"}]}]
               | .hooks.PreToolUse = (((.hooks.PreToolUse // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/agent-desktop-guard\") | not))) + [{matcher: \"Bash|mcp__computer-use__.*\", hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/agent-desktop-guard\"}]}])
-              | .hooks.Notification = (((.hooks.Notification // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") == null and index(\"/run/current-system/sw/bin/holt hook notify\") == null))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
-              | .hooks.Stop = (((.hooks.Stop // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") == null and index(\"/run/current-system/sw/bin/holt hook notify\") == null))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
-              | .hooks.UserPromptSubmit = (((.hooks.UserPromptSubmit // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") == null and index(\"/run/current-system/sw/bin/holt hook notify\") == null))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
-              | .hooks.PostToolUse = (((.hooks.PostToolUse // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") == null and index(\"/run/current-system/sw/bin/holt hook notify\") == null))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
+              | .hooks.Notification = (((.hooks.Notification // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
+              | .hooks.Stop = (((.hooks.Stop // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
+              | .hooks.UserPromptSubmit = (((.hooks.UserPromptSubmit // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
+              | .hooks.PostToolUse = (((.hooks.PostToolUse // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
               | .permissions.defaultMode = \"auto\"
               | .tui = \"fullscreen\"
               | .disableAgentView = true

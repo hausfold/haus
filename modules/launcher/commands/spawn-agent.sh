@@ -118,7 +118,19 @@
 export PATH="/etc/profiles/per-user/$USER/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 ROOTS="${HAUS_REPO_ROOTS:-$HOME/code:$HOME/src:$HOME/Developer:$HOME/Projects:$HOME/.config/nix}"
-WT_REGISTRY="${CLAUDE_WT_BASE:-$HOME/.cache/claude-worktrees}/registry.tsv"
+# The registry, resolved the way scruff's own baseDir() does (scruff's
+# docs/rename.md §8.2): the scruff-named base while it holds the registry, the
+# legacy path while THAT is the one holding it, else the scruff default a
+# fresh install will create. Probe-based, so a rebuild that lands ahead of the
+# base move — or after it, whichever order the operator runs them in — reads a
+# registry that exists either way.
+if [ -f "$HOME/.cache/scruff/registry.tsv" ]; then
+  WT_REGISTRY="$HOME/.cache/scruff/registry.tsv"
+elif [ -f "$HOME/.cache/claude-worktrees/registry.tsv" ]; then
+  WT_REGISTRY="$HOME/.cache/claude-worktrees/registry.tsv"
+else
+  WT_REGISTRY="${CLAUDE_WT_BASE:-$HOME/.cache/scruff}/registry.tsv"
+fi
 # One drafts store for the command, not one per repo: you often start typing
 # before you have decided which repo it belongs to.
 DRAFT_KEY="spawn-agent"
@@ -518,22 +530,18 @@ fi
 # the launchd environment may become a floor for a spawn that never asked for
 # one.
 #
-# ⚠️ BOTH spellings go out, and this is the one place in the room where that is
-# not belt-and-braces. The reader is a hand-written adapter in the operator's
-# own ~/.config — a file haus does not ship, cannot see and cannot rewrite — so
-# the usual "flip both ends together" does not apply: an adapter written against
-# HOLT_NAMER_FALLBACK would simply stop seeing a floor, and the only symptom is
-# an offline spawn quietly landing on a random word pair instead of the slug.
-# The old spelling comes out once the adapters on this machine have moved (the
-# tool's own docs/rename.md §8.1).
+# The reader is a hand-written adapter in the operator's own ~/.config — a file
+# haus does not ship, cannot see and cannot rewrite — so an adapter written
+# against the old name must have been updated in the same rebuild that stopped
+# exporting it (scruff 1.1.0; docs/rename.md §8.1). This machine's was.
 case "${HAUS_LANE_NAMER:-}" in
   "" | claude) laneNamer="" ;;
   *) laneNamer="$HAUS_LANE_NAMER" ;;
 esac
-export SCRUFF_NAMER_FALLBACK="" HOLT_NAMER_FALLBACK=""
+export SCRUFF_NAMER_FALLBACK=""
 set -- spawn "$repo"
 if [ -n "$laneNamer" ]; then
-  export SCRUFF_NAMER_FALLBACK="$slug" HOLT_NAMER_FALLBACK="$slug"
+  export SCRUFF_NAMER_FALLBACK="$slug"
 else
   set -- "$@" "$slug"
 fi

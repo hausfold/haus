@@ -222,7 +222,7 @@ let
 
     `scruff` (shipped by haus, on PATH) manages **agent worktrees** for any git
     repo. ${laneChordProse} Checkouts live under
-    `~/.cache/claude-worktrees/<repo>/<name>` whichever client you are.
+    `~/.cache/scruff/<repo>/<name>` whichever client you are.
 
     Closing a pane never loses work: uncommitted edits are parked as a `wip:`
     commit, and only already-merged branches are reaped. Resume with `scruff`
