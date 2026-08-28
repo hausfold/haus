@@ -51,12 +51,12 @@
 # Type anything that matches no lane and Enter searches the TRANSCRIPTS instead
 # — the term grepped across every live session's `zmx history`, matches back as
 # rows, Enter focusing the session it came from. `--actions` labels that Return
-# so the action bar says "Search transcripts" the moment the filter comes up
-# empty; it used to be an undocumented `/` prefix with nothing on screen to
+# so the action bar says "Search transcripts" the moment the query stops
+# matching any lane; it used to be an undocumented `/` prefix with nothing to
 # suggest it existed, and a typo'd lane name fell through to `scruff <typo>/<typo>`,
 # which does not search anything — it SPAWNS A LANE. A leading `/` is still
 # accepted and stripped, because that is the spelling the old header taught.
-# It is NOT a guaranteed escape hatch, and don'"'"'t document it as one: pounce
+# It is NOT a guaranteed escape hatch, and don't document it as one: pounce
 # scores the subtitle as well as the title, and a subtitle here is a branch
 # name or a directory, both full of slashes — so `/foo` can still match a row,
 # and a row that matches is a row that commits. A term that collides with a
@@ -283,7 +283,14 @@ rows="$(
     | [ "\(.repo) · \(.lane)",
         "\(.state)  \(.detail)",
         ($icons[.state] // "circle.dashed"),
-        "Open",
+        # A ROW carries its own action spec, and it is the only thing pounce
+        # consults for a modifier held over a row: `--actions` labels the bar
+        # only for a step with no selected row (State.swift'"'"'s `freeTextActions`),
+        # and `buildCommit` FALLS BACK to the plain Return when the row declares
+        # nothing for the key you pressed. So a `cmd:Refresh` that lives only in
+        # `--actions` is invisible AND inert over a lane — ⌘↵ silently opens the
+        # lane under the cursor. It has to be spelled here, per row, as well.
+        "Open|cmd:Refresh",
         "Lanes" ]
     | @tsv
   ' 2>/dev/null
@@ -305,22 +312,29 @@ if [ -z "$rows" ]; then
   bail "No lanes yet" "scruff has nothing parked and nothing running" "zzz"
 fi
 
-# --chain enter: the TYPED-text commit is never the end — it re-invokes the
-# picker with match rows — so the window holds its skeleton instead of fading
-# out and popping back. It says nothing about a row pick: `chainActions` is
-# read only in pounce'"'"'s `commitText`, and `buildCommit`'"'"'s `.plain` case
-# hard-codes `.linger` whatever this flag says, so a picked lane always fades.
-# That is fine — focusing a window is a fast next act — but it does mean the
-# lane half of this picker has no skeleton to present into, which is why
-# `open_lane` reports a failure as a fresh row rather than into the old window.
-# --actions: with the filter empty, name what Return does with what you typed —
-# that bar is the only place the transcript search can announce itself, because
-# it is the only chrome pounce draws when nothing matched — and name ⌘↵ so the
-# refresh below is discoverable rather than folklore.
-# --chain enter,cmd: the typed-text Return (transcript search) and ⌘↵ (refresh)
-# both re-present into this window, so chaining holds the skeleton for each
-# instead of fading out and popping back. A plain row pick is `.plain` and
-# lingers whatever this says (see the comment above `focus_session`).
+# --actions and the rows' own fourth field are TWO action bars, not one, and
+# ⌘↵ has to be written into both to work everywhere in this picker:
+#   * `--actions` is `freeTextActions`, and pounce draws it ONLY when the
+#     VISIBLE list is empty (`ContentView.showFreeTextBar`) — which here means
+#     a query matching no lane, and nothing else: a piped step is not
+#     `isLauncher`, so its list never hides, and an empty filter shows every
+#     row with one selected. (This script `bail`s before the picker when there
+#     are no lanes at all, so there is no row-less open either.) That one state
+#     is the transcript search's only chance to announce itself.
+#   * a selected row draws its OWN spec (the fourth TSV field, "Open|cmd:Refresh"
+#     above), and that spec is also what `buildCommit` consults for the modifier
+#     you held — a key the row doesn't declare falls back to the plain Return.
+#     So `cmd:Refresh` here alone left ⌘↵ over a lane both unlabelled and inert:
+#     it just opened the lane, exactly like ↵.
+# --chain enter,cmd: the TYPED-text commits — the transcript search, and a ⌘↵
+# fired from that same no-match bar — re-invoke this picker, so the window
+# holds its loading skeleton instead of fading out and popping back. It says
+# nothing about a ROW pick: `chainActions` is read only in pounce's
+# `commitText`, and `buildCommit`'s `.plain` case hard-codes `.linger` whatever
+# this flag says. So a ⌘↵ refresh over a row — the common one — fades and
+# re-opens, a beat slower and not worth a second commit path. The same fact
+# is why `open_lane` reports a failure as a fresh row rather than into the old
+# window.
 selected="$(printf '%s\n' "$rows" |
   pounce -p "$PROMPT" -i "$ICON" --chain enter,cmd \
     --actions "Search transcripts|cmd:Refresh")" || exit 0
