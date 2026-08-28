@@ -85,17 +85,20 @@ lib.optionals hasNav [
       {
         keys = g "f";
         action = "Fullscreen toggle";
-        # Two commands, because fullscreen is the one tiling state with no tell
-        # of its own: the window fills the workspace, its siblings vanish, and
-        # nothing says they still exist. The second half wakes the bar's
-        # aerospace watcher, which paints the glyph on the front-app pill and
-        # turns the focused workspace pill peach (modules/bar/sketchybar/
-        # plugins/aerospace_lib.sh). The watcher polls too, so this is latency,
-        # not correctness — dropping it costs up to 2s, not the indicator.
-        binds.${m "f"} = [
-          "fullscreen"
-          "exec-and-forget @HOME@/.config/sketchybar/aerospace-notify.sh fullscreen"
-        ];
+        # One exec-and-forget rather than `fullscreen` + notify, because the
+        # toggle is guarded: fullscreen is the one tiling state with no tell of
+        # its own (the window fills the workspace, its siblings vanish, nothing
+        # says they still exist), and arming it on a SOLO window is a no-op
+        # whose only effect lands later — the next window to open on this
+        # workspace is hidden behind it, with the bar painting the fullscreen
+        # glyph the whole time. The script (fullscreen-toggle.sh) allows the
+        # OFF take unconditionally and the ON take only when a sibling shares
+        # the workspace, and fires the bar's aerospace-notify.sh — which
+        # paints the glyph on the front-app pill and turns the focused
+        # workspace pill peach (modules/bar/sketchybar/plugins/
+        # aerospace_lib.sh) — only when the state actually changed. The
+        # watcher polls too, so the notify is latency, not correctness.
+        binds.${m "f"} = "exec-and-forget @HOME@/.config/aerospace/fullscreen-toggle.sh";
       }
     ]
     ++ lib.optional (mouseFullscreen != "none") {
