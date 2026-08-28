@@ -793,6 +793,12 @@ lib.mkMerge [
         source = ./scripts/tiling-mode.sh;
         executable = true;
       };
+      # <mod>f's whole body, behind the solo-window fullscreen guard — see the
+      # binding in wm-bindings.nix and the script's own header.
+      ".config/aerospace/fullscreen-toggle.sh" = {
+        source = ./scripts/fullscreen-toggle.sh;
+        executable = true;
+      };
       # leader→z reopen-last-closed-app: pops the stack bar's last_closed_app.sh
       # plugin fills on every app quit, and `open -b`s it back (browser ⌘⇧T analog).
       ".config/aerospace/reopen-last-app.sh" = {
