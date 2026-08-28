@@ -53,9 +53,7 @@ in
             `scruff spawn` always wins: with a namer configured the command hands
             scruff no name at all and lets the brief name the lane. The slug
             survives as the offline answer, handed down as
-            `SCRUFF_NAMER_FALLBACK` (and, for one release, as its pre-rename
-            spelling `HOLT_NAMER_FALLBACK` too, so a hand-written adapter keeps
-            its floor).
+            `SCRUFF_NAMER_FALLBACK`.
 
             `claude`, scruff's built-in, is passed through but deliberately not
             acted on: it reads no environment (so it cannot honour the floor)

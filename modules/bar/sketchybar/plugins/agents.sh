@@ -348,7 +348,14 @@ if [ "${1:-}" = "row" ] && [ "${2:-}" = "zmx" ]; then
     # this falls back to the bare window rather than doing nothing.
     if ! "$HOME/.config/haus/term/raise-session.sh" "$zsess" >/dev/null 2>&1; then
       pair=""
-      reg="${SCRUFF_BASE:-${HOLT_BASE:-$HOME/.cache/claude-worktrees}}/registry.tsv"
+      # Same probe ladder as lanes/lane-seen.sh and scruff's own baseDir(): the
+      # scruff-named base while it holds the registry, the legacy path while it
+      # does (docs/rename.md §8.2).
+      if [ -f "$HOME/.cache/scruff/registry.tsv" ]; then
+        reg="$HOME/.cache/scruff/registry.tsv"
+      else
+        reg="${SCRUFF_BASE:-$HOME/.cache/claude-worktrees}/registry.tsv"
+      fi
       [ -r "$reg" ] && pair="$(
         awk -F'\t' -v want="$zsess" '
           {

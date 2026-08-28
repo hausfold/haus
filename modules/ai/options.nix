@@ -256,19 +256,15 @@ in
         ignores it makes an offline spawn fall to the random pair, which is
         worse than the slug the palette would have used.
 
-        For one release the slug also goes down as `HOLT_NAMER_FALLBACK`, the
-        spelling this variable had before the rename, so an adapter you wrote
-        against the old name keeps its floor without an edit.
-
-        ⚠️ **The DIRECTORY is not that forgiving, and it moves the first time
-        you rebuild.** scruff picks `~/.config/scruff` the moment it exists and
-        `~/.config/holt` only while it is the one holding your files — an
-        either/or stat, not a search path — and adapters resolve under whichever
-        it picked. haus now writes `~/.config/scruff/config.toml`, so an adapter
-        still sitting at `~/.config/holt/adapters/namer/<id>.toml` stops being
-        found on that rebuild, and every lane silently takes a random word pair
-        again (the warning goes to a launchd stderr nobody reads). Move it in
-        the same change:
+        ⚠️ **The DIRECTORY is not that forgiving.** scruff reads
+        `~/.config/scruff` and nothing else as of 1.1.0 — the 1.0.x binary
+        still answered to `~/.config/holt` while that was the one holding your
+        files, but that either/or is gone, and adapters resolve under the
+        scruff-named directory only. haus writes `~/.config/scruff/config.toml`,
+        so an adapter still sitting at `~/.config/holt/adapters/namer/<id>.toml`
+        stops being found at the first rebuild, and every lane silently takes a
+        random word pair again (the warning goes to a launchd stderr nobody
+        reads). Move it in the same change:
 
             mkdir -p ~/.config/scruff
             mv ~/.config/holt/adapters ~/.config/scruff/adapters
