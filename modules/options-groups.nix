@@ -959,7 +959,7 @@ let
 
   # ---- the rooms a PERSON meets ----------------------------------------------
   # `roomOwners` above says which product room owns a namespace; this says what
-  # that room is, in the order someone should meet the twelve of them. Both
+  # that room is, in the order someone should meet the thirteen of them. Both
   # halves are needed and neither implies the other: a room is a page, a
   # namespace is an address, and `haus.bar` plus `haus.menuBar` are one room
   # with two addresses.

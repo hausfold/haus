@@ -66,11 +66,12 @@ haus doctor                 # Nix, the CLT, the GUI agents, Homebrew drift
 
 ## the rooms
 
-Twelve capabilities, each a switch: **Apps · Appearance · Displays ·
-Development · Windows · Bar · Launcher · Shelf · Focus · AI · Text expansion ·
-Security**. Your desktop decides which are on; one line in your host overrules
-it. Six of them are also exported as standalone nix-darwin modules, so you can
-take the tiling or the bar into a flake of your own and leave the house behind.
+Thirteen capabilities, each a switch: **Apps · Appearance · Displays ·
+Development · Windows · Bar · Launcher · Shelf · Notifications · Focus · AI ·
+Text expansion · Security**. Your desktop decides which are on; one line in your
+host overrules it. Six are also exported as standalone nix-darwin modules, so
+you can take the tiling or the bar into a flake of your own and leave the house
+behind.
 
 → [what each room does](https://hausfold.co/docs/haus/) · [stealing one](docs/modules.md)
 

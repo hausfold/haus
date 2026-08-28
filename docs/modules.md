@@ -33,10 +33,11 @@ launcher, focus, secrets. Pull just what you want into your own flake:
 }
 ```
 
-**theme, wallpaper, shelf, trill, snippets and apps aren't standalone modules** — they ride
-along with the full `mkHaus` house. (apps needs the roster resolver next to
-it to install anything, which is the same reason the roster isn't exported
-either.)
+**Everything else rides along with the full `mkHaus` house** — theme, wallpaper,
+shelf, notifications, snippets, apps, ai, displays, github, portless and
+meridian have no standalone module of their own. (apps needs the roster
+resolver next to it to install anything, which is the same reason the roster
+isn't exported either.)
 
 ## Or take the whole house
 
