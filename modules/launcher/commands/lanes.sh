@@ -250,10 +250,51 @@ rows="$(
           stray:   "exclamationmark.triangle",
           parked:  "zzz" }
       ) as $icons
+    | ([ .lanes[]?.path ]) as $paths
     | [ .lanes[]?
         | (.main | split("/") | last) as $repo
         | "scruff.\($repo).\(.name)" as $sess
         | (if ($live[$sess].state // "") != "" then $live[$sess].state else .state end) as $state
+        # A lane with no chat of its own has no pane, no panel and no
+        # transcript: `scruff child` made it so a pane could edit a second repo,
+        # and its conversation lives in the pane that made it. Opening one here
+        # starts a client in a checkout that never had one, which is a dud row
+        # in a picker whose whole job is "take me to that agent". scruff answers
+        # this with `chat` (--json, schema 2+): the lane'"'"'s own `path` when it has
+        # a conversation, the parent'"'"'s path when it doesn'"'"'t.
+        #
+        # Filter on THAT, never on `parent`. A lane opened with ⌘↵ from inside
+        # another lane'"'"'s pane is parented to that lane exactly as a `scruff
+        # child` is, and it is a full lane with a window — `parent` cannot tell
+        # the two apart, and hiding one of those would hide a running agent.
+        #
+        # Three escapes, all in the show-it direction: a live zmx session
+        # outranks everything (if a window is holding it, it is openable
+        # whatever scruff believes), and an absent `chat` or `path` means "not
+        # determined" — an older scruff, or a client whose transcript store
+        # scruff cannot probe.
+        #
+        # They stay listed where the accounting happens: `scruff` and `bench
+        # status` both show every one. A spawned lane carries its own branch and
+        # its own PR, and closing the parent'"'"'s pane does not reap it, so
+        # nothing may drop it everywhere at once.
+        # A fourth escape, and the one that keeps a branch from becoming
+        # unreachable: hide a lane only when the row that HOLDS its chat is
+        # itself on this list. A `scruff child` spawned from a plain pane — the
+        # shape the docs teach, `cd "$(scruff child …)"` from a main checkout —
+        # parents to a directory that is not a lane and has no zmx session, so
+        # dropping it would leave its PR with no route through the palette at
+        # all.
+        #
+        # `.chat` is bound BEFORE the `$paths | index(…)` pipe for the same
+        # reason `.key` is below: past that bar `.` is $paths, an array, and
+        # `.chat` on an array is a runtime error jq reports straight into the
+        # `2>/dev/null` — an empty picker, not a message.
+        | (.chat // "") as $chat
+        | select(($live[$sess] // null) != null
+                 or $chat == "" or (.path // "") == ""
+                 or $chat == .path
+                 or ($paths | index($chat)) == null)
         # No trailing "  —  " on a lane with no commits yet: a dangling em
         # dash reads as a truncated subject rather than as an empty one.
         | { sess: $sess, repo: $repo, lane: .name, state: $state,
