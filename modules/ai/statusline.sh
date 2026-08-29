@@ -26,12 +26,15 @@
 # session lists only the rows whose parent == its own cwd.
 #
 # The status token is a single mutually-exclusive slot:
-#     ⏏  (orange)   branch is merged/landed → `scruff` reaps it on pane close
-#     N^ (orange)   the PR merged and N commits landed on the branch SINCE: work
+#     ⏏  (warn)     branch is merged/landed → `scruff` reaps it on pane close
+#     N^ (warn)     the PR merged and N commits landed on the branch SINCE: work
 #                   no PR covers and nothing pushed (GitHub deleted the remote
 #                   branch at merge). `scruff reship` opens the follow-up.
-#     N^ (blue)     N commits on the branch, not yet merged
-#     +A -D         uncommitted line changes (green/red), when no commits yet
+#     N^ (subject)  N commits on the branch, not yet merged
+#     +A -D         uncommitted line changes (ok/err), when no commits yet
+#
+# Those are snug ROLE names, not colours — the hexes resolve against whichever
+# nebelung flavour this machine wears. See the palette block below.
 #     (empty)       nothing differs from main → show nothing (no "clean")
 #
 # Cheap local git runs inline every render; the cross-repo + gh enumeration is
@@ -74,12 +77,90 @@ else
 fi
 HAUS_GH_BACKSTOP="${HAUS_GH_BACKSTOP:-0}"
 
-# 256-colour palette — muted, rice-consistent (cf. `scruff`: 103 gray, 167 red).
-c() { printf '\033[38;5;%sm' "$1"; }
-DOT=$(c 108); DIM=$(c 244); NAME=$'\033[1m'
-AHEAD=$(c 75); ADD=$(c 71); DEL=$(c 167); PURGE=$(c 173); WARN=$(c 179)
-PR_OPEN=$(c 71); PR_MERGED=$(c 139); PR_CLOSED=$(c 167)
-R0=$'\033[0m'   # true reset — ends a line, drops any row tint
+# ---- snug's bash painter ----------------------------------------------------
+# This block used to be eleven hand-picked 256-colour indices. They are now
+# aliases onto snug's GENERATED roles, so every hex comes from one place —
+# `script/gen-palette.sh` in hausfold/snug, resolved against nebelung — and a
+# flavour change reaches the HUD without anyone editing this file.
+#
+# Resolved rather than injected: this is a `writeShellScriptBin`, not the `haus`
+# wrapper, so nothing sets `HAUS_UI_SH` for it. Honour it if a caller did;
+# otherwise take the copy that ships beside `bin/snug` in snug's own derivation,
+# which the PATH line at the top of this file makes findable.
+# ⚠️ Two traps, both silent, both paid for once here so nobody pays again:
+#
+#   * The variable is `HAUS_UI_SH` and must NOT be called `UI_SH`. ui.sh's own
+#     source-twice guard is `[ -n "${UI_SH:-}" ] && return 0` — it uses that
+#     exact name as its sentinel, so a caller holding the PATH in `UI_SH` makes
+#     the file return before it defines anything, with no error and no colour.
+#   * ui.sh is bash 4+ (`declare -gA`, `${v^^}`). Under macOS's /bin/bash 3.2 it
+#     does not fail quietly: it prints three `bad substitution` / syntax errors
+#     and half-loads. Hence the shebang above is `/usr/bin/env bash`, and hence
+#     the version check below, which is the belt for a thin PATH.
+HAUS_UI_SH="${HAUS_UI_SH:-}"
+if [ -z "$HAUS_UI_SH" ]; then
+  _snug="$(command -v snug 2>/dev/null)" \
+    && HAUS_UI_SH="$(dirname "$(dirname "$(readlink -f "$_snug")")")/share/ui.sh"
+fi
+UI_READY=""
+if [ "${BASH_VERSINFO[0]:-0}" -ge 4 ] && [ -r "${HAUS_UI_SH:-}" ]; then
+  # shellcheck source=/dev/null
+  . "$HAUS_UI_SH"
+  type ui__detect_profile ui__resolve_palette >/dev/null 2>&1 && UI_READY=1
+fi
+
+# ⚠️ THE ONE THING THIS CALLER DOES DIFFERENTLY FROM EVERY OTHER.
+#
+# A statusline renders with stdout CAPTURED — Claude Code reads the line and
+# draws it into its own bar. So there is no terminal on either descriptor, and
+# ui.sh's `[ -t 2 ]` gate would answer "no colour" for output that ends up in a
+# terminal regardless. Every other caller in the family MEASURES the tty; this
+# one is the first whose colour is correct without one, so it FORCES the answer.
+#
+# `UI_TTY` and not `CLICOLOR_FORCE`, deliberately: UI_TTY answers only the
+# is-there-a-terminal question, leaving NO_COLOR and TERM=dumb still able to win
+# — which is the precedence ui.sh already spells out and this file has no
+# business restating. Forcing the profile instead would override a user who
+# asked for no colour at all.
+# shellcheck disable=SC2034
+UI_TTY=1
+[ -n "$UI_READY" ] && { ui__detect_profile; ui__resolve_palette; }
+
+# The eleven slots, each an alias onto one of the nine roles. Two collisions,
+# and neither loses anything:
+#
+#   * PURGE (was orange 173) and WARN (was yellow 179) both land on `warn`.
+#     Every PURGE use carries its own glyph — ⏏, ◇, N^ — while WARN's two (the
+#     rice nag, the ctx% band) carry none, so the distinction survives in the
+#     channel the standard says holds it: the glyph is load-bearing and the
+#     colour is not.
+#   * ADD and PR_OPEN both land on `ok`, DEL and PR_CLOSED both on `err`. They
+#     already held the same index each; naming the role makes that intentional
+#     rather than coincidental.
+#
+# NAME was `\033[1m` bold and is now `subject` — the role for "the thing under
+# discussion", which a worktree name is exactly. Bold is an attribute, not a
+# role, and the nine carry colour only.
+#
+# All empty on a terminal that cannot colour, and the HUD still reads: every
+# glyph above carries its own meaning.
+DOT=; DIM=; NAME=; AHEAD=; ADD=; DEL=; PURGE=; WARN=
+PR_OPEN=; PR_MERGED=; PR_CLOSED=; MODEL_HI=; R0=
+if [ -n "$UI_READY" ]; then
+  R0="${UI_OFF:-}"
+  DOT="${UI_MUTED:-}"        # the clean ● — "nothing to report", not "healthy"
+  DIM="${UI_MUTED:-}"        # cost, ctx%, the model chip, every secondary count
+  NAME="${UI_SUBJECT:-}"     # the worktree / branch this pane is
+  AHEAD="${UI_SUBJECT:-}"    # N^ unmerged — commits on the thing under discussion
+  ADD="${UI_OK:-}"           # +A
+  DEL="${UI_ERR:-}"          # -D
+  PURGE="${UI_WARN:-}"       # ⏏ / ◇ / N^ merged — wants a decision from you
+  WARN="${UI_WARN:-}"        # the stale-haus nag, the ctx% 100–200k band
+  PR_OPEN="${UI_OK:-}"
+  PR_MERGED="${UI_ACCENT:-}" # landed — the accent, as elsewhere in the family
+  PR_CLOSED="${UI_ERR:-}"
+  MODEL_HI="${UI_ACCENT:-}"  # the Fable/Mythos letter — same accent, its own name
+fi
 R="$R0"         # in-row reset; re-armed to keep the tint when one is set (below)
 
 # Row tint for Fable/Mythos: a 24-bit background painted edge-to-edge behind
@@ -94,12 +175,18 @@ R="$R0"         # in-row reset; re-armed to keep the tint when one is set (below
 # cube has nothing simultaneously this dark and this saturated; every terminal
 # this rice targets does 24-bit. Tune it here, it's the one knob.
 #
-# It does collide semantically with the bar's own warm slots — orange (173) is
-# "this branch needs you" on ⏏/N^, yellow (179) is the stale-rice nag and the
-# ctx% 100–200k band. Those
-# stay legible (5:1 and 6.8:1), but they pop a little less against a warm band
-# than they did against a cool one. Accepted: the tint is a per-pane constant
-# you stop seeing, while those two are events you're looking for.
+# It does collide semantically with the bar's own warm slots — `warn`, which is
+# both "this branch needs you" on ⏏/N^ and the stale-haus nag / ctx% 100–200k
+# band. That stays legible against the tint (measured 5:1 and 6.8:1 when the two
+# were separate indices, and nebelung's peach sits between them), but it pops a
+# little less against a warm band than against a cool one. Accepted: the tint is
+# a per-pane constant you stop seeing, while the warn slots are events you are
+# looking for.
+#
+# ⚠️ This is the ONE raw escape left in this file, and it is legal because there
+# is no role for it: snug's nine are all FOREGROUND and this is a background.
+# Either it stays here with this comment, or snug grows a background role and it
+# joins the block above. Do not "fix" it by picking a foreground.
 TINT_FABLE=$'\033[48;2;56;39;19m'
 
 # render_status <ahead> <files> <ins> <del> <prstate> <purge>
@@ -355,9 +442,18 @@ mode=${mode%\"}
 MODEL=""
 model_id="$(j '.model.id')"
 BG=""
+# The tint is 24-bit and has no cube equivalent (see TINT_FABLE), so it is the
+# one thing here gated on the PROFILE rather than merely on colour being on.
+# That gate is also what makes it honour NO_COLOR and TERM=dumb: it is a raw
+# escape, so unlike every role above it does not go empty on its own — and a
+# background that paints while every foreground has gone quiet is worse than no
+# gate at all. Measured before this line existed: `NO_COLOR=1` left the whole
+# row on a warm band with the text back to terminal default.
+TINT=""
+[ "${UI_PROFILE:-none}" = truecolor ] && TINT="$TINT_FABLE"
 case "$model_id" in
-  *fable*)  mletter=F; mcolor=$'\033[35m'; BG="$TINT_FABLE";;
-  *mythos*) mletter=M; mcolor=$'\033[35m'; BG="$TINT_FABLE";;
+  *fable*)  mletter=F; mcolor="$MODEL_HI"; BG="$TINT";;
+  *mythos*) mletter=M; mcolor="$MODEL_HI"; BG="$TINT";;
   *opus*)   mletter=O; mcolor="$DIM";;
   *sonnet*) mletter=S; mcolor="$DIM";;
   *haiku*)  mletter=H; mcolor="$DIM";;

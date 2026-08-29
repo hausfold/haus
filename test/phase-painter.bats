@@ -435,6 +435,70 @@ haus_snug() {
   [[ "$output" != *"command not found"* ]]
 }
 
+@test "the three non-CLI painters hold no colour of their own either" {
+  # Row 10 of the standard: the last hardcoded 256-colour indices in anything
+  # the family draws. Weaker than the ban above, and the difference is the whole
+  # point — these three legitimately emit escapes that are NOT colour, and a
+  # blanket `\033[` ban would have to be suppressed per line until it meant
+  # nothing. So this bans the two SGR colour forms specifically:
+  #
+  #   \033[38;…  \033[48;…   foreground / background colour
+  #   \033[3Nm   \033[9Nm    the ANSI-basic sets
+  #
+  # and leaves legal: OSC 8 hyperlinks and OSC 2 window titles (`\033]`), and
+  # DECTCEM cursor visibility (`\e[?25l/h`). Structure, not style — a hyperlink
+  # you can still click and a cursor that comes back are things a monochrome
+  # terminal must keep.
+  #
+  # ONE exception, and it is named rather than pattern-matched so that adding a
+  # second requires editing this list: statusline.sh's TINT_FABLE. It is a
+  # 24-bit BACKGROUND, and snug's nine roles are all foreground, so there is no
+  # role for it to become. If snug ever grows one, delete the line.
+  local f hits
+  for f in "$BATS_TEST_DIRNAME/../modules/ai/statusline.sh" \
+           "$BATS_TEST_DIRNAME/../modules/terminal/scripts/image-preview.sh" \
+           "$BATS_TEST_DIRNAME/../modules/terminal/lanes/lane-open.sh"; do
+    [ -r "$f" ] || { echo "missing: $f"; false; }
+    hits="$(grep -nE '\\(033|e|x1[bB])\[(38;|48;|[0-9;]*[0-9]m)' "$f" \
+      | grep -v '^[0-9]*:[[:space:]]*#' \
+      | grep -v 'TINT_FABLE=' || true)"
+    [ -z "$hits" ] || { echo "$f still paints by hand:"; echo "$hits"; false; }
+  done
+}
+
+@test "the three non-CLI painters cannot be broken by ui.sh's own sentinel" {
+  # ui.sh guards against a double source with `[ -n "${UI_SH:-}" ] && return 0`
+  # — it uses that exact name as its sentinel. A caller that holds the PATH to
+  # ui.sh in a variable called UI_SH therefore makes the file return before it
+  # defines anything: no error, no colour, and a suite that still passes because
+  # every role is legitimately empty when the painter is absent. All three of
+  # these were written that way first and shipped nothing.
+  local f
+  for f in "$BATS_TEST_DIRNAME/../modules/ai/statusline.sh" \
+           "$BATS_TEST_DIRNAME/../modules/terminal/scripts/image-preview.sh" \
+           "$BATS_TEST_DIRNAME/../modules/terminal/lanes/lane-open.sh"; do
+    grep -qE '^[[:space:]]*UI_SH=' "$f" \
+      && { echo "$f assigns UI_SH, which is ui.sh's own source-twice guard"; false; }
+  done
+  return 0
+}
+
+@test "a script that sources ui.sh asks for a bash that can run it" {
+  # ui.sh is bash 4+ (`declare -gA`, `${v^^}`). Under macOS's /bin/bash 3.2 it
+  # does not degrade — it prints three `bad substitution` / syntax errors and
+  # half-loads, which for image-preview.sh means garbage across a full-screen
+  # reader. Two things keep that off the screen and both are asserted: the
+  # shebang, and the BASH_VERSINFO check that is the belt for a thin PATH.
+  local f
+  for f in "$BATS_TEST_DIRNAME/../modules/terminal/scripts/image-preview.sh" \
+           "$BATS_TEST_DIRNAME/../modules/terminal/lanes/lane-open.sh"; do
+    head -1 "$f" | grep -q 'env bash' \
+      || { echo "$f has a /bin/bash shebang and sources a bash-4 painter"; false; }
+    grep -q 'BASH_VERSINFO' "$f" \
+      || { echo "$f sources ui.sh with no bash-version guard"; false; }
+  done
+}
+
 @test "neither CLI hardcodes an escape or a glyph index of its own" {
   # The stronger form of the check these files grew: they used to be allowed a
   # palette block of literal `\033[38;5;NNNm`, and 35 ungated escapes had

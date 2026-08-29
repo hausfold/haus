@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # lane-open.sh — scruff's `open`/`resume` seam, backed by zmx + a Ghostty window.
 #
 # scruff's built-in behaviour execs the client in the pane you ran it from, and
@@ -62,6 +62,41 @@ set -u
 # palette's Spawn Agent) with a bare PATH. Resolve our tools the way every
 # other rice script run from outside a shell does.
 export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/bin:/bin${PATH:+:$PATH}"
+
+# ── snug's bash painter, resolved as a PATH not as a palette ─────────────────
+# This hook draws exactly one line, and it draws it in a shell that is not this
+# one: the hold-on-error snippet below is a single-quoted string handed to `bash
+# -lc` inside the lane's own window. So resolving COLOURS here would be wrong
+# twice over — this process has no terminal (scruff exec'd it, possibly from
+# launchd), while the destination always does, and ui.sh's gate would read this
+# end and strip the colour the far end can render.
+#
+# Resolve the PATH here, where `snug` is on PATH and the store layout is known,
+# and let the snippet source it at exit time in the terminal that will show it.
+# A path is environment-independent; a resolved escape is not.
+#
+# `HAUS_UI_SH` first because the `haus` wrapper sets it as an absolute store
+# path; falling back to snug's own `share/ui.sh`, which ships beside `bin/snug`
+# in the same derivation, so the two can never be a version apart.
+# ⚠️ Two traps, both silent, both paid for once here so nobody pays again:
+#
+#   * The variable is `HAUS_UI_SH` and must NOT be called `UI_SH`. ui.sh's own
+#     source-twice guard is `[ -n "${UI_SH:-}" ] && return 0` — it uses that
+#     exact name as its sentinel, so a caller holding the PATH in `UI_SH` makes
+#     the file return before it defines anything, with no error and no colour.
+#   * ui.sh is bash 4+ (`declare -gA`, `${v^^}`). Under macOS's /bin/bash 3.2 it
+#     does not fail quietly: it prints three `bad substitution` / syntax errors
+#     and half-loads. Hence the shebang above is `/usr/bin/env bash`, and hence
+#     the version check below, which is the belt for a thin PATH.
+#
+# Only the PATH is resolved here — this hook never sources ui.sh itself, because
+# the line it draws is drawn by the snippet below in another shell entirely.
+HAUS_UI_SH="${HAUS_UI_SH:-}"
+if [ -z "$HAUS_UI_SH" ]; then
+  _snug="$(command -v snug 2>/dev/null)" \
+    && HAUS_UI_SH="$(dirname "$(dirname "$(readlink -f "$_snug")")")/share/ui.sh"
+fi
+[ -r "${HAUS_UI_SH:-}" ] || HAUS_UI_SH=""
 
 # ── identities a lane must not inherit ───────────────────────────────────────
 # macOS `open` forwards the caller's environment to the app it launches — the
@@ -183,7 +218,12 @@ held="$SCRUFF_COMMAND"'
 rc=$?
 [ "$rc" -eq 0 ] && exit 0
 zmx set . state= client= label= since= >/dev/null 2>&1
-printf "\n\033[1;31m▲ the lane exited %s\033[0m — held so you can read why.\n" "$rc"
+C_ERR=; C_OFF=
+[ "${BASH_VERSINFO[0]:-0}" -ge 4 ] && [ -r "'"$HAUS_UI_SH"'" ] && {
+  . "'"$HAUS_UI_SH"'"
+  C_ERR="${UI_ERR:-}"; C_OFF="${UI_OFF:-}"
+}
+printf "\n%s▲ the lane exited %s%s — held so you can read why.\n" "$C_ERR" "$rc" "$C_OFF"
 printf "  enter → close · s + enter → shell in %s\n" "$PWD"
 read -r _ans || _ans=
 [ "$_ans" = s ] && exec bash -l
