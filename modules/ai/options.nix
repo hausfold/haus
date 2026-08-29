@@ -125,6 +125,15 @@ in
 
         Must be one of `ai.clients` — see there.
 
+        It is the DEFAULT, not the only answer, in one place: Spawn Agent's
+        prompt box carries a `⇥` chip that cycles between the clients actually
+        on `PATH`, so a single lane can open in another one without changing
+        this. The chip is the exception that proves the rule — the lane still
+        records what it was made with, and every other door uses this value.
+        Naming a client this Mac does not have is not fatal there either: the
+        command spawns with one it does have and puts a banner on screen saying
+        which, rather than refusing.
+
         This option chooses the client and nothing else about how a lane opens.
         `claude` can make its own worktree (its native `--worktree` flag, which
         fires `scruff hook create`), but haus does not use it: that flag runs the

@@ -370,3 +370,12 @@ jobs:
       # idempotent, so a wrong key exits 0 and the fin just stays up.
       - name: lane-seen key join
         run: bats test/lane-seen.bats
+      # Spawn Agent's field reading. `--dial` gives the prompt step a commit
+      # one field wider than every other step's, and BOTH ways of misreading it
+      # produce a lane rather than an error — a task silently shortened by its
+      # first line, or a task briefed with a stray "agent=pi" on the front. A
+      # feel-test cannot see either, because both spawn. Also pins the client
+      # list, which is built from PATH rather than from haus.ai.clients so that
+      # nothing the ⇥ chip offers can fail to start.
+      - name: spawn-agent field reading
+        run: bats test/spawn-agent.bats
