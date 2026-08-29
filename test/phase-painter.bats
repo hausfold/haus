@@ -1,8 +1,7 @@
 #!/usr/bin/env bats
 # How the two end-user CLIs put a line on screen: the `haus rebuild` phase
-# painter, the colour gate, and — since step 7 of the family standard — the
-# `snug run` coprocess both of them draw through. The standard is
-# docs/cli-presentation.md in the workshop.
+# painter, the colour gate, and the `snug run` coprocess both of them draw
+# through. The standard is docs/cli-presentation.md in the workshop.
 #
 # What this suite is FOR. Neither half fails loudly on the machine that writes
 # it: a maximised terminal never sees a fold, a developer watching colour never
@@ -436,8 +435,8 @@ haus_snug() {
 }
 
 @test "the three non-CLI painters hold no colour of their own either" {
-  # Row 10 of the standard: the last hardcoded 256-colour indices in anything
-  # the family draws. Weaker than the ban above, and the difference is the whole
+  # The three painters that are not CLIs: the statusline, the image preview and
+  # the lane opener. Weaker than the ban above, and the difference is the whole
   # point — these three legitimately emit escapes that are NOT colour, and a
   # blanket `\033[` ban would have to be suppressed per line until it meant
   # nothing. So this bans the two SGR colour forms specifically:
