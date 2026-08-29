@@ -33,31 +33,71 @@ export PATH
 # its own; on a machine the system profile's copy is the pin you actually run.
 CHECK="${HAUS_DESKTOP_CHECK:-/run/current-system/sw/share/haus/desktop-check}"
 
+# ---- snug's bash painter ----------------------------------------------------
+# The same guarded source `haus.sh` does, and for the same reason: this script
+# is installed into the store by modules/desktop-check.nix, so it has nothing to
+# look beside, and `HAUS_UI_SH` is the absolute store path the `haus` wrapper
+# sets. `haus show` reaches it by inheritance (`cmd_show` execs this with the
+# wrapper's environment); run straight off the store path with no variable, this
+# degrades and still prints.
+if [ -r "${HAUS_UI_SH:-}" ]; then
+  # shellcheck source=/dev/null
+  source "$HAUS_UI_SH"
+fi
+# Probed by the functions this script CALLS: a partial painter is a `command not
+# found` in the middle of a report, and the gate below would have licensed it.
+UI_READY=""
+type ui_glyph_bare ui__detect_profile ui__resolve_palette >/dev/null 2>&1 && UI_READY=1
+
 # ---- palette ----------------------------------------------------------------
-# The same gate, spelled the same way, as haus.sh and `bench`: escapes only when
-# stdout is a TTY and NO_COLOR is unset, CLICOLOR_FORCE=1 to force them through a
-# pipe, every C_* empty when off so the same printf falls back to clean text. It
-# matters more here than anywhere else in the family, because this command's
-# whole audience is a publisher's CI log and an agent reading a report — the two
-# places a raw \033[38;5;103m is pure noise. The family standard is
-# docs/cli-presentation.md in the workshop.
+# Role names, not colours: C_* alias snug's GENERATED roles, so the hexes come
+# from one place (snug's script/gen-palette.sh, resolved against nebelung)
+# instead of the hand-picked 256-colour indices that used to sit here beside a
+# second copy in haus.sh. That duplication is what the audit measured drifting.
+#
+# The gate stays on fd 1, and here that is not a compromise the way it is in
+# haus.sh: `haus show` is a REPORT end to end, with no narration and no live
+# region — its whole audience is a publisher's CI log and an agent reading the
+# output, the two places a raw \033[38;5;103m is pure noise, and the two places
+# it must land on stdout. `die` keeps fd 2, as errors always have.
 #
 # Colour lives OUTSIDE every %-Ns width below, so alignment is identical with it
 # off. Those widths are still hardcoded (44 and 46 cells, plus their gutter):
 # this report is not a live region, so a narrow window soft-wraps it rather than
 # corrupting it, and folding them is the shared painter's job.
-if { [ -t 1 ] || [ -n "${CLICOLOR_FORCE:-}" ]; } && [ -z "${NO_COLOR:-}" ]; then
-  C_OFF=$'\033[0m'
-  C_FOG=$'\033[38;5;103m'   # primary accent — the fog itself
-  C_OK=$'\033[38;5;108m'    # sage — current / healthy
-  C_WARN=$'\033[38;5;179m'  # amber — stale / wants attention
-  C_ERR=$'\033[38;5;167m'   # rose — failure
-  # One grey for one role, family-wide. haus used 243 and `bench` 245 for the
-  # same "secondary detail" — the closest thing to a real drift in the palette
-  # audit, and two greys where the tools sit side by side on one screen.
-  C_MUT=$'\033[38;5;245m'   # muted grey — secondary detail
-else
-  C_OFF=; C_FOG=; C_OK=; C_WARN=; C_ERR=; C_MUT=
+C_OFF=; C_FOG=; C_OK=; C_WARN=; C_ERR=; C_MUT=
+if [ -n "$UI_READY" ]; then
+  # ui.sh measured fd 2 at load, because that is where its own lines go. This
+  # report goes to fd 1, so ask ITS detector about fd 1 and read the palette back
+  # off that answer, rather than re-deriving the rule here — which is how two
+  # copies of it end up disagreeing about `NO_COLOR` under `CLICOLOR_FORCE`, and
+  # about `TERM=dumb`. haus.sh does exactly this, for exactly this reason.
+  # UI_TTY looks unused to shellcheck and is not: ui__detect_profile reads it,
+  # and that function comes from the file sourced above. (Two directives because
+  # a directive covers the next COMMAND, and both assignments are flagged.)
+  # shellcheck disable=SC2034
+  UI_TTY=""
+  # shellcheck disable=SC2034
+  [ -t 1 ] && UI_TTY=1
+  ui__detect_profile; ui__resolve_palette
+  C_OFF="${UI_OFF:-}"
+  C_FOG="${UI_ACCENT:-}"  # primary accent — the fog itself
+  C_OK="${UI_OK:-}"       # current / healthy
+  C_WARN="${UI_WARN:-}"   # stale / wants attention
+  C_ERR="${UI_ERR:-}"     # failure
+  C_MUT="${UI_MUTED:-}"   # secondary detail — one grey for one role, family-wide
+fi
+
+# The glyphs, from the same place. ui.sh answers the ASCII set on a terminal that
+# cannot draw the UTF-8 one, which matters more here than anywhere: this report
+# is read in CI logs, and a locale-less runner is exactly where a literal ✓ comes
+# out as a question mark.
+G_SAY=$'\U0001F32B'; G_OK='✓'; G_BAD='✗'; G_WARN='⚠'
+if [ -n "$UI_READY" ]; then
+  ui_glyph_bare G_SAY say
+  ui_glyph_bare G_OK ok
+  ui_glyph_bare G_BAD err
+  ui_glyph_bare G_WARN warn
 fi
 
 # ---- everything a stranger wrote passes through here -------------------------
@@ -90,12 +130,12 @@ scrub() { LC_ALL=C tr -d '\000-\010\013\014\016-\037\177'; }
 # takes a message that can carry a source's bytes — a path, a URL, a diagnostic,
 # a value — and a rule that has to be remembered per call is a rule with a hole
 # in it. On haus's own ASCII literals it does nothing.
-say()   { printf '%s🌫  %s%s\n' "$C_FOG" "$(printf '%s' "$*" | scrub)" "$C_OFF"; }
-die()   { printf '%s✗  %s%s\n' "$C_ERR" "$(printf '%s' "$*" | scrub)" "$C_OFF" >&2; exit 2; }
+say()   { printf '%s%s  %s%s\n' "$C_FOG" "$G_SAY" "$(printf '%s' "$*" | scrub)" "$C_OFF"; }
+die()   { printf '%s%s  %s%s\n' "$C_ERR" "$G_BAD" "$(printf '%s' "$*" | scrub)" "$C_OFF" >&2; exit 2; }
 field() { printf '  %s%-9s%s %s\n' "$C_FOG" "$1" "$C_OFF" "$(printf '%s' "$2" | scrub)"; }
-good()  { printf '  %s✓%s %s\n' "$C_OK" "$C_OFF" "$*"; }
-bad()   { printf '  %s✗%s %s\n' "$C_ERR" "$C_OFF" "$(printf '%s' "$*" | scrub)"; }
-note()  { printf '  %s⚠%s %s\n' "$C_WARN" "$C_OFF" "$*"; }
+good()  { printf '  %s%s%s %s\n' "$C_OK" "$G_OK" "$C_OFF" "$*"; }
+bad()   { printf '  %s%s%s %s\n' "$C_ERR" "$G_BAD" "$C_OFF" "$(printf '%s' "$*" | scrub)"; }
+note()  { printf '  %s%s%s %s\n' "$C_WARN" "$G_WARN" "$C_OFF" "$*"; }
 dim()   { printf '  %s%s%s\n' "$C_FOG" "$*" "$C_OFF"; }
 plural() { [ "$1" = 1 ] || printf s; }
 # `leaf` is the one word in this report with an irregular plural, and the
@@ -311,7 +351,7 @@ else
   # the freshest language the report has. Every other command here can afford a
   # cache; the one whose whole output is "where did this come from, and how old
   # is it" cannot.
-  [ -n "$json" ] || printf '%s🌫  fetching %s …%s\n' "$C_FOG" "$subject" "$C_OFF" >&2
+  [ -n "$json" ] || printf '%s%s  fetching %s …%s\n' "$C_FOG" "$G_SAY" "$subject" "$C_OFF" >&2
   fetched="$(
     NIX_PATH='' nix eval --impure --json \
       --option tarball-ttl 0 \

@@ -56,45 +56,205 @@ FLAKE="$CONSUMER/flake.nix"
 # kill `haus` at load time, before any verb ran, with nothing on either stream.
 # That is the worst possible failure mode for a courtesy, and it is exactly the
 # shape of the `tput` bug ui.sh itself was written not to inherit.
-#
-# ⚠️ Sourced but not yet drawn through. The verbs below keep their own escapes,
-# their own gate and their own streams until the whole painter moves together
-# (step 7 of the workshop's docs/cli-presentation.md): ui.sh puts every human
-# line on fd 2 and gates colour on it, while `say`/`ok`/`info` here write to
-# fd 1, so switching one without the other would put escapes into
-# `haus status | less` and take `ok` lines out of a pipeline that expects them.
 if [ -r "${HAUS_UI_SH:-}" ]; then
   # shellcheck source=/dev/null
   source "$HAUS_UI_SH"
 fi
 
+# Did it load? A generation older than the wrapper that sets HAUS_UI_SH, or a
+# hand-run `bash haus.sh`, has no painter at all and still has to work — so
+# every line below degrades to plain text rather than assuming a function.
+# (ui.sh sets its own gates — UI_TTY, UI_PROFILE — at load; never assume those
+# either. UI_TTY is measured from fd 2, which is the point of the next block.)
+# Probed by the functions this script actually CALLS, not by one of them: a
+# partial painter is a `command not found` in the middle of a rebuild, and the
+# gate below would have licensed it.
+UI_READY=""
+type ui_say ui_warn ui_hint ui_fail ui_glyph_bare \
+     ui_row ui_clear ui_paint ui_live_close >/dev/null 2>&1 && UI_READY=1
+
 # ---- palette ----------------------------------------------------------------
-# Colour is a courtesy, never load-bearing. Every escape below is gated: emitted
-# only when stdout is a TTY (so `haus status | less`, CI logs and an agent pane
-# all stay plain) and when NO_COLOR is unset (https://no-color.org); set
-# CLICOLOR_FORCE=1 to force it back on through a pipe. When off, every C_* var
-# is the empty string, so the exact same printf lines fall back to clean text —
-# and alignment survives because colour only ever wraps AROUND a pre-padded
-# field, never inside a %-Ns width (an escape counted as width shears the
-# column). This is `bench`'s block, spelled the same way on purpose: the family
-# standard is docs/cli-presentation.md in the workshop, and the drift it exists
-# to stop starts with two tools disagreeing about one role.
-if { [ -t 1 ] || [ -n "${CLICOLOR_FORCE:-}" ]; } && [ -z "${NO_COLOR:-}" ]; then
-  C_OFF=$'\033[0m'
-  C_FOG=$'\033[38;5;103m'   # primary accent — the fog itself
-  C_OK=$'\033[38;5;108m'    # sage — current / healthy
-  C_WARN=$'\033[38;5;179m'  # amber — stale / wants attention
-  C_ERR=$'\033[38;5;167m'   # rose — failure
-else
-  C_OFF=; C_FOG=; C_OK=; C_WARN=; C_ERR=
+# Role names, not colours. C_* alias snug's GENERATED roles — one source of
+# hexes (snug's script/gen-palette.sh, resolved against nebelung) instead of the
+# hand-picked 256-colour indices that used to sit here and had drifted from the
+# tokens they were meant to be wearing. Colour is still a courtesy, never
+# load-bearing: when it is off every C_* is empty and the same printf falls back
+# to clean text.
+#
+# TWO gates, one palette. These C_* are the REPORT painter's, and a report is
+# entirely on fd 1 (see the note by the verbs), so this gate keys on fd 1. The
+# other gate is ui.sh's own, measured from fd 2, and it covers everything a
+# narrating command draws — the message verbs and the rebuild's live region.
+# Neither gate ever answers about the other's stream, which is the property that
+# makes `haus doctor | less` escape-free while `haus rebuild` still paints.
+#
+# Alignment survives because colour only ever wraps AROUND a pre-padded field,
+# never inside a %-Ns width — an escape counted as width shears the column.
+C_OFF=; C_FOG=; C_OK=; C_WARN=; C_ERR=; C_MUT=
+if [ -n "$UI_READY" ] && type ui__detect_profile ui__resolve_palette >/dev/null 2>&1; then
+  # ui.sh measured fd 2 at load, because that is where its own lines go. A
+  # report is on fd 1, so ask ITS detector about fd 1 and read the palette back
+  # off that answer — rather than re-deriving the rule here, which is how the
+  # two ended up disagreeing about `NO_COLOR` with `CLICOLOR_FORCE` set, and
+  # about `TERM=dumb`, inside one binary. One precedence, asked twice.
+  ui__haus_tty2="$UI_TTY"
+  UI_TTY=""; [ -t 1 ] && UI_TTY=1
+  ui__detect_profile; ui__resolve_palette
+  C_OFF="${UI_OFF:-}"
+  C_FOG="${UI_ACCENT:-}"   # primary accent — the fog itself
+  C_OK="${UI_OK:-}"        # current / healthy
+  C_WARN="${UI_WARN:-}"    # stale / wants attention
+  C_ERR="${UI_ERR:-}"      # failure
+  C_MUT="${UI_MUTED:-}"    # secondary detail
+  # Put fd 2's answer back: everything after this line is ui.sh's own, and it
+  # must not inherit a profile measured from the wrong stream.
+  UI_TTY="$ui__haus_tty2"
+  ui__detect_profile; ui__resolve_palette
+  unset ui__haus_tty2
 fi
 
-say()  { printf '%s🌫  %s%s\n' "$C_FOG" "$*" "$C_OFF"; }
-warn() { printf '%s⚠  %s%s\n' "$C_WARN" "$*" "$C_OFF"; }
-die()  { printf '%s✗  %s%s\n' "$C_ERR" "$*" "$C_OFF" >&2; exit 1; }
-ok()   { printf '  %s✓%s %s\n' "$C_OK" "$C_OFF" "$*"; }
-bad()  { printf '  %s✗%s %s\n' "$C_ERR" "$C_OFF" "$*"; }
-info() { printf '  %sⓘ%s %s\n' "$C_FOG" "$C_OFF" "$*"; }
+# The glyphs the report verbs wear. ui.sh answers the ASCII set on a terminal
+# that cannot draw the UTF-8 one (LANG=C, a serial console, a CI log with a
+# non-UTF-8 locale), which a literal '✓' never could; without ui.sh they are the
+# literals, exactly as before.
+G_SAY=$'\U0001F32B'; G_OK='✓'; G_BAD='✗'; G_WARN='⚠'; G_INFO='ⓘ'; G_HINT='↳'
+if [ -n "$UI_READY" ]; then
+  ui_glyph_bare G_SAY say
+  ui_glyph_bare G_OK ok
+  ui_glyph_bare G_BAD err
+  ui_glyph_bare G_WARN warn
+  ui_glyph_bare G_INFO info
+  ui_glyph_bare G_HINT hint
+fi
+
+# ---- the snug coprocess -----------------------------------------------------
+# ONE `snug run` for the whole command, not one fork per line: a fork costs
+# ~4.4 ms and a rebuild draws sixty lines, so per-line would be a third of a
+# second of pure overhead. bash pipes a coproc's stdin and stdout and leaves its
+# stderr on the terminal, which is exactly the split snug wants — records go
+# down the pipe, painted lines come out on fd 2.
+#
+# Opened LAZILY, on the first line a command draws, so a verb that prints
+# nothing forks nothing. Records are tab-separated, one per line — `snug run`
+# splits on tabs, and a space after the verb does not parse. The write end
+# closes when `haus` exits; snug sees EOF and restores the cursor, so there is
+# no EXIT trap to add here (and cmd_rebuild already owns EXIT for the card).
+#
+# The dispatch belongs to this script, not to ui.sh: one fork per COMMAND is the
+# whole economy, and a library sourced per script cannot see the command
+# boundary that decision needs.
+SNUG_FD=""
+SNUG_TRIED=""
+# SNUG_PID is not declared here on purpose: `coproc SNUG` makes bash set it
+# itself, to the coprocess's pid. Assigning it would shadow that, and the `wait`
+# in snug_close would then be waiting on a number that is not a process.
+
+snug_open() {
+  [ -n "$SNUG_FD" ] && return 0
+  [ -z "$SNUG_TRIED" ] || return 1
+  SNUG_TRIED=1
+  local bin
+  bin="$(command -v snug 2>/dev/null || true)"
+  [ -n "$bin" ] || return 1
+  # No terminal on fd 2 — a pipe, a log, CI, an agent pane — means plain lines.
+  # One detection, one answer: this is ui.sh's measurement, not a second one.
+  [ -n "${UI_TTY:-}" ] || return 1
+  coproc SNUG { "$bin" run; } || return 1
+  # ⚠️ A coprocess's OWN descriptors are NOT available in a subshell — bash
+  # closes them in every child it forks, to stop a subshell holding the pipe
+  # open forever. The spinner below IS a subshell, so writing to `${SNUG[1]}`
+  # from it silently does nothing: measured, the frame loop produced not one
+  # record and the row sat on its first spinner glyph for the whole phase.
+  # Duplicating the write end onto an ORDINARY fd fixes it — that one is
+  # inherited like any other.
+  exec {SNUG_FD}>&"${SNUG[1]}" || return 1
+  # And close bash's copy, or nothing ever reaches EOF and `snug run` outlives
+  # the command: the duplicate is now the only write end.
+  eval "exec ${SNUG[1]}>&-" 2>/dev/null || true
+  return 0
+}
+
+snug_emit() { # snug_emit <verb> <text> — one record; 1 = no coproc, caller falls back
+  local line
+  [ -n "$SNUG_FD" ] || snug_open || return 1
+  # Multi-line text would break record framing, so it is one record per line.
+  # (The Go side re-joins tab fields, so a tab inside prose is safe.)
+  while IFS= read -r line; do
+    { printf '%s\t%s\n' "$1" "$line" >&"$SNUG_FD"; } 2>/dev/null \
+      || { snug_close; return 1; }
+  done <<<"$2"
+  return 0
+}
+
+snug_end() { # end the live region, keep the coprocess for the lines after it
+  [ -n "$SNUG_FD" ] || return 0
+  { printf 'end\n' >&"$SNUG_FD"; } 2>/dev/null || true
+  return 0
+}
+
+snug_close() { # everything down: end the region and drop the coprocess
+  [ -n "$SNUG_FD" ] || return 0
+  snug_end
+  eval "exec $SNUG_FD>&-" 2>/dev/null || true
+  wait "${SNUG_PID:-}" 2>/dev/null || true
+  SNUG_FD=""
+  # SNUG_TRIED deliberately stays set: a snug that died once stays dead for this
+  # command. Re-opening per frame would be a fork a frame — the exact regression
+  # the coprocess exists to prevent. The verbs degrade to ui.sh instead.
+  return 0
+}
+
+# ---- the verbs --------------------------------------------------------------
+# Which stream a line goes to is a property of the COMMAND, not of the verb, and
+# that is the whole design here. Half these verbs are called from helpers —
+# `settings_diff` runs inside `haus plan` and inside `haus set`,
+# `consumer_worktree_warning` inside `haus plan` and inside `haus rebuild` — so
+# a per-verb rule cannot be right in both callers, and the first attempt at one
+# split `haus doctor` across two streams: its section headers went to fd 2 while
+# its findings stayed on fd 1, which makes `haus doctor | pbcopy` an unlabelled
+# list of ticks. That flow is not optional — `.github/ISSUE_TEMPLATE/bug.yml`
+# asks a stranger to paste exactly it, and it is the only feedback channel
+# anything we ship has.
+#
+# So: a REPORT command draws entirely on fd 1, and everything else draws
+# entirely on fd 2. `REPORT` is set once, in the dispatch at the bottom, where
+# you can read the whole list at a glance.
+#
+#   report      status doctor plan diff permissions btm generations get capture
+#   narration   rebuild update rollback set unset reset options add desktop
+#               remove edit tour revert-settings
+#
+# A report never touches the coprocess. That costs it snug's folding — the same
+# price `bench`'s tables pay, and the same one these verbs have always paid —
+# and buys the thing that matters: one stream, in order, that a pipe can catch.
+# The one exception is `die`: an error is not part of a report, so it stays on
+# fd 2 wherever it fires, and `haus doctor >out` still says so on the terminal.
+REPORT=""
+
+say()  {
+  if [ -n "$REPORT" ]; then printf '%s%s  %s%s\n' "$C_FOG" "$G_SAY" "$*" "$C_OFF"
+  else snug_emit say "$*" || ui_draw say "$*"; fi
+}
+warn() {
+  if [ -n "$REPORT" ]; then printf '%s%s  %s%s\n' "$C_WARN" "$G_WARN" "$*" "$C_OFF"
+  else snug_emit warn "$*" || ui_draw warn "$*"; fi
+}
+# Secondary detail: what a line above it means, or what to run about it.
+hint() {
+  if [ -n "$REPORT" ]; then printf '  %s%s%s %s\n' "$C_MUT" "$G_HINT" "$C_OFF" "$*"
+  else snug_emit hint "$*" || ui_draw hint "$*"; fi
+}
+die()  { snug_emit fail "$*" || ui_draw fail "$*"; exit 1; }
+
+ui_draw() { # ui_draw <verb> <text> — ui.sh's line, or plain text if it is absent
+  if [ -n "$UI_READY" ]; then "ui_$1" "$2"
+  else printf '%s\n' "$2" >&2; fi
+}
+
+# The indented body of a report. Always fd 1 — nothing calls these outside one.
+ok()   { printf '  %s%s%s %s\n' "$C_OK" "$G_OK" "$C_OFF" "$*"; }
+bad()  { printf '  %s%s%s %s\n' "$C_ERR" "$G_BAD" "$C_OFF" "$*"; }
+info() { printf '  %s%s%s %s\n' "$C_FOG" "$G_INFO" "$C_OFF" "$*"; }
 
 # Every verb here drives THIS machine's config, so the config has to exist —
 # with one exception. `haus show` reads a desktop someone is about to publish or
@@ -143,173 +303,160 @@ HAUS_LOG="$HAUS_LOG_DIR/rebuild.log"
 # NOT "quiet output plus filtering": a filter that drops a line you didn't
 # expect is how a warning disappears, so verbose is a passthrough, full stop.
 VERBOSE="${HAUS_VERBOSE:-}"
-[ -t 1 ] || VERBOSE=1
+# BOTH streams, and that is the conservative reading of "is a human watching".
+# The summary lives on fd 2 now and the log it is rendered from is a file, so
+# fd 2 alone would be the tidy gate — but `haus rebuild >build.log` has always
+# meant "give me the transcript", and gating on fd 2 would hand that person a
+# nearly empty file and a pretty summary they cannot paste. Either stream
+# redirected still means transcript; an agent pane and CI have neither, so they
+# are unaffected.
+{ [ -t 1 ] && [ -t 2 ]; } || VERBOSE=1
 
 # ---- the phase painter ------------------------------------------------------
-# The phase lines are a LIVE REGION of exactly one line: `phase_start` leaves a
-# stub, the phase runs, `phase_ok`/`phase_bad` repaint over it. `\r` returns to
-# column 0 of the current PHYSICAL row rather than of the logical line, so a
-# painted line that soft-wraps rewrites only its LAST row and orphans every row
-# above it. The finished `activate` row runs ~52 cells ("12 services · homebrew
-# changed"), which corrupted every terminal 53 columns or narrower. The fix is
-# to measure the window and fold — never to assume a width, and never to clamp
-# the content and hope. See docs/cli-presentation.md in the workshop.
+# The phase lines are a LIVE REGION, and snug owns it now: `phase_start` puts a
+# SPINNING row on screen, the phase runs, `phase_ok`/`phase_bad` repaint it as
+# the finished row and close the region. Closing leaves the final frame in
+# scrollback, so the four rows of a rebuild stack up exactly as they always did
+# — resolve, build, activate, generation — one region each.
 #
-# NOT `tput cols`: terminfo carries a STATIC size (80 for every xterm-* entry),
-# and ncurses only overrides it from the real window when LINES/COLUMNS are
-# exported — measured in a 40-column pty, `tput cols` answers 80, so a painter
-# built on it folds to a width the window hasn't had since 1978. `stty size`
-# asks the kernel (TIOCGWINSZ), the only source that tracks a resize, and it
-# reads /dev/tty rather than `<&1` because this runs inside `$( )`, where fd 1
-# is the substitution's pipe and never the terminal.
+# Everything this file used to carry in order to draw that itself is gone:
+# PHASE_COLS, the five width tiers, the truncation, `\r\033[2K`, and the width
+# probe
 #
-# A rebuild paints four rows, not ten a second, so this measures per row and
-# wants no SIGWINCH trap: a window resized mid-phase is re-measured before the
-# row that lands after it. `tput` is still the fallback for the one case where
-# `stty` can't answer, where a stale 80 beats no number.
-PHASE_COLS=80
-# What "no window" folds to. A file has no columns, so nothing is truncated into
-# one: every tier's test is `avail >= …`, and an avail this wide takes the first.
-PHASE_UNBOUNDED=100000
-phase_measure() {
-  local sz
-  # Folding is a courtesy to a WINDOW, so it is gated on the same fd the escapes
-  # are. `haus rebuild >build.log` from an 80-column terminal must not put an
-  # `…` in the log — the window it was launched from is not a fact about the
-  # file, and a truncated summary in a log is a summary someone has to go and
-  # re-run the rebuild for.
-  if [ ! -t 1 ]; then PHASE_COLS="$PHASE_UNBOUNDED"; return 0; fi
-  # `|| true` is load-bearing, not defensive. `tput` exits 2 with TERM unset,
-  # and under `set -e` the command after the final `||` is the one case the
-  # shell does NOT exempt — so without it, `ssh mac haus rebuild` (no pty, so
-  # sshd sets no TERM and there is no controlling terminal) died with status 2
-  # and NOTHING on either stream, after a successful evaluation and before
-  # anything activated. Measured. The two `case` lines below already treat an
-  # empty answer as "ask something else"; they just never got to run.
-  sz="$(stty size 2>/dev/null </dev/tty)" && PHASE_COLS="${sz#* }" \
-    || PHASE_COLS="$(tput cols 2>/dev/null || true)"
-  case "$PHASE_COLS" in '' | *[!0-9]*) PHASE_COLS="${COLUMNS:-80}" ;; esac
-  case "$PHASE_COLS" in '' | *[!0-9]*) PHASE_COLS=80 ;; esac
-}
-
-# Cells the stub on screen occupies, 0 when there is none. It is BOTH the "may I
-# repaint?" flag — verbose mode and anything that isn't a terminal never paint
-# one, so no cursor escape can reach a pipe or a file — and the reflow check:
-# `\r` is only sound while the stub still fits one screen row, so a window that
-# narrowed past it mid-phase gets a fresh line rather than a corrupt one.
-PHASE_STUB=0
-
-# One phase row, folded to the window. The layout is
-# "  <glyph> <label> <elapsed>  <detail>": a 4-cell gutter, then three fields
-# that give up cells in reverse order of what they carry — the detail first,
-# then the padding that made it a table, then the elapsed, then the label
-# itself, down to a floor of the glyph alone.
+#   sz="$(stty size 2>/dev/null </dev/tty)" && COLS="${sz#* }" || COLS="$(tput cols)"
 #
-# Widths are counted with ${#…}, which is CHARACTERS under a UTF-8 locale: every
-# field here is ASCII and every glyph is one cell, so characters and cells are
-# the same number. The labels and the detail are ours, not a source's; the day
-# one carries an emoji this needs a real cell count (docs/cli-presentation.md
-# §"Width is counted in the wrong unit").
-phase_row() { # phase_row <colour> <glyph> <label> <elapsed> [detail]
-  local col="$1" glyph="$2" label="$3" el="$4" detail="${5:-}"
-  local avail elw labelw base dw
+# which could kill its own caller — `tput` exits 2 with TERM unset, and `set -e`
+# exempts every command in a `&&`/`||` list EXCEPT the last, so `ssh mac haus
+# rebuild` died with status 2 and nothing on either stream, after a successful
+# evaluation and before anything activated. Measured. One runtime, in snug,
+# instead of a fourth copy of that here. See docs/cli-presentation.md in the
+# workshop for the standard and for what a live region owes you.
+#
+# Three fidelities, and the row degrades rather than disappearing:
+#
+#   snug on PATH, terminal on fd 2  the coprocess — spinner, folding, resize
+#   ui.sh only                      its live region: same spec, no spinner
+#   neither                         one plain line per state change, on fd 2
+PHASE_LABEL=""      # the row on screen; empty means there is none to repaint
+PHASE_T0=0          # deciseconds at phase_start, for the running clock
+PHASE_SPIN_PID=""   # the frame loop, alive only while the coprocess is
+# Set non-empty to run the next phase as a STILL row: the region opens, the mark
+# is a bullet, and nothing repaints. It exists for one case and it is not
+# hypothetical — `sudo` writes its password prompt to /dev/tty, which is the same
+# terminal the region is repainting, and the region's line count knows nothing
+# about a line sudo printed. Ten frames a second would then rewind over the
+# prompt and over what you are typing into it. A machine with passwordless
+# activation (haus's security room installs the rule) never takes this path; a
+# fresh one, before its first switch, does.
+PHASE_STILL=""
 
-  # Never write into the last column: a line whose width EQUALS the terminal's
-  # leaves the cursor past the edge and the terminal wraps it anyway.
-  avail=$(( PHASE_COLS - 1 ))
-
-  # Measured, not assumed. `%6s` and `%-9s` are minimums, so a phase past a
-  # thousand seconds renders "1234.5s" — seven cells where a hardcoded six
-  # would have overflowed the edge, which is the bug this painter exists to
-  # stop.
-  elw=6;    [ "${#el}" -gt "$elw" ] && elw="${#el}"
-  labelw=9; [ "${#label}" -gt "$labelw" ] && labelw="${#label}"
-  base=$(( 4 + labelw + 1 + elw ))
-
-  # The tier is chosen from the WINDOW and only then clamped to the content.
-  # Asking "is the detail short?" first answers a different question from "is
-  # there room?", and drops a column on a terminal that had space for it.
-  if [ -n "$detail" ] && [ "$avail" -ge $(( base + 4 )) ]; then
-    dw=$(( avail - base - 2 ))
-    # Truncate INSIDE the field, so the columns to its left stay put.
-    [ "${#detail}" -gt "$dw" ] && detail="${detail:0:$((dw - 1))}…"
-    printf '  %s%s%s %-*s %*s  %s%s%s\n' \
-      "$col" "$glyph" "$C_OFF" "$labelw" "$label" "$elw" "$el" "$C_FOG" "$detail" "$C_OFF"
-  elif [ "$avail" -ge "$base" ]; then
-    printf '  %s%s%s %-*s %*s\n' "$col" "$glyph" "$C_OFF" "$labelw" "$label" "$elw" "$el"
-  elif [ -n "$el" ] && [ "$avail" -ge $(( 4 + ${#label} + 1 + ${#el} )) ]; then
-    # list: the padding that made it a table is the first thing to go.
-    printf '  %s%s%s %s %s\n' "$col" "$glyph" "$C_OFF" "$label" "$el"
-  elif [ "$avail" -ge $(( 4 + ${#label} )) ]; then
-    printf '  %s%s%s %s\n' "$col" "$glyph" "$C_OFF" "$label"
-  elif [ "$avail" -ge 3 ]; then
-    # bare: the 3-cell gutter collapses to one space, and the label truncates.
-    dw=$(( avail - 2 ))
-    [ "${#label}" -gt "$dw" ] && label="${label:0:$((dw - 1))}…"
-    printf '%s%s%s %s\n' "$col" "$glyph" "$C_OFF" "$label"
-  elif [ "$avail" -ge 1 ]; then
-    # The floor is the glyph: below one cell there is nothing honest to draw.
-    printf '%s%s%s\n' "$col" "$glyph" "$C_OFF"
+# One frame: one row, painted. <state> is snug's — `run` spins, `ok`/`fail` are
+# finished marks.
+phase_frame() { # phase_frame <state> <label> <detail>
+  if [ -n "$SNUG_FD" ]; then
+    { printf 'row\t%s\t%s\t%s\npaint\n' "$1" "$2" "$3" >&"$SNUG_FD"; } 2>/dev/null \
+      || { snug_close; return 1; }
+  elif [ -n "$UI_READY" ]; then
+    # ui_paint degrades on its own when fd 2 is not a terminal: one plain line
+    # per state change, and no cursor escape ever reaches a file.
+    ui_clear; ui_row "$1" "$2" "$3"; ui_paint
   else
-    printf '\n'
+    # No painter at all. The glyph carries the meaning; a `run` row has nothing
+    # to repaint it, so it would only be noise.
+    case "$1" in
+      ok)   printf '   ✓  %s (%s)\n' "$2" "$3" >&2 ;;
+      fail) printf '   ✗  %s (%s)\n' "$2" "$3" >&2 ;;
+    esac
   fi
+  return 0
 }
 
-# The stub wears the same gutter and label column the finished row lands in, so
-# the repaint covers it exactly. It folds for the row's reason and one more: a
-# stub that wrapped would put `\r` on the wrong screen row for the rest of the
-# phase.
+# The spinner. `snug run` advances the frame on every `paint` and keeps no clock
+# of its own, so somebody has to send frames — and the phase itself is a
+# FOREGROUND command (`sudo haus-activate` has to keep the terminal for a
+# password prompt, and backgrounding it to poll around it would risk that), so
+# the sender is a background loop rather than a poll around a backgrounded phase.
+#
+# It writes ONLY to the coprocess, and only while nothing else is writing there:
+# in quiet mode the phase's own output goes to the log, so the fd is idle for the
+# whole phase. That is also why there is no ui.sh spinner — ui.sh's region lives
+# in shell variables, and a subshell repainting it would leave the parent with a
+# wrong idea of how many screen lines the region used.
+#
+# `kill -0 $$` is the leash. `haus` exiting closes the PARENT's write end, but
+# this child holds a copy of it, so without the check the coprocess would never
+# see EOF and would keep spinning as an orphan on somebody's terminal.
+phase_spin_start() {
+  [ -n "$SNUG_FD" ] || return 0
+  local parent=$$
+  {
+    while kill -0 "$parent" 2>/dev/null; do
+      sleep 0.1
+      { printf 'row\trun\t%s\t%s\npaint\n' \
+          "$PHASE_LABEL" "$(secs $(( $(now_ds) - PHASE_T0 )) )" >&"$SNUG_FD"; } 2>/dev/null || break
+    done
+  } &
+  PHASE_SPIN_PID=$!
+  return 0
+}
+
+phase_spin_stop() {
+  [ -n "$PHASE_SPIN_PID" ] || return 0
+  kill "$PHASE_SPIN_PID" 2>/dev/null || true
+  wait "$PHASE_SPIN_PID" 2>/dev/null || true
+  PHASE_SPIN_PID=""
+  return 0
+}
+
+# Open the region for one phase.
+#
+# Two conditions, and the second is not redundant: VERBOSE is forced on wherever
+# there is no terminal (see its assignment above), so today it implies this.
+# Saying it here too keeps the function true on its own — PHASE_LABEL is what
+# licenses every frame below, and it must never be set by a painter that had no
+# terminal to paint on, whatever a distant assignment happens to do.
 phase_start() {
-  # Two conditions, and the second is not redundant: VERBOSE is forced on off a
-  # terminal (see its assignment above), so today it implies this. Saying it
-  # here too keeps the function true on its own — PHASE_STUB is what licenses
-  # every cursor escape below, and it must never be set by a painter that had
-  # no terminal to paint on, whatever a distant assignment happens to do.
-  if [ -n "$VERBOSE" ] || [ ! -t 1 ]; then PHASE_STUB=0; return 0; fi
-  phase_measure
-  local label="$1" avail labelw w
-  avail=$(( PHASE_COLS - 1 ))
-  labelw=9; [ "${#label}" -gt "$labelw" ] && labelw="${#label}"
-  w=$(( 4 + labelw + 1 ))
-  if [ "$avail" -ge "$w" ]; then
-    printf '  %s·%s %-*s ' "$C_FOG" "$C_OFF" "$labelw" "$label"
-  elif [ "$avail" -ge 1 ]; then
-    printf '%s·%s' "$C_FOG" "$C_OFF"; w=1
+  PHASE_LABEL=""
+  if [ -n "$VERBOSE" ] || [ -z "${UI_TTY:-}" ]; then return 0; fi
+  PHASE_LABEL="$1"
+  PHASE_T0="$(now_ds)"
+  snug_open || true
+  if [ -n "$PHASE_STILL" ]; then
+    # `wait`, not `run`: a spinner glyph that never turns reads as a hung
+    # terminal, where a bullet reads as "queued", which is the truth.
+    phase_frame wait "$PHASE_LABEL" "$(secs 0)" || true
   else
-    w=0
+    phase_frame run "$PHASE_LABEL" "$(secs 0)" || true
+    phase_spin_start
   fi
-  PHASE_STUB="$w"
 }
 
-# Repaint over the stub. `[2K` wipes the whole line rather than trusting the new
-# row to be at least as wide as the stub, which a folded row need not be.
+# Repaint the row as finished and close the region.
 #
-# It leads with `\r[2K` on a terminal even when this phase left NO stub, which
-# is `build`'s case: nix keeps the terminal for its own progress bar, so nothing
-# was painted to cover — but something else was, and returning to column 0 of a
-# line somebody else may have left half-written is exactly the recovery the old
-# unconditional `\r` gave every row. At column 0 of a clean line it costs
-# nothing.
+# It runs even when this phase left NO row, which is `build`'s case: nix keeps
+# the terminal for its own progress bar, so nothing was painted to repaint —
+# but the finished row still has to land, and opening a one-frame region for it
+# is how it lands folded rather than as a raw printf.
 #
-# The one time it must NOT: a window that narrowed past the stub during the
-# phase. `\r` then reaches the wrong screen row, so the row lands on a fresh
-# line instead and one stale stub stays on screen — a reflow cannot be modelled,
-# and a stale line is honest where a corrupt one is not.
-#
-# Off a terminal none of it is written at all: piped, in CI or in a log, a live
-# region degrades to one plain line per state change and no cursor escape ever
-# reaches a file.
-phase_repaint() { # phase_repaint <colour> <glyph> <label> <elapsed> [detail]
-  phase_measure
-  if [ -t 1 ]; then
-    if [ "$PHASE_STUB" -gt $(( PHASE_COLS - 1 )) ]; then printf '\n'
-    else printf '\r\033[2K'; fi
-  fi
-  PHASE_STUB=0
-  phase_row "$@"
+# The elapsed and the detail share snug's one right-hand column: "12.3s" alone,
+# or "12.3s · 12 services · homebrew changed" when a phase has something to add.
+# A row never carries an empty field between two non-empty ones — `read`
+# collapses consecutive delimiters — so the join is done here, not by sending an
+# empty elapsed.
+phase_repaint() { # phase_repaint <state> <label> <elapsed> [detail]
+  local state="$1" label="$2" el="$3" detail="${4:-}"
+  phase_spin_stop
+  if [ -n "$el" ] && [ -n "$detail" ]; then detail="$el · $detail"
+  elif [ -z "$detail" ]; then detail="$el"; fi
+  snug_open || true
+  phase_frame "$state" "$label" "$detail" || true
+  if [ -n "$SNUG_FD" ]; then snug_end
+  elif [ -n "$UI_READY" ]; then ui_live_close; fi
+  PHASE_LABEL=""
+  return 0
 }
-phase_ok()  { phase_repaint "$C_OK" '✓' "$1" "$2" "${3:-}"; }
-phase_bad() { phase_repaint "$C_ERR" '✗' "$1" "$2"; }
+phase_ok()  { phase_repaint ok   "$1" "$2" "${3:-}"; }
+phase_bad() { phase_repaint fail "$1" "$2"; }
 secs()        { printf '%d.%01ds' $(( $1 / 10 )) $(( $1 % 10 )); }
 # Deciseconds, from bash's own clock. NOT `date +%s%N`: that's a GNU extension,
 # and BSD date prints a literal "N" — which only shows up as broken arithmetic
@@ -352,7 +499,9 @@ run_phase() {
   HAUS_PHASE_SLICE="$(tail -c "+$((off + 1))" "$HAUS_LOG")"
   if [ "$rc" -ne 0 ]; then
     phase_bad "$label" "$HAUS_PHASE_ELAPSED"
-    [ -n "$VERBOSE" ] || printf '%s\n' "$HAUS_PHASE_SLICE" | tail -n 25 | sed 's/^/      /'
+    # fd 2 with the rest of the rebuild: it is the failure it belongs to, not
+    # output. (`>&2` on the pipeline's tail, which is what reaches a terminal.)
+    [ -n "$VERBOSE" ] || printf '%s\n' "$HAUS_PHASE_SLICE" | tail -n 25 | sed 's/^/      /' >&2
     warn "full log: $HAUS_LOG"
   fi
   return "$rc"
@@ -999,7 +1148,10 @@ consumer_worktree_warning() {
   ours="$(cd "${ours%/}" 2>/dev/null && pwd -P || true)"
   [ "$common" = "$ours" ] || return 0
   warn "this is a worktree of your config ($top), but haus reads \$CONSUMER — so it is reading $consumer, not the branch checked out here."
-  info "to read THIS tree instead: HAUS_CONSUMER=$top haus <command>"
+  # `hint`, not `info`: this is about the invocation, not part of any report, and
+  # it has to sit under its own `warn` in both callers — `haus rebuild`, whose
+  # output is all message stream, and `haus plan`, whose report is all fd 1.
+  hint "to read THIS tree instead: HAUS_CONSUMER=$top haus <command>"
 }
 
 # ---- what a rebuild would write into $HOME ----------------------------------
@@ -1817,6 +1969,11 @@ card_stop() {
 # build is in flight.
 card_cancelled() {
   card_stop
+  # Take the live region down before anything else prints: the spin loop would
+  # otherwise keep painting frames over the cancellation for the tenth of a
+  # second it takes to notice this shell is gone.
+  phase_spin_stop
+  snug_end
   card - "fault" "cancelled"
   # A ⌃C during activation leaves the same half-applied state the activation
   # failure path warns about, so say the same thing rather than exiting mute.
@@ -1836,7 +1993,9 @@ cmd_rebuild() {
 
   say "$host · rebuild"
   consumer_worktree_warning
-  [ -n "$VERBOSE" ] || echo
+  # fd 2, with the summary it separates — the whole rebuild narration is on the
+  # message stream now.
+  [ -n "$VERBOSE" ] || printf '\n' >&2
 
   run_phase resolve heal resolve_drv "$host" "$drvfile" \
     || die "evaluation failed — nothing was changed."
@@ -1898,6 +2057,21 @@ cmd_rebuild() {
   # thing that must never be swallowed here: sudo writes its password prompt to
   # /dev/tty, not to either stream (and where there's no tty, VERBOSE is already
   # on). A Touch ID prompt is a GUI dialog, so it's unaffected either way.
+  # Both branches below go through sudo, and sudo's prompt lands on /dev/tty —
+  # the same terminal the phase row repaints, and one the region's line count
+  # knows nothing about. Ten frames a second would rewind over the prompt and
+  # over what you are typing into it.
+  #
+  # So: spin only where we can PROVE there will be no prompt. `sudo -n true`
+  # succeeding means the timestamp is valid, which means the sudo below will not
+  # ask. It is deliberately one-way and it under-detects — a machine whose
+  # NOPASSWD rule names only `haus-activate` (which is every machine haus's
+  # security room has configured) fails this and gets a still row even though it
+  # would never have been asked. That is the safe direction to be wrong in, and
+  # it is no worse than what this phase drew before there was a spinner at all.
+  # Discriminating properly would mean parsing sudo's refusal text, which is
+  # localised.
+  sudo -n true 2>/dev/null || PHASE_STILL=1
   if [ -x /run/current-system/sw/bin/haus-activate ]; then
     run_phase activate sudo /run/current-system/sw/bin/haus-activate "$CONSUMER/result"
   else
@@ -1905,6 +2079,7 @@ cmd_rebuild() {
     # once; the switch it performs is what installs the fast one.
     run_phase activate heal legacy_switch "$host"
   fi || { card_stop; card - "fault" "activation failed — $gen_before is still on disk"; die "activation failed partway — generation $gen_before is still on disk (haus rollback), and the log above says where it stopped."; }
+  PHASE_STILL=""
   phase_ok activate "$HAUS_PHASE_ELAPSED" "$(activation_summary)"
 
   # The ending replaces the bar on the same card, because it carries the same
@@ -1926,17 +2101,19 @@ cmd_rebuild() {
   else
     local gen_after changed n
     gen_after="$(current_gen || echo '?')"
-    phase_measure
-    phase_row "$C_OK" '✓' generation '' \
+    phase_ok generation '' \
       "$([ "$gen_before" = "$gen_after" ] && echo "$gen_after (unchanged)" || echo "$gen_before → $gen_after")"
     n="$(wc -l <"$difffile" 2>/dev/null | tr -d ' ')"; n="${n:-0}"
-    echo
+    # `hint`, not `info`: this line belongs with the rows above it on fd 2, and
+    # `info` is the reports' verb on fd 1. Mixing the two here would split one
+    # summary across two streams, which is only invisible while both happen to
+    # be the same terminal.
     if [ "$n" = "0" ]; then
-      info "nothing changed in the closure"
+      hint "nothing changed in the closure"
     else
       changed="$(sed 's/^ *//' "$difffile" | head -3 | paste -sd', ' -)"
       [ "$n" -gt 3 ] && changed="$changed, +$((n - 3)) more"
-      info "$changed"
+      hint "$changed"
     fi
     say "the house stands."
   fi
@@ -4256,6 +4433,20 @@ for a in "$@"; do
   esac
 done
 set -- ${HAUS_ARGS[@]+"${HAUS_ARGS[@]}"}
+
+# Which stream this command's prose goes to — see the note by the verbs. A
+# REPORT is a thing somebody pipes: `haus doctor | pbcopy` into the issue form,
+# `haus plan >plan.txt`, `$(haus get …)`. Everything else narrates while it
+# changes the machine, and narration is stderr, because stdout carries data only.
+#
+# Set here rather than inside each cmd_ so the whole split is one list you can
+# read at a glance — and so a helper both kinds call (`settings_diff`,
+# `consumer_worktree_warning`) needs no opinion of its own.
+case "${1:-status}" in
+  status | doctor | plan | diff | permissions | btm | generations | get | capture)
+    REPORT=1
+    ;;
+esac
 
 case "${1:-status}" in
   rebuild)     cmd_rebuild ;;

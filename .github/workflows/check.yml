@@ -352,13 +352,36 @@ jobs:
       - name: raise-session lane join
         run: bats test/raise-session-lane-join.bats
 
+      # snug's `share/ui.sh` — the painter both CLIs draw through — at the rev
+      # this repo's flake.lock pins. One file over https, not a clone and not
+      # Nix, so the job below stays the cheap one it is.
+      #
+      # Fetched rather than stubbed on purpose. A fixture would make the
+      # integration green while checking nothing, and this family has already
+      # been bitten by exactly that: the drift test between ui.sh and palette.go
+      # skipped silently on any machine without the second checkout. The real
+      # file at the pinned rev is the only thing that catches a renamed role or
+      # a moved function before somebody's rebuild does.
+      - name: snug's painter, at the pinned rev
+        run: |
+          rev="$(jq -r '.nodes.snug.locked.rev' flake.lock)"
+          [ -n "$rev" ] && [ "$rev" != null ] || { echo "no snug rev in flake.lock"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/snug"
+          # Retried: one CDN hiccup must not red a suite that is otherwise
+          # bash + python3 + bats, and `-f` alone gives up on the first 5xx.
+          curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 \
+            "https://raw.githubusercontent.com/hausfold/snug/$rev/share/ui.sh" \
+            -o "$RUNNER_TEMP/snug/ui.sh"
+          echo "HAUS_UI_SH=$RUNNER_TEMP/snug/ui.sh" >> "$GITHUB_ENV"
       # The `haus rebuild` phase painter and the colour gate both end-user CLIs
-      # grew with it. Two silent failure modes: a repaint that assumes a width
-      # corrupts the screen only on a window narrower than the author's (52
-      # columns and below for the finished `activate` row, 13 and below for the
-      # stub — measured in real ptys, which is what the last test here builds),
-      # and an ungated escape is invisible to anyone watching colour. Needs only
-      # bash + python3 + bats, no Nix and no Mac.
+      # grew with it. Three silent failure modes: a record `snug run` cannot
+      # parse is a line that simply never appears; a repaint that assumes a
+      # width corrupts the screen only on a window narrower than the author's
+      # (52 columns and below for the finished `activate` row, 13 and below for
+      # the running one — measured in real ptys, which is what the last tests
+      # here build); and an ungated escape is invisible to anyone watching
+      # colour. Needs bash + python3 + bats + the file fetched above, no Nix and
+      # no Mac.
       - name: phase painter and colour gate
         run: bats test/phase-painter.bats
 

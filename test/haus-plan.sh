@@ -33,6 +33,14 @@ export HAUS_CONSUMER="$tmp/consumer" HAUS_LIB=1
 # shellcheck disable=SC1090,SC1091
 source "$repo/modules/core/haus.sh"
 
+# AFTER the source, because haus.sh assigns `REPORT=""` at load — deliberately,
+# so a stray variable in somebody's environment cannot flip `haus rebuild` onto
+# the wrong stream. Every parser below belongs to `haus plan`, which IS a report
+# command: its whole output is on fd 1 (see the note by the verbs in haus.sh),
+# and the dispatch that would set this is the part HAUS_LIB stops before. Without
+# it `warn` goes to stderr and every capture here silently misses it.
+REPORT=1
+
 # ---- fixtures ----------------------------------------------------------------
 # Store paths are matched by SHAPE (a 32-char hash plus a known suffix), not by
 # a /nix/store prefix, which is exactly what lets this run hermetically.
