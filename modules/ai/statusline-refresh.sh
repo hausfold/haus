@@ -44,7 +44,17 @@ usage_only=0
 # otherwise leave a leading one, which means "the current directory".
 PATH="${PATH:+$PATH:}/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/etc/profiles/per-user/$(id -un 2>/dev/null)/bin:/opt/homebrew/bin:/usr/bin:/bin"
 
-WT_BASE="${CLAUDE_WT_BASE:-$HOME/.cache/claude-worktrees}"
+# The lane base moved at scruff 1.1.0. Probe for the registry rather than
+# assuming a path: a rebuild can land either side of `scruff doctor
+# --migrate-base`, and the bar has to see lanes in both orders. Same ladder as
+# launcher/commands/spawn-agent.sh — keep the two in step.
+if [ -f "$HOME/.cache/scruff/registry.tsv" ]; then
+  WT_BASE="$HOME/.cache/scruff"
+elif [ -f "$HOME/.cache/claude-worktrees/registry.tsv" ]; then
+  WT_BASE="$HOME/.cache/claude-worktrees"
+else
+  WT_BASE="${CLAUDE_WT_BASE:-$HOME/.cache/scruff}"
+fi
 WT_REGISTRY="$WT_BASE/registry.tsv"
 CACHE_DIR="${CLAUDE_STATUSLINE_CACHE:-$HOME/.cache/claude-statusline}"
 PANEL="$CACHE_DIR/panel.tsv"

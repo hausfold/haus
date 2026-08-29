@@ -971,3 +971,54 @@ thaw() { # let the next pass past the TTL without waiting a quarter of an hour
   [ "$status" -eq 0 ]
   [ ! -f "$CLAUDE_STATUSLINE_CACHE/tokens-claude.tsv" ]
 }
+
+# ── the lane base moved at scruff 1.1.0 ──────────────────────────────────────
+# Every other test in this file pins CLAUDE_WT_BASE, which is exactly why the
+# base move went unnoticed here: the env var short-circuits the path the real
+# bar takes. These three drive the probe itself, with the var unset.
+
+# base_probe <base> — a registry with one live lane under <base>, CLAUDE_WT_BASE
+# unset, and the panel refreshed. Echoes nothing; assert on the panel.
+base_probe() {
+  local base="$1" main dir
+  unset CLAUDE_WT_BASE
+  mkdir -p "$base"
+  REG="$base/registry.tsv"; : >"$REG"
+  main="$(mkrepo alpha)"
+  dir="$base/alpha/sparkle"
+  mkdir -p "$(dirname "$dir")"
+  git -C "$main" worktree add -q -b worktree-sparkle "$dir" >/dev/null 2>&1
+  echo work >"$dir/work.txt"
+  git -C "$dir" add -A
+  git -C "$dir" -c commit.gpgsign=false commit -qm "work on sparkle"
+  printf 'sparkle\t%s\tworktree-sparkle\t%s\t%s\n' "$main" "$dir" "$main" >>"$REG"
+  refresh
+}
+
+@test "base: the default ~/.cache/scruff is found with no env var set" {
+  base_probe "$HOME/.cache/scruff"
+  [ "$status" -eq 0 ]
+  [ -n "$(row_for x sparkle)" ] || fail "the bar found no lanes at the 1.1.0 base"
+}
+
+@test "base: a machine that never migrated is still read at the legacy path" {
+  # `scruff doctor --migrate-base` is the user's step, and it may never be run.
+  # Until it is, the registry lives at the old path and the bar has to see it —
+  # this is the rung that keeps a skipped migration from blanking the bar.
+  base_probe "$HOME/.cache/claude-worktrees"
+  [ "$status" -eq 0 ]
+  [ -n "$(row_for x sparkle)" ] || fail "the bar went blind on an un-migrated machine"
+}
+
+@test "base: the new path wins when both exist, as it does after the migration" {
+  # The migration leaves ~/.cache/claude-worktrees behind as a symlink for one
+  # release. A bar that picked the legacy rung first would be reading through it
+  # forever, and would go blank at 1.2.0 when the symlink goes.
+  mkdir -p "$HOME/.cache/claude-worktrees"
+  printf 'stale\t/nope\tworktree-stale\t/nope\t/nope\n' \
+    >"$HOME/.cache/claude-worktrees/registry.tsv"
+  base_probe "$HOME/.cache/scruff"
+  [ "$status" -eq 0 ]
+  [ -n "$(row_for x sparkle)" ] || fail "the new base lost to the legacy one"
+  [ -z "$(row_for x stale)" ] || fail "the legacy registry was read after the move"
+}
