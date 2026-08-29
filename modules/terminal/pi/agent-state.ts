@@ -22,16 +22,18 @@
  * ── the event map ───────────────────────────────────────────────────────────
  *
  *   input (interactive)   → working   + UserPromptSubmit  (you answered: fin down)
- *   agent_start           → working   — the lane got a prompt it was HANDED
- *                                       (⌘↵ spawns pi with the held prompt, so
- *                                       no `input` ever fires for turn one)
+ *   agent_start           → working   — the backstop: a loop that starts
+ *                                       without passing through `input` (rpc,
+ *                                       a queued continuation) still turns the
+ *                                       pill green. A ⌘↵ lane's held prompt is
+ *                                       NOT one of those — it arrives as pi's
+ *                                       initialMessage through `session.prompt`,
+ *                                       whose source defaults to "interactive"
+ *                                       — so turn one is the dedupe's job.
  *   tool_execution_start  → waiting   + Notification      (ask fin up)
  *     …for an ask tool      ← the urgent one; the pill goes red
  *   tool_execution_end    → working   + PostToolUse       (answered: fin down)
  *     …for an ask tool
- *   project_trust         → waiting   + Notification      (pi is holding at the
- *                                       trust dialog, which a background lane
- *                                       will otherwise sit at forever)
  *   agent_settled         → idle      + Stop              (done banner)
  *   session_shutdown      → remove                        (quit only)
  *
@@ -39,14 +41,16 @@
  * Two events with no CC counterpart earn a banner of their own. Neither is a
  * lane fin — they are not questions and nothing resolves them — so they go
  * through `haus-notify` (the one door onto the screen, AGENTS.md) rather than
- * through scruff, each with its own --source so rules.json can silence one
- * without silencing the other:
+ * through scruff, each with its OWN --source so rules.json can silence the
+ * chatty one without silencing the one that means your lanes are all dead:
  *
- *   session_compact_failed  a fault. Compaction failing is not cosmetic: the
+ *   session_compact_failed  haus.ai.pi.compact — a fault. Compaction failing
+ *                           is not cosmetic: the
  *                           turn that triggered it is usually dead, and in a
  *                           lane nobody is watching that reads as "it just
  *                           stopped".
- *   after_provider_response an auth/billing refusal (401/402/403) — ONCE per
+ *   after_provider_response haus.ai.pi.auth — an auth/billing refusal
+ *                           (401/402/403), ONCE per
  *                           session. pi reaches Anthropic through meridian's
  *                           loopback proxy, which authenticates by reading
  *                           Claude Code's OAuth token out of the login
@@ -63,6 +67,21 @@
  * packages haus.ai.pi.packages installs by default) blocks in ctx.ui until you
  * answer it. HAUS_PI_ASK_TOOLS overrides the list for anything else that does
  * the same.
+ *
+ * ── why `project_trust` is NOT wired, though it looks like the best fit ─────
+ * "pi is holding at its trust dialog" is exactly the thing a background lane
+ * needs a banner for, and the event exists. It cannot be used: pi emits it
+ * BEFORE it consults its own trust store (`resolveProjectTrusted` asks the
+ * extensions first and reads `trust.json` only if none of them decided), and
+ * it emits it for any directory with a `.pi/` resource or a `.agents/skills`
+ * ANYWHERE up the tree — which is every repo under ~/code/workshop. So a
+ * handler cannot tell "about to prompt" from "answered months ago" without
+ * re-implementing pi's nearest-ancestor trust lookup and its
+ * `defaultProjectTrust` setting, and getting that wrong means an ask fin on
+ * every pi start forever. The case it would have covered is already closed
+ * from the other end: `scruff` copies the yes you already gave the repo onto
+ * each lane it makes (its `~/.pi/agent/trust.json` propagation), so a haus
+ * lane does not sit at that dialog in the first place.
  *
  * ── why the fin resolves on the ask tool and not on every tool ──────────────
  * Claude Code's wiring resolves on PostToolUse — every tool call in every pane
@@ -88,6 +107,15 @@ const AGENT_STATE = "@AGENT_STATE@";
 const SCRUFF = "@SCRUFF@";
 const HAUS_NOTIFY = "@HAUS_NOTIFY@";
 
+// What names this pane's trill fin when it is NOT inside a scruff lane. scruff
+// keys a lane's fin by the lane (a lane answered from a resumed session is the
+// same lane and the same question) and falls back to the payload's session id
+// for anything else — so what this needs to be is stable for as long as the
+// PANE is, which pi's own session id is not: `/new`, `/resume` and a fork each
+// mint a new one, and a fin raised under the old id could then never be
+// resolved. The pid is exactly pane-lived.
+const SESSION_KEY = `pi-${process.pid}`;
+
 // The tools whose execution IS a question to the user. Comma-separated
 // override so a pi package that ships its own asker can join without a rebuild.
 const ASK_TOOLS = new Set(
@@ -99,7 +127,6 @@ const ASK_TOOLS = new Set(
 
 export default function (pi: any) {
 	let cwd = process.cwd();
-	let sessionId = "";
 	// Set at session_start, and the gate on every path below: an extension is
 	// loaded in every mode, and only one of them is a pane.
 	let live = false;
@@ -144,7 +171,15 @@ export default function (pi: any) {
 		if (!live) return;
 		if (next !== "remove" && next === last) return;
 		last = next;
-		const argv = [next, "pi", sessionId];
+		// Two arguments, not three. The third is `agent-state`'s `convo` label —
+		// WHICH conversation a window is showing — and nothing can read a pi
+		// one: terminal's ⌘F join (scripts/find.sh, `opencode_session`) treats
+		// any `convo` label as an OPENCODE session id whenever an opencode db
+		// exists on the machine, so filling it would route every pi window into
+		// opencode's sqlite, return nothing, and silently cost ⌘F the
+		// `zmx history` fallback it has today. Fill it when find.sh learns to
+		// render a pi session, and not before.
+		const argv = [next, "pi"];
 		// `remove` is the one report that must land before we are gone:
 		// session_shutdown is the last thing that runs, and an async child
 		// would be orphaned mid-write, leaving a stale row on the bar for as
@@ -171,7 +206,7 @@ export default function (pi: any) {
 		launch(
 			SCRUFF,
 			["hook", "notify"],
-			JSON.stringify({ hook_event_name: event, cwd, session_id: sessionId }),
+			JSON.stringify({ hook_event_name: event, cwd, session_id: SESSION_KEY }),
 		);
 	};
 
@@ -198,11 +233,6 @@ export default function (pi: any) {
 	pi.on("session_start", (_event: any, ctx: any) => {
 		live = ctx.mode === "tui";
 		cwd = ctx.cwd ?? cwd;
-		try {
-			sessionId = ctx.sessionManager?.getSessionId?.() ?? "";
-		} catch {
-			sessionId = "";
-		}
 		// Deliberately no state report. A pane that just opened has not been
 		// prompted, and `idle` in this vocabulary means "finished, go and look"
 		// — a tick on the pill for a lane that has done nothing yet.
@@ -234,26 +264,17 @@ export default function (pi: any) {
 		hook("PostToolUse");
 	});
 
-	// pi is holding at its own trust dialog. Answering it is the user's, not
-	// ours: "undecided" is what pi's runner treats as "fall through to the next
-	// handler, then to pi's own prompt" — this handler exists to SAY that a
-	// pane is stuck there, never to decide it. (scruff already copies a yes
-	// forward onto a lane's checkout, so this fires for repos nobody has
-	// answered for yet.)
-	pi.on("project_trust", (_event: any, ctx: any) => {
-		if (ctx?.mode === "tui") {
-			live = true;
-			cwd = ctx.cwd ?? cwd;
-			report("waiting");
-			hook("Notification");
-		}
-		return { trusted: "undecided" };
-	});
-
 	// "Fully settled": no automatic retry, compaction or queued continuation
 	// will run. That is Claude Code's Stop minus the stop_hook_active case the
 	// scruff hook has to filter for — pi does the filtering here.
 	pi.on("agent_settled", () => {
+		// A settled run has no tool in flight, whatever this set thinks.
+		// `prepareToolCall` sits outside pi's own try in the agent loop, so a
+		// throw there leaves a start with no matching end — and one stranded id
+		// would keep `asks.size > 0` for the rest of the session, so every later
+		// ask would end without ever reporting `working` again and the pill
+		// would stick on red.
+		asks.clear();
 		report("idle");
 		hook("Stop");
 	});
@@ -266,7 +287,7 @@ export default function (pi: any) {
 	pi.on("session_compact_failed", (event: any) => {
 		if (event?.aborted) return; // you cancelled it; you know
 		banner(
-			"haus.ai.pi",
+			"haus.ai.pi.compact",
 			"fault",
 			where(),
 			"compaction failed — the turn may be dead",
@@ -280,7 +301,7 @@ export default function (pi: any) {
 		if (status !== 401 && status !== 402 && status !== 403) return;
 		faulted = true;
 		banner(
-			"haus.ai.pi",
+			"haus.ai.pi.auth",
 			"fault",
 			where(),
 			`the model provider refused this session (${status})`,
