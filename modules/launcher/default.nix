@@ -1414,10 +1414,11 @@ lib.mkIf config.haus.launcher.enable {
       autoQuit = config.haus.launcher.autoQuit;
       # Every rendered nebelung variant, dropped where pounce's runtime palette
       # loader looks (~/.config/pounce/themes/<name>.json, read per open — see
-      # pounce's docs/reference.md). All of them, not just the selected one, so a
-      # hand-edited `"theme"` in config.json can try any variant without a
-      # rebuild. `or { }` on an older nebelung lock that predates the output;
-      # pounce falls back to its compiled-in default for a name with no file.
+      # hausfold.co/docs/pounce/config, "Themes"). All of them, not just the
+      # selected one, so a hand-edited `"theme"` in config.json can try any
+      # variant without a rebuild. `or { }` on an older nebelung lock that
+      # predates the output; pounce falls back to its compiled-in default for a
+      # name with no file.
       themeFiles = lib.mapAttrs' (
         variant: palette:
         lib.nameValuePair "pounce/themes/${variant}.json" {
