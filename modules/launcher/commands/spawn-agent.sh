@@ -1,6 +1,6 @@
 #!/bin/bash
 # pounce: name = Spawn Agent
-# pounce: description = Start your default coding agent on a named worktree of any repo
+# pounce: description = Start a coding agent on a worktree named after the task
 # pounce: icon = sparkles
 # pounce: submenu = true
 #
@@ -163,8 +163,11 @@ payload_of() { printf '%s' "$1" | /usr/bin/sed $'1s/^[^\t]*\t//'; }
 # somebody's task.
 #
 # Three things have to hold, and each rules out a different way of being wrong:
-# a daemon older than the flag ignores it and answers in the two-field shape
-# (caught by the field count), a prompt beginning "agent=" is ordinary text
+# a resident DAEMON older than the flag ignores it and answers in the two-field
+# shape (caught by the field count — an old CLI is a different story and
+# refuses the flag outright with exit 64, which reads here as a dismissal; the
+# CLI ships in the same closure as this script, so the two cannot skew),
+# a prompt beginning "agent=" is ordinary text
 # (caught by the count too, unless it also contains a tab), and a value that
 # is not one we offered is not ours to act on (caught by the membership test,
 # which is also what stops a stale chip naming a client that has since gone).
@@ -320,10 +323,28 @@ resolve_agents() {
   [ -n "$AGENTS" ] || return 1
   # The default itself can be the missing one — a host that names `codex` on a
   # Mac that never installed it. Fall to the first that IS here rather than
-  # refusing: the dial makes the substitution visible, which a hard exit never
-  # did, and the alternative is a palette command that does nothing at all on a
-  # machine with three working clients and one stale option.
-  case " $AGENTS " in *" $agent "*) ;; *) agent="${AGENTS%% *}" ;; esac
+  # refusing, because the alternative is a palette command that does nothing at
+  # all on a machine with three working clients and one stale option.
+  #
+  # But say so. The chip shows the substitution only where there IS a chip, and
+  # the case that actually needs telling is the other one — one client
+  # installed, the wrong one named, no chip, and every lane from now on quietly
+  # opening in a client the host file does not mention. A banner rather than a
+  # `notice`, because a `notice` is a second window in front of somebody who
+  # asked for a spawn; this is news about their config, threads on itself, and
+  # `rules.json` can silence it by source like anything else haus draws.
+  #
+  # The function only RECORDS it, in $agent_missing; the banner is the caller's,
+  # two reasons deep. resolve_agents reads PATH and one command and writes three
+  # globals — keeping it that way is what lets a test run it for real instead of
+  # against a copy, and a function that draws on the screen is a function no test
+  # can call twice. (haus-notify resolves at an absolute path this script's own
+  # PATH prelude cannot shadow, so there is nothing to stub either.)
+  agent_missing=""
+  case " $AGENTS " in
+    *" $agent "*) ;;
+    *) agent_missing="$agent"; agent="${AGENTS%% *}" ;;
+  esac
   # `--dial "agent=a|b"` needs two options to be a dial at all — `Dial.parse`
   # drops a segment with fewer than two and the step opens without a chip, which
   # is exactly right for a machine with one client installed. Spelling the guard
@@ -335,6 +356,13 @@ if ! resolve_agents; then
   notice "no coding agent is installed" \
     "Add one to haus.ai.clients, then rebuild — claude, codex, opencode or pi"
   exit 1
+fi
+if [ -n "$agent_missing" ]; then
+  /run/current-system/sw/bin/haus-notify --source haus.lane --kind pulse \
+    --symbol exclamationmark.triangle --thread "ai-default-$agent_missing" \
+    --title "haus · $agent_missing is not installed" \
+    --body "Spawning with $agent instead — fix haus.ai.default or haus.ai.clients" \
+    >/dev/null 2>&1
 fi
 
 # Cards, not rows. A repo IS a thing rather than a name — it has an icon, a

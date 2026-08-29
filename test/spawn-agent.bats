@@ -40,7 +40,10 @@ setup() {
       $0 ~ "^" fn "\\(\\) \\{" { inside = 1 }
       inside { print }
       inside && /^}$/ { inside = 0; found = 1 }
-      $0 ~ "^" fn "\\(\\) \\{.*; \\}$" { print; found = 1; inside = 0 }
+      # A one-liner (`f() { …; }`) never reaches the block rules above, so it
+      # gets its own — guarded on !inside so a multi-line body is not also
+      # printed a second time by it.
+      !inside && $0 ~ "^" fn "\\(\\) \\{.*; \\}$" { print; found = 1 }
       END { if (!found) exit 1 }
     ' "$SUBJECT" >>"$lifted" || {
       echo "could not lift $fn out of the subject" >&2
@@ -186,6 +189,18 @@ stub_default() {
   [ "$agent" = "opencode" ]
   [ "$AGENTS" = "opencode pi" ]
   [ "$agent_dial" = "agent=opencode|pi" ]
+  # …and records what it replaced, so the caller can say so. The banner is
+  # deliberately NOT fired in here: haus-notify sits at an absolute path no test
+  # can stub, and a unit test that draws on the machine's screen is not one.
+  [ "$agent_missing" = "codex" ]
+}
+
+@test "resolve_agents: nothing was substituted when the default is present" {
+  stub_clients claude pi
+  stub_default claude
+  resolve_agents
+  [ "$agent" = "claude" ]
+  [ -z "$agent_missing" ]
 }
 
 @test "resolve_agents: nothing installed is a refusal, not a silent spawn" {

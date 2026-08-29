@@ -31,7 +31,11 @@ in
         default = lib.mkOption {
           type = lib.types.str;
           default = "claude";
-          description = "The client Spawn Agent starts — `haus.ai.default`.";
+          description = ''
+            The client Spawn Agent starts by default — `haus.ai.default`. Its
+            prompt box's `⇥` chip can pick another for one lane, and falls back
+            to an installed client if this one is not there.
+          '';
         };
         repoRoots = lib.mkOption {
           type = lib.types.listOf lib.types.str;
