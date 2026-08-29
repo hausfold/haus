@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # lane-open.sh — scruff's `open`/`resume` seam, backed by zmx + a Ghostty window.
 #
 # scruff's built-in behaviour execs the client in the pane you ran it from, and
@@ -85,12 +85,18 @@ export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/s
 #     exact name as its sentinel, so a caller holding the PATH in `UI_SH` makes
 #     the file return before it defines anything, with no error and no colour.
 #   * ui.sh is bash 4+ (`declare -gA`, `${v^^}`). Under macOS's /bin/bash 3.2 it
-#     does not fail quietly: it prints three `bad substitution` / syntax errors
-#     and half-loads. Hence the shebang above is `/usr/bin/env bash`, and hence
-#     the version check below, which is the belt for a thin PATH.
+#     prints three `bad substitution` / syntax errors and half-loads rather than
+#     degrading — hence the `BASH_VERSINFO` check in the snippet below.
 #
-# Only the PATH is resolved here — this hook never sources ui.sh itself, because
-# the line it draws is drawn by the snippet below in another shell entirely.
+# THIS script's shebang stays `/bin/bash` on purpose, and the distinction is the
+# point: nothing here ever sources ui.sh. The line is drawn by the held snippet
+# further down, which runs under the `bash -lc` of the `zmx attach` — a bash
+# resolved from the PATH exported above, so bash 5, and guarded anyway. Moving
+# this shebang to `env bash` would trade an absolute interpreter for an inherited
+# PATH in a script scruff may exec from launchd, and buy nothing.
+#
+# So only the PATH is resolved here, never the palette: this process has no
+# terminal and the destination always does.
 HAUS_UI_SH="${HAUS_UI_SH:-}"
 if [ -z "$HAUS_UI_SH" ]; then
   _snug="$(command -v snug 2>/dev/null)" \

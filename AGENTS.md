@@ -378,7 +378,39 @@ mechanism, say so in one line.
   **Both CLIs draw through it now**, and there is no hardcoded escape left in
   either — the test above fails on any `\033[` outside a comment, because with
   every colour an alias onto snug's generated roles there is no longer a legal
-  place for one. Three things follow, and each is a rule rather than a detail:
+  place for one.
+
+  **Three more scripts draw through it too**, and they reach it a second way.
+  `modules/ai/statusline.sh`, `modules/terminal/scripts/image-preview.sh` and
+  `modules/terminal/lanes/lane-open.sh` are not behind the `haus` wrapper —
+  two are `home.file` symlinks with nothing substituted in — so nothing sets
+  `HAUS_UI_SH` for them and they RESOLVE it: honour the variable if a caller
+  set it, else take the copy beside `bin/snug` in snug's own derivation
+  (`command -v snug` → `readlink -f` → `../share/ui.sh`). Use that shape for
+  any new caller outside the wrapper; use `--set-default` when a derivation
+  can inject it, which is cheaper and is what `modules/core` and `modules/ai`
+  both do. Four rules those three add:
+  - **Never call the variable `UI_SH`.** ui.sh's own source-twice guard is
+    `[ -n "${UI_SH:-}" ] && return 0` — that exact name is its sentinel, so a
+    caller holding the PATH in it makes the file return before defining
+    anything: no error, no colour, and a green suite, because every role is
+    legitimately empty when the painter is absent.
+  - **ui.sh is bash 4+.** Under macOS's /bin/bash 3.2 it prints three
+    `bad substitution`/syntax errors and half-loads. A script that sources it
+    needs `#!/usr/bin/env bash` and a `BASH_VERSINFO` check.
+  - **A raw escape that is not a COLOUR can still be legal.** OSC 8
+    hyperlinks, OSC 2 window titles and DECTCEM cursor visibility are
+    structure, and a monochrome terminal must keep them. `statusline.sh`'s
+    `TINT_FABLE` is the one colour exception, and only because it is a 24-bit
+    BACKGROUND and snug's nine roles are all foreground; it is gated on the
+    profile being truecolor so it still honours `NO_COLOR`.
+  - **The painter must be fetched before any suite that renders through it.**
+    `check.yml`'s "snug's painter, at the pinned rev" step writes `HAUS_UI_SH`
+    into `$GITHUB_ENV` for the rest of the job; below a render suite it turns
+    that suite red and makes its role cases SKIP, which reads as passes.
+
+  Three things follow from the wrapper half, and each is a rule rather than a
+  detail:
   - **One coprocess per COMMAND.** `snug run` is opened lazily on the first line
     a command draws and serves every line and every frame after it. A fork is
     ~4.4 ms; per line would be a third of a second in a rebuild. `SNUG_TRIED`

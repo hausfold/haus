@@ -487,16 +487,38 @@ haus_snug() {
   # ui.sh is bash 4+ (`declare -gA`, `${v^^}`). Under macOS's /bin/bash 3.2 it
   # does not degrade — it prints three `bad substitution` / syntax errors and
   # half-loads, which for image-preview.sh means garbage across a full-screen
-  # reader. Two things keep that off the screen and both are asserted: the
-  # shebang, and the BASH_VERSINFO check that is the belt for a thin PATH.
-  local f
-  for f in "$BATS_TEST_DIRNAME/../modules/terminal/scripts/image-preview.sh" \
-           "$BATS_TEST_DIRNAME/../modules/terminal/lanes/lane-open.sh"; do
-    head -1 "$f" | grep -q 'env bash' \
-      || { echo "$f has a /bin/bash shebang and sources a bash-4 painter"; false; }
-    grep -q 'BASH_VERSINFO' "$f" \
-      || { echo "$f sources ui.sh with no bash-version guard"; false; }
-  done
+  # reader. Two things keep that off the screen and both are asserted here.
+  #
+  # image-preview.sh ONLY. lane-open.sh is deliberately not in this list and its
+  # own case is below: it keeps `/bin/bash`, because it never sources ui.sh in
+  # its own shell. Asserting the shebang for both would have passed for the
+  # wrong reason on one of them, which is how a test stops meaning anything.
+  local f="$BATS_TEST_DIRNAME/../modules/terminal/scripts/image-preview.sh"
+  head -1 "$f" | grep -q 'env bash' \
+    || { echo "$f has a /bin/bash shebang and sources a bash-4 painter"; false; }
+  grep -q 'BASH_VERSINFO' "$f" \
+    || { echo "$f sources ui.sh with no bash-version guard"; false; }
+}
+
+@test "lane-open's hold snippet carries the guard, because it is the shell that sources" {
+  # lane-open.sh draws its one line from a single-quoted string handed to the
+  # lane's own `bash -lc`, not from this process — so the version guard has to
+  # live INSIDE that string, and a `grep BASH_VERSINFO "$f"` would be satisfied
+  # by a guard anywhere in the file, including one protecting nothing.
+  #
+  # Extract the snippet the way the script builds it and check the guard is in
+  # THAT text, next to the source it protects.
+  local f="$BATS_TEST_DIRNAME/../modules/terminal/lanes/lane-open.sh" snippet
+  snippet="$(sed -n "/^held=\"\$SCRUFF_COMMAND\"'/,/^exit \"\$rc\"'\$/p" "$f")"
+  [ -n "$snippet" ] || { echo "could not find the held snippet in $f"; false; }
+  grep -q 'HAUS_UI_SH' <<<"$snippet" \
+    || { echo "the held snippet does not reach the painter at all"; false; }
+  grep -q 'BASH_VERSINFO' <<<"$snippet" \
+    || { echo "the held snippet sources ui.sh with no bash-version guard"; false; }
+  # And the file itself keeps /bin/bash: it sources nothing, and scruff may exec
+  # it from launchd, where an absolute interpreter beats an inherited PATH.
+  head -1 "$f" | grep -qx '#!/bin/bash' \
+    || { echo "$f changed shebang without gaining a source of its own"; false; }
 }
 
 @test "neither CLI hardcodes an escape or a glyph index of its own" {

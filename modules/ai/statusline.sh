@@ -126,8 +126,17 @@ fi
 UI_TTY=1
 [ -n "$UI_READY" ] && { ui__detect_profile; ui__resolve_palette; }
 
-# The eleven slots, each an alias onto one of the nine roles. Two collisions,
-# and neither loses anything:
+# The eleven slots, each an alias onto one of the nine roles. Three collisions.
+# Two lose nothing; the third is a real change and is listed so nobody has to
+# rediscover it from the screen:
+#
+#   * DOT (was 108, a green-grey) and DIM (244, grey) both land on `muted`, so
+#     the clean ● now renders in the SAME colour as the cost and the model chip
+#     beside it. Deliberate: 108 and 244 were two hand-picked greys a third of
+#     the way to being the same thing, and nebelung has one `overlay1` for the
+#     one role they were both reaching for. The ● keeps its meaning positionally
+#     — it is the leading glyph of a row, where nothing else can be — and the
+#     header above calls it "a muted ● when clean", which is now literal.
 #
 #   * PURGE (was orange 173) and WARN (was yellow 179) both land on `warn`.
 #     Every PURGE use carries its own glyph — ⏏, ◇, N^ — while WARN's two (the
