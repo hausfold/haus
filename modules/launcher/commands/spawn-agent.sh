@@ -478,7 +478,7 @@ fi
 # caller that happened to need them.
 #
 # Going through the seam rather than opening a window here is still the whole
-# point: one name — holt.<repo>.<lane> — becomes the zmx session, and the Ghostty
+# point: one name — scruff.<repo>.<lane> — becomes the zmx session, and the Ghostty
 # window title AND the tile on T/<repo> whenever a window exists, which is the
 # join every other surface (the bar's go-to, Lanes, resort-windows.sh) reads.
 #

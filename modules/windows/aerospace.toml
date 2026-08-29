@@ -21,7 +21,7 @@ after-login-command = []
 
 # Re-sort once the daemon is up: the startup on-window-detected rule below can
 # only say 'T' (TOML can't derive a workspace from a title), so zmx lane
-# windows — whose page is T/<repo>, read off their forced holt.* title — land
+# windows — whose page is T/<repo>, read off their forced lane title — land
 # on bare T at every AeroSpace (re)start until resort-windows.sh puts them
 # back. The same script the leader's ` runs by hand.
 after-startup-command = ['exec-and-forget @HOME@/.config/aerospace/resort-windows.sh']

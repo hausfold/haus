@@ -5,7 +5,7 @@
 # the pane IS the lane. Here there is no pane, and three things carry a lane
 # instead, all named the same:
 #
-#   zmx session   holt.<repo>.<lane>   the PTY the client actually runs in
+#   zmx session   scruff.<repo>.<lane> the PTY the client actually runs in
 #   Ghostty       --title=<same>       a window looking at that PTY
 #   AeroSpace     workspace T/<repo>   a tile on that repo's own page
 #
@@ -70,7 +70,7 @@ export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/s
 # the time (`scruff spawn`, `scruff child`, `scruff new --open` from a client's
 # shell) but is EVERY ordinary Ghostty window too — scripts/launch.sh makes
 # each one a `term.<n>` session, so a person typing `scruff <name>` in one after
-# a reboot, when no `holt.*` session is left alive and the resume is therefore
+# a reboot, when no lane session is left alive and the resume is therefore
 # a creation, forwards it just the same. That is why both unsets below are
 # unconditional: do NOT gate them behind "is an agent spawning this". Three
 # things in that environment are wrong for the lane being born:
@@ -141,7 +141,14 @@ chat="${SCRUFF_CHAT:-${SCRUFF_PATH:-}}"
 # SCRUFF_MAIN, not SCRUFF_REPO: the latter is a remote slug and is empty for a repo
 # that has never been pushed, which is a perfectly ordinary lane.
 repo="$(basename "${SCRUFF_MAIN:-$chat}")"
-sess="holt.${repo}.${SCRUFF_NAME}"
+# ⚠️ WRITE ONE SPELLING, READ TWO. This prefix was `holt.` through the 1.1.x
+# era and moved with scruff 1.2.0's fin key (its docs/rename.md §8.6). Every
+# READER in this room matches `scruff.*|holt.*`, because a Ghostty window
+# carries the title it was born with until it is closed and a fin on trill's
+# ledge can only be resolved by the key that put it up — so the lanes open at
+# the rebuild that shipped this keep working instead of going quiet. The read
+# arm is dated: it comes out with scruff's, at 1.3.0.
+sess="scruff.${repo}.${SCRUFF_NAME}"
 
 # ── the launcher ─────────────────────────────────────────────────────────────
 # Ghostty's `initial-command` is split shell-style, so passing an already-quoted
@@ -205,7 +212,7 @@ exit "$rc"'
 # never be read from the same place. The tiler-less machine gets the
 # single-instance half — one process, every window enumerable, ids stable,
 # `activate window` able to raise any of them — and pays for it in the window
-# title, which is the client's own rather than `holt.<repo>.<lane>`. With a
+# title, which is the client's own rather than `scruff.<repo>.<lane>`. With a
 # tiler, AeroSpace already sees every process, so the forced title wins there
 # for the reason the note below gives.
 #

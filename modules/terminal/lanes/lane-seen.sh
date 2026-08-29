@@ -34,19 +34,22 @@ dwell="${HAUS_LANE_SEEN_DWELL:-1}"
 
 # ── is any fin up at all? ────────────────────────────────────────────────────
 # scruff writes one empty file per fin it put up, under its state dir, and names
-# it after the key it used — `holt/<repo>/<lane>` with the slashes flattened to
-# dots, which is byte-for-byte the zmx session name lanes/lane-open.sh gives
-# that lane (`holt.<repo>.<lane>`). So the join is string equality and there is
+# it after the key it used — `scruff/<repo>/<lane>` with the slashes flattened
+# to dots, which is byte-for-byte the zmx session name lanes/lane-open.sh gives
+# that lane (`scruff.<repo>.<lane>`). So the join is string equality and there is
 # nothing to parse: `<repo>` may itself carry a dot (hausfold.co), and no split
 # of the session name can tell that dot from the separator.
 #
-# 🚨 That key is still spelled `holt`, and so is the session name, on purpose —
-# it is the ONE string in this room the scruff rename could not take. The key is
-# a literal in the tool (`"holt/" + lane`, internal/commands/notify.go), not
-# something haus chooses, and the marker filename IS the session name. Rename
-# either half here and the join silently stops matching: no error, no log, and
-# every lane's fin stays parked on trill's ledge forever. Both move together,
-# in the release that moves the tool's own key — its docs/rename.md §5.
+# 🚨 Rename either half alone and the join stops matching SILENTLY: no error,
+# no log, and every lane's fin stays parked on trill's ledge forever. The key
+# is a literal in the tool (`askKeyPrefix`, internal/commands/notify.go), not
+# something haus chooses, and the marker filename IS the session name.
+#
+# Both halves moved together at scruff 1.2.0 (its docs/rename.md §8.6) — and
+# neither moved ALONE, which is why this still answers to `holt` too. A fin put
+# up before that rebuild is keyed the old way and can only be resolved by the
+# name that put it up, so the read arm below is what keeps it from being
+# stranded. It comes out at 1.3.0, with scruff's own.
 #
 # It is scruff's CACHE, not its record — scruff says so at internal/commands/
 # notify.go — so it is only ever read here, never written or removed, and a
@@ -57,11 +60,8 @@ dwell="${HAUS_LANE_SEEN_DWELL:-1}"
 # chattier but still correct. A rename of the FILES inside it would be the one
 # shape that fails silently, which is why the naming is spelled out above.
 #
-# The state dir is scruff's own, full stop as of 1.1.0 (docs/rename.md §8.1):
-# $SCRUFF_STATE, then the scruff-named state dir. The holt-named fallback the
-# 1.0.x binary still answered to died with the compat half — a machine that ran
-# the tool before the rename has its leases re-created under the new name, and
-# 90-second leases make that cost nothing.
+# The state dir is scruff's own, full stop: $SCRUFF_STATE, then the
+# scruff-named state dir. There is no second directory to probe.
 state="${SCRUFF_STATE:-}"
 if [ -z "$state" ]; then
   state="${XDG_STATE_HOME:-$HOME/.local/state}/scruff"
@@ -77,9 +77,9 @@ fi
 
 # ── which lane is being looked at? ───────────────────────────────────────────
 # scripts/focused-session.sh is the window → zmx session join every chord in
-# this room uses. A lane's session is named `holt.<repo>.<lane>`; anything else
-# focused — a plain shell, a browser, Finder — either answers with a name that
-# does not start `holt.` or answers nothing.
+# this room uses. A lane's session is named `scruff.<repo>.<lane>`; anything
+# else focused — a plain shell, a browser, Finder — either answers with a name
+# that carries neither lane prefix, or answers nothing.
 #
 # A Claude pane running OUTSIDE any lane gets a fin too (scruff keys it by
 # session id), and this file deliberately cannot resolve those: the window
@@ -90,7 +90,7 @@ focused="$HOME/.config/haus/term/focused-session.sh"
 
 sess="$("$focused" 2>/dev/null)"
 case "$sess" in
-  holt.*) ;;
+  scruff.*|holt.*) ;;
   *) exit 0 ;;
 esac
 
@@ -116,7 +116,12 @@ key="$(
     {
       n = split($2, p, "/")
       if (n == 0 || $1 == "") next
-      if ("holt." p[n] "." $1 == want) { print "holt/" p[n] "/" $1; exit }
+      # Both spellings, and the key printed is the one that MATCHED: a lane
+      # whose window predates the rename is keyed the old way on the ledge and
+      # answers to nothing else. (No apostrophes in here — the whole awk
+      # program is inside a single-quoted shell string.)
+      if ("scruff." p[n] "." $1 == want) { print "scruff/" p[n] "/" $1; exit }
+      if ("holt."   p[n] "." $1 == want) { print "holt/"   p[n] "/" $1; exit }
     }
   ' "$reg"
 )"

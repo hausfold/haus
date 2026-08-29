@@ -7,8 +7,8 @@
 # equally and neither is observable by eye:
 #
 #   * it resolves the RIGHT key. The window layer knows a lane as the zmx
-#     session `holt.<repo>.<lane>`; trill knows the same fin as
-#     `holt/<repo>/<lane>`. No split of the session name can recover that —
+#     session `scruff.<repo>.<lane>`; trill knows the same fin as
+#     `scruff/<repo>/<lane>`. No split of the session name can recover that —
 #     `<repo>` may itself carry a dot (`hausfold.co` is one of ours) — so the
 #     boundary comes from scruff's registry, and the dotted-repo case below is
 #     the one a naive `${sess##*.}` gets wrong every time.
@@ -74,23 +74,23 @@ STUB
 calls() { cat "$CALLS" 2>/dev/null || true; }
 
 @test "a dotted repo name is split where scruff's registry says, not at the last dot" {
-  touch "$SCRUFF_STATE/asks/holt.hausfold.co.ci-main-branch"
-  focus_answers holt.hausfold.co.ci-main-branch holt.hausfold.co.ci-main-branch
+  touch "$SCRUFF_STATE/asks/scruff.hausfold.co.ci-main-branch"
+  focus_answers scruff.hausfold.co.ci-main-branch scruff.hausfold.co.ci-main-branch
 
   run -0 bash "$SUBJECT"
-  [ "$(calls)" = "resolve holt/hausfold.co/ci-main-branch" ]
+  [ "$(calls)" = "resolve scruff/hausfold.co/ci-main-branch" ]
 }
 
 @test "a lane with no fin outstanding costs nothing" {
-  touch "$SCRUFF_STATE/asks/holt.haus.workshop"
-  focus_answers holt.hausfold.co.ci-main-branch holt.hausfold.co.ci-main-branch
+  touch "$SCRUFF_STATE/asks/scruff.haus.workshop"
+  focus_answers scruff.hausfold.co.ci-main-branch scruff.hausfold.co.ci-main-branch
 
   run -0 bash "$SUBJECT"
   [ -z "$(calls)" ]
 }
 
 @test "an empty ask dir stops before the window is even queried" {
-  focus_answers holt.haus.workshop holt.haus.workshop
+  focus_answers scruff.haus.workshop scruff.haus.workshop
 
   run -0 bash "$SUBJECT"
   [ -z "$(calls)" ]
@@ -100,22 +100,22 @@ calls() { cat "$CALLS" 2>/dev/null || true; }
 
 @test "no ask dir at all opens the gate rather than closing it" {
   rm -rf "$SCRUFF_STATE/asks"
-  focus_answers holt.haus.workshop holt.haus.workshop
+  focus_answers scruff.haus.workshop scruff.haus.workshop
 
   run -0 bash "$SUBJECT"
-  [ "$(calls)" = "resolve holt/haus/workshop" ]
+  [ "$(calls)" = "resolve scruff/haus/workshop" ]
 }
 
 @test "focus that moved on again is not a lane you looked at" {
-  touch "$SCRUFF_STATE/asks/holt.haus.workshop"
-  focus_answers holt.haus.workshop term.something-else
+  touch "$SCRUFF_STATE/asks/scruff.haus.workshop"
+  focus_answers scruff.haus.workshop term.something-else
 
   run -0 bash "$SUBJECT"
   [ -z "$(calls)" ]
 }
 
 @test "a window that is not a lane is left alone" {
-  touch "$SCRUFF_STATE/asks/holt.haus.workshop"
+  touch "$SCRUFF_STATE/asks/scruff.haus.workshop"
   focus_answers term.abc123 term.abc123
 
   run -0 bash "$SUBJECT"
@@ -123,8 +123,43 @@ calls() { cat "$CALLS" 2>/dev/null || true; }
 }
 
 @test "a lane the registry has never heard of resolves nothing" {
-  touch "$SCRUFF_STATE/asks/holt.haus.ghost"
-  focus_answers holt.haus.ghost holt.haus.ghost
+  touch "$SCRUFF_STATE/asks/scruff.haus.ghost"
+  focus_answers scruff.haus.ghost scruff.haus.ghost
+
+  run -0 bash "$SUBJECT"
+  [ -z "$(calls)" ]
+}
+
+# ── the read arm, for one release ───────────────────────────────────────────
+#
+# The join was `holt.<repo>.<lane>` / `holt/<repo>/<lane>` until scruff 1.2.0
+# (its docs/rename.md §8.6). A pane open at the rebuild that renamed it keeps
+# the old session name until it closes, and the fin it already parked can only
+# be resolved by the key that put it up — so this file answers to both, and the
+# key it prints is the one that MATCHED. Delete this block with the read arm at
+# 1.3.0.
+
+@test "read arm: a session named before the rename resolves its old key" {
+  touch "$SCRUFF_STATE/asks/holt.haus.workshop"
+  focus_answers holt.haus.workshop holt.haus.workshop
+
+  run -0 bash "$SUBJECT"
+  [ "$(calls)" = "resolve holt/haus/workshop" ]
+}
+
+@test "read arm: the dotted-repo split works on the old spelling too" {
+  touch "$SCRUFF_STATE/asks/holt.hausfold.co.ci-main-branch"
+  focus_answers holt.hausfold.co.ci-main-branch holt.hausfold.co.ci-main-branch
+
+  run -0 bash "$SUBJECT"
+  [ "$(calls)" = "resolve holt/hausfold.co/ci-main-branch" ]
+}
+
+# The two spellings are separate keys, not aliases: resolving the new one for a
+# fin parked under the old would take down nothing and report success.
+@test "read arm: an old session does not resolve the new key" {
+  touch "$SCRUFF_STATE/asks/scruff.haus.workshop"
+  focus_answers holt.haus.workshop holt.haus.workshop
 
   run -0 bash "$SUBJECT"
   [ -z "$(calls)" ]

@@ -23,7 +23,7 @@
 #               real lane never does" (windows/scripts/resort-windows.sh,
 #               scripts/raise-session.sh).
 #   …or its     TITLE, which is the session name, because lanes/lane-open.sh
-#   TITLE       spawns it with `open -na --title holt.<repo>.<lane>` and
+#   TITLE       spawns it with `open -na --title scruff.<repo>.<lane>` and
 #               Ghostty treats that as a FORCED title the client inside can't
 #               clobber with OSC 2. String equality, nothing to look up — and
 #               the LAST resort, for the reason below.
@@ -228,7 +228,7 @@ printf '%s' "$(zmx ls 2>/dev/null)" | awk -F'\t' -v want="$title" -v wid="$wid" 
     # `byid` and not a bare `exit`: awk RUNS THE END BLOCK on exit, so a run
     # that had already banked a title match on an EARLIER row printed the
     # label answer and then the title answer, both. `zmx ls` sorts by name,
-    # which puts every `holt.*` lane ahead of every `term.*`, so this fired
+    # which puts every lane ahead of every `term.*`, so this fired
     # for the commonest shape there is — a plain window born wearing the
     # instance-wide title of a lane, focused, resolving correctly by its own
     # `window=` label on a later row. The caller does
@@ -239,8 +239,8 @@ printf '%s' "$(zmx ls 2>/dev/null)" | awk -F'\t' -v want="$title" -v wid="$wid" 
     # Intermittent only in that it needed a mistitled window AND its namesake
     # lane to still be alive.
     # MEASURED 2026-08-27 against a live `zmx ls`: window 67269 (`term.2`,
-    # titled `holt.haus.spawn-agent-pounce`) answered `term.2` and
-    # `holt.haus.spawn-agent-pounce` on two lines.
+    # titled `holt.haus.spawn-agent-pounce`, the join's spelling at the time)
+    # answered `term.2` and that name on two lines.
     if (wid != "" && (win == wid || alt == wid)) { byid = name; exit }
     # The title is only consulted for a session that has NO window label at
     # all. A session that carries one and did not match `wid` above is, by

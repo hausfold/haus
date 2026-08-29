@@ -38,7 +38,7 @@ windows=$(aerospace list-windows --all --format '%{window-id}|%{app-bundle-id}|%
 
 # Window ids that a zmx session has claimed with a `window=` label. Ghostty's
 # `--title` is INSTANCE-WIDE, so a plain ⌘N window opened into a lane's Ghostty
-# process is born wearing `holt.<repo>.<lane>` — and moving one of those to
+# process is born wearing `scruff.<repo>.<lane>` — and moving one of those to
 # T/<repo> is precisely "a window you did not touch leaving the page you were
 # reading it on". A plain window always has that label and a real lane never
 # does (its session is made by `zmx attach` inside the window, not by
@@ -67,19 +67,22 @@ while IFS='|' read -r id bundle title; do
                 # header says so, which is where a new popup will read it.
                 quick-terminal*) continue ;;
                 # A zmx lane window: its page is derivable from the forced
-                # title (holt.<repo>.<lane> → T/<repo>, the same join
+                # title (scruff.<repo>.<lane> → T/<repo>, the same join
                 # lane-open.sh tiles by), so a re-sort HEALS a lane that a wake
                 # event dumped on the wrong workspace instead of collapsing
                 # every page back onto bare T. Strip the LAST segment, not the
                 # first: the repo basename may itself carry dots (hausfold.co),
                 # the lane name never does.
-                holt.*.*)
+                # Both prefixes: a window born before scruff 1.2.0 renamed
+                # the join wears the old FORCED title for its whole life, and
+                # a re-sort that skipped it would strand it on bare T.
+                scruff.*.*|holt.*.*)
                     if [ -n "$claimed" ] && printf '%s\n' "$claimed" | grep -qFx "$id"; then
                         # Wearing a lane's name, but some session holds it by
                         # id: an ordinary terminal window, so an ordinary page.
                         target="T"
                     else
-                        repo="${title#holt.}"
+                        repo="${title#scruff.}"; repo="${repo#holt.}"
                         target="T/${repo%.*}"
                     fi
                     ;;
