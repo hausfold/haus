@@ -423,24 +423,62 @@ let
   # spoken for; the bottom bar passes whatever haus.bar.bottom.items said. They
   # reference $SURFACE0 (from colors.sh) and $HOME, both live when either rc
   # sources its generated item file.
+  # ---- the barlib framework (docs/bar-framework.md) ---------------------------
+  # A framework widget's block, emitted from the `# widget:` header in its own
+  # script — the file carries the behaviour AND the wiring, so converting a
+  # pill deletes its hand-written block here. `style` is the pill's STATIC
+  # look, the properties the old blocks set at --add time; it stays on the Nix
+  # side because it interpolates options (fonts, palette accents) a header
+  # cannot see, and it may override the two defaults below. Dynamic properties
+  # belong in the widget's render().
+  #
+  # mouse.clicked is always subscribed: whether the widget defines a click
+  # handler is a bash fact the eval can't read, and a spawned no-op on the
+  # rare click of an inert pill costs nothing anyone can feel.
+  widgetManifest = import ./manifest.nix { inherit lib; };
+  frameworkBlock =
+    sb: side: name: style:
+    let
+      m = widgetManifest.parse (./sketchybar/plugins + "/${name}.sh");
+      # A haus.<room>.<event> subscription is a custom event, declared before
+      # anything subscribes to it. Re---add-ing an existing event is a no-op,
+      # so two widgets naming the same signal cost nothing.
+      customEvents = lib.filter (lib.hasPrefix "haus.") m.subscribes;
+      setArgs = lib.filter (s: s != "") (
+        [ (lib.optionalString (m.interval != null) "update_freq=${toString m.interval}") ]
+        ++ lib.mapAttrsToList (k: v: "${k}=${v}") (
+          {
+            "background.color" = "$SURFACE0";
+            "label.font" = ''"${barFont}:Bold:${sizes.label}"'';
+          }
+          // style
+        )
+        ++ [ ''script="$HOME/.config/sketchybar/plugins/${name}.sh"'' ]
+      );
+    in
+    ''
+      ${lib.concatMapStrings (e: ''
+        ${sb} --add event ${e}
+      '') customEvents}
+      ${sb} --add item ${name} ${side} \
+          --set ${name} ${lib.concatStringsSep " " setArgs} \
+          --subscribe ${name} ${lib.concatStringsSep " " m.subscribes} mouse.clicked
+    '';
+
   mkPluginBlocks = sb: side: {
     focus = focusBlock sb side;
     # The clock can opt out of the rice's mono face when its dotted zero reads
     # as an 8 at a glance. Its Nerd Font icon remains in the bar default either
     # way; only the dense date/time label follows clock.monoFont.
-    clock = ''
-      ${sb} --add item clock ${side} \
-          --set clock \
-              update_freq=10 \
-              icon= \
-              icon.color=$PINK \
-              label.font="${clockLabelFont}:Bold:${sizes.label}" \
-              background.color=$MANTLE \
-              background.padding_left=8 \
-              background.padding_right=8 \
-              script="$HOME/.config/sketchybar/plugins/clock.sh" \
-              click_script="open -a 'Notion Calendar'"
-    '';
+    clock = frameworkBlock sb side "clock" {
+      "icon.color" = "$PINK";
+      "background.color" = "$MANTLE";
+      "background.padding_left" = "8";
+      "background.padding_right" = "8";
+      "icon.padding_left" = "8";
+      "icon.padding_right" = "4";
+      "label.font" = ''"${clockLabelFont}:Bold:${sizes.label}"'';
+    };
     # Right-click opens Weather; left-click goes through popToggle so barpop
     # guards the popup on the same bar instance that owns the pill.
     weather = ''
@@ -2252,6 +2290,15 @@ lib.mkIf config.haus.bar.enable {
             name: hex: "export ${lib.toUpper name}=0xff${lib.removePrefix "#" hex}"
           ) nebelungPalette
         )}
+        # The tone ladder (docs/bar-framework.md): the semantic names barlib
+        # widgets paint with — resolved here so nebelung stays the only place
+        # a name becomes a hex, and TONE_ACCENT follows haus.theme.accent.
+        export TONE_MUTE=$OVERLAY0
+        export TONE_OK=$GREEN
+        export TONE_BUSY=$SKY
+        export TONE_WARN=$PEACH
+        export TONE_BAD=$RED
+        export TONE_ACCENT=''$${lib.toUpper config.haus.theme.accent}
       '';
       # The far-left logo pill. BAR_LOGO_COLOR is resolved to a colors.sh
       # VARIABLE REFERENCE rather than a hex: the accent name is a palette key,
@@ -2301,6 +2348,7 @@ lib.mkIf config.haus.bar.enable {
         ".config/sketchybar/workspaces.sh".text = workspacesSh;
         ".config/sketchybar/top_items.sh".text = topItemsSh;
         ".config/sketchybar/bar.sh".text = barSh;
+        ".config/sketchybar/barlib.sh".source = ./sketchybar/barlib.sh;
         ".config/sketchybar/position.sh".text = positionSh;
         ".config/sketchybar/windows_config.sh".text = windowsConfigSh;
         ".config/sketchybar/tour_item.sh".text = tourItemSh;

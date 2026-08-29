@@ -551,9 +551,14 @@ mechanism, say so in one line.
     because a card nobody can act on trains people to skip the ones they can.
     Runtime facts go in `applies`; a runtime LIST goes in `detail`, whose stdout
     prints under the card (theme's ports card names the apps that way).
-- **New SketchyBar plugin**: add
-  `modules/bar/sketchybar/plugins/<name>.sh`, wire it into
-  `modules/bar/sketchybar/sketchybarrc`. Follow an existing plugin.
+- **New SketchyBar plugin**: write it as a **barlib widget**
+  (`docs/bar-framework.md`) — one file in `modules/bar/sketchybar/plugins/`
+  with a `# widget:` header, `fetch()`/`render()`/`on_*()` bodies, and a
+  `frameworkBlock` entry in `mkPluginBlocks` for its static look. `clock.sh`
+  is the reference. The runtime (`barlib.sh`, tested by `test/barlib.bats`)
+  owns `$SB` routing, the `drawing=off`/`updates=on` pairing, tone→hex and
+  the one-batched-call rule, so the bullets below about those only concern
+  the pre-framework plugins — which remain valid and convert on touch.
 - **A plugin that can end up on the SECOND bar must never write `sketchybar`.**
   `haus.bar.bottom.enable` draws a second bar along the bottom, and SketchyBar
   has no two-bars-in-one-process mode: an instance is named `basename(argv[0])`

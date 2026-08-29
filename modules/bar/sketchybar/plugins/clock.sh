@@ -1,29 +1,33 @@
-#!/bin/zsh
+#!/bin/bash
+# clock.sh — the clock pill, as the first barlib widget (docs/bar-framework.md).
+# The item's block is emitted from this header by modules/bar/default.nix's
+# frameworkBlock; only the pill's static look (fonts, the pink icon) stays on
+# the Nix side, because it interpolates options this file cannot see.
+# widget: interval = 10
 
-[ -f "$HOME/.config/sketchybar/clock_config.sh" ] && source "$HOME/.config/sketchybar/clock_config.sh"
 BAR_ITEM=clock
-source "$HOME/.config/sketchybar/bar.sh"
-
-MODE="${BAR_CLOCK_MODE:-full}"
-
-if [ "$MODE" = "compact" ]; then
-    DAY=$(date '+%a')
-    DATE=$(date '+%d/%m' | sed 's/^0//; s/\/0/\//')
-    TIME=$(date '+%l:%M' | tr -d ' ')
-    "$SB" --set "$NAME" \
-        icon="" \
-        icon.padding_left=0 \
-        icon.padding_right=0 \
-        label="${DAY} ${DATE} ${TIME}"
-else
-    DATE=$(date '+%a %b %d')
-    TIME=$(date '+%I:%M %p')
-    ICON=""
-
-    # Update the bar item
-    "$SB" --set "$NAME" \
-        icon="$ICON" \
-        icon.padding_left=8 \
-        icon.padding_right=4 \
-        label="$DATE  $TIME"
+source "$HOME/.config/sketchybar/barlib.sh"
+if [ -f "$HOME/.config/sketchybar/clock_config.sh" ]; then
+    source "$HOME/.config/sketchybar/clock_config.sh"
 fi
+
+fetch() {
+    if [ "${BAR_CLOCK_MODE:-full}" = "compact" ]; then
+        emit mode=compact \
+            label="$(date '+%a') $(date '+%d/%m' | sed 's/^0//; s/\/0/\//') $(date '+%l:%M' | tr -d ' ')"
+    else
+        emit mode=full label="$(date '+%a %b %d')  $(date '+%I:%M %p')"
+    fi
+}
+
+render() {
+    if [ "$mode" = "compact" ]; then
+        pill --icon "" --label "$label"
+    else
+        pill --icon "" --label "$label"
+    fi
+}
+
+on_click() { open -a 'Notion Calendar'; }
+
+barlib_main "$@"
