@@ -15,9 +15,11 @@
 #             components (pill, sb_set). Runs ONLY when the state changed
 #             since the last tick (or SENDER=forced), so a widget whose world
 #             is quiet costs zero sketchybar traffic.
-#   on_click / on_right_click / on_cmd_click / on_alt_click / on_shift_click /
-#   on_ctrl_click / on_scroll — optional; mouse events route here and never
-#   touch fetch or the cache.
+#   on_click / on_right_click / on_middle_click / on_cmd_click /
+#   on_alt_click / on_shift_click / on_ctrl_click / on_scroll / on_hover /
+#   on_unhover — optional; mouse events route here and never touch fetch or
+#   the cache. The button outranks the modifier (⌘-right-click is a right
+#   click); an unhandled chord falls back to on_click.
 #
 # State values must be single-line: the cache is line-serialized, and a value
 # with a newline in it would read back as a key that never matches. emit
@@ -60,24 +62,35 @@ tone() {
 }
 
 # ---- state ------------------------------------------------------------------
+# Emitted keys become shell VARIABLES in render's scope, so a key that names
+# something the runtime itself lives on would clobber it — `emit state=busy`
+# once corrupted the cache write and made the diff repaint every tick forever.
+# The runtime keeps every internal name behind the _barlib/_BARLIB prefix and
+# this list rejects the handful of environment names sketchybar and bar.sh
+# hand us; everything else — `state`, `tone`, `label` included — is the
+# widget's to use.
 emit() {
-    local kv key val
-    for kv in "$@"; do
-        key=${kv%%=*}
-        val=${kv#*=}
-        case "$key" in
+    local _blib_kv _blib_key _blib_val
+    for _blib_kv in "$@"; do
+        _blib_key=${_blib_kv%%=*}
+        _blib_val=${_blib_kv#*=}
+        case "$_blib_key" in
             *[!A-Za-z0-9_]* | [0-9]* | '')
-                echo "barlib: emit: '$kv' is not identifier=value — dropped" >&2
+                echo "barlib: emit: '$_blib_kv' is not identifier=value — dropped" >&2
+                continue
+                ;;
+            _barlib* | _BARLIB* | _blib* | NAME | BAR_ITEM | BAR_NAME | SENDER | BUTTON | MODIFIER | SB | BAR_TOP | BAR_BOTTOM | HOME | PATH | IFS)
+                echo "barlib: emit: '$_blib_key' is a runtime name — dropped" >&2
                 continue
                 ;;
         esac
-        case "$val" in
+        case "$_blib_val" in
             *$'\n'*)
-                echo "barlib: emit: value of '$key' has a newline — dropped" >&2
+                echo "barlib: emit: value of '$_blib_key' has a newline — dropped" >&2
                 continue
                 ;;
         esac
-        _BARLIB_STATE+=("$kv")
+        _BARLIB_STATE+=("$_blib_kv")
     done
 }
 
@@ -150,16 +163,22 @@ bar_emit() {
 
 # ---- dispatch ---------------------------------------------------------------
 _barlib_click() {
+    # The button outranks the modifier: a right-click means the right-click
+    # thing whatever the hand was holding (the weather pill's "right opens
+    # the app" must not vanish under a stray ⌘). Modifier chords are a
+    # left-button vocabulary.
     local handler=on_click
     case "${BUTTON:-}" in
         right) handler=on_right_click ;;
         other) handler=on_middle_click ;;
-    esac
-    case "${MODIFIER:-}" in
-        cmd) handler=on_cmd_click ;;
-        alt) handler=on_alt_click ;;
-        shift) handler=on_shift_click ;;
-        ctrl) handler=on_ctrl_click ;;
+        *)
+            case "${MODIFIER:-}" in
+                cmd) handler=on_cmd_click ;;
+                alt) handler=on_alt_click ;;
+                shift) handler=on_shift_click ;;
+                ctrl) handler=on_ctrl_click ;;
+            esac
+            ;;
     esac
     # A chord nobody handled falls back to the plain click, and a widget with
     # no handlers at all swallows the click silently — same as a pill whose
@@ -179,32 +198,41 @@ _barlib_tick() {
     _BARLIB_STATE=()
     fetch || return 0
 
-    local state=''
+    # Locals here wear the _blib prefix because the eval below writes the
+    # WIDGET'S keys into this same dynamic scope — a bare `local state` would
+    # be clobbered by `emit state=…` between the diff and the cache write.
+    local _blib_state=''
     if [ ${#_BARLIB_STATE[@]} -gt 0 ]; then
-        state=$(printf '%s\n' "${_BARLIB_STATE[@]}" | LC_ALL=C sort)
+        _blib_state=$(printf '%s\n' "${_BARLIB_STATE[@]}" | LC_ALL=C sort)
     fi
 
-    local cache_dir="$HOME/.cache/haus/bar"
-    local cache="$cache_dir/${NAME:-unknown}.state"
-    if [ "${SENDER:-}" != "forced" ] && [ -f "$cache" ] \
-        && [ "$state" = "$(cat "$cache" 2>/dev/null)" ]; then
+    # The skip is safe against a stale cache OUTLIVING the item only because
+    # both rcs end with `--update`, which re-runs every script SENDER=forced
+    # after each reload — and forced bypasses this check. Remove that line
+    # from a rc and every framework pill comes back BLANK from a rebuild,
+    # for as long as its state happens not to change.
+    local _blib_cache_dir="$HOME/.cache/haus/bar"
+    local _blib_cache="$_blib_cache_dir/${NAME:-unknown}.state"
+    if [ "${SENDER:-}" != "forced" ] && [ -f "$_blib_cache" ] \
+        && [ "$_blib_state" = "$(cat "$_blib_cache" 2>/dev/null)" ]; then
         return 0
     fi
 
     # The emitted state, as variables render can read. eval is safe here:
-    # emit validated every key as a bare identifier, and the VALUE is passed
-    # as a variable expansion, never re-parsed.
-    local kv key val
-    while IFS= read -r kv; do
-        if [ -z "$kv" ]; then continue; fi
-        key=${kv%%=*}
-        val=${kv#*=}
-        eval "$key=\$val"
-    done <<<"$state"
+    # emit validated every key as a bare identifier outside the runtime's
+    # reserved names, and the VALUE is passed as a variable expansion, never
+    # re-parsed.
+    local _blib_kv _blib_key _blib_val
+    while IFS= read -r _blib_kv; do
+        if [ -z "$_blib_kv" ]; then continue; fi
+        _blib_key=${_blib_kv%%=*}
+        _blib_val=${_blib_kv#*=}
+        eval "$_blib_key=\$_blib_val"
+    done <<<"$_blib_state"
 
     if declare -F render >/dev/null 2>&1; then render; fi
-    mkdir -p "$cache_dir"
-    printf '%s' "$state" >"$cache"
+    mkdir -p "$_blib_cache_dir"
+    printf '%s' "$_blib_state" >"$_blib_cache"
     return 0
 }
 

@@ -1,9 +1,13 @@
-# The bar framework (design)
+# The bar framework
 
-> Status: **design, pre-implementation.** This document is the schema and API
-> the first PR builds against. Once `barlib` ships, the normative half of this
-> file moves into the code it describes (headers in `barlib.sh`, the manifest
-> keys in the parser) and this file shrinks to the rationale.
+> Status: **phase 1 shipped** — `barlib.sh` (the runtime: dispatch, state
+> diff, `pill`, tones, `bar_emit`), the `# widget:` parser
+> (`modules/bar/manifest.nix`), `frameworkBlock` in `modules/bar/default.nix`,
+> and `clock` as the first converted widget, pinned by `test/barlib.bats`.
+> Sections below marked **planned** describe what the github conversion adds
+> next — popups, the wider component set, the extra manifest keys. The code is
+> normative where the two disagree; a planned key is an EVAL ERROR today, not
+> a silent no-op, so nothing here can be half-used by accident.
 
 ## Why
 
@@ -23,37 +27,39 @@ header, no registry) — and the runtime owns everything the file doesn't say.
 
 ```bash
 #!/bin/bash
-# widget: interval    = 60
-# widget: subscribes  = system_woke, haus.github.delivery
-# widget: popup       = menu
-# widget: permissions = network
+# widget: interval   = 60
+# widget: subscribes = haus.github.delivery
+
+BAR_ITEM=github
+source "$HOME/.config/sketchybar/barlib.sh"
 
 fetch() {                       # impure: gather the world, emit state
   emit count=3 tone=warn label="3 PRs"
 }
 
 render() {                      # pure: state in, components out
-  pill --icon "$ICON_GITHUB" --label "$label" --tone "$tone"
-  popup_row --text "fix: the thing" --tone ok --run "open https://…"
+  pill --icon "" --label "$label" --tone "$tone"
 }
 
-on_click()     { popup toggle; }
-on_cmd_click() { open "https://github.com/pulls"; }
+on_click()     { open "https://github.com/pulls"; }
+
+barlib_main "$@"
 ```
 
+(`clock.sh` is the real, running version of this shape.)
+
 Everything else — which bar instance, event wiring, `updates=`, state caching,
-diffing, popup arming, tone→hex — belongs to the runtime. A widget script
-never calls `sketchybar`, never reads `$BAR_NAME`, never names a hex.
+diffing, tone→hex — belongs to the runtime. A widget script never calls
+`sketchybar`, never reads `$BAR_NAME`, never names a hex. `sb_set` is the
+low-level escape for raw properties on the widget's own item; leaning on it
+for everything is the signal a component is missing.
 
-Three tiers, so the trivial case stays trivial:
+Two tiers today, so the trivial case stays trivial:
 
-1. **`command`** (exists today, unchanged): a script whose stdout is the
-   label, run on a timer. No header needed.
+1. **`command`** (exists, unchanged): a script whose stdout is the label,
+   run on a timer — `haus.bar.widgets.<name>.command`. No header needed.
 2. **framework widget**: the file above. `fetch`/`render` split, optional
-   click handlers, optional popup.
-3. **escape hatch**: a widget may define `raw_setup()` receiving `$SB` and
-   `$SIDE` for the rare pill the components can't express. Using it is a
-   signal the component library is missing something — file the gap.
+   click handlers.
 
 ## The manifest (`# widget:` header)
 
@@ -64,35 +70,44 @@ the single source for wiring — no parallel table edit. Keys:
 |---|---|---|---|
 | `interval` | seconds | none | `update_freq`; omit for purely event-driven |
 | `subscribes` | list | `system_woke` | bar events and haus signals (see Pubsub) |
-| `popup` | `menu` \| `none` | `none` | declares a dropdown; runtime owns toggle + barpop |
-| `permissions` | list | `[]` | feeds the permissions deck, same enum as today |
-| `movable` | bool | `true` | may the pill live on the bottom bar |
+
+Planned keys, landing with the feature that consumes each: `popup` (a
+declared dropdown, runtime-owned toggle + barpop — the github conversion),
+`permissions` (feeds the deck, replacing the `widgets.nix` column), `movable`
+(the bottom-bar gate). The parser's known-key set is grown only in the same
+change that implements a key, so writing a planned key today is an eval
+error naming the file — never a header that parses green and wires nothing.
 
 Unknown keys are an **eval error**, not a silent ignore — the lesson
 `pounce-command-keys` exists to teach, enforced one layer earlier because here
-the parser and the scripts live in the same repo.
+the parser and the scripts live in the same repo, and at eval rather than in
+a flake check because the parse IS the emission's input.
 
 Presentation and registry facts that are prose or policy — `description`,
 `default` — stay in `widgets.nix`; the header carries only what the runtime
-and generator consume. A flake check (`bar-widget-manifests`) asserts every
-bundled widget parses and every header key is known.
+and generator consume.
 
-Third-party widgets keep the existing open form:
-`haus.bar.widgets.<name>.script = ./my-widget.sh` — the header inside that
-file is read the same way (it's a store path; `readFile` works).
+**Planned**: third-party FRAMEWORK widgets through the open form
+(`haus.bar.widgets.<name>` today takes only the timer-driven `command`; a
+`script` field whose header is read the same way is the natural extension —
+it's a store path, `readFile` works).
 
 ## The runtime (`barlib`)
 
-One dispatcher, `barlib-run`, is the `script=`/`click_script=` for every
-framework widget. On invocation it:
+A framework widget sources `barlib.sh` at its top and calls
+`barlib_main "$@"` as its last line — the file itself is the `script=`, so
+running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
+`barlib_main`:
 
-1. sources `bar.sh` → `$SB` (the existing router, absorbed unchanged)
-2. sources the widget file
-3. routes by `$SENDER`:
-   - `mouse.clicked` → `on_click` / `on_cmd_click` / `on_alt_click` /
-     `on_shift_click` / `on_right_click` (parsed from `$BUTTON`/`$MODIFIER`;
-     undefined handlers fall through to `on_click`)
-   - `mouse.scrolled` → `on_scroll` (with `$SCROLL_DELTA`)
+1. has `bar.sh` → `$SB` already sourced (the existing router, absorbed
+   unchanged), plus `colors.sh`/`sizes.sh`, all guarded so a test harness
+   can pre-seed them
+2. routes by `$SENDER`:
+   - `mouse.clicked` → `on_click` / `on_right_click` / `on_middle_click` /
+     `on_{cmd,alt,shift,ctrl}_click` (from `$BUTTON`/`$MODIFIER`; the button
+     outranks the modifier, and an unhandled chord falls back to `on_click`)
+   - `mouse.scrolled` → `on_scroll`; `mouse.entered`/`exited` →
+     `on_hover`/`on_unhover`
    - anything else → `fetch`, then diff, then maybe `render`
 
 **Reactive means: state → diff → render → one batched apply.**
@@ -106,20 +121,24 @@ framework widget. On invocation it:
 - One `$SB` invocation applies the batch. (barpop measured the spawn tax:
   ~4 ms per hand-spawned call — twelve `--set`s as one call, not twelve.)
 
-**Components** (the library; each resolves tones, pads, and fonts from the
-generated theme file so output matches the hand-written pills):
+**Components shipped**:
 
-- `pill --icon --label --tone [--hide]` — the standard readout. `--hide`
-  performs the `drawing=off updates=on` pair; the one-way door ceases to
-  exist as a mistake a widget can make.
+- `pill --icon --label --tone [--label-tone] [--hide]` — the standard
+  readout. `--hide` performs the `drawing=off updates=on` pair; the one-way
+  door ceases to exist as a mistake a widget can make. An empty `--icon`
+  turns the icon off rather than drawing a blank.
+- `sb_set <prop>=<val>…` — the raw-property escape, still batched.
+
+**Components planned** (each lands with the first conversion that needs it —
+the github pill covers most):
+
 - `two_tone_pill` — github.sh's split count/state pill, promoted.
 - `popup_row --text --tone [--icon] [--run <cmd>]` — declarative dropdown
   rows; the runtime does remove/re-add and the `popToggle` + `barpop arm &`
-  dance with its load-bearing ordering.
-- `popup_heading --text --tone`
+  dance with its load-bearing ordering, plus `popup_heading` and
+  `popup toggle|open|close` for handlers.
 - `graph`, `slider`, `badge` — wrap sketchybar's own primitives (vitals,
   media already use them by hand).
-- `popup toggle|open|close` — for handlers.
 
 ## Tones, not colors
 
@@ -136,9 +155,12 @@ pill and snug's role system:
 | `bad` | the load-bearing thing is broken |
 | `accent` | the rice's accent, for identity not status |
 
-Tone→hex resolves in the generated `colors.sh` from `modules/lib/nebelung.nix`
-— the same single-resolver rule the theme room already enforces. A flake check
-pins the tone table the way `theme-variants` pins the flavor table.
+Tone→hex resolves as `TONE_*` exports in the generated `colors.sh`, off the
+same nebelung palette everything else uses — the single-resolver rule the
+theme room already enforces. An unknown tone paints mute and warns on stderr:
+a typo costs a grey pill, never a pill that stops painting. **Planned**: a
+flake check pinning the tone table the way `theme-variants` pins the flavor
+table.
 
 ## Pubsub
 
@@ -150,8 +172,10 @@ pins the tone table the way `theme-variants` pins the flavor table.
   `--add event` per distinct name and subscribes the widget. Producers fire
   them with `bar_emit <event> [key=value…]` (a barlib helper that triggers
   BOTH bars — the "anything that pokes a bar pokes both" rule, in code).
-  Existing producers bridge in: the github room's delivery signal, focus
-  changes, `agent-state`.
+  **Planned**: bridging the existing producers in — the github room's
+  delivery signal, focus changes, `agent-state` — so a widget can subscribe
+  to them by name. No widget subscribes to a haus signal yet, so this path
+  is wired but unexercised until then.
 - Widgets may `bar_emit` too — inter-widget signaling without knowing names.
 
 ## Why not SbarLua
@@ -183,12 +207,14 @@ Lua (or Go daemon) runtime would consume, so nothing built now is thrown away.
 
 ## Migration order
 
-1. **barlib.sh + dispatcher + tone table** — pure addition, nothing breaks.
-2. **clock** — smallest pill, proves the end-to-end path (header → generator
-   → dispatcher → render).
+1. ✅ **barlib.sh + runtime + tone table** — pure addition, nothing breaks.
+2. ✅ **clock** — smallest pill, proves the end-to-end path (header →
+   generator → runtime → render). `test/barlib.bats` pins the runtime.
 3. **github** — the maximal pill (sources, popup, ladder, two-tone); proves
    the API is *sufficient*. Gaps found here change the schema — that's why
-   it's second, before the schema calcifies.
-4. Flake checks: `bar-widget-manifests`, tone table golden.
+   it's next, before the schema calcifies, and it brings the `popup` key and
+   the popup components with it.
+4. `permissions` / `movable` manifest keys, the tone-table golden check,
+   third-party framework widgets through `haus.bar.widgets`.
 5. Long tail: convert on touch. A converted pill deletes its block from
    `mkPluginBlocks`; the framework wins when `mkPluginBlocks` is empty.

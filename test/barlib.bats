@@ -163,6 +163,38 @@ b"
   [ "$(calls)" = 0 ]
 }
 
+@test "a state key named like a runtime local cannot poison the diff" {
+  # The reviewer's repro: `emit state=busy` once landed the VALUE in the
+  # cache file (the eval clobbered the runtime's own `state` between diff
+  # and write), so the diff never settled and the pill repainted forever.
+  for _ in 1 2 3; do
+    NAME=w SENDER=routine widget '
+      fetch() { emit state=busy label=x; }
+      render() { pill --label "$label $state"; }
+    '
+  done
+  [ "$(calls)" = 1 ]
+  grep -q 'label=x busy' "$SB_LOG"
+}
+
+@test "emit refuses runtime names loudly" {
+  NAME=w SENDER=routine widget '
+    fetch() { emit NAME=evil good=1; }
+    render() { pill --label "$good"; }
+  ' 2>"$BATS_TEST_TMPDIR/err"
+  grep -q 'runtime name' "$BATS_TEST_TMPDIR/err"
+  grep -q -- '--set w' "$SB_LOG"
+  ! grep -q -- '--set evil' "$SB_LOG"
+}
+
+@test "the button outranks the modifier on a click" {
+  NAME=w SENDER=mouse.clicked BUTTON=right MODIFIER=cmd widget '
+    on_right_click() { sb_set label=right; }
+    on_cmd_click() { sb_set label=cmd; }
+  '
+  grep -q 'label=right' "$SB_LOG"
+}
+
 @test "widgets cache per item name, not per file" {
   NAME=a SENDER=routine widget 'fetch() { emit n=1; }; render() { pill --label "$n"; }'
   NAME=b SENDER=routine widget 'fetch() { emit n=1; }; render() { pill --label "$n"; }'
