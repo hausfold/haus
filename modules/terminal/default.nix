@@ -1605,6 +1605,43 @@ in
         ".config/opencode/plugin/haus-agent-state.js".text =
           builtins.replaceStrings [ "@AGENT_STATE@" ] [ "/run/current-system/sw/bin/agent-state" ]
             (builtins.readFile ./opencode/agent-state.js);
+
+        # pi's half of the same thing — and of the LANE BANNERS, which is where
+        # it stops resembling the block above it. pi has one seam, not two: no
+        # hook file to append a second command to, so the one extension reports
+        # state to `agent-state` AND hands `scruff hook notify` the same
+        # Claude-shaped payload the Claude Code merge below wires four events
+        # of. Everything downstream of those four event names — the lane
+        # lookup, the fin key, the "Go to lane" action, the resolve — is
+        # client-agnostic, so a pi lane's trill fin is the Claude path's, not a
+        # second copy of it. The file's own header carries the event map and
+        # the two pi-only banners (a failed compaction, a provider refusing the
+        # session) that go through `haus-notify` instead, having nothing to
+        # resolve them.
+        #
+        # NOT gated on pi being in `ai.clients`, unlike the settings merge
+        # below: this file is inert without pi, so it costs a machine without
+        # one nothing and hands a hand-installed pi a working pill and working
+        # banners — the same reasoning as the Claude Code block, and the
+        # opposite of `piSettings`, which seeds a list of npm sources to fetch
+        # and so must not be written for a client that is not here.
+        #
+        # A `.ts` FILE and not a directory: pi discovers `extensions/*.ts`
+        # (symlinks included — this one is a home-manager link into the store)
+        # one level deep, so a bare file is the smallest thing that works and
+        # cannot collide with a host that wires its own extension DIRECTORY
+        # beside it. Three absolute /run/current-system paths, for the reason
+        # the opencode plugin gives: an extension runs inside pi's own process,
+        # which is given no PATH guarantees.
+        ".pi/agent/extensions/haus-agent-state.ts".text =
+          builtins.replaceStrings
+            [ "@AGENT_STATE@" "@SCRUFF@" "@HAUS_NOTIFY@" ]
+            [
+              "/run/current-system/sw/bin/agent-state"
+              "/run/current-system/sw/bin/scruff"
+              "/run/current-system/sw/bin/haus-notify"
+            ]
+            (builtins.readFile ./pi/agent-state.ts);
       }
       # Helix nebelung theme, from the nebelung flake. This used to be a
       # hand-written [palette] block inheriting helix's BUILT-IN

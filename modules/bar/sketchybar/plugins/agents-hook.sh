@@ -1,6 +1,6 @@
 #!/bin/bash
 # agents-hook.sh — the single writer of agent state, and it is CLIENT-AGNOSTIC:
-# Claude Code, Codex and OpenCode all report through this one script.
+# Claude Code, Codex, OpenCode and pi all report through this one script.
 # Each client runs it from its own lifecycle hooks, and because those hooks are
 # children of an agent process living INSIDE a zmx session, they inherit
 # $ZMX_SESSION — so each agent self-reports its exact state AND the handle
@@ -20,6 +20,13 @@
 #                    session-end event, so nothing ever reports `remove` for one
 #                    of its windows — and nothing has to: its state lives as
 #                    LABELS on the zmx session and dies with it.
+#   • pi           — ~/.pi/agent/extensions/haus-agent-state.ts (written by
+#                    terminal), pi's one seam: input/agent_start→working, an
+#                    ask TOOL starting→waiting (pi has no permission prompt to
+#                    map, so a tool whose execution is a question stands in),
+#                    agent_settled→idle, session_shutdown→remove. It carries
+#                    the lane's trill banners too — `scruff hook notify` — for
+#                    want of a second hook to hang them on.
 #
 # TWO STORES, picked by where the agent is sitting:
 #   • a zmx session — every terminal agent, lane or plain window. Its state goes
@@ -48,7 +55,7 @@
 # claude-statusline already writes a richer session → transcript PATH join. This
 # is for the clients that have no statusline of their own to carry it.
 #
-#   usage: agents-hook.sh <working|waiting|idle|remove> [claude|codex|opencode] [session-id]
+#   usage: agents-hook.sh <working|waiting|idle|remove> [claude|codex|opencode|pi] [session-id]
 set -u
 DIR=/tmp/haus-agents
 # An agent hook can arrive with a bare PATH, and `zmx` lives on the nix profile
