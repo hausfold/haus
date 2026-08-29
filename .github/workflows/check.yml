@@ -385,6 +385,15 @@ jobs:
       - name: phase painter and colour gate
         run: bats test/phase-painter.bats
 
+      # The bar widget runtime (docs/bar-framework.md). Every promise barlib
+      # makes fails silently on a live bar: a diff that never settles repaints
+      # a quiet pill forever, one that over-matches freezes a pill on stale
+      # data, and a --hide without updates=on is a pill no event can bring
+      # back — the one-way door the framework exists to close. Hermetic: fake
+      # $HOME, a recorder standing in for sketchybar. Needs only bash + bats.
+      - name: barlib runtime tests
+        run: bats test/barlib.bats
+
       # lane-seen's other half of that join, read backwards: the focused
       # window's session name back to the trill key scruff gave that lane's fin.
       # The boundary between `<repo>` and `<lane>` cannot be found in the string
