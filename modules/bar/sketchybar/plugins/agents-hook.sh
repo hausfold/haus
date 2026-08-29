@@ -164,7 +164,7 @@ if [ -n "${ZMX_SESSION:-}" ]; then
   # `scruff.<repo>.<lane>` by construction (terminal/lanes/lane-open.sh).
   # Anything not opened by that hook keeps the old cwd-basename answer.
   label="${ZMX_SESSION##*.}"
-  case "$ZMX_SESSION" in scruff.*.*|holt.*.*) ;; *) label=$(basename "${CLAUDE_PROJECT_DIR:-$PWD}") ;; esac
+  case "$ZMX_SESSION" in scruff.*.*) ;; *) label=$(basename "${CLAUDE_PROJECT_DIR:-$PWD}") ;; esac
   # zmx rejects a label value containing anything outside [a-zA-Z0-9-_.], and it
   # rejects the WHOLE `set` when one value is bad — so an exotic directory name
   # would silently cost this lane its state, not just its label. Fold the rest

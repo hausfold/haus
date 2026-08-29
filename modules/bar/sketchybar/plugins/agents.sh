@@ -360,11 +360,8 @@ if [ "${1:-}" = "row" ] && [ "${2:-}" = "zmx" ]; then
           {
             n = split($2, p, "/")
             if (n == 0 || $1 == "") next
-            # Both spellings: a session opened before scruff 1.2.0 renamed
-            # the join keeps the old name until its pane closes. Drop the
-            # second arm at 1.3.0. (No apostrophes — single-quoted awk.)
+            # (No apostrophes — single-quoted awk.)
             if ("scruff." p[n] "." $1 == want) { print p[n] "/" $1; exit }
-            if ("holt."   p[n] "." $1 == want) { print p[n] "/" $1; exit }
           }
         ' "$reg"
       )"
@@ -696,10 +693,8 @@ if [ "${SENDER:-}" = "mouse.clicked" ] || [ "${1:-}" = "click" ]; then
       # join entirely and silently fell through to the cwd one.
       namekey=""
       if [ "$kind" = zmx ]; then
-        # Both prefixes while pre-1.2.0 sessions can still be alive.
         case "$target" in
           scruff.*.*) namekey="${target#scruff.}" ;;
-          holt.*.*)   namekey="${target#holt.}" ;;
         esac
       fi
 

@@ -141,13 +141,12 @@ chat="${SCRUFF_CHAT:-${SCRUFF_PATH:-}}"
 # SCRUFF_MAIN, not SCRUFF_REPO: the latter is a remote slug and is empty for a repo
 # that has never been pushed, which is a perfectly ordinary lane.
 repo="$(basename "${SCRUFF_MAIN:-$chat}")"
-# ⚠️ WRITE ONE SPELLING, READ TWO. This prefix was `holt.` through the 1.1.x
-# era and moved with scruff 1.2.0's fin key (its docs/rename.md §8.6). Every
-# READER in this room matches `scruff.*|holt.*`, because a Ghostty window
-# carries the title it was born with until it is closed and a fin on trill's
-# ledge can only be resolved by the key that put it up — so the lanes open at
-# the rebuild that shipped this keep working instead of going quiet. The read
-# arm is dated: it comes out with scruff's, at 1.3.0.
+# ⚠️ This prefix is half of a JOIN and is not haus's to choose: it has to match
+# scruff's fin key (`askKeyPrefix`, internal/commands/notify.go) byte for byte,
+# because the marker file scruff writes IS this session name with the slashes
+# flattened. Rename it here alone and lane-seen.sh stops joining silently.
+# The 1.2.0 move of both halves shipped a release apart with a read arm on
+# each side, for exactly that reason; both came out at 1.3.0.
 sess="scruff.${repo}.${SCRUFF_NAME}"
 
 # ── the launcher ─────────────────────────────────────────────────────────────
@@ -226,7 +225,7 @@ fi
 
 # ── a lane that does not take the screen ─────────────────────────────────────
 # HAUS_LANE_BACKGROUND=1 opens the lane WITHOUT you seeing or feeling it — and
-# it still opens a real WINDOW: named holt.<repo>.<lane>, tiled onto T/<repo>,
+# it still opens a real WINDOW: named scruff.<repo>.<lane>, tiled onto T/<repo>,
 # with the client on its prompt. You stay exactly where you were and go and read
 # it when you are ready (⌃⇥, the Lanes palette, the agents pill). "Background"
 # here is the opposite of "follow it there", NOT the opposite of "exists".
@@ -286,7 +285,7 @@ fi
 # NEVER RUNS — so no zmx session, no client, no lane: a Dock icon and nothing
 # else. Nothing downstream could catch it either, because `open -na` returns
 # the moment LaunchServices accepts (spawn-agent.sh's own note says so), so
-# `holt spawn` exited 0 and the palette posted "… is working" over a lane that
+# `scruff spawn` exited 0 and the palette posted "… is working" over a lane that
 # had never started. That was every ⌃↵ spawn until this note.
 #
 # The direct exec is the answer `open -g` was reaching for, and it degrades
@@ -297,14 +296,14 @@ fi
 # needs it every time, and the direct exec keeps it as a regression net that
 # only fires if the lane's own instance somehow ended up holding focus.
 #
-# The palette's Spawn Agent sets it on ⌃↵, and it reaches here through `holt
-# spawn` because holt hands a seam os.Environ(). That same inheritance is why
+# The palette's Spawn Agent sets it on ⌃↵, and it reaches here through `scruff
+# spawn` because scruff hands a seam os.Environ(). That same inheritance is why
 # it is DROPPED the instant it has been read, before either `open` below: the
 # variable would otherwise be part of the environment of the Ghostty PROCESS
 # this script starts, and every surface that instance goes on to make — the
 # cold-started instance's own first window, anything new-window.sh's
 # AppleScript lands there — would inherit it. A shell in one of those windows
-# would then have ⌘↵ and `holt <name>` silently open in the background with
+# would then have ⌘↵ and `scruff <name>` silently open in the background with
 # nothing on screen to say why. Same early-drop launch.sh does for
 # HAUS_TERM_WORKSPACE and HAUS_ZMX_ATTACH, for the same reason.
 bg=""

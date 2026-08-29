@@ -181,12 +181,8 @@ open_lane() {
 # `scruff.<repo>.<lane>` → `<repo>/<lane>`, scruff's own address for the lane.
 # The lane name is dot-free and a repo name is not (hausfold.co), so the split
 # is at the LAST dot, never the first.
-#
-# Both prefixes: a session that predates scruff 1.2.0's rename of the join is
-# still alive and still named `holt.…` until its pane closes. Drop the second
-# strip at 1.3.0.
 lane_address() {
-  local rest="${1#scruff.}"; rest="${rest#holt.}"
+  local rest="${1#scruff.}"
   printf '%s/%s\n' "${rest%.*}" "${rest##*.}"
 }
 
@@ -256,14 +252,7 @@ rows="$(
       ) as $icons
     | [ .lanes[]?
         | (.main | split("/") | last) as $repo
-        # The live table is the authority on which spelling this session
-        # actually has: lanes opened before scruff 1.2.0 renamed the join are
-        # still `holt.…` until their panes close. Prefer the new name, fall
-        # back to the old one only when zmx is holding it. Drop at 1.3.0.
-        | "scruff.\($repo).\(.name)" as $new
-        | "holt.\($repo).\(.name)" as $old
-        | (if ($live[$new] // null) == null and ($live[$old] // null) != null
-           then $old else $new end) as $sess
+        | "scruff.\($repo).\(.name)" as $sess
         | (if ($live[$sess].state // "") != "" then $live[$sess].state else .state end) as $state
         # No trailing "  —  " on a lane with no commits yet: a dangling em
         # dash reads as a truncated subject rather than as an empty one.
@@ -280,9 +269,8 @@ rows="$(
         # bar `.` is $seen, an array, and `.key` on an array is an error jq
         # reports at runtime — which `2>/dev/null` turns into an empty picker.
         | .key as $sess
-        | select((($sess | startswith("scruff.")) or ($sess | startswith("holt.")))
-                 and (($seen | index($sess)) == null))
-        | ($sess | ltrimstr("scruff.") | ltrimstr("holt.") | split(".")) as $p
+        | select(($sess | startswith("scruff.")) and (($seen | index($sess)) == null))
+        | ($sess | ltrimstr("scruff.") | split(".")) as $p
         | { sess: $sess, repo: ($p[:-1] | join(".")), lane: ($p[-1]),
             state: (if .value.state != "" then .value.state else "live" end),
             detail: (.value.dir // "") }
@@ -371,12 +359,8 @@ case "$picked" in
   *" · "*)
     repo="${picked%% · *}"
     lane="${picked##* · }"
-    # Both spellings before giving up on a window: one born before scruff
-    # 1.2.0 renamed the join wears the old FORCED title until it is closed, and
-    # falling through to open_lane would spawn a second window for a live lane.
     sess="scruff.${repo}.${lane}"
     focus_session "$sess" && exit 0
-    focus_session "holt.${repo}.${lane}" && exit 0
     # No window: parked (or the window was ⌘W'd). scruff's open seam spawns it back.
     open_lane "$repo" "$lane"
     ;;
@@ -431,8 +415,8 @@ while IFS=$'\t' read -r sess _state _client _dir; do
   hit="$(cat "$tmp/$i" 2>/dev/null)"
   [ -n "$hit" ] || continue
   case "$sess" in
-    scruff.*|holt.*)
-      rest="${sess#scruff.}"; rest="${rest#holt.}"
+    scruff.*)
+      rest="${sess#scruff.}"
       title="${rest%.*} · ${rest##*.}"
       ;;
     *) title="$sess" ;;
@@ -474,7 +458,7 @@ focus_session "$sess" && exit 0
 # for a lane. A `term.<n>` shell is not a scruff address, and handing one to
 # `scruff` spawns a lane in a repo named "term".
 case "$sess" in
-  scruff.*|holt.*)
+  scruff.*)
     address="$(lane_address "$sess")"
     rm -rf "$tmp"
     trap - EXIT

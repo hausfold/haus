@@ -737,16 +737,15 @@ mechanism, say so in one line.
   the session name IS the marker name and the two have to match byte for byte.
   Rename either half here and `lanes/lane-seen.sh` silently stops joining: no
   error, no log, and every lane's fin stays parked forever.
-  - ⚠️ **The prefix was `holt.` until scruff 1.2.0, and every READER in this
-    room still matches `scruff.*|holt.*`.** That is not compat for other
-    people's machines — it is for the rebuild itself: a Ghostty window carries
-    its FORCED title until it is closed, and a fin already on trill's ledge can
-    only be resolved by the key that put it up, so the lanes open at the moment
-    of the switch would otherwise lose their window-sort and their
-    banner-resolve. Write one spelling, read two. **The read arm is dated: it
-    comes out with scruff's own at 1.3.0**, and its tests
-    (`test/lane-seen.bats`, `test/raise-session-lane-join.bats`) name
-    themselves for deletion. scruff's side is its `docs/rename.md` §8.6.
+  - ⚠️ **Moving that prefix takes two releases, not one.** It was `holt.`
+    until scruff 1.2.0, and the way it moved is the pattern to reuse: each
+    half wrote the new spelling and kept READING the old one for one release,
+    then dropped the read arm at 1.3.0. Not compat for other people's machines
+    — for the rebuild itself, because a Ghostty window carries its FORCED
+    title until it is closed and a fin already on trill's ledge can only be
+    resolved by the key that put it up. Without the arm, every lane open at
+    the moment of the switch loses its window-sort and its banner-resolve.
+    Write one spelling, read two, and date the arm in the comment that adds it.
   `scripts/focused-session.sh` is the one window→session join — by window id,
   which is the `lwindow=` label lanes/lane-open.sh stamps for a lane and the
   `window=` one launch.sh stamps for everything else, and only then by the
