@@ -21,12 +21,13 @@
 # Deferring instead sends scruff through resume → lane-open.sh, and the window
 # that appears is a lane's, not a shell that happens to hold one.
 #
-# Since lane-open.sh's background spawn stopped opening a window at all, that
-# defer is not an edge case any more — it is how EVERY background lane gets its
-# first window. Clicking a "… is working" banner lands here, finds nothing to
-# raise, defers, and resume opens the lane properly placed on T/<repo>. Anything
-# that "fixes" this script by reaching for --or-open takes that away and leaves
-# a bare untiled window in its place.
+# A background lane HAS a window from the moment it spawns (lane-open.sh's
+# background note), so the common path through here is a plain raise. The defer
+# is for the lane whose window was closed with ⌘W while the session kept
+# thinking, and for the spawn whose window has not been tiled yet — and it is
+# the reason not to "fix" this script by reaching for --or-open, which answers
+# with a bare untiled window born on whatever page you are standing on instead
+# of a lane's own window on T/<repo>.
 set -u
 
 # The situation arrives as SCRUFF_* (scruff's action-seam protocol; stdin belongs

@@ -49,7 +49,8 @@
 #
 # ── the prompt step's five Returns, and the chip beside them ─────────────────
 #
-#   ↵    spawn — in the BACKGROUND: nothing appears anywhere
+#   ↵    spawn — in the BACKGROUND: the lane's window opens on T/<repo>
+#        without ever reaching your screen
 #   ⇧↵   newline — the task is often a list, not a sentence
 #   ⌘↵   capture a screenshot first, then spawn (this used to be a whole second
 #        palette entry, "Spawn Agent with Screenshot")
@@ -80,8 +81,9 @@
 # HAUS_LANE_BACKGROUND, read by ~/.config/haus/lanes/lane-open.sh — so this is
 # purely which one you get for free. The worktree, the branch and the zmx
 # session are made exactly as usual in both, and the client starts on the prompt
-# in both. The WINDOW is the difference: ⌃↵ opens it now, tiled on T/<repo>, and
-# ↵ opens none at all until something goes looking for the lane.
+# in both, and BOTH open a window, tiled on T/<repo>. What differs is whether
+# that window reaches you: ⌃↵ brings you to it, ↵ leaves you exactly where you
+# were standing.
 #
 # Backgrounding is the right default because of what a spawn IS: you describe a
 # task in a sentence and hand it to somebody else. Almost none of those are the
@@ -90,16 +92,15 @@
 # agents pill). Making the common case the plain Return means the palette can
 # get out of the way completely: box → gone → banner when the lane is up.
 #
-# Nothing else moves while that happens, and the reason is that a backgrounded
-# lane opens NO WINDOW: it is a detached zmx session with the client on its
-# prompt, and the window is born the first time you go to it (the banner, the
-# agents pill, the Lanes palette — all three end at a properly tiled lane
-# window). So there is nothing to flash and nothing to hand focus back to. Two
-# earlier attempts to keep a real window and make its birth quiet — `open -g`,
-# then a direct exec at a clamped off-screen position — are written up where the
-# silence lives, ~/.config/haus/lanes/lane-open.sh; this script only ever set the
-# variable. The one thing to know here: a background lane is NOT on T/<repo>
-# until you have opened it once.
+# Nothing else moves while that happens: the lane's Ghostty is exec'd from the
+# app bundle directly, so LaunchServices never activates anything, and the
+# window is asked for at a position macOS clamps into a corner until the
+# self-tile moves it to T/<repo>. How that is done, what `open -g` cost when it
+# was tried, and the one release when a background lane had no window at all,
+# are all written up where the silence lives —
+# ~/.config/haus/lanes/lane-open.sh. This script only ever sets the variable.
+# The thing to know here: a background lane IS on T/<repo> from the moment it
+# spawns, so ⌃⇥ finds it without your having opened it first.
 #
 # ⌃↵ is for the spawn you ARE about to work in: the lane window comes to you and
 # stays, and there is no notification because you are looking at it.
