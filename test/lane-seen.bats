@@ -129,38 +129,3 @@ calls() { cat "$CALLS" 2>/dev/null || true; }
   run -0 bash "$SUBJECT"
   [ -z "$(calls)" ]
 }
-
-# ── the read arm, for one release ───────────────────────────────────────────
-#
-# The join was `holt.<repo>.<lane>` / `holt/<repo>/<lane>` until scruff 1.2.0
-# (its docs/rename.md §8.6). A pane open at the rebuild that renamed it keeps
-# the old session name until it closes, and the fin it already parked can only
-# be resolved by the key that put it up — so this file answers to both, and the
-# key it prints is the one that MATCHED. Delete this block with the read arm at
-# 1.3.0.
-
-@test "read arm: a session named before the rename resolves its old key" {
-  touch "$SCRUFF_STATE/asks/holt.haus.workshop"
-  focus_answers holt.haus.workshop holt.haus.workshop
-
-  run -0 bash "$SUBJECT"
-  [ "$(calls)" = "resolve holt/haus/workshop" ]
-}
-
-@test "read arm: the dotted-repo split works on the old spelling too" {
-  touch "$SCRUFF_STATE/asks/holt.hausfold.co.ci-main-branch"
-  focus_answers holt.hausfold.co.ci-main-branch holt.hausfold.co.ci-main-branch
-
-  run -0 bash "$SUBJECT"
-  [ "$(calls)" = "resolve holt/hausfold.co/ci-main-branch" ]
-}
-
-# The two spellings are separate keys, not aliases: resolving the new one for a
-# fin parked under the old would take down nothing and report success.
-@test "read arm: an old session does not resolve the new key" {
-  touch "$SCRUFF_STATE/asks/scruff.haus.workshop"
-  focus_answers holt.haus.workshop holt.haus.workshop
-
-  run -0 bash "$SUBJECT"
-  [ -z "$(calls)" ]
-}

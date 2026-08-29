@@ -76,13 +76,13 @@ while IFS='|' read -r id bundle title; do
                 # Both prefixes: a window born before scruff 1.2.0 renamed
                 # the join wears the old FORCED title for its whole life, and
                 # a re-sort that skipped it would strand it on bare T.
-                scruff.*.*|holt.*.*)
+                scruff.*.*)
                     if [ -n "$claimed" ] && printf '%s\n' "$claimed" | grep -qFx "$id"; then
                         # Wearing a lane's name, but some session holds it by
                         # id: an ordinary terminal window, so an ordinary page.
                         target="T"
                     else
-                        repo="${title#scruff.}"; repo="${repo#holt.}"
+                        repo="${title#scruff.}"
                         target="T/${repo%.*}"
                     fi
                     ;;

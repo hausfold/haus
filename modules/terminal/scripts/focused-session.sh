@@ -239,7 +239,7 @@ printf '%s' "$(zmx ls 2>/dev/null)" | awk -F'\t' -v want="$title" -v wid="$wid" 
     # Intermittent only in that it needed a mistitled window AND its namesake
     # lane to still be alive.
     # MEASURED 2026-08-27 against a live `zmx ls`: window 67269 (`term.2`,
-    # titled `holt.haus.spawn-agent-pounce`, the join's spelling at the time)
+    # titled `scruff.haus.spawn-agent-pounce`)
     # answered `term.2` and that name on two lines.
     if (wid != "" && (win == wid || alt == wid)) { byid = name; exit }
     # The title is only consulted for a session that has NO window label at

@@ -185,7 +185,7 @@ while IFS= read -r sess; do
   case "$sess" in
     # Both prefixes: a parked session from before scruff 1.2.0 renamed the join
     # is restored by name, and the name it was parked under is the old one.
-    scruff.*|holt.*)
+    scruff.*)
       # --or-open: the session has no window by definition here, so this is
       # always the open path. raise-session.sh owns the forced title and the
       # backend split. </dev/null because this loop is reading the parked list

@@ -49,10 +49,5 @@ raise="$HOME/.config/haus/term/raise-session.sh"
 # Exit 0 = a window was raised and scruff is done. Exit 1 from raise-session.sh
 # means no window holds this session — it is detached and still running, which
 # is a defer here, not a failure.
-# Both spellings, newest first. A window born before scruff 1.2.0 renamed the
-# join still wears `holt.<repo>.<lane>` as its FORCED title and keeps it until
-# it is closed — without this arm, focusing one of those raises nothing and
-# scruff falls back to resume, which opens a SECOND window for a live lane.
-# Delete the fallback at 1.3.0 with the rest of the read arm.
-"$raise" "$sess" >/dev/null 2>&1 || "$raise" "holt.$lane" >/dev/null 2>&1 || exit 3
+"$raise" "$sess" >/dev/null 2>&1 || exit 3
 exit 0

@@ -246,11 +246,11 @@ build_corpus() {
     # No de-duplication pass here, unlike the zellij version, which had to
     # number `workshop.1`, `workshop.2` because several panes could share one
     # tab name. A zmx session name is unique by construction.
-    # Both prefixes, and this was live-broken before scruff 1.2.0: the `sub`
-    # was flipped to `scruff\.` during the rename while lane-open.sh was still
-    # writing `holt.`, so every lane row carried its full prefix in the one
-    # column whose job is telling rows apart. Drop the second `sub` at 1.3.0.
-    awk -F'\t' '{ n = $1; sub(/^scruff\./, "", n); sub(/^holt\./, "", n); printf "%s\t%s\n", $1, n }' \
+    # This column was live-broken for a release: the `sub` was flipped to
+    # `scruff\.` during the rename while lane-open.sh was still writing the old
+    # prefix, so every lane row carried its full prefix in the one column whose
+    # job is telling rows apart. Keep the two spellings in step.
+    awk -F'\t' '{ n = $1; sub(/^scruff\./, "", n); printf "%s\t%s\n", $1, n }' \
         "$dir/panes.raw" >"$dir/labels.tsv"
 
     : >"$dir/panes.tsv"

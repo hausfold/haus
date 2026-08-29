@@ -45,11 +45,9 @@ dwell="${HAUS_LANE_SEEN_DWELL:-1}"
 # is a literal in the tool (`askKeyPrefix`, internal/commands/notify.go), not
 # something haus chooses, and the marker filename IS the session name.
 #
-# Both halves moved together at scruff 1.2.0 (its docs/rename.md §8.6) — and
-# neither moved ALONE, which is why this still answers to `holt` too. A fin put
-# up before that rebuild is keyed the old way and can only be resolved by the
-# name that put it up, so the read arm below is what keeps it from being
-# stranded. It comes out at 1.3.0, with scruff's own.
+# Both halves moved together at scruff 1.2.0, and neither moved ALONE — the
+# release in between wrote the new spelling and answered to both, so no fin
+# open at the rebuild was stranded. That arm came out at 1.3.0.
 #
 # It is scruff's CACHE, not its record — scruff says so at internal/commands/
 # notify.go — so it is only ever read here, never written or removed, and a
@@ -90,7 +88,7 @@ focused="$HOME/.config/haus/term/focused-session.sh"
 
 sess="$("$focused" 2>/dev/null)"
 case "$sess" in
-  scruff.*|holt.*) ;;
+  scruff.*) ;;
   *) exit 0 ;;
 esac
 
@@ -116,12 +114,9 @@ key="$(
     {
       n = split($2, p, "/")
       if (n == 0 || $1 == "") next
-      # Both spellings, and the key printed is the one that MATCHED: a lane
-      # whose window predates the rename is keyed the old way on the ledge and
-      # answers to nothing else. (No apostrophes in here — the whole awk
-      # program is inside a single-quoted shell string.)
+      # (No apostrophes in here — the whole awk program is inside a
+      # single-quoted shell string.)
       if ("scruff." p[n] "." $1 == want) { print "scruff/" p[n] "/" $1; exit }
-      if ("holt."   p[n] "." $1 == want) { print "holt/"   p[n] "/" $1; exit }
     }
   ' "$reg"
 )"
