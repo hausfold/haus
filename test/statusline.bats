@@ -30,9 +30,52 @@ ESC=$'\033'
 RESET="${ESC}[0m"
 TINT="${ESC}[48;2;56;39;19m"
 
+# real_ui_sh — snug's bash painter, wherever this machine keeps it. The suite
+# reads the ROLE ESCAPES back out of it rather than spelling them, which is the
+# whole point of the move: a hardcoded `\033[38;2;171;225;166m` in here would be
+# the same drift one layer up, and it would go stale the first time nebelung
+# retunes a token or the machine changes flavour.
+real_ui_sh() {
+  local q
+  for q in "${HAUS_UI_SH:-}" \
+           "$BATS_TEST_DIRNAME/../../snug/share/ui.sh" \
+           "$HOME/code/workshop/snug/share/ui.sh"; do
+    [ -n "$q" ] && [ -r "$q" ] && { printf '%s' "$q"; return 0; }
+  done
+  return 1
+}
+
 setup() {
   SL="${STATUSLINE_UNDER_TEST:-$BATS_TEST_DIRNAME/../modules/ai/statusline.sh}"
   TMP="$(cd "$BATS_TEST_TMPDIR" && pwd -P)"
+
+  # ── the colour environment, pinned ─────────────────────────────────────────
+  # Load-bearing since the script grew a gate. It has none of its own colour
+  # any more: every escape below comes from ui.sh, whose profile is decided by
+  # TERM/COLORTERM/NO_COLOR — and the two machines that run this suite disagree
+  # about all three. A developer's terminal says truecolor; a GitHub runner sets
+  # TERM=dumb for every `run:` step, which ui.sh honours absolutely. Unpinned,
+  # every assertion here passes locally and fails in CI. (phase-painter.bats
+  # pins the same three for the same reason, and says so at greater length.)
+  export TERM=xterm-256color COLORTERM=truecolor
+  unset NO_COLOR CLICOLOR_FORCE SNUG_VARIANT
+
+  UI_SH_REAL="$(real_ui_sh || true)"
+  R_OK=; R_WARN=; R_ERR=; R_MUTED=; R_SUBJECT=; R_ACCENT=
+  if [ -n "$UI_SH_REAL" ]; then
+    # A subshell, and UI_TTY forced the way the script itself forces it — the
+    # suite has no terminal either, and it must resolve the SAME palette the
+    # script will or every match below is a coincidence.
+    # UI_TTY is set AFTER the source, never before: ui.sh measures fd 2 at load
+    # and assigns UI_TTY itself, so a value set first is overwritten and the
+    # palette resolves to `none`. That ordering is the script's too, and getting
+    # it backwards here cost six SKIPPED tests that read as six passes.
+    eval "$(env -u UI_SH bash -c '
+      . "$1"; UI_TTY=1; ui__detect_profile; ui__resolve_palette
+      for r in OK WARN ERR MUTED SUBJECT ACCENT; do
+        eval "v=\$UI_$r"; printf "R_%s=%q\n" "$r" "$v"
+      done' _ "$UI_SH_REAL")"
+  fi
 
   export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
   export GIT_AUTHOR_NAME=Test GIT_AUTHOR_EMAIL=t@example.com
@@ -242,50 +285,58 @@ vis() {
 # case below therefore holds the percentage fixed at 42 and moves only the token
 # counts, which is precisely the confusion these tests exist to catch.
 
+need_roles() { [ -n "$R_OK" ] || skip "no snug share/ui.sh on this machine"; }
+
 # render_ctx <input-tokens> <output-tokens> — 42% in every case, on purpose.
 render_ctx() {
   printf '{"model":{"id":"claude-opus-5"},"workspace":{"current_dir":"%s"},"context_window":{"used_percentage":42,"total_input_tokens":%s,"total_output_tokens":%s}}' \
     "$REPO" "$1" "$2" | bash "$SL"
 }
 
-@test "ctx% is green under 100k tokens" {
+@test "ctx% takes the ok role under 100k tokens" {
+  need_roles
   run -0 render_ctx 99000 999
-  [[ "$output" == *"${ESC}[38;5;71m42%"* ]] || fail "99999 tokens is not green: $output"
+  [[ "$output" == *"${R_OK}42%"* ]] || fail "99999 tokens is not ok: $output"
 }
 
-@test "ctx% is yellow from 100k to 200k tokens" {
+@test "ctx% takes the warn role from 100k to 200k tokens" {
+  need_roles
   run -0 render_ctx 100000 0
-  [[ "$output" == *"${ESC}[38;5;179m42%"* ]] || fail "100k tokens is not yellow: $output"
+  [[ "$output" == *"${R_WARN}42%"* ]] || fail "100k tokens is not warn: $output"
   run -0 render_ctx 199000 999
-  [[ "$output" == *"${ESC}[38;5;179m42%"* ]] || fail "199999 tokens is not yellow: $output"
+  [[ "$output" == *"${R_WARN}42%"* ]] || fail "199999 tokens is not warn: $output"
 }
 
-@test "ctx% is red at 200k tokens and beyond" {
+@test "ctx% takes the err role at 200k tokens and beyond" {
+  need_roles
   run -0 render_ctx 200000 0
-  [[ "$output" == *"${ESC}[38;5;167m42%"* ]] || fail "200k tokens is not red: $output"
+  [[ "$output" == *"${R_ERR}42%"* ]] || fail "200k tokens is not err: $output"
   run -0 render_ctx 700000 12000
-  [[ "$output" == *"${ESC}[38;5;167m42%"* ]] || fail "712k tokens is not red: $output"
+  [[ "$output" == *"${R_ERR}42%"* ]] || fail "712k tokens is not err: $output"
 }
 
 @test "output tokens count toward the band, not just input" {
   # 99k input alone is green; the same input with 2k of output crosses into
   # yellow. A band computed from total_input_tokens only would stay green.
+  need_roles
   run -0 render_ctx 99000 2000
-  [[ "$output" == *"${ESC}[38;5;179m42%"* ]] || fail "output tokens were ignored: $output"
+  [[ "$output" == *"${R_WARN}42%"* ]] || fail "output tokens were ignored: $output"
 }
 
-@test "ctx% falls back to dim gray when the payload carries no token counts" {
+@test "ctx% falls back to the muted role when the payload carries no token counts" {
   # The one payload that reaches this path: a Claude Code old enough to predate
   # the two fields. Guess nothing, keep the colour the chip has always had. A
   # FRESH session is NOT this case — the payload builder defaults both counts to
   # 0 rather than omitting them, so it takes the green branch (next test).
+  need_roles
   run -0 render claude-opus-5
-  [[ "$output" == *"${ESC}[38;5;244m42%"* ]] || fail "no dim fallback: $output"
+  [[ "$output" == *"${R_MUTED}42%"* ]] || fail "no muted fallback: $output"
 }
 
-@test "a fresh session's real 0/0 payload is green, not the dim fallback" {
+@test "a fresh session's real 0/0 payload takes ok, not the muted fallback" {
+  need_roles
   run -0 render_ctx 0 0
-  [[ "$output" == *"${ESC}[38;5;71m42%"* ]] || fail "0 tokens is not green: $output"
+  [[ "$output" == *"${R_OK}42%"* ]] || fail "0 tokens is not ok: $output"
 }
 
 @test "an untinted row keeps its old ragged-right shape" {
@@ -293,4 +344,74 @@ render_ctx() {
   # which is exactly what they were before emit() existed.
   run -0 render claude-opus-5
   [ "$(vis "${lines[-1]}")" -lt "$WIDTH" ] || fail "an untinted row got padded"
+}
+
+# no_csi <what> — assert the last run emitted no CSI sequence, which is every
+# colour there is. Deliberately NOT "no ESC at all": the PR numbers are OSC 8
+# hyperlinks (`ESC ] 8 ;;`), and a hyperlink is structure, not colour. It stays
+# on a monochrome terminal for the same reason the ⏏ glyph does — turning colour
+# off must not cost you the ability to click a PR. Measured: the first cut of
+# these two tests banned ESC outright and failed on exactly that.
+no_csi() {
+  [[ "$output" != *"${ESC}["* ]] \
+    || fail "$1: $(printf '%s' "$output" | sed -n l)"
+}
+
+# ── the colour gate ──────────────────────────────────────────────────────────
+# New with the move onto snug's roles. Before it the script had no gate at all:
+# it painted eleven hardcoded 256-colour indices unconditionally, so NO_COLOR
+# and TERM=dumb did nothing here and there was nothing to test.
+
+@test "NO_COLOR strips every colour, the row tint included" {
+  # The tint is the trap. It is a RAW escape — snug's nine roles are all
+  # foreground and there is no background among them — so unlike every other
+  # colour in the file it does not go empty on its own. Measured before the
+  # gate existed: NO_COLOR left the whole block on a warm band with the text
+  # back to terminal default, which is worse than no gate at all.
+  run -0 env NO_COLOR=1 bash -c 'printf "%s" "$1" | bash "$2"' _ \
+    "$(printf '{"model":{"id":"claude-fable-5"},"workspace":{"current_dir":"%s"},"context_window":{"used_percentage":42}}' "$REPO")" "$SL"
+  no_csi "escape survived NO_COLOR"
+}
+
+@test "TERM=dumb strips every colour, the row tint included" {
+  # dumb means it, and ui.sh honours it even under CLICOLOR_FORCE — there is no
+  # escape a dumb terminal will not print at you literally. This is also the
+  # shape of a GitHub runner, which is why setup() pins TERM for everything else.
+  run -0 env TERM=dumb CLICOLOR_FORCE=1 bash -c 'printf "%s" "$1" | bash "$2"' _ \
+    "$(printf '{"model":{"id":"claude-fable-5"},"workspace":{"current_dir":"%s"},"context_window":{"used_percentage":42}}' "$REPO")" "$SL"
+  no_csi "escape survived TERM=dumb"
+}
+
+@test "the tint needs truecolor, because it has no cube equivalent" {
+  # #382713 is simultaneously darker and more saturated than anything in the
+  # 256-colour cube, so a 256 terminal gets NO tint rather than an approximation
+  # that would land somewhere else entirely. Foregrounds still resolve.
+  run -0 env COLORTERM= TERM=xterm-256color bash -c 'printf "%s" "$1" | bash "$2"' _ \
+    "$(printf '{"model":{"id":"claude-fable-5"},"workspace":{"current_dir":"%s"},"context_window":{"used_percentage":42}}' "$REPO")" "$SL"
+  [[ "$output" != *"${ESC}[48"* ]] || fail "tint painted on a 256 terminal"
+  [[ "$output" == *"${ESC}[38;5;"* ]] || fail "no cube foreground on a 256 terminal: $output"
+}
+
+@test "colour survives having no terminal on either descriptor" {
+  # THE thing this caller does differently from every other in the family. A
+  # statusline renders with stdout captured by Claude Code, so `[ -t 2 ]` is
+  # false and ui.sh's own gate would answer "no colour" for output that lands in
+  # a terminal regardless. The script forces UI_TTY rather than measuring it.
+  # Every other assertion in this file depends on that and none of them says so.
+  need_roles
+  run -0 render claude-opus-5
+  [[ "$output" == *"${ESC}["* ]] || fail "no colour without a tty: $output"
+}
+
+@test "no retired 256-colour index is left in the rendered line" {
+  # The eleven this script used to spell by hand. They are not merely gone from
+  # the source (the ban in phase-painter.bats covers that) — they must not come
+  # back through a helper either, and 244 in particular is one keystroke from
+  # nebelung's overlay1.
+  need_roles
+  local idx
+  run -0 render claude-fable-5
+  for idx in 108 244 75 71 167 173 179 139; do
+    [[ "$output" != *"${ESC}[38;5;${idx}m"* ]] || fail "hand-picked index $idx is back"
+  done
 }

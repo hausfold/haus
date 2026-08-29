@@ -956,7 +956,23 @@ in
       # the ONLY one: a statusline is a TUI feature and the macOS app renders
       # none, so the refresher also polls the account itself, which is the only
       # source that counts what the GUI burned. See its Claude block.
-      (writeShellScriptBin "claude-statusline" (builtins.readFile ./statusline.sh))
+      # `HAUS_UI_SH` injected rather than resolved, and this is the one caller
+      # where that is worth a line of Nix: the script runs on EVERY prompt, and
+      # its own fallback costs a `command -v` + `readlink -f` + two `dirname`s
+      # per render (~5.5 ms of a ~110 ms budget) to rediscover a path that is
+      # constant for the life of the generation. modules/core does the same for
+      # `haus.sh` through `wrapProgram --set-default`; there is no wrapper here,
+      # so it is prepended as a line of shell instead.
+      #
+      # Prepended by CONCATENATION, never by an interpolated Nix block:
+      # statusline.sh is full of shell expansions Nix would read as its own.
+      # The escape below is `\${`, the DOUBLE-quoted form — `''${` is the
+      # indented-string form and would land here as literal text. `:-` keeps a
+      # caller's own value winning, which is what the suite overrides.
+      (writeShellScriptBin "claude-statusline" (
+        "HAUS_UI_SH=\"\${HAUS_UI_SH:-${snug}/share/ui.sh}\"\n"
+        + builtins.readFile ./statusline.sh
+      ))
       (writeShellScriptBin "claude-statusline-refresh" (builtins.readFile ./statusline-refresh.sh))
 
       # `agent-state` — the one writer of agent state, feeding bar's `agents`

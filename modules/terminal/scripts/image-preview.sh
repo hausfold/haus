@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # image-preview.sh — terminal-native image preview. yazi's Enter opener for an
 # image (yazi/… `run` in modules/terminal), and a reader in its own right.
 #
@@ -16,12 +16,59 @@ set -u
 # profile bins (chafa) are reachable regardless.
 export PATH="$PATH:/etc/profiles/per-user/$USER/bin:/run/current-system/sw/bin"
 
-BOLD=$'\e[1m'
-DIM=$'\e[2m'
-RESET=$'\e[0m'
-KEY=$'\e[1;35m'   # bold magenta — hotkey letters
-OK=$'\e[1;32m'    # bold green — confirmation flashes
-ERR=$'\e[1;31m'   # bold red — errors
+# ---- snug's bash painter ----------------------------------------------------
+# Role names, not colours. This file is a `home.file` symlink into the store
+# with nothing substituted into it, so it resolves `ui.sh` itself rather than
+# reading an injected `HAUS_UI_SH` the way `haus.sh` does: honour that variable
+# when a caller set it, otherwise take the copy that ships beside `bin/snug` in
+# snug's own derivation, which can never be a version apart from the binary.
+# The PATH export above is what makes `snug` findable here at all — yazi spawns
+# this without a login shell.
+# ⚠️ Two traps, both silent, both paid for once here so nobody pays again:
+#
+#   * The variable is `HAUS_UI_SH` and must NOT be called `UI_SH`. ui.sh's own
+#     source-twice guard is `[ -n "${UI_SH:-}" ] && return 0` — it uses that
+#     exact name as its sentinel, so a caller holding the PATH in `UI_SH` makes
+#     the file return before it defines anything, with no error and no colour.
+#   * ui.sh is bash 4+ (`declare -gA`, `${v^^}`). Under macOS's /bin/bash 3.2 it
+#     does not fail quietly: it prints three `bad substitution` / syntax errors
+#     and half-loads. Hence the shebang above is `/usr/bin/env bash`, and hence
+#     the version check below, which is the belt for a thin PATH.
+HAUS_UI_SH="${HAUS_UI_SH:-}"
+if [ -z "$HAUS_UI_SH" ]; then
+    _snug="$(command -v snug 2>/dev/null)" \
+        && HAUS_UI_SH="$(dirname "$(dirname "$(readlink -f "$_snug")")")/share/ui.sh"
+fi
+UI_READY=""
+if [ "${BASH_VERSINFO[0]:-0}" -ge 4 ] && [ -r "${HAUS_UI_SH:-}" ]; then
+    # shellcheck source=/dev/null
+    . "$HAUS_UI_SH"
+    type ui__detect_profile ui__resolve_palette >/dev/null 2>&1 && UI_READY=1
+fi
+
+# The five slots this reader has, each an alias onto a generated role — so the
+# hexes come from snug's script/gen-palette.sh resolved against nebelung, not
+# from the bold-ANSI-basic set that used to sit here. Two deliberate losses in
+# the move, both of which the standard calls correct:
+#
+#   * The header's filename was `\e[1m` bold and is now `subject`, the role for
+#     "the thing under discussion" — which is exactly what it is. The nine roles
+#     carry colour only; a bold attribute is not a role and had no way to be one.
+#   * The hotkeys, the flash and the error were bold-magenta/green/red. Bold is
+#     gone with them; the letters and the ✓ carry the meaning, which is this
+#     standard's own rule that the glyph is load-bearing and the colour is not.
+#
+# Everything degrades to empty on a terminal that cannot colour, and the whole
+# reader still draws — every escape below lives OUTSIDE the printf widths.
+BOLD=; DIM=; RESET=; KEY=; OK=; ERR=
+if [ -n "$UI_READY" ]; then
+    RESET="${UI_OFF:-}"
+    BOLD="${UI_SUBJECT:-}"   # the image being read
+    DIM="${UI_MUTED:-}"      # dimensions, size, the separators between hotkeys
+    KEY="${UI_ACCENT:-}"     # hotkey letters — the tool speaking
+    OK="${UI_OK:-}"          # confirmation flashes
+    ERR="${UI_ERR:-}"        # errors
+fi
 
 path="${1:-}"
 if [ -z "$path" ] || [ ! -f "$path" ]; then
@@ -86,6 +133,9 @@ draw() {
     draw_hints
 }
 
+# The only two raw escapes left, and both are legal: DECTCEM is cursor
+# visibility, not colour, and there is no role for it — snug owns the cursor
+# inside a live region, and this reader owns its whole screen instead.
 quit() {
     printf '\e[?25h' # show cursor
     exit 0

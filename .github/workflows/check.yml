@@ -286,7 +286,7 @@ jobs:
           # haus.focus.scenes.<name>.when it also runs from launchd on a timer,
           # where a non-zero is not just invisible but silently stops your Mac
           # entering the scenes you declared.
-          shellcheck --severity=warning bootstrap.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/lidawake.sh test/lidawake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh
+          shellcheck --severity=warning bootstrap.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/lidawake.sh test/lidawake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh modules/ai/statusline.sh modules/terminal/scripts/image-preview.sh modules/terminal/lanes/lane-open.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
       # lidawake's three failsafes, over a fake pmset and a fake clock. Every
@@ -321,6 +321,35 @@ jobs:
       # as scruff's own acceptance suite (throwaway repos, shim gh, redirected cache).
       - name: statusline refresher tests
         run: bats test/statusline-refresh.bats
+      # snug's `share/ui.sh` — the painter every script in this repo draws
+      # through — at the rev this repo's flake.lock pins. One file over https,
+      # not a clone and not Nix, so this job stays the cheap one it is.
+      #
+      # Fetched rather than stubbed on purpose. A fixture would make the
+      # integration green while checking nothing, and this family has already
+      # been bitten by exactly that: the drift test between ui.sh and palette.go
+      # skipped silently on any machine without the second checkout. The real
+      # file at the pinned rev is the only thing that catches a renamed role or
+      # a moved function before somebody's rebuild does.
+      - name: snug's painter, at the pinned rev
+        run: |
+          rev="$(jq -r '.nodes.snug.locked.rev' flake.lock)"
+          [ -n "$rev" ] && [ "$rev" != null ] || { echo "no snug rev in flake.lock"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/snug"
+          # Retried: one CDN hiccup must not red a suite that is otherwise
+          # bash + python3 + bats, and `-f` alone gives up on the first 5xx.
+          curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 \
+            "https://raw.githubusercontent.com/hausfold/snug/$rev/share/ui.sh" \
+            -o "$RUNNER_TEMP/snug/ui.sh"
+          echo "HAUS_UI_SH=$RUNNER_TEMP/snug/ui.sh" >> "$GITHUB_ENV"
+      #
+      # ⚠️ MUST stay above every suite that renders through the painter —
+      # statusline, phase-painter — because they are all in THIS job and a
+      # runner has no `snug` on PATH and no /run/current-system. Below them it
+      # does not merely weaken the suite: statusline.bats's colour-gate cases
+      # assert cube escapes and go RED, while its six band cases SKIP, which
+      # reads as six passes. Measured on this PR before the move.
+
       # The render path's counterpart suite. Its subject is the Fable/Mythos row
       # tint, whose correctness is a WIDTH invariant across rows that carry both
       # SGR and OSC 8 — so it breaks silently whenever a segment is added, and
@@ -352,27 +381,6 @@ jobs:
       - name: raise-session lane join
         run: bats test/raise-session-lane-join.bats
 
-      # snug's `share/ui.sh` — the painter both CLIs draw through — at the rev
-      # this repo's flake.lock pins. One file over https, not a clone and not
-      # Nix, so the job below stays the cheap one it is.
-      #
-      # Fetched rather than stubbed on purpose. A fixture would make the
-      # integration green while checking nothing, and this family has already
-      # been bitten by exactly that: the drift test between ui.sh and palette.go
-      # skipped silently on any machine without the second checkout. The real
-      # file at the pinned rev is the only thing that catches a renamed role or
-      # a moved function before somebody's rebuild does.
-      - name: snug's painter, at the pinned rev
-        run: |
-          rev="$(jq -r '.nodes.snug.locked.rev' flake.lock)"
-          [ -n "$rev" ] && [ "$rev" != null ] || { echo "no snug rev in flake.lock"; exit 1; }
-          mkdir -p "$RUNNER_TEMP/snug"
-          # Retried: one CDN hiccup must not red a suite that is otherwise
-          # bash + python3 + bats, and `-f` alone gives up on the first 5xx.
-          curl -fsSL --retry 3 --retry-all-errors --retry-delay 2 \
-            "https://raw.githubusercontent.com/hausfold/snug/$rev/share/ui.sh" \
-            -o "$RUNNER_TEMP/snug/ui.sh"
-          echo "HAUS_UI_SH=$RUNNER_TEMP/snug/ui.sh" >> "$GITHUB_ENV"
       # The `haus rebuild` phase painter and the colour gate both end-user CLIs
       # grew with it. Three silent failure modes: a record `snug run` cannot
       # parse is a line that simply never appears; a repaint that assumes a
