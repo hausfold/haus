@@ -47,7 +47,7 @@
 # repo `scruff` already knows, so a repo outside those roots that you have agent'd
 # before stays reachable.
 #
-# ── the prompt step's five Returns ────────────────────────────────────────────
+# ── the prompt step's five Returns, and the chip beside them ─────────────────
 #
 #   ↵    spawn — in the BACKGROUND: nothing appears anywhere
 #   ⇧↵   newline — the task is often a list, not a sentence
@@ -55,11 +55,23 @@
 #        palette entry, "Spawn Agent with Screenshot")
 #   ⌃↵   spawn and FOLLOW it: the lane window takes the screen, as it used to
 #   ⌥↵   your drafts
+#   ⇥    which client this ONE lane opens in (⇧⇥ backwards)
 #
 # ⇧↵ is deliberately NOT in the action bar. `shift` there is hint-only in pounce
 # (Items.swift: the field editor inserts the newline itself, whatever the spec
 # says), so dropping it costs nothing but the pixels — and four chords across
 # the bottom of the box was one more than it could show without crowding.
+#
+# ⇥ is a `--dial`, which is a different kind of thing from the four Returns: not
+# a verb but a value the step carries, cycled in place at the leading edge of the
+# same action bar. "Which client, this once" is exactly the question dials exist
+# for — too small to deserve a picker step of its own, too real to be settled
+# only by `haus.ai.default`, and answered without leaving the paragraph you are
+# typing. It offers the clients that are actually on PATH, `haus.ai.default`
+# first, and opens on whichever one you last spawned with; a Mac with one client
+# installed gets no chip at all. The lane records the client it was made with,
+# so a `pi` lane spawned from here still reopens in pi however the chip sits
+# next time.
 #
 # ── which way round ↵ and ⌃↵ go, and why ──────────────────────────────────────
 #
@@ -143,6 +155,31 @@ field() { printf '%s' "$1" | cut -f"$2"; }
 # by accident here and break the moment a prompt's later line contained a tab.
 action_of() { printf '%s' "$1" | /usr/bin/head -n1 | cut -f1; }
 payload_of() { printf '%s' "$1" | /usr/bin/sed $'1s/^[^\t]*\t//'; }
+# A `--dial` step's commit grows one MIDDLE field —
+# "<action>\t<name=value;…>\t<line-or-text>" — so the step that passed the flag
+# strips TWO fields where every other step here strips one. Both halves are
+# below; this one answers "was there a dial field at all", and answers no
+# whenever it cannot be sure, because a false yes eats the first line of
+# somebody's task.
+#
+# Three things have to hold, and each rules out a different way of being wrong:
+# a daemon older than the flag ignores it and answers in the two-field shape
+# (caught by the field count), a prompt beginning "agent=" is ordinary text
+# (caught by the count too, unless it also contains a tab), and a value that
+# is not one we offered is not ours to act on (caught by the membership test,
+# which is also what stops a stale chip naming a client that has since gone).
+dial_agent() {
+  [ -n "$agent_dial" ] || return 1
+  local line value
+  line="$(printf '%s' "$1" | /usr/bin/head -n1)"
+  [ "$(printf '%s' "$line" | awk -F'\t' '{print NF}')" -ge 3 ] || return 1
+  value="$(printf '%s' "$line" | cut -f2)"
+  case "$value" in agent=*) value="${value#agent=}" ;; *) return 1 ;; esac
+  case " $AGENTS " in *" $value "*) printf '%s' "$value" ;; *) return 1 ;; esac
+}
+# The other half: everything after the SECOND tab of the first line, newlines
+# and tabs in the task itself untouched.
+dial_payload() { printf '%s' "$1" | /usr/bin/sed $'1s/^[^\t]*\t[^\t]*\t//'; }
 notice() {
   printf '%s\t%s\t%s\n' "$1" "$2" "${3:-exclamationmark.triangle}" \
     | pounce -p "Spawn Agent" -i "sparkles" >/dev/null
@@ -247,21 +284,65 @@ if [ -z "$list" ]; then
   exit 0
 fi
 
-agent="$(scruff agent default 2>/dev/null)"
-[ -n "$agent" ] || agent="claude"
-# Belt to the assertion's braces. `haus.ai.clients` makes the default
-# client present at BUILD time, but this script runs long after that — the
-# client can still be missing on a machine driving `scruff` without the rice, or
-# with a hand-managed install that moved. Checking here, before anything is
-# created, is the difference between a toast and the old failure: `scruff spawn`
-# succeeds, the pane opens, and only `scruff agent start` inside it finds nothing —
-# leaving a dead pane and a worktree nobody asked for.
-if ! command -v "$agent" >/dev/null 2>&1; then
-  notice "$agent is not installed" "Add it to haus.ai.clients, or change haus.ai.default"
+# ── which client ──────────────────────────────────────────────────────────
+# The machine's default, and the ones actually on PATH beside it. Two answers
+# from one walk, because they are the same question asked twice:
+#
+#   $agent   what a spawn uses when nothing says otherwise.
+#   $AGENTS  everything the ⇥ dial may offer, default first so it is the
+#            value the chip opens on the very first time.
+#
+# Belt to the assertion's braces. `haus.ai.clients` makes the default client
+# present at BUILD time, but this script runs long after that — the client can
+# still be missing on a machine driving `scruff` without the rice, or with a
+# hand-managed install that moved. Checking here, before anything is created, is
+# the difference between a toast and the old failure: `scruff spawn` succeeds,
+# the pane opens, and only `scruff agent start` inside it finds nothing — leaving
+# a dead pane and a worktree nobody asked for.
+#
+# Building the dial from `command -v` rather than from `haus.ai.clients` is what
+# makes every option on the chip a client that will actually start. The four ids
+# are scruff's own (`internal/registry`'s validAgent) and this is the one place
+# the list is written out — `scruff spawn --agent` refuses anything else, so a
+# fifth client is a scruff change first and a line here second.
+# One function so it is testable: it reads only PATH and `scruff agent default`,
+# and everything it decides lands in the three globals named above.
+resolve_agents() {
+  agent="$(scruff agent default 2>/dev/null)"
+  [ -n "$agent" ] || agent="claude"
+  AGENTS=""
+  local client
+  for client in "$agent" claude codex opencode pi; do
+    case " $AGENTS " in *" $client "*) continue ;; esac
+    command -v "$client" >/dev/null 2>&1 || continue
+    AGENTS="${AGENTS:+$AGENTS }$client"
+  done
+  [ -n "$AGENTS" ] || return 1
+  # The default itself can be the missing one — a host that names `codex` on a
+  # Mac that never installed it. Fall to the first that IS here rather than
+  # refusing: the dial makes the substitution visible, which a hard exit never
+  # did, and the alternative is a palette command that does nothing at all on a
+  # machine with three working clients and one stale option.
+  case " $AGENTS " in *" $agent "*) ;; *) agent="${AGENTS%% *}" ;; esac
+  # `--dial "agent=a|b"` needs two options to be a dial at all — `Dial.parse`
+  # drops a segment with fewer than two and the step opens without a chip, which
+  # is exactly right for a machine with one client installed. Spelling the guard
+  # out anyway, so the empty string is a decision rather than a side effect.
+  agent_dial=""
+  case "$AGENTS" in *" "*) agent_dial="agent=$(printf '%s' "$AGENTS" | tr ' ' '|')" ;; esac
+}
+if ! resolve_agents; then
+  notice "no coding agent is installed" \
+    "Add one to haus.ai.clients, then rebuild — claude, codex, opencode or pi"
   exit 1
 fi
 
-repo_sel="$(printf '%s\n' "$list" | pounce -p "Spawn Agent — which repo?" -i "sparkles")"
+# Cards, not rows. A repo IS a thing rather than a name — it has an icon, a
+# path, a branch and a worktree count — and `--grid` is pounce's shape for
+# exactly that. Groups order the cards but draw no headers, so the single
+# "Repositories" group costs nothing; the rows are unchanged, because `--grid`
+# is purely a shape and the commit string is identical either way.
+repo_sel="$(printf '%s\n' "$list" | pounce --grid -p "Spawn Agent — which repo?" -i "sparkles")"
 [ -z "$repo_sel" ] && exit 0
 repo_name="$(field "$repo_sel" 2)"
 repo="$(field "$repo_sel" 7)"
@@ -316,8 +397,18 @@ fi
 # insurance policy against the click-away.
 ask() {
   # $1: text the box opens with (a draft coming back for editing, or empty).
+  #
+  # The dial is passed as ONE argument that is either the whole flag pair or
+  # nothing, unquoted on purpose: a machine with a single client installed has
+  # no second option to cycle to, and $agent_dial is empty there, so word
+  # splitting is what makes the flag disappear entirely rather than arrive as
+  # `--dial ""` for pounce to parse and discard.
+  local dial=""
+  [ -n "$agent_dial" ] && dial="--dial $agent_dial"
+  # shellcheck disable=SC2086
   printf '' | pounce --chain opt \
     --draft "$DRAFT_KEY" \
+    $dial \
     --actions "Spawn|cmd:With a screenshot|ctrl:Spawn and follow|opt:Drafts" \
     --query "$1" \
     -p "What should the agent do in $repo_name?" -i "sparkles"
@@ -371,7 +462,17 @@ while :; do
     exit 0
   fi
   action="$(action_of "$prompt_sel")"
-  prompt="$(payload_of "$prompt_sel")"
+  # Every commit carries the chip's CURRENT value, so this is re-read on each
+  # trip round the loop rather than once: cycling to another client and then
+  # going out to the drafts list must not put the first client back. pounce
+  # remembers the value per option-set and only on a commit, so the box reopens
+  # on what you last spawned with and an Esc changes nothing.
+  if picked_agent="$(dial_agent "$prompt_sel")"; then
+    agent="$picked_agent"
+    prompt="$(dial_payload "$prompt_sel")"
+  else
+    prompt="$(payload_of "$prompt_sel")"
+  fi
 
   case "$action" in
     ctrl)
