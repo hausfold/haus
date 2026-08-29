@@ -411,3 +411,14 @@ jobs:
       # nothing the ⇥ chip offers can fail to start.
       - name: spawn-agent field reading
         run: bats test/spawn-agent.bats
+      # Which lanes the Lanes picker offers. It drops the ones with no pane of
+      # their own — a `scruff child` checkout resumes into the pane that made
+      # it, so opening one here starts a client where no conversation lives.
+      # Every way of getting that wrong hides something real and shows nothing:
+      # filtering on `parent` rather than scruff's `chat` would hide a lane
+      # opened with ⌘↵ from inside another pane, which is a running agent with
+      # a window; treating an absent `chat` as "no chat" empties the picker
+      # against an older scruff. The picker still opens either way — it is the
+      # missing row nobody notices.
+      - name: lanes picker row filter
+        run: bats test/lanes-picker.bats
