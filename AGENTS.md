@@ -751,9 +751,16 @@ mechanism, say so in one line.
     never drift. Every client's hooks call it (`agent-state
     <working|waiting|idle|remove> <client>`), which is why the wirings the AI
     room writes for opencode and codex never need to know where a bar keeps
-    its plugins. pi has no such wiring yet — it has an extension API rather
-    than a hook file, and nobody has written the extension — so a pi lane is
-    a client the palette spawns and the pill cannot see.
+    its plugins. pi has an extension API rather than a hook file, so its
+    wiring is a FILE terminal writes —
+    `~/.pi/agent/extensions/haus-agent-state.ts`
+    (`modules/terminal/pi/agent-state.ts`) — and being the one seam pi has, it
+    carries the LANE BANNERS too: it hands `scruff hook notify` the same
+    Claude-shaped payload the four Claude Code hooks do, so a pi lane's trill
+    fin is keyed, focused and resolved by that one code path rather than a
+    second copy of it. Two events with no Claude counterpart get a banner of
+    their own through `haus-notify` (a failed compaction, a provider refusing
+    the session); the file's header is the whole event map.
   - `scruff-cache` exists because `scruff --json` is an investigation rather than a
     listing — `scruff list` self-heals through a parked reap sweep on the way in,
     and that sweep AND the JSON encoder each dump `lsof -d cwd` machine-wide
