@@ -374,13 +374,43 @@ mechanism, say so in one line.
   guarded — `[ -r "${HAUS_UI_SH:-}" ]`, never a bare `source`: under
   `set -euo pipefail` an unset variable and a missing path are BOTH fatal, and
   either kills `haus` at load time with nothing on either stream.
-  `test/phase-painter.bats` holds both halves of that.
-  Being reachable is not the same as being adopted: converting haus's own
-  painters is separate work, and this bullet is not a licence to half-convert
-  one on the way past. `haus.sh` sources ui.sh today and still draws with its
-  own escapes on purpose — ui.sh puts every human line on fd 2 and gates colour
-  on it, while `say`/`ok`/`info` here write to fd 1, so moving one without the
-  other would put escapes into `haus status | less`.
+  `test/phase-painter.bats` holds every half of that.
+  **Both CLIs draw through it now**, and there is no hardcoded escape left in
+  either — the test above fails on any `\033[` outside a comment, because with
+  every colour an alias onto snug's generated roles there is no longer a legal
+  place for one. Three things follow, and each is a rule rather than a detail:
+  - **One coprocess per COMMAND.** `snug run` is opened lazily on the first line
+    a command draws and serves every line and every frame after it. A fork is
+    ~4.4 ms; per line would be a third of a second in a rebuild. `SNUG_TRIED`
+    means a snug that died once stays dead for the command — a re-open per frame
+    is the regression the coprocess exists to prevent. Never call `snug <verb>`
+    per line from these scripts.
+  - **Two streams, and which one is a property of the COMMAND, not the verb.**
+    `REPORT=1` is set in the dispatch for `status doctor plan diff permissions
+    btm generations get capture`; those draw entirely on fd 1. Everything else
+    narrates while it changes the machine and draws entirely on fd 2, because
+    stdout carries data only. `die` is the one exception and is always fd 2.
+    **Do not make this per-verb.** Half these verbs are called from helpers that
+    both kinds use — `settings_diff` runs inside `haus plan` and inside `haus
+    set` — so a per-verb rule is wrong in one caller by construction; the first
+    attempt at one put `haus doctor`'s section headers on fd 2 and its findings
+    on fd 1, which makes `haus doctor | pbcopy` an unlabelled list of ticks. That
+    flow is what `.github/ISSUE_TEMPLATE/bug.yml` asks a stranger to run, and
+    with no telemetry in anything we ship it is the entire feedback channel. A
+    new command goes in the list or it does not; there is no third stream.
+  - **Nothing repaints while `sudo` might be asking for a password.** The prompt
+    goes to /dev/tty — the terminal the phase row repaints, and one the region's
+    line count knows nothing about — so a spinner would rewind over the prompt
+    and over what you are typing into it. `PHASE_STILL` makes a phase a still
+    bullet, and `cmd_rebuild` sets it around `activate` unless `sudo -n true`
+    proves the timestamp is already valid. The probe is one-way and
+    under-detects on purpose; that is the safe direction.
+  - **One colour precedence, asked of ui.sh rather than re-derived.** ui.sh
+    measures fd 2 at load; the reports are on fd 1, so both scripts call its own
+    `ui__detect_profile`/`ui__resolve_palette` a second time with `UI_TTY` set
+    from fd 1 and read `C_*` off that answer. Re-spelling the rule here is how
+    one binary ends up answering `NO_COLOR` + `CLICOLOR_FORCE` two ways. If that
+    precedence should change, it changes in snug, for everybody.
 - `nixfmt` formats `.nix` files.
 
 ## Gotchas
