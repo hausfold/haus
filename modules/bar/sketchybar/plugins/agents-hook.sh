@@ -161,10 +161,10 @@ if [ -n "${ZMX_SESSION:-}" ]; then
   # The lane name, not the cwd's basename. `scruff child` runs a child lane's
   # CONVERSATION in the parent's checkout (scruff's SCRUFF_CHAT), so for those the
   # cwd basename names the wrong lane — while the session name is
-  # `holt.<repo>.<lane>` by construction (terminal/lanes/lane-open.sh). Anything
-  # not opened by that hook keeps the old cwd-basename answer.
+  # `scruff.<repo>.<lane>` by construction (terminal/lanes/lane-open.sh).
+  # Anything not opened by that hook keeps the old cwd-basename answer.
   label="${ZMX_SESSION##*.}"
-  case "$ZMX_SESSION" in holt.*.*) ;; *) label=$(basename "${CLAUDE_PROJECT_DIR:-$PWD}") ;; esac
+  case "$ZMX_SESSION" in scruff.*.*|holt.*.*) ;; *) label=$(basename "${CLAUDE_PROJECT_DIR:-$PWD}") ;; esac
   # zmx rejects a label value containing anything outside [a-zA-Z0-9-_.], and it
   # rejects the WHOLE `set` when one value is bad — so an exotic directory name
   # would silently cost this lane its state, not just its label. Fold the rest

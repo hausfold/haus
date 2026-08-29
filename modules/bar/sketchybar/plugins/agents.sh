@@ -12,7 +12,7 @@
 #
 #   • a zmx session → labels on the session itself. No file, and so no pruning:
 #     labels are in-memory and die with the session. A LANE's scruff join is by
-#     NAME (`holt.<repo>.<lane>`, forced by terminal/lanes/lane-open.sh); a
+#     NAME (`scruff.<repo>.<lane>`, forced by terminal/lanes/lane-open.sh); a
 #     plain window's is by the `cwd` zmx reports for it.
 #   • a desktop-app session → one file per conversation under
 #     /tmp/haus-agents/*.desk: <state>\t<session>\t<key>\t<label>\t<epoch>\t<client>,
@@ -343,7 +343,7 @@ if [ "${1:-}" = "row" ] && [ "${2:-}" = "zmx" ]; then
     #
     # The session name → <repo>/<lane> join is the REGISTRY, read the way
     # lanes/lane-seen.sh reads it and for the reason stated there: `<repo>` may
-    # carry a dot (hausfold.co), so no split of `holt.<repo>.<lane>` can tell
+    # carry a dot (hausfold.co), so no split of `scruff.<repo>.<lane>` can tell
     # that dot from the separator. No registry, or no row for this session, and
     # this falls back to the bare window rather than doing nothing.
     if ! "$HOME/.config/haus/term/raise-session.sh" "$zsess" >/dev/null 2>&1; then
@@ -361,7 +361,11 @@ if [ "${1:-}" = "row" ] && [ "${2:-}" = "zmx" ]; then
           {
             n = split($2, p, "/")
             if (n == 0 || $1 == "") next
-            if ("holt." p[n] "." $1 == want) { print p[n] "/" $1; exit }
+            # Both spellings: a session opened before scruff 1.2.0 renamed
+            # the join keeps the old name until its pane closes. Drop the
+            # second arm at 1.3.0. (No apostrophes — single-quoted awk.)
+            if ("scruff." p[n] "." $1 == want) { print p[n] "/" $1; exit }
+            if ("holt."   p[n] "." $1 == want) { print p[n] "/" $1; exit }
           }
         ' "$reg"
       )"
@@ -515,7 +519,7 @@ detail() { # detail <left> <left-color> <right> <right-color>
 #
 # Two keys per lane, because there are two joins (see the render loop): the
 # checkout `path` a plain window reports as its cwd, and `<repo>.<name>` for a
-# lane's session, named `holt.<repo>.<lane>`.
+# lane's session, named `scruff.<repo>.<lane>`.
 LANE_TABLE=""
 lane_table() { # lane_table <lanes-json>
   LANE_TABLE="$(printf '%s' "$1" | jq -r '
@@ -681,19 +685,23 @@ if [ "${SENDER:-}" = "mouse.clicked" ] || [ "${1:-}" = "click" ]; then
       state_style "$st"
 
       # Two joins, one table (see lane_lookup). A zmx session named
-      # `holt.<repo>.<lane>` (terminal/lanes/lane-open.sh) joins on that name
+      # `scruff.<repo>.<lane>` (terminal/lanes/lane-open.sh) joins on that name
       # QUALIFIED BY REPO, which is why it carries the repo at all: `scruff
       # child` gives a child lane its parent's NAME, so two live lanes in
       # different repos share one and a cwd join would send a child to the
       # parent's row. Everything else joins on the checkout path.
-      # `holt.<repo>.<lane>` minus its prefix IS the table's name key
+      # `scruff.<repo>.<lane>` minus its prefix IS the table's name key
       # (`<repo>.<name>`, built the same way), so no splitting — and that is
       # not just brevity: splitting on the FIRST dot read `hausfold.co` as
       # `hausfold`, so every lane in this family's dotted repo missed the name
       # join entirely and silently fell through to the cwd one.
       namekey=""
       if [ "$kind" = zmx ]; then
-        case "$target" in holt.*.*) namekey="${target#holt.}" ;; esac
+        # Both prefixes while pre-1.2.0 sessions can still be alive.
+        case "$target" in
+          scruff.*.*) namekey="${target#scruff.}" ;;
+          holt.*.*)   namekey="${target#holt.}" ;;
+        esac
       fi
 
       provider_style "${client:-}" "" "$FS_LABEL"

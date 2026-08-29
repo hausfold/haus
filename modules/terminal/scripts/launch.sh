@@ -25,7 +25,7 @@
 # shell is `scripts/restore-windows.sh`'s job — automatic for the first window
 # of a Ghostty, on demand from the palette — and the bar's, and ⌘F's, and the
 # Lanes picker's. Sessions whose name is not `term.*` are never claimed here:
-# `holt.*` lanes belong to lane-open.sh and a `zmx attach` you typed yourself
+# lane sessions belong to lane-open.sh and a `zmx attach` you typed yourself
 # belongs to you.
 #
 # So the pair to have in the fingers is ⌃D vs ⌘W. ⌃D ends the shell, which ends

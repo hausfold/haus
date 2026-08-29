@@ -730,15 +730,23 @@ mechanism, say so in one line.
   cannot READ one, and three shipped features read a window: ⌘F find, ⌘L links,
   and the bar's agent peek. `zmx history` / `zmx tail` is that read API. The
   session is named `term.<n>`, lowest n that no session holds; a lane is
-  `holt.<repo>.<lane>` and belongs to `lanes/lane-open.sh`. **That prefix is
-  still spelled `holt` after the scruff rename, deliberately** — it is not
-  haus's name to choose. The tool keys a lane's parked trill fin as
-  `holt/<repo>/<lane>` (a literal in `internal/commands/notify.go`) and names
-  its marker file after that key with the slashes flattened to dots, so the
-  session name IS the marker name and the two have to match byte for byte.
+  `scruff.<repo>.<lane>` and belongs to `lanes/lane-open.sh`. **That prefix is
+  not haus's name to choose.** The tool keys a lane's parked trill fin as
+  `scruff/<repo>/<lane>` (`askKeyPrefix` in `internal/commands/notify.go`) and
+  names its marker file after that key with the slashes flattened to dots, so
+  the session name IS the marker name and the two have to match byte for byte.
   Rename either half here and `lanes/lane-seen.sh` silently stops joining: no
-  error, no log, and every lane's fin stays parked forever. Both move in the
-  release that moves the tool's own key — its `docs/rename.md` §5.
+  error, no log, and every lane's fin stays parked forever.
+  - ⚠️ **The prefix was `holt.` until scruff 1.2.0, and every READER in this
+    room still matches `scruff.*|holt.*`.** That is not compat for other
+    people's machines — it is for the rebuild itself: a Ghostty window carries
+    its FORCED title until it is closed, and a fin already on trill's ledge can
+    only be resolved by the key that put it up, so the lanes open at the moment
+    of the switch would otherwise lose their window-sort and their
+    banner-resolve. Write one spelling, read two. **The read arm is dated: it
+    comes out with scruff's own at 1.3.0**, and its tests
+    (`test/lane-seen.bats`, `test/raise-session-lane-join.bats`) name
+    themselves for deletion. scruff's side is its `docs/rename.md` §8.6.
   `scripts/focused-session.sh` is the one window→session join — by window id,
   which is the `lwindow=` label lanes/lane-open.sh stamps for a lane and the
   `window=` one launch.sh stamps for everything else, and only then by the
@@ -755,7 +763,7 @@ mechanism, say so in one line.
     `scripts/restore-windows.sh` — one window per `clients=0` session,
     automatically for the FIRST window of a Ghostty
     (`haus.terminal.restoreWindows`, and "first" means nothing is attached
-    anywhere) and on demand from the palette. It hands `holt.*` to
+    anywhere) and on demand from the palette. It hands lane sessions to
     `raise-session.sh`, because only `open -na --title` forces the title the
     AeroSpace join reads, and spawns `term.*` itself with `HAUS_ZMX_ATTACH` in
     the environment — a forced title on a plain window would freeze the title

@@ -46,7 +46,7 @@ sess="${1:-}"
 [ -n "$sess" ] || exit 1
 # Both backends put this name inside a quoted string (an AppleScript literal,
 # or Ghostty's shell-split initial-command). zmx session names the rice writes
-# are `term.<n>` and `holt.<repo>.<lane>`; anything else is a bug rather than
+# are `term.<n>` and `scruff.<repo>.<lane>`; anything else is a bug rather than
 # an input, so refuse it instead of escaping it.
 case "$sess" in
   *[!A-Za-z0-9._-]*) exit 1 ;;

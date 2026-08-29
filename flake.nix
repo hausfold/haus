@@ -70,14 +70,6 @@
     # the rice's old bash `wt.sh` (now retired entirely). Its overlay puts
     # `scruff` in pkgs, and core ships it on PATH as the only worktree-lifecycle
     # CLI the rice knows.
-    # The repo was `hausfold/holt` until 2026-08-27, and the INPUT NAME moved
-    # first (#538) while the URL waited on the rename. Both halves are `scruff`
-    # now. GitHub's rename redirect is why this is worth a comment rather than
-    # being invisible: `github:hausfold/holt` still resolves, so an input left
-    # on the old name looks healthy right up until the redirect stops — which
-    # is what the workshop's `bench status` is checking when it flags a FAMILY
-    # repo as RENAMED. A lock node from before this landed still says `holt`
-    # under `repo`; `nix flake update scruff` is what moves it.
     scruff = {
       url = "github:hausfold/scruff";
       inputs.nixpkgs.follows = "nixpkgs";

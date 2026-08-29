@@ -947,7 +947,7 @@ in
 
             # The chpwd hook that renamed the zellij tab after the repo is
             # gone with the tabs. A window's name is not ours to write: for a
-            # lane it is a FORCED --title carrying the `holt.<repo>.<lane>` join
+            # lane it is a FORCED --title carrying the `scruff.<repo>.<lane>` join
             # (lanes/lane-open.sh), and for a plain window it is whatever the
             # program inside emits as OSC 2 — which is the right answer, since
             # the thing the bar and the switcher need to see is what you are
@@ -1507,18 +1507,12 @@ in
         # this generated file instead of inheriting a stale client selection.
         # A standalone scruff install can own the same file by hand.
         #
-        # ⚠️ At scruff 1.0.x this file was what STOPPED scruff finding a
-        # hand-written `~/.config/holt` config dir (the binary stat'd either
-        # the scruff-named or the holt-named one). That either/or ended at
-        # 1.1.0: scruff reads `~/.config/scruff` and nothing else, and every
-        # ADAPTER rides the same answer. So the rebuild that first wrote this
-        # line (or, past 1.1.0, any rebuild) orphans a hand-written
-        # `~/.config/holt/adapters/namer/<id>.toml` that was not moved — lane
-        # names fall back to a random word pair with the warning going to a
-        # launchd stderr nobody reads. That move is the operator's —
-        # `haus.ai.namer`'s description carries the two commands — because the
-        # adapter is theirs and may be a file haus has
-        # never seen.
+        # ⚠️ scruff reads `~/.config/scruff` and nothing else, and every ADAPTER
+        # rides the same answer — so a namer adapter that is not under this
+        # directory is not found, and lane names fall back to a random word
+        # pair with the warning going to a launchd stderr nobody reads. Putting
+        # it there is the operator's job: the adapter is theirs and may be a
+        # file haus has never seen.
         ".config/scruff/config.toml".text = ''
           # Generated from haus.ai.default + haus.ai.namer — edit those options, not here.
           agent = "${agentDefault}"
@@ -2183,14 +2177,12 @@ in
       #
       # The filter drops only what it is about to insert — the append's whole
       # safety is there (this is an append, not the assignment
-      # WorktreeCreate/Remove use, which self-heal). It filtered on BOTH
-      # spellings of the command through the rename (`scruff hook notify` and
-      # its predecessor `holt hook notify`), because dropping the old spelling
-      # from the filter before the old entries were cleaned would have left
+      # WorktreeCreate/Remove use, which self-heal). It filters on the one
+      # spelling of the command, which is only safe because every settings.json
+      # on the machine has since been rewritten with it — dropping a spelling
+      # from the filter while entries using it are still in the file leaves
       # them in place beside the new one: every agent pane firing two
-      # notifications, forever. The `holt` rung came out at 1.1.0
-      # (docs/rename.md §8.1) — every settings.json has been rewritten with
-      # the new spelling by then, so the plain filter self-heals the rest.
+      # notifications, forever.
       #
       # A third way down is not a hook at all and does not live here:
       # lanes/lane-seen.sh clears a lane's fin when you FOCUS its window, which

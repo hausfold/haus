@@ -22,7 +22,7 @@
 # a window is attached, and attached sessions are not in the list.
 #
 # ── the two kinds of session open differently ────────────────────────────────
-# A LANE (`holt.<repo>.<lane>`) is found by its window TITLE on the AeroSpace
+# A LANE (`scruff.<repo>.<lane>`) is found by its window TITLE on the AeroSpace
 # backend, so its window has to be spawned by `open -na --title` — the only
 # spawn that forces a title the client inside cannot clobber. That is exactly
 # what scripts/raise-session.sh already does for the bar's go-to, so lanes are
@@ -146,7 +146,7 @@ field() {
 # So: `term.*` is done when it is attached AND its label has moved off the value
 # it carried before the spawn — that label is written by the very subshell we
 # are waiting on, which makes it the exact signal rather than a proxy for it.
-# A `holt.*` lane on the AeroSpace backend resolves nothing (raise-session.sh
+# A lane on the AeroSpace backend resolves nothing (raise-session.sh
 # forces the window title and the join IS the title), so attachment alone is the
 # whole condition there.
 settle() {
@@ -183,7 +183,9 @@ while IFS= read -r sess; do
   [ -n "$before" ] || before="$(field "$sess" gwindow)"
 
   case "$sess" in
-    holt.*)
+    # Both prefixes: a parked session from before scruff 1.2.0 renamed the join
+    # is restored by name, and the name it was parked under is the old one.
+    scruff.*|holt.*)
       # --or-open: the session has no window by definition here, so this is
       # always the open path. raise-session.sh owns the forced title and the
       # backend split. </dev/null because this loop is reading the parked list

@@ -95,26 +95,26 @@ EOF
 # title: the lane itself (58716) and two plain shells that claimed `term.1` and
 # `term.2` and were labelled by launch.sh. This is the real desk the bug was
 # found on.
-CROWDED_WINDOWS='58703|Ghostty|holt.haus.trill-skill-install
-58831|Ghostty|holt.workshop.progress-banner-wireup
-58836|Ghostty|holt.workshop.progress-banner-wireup
-58716|Ghostty|holt.workshop.progress-banner-wireup
+CROWDED_WINDOWS='58703|Ghostty|scruff.haus.trill-skill-install
+58831|Ghostty|scruff.workshop.progress-banner-wireup
+58836|Ghostty|scruff.workshop.progress-banner-wireup
+58716|Ghostty|scruff.workshop.progress-banner-wireup
 44630|Things|hausfold'
 
 crowded_sessions() { # how many plain windows carry a label
-  printf '  name=holt.workshop.progress-banner-wireup\tpid=58618\tclients=1\n'
+  printf '  name=scruff.workshop.progress-banner-wireup\tpid=58618\tclients=1\n'
   [ "$1" -ge 1 ] && printf '  name=term.1\tpid=19011\tclients=1\tstart_dir=/Users/me\twindow=58831\n'
   [ "$1" -ge 2 ] && printf '→ name=term.2\tpid=20028\tclients=1\tstart_dir=/Users/me\twindow=58836\n'
   return 0
 }
 
 @test "two labelled plain windows: the lane still resolves, impostors skipped" {
-  run join holt.workshop.progress-banner-wireup "$CROWDED_WINDOWS" "$(crowded_sessions 2)"
+  run join scruff.workshop.progress-banner-wireup "$CROWDED_WINDOWS" "$(crowded_sessions 2)"
   [ "$output" = 58716 ]
 }
 
 @test "one labelled plain window: the remaining impostor is skipped" {
-  run join holt.workshop.progress-banner-wireup "$CROWDED_WINDOWS" "$(crowded_sessions 1)"
+  run join scruff.workshop.progress-banner-wireup "$CROWDED_WINDOWS" "$(crowded_sessions 1)"
   # 58836 is unlabelled here, so it is indistinguishable from a lane and wins on
   # listing order. That is the join's known ceiling, not a regression — what
   # matters is that awk RAN and the labelled impostor was skipped.
@@ -122,12 +122,12 @@ crowded_sessions() { # how many plain windows carry a label
 }
 
 @test "no labelled plain windows: an empty claim list is not a parse error" {
-  run join holt.workshop.progress-banner-wireup "$CROWDED_WINDOWS" "$(crowded_sessions 0)"
+  run join scruff.workshop.progress-banner-wireup "$CROWDED_WINDOWS" "$(crowded_sessions 0)"
   [ "$output" = 58831 ]
 }
 
 @test "a lane with no window at all resolves to nothing" {
-  run join holt.trill.gone "$CROWDED_WINDOWS" "$(crowded_sessions 2)"
+  run join scruff.trill.gone "$CROWDED_WINDOWS" "$(crowded_sessions 2)"
   [ -z "$output" ]
 }
 
