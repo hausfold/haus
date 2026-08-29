@@ -254,6 +254,7 @@ rows="$(
           stray:   "exclamationmark.triangle",
           parked:  "zzz" }
       ) as $icons
+    | ([ .lanes[]?.path ]) as $paths
     | [ .lanes[]?
         | (.main | split("/") | last) as $repo
         # The live table is the authority on which spelling this session
@@ -285,12 +286,26 @@ rows="$(
         # scruff cannot probe.
         #
         # They stay listed where the accounting happens: `scruff` and `bench
-        # status` still show every one, nested under its parent. A spawned lane
-        # carries its own branch and its own PR, and closing the parent'"'"'s pane
-        # does not reap it, so nothing may drop it everywhere at once.
+        # status` both show every one. A spawned lane carries its own branch and
+        # its own PR, and closing the parent'"'"'s pane does not reap it, so
+        # nothing may drop it everywhere at once.
+        # A fourth escape, and the one that keeps a branch from becoming
+        # unreachable: hide a lane only when the row that HOLDS its chat is
+        # itself on this list. A `scruff child` spawned from a plain pane — the
+        # shape the docs teach, `cd "$(scruff child …)"` from a main checkout —
+        # parents to a directory that is not a lane and has no zmx session, so
+        # dropping it would leave its PR with no route through the palette at
+        # all.
+        #
+        # `.chat` is bound BEFORE the `$paths | index(…)` pipe for the same
+        # reason `.key` is below: past that bar `.` is $paths, an array, and
+        # `.chat` on an array is a runtime error jq reports straight into the
+        # `2>/dev/null` — an empty picker, not a message.
+        | (.chat // "") as $chat
         | select(($live[$sess] // null) != null
-                 or (.chat // "") == "" or (.path // "") == ""
-                 or .chat == .path)
+                 or $chat == "" or (.path // "") == ""
+                 or $chat == .path
+                 or ($paths | index($chat)) == null)
         # No trailing "  —  " on a lane with no commits yet: a dangling em
         # dash reads as a truncated subject rather than as an empty one.
         | { sess: $sess, repo: $repo, lane: .name, state: $state,

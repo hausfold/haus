@@ -105,6 +105,18 @@ JSON
   [[ "$output" == *"haus · par"* ]] || fail_with "an empty chat must mean show it" "$output"
 }
 
+@test "lanes: a lane spawned from a pane that is NOT a lane is still offered" {
+  # `cd "$(scruff child …)"` from a main checkout — the shape the docs teach —
+  # parents the lane to a directory that is no lane and has no zmx session, so
+  # it contributes no row of its own. Hiding the child too would leave its
+  # branch and PR with no route through the palette at all. The rule is
+  # therefore "hide it only when the row holding its chat is on this list".
+  run rows "$(fixture /repos/workshop)"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"haus · par"* ]] \
+    || fail_with "a lane whose chat-holder is not listed was hidden" "$output"
+}
+
 @test "lanes: a lane whose chat is its own checkout is offered" {
   run rows "$(fixture /w/child)"
   [ "$status" -eq 0 ]
