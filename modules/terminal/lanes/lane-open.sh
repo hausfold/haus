@@ -227,17 +227,23 @@ fi
 # This block has been the other thing once, and the round trip is worth knowing
 # before touching it again:
 #
-#   #529  the silent birth below — direct exec, so nothing activates, plus a
-#         clamped off-screen position so the pre-tile frame is a hairline.
-#         Killed the focus loss for good. A flash on the page you were standing
-#         on was reported afterwards and never isolated to a cause.
-#   #544  no window at all until something went looking for the lane. That kept
-#         the silence by construction and cost the thing this file exists for:
-#         a background lane was absent from ⌃⇥ and from its own T/<repo> page
-#         until it had been opened once, which is not quiet, it is invisible.
+#   #529  a silent birth: direct exec, so nothing activates, plus an
+#         off-screen --window-position that was believed to clamp the pre-tile
+#         frame to a hairline. It killed the focus loss for good. It did not
+#         kill the flash, and the reason is that the position pair does
+#         NOTHING — measured 2026-08-29, see the spawn below.
+#   #544  no window at all until something went looking for the lane. That
+#         killed the flash by construction and cost the thing this file exists
+#         for: a background lane was absent from ⌃⇥ and from its own T/<repo>
+#         page until it had been opened once, which is not quiet, it is
+#         invisible.
 #
-# So the window is back, born the #529 way. A flash, if it survives, is a pixel
-# bug to isolate — not a reason for a lane to have no window.
+# So the window is back, born the #529 way plus the flag pair that was actually
+# measured to shrink the birth (--window-width/--window-height). What is left
+# of the flash is a speck, not a terminal. If even that is too much, the honest
+# next move is NOT a third position trick: it is to keep the windowless birth
+# and materialise the window when you arrive on T/<repo>, where it belongs and
+# where nothing has to be hidden.
 #
 # On the aerospace backend the silence is in how the window is BORN, two facts
 # working together (both MEASURED 2026-08-27 on Ghostty 1.3.1):
@@ -247,15 +253,13 @@ fi
 #                   about the launch, so nothing is activated: the window
 #                   opens, the initial-command runs, and focus stays exactly
 #                   where it was — there is nothing to hand back.
-#   no visible birth  the window is asked for at --window-position 25000,25000,
-#                   which macOS clamps to a 1-px sliver at the bottom-right
-#                   corner (measured: frame x=1511 on a 1512-wide display). So
-#                   the moment before the self-tile block walks it off to
-#                   T/<repo> is a hairline at the screen edge rather than a
-#                   window blinking over your page.
-#                   scripts/float-term.sh's header calls these flags "silently
-#                   ignored" — that is about `open -na`, the OTHER path here;
-#                   the clamp above was measured on the direct exec.
+#   a birth the size of a speck  the window is asked for at --window-width=10
+#                   --window-height=4, Ghostty's smallest legal grid, so the
+#                   ~200 ms before the self-tile block walks it to T/<repo>
+#                   shows a box about a hundred pixels across rather than a
+#                   terminal over your page. The position pair rides along and
+#                   is measured NOT to work — the detail, and how both were
+#                   measured, is at the spawn itself.
 #
 # Two more silences ride along, because each would take the screen on its own:
 #
@@ -306,11 +310,8 @@ follow="--focus-follows-window "
 activate_line="  activate"
 [ -n "$bg" ] && activate_line="  -- background lane: deliberately not activating"
 
-# `-g` survives on the COLD START alone. That call is a pre-warm — its whole job
-# is to have the process up before the `-na` below, so that the lane's own spawn
-# doesn't race the app's launch and land a stray default window beside it — and
-# an instance that comes up windowless is precisely what a pre-warm wants. The
-# lane's own `open -na` must never carry it: see the measurement above.
+# `-g` survives on the COLD START alone, and only on the `open -na` fallback —
+# the pre-warm's own guard, and the reasoning for both, are down at that call.
 #
 # Worth knowing rather than fixing here: the instance it leaves behind is
 # windowless AND a live Apple Events target, so a later `tell application
@@ -598,13 +599,18 @@ chmod +x "$launcher"
 # Ghostty and then polled for two seconds before opening its window. Fixed
 # 2026-08-19; same one-word bug was in scripts/new-window.sh.
 #
-# `-g` survives on the COLD START alone, and only for a background lane. That
-# call is a pre-warm — its whole job is to have the process up before the spawn
-# below, so the lane's own window doesn't race the app's launch and land a stray
-# default window beside it — and an instance that comes up windowless is
-# precisely what a pre-warm wants. The lane's OWN spawn must never carry it: see
-# the measurement in the background note above.
-if ! pgrep -ix ghostty >/dev/null 2>&1; then
+# `-g` survives on the COLD START alone. That call is a pre-warm — its whole job
+# is to have the process up before the `open -na` below, so the lane's own spawn
+# doesn't race the app's launch and land a stray default window beside it — and
+# an instance that comes up windowless is precisely what a pre-warm wants. The
+# lane's OWN spawn must never carry it: see the measurement in the background
+# note above.
+#
+# The direct-exec path skips the pre-warm outright: it involves no
+# LaunchServices launch to race, and the windowless instance a `-g` pre-warm
+# leaves behind is exactly the Apple Events lottery entrant the note above
+# warns about — spawning one for a path that cannot need it would be all cost.
+if [ -z "$ghostty_bin" ] && ! pgrep -ix ghostty >/dev/null 2>&1; then
   # shellcheck disable=SC2086  # $warm_bg is a whole flag or nothing
   open $warm_bg -a Ghostty
   for _ in $(seq 1 40); do
@@ -662,9 +668,41 @@ if [ "$backend" = aerospace ]; then
     # after that is the same blindness `open -na` already has: it, too,
     # returns before the window exists (the note in the launcher section
     # above), and the launcher's holds keep the evidence if the lane dies.
+    #
+    # ── the size flags are the ones that WORK ─────────────────────────────
+    # MEASURED 2026-08-29 in a headless macOS guest, screenshotting a direct
+    # exec at 150 ms intervals, because #529's claim about the position pair
+    # did not survive contact with a live machine (#544 removed the whole
+    # window over it):
+    #
+    #   --window-position-x/-y=25000  IGNORED. The window is born at the same
+    #                   mid-screen frame as a launch with no position flags at
+    #                   all — the two screenshots differ only in the dialogs
+    #                   already on the guest's desktop. Not clamped to a 1-px
+    #                   corner sliver, whatever #529 measured. This is the
+    #                   flash that was reported and never isolated, and it is
+    #                   the same fact scripts/float-term.sh's header records
+    #                   ("inherits a saved-state frame"), which is why THAT
+    #                   script drives the frame through AX instead.
+    #   --window-width/--window-height  HONOURED, in CELLS, on the initial
+    #                   window. 10x4 is Ghostty's floor ("Windows smaller than
+    #                   10 wide by 4 high are not allowed", +show-config), and
+    #                   it turns the birth from a full terminal blinking over
+    #                   your page into a speck about a hundred pixels across,
+    #                   for the ~200 ms before the self-tile block moves it to
+    #                   T/<repo> and AeroSpace gives it the tile's own frame.
+    #
+    # So the position pair stays — it costs nothing and a machine whose
+    # Ghostty honours it is strictly better off — and the size pair is what
+    # actually buys the silence. What it costs: the client starts on a 10x4
+    # PTY and takes a SIGWINCH when the tile lands, so a lane's first frame
+    # can be drawn narrow and redrawn. That is a scrollback artifact; the
+    # alternative was a full window on the page you were standing on.
     nohup "$ghostty_bin" \
       --title="$sess" \
       --initial-command="$launcher" \
+      --window-width=10 \
+      --window-height=4 \
       --window-position-x=25000 \
       --window-position-y=25000 >/dev/null 2>&1 &
     sleep 0.2

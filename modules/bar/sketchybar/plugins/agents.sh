@@ -330,10 +330,9 @@ if [ "${1:-}" = "row" ] && [ "${2:-}" = "zmx" ]; then
     #
     # A session with no window is detached and still running — the whole point
     # of zmx — so a row always opens one rather than pretending nothing is
-    # there. WHICH window depends on what the session is, and for a lane that
-    # stopped being an edge case the day a background spawn stopped opening one
-    # at all (lanes/lane-open.sh): every never-visited lane arrives here with no
-    # window. `--or-open` would answer it with a BARE one — born on whatever
+    # there. WHICH window depends on what the session is, and for a lane it is
+    # never `--or-open`: a lane whose window was closed with ⌘W, or one still
+    # being tiled, would be answered with a BARE window — born on whatever
     # page you are standing on, floated by windows' on-window-detected rule and
     # never tiled onto T/<repo> (raise-session.sh's own `open_window`). So ask
     # scruff for a lane instead: that drives the resume seam, which is
