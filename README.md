@@ -18,91 +18,36 @@ options. **hacker** is the first desktop — grey, quiet, developer-shaped.
 This repo ships both; **hausfold** is the org that makes them, which is why the
 repo is `hausfold/haus`.
 
-📖 [hausfold.co/haus](https://hausfold.co/haus/) — what it is, and the [docs](https://hausfold.co/docs/haus/): [installing](https://hausfold.co/docs/haus/install/), the rooms, and [pounce](https://hausfold.co/docs/pounce/), the palette
-
-## install
-
 ```sh
 curl -fsSL https://hausfold.co/haus.sh | bash
 ```
 
-That asks which desktop you want. Swapping the URL answers it instead:
+That asks which desktop you want, puts the prerequisites in place, and
+scaffolds a thin config of your own at `~/.config/nix`. You never edit this repo
+to use it.
 
-| | |
-|---|---|
-| `curl -fsSL https://hausfold.co/hacker.sh \| bash` | the whole house — tiling, bar, palette, shelf, agents |
-| `curl -fsSL https://hausfold.co/everyday.sh \| bash` | a Mac for someone who doesn't write code |
-| `curl -fsSL https://hausfold.co/minimal.sh \| bash` | just the themed shell, on otherwise stock macOS |
+## the manual
 
-Already have Nix? `nix run github:hausfold/haus#bootstrap -- --desktop=minimal`.
-→ [choosing a desktop](https://hausfold.co/docs/haus/desktops/choosing/)
+📖 **[hausfold.co/docs/haus](https://hausfold.co/docs/haus/)** — and it only
+lives there: [installing](https://hausfold.co/docs/haus/install/),
+[choosing a desktop](https://hausfold.co/docs/haus/desktops/choosing/),
+[what each room does](https://hausfold.co/docs/haus/),
+[every `haus` command](https://hausfold.co/docs/haus/reference/haus/),
+[every option](https://hausfold.co/docs/haus/reference/options/),
+[keeping it current](https://hausfold.co/docs/haus/keeping-it-current/) and
+[leaving](https://hausfold.co/docs/haus/leaving/).
 
-The installer puts the prerequisites in place (Xcode CLT, Determinate Nix), then
-scaffolds a **thin config of your own** at `~/.config/nix`: an ~18-line flake
-consuming this repo, plus one host file for what's personal — git identity,
-signing keys, secrets, your private apps. You never edit this repo to use it.
+Taking one room into a flake of your own — the tiling, the bar — is
+[how the flakes fit together](https://hausfold.co/docs/haus/internals/flakes/).
+Changing your Mac by asking an agent is
+[the AI room](https://hausfold.co/docs/haus/rooms/ai/).
 
-Beside it lands `hosts/<host>/options.nix` — **every `haus.*` option there is, at
-its default, with its type and a docs link, all commented out.** You discover
-options by reading your own config, and it's rendered from the revision you
-pinned, so it can't offer you one you don't have.
+## in this repo
 
-## the CLI
-
-```sh
-haus rebuild                # build, then switch — a bad edit never reaches the running system
-haus update                 # pull the latest haus and its apps, then rebuild
-haus rollback               # back one generation, atomically
-haus edit                   # open your host file
-haus options                # re-render that catalogue against the revision you're on
-haus set                    # search every option this Mac has, then pick the value
-haus set theme.accent teal  # or say it outright: type-checked, then one rebuild
-haus plan                   # what the next rebuild would change, without building it
-haus diff                   # what you declared vs what macOS actually has right now
-haus doctor                 # Nix, the CLT, the GUI agents, Homebrew drift
-```
-
-→ [every command](https://hausfold.co/docs/haus/reference/haus/) · [every option](https://hausfold.co/docs/haus/reference/options/)
-
-## the rooms
-
-Thirteen capabilities, each a switch: **Apps · Appearance · Displays ·
-Development · Windows · Bar · Launcher · Shelf · Notifications · Focus · AI ·
-Text expansion · Security**. Your desktop decides which are on; one line in your
-host overrules it. Six are also exported as standalone nix-darwin modules, so
-you can take the tiling or the bar into a flake of your own and leave the house
-behind.
-
-→ [what each room does](https://hausfold.co/docs/haus/) · [stealing one](docs/modules.md)
-
-## ask an agent to change it
-
-A declarative machine is the one kind an agent can safely reconfigure — the
-rebuild builds before it switches, so a bad edit never reaches the running
-system. What was missing was knowledge: left to guess, a model reaches for `brew
-install` and dotfiles the next rebuild overwrites.
-
-So the layer ships it. `haus.ai.skill` writes a skill for every hausfold tool
-on the machine into the directory each client you named actually reads
-(`~/.claude/skills/…`, `~/.codex/skills/…`, `~/.config/opencode/skills/…`,
-`~/.pi/agent/skills/…`).
-The `haus` one carries an option reference **generated from the revision you're
-pinned to**, so it can only describe options you have — "install Slack" or "make
-everything bigger" becomes an edit to your host file, applied and verifiable.
-Beside it, `scruff` and `handoff` come from scruff: "what worktrees do I have open?"
-and "hand this off to a fresh session" work without you wiring anything. A tool
-whose room is optional joins them when you switch it on — `trill` with
-`haus.notifications.compositor`.
-→ [coding agents](https://hausfold.co/docs/haus/rooms/ai/)
-
-## more
-
-- [Modules](docs/modules.md) — one room in your own flake, `mkHaus`, the identity knobs
-- [The model](docs/model.md) — layer, room, desktop, host, and what each one owns
-- [macOS settings](docs/macos-settings.md) — what a desktop can actually set, measured
-- [The focus room](docs/focus.md) — how it flips a real macOS Focus, scenes, triggers
-- [Making it yours](https://hausfold.co/docs/haus/desktops/customizing/) · [Keeping it current](https://hausfold.co/docs/haus/keeping-it-current/) · [Leaving](https://hausfold.co/docs/haus/leaving/)
 - [`AGENTS.md`](./AGENTS.md) — hacking on the house
+- [`docs/model.md`](docs/model.md) — the contract the modules are written against: layer, room, desktop, host, and what each one may own
+- [`docs/macos-settings.md`](docs/macos-settings.md) — what a desktop can actually set, measured domain by domain
+- [`docs/focus.md`](docs/focus.md) — how the focus room flips a real macOS Focus with no public API, and what it deliberately won't do
 
 ---
 
