@@ -142,7 +142,9 @@ fi
 #
 # The dispatch belongs to this script, not to ui.sh: one fork per COMMAND is the
 # whole economy, and a library sourced per script cannot see the command
-# boundary that decision needs.
+# boundary that decision needs. It is the phase PAINTER that opens it — never a
+# message verb, which would put this script's own printfs and snug's lines on
+# two schedules.
 SNUG_FD=""
 SNUG_TRIED=""
 # SNUG_PID is not declared here on purpose: `coproc SNUG` makes bash set it
@@ -176,7 +178,14 @@ snug_open() {
 
 snug_emit() { # snug_emit <verb> <text> — one record; 1 = no coproc, caller falls back
   local line
-  [ -n "$SNUG_FD" ] || snug_open || return 1
+  # 🚨 This NEVER opens the coprocess — the phase painter does, and only it.
+  # A record crosses a pipe and is drawn by another process on ITS stderr,
+  # while the lines this script prints itself (the blank that separates the
+  # header, a failed phase's log tail) go straight to the terminal. Two
+  # writers on two schedules put them in the wrong order. Inside a phase
+  # region there is no race, because nothing here writes directly while one is
+  # up. See docs/cli-presentation.md, **Rules a caller has to meet**.
+  [ -n "$SNUG_FD" ] || return 1
   # Multi-line text would break record framing, so it is one record per line.
   # (The Go side re-joins tab fields, so a tab inside prose is safe.)
   while IFS= read -r line; do
@@ -499,6 +508,12 @@ run_phase() {
   HAUS_PHASE_SLICE="$(tail -c "+$((off + 1))" "$HAUS_LOG")"
   if [ "$rc" -ne 0 ]; then
     phase_bad "$label" "$HAUS_PHASE_ELAPSED"
+    # The rebuild is over — every caller of run_phase follows a non-zero rc
+    # with `die`. Drop the coprocess before the slice below, because that is a
+    # printf straight to the terminal and a coprocess still holding records
+    # would interleave its lines with a build log. The `warn` after it draws
+    # through ui.sh, in this script's own order.
+    snug_close
     # fd 2 with the rest of the rebuild: it is the failure it belongs to, not
     # output. (`>&2` on the pipeline's tail, which is what reaches a terminal.)
     [ -n "$VERBOSE" ] || printf '%s\n' "$HAUS_PHASE_SLICE" | tail -n 25 | sed 's/^/      /' >&2

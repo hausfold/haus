@@ -108,9 +108,13 @@ haus_snug() {
 # anything else — including a verb followed by a space, which is exactly what a
 # careless `printf '%s %s\n'` would send. None of that is visible from the
 # calling side: a bad record renders as a line that never appears.
+#
+# Each snippet below opens the region itself, because a message verb no longer
+# does — see "a message verb never opens the coprocess", further down. What is
+# under test here is what goes on the wire once one is open.
 
 @test "each message verb sends one tab-separated record, verb first" {
-  haus_snug "say hello; warn careful; hint 'try this'"
+  haus_snug "snug_open; say hello; warn careful; hint 'try this'"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
   [ "$(records)" = "$(printf 'say\thello\nwarn\tcareful\nhint\ttry this')" ] \
     || { echo "got:"; show_records; false; }
@@ -121,7 +125,7 @@ haus_snug() {
   # the coprocess's write end closes with the shell.
   local e; e="$(stub_env)"
   # shellcheck disable=SC2086
-  haus_sh $e "$SNUG_STUB; UI_TTY=1; die 'the end'; echo UNREACHED"
+  haus_sh $e "$SNUG_STUB; UI_TTY=1; snug_open; die 'the end'; echo UNREACHED"
   [ "$status" -eq 1 ] || { echo "die exited $status: $output"; false; }
   [[ "$output" != *UNREACHED* ]]
   [ "$(records)" = "$(printf 'fail\tthe end')" ] || { echo "got:"; show_records; false; }
@@ -131,7 +135,7 @@ haus_snug() {
   # A newline inside a record breaks the framing for everything after it, so the
   # emitter folds — and the fold has to keep the verb, or the second line comes
   # out as an unknown record instead of a second line.
-  haus_snug "say \$'one\ntwo'"
+  haus_snug "snug_open; say \$'one\ntwo'"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
   [ "$(records)" = "$(printf 'say\tone\nsay\ttwo')" ] || { echo "got:"; show_records; false; }
 }
@@ -139,10 +143,25 @@ haus_snug() {
 @test "one coprocess for the whole command, not one fork per line" {
   # The entire economy of `run` over `snug say`: a fork is ~4.4 ms and a rebuild
   # draws sixty lines, so per-line would be a third of a second of pure overhead.
-  haus_snug "for i in 1 2 3 4 5 6 7 8 9 10; do say \"line \$i\"; done"
+  haus_snug "snug_open; for i in 1 2 3 4 5 6 7 8 9 10; do say \"line \$i\"; done"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
   [ "$(forks)" -eq 1 ] || { echo "forked $(forks) times for ten lines"; false; }
   [ "$(records | grep -c '^say')" -eq 10 ] || { echo "got:"; show_records; false; }
+}
+
+@test "a message verb never opens the coprocess — only the phase painter does" {
+  # A record crosses a pipe and is drawn by ANOTHER process on its stderr, while
+  # the lines haus.sh prints itself — the blank that separates the header, a
+  # failed phase's log tail — go straight to the terminal. Two writers on two
+  # schedules put them in the wrong order. Inside a region there is no race,
+  # because nothing here writes directly while one is up, which is what makes
+  # "the region opens it" the whole rule. Ten narrating lines, a real terminal
+  # on fd 2, snug on PATH: still zero forks.
+  local e; e="$(stub_env)"
+  # shellcheck disable=SC2086
+  haus_sh $e "$SNUG_STUB; UI_TTY=1; for i in 1 2 3; do say \"line \$i\"; done; warn w; hint h"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(forks)" -eq 0 ] || { echo "a message verb forked snug"; show_records; false; }
 }
 
 @test "a verb that prints nothing forks nothing" {
