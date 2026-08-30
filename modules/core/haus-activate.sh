@@ -69,7 +69,7 @@ UI_HEX_ERR=ed8fa9; UI_X256_ERR=211; UI_ANSI_ERR=91
 # will not print at you literally. An empty C_* is the fallback, so the same
 # printf below stays clean text.
 ui_profile() { # ui_profile <non-empty if that stream is a tty> -> none|16|256|truecolor
-  local forced=
+  local forced=''
   case "${CLICOLOR_FORCE:-}" in '' | 0) ;; *) forced=1 ;; esac
   if [ -n "${NO_COLOR+set}" ] && [ -z "$forced" ]; then printf none; return 0; fi
   if [ -z "$1" ] && [ -z "$forced" ]; then printf none; return 0; fi
@@ -93,7 +93,7 @@ ui_sgr() { # ui_sgr <profile> <err>
   # colour, never die. `${hex:0:2}` on an unset name is fatal under `set -u`,
   # and in bootstrap.sh that is an installer that aborts on a fresh Mac over a
   # caller's typo — the one failure mode a painter must never have.
-  local hex= x256= ansi=
+  local hex='' x256='' ansi=''
   case "$2" in
     err) hex=$UI_HEX_ERR; x256=$UI_X256_ERR; ansi=$UI_ANSI_ERR ;;
     *)   return 0 ;;
