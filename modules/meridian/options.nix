@@ -47,6 +47,14 @@
         the proxy is that client's own (`~/.pi/agent/models.json`,
         `~/.config/opencode/…`) and haus writes none of them — see the AI room's
         `clientScopeNote`. This room's job ends at "the port answers".
+
+        One thing haus does add to traffic you have already pointed here: pi's
+        extension stamps `x-session-affinity` on requests that already carry
+        `x-meridian-agent: pi`, without which meridian replays the whole
+        conversation every turn instead of resuming its SDK session — see
+        `modules/terminal/pi/agent-state.ts`. It never makes a client address
+        this proxy; it only stops one that already does from paying for every
+        cache write twice. `HAUS_PI_SESSION_AFFINITY=0` turns it off.
       '';
     };
 
