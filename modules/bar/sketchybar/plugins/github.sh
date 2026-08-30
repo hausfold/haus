@@ -105,18 +105,27 @@
 #   fetching      present while a fetch is in flight — the pill's "…" state, and
 #                 what a second refresh click checks so it doesn't pile on.
 #   lock/         mkdir-lock, so the update tick and a click can't fetch at once.
+#
+# ── the framework ─────────────────────────────────────────────────────────────
+# A barlib widget (docs/bar-framework.md), and the one the popup components
+# were designed against. The header below is the whole of this pill's wiring —
+# there is no block for it in modules/bar/default.nix beyond its static look.
+# What that bought, concretely: the pill's two tones, the popup's frame and
+# align, every row's font and height and its close-on-click, the barpop arm,
+# and the `updates=on` that lets a hidden pill come back.
+# widget: interval   = 60
+# widget: popup      = true
+# widget: subscribes = github_update
 set -u
 export USER="${USER:-$(id -un)}"
 export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:$PATH"
 
-source "$HOME/.config/sketchybar/colors.sh"
-# $SB — which bar this pill lives on (haus.bar.bottom.items can move it to the
-# bottom bar, which is a second SketchyBar instance addressed by its own
-# binary). BAR_ITEM is the fallback bar.sh routes on when there is no
-# $BAR_NAME, i.e. when this script is invoked by hand rather than by a bar.
+# BAR_ITEM is what bar.sh routes on when there is no $BAR_NAME, i.e. when this
+# script is invoked by hand rather than by a bar; barlib sources bar.sh (for
+# $SB — which of the two instances this pill lives on), colors.sh and sizes.sh
+# for us.
 BAR_ITEM=github
-source "$HOME/.config/sketchybar/bar.sh"
-source "$HOME/.config/sketchybar/sizes.sh"
+source "$HOME/.config/sketchybar/barlib.sh"
 source "$HOME/.config/sketchybar/github_config.sh"
 
 # gh by absolute path, not off $PATH. This runs from launchd, where the PATH is
@@ -154,7 +163,6 @@ else
 fi
 HAUS_GH_BACKSTOP="${HAUS_GH_BACKSTOP:-0}"
 
-ITEM="${NAME:-github}"
 now=$(date +%s)
 
 # The rows a source may contribute to the dropdown, when it didn't say. Also the
@@ -168,6 +176,10 @@ DEFAULT_LIMIT=8
 # than the shortest legal refresh, so a sweep can never race a live fetch or
 # delay a healthy one.
 STALE_INFLIGHT=300
+
+# The floor a webhook delivery may NOT push through — see fetch() for why the
+# delivery cancels the wait rather than the floor.
+PUSH_FLOOR=60
 
 # ── source table ──────────────────────────────────────────────────────────────
 # BAR_GITHUB_SOURCES is one line per source, unit-separated (see the note on
@@ -194,8 +206,13 @@ fi
 # Nothing configured — a pill asked for with no sources has nothing it could
 # ever say, so it draws nothing at all rather than a permanent zero. The Nix
 # side asserts on this too; this is the belt for a hand-edited config file.
+# The pair, not just the hide: BOTH bars default to updates=when_shown, which
+# SketchyBar applies to event DELIVERY, so a bare drawing=off is a one-way door
+# and a host that later adds a source would get a pill that never comes back.
+# Spelled out rather than `pill --hide` because this runs at source time, ahead
+# of the runtime's own dispatch.
 if [ "$n_sources" -eq 0 ]; then
-  "$SB" --set "$ITEM" drawing=off
+  "$SB" --set "$NAME" drawing=off updates=on
   exit 0
 fi
 
@@ -255,14 +272,20 @@ sev_rank() {
     *) echo 1 ;;
   esac
 }
-sev_color() {
+# The same scale as a barlib TONE. Four rungs are named identically on both
+# sides, which is not a coincidence — the framework's ladder was lifted from
+# this one. The two that need translating are the ends: `none` is barlib's
+# `mute`, and everything left over is a SOURCE severity (`info`, and whatever
+# a hand-edited config invents), which is a live readout carrying no alarm —
+# barlib's `text`, the rung that is deliberately not a verdict.
+sev_tone() {
   case "$1" in
-    bad) echo "$RED" ;;
-    warn) echo "$PEACH" ;;
-    busy) echo "$SKY" ;;
-    ok) echo "$GREEN" ;;
-    mute | none | '') echo "$OVERLAY0" ;;
-    *) echo "$TEXT" ;;
+    bad) echo bad ;;
+    warn) echo warn ;;
+    busy) echo busy ;;
+    ok) echo ok ;;
+    mute | none | '') echo mute ;;
+    *) echo text ;;
   esac
 }
 
@@ -712,67 +735,102 @@ read_cache() {
   return 0
 }
 
+# ── the tick ──────────────────────────────────────────────────────────────────
+# fetch() is barlib's impure half and it deliberately does NOT cross the
+# network: it reads the cache read_cache already knows how to read, hands the
+# four facts to the runtime, and only then decides whether to detach a real
+# fetch. That order is the whole of "never on the bar's critical path" — the
+# repaint is already queued before anything looks at the clock.
+#
+# `drawing` is state rather than something render computes, because the
+# runtime SKIPS render when nothing changed: the first-run tour hiding the
+# right-side pills mid-lap has to be a change the diff can see, or the mute
+# would only take effect the next time GitHub's numbers happened to move.
+fetch() {
+  if [ -f "$FETCHING" ] && [ "$(stamp_epoch)" -eq 0 ]; then
+    # Only on the very first fetch, when there is genuinely nothing to show. A
+    # refresh over a populated cache keeps drawing the old number instead of
+    # blanking a pill you were reading.
+    emit state=fetching count=0 sev=info worst=none drawing="$(tour_drawing)"
+  else
+    read_cache
+    emit state="$LEAD_STATE" count="$LEAD_COUNT" sev="$LEAD_SEV" \
+      worst="$LEAD_WORST" drawing="$(tour_drawing)"
+  fi
+
+  # Push shortens a poll, it never removes one: `haus_gh_fresh_since` is the
+  # "something actually happened" door, the interval underneath it is the
+  # backstop, and with no bridge both fall back to what they always were.
+  #
+  # PUSH_FLOOR is why the door has a sill. This pill's option carries a 60s
+  # floor enforced by its very type, because a fetch is a full `gh` pass over
+  # every configured source and GitHub's authed budget is shared with every
+  # other `gh` on the machine. A bare `|| haus_gh_fresh_since` hands that floor
+  # to whoever is pushing: an org hook subscribed to `workflow_run` turns one
+  # push into roughly two deliveries per workflow, each waking this pill, and
+  # the only remaining bound would be how long a fetch takes. So the delivery
+  # cancels the WAIT, not the floor — worst case one fetch a minute, which is
+  # what the option promised.
+  local last refresh
+  last=$(stamp_epoch)
+  refresh="${BAR_GITHUB_REFRESH:-300}"
+  if [ -f "$COVERED" ] && [ "$HAUS_GH_BACKSTOP" -gt "$refresh" ]; then
+    refresh="$HAUS_GH_BACKSTOP"
+  fi
+  if [ "$last" -eq 0 ] || [ $((now - last)) -ge "$refresh" ] ||
+    { [ $((now - last)) -ge "$PUSH_FLOOR" ] && haus_gh_fresh_since "$STAMP"; }; then
+    spawn_fetch
+  fi
+  return 0
+}
+
 # ── paint the pill ────────────────────────────────────────────────────────────
+# Two tones, because they are two different facts and collapsing them loses
+# one of them: the NUMBER is how many, coloured by the source it counts, and
+# the OCTOCAT is how bad, coloured by the worst single row anywhere. Painting
+# the number peach when one of five PRs conflicts says "five bad things" when
+# there is one; leaving it neutral says nothing is wrong at all.
+#
+# Every rung lends the logo its colour except `mute`, which is the one that
+# means "nothing has a verdict" and so has none to lend. That includes `ok`:
+# a source with nothing in it contributes no rows at all, so an empty queue
+# leaves the logo the number's own grey, and green here means "there IS a
+# queue and every row in it is fine" — a different sentence from silence.
 render() {
   # Defaulted rather than named bare: the plugin directory and github_config.sh
   # are two separate home.file entries, so a rebuild that lands one before the
   # other leaves a window where this is unset — and under `set -u` that is not a
   # missing glyph, it is a pill that stops drawing until the next tick.
-  local icon="${BAR_GITHUB_ICON:-}" color label ldraw=on icolor
-  if [ -f "$FETCHING" ] && [ "$(stamp_epoch)" -eq 0 ]; then
-    # Only on the very first fetch, when there is genuinely nothing to show. A
-    # refresh over a populated cache keeps drawing the old number instead of
-    # blanking a pill you were reading.
-    color="$OVERLAY0"; label="…"; LEAD_WORST=none
-  else
-    read_cache
-    case "$LEAD_STATE" in
-      auth)
-        color="$YELLOW"; label="auth" ;;
-      error)
-        color="$OVERLAY0"; label="—" ;;
-      *)
-        if [ "$LEAD_COUNT" -gt 0 ]; then
-          color="$(sev_color "$LEAD_SEV")"; label="$LEAD_COUNT"
-        else
-          # Nothing to report: the pill goes quiet rather than drawing a zero.
-          # A number you never act on is a number you stop seeing, and then so
-          # is the one that matters.
-          color="$OVERLAY0"; label=""; ldraw=off
-        fi ;;
-    esac
-  fi
-
-  # The logo's own tone: the worst row anywhere, on the ladder in the header.
-  # Every rung paints it except `mute`, which is the one that means "nothing has
-  # a verdict" and so has no tone to lend.
-  #
-  # That includes `ok`, which it used to withhold on the grounds that an
-  # all-clear true almost all the time is a colour you stop reading. It isn't
-  # true almost all the time — a source with nothing in it contributes no rows
-  # at all, so an empty queue leaves the logo the number's own grey. Green here
-  # means "there IS a queue and every row in it is fine", which is a different
-  # sentence from silence and worth a colour; and now that the ladder reserves
-  # red, the octocat reads as a four-step gauge rather than an alarm that is
-  # either on or off.
-  icolor="$color"
-  case "$LEAD_WORST" in
-    bad | warn | busy | ok) icolor="$(sev_color "$LEAD_WORST")" ;;
+  local icon="${BAR_GITHUB_ICON:-}" label ltone itone
+  case "$state" in
+    fetching)
+      ltone=mute; label="…" ;;
+    auth)
+      ltone=warn; label="auth" ;;
+    error)
+      ltone=mute; label="—" ;;
+    *)
+      if [ "$count" -gt 0 ]; then
+        ltone="$(sev_tone "$sev")"; label="$count"
+      else
+        # Nothing to report: the pill goes quiet rather than drawing a zero. A
+        # number you never act on is a number you stop seeing, and then so is
+        # the one that matters. An empty label is barlib's "absent", so the
+        # octocat re-centres itself for the resting state.
+        ltone=mute; label=""
+      fi ;;
   esac
-
-  # An icon-only pill has to be padded symmetrically. The bar's defaults are
-  # 8 left / 4 right on the icon and 4 / 8 on the label, which reads centred
-  # while both are drawn and visibly left-heavy the moment the label goes away
-  # — which for this pill is its RESTING state, i.e. most of the time. Set with
-  # every paint rather than once at --add, because the label appears and
-  # disappears with the count.
-  local ipl=8 ipr=4
-  [ "$ldraw" = off ] && { ipl=10; ipr=10; }
-
-  "$SB" --set "$ITEM" drawing="$(tour_drawing)" \
-    icon="$icon" icon.color="$icolor" \
-    icon.padding_left="$ipl" icon.padding_right="$ipr" \
-    label="$label" label.color="$color" label.drawing="$ldraw"
+  itone="$ltone"
+  case "$worst" in
+    bad | warn | busy | ok) itone="$worst" ;;
+  esac
+  pill --icon "$icon" --tone "$itone" --label "$label" --label-tone "$ltone"
+  # The first-run tour hides the right-side pills for the length of its lap
+  # (tour.sh mute()), and our own paints have to honour it or a repaint landing
+  # mid-lap pops the pill back over the step labels. `sb_set` rather than a
+  # component because it is one raw property and it has to come AFTER pill's
+  # own drawing=on — later --set args in the batch win.
+  sb_set drawing="$drawing"
 }
 
 # The last completed fetch, as an epoch, or 0. `cat` alone is not enough: a
@@ -790,43 +848,22 @@ stamp_epoch() {
 }
 
 # ── the dropdown ──────────────────────────────────────────────────────────────
-H_HEADER=32
-H_ROW=25
-H_META=20
-
-open_popup() {
+# Four row kinds and nothing else (docs/bar-framework.md): the runtime owns
+# every font, every height, the close-on-click, the batched --add and the
+# barpop arm. What is left here is the only part that is about GitHub.
+popup_rows() {
   read_cache
-  "$SB" --remove "/${ITEM}\.popup\..*/" 2>/dev/null
-  # Every row is accumulated and handed over in ONE call, so the popup appears
-  # fully formed instead of growing a row at a time in front of you.
-  local ARGS=() i=0 s line kind sev count title worst glyph rows_drawn
-  pop_add() {
-    ARGS+=(--add item "${ITEM}.popup.$i" "popup.${ITEM}"
-      --set "${ITEM}.popup.$i"
-      icon="" icon.padding_left=10 icon.padding_right=8
-      label="" label.padding_left=0 label.padding_right=14
-      background.drawing=off background.height="$H_ROW"
-      click_script="$SB --set ${ITEM} popup.drawing=off"
-      "$@")
-    i=$((i + 1))
-  }
 
   if [ "$LEAD_STATE" = auth ]; then
-    # The one actionable failure gets the one actionable row. Clicking it copies
-    # the command rather than running it: `gh auth login` is interactive (it
-    # wants a browser, a protocol choice and a paste-back code) and there is no
-    # terminal behind a bar popup to answer any of that.
-    pop_add icon="" icon.color="$YELLOW" \
-      label="GitHub CLI is not logged in" label.color="$TEXT" \
-      label.font="${BAR_FONT}:Bold:${FS_LABEL}" background.height="$H_HEADER"
-    pop_add icon="" icon.color="$OVERLAY1" \
-      label="gh auth login" label.color="$SUBTEXT0" \
-      label.font="${BAR_FONT}:Bold:${FS_SMALL}" \
-      click_script="printf 'gh auth login' | pbcopy; $SB --set ${ITEM} popup.drawing=off"
-    pop_add icon="" label="copied to the clipboard when you click it" \
-      label.color="$OVERLAY0" label.font="${BAR_FONT}:Italic:${FS_TINY}" \
-      background.height="$H_META"
+    # The one actionable failure gets the one actionable row. Clicking it
+    # COPIES the command rather than running it: `gh auth login` is
+    # interactive — it wants a browser, a protocol choice and a paste-back
+    # code — and there is no terminal behind a bar popup to answer any of that.
+    popup_heading --icon "" --tone warn --label "GitHub CLI is not logged in"
+    popup_action --icon "" --tone mute --label "gh auth login" --copy "gh auth login"
+    popup_note --label "copied to the clipboard when you click it"
   else
+    local s kind sev count title worst text url glyph
     for ((s = 0; s < n_sources; s++)); do
       [ -f "$STATE/src-$s.tsv" ] || continue
       IFS=$'\037' read -r kind sev count title worst < "$STATE/src-$s.tsv"
@@ -835,66 +872,50 @@ open_popup() {
       # row's own state — the section's verdict has to survive that.
       local msev="$sev" mworst="${worst:-none}"
       # The heading takes the WORSE of what the source is worth and what its
-      # rows actually found, so an `info` queue holding one conflict reads peach
-      # at the section level too rather than only on the one row.
+      # rows actually found, so an `info` queue holding one conflict reads
+      # peach at the section level too rather than only on the one row.
       local hsev="$msev"
-      [ "$(sev_rank "$mworst")" -gt "$(sev_rank "$msev")" ] && hsev="$mworst"
-      local hcolor="$OVERLAY1"
-      [ "${count:-0}" -gt 0 ] && hcolor="$(sev_color "$hsev")"
-      # The count in the heading, not just on the pill. A section that says
-      # "open PRs" over eight rows leaves you counting them to find out whether
-      # eight is all of them; "open PRs · 12" answers it before the `+4 more`.
-      local htitle="$title"
-      [ "${count:-0}" -gt 0 ] && htitle="$title · $count"
-      pop_add icon="${S_ICON[$s]}" icon.color="$hcolor" \
-        label="$htitle" label.color="$TEXT" \
-        label.font="${BAR_FONT}:Bold:${FS_LABEL}" background.height="$H_HEADER"
+      if [ "$(sev_rank "$mworst")" -gt "$(sev_rank "$msev")" ]; then hsev="$mworst"; fi
+      local htone=mute
+      if [ "${count:-0}" -gt 0 ]; then htone="$(sev_tone "$hsev")"; fi
+      # --count is the runtime's: a section that says "open PRs" over eight
+      # rows leaves you counting them to find out whether eight is all of them.
+      popup_heading --icon "${S_ICON[$s]}" --tone "$htone" \
+        --label "$title" --count "${count:-0}"
 
-      rows_drawn=0
+      local rows_drawn=0
       while IFS=$'\037' read -r kind sev text url glyph; do
         [ "$kind" = row ] || continue
         rows_drawn=$((rows_drawn + 1))
-        # A `mute` row — a draft, an issue, a verdict GitHub hasn't computed —
-        # loses its text a shade too, not just its glyph colour. Otherwise a
-        # list of eight reads as eight equal claims on you when two of them are
-        # their author saying "not yet".
-        local lcolor="$SUBTEXT0"
-        [ "$sev" = mute ] && lcolor="$OVERLAY0"
         # A row with a URL opens it and closes the popup; one without just
-        # closes, which is the pop_add default. The glyph is the merge verdict
+        # closes, which is every row's default. The glyph is the merge verdict
         # (empty from a cache an older generation wrote, which draws as the
-        # blank the rows used to have).
+        # blank the rows used to have). A `mute` row loses a shade of its TEXT
+        # too — that rule is the runtime's now, not spelled here.
         if [ -n "$url" ]; then
-          pop_add icon="$glyph" icon.color="$(sev_color "$sev")" \
-            label="$text" label.color="$lcolor" \
-            label.font="${BAR_FONT}:Regular:${FS_SMALL}" \
-            click_script="/usr/bin/open '$url'; $SB --set ${ITEM} popup.drawing=off"
+          popup_row --icon "$glyph" --tone "$(sev_tone "$sev")" --label "$text" --open "$url"
         else
-          pop_add icon="$glyph" icon.color="$(sev_color "$sev")" \
-            label="$text" label.color="$lcolor" \
-            label.font="${BAR_FONT}:Regular:${FS_SMALL}"
+          popup_row --icon "$glyph" --tone "$(sev_tone "$sev")" --label "$text"
         fi
       done < "$STATE/src-$s.tsv"
 
       if [ "$rows_drawn" -eq 0 ]; then
-        # A source that FAILED and a source with genuinely nothing in it are the
-        # same empty section otherwise, and only one of them is good news.
+        # A source that FAILED and a source with genuinely nothing in it are
+        # the same empty section otherwise, and only one of them is good news.
         local empty="nothing"
-        [ "$msev" = error ] && empty="couldn't fetch this one"
-        [ "$msev" = auth ] && empty="not logged in"
-        pop_add icon="" label="$empty" label.color="$OVERLAY0" \
-          label.font="${BAR_FONT}:Italic:${FS_TINY}" background.height="$H_META"
+        if [ "$msev" = error ]; then empty="couldn't fetch this one"; fi
+        if [ "$msev" = auth ]; then empty="not logged in"; fi
+        popup_note --label "$empty"
       elif [ "${count:-0}" -gt "$rows_drawn" ]; then
         # Never let a truncated list read as a complete one.
-        pop_add icon="" label="+$((count - rows_drawn)) more" label.color="$OVERLAY0" \
-          label.font="${BAR_FONT}:Italic:${FS_TINY}" background.height="$H_META"
+        popup_note --label "+$((count - rows_drawn)) more"
       fi
     done
   fi
 
   # The refresh row, always last. Right-clicking the pill does the same thing —
-  # two doors on the same action, because the pill is the obvious place to reach
-  # for and the row is the discoverable one.
+  # two doors on the same action, because the pill is the obvious place to
+  # reach for and the row is the discoverable one.
   local age="never" last secs
   last=$(stamp_epoch)
   if [ "$last" -gt 0 ]; then
@@ -903,74 +924,34 @@ open_popup() {
     elif [ "$secs" -lt 3600 ]; then age="$((secs / 60))m ago"
     else age="$((secs / 3600))h ago"; fi
   fi
-  pop_add icon="" icon.color="$SAPPHIRE" \
-    label="Refresh · $age" label.color="$SUBTEXT0" \
-    label.font="${BAR_FONT}:Bold:${FS_SMALL}" \
-    click_script="$HOME/.config/sketchybar/plugins/github.sh refresh"
+  popup_action --icon "" --label "Refresh · $age" \
+    --run "$HOME/.config/sketchybar/plugins/github.sh refresh"
+}
 
-  [ ${#ARGS[@]} -gt 0 ] && "$SB" "${ARGS[@]}" 2>/dev/null
-  "$SB" --set "$ITEM" popup.drawing=on
-  # Hand it to barpop so it also closes on the first click anywhere else — the
-  # dismissal SketchyBar can't do, since it only hears clicks on its own items.
-  # SKETCHYBAR_BIN is how barpop is told which bar's popup it is guarding.
-  SKETCHYBAR_BIN="$SB" /run/current-system/sw/bin/barpop arm "$ITEM" 2>/dev/null &
+# ── clicks ────────────────────────────────────────────────────────────────────
+on_click() { popup_toggle; }
+
+# Close first: the rows behind it are about to be replaced, and a popup that
+# silently swaps its contents under the pointer is how you click the wrong PR.
+on_right_click() {
+  popup_close
+  spawn_fetch
+  barlib_tick
 }
 
 # ── entry points ──────────────────────────────────────────────────────────────
 mkdir -p "$STATE"
 
+# Two CLI modes, both re-entering this file rather than being separate scripts:
+# `fetch` is the detached network run spawn_fetch backgrounds, `refresh` is the
+# dropdown's Refresh row. Neither carries a SENDER, so barlib_main below runs
+# the ordinary tick after them and the pill says what just happened.
 case "${1:-}" in
   fetch)
-    do_fetch
-    render
-    exit 0 ;;
+    do_fetch ;;
   refresh)
-    # From the dropdown row or a right-click. Close first: the rows behind it
-    # are about to be replaced, and a popup that silently swaps its contents
-    # under the pointer is how you click the wrong PR.
-    "$SB" --set "$ITEM" popup.drawing=off
-    spawn_fetch
-    render
-    exit 0 ;;
-  click)
-    if [ "${BUTTON:-left}" = right ]; then
-      "$SB" --set "$ITEM" popup.drawing=off
-      spawn_fetch
-      render
-      exit 0
-    fi
-    # Closing is just hiding: a click while the popup is UP must not rebuild the
-    # rows first, or closing it flashes through a re-layout on the way out.
-    if [ "$("$SB" --query "$ITEM" 2>/dev/null | jq -r '.popup.drawing')" = "on" ]; then
-      "$SB" --set "$ITEM" popup.drawing=off
-      exit 0
-    fi
-    open_popup
-    exit 0 ;;
+    popup_close
+    spawn_fetch ;;
 esac
 
-# The periodic tick, system_woke, and our own github_update event. Draw what we
-# have, then top the cache up if it has gone stale — in that order, so the
-# repaint never waits on a decision about the network.
-render
-last=$(stamp_epoch)
-# Push shortens a poll, it never removes one: `haus_gh_fresh_since` is the
-# "something actually happened" door, the interval underneath it is the
-# backstop, and with no bridge both fall back to what they always were.
-#
-# PUSH_FLOOR is why the door has a sill. This pill's option carries a 60s floor
-# enforced by its very type, because a fetch is a full `gh` pass over every
-# configured source and GitHub's authed budget is shared with every other `gh`
-# on the machine. A bare `|| haus_gh_fresh_since` hands that floor to whoever is
-# pushing: an org hook subscribed to `workflow_run` turns one push into roughly
-# two deliveries per workflow, each waking this pill, and the only remaining
-# bound would be how long a fetch takes. So the delivery cancels the WAIT, not
-# the floor — worst case one fetch a minute, which is what the option promised.
-PUSH_FLOOR=60
-refresh="${BAR_GITHUB_REFRESH:-300}"
-[ -f "$COVERED" ] && [ "$HAUS_GH_BACKSTOP" -gt "$refresh" ] && refresh="$HAUS_GH_BACKSTOP"
-if [ "$last" -eq 0 ] || [ $((now - last)) -ge "$refresh" ] ||
-  { [ $((now - last)) -ge "$PUSH_FLOOR" ] && haus_gh_fresh_since "$STAMP"; }; then
-  spawn_fetch
-fi
-exit 0
+barlib_main

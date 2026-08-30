@@ -38,15 +38,37 @@ export TONE_BUSY=0xff333333
 export TONE_WARN=0xff444444
 export TONE_BAD=0xff555555
 export TONE_ACCENT=0xff666666
+export TONE_TEXT=0xff777777
+export TEXT=0xff777777
+export SUBTEXT0=0xff888888
+export OVERLAY0=0xff999999
 EOF
   cat >"$HOME/.config/sketchybar/sizes.sh" <<'EOF'
 export BAR_FONT="Test Font"
+export FS_LABEL=13
+export FS_SMALL=12
+export FS_TINY=10
+export PAD_ICON_L=8
+export PAD_ICON_R=4
+export PAD_ICON_SOLO=10
 EOF
   cat >"$HOME/.config/sketchybar/bar.sh" <<EOF
 BAR_TOP="$BATS_TEST_TMPDIR/bin/sb"
 BAR_BOTTOM=""
 SB="\$BAR_TOP"
 EOF
+
+  # popup_toggle asks the bar whether the dropdown is up, through jq. The
+  # recorder above answers nothing, so the query comes back empty — which is
+  # the "no answer" case, and the one a toggle must treat as closed-and-open
+  # rather than as open-and-close. A test that wants the other branch exports
+  # SB_POPUP_DRAWING and the stub jq echoes it.
+  cat >"$BATS_TEST_TMPDIR/bin/jq" <<'EOF'
+#!/bin/bash
+printf '%s\n' "${SB_POPUP_DRAWING:-}"
+EOF
+  chmod +x "$BATS_TEST_TMPDIR/bin/jq"
+  export PATH="$BATS_TEST_TMPDIR/bin:$PATH"
 
   BARLIB="${BARLIB_UNDER_TEST:-$BATS_TEST_DIRNAME/../modules/bar/sketchybar/barlib.sh}"
 }
@@ -73,7 +95,7 @@ calls() { [ -f "$SB_LOG" ] && wc -l <"$SB_LOG" | tr -d ' ' || echo 0; }
     render() { pill --icon X --label "$label" --tone "$tone"; }
   '
   [ "$(calls)" = 1 ]
-  grep -q -- '--set w drawing=on --set w label=hello --set w icon=X icon.drawing=on --set w icon.color=0xff222222' "$SB_LOG"
+  grep -q -- '--set w drawing=on --set w label=hello label.drawing=on --set w icon=X icon.drawing=on --set w icon.padding_left=8 icon.padding_right=4 --set w icon.color=0xff222222' "$SB_LOG"
 }
 
 @test "unchanged state costs zero sketchybar traffic" {
@@ -199,4 +221,150 @@ b"
   NAME=a SENDER=routine widget 'fetch() { emit n=1; }; render() { pill --label "$n"; }'
   NAME=b SENDER=routine widget 'fetch() { emit n=1; }; render() { pill --label "$n"; }'
   [ "$(calls)" = 2 ]
+}
+
+# ---- the dropdown -----------------------------------------------------------
+
+@test "an empty label hides it and re-centres the icon" {
+  export NAME=w SENDER=routine
+  run widget 'fetch() { emit n=0; }
+render() { pill --icon "X" --label ""; }'
+  [ "$status" -eq 0 ]
+  grep -q 'label.drawing=off' "$SB_LOG"
+  grep -q "icon.padding_left=10 icon.padding_right=10" "$SB_LOG"
+}
+
+@test "a label that comes back takes the default padding with it" {
+  export NAME=w SENDER=routine
+  run widget 'fetch() { emit n=1; }
+render() { pill --icon "X" --label "3"; }'
+  [ "$status" -eq 0 ]
+  grep -q 'label=3 label.drawing=on' "$SB_LOG"
+  grep -q "icon.padding_left=8 icon.padding_right=4" "$SB_LOG"
+}
+
+@test "the text tone is the ordinary foreground, not the mute grey" {
+  export NAME=w SENDER=routine
+  run widget 'fetch() { emit n=1; }
+render() { pill --icon "" --tone text --label "3" --label-tone mute; }'
+  [ "$status" -eq 0 ]
+  grep -q 'icon.color=0xff777777' "$SB_LOG"
+  grep -q 'label.color=0xff111111' "$SB_LOG"
+}
+
+@test "popup rows ride ONE call with the popup.drawing that shows them" {
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'popup_rows() {
+  popup_heading --label "Open PRs" --count 12 --tone warn
+  popup_row --label "fix the thing" --tone ok --open "https://example.com/1"
+  popup_note --label "+4 more"
+}
+on_click() { popup_toggle; }'
+  [ "$status" -eq 0 ]
+  # Three rows, ONE --add call. (The other two lines are the toggle's --query
+  # and the --remove that clears the previous rows, both of which have to be
+  # their own call — the query because its answer decides what happens next,
+  # the remove because the adds below reuse the ids it is clearing.)
+  [ "$(grep -c -- '--add item' "$SB_LOG")" -eq 1 ]
+  grep -q -- '--remove' "$SB_LOG"
+  local batch
+  batch=$(grep -- '--add item' "$SB_LOG")
+  [[ "$batch" == *"--add item w.popup.0 popup.w"* ]]
+  [[ "$batch" == *"--add item w.popup.1 popup.w"* ]]
+  [[ "$batch" == *"--add item w.popup.2 popup.w"* ]]
+  [[ "$batch" == *"popup.drawing=on"* ]]
+}
+
+@test "each row kind carries its own font and height, not the widget's" {
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'popup_rows() {
+  popup_heading --label "H"
+  popup_row --label "R"
+  popup_action --label "A"
+  popup_note --label "N"
+}
+on_click() { popup_open; }'
+  [ "$status" -eq 0 ]
+  local batch
+  batch=$(grep -- '--add item' "$SB_LOG")
+  [[ "$batch" == *"Test Font:Bold:13"* ]]     # heading
+  [[ "$batch" == *"Test Font:Regular:12"* ]]  # row
+  [[ "$batch" == *"Test Font:Bold:12"* ]]     # action
+  [[ "$batch" == *"Test Font:Italic:10"* ]]   # note
+  [[ "$batch" == *"background.height=32"* ]]
+  [[ "$batch" == *"background.height=25"* ]]
+  [[ "$batch" == *"background.height=20"* ]]
+}
+
+@test "every row closes the popup, and an action runs BEFORE that close" {
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'popup_rows() {
+  popup_note --label "just an aside"
+  popup_action --label "Refresh" --run "/bin/echo hi"
+}
+on_click() { popup_open; }'
+  [ "$status" -eq 0 ]
+  local batch
+  batch=$(grep -- '--add item' "$SB_LOG")
+  [[ "$batch" == *"click_script=/bin/echo hi; "*"popup.drawing=off"* ]]
+  # The note has no action of its own, so its click_script is the close alone.
+  [[ "$batch" == *"click_script="*"--set w popup.drawing=off"* ]]
+}
+
+@test "a quote in a row's data cannot escape into the click_script" {
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'popup_rows() { popup_row --label "x" --open "https://e.com/a'"'"'; touch /tmp/pwned; #"; }
+on_click() { popup_open; }'
+  [ "$status" -eq 0 ]
+  [ ! -e /tmp/pwned ]
+  grep -q "open 'https://e.com/a'\\\\''; touch /tmp/pwned; #'" "$SB_LOG"
+}
+
+@test "a heading with no count says its title alone" {
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'popup_rows() { popup_heading --label "Open PRs" --count 0; }
+on_click() { popup_open; }'
+  [ "$status" -eq 0 ]
+  grep -q 'label=Open PRs ' "$SB_LOG"
+  ! grep -q 'Open PRs · ' "$SB_LOG"
+}
+
+@test "closing does not rebuild the rows" {
+  export NAME=w SENDER=mouse.clicked BUTTON=left SB_POPUP_DRAWING=on
+  run widget 'popup_rows() { popup_row --label "should not be built"; }
+on_click() { popup_toggle; }'
+  [ "$status" -eq 0 ]
+  ! grep -q -- '--add item' "$SB_LOG"
+  ! grep -q -- '--remove' "$SB_LOG"
+  grep -q 'popup.drawing=off' "$SB_LOG"
+}
+
+@test "an unanswered query opens rather than closing" {
+  # SB_POPUP_DRAWING unset: the stub jq prints an empty line, which is what a
+  # busy bar returns. Treating that as `on` would swallow the click.
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'popup_rows() { popup_row --label "built"; }
+on_click() { popup_toggle; }'
+  [ "$status" -eq 0 ]
+  grep -q -- '--add item w.popup.0' "$SB_LOG"
+}
+
+@test "a popup row re-entering the widget lands on the pill, not the row" {
+  # sketchybar exports NAME as the CLICKED item, which for the Refresh row is
+  # w.popup.7 — every --set after that would hit a 25pt row.
+  export NAME=w.popup.7 SENDER=routine
+  run widget 'fetch() { emit n=1; }
+render() { pill --icon "" --label "3"; }'
+  [ "$status" -eq 0 ]
+  grep -q -- '--set w ' "$SB_LOG"
+  ! grep -q -- '--set w.popup.7' "$SB_LOG"
+}
+
+@test "barlib_tick repaints from a handler that changed the world" {
+  export NAME=w SENDER=mouse.clicked BUTTON=right
+  run widget 'fetch() { emit n=1; }
+render() { pill --icon "" --label "fresh"; }
+on_right_click() { barlib_tick; }'
+  [ "$status" -eq 0 ]
+  grep -q 'label=fresh' "$SB_LOG"
 }

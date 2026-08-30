@@ -20,6 +20,9 @@
 #   on_unhover — optional; mouse events route here and never touch fetch or
 #   the cache. The button outranks the modifier (⌘-right-click is a right
 #   click); an unhandled chord falls back to on_click.
+#   popup_rows() optional — the dropdown's contents, in popup_heading /
+#             popup_row / popup_action / popup_note calls. Never called on a
+#             tick: popup_open runs it, which a click handler asks for.
 #
 # State values must be single-line: the cache is line-serialized, and a value
 # with a newline in it would read back as a key that never matches. emit
@@ -28,6 +31,13 @@
 # The theme and the router. Guarded like ai-provider.sh's: a caller that
 # already sourced either (a test harness, a widget run by hand in a shell
 # that exported them) keeps its values.
+#
+# Every name read out of these two files below is read with a fallback, and
+# that is not defensiveness for its own sake: barlib.sh, colors.sh and
+# sizes.sh are three separate home.file entries, so a rebuild that adds a name
+# to one of them lands it in some order, and under a widget's `set -u` an
+# unset padding is not a misaligned icon — it is a pill that stops drawing
+# until the next generation.
 [ -n "${FLAMINGO:-}" ] || source "$HOME/.config/sketchybar/colors.sh"
 [ -n "${BAR_FONT:-}" ] || source "$HOME/.config/sketchybar/sizes.sh"
 source "$HOME/.config/sketchybar/bar.sh"
@@ -36,6 +46,16 @@ source "$HOME/.config/sketchybar/bar.sh"
 # debugging story: `BAR_ITEM=clock ./clock.sh`) has only the BAR_ITEM it set
 # for bar.sh's routing, so fall back to that rather than --set an empty item.
 [ -n "${NAME:-}" ] || NAME="${BAR_ITEM:-}"
+
+# A popup row's click_script that RE-ENTERS the widget (github's Refresh row)
+# arrives with NAME set to the ROW's id, because sketchybar exports the item
+# that was clicked. Every --set after that would land on a 25pt row instead of
+# the pill — silently, since setting popup.drawing on a row is legal and does
+# nothing. The row ids are the runtime's own (`<item>.popup.<n>`), so the
+# runtime is exactly who can undo it.
+case "${NAME:-}" in
+    *.popup.*) NAME="${NAME%%.popup.*}" ;;
+esac
 
 _BARLIB_STATE=()
 _BARLIB_ARGS=()
@@ -46,6 +66,12 @@ _BARLIB_ARGS=()
 # resolver of names to hexes). Widgets name a tone, never a palette key and
 # never a hex. An unknown tone is mute, not an error: a typo'd tone must cost
 # a grey pill, never a pill that stops painting.
+#
+# `text` is the rung that is NOT a verdict: the bar's ordinary foreground, for
+# a live readout that carries no alarm — github's `info` sources, whose count
+# is news without being bad news. It exists because `mute` cannot do that job:
+# mute is DIMMED, and a pill that has to be able to go back to neutral after
+# painting peach needs a name for neutral, or it can only ever get greyer.
 tone() {
     case "$1" in
         ok)     printf '%s' "$TONE_OK" ;;
@@ -54,8 +80,9 @@ tone() {
         bad)    printf '%s' "$TONE_BAD" ;;
         accent) printf '%s' "$TONE_ACCENT" ;;
         mute)   printf '%s' "$TONE_MUTE" ;;
+        text)   printf '%s' "${TONE_TEXT:-$TEXT}" ;;
         *)
-            echo "barlib: unknown tone '$1' (mute|ok|busy|warn|bad|accent) — using mute" >&2
+            echo "barlib: unknown tone '$1' (mute|text|ok|busy|warn|bad|accent) — using mute" >&2
             printf '%s' "$TONE_MUTE"
             ;;
     esac
@@ -106,12 +133,42 @@ sb_set() {
     _BARLIB_ARGS+=(--set "$NAME" "$@")
 }
 
+# Apply everything accumulated so far, as one call, and empty the batch.
+# barlib_main calls this last; popup_open calls it early because barpop has to
+# arm against rows that already exist. Calling it twice is harmless — the
+# second finds nothing to send.
+_barlib_flush() {
+    if [ ${#_BARLIB_ARGS[@]} -gt 0 ]; then
+        "$SB" "${_BARLIB_ARGS[@]}"
+        _BARLIB_ARGS=()
+    fi
+    return 0
+}
+
 # pill --icon <glyph> --label <text> [--tone <tone>] [--label-tone <tone>]
 #      [--hide]
-# The standard readout. --hide performs the drawing=off/updates=on PAIR — the
-# one-way door (a hidden item stops receiving events under the bars'
-# updates=when_shown default) ceases to exist as a mistake a widget can make.
-# An empty --icon means no icon (icon.drawing=off), not an invisible one.
+# The standard readout, one or two tones: --tone paints the icon and
+# --label-tone the label, which is the whole of the "two-tone pill" — the
+# octocat saying how BAD while the number says how MANY. There is no separate
+# component for it; passing both flags is it.
+#
+# --hide performs the drawing=off/updates=on PAIR — the one-way door (a hidden
+# item stops receiving events under the bars' updates=when_shown default)
+# ceases to exist as a mistake a widget can make.
+#
+# EMPTY MEANS ABSENT, for both halves. An empty --icon is icon.drawing=off,
+# not an invisible glyph; an empty --label is label.drawing=off, and it also
+# re-centres the icon. That second half is why the rule is the runtime's: the
+# bar's --default padding is 8/4 on the icon and 4/8 on the label, which reads
+# centred while both are drawn and visibly left-heavy the moment the label
+# goes away — which for a pill that hides a zero is its RESTING state. A
+# widget that toggles its label would have to know those four numbers, and
+# the one that did (github) is where they came from.
+#
+# The padding is only written when a widget passes BOTH flags, i.e. when it is
+# a pill that can lose its label. A widget with custom padding in its Nix
+# style keeps it otherwise, and can take it back either way with an sb_set
+# after the pill call — later --set args in the batch win.
 pill() {
     local icon='' label='' icon_tone='' label_tone='' hide=0 have_icon=0 have_label=0
     while [ $# -gt 0 ]; do
@@ -133,7 +190,11 @@ pill() {
     fi
     sb_set drawing=on
     if [ "$have_label" = 1 ]; then
-        sb_set label="$label"
+        if [ -n "$label" ]; then
+            sb_set label="$label" label.drawing=on
+        else
+            sb_set label.drawing=off
+        fi
     fi
     if [ "$have_icon" = 1 ]; then
         if [ -n "$icon" ]; then
@@ -142,8 +203,199 @@ pill() {
             sb_set icon.drawing=off
         fi
     fi
+    if [ "$have_icon" = 1 ] && [ "$have_label" = 1 ]; then
+        if [ -n "$icon" ] && [ -z "$label" ]; then
+            sb_set icon.padding_left="${PAD_ICON_SOLO:-10}" icon.padding_right="${PAD_ICON_SOLO:-10}"
+        else
+            sb_set icon.padding_left="${PAD_ICON_L:-8}" icon.padding_right="${PAD_ICON_R:-4}"
+        fi
+    fi
     if [ -n "$icon_tone" ]; then sb_set icon.color="$(tone "$icon_tone")"; fi
     if [ -n "$label_tone" ]; then sb_set label.color="$(tone "$label_tone")"; fi
+    return 0
+}
+
+# ---- the dropdown -----------------------------------------------------------
+# A widget declares its rows in popup_rows() and opens them with popup_open /
+# popup_close / popup_toggle from a click handler. The runtime owns everything
+# that used to be copied between pills: the --remove of the old rows, the
+# per-row item ids, the one batched --add, the popup.drawing flip, and handing
+# the result to barpop so the popup also closes on the first click ANYWHERE
+# else (SketchyBar hears clicks on its own items and nothing else).
+#
+# FOUR ROW KINDS, and their typography is the runtime's, not the widget's:
+#
+#   popup_heading   a section title.      Bold, label size,   32pt tall
+#   popup_row       a thing you can act on. Regular, small,   25pt
+#   popup_action    a verb — Refresh, a command to copy. Bold, small, 25pt
+#   popup_note      an aside — "nothing", "+4 more".  Italic, tiny, 20pt
+#
+# Four because that is what every popup in this bar already is; a widget
+# naming ":Bold:${FS_SMALL}" itself is the hardcoded-hex mistake one layer up,
+# and the fifth kind someone needs is a kind to add here rather than a --font
+# to add to the signature.
+#
+# The three label colours below ARE palette keys rather than tones, and that
+# is the line: TEXT/SUBTEXT0/OVERLAY0 are a reading hierarchy the runtime
+# lays out with, the way it picks the fonts. Tones are what a WIDGET names,
+# and a widget still only ever names one — the icon's.
+_BARLIB_POP_I=0
+_BARLIB_H_HEADING=32
+_BARLIB_H_ROW=25
+_BARLIB_H_NOTE=20
+
+# Single-quote a value for embedding in a click_script. A row's URL or copy
+# text is DATA — a PR title with an apostrophe in it must not end the quote
+# and hand the rest to the shell. `--run` deliberately does not go through
+# this: it is a command, and quoting it would break it.
+_barlib_shq() {
+    printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+}
+
+# One row. Every row closes the popup when clicked — a dropdown you have to
+# dismiss separately from acting on it is a dropdown you dismiss by mistake —
+# so `action` is prepended to that close rather than replacing it.
+_barlib_pop_add() { # _barlib_pop_add <height> <font> <action> <set-args…>
+    local height=$1 font=$2 action=$3
+    shift 3
+    local close="$SB --set $NAME popup.drawing=off"
+    local click="$close"
+    if [ -n "$action" ]; then click="$action; $close"; fi
+    _BARLIB_ARGS+=(
+        --add item "${NAME}.popup.${_BARLIB_POP_I}" "popup.${NAME}"
+        --set "${NAME}.popup.${_BARLIB_POP_I}"
+        icon="" icon.padding_left=10 icon.padding_right=8
+        label="" label.padding_left=0 label.padding_right=14
+        label.font="$font"
+        background.drawing=off background.height="$height"
+        click_script="$click"
+        "$@"
+    )
+    _BARLIB_POP_I=$((_BARLIB_POP_I + 1))
+}
+
+# popup_heading --label <text> [--icon <glyph>] [--tone <tone>] [--count <n>]
+# --count appends " · n" when n is above zero: a section that says "open PRs"
+# over eight rows leaves you counting them to find out whether eight is all of
+# them, and the rows below may be a truncation.
+popup_heading() {
+    local label='' icon='' icon_tone=mute count=0
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --label) label=$2; shift 2 ;;
+            --icon) icon=$2; shift 2 ;;
+            --tone) icon_tone=$2; shift 2 ;;
+            --count) count=$2; shift 2 ;;
+            *) echo "barlib: popup_heading: unknown flag '$1' — dropped" >&2; shift ;;
+        esac
+    done
+    case "$count" in '' | *[!0-9]*) count=0 ;; esac
+    if [ "$count" -gt 0 ]; then label="$label · $count"; fi
+    _barlib_pop_add "$_BARLIB_H_HEADING" "${BAR_FONT}:Bold:${FS_LABEL}" '' \
+        icon="$icon" icon.color="$(tone "$icon_tone")" \
+        label="$label" label.color="$TEXT"
+}
+
+# popup_row --label <text> [--icon <glyph>] [--tone <tone>]
+#           [--open <url>] [--run <command>]
+# A `mute` row loses a shade of its TEXT too, not only its glyph colour:
+# otherwise a list of eight reads as eight equal claims on you when two of
+# them are their author saying "not yet".
+popup_row() {
+    local label='' icon='' icon_tone=mute action=''
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --label) label=$2; shift 2 ;;
+            --icon) icon=$2; shift 2 ;;
+            --tone) icon_tone=$2; shift 2 ;;
+            --open) action="/usr/bin/open $(_barlib_shq "$2")"; shift 2 ;;
+            --run) action=$2; shift 2 ;;
+            *) echo "barlib: popup_row: unknown flag '$1' — dropped" >&2; shift ;;
+        esac
+    done
+    local lcolor="$SUBTEXT0"
+    if [ "$icon_tone" = mute ]; then lcolor="$OVERLAY0"; fi
+    _barlib_pop_add "$_BARLIB_H_ROW" "${BAR_FONT}:Regular:${FS_SMALL}" "$action" \
+        icon="$icon" icon.color="$(tone "$icon_tone")" \
+        label="$label" label.color="$lcolor"
+}
+
+# popup_action --label <text> [--icon <glyph>] [--tone <tone>]
+#              [--run <command>] [--copy <text>]
+# The verb row. --copy exists because the useful answer is often a command
+# you have to run somewhere with a terminal in front of it: `gh auth login`
+# wants a browser, a protocol choice and a paste-back code, and there is no
+# shell behind a bar popup to give it any of that.
+popup_action() {
+    local label='' icon='' icon_tone=accent action=''
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --label) label=$2; shift 2 ;;
+            --icon) icon=$2; shift 2 ;;
+            --tone) icon_tone=$2; shift 2 ;;
+            --run) action=$2; shift 2 ;;
+            --copy) action="printf '%s' $(_barlib_shq "$2") | pbcopy"; shift 2 ;;
+            *) echo "barlib: popup_action: unknown flag '$1' — dropped" >&2; shift ;;
+        esac
+    done
+    _barlib_pop_add "$_BARLIB_H_ROW" "${BAR_FONT}:Bold:${FS_SMALL}" "$action" \
+        icon="$icon" icon.color="$(tone "$icon_tone")" \
+        label="$label" label.color="$SUBTEXT0"
+}
+
+# popup_note --label <text> — the aside. No icon, no click of its own.
+popup_note() {
+    local label=''
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --label) label=$2; shift 2 ;;
+            *) echo "barlib: popup_note: unknown flag '$1' — dropped" >&2; shift ;;
+        esac
+    done
+    _barlib_pop_add "$_BARLIB_H_NOTE" "${BAR_FONT}:Italic:${FS_TINY}" '' \
+        icon="" label="$label" label.color="$OVERLAY0"
+}
+
+# Is the dropdown up? `nil` for an item the bar could not answer about — the
+# same distinction barpop's own gate draws, and for the same reason: an
+# unanswered --query is not a closed popup, and treating it as one reopens a
+# dropdown the user was closing.
+_barlib_popup_drawing() {
+    local ans
+    ans=$("$SB" --query "$NAME" 2>/dev/null | jq -r '.popup.drawing // empty' 2>/dev/null)
+    printf '%s' "$ans"
+}
+
+popup_close() {
+    sb_set popup.drawing=off
+    return 0
+}
+
+# Rebuild and show. The --remove goes out on its own, ahead of the batch: the
+# adds below reuse the ids it is clearing, and the two cannot be reordered by
+# being in one call.
+#
+# The batch is FLUSHED here rather than at the end of barlib_main, because
+# barpop reads the popup's row rects at arm time — arming before the rows
+# exist would guard a popup of the wrong shape.
+popup_open() {
+    "$SB" --remove "/${NAME}\.popup\..*/" 2>/dev/null
+    _BARLIB_POP_I=0
+    if declare -F popup_rows >/dev/null 2>&1; then popup_rows; fi
+    sb_set popup.drawing=on
+    _barlib_flush
+    SKETCHYBAR_BIN="$SB" /run/current-system/sw/bin/barpop arm "$NAME" 2>/dev/null &
+    return 0
+}
+
+# Closing is JUST hiding: a click while the popup is up must not rebuild the
+# rows first, or closing it flashes through a re-layout on the way out.
+popup_toggle() {
+    if [ "$(_barlib_popup_drawing)" = "on" ]; then
+        popup_close
+    else
+        popup_open
+    fi
     return 0
 }
 
@@ -236,6 +488,16 @@ _barlib_tick() {
     return 0
 }
 
+# barlib_tick — run fetch/diff/render now. For a handler (or a CLI mode) that
+# just changed the world and wants the pill to say so without waiting out the
+# interval. Still DIFFED, deliberately: a refresh that turns up the same
+# numbers should cost nothing, and a pill that repaints on every click is a
+# pill that flickers on every click.
+barlib_tick() {
+    _barlib_tick
+    return 0
+}
+
 # `if` statements rather than `&&` guards throughout: widgets are welcome to
 # `set -e`, and a false `x && y` as a bare statement would end the script
 # right there — before the batch below ever reaches the bar.
@@ -247,8 +509,6 @@ barlib_main() {
         mouse.exited) if declare -F on_unhover >/dev/null 2>&1; then on_unhover; fi ;;
         *) _barlib_tick ;;
     esac
-    if [ ${#_BARLIB_ARGS[@]} -gt 0 ]; then
-        "$SB" "${_BARLIB_ARGS[@]}"
-    fi
+    _barlib_flush
     return 0
 }

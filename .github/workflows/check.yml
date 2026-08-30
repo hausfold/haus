@@ -279,6 +279,13 @@ jobs:
           # a @placeholder@ template and lints anyway, for focus.sh's reason —
           # `TRILL="@trill@"` is an assignment right-hand side, so an
           # unsubstituted copy still parses.
+          # modules/bar/sketchybar/barlib.sh is the bar widget RUNTIME: every
+          # framework pill sources it, and everything it gets wrong is
+          # invisible by construction — a widget's stderr goes to sketchybar's
+          # log and nowhere a person looks, so a broken runtime is a pill that
+          # simply stops painting. The widgets themselves are deliberately NOT
+          # here: fetch() emits state that render() reads as variables, so
+          # every one of them trips SC2154 by design (docs/bar-framework.md).
           # modules/focus/focus.sh IS a @placeholder@ template and lints anyway:
           # every substitution in it sits on the right-hand side of an
           # assignment, so an unsubstituted copy is still valid shell. It earns
@@ -286,7 +293,7 @@ jobs:
           # haus.focus.scenes.<name>.when it also runs from launchd on a timer,
           # where a non-zero is not just invisible but silently stops your Mac
           # entering the scenes you declared.
-          shellcheck --severity=warning bootstrap.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/lidawake.sh test/lidawake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh modules/ai/statusline.sh modules/terminal/scripts/image-preview.sh modules/terminal/lanes/lane-open.sh
+          shellcheck --severity=warning bootstrap.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/lidawake.sh test/lidawake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh modules/ai/statusline.sh modules/terminal/scripts/image-preview.sh modules/terminal/lanes/lane-open.sh modules/bar/sketchybar/barlib.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
       # lidawake's three failsafes, over a fake pmset and a fake clock. Every

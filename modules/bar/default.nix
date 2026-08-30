@@ -440,10 +440,24 @@ let
     sb: side: name: style:
     let
       m = widgetManifest.parse (./sketchybar/plugins + "/${name}.sh");
-      # A haus.<room>.<event> subscription is a custom event, declared before
-      # anything subscribes to it. Re---add-ing an existing event is a no-op,
-      # so two widgets naming the same signal cost nothing.
-      customEvents = lib.filter (lib.hasPrefix "haus.") m.subscribes;
+      # Anything that is not one of SketchyBar's own events is a custom one,
+      # and has to be declared before anything can subscribe to it —
+      # subscribing to an event that does not exist is silent, and the pill
+      # just never hears it. Re---add-ing an existing event is a no-op, so two
+      # widgets naming the same signal cost nothing.
+      customEvents = lib.filter (e: !(builtins.elem e widgetManifest.builtinEvents)) m.subscribes;
+      # `popup = true` in the header buys the four properties every dropdown
+      # in this bar repeats, plus the align that keeps a wide row from running
+      # off the screen edge — which is the ONE of the five a hand-written
+      # block gets wrong silently, since a popup opening the wrong way still
+      # opens. A widget wanting a different frame overrides them in `style`.
+      popupArgs = lib.optionalAttrs m.popup {
+        "popup.background.border_width" = "2";
+        "popup.background.corner_radius" = "10";
+        "popup.background.border_color" = "$SURFACE0";
+        "popup.background.color" = "$MANTLE";
+        "popup.align" = side;
+      };
       setArgs = lib.filter (s: s != "") (
         [ (lib.optionalString (m.interval != null) "update_freq=${toString m.interval}") ]
         ++ lib.mapAttrsToList (k: v: "${k}=${v}") (
@@ -451,6 +465,7 @@ let
             "background.color" = "$SURFACE0";
             "label.font" = ''"${barFont}:Bold:${sizes.label}"'';
           }
+          // popupArgs
           // style
         )
         ++ [ ''script="$HOME/.config/sketchybar/plugins/${name}.sh"'' ]
@@ -951,52 +966,32 @@ let
           --subscribe elgato mouse.clicked
     '';
     # The one pill in the bar that crosses the network, and the only one whose
-    # tick deliberately does NOT do its own work: github.sh renders a cache and
-    # detaches the `gh` call, then --triggers github_update to repaint. So
-    # update_freq here is not a poll interval — that is
+    # tick deliberately does NOT do its own work: github.sh's fetch() reads a
+    # cache and detaches the `gh` call, which then --triggers github_update to
+    # repaint. So the header's `interval = 60` is not a poll interval — that is
     # haus.bar.github.refresh — it is only how often the pill looks at how old
     # its cache is. A minute is far below any legal refresh and costs a cache
     # read.
     #
-    # click_script rather than a mouse.clicked subscription, and NOT popToggle:
-    # the plugin has to see $BUTTON (right-click refreshes) and it rebuilds the
-    # rows before revealing them, so it owns the whole gesture and arms barpop
-    # itself once the popup is up. Subscribing to mouse.clicked as well would
-    # run the plugin twice per click.
+    # The maximal barlib widget, and the one the popup components were designed
+    # against (docs/bar-framework.md): the two tones, the dropdown's frame and
+    # align, every row's font/height/close-on-click, the barpop arm and the
+    # mouse.clicked routing all come from the header in github.sh and the
+    # runtime. What is left here is the STATIC look, which is the only part
+    # that interpolates options a header cannot see.
     #
-    # `iconWide` rather than `icon`, and symmetric padding rather than the bar's
-    # 8/4 default, because this is the rice's one SQUARE glyph and its one pill
-    # that spends most of its life with no label. See lib/bar.nix for the first
-    # (Nerd Font Mono fits by width, so a square mark comes out ~12% shorter
-    # than the tall glyphs beside it at the same point size) and github.sh's
-    # render() for the second — the plugin re-sets the padding on every paint,
-    # since the label appears and disappears with the count, and these two lines
-    # are what the pill looks like before the first one lands.
-    github = ''
-      ${sb} --add event github_update
-      ${sb} --add item github ${side} \
-          --set github \
-              update_freq=60 \
-              icon="" \
-              icon.color=$TEXT \
-              icon.font="${barFont}:Bold:${sizes.iconWide}" \
-              icon.padding_left=10 \
-              icon.padding_right=10 \
-              background.color=$SURFACE0 \
-              popup.background.border_width=2 \
-              popup.background.corner_radius=10 \
-              popup.background.border_color=$SURFACE0 \
-              popup.background.color=$MANTLE \
-              ${popupAlign side} \
-              script="$HOME/.config/sketchybar/plugins/github.sh" \
-              click_script="$HOME/.config/sketchybar/plugins/github.sh click" \
-          --subscribe github github_update system_woke
-
-      # First paint without waiting up to a minute for the tick — and, on a
-      # machine with no cache yet, the fetch that fills it. Backgrounded: a bar
-      # start must never block on GitHub.
-      ("$HOME/.config/sketchybar/plugins/github.sh" >/dev/null 2>&1 &)
-    '';
+    # `iconWide` rather than `icon` because this is the rice's one SQUARE glyph
+    # — see lib/bar.nix: Nerd Font Mono fits by width, so a square mark comes
+    # out ~12% shorter than the tall glyphs beside it at the same point size.
+    # The symmetric padding that used to sit here is gone: this is also the
+    # pill that spends most of its life with no label, and barlib's `pill`
+    # re-centres an icon whose label is empty, for every widget rather than
+    # this one.
+    github = frameworkBlock sb side "github" {
+      "icon" = ''""'';
+      "icon.color" = "$TEXT";
+      "icon.font" = ''"${barFont}:Bold:${sizes.iconWide}"'';
+    };
     harvest = ''
       ${sb} --add event harvest_update
       ${sb} --add item harvest ${side} \
@@ -2274,6 +2269,15 @@ lib.mkIf config.haus.bar.enable {
         FS_SMALL="${sizes.small}"
         FS_TINY="${sizes.tiny}"
         FS_APP_ICON="${sizes.appIcon}"
+        # The icon padding sketchybarrc's `--default` hands every pill, plus
+        # the symmetric one an ICON-ONLY pill wants: 8/4 reads centred beside
+        # a label and visibly left-heavy without one. barlib's `pill` writes
+        # them when a widget's label comes and goes (see barlib.sh), which is
+        # the only reason they are named rather than left in the rc — a number
+        # written in two places is a number that ends up being two.
+        PAD_ICON_L="8"
+        PAD_ICON_R="4"
+        PAD_ICON_SOLO="10"
       '';
 
       # The Nebelung palette (name -> "#rrggbb") rendered as sketchybar's
@@ -2294,6 +2298,10 @@ lib.mkIf config.haus.bar.enable {
         # widgets paint with — resolved here so nebelung stays the only place
         # a name becomes a hex, and TONE_ACCENT follows haus.theme.accent.
         export TONE_MUTE=$OVERLAY0
+        # Not a verdict: the bar's ordinary foreground, for a readout that is
+        # news without being bad news. Distinct from TONE_MUTE, which is
+        # dimmed — a pill that can paint peach needs a way back to neutral.
+        export TONE_TEXT=$TEXT
         export TONE_OK=$GREEN
         export TONE_BUSY=$SKY
         export TONE_WARN=$PEACH
