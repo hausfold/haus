@@ -28,11 +28,24 @@ let
   #
   # The npm handed in here is pi's OWN node — `pkgs.nodejs` is the interpreter
   # nixpkgs already exec's pi with, so this adds no closure and cannot skew a
-  # version against the runtime. It goes on pi's PATH and nowhere else: an
-  # interactive shell on this machine still has no npm, which is deliberate.
-  # `pi install` starts working as a consequence, and that is a consequence
-  # rather than a blessing — it is still imperative, unpinned and outside nix,
-  # and nothing here points anyone at it.
+  # version against the runtime. `pi install` starts working as a consequence,
+  # and that is a consequence rather than a blessing — it is still imperative,
+  # unpinned and outside nix, and nothing here points anyone at it.
+  #
+  # 🚨 `--suffix`, NOT `--prefix`, and the difference is the whole safety of
+  # this. pi is a coding agent with a shell tool, so every command a pi lane
+  # runs — `npm test`, `npx`, anything resolving `node` — inherits pi's PATH.
+  # Prefixed, `${pkgs.nodejs}/bin` would put node, npm, npx and corepack AHEAD
+  # of whatever the machine has, and an agent in a repo pinned to node 22 would
+  # silently get this one, on a machine whose owner never asked for a node at
+  # all. Suffixed, it is a FLOOR: it answers `spawn npm` where nothing else
+  # would, and loses to a homebrew/fnm/volta toolchain wherever one exists —
+  # which is also exactly the behaviour a machine that already had npm has
+  # today, so this changes nothing for those and fixes the ones with none.
+  #
+  # Upstream prefixes ripgrep and fd for the opposite reason and correctly: a
+  # tool pi calls for ITSELF wants to be the one pi built against. A language
+  # runtime is not that — projects pin it, and the agent's shell is the user's.
   #
   # Building the declared set in nix instead was the other candidate and does
   # not fit the option: `ai.pi.packages` is a free-form list of npm and git
@@ -49,7 +62,7 @@ let
     drv.overrideAttrs (
       _final: prev: {
         postFixup = (prev.postFixup or "") + ''
-          wrapProgram $out/bin/pi --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.nodejs ]}
+          wrapProgram $out/bin/pi --suffix PATH : ${pkgs.lib.makeBinPath [ pkgs.nodejs ]}
         '';
       }
     );
