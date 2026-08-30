@@ -562,10 +562,12 @@ lib.mkMerge [
 
       # Always-float utility windows — the generalised shape of what used to
       # be two hand-written aerospace.toml rules (§5.4's "window rules beyond
-      # assignment" box). Neither installs anything (FaceTime is stock macOS;
-      # Trill isn't shipped by this rice yet — its rule was hand-added ahead
-      # of the module landing), so both are metadata-only entries whose only
-      # job is naming a bundle id and setting `float`.
+      # assignment" box). Neither installs anything: FaceTime is stock macOS
+      # and Trill arrives with the Notifications room
+      # (`haus.notifications.compositor`, off by default), never from here. So
+      # both are metadata-only entries whose only job is naming a bundle id
+      # and setting `float`, which costs nothing on a machine that doesn't
+      # have the app.
       # Floating is only half of a call window's job — the other half is
       # staying VISIBLE, and FaceTime is the one foreign window that can:
       # `Video > Always on Top` during a call is native. It has to be, because
