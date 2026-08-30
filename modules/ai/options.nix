@@ -224,12 +224,20 @@ in
         is a second decision and this option is where you make it.
 
         pi does that fetch itself, by spawning `npm` at startup — so haus puts
-        one on pi's PATH and nowhere else (`modules/lib/agent-packages.nix`),
-        taking it from the very node nixpkgs already runs pi with. Your shells
-        still have no npm, and none of this is a route to `pi install`, which
-        stays imperative and outside nix. Without it pi does not warn and carry
-        on: it dies on an uncaught `spawn npm ENOENT` before drawing anything,
-        which made these four defaults fatal on a machine that never had npm.
+        one on pi's PATH (`modules/lib/agent-packages.nix`), taking it from the
+        very node nixpkgs already runs pi with. Without it pi does not warn and
+        carry on: it dies on an uncaught `spawn npm ENOENT` before drawing
+        anything, which made these four defaults fatal on a machine that never
+        had npm. None of it is a route to `pi install`, which stays imperative
+        and outside nix.
+
+        It is APPENDED to pi's PATH, not prefixed, and that is what keeps it
+        safe to do. pi has a shell tool, so every command a pi lane runs
+        inherits that PATH — prefixed, this node would shadow a homebrew, fnm
+        or volta one, and an agent working in a repo pinned to another version
+        would silently get haus's. Appended, it is a floor: it answers pi where
+        nothing else would, and loses to your own toolchain wherever you have
+        one. Your interactive shells are untouched either way.
 
         The fetch still needs network on that first start, and a source pi
         cannot install — a typo, a 404, an offline machine — is an uncaught
