@@ -70,28 +70,57 @@ _BARLIB_STATE=()
 _BARLIB_ARGS=()
 
 # ---- tones ------------------------------------------------------------------
-# The semantic colour API — the ladder github.sh proved out, resolved to
-# TONE_* exports the generated colors.sh carries (so nebelung stays the only
-# resolver of names to hexes). Widgets name a tone, never a palette key and
-# never a hex. An unknown tone is mute, not an error: a typo'd tone must cost
-# a grey pill, never a pill that stops painting.
+# The semantic colour API. Widgets name a tone, never a palette key and never
+# a hex; the names and what each resolves to are `modules/bar/tones.nix`, the
+# generated colors.sh carries them as TONE_* exports (so nebelung stays the
+# only resolver of names to hexes), and `bar-tones` in flake.nix diffs this
+# case statement against that list. An unknown tone is mute, not an error: a
+# typo'd tone must cost a grey pill, never a pill that stops painting — and
+# that leniency is exactly why the check exists, since the warning below goes
+# to sketchybar's log, where nobody looks.
 #
-# `text` is the rung that is NOT a verdict: the bar's ordinary foreground, for
-# a live readout that carries no alarm — github's `info` sources, whose count
-# is news without being bad news. It exists because `mute` cannot do that job:
-# mute is DIMMED, and a pill that has to be able to go back to neutral after
-# painting peach needs a name for neutral, or it can only ever get greyer.
+# Read tones.nix for what each rung MEANS and which pills earned it. Three
+# things about the shape of the ladder belong here, next to the code:
+#
+#   * TWO dim steps. `mute` (overlay0) is OFF — stale, inactive, absent.
+#     `dim` (overlay1) is quiet but present — a heading, a row's name. Six
+#     pills already use both as a hierarchy; one rung cannot say both, and a
+#     widget with only `mute` can only ever get greyer.
+#   * FOUR severity steps, not three: ok → watch → warn → bad. `watch` is
+#     50% CPU and a battery at half — worth knowing, nothing to do yet.
+#   * `action` is a thing you press, and it is NOT `accent`. accent follows
+#     haus.theme.accent, whose enum contains red, peach, yellow, green and
+#     sky — so on some machine accent IS the alarm, and a Refresh row wearing
+#     it is unreadable there and nowhere else. accent is identity only.
+# The arms are in the ladder's order, quietest first, and `bar-tones` pins
+# that too — the doc table is meant to READ as the ladder, and an order that
+# drifts is a table that has stopped being one. The check pins each arm's
+# TONE_* as well as its name, because swapping two `printf` bodies inverts the
+# severity ladder while leaving the list of names byte-identical.
+#
+# ⚠️ Every rung whose TONE_* is NEWER than barlib.sh itself falls back with
+# `:-`, and that is the file header's rule at the top rather than caution:
+# colors.sh and this file are separate home.file entries, so a rebuild lands
+# them in some order and there is a window where a widget under `set -u`
+# reads a TONE_* the live colors.sh has never heard of. Not a wrong colour —
+# an unbound-variable abort that takes the whole batched --add with it, and
+# `dim` and `action` are the DEFAULTS for popup_heading and popup_action, so
+# every framework popup would be in it. Each falls back to the rung it
+# replaced, which is also what it looked like one generation ago.
 tone() {
     case "$1" in
+        mute)   printf '%s' "$TONE_MUTE" ;;
+        dim)    printf '%s' "${TONE_DIM:-$TONE_MUTE}" ;;
+        text)   printf '%s' "${TONE_TEXT:-$TEXT}" ;;
         ok)     printf '%s' "$TONE_OK" ;;
         busy)   printf '%s' "$TONE_BUSY" ;;
+        watch)  printf '%s' "${TONE_WATCH:-$TONE_WARN}" ;;
         warn)   printf '%s' "$TONE_WARN" ;;
         bad)    printf '%s' "$TONE_BAD" ;;
+        action) printf '%s' "${TONE_ACTION:-$TONE_ACCENT}" ;;
         accent) printf '%s' "$TONE_ACCENT" ;;
-        mute)   printf '%s' "$TONE_MUTE" ;;
-        text)   printf '%s' "${TONE_TEXT:-$TEXT}" ;;
         *)
-            echo "barlib: unknown tone '$1' (mute|text|ok|busy|warn|bad|accent) — using mute" >&2
+            echo "barlib: unknown tone '$1' (mute|dim|text|ok|busy|watch|warn|bad|action|accent) — using mute" >&2
             printf '%s' "$TONE_MUTE"
             ;;
     esac
@@ -287,8 +316,13 @@ _barlib_pop_add() { # _barlib_pop_add <height> <font> <action> <set-args…>
 # --count appends " · n" when n is above zero: a section that says "open PRs"
 # over eight rows leaves you counting them to find out whether eight is all of
 # them, and the rows below may be a truncation.
+# The default is `dim`, not `mute`: a section title with no verdict of its own
+# is still a title. Every hand-written popup in this bar already draws one that
+# way — vitals_lib, agents, calendar and ai_usage all paint the section glyph
+# overlay1 and reserve overlay0 for the meta row under it — and `mute` here
+# made the heading read as absent rather than quiet.
 popup_heading() {
-    local label='' icon='' icon_tone=mute count=0
+    local label='' icon='' icon_tone=dim count=0
     while [ $# -gt 0 ]; do
         case "$1" in
             --label) label=$2; shift 2 ;;
@@ -309,7 +343,9 @@ popup_heading() {
 #           [--open <url>] [--run <command>]
 # A `mute` row loses a shade of its TEXT too, not only its glyph colour:
 # otherwise a list of eight reads as eight equal claims on you when two of
-# them are their author saying "not yet".
+# them are their author saying "not yet". Only `mute` — a `dim` row keeps its
+# full-brightness label on purpose, because dim is the row still being ABOUT
+# something; it is the glyph that is subordinate, not the sentence.
 popup_row() {
     local label='' icon='' icon_tone=mute action=''
     while [ $# -gt 0 ]; do
@@ -335,8 +371,15 @@ popup_row() {
 # you have to run somewhere with a terminal in front of it: `gh auth login`
 # wants a browser, a protocol choice and a paste-back code, and there is no
 # shell behind a bar popup to give it any of that.
+#
+# It defaults to `action`, and defaulting to `accent` was a real bug rather
+# than a shade: accent follows haus.theme.accent, an enum of fourteen names
+# that includes red, peach, yellow, green and sky, so on those machines every
+# verb row in every framework popup was painted the same colour as the alarm
+# — and `haus.theme.accent`'s own doc promises the logo is the ONLY pill that
+# follows it. A row you press is a fixed sapphire on every machine.
 popup_action() {
-    local label='' icon='' icon_tone=accent action=''
+    local label='' icon='' icon_tone=action action=''
     while [ $# -gt 0 ]; do
         case "$1" in
             --label) label=$2; shift 2 ;;

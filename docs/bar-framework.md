@@ -188,31 +188,72 @@ reads as plain variables, so every framework widget trips SC2154 by design.
 
 ## Tones, not colors
 
-Widgets name a **tone**; nothing else is accepted. The ladder is github.sh's,
-promoted to the framework vocabulary because it already matches the agents
-pill and snug's role system:
+Widgets name a **tone**; nothing else is accepted. The ladder started as
+github.sh's and is now the WHOLE BAR's — it was widened by surveying what
+every pill already spends its colours on, converted or not, because a
+vocabulary drawn from one widget is that widget's palette with the serial
+numbers filed off. It still matches the agents pill and snug's role system:
 
 | tone | meaning |
 |---|---|
-| `mute` | no verdict / inactive — dimmed |
+| `mute` | nothing there — inactive, stale, no verdict |
+| `dim` | present but subordinate — a heading, a row's name, a descriptor |
 | `text` | a live readout carrying no alarm — the ordinary foreground |
 | `ok` | green, nothing needed |
 | `busy` | the machine has it, not you |
+| `watch` | worth knowing, nothing to do yet |
 | `warn` | wants a human here |
 | `bad` | the load-bearing thing is broken |
-| `accent` | the rice's accent, for identity not status |
+| `action` | a thing you press — an affordance, not a status |
+| `accent` | the rice's own mark — identity, never status |
 
-`text` is the rung that is deliberately *not* a verdict, and it exists because
-`mute` cannot do that job: mute is dimmed, so a pill that can paint peach
-needs a name for neutral or it can only ever get greyer. github's `info`
-sources are it — a count that is news without being bad news.
+The ladder is `modules/bar/tones.nix`, and that file is the argument as well
+as the list: each rung names the pills that earned it, because **what earns a
+rung is a colour the bar already spends, in more than one pill, on one job.**
+A rung only one widget wants is that widget's hex laundered through the
+framework — the mapping onto an existing rung was already right.
+
+Four of the ten are worth knowing before you pick one:
+
+- **Two dim steps.** `mute` is OFF; `dim` is quiet but present. Six pills
+  already use both as a hierarchy — vitals_lib and agents paint a popup
+  section glyph `overlay1` and the meta row under it `overlay0`, and
+  `ai_usage.sh` writes that same two-tier rule down as `descr` vs `meta`. One
+  rung cannot say both, and a widget with only `mute` can only ever get
+  greyer.
+- **`text` is deliberately not a verdict** — the way back to neutral after
+  painting peach. github's `info` sources are it: a count that is news
+  without being bad news.
+- **Four severity steps, not three:** ok → `watch` → `warn` → `bad`.
+  `vitals_lib.sh` and `ai_usage.sh` each write `GREEN → YELLOW → PEACH → RED`
+  in a comment and then in code, on identical thresholds, and battery spends
+  yellow across its whole 20–80% band. 50% CPU is not "wants a human here",
+  and without a name for it the first of those pills to convert would have had
+  to keep a hardcoded hex.
+- 🚨 **`action` is a thing you press; `accent` is identity and nothing else.**
+  `accent` follows `haus.theme.accent`, an enum of fourteen names that
+  contains `red`, `peach`, `yellow`, `green` and `sky` — so on somebody's
+  machine that tone *is* every verdict rung, and a Refresh row wearing it is
+  unreadable there and nowhere else. It also breaks a promise the option's own
+  doc makes and `accent-reach` pins: the logo is the only pill that follows
+  the accent. Calendar's "Join", caffeinate's stop row and github's Refresh
+  all reached for a fixed sapphire independently; that is `action`.
 
 Tone→hex resolves as `TONE_*` exports in the generated `colors.sh`, off the
 same nebelung palette everything else uses — the single-resolver rule the
 theme room already enforces. An unknown tone paints mute and warns on stderr:
-a typo costs a grey pill, never a pill that stops painting. **Planned**: a
-flake check pinning the tone table the way `theme-variants` pins the flavor
-table.
+a typo costs a grey pill, never a pill that stops painting.
+
+⚠️ **A rung lives in four files**, and three of them fail silently if you
+forget one — the warning above goes to sketchybar's log, where nobody looks,
+and the pill just paints grey. So the ladder is defined once in
+`modules/bar/tones.nix` and the rest is generated or diffed against it: the
+`TONE_*` exports in `modules/bar/default.nix`'s `colorsSh` are **generated**
+from it, and the `bar-tones` flake check diffs `tone()`'s case arms in
+`barlib.sh`, the table above, and the `colors.sh` stub in
+`test/barlib.bats`'s `setup()` — names *and* order — against the same list.
+Adding a rung means editing `tones.nix` and then the three the check names
+for you.
 
 ## Pubsub
 

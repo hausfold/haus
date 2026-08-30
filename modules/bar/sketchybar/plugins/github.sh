@@ -818,6 +818,11 @@ render() {
     fetching)
       ltone=mute; label="…" ;;
     auth)
+      # `warn`, not the `watch` yellow this was before the conversion. Not
+      # logged in is not "worth knowing later" — it is the one failure with a
+      # row you can act on, and the popup heading below has said `--tone warn`
+      # since the pill was written. The pill and its own dropdown disagreeing
+      # was the bug; `watch` is the 50%-CPU rung and this is not that.
       ltone=warn; label="auth" ;;
     error)
       ltone=mute; label="—" ;;
@@ -895,7 +900,11 @@ popup_rows() {
       # peach at the section level too rather than only on the one row.
       local hsev="$msev"
       if [ "$(sev_rank "$mworst")" -gt "$(sev_rank "$msev")" ]; then hsev="$mworst"; fi
-      local htone=mute
+      # An empty section is quiet, not absent — `dim`, the same overlay1 every
+      # other popup in the bar draws a section glyph in. It is also what this
+      # heading was before the framework conversion mapped it to the nearest
+      # rung the ladder had; the ladder has the right one now.
+      local htone=dim
       if [ "${count:-0}" -gt 0 ]; then htone="$(sev_tone "$hsev")"; fi
       # --count is the runtime's: a section that says "open PRs" over eight
       # rows leaves you counting them to find out whether eight is all of them.
