@@ -307,6 +307,20 @@ let
       pane's environment turns it off for a long unattended run. It is a
       backstop, not permission to skip the above: a prompt you triggered is
       still an interruption.
+    ''}${lib.optionalString (client == "pi") ''
+      `agent-desktop-guard` backs this up on pi panes, reached from `tool_call`
+      by the `haus-desktop-guard` extension: the same ruleset Claude Code's
+      panes run behind, in front of a bash command that would move the pointer,
+      take focus or redraw the desktop. pi has no permission prompt of its own,
+      so the question goes up as a `trill ask` with Allow/Deny pills AND as a
+      dialog in this pane at once — whichever is answered first decides, and an
+      unanswered banner parks on the screen edge rather than dropping. The only
+      thing it refuses outright is a call it has nowhere to ask about (a
+      `pi -p` on a machine with no trill), and `HAUS_DESKTOP_OK=1` in a pane's
+      environment turns it off for a long unattended run. It is a backstop, not
+      permission to skip the above: a question you triggered is still an
+      interruption.
+    ''}${lib.optionalString (client == "claude" || client == "pi") ''
 
       The line is THIS screen, not the command. Work you run over `ssh` on
       another machine — a lane's own headless VM most of all — is never gated,
@@ -1002,6 +1016,15 @@ in
       # whole thing off, the way BENCH_AGENT_SWITCH=1 does for activation.
       # test/desktop-guard.bats pins both sides of the line; details in the
       # script's header.
+      #
+      # TWO clients read this one binary. pi reaches it from `tool_call`
+      # (terminal's `haus-desktop-guard.ts`), handing it the same hook-shaped
+      # JSON Claude Code's hook does and reading the same verdict back, so the
+      # line lives in one file and one bats suite for both. What differs is only
+      # where the question is put: Claude re-opens its own prompt in the pane, pi
+      # has no prompt to re-open and raises a `trill ask` beside its in-pane
+      # dialog. Anything that changes this script's stdin or stdout contract
+      # moves both — the extension parses `permissionDecision` by name.
       (writeShellScriptBin "agent-desktop-guard" (builtins.readFile ./desktop-guard.sh))
 
       # `scruff-cache` — one warm copy of `scruff --json` for everything that reads

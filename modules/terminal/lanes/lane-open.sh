@@ -144,6 +144,14 @@ fi
 #                     a pane where the desktop guard was turned off for one
 #                     unattended run would hand every lane it spawns the same
 #                     exemption, on a Mac whose user is sitting at it.
+#   HAUS_PI_ASK_TIMEOUT
+#                     its sibling on pi, and it fails the other way: a clock
+#                     that made sense for one unattended run becomes a lane
+#                     whose permission questions expire while you are walking
+#                     back to the Mac. Failing closed is still the wrong
+#                     answer to inherit silently — a lane starts with no clock,
+#                     which is what a question waiting for a person should
+#                     have.
 #
 # Named individually rather than swept by prefix: an unset that guesses is one
 # that silently takes a variable the next client needs.
@@ -160,7 +168,7 @@ leaked="ZMX_SESSION
 CLAUDECODE CLAUDE_CODE_SESSION_ID CLAUDE_CODE_HOST_SESSION_ID
 CLAUDE_CODE_CHILD_SESSION CLAUDE_CODE_MESSAGING_SOCKET
 CLAUDE_CODE_BRIDGE_SESSION_ID CLAUDE_CODE_ENTRYPOINT CLAUDE_PID
-HAUS_DESKTOP_OK"
+HAUS_DESKTOP_OK HAUS_PI_ASK_TIMEOUT"
 # shellcheck disable=SC2086 # deliberate word split: one name per unset argument
 unset $leaked
 

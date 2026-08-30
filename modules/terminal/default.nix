@@ -1636,6 +1636,48 @@ in
               "/run/current-system/sw/bin/haus-notify"
             ]
             (builtins.readFile ./pi/agent-state.ts);
+
+        # pi's half of the desktop guard — the thing that keeps an agent from
+        # foregrounding an app, moving a window or redrawing the desktop while
+        # somebody is typing into something else. Claude Code panes have had it
+        # as a PreToolUse hook (the `agent-desktop-guard` merge below); pi had
+        # NOTHING, because pi has no permission modes, no permission prompt and
+        # no sandbox at all. `tool_call` is its seam: it fires before the tool,
+        # it can block, and the handler may be async — so it can hold the turn
+        # open while a human answers.
+        #
+        # It does NOT carry a second copy of the ruleset: it shells out to the
+        # very same `agent-desktop-guard` binary, with the same hook-shaped JSON
+        # on stdin and the same verdict back out, so the line falls in one place
+        # for both clients and test/desktop-guard.bats pins it for both. That
+        # matters more here than the indirection costs — the guard's whole value
+        # is WHERE the line is, and both sides of it fail silently.
+        #
+        # The question goes up as a `trill ask`, racing pi's own in-pane dialog,
+        # first definite answer wins. A Claude prompt can only be answered by
+        # finding the pane; the reason a lane has its own window is that nobody
+        # is watching it. Direct `trill`, not `haus-notify`, because haus-notify
+        # is send-only and its no-trill fallback is Apple's banner, which has no
+        # buttons — an ask has no such fallback, so the pane IS the fallback.
+        #
+        # Unconditional for the same reason the file above it is: inert without
+        # pi, so a hand-installed pi gets the guard with nothing to configure —
+        # PROVIDED the ai room is on, because `agent-desktop-guard` ships under
+        # its `mkIf`. With `haus.ai.enable = false` the binary is absent, the
+        # spawn fails, and the extension does what every other failure here does
+        # and returns no opinion. That is the right direction (a machine that
+        # asked for no AI room gets no gate rather than a broken one), and it is
+        # the same shape agent-state.ts has with `agent-state`.
+        # `HAUS_DESKTOP_OK=1` turns it off for a pane, exactly as it does for
+        # Claude Code — one variable, both clients.
+        ".pi/agent/extensions/haus-desktop-guard.ts".text =
+          builtins.replaceStrings
+            [ "@DESKTOP_GUARD@" "@TRILL@" ]
+            [
+              "/run/current-system/sw/bin/agent-desktop-guard"
+              "/run/current-system/sw/bin/trill"
+            ]
+            (builtins.readFile ./pi/desktop-guard.ts);
       }
       # Helix nebelung theme, from the nebelung flake. This used to be a
       # hand-written [palette] block inheriting helix's BUILT-IN
