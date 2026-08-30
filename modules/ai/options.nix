@@ -223,6 +223,21 @@ in
         process. That is the same trust you extend to the client itself, but it
         is a second decision and this option is where you make it.
 
+        pi does that fetch itself, by spawning `npm` at startup — so haus puts
+        one on pi's PATH and nowhere else (`modules/lib/agent-packages.nix`),
+        taking it from the very node nixpkgs already runs pi with. Your shells
+        still have no npm, and none of this is a route to `pi install`, which
+        stays imperative and outside nix. Without it pi does not warn and carry
+        on: it dies on an uncaught `spawn npm ENOENT` before drawing anything,
+        which made these four defaults fatal on a machine that never had npm.
+
+        The fetch still needs network on that first start, and a source pi
+        cannot install — a typo, a 404, an offline machine — is an uncaught
+        error in pi rather than a skipped package. `PI_OFFLINE=1` in the
+        environment is pi's own escape hatch: it makes a missing package a
+        silently absent one instead of a dead client, at the price of never
+        installing anything.
+
         Host-only, and this is the one leaf in the room where that matters
         most: a shared desktop naming a package here would be shipping code
         that runs on your machine inside a file you read as data.
