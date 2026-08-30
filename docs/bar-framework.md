@@ -1,13 +1,14 @@
 # The bar framework
 
-> Status: **phase 1 shipped** — `barlib.sh` (the runtime: dispatch, state
-> diff, `pill`, tones, `bar_emit`), the `# widget:` parser
-> (`modules/bar/manifest.nix`), `frameworkBlock` in `modules/bar/default.nix`,
-> and `clock` as the first converted widget, pinned by `test/barlib.bats`.
-> Sections below marked **planned** describe what the github conversion adds
-> next — popups, the wider component set, the extra manifest keys. The code is
-> normative where the two disagree; a planned key is an EVAL ERROR today, not
-> a silent no-op, so nothing here can be half-used by accident.
+> Status: **phases 1–3 shipped** — `barlib.sh` (the runtime: dispatch, state
+> diff, `pill`, tones, the four popup row kinds, `bar_emit`), the `# widget:`
+> parser (`modules/bar/manifest.nix`), `frameworkBlock` in
+> `modules/bar/default.nix`, and `clock` + `github` converted, pinned by
+> `test/barlib.bats`. Sections below marked **planned** are what is left: the
+> remaining manifest keys, the graph/slider components, third-party widgets.
+> The code is normative where the two disagree; a planned key is an EVAL
+> ERROR today, not a silent no-op, so nothing here can be half-used by
+> accident.
 
 ## Why
 
@@ -46,7 +47,9 @@ on_click()     { open "https://github.com/pulls"; }
 barlib_main "$@"
 ```
 
-(`clock.sh` is the real, running version of this shape.)
+(`clock.sh` is the smallest running version of this shape; `github.sh` is the
+largest — typed sources, a dropdown, a detached network fetch — and the one
+the component set was designed against.)
 
 Everything else — which bar instance, event wiring, `updates=`, state caching,
 diffing, tone→hex — belongs to the runtime. A widget script never calls
@@ -69,14 +72,14 @@ the single source for wiring — no parallel table edit. Keys:
 | key | type | default | meaning |
 |---|---|---|---|
 | `interval` | seconds | none | `update_freq`; omit for purely event-driven |
+| `popup` | `true`/`false` | `false` | the dropdown frame + align; unlocks `popup_*` |
 | `subscribes` | list | `system_woke` | bar events and haus signals (see Pubsub) |
 
-Planned keys, landing with the feature that consumes each: `popup` (a
-declared dropdown, runtime-owned toggle + barpop — the github conversion),
-`permissions` (feeds the deck, replacing the `widgets.nix` column), `movable`
-(the bottom-bar gate). The parser's known-key set is grown only in the same
-change that implements a key, so writing a planned key today is an eval
-error naming the file — never a header that parses green and wires nothing.
+Planned keys, landing with the feature that consumes each: `permissions`
+(feeds the deck, replacing the `widgets.nix` column), `movable` (the
+bottom-bar gate). The parser's known-key set is grown only in the same change
+that implements a key, so writing a planned key today is an eval error naming
+the file — never a header that parses green and wires nothing.
 
 Unknown keys are an **eval error**, not a silent ignore — the lesson
 `pounce-command-keys` exists to teach, enforced one layer earlier because here
@@ -123,20 +126,63 @@ running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
 
 **Components shipped**:
 
-- `pill --icon --label --tone [--label-tone] [--hide]` — the standard
-  readout. `--hide` performs the `drawing=off updates=on` pair; the one-way
-  door ceases to exist as a mistake a widget can make. An empty `--icon`
-  turns the icon off rather than drawing a blank.
-- `sb_set <prop>=<val>…` — the raw-property escape, still batched.
+- `pill --icon --label [--tone] [--label-tone] [--hide]` — the standard
+  readout, one or two tones. `--tone` paints the icon and `--label-tone` the
+  label, which **is** the two-tone pill (github's octocat saying how bad while
+  the number says how many) — there is no separate component, passing both
+  flags is it. `--hide` performs the `drawing=off updates=on` pair; the
+  one-way door ceases to exist as a mistake a widget can make. **Empty means
+  absent for both halves**: an empty `--icon` is `icon.drawing=off`, an empty
+  `--label` is `label.drawing=off` *and* re-centres the icon (the bar's
+  defaults are 8/4 + 4/8, which reads left-heavy the moment the label goes —
+  and for a pill that hides a zero, that is its resting state).
+- `sb_set <prop>=<val>…` — the raw-property escape, still batched. Later args
+  in the batch win, so an `sb_set` after a `pill` call overrides it.
+- **the dropdown** — `popup_rows()` declares the contents; `popup_open` /
+  `popup_close` / `popup_toggle` drive it from a click handler. The runtime
+  owns the `--remove` of the old rows, the row item ids, the one batched
+  `--add`, the `popup.drawing` flip and the `barpop arm &` with its
+  load-bearing ordering — and the query gate, where an *unanswered* `--query`
+  is treated as closed rather than open, because a busy bar must not swallow
+  a click. Closing never rebuilds: a popup that re-lays-out on the way out is
+  how you click the wrong row.
 
-**Components planned** (each lands with the first conversion that needs it —
-the github pill covers most):
+  **Four row kinds**, and their typography belongs to the runtime:
 
-- `two_tone_pill` — github.sh's split count/state pill, promoted.
-- `popup_row --text --tone [--icon] [--run <cmd>]` — declarative dropdown
-  rows; the runtime does remove/re-add and the `popToggle` + `barpop arm &`
-  dance with its load-bearing ordering, plus `popup_heading` and
-  `popup toggle|open|close` for handlers.
+  | kind | weight/size | height | for |
+  |---|---|---|---|
+  | `popup_heading --label [--icon] [--tone] [--count]` | Bold, label | 32 | a section title; `--count` appends ` · n` when above zero |
+  | `popup_row --label [--icon] [--tone] [--open <url>] [--run <cmd>]` | Regular, small | 25 | a thing you can act on; a `mute` tone dims the text too |
+  | `popup_action --label [--icon] [--tone] [--run <cmd>] [--copy <text>]` | Bold, small | 25 | a verb — Refresh, a command to copy |
+  | `popup_note --label` | Italic, tiny | 20 | an aside — "nothing", "+4 more" |
+
+  Four because that is what every popup in this bar already was. A widget
+  naming `":Bold:${FS_SMALL}"` itself is the hardcoded-hex mistake one layer
+  up, so the fifth kind someone needs is a kind to **add**, not a `--font` to
+  add to the signature. Every row closes the popup on click; `--open` /
+  `--run` / `--copy` run *before* that close, and `--open`/`--copy` are
+  single-quote-escaped because a PR title is data.
+- `barlib_tick` — run fetch/diff/render now, for a handler that just changed
+  the world (github's right-click refresh). Still diffed: a refresh that turns
+  up the same numbers costs nothing.
+
+⚠️ **A widget that detaches a copy of itself must strip `$SENDER`** (and
+`$BUTTON`/`$MODIFIER`) from the child's environment, and must not let that
+child reach `barlib_main`. The runtime routes on `SENDER` and the child
+inherits it, so a copy spawned from a click re-enters the handler that
+spawned it — an unbounded fork loop past every lock the parent has already
+released. Measured on github's right-click before it was fixed: 41 full `gh`
+passes and still climbing, against 3 after. `spawn_fetch` is the worked
+example (`env -u SENDER -u BUTTON -u MODIFIER`, plus a CLI mode that ends
+`barlib_tick; exit 0`), and `test/barlib.bats` pins the shape.
+
+`barlib.sh` itself is shellchecked in CI, because everything it gets wrong is
+invisible — a widget's stderr goes to sketchybar's log and nowhere a person
+looks. The **widgets** are deliberately not: `fetch` emits state that `render`
+reads as plain variables, so every framework widget trips SC2154 by design.
+
+**Components planned** (each lands with the first conversion that needs it):
+
 - `graph`, `slider`, `badge` — wrap sketchybar's own primitives (vitals,
   media already use them by hand).
 
@@ -148,12 +194,18 @@ pill and snug's role system:
 
 | tone | meaning |
 |---|---|
-| `mute` | no verdict / inactive |
+| `mute` | no verdict / inactive — dimmed |
+| `text` | a live readout carrying no alarm — the ordinary foreground |
 | `ok` | green, nothing needed |
 | `busy` | the machine has it, not you |
 | `warn` | wants a human here |
 | `bad` | the load-bearing thing is broken |
 | `accent` | the rice's accent, for identity not status |
+
+`text` is the rung that is deliberately *not* a verdict, and it exists because
+`mute` cannot do that job: mute is dimmed, so a pill that can paint peach
+needs a name for neutral or it can only ever get greyer. github's `info`
+sources are it — a count that is news without being bad news.
 
 Tone→hex resolves as `TONE_*` exports in the generated `colors.sh`, off the
 same nebelung palette everything else uses — the single-resolver rule the
@@ -168,14 +220,16 @@ table.
 
 - **sketchybar events** (`system_woke`, `display_change`, …): subscribed
   directly.
-- **haus signals** (`haus.<room>.<event>`): the generator emits one
-  `--add event` per distinct name and subscribes the widget. Producers fire
-  them with `bar_emit <event> [key=value…]` (a barlib helper that triggers
-  BOTH bars — the "anything that pokes a bar pokes both" rule, in code).
-  **Planned**: bridging the existing producers in — the github room's
-  delivery signal, focus changes, `agent-state` — so a widget can subscribe
-  to them by name. No widget subscribes to a haus signal yet, so this path
-  is wired but unexercised until then.
+- **custom events** (`github_update`, and by convention `haus.<room>.<event>`
+  for anything new): the generator emits one `--add event` per name that is
+  not one of SketchyBar's own and subscribes the widget. The built-in list
+  lives in `manifest.nix` and the split is a **difference against it**, not a
+  prefix rule — subscribing to an event nobody declared is silent, and so is
+  `--add event volume_change` shadowing the built-in of that name. Producers
+  fire them with `bar_emit <event> [key=value…]` (a barlib helper that
+  triggers BOTH bars — the "anything that pokes a bar pokes both" rule, in
+  code). **Planned**: bridging the remaining producers in — focus changes,
+  `agent-state` — so a widget can subscribe to them by name.
 - Widgets may `bar_emit` too — inter-widget signaling without knowing names.
 
 ## Why not SbarLua
@@ -210,10 +264,16 @@ Lua (or Go daemon) runtime would consume, so nothing built now is thrown away.
 1. ✅ **barlib.sh + runtime + tone table** — pure addition, nothing breaks.
 2. ✅ **clock** — smallest pill, proves the end-to-end path (header →
    generator → runtime → render). `test/barlib.bats` pins the runtime.
-3. **github** — the maximal pill (sources, popup, ladder, two-tone); proves
-   the API is *sufficient*. Gaps found here change the schema — that's why
-   it's next, before the schema calcifies, and it brings the `popup` key and
-   the popup components with it.
+3. ✅ **github** — the maximal pill (sources, popup, ladder, two-tone), which
+   is what the popup components and the `popup` key were designed against.
+   Five things it changed on the way through, each because the pill needed it
+   and none of which the schema had guessed: the `text` tone; `pill`'s
+   empty-label rule (so "hide the zero" stopped being four padding numbers a
+   widget had to know); `--count` on a heading; custom events split by
+   difference rather than by prefix (a `haus.`-prefix rule left
+   `github_update` undeclared — silently); and the runtime stripping
+   `<item>.popup.<n>` back to the pill, because a popup row's `click_script`
+   re-enters the widget with `NAME` set to the ROW.
 4. `permissions` / `movable` manifest keys, the tone-table golden check,
    third-party framework widgets through `haus.bar.widgets`.
 5. Long tail: convert on touch. A converted pill deletes its block from

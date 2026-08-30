@@ -629,12 +629,15 @@ mechanism, say so in one line.
     prints under the card (theme's ports card names the apps that way).
 - **New SketchyBar plugin**: write it as a **barlib widget**
   (`docs/bar-framework.md`) — one file in `modules/bar/sketchybar/plugins/`
-  with a `# widget:` header, `fetch()`/`render()`/`on_*()` bodies, and a
-  `frameworkBlock` entry in `mkPluginBlocks` for its static look. `clock.sh`
-  is the reference. The runtime (`barlib.sh`, tested by `test/barlib.bats`)
-  owns `$SB` routing, the `drawing=off`/`updates=on` pairing, tone→hex and
-  the one-batched-call rule, so the bullets below about those only concern
-  the pre-framework plugins — which remain valid and convert on touch.
+  with a `# widget:` header, `fetch()`/`render()`/`on_*()`/`popup_rows()`
+  bodies, and a `frameworkBlock` entry in `mkPluginBlocks` for its static
+  look. `clock.sh` is the smallest reference and `github.sh` the largest —
+  the one with a dropdown. The runtime (`barlib.sh`, tested by
+  `test/barlib.bats` and shellchecked in CI) owns `$SB` routing, the
+  `drawing=off`/`updates=on` pairing, tone→hex, the one-batched-call rule,
+  and the whole popup dance (rebuild, batch, `barpop arm &`, the four row
+  kinds' typography), so the bullets below about those only concern the
+  pre-framework plugins — which remain valid and convert on touch.
 - **A plugin that can end up on the SECOND bar must never write `sketchybar`.**
   `haus.bar.bottom.enable` draws a second bar along the bottom, and SketchyBar
   has no two-bars-in-one-process mode: an instance is named `basename(argv[0])`
@@ -695,7 +698,9 @@ mechanism, say so in one line.
   background** — `sketchybar --set <item> popup.drawing=toggle; barpop arm
   <item> &` (the `popToggle` helper in `modules/bar/default.nix` writes exactly
   that; plugin scripts spell out the literal
-  `/run/current-system/sw/bin/barpop`). SketchyBar hears clicks on its own items
+  `/run/current-system/sw/bin/barpop`). A **framework widget writes none of
+  this**: `popup_open`/`popup_toggle` are the runtime's, and everything below
+  is why they exist rather than something a widget re-derives. SketchyBar hears clicks on its own items
   and nothing else, so a popup it opened could otherwise only be closed by
   clicking that pill again. `barpop` (`modules/bar/barpop.swift`, built by
   `barpop.nix`) is the missing half: an AppKit global mouse-down monitor

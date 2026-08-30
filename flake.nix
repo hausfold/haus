@@ -1712,13 +1712,20 @@
               # dark/light pair macOS is showing — so the fingerprint that moves
               # here is the name inside config.json, not a colour.
               perch = hm.home.activation.perchTheme.data;
-              # The BAR, via its far-left logo pill only. bar's palette file is
-              # the whole nebelung palette and never moves with the accent (it is
-              # in the pinned half below, and stays there); haus.bar.logo.color
-              # left null resolves to the accent and lands here, so this is the
-              # one bar file the accent reaches. Split out rather than folded
-              # into the `bar` row because the two answer different questions —
-              # "did the palette change" and "did the accent choose a pill".
+              # The BAR, twice over, and the two rows answer different questions
+              # — "did the accent choose a pill" and "did the palette file carry
+              # the accent". Kept split for that reason rather than folded.
+              #
+              # `bar` was in the PINNED half until the bar framework
+              # (docs/bar-framework.md) landed: colors.sh is the whole nebelung
+              # palette, which is accent-independent, but the tone ladder
+              # underneath it now ends `export TONE_ACCENT=$<ACCENT>` so that a
+              # widget naming the `accent` tone gets the rice's own accent
+              # without knowing a palette key. That is one variable REFERENCE,
+              # not a recoloured palette, and it is the accent reaching a bar
+              # file deliberately — so the row moved half rather than the wire
+              # being removed.
+              bar = file ".config/sketchybar/colors.sh";
               bar-logo = file ".config/sketchybar/logo_config.sh";
               # --- and is supposed to leave these alone ---
               bat = file "/Users/you/.config/bat/themes/Catppuccin Mocha.tmTheme";
@@ -1727,7 +1734,6 @@
               lsd = file ".config/lsd/colors.yaml";
               opencode = file ".config/opencode/themes/nebelung.json";
               pounce = file "/Users/you/.config/pounce/themes/nebelung.json";
-              bar = file ".config/sketchybar/colors.sh";
               starship = file "/Users/you/.config/starship.toml";
             };
           # Three full evaluations, bound once rather than per row — the rows are
@@ -1752,9 +1758,9 @@
             }";
           accentTable = builtins.concatStringsSep "\n" (map accentRow (builtins.attrNames accentA));
           # Alphabetical because the rows are `attrNames` — self-sorting, so a new
-          # surface can't be added in a spot that hides it. Nine move, eight hold.
+          # surface can't be added in a spot that hides it. Ten move, seven hold.
           expectedAccentTable = ''
-            bar pinned
+            bar moves
             bar-logo moves
             bat pinned
             fzf moves
