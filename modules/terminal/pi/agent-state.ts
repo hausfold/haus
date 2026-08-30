@@ -90,6 +90,58 @@
  * tool ending and on you typing, and an ordinary read/grep/edit costs nothing
  * at all. scruff's marker-file gate still backs it up.
  *
+ * ── the prompt cache, which is NOT one of the two halves above ──────────────
+ * `before_provider_headers` stamps `x-session-affinity` on the way out, and it
+ * is the one handler here that is not about a pill or a fin. meridian does not
+ * forward pi's request to Anthropic: it replays the conversation through the
+ * Claude Agent SDK and STRIPS every `cache_control` breakpoint on the way in,
+ * so where the breakpoints sit is not a lever anyone has. What earns a cache
+ * read is meridian RESUMING its SDK session and sending only the new turn — and
+ * it refuses to even look for one when the client sends no session id and the
+ * last message is a tool_result, which in an agentic loop is nearly every turn:
+ *
+ *     isClientDrivenLoop = adapterBase !== "claude-code" && !agentSessionId
+ *                          && lastIsToolResult
+ *
+ * The whole conversation is replayed instead, every turn, and nothing is ever
+ * stored to resume FROM. Read at the 1.62.7 modules/meridian pins, and still
+ * there at 1.65.0. Measured on the second turn of a three-message exchange:
+ * 4,414 cache-write tokens and 0 read without the header, 116 and 4,312 with.
+ *
+ * A non-empty id is the entire fix — meridian's `piAdapter.getSessionId` reads
+ * this header first, and any value at all takes that branch. It is pi's OWN
+ * session id (`ctx.sessionManager.getSessionId()`) rather than something minted
+ * here, because "changes on /new, /resume and a fork, stable otherwise" is
+ * exactly the property this needs and exactly what that id already is — see
+ * SESSION_KEY below, which wants the OPPOSITE and so cannot be shared. Carrying
+ * pi's own means a `pi -c` can resume the SDK session meridian persisted before
+ * the restart, too. The uuid is only the `--no-session` fallback.
+ *
+ * ── two things the gate is load-bearing for, not decoration ─────────────────
+ * It fires only when `x-meridian-agent` is present AND reads `pi`, and only
+ * when nothing has already set an affinity header.
+ *   `detectAdapter` falls through an `x-meridian-agent` it cannot resolve, and
+ *     the next thing it matches is `x-session-affinity` → the OPENCODE adapter.
+ *     So a typo'd override plus this header hands pi opencode's cwd extraction,
+ *     blocked-tool list and setting sources — which is the exact failure that
+ *     made the community's cache patch unusable, arrived at from the other end.
+ *     Matching the VALUE is what keeps that impossible.
+ *   The event fires for EVERY provider pi is configured with (openrouter is the
+ *     default one on a stock install), and the header means nothing to the rest
+ *     of them.
+ *
+ * ── what sending an id costs, which is not nothing ─────────────────────────
+ * meridian takes a per-session turn lease on any request that carries one, so
+ * two concurrent calls in ONE pi process serialize, and the second can come
+ * back 400 ("This session advanced while the request was waiting") if the
+ * session moved while it queued. That is the supported path rather than a new
+ * risk — Claude Code, opencode, jcode, forgecode, droid and crush all send an
+ * id and all take that lease; sending none is what pi was doing wrong. It is
+ * also not the obvious hazard: pi-subagents spawns a separate `pi` PROCESS per
+ * child (`spawn(spawnSpec.command, ...)`), so each child has its own session id
+ * and its own copy of this extension. `HAUS_PI_SESSION_AFFINITY=0` turns the
+ * header off if some in-process concurrency ever does trip it.
+ *
  * ── TUI only ────────────────────────────────────────────────────────────────
  * Everything here is gated on ctx.mode === "tui". A `pi -p` is a command
  * somebody ran, not an agent pane: it inherits the $ZMX_SESSION of whatever
@@ -102,6 +154,7 @@
  */
 
 import { spawn, spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 
 const AGENT_STATE = "@AGENT_STATE@";
 const SCRUFF = "@SCRUFF@";
@@ -125,6 +178,11 @@ const ASK_TOOLS = new Set(
 		.filter((s) => s.length > 0),
 );
 
+// The one escape hatch for the header below: an in-process concurrency that
+// trips meridian's turn lease, or a session store misbehaving, must be
+// answerable without deleting a home-manager-owned file.
+const SESSION_AFFINITY = (process.env.HAUS_PI_SESSION_AFFINITY ?? "1") !== "0";
+
 export default function (pi: any) {
 	let cwd = process.cwd();
 	// Set at session_start, and the gate on every path below: an extension is
@@ -139,6 +197,10 @@ export default function (pi: any) {
 	const asks = new Set<string>();
 	// The provider fault is once per session — see the header.
 	let faulted = false;
+	// Only for a `--no-session` pi, which has no session id to carry — see the
+	// header. A uuid rather than the pid so a pid reused after a restart cannot
+	// land on a stale entry in meridian's shared session store.
+	const affinityFallback = randomUUID();
 
 	// Every spawn on this file's paths goes through here, and the `error`
 	// listener is the load-bearing half rather than the try/catch around it.
@@ -293,6 +355,34 @@ export default function (pi: any) {
 			"compaction failed — the turn may be dead",
 			"exclamationmark.triangle",
 		);
+	});
+
+	// Deliberately outside the `live` gate: a `pi -p` pays for its cache misses
+	// exactly like a pane does, and a header costs nothing when nobody is
+	// watching. try/catch like every other path in this file — this one is on
+	// the hot path of every request, and a cache hit is never worth a turn.
+	pi.on("before_provider_headers", (event: any, ctx: any) => {
+		if (!SESSION_AFFINITY) return;
+		try {
+			const headers = event?.headers;
+			if (!headers || typeof headers !== "object") return;
+			let addressesMeridian = false;
+			for (const [key, value] of Object.entries(headers)) {
+				const name = key.toLowerCase();
+				// Somebody set one on purpose. Case-insensitively, because two
+				// spellings would reach the proxy joined by a comma.
+				if (name === "x-session-affinity") return;
+				if (name === "x-meridian-agent" && String(value ?? "").toLowerCase() === "pi") {
+					addressesMeridian = true;
+				}
+			}
+			if (!addressesMeridian) return;
+			const id = ctx?.sessionManager?.getSessionId?.();
+			headers["x-session-affinity"] =
+				typeof id === "string" && id.length > 0 ? `pi-${id}` : affinityFallback;
+		} catch {
+			/* never break a turn over a cache hit */
+		}
 	});
 
 	pi.on("after_provider_response", (event: any) => {
