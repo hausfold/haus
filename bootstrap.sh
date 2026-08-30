@@ -133,7 +133,7 @@ C_OFF=; C_ACCENT=; C_WARN=; C_MUT=; E_OFF=; E_ERR=
 [ "$_prof2" != none ] && { E_OFF=$'\033[0m'; E_ERR="$(ui_sgr "$_prof2" err)"; }
 unset _tty1 _tty2 _prof1 _prof2
 
-say()  { printf '%s🌫  %s%s\n' "$C_ACCENT" "$*" "$C_OFF"; }
+say()  { printf '%s≋  %s%s\n' "$C_ACCENT" "$*" "$C_OFF"; }
 warn() { printf '%s⚠  %s%s\n' "$C_WARN" "$*" "$C_OFF"; }
 die()  { printf '%s✗  %s%s\n' "$E_ERR" "$*" "$E_OFF" >&2; exit 1; }
 

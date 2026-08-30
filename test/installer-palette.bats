@@ -118,6 +118,55 @@ file_role() { # file_role <path> <role> -> "<hex> <x256> <ansi16>"
   }
 }
 
+# The marks are a copy too, and until now nothing diffed them. Both installers
+# spell their glyphs as literals for the same reason they spell colour NUMBERS:
+# they cannot reach `ui_glyph_bare` on a Mac with no nix. That makes the marks
+# the same kind of hand-maintained copy — and the same kind of silent drift, on
+# the same first screen. snug swapping a mark leaves the installer painting the
+# old one, green at every other gate this repo has.
+#
+# The ASCII half is deliberately NOT diffed: neither installer has a locale gate
+# and neither ever draws it, so there is nothing on this side to drift.
+#
+# ⚠️ Everything here is bytes-vs-runes, so the whole comparison runs under an
+# explicit UTF-8 locale. Under `LC_ALL=C` a `[^ ]` class matches ONE BYTE of a
+# three-byte glyph and bash expands ui.sh's `$'\u224B'` to the literal six
+# characters — so a C-locale runner would red with "draws '', snug's say is
+# '\u224B'", which reads as drift and is not. This is the only test in the file
+# that compares text rather than numbers, and the only one that needs this.
+UI_LOCALE=C.UTF-8
+
+ui_glyph() { # ui_glyph <mark> -> the UTF-8 glyph, from the real ui.sh
+  LC_ALL="$UI_LOCALE" "$BASH" -c '
+    set -euo pipefail
+    source "$1"
+    printf "%s" "${UI__GLYPH_UTF8[$2]}"
+  ' _ "$UI_SH_REAL" "$1"
+}
+
+# The glyph as the script actually prints it: the rune between the colour
+# variable and the two spaces of gutter, in `<fn>() { printf '<colour>G  …' }`.
+file_glyph() { # file_glyph <path> <fn>
+  LC_ALL="$UI_LOCALE" sed -n "s/^$2()  *{ printf '[^']*%s\\(.\\)  .*/\\1/p" "$1"
+}
+
+@test "the installers' marks are snug's" {
+  need_ui
+  local row f fn mark want got
+  # <file> <verb> <role>. bootstrap.sh draws three; haus-activate.sh draws one,
+  # and the suite already diffs that one's colour.
+  for row in "$BOOT say say" "$BOOT warn warn" "$BOOT die err" \
+             "$ACTIVATE die err"; do
+    set -- $row; f=$1; fn=$2; mark=$3
+    want="$(ui_glyph "$mark")"
+    got="$(file_glyph "$f" "$fn")"
+    [ "$got" = "$want" ] || {
+      echo "$(basename "$f") $fn(): draws '$got', snug's $mark is '$want'"
+      false
+    }
+  done
+}
+
 @test "the two installers agree with each other about err" {
   [ "$(file_role "$BOOT" err)" = "$(file_role "$ACTIVATE" err)" ]
 }

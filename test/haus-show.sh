@@ -437,7 +437,7 @@ printf '%s' "$out" | jq -e '
   and (.silent | length) == 8
 ' >/dev/null || fail "json valid: envelope is not the documented shape"
 # Data on stdout, diagnostics on stderr, and NO human rendering mixed in.
-lacks "🌫" "json valid"
+lacks "≋" "json valid"
 [ -z "$err" ] || fail "json valid: stderr should be empty, got '$err'"
 
 # `origin` is null for a local file and an object for a source, and the schema
