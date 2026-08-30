@@ -668,7 +668,19 @@ spawn_fetch() {
     [ "$age" -lt "$STALE_INFLIGHT" ] && return 0
     rm -f "$FETCHING"
   fi
-  ("$HOME/.config/sketchybar/plugins/github.sh" fetch >/dev/null 2>&1 &)
+  # `env -u` is load-bearing, not hygiene. The child INHERITS this process's
+  # environment, and when the spawn came from a right-click that environment
+  # carries SENDER=mouse.clicked BUTTON=right — which barlib_main routes on.
+  # The child would land in on_right_click, spawn another, and so on: measured
+  # at 16 full `gh` passes in 6 seconds before a counter stopped it, with
+  # neither the lock nor the in-flight flag able to help, since do_fetch
+  # releases both before the fall-through. One right-click would burn the
+  # machine's GitHub budget — shared with scruff, gh-dash and the statusline —
+  # until the bar was restarted. The `exit 0` on each CLI mode below is the
+  # second half of the same fix; either alone closes it, and both is right
+  # because each is invisible on its own.
+  (env -u SENDER -u BUTTON -u MODIFIER \
+    "$HOME/.config/sketchybar/plugins/github.sh" fetch >/dev/null 2>&1 &)
 }
 
 # ── read the cache ────────────────────────────────────────────────────────────
@@ -830,7 +842,14 @@ render() {
   # mid-lap pops the pill back over the step labels. `sb_set` rather than a
   # component because it is one raw property and it has to come AFTER pill's
   # own drawing=on — later --set args in the batch win.
-  sb_set drawing="$drawing"
+  #
+  # With `updates=on`, because a hide is a PAIR: both bars default to
+  # updates=when_shown, which SketchyBar applies to event DELIVERY, so a bare
+  # drawing=off is a one-way door. It happens to recover today only because
+  # tour.sh's unmute() --sets drawing=on directly rather than waiting for this
+  # pill to paint itself back — an accident, not a design, and not one to
+  # leave the next tour refactor standing on.
+  sb_set drawing="$drawing" updates=on
 }
 
 # The last completed fetch, as an epoch, or 0. `cat` alone is not enough: a
@@ -944,14 +963,30 @@ mkdir -p "$STATE"
 
 # Two CLI modes, both re-entering this file rather than being separate scripts:
 # `fetch` is the detached network run spawn_fetch backgrounds, `refresh` is the
-# dropdown's Refresh row. Neither carries a SENDER, so barlib_main below runs
-# the ordinary tick after them and the pill says what just happened.
+# dropdown's Refresh row.
+#
+# Each ends in `barlib_tick; exit 0` and NEVER falls through to barlib_main,
+# because barlib_main routes on $SENDER — and a CLI invocation's SENDER is
+# whatever it inherited. A `click_script` genuinely carries none, but the
+# detached `fetch` is spawned from inside a process that has one, and routing
+# on it puts the child back in the click handler that spawned it. See
+# spawn_fetch for what that cost when measured.
+#
+# barlib_tick is DIFFED, deliberately: a refresh that turns up the same
+# numbers should cost nothing and a pill that repaints on every click is a
+# pill that flickers on every click. So this is "paint if anything changed",
+# not "paint" — the `…` of a very first fetch arrives when the child creates
+# the in-flight flag, which is a moment after the click either way.
 case "${1:-}" in
   fetch)
-    do_fetch ;;
+    do_fetch
+    barlib_tick
+    exit 0 ;;
   refresh)
     popup_close
-    spawn_fetch ;;
+    spawn_fetch
+    barlib_tick
+    exit 0 ;;
 esac
 
 barlib_main

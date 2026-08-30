@@ -24,6 +24,15 @@
 #             popup_row / popup_action / popup_note calls. Never called on a
 #             tick: popup_open runs it, which a click handler asks for.
 #
+# ⚠️ A WIDGET THAT DETACHES A COPY OF ITSELF must strip $SENDER (and $BUTTON /
+# $MODIFIER) from the child's environment, and must not let that child reach
+# barlib_main. The runtime routes on SENDER, the child inherits it, and a copy
+# spawned from a click therefore re-enters the click handler that spawned it —
+# an unbounded fork loop that no lock the widget holds can stop, because the
+# parent has released them by then. github.sh's spawn_fetch is the worked
+# example: `env -u SENDER -u BUTTON -u MODIFIER`, and a CLI mode that ends
+# `barlib_tick; exit 0` rather than falling through.
+#
 # State values must be single-line: the cache is line-serialized, and a value
 # with a newline in it would read back as a key that never matches. emit
 # refuses those loudly rather than caching a diff that can never settle.
@@ -291,9 +300,9 @@ popup_heading() {
     done
     case "$count" in '' | *[!0-9]*) count=0 ;; esac
     if [ "$count" -gt 0 ]; then label="$label · $count"; fi
-    _barlib_pop_add "$_BARLIB_H_HEADING" "${BAR_FONT}:Bold:${FS_LABEL}" '' \
+    _barlib_pop_add "$_BARLIB_H_HEADING" "${BAR_FONT:-}:Bold:${FS_LABEL:-}" '' \
         icon="$icon" icon.color="$(tone "$icon_tone")" \
-        label="$label" label.color="$TEXT"
+        label="$label" label.color="${TEXT:-}"
 }
 
 # popup_row --label <text> [--icon <glyph>] [--tone <tone>]
@@ -313,9 +322,9 @@ popup_row() {
             *) echo "barlib: popup_row: unknown flag '$1' — dropped" >&2; shift ;;
         esac
     done
-    local lcolor="$SUBTEXT0"
-    if [ "$icon_tone" = mute ]; then lcolor="$OVERLAY0"; fi
-    _barlib_pop_add "$_BARLIB_H_ROW" "${BAR_FONT}:Regular:${FS_SMALL}" "$action" \
+    local lcolor="${SUBTEXT0:-}"
+    if [ "$icon_tone" = mute ]; then lcolor="${OVERLAY0:-}"; fi
+    _barlib_pop_add "$_BARLIB_H_ROW" "${BAR_FONT:-}:Regular:${FS_SMALL:-}" "$action" \
         icon="$icon" icon.color="$(tone "$icon_tone")" \
         label="$label" label.color="$lcolor"
 }
@@ -338,9 +347,9 @@ popup_action() {
             *) echo "barlib: popup_action: unknown flag '$1' — dropped" >&2; shift ;;
         esac
     done
-    _barlib_pop_add "$_BARLIB_H_ROW" "${BAR_FONT}:Bold:${FS_SMALL}" "$action" \
+    _barlib_pop_add "$_BARLIB_H_ROW" "${BAR_FONT:-}:Bold:${FS_SMALL:-}" "$action" \
         icon="$icon" icon.color="$(tone "$icon_tone")" \
-        label="$label" label.color="$SUBTEXT0"
+        label="$label" label.color="${SUBTEXT0:-}"
 }
 
 # popup_note --label <text> — the aside. No icon, no click of its own.
@@ -352,8 +361,8 @@ popup_note() {
             *) echo "barlib: popup_note: unknown flag '$1' — dropped" >&2; shift ;;
         esac
     done
-    _barlib_pop_add "$_BARLIB_H_NOTE" "${BAR_FONT}:Italic:${FS_TINY}" '' \
-        icon="" label="$label" label.color="$OVERLAY0"
+    _barlib_pop_add "$_BARLIB_H_NOTE" "${BAR_FONT:-}:Italic:${FS_TINY:-}" '' \
+        icon="" label="$label" label.color="${OVERLAY0:-}"
 }
 
 # Is the dropdown up? `nil` for an item the bar could not answer about — the
@@ -495,6 +504,11 @@ _barlib_tick() {
 # pill that flickers on every click.
 barlib_tick() {
     _barlib_tick
+    # Flushes, unlike the internal it wraps: a widget's CLI mode calls this and
+    # then exits without reaching barlib_main, and a batch nobody sends is a
+    # pill that silently did not repaint. Calling it inside a handler is still
+    # fine — barlib_main's own flush then finds nothing left to send.
+    _barlib_flush
     return 0
 }
 

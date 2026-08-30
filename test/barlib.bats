@@ -87,6 +87,19 @@ widget() {
   bash "$f"
 }
 
+# widget_raw <body> — the same, but the body is the WHOLE script: no
+# barlib_main is appended. For the CLI-mode shape, where a widget dispatches on
+# its own argv and must never fall through to the runtime's SENDER routing.
+widget_raw() {
+  local f="$BATS_TEST_TMPDIR/widget.sh"
+  {
+    printf '#!/bin/bash\nsource "%s"\n' "$BARLIB"
+    printf '%s\n' "$1"
+  } >"$f"
+  chmod +x "$f"
+  bash "$f" "${@:2}"
+}
+
 calls() { [ -f "$SB_LOG" ] && wc -l <"$SB_LOG" | tr -d ' ' || echo 0; }
 
 @test "first tick renders and batches into one sketchybar call" {
@@ -367,4 +380,33 @@ render() { pill --icon "" --label "fresh"; }
 on_right_click() { barlib_tick; }'
   [ "$status" -eq 0 ]
   grep -q 'label=fresh' "$SB_LOG"
+}
+
+@test "barlib_tick sends its batch without barlib_main" {
+  # A CLI mode calls it and exits; a batch nobody flushes is a pill that
+  # silently did not repaint.
+  export NAME=w
+  run widget_raw 'fetch() { emit n=1; }
+render() { pill --icon "X" --label "cli"; }
+barlib_tick
+exit 0'
+  [ "$status" -eq 0 ]
+  [ "$(calls)" -eq 1 ]
+  grep -q 'label=cli' "$SB_LOG"
+}
+
+@test "a CLI mode does not route on an inherited SENDER" {
+  # The fork-loop shape: a widget detaches a copy of itself from a click, so
+  # the child inherits SENDER=mouse.clicked BUTTON=right. A child that reached
+  # barlib_main would land back in the handler that spawned it and spawn
+  # again — unbounded, and past every lock the parent already released.
+  export NAME=w SENDER=mouse.clicked BUTTON=right
+  run widget_raw 'fetch() { emit n=1; }
+render() { pill --icon "X" --label "did the work"; }
+on_right_click() { echo LOOPED >&2; }
+barlib_tick
+exit 0'
+  [ "$status" -eq 0 ]
+  [[ "$output" != *LOOPED* ]]
+  grep -q 'label=did the work' "$SB_LOG"
 }

@@ -166,6 +166,16 @@ running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
   the world (github's right-click refresh). Still diffed: a refresh that turns
   up the same numbers costs nothing.
 
+⚠️ **A widget that detaches a copy of itself must strip `$SENDER`** (and
+`$BUTTON`/`$MODIFIER`) from the child's environment, and must not let that
+child reach `barlib_main`. The runtime routes on `SENDER` and the child
+inherits it, so a copy spawned from a click re-enters the handler that
+spawned it — an unbounded fork loop past every lock the parent has already
+released. Measured on github's right-click before it was fixed: 41 full `gh`
+passes and still climbing, against 3 after. `spawn_fetch` is the worked
+example (`env -u SENDER -u BUTTON -u MODIFIER`, plus a CLI mode that ends
+`barlib_tick; exit 0`), and `test/barlib.bats` pins the shape.
+
 `barlib.sh` itself is shellchecked in CI, because everything it gets wrong is
 invisible — a widget's stderr goes to sketchybar's log and nowhere a person
 looks. The **widgets** are deliberately not: `fetch` emits state that `render`
