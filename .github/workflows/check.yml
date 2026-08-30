@@ -393,6 +393,16 @@ jobs:
       - name: phase painter and colour gate
         run: bats test/phase-painter.bats
 
+      # The one PERMANENT exemption from that standard, and the only thing
+      # keeping it honest. bootstrap.sh and haus-activate.sh run before snug is
+      # reachable, so they carry nebelung's numbers inlined instead of naming a
+      # role — a copy of a generated table, which drifts the moment the palette
+      # moves and drifts INVISIBLY: a wrong index is green everywhere and only
+      # ever visible to someone holding the two files side by side. Diffs both
+      # against the ui.sh fetched above, so it must stay below that step too.
+      - name: installer palette, against snug's
+        run: bats test/installer-palette.bats
+
       # The bar widget runtime (docs/bar-framework.md). Every promise barlib
       # makes fails silently on a live bar: a diff that never settles repaints
       # a quiet pill forever, one that over-matches freezes a pill on stale
