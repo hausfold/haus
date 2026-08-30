@@ -411,12 +411,18 @@ mechanism, say so in one line.
 
   Three things follow from the wrapper half, and each is a rule rather than a
   detail:
-  - **One coprocess per COMMAND.** `snug run` is opened lazily on the first line
-    a command draws and serves every line and every frame after it. A fork is
-    ~4.4 ms; per line would be a third of a second in a rebuild. `SNUG_TRIED`
-    means a snug that died once stays dead for the command — a re-open per frame
-    is the regression the coprocess exists to prevent. Never call `snug <verb>`
-    per line from these scripts.
+  - **One coprocess per COMMAND, opened by the phase PAINTER and closed with the
+    work it narrates.** A fork is ~4.4 ms; per line would be a third of a second
+    in a rebuild — but a message verb must never open one, because outside a
+    region snug's lines and the lines these scripts print themselves reach the
+    terminal on two schedules. So `rebuild` and `plan` fork one; `update`,
+    `rollback`, `set` and every report fork nothing. `SNUG_TRIED` means a snug
+    that died once stays dead for the command — a re-open per frame is the
+    regression the coprocess exists to prevent. Two more rules come out of the
+    same fd: anything drawing from a background job needs its OWN duplicate of
+    the write end, and anything backgrounded that draws NOTHING must drop it
+    (`snug_detach`) or `snug_close`'s wait for EOF never returns. Never call
+    `snug <verb>` per line from these scripts.
   - **Two streams, and which one is a property of the COMMAND, not the verb.**
     `REPORT=1` is set in the dispatch for `status doctor plan diff permissions
     btm generations get capture`; those draw entirely on fd 1. Everything else

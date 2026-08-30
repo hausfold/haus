@@ -155,18 +155,55 @@ haus_snug() {
   # failed phase's log tail — go straight to the terminal. Two writers on two
   # schedules put them in the wrong order. Inside a region there is no race,
   # because nothing here writes directly while one is up, which is what makes
-  # "the region opens it" the whole rule. Ten narrating lines, a real terminal
-  # on fd 2, snug on PATH: still zero forks.
+  # "the region opens it" the whole rule. Five narrating lines, a terminal on
+  # fd 2, snug on PATH: still zero forks.
+  #
+  # And the lines have to LAND. "Zero forks" is equally true of verbs that
+  # became silent, which is the whole risk of moving them off the coprocess — so
+  # the real painter is loaded and the words are counted on fd 2.
+  need_ui
   local e; e="$(stub_env)"
   # shellcheck disable=SC2086
-  haus_sh $e "$SNUG_STUB; UI_TTY=1; for i in 1 2 3; do say \"line \$i\"; done; warn w; hint h"
+  haus_sh $e HAUS_UI_SH="$UI_SH_REAL" \
+    "$SNUG_STUB; UI_TTY=1; { for i in 1 2 3; do say \"line \$i\"; done; warn w; hint h; } 1>/dev/null"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
   [ "$(forks)" -eq 0 ] || { echo "a message verb forked snug"; show_records; false; }
+  [ "$(printf '%s\n' "$output" | grep -c 'line 1\|line 2\|line 3\|w\|h')" -eq 5 ] \
+    || { echo "lines went missing on the ui.sh path: $output"; false; }
+}
+
+@test "a background job that draws nothing drops the write end" {
+  # snug_close closes the PARENT's copy and then waits for `snug run` to see
+  # EOF. The duplicate is an ordinary fd — that is what lets the spinner
+  # subshell write frames — so every `&` inherits one, and a job that merely
+  # inherited it holds snug's stdin open. Measured before snug_detach existed:
+  # snug_close blocked for exactly the lifetime of the background subshell. With
+  # card_hold's ticker, whose loop exits only when the PARENT does, that is not
+  # a delay but a deadlock — on `activate`, the phase whose failure the user
+  # most needs to read.
+  #
+  # A real coprocess, not the stub: the stub is a shell function and the whole
+  # question is what a forked process does with an inherited descriptor.
+  command -v snug >/dev/null 2>&1 || skip "snug not on PATH"
+  haus_sh "UI_TTY=1
+    snug_open || { echo NO-COPROC; exit 0; }
+    ( snug_detach; n=0; while [ \$n -lt 6 ]; do sleep 1; n=\$((n+1)); done ) &
+    bg=\$!
+    t0=\$(date +%s); snug_close; t1=\$(date +%s)
+    echo \"waited \$(( t1 - t0 ))\"
+    kill \$bg 2>/dev/null || true"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [[ "$output" == *NO-COPROC* ]] && skip "no terminal to open a coprocess on"
+  local waited; waited="$(printf '%s\n' "$output" | sed -n 's/^waited //p')"
+  [ -n "$waited" ] || { echo "no timing line: $output"; false; }
+  [ "$waited" -le 2 ] || { echo "snug_close waited ${waited}s on a background job"; false; }
 }
 
 @test "a verb that prints nothing forks nothing" {
-  # Lazily opened, so `haus get some.path` — which prints one line of data and
-  # no prose — pays nothing for a painter it never uses.
+  # `haus get some.path` prints one line of data and no prose, and pays nothing
+  # for a painter it never uses. It is the phase painter that opens one now, so
+  # this holds for every phase-less command too — the case above is the one that
+  # pins that; this one keeps the floor.
   haus_snug "true"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
   [ "$(forks)" -eq 0 ] || { echo "forked with nothing to draw"; false; }

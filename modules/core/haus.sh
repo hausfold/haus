@@ -134,17 +134,18 @@ fi
 # stderr on the terminal, which is exactly the split snug wants — records go
 # down the pipe, painted lines come out on fd 2.
 #
-# Opened LAZILY, on the first line a command draws, so a verb that prints
-# nothing forks nothing. Records are tab-separated, one per line — `snug run`
-# splits on tabs, and a space after the verb does not parse. The write end
-# closes when `haus` exits; snug sees EOF and restores the cursor, so there is
-# no EXIT trap to add here (and cmd_rebuild already owns EXIT for the card).
+# Opened by the phase PAINTER and closed with the work it narrates, so a command
+# with no phases — `update`, `rollback`, `set`, every report — forks nothing at
+# all. Records are tab-separated, one per line — `snug run` splits on tabs, and
+# a space after the verb does not parse. The write end closes when `haus` exits;
+# snug sees EOF and restores the cursor, so there is no EXIT trap to add here
+# (and cmd_rebuild already owns EXIT for the card).
 #
 # The dispatch belongs to this script, not to ui.sh: one fork per COMMAND is the
 # whole economy, and a library sourced per script cannot see the command
-# boundary that decision needs. It is the phase PAINTER that opens it — never a
-# message verb, which would put this script's own printfs and snug's lines on
-# two schedules.
+# boundary that decision needs. Never a message verb: that would put this
+# script's own printfs and snug's lines on two schedules. The standard is
+# `docs/cli-presentation.md` in the WORKSHOP, **Rules a caller has to meet**.
 SNUG_FD=""
 SNUG_TRIED=""
 # SNUG_PID is not declared here on purpose: `coproc SNUG` makes bash set it
@@ -184,7 +185,8 @@ snug_emit() { # snug_emit <verb> <text> — one record; 1 = no coproc, caller fa
   # header, a failed phase's log tail) go straight to the terminal. Two
   # writers on two schedules put them in the wrong order. Inside a phase
   # region there is no race, because nothing here writes directly while one is
-  # up. See docs/cli-presentation.md, **Rules a caller has to meet**.
+  # up. See the workshop's docs/cli-presentation.md, **Rules a caller has to
+  # meet**.
   [ -n "$SNUG_FD" ] || return 1
   # Multi-line text would break record framing, so it is one record per line.
   # (The Go side re-joins tab fields, so a tab inside prose is safe.)
@@ -198,6 +200,23 @@ snug_emit() { # snug_emit <verb> <text> — one record; 1 = no coproc, caller fa
 snug_end() { # end the live region, keep the coprocess for the lines after it
   [ -n "$SNUG_FD" ] || return 0
   { printf 'end\n' >&"$SNUG_FD"; } 2>/dev/null || true
+  return 0
+}
+
+# Every `&` inherits the write end, and everything that is not DRAWING has to
+# drop it. The duplicate snug_open makes is an ordinary fd on purpose — that is
+# what lets the spinner subshell write frames — so a background job that merely
+# INHERITED it holds `snug run`'s stdin open too. `snug_close` closes the
+# parent's copy and then waits for snug to see EOF; with a copy still open, EOF
+# never comes. Measured: snug_close blocked for exactly the lifetime of the
+# background subshell. And when that job's own exit condition is "the parent is
+# gone" — card_hold's ticker loops on `kill -0 $CARD_PARENT` — the two wait for
+# each other with no clock on it, which is a rebuild frozen on the phase whose
+# failure the user most needs to read.
+snug_detach() { # snug_detach — drop this process's copy of the write end
+  [ -n "$SNUG_FD" ] || return 0
+  eval "exec $SNUG_FD>&-" 2>/dev/null || true
+  SNUG_FD=""
   return 0
 }
 
@@ -544,7 +563,9 @@ activation_summary() {
 # and two brew processes fight over the same lock, so every brew job must be
 # joined BEFORE we activate. Hence one registry and one `bg_wait` at the gate.
 BG_PIDS=()
-bg() { ( "$@" ) >>"$HAUS_LOG" 2>&1 & BG_PIDS+=("$!"); }
+# snug_detach: this body draws nothing, so it must not hold the coprocess's
+# write end open behind snug_close's wait — see snug_detach.
+bg() { ( snug_detach; "$@" ) >>"$HAUS_LOG" 2>&1 & BG_PIDS+=("$!"); }
 bg_wait() {
   local pid rc=0
   for pid in ${BG_PIDS[@]+"${BG_PIDS[@]}"}; do wait "$pid" || rc=1; done
@@ -1547,6 +1568,12 @@ cmd_plan() {
   drvpath="$(cat "$drvfile")"
   rm -f "$drvfile"
   phase_ok resolve "$HAUS_PHASE_ELAPSED"
+  # resolve is this command's only phase, and everything below is the report:
+  # `nix build`'s progress on fd 2, then echo / sed / say on fd 1. Drop the
+  # coprocess here rather than leaving it open across all of it — outside a
+  # region a line it drew (a `die`, the one verb a report still sends through
+  # it) would land among lines this script printed itself.
+  snug_close
 
   sysfile="$(mktemp)"
   if ! (cd "$CONSUMER" && nix build --no-link --print-out-paths "$drvpath^*") >"$sysfile"; then
@@ -1947,7 +1974,10 @@ card_hold() { # card_hold <percent> <body>
   card_drawn || return 0
   [ -n "$CARD_KEY" ] || return 0
   card "$1" "pulse" "$2"
-  ( while kill -0 "$CARD_PARENT" 2>/dev/null; do sleep 2; card "$1" "pulse" "$2"; done ) &
+  # snug_detach first: this loop outlives every phase and exits only when the
+  # parent does, so a copy of the write end here is the deadlock snug_detach
+  # exists for — and this is the ticker that is live across `activate`.
+  ( snug_detach; while kill -0 "$CARD_PARENT" 2>/dev/null; do sleep 2; card "$1" "pulse" "$2"; done ) &
   CARD_PID="$!"
   return 0
 }
@@ -1961,7 +1991,7 @@ card_watch() { # card_watch <installable> [nix args…] — measure now, poll af
   while IFS= read -r path; do [ -n "$path" ] && CARD_PATHS+=("$path"); done < <(card_targets "$@")
   CARD_TOTAL="${#CARD_PATHS[@]}"
   [ "$CARD_TOTAL" -gt 0 ] || return 0
-  card_ticker & CARD_PID="$!"
+  { snug_detach; card_ticker; } & CARD_PID="$!"
   return 0
 }
 
@@ -2035,7 +2065,12 @@ cmd_rebuild() {
   trap card_cancelled INT TERM
   card_watch "$drv"
   ( cd "$CONSUMER" && nix build --print-out-paths --out-link "$CONSUMER/result" "$drv^*" ) >"$outfile" \
-    || { card_stop; card - "fault" "build failed"; die "build failed — nothing was changed."; }
+    || { card_stop; card - "fault" "build failed"
+         # nix keeps the terminal for this phase and has just written its own
+         # error to fd 2. `die` is the last line of the command, so close first
+         # and let it draw through ui.sh, in order after what nix said, rather
+         # than through a coprocess on its own schedule.
+         snug_close; die "build failed — nothing was changed."; }
   # Not `card_stop`: `bg_wait` below joins the homebrew half, which by its own
   # comment can run for minutes on a 200 MB cask. Hold the bar where the build
   # left it and keep beating, or the card would leave during the longest silent
