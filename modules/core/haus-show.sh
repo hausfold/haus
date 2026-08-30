@@ -92,7 +92,7 @@ fi
 # cannot draw the UTF-8 one, which matters more here than anywhere: this report
 # is read in CI logs, and a locale-less runner is exactly where a literal ✓ comes
 # out as a question mark.
-G_SAY=$'\U0001F32B'; G_OK='✓'; G_BAD='✗'; G_WARN='⚠'
+G_SAY=$'\u224B'; G_OK='✓'; G_BAD='✗'; G_WARN='⚠'
 if [ -n "$UI_READY" ]; then
   ui_glyph_bare G_SAY say
   ui_glyph_bare G_OK ok

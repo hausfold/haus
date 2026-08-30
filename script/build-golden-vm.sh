@@ -47,7 +47,7 @@ KEEP=
 # identifier, so `say "… haus $REF…"` looks up a variable named REF… — which
 # under `set -u` is an unbound-variable death forty minutes into a build, and
 # without it a silently empty word. Cost one real run to find.
-say()  { printf '\033[38;5;103m🌫  %s\033[0m\n' "$*"; }
+say()  { printf '\033[38;5;103m≋  %s\033[0m\n' "$*"; }
 warn() { printf '\033[38;5;179m⚠  %s\033[0m\n' "$*"; }
 die()  { printf '\033[38;5;167m✗  %s\033[0m\n' "$*" >&2; exit 1; }
 

@@ -117,7 +117,7 @@ fi
 # that cannot draw the UTF-8 one (LANG=C, a serial console, a CI log with a
 # non-UTF-8 locale), which a literal '✓' never could; without ui.sh they are the
 # literals, exactly as before.
-G_SAY=$'\U0001F32B'; G_OK='✓'; G_BAD='✗'; G_WARN='⚠'; G_INFO='ⓘ'; G_HINT='↳'
+G_SAY=$'\u224B'; G_OK='✓'; G_BAD='✗'; G_WARN='⚠'; G_INFO='ⓘ'; G_HINT='↳'
 if [ -n "$UI_READY" ]; then
   ui_glyph_bare G_SAY say
   ui_glyph_bare G_OK ok
