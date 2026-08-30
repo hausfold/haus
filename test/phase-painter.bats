@@ -525,9 +525,12 @@ haus_snug() {
   # palette block of literal `\033[38;5;NNNm`, and 35 ungated escapes had
   # accumulated around it. There is now no legal place for one — every colour is
   # an alias onto snug's generated roles, so ANY literal escape outside a
-  # comment is drift by construction. haus-activate.sh keeps its own two, and is
-  # deliberately not in this list: it runs under sudo before anything is
-  # guaranteed on PATH, so it cannot source a painter.
+  # comment is drift by construction. haus-activate.sh is still not in this
+  # list, and the reason narrowed: it cannot SOURCE a painter (sudo, root, a
+  # reset environment, before the generation that installs share/ui.sh exists),
+  # but it no longer paints by hand either — its colour is copied out of snug's
+  # generated tables, and test/installer-palette.bats diffs it back. Same for
+  # bootstrap.sh. Neither belongs here; both are covered there.
   local f hits
   for f in "$SUBJECT" "$SHOW"; do
     hits="$(grep -n '\\033\[' "$f" | grep -v '^[0-9]*:[[:space:]]*#' || true)"

@@ -29,19 +29,45 @@ setup() {
   UI_SH_REAL="$(real_ui_sh || true)"
 }
 
-# snug's `share/ui.sh`, wherever this machine keeps it: the path CI exports, a
-# snug checkout beside this one, or a haus machine's own store copy. Empty when
-# there is none — the shape tests below still have to pass without it.
+# snug's `share/ui.sh`, wherever this machine keeps it. In PIN ORDER, because
+# only the first two are the rev flake.lock names:
+#
+#   $HAUS_UI_SH                 what CI exports, fetched at the pinned rev
+#   the store copy beside       a haus machine's own — `command -v snug` then
+#     `bin/snug`                  `readlink -f`, the resolution AGENTS.md
+#                                 documents for a caller outside the wrapper
+#   a snug checkout             UNPINNED, and last for that reason: a developer
+#                                 whose checkout has wandered gets an answer
+#                                 that is not what CI will diff against
+#
+# Empty when there is none — the shape tests below still have to pass without it.
 real_ui_sh() {
-  local p
+  local p snug
+  snug="$(command -v snug 2>/dev/null || true)"
+  [ -n "$snug" ] && snug="$(dirname "$(dirname "$(readlink -f "$snug")")")/share/ui.sh"
   for p in "${HAUS_UI_SH:-}" \
+           "$snug" \
            "$BATS_TEST_DIRNAME/../../snug/share/ui.sh" \
            "$HOME/code/workshop/snug/share/ui.sh"; do
     [ -n "$p" ] && [ -r "$p" ] && { printf '%s' "$p"; return 0; }
   done
   return 1
 }
-need_ui() { [ -n "$UI_SH_REAL" ] || skip "no snug share/ui.sh on this machine"; }
+
+# A skip is an `ok` in TAP, and three of the tests below are behind this one —
+# so on a runner, "the fetch step moved" and "the palette is in step" look
+# IDENTICAL. That is the vacuity this whole suite exists to prevent, aimed at
+# itself. Off a runner a skip is honest (a stranger's checkout has no snug); in
+# CI it is the failure, so say so out loud and go red.
+need_ui() {
+  [ -n "$UI_SH_REAL" ] && return 0
+  [ -z "${CI:-}" ] || {
+    echo "no share/ui.sh in CI — the 'snug's painter, at the pinned rev' step"
+    echo "must run BEFORE this suite and export HAUS_UI_SH into \$GITHUB_ENV."
+    false
+  }
+  skip "no snug share/ui.sh on this machine"
+}
 
 # Ask ui.sh itself for a role's three numbers, rather than parsing its generated
 # block — a reformatted table must not read as a palette change. The variant is
@@ -155,18 +181,87 @@ file_role() { # file_role <path> <role> -> "<hex> <x256> <ansi16>"
   done
 }
 
-# The other half of that gate: a stream nobody is watching gets no escapes, and
-# `bootstrap.sh` has TWO streams to be right about. Its whole preflight — the
-# audit, the settings table, the undo note — is plain stdout prose, so its
-# narration is gated on fd 1 alongside it and only `die` draws on fd 2. One gate
-# asked about both is how `bootstrap.sh | tee log` ends up either
-# escape-littered or silently monochrome.
+# The other half of that gate: `bootstrap.sh` has TWO streams to be right about,
+# and it is the only family CLI that does. The two-streams rule elsewhere keys on
+# the COMMAND — a report draws on fd 1, a narrator on fd 2 — but bootstrap's
+# whole preflight (the audit, the settings table, the undo note) is plain stdout
+# prose, so its narration is gated with it on fd 1 and only `die` draws on fd 2.
+#
+# ⚠️ The negative alone does not test this. Under `run`, neither stream is a
+# terminal, both gates answer `none`, and a COLLAPSED implementation — one gate
+# asked about one stream and used for both — is indistinguishable from the right
+# one. So each stream gets a real pty in turn, with the other on a pipe, and the
+# assertion is that the paint follows the pty. That is the bug this catches:
+# `bootstrap.sh | tee log` coming out either escape-littered or silently
+# monochrome, depending which way the collapse went.
+#
+# The gate is read out of the script rather than sourced — sourcing bootstrap.sh
+# would run the installer.
+two_streams() { # two_streams <1|2 — which fd gets the pty> -> "1[set|] 2[set|]"
+  python3 - "$BOOT" "$BASH" "$1" <<'PYEOF'
+import os, pty, select, subprocess, sys
+boot, bash, which = sys.argv[1], sys.argv[2], sys.argv[3]
+snippet = (
+    'eval "$(sed -n "/^# ── nebelung, inlined/,/^unset _tty1/p" "$1")"; '
+    'printf "1[%s] 2[%s]\n" "${C_ACCENT:+set}" "${E_ERR:+set}"'
+)
+master, slave = pty.openpty()
+r, w = os.pipe()
+out, err = (slave, w) if which == "1" else (w, slave)
+env = dict(os.environ, TERM="xterm-256color")
+for k in ("NO_COLOR", "CLICOLOR_FORCE", "COLORTERM"):
+    env.pop(k, None)
+p = subprocess.Popen([bash, "-c", snippet, "_", boot], stdout=out, stderr=err,
+                     stdin=subprocess.DEVNULL, env=env)
+os.close(w)
+p.wait()
+# The parent keeps its own slave fd open on purpose. Closing the LAST slave
+# hands the master an EIO and discards whatever is still in the tty buffer —
+# measured: this test read an empty string every time until the close moved
+# below the read. So the pty is drained with a timeout instead of an EOF.
+data = b""
+while True:
+    ready, _, _ = select.select([master], [], [], 0.5)
+    if not ready:
+        break
+    chunk = os.read(master, 4096)
+    if not chunk:
+        break
+    data += chunk
+    if b"\n" in data:
+        break
+os.close(slave)
+while True:                  # the pipe's write end IS closed, so this sees EOF
+    chunk = os.read(r, 4096)
+    if not chunk:
+        break
+    data += chunk
+sys.stdout.write(data.decode(errors="replace").replace("\r", "").strip())
+PYEOF
+}
+
 @test "bootstrap.sh gates its two streams apart" {
   local out
+  # Off a terminal entirely: nobody is watching either stream, so nothing paints.
   out="$("$BASH" -c '
     eval "$(sed -n "/^# ── nebelung, inlined/,/^unset _tty1/p" "$1")"
-    printf "1[%s] 2[%s]" "${C_ACCENT:+set}" "${C_ERR:-${E_ERR:+set}}"
+    printf "1[%s] 2[%s]" "${C_ACCENT:+set}" "${E_ERR:+set}"
   ' _ "$BOOT" 2>/dev/null </dev/null | cat)"
-  # Neither stream is a terminal under `run`, so neither may be painted.
-  [ "$out" = "1[] 2[]" ] || { echo "unforced, off a tty, got: $out"; false; }
+  [ "$out" = "1[] 2[]" ] || { echo "off a tty, got: $out"; false; }
+
+  # A terminal on stdout only — the narration paints, `die` does not.
+  out="$(two_streams 1)"
+  [ "$out" = "1[set] 2[]" ] || {
+    echo "pty on fd 1, pipe on fd 2: expected 1[set] 2[], got: $out"
+    echo "one gate is answering for both streams"
+    false
+  }
+
+  # And the mirror: a terminal on stderr only.
+  out="$(two_streams 2)"
+  [ "$out" = "1[] 2[set]" ] || {
+    echo "pipe on fd 1, pty on fd 2: expected 1[] 2[set], got: $out"
+    echo "one gate is answering for both streams"
+    false
+  }
 }

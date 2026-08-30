@@ -89,9 +89,14 @@ ui_profile() { # ui_profile <non-empty if that stream is a tty> -> none|16|256|t
 }
 
 ui_sgr() { # ui_sgr <profile> <err>
-  local hex x256 ansi
+  # Emptied, and with a default arm below: an unknown role must return NO
+  # colour, never die. `${hex:0:2}` on an unset name is fatal under `set -u`,
+  # and in bootstrap.sh that is an installer that aborts on a fresh Mac over a
+  # caller's typo — the one failure mode a painter must never have.
+  local hex= x256= ansi=
   case "$2" in
     err) hex=$UI_HEX_ERR; x256=$UI_X256_ERR; ansi=$UI_ANSI_ERR ;;
+    *)   return 0 ;;
   esac
   case "$1" in
     truecolor) printf '\033[38;2;%s;%s;%sm' \
