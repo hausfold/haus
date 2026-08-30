@@ -41,14 +41,77 @@ export PATH
 # so the gate reads fd 2, where haus.sh and haus-show.sh read fd 1. Gating on
 # stdout here would answer about the wrong stream: `haus rebuild` runs this
 # inside a phase whose stdout is the rebuild log, with the terminal still on
-# stderr, which is exactly when the message is worth painting. Otherwise the
-# same rule as everywhere: NO_COLOR off, CLICOLOR_FORCE on through a pipe, and
-# an empty C_* so the same printf falls back to clean text.
-if { [ -t 2 ] || [ -n "${CLICOLOR_FORCE:-}" ]; } && [ -z "${NO_COLOR:-}" ]; then
-  C_OFF=$'\033[0m'; C_ERR=$'\033[38;5;167m'   # rose — failure
-else
-  C_OFF=; C_ERR=
-fi
+# stderr, which is exactly when the message is worth painting.
+#
+# ── nebelung, inlined ────────────────────────────────────────────────────────
+# This script and the repo's `bootstrap.sh` are the only two places in the
+# family that spell a colour NUMBER instead of naming a role, and this comment
+# is the whole of the exemption: both run before snug is reachable. This one is
+# handed a PATH by sudo with the environment reset, as root, to activate the
+# very generation that would put `share/ui.sh` somewhere it could source — so
+# there is nothing to source and nothing to drive. That was never a licence to
+# pick a hue by eye, which is how this line sat on index 167 while every other
+# family CLI had moved to nebelung's own `red`.
+#
+# So the number is COPIED, never chosen: it is snug's generated `share/ui.sh`
+# for the `nebelung` variant — the variant ui.sh itself resolves to when nothing
+# has written ~/.config/snug/variant — and `test/installer-palette.bats` diffs
+# it against that file, so a nebelung that moves reds the suite instead of
+# drifting quietly. Never hand-pick an index here.
+#
+#   role  token  hex      x256  ansi16   what it says
+#   err   red    ed8fa9   211   91       failure
+UI_HEX_ERR=ed8fa9; UI_X256_ERR=211; UI_ANSI_ERR=91
+
+# ui.sh's own precedence, ported rather than re-derived: NO_COLOR beats
+# everything except CLICOLOR_FORCE, a non-TTY is colourless unless forced, and
+# `dumb` means it under CLICOLOR_FORCE too — there is no escape a dumb terminal
+# will not print at you literally. An empty C_* is the fallback, so the same
+# printf below stays clean text.
+ui_profile() { # ui_profile <non-empty if that stream is a tty> -> none|16|256|truecolor
+  local forced=''
+  case "${CLICOLOR_FORCE:-}" in '' | 0) ;; *) forced=1 ;; esac
+  if [ -n "${NO_COLOR+set}" ] && [ -z "$forced" ]; then printf none; return 0; fi
+  if [ -z "$1" ] && [ -z "$forced" ]; then printf none; return 0; fi
+  if [ "${TERM:-}" = dumb ]; then printf none; return 0; fi
+  case "${COLORTERM:-}" in
+    truecolor | 24bit | TRUECOLOR | 24BIT) printf truecolor; return 0 ;;
+  esac
+  case "${TERM:-}" in
+    *truecolor* | *direct*) printf truecolor ;;
+    *256*)                  printf 256 ;;
+    # Forced with nothing to go on — a CI log renderer, usually. 256 is the safe
+    # middle: universally understood, and a small step from the hex.
+    '')                     printf 256 ;;
+    *)                      printf 16 ;;
+  esac
+  return 0
+}
+
+ui_sgr() { # ui_sgr <profile> <err>
+  # Emptied, and with a default arm below: an unknown role must return NO
+  # colour, never die. `${hex:0:2}` on an unset name is fatal under `set -u`,
+  # and in bootstrap.sh that is an installer that aborts on a fresh Mac over a
+  # caller's typo — the one failure mode a painter must never have.
+  local hex='' x256='' ansi=''
+  case "$2" in
+    err) hex=$UI_HEX_ERR; x256=$UI_X256_ERR; ansi=$UI_ANSI_ERR ;;
+    *)   return 0 ;;
+  esac
+  case "$1" in
+    truecolor) printf '\033[38;2;%s;%s;%sm' \
+                 "$((16#${hex:0:2}))" "$((16#${hex:2:2}))" "$((16#${hex:4:2}))" ;;
+    256)       printf '\033[38;5;%sm' "$x256" ;;
+    16)        printf '\033[%sm' "$ansi" ;;
+  esac
+  return 0
+}
+
+_tty2=; [ -t 2 ] && _tty2=1
+_prof2="$(ui_profile "$_tty2")"
+C_OFF=; C_ERR=
+[ "$_prof2" != none ] && { C_OFF=$'\033[0m'; C_ERR="$(ui_sgr "$_prof2" err)"; }
+unset _tty2 _prof2
 
 die() { printf '%s✗  %s%s\n' "$C_ERR" "$*" "$C_OFF" >&2; exit 1; }
 

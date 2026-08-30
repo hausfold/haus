@@ -40,12 +40,105 @@
 # Idempotent: safe to re-run; it leaves an existing config alone.
 set -euo pipefail
 
-say()  { printf '\033[38;5;103m🌫  %s\033[0m\n' "$*"; }
-warn() { printf '\033[38;5;179m⚠  %s\033[0m\n' "$*"; }
-die()  { printf '\033[38;5;167m✗  %s\033[0m\n' "$*" >&2; exit 1; }
+# ── nebelung, inlined ────────────────────────────────────────────────────────
+# This script and `modules/core/haus-activate.sh` are the only two places in the
+# family that spell a colour NUMBER instead of naming a role, and this comment
+# is the whole of the exemption: both run before snug is reachable. This one is
+# a standalone `curl … | bash` on a Mac with no nix at all, so there is no
+# `share/ui.sh` to source and no `snug` to drive — but "cannot source it" was
+# never a licence to pick a hue by eye, which is how `say` ended up on index 103
+# (a BLUE) on the one screen a new user sees before anything else.
+#
+# So the numbers are COPIED, never chosen. Every one is snug's generated
+# `share/ui.sh` for the `nebelung` variant — the variant ui.sh itself resolves
+# to when nothing has written ~/.config/snug/variant, which is exactly this
+# machine — and `test/installer-palette.bats` diffs all of them against that
+# file, so a nebelung that moves reds the suite instead of drifting quietly.
+# Never hand-pick an index here; take it from the generated tables.
+#
+#   role    token     hex      x256  ansi16   what it says
+#   accent  mauve     c9a8f1   183   95       the fog — ordinary narration
+#   warn    peach     f5b58e   216   93       wants attention
+#   err     red       ed8fa9   211   91       failure
+#   muted   overlay1  858585   102   90       secondary detail (the dry-run echo)
+UI_HEX_ACCENT=c9a8f1; UI_X256_ACCENT=183; UI_ANSI_ACCENT=95
+UI_HEX_WARN=f5b58e;   UI_X256_WARN=216;   UI_ANSI_WARN=93
+UI_HEX_ERR=ed8fa9;    UI_X256_ERR=211;    UI_ANSI_ERR=91
+UI_HEX_MUTED=858585;  UI_X256_MUTED=102;  UI_ANSI_MUTED=90
+
+# ui.sh's own precedence, ported rather than re-derived: NO_COLOR beats
+# everything except CLICOLOR_FORCE, a non-TTY is colourless unless forced, and
+# `dumb` means it under CLICOLOR_FORCE too — there is no escape a dumb terminal
+# will not print at you literally. Bash 3.2 clean, because `curl … | bash` on a
+# fresh Mac IS /bin/bash 3.2: no associative arrays, no `${v,,}`.
+ui_profile() { # ui_profile <non-empty if that stream is a tty> -> none|16|256|truecolor
+  local forced=''
+  case "${CLICOLOR_FORCE:-}" in '' | 0) ;; *) forced=1 ;; esac
+  if [ -n "${NO_COLOR+set}" ] && [ -z "$forced" ]; then printf none; return 0; fi
+  if [ -z "$1" ] && [ -z "$forced" ]; then printf none; return 0; fi
+  if [ "${TERM:-}" = dumb ]; then printf none; return 0; fi
+  case "${COLORTERM:-}" in
+    truecolor | 24bit | TRUECOLOR | 24BIT) printf truecolor; return 0 ;;
+  esac
+  case "${TERM:-}" in
+    *truecolor* | *direct*) printf truecolor ;;
+    *256*)                  printf 256 ;;
+    # Forced with nothing to go on — a CI log renderer, usually. 256 is the safe
+    # middle: universally understood, and a small step from the hex.
+    '')                     printf 256 ;;
+    *)                      printf 16 ;;
+  esac
+  return 0
+}
+
+ui_sgr() { # ui_sgr <profile> <accent|warn|err|muted>
+  # Emptied, and with a default arm below: an unknown role must return NO
+  # colour, never die. `${hex:0:2}` on an unset name is fatal under `set -u`,
+  # and in bootstrap.sh that is an installer that aborts on a fresh Mac over a
+  # caller's typo — the one failure mode a painter must never have.
+  local hex='' x256='' ansi=''
+  case "$2" in
+    accent) hex=$UI_HEX_ACCENT; x256=$UI_X256_ACCENT; ansi=$UI_ANSI_ACCENT ;;
+    warn)   hex=$UI_HEX_WARN;   x256=$UI_X256_WARN;   ansi=$UI_ANSI_WARN ;;
+    err)    hex=$UI_HEX_ERR;    x256=$UI_X256_ERR;    ansi=$UI_ANSI_ERR ;;
+    muted)  hex=$UI_HEX_MUTED;  x256=$UI_X256_MUTED;  ansi=$UI_ANSI_MUTED ;;
+    *)      return 0 ;;
+  esac
+  case "$1" in
+    truecolor) printf '\033[38;2;%s;%s;%sm' \
+                 "$((16#${hex:0:2}))" "$((16#${hex:2:2}))" "$((16#${hex:4:2}))" ;;
+    256)       printf '\033[38;5;%sm' "$x256" ;;
+    16)        printf '\033[%sm' "$ansi" ;;
+  esac
+  return 0
+}
+
+# TWO gates, because which stream a line lands on is a property of the LINE
+# here. Unlike every other family CLI this script is a report that also mutates:
+# the whole preflight — the audit, the settings table, the undo note — is plain
+# stdout prose, so `say`/`warn`/`run` are gated on fd 1 alongside it, and only
+# `die` draws on fd 2. Asking one gate about both streams is what makes
+# `bootstrap.sh | tee log` either escape-littered or silently monochrome.
+_tty1=; [ -t 1 ] && _tty1=1
+_tty2=; [ -t 2 ] && _tty2=1
+_prof1="$(ui_profile "$_tty1")"
+_prof2="$(ui_profile "$_tty2")"
+C_OFF=; C_ACCENT=; C_WARN=; C_MUT=; E_OFF=; E_ERR=
+[ "$_prof1" != none ] && {
+  C_OFF=$'\033[0m'
+  C_ACCENT="$(ui_sgr "$_prof1" accent)"
+  C_WARN="$(ui_sgr "$_prof1" warn)"
+  C_MUT="$(ui_sgr "$_prof1" muted)"
+}
+[ "$_prof2" != none ] && { E_OFF=$'\033[0m'; E_ERR="$(ui_sgr "$_prof2" err)"; }
+unset _tty1 _tty2 _prof1 _prof2
+
+say()  { printf '%s🌫  %s%s\n' "$C_ACCENT" "$*" "$C_OFF"; }
+warn() { printf '%s⚠  %s%s\n' "$C_WARN" "$*" "$C_OFF"; }
+die()  { printf '%s✗  %s%s\n' "$E_ERR" "$*" "$E_OFF" >&2; exit 1; }
 
 # run — do a MUTATING thing, or just show it under dry-run.
-run() { if [ -n "$DRY_RUN" ]; then printf '\033[2m   [dry-run] %s\033[0m\n' "$*"; else "$@"; fi; }
+run() { if [ -n "$DRY_RUN" ]; then printf '%s   [dry-run] %s%s\n' "$C_MUT" "$*" "$C_OFF"; else "$@"; fi; }
 
 # ---- config + flags -------------------------------------------------------
 USERNAME="$(id -un)"

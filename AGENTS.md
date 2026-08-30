@@ -374,7 +374,15 @@ mechanism, say so in one line.
   guarded — `[ -r "${HAUS_UI_SH:-}" ]`, never a bare `source`: under
   `set -euo pipefail` an unset variable and a missing path are BOTH fatal, and
   either kills `haus` at load time with nothing on either stream.
-  `test/phase-painter.bats` holds every half of that.
+  `test/phase-painter.bats` holds every half of that. Its counterpart is
+  `test/installer-palette.bats`, which covers the one PERMANENT exemption:
+  `bootstrap.sh` and `modules/core/haus-activate.sh` run before snug is
+  reachable, so they carry its numbers INLINED — copied out of the generated
+  `share/ui.sh` for the `nebelung` variant, hex and 256 index and 16-colour
+  name, with the gate ported rather than re-derived. A copy drifts, so that
+  suite diffs all of it back against the real file at the pinned rev. Never
+  hand-pick an index there, and never inline a palette anywhere without a
+  drift test — that is the hand-maintained copy this whole exercise deleted.
   **Both CLIs draw through it now**, and there is no hardcoded escape left in
   either — the test above fails on any `\033[` outside a comment, because with
   every colour an alias onto snug's generated roles there is no longer a legal
