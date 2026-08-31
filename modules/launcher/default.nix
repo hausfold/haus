@@ -1140,10 +1140,11 @@ lib.mkIf config.haus.launcher.enable {
     # so AeroSpace tiles it and the whole workspace reflows to make room for a
     # settings sheet — the same thing Trill's Settings/Inbox windows get a float
     # rule for in ../windows/default.nix. Unscoped by `titleRegex` on purpose:
-    # the palette itself is a borderless, transient, floating-level panel that
-    # AeroSpace never manages, so the app-wide rule can only ever land on the
-    # settings window, and a title rule would race window detection (see
-    # ../options.nix' `titleRegex`).
+    # the palette and the ⌘Tab switcher are borderless, transient panels
+    # AeroSpace never manages, so the app-wide rule can only land on the
+    # settings window and the About panel that window's menu opens — both of
+    # which want floating — while a title rule would race window detection
+    # (see ../options.nix' `titleRegex`).
     float = lib.mkDefault true;
   };
 
