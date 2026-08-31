@@ -73,6 +73,26 @@ vitals_color() { # vitals_color <percent>
   fi
 }
 
+# The same four steps as vitals_color, said as TONE NAMES — what a framework
+# widget names, since a converted pill may not reach for a palette entry (see
+# docs/bar-framework.md). The thresholds are deliberately the identical
+# numbers rather than a second ladder beside the first: this is one rung
+# vocabulary with two spellings while the two vitals pills are converted one
+# at a time, and the day memory follows cpu across, vitals_color goes.
+#
+# The mapping is one-to-one because the tone ladder was widened to fit it —
+# RED/PEACH/YELLOW/GREEN here are bad/warn/watch/ok there, and `watch` exists
+# precisely because 50% CPU is worth knowing and is not "wants a human here".
+vitals_tone() { # vitals_tone <percent>
+  local whole="${1%%.*}"
+  [ -n "$whole" ] || whole=0
+  if   [ "$whole" -ge 90 ] 2>/dev/null; then printf '%s' bad
+  elif [ "$whole" -ge 75 ] 2>/dev/null; then printf '%s' warn
+  elif [ "$whole" -ge 50 ] 2>/dev/null; then printf '%s' watch
+  else                                       printf '%s' ok
+  fi
+}
+
 # A percentage as the graph wants it: 0…1, two decimals, clamped. sketchybar
 # draws a pushed value against the item's height with no scaling of its own, so
 # anything over 1 is simply drawn off the top of the pill and anything negative

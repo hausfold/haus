@@ -21,6 +21,7 @@ let
     "interval"
     "popup"
     "subscribes"
+    "graph"
   ];
 
   splitList = s: lib.filter (x: x != "") (map lib.trim (lib.splitString "," s));
@@ -63,7 +64,8 @@ in
     "wifi_change"
   ];
 
-  # parse <path> -> { interval : int|null, popup : bool, subscribes : [str] }
+  # parse <path> -> { interval : int|null, popup : bool, subscribes : [str],
+  #                   graph : int|null }
   # Defaults are the manifest's, not the option system's: a widget with no
   # header at all is legal (event-driven, system_woke only).
   parse =
@@ -100,6 +102,7 @@ in
           v;
       interval = get "interval" null;
       popup = get "popup" "false";
+      graph = get "graph" null;
     in
     checked {
       # A boolean spelled as a word, because the header is read by a person
@@ -120,6 +123,22 @@ in
           lib.toInt interval
         else
           throw "bar widget manifest ${pathStr}: interval = ${interval} (want whole seconds)";
+      # `graph = <width>` makes the item an `--add graph` rather than an
+      # `--add item`: a normal pill in every other respect, plus a rolling
+      # window of the last <width> pushed values drawn behind the text. The
+      # width is a POINT COUNT, not pixels and not seconds — the window is
+      # `width × interval` seconds wide, which is why the two keys are read
+      # together and why a graph with no interval is refused below rather
+      # than drawn as a line that never moves.
+      graph =
+        if graph == null then
+          null
+        else if builtins.match "[0-9]+" graph == null then
+          throw "bar widget manifest ${pathStr}: graph = ${graph} (want a whole number of points)"
+        else if interval == null then
+          throw "bar widget manifest ${pathStr}: graph needs an interval — a rolling window with no tick is a flat line"
+        else
+          lib.toInt graph;
       # system_woke is always in: every pill haus ships resubscribes to it, a
       # readout that sleeps through wake is stale by exactly how long the lid
       # was down, and no widget has yet wanted to opt out.

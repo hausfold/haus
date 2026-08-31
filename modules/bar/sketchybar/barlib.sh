@@ -253,6 +253,58 @@ pill() {
     return 0
 }
 
+# A percentage as sketchybar's graph wants it: 0…1, two decimals, clamped. A
+# pushed value is drawn against the item's height with NO scaling of its own,
+# so anything over 1 is drawn off the top of the pill and anything negative
+# vanishes — neither of which looks like an error, which is why both are
+# handled here rather than trusted from a widget.
+_barlib_fraction() {
+    awk -v p="${1:-0}" 'BEGIN {
+        v = p / 100
+        if (v < 0) v = 0
+        if (v > 1) v = 1
+        printf "%.2f", v
+    }'
+}
+
+# graph <percent> — push one point onto the rolling window behind the label.
+# Only for a widget whose header carries `graph = <width>`; on a plain item
+# the push is accepted and drawn nowhere.
+#
+# ⚠️ CALL IT FROM fetch, NOT render. That is the one place the framework's own
+# fetch/render split does not hold, and it is structural rather than a style
+# note:
+#
+#   * render is DIFFED. A machine sitting at 3% emits identical state tick
+#     after tick, render never runs, and a graph pushed from there would stop
+#     advancing for exactly as long as nothing is happening — the flat line
+#     would mean "quiet" and "stalled" at once, and the pill has no way to say
+#     which. The window is `width × interval` seconds only if every tick
+#     contributes a point.
+#   * fetch does not run on a click at all — SENDER routes a mouse event
+#     straight to its handler. The graph has no time axis of its own (it is
+#     the last <width> values, evenly spaced), so a point pushed by the
+#     POINTER would shove the history sideways at the speed of a mouse. Under
+#     the old hand-written cpu pill that was a real bug and a guard; through
+#     the runtime's own dispatch it is unreachable.
+#
+#     ⚠️ ONE handler can still reach it: barlib_tick runs fetch, which is the
+#     whole point of it (github's Refresh row). A graph widget that offers a
+#     refresh gesture is therefore back to pushing a point from the pointer —
+#     have that handler do its work and let the next tick draw it, or accept
+#     that the row is worth a data point.
+#
+# A graph pill costs one $SB call per tick even when the state is unchanged:
+# the push IS the traffic, where a quiet non-graph pill sends nothing at all.
+# That is the same one call the hand-written pill made, so it is a price
+# already being paid rather than a new one — but it is a price, and the
+# zero-traffic promise in this file's header is about widgets that do not
+# push.
+graph() {
+    _BARLIB_ARGS+=(--push "$NAME" "$(_barlib_fraction "${1:-0}")")
+    return 0
+}
+
 # ---- the dropdown -----------------------------------------------------------
 # A widget declares its rows in popup_rows() and opens them with popup_open /
 # popup_close / popup_toggle from a click handler. The runtime owns everything
@@ -281,6 +333,53 @@ _BARLIB_POP_I=0
 _BARLIB_H_HEADING=32
 _BARLIB_H_ROW=25
 _BARLIB_H_NOTE=20
+# A value row sits UNDER a heading, so it is indented past the heading's own
+# 10 rather than sharing its left edge.
+_BARLIB_ROW_INDENT=22
+
+# ---- the value column -------------------------------------------------------
+# A row that carries a NUMBER is two columns, not one sentence: a name on the
+# left and a value that has to land on the same x as the value in every row
+# above it. Getting that wrong is the one dropdown flaw you see immediately,
+# so the arithmetic is the runtime's — the same reason the four row kinds own
+# their fonts.
+#
+# The gap is a PIXEL PADDING derived from the monospace advance, never
+# trailing spaces: sketchybar sizes an item from its TRIMMED label and then
+# draws the untrimmed string, so a space-padded row is a row clipped by
+# exactly the width of its own padding.
+_BARLIB_COL_NAME=16   # widest name column before a value starts sliding right
+_BARLIB_COL_GAP=12
+_BARLIB_ADV=602       # mono advance per point, ×1000
+
+# _barlib_name_pad <name> <extra-columns> <font-size> — the icon padding that
+# lands every value on one column. A name longer than the column gets the
+# minimum gap and pushes its own value right; that is one ragged row rather
+# than a dropdown sized for the worst name on the machine.
+#
+# <extra-columns> is for what bash cannot measure — a Nerd Font glyph riding
+# in the same slot, which `${#s}` counts as three bytes in the C locale a bar
+# plugin inherits and as one character anywhere else. Two columns, named by
+# the caller, beats a length that changes with $LANG.
+#
+# The advance is measured with awk, not bash arithmetic, because a font size
+# out of the generated sizes.sh is a DECIMAL ("14.0") and $(( )) errors on
+# one. It is cached against the size it was measured at, so a dropdown of a
+# heading plus twelve rows forks awk twice rather than thirteen times — a
+# popup is built inside a click, where the whole batch is one message and the
+# forks would be the only thing in it that isn't.
+_BARLIB_ADV_FOR=''
+_BARLIB_ADV_PX=''
+_barlib_name_pad() {
+    local cols
+    cols=$((_BARLIB_COL_NAME - ${#1} - ${2:-0}))
+    if [ "$cols" -lt 1 ]; then cols=1; fi
+    if [ "${3:-13}" != "$_BARLIB_ADV_FOR" ]; then
+        _BARLIB_ADV_PX=$(awk -v s="${3:-13}" -v a="$_BARLIB_ADV" 'BEGIN { printf "%.0f", s * a }')
+        _BARLIB_ADV_FOR="${3:-13}"
+    fi
+    printf '%s' $(((cols * _BARLIB_ADV_PX + _BARLIB_COL_GAP * 1000 + 500) / 1000))
+}
 
 # Single-quote a value for embedding in a click_script. A row's URL or copy
 # text is DATA — a PR title with an apostrophe in it must not end the quote
@@ -322,18 +421,43 @@ _barlib_pop_add() { # _barlib_pop_add <height> <font> <action> <set-args…>
 # overlay1 and reserve overlay0 for the meta row under it — and `mute` here
 # made the heading read as absent rather than quiet.
 popup_heading() {
-    local label='' icon='' icon_tone=dim count=0
+    local label='' icon='' icon_tone=dim count=0 value='' have_value=0
     while [ $# -gt 0 ]; do
         case "$1" in
             --label) label=$2; shift 2 ;;
             --icon) icon=$2; shift 2 ;;
             --tone) icon_tone=$2; shift 2 ;;
             --count) count=$2; shift 2 ;;
+            --value) value=$2; have_value=1; shift 2 ;;
             *) echo "barlib: popup_heading: unknown flag '$1' — dropped" >&2; shift ;;
         esac
     done
     case "$count" in '' | *[!0-9]*) count=0 ;; esac
     if [ "$count" -gt 0 ]; then label="$label · $count"; fi
+    if [ "$have_value" = 1 ]; then
+        # Glyph and title travel TOGETHER in the icon, in ONE tone: they are
+        # the same mark, and splitting them across the row's two colourable
+        # halves would spend the value's colour on a word. That tone is the
+        # heading's `dim` unless the widget says otherwise — the ladder has no
+        # rung for a pill's own identity hue, deliberately, so a converted
+        # pill's dropdown title is grey where a hand-written one was often the
+        # pill's colour. The
+        # value then lands on the column every row below it uses, so the
+        # heading reads as the total of what follows rather than as a caption
+        # sitting above it.
+        local _blib_name="$label" _blib_cols=0
+        if [ -n "$icon" ]; then
+            _blib_name="$icon $label"
+            _blib_cols=2
+        fi
+        _barlib_pop_add "$_BARLIB_H_HEADING" "${BAR_FONT:-}:Bold:${FS_LABEL:-}" '' \
+            icon="$_blib_name" icon.color="$(tone "$icon_tone")" \
+            icon.font="${BAR_FONT:-}:Bold:${FS_LABEL:-}" \
+            icon.padding_left=10 \
+            icon.padding_right="$(_barlib_name_pad "$label" "$_blib_cols" "${FS_LABEL:-13}")" \
+            label="$value" label.color="${TEXT:-}"
+        return 0
+    fi
     _barlib_pop_add "$_BARLIB_H_HEADING" "${BAR_FONT:-}:Bold:${FS_LABEL:-}" '' \
         icon="$icon" icon.color="$(tone "$icon_tone")" \
         label="$label" label.color="${TEXT:-}"
@@ -347,17 +471,40 @@ popup_heading() {
 # full-brightness label on purpose, because dim is the row still being ABOUT
 # something; it is the glyph that is subordinate, not the sentence.
 popup_row() {
-    local label='' icon='' icon_tone=mute action=''
+    local label='' icon='' icon_tone=mute action='' value='' have_value=0 tone_set=0
     while [ $# -gt 0 ]; do
         case "$1" in
             --label) label=$2; shift 2 ;;
             --icon) icon=$2; shift 2 ;;
-            --tone) icon_tone=$2; shift 2 ;;
+            --tone) icon_tone=$2; tone_set=1; shift 2 ;;
+            --value) value=$2; have_value=1; shift 2 ;;
             --open) action="/usr/bin/open $(_barlib_shq "$2")"; shift 2 ;;
             --run) action=$2; shift 2 ;;
             *) echo "barlib: popup_row: unknown flag '$1' — dropped" >&2; shift ;;
         esac
     done
+    if [ "$have_value" = 1 ]; then
+        # ⚠️ With a --value the tone follows the NUMBER, not the glyph. That is
+        # the row saying which half carries the verdict: the name is the
+        # question ("user", "load", "Safari") and is always dim, the value is
+        # the answer and is the only thing on the ladder. A two-column row
+        # whose name climbed to `bad` with it would be one row shouting twice.
+        # `text` is the default rather than `mute`, because a measurement with
+        # no verdict is a live readout, not an absence.
+        if [ "$tone_set" = 0 ]; then icon_tone=text; fi
+        local _blib_name="$label" _blib_cols=0
+        if [ -n "$icon" ]; then
+            _blib_name="$icon $label"
+            _blib_cols=2
+        fi
+        _barlib_pop_add "$_BARLIB_H_ROW" "${BAR_FONT:-}:Bold:${FS_SMALL:-}" "$action" \
+            icon="$_blib_name" icon.color="$(tone dim)" \
+            icon.font="${BAR_FONT:-}:Regular:${FS_SMALL:-}" \
+            icon.padding_left="$_BARLIB_ROW_INDENT" \
+            icon.padding_right="$(_barlib_name_pad "$label" "$_blib_cols" "${FS_SMALL:-12}")" \
+            label="$value" label.color="$(tone "$icon_tone")"
+        return 0
+    fi
     local lcolor="${SUBTEXT0:-}"
     if [ "$icon_tone" = mute ]; then lcolor="${OVERLAY0:-}"; fi
     _barlib_pop_add "$_BARLIB_H_ROW" "${BAR_FONT:-}:Regular:${FS_SMALL:-}" "$action" \
