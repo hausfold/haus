@@ -566,6 +566,16 @@ lib.mkMerge [
       # Trill isn't shipped by this rice yet — its rule was hand-added ahead
       # of the module landing), so both are metadata-only entries whose only
       # job is naming a bundle id and setting `float`.
+      # Floating is only half of a call window's job — the other half is
+      # staying VISIBLE, and FaceTime is the one foreign window that can:
+      # `Video > Always on Top` during a call is native. It has to be, because
+      # nothing outside an app can raise its level with SIP on: WindowServer
+      # discards level writes from a connection that doesn't own the window
+      # (SLSSetWindowLevel returns 0 and applies nothing; SLSOrderWindow
+      # refuses outright), and the one connection exempt is Dock's "universal
+      # owner" — which is what yabai injects into under partially-disabled
+      # SIP. The general SIP-on answer is a ScreenCaptureKit mirror of the
+      # buried window; that plan is todo/pin-window.md in hausfold/ops.
       facetime = {
         enable = lib.mkDefault true;
         order = lib.mkDefault 990;
