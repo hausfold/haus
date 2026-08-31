@@ -31,16 +31,6 @@ let
       "default"
     ]
     [
-      "apps"
-      "videoPlayer"
-      "enable"
-    ]
-    [
-      "apps"
-      "videoPlayer"
-      "claimFileTypes"
-    ]
-    [
       "security"
       "touchId"
       "enable"

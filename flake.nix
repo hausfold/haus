@@ -868,11 +868,12 @@
           # it. No error; you find out on the machine.
           #
           # This used to be pure lib and ran on Linux CI. It is darwin-only now,
-          # and the check is declared in the darwin block to say so: the switch is
-          # wired by `modules/apps/default.nix`, which needs `pkgs`, so proving
-          # the switch does the right thing means evaluating a real machine — the
-          # same reason `desktop-seam`'s behavioural half is darwin-only.
-          # Evaluation, not a build.
+          # and the check is declared in the darwin block to say so: proving the
+          # switch does the right thing means watching a host override MEET the
+          # collection, which is `mkHaus` below — a whole nix-darwin evaluation,
+          # and one no pure-lib eval can stand in for. Same reason
+          # `desktop-seam`'s behavioural half is darwin-only. Evaluation, not a
+          # build.
           #
           # The file each switch installs comes from `modules/apps/packs`, the
           # same table the room reads. Deriving it from the option name instead
@@ -2705,7 +2706,11 @@
                 name:
                 {
                   ai = blankConfig.haus.ai.enable || blankConfig.haus.ai.clients != [ ];
-                  apps = blankConfig.haus.apps.videoPlayer.enable;
+                  apps =
+                    blankConfig.haus.apps.vscode.enable
+                    || blankConfig.haus.apps.cursor.enable
+                    || blankConfig.haus.apps.zed.enable
+                    || blankConfig.haus.apps.packs.writing.enable;
                   security = blankConfig.haus.security.touchId.enable;
                   development = blankConfig.haus.developer.enable;
                   focus = blankConfig.haus.focus.enable;

@@ -22,8 +22,6 @@
       default = "claude";
     };
 
-    apps.videoPlayer.enable = true;
-
     security.touchId = {
       enable = true;
       passwordlessRebuild = true;

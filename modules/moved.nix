@@ -86,6 +86,32 @@
     # Neither has a successor to rename to anyway: Ghostty has no input modes,
     # and a window is the pane now, so "fullscreen" is haus.windows' own chord.
 
+    # 2026-08-31 — haus no longer picks a video player. `haus.apps.videoPlayer`
+    # and its `claimFileTypes` half are gone, and so is everything the pick
+    # carried: the `iina` roster entry, the thirteen duti bindings it re-asserted
+    # on every activation, and the lsregister pass that kept them resolving. The
+    # only file types haus claims now are the editor hijack's
+    # (`haus.terminal.hijackFileAssociations`), which is what the exclusion list
+    # in modules/apps was written around.
+    #
+    # No entry, for the renderer reason the zellij removal spells out above:
+    # `mkRemovedOptionModule` defines `config.assertions`, and this file is
+    # imported into pure-lib evals that have none. A host still setting either
+    # leaf gets the module system's own unknown-option error, which names the
+    # file and the line.
+    #
+    # This one DOES take the app with it, unlike a cask pick, and the difference
+    # is worth knowing before removing the next one: the entry carried
+    # `package = pkgs.iina`, so modules/roster routed it to `home.packages` and
+    # home-manager linked it into ~/Applications/Home Manager Apps. Drop the
+    # entry and the next generation drops the symlink. "haus never deletes apps"
+    # is `haus.homebrew.cleanup = "none"`, a promise about CASKS, and it does not
+    # reach a nixpkgs install. What outlives the rebuild is the thirteen
+    # associations — they are the ordinary user default, now pointing at a bundle
+    # that is going away — so Finder's Get Info ▸ Change All is the one by-hand
+    # step, and reinstalling is the palette's Install App (VLC is on that shelf)
+    # or a roster entry of your own.
+
     # 2026-08-13 — the whole coding-agent capability became `haus.ai.*`, and
     # deliberately got NO alias here. `haus.agents.*` and
     # `haus.developer.agents.enable` are gone rather than deprecated: the rice

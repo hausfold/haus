@@ -10,8 +10,6 @@
     ],
     "haus.ai.default": "claude",
     "haus.ai.enable": true,
-    "haus.apps.videoPlayer.claimFileTypes": true,
-    "haus.apps.videoPlayer.enable": true,
     "haus.security.touchId.enable": true,
     "haus.security.touchId.passwordlessRebuild": true,
     "haus.developer.enable": true,

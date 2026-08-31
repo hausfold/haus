@@ -484,42 +484,6 @@
     "readOnly": false,
     "type": "boolean"
   },
-  "haus.apps.videoPlayer.claimFileTypes": {
-    "declarations": [
-      "modules/apps/options.nix"
-    ],
-    "default": {
-      "_type": "literalExpression",
-      "text": "true"
-    },
-    "description": "Make IINA the default handler for the everyday video extensions —\nmp4, m4v, mov, mpg, mpeg, mkv, webm, avi, wmv, flv, 3gp, ogv, vob —\nso double-clicking a video opens IINA instead of QuickTime Player, TV\nor a browser. Ignored unless the player is installed.\n\nA short list on purpose: it covers what you actually double-click,\nnot everything IINA can decode. Dead, professional and DRM'd\ncontainers (qt, divx, asf, f4v, 3g2, ogm, rm, rmvb, mxf, dv, …) are\nleft alone — they still play via Open With, they just don't get the\ndefault, and every extension haus claims is a binding it\nre-asserts on every rebuild.\n\nVideo only. Audio (mp3, flac, m4a, wav, …), `.gif` and playlists\nkeep whatever owns them today, since \"open videos in IINA\" rarely\nmeans \"and my music library too\". The transport-stream extensions\n`.ts`, `.mts` and `.m2ts` are excluded too: on a developer's machine\nthey are TypeScript far more often than video, and\n`haus.terminal.hijackFileAssociations` claims them for the editor.\nClaiming them here as well made macOS stop and ask which app should\nwin on every single rebuild, because `.mts` and `.m2ts` share one\nUTI.\n\nThis sets the USER default (via `duti`) — the same record Finder's\nGet Info ▸ Change All writes, so it is undoable by hand. Set false to\ninstall the app and leave every association alone.\n",
-    "loc": [
-      "haus",
-      "apps",
-      "videoPlayer",
-      "claimFileTypes"
-    ],
-    "readOnly": false,
-    "type": "boolean"
-  },
-  "haus.apps.videoPlayer.enable": {
-    "declarations": [
-      "modules/apps/options.nix"
-    ],
-    "default": {
-      "_type": "literalExpression",
-      "text": "false"
-    },
-    "description": "Install IINA — haus's video player — as the roster entry `iina`.\nA nixpkgs build, so it lands in ~/Applications/Home Manager Apps\nrather than /Applications.\n\nThe hacker desktop turns this on, because macOS ships QuickTime\nPlayer, which refuses most of what you actually double-click (mkv,\nwebm, and anything not in Apple's codec list) — so \"a video player\nthat plays videos\" is part of what that desktop considers a finished\nmachine. The bare layer installs nothing you didn't ask for.\n\nSet false and nothing is installed or rebound — bring your own\nplayer via the palette's \"Install App\" command or a roster\nentry. Once on it is a roster entry like any other: give it a leader\nletter with `haus.roster.iina.key`, or pin a different build\nwith `haus.roster.iina.package`.\n",
-    "loc": [
-      "haus",
-      "apps",
-      "videoPlayer",
-      "enable"
-    ],
-    "readOnly": false,
-    "type": "boolean"
-  },
   "haus.apps.vscode.enable": {
     "declarations": [
       "modules/apps/options.nix"

@@ -244,9 +244,9 @@ in
   # overridable by app id from a host, and (see the note by home.packages) able
   # to collide loudly with a cask of the same name instead of silently.
   #
-  # IINA used to sit here too, purely because this room's hijack code was next
-  # door. It's an editorial pick, not shell config, so it lives in modules/apps
-  # now — the room whose whole job is the apps the rice chooses for you.
+  # It is the only app this room installs. A media player used to sit here too,
+  # purely because this room's hijack code was next door; an editorial pick is
+  # not shell config, and modules/apps is the room whose whole job it is.
   haus.roster = {
     duti = {
       package = lib.mkDefault pkgs.duti;
@@ -716,8 +716,8 @@ in
         # duti is a roster entry (below, at the darwin level) rather than a
         # bare package — the room that installs an app declares it, and the
         # roster is what makes a second copy from a cask a build warning
-        # instead of the silent duplicate IINA was for months (modules/apps
-        # owns that pick now; modules/roster tells the story).
+        # instead of the silent duplicate it was for months (modules/roster
+        # tells the story).
         lib.optionals devCfg.toolbelt.enable [
           chafa # fast terminal image previewer / layout engine
           glow # markdown renderer; yazi's glow previewer shells out to it
@@ -1985,16 +1985,17 @@ in
 
       # Keep nix-installed .app bundles findable by LaunchServices.
       #
-      # A GUI app from nixpkgs (IINA, which modules/apps ships) is linked
-      # into ~/Applications/Home Manager Apps as a SYMLINK, and LaunchServices
-      # resolves that to the /nix/store path when it registers the bundle — so
-      # every record it keeps is pinned to a store hash. Bump the package and the
-      # hash changes: the "Open With" entry, the default-handler binding, and
-      # `open -b <bundle-id>` all still name a path that garbage collection is
-      # about to remove, and the app quietly stops being the handler for its own
-      # file types. (Masked for anyone who ALSO has the app from a cask — the
-      # /Applications copy keeps answering for the shared bundle id, which is how
-      # a machine can carry two copies of one app and never notice.)
+      # A GUI app from nixpkgs — anything a roster entry names with `package` —
+      # is linked into ~/Applications/Home Manager Apps as a SYMLINK, and
+      # LaunchServices resolves that to the /nix/store path when it registers the
+      # bundle, so every record it keeps is pinned to a store hash. Bump the
+      # package and the hash changes: the "Open With" entry, the default-handler
+      # binding, and `open -b <bundle-id>` all still name a path that garbage
+      # collection is about to remove, and the app quietly stops being the
+      # handler for its own file types. (Masked for anyone who ALSO has the app
+      # from a cask — the /Applications copy keeps answering for the shared
+      # bundle id, which is how a machine can carry two copies of one app and
+      # never notice.)
       #
       # Re-registering on every activation is the fix, because activation is
       # exactly when the store path changes. `-f` forces a refresh of records
@@ -2024,15 +2025,17 @@ in
             # and you want those in a browser anyway) and image types (handled by
             # yazi's own image preview — scripts/image-preview.sh).
             #
-            # The rice owns each of these EXCLUSIVELY, and that is a rule, not a
-            # coincidence: modules/apps keeps `ts`, `mts` and `m2ts` out of
-            # IINA's video list precisely so nothing here is contested. Two
-            # rice-owned apps claiming one type never settles — both claims
+            # This is the ONLY list of file types haus claims, and it has to
+            # stay the only one — that is a rule, not a coincidence. Two
+            # rice-owned apps claiming one type never settles: both claims
             # re-run on every activation and macOS stops to ask the user which
-            # app wins, every rebuild, forever. So before adding an extension,
-            # check it against `iinaVideoExts` in modules/apps/default.nix — by
-            # UTI, not by spelling, since one UTI can carry several extensions
-            # (claiming `mts` drags `.m2ts` along; AVCHD gives them one).
+            # app wins, every rebuild, forever. Measured, not theoretical — a
+            # video player pick once claimed `mts` alongside this list, and
+            # because `.mts` and `.m2ts` resolve to ONE shared AVCHD UTI the
+            # dialog came back on every single rebuild until the two lists were
+            # reconciled. So if a second room ever claims a type, reconcile by
+            # UTI rather than by spelling: one UTI can carry several
+            # extensions.
             editorExts = [
               "json"
               "jsonc"

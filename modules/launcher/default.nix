@@ -70,12 +70,6 @@ let
       appId = "md.obsidian";
     }
     {
-      cask = "iina";
-      name = "IINA";
-      description = "Modern open-source media player";
-      appId = "com.colliderli.iina";
-    }
-    {
       cask = "slack";
       name = "Slack";
       description = "Team chat and collaboration";
