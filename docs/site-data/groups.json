@@ -1360,7 +1360,7 @@
     "terminal": {
       "blurb": "The shell and terminal experience.",
       "kind": "room",
-      "optionCount": 7,
+      "optionCount": 8,
       "options": {
         "haus.terminal.editor": {
           "desktopSafe": false,
@@ -1370,6 +1370,9 @@
           "desktopSafe": true
         },
         "haus.terminal.floatBorder": {
+          "desktopSafe": true
+        },
+        "haus.terminal.floatOnTop": {
           "desktopSafe": true
         },
         "haus.terminal.ghDash.enable": {
@@ -1779,7 +1782,7 @@
         "developer",
         "github"
       ],
-      "optionCount": 39,
+      "optionCount": 40,
       "order": 40,
       "title": "Development"
     },

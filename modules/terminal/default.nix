@@ -111,6 +111,9 @@ let
       ]
       (builtins.readFile ./ghostty/config);
 
+  # System Settings deep links, spelled once (modules/lib/settings-panes.nix) —
+  # a wrong x-apple.systempreferences: URL lands on the front page with no error.
+  panes = import ../lib/settings-panes.nix;
 in
 {
   # ---- what this room contributes to other rooms ------------------------------
@@ -130,6 +133,46 @@ in
   haus._contrib.windows.laneSeen = {
     enable = agentsCfg.enable;
     script = "/Users/${username}/.config/haus/lanes/lane-seen.sh";
+  };
+
+  # haus.terminal.floatOnTop asks a popup's own Ghostty process to raise that
+  # window's level, and an Apple event to another application is Automation.
+  # WHO is asking is the SUMMONER — the responsible process macOS books the
+  # request against — so the grant is never this room's, even though this room
+  # is what wants it. There are two summoners and they are granted separately:
+  # pounce (the palette commands and the ⌘-chords its tap owns) and sketchybar
+  # (the agents pill's peek, which calls float-term.sh itself). A user who
+  # grants only the first still has an unpinned agent peek and no idea why,
+  # which is the whole reason both are named in `steps`.
+  #
+  # Listed whenever the option is on rather than gated on pounce existing: a
+  # bar-without-launcher machine has exactly one of the two summoners, and it is
+  # the one whose grant does NOT survive a version bump (sketchybar is an
+  # adhoc-signed store path; pounce is re-signed with a stable identity), so
+  # that is the machine that needs the card most.
+  #
+  # No `check`, for the deck's first rule: every API that reports an Automation
+  # grant asks for it first, and a permission dialog fired by `haus doctor` is
+  # how people learn to stop running `haus doctor`. macOS asks by itself on the
+  # first summon; the card is for the machine where that dialog was dismissed,
+  # because the degraded state is otherwise indistinguishable from the option
+  # being off.
+  haus._contrib.permissions.terminal-float-on-top = lib.mkIf terminalCfg.floatOnTop {
+    order = 32;
+    title = "Automation — Ghostty, for whatever summons a popup";
+    why = ''
+      Keeping the ⌘Y peek panel, ⌘G's gh-dash, the bar's agent peek and the
+      palette's own windows above the tiling means asking each popup's Ghostty
+      process to raise its window level, and macOS books that request against
+      whichever app summoned it rather than against haus.
+    '';
+    cost = "popups still open in front, then sink behind the first tiled window you click";
+    pane = panes.automation;
+    steps = [
+      "Turn Ghostty on underneath Pounce — that covers ⌘Y, ⌘G and every palette window"
+      "Turn Ghostty on underneath SketchyBar too, if you use the bar's agent peek — it summons its own popup and needs its own grant"
+      "A popup already on screen keeps its old behaviour — summon a fresh one to check"
+    ];
   };
 
   # The agent assertions that used to sit here — default-not-in-clients, clients
@@ -285,6 +328,15 @@ in
       # one thing float-term.sh's ring() checks, so the binary is never launched
       # (nor built — the store path is dropped from the script too, below).
       floatring = pkgs.callPackage ./package-floatring.nix { };
+
+      # The pin that keeps those same popups above the tiled window you click
+      # next (haus.terminal.floatOnTop), baked into float-term.sh below the same
+      # way. A separate binary rather than a floatring verb: the ring is a
+      # long-lived overlay process and the pin is one bounded round trip, and the
+      # two options are independent — a machine with floatBorder = "off" still
+      # wants its peek panel to stay put. Dropped from the script (and so from
+      # the closure) when the option is off, exactly like floatring.
+      floatpin = pkgs.callPackage ./package-floatpin.nix { };
       floatBorderColor =
         {
           accent = nebelungPalette.${osConfig.haus.theme.accent};
@@ -1861,7 +1913,7 @@ in
           source = ./scripts/gh-dash.sh;
           executable = true;
         };
-        # The one floating-Ghostty helper (geom + spawn + ring); peek.sh, the
+        # The one floating-Ghostty helper (geom + spawn + ring + pin); peek.sh, the
         # Rebuild System pounce command, and the agent-peek popup all route
         # through it. The outline's binary/colour/width are baked in rather than
         # passed per caller, so haus.terminal.floatBorder moves all three at once
@@ -1875,6 +1927,7 @@ in
             builtins.replaceStrings
               [
                 "@floatring@"
+                "@floatpin@"
                 "@ring_color@"
                 "@ring_width@"
                 "@gap_top_builtin@"
@@ -1889,6 +1942,7 @@ in
                 # carry the binary in its closure (a store path in the script's
                 # text is a real dependency — the swiftc build would run anyway).
                 (if terminalCfg.floatBorder == "off" then "" else "${floatring}/bin/floatring")
+                (if terminalCfg.floatOnTop then "${floatpin}/bin/floatpin" else "")
                 floatBorderColor
                 "2"
                 (toString floatGaps.outer.top.builtin)

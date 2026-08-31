@@ -406,6 +406,7 @@ let
       "editor"
       "editorName"
       "floatBorder"
+      "floatOnTop"
       "ghDash.enable"
       "hijackFileAssociations"
       "obsidianVaults"

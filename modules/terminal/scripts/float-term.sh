@@ -4,7 +4,7 @@
 # across the Rebuild System pounce command, the Super-y yazi peek panel, and
 # the agent-peek popup.
 #
-# Three subcommands:
+# Five subcommands:
 #
 #   geom [--tiled | --pct N | --w PX --h PX | --match-focused]
 #       Print "X Y W H": a window of the requested size, centered on the
@@ -102,6 +102,17 @@
 #       A no-op when the option is "off" (RING_COLOR renders empty).
 #       Implementation, and why it isn't Ghostty/aerospace/JankyBorders doing it:
 #       modules/terminal/floatring.swift.
+#
+#   pin PID [--off]
+#       Keep PID's window above every tiled window, whatever you click next —
+#       the reason a summoned popup is still there when you look back at it.
+#       spawn() calls this for you; the subcommand is public so a window that
+#       already exists can be pinned (or released with --off) by hand.
+#       A no-op when haus.terminal.floatOnTop is off (PIN_BIN renders empty).
+#       "Floating" in AeroSpace is a LAYOUT, not a stacking order, and raising
+#       cannot fix that — modules/terminal/floatpin.swift has the measurements
+#       and why the window's LEVEL is the only lever that beats the window you
+#       just clicked.
 
 set -u
 # open/osascript live in /usr/bin; aerospace in the nix/brew profiles. Callers
@@ -116,6 +127,11 @@ export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/usr/bin:/bin:$PATH"
 RING_BIN="@floatring@"
 RING_COLOR="@ring_color@"
 RING_WIDTH="@ring_width@"
+
+# Baked by modules/terminal from haus.terminal.floatOnTop — empty when the
+# option is off, which is the single check pin() makes. Store path for the same
+# reason RING_BIN is one: a launchd-spawned pounce command has a bare PATH.
+PIN_BIN="@floatpin@"
 
 # Baked by modules/terminal from ../lib/gaps.nix — AeroSpace's OUTER gaps, in
 # points, per monitor class. These are the same numbers modules/windows writes
@@ -631,15 +647,42 @@ ring() {
   "$RING_BIN" --pid "$pid" --color "$color" --width "$width" </dev/null >/dev/null 2>&1 &
 }
 
+# ── pin the window above the tiling ─────────────────────────────────────────
+# pin PID [--off] — set (or clear) the window's always-on-top level.
+#
+# Detached, exactly like ring(), and for a stronger reason than "it must outlive
+# this script": NOTHING on the keystroke path may wait on it. floatpin asks
+# Ghostty over an Apple event, which is Automation-gated, and every way that ask
+# can go wrong is measured in seconds — a dismissed permission dialog, a Ghostty
+# that App-Naps before it answers, a popup that dies on launch. Inline, each of
+# those is dead time between your chord and a window you can type into, on EVERY
+# summon rather than once. Detached, they cost the pin and nothing else, which
+# is the behaviour that existed before this option did.
+#
+# Racing `raise` is fine and deliberate: a level is a property of the window,
+# not of the focus, so it lands correctly whether it arrives before or after the
+# window takes focus — and setting it on a window that is already frontmost is
+# invisible, which is why there is nothing to order here.
+pin() {
+  local pid="${1:-}"
+  shift || true
+  [ -n "$pid" ] || return 0
+  [ -x "${PIN_BIN:-}" ] || return 0  # haus.terminal.floatOnTop = false
+  "$PIN_BIN" --pid "$pid" "$@" </dev/null >/dev/null 2>&1 &
+}
+
 # ── spawn a fresh centered instance ─────────────────────────────────────────
 spawn() {
-  local title="" command="" pin=0 cols="" rows="" exact=0 frame=""
+  # `pin_workspace`, not `pin`: bash keeps function and variable namespaces
+  # apart, so a `pin` local would not actually shadow pin() — but two things
+  # three lines apart meaning different things is a trap for the next reader.
+  local title="" command="" pin_workspace=0 cols="" rows="" exact=0 frame=""
   local -a size_args=() extra=()
   while [ $# -gt 0 ]; do
     case "$1" in
       --title)   title="$2"; shift 2 ;;
       --command) command="$2"; shift 2 ;;
-      --pin)     pin=1; shift ;;
+      --pin)     pin_workspace=1; shift ;;
       --cols)    cols="$2"; shift 2 ;;
       --rows)    rows="$2"; shift 2 ;;
       --pct)     size_args=(--pct "$2"); shift 2 ;;
@@ -685,7 +728,7 @@ spawn() {
   # instance, and the focused workspace so --pin can put the window there.
   local before source_ws=""
   before=$(pgrep -x ghostty 2>/dev/null | sort -u)
-  [ "$pin" = 1 ] && source_ws=$(aerospace list-workspaces --focused 2>/dev/null)
+  [ "$pin_workspace" = 1 ] && source_ws=$(aerospace list-workspaces --focused 2>/dev/null)
 
   local -a open_args=(--title="$title")
   [ -n "$cols" ] && open_args+=(--window-width="$cols")
@@ -754,6 +797,10 @@ spawn() {
   # its three tries are a race against that teardown. Putting an AX round trip
   # in front of it starts that race late for no gain — only the ring has to
   # follow the final frame.
+  # Fired here rather than beside ring() only so it starts as early as possible;
+  # it is detached, so this costs nothing and orders nothing.
+  pin "$new_pid"
+
   raise "$new_pid" "$wid"
 
   # Centred modes: the window is whatever size the cell grid made it, so centre
@@ -796,5 +843,6 @@ case "${1:-}" in
   spawn) shift; spawn "$@" ;;
   place) shift; place "$@" ;;
   ring)  shift; ring "$@" ;;
-  *) echo "usage: float-term.sh {geom|spawn|place|ring} …" >&2; exit 2 ;;
+  pin)   shift; pin "$@" ;;
+  *) echo "usage: float-term.sh {geom|spawn|place|ring|pin} …" >&2; exit 2 ;;
 esac
