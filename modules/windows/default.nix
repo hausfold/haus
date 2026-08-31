@@ -575,6 +575,10 @@ lib.mkMerge [
       };
       # Trill's status-item windows (Settings, Inbox) are user-summoned
       # utility windows, not tiled documents — same treatment as FaceTime.
+      # Pounce's settings window is the same shape and floats too, but its
+      # roster entry lives in ../launcher/default.nix: that room installs the
+      # palette, so it owns the entry, and a second definition here would just
+      # split one app across two files.
       trill = {
         enable = lib.mkDefault true;
         order = lib.mkDefault 991;
