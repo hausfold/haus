@@ -79,6 +79,62 @@ silent() {
   killall Dock'
 }
 
+@test "a wrapper is not a hiding place" {
+  # The anchors are what keep this guard off prose, and a wrapper is what moves
+  # the anchor: every rule looks for a command at the start of a segment, and
+  # `bash -c '…'` puts one where no `^` looks. #579 found it as an evasion
+  # rather than an accident — pi, handed a refusal that named the escape hatch,
+  # re-issued the call inside exactly this shape.
+  asks "bash -c 'killall Dock'"
+  asks 'bash -c "open -a Ghostty"'
+  asks "sh -lc 'aerospace focus left'"
+  asks "/bin/bash --login -c 'killall Dock'"
+  asks 'sudo killall WindowServer'
+  asks 'nohup open -a Ghostty &'
+  asks 'env FOO=1 zsh -c "screencapture /tmp/x.png"'
+  asks "sudo bash -c 'tart run vm'"
+  asks 'eval "killall Finder"'
+  asks "bash --noprofile --norc -c 'killall Dock'"   # a long flag with a `c` in it
+  asks '(open -a Preview shot.png; echo done)'
+  asks '{ killall Dock; }'
+}
+
+@test "peeling a wrapper keeps the exemption underneath it" {
+  # The peel takes the prefix and stops, so `-g` / `-x` / `--no-graphics` are
+  # still the flags of the command that carries them.
+  silent "bash -c 'open -g -a Ghostty'"
+  silent "bash -c 'screencapture -x /tmp/s.png'"
+  silent "sudo bash -c 'tart run vm --no-graphics'"
+  silent 'git commit -m "open the door, killall the noise"'
+
+  # `command` and `builtin` are NOT peeled, and this is why: they prefix
+  # nothing an agent could not have typed bare, and the is-it-here idiom this
+  # repo is built out of would have started prompting on the word alone.
+  silent 'command -v screencapture && echo yes'
+  silent 'command -v open >/dev/null && echo yes'
+}
+
+@test "a stack of wrappers cannot stall the turn" {
+  # The peel rescans what is left once per prefix, so an unbounded walk is
+  # O(n²) in the number of them: `sudo ` twenty thousand times took 38 s under
+  # the awk a Mac ships (mawk and gawk shrug it off, so CI would never have
+  # seen it). A PreToolUse hook holds the tool call while it thinks, which
+  # makes that a dead turn. Bounded at 24 — past which the rest stays wrapped,
+  # the same direction as stopping at a token it cannot name.
+  local stack start
+  stack="$(printf 'sudo %.0s' {1..20000})true"
+  start=$SECONDS
+  silent "$stack"
+  [ $((SECONDS - start)) -lt 5 ] || { printf 'guard took %ss on a stack of wrappers\n' "$((SECONDS - start))" >&2; return 1; }
+}
+
+@test "the env prefix that IS the match survives the peel" {
+  # Why the peel APPENDS what it finds instead of rewriting the command: strip
+  # the assignment off this one and the pattern that gates it
+  # (`BENCH_AGENT_SWITCH=… try … switch`) has nothing left to match.
+  asks 'BENCH_AGENT_SWITCH=1 bench try switch'
+}
+
 # ---- another machine's screen -----------------------------------------------
 
 @test "a lane's VM over ssh is not this screen" {
@@ -94,6 +150,7 @@ silent() {
   # The mask is what makes this true: split naively on `;` and the tail of the
   # payload reads as a local command that was never going to run here.
   silent "ssh admin@192.168.64.5 'killall Dock; open -a Pounce; aerospace focus left'"
+  silent "ssh admin@192.168.64.5 'bash -c \"killall Dock\"'"
 }
 
 @test "the VM capture round trip is silent end to end" {
