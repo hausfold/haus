@@ -102,6 +102,17 @@
 #       A no-op when the option is "off" (RING_COLOR renders empty).
 #       Implementation, and why it isn't Ghostty/aerospace/JankyBorders doing it:
 #       modules/terminal/floatring.swift.
+#
+#   pin PID [--off]
+#       Keep PID's window above every tiled window, whatever you click next —
+#       the reason a summoned popup is still there when you look back at it.
+#       spawn() calls this for you; the subcommand is public so a window that
+#       already exists can be pinned (or released with --off) by hand.
+#       A no-op when haus.terminal.floatOnTop is off (PIN_BIN renders empty).
+#       "Floating" in AeroSpace is a LAYOUT, not a stacking order, and raising
+#       cannot fix that — modules/terminal/floatpin.swift has the measurements
+#       and why the window's LEVEL is the only lever that beats the window you
+#       just clicked.
 
 set -u
 # open/osascript live in /usr/bin; aerospace in the nix/brew profiles. Callers
@@ -116,6 +127,11 @@ export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/usr/bin:/bin:$PATH"
 RING_BIN="@floatring@"
 RING_COLOR="@ring_color@"
 RING_WIDTH="@ring_width@"
+
+# Baked by modules/terminal from haus.terminal.floatOnTop — empty when the
+# option is off, which is the single check pin() makes. Store path for the same
+# reason RING_BIN is one: a launchd-spawned pounce command has a bare PATH.
+PIN_BIN="@floatpin@"
 
 # Baked by modules/terminal from ../lib/gaps.nix — AeroSpace's OUTER gaps, in
 # points, per monitor class. These are the same numbers modules/windows writes
@@ -631,6 +647,25 @@ ring() {
   "$RING_BIN" --pid "$pid" --color "$color" --width "$width" </dev/null >/dev/null 2>&1 &
 }
 
+# ── pin the window above the tiling ─────────────────────────────────────────
+# pin PID [--off] — set (or clear) the window's always-on-top level.
+#
+# NOT detached, unlike ring(): floatpin exits as soon as it has confirmed the
+# level moved (~0.3s in practice, capped by its own --timeout), and the caller
+# wants that confirmation before it claims focus — a popup pinned after the
+# raise would flicker up through the window it is about to cover. It fails
+# quietly by design: a denied Automation grant, a Ghostty too old for
+# `toggle_window_float_on_top`, or a window that never appeared all cost the
+# pin and nothing else, and a popup that opens un-pinned is the behaviour that
+# existed before this option did.
+pin() {
+  local pid="${1:-}"
+  shift || true
+  [ -n "$pid" ] || return 0
+  [ -x "${PIN_BIN:-}" ] || return 0  # haus.terminal.floatOnTop = false
+  "$PIN_BIN" --pid "$pid" "$@" >/dev/null 2>&1 || true
+}
+
 # ── spawn a fresh centered instance ─────────────────────────────────────────
 spawn() {
   local title="" command="" pin=0 cols="" rows="" exact=0 frame=""
@@ -754,6 +789,11 @@ spawn() {
   # its three tries are a race against that teardown. Putting an AX round trip
   # in front of it starts that race late for no gain — only the ring has to
   # follow the final frame.
+  # Pin BEFORE the raise, so the window is already at its final level when it
+  # takes focus: pinning after would lift it a second time, visibly, through
+  # whatever it had just been drawn over.
+  pin "$new_pid"
+
   raise "$new_pid" "$wid"
 
   # Centred modes: the window is whatever size the cell grid made it, so centre
@@ -796,5 +836,6 @@ case "${1:-}" in
   spawn) shift; spawn "$@" ;;
   place) shift; place "$@" ;;
   ring)  shift; ring "$@" ;;
+  pin)   shift; pin "$@" ;;
   *) echo "usage: float-term.sh {geom|spawn|place|ring} …" >&2; exit 2 ;;
 esac

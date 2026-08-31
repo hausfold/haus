@@ -361,6 +361,43 @@ in
       '';
     };
 
+    terminal.floatOnTop = lib.mkOption {
+      type = lib.types.bool;
+      # On by default because it is what "floating" already promised. A summoned
+      # popup that vanishes behind the first window you click is the bug, not
+      # the feature — and every one of these popups exists to be READ while you
+      # work in the window underneath it.
+      default = true;
+      example = false;
+      description = ''
+        Whether every floating terminal `float-term.sh` spawns — the ⌘Y yazi
+        peek panel, ⌘G's gh-dash, the bar's agent peek, the palette's Rebuild
+        System / Install App / Settings windows — stays above the tiled windows
+        behind it, whatever you click next.
+
+        `floating` in AeroSpace is a LAYOUT, not a stacking order: it keeps a
+        window out of the tiling tree and says nothing about what is drawn on
+        top of what. So without this, clicking any tiled window buries the popup
+        you just summoned, and the only way back to it is Mission Control.
+
+        Off restores that: popups open in front and then sink like ordinary
+        windows.
+
+        It works by setting the window's LEVEL — the same mechanism that makes a
+        panel float above every app — which nothing outside the owning process
+        can do. haus can therefore only pin the popups it spawns ITSELF; a
+        floating FaceTime or System Settings window is beyond it. That is a
+        macOS limit rather than a missing option: see
+        modules/terminal/floatpin.swift for the measurements, including why
+        raising the window instead does not work.
+
+        The ask is an Apple event to the popup's own Ghostty process, so macOS
+        gates it behind an Automation grant for whatever spawned the popup —
+        one prompt, once, carried as a card in `haus permissions`. Decline it
+        and the popups still open, just unpinned.
+      '';
+    };
+
     terminal.ghDash.enable = lib.mkOption {
       type = lib.types.bool;
       default = false;

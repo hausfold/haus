@@ -139,7 +139,14 @@ panel.isOpaque = false
 panel.backgroundColor = .clear
 panel.hasShadow = false
 panel.ignoresMouseEvents = true  // a summoned popup you can't click through to is worse than no ring
-panel.level = .floating  // one step above ordinary windows, i.e. above the popup
+// One step above the POPUP, which is the number that matters — not one step
+// above ordinary windows. haus.terminal.floatOnTop puts the popup itself at
+// .floating (floatpin.swift), so a ring at .floating would tie with the window
+// it is drawn around and the tie resolves by stacking order: the ring sinks
+// behind its own popup the moment the popup is raised. +1 keeps the outline
+// outside whatever the popup does, and is still below .statusBar, so it never
+// draws over the menu bar or a sheet.
+panel.level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
 panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
 panel.isReleasedWhenClosed = false
 

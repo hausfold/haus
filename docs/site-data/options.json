@@ -5925,6 +5925,27 @@
     "readOnly": false,
     "type": "one of \"accent\", \"grey\", \"off\", \"rosewater\", \"flamingo\", \"pink\", \"mauve\", \"red\", \"maroon\", \"peach\", \"yellow\", \"green\", \"teal\", \"sky\", \"sapphire\", \"blue\", \"lavender\""
   },
+  "haus.terminal.floatOnTop": {
+    "declarations": [
+      "modules/terminal/options.nix"
+    ],
+    "default": {
+      "_type": "literalExpression",
+      "text": "true"
+    },
+    "description": "Whether every floating terminal `float-term.sh` spawns — the ⌘Y yazi\npeek panel, ⌘G's gh-dash, the bar's agent peek, the palette's Rebuild\nSystem / Install App / Settings windows — stays above the tiled windows\nbehind it, whatever you click next.\n\n`floating` in AeroSpace is a LAYOUT, not a stacking order: it keeps a\nwindow out of the tiling tree and says nothing about what is drawn on\ntop of what. So without this, clicking any tiled window buries the popup\nyou just summoned, and the only way back to it is Mission Control.\n\nOff restores that: popups open in front and then sink like ordinary\nwindows.\n\nIt works by setting the window's LEVEL — the same mechanism that makes a\npanel float above every app — which nothing outside the owning process\ncan do. haus can therefore only pin the popups it spawns ITSELF; a\nfloating FaceTime or System Settings window is beyond it. That is a\nmacOS limit rather than a missing option: see\nmodules/terminal/floatpin.swift for the measurements, including why\nraising the window instead does not work.\n\nThe ask is an Apple event to the popup's own Ghostty process, so macOS\ngates it behind an Automation grant for whatever spawned the popup —\none prompt, once, carried as a card in `haus permissions`. Decline it\nand the popups still open, just unpinned.\n",
+    "example": {
+      "_type": "literalExpression",
+      "text": "false"
+    },
+    "loc": [
+      "haus",
+      "terminal",
+      "floatOnTop"
+    ],
+    "readOnly": false,
+    "type": "boolean"
+  },
   "haus.terminal.ghDash.enable": {
     "declarations": [
       "modules/terminal/options.nix"
