@@ -117,6 +117,19 @@
  * pi's own means a `pi -c` can resume the SDK session meridian persisted before
  * the restart, too. The uuid is only the `--no-session` fallback.
  *
+ * ── the degenerate mode the header cannot repair ────────────────────────────
+ * The header was measured on a three-message exchange; over a long agentic
+ * loop a second failure shape exists ON the resumed path itself: the SDK
+ * session's replay stops growing its cache READS — they freeze at whatever
+ * the head was (system prompt + tools + first messages, 42,319 tokens on the
+ * measured lane) — while every turn re-writes the whole growing tail as a
+ * fresh 1-hour-TTL cache write at 2x base input price. 417 turns of that cost
+ * $221.78 of a $233.45 session. Where the breakpoint sits is not pi's lever
+ * (meridian strips them), and the replay's shaping happens inside the SDK
+ * session, so nothing here can fix it — haus-cache-watchdog.ts watches every
+ * turn's usage for the frozen-reads signature and banners when it appears.
+ * Do not add a second cache-metric here: that file owns the subject.
+ *
  * ── two things the gate is load-bearing for, not decoration ─────────────────
  * It fires only when `x-meridian-agent` is present AND reads `pi`, and only
  * when nothing has already set an affinity header.
