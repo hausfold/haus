@@ -435,6 +435,31 @@ in
       };
     };
 
+    # The GitHub pill's "Fix with AI" rows: a button under a red-default-branch
+    # row or a PR row whose checks are red or that conflicts, spawning a coding
+    # agent lane on that repo. The script behind the button is `haus-fix-github`,
+    # a file only the AI room installs, so without it there is a button that
+    # runs nothing — the dormant-pill failure one layer out.
+    _contrib.bar.fix-agent = contrib.mkExtensionPoint {
+      description = ''
+        The GitHub pill's "Fix with AI" rows: under a `ci` row (a red default
+        branch) and under a `search` PR row whose checks came back red or that
+        has merge conflicts, one verb row that hands the failure to a coding
+        agent lane on that repo.
+
+        Off, the pill draws those rows with no button — the fixer and the agent
+        it would spawn are this contribution's payload, so a machine without
+        them draws a broken list rather than a button that does nothing.
+      '';
+      options = {
+        enable = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+          description = "Whether the github pill may offer Fix-with-AI rows.";
+        };
+      };
+    };
+
     bar.enable = lib.mkOption {
       type = lib.types.bool;
       # Rooms are opt-in: the neutral catalogue selects none, and a desktop

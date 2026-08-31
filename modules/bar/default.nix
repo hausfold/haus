@@ -394,6 +394,16 @@ let
     BAR_GITHUB_REFRESH="${toString cfg.github.refresh}"
     BAR_GITHUB_ICON=""
     BAR_GITHUB_SOURCES=${lib.escapeShellArg ghSourcesTsv}
+    # The "Fix with AI" runner behind the pill's fix rows — a file only the AI
+    # room installs, contributed through `_contrib.bar.fix-agent`. Empty (so
+    # the pill draws no fix rows at all) on a machine without it: a button
+    # whose binary isn't there is worse than no button.
+    BAR_GITHUB_FIX="${
+      if config.haus._contrib.bar.fix-agent.enable then
+        "/run/current-system/sw/bin/haus-fix-github"
+      else
+        ""
+    }"
   '';
 
   # The focus pill — generic (no personal hardware/service), so unlike the

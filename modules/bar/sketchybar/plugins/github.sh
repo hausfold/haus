@@ -75,6 +75,20 @@
 # as the neutral "no verdict yet" state and resolves itself on the next refresh,
 # which is why UNKNOWN is deliberately not drawn as a problem.
 #
+# ── the fix rows ──────────────────────────────────────────────────────────────
+# Under certain broken rows the dropdown draws one verb row: "Fix with AI". A
+# ci row (a red default branch) gets one, and a search row whose verdict was
+# "checks red" or "conflicts" — exactly the states an agent lane can pick up
+# on its own, and not "changes requested" (a human's turn) or anything green.
+# Clicking it runs BAR_GITHUB_FIX (generated into github_config.sh, non-empty
+# only when the AI room contributed `_contrib.bar.fix-agent`, i.e. when
+# `haus-fix-github` is actually installed), which spawns a background agent
+# lane on that repo briefed with the failure. The plugin knows nothing about
+# how the fix happens — it passes the row's fix target (cache field 6), the
+# verdict word and the URL, and the button is absent whenever any of those is
+# missing. A pill that offers to fix and then runs a binary that isn't there
+# is worse than a pill that never offered.
+#
 # ── how it stays off the bar's critical path ──────────────────────────────────
 # Every other pill here reads something local. This one is the first that has to
 # cross the network, and a SketchyBar plugin is synchronous: a 1-2s `gh` call on
@@ -88,12 +102,15 @@
 # ── files ─────────────────────────────────────────────────────────────────────
 #   src-<i>.tsv   one per configured source, index-keyed. Line 1 is
 #                 `meta<US><state><US><count><US><title><US><worst>`; every
-#                 later line is `row<US><state><US><text><US><url><US><glyph>`,
-#                 where <US> is ASCII 0x1f. The two trailing fields are the
-#                 merge verdict (see above) and are the newest additions, which
-#                 is why they are LAST: a cache written by an older generation
-#                 parses under the current reader with those fields empty, and
-#                 empty is exactly the "no verdict" case both already handle.
+#                 later line is `row<US><state><US><text><US><url><US><glyph>
+#                 [<US><fix>]`, where <US> is ASCII 0x1f. The three trailing
+#                 fields are the newest additions, which is why they are LAST:
+#                 a cache written by an older generation parses under the
+#                 current reader with them empty, and empty is exactly the
+#                 "no verdict" / "nothing to fix" case both already handle.
+#                 The third one is the FIX TARGET — what a "Fix with AI" row
+#                 would hand the fixer: the PR number for a search row, the
+#                 branch name for a ci row, empty for anything else.
 #                 NOT a tab: tab is an IFS *whitespace* character, so
 #                 `IFS=$'\t' read` folds a run of them into one delimiter and an
 #                 empty field simply vanishes — a source with no title would
@@ -299,6 +316,12 @@ G_READY="󰄭"     # md-check_all — green AND approved: nothing left
 G_GREEN="󰗡"     # md-check_circle_outline — green, review still open
 G_DRAFT="󰲶"     # md-pencil_outline — a draft, deliberately not news
 G_NONE="󰝦"      # md-circle_outline — no checks, or no verdict yet
+# The "Fix with AI" rows' mark. Same robot head the agents pill wears as its
+# identity — the button is handing the row to an agent, and one glyph saying
+# "robot" is the whole legend. Raw bytes, like BOT in agents.sh, for the same
+# reason: this script is /bin/bash (3.2) and a literal astral character in a
+# source file survives neither the copy nor the C locale cleanly.
+BOT=$(printf '\xF3\xB0\x9A\xA9')  # nf-md-robot (U+F06A9)
 
 # ASCII 0x1f, the field separator the cache is written in (see the header).
 US=$'\037'
@@ -413,7 +436,8 @@ fetch_search() { # fetch_search <index> <query> <limit>
       + "\u001f" + (.repository.name + " #" + (.number|tostring) + "  " + .title
                      + (if $note == "" then "" else "  · " + $note end))
       + "\u001f" + .url
-      + "\u001f" + $glyph')
+      + "\u001f" + $glyph
+      + "\u001f" + (if .__typename == "PullRequest" then (.number|tostring) else "" end)')
   worst=$(rows_worst "$rows")
   {
     printf 'meta\037%s\037%s\037%s\037%s\n' \
@@ -468,7 +492,8 @@ fetch_ci() { # fetch_ci <index> <org> <limit>
         st: (.defaultBranchRef.target.statusCheckRollup.state // "NONE") }
     | select(.st == "FAILURE" or .st == "ERROR")
     | "row\u001fbad\u001f" + .name + "  " + .br + "\u001f" + .url
-      + "\u001f" + $failed')
+      + "\u001f" + $failed
+      + "\u001f" + .br')
   count=$(printf '%s' "$rows" | grep -c '^row' 2>/dev/null || true)
   count=${count:-0}
   {
@@ -505,7 +530,7 @@ fetch_command() { # fetch_command <index> <command> <limit>
     -v GB="$G_FAILED" -v GW="$G_CHANGES" -v GR="$G_RUNNING" -v GO="$G_GREEN" \
     'NF>=2 && ($1=="ok"||$1=="busy"||$1=="warn"||$1=="bad"){
       glyph = ($1=="bad" ? GB : ($1=="warn" ? GW : ($1=="busy" ? GR : GO)))
-      printf "row%s%s%s%s%s%s%s%s\n", US, $1, US, $2, US, (NF>=3 ? $3 : ""), US, glyph }')
+      printf "row%s%s%s%s%s%s%s%s%s\n", US, $1, US, $2, US, (NF>=3 ? $3 : ""), US, glyph, US }')
   count=$(printf '%s' "$rows" | grep -c '^row' 2>/dev/null || true)
   count=${count:-0}
   {
@@ -912,7 +937,7 @@ popup_rows() {
         --label "$title" --count "${count:-0}"
 
       local rows_drawn=0
-      while IFS=$'\037' read -r kind sev text url glyph; do
+      while IFS=$'\037' read -r kind sev text url glyph fix; do
         [ "$kind" = row ] || continue
         rows_drawn=$((rows_drawn + 1))
         # A row with a URL opens it and closes the popup; one without just
@@ -924,6 +949,32 @@ popup_rows() {
           popup_row --icon "$glyph" --tone "$(sev_tone "$sev")" --label "$text" --open "$url"
         else
           popup_row --icon "$glyph" --tone "$(sev_tone "$sev")" --label "$text"
+        fi
+
+        # ── the "Fix with AI" rows ───────────────────────────────────────────
+        # Drawn under exactly the rows a fix lane can take on, and nothing
+        # else — a button on a green row is a button nobody learns to trust.
+        # The cache's fix target must be non-empty (a PR number, or a ci
+        # row's branch), the fixer must exist (BAR_GITHUB_FIX is empty when
+        # the AI room contributed nothing), and the verdict must be one of
+        # the two kinds of broken an agent lane can actually pick up: red
+        # checks (a PR's own, or a ci row's default branch) or merge
+        # conflicts. "Changes requested" is a human's turn, not an agent's.
+        # The command backgrounds inside haus-fix-github itself (a bar click
+        # must never wait on a spawn), so the click is dismiss-and-done.
+        local fix_verdict=""
+        if [ -n "${fix:-}" ] && [ -n "${BAR_GITHUB_FIX:-}" ]; then
+          if [ "$sev" = bad ]; then
+            fix_verdict="ci"
+          elif [ "$glyph" = "$G_CONFLICT" ]; then
+            fix_verdict="conflicts"
+          elif [ "$glyph" = "$G_FAILED" ]; then
+            fix_verdict="checks-red"
+          fi
+        fi
+        if [ -n "$fix_verdict" ]; then
+          popup_action --icon "$BOT" --tone action --label "Fix with AI" \
+            --run "$BAR_GITHUB_FIX $(_barlib_shq "$fix") $(_barlib_shq "$fix_verdict") $(_barlib_shq "$url")"
         fi
       done < "$STATE/src-$s.tsv"
 

@@ -65,6 +65,21 @@ let
       (builtins.readFile ./fix.sh)
   );
 
+  # `haus-fix-github` — the binary behind the github pill's "Fix with AI"
+  # rows (modules/bar/sketchybar/plugins/github.sh passes it a row's failure
+  # verbatim). Same room, same reason haus-fix lives here: the bar must not
+  # read `config.haus.ai.*`, so the whole gate is `command -v haus-fix-github`
+  # — which is exactly what the bar's BAR_GITHUB_FIX names, and only when the
+  # room wrote `_contrib.bar.fix-agent` underneath it. It spawns a lane via
+  # scruff, so it also needs the repo roots the pounce daemon reads from its
+  # launchd environment — a bar plugin has none, hence the substitution.
+  hausFixGithub = pkgs.writeShellScriptBin "haus-fix-github" (
+    builtins.replaceStrings
+      [ "@repoRoots@" ]
+      [ (lib.escapeShellArg (lib.concatStringsSep ":" cfg.repoRoots)) ]
+      (builtins.readFile ./fix-github.sh)
+  );
+
   # The pi release that first accepted `--`. Named once, read by the assertion
   # below and by nothing else; the pin that satisfies it is in that same file.
   piFloor = "0.84.3";
@@ -1088,6 +1103,11 @@ in
     # second copy would be a package this room does not need — and the rows are
     # drawn by `haus`, not by anything this room installs.
     ++ lib.optional (lib.elem cfg.default clients) hausFix
+    # `haus-fix-github` — see its header and hausFix's gate above: the same
+    # "the default client must actually be installed" question, because a
+    # button whose spawn opens a dead pane is the dead-pane failure with a
+    # bar row in front of it instead of a palette behind it.
+    ++ lib.optional (lib.elem cfg.default clients) hausFixGithub
   );
 
   # What this room ships into home: per-client instructions and skill files,
@@ -1117,6 +1137,13 @@ in
     # Bar — the `agents` pill. Still opt-in per host (`haus.bar.items.agents`);
     # this only says whether anything on this machine writes pane state for it.
     bar.agents.enable = reportable;
+
+    # Bar — the github pill's "Fix with AI" rows. Gated on the SAME condition
+    # hausFixGithub's install uses (default client present), not just on the
+    # room: enable without the bin would draw buttons that run a missing
+    # binary, and bin without enable is the seam's normal direction (the
+    # receiver draws what it finds).
+    bar.fix-agent.enable = cfg.enable && lib.elem cfg.default clients;
 
     # Launcher — Spawn Agent, and the Agent Worktrees cards on the Tips page.
     launcher.agents = {
