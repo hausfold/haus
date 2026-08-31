@@ -299,34 +299,44 @@ let
     no image on disk), say so in one line and hand the feel-test back rather
     than falling through to the pointer.
 
-    ${lib.optionalString (client == "claude") ''
-      `agent-desktop-guard` backs this up on Claude Code panes: a PreToolUse
-      hook that re-opens the permission prompt before a call that would move the
-      pointer, take focus or redraw the desktop — those panes otherwise run in
-      permission mode `auto`. It refuses nothing, and `HAUS_DESKTOP_OK=1` in a
-      pane's environment turns it off for a long unattended run. It is a
-      backstop, not permission to skip the above: a prompt you triggered is
-      still an interruption.
-    ''}${lib.optionalString (client == "pi") ''
-      `agent-desktop-guard` backs this up on pi panes, reached from `tool_call`
-      by the `haus-desktop-guard` extension: the same ruleset Claude Code's
-      panes run behind, in front of a bash command that would move the pointer,
-      take focus or redraw the desktop. pi has no permission prompt of its own,
-      so the question goes up as a `trill ask` with Allow/Deny pills AND as a
-      dialog in this pane at once — whichever is answered first decides, and an
-      unanswered banner parks on the screen edge rather than dropping. The only
-      thing it refuses outright is a call it has nowhere to ask about (a
-      `pi -p` on a machine with no trill), and `HAUS_DESKTOP_OK=1` in a pane's
-      environment turns it off for a long unattended run. It is a backstop, not
-      permission to skip the above: a question you triggered is still an
-      interruption.
-    ''}${lib.optionalString (client == "claude" || client == "pi") ''
+    ${
+      lib.optionalString (client == "claude") ''
+        `agent-desktop-guard` backs this up on Claude Code panes, wired as the
+        `agent-desktop-ask` PreToolUse hook: it raises a question before a call
+        that would move the pointer, take focus or redraw the desktop — those
+        panes otherwise run in permission mode `auto`. Where the question goes
+        depends on where the user is: with the pane's window focused it re-opens
+        the permission prompt in the pane, and from anywhere else it goes up as
+        a `trill ask` with Allow/Deny pills, answerable in one click, falling
+        back to the pane prompt and its parked fin if nobody answers. It refuses
+        nothing on its own, and `HAUS_DESKTOP_OK=1` in a pane's environment
+        turns it off for a long unattended run. It is a backstop, not permission
+        to skip the above: a question you triggered is still an interruption.
+      ''
+    }${
+      lib.optionalString (client == "pi") ''
+        `agent-desktop-guard` backs this up on pi panes, reached from `tool_call`
+        by the `haus-desktop-guard` extension: the same ruleset Claude Code's
+        panes run behind, in front of a bash command that would move the pointer,
+        take focus or redraw the desktop. pi has no permission prompt of its own,
+        so the question goes up as a `trill ask` with Allow/Deny pills AND as a
+        dialog in this pane at once — whichever is answered first decides, and an
+        unanswered banner parks on the screen edge rather than dropping. The only
+        thing it refuses outright is a call it has nowhere to ask about (a
+        `pi -p` on a machine with no trill), and `HAUS_DESKTOP_OK=1` in a pane's
+        environment turns it off for a long unattended run. It is a backstop, not
+        permission to skip the above: a question you triggered is still an
+        interruption.
+      ''
+    }${
+      lib.optionalString (client == "claude" || client == "pi") ''
 
-      The line is THIS screen, not the command. Work you run over `ssh` on
-      another machine — a lane's own headless VM most of all — is never gated,
-      however loudly it redraws over there. Booting that VM with a window on
-      this display (`tart run` without `--no-graphics`) is.
-    ''}
+        The line is THIS screen, not the command. Work you run over `ssh` on
+        another machine — a lane's own headless VM most of all — is never gated,
+        however loudly it redraws over there. Booting that VM with a window on
+        this display (`tart run` without `--no-graphics`) is.
+      ''
+    }
 
     Full guide: https://hausfold.co/docs/haus/rooms/ai/
 
@@ -984,8 +994,7 @@ in
       # indented-string form and would land here as literal text. `:-` keeps a
       # caller's own value winning, which is what the suite overrides.
       (writeShellScriptBin "claude-statusline" (
-        "HAUS_UI_SH=\"\${HAUS_UI_SH:-${snug}/share/ui.sh}\"\n"
-        + builtins.readFile ./statusline.sh
+        "HAUS_UI_SH=\"\${HAUS_UI_SH:-${snug}/share/ui.sh}\"\n" + builtins.readFile ./statusline.sh
       ))
       (writeShellScriptBin "claude-statusline-refresh" (builtins.readFile ./statusline-refresh.sh))
 
@@ -1000,13 +1009,13 @@ in
       # `agent-state <working|waiting|idle|remove> <client>` instead.
       (writeShellScriptBin "agent-state" (builtins.readFile ../bar/sketchybar/plugins/agents-hook.sh))
 
-      # `agent-desktop-guard` — the PreToolUse hook terminal wires into
-      # ~/.claude/settings.json (terminal's claudeCodeSettings both declares the
-      # hook and sets the permission mode this counterweights). That mode is
+      # `agent-desktop-guard` — the one RULESET behind the desktop questions on
+      # every client (terminal's claudeCodeSettings sets the permission mode
+      # this counterweights). That mode is
       # "auto", which is right for files and wrong for the screen: an agent that
       # decides to foreground an app or click something just does it, mid-sentence,
-      # while you are typing into something else. The guard re-opens the permission
-      # prompt for exactly that slice — pointer/keyboard/focus/redraw — and returns
+      # while you are typing into something else. The guard raises the question
+      # for exactly that slice — pointer/keyboard/focus/redraw — and returns
       # no opinion on everything else, so auto-mode is intact everywhere it was
       # already fine. It never refuses anything; the only verdict it can return is
       # "ask". It reads the target, not the text: a segment that runs over ssh on
@@ -1017,15 +1026,30 @@ in
       # test/desktop-guard.bats pins both sides of the line; details in the
       # script's header.
       #
-      # TWO clients read this one binary. pi reaches it from `tool_call`
-      # (terminal's `haus-desktop-guard.ts`), handing it the same hook-shaped
-      # JSON Claude Code's hook does and reading the same verdict back, so the
-      # line lives in one file and one bats suite for both. What differs is only
-      # where the question is put: Claude re-opens its own prompt in the pane, pi
-      # has no prompt to re-open and raises a `trill ask` beside its in-pane
-      # dialog. Anything that changes this script's stdin or stdout contract
-      # moves both — the extension parses `permissionDecision` by name.
+      # TWO clients read this one binary, and NEITHER wires it directly any
+      # more. pi reaches it from `tool_call` (terminal's
+      # `haus-desktop-guard.ts`); Claude Code reaches it through
+      # `agent-desktop-ask` below. Both hand it the same hook-shaped JSON and
+      # read the same verdict back, so the line lives in one file and one bats
+      # suite for both — what differs is only where the question is put.
+      # Anything that changes this script's stdin or stdout contract moves
+      # both — each caller parses `permissionDecision` by name.
       (writeShellScriptBin "agent-desktop-guard" (builtins.readFile ./desktop-guard.sh))
+
+      # `agent-desktop-ask` — the banner door on the guard above, and the hook
+      # terminal actually wires into ~/.claude/settings.json (PreToolUse,
+      # matching Bash and computer-use). The guard's one verdict re-opens the
+      # permission prompt IN THE PANE, which is right when you are sitting at
+      # it and wrong for a lane nobody is watching — pi's asker solved this
+      # first, and this is the same move for Claude Code: with the pane's
+      # window focused the "ask" passes through untouched, and from anywhere
+      # else the turn holds on a `trill ask` with Allow/Deny pills whose
+      # answer comes back as permissionDecision "allow"/"deny". An unanswered
+      # banner yields to the pane prompt before Claude Code's own hook
+      # timeout can kill the question — the fail direction is one extra
+      # prompt, never a silently-run call. test/desktop-ask.bats pins the
+      # doors; the header has the clock and the refusal wording rules.
+      (writeShellScriptBin "agent-desktop-ask" (builtins.readFile ./desktop-ask.sh))
 
       # `scruff-cache` — one warm copy of `scruff --json` for everything that reads
       # lanes. `scruff --json` self-heals on the way in and dumps `lsof` twice
