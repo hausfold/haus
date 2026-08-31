@@ -2261,7 +2261,15 @@ in
       # worktree events it is a general-purpose event that Claude, a plugin or you
       # may well have opinions on too, so the merge drops any stale copy of our own
       # handler by command path and re-appends one, leaving every other entry in
-      # place. It points at `agent-desktop-guard` (modules/ai), which re-asks
+      # place. The filter drops BOTH spellings of our own handler: the current
+      # one, and `agent-desktop-ask` — the name this hook wore before #596
+      # renamed it. A settings.json written while the old binary was live
+      # still carries the old path, and without it in the filter that stale
+      # entry survives every rebuild beside the fresh one — every Bash call
+      # asked twice, forever. Dropping a dead spelling is safe exactly because
+      # nothing re-inserts it: the append below is the only writer this filter
+      # feeds, and it writes the new name only. It points at
+      # `agent-desktop-guard` (modules/ai), which re-asks
       # before a tool call moves the pointer, takes focus or redraws the desktop —
       # the counterweight to the `defaultMode = "auto"` two lines below, which is
       # right for files and wrong for the screen. It refuses nothing.
@@ -2314,7 +2322,7 @@ in
             if [ -s "$settings" ]; then base="$settings"; else base="$tmp.base"; printf "{}" > "$base"; fi
             ${pkgs.jq}/bin/jq ".hooks.WorktreeCreate = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook create\"}]}]
               | .hooks.WorktreeRemove = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook remove\"}]}]
-              | .hooks.PreToolUse = (((.hooks.PreToolUse // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/agent-desktop-guard\") | not))) + [{matcher: \"Bash|mcp__computer-use__.*\", hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/agent-desktop-guard\"}]}])
+              | .hooks.PreToolUse = (((.hooks.PreToolUse // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/agent-desktop-guard\", \"/run/current-system/sw/bin/agent-desktop-ask\") | not))) + [{matcher: \"Bash|mcp__computer-use__.*\", hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/agent-desktop-guard\"}]}])
               | .hooks.Notification = (((.hooks.Notification // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
               | .hooks.Stop = (((.hooks.Stop // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
               | .hooks.UserPromptSubmit = (((.hooks.UserPromptSubmit // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
