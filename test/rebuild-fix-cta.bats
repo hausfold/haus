@@ -82,6 +82,8 @@ haus_sh() { # haus_sh <VAR=val…> <snippet>
     $snippet"
 }
 
+fail() { printf '%s\n' "$*" >&2; return 1; }   # not a bats builtin
+
 crumb() { sed -n "s/^$1=//p" "$CRUMB"; }
 
 # The holder is detached, so nothing about it is synchronous. Poll rather than
@@ -91,6 +93,15 @@ wait_for() { # wait_for <path> [tries]
   local i
   for ((i = 0; i < ${2:-40}; i++)); do
     [ -e "$1" ] && return 0
+    sleep 0.1
+  done
+  return 1
+}
+
+wait_gone() { # wait_gone <pid> [tries] — polled, because the holder exits only
+  local i    # once the ask it INTed has actually gone, which is a round trip
+  for ((i = 0; i < ${2:-40}; i++)); do
+    kill -0 "$1" 2>/dev/null || return 0
     sleep 0.1
   done
   return 1
@@ -228,11 +239,14 @@ STUB
   [ "$((t1 - t0))" -lt 5 ]
 }
 
-@test "a second failure reaps the holder waiting on the first" {
+@test "a second failure supersedes the first, before its ask goes up" {
+  # 75 is trill's "nobody answered", so the stub retracts quickly and no fix
+  # runs on either holder — what is under test is the ordering, not the pill.
   cat >"$BATS_TEST_TMPDIR/bin/trill" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$ASKED"
-sleep 30
+sleep 0.3
+exit 75
 STUB
   chmod +x "$BATS_TEST_TMPDIR/bin/trill"
   haus_sh 'fault_cta resolve'
@@ -240,13 +254,82 @@ STUB
   local first
   first="$(cat "$STATE/fault-holder.pid")"
   haus_sh 'fault_cta build'
-  # Reaped BEFORE the second ask goes up: the old holder retracts on its way
-  # out, and a retraction landing after the new ask would take the new fin.
-  run kill -0 "$first"
-  [ "$status" -ne 0 ]
   local second
   second="$(cat "$STATE/fault-holder.pid")"
   [ "$second" != "$first" ]
+  # Gone before the second ask went up. The old holder retracts on its way out
+  # and both asks carry ONE key, so a retraction landing late would take the
+  # NEW fin down — which is silent, and leaves the second failure with no offer.
+  wait_gone "$first" 10 || fail "the superseded holder is still up"
+  run grep -c -- '--key haus-rebuild-fault' "$ASKED"
+  [ "$output" = 2 ]
+  sleep 0.5
+  [ ! -e "$FIXED" ]
+}
+
+@test "a reaped holder waits for its own ask to go, rather than exiting on the signal" {
+  # The regression this pins is a one-character one. `wait "$child"; rc=$?`
+  # under `set -e` exits the subshell the instant the relayed TERM lands —
+  # measured — which skips the reap and leaves the retraction in flight while
+  # the next ask, under the same key, is already going up. So: TERM the holder
+  # and it must still be there, waiting on the child it just interrupted.
+  cat >"$BATS_TEST_TMPDIR/bin/trill" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$ASKED"
+sleep 5
+STUB
+  chmod +x "$BATS_TEST_TMPDIR/bin/trill"
+  haus_sh 'fault_cta resolve'
+  wait_for "$STATE/fault-holder.pid" || fail "no holder recorded"
+  local pid
+  pid="$(cat "$STATE/fault-holder.pid")"
+  wait_for "$ASKED" || fail "no ask was put up"
+  kill -TERM "$pid"
+  sleep 0.5
+  run kill -0 "$pid"
+  [ "$status" -eq 0 ]
+  # And it never treats a signalled wait as a pressed pill.
+  [ ! -e "$FIXED" ]
+  kill -KILL "$pid" 2>/dev/null || true
+}
+
+@test "a rebuild that succeeds ends the last failure's offer" {
+  # The crumb names a log `log_open` rotates every run, and the ask carries no
+  # timeout — so without this a fin can sit for days and then spawn an agent,
+  # unattended and with its gate open, at a config that is fine, holding a
+  # slice of a SUCCESSFUL rebuild's log as "what the failure said".
+  cat >"$BATS_TEST_TMPDIR/bin/trill" <<'STUB'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$ASKED"
+[ "${1:-}" = resolve ] && exit 0
+sleep 0.3
+exit 75
+STUB
+  chmod +x "$BATS_TEST_TMPDIR/bin/trill"
+  haus_sh 'fault_crumb resolve; fault_cta resolve'
+  wait_for "$STATE/fault-holder.pid" || fail "no holder recorded"
+  local pid
+  pid="$(cat "$STATE/fault-holder.pid")"
+  [ -e "$CRUMB" ] || fail "no crumb to clear"
+
+  haus_sh 'fault_clear'
+  [ "$status" -eq 0 ]
+  [ ! -e "$CRUMB" ]
+  wait_gone "$pid" || fail "the holder is still waiting on a fin for a rebuild that succeeded"
+  # The fin is taken down by KEY as well, for the holder that was already gone
+  # — killed -9, or a reboot — and only trill still remembers.
+  run grep -c 'resolve haus-rebuild-fault' "$ASKED"
+  [ "$output" = 1 ]
+}
+
+@test "no surface still says the offer exists" {
+  # A pipe, CI, a machine with banners off: there is still a fixer and still an
+  # undo, and silence here would make the feature undiscoverable on exactly the
+  # machines whose owner reads the transcript afterwards.
+  haus_sh HAUS_TRILL=/nowhere/at/all 'fault_cta resolve'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"haus fix"* ]]
+  [ ! -e "$ASKED" ]
 }
 
 @test "closing the window does not take the offer with it" {
@@ -285,12 +368,34 @@ DRIVE
 # Only the refusals: every one of them returns before any agent is spawned and
 # before nix is called, so they need nothing but bash and git.
 
-fixer() { # fixer <VAR=val…> — the substituted script, run against $STATE
+# The substituted script, with its PATH preamble stripped. That preamble
+# PREPENDS the system profile so a launchd-ish caller can find nix at all, which
+# also puts the real `nix` and the real `haus-notify` ahead of anything a test
+# can add — and two cases below turn on what `nix eval` answers. Same seam
+# phase-painter.bats documents for `snug`, cut one line higher up.
+build_fixer() {
   local sub="$BATS_TEST_TMPDIR/haus-fix"
   sed -e 's/@client@/stubagent/' -e 's/@oneshot@/stubagent --oneshot --/' \
+    -e '/^PATH="\/run\/current-system\/sw\/bin/d' -e '/^export PATH$/d' \
     "$FIXER" >"$sub"
   chmod +x "$sub"
+  printf '%s' "$sub"
+}
+
+fixer() { # fixer <VAR=val…> — the substituted script, run against $STATE
+  local sub
+  sub="$(build_fixer)"
   run env "$@" XDG_STATE_HOME="$BATS_TEST_TMPDIR/xdg" HAUS_NOTIFY=off "$sub"
+}
+
+fixer_args() { # fixer_args <arg…> <VAR=val…> — args first, env after
+  local sub a args=() envs=()
+  sub="$(build_fixer)"
+  for a in "$@"; do
+    case "$a" in *=*) envs+=("$a") ;; *) args+=("$a") ;; esac
+  done
+  run env "${envs[@]}" XDG_STATE_HOME="$BATS_TEST_TMPDIR/xdg" HAUS_NOTIFY=off \
+    "$sub" ${args[@]+"${args[@]}"}
 }
 
 write_crumb() { # write_crumb <consumer>
@@ -342,6 +447,89 @@ STUB
   fixer PATH="$BATS_TEST_TMPDIR/bin2:$PATH"
   [ "$status" -eq 2 ]
   [[ "$output" == *"already running"* ]]
+}
+
+@test "haus-fix refuses a stale resolve crumb rather than spawning at a healthy config" {
+  # A fin answered days later, or `haus fix` typed from memory. The agent would
+  # run unattended, gate open, holding some other rebuild's log as the error.
+  write_crumb "$HAUS_CONSUMER"
+  mkdir -p "$BATS_TEST_TMPDIR/bin2"
+  cat >"$BATS_TEST_TMPDIR/bin2/stubagent" <<STUB
+#!/usr/bin/env bash
+touch "$BATS_TEST_TMPDIR/agent-ran"
+STUB
+  # a nix whose eval SUCCEEDS — i.e. the config is fine now
+  cat >"$BATS_TEST_TMPDIR/bin2/nix" <<'STUB'
+#!/usr/bin/env bash
+exit 0
+STUB
+  chmod +x "$BATS_TEST_TMPDIR/bin2/stubagent" "$BATS_TEST_TMPDIR/bin2/nix"
+  fixer_args PATH="$BATS_TEST_TMPDIR/bin2:$PATH"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"that failure is over"* ]]
+  [ ! -e "$BATS_TEST_TMPDIR/agent-ran" ]
+}
+
+@test "haus-fix does NOT ask that of a build failure, which evaluates by definition" {
+  mkdir -p "$BATS_TEST_TMPDIR/xdg/haus"
+  cat >"$BATS_TEST_TMPDIR/xdg/haus/last-failure" <<EOF
+class=build
+host=mbp
+consumer=$HAUS_CONSUMER
+log=$STATE/rebuild.log
+offset=0
+drv=/nix/store/deadbeef.drv
+gen=418
+when=2026-08-31 14:02:11
+EOF
+  mkdir -p "$BATS_TEST_TMPDIR/bin2"
+  cat >"$BATS_TEST_TMPDIR/bin2/stubagent" <<STUB
+#!/usr/bin/env bash
+touch "$BATS_TEST_TMPDIR/agent-ran"
+STUB
+  cat >"$BATS_TEST_TMPDIR/bin2/nix" <<'STUB'
+#!/usr/bin/env bash
+exit 0
+STUB
+  chmod +x "$BATS_TEST_TMPDIR/bin2/stubagent" "$BATS_TEST_TMPDIR/bin2/nix"
+  fixer_args PATH="$BATS_TEST_TMPDIR/bin2:$PATH"
+  [ -e "$BATS_TEST_TMPDIR/agent-ran" ]
+}
+
+@test "haus-fix refuses a flag it does not know" {
+  write_crumb "$HAUS_CONSUMER"
+  fixer_args --yolo
+  [ "$status" -eq 64 ]
+  [[ "$output" == *"usage: haus fix"* ]]
+}
+
+@test "haus-fix --dry-run runs no build either, on the class that would need one" {
+  # The build phase keeps the terminal, so its error is re-derived with a real
+  # `nix build` — minutes of it. "Print the prompt, run nothing" has to mean
+  # that one too, and the prompt names the command instead.
+  mkdir -p "$BATS_TEST_TMPDIR/xdg/haus"
+  cat >"$BATS_TEST_TMPDIR/xdg/haus/last-failure" <<EOF
+class=build
+host=mbp
+consumer=$HAUS_CONSUMER
+log=$STATE/rebuild.log
+offset=0
+drv=/nix/store/deadbeef.drv
+gen=418
+when=2026-08-31 14:02:11
+EOF
+  mkdir -p "$BATS_TEST_TMPDIR/bin2"
+  for stub in stubagent nix; do
+    cat >"$BATS_TEST_TMPDIR/bin2/$stub" <<STUB
+#!/usr/bin/env bash
+touch "$BATS_TEST_TMPDIR/ran-$stub"
+STUB
+    chmod +x "$BATS_TEST_TMPDIR/bin2/$stub"
+  done
+  fixer_args --dry-run PATH="$BATS_TEST_TMPDIR/bin2:$PATH"
+  [ "$status" -eq 0 ]
+  [ ! -e "$BATS_TEST_TMPDIR/ran-stubagent" ]
+  [[ "$output" == *"nix build -L /nix/store/deadbeef.drv"* ]]
 }
 
 @test "haus-fix --dry-run prints the prompt and spawns nothing" {

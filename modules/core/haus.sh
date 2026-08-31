@@ -2148,11 +2148,17 @@ fault_holder() { # fault_holder <class>
   # SIGINT is what retracts an ask (trill's rule: a question with nobody behind
   # it comes down), and TERM is what the NEXT failure sends this process.
   trap 'kill -INT "$child" 2>/dev/null' TERM INT
-  wait "$child"; rc=$?
+  # `|| rc=$?`, NEVER `wait "$child"; rc=$?` — this file runs under `set -e`,
+  # and a relayed TERM makes `wait` return 143, which under errexit exits this
+  # subshell before the assignment. Measured: the line after it is not reached.
+  # That silently skipped the reap below, which is the whole ordering
+  # `fault_hold` waits on.
+  rc=0; wait "$child" || rc=$?
   trap - TERM INT
   # Reaped, not just signalled: a relayed INT leaves `wait` returning 143 with
-  # the child still winding down, and this process is about to exit.
-  wait "$child" 2>/dev/null
+  # the child still winding down, and the retraction it is winding down INTO is
+  # what must land before the next failure's ask goes up.
+  wait "$child" 2>/dev/null || true
   # 0 is the first (and only) pill. Everything else — dismissed, daemon gone,
   # 75 nobody answered — means no.
   [ "$rc" = 0 ] || return 0
@@ -2160,29 +2166,55 @@ fault_holder() { # fault_holder <class>
   return 0
 }
 
-# One holder at a time. The previous one is waiting on a fin that points at a
-# breadcrumb this failure has just overwritten, so it is answering the wrong
-# question; TERM makes it retract its own ask on the way out.
-fault_hold() {
+# Take down whatever holder the LAST failure left, and the fin it is holding up.
+# TERM is what makes it retract its own ask on the way out (its trap relays the
+# INT trill retracts on), and it is WAITED for, briefly: a retraction that
+# landed after the next ask went up would take the NEW fin down with it, since
+# both carry `haus-rebuild-fault`. Bounded, because every caller is on an exit
+# path and a holder that will not go is not worth standing here for — trill's
+# own same-key replacement is the backstop if the race is lost anyway.
+# Named once, as a function rather than a global, because HAUS_LOG_DIR is read
+# from the environment and both callers run long after load.
+fault_pidfile() { printf '%s' "$HAUS_LOG_DIR/fault-holder.pid"; }
+
+fault_holder_stop() {
   local pidfile old
-  pidfile="$HAUS_LOG_DIR/fault-holder.pid"
+  pidfile="$(fault_pidfile)"
   old="$(cat "$pidfile" 2>/dev/null || true)"
+  rm -f "$pidfile" 2>/dev/null || true
   case "$old" in
-    '' | *[!0-9]*) ;;
-    *)
-      kill -TERM "$old" 2>/dev/null || true
-      # WAITED for, briefly, and this is the ordering that matters: the old
-      # holder retracts its ask on the way out, and a retraction that landed
-      # after the new ask below could take the NEW fin down with it. Bounded,
-      # because this is a rebuild's exit path and a holder that will not go is
-      # not worth standing here for — trill's own same-key replacement is the
-      # backstop if we lose the race anyway.
-      for _ in 1 2 3 4 5 6 7 8 9 10; do
-        kill -0 "$old" 2>/dev/null || break
-        sleep 0.05
-      done
-      ;;
+    '' | *[!0-9]*) return 0 ;;
   esac
+  kill -TERM "$old" 2>/dev/null || true
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    kill -0 "$old" 2>/dev/null || break
+    sleep 0.05
+  done
+  return 0
+}
+
+# A rebuild that SUCCEEDS ends the last one's offer, and this is not tidiness.
+# The breadcrumb names a log `log_open` rotates on every rebuild, so one more
+# run makes its offset point into a different rebuild's output — and the ask
+# carries no timeout by design, so a fin can sit on the ledge for days. Pressing
+# a stale one would spawn an agent, unattended and with its permission gate
+# open, at a config that is fine, holding a slice of a SUCCESSFUL rebuild's log
+# as "what the failure said". So: the crumb goes, the holder goes, and the fin
+# is resolved by key for the case where the holder was already gone (killed -9,
+# a reboot) and only trill still remembers.
+fault_clear() {
+  local bin
+  fault_holder_stop
+  rm -f "$HAUS_LOG_DIR/last-failure" 2>/dev/null || true
+  bin="$(trill_bin)" || return 0
+  "$bin" resolve haus-rebuild-fault >/dev/null 2>&1 || true
+  return 0
+}
+
+fault_hold() {
+  local pidfile
+  pidfile="$(fault_pidfile)"
+  fault_holder_stop
   # The detach, in one line of subshell: no HUP when the window closes, none of
   # the rebuild's traps (the inherited EXIT one would fire card_stop in here),
   # no copy of snug's write end (snug_close waits for EOF on it), and no fd on
@@ -2207,6 +2239,11 @@ fault_cta() { # fault_cta <class> — the offer, on whichever surface fits
   case "$(fault_surface)" in
     pane)   fault_rows ;;
     banner) fault_hold "$1" ;;
+    # No surface — a pipe, CI, a machine with banners off. There is still a
+    # fixer and still an undo, so the offer is worth ONE line rather than
+    # nothing: silence here would make the whole feature undiscoverable on
+    # exactly the machines whose owner reads the transcript later.
+    *)      hint "or hand it to an agent: haus fix" ;;
   esac
   return 0
 }
@@ -2364,6 +2401,10 @@ cmd_rebuild() {
   gen_now="$(current_gen || echo '?')"
   card 100 "done" "$([ "$gen_before" = "$gen_now" ] && echo "generation $gen_now" \
     || echo "generation $gen_before → $gen_now")"
+  # This machine builds again, so the last failure's offer is over: the crumb it
+  # left points into a log this run has already rotated, and the fin holding it
+  # up would spawn an agent at a config that is fine. See fault_clear.
+  fault_clear
   # Done with the card. Release the handlers, or a ⌃C through the tail of this
   # function replaces the ending with "cancelled" for a machine that already
   # switched.

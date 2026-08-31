@@ -22,13 +22,17 @@
 # is a `scruff` spec: the id is what `ai.default` is typed against, and a default
 # scruff can't spawn is the dead-pane failure `ai.clients` exists to end.
 #
-# And two tables in the AI room (modules/ai/default.nix) are keyed BY these ids
-# rather than derived from them,
-# because their values are per-client facts this list can't hold: `agentHomes`
-# (where that client keeps its instructions file and its skills dir) and
-# `clientScopeNote` (which of its own files the rice does NOT own). A client
-# added here and not there fails the eval with `attribute '<id>' missing`, which
-# names neither file — so add all four in one go.
+# And three more tables are keyed BY these ids rather than derived from them,
+# because their values are per-client facts this list can't hold. Two are in the
+# AI room (modules/ai/default.nix): `agentHomes` (where that client keeps its
+# instructions file and its skills dir) and `clientScopeNote` (which of its own
+# files the rice does NOT own). The third is modules/lib/agent-oneshot.nix — how
+# to run that client for ONE headless turn, which is what `haus fix` needs.
+#
+# The oneshot table CHECKS ITSELF against this file and throws by name; the two
+# in the AI room fail the eval with `attribute '<id>' missing`, which names
+# neither file. So a new client is five edits in one go: here, agent-packages,
+# agent-oneshot, and the AI room's two.
 [
   "claude"
   "codex"

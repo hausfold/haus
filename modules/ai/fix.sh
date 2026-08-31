@@ -48,7 +48,10 @@
 #
 # ── contract ────────────────────────────────────────────────────────────────
 #   haus-fix           fix the failure the breadcrumb names
-#   haus-fix --dry-run print the prompt that would be sent, run no agent
+#   haus-fix --dry-run print the prompt that would be sent, run no agent — and
+#                      nothing else either: for a build-class failure the real
+#                      run re-derives the error with `nix build`, and a dry run
+#                      names that command rather than running it
 #
 # Exit 0 when the config evaluates afterwards, 1 when it does not, 2 when there
 # was nothing to fix or nothing to fix it with. Every path ends on a banner.
@@ -72,7 +75,20 @@ FIXLOG="$STATE/fix.log"
 LOCK="$STATE/fix.lock"
 
 DRY=""
-[ "${1:-}" = "--dry-run" ] && DRY=1
+case "${1:-}" in
+  "") ;;
+  --dry-run) DRY=1 ;;
+  # Refused rather than ignored: this is the one command on the machine that
+  # spawns an agent with its permission gate open, and a flag it silently drops
+  # is a person who thinks they asked for something safer than what runs.
+  *)
+    printf 'usage: haus fix [--dry-run]
+' >&2
+    exit 64
+    ;;
+esac
+[ "$#" -le 1 ] || { printf 'usage: haus fix [--dry-run]
+' >&2; exit 64; }
 
 # A banner, never a terminal line — this is usually spawned from a trill pill
 # with no terminal at all. `haus-notify` picks trill or Apple's banner at
@@ -83,7 +99,9 @@ banner() { # banner <kind> <title> [body]
     --source haus.rebuild.fix --symbol wrench.and.screwdriver >/dev/null 2>&1 || true
 }
 
-# Said on the terminal when there is one, and always written to the log.
+# Said on the terminal when there is one — and only then. On the banner path
+# both streams are /dev/null, which is the point: the transcript is $FIXLOG and
+# the verdict is the banner. Nothing here is load-bearing.
 note() { printf '%s\n' "$*" >&2; }
 
 die2() { note "haus fix: $*"; banner fault "haus fix" "$*"; exit 2; }
@@ -124,7 +142,12 @@ cd "$consumer" || die2 "cannot enter $consumer."
 # with yourself; `mkdir` is the atomic test-and-set every shell has.
 if [ -z "$DRY" ]; then
   mkdir "$LOCK" 2>/dev/null || die2 "a fix is already running (remove $LOCK if it is not)."
+  # INT/TERM/HUP as well as EXIT: the holder that started this can be reaped by
+  # the NEXT failed rebuild, and an EXIT-only trap would leave the directory
+  # behind — after which every later `haus fix` answers "already running" and
+  # the button is dead until someone reads this file to find out why.
   trap 'rmdir "$LOCK" 2>/dev/null || true' EXIT
+  trap 'rmdir "$LOCK" 2>/dev/null || true; exit 130' INT TERM HUP
 fi
 
 # ---- the evidence -----------------------------------------------------------
@@ -140,6 +163,13 @@ phase_slice() { # what the failing phase said, from the log run_phase wrote
 
 build_slice() { # the build phase kept the terminal, so re-derive its error
   [ -n "$drv" ] || return 0
+  # `--dry-run` means run nothing, and re-deriving the error IS running
+  # something — minutes of it, on the one class where the evidence is not
+  # already on disk. Say what would happen instead.
+  [ -n "$DRY" ] && {
+    printf '(--dry-run: the real run re-derives this with `nix build -L %s^*`)\n' "$drv"
+    return 0
+  }
   note "re-running the build to capture its error (everything before the failure is already in the store)…"
   nix build -L --no-link "$drv^*" 2>&1 | tail -n 250 | clip
 }
@@ -240,6 +270,24 @@ if [ -n "$DRY" ]; then
   exit 0
 fi
 
+# ---- is this failure still real? --------------------------------------------
+# A breadcrumb outlives the failure that wrote it. `haus rebuild` clears it on
+# success and takes the fin down with it (modules/core/haus.sh's `fault_clear`),
+# but that only covers the machine that rebuilt: a fin answered days later, or a
+# `haus fix` typed from memory, can still arrive at a config somebody already
+# fixed by hand. Spawning an agent there is not a no-op — it is an unattended
+# turn with its permission gate open, holding a slice of some other rebuild's
+# log as "what the failure said".
+#
+# So for the one class where the question is cheap and exact, ask it: an
+# evaluation failure that now evaluates is over. Deliberately NOT asked for the
+# other two — a build or an activation failure evaluates perfectly well, and
+# refusing on that would refuse every real one.
+if [ "$class" = resolve ] \
+  && nix eval --raw "$consumer#darwinConfigurations.$host.system.drvPath" >/dev/null 2>&1; then
+  die2 "that failure is over — $consumer evaluates again. Nothing was run."
+fi
+
 # ---- run it -----------------------------------------------------------------
 mkdir -p "$STATE"
 [ -f "$FIXLOG" ] && mv -f "$FIXLOG" "$FIXLOG.prev" 2>/dev/null
@@ -294,11 +342,20 @@ if [ -n "$evals" ] && [ -n "$committed" ]; then
 fi
 
 if [ -n "$evals" ]; then
-  # Evaluates, but nothing was committed: either it was already fine or the
-  # agent decided against a change. Either way there is nothing to apply and
-  # saying "fixed" would be a lie.
-  banner note "haus fix · nothing changed" "the config evaluates and $CLIENT committed nothing — see $FIXLOG"
-  note "nothing changed — see $FIXLOG"
+  # Evaluates, but nothing was COMMITTED. Two very different situations, and
+  # they must not read alike: an untouched tree means the config was already
+  # fine or the agent decided against a change, while a dirty one means the fix
+  # may well be sitting there unsaved — which `git revert` cannot undo and a
+  # "nothing changed" banner would send you right past.
+  if [ -n "$dirty" ]; then
+    banner note "haus fix · uncommitted" \
+      "$CLIENT left changes in $consumer without committing them — the config evaluates. Read them before \`haus rebuild\`; see $FIXLOG"
+    note "uncommitted changes left in $consumer — see $FIXLOG"
+  else
+    banner note "haus fix · nothing changed" \
+      "the config evaluates and $CLIENT committed nothing — see $FIXLOG"
+    note "nothing changed — see $FIXLOG"
+  fi
   exit 0
 fi
 

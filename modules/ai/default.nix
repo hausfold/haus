@@ -1085,23 +1085,28 @@ in
       # bar is off. Its header has the numbers.
       (writeShellScriptBin "scruff-cache" (builtins.readFile ./scruff-cache.sh))
 
-      # `haus-fix` — "Fix it with AI" for a rebuild that just failed. haus.sh
-      # writes a breadcrumb and puts the CTA up; this is what the pill runs.
-      # See its header for the boundary (the cwd plus one git commit, undone
-      # with `git -C ~/.config/nix revert HEAD`) and modules/lib/agent-oneshot.nix
-      # for the argv it runs `${cfg.default}` with.
-      hausFix
-
-      # `gum` — the CTA's IN-PANE surface. The banner half needs nothing
-      # installed (trill is found at runtime, or there is no banner), but a
-      # person sitting at the pane that just failed should be answering rows
-      # where they already are rather than reaching for the mouse. It arrives
-      # with `haus-fix` rather than from core because it is only ever drawn
-      # beside it — `rebuild_failed` degrades to a plain `hint` line when
-      # either is missing, so a machine with the AI room off loses the picker
-      # and keeps the message.
-      gum
     ]
+    # `haus-fix` — "Fix it with AI" for a rebuild that just failed. haus.sh
+    # writes a breadcrumb and puts the CTA up; this is what the pill runs. See
+    # its header for the boundary (the cwd plus one git commit, undone with
+    # `git -C ~/.config/nix revert HEAD`) and modules/lib/agent-oneshot.nix for
+    # the argv it runs a client with.
+    #
+    # Gated on the DEFAULT CLIENT being installed, not on the room, and that is
+    # the same failure the assertion above exists to end one layer up:
+    # `ai.clients = [ ]` with the room on is a legal machine, and there
+    # `command -v haus-fix` would succeed, the offer would be drawn, and
+    # pressing it would answer "claude is not on PATH". core's whole test is
+    # that `command -v`, so a fixer that cannot fix must not be ON the PATH to
+    # find — the alternative is a refusal you only discover by pressing the
+    # button, which is exactly what the duplicated git gate in haus.sh exists
+    # to avoid.
+    #
+    # `gum`, the CTA's in-pane surface, is deliberately NOT here: modules/core
+    # already suffixes it onto `haus`'s own PATH for `haus set`'s picker, so a
+    # second copy would be a package this room does not need — and the rows are
+    # drawn by `haus`, not by anything this room installs.
+    ++ lib.optional (lib.elem cfg.default clients) hausFix
   );
 
   # What this room ships into home: per-client instructions and skill files,
