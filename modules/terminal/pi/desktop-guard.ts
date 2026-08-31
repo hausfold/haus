@@ -81,11 +81,15 @@
  * carries the why and one instruction — stop, hand it back — and the env var
  * lives in this header, where a human reads it.
  *
- * The wrapper in that rewrite is worth knowing about on its own: the shared
- * ruleset anchors its patterns per segment (`^ *open …`), so `bash -c 'open …'`
- * is not matched. That is a property of the ruleset, true on the Claude side
- * too, and a backstop for accidents was never a jail — but the message above is
- * what keeps an accident from being turned into an evasion on purpose.
+ * The wrapper in that rewrite was worth knowing about on its own, and it is
+ * what the shared ruleset now peels: the patterns anchor per segment
+ * (`^ *open …`), and `bash -c 'open …'` moved the anchor out from under them,
+ * so the evasion worked — on the Claude side too, where nothing blocks and it
+ * would simply have gone unasked. Closed for both clients at once, in the one
+ * place (desktop-guard.sh's "a wrapper is not a hiding place" pass). The
+ * message above is still what keeps the NEXT accident from being turned into
+ * an evasion on purpose: a backstop that has to out-guess the thing it guards
+ * has already lost, and it was never a jail.
  *
  * ── the one case that refuses ───────────────────────────────────────────────
  * Nothing here is a blocklist: every verdict is a question, and every question

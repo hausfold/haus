@@ -223,6 +223,77 @@ fi
 # Every segment ran elsewhere: there is nothing here to have an opinion about.
 [ -n "$cmd" ] || exit 0
 
+# ---- a wrapper is not a hiding place ---------------------------------------
+# The rules below anchor to the start of a segment, deliberately: an unanchored
+# `open` fires on `open the door` in a heredoc body, and a guard that nags on
+# prose is one that gets clicked through. But an anchor is only as good as its
+# idea of where a command STARTS, and a wrapper moves it — `bash -c 'killall
+# Dock'`, `sudo killall WindowServer`, `nohup open -a Ghostty &`. Not one of
+# those matched. #579 found the shape the hard way: handed a refusal that named
+# HAUS_DESKTOP_OK, pi re-issued the call as `HAUS_DESKTOP_OK=1 bash -c '<the
+# same command>'` — and the wrapper half of that would have worked on its own.
+#
+# So: peel the wrappers off each segment and APPEND what was hiding under them.
+# Appending rather than rewriting is what makes this safe to reason about — a
+# peel that guesses wrong can only add a prompt, never take one away, and one
+# pattern below (`BENCH_AGENT_SWITCH=… try … switch`) is a shape whose env
+# prefix IS the match. It is prefix-shaped and stops at the first token it
+# cannot name, so a wrapper flag carrying a VALUE (`sudo -u admin killall …`)
+# ends the walk and stays exactly as quiet as it is today. `command` and
+# `builtin` are deliberately NOT in the list: they prefix nothing an agent
+# could not have typed bare, and `command -v screencapture && …` — the
+# is-it-here idiom this repo is built out of — would have started prompting.
+#
+# The split here is naive where the ssh filter above is quote-aware, and that
+# is the right trade in this direction: every rule below already treats `;&|`
+# as a boundary, so a separator inside a quoted argument splits a segment that
+# then matches neither half — nothing lost. The filter above had to DROP text,
+# where a wrong split is a gate that silently stopped firing.
+#
+# One shape left alone on purpose: an ssh INSIDE a wrapper (`bash -c 'ssh vm
+# "sketchybar --reload x"'`) reads as local, because the filter above
+# classifies on a masked copy where that payload is already `_`s. It asks today
+# for the same reason, and one extra prompt is the direction to fail in.
+if unwrapped=$(printf '%s\n' "$cmd" | awk '
+    function unwrap(s,   before, k) {
+      # BOUNDED, and the bound is the point: every sub() below rescans what is
+      # left, so an unbounded walk is O(n²) in the number of prefixes and BWK
+      # awk — the one a Mac ships, and the one this runs under — takes 38 s
+      # over `sudo ` twenty thousand times.
+      # A PreToolUse hook holds the tool call while it thinks, so that is a
+      # dead turn. Nothing real stacks two dozen wrappers; past the bound the
+      # rest stays wrapped, which is the same direction as stopping at a token
+      # it cannot name.
+      for (k = 0; k < 24; k++) {
+        before = s
+        sub(/^[[:space:]]+/, "", s)
+        sub(/^[({][[:space:]]*/, "", s)                     # a subshell is not a hiding place either
+        sub(/^[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+/, "", s)
+        sub(/^([^[:space:]]*\/)?(sudo|doas|env|nohup|exec|time|nice|arch|xargs|caffeinate)([[:space:]]+-[-A-Za-z0-9]+)*[[:space:]]+/, "", s)
+        # Long flags and short ones are separate alternatives because the short
+        # class has to exclude `c` (so `-lc` is left for the terminator below),
+        # and one class for both would exclude `--norc` with it.
+        if (sub(/^([^[:space:]]*\/)?(ba|da|k|z|a|c|tc|fi)?sh([[:space:]]+(--[-A-Za-z0-9]+|-[-A-Za-bd-z0-9]+))*[[:space:]]+-[A-Za-z]*c[[:space:]]+/, "", s) ||
+            sub(/^eval[[:space:]]+/, "", s))
+          sub(/^["'"'"']/, "", s)   # the payload of a `-c` starts inside a quote
+        if (s == before) break
+      }
+      return s
+    }
+    {
+      n = split($0, seg, /[;&|]/)
+      for (i = 1; i <= n; i++) {
+        s = seg[i]
+        sub(/^[[:space:]]+/, "", s)
+        u = unwrap(s)
+        if (u != "" && u != s) print u
+      }
+    }
+  ' 2>/dev/null) && [ -n "$unwrapped" ]; then
+  cmd="$cmd
+$unwrapped"
+fi
+
 m() { printf '%s' "$cmd" | grep -Eq "$1"; }
 
 # Three of the rules below are PAIRS — a shape that asks, and a flag that
