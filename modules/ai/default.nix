@@ -42,6 +42,29 @@ let
   cfg = config.haus.ai;
   agentPackages = import ../lib/agent-packages.nix pkgs;
 
+  # How to run one client for ONE headless turn — the table `haus-fix` is built
+  # from. It checks itself against modules/lib/agents.nix on import, so a client
+  # added there and forgotten there throws with both file names rather than
+  # failing on whichever machine happened to default to it.
+  agentOneshot = import ../lib/agent-oneshot.nix;
+
+  # `haus-fix` — the binary behind the "Fix it" pill on a failed `haus rebuild`
+  # (modules/core/haus.sh's `rebuild_failed`), and behind `haus fix`, which is
+  # one line of dispatch onto it. It lives HERE, in the room that owns coding
+  # agents, because core must not read `config.haus.ai.*` — so core's whole test
+  # is `command -v haus-fix`, and this room's own switch is what decides whether
+  # there is one to find. Two substitutions: which client, and the argv that
+  # runs it once with its permission gate open.
+  hausFix = pkgs.writeShellScriptBin "haus-fix" (
+    builtins.replaceStrings
+      [ "@client@" "@oneshot@" ]
+      [
+        cfg.default
+        (lib.escapeShellArgs agentOneshot.${cfg.default})
+      ]
+      (builtins.readFile ./fix.sh)
+  );
+
   # The pi release that first accepted `--`. Named once, read by the assertion
   # below and by nothing else; the pin that satisfies it is in that same file.
   piFloor = "0.84.3";
@@ -1061,7 +1084,29 @@ in
       # payload — and because the launcher's picker needs it on a machine whose
       # bar is off. Its header has the numbers.
       (writeShellScriptBin "scruff-cache" (builtins.readFile ./scruff-cache.sh))
+
     ]
+    # `haus-fix` — "Fix it with AI" for a rebuild that just failed. haus.sh
+    # writes a breadcrumb and puts the CTA up; this is what the pill runs. See
+    # its header for the boundary (the cwd plus one git commit, undone with
+    # `git -C ~/.config/nix revert HEAD`) and modules/lib/agent-oneshot.nix for
+    # the argv it runs a client with.
+    #
+    # Gated on the DEFAULT CLIENT being installed, not on the room, and that is
+    # the same failure the assertion above exists to end one layer up:
+    # `ai.clients = [ ]` with the room on is a legal machine, and there
+    # `command -v haus-fix` would succeed, the offer would be drawn, and
+    # pressing it would answer "claude is not on PATH". core's whole test is
+    # that `command -v`, so a fixer that cannot fix must not be ON the PATH to
+    # find — the alternative is a refusal you only discover by pressing the
+    # button, which is exactly what the duplicated git gate in haus.sh exists
+    # to avoid.
+    #
+    # `gum`, the CTA's in-pane surface, is deliberately NOT here: modules/core
+    # already suffixes it onto `haus`'s own PATH for `haus set`'s picker, so a
+    # second copy would be a package this room does not need — and the rows are
+    # drawn by `haus`, not by anything this room installs.
+    ++ lib.optional (lib.elem cfg.default clients) hausFix
   );
 
   # What this room ships into home: per-client instructions and skill files,

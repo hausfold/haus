@@ -293,7 +293,15 @@ jobs:
           # haus.focus.scenes.<name>.when it also runs from launchd on a timer,
           # where a non-zero is not just invisible but silently stops your Mac
           # entering the scenes you declared.
-          shellcheck --severity=warning bootstrap.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/lidawake.sh test/lidawake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/ai/desktop-ask.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh modules/ai/statusline.sh modules/terminal/scripts/image-preview.sh modules/terminal/lanes/lane-open.sh modules/bar/sketchybar/barlib.sh
+          # modules/ai/fix.sh is `haus fix` — it runs an agent with its
+          # permission gate open, in the user's config flake, usually spawned
+          # from a trill pill with no terminal anywhere near it. Nothing it
+          # prints reaches a person; the only thing that does is the banner it
+          # ends on, so a script that died before drawing one is a "Fix it"
+          # button that visibly does nothing. It is a @placeholder@ template and
+          # lints anyway, for haus-notify.sh's reason: both substitutions are
+          # assignment right-hand sides, so an unsubstituted copy still parses.
+          shellcheck --severity=warning bootstrap.sh modules/ai/fix.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/lidawake.sh test/lidawake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/ai/desktop-ask.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh modules/ai/statusline.sh modules/terminal/scripts/image-preview.sh modules/terminal/lanes/lane-open.sh modules/bar/sketchybar/barlib.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
       # lidawake's three failsafes, over a fake pmset and a fake clock. Every
@@ -456,3 +464,13 @@ jobs:
       # missing row nobody notices.
       - name: lanes picker row filter
         run: bats test/lanes-picker.bats
+      # The "Fix it with AI" CTA on a failed `haus rebuild`: the breadcrumb the
+      # rebuild leaves for `haus fix`, the four gates in front of the offer, and
+      # the detached holder that has to outlive the window the rebuild ran in.
+      # Every part of it fails silently — a renamed crumb key answers "nothing
+      # to fix" for a rebuild that failed in front of you, an inverted gate
+      # offers a fix nothing can honour, and a holder that merely backgrounds
+      # looks identical until someone closes the terminal. Needs bash + git +
+      # bats, and perl for the one SIGHUP case (skipped without it).
+      - name: rebuild fix CTA
+        run: bats test/rebuild-fix-cta.bats

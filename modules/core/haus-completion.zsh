@@ -49,6 +49,7 @@ _haus() {
   # longer exists is a command that fails after you completed it.
   subcommands=(
     'rebuild:build + switch this machine from your config'
+    'fix:hand the rebuild that just failed to a coding agent'
     'update:pull the latest haus + its apps, then rebuild'
     'rollback:go back a generation (or to generation N)'
     'generations:list the generations you can roll back to'
@@ -68,6 +69,9 @@ _haus() {
     'btm:check BTM daemon-gating (macOS 26 Tahoe+; no-op before)'
     'tour:take the guided haus tour'
     'show:inspect a desktop or room - a local file or a remote source - before you publish or trust it'
+    'add:pin a desktop and select it, or a room with --room --namespace'
+    'desktop:list every desktop this machine can select, or switch to one'
+    'remove:unpin a desktop or room this machine added, and reselect'
     'help:list every command'
   )
 
