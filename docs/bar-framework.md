@@ -1,14 +1,14 @@
 # The bar framework
 
-> Status: **phases 1–3 shipped** — `barlib.sh` (the runtime: dispatch, state
-> diff, `pill`, tones, the four popup row kinds, `bar_emit`), the `# widget:`
-> parser (`modules/bar/manifest.nix`), `frameworkBlock` in
-> `modules/bar/default.nix`, and `clock` + `github` converted, pinned by
-> `test/barlib.bats`. Sections below marked **planned** are what is left: the
-> remaining manifest keys, the graph/slider components, third-party widgets.
-> The code is normative where the two disagree; a planned key is an EVAL
-> ERROR today, not a silent no-op, so nothing here can be half-used by
-> accident.
+> Status: **phases 1–4a shipped** — `barlib.sh` (the runtime: dispatch, state
+> diff, `pill`, `graph`, tones, the four popup row kinds and their value
+> column, `bar_emit`), the `# widget:` parser (`modules/bar/manifest.nix`),
+> `frameworkBlock` in `modules/bar/default.nix`, and `clock` + `github` +
+> `cpu` converted, pinned by `test/barlib.bats`. Sections below marked
+> **planned** are what is left: the remaining manifest keys, `slider` and
+> `badge`, third-party widgets. The code is normative where the two disagree;
+> a planned key is an EVAL ERROR today, not a silent no-op, so nothing here
+> can be half-used by accident.
 
 ## Why
 
@@ -49,7 +49,9 @@ barlib_main "$@"
 
 (`clock.sh` is the smallest running version of this shape; `github.sh` is the
 largest — typed sources, a dropdown, a detached network fetch — and the one
-the component set was designed against.)
+the component set was designed against. `cpu.sh` is the one to read for a
+graph, a dropdown of numbers, and a widget that keeps CLI paths beside its
+handlers.)
 
 Everything else — which bar instance, event wiring, `updates=`, state caching,
 diffing, tone→hex — belongs to the runtime. A widget script never calls
@@ -74,6 +76,7 @@ the single source for wiring — no parallel table edit. Keys:
 | `interval` | seconds | none | `update_freq`; omit for purely event-driven |
 | `popup` | `true`/`false` | `false` | the dropdown frame + align; unlocks `popup_*` |
 | `subscribes` | list | `system_woke` | bar events and haus signals (see Pubsub) |
+| `graph` | points | none | makes the item an `--add graph` of that width; see The graph |
 
 Planned keys, landing with the feature that consumes each: `permissions`
 (feeds the deck, replacing the `widgets.nix` column), `movable` (the
@@ -136,6 +139,35 @@ running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
   `--label` is `label.drawing=off` *and* re-centres the icon (the bar's
   defaults are 8/4 + 4/8, which reads left-heavy the moment the label goes —
   and for a pill that hides a zero, that is its resting state).
+- `graph <percent>` — push one point onto the rolling window drawn behind the
+  pill's text, for a widget whose header carries `graph = <width>`. The value
+  is clamped to 0…1 by the runtime: sketchybar scales a pushed value against
+  the item's height and nothing else, so >1 draws off the top of the pill and
+  <0 vanishes, and neither reads as an error.
+
+  ⚠️ **Call it from `fetch`, not `render`** — the one place the fetch/render
+  split does not hold, and structural rather than stylistic. `render` is
+  diffed, so a machine sitting at one number would stop advancing the window
+  for exactly as long as nothing was happening, and a quiet stretch and a
+  stalled pill would draw the same flat line; the window is
+  `width × interval` seconds wide only if every tick contributes a point. And
+  `fetch` does not run on a click at all, which is what makes the second bug
+  unreachable rather than merely discouraged: the graph has no time axis of
+  its own — it is the last `width` values, evenly spaced — so a point pushed
+  by the POINTER shoves the history sideways at the speed of a mouse. Under
+  the hand-written cpu pill that was a guard and a comment. The batch still
+  goes out on a diffed-away tick, so the push costs the call that was already
+  leaving.
+
+  `graph.color` is the widget's to name **in its Nix style, not its script**,
+  and is then never touched again: the line is IDENTITY (which readout is
+  this) and the label is STATE (is it bad), so a pill under load must not turn
+  into two things flashing different colours at once. `frameworkBlock` derives
+  `graph.fill_color` from it — the same hue at `0x33` alpha, so a nebelung
+  change reaches the fill in the same rebuild it reaches the line — and a
+  `graph` with no `graph.color`, or one naming something other than a
+  `colors.sh` entry, is an eval error rather than a line the eye cannot
+  attribute to a pill.
 - `sb_set <prop>=<val>…` — the raw-property escape, still batched. Later args
   in the batch win, so an `sb_set` after a `pill` call overrides it.
 - **the dropdown** — `popup_rows()` declares the contents; `popup_open` /
@@ -151,15 +183,36 @@ running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
 
   | kind | weight/size | height | for |
   |---|---|---|---|
-  | `popup_heading --label [--icon] [--tone] [--count]` | Bold, label | 32 | a section title; `--count` appends ` · n` when above zero |
-  | `popup_row --label [--icon] [--tone] [--open <url>] [--run <cmd>]` | Regular, small | 25 | a thing you can act on; a `mute` tone dims the text too |
+  | `popup_heading --label [--icon] [--tone] [--count] [--value]` | Bold, label | 32 | a section title; `--count` appends ` · n` when above zero |
+  | `popup_row --label [--icon] [--tone] [--value] [--open <url>] [--run <cmd>]` | Regular, small | 25 | a thing you can act on; a `mute` tone dims the text too |
   | `popup_action --label [--icon] [--tone] [--run <cmd>] [--copy <text>]` | Bold, small | 25 | a verb — Refresh, a command to copy |
   | `popup_note --label` | Italic, tiny | 20 | an aside — "nothing", "+4 more" |
 
   Four because that is what every popup in this bar already was. A widget
   naming `":Bold:${FS_SMALL}"` itself is the hardcoded-hex mistake one layer
   up, so the fifth kind someone needs is a kind to **add**, not a `--font` to
-  add to the signature. Every row closes the popup on click; `--open` /
+  add to the signature.
+
+  **`--value` makes a row two columns** rather than one sentence: a name on
+  the left and a number that lands on the same x as every number above it.
+  The arithmetic is the runtime's for the same reason the fonts are — getting
+  it wrong is the one dropdown flaw you see immediately — and it is a pixel
+  padding derived from the monospace advance, never trailing spaces, because
+  sketchybar sizes an item from its TRIMMED label and then draws the untrimmed
+  string, so a space-padded row is clipped by exactly the width of its own
+  padding. A name longer than the column gets the minimum gap and pushes its
+  own value right: one ragged row, rather than a dropdown sized for the worst
+  name on the machine.
+
+  ⚠️ **With a `--value` the tone follows the NUMBER, not the glyph** — the
+  name is the question (`user`, `load`, `Safari`) and is always dim, the value
+  is the answer and is the only thing on the ladder. A two-column row whose
+  name climbed to `bad` alongside it would be one row shouting twice. The
+  default is `text` rather than `mute`: a measurement with no verdict is a
+  live readout, not an absence. A heading is the exception and takes the
+  opposite half — its glyph and title travel together in one hue, because they
+  are the same mark and splitting them would spend the value's colour on a
+  word. Every row closes the popup on click; `--open` /
   `--run` / `--copy` run *before* that close, and `--open`/`--copy` are
   single-quote-escaped because a PR title is data.
 - `barlib_tick` — run fetch/diff/render now, for a handler that just changed
@@ -181,10 +234,19 @@ invisible — a widget's stderr goes to sketchybar's log and nowhere a person
 looks. The **widgets** are deliberately not: `fetch` emits state that `render`
 reads as plain variables, so every framework widget trips SC2154 by design.
 
-**Components planned** (each lands with the first conversion that needs it):
+**Components planned** (each lands with the first conversion that needs it,
+and that rule is what the two below are still waiting on rather than a
+backlog):
 
-- `graph`, `slider`, `badge` — wrap sketchybar's own primitives (vitals,
-  media already use them by hand).
+- `slider` — media's scrub bar, and it is a **popup row kind** rather than a
+  bar component: the only slider in this bar is `media.popup.seek`, added
+  inside the dropdown. So it lands beside `popup_row`, when media converts.
+- `badge` — no consumer. The one thing in this bar called a badge is media's
+  app-icon overlay on the ARTWORK, composited into an image rather than drawn
+  by sketchybar, so it is not this component under another name. Left listed
+  because a count riding the corner of a pill is a shape the bar will
+  eventually want; building it before something asks would be the guess the
+  manifest's known-key rule exists to refuse.
 
 ## Tones, not colors
 
@@ -315,7 +377,22 @@ Lua (or Go daemon) runtime would consume, so nothing built now is thrown away.
    `github_update` undeclared — silently); and the runtime stripping
    `<item>.popup.<n>` back to the pill, because a popup row's `click_script`
    re-enters the widget with `NAME` set to the ROW.
-4. `permissions` / `movable` manifest keys, third-party framework widgets
+4. ✅ **cpu** — the first GRAPH pill, and the first dropdown of numbers.
+   Two components came out of it, each because the pill needed one: `graph`,
+   whose real design question was not how to push a point but WHICH HALF of
+   the fetch/render split it belongs to (fetch — a diffed graph stalls, and a
+   graph reachable from a click gets shoved sideways by the pointer); and
+   `--value` on the popup rows, because a dropdown of measurements is two
+   columns and the alignment is arithmetic no widget should be doing twice.
+   It is also the first pill to spend the four severity rungs: `vitals_tone`
+   maps the ladder `vitals_color` already climbed, one to one, which is what
+   those rungs were widened for.
+5. `permissions` / `movable` manifest keys, third-party framework widgets
    through `haus.bar.widgets`.
-5. Long tail: convert on touch. A converted pill deletes its block from
-   `mkPluginBlocks`; the framework wins when `mkPluginBlocks` is empty.
+6. Long tail: convert on touch. **memory** is the one already paid for —
+   cpu's twin, same `vitals_lib`, and the second half of every component cpu
+   added; `vitals_color` and the hand-written row builders go with it. A
+   converted pill's entry in `mkPluginBlocks` shrinks to a `frameworkBlock`
+   call carrying only what is IDENTITY — its hue, its padding — because the
+   ladder deliberately has no rung for "this widget's own colour". The
+   framework wins when every entry in `mkPluginBlocks` is one of those.

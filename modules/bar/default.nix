@@ -458,6 +458,41 @@ let
         "popup.background.color" = "$MANTLE";
         "popup.align" = side;
       };
+      # `graph = <width>` in the header buys the two properties that are the
+      # SAME on every graph pill and the one that must not be: the line is
+      # IDENTITY (which readout is this) and the label is STATE (is it bad),
+      # so graph.color is the widget's to name and is then never touched
+      # again by its script — a pill under load must not turn into two things
+      # flashing different colours at once.
+      #
+      # The fill is that same hue at 0x33 alpha, DERIVED here rather than
+      # written by the widget: it is the palette entry with its opacity
+      # swapped, so a nebelung change reaches the fill in the same rebuild it
+      # reaches the line. A widget wanting a different fill sets
+      # graph.fill_color itself and this leaves it alone.
+      graphColor = style."graph.color" or null;
+      graphVar = if graphColor == null then null else builtins.match "\\$([A-Z][A-Z0-9_]*)" graphColor;
+      graphArgs = lib.optionalAttrs (m.graph != null) (
+        {
+          "graph.line_width" = "2";
+        }
+        // lib.optionalAttrs (!(style ? "graph.fill_color")) {
+          "graph.fill_color" = "0x33\${${builtins.head graphVar}#0xff}";
+        }
+      );
+      # A graph with no identity colour is a line the eye cannot attribute to
+      # a pill, and a hex here would be the hardcoded-palette mistake the
+      # whole framework exists to remove — so both are eval errors rather
+      # than a default that quietly picks one.
+      graphChecked =
+        if m.graph == null then
+          true
+        else if graphColor == null then
+          throw "bar widget ${name}: graph = ${toString m.graph} needs a graph.color in its style (the line is which readout this is)"
+        else if graphVar == null && !(style ? "graph.fill_color") then
+          throw "bar widget ${name}: graph.color = ${graphColor} is not a colors.sh name, so the fill cannot be derived — name one, or set graph.fill_color too"
+        else
+          true;
       setArgs = lib.filter (s: s != "") (
         [ (lib.optionalString (m.interval != null) "update_freq=${toString m.interval}") ]
         ++ lib.mapAttrsToList (k: v: "${k}=${v}") (
@@ -466,16 +501,28 @@ let
             "label.font" = ''"${barFont}:Bold:${sizes.label}"'';
           }
           // popupArgs
+          // graphArgs
           // style
         )
         ++ [ ''script="$HOME/.config/sketchybar/plugins/${name}.sh"'' ]
       );
+      # `--add graph <name> <side> <width>` rather than `--add item`. Every
+      # other property behaves identically — icon, label, popup, click_script
+      # — which is why this is one word of the emission and not a second
+      # generator.
+      addCmd =
+        if m.graph != null then
+          "--add graph ${name} ${side} ${toString m.graph}"
+        else
+          "--add item ${name} ${side}";
     in
-    ''
+    # seq, so the checks above fire with their own message rather than as a
+    # `head: empty list` from the fill derivation below them.
+    builtins.seq graphChecked ''
       ${lib.concatMapStrings (e: ''
         ${sb} --add event ${e}
       '') customEvents}
-      ${sb} --add item ${name} ${side} \
+      ${sb} ${addCmd} \
           --set ${name} ${lib.concatStringsSep " " setArgs} \
           --subscribe ${name} ${lib.concatStringsSep " " m.subscribes} mouse.clicked
     '';
@@ -808,26 +855,18 @@ let
     # It is derived from the colors.sh variable rather than written as a hex —
     # `0x33''${PEACH#0xff}` is that palette entry with its opacity swapped — so a
     # nebelung change reaches the fill in the same rebuild it reaches the line.
-    cpu = ''
-      ${sb} --add graph cpu ${side} 48 \
-          --set cpu \
-              update_freq=2 \
-              icon.color=$PEACH \
-              graph.color=$PEACH \
-              graph.fill_color=0x33''${PEACH#0xff} \
-              graph.line_width=2 \
-              background.color=$SURFACE0 \
-              background.padding_left=8 \
-              background.padding_right=8 \
-              popup.background.border_width=2 \
-              popup.background.corner_radius=10 \
-              popup.background.border_color=$SURFACE0 \
-              popup.background.color=$MANTLE \
-              ${popupAlign side} \
-              popup.horizontal=off \
-              script="$HOME/.config/sketchybar/plugins/cpu.sh" \
-          --subscribe cpu mouse.clicked system_woke
-    '';
+    # Converted (docs/bar-framework.md): `# widget: graph = 48` in cpu.sh is
+    # what makes this an `--add graph`, and the header carries the interval
+    # and the popup too. What is left here is the pill's IDENTITY — its hue,
+    # and the padding that separates a graph pill from the readouts beside it
+    # — since the ladder deliberately has no rung for "this widget's own
+    # colour". graph.fill_color is derived from graph.color by frameworkBlock.
+    cpu = frameworkBlock sb side "cpu" {
+      "icon.color" = "$PEACH";
+      "graph.color" = "$PEACH";
+      "background.padding_left" = "8";
+      "background.padding_right" = "8";
+    };
     memory = ''
       ${sb} --add graph memory ${side} 48 \
           --set memory \

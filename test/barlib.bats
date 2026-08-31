@@ -463,3 +463,124 @@ exit 0'
   [[ "$output" != *LOOPED* ]]
   grep -q 'label=did the work' "$SB_LOG"
 }
+
+# ---- the graph --------------------------------------------------------------
+# Every one of these pins a promise whose breach is invisible on the machine:
+# a graph that stops advancing looks exactly like a quiet one, and a graph the
+# pointer advances looks like history.
+
+@test "graph pushes a clamped fraction on the same batch as the pill" {
+  NAME=w SENDER=routine widget '
+    fetch() { graph 41.2; emit pct=41; }
+    render() { pill --icon C --label "${pct}%"; }
+  '
+  [ "$(calls)" = 1 ]
+  grep -q -- '--push w 0.41' "$SB_LOG"
+  grep -q 'label=41%' "$SB_LOG"
+}
+
+@test "a graph point still goes out on a tick the diff threw away" {
+  # THE reason graph belongs in fetch. A machine sitting at one number emits
+  # identical state tick after tick and render never runs — but the rolling
+  # window has to keep advancing, or a quiet stretch and a stalled pill draw
+  # the same flat line.
+  for _ in 1 2 3; do
+    NAME=w SENDER=routine widget '
+      fetch() { graph 3; emit pct=3; }
+      render() { pill --label "${pct}%"; }
+    '
+  done
+  [ "$(calls)" = 3 ]
+  [ "$(grep -c -- '--push w 0.03' "$SB_LOG")" = 3 ]
+  # ...and the label was painted exactly once, on the first tick.
+  [ "$(grep -c 'label=3%' "$SB_LOG")" = 1 ]
+}
+
+@test "a click pushes no graph point" {
+  # The graph has no time axis of its own — it is the last N values, evenly
+  # spaced — so a point pushed by the POINTER shoves the history sideways at
+  # the speed of a mouse. A mouse event never reaches fetch, which is what
+  # makes that unreachable rather than merely discouraged.
+  NAME=w SENDER=mouse.clicked widget '
+    fetch() { graph 50; emit pct=50; }
+    render() { pill --label "${pct}%"; }
+    on_click() { sb_set label=clicked; }
+  '
+  ! grep -q -- '--push' "$SB_LOG"
+}
+
+@test "graph clamps out of range values instead of drawing off the pill" {
+  # sketchybar scales a pushed value against the item height and nothing else,
+  # so >1 is drawn off the top and <0 vanishes — neither of which reads as an
+  # error.
+  NAME=w SENDER=routine widget 'fetch() { graph 250; emit n=1; }; render() { :; }'
+  NAME=w SENDER=routine widget 'fetch() { graph -12; emit n=2; }; render() { :; }'
+  grep -q -- '--push w 1.00' "$SB_LOG"
+  grep -q -- '--push w 0.00' "$SB_LOG"
+}
+
+# ---- the value column -------------------------------------------------------
+
+@test "popup_row --value puts the name left of a value on its own column" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_row --label user --value "12%"; }
+    on_click() { popup_open; }
+  '
+  grep -q 'icon=user' "$SB_LOG"
+  grep -q 'label=12%' "$SB_LOG"
+  # A pixel padding, never trailing spaces: sketchybar sizes an item from its
+  # TRIMMED label and then draws the untrimmed string, so a space-padded row
+  # is clipped by exactly the width of its own padding.
+  grep -qE 'icon\.padding_right=[0-9]+' "$SB_LOG"
+  # The name is the bare string — the column is bought with that padding and
+  # not by padding the name out, which sketchybar would trim and then clip.
+  grep -q 'icon=user icon\.color=' "$SB_LOG"
+}
+
+@test "a value row tones the number, not the name" {
+  # The name is the question and the value is the answer; a row whose name
+  # climbed to `bad` with it would be one row shouting twice.
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_row --label Safari --value "91%" --tone bad; }
+    on_click() { popup_open; }
+  '
+  grep -q 'label=91% label.color=0xff555555' "$SB_LOG"
+  grep -q 'icon=Safari icon.color=0xff1a1a1a' "$SB_LOG"
+}
+
+@test "a value row with no tone is a live readout, not an absence" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_row --label load --value "2.1"; }
+    on_click() { popup_open; }
+  '
+  grep -q 'label=2.1 label.color=0xff777777' "$SB_LOG"
+}
+
+@test "a name longer than the column keeps a gap rather than a negative pad" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_row --label "a-very-long-process-name-indeed" --value "4%"; }
+    on_click() { popup_open; }
+  '
+  ! grep -qE 'icon\.padding_right=-' "$SB_LOG"
+  grep -qE 'icon\.padding_right=[0-9]+' "$SB_LOG"
+}
+
+@test "popup_heading --value carries glyph and title in one hue" {
+  # They are the same mark; splitting them across the row's two colourable
+  # halves would spend the value's colour on a word.
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_heading --icon C --label CPU --value "41%"; }
+    on_click() { popup_open; }
+  '
+  grep -q 'icon=C CPU' "$SB_LOG"
+  grep -q 'label=41%' "$SB_LOG"
+}
+
+@test "popup_heading without a value is unchanged" {
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_heading --icon C --label CPU --count 3; }
+    on_click() { popup_open; }
+  '
+  grep -q 'icon=C ' "$SB_LOG"
+  grep -q 'label=CPU · 3' "$SB_LOG"
+}
