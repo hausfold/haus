@@ -1135,6 +1135,16 @@ lib.mkIf config.haus.launcher.enable {
   haus.roster.pounce = {
     name = lib.mkDefault "Pounce";
     installedBy = lib.mkDefault "haus.launcher";
+    appId = lib.mkDefault "com.hausfold.pounce";
+    # `pounce settings` opens an ordinary titled window from an accessory app,
+    # so AeroSpace tiles it and the whole workspace reflows to make room for a
+    # settings sheet — the same thing Trill's Settings/Inbox windows get a float
+    # rule for in ../windows/default.nix. Unscoped by `titleRegex` on purpose:
+    # the palette itself is a borderless, transient, floating-level panel that
+    # AeroSpace never manages, so the app-wide rule can only ever land on the
+    # settings window, and a title rule would race window detection (see
+    # ../options.nix' `titleRegex`).
+    float = lib.mkDefault true;
   };
 
   # A bare laptop Fn/Globe tap opens Pounce's emoji grid. By default that runs
