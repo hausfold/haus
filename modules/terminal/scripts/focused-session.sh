@@ -48,6 +48,13 @@
 # label first is right for it and the title stays the fallback it should always
 # have been.
 #
+# scripts/new-window.sh no longer CREATES one: it reads the responder's front
+# window title before it spawns, and falls through to a fresh `open -na`
+# instance when that title is one this room forced onto an instance itself. The
+# ordering below stays regardless — Ghostty's own New Window menu item is still
+# a way into a lane's process, and a window already open when this landed keeps
+# whatever name it was born with until it closes.
+#
 # ── and the title cannot save a window with NO session ──────────────────────
 # The one window the ordering above could not rescue is a window that has no
 # session to be labelled: scripts/new-window.sh runs a bare login shell rather

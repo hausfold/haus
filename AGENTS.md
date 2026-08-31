@@ -528,6 +528,27 @@ mechanism, say so in one line.
   resets everything else), so the API-refresh window and the env-hint silencing
   live there too — an export in terminal or bench only reaches your interactive
   shell.
+- **Ghostty's `--title` is INSTANCE-WIDE, so a window can be born wearing
+  someone else's name.** Every agent lane (`modules/terminal/lanes/lane-open.sh`)
+  and every float popup (`modules/terminal/scripts/float-term.sh`) is a Ghostty
+  process of its own launched `--title=<name>`, and that config forces the title
+  of EVERY window in that process — a forced title being precisely one the
+  client's OSC 2 cannot clobber. `tell application "Ghostty"` is addressed by
+  bundle id and lands in whichever instance macOS routes it to, so a plain shell
+  asked for with ⌘T, ⌘N or ⌘⇧N was born named `scruff.<repo>.<lane>`, for life.
+  **So no script asks for a PLAIN window with its own `tell application
+  "Ghostty" to new window` any more**: `scripts/new-window.sh` is the one spawn,
+  and it reads the responder's
+  front window title before it asks for anything, falling through to a fresh
+  `open -na` (which carries no `--title`, so the window keeps its own name)
+  rather than land in an instance this room forced a title onto. The forced set
+  comes from `ps`, never a `scruff.*` pattern — that prefix is scruff's to
+  change. `test/new-window-title.bats` pins it. The readers' impostor
+  subtraction (`scripts/focused-session.sh`, `scripts/raise-session.sh`) stays
+  regardless: Ghostty's own New Window menu item is still a way in, and
+  `lanes/lane-open.sh`'s ghostty backend keeps an AppleScript of its own because
+  it needs the window id back — a lane joins by that id there, so a title it did
+  not choose costs it nothing but its name.
 - **Ghostty does not close a TILED window when its process exits**
   (`modules/terminal/scripts/launch.sh`, measured on 1.3.1): with
   `wait-after-command` off, `Surface.childExited` prints "Process exited. Press

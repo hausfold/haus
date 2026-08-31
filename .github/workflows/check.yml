@@ -397,6 +397,15 @@ jobs:
       - name: raise-session lane join
         run: bats test/raise-session-lane-join.bats
 
+      # The other end of that same fact: raise-session subtracts a mistitled
+      # plain window AFTER it exists, new-window.sh refuses to create one. Both
+      # halves stay — Ghostty's own New Window menu item can still put a window
+      # in a lane's process — but the refusal is what stopped ⌘T, ⌘N and ⌘⇧N
+      # handing out shells named `scruff.<repo>.<lane>`. Silent either way: a
+      # mistitled window opens perfectly and the only symptom is its name.
+      - name: new-window forced-title refusal
+        run: bats test/new-window-title.bats
+
       # The `haus rebuild` phase painter and the colour gate both end-user CLIs
       # grew with it. Three silent failure modes: a record `snug run` cannot
       # parse is a line that simply never appears; a repaint that assumes a

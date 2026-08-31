@@ -5,7 +5,12 @@
 # your work and floats, an editor or an ssh session joins the tiling.
 #
 # Usage:
-#   new-window.sh [--cwd DIR] [--env K=V]… [--] [COMMAND ARG…]
+#   new-window.sh [--cwd DIR] [--env K=V]… [--no-tile] [--] [COMMAND ARG…]
+#
+# --no-tile is for a caller whose window places ITSELF from inside (anything
+# whose COMMAND is scripts/launch.sh): the poll at the bottom would un-float it
+# on the page it was born on, a beat before launch.sh walks it somewhere else,
+# and a window tiled for that beat reflows the page you are standing on.
 #
 # With no COMMAND the window gets a login shell in DIR — which is what the
 # window's own launcher would have given it anyway, minus the zmx session (a
@@ -17,8 +22,9 @@
 # `surface configuration` record carries `initial working directory`, `command`
 # and `environment variables` natively, where `open --args` has to spell each one
 # out as a flag. It does still spell them out, below: `open -na` is the FALLBACK
-# this takes when the caller has no Automation grant, and the block above the
-# spawn is why that case exists at all.
+# this takes for the two things the Apple Event cannot do — reach a Ghostty the
+# caller has no Automation grant for, and open a window that is not born wearing
+# some lane's forced title. The block above the spawn is why both cases exist.
 #
 # lanes/lane-open.sh must not use this on the AEROSPACE backend: a lane is
 # found there by its window TITLE, and only `open -na --title` forces a title
@@ -40,11 +46,13 @@ set -u
 export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/bin:/bin${PATH:+:$PATH}"
 
 cwd=""
+tile=1
 envs=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --cwd) cwd="$2"; shift 2 ;;
     --env) envs+=("$2"); shift 2 ;;
+    --no-tile) tile=0; shift ;;
     --) shift; break ;;
     *) break ;;
   esac
@@ -168,11 +176,84 @@ fi
 # config's quit-after-last-window-closed ends the process), which is exactly the
 # hazard AGENTS.md's "Ghostty does not close a TILED window" gotcha describes for
 # the shared instance.
+#
+# ── and a third reason to take it: a window must never be BORN mistitled ─────
+# `tell application "Ghostty"` is addressed by bundle id, and this desktop runs
+# several Ghostty processes at once — every agent lane is one of its own
+# (lanes/lane-open.sh) and so is every float popup (scripts/float-term.sh),
+# each launched with `--title=<name>`. That flag is INSTANCE-WIDE configuration
+# rather than a property of the window it was spawned for; Ghostty's own docs
+# say so ("if it is set, the title will update for all windows"). So a window
+# opened by Apple Event into a lane's process is born wearing
+# `scruff.<repo>.<lane>`, and can never take the name back: a forced title is
+# exactly one that ignores the OSC 2 the shell inside would set.
+#
+# Which instance answers is a lottery this script does not get to pick (the
+# routing note is in lanes/lane-open.sh). So ASK before spawning: one osascript
+# that reads the responder's front window title, refuses if that title is one
+# WE forced onto some instance, and otherwise opens the window and activates —
+# the same two events as before, in one round trip instead of two. A refusal
+# falls through to `open -na`, whose instance is fresh and carries no `--title`
+# at all, so its window wears whatever the program inside it says.
+#
+# The set of forced titles is read off `ps` rather than matched as a pattern,
+# so nothing here has to know that a lane is spelled `scruff.*` (scruff's
+# prefix to change, not ours) or a popup `quick-terminal-*`. FIRST `--title=`
+# token only: every spawn in this room writes it ahead of `--initial-command=`,
+# whose payload is an arbitrary script and can contain anything at all.
+#
+# ⚠️ That scan reads ONE argv token, so a forced title carrying a SPACE would be
+# truncated and the refusal would silently stop firing for it. Safe by
+# construction today and a constraint on the next `--title` rather than a bug:
+# a lane's is a zmx session name (`[A-Za-z0-9._-]`, checked in
+# scripts/raise-session.sh) and a popup's is `quick-terminal-<key>`. Give a
+# spawn a spaced title and this needs a real argv reader first.
+#
+# Two directions this can be wrong, and they are not symmetric. Refusing when
+# it need not have costs one extra Ghostty process; failing to refuse costs a
+# window named after someone else FOR LIFE, since a forced title is exactly one
+# nothing inside can take back. It still fails OPEN — the `try` below leaves an
+# empty title, which matches nothing — because the one case that reaches it is
+# an instance with no window yet, where refusing would mean never spawning at
+# all. `activate` is inside a `try` of its own for the mirror of that reason: it
+# runs AFTER the window exists, so letting it decide the verdict would send a
+# spawned window's caller down the `open -na` path and open a second one.
+forced=""
+while IFS= read -r forced_title; do
+  [ -n "$forced_title" ] || continue
+  [ -n "$forced" ] && forced="$forced, "
+  forced="$forced$(osa_str "$forced_title")"
+done <<FORCED
+$(ps -axww -o command= 2>/dev/null | awk '
+  $1 ~ /[Gg]hostty$/ {
+    for (i = 2; i <= NF; i++)
+      if (substr($i, 1, 8) == "--title=") { print substr($i, 9); break }
+  }' | sort -u)
+FORCED
+
 fallback=0
 spawned=0
-if osascript -e "tell application \"Ghostty\" to new window with configuration {initial working directory:$(osa_str "$cwd"), command:$(osa_str "$cmd")$env_list}" >/dev/null 2>&1; then
+# Heredoc rather than `-e`, so the multi-statement script needs no line-joining
+# — and so osascript's stdin is this script rather than the caller's. (An empty
+# `{}` is a legal AppleScript list, and `is in` an empty one is false, so a
+# machine with no forced-title instance takes the fast path with no branch.)
+verdict="$(osascript 2>/dev/null <<APPLESCRIPT
+tell application "Ghostty"
+  set t to ""
+  try
+    set t to name of front window
+  end try
+  if t is in {$forced} then return "forced"
+  new window with configuration {initial working directory:$(osa_str "$cwd"), command:$(osa_str "$cmd")$env_list}
+  try
+    activate
+  end try
+  return "ok"
+end tell
+APPLESCRIPT
+)"
+if [ "$verdict" = ok ]; then
   spawned=1
-  osascript -e 'tell application "Ghostty" to activate' >/dev/null 2>&1
 else
   fallback=1
   # The env prefix is applied to `$cmd` whatever it holds — the command the
@@ -201,7 +282,7 @@ if [ "$spawned" != 1 ]; then
   exit 1
 fi
 
-if [ "$tiler" = 1 ]; then
+if [ "$tiler" = 1 ] && [ "$tile" = 1 ]; then
   # The fallback gets a longer poll: `open -na` boots a whole second Ghostty, so
   # its window is mapped well after the running instance would have answered.
   tries=20

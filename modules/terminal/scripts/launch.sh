@@ -417,6 +417,16 @@ fi
         # opened, which on this backend means the user clicked away in that
         # window; the cost is one plain window whose chords answer for its
         # neighbour until the next attach re-stamps it.
+        #
+        # One more way since new-window.sh grew its forced-title refusal, and
+        # it is TILER-LESS ONLY — a Mac with AeroSpace stamps `window=` from
+        # the branch above and never reaches this line. A refused window is
+        # born in a Ghostty of its OWN (`open -na`), while this read is still
+        # addressed by bundle id and can be answered by the very instance the
+        # refusal steered away from, so `gwindow=` would name a window in
+        # another process entirely. It takes a float popup alive on a
+        # tiler-less machine to have anything to refuse; the cost is the same
+        # one above, a window whose chords answer for a neighbour.
         for _ in $(seq 1 20); do
             GWID=$(/usr/bin/osascript -e 'tell application "Ghostty" to return id of front window' 2>>"$LOG")
             [ -n "$GWID" ] && break
