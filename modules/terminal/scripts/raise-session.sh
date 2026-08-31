@@ -111,10 +111,14 @@ case "$backend" in
     # A window WEARING a lane's title is not necessarily that lane's window.
     # Ghostty's `--title` is INSTANCE-WIDE configuration rather than a property
     # of the one window it was spawned for, so every window opened later inside
-    # a lane's Ghostty process — and scripts/new-window.sh opens windows through
-    # `tell application "Ghostty"`, which lands in whichever instance macOS
-    # routes it to — is BORN wearing that lane's name. Raising one of those puts
-    # a plain shell in front of someone looking for their agent.
+    # a lane's Ghostty process is BORN wearing that lane's name. Raising one of
+    # those puts a plain shell in front of someone looking for their agent.
+    #
+    # scripts/new-window.sh stopped making them — it asks the responder's front
+    # window title first and takes `open -na` rather than land in an instance
+    # whose title this room forced. This subtraction still stands: Ghostty's own
+    # New Window menu item lands wherever it likes, and every window opened
+    # before that refusal keeps its name for life.
     #
     # The discriminator was already in the room: a plain window carries its own
     # `window=` label (launch.sh stamps it on every attach) and a real lane

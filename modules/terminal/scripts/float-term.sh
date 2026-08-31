@@ -212,8 +212,16 @@ GAP_SIDE_EXTERNAL="@gap_side_external@"
 # window but not measure it.
 
 # ax_frame PID TITLE — "X Y W H" for that process's window named TITLE, falling
-# back to its AXFocusedWindow when no title matches (a ⌘N window shares its
-# parent's pid and wears whatever title the program inside it last emitted).
+# back to its AXFocusedWindow when no title matches.
+#
+# Inside that pid the name is not a discriminator and this takes the FIRST
+# match: a popup gets a Ghostty process of its own and `--title` forces the
+# title of every window in it, so anything that got into that process wears the
+# popup's name too. Nothing normally does — scripts/new-window.sh refuses to be
+# routed into an instance whose title this room forced, which leaves Ghostty's
+# own New Window menu item as the way in. The fallback is for the other end of
+# the same fact: no window in the process answering to the title at all, which
+# is the beat before the popup's own window has mapped.
 ax_frame() {
   local pid="${1:-}" title="${2:-}"
   case "$pid" in '' | *[!0-9]*) return 0 ;; esac

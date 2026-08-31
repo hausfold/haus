@@ -46,21 +46,6 @@ set -u
 # PATH is bare. Same prelude as the other commands here.
 export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/bin:/bin${PATH:+:$PATH}"
 
-# Failing silently is the one sin a global chord can't afford — the classic
-# cause here is the Automation (Apple Events) grant: the pounce daemon needs
-# System Settings → Privacy & Security → Automation → Pounce → Ghostty, and a
-# denied grant makes osascript error while the chord looks simply dead.
-# Everything this desktop puts on screen goes through `haus-notify`: trill
-# draws it when its daemon answers, macOS's own banner when it doesn't, and
-# `~/.config/trill/rules.json` is where you route or silence it — matching on
-# the `--source` below. It exits 0 whatever happens, so a missed banner can
-# never be why this script failed.
-#
-# By name, not by path: the PATH exported just above names
-# `/run/current-system/sw/bin`, which is where it lands.
-say() { haus-notify --source haus.terminal --kind fault --symbol exclamationmark.triangle \
-    --title "haus · new terminal" --body "$1" >/dev/null 2>&1; }
-
 # ── where "off the page" is ──────────────────────────────────────────────────
 # The BASE of the workspace you are on, not a hardcoded T: a page is
 # `<base>/<repo>` (lanes/lane-open.sh), so stripping the page suffix is
@@ -83,24 +68,35 @@ fi
 # work in it. It is also what reads the two variables below.
 shell="$HOME/.config/haus/term/launch.sh"
 
-# AppleScript string literals escape backslash and double-quote and nothing
-# else — the same hand-rolled quoting as terminal's new-window.sh, for the same
-# reason: the workspace name comes from somewhere else.
-osa_str() {
-  local v="$1"
-  v="${v//\\/\\\\}"
-  v="${v//\"/\\\"}"
-  printf '"%s"' "$v"
-}
-
-env_list=""
+# ── hand over ────────────────────────────────────────────────────────────────
+# terminal's scripts/new-window.sh does the spawning, and did before this file
+# had a copy of the AppleScript: it owns the cold start, the quoting, the
+# `open -na` fallback for a caller with no Automation grant — and the refusal
+# that keeps this window out of a LANE's Ghostty process, whose instance-wide
+# forced `--title` would name a fresh home-directory shell after whatever agent
+# was in the window you pressed ⌘T in.
+#
+# --no-tile, which is this chord alone among the three: the window places ITSELF
+# from inside (the note above), and the poll would un-float it on the page it
+# was born on a beat before launch.sh walks it to the base workspace — a tile
+# for that beat reflows the page you are standing on, which is precisely the
+# page this chord exists to leave undisturbed.
+args=(--cwd "$HOME" --no-tile)
 if [ -n "$base" ]; then
-  env_list=", environment variables:{$(osa_str "HAUS_TERM_WORKSPACE=$base"), $(osa_str "HAUS_TERM_FOLLOW=1")}"
+  args+=(--env "HAUS_TERM_WORKSPACE=$base" --env "HAUS_TERM_FOLLOW=1")
 fi
 
-if ! osascript -e "tell application \"Ghostty\" to new window with configuration {initial working directory:$(osa_str "$HOME"), command:$(osa_str "$shell")$env_list}" >/dev/null 2>&1; then
-  say "couldn't ask Ghostty for a window — grant Pounce → Ghostty under Privacy & Security → Automation."
+# The one spawn this room has, and the one thing this chord cannot do without.
+# `exec` into a missing file is a silent death under the pounce daemon, which
+# swallows stderr — the failure the deleted `say()` existed to prevent, so the
+# check comes back rather than the helper. Absolute path for haus-notify because
+# launchd's PATH names nothing of ours.
+nw="$HOME/.config/haus/term/new-window.sh"
+if [ ! -x "$nw" ]; then
+  /run/current-system/sw/bin/haus-notify --source haus.terminal --kind fault \
+    --symbol exclamationmark.triangle --title "haus · new terminal" \
+    --body "new-window.sh is missing — is this generation half-applied?" >/dev/null 2>&1
   exit 0
 fi
 
-exit 0
+exec "$nw" "${args[@]}" -- "$shell"

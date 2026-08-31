@@ -19,10 +19,11 @@
 #     happens, because it lives in terminal's zshrc — the fresh login shell
 #     fires it wherever it's born
 #   · --stay (⌘⇧N, via shell-here-stay.sh) still suppresses that hop, now as
-#     HAUS_STAY=1 in the WINDOW's environment. This is why the spawn is
-#     AppleScript (`surface configuration` carries `environment variables`)
-#     rather than Ghostty's native new_window, which can't set env at all. It
-#     also suppresses the page correction below, for the same one reason: --stay
+#     HAUS_STAY=1 in the WINDOW's environment. That is why the chord cannot use
+#     Ghostty's native new_window, which can't set env at all — new-window.sh
+#     carries it either way (`surface configuration` has an environment
+#     variables list; `open -na` gets a `/usr/bin/env K=V` prefix). It also
+#     suppresses the page correction below, for the same one reason: --stay
 #     means do not move me, and the page's repo is somewhere else to be moved to.
 #   · and "here" is a PLACE as well as a directory: pressed in a window
 #     standing on a lane page (T/<repo>), the chord hands that page down as
@@ -31,33 +32,21 @@
 #     and tiles itself from inside — sent every shell window to the shared T,
 #     so ⌘N on a page answered two pages away.
 #
-# AppleScript rather than `open -na` also for its own sake: 252 ms vs 366 ms
-# into the running instance, and no second Ghostty process per window. The
-# forced --title that keeps lane-open.sh on `open -na` doesn't apply here — a
-# plain shell window carries no name anything joins on.
+# The spawn itself is terminal's scripts/new-window.sh — this script decides
+# WHERE and hands over. It used to carry its own copy of the AppleScript, and
+# what that cost was a title: the Apple Event lands in whichever Ghostty
+# instance macOS routes it to, every agent lane is an instance of its own with
+# an INSTANCE-WIDE forced `--title`, and so a ⌘N window pressed in a lane was
+# born named `scruff.<repo>.<lane>` with no way to take the name back.
+# new-window.sh is where the refusal and the `open -na` fallback that answers it
+# live now, along with the cold start, the quoting and the tile poll this file
+# used to spell out a second time.
 set -u
 
 export PATH="/etc/profiles/per-user/${USER:-$(id -un)}/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/bin:/bin${PATH:+:$PATH}"
 
 stay=""
 [ "${1:-}" = "--stay" ] && stay=1
-
-# Failing silently is the one sin a global chord can't afford — the classic
-# cause here is the Automation (Apple Events) grant: the pounce daemon needs
-# System Settings → Privacy & Security → Automation → Pounce → Ghostty, and a
-# denied grant makes osascript error while the chord looks simply dead.
-# Everything this desktop puts on screen goes through `haus-notify`: trill
-# draws it when its daemon answers, macOS's own banner when it doesn't, and
-# `~/.config/trill/rules.json` is where you route or silence it — matching on
-# the `--source` below. It exits 0 whatever happens, so a missed banner can
-# never be why this script failed.
-#
-# Addressed absolutely because this runs under launchd (the pounce daemon), whose
-# PATH names nothing of ours. That path is
-# `environment.systemPackages` — stable across rebuilds, the same reason
-# `haus-activate` is reachable there.
-say() { /run/current-system/sw/bin/haus-notify --source haus.terminal --kind fault --symbol exclamationmark.triangle \
-    --title "haus · shell here" --body "$1" >/dev/null 2>&1; }
 
 # The resolver is installed by the terminal room's agents block; without it
 # (which the laneCommands filter should have made unreachable) fall back to $HOME rather than
@@ -98,10 +87,6 @@ page_flag=(--page)
 # $SHELL is honoured there rather than here.
 shell="$HOME/.config/haus/term/launch.sh"
 
-# The window AeroSpace sees before this one, so the tile poll below can tell
-# the new window from the one the chord was pressed in (both are Ghostty).
-before="$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)"
-
 # Only a PAGE is handed down — a workspace with a "/" in it, the same test
 # windows/scripts/workspace-mru.sh uses. Bare T needs no passing on (it is what
 # launch.sh does anyway), and any OTHER workspace a terminal window has been
@@ -121,59 +106,37 @@ case "$ws" in
   */*) page="$ws" ;;
 esac
 
-# One osascript for both chords, where there were two near-identical heredocs
-# — the difference between them is now a VALUE. The list is built rather than
-# written out because a variable number of entries has no `on run argv` shape,
-# and because an entry is only worth SENDING when it has a value: nothing here
-# passes `HAUS_STAY=` with an empty right-hand side to find out how Ghostty
-# feels about it, on the one code path where being wrong costs the chord.
+# ── hand over ────────────────────────────────────────────────────────────────
+# One array for both chords, where there were two near-identical heredocs — the
+# difference between them is a VALUE now. An entry is only worth SENDING when it
+# has one: nothing here passes `HAUS_STAY=` with an empty right-hand side to
+# find out how Ghostty feels about it, on the one code path where being wrong
+# costs the chord.
 #
-# AppleScript string literals escape backslash and double-quote and nothing
-# else — the same hand-rolled quoting as terminal's new-window.sh, for the same
-# reason: every value below comes from somewhere else (a cwd off a click, a
-# workspace name out of AeroSpace).
-osa_str() {
-  local v="$1"
-  v="${v//\\/\\\\}"
-  v="${v//\"/\\\"}"
-  printf '"%s"' "$v"
-}
+# `${args[@]}` unguarded is safe where `${page_flag[@]}` above is not — this one
+# is never empty, since --cwd is always in it. macOS's bash 3.2 only trips over
+# an EMPTY array under `set -u`.
+#
+# TILED from outside, which is new-window.sh's default and what this chord has
+# always done: the window it opens belongs on the page the chord was pressed on.
+# The poll is self-limiting where it shouldn't fire — it waits for focus to land
+# on a window that is not the one we came from, and launch.sh's un-followed move
+# to T never moves focus, so a window sent home is left alone.
+args=(--cwd "$cwd")
+[ -n "$stay" ] && args+=(--env "HAUS_STAY=1")
+[ -n "$page" ] && args+=(--env "HAUS_TERM_WORKSPACE=$page")
 
-env_list=""
-add_env() {
-  [ -n "$env_list" ] && env_list="$env_list, "
-  env_list="$env_list$(osa_str "$1")"
-}
-[ -n "$stay" ] && add_env "HAUS_STAY=1"
-[ -n "$page" ] && add_env "HAUS_TERM_WORKSPACE=$page"
-[ -n "$env_list" ] && env_list=", environment variables:{$env_list}"
-
-osascript -e "tell application \"Ghostty\" to new window with configuration {initial working directory:$(osa_str "$cwd"), command:$(osa_str "$shell")$env_list}" >/dev/null 2>&1
-if [ $? -ne 0 ]; then
-  say "couldn't ask Ghostty for a window — grant Pounce → Ghostty under Privacy & Security → Automation."
+# The one spawn this room has, and the one thing this chord cannot do without.
+# `exec` into a missing file is a silent death under the pounce daemon, which
+# swallows stderr — the failure the deleted `say()` existed to prevent, so the
+# check comes back rather than the helper. Absolute path for haus-notify because
+# launchd's PATH names nothing of ours.
+nw="$HOME/.config/haus/term/new-window.sh"
+if [ ! -x "$nw" ]; then
+  /run/current-system/sw/bin/haus-notify --source haus.terminal --kind fault \
+    --symbol exclamationmark.triangle --title "haus · shell here" \
+    --body "new-window.sh is missing — is this generation half-applied?" >/dev/null 2>&1
   exit 0
 fi
 
-# windows floats every runtime-spawned ghostty window (the on-window-detected
-# title race — see aerospace.toml), so tile this one by hand once it has focus.
-# From outside the window, so the join is a before/after on focus: wait for it
-# to land on a DIFFERENT window id than the one the chord started in. (The
-# self-tiles that run from INSIDE their window — terminal's launch.sh and
-# lanes/lane-open.sh — cannot use focus that way and no longer try; they walk
-# up to their own Ghostty process instead. This one has a real "before", which
-# is the guard that makes a focus poll honest.)
-# No move-node here — the window places ITSELF, from inside, where launch.sh
-# knows with certainty which window it is (T, or the page passed above). This
-# side only un-floats it.
-# (Until the next resort, that is: resort-windows.sh's catch-all sends plain
-# Ghostty windows home to T, and a shell window carries no title to say
-# otherwise. Accepted — a resort is an explicit "re-sort everything".)
-for _ in $(seq 1 20); do
-  wid="$(aerospace list-windows --focused --format '%{window-id}' 2>/dev/null)"
-  [ -n "$wid" ] && [ "$wid" != "$before" ] && break
-  sleep 0.05
-done
-[ -n "${wid:-}" ] && [ "$wid" != "$before" ] &&
-  aerospace layout --window-id "$wid" tiling >/dev/null 2>&1
-
-exit 0
+exec "$nw" "${args[@]}" -- "$shell"
