@@ -141,7 +141,7 @@ modules/
                           #   the bar and the launcher through those rooms' extension
                           #   points (lib/contrib.nix). Owns its payload in BOTH
                           #   profiles: scruff + the statusline pair + agent-state +
-                          #   agent-desktop-guard/-ask + scruff-cache (system), and the
+                          #   agent-desktop-guard + scruff-cache (system), and the
                           #   instructions/skill files (home, written into the same
                           #   user terminal writes — home-manager merges the two, and
                           #   a path collision is an error)
