@@ -311,6 +311,12 @@ in
         it is the difference between closing the last thing on a space and then
         having to find your way off it.
 
+        A workspace and its pages are one family, and gravity prefers it:
+        emptying `T/<repo>` lands on the most recent populated member of the T
+        family — another page, even one never visited, or T itself — and only
+        when the whole family is empty does it fall back to the most recently
+        populated workspace anywhere.
+
         Turn it off if a screen that changes without you touching it is worse
         than a blank one. That is what `haus.appearance.reduceMotion` decides on
         your behalf: it is the largest movement haus makes that you did not ask
