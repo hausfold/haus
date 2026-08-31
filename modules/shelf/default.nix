@@ -17,10 +17,13 @@
 #
 # Having no launch agent has one consequence the copy has to pay for: the app
 # comes up at login (it registers itself as a login item) and NOTHING else ever
-# starts it, so a rebuild that swaps the bundle under a running Perch leaves the
-# machine shelf-less for the rest of the session. The activation below therefore
-# stops the shelf on purpose before the swap and puts it back after — but only
-# if it was up, so a deliberately-quit Perch is not resurrected by a rebuild.
+# starts it, so anything that takes the shelf down — the swap below deleting the
+# bundle under a running Perch, a login item that never registered, a quit —
+# leaves the machine shelf-less until the next login, and a version bump that
+# arrives while it is down leaves it shelf-less for good. The activation below
+# therefore stops the shelf on purpose before the swap, and then ends every
+# rebuild the same way `kickstartPounce` does for the launcher: the room is on,
+# so the shelf is running by the time activation returns.
 #
 # On by default: nix/release.nix in the perch repo pins a real notarized
 # release, so `pkgs.perch` is a shipping app rather than a placeholder.
@@ -257,25 +260,11 @@ lib.mkIf config.haus.shelf.enable {
     if [ "$(/bin/cat "$perchMarker" 2>/dev/null)" != "${pkgs.perch}" ]; then
       echo "perch: installing ${pkgs.perch} → $perchDest" >&2
 
-      # Two reasons this block has to end with a running Perch, and they are
-      # both decided BEFORE the swap:
-      #
-      #   * the shelf is up right now — the swap below deletes the bundle out
-      #     from under it and it exits (measured), and NOTHING starts it again:
-      #     perch has no launch agent, it registers itself as a login item, so
-      #     the machine sits shelf-less for the rest of the session and the
-      #     version bump reads as "I rebuilt and now perch won't open";
-      #   * there is no marker at all — this is the room's first install, and
-      #     an app that has never been launched has never registered itself as
-      #     a login item either, so without this it would not come up at the
-      #     next login and the shelf would simply never appear.
-      #
-      # A Perch the user quit on purpose, on a machine that already has it,
-      # matches neither and stays quit.
-      perchRelaunch=""
-      [ -e "$perchMarker" ] || perchRelaunch=1
+      # The swap deletes the bundle out from under a running Perch and it exits
+      # (measured). Whether it comes back is settled at the END of this file, by
+      # one rule — the room is on, so the shelf is up — rather than by a guess
+      # made here about why it was or wasn't running.
       if /usr/bin/pgrep -qU "$perchUid" -f "^$perchExec$"; then
-        perchRelaunch=1
         # Stop it on purpose instead of letting the rm pull the rug: a process
         # whose bundle has been deleted can still be alive when we relaunch,
         # and `open` would then just re-activate that stale instance — running
@@ -313,44 +302,66 @@ lib.mkIf config.haus.shelf.enable {
         /bin/rm -rf "$perchDest.new"
       fi
 
-      # Put the shelf back up, in the user's GUI session — activation runs as
-      # root, and root's session is not the one with a menu bar in it (same
-      # reason core's activateSettings call goes through asuser). `-g` so a
-      # rebuild never steals focus from whatever is in front, `timeout` because
-      # `open` waits on LaunchServices and this is the one unbounded call in
-      # the block, and `open` rather than exec'ing the binary because the TCC
-      # identity has to be the app's.
+    fi
+
+    # --- the room is on, so the shelf is up ----------------------------------
+    # Outside the marker block, and asking only "is it running", because the
+    # three ways the shelf ends up down are not distinguishable from in here and
+    # only one of them was ever handled:
+    #
+    #   * the swap above just killed it — handled before, still handled;
+    #   * first install, never launched, so never self-registered as a login
+    #     item — handled before, still handled;
+    #   * it was already down when a version bump arrived. NOT handled before:
+    #     the old code decided whether to relaunch from state sampled BEFORE the
+    #     swap, and a Perch that was down at that moment set neither flag, so the
+    #     bundle was replaced and nothing started it. Measured on a fresh macOS
+    #     install: perch down since boot, `perch: installing …-perch-2026.08.31`
+    #     in the log, shelf still down afterwards — and down it stays, because
+    #     the next rebuild finds the marker matching and never enters the block
+    #     at all. `shelf.enable = true` and no shelf, permanently.
+    #
+    # ⚠️ This DOES reverse the old carve-out that "a Perch you quit on purpose
+    # stays quit" — quit the shelf and the next `haus rebuild` brings it back.
+    # That is the same promise `kickstartPounce` already makes about the
+    # launcher: a rebuild is an explicit "make this machine match the config",
+    # and a room that is on having nothing running is the state a user reports as
+    # broken. Quitting for the session is `perch quit`, not a config change.
+    #
+    # ⚠️ `open -g` on an app bundle does NOT promise a window — haus#487 measured
+    # Ghostty opening none under it — and `pgrep` can only see a PROCESS, so a
+    # Perch that came back without drawing still prints "shelf up" here.
+    # Unmeasured for Perch, and deliberately left alone rather than changed on a
+    # hunch: if the shelf is ever reported up and isn't there, this is the line.
+    if [ -x "$perchExec" ] && ! /usr/bin/pgrep -qU "$perchUid" -f "^$perchExec$"; then
+      # In the user's GUI session — activation runs as root, and root's session
+      # is not the one with a menu bar in it (same reason core's activateSettings
+      # call goes through asuser). `-g` so a rebuild never steals focus from
+      # whatever is in front, `timeout` because `open` waits on LaunchServices
+      # and this is the one unbounded call here, and `open` rather than exec'ing
+      # the binary because the TCC identity has to be the app's.
       #
-      # The success line is printed from what actually happened rather than
-      # from having tried: a rebuild that says it put the shelf back and
-      # didn't is the bug this whole block exists to stop being invisible.
-      #
-      # ⚠️ `open -g` on an app bundle does NOT promise a window — haus#487
-      # measured Ghostty opening none under it — and `pgrep` below can only see
-      # a PROCESS, so a Perch that came back without drawing would print
-      # "shelf back up" from here. Unmeasured for Perch, and deliberately left
-      # alone rather than changed on a hunch: if the shelf is ever reported
-      # back and isn't there, this is the line, and the probe is the reason.
-      if [ -n "$perchRelaunch" ] && [ -x "$perchExec" ]; then
-        # ⚠️ `-H`. macOS's /etc/sudoers ships `Defaults env_keep += "HOME MAIL"`,
-        # so `sudo --user=` from activation keeps ROOT's HOME, and `open` hands
-        # its environment to the app it launches — without this flag Perch comes
-        # back running as you with `HOME=/var/root`, and anything the shelf
-        # spawns reads root's home. Measured on mbp 2026-08-26 with `ps eww`,
-        # alongside the same bug in ../notifications, where it cost trill its
-        # lane banners outright.
-        ${pkgs.coreutils}/bin/timeout 20 launchctl asuser "$perchUid" \
-          sudo -H --user=${username} -- /usr/bin/open -g "$perchDest" || true
-        perchUp=""
-        for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-          if /usr/bin/pgrep -qU "$perchUid" -f "^$perchExec$"; then perchUp=1; break; fi
-          /bin/sleep 0.2
-        done
-        if [ -n "$perchUp" ]; then
-          echo "perch: shelf back up" >&2
-        else
-          echo "warning: perch: the shelf did not come back up. It will return at your next login; nothing else was affected." >&2
-        fi
+      # ⚠️ `-H`. macOS's /etc/sudoers ships `Defaults env_keep += "HOME MAIL"`,
+      # so `sudo --user=` from activation keeps ROOT's HOME, and `open` hands
+      # its environment to the app it launches — without this flag Perch comes
+      # back running as you with `HOME=/var/root`, and anything the shelf
+      # spawns reads root's home. Measured on mbp 2026-08-26 with `ps eww`,
+      # alongside the same bug in ../notifications, where it cost trill its
+      # lane banners outright.
+      ${pkgs.coreutils}/bin/timeout 20 launchctl asuser "$perchUid" \
+        sudo -H --user=${username} -- /usr/bin/open -g "$perchDest" || true
+      perchUp=""
+      for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+        if /usr/bin/pgrep -qU "$perchUid" -f "^$perchExec$"; then perchUp=1; break; fi
+        /bin/sleep 0.2
+      done
+      # Printed from what actually happened rather than from having tried: a
+      # rebuild that says it put the shelf up and didn't is the bug this whole
+      # block exists to stop being invisible.
+      if [ -n "$perchUp" ]; then
+        echo "perch: shelf up" >&2
+      else
+        echo "warning: perch: the shelf did not come up. It will return at your next login; nothing else was affected." >&2
       fi
     fi
   '';

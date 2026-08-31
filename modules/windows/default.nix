@@ -461,6 +461,45 @@ lib.mkMerge [
       _: path: lib.getAttrFromPath path config.haus.windows
     ) (import ./window-manager-keys.nix);
 
+    # ---- the room is off, so its two agents have to be gone ------------------
+    # Outside the mkIf on purpose: this is the branch where the room is OFF, and
+    # a `mkIf cfg.enable` block cannot clean up after itself.
+    #
+    # nix-darwin already removes a user agent that a generation stopped
+    # declaring — its activation walks the PREVIOUS generation's
+    # `user/Library/LaunchAgents` and deletes anything the new one does not ship.
+    # Measured working: flipping `windows.enable` true → false took both plists
+    # out. But it is a ONE-SHOT diff against the immediately-previous generation,
+    # so a transition that misses it leaves the plist orphaned FOREVER — from the
+    # next rebuild on, the previous generation no longer declares the agent
+    # either, and nothing ever looks at it again. Seen on a machine that switched
+    # desktops from `hacker` to a third-party one: three subsequent rebuilds, and
+    # AeroSpace was still running off an Aug-22 plist with the room off, the
+    # tiler tiling and `keys.leader` correctly claiming nothing — which is the
+    # confusing half, because the leader key IS released, so the machine reads as
+    # "the room went off but the tiler didn't".
+    #
+    # Removing a file that is already gone is free, so this runs on every rebuild
+    # with the room off rather than trying to detect the orphaned case. It is
+    # deliberately narrow: only the two agents THIS room declares, only when it is
+    # off, and it never touches /Applications/AeroSpace.app — the cask is
+    # `haus.homebrew.cleanup`'s business and "haus never deletes your apps" holds.
+    system.activationScripts.postActivation.text = lib.mkIf (!config.haus.windows.enable) ''
+      # --- windows: the room is off, so neither agent may be left running -----
+      windowsUid="$(/usr/bin/id -u -- ${username})"
+      for windowsAgent in org.nixos.aerospace org.nixos.sleepwatcher; do
+        windowsPlist="/Users/${username}/Library/LaunchAgents/$windowsAgent.plist"
+        [ -e "$windowsPlist" ] || continue
+        echo "windows: room is off — removing stale $windowsAgent" >&2
+        # bootout rather than `launchctl unload`: unload is the deprecated
+        # spelling and is a no-op against a job loaded into a GUI domain from a
+        # root activation. `|| true` because a job that is already gone exits
+        # non-zero, which is the success case here.
+        /bin/launchctl bootout "gui/$windowsUid/$windowsAgent" 2>/dev/null || true
+        /bin/rm -f "$windowsPlist"
+      done
+    '';
+
     # The interlock the roadmap asked for, as a warning rather than an assertion.
     # Two window managers on one machine is a genuine, if unusual, way to work
     # ("Stage Manager on the laptop panel, tiling on the external"), so refusing
