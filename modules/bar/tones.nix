@@ -58,9 +58,10 @@
     key = "overlay1";
     stub = "0xff1a1a1a";
     meaning = "present but subordinate — a heading, a row's name, a descriptor";
-    # The second dim step, and the bar has had it all along: vitals_lib and
-    # agents both paint a popup SECTION icon overlay1 and its META row
-    # overlay0; ai_usage.sh writes that same two-tier rule down as
+    # The second dim step, and the bar has had it all along: agents paints a
+    # popup SECTION icon overlay1 and its META row overlay0, as vitals_lib
+    # did before the runtime took its rows; ai_usage.sh writes that same
+    # two-tier rule down as
     # `descr` vs `meta`; memory/cpu's "everything else", calendar's meta
     # glyph and empty-state label, page's counter and media_lib's inactive
     # source are all the brighter one. `mute` cannot do this job — it is the
@@ -92,10 +93,11 @@
     key = "yellow";
     stub = "0xff3a3a3a";
     meaning = "worth knowing, nothing to do yet";
-    # The missing MIDDLE of the severity ladder. Two pills write the four
+    # The missing MIDDLE of the severity ladder. Two pills wrote the four
     # steps out in a comment and then in code — `GREEN → YELLOW → PEACH →
-    # RED`, on identical thresholds, in vitals_lib.sh's and ai_usage.sh's
-    # `pct_color` —
+    # RED`, on identical thresholds, in vitals_lib.sh's `vitals_color` and
+    # ai_usage.sh's `pct_color` (the first of those is gone now: both vitals
+    # pills are converted, and `vitals_tone` says the same ladder in tones) —
     # and battery.sh spends yellow across its whole 20-80% band. The tone
     # ladder had three severity rungs against their four, so `pct_color`
     # could not be written in tones at all: the first pill to convert would

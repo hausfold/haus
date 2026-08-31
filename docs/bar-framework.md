@@ -4,7 +4,7 @@
 > diff, `pill`, `graph`, tones, the four popup row kinds and their value
 > column, `bar_emit`), the `# widget:` parser (`modules/bar/manifest.nix`),
 > `frameworkBlock` in `modules/bar/default.nix`, and `clock` + `github` +
-> `cpu` converted, pinned by `test/barlib.bats`. Sections below marked
+> `cpu` + `memory` converted, pinned by `test/barlib.bats`. Sections below marked
 > **planned** are what is left: the remaining manifest keys, `slider` and
 > `badge`, third-party widgets. The code is normative where the two disagree;
 > a planned key is an EVAL ERROR today, not a silent no-op, so nothing here
@@ -51,7 +51,8 @@ barlib_main "$@"
 largest — typed sources, a dropdown, a detached network fetch — and the one
 the component set was designed against. `cpu.sh` is the one to read for a
 graph, a dropdown of numbers, and a widget that keeps CLI paths beside its
-handlers.)
+handlers; `memory.sh` is the same shape with a verdict of its own, for a pill
+whose colour is not a percentage.)
 
 Everything else — which bar instance, event wiring, `updates=`, state caching,
 diffing, tone→hex — belongs to the runtime. A widget script never calls
@@ -144,6 +145,24 @@ running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
   is clamped to 0…1 by the runtime: sketchybar scales a pushed value against
   the item's height and nothing else, so >1 draws off the top of the pill and
   <0 vanishes, and neither reads as an error.
+
+  **Why a readout would want one.** A percentage in a bar answers "how busy,
+  right now" and nothing else: it cannot tell you whether 60% is a spike
+  settling or a climb that started five minutes ago, which is the actual
+  question you glance up to ask. `graph = <width>` makes the item an
+  `--add graph` rather than an `--add item` — a normal pill in every other
+  respect, icon and label and popup and click handlers all unchanged, plus a
+  rolling window of the last `width` pushed values drawn behind the text. The
+  width is a POINT COUNT, which is why the manifest refuses it without an
+  `interval`: the window is `width × interval` seconds wide — both shipped
+  pills carry 48 points, which is two minutes of cpu at its 2 s tick and four
+  minutes of memory at its 5 s one.
+
+  ⚠️ **The history lives in the RUNNING item**, not in any file, so a bar
+  reload starts the line empty and it fills in over the next window. Worth
+  knowing before you see it: the first reload after a rebuild leaves a graph
+  pill flat for a whole window — two minutes on cpu, four on memory — and it
+  is drawing exactly what it knows.
 
   ⚠️ **Call it from `fetch`, not `render`** — the one place the fetch/render
   split does not hold, and structural rather than stylistic. `render` is
@@ -295,16 +314,17 @@ framework — the mapping onto an existing rung was already right.
 Four of the ten are worth knowing before you pick one:
 
 - **Two dim steps.** `mute` is OFF; `dim` is quiet but present. Six pills
-  already use both as a hierarchy — vitals_lib and agents paint a popup
-  section glyph `overlay1` and the meta row under it `overlay0`, and
-  `ai_usage.sh` writes that same two-tier rule down as `descr` vs `meta`. One
+  already use both as a hierarchy — agents paints a popup section glyph
+  `overlay1` and the meta row under it `overlay0` (as vitals_lib did before
+  the runtime took its rows), and `ai_usage.sh` writes that same two-tier rule
+  down as `descr` vs `meta`. One
   rung cannot say both, and a widget with only `mute` can only ever get
   greyer.
 - **`text` is deliberately not a verdict** — the way back to neutral after
   painting peach. github's `info` sources are it: a count that is news
   without being bad news.
 - **Four severity steps, not three:** ok → `watch` → `warn` → `bad`.
-  `vitals_lib.sh` and `ai_usage.sh` each write `GREEN → YELLOW → PEACH → RED`
+  `vitals_lib.sh` and `ai_usage.sh` each wrote `GREEN → YELLOW → PEACH → RED`
   in a comment and then in code, on identical thresholds, and battery spends
   yellow across its whole 20–80% band. 50% CPU is not "wants a human here",
   and without a name for it the first of those pills to convert would have had
@@ -402,14 +422,26 @@ Lua (or Go daemon) runtime would consume, so nothing built now is thrown away.
    `--value` on the popup rows, because a dropdown of measurements is two
    columns and the alignment is arithmetic no widget should be doing twice.
    It is also the first pill to spend the four severity rungs: `vitals_tone`
-   maps the ladder `vitals_color` already climbed, one to one, which is what
-   those rungs were widened for.
-5. `permissions` / `movable` manifest keys, third-party framework widgets
+   maps the ladder `vitals_color` had climbed in hexes, one to one, which is
+   what those rungs were widened for.
+5. ✅ **memory** — cpu's twin, and the conversion that ADDED nothing: it
+   spends `graph`, `--value`, `dim` and three of the four severity rungs
+   exactly as it found them, which is the first evidence the component set is
+   a set rather than one pill's needs generalized on the way past. What it
+   took away is the point of it — `vitals_lib.sh` lost `vitals_color`, the
+   four row builders,
+   `vitals_pop_add`, the popup show/open pair, `vitals_pill_of`,
+   `vitals_metrics`/`vitals_name_pad`/`vitals_px` and `vitals_fraction`, and
+   is now one sample, one ladder and the two things a row can DO.
+   It is also the pill that proves a widget may keep a verdict of its own: its
+   colour is the kernel's memory-pressure level rather than the percentage, so
+   it is the one vitals pill that never calls `vitals_tone` — it maps its own
+   three levels onto `ok`/`warn`/`bad` instead. Naming a TONE is all the
+   framework asks; where the tone comes from is the widget's business.
+6. `permissions` / `movable` manifest keys, third-party framework widgets
    through `haus.bar.widgets`.
-6. Long tail: convert on touch. **memory** is the one already paid for —
-   cpu's twin, same `vitals_lib`, and the second half of every component cpu
-   added; `vitals_color` and the hand-written row builders go with it. A
-   converted pill's entry in `mkPluginBlocks` shrinks to a `frameworkBlock`
-   call carrying only what is IDENTITY — its hue, its padding — because the
-   ladder deliberately has no rung for "this widget's own colour". The
-   framework wins when every entry in `mkPluginBlocks` is one of those.
+7. Long tail: convert on touch. A converted pill's entry in `mkPluginBlocks`
+   shrinks to a `frameworkBlock` call carrying only what is IDENTITY — its
+   hue, its padding — because the ladder deliberately has no rung for "this
+   widget's own colour". The framework wins when every entry in
+   `mkPluginBlocks` is one of those.

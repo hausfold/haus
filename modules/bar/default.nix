@@ -827,66 +827,38 @@ let
       # pill at all. After that the plugin's own TTL keeps the feeds warm.
       ("$HOME/.config/sketchybar/plugins/ai_usage.sh" >/dev/null 2>&1 &)
     '';
-    # System readouts. Each pill's colour comes from the --set here (the palette
-    # vars are live via colors.sh, sourced by sketchybarrc before this file); the
-    # plugin script only refreshes icon+label on its update_freq tick.
+    # System readouts. A hand-written pill's colour comes from the --set here
+    # (the palette vars are live via colors.sh, sourced by sketchybarrc before
+    # this file) and its script only refreshes icon+label on its update_freq
+    # tick. The two below are framework widgets and carry their own wiring.
     #
-    # ── why these two are `--add graph` and not `--add item` ────────────────────
-    # A percentage in a bar answers "how busy, right now" and nothing else: it
-    # cannot tell you whether 60% is a spike settling or a climb that started
-    # five minutes ago, which is the actual question you glance up to ask. A
-    # graph item is a normal pill in every other respect — icon, label, popup,
-    # click_script all behave — plus a rolling window of the last GRAPH_WIDTH
-    # pushed values drawn behind the text. The plugins `--push` one point per
-    # tick, so the window is `width × update_freq` seconds wide: about two
-    # minutes of CPU, six of memory.
+    # ── the two graph pills ────────────────────────────────────────────────────
+    # `# widget: graph = 48` in cpu.sh and memory.sh is what makes each of these
+    # an `--add graph` rather than an `--add item`, and the header carries the
+    # interval and the popup too. What a graph pill IS — and the one thing about
+    # it that reads as a bug the first time — is the `graph` component in
+    # docs/bar-framework.md, next to the rule about which half of the widget may
+    # push a point.
     #
-    # The history lives in the RUNNING item, so a bar reload starts the line
-    # empty and it fills in over the next window. That is worth naming because
-    # it looks like a bug the first time you reload the bar and the graph is a
-    # flat line for two minutes: it is drawing exactly what it knows.
-    #
-    # graph.color is fixed per pill and never touched by the plugins. The line
-    # is IDENTITY (which readout is this) and the label is STATE (is it bad) —
-    # the same rule the AI-usage dropdown follows, and the reason a pill under
-    # load doesn't turn into two things flashing different colours at once.
-    # fill_color is the same hue at 0x33 alpha: enough to read the area under
-    # the line at a glance, not enough to compete with the pills either side.
-    # It is derived from the colors.sh variable rather than written as a hex —
-    # `0x33''${PEACH#0xff}` is that palette entry with its opacity swapped — so a
-    # nebelung change reaches the fill in the same rebuild it reaches the line.
-    # Converted (docs/bar-framework.md): `# widget: graph = 48` in cpu.sh is
-    # what makes this an `--add graph`, and the header carries the interval
-    # and the popup too. What is left here is the pill's IDENTITY — its hue,
-    # and the padding that separates a graph pill from the readouts beside it
-    # — since the ladder deliberately has no rung for "this widget's own
-    # colour". graph.fill_color is derived from graph.color by frameworkBlock.
+    # What is left here is each pill's IDENTITY: its hue, and the padding that
+    # separates a graph pill from the readouts beside it, since the ladder
+    # deliberately has no rung for "this widget's own colour". The line is
+    # identity and the label is STATE (is it bad), which is why graph.color is
+    # named once here and never touched by either script — a pill under load
+    # must not turn into two things flashing different colours at once.
+    # graph.fill_color is derived from it by frameworkBlock.
     cpu = frameworkBlock sb side "cpu" {
       "icon.color" = "$PEACH";
       "graph.color" = "$PEACH";
       "background.padding_left" = "8";
       "background.padding_right" = "8";
     };
-    memory = ''
-      ${sb} --add graph memory ${side} 48 \
-          --set memory \
-              update_freq=5 \
-              icon.color=$GREEN \
-              graph.color=$GREEN \
-              graph.fill_color=0x33''${GREEN#0xff} \
-              graph.line_width=2 \
-              background.color=$SURFACE0 \
-              background.padding_left=8 \
-              background.padding_right=8 \
-              popup.background.border_width=2 \
-              popup.background.corner_radius=10 \
-              popup.background.border_color=$SURFACE0 \
-              popup.background.color=$MANTLE \
-              ${popupAlign side} \
-              popup.horizontal=off \
-              script="$HOME/.config/sketchybar/plugins/memory.sh" \
-          --subscribe memory mouse.clicked system_woke
-    '';
+    memory = frameworkBlock sb side "memory" {
+      "icon.color" = "$GREEN";
+      "graph.color" = "$GREEN";
+      "background.padding_left" = "8";
+      "background.padding_right" = "8";
+    };
     volume = ''
       ${sb} --add item volume ${side} \
           --set volume \
