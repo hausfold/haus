@@ -562,11 +562,10 @@ lib.mkMerge [
 
       # Always-float utility windows — the generalised shape of what used to
       # be two hand-written aerospace.toml rules (§5.4's "window rules beyond
-      # assignment" box). None of them installs anything (FaceTime is stock
-      # macOS; Trill isn't shipped by this rice yet — its rule was hand-added
-      # ahead of the module landing; tart arrives with the AI room, not from
-      # here), so all three are metadata-only entries whose only job is naming
-      # a bundle id and setting `float`.
+      # assignment" box). Neither installs anything (FaceTime is stock macOS;
+      # Trill isn't shipped by this rice yet — its rule was hand-added ahead
+      # of the module landing), so both are metadata-only entries whose only
+      # job is naming a bundle id and setting `float`.
       facetime = {
         enable = lib.mkDefault true;
         order = lib.mkDefault 990;
@@ -583,18 +582,6 @@ lib.mkMerge [
         enable = lib.mkDefault true;
         order = lib.mkDefault 991;
         appId = lib.mkDefault "com.hausfold.trill";
-        float = lib.mkDefault true;
-      };
-      # A tart guest is a fixed-size VM console, not a document: tiling it
-      # stretches the guest's framebuffer into a letterboxed smear AND
-      # reflows the whole workspace every time a lane boots one. Floating
-      # leaves it at the size the guest actually renders. `tart` itself ships
-      # with haus.ai (modules/ai) when the AI room is on; this entry only
-      # names its bundle id, so the rule costs nothing when it's off.
-      tart = {
-        enable = lib.mkDefault true;
-        order = lib.mkDefault 992;
-        appId = lib.mkDefault "org.cirruslabs.tart";
         float = lib.mkDefault true;
       };
     };
