@@ -392,9 +392,12 @@ in
         raising the window instead does not work.
 
         The ask is an Apple event to the popup's own Ghostty process, so macOS
-        gates it behind an Automation grant for whatever spawned the popup —
-        one prompt, once, carried as a card in `haus permissions`. Decline it
-        and the popups still open, just unpinned.
+        gates it behind an Automation grant for whatever SPAWNED the popup, not
+        for haus: Pounce for the chords and palette windows, and SketchyBar for
+        the bar's agent peek, which summons its own. Both are one card in `haus
+        permissions`. Decline either and those popups still open, still float
+        and still take focus without waiting — they just sink like ordinary
+        windows again.
       '';
     };
 

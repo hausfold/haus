@@ -168,8 +168,11 @@ modules/
                           #   ImageMagick for the 16-bit field), looks/ holds the
                           #   hand-made Nebelung PNGs
   terminal/               # shell: zsh, starship, git, yazi, ghostty + zmx + theming
-                          #   + floatring (Swift, xcrun-compiled): the outline every
-                          #   window float-term.sh spawns wears (haus.terminal.floatBorder)
+                          #   + floatring and floatpin (Swift, xcrun-compiled): the outline
+                          #   every window float-term.sh spawns wears
+                          #   (haus.terminal.floatBorder), and the window LEVEL that keeps
+                          #   those popups above the tiling (haus.terminal.floatOnTop) —
+                          #   floating is a LAYOUT in AeroSpace, not a stacking order
   windows/                # AeroSpace tiling + hausrect (Swift, xcrun-compiled):
                           #   on-screen window rects by window id, which AeroSpace
                           #   has no way to report — the points scripts/
@@ -560,10 +563,11 @@ mechanism, say so in one line.
   config lives in `/etc/nix/nix.custom.conf`. GC is our own weekly launchd job.
 - **The pounce build shells out to `/usr/bin/xcrun swiftc`** — needs Xcode CLT +
   the macOS build sandbox relaxed (Determinate's default). See the pounce repo.
-  So do this repo's six one-file Swift helpers, for the same reason (compiling
+  So do this repo's seven one-file Swift helpers, for the same reason (compiling
   a Swift toolchain from source to build a few hundred lines against AppKit
   costs hours): `hausax` (core), `hausdisp` (displays), `barpop` (bar),
-  `floatring` (terminal), `hausrect` (windows), `hausocr` (launcher).
+  `floatring` and `floatpin` (terminal), `hausrect` (windows), `hausocr`
+  (launcher).
 
 ## Patterns
 

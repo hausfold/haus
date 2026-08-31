@@ -54,13 +54,19 @@
 //
 // ── TCC ─────────────────────────────────────────────────────────────────────
 // Sending an Apple event to another application is gated by Automation, and
-// which application is ASKING is the responsible process — Pounce for the
-// palette commands and the ⌘-chords its event tap owns, since it is what spawns
-// float-term.sh. That is one prompt, once, and it sticks because pounce is
-// re-signed with a stable identity (haus.launcher.signingIdentity); it is
-// carried as a card in the manual-click deck rather than left to surprise
-// someone. A denied grant costs the pin and nothing else: the popup still
-// opens, still floats, still wears its ring.
+// which application is ASKING is the responsible process — whatever spawned
+// float-term.sh, NOT this binary. There are two of those and they need separate
+// grants: Pounce, for the palette commands and the ⌘-chords its event tap owns,
+// and SketchyBar, for the bar's agent peek (modules/bar/sketchybar/plugins/
+// agents.sh calls `float-term.sh spawn` directly). Pounce's grant survives a
+// rebuild because pounce is re-signed with a stable identity
+// (haus.launcher.signingIdentity); sketchybar is an adhoc-signed store path, so
+// its grant is re-asked whenever that path moves. Both are one card in the
+// manual-click deck rather than a surprise.
+//
+// A denied or stale grant costs the pin and nothing else: the popup still
+// opens, still floats, still wears its ring, and — because float-term.sh
+// detaches this call — still takes focus without waiting for us.
 //
 // The level itself is read back through CGWindowListCopyWindowInfo, which needs
 // no grant at all — same TCC-free source floatring.swift and hausrect.swift
@@ -74,7 +80,9 @@ var pid: pid_t = 0
 var wantPinned = true
 // The caller spawns the window and calls us in the same breath, so the window
 // may not exist yet. Two seconds is far past the ~200 ms it actually takes and
-// still short enough that a popup that died on launch doesn't hold a shell.
+// still short enough that a popup that died on launch doesn't leave a process
+// waiting on it. Nothing blocks on this wait — float-term.sh's pin() detaches —
+// so it buys reliability rather than costing latency.
 var timeout: Double = 2.0
 
 var args = Array(CommandLine.arguments.dropFirst())
@@ -97,9 +105,17 @@ guard pid > 0 else {
 }
 
 // ── the window's level, from the grant-free window list ─────────────────────
-// Layer 0 is an ordinary application window; a pinned one reports 3
-// (kCGFloatingWindowLevel). Returns nil while the pid owns no on-screen
-// ordinary window — which is how the wait below tells "not yet" from "level 0".
+// Layer 0 is an ordinary application window; anything above it is pinned, which
+// is the only distinction this tool needs. Deliberately NOT a test for 3: 3 is
+// what `toggle_window_float_on_top` happens to produce today
+// (kCGFloatingWindowLevel), and hard-coding it would make a Ghostty that picked
+// any other level read as "the toggle did nothing" — which, with a retry above
+// it, would toggle the window straight back OFF. `pinned` is a predicate about
+// the level's relationship to ordinary windows, so it survives Ghostty changing
+// its mind.
+//
+// Returns nil while the pid owns no on-screen window at all — that is how the
+// wait below tells "not yet" from "on screen and unpinned".
 func currentLayer(of pid: pid_t) -> Int? {
     let info =
         CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
@@ -108,13 +124,15 @@ func currentLayer(of pid: pid_t) -> Int? {
         guard window[kCGWindowOwnerPID as String] as? Int == Int(pid),
             let layer = window[kCGWindowLayer as String] as? Int
         else { continue }
-        // Only ordinary and floating windows are candidates. Ghostty puts
-        // nothing else on screen for a popup, but a menu or a sheet open at the
-        // moment we look would otherwise answer for the window we mean.
-        if layer == 0 || layer == 3 { return layer }
+        // Menus, popovers and the dragging layer live in the twenties and
+        // above; a terminal window never does. Excluding them stops a menu that
+        // happens to be open answering for the window we mean.
+        if layer < 20 { return layer }
     }
     return nil
 }
+
+func isPinned(_ layer: Int) -> Bool { layer > 0 }
 
 func fourCharCode(_ s: String) -> UInt32 {
     var value: UInt32 = 0
@@ -152,10 +170,13 @@ func performGhosttyAction(_ action: String, pid: pid_t) -> Bool {
     event.setDescriptor(NSAppleEventDescriptor(string: action), forKeyword: AEKeyword(keyDirectObject))
     event.setDescriptor(terminal, forKeyword: AEKeyword(fourCharCode("GonT")))
 
-    // A popup whose workspace AeroSpace has already parked off-screen answers
-    // slowly or not at all (App Nap), so the send is bounded rather than
-    // trusted. The verify below is what decides success either way.
-    guard let reply = try? event.sendEvent(options: [.waitForReply], timeout: 5) else { return false }
+    // A popup whose workspace AeroSpace has already parked off-screen can answer
+    // slowly or not at all (App Nap), so the send is bounded tightly rather than
+    // trusted. 1.5s, not AppleScript's customary 5: the whole run is on the tail
+    // of a keystroke, and the verify below is what decides success anyway.
+    guard let reply = try? event.sendEvent(options: [.waitForReply], timeout: 1.5) else {
+        return false
+    }
     if let err = reply.forKeyword(AEKeyword(fourCharCode("errn")))?.int32Value, err != 0 {
         return false
     }
@@ -170,21 +191,31 @@ while Date() < deadline {
     if layer != nil { break }
     usleep(20_000)
 }
-guard let observed = layer else { exit(1) }  // no window ever appeared
+guard var observed = layer else { exit(1) }  // no window ever appeared
 
-let wantLayer = wantPinned ? 3 : 0
-if observed == wantLayer { exit(0) }  // already right — the action is a TOGGLE, so don't fire it
-
-// Toggle, then confirm against the window list rather than the reply: the reply
-// says Ghostty ran the action, the layer says the window actually moved. One
-// retry covers a popup still finishing its first layout.
+// Toggle, then confirm against the window list rather than against the reply:
+// the reply says Ghostty ran the action, the layer says the window actually
+// moved. One retry covers a popup still finishing its first layout.
+//
+// ⚠️ The retry re-reads the level and only fires again if the window is STILL
+// where it started. `toggle_window_float_on_top` is a TOGGLE, so a retry that
+// assumed failure because the level is not the number it expected would undo a
+// pin that had worked — the exact bug a hard-coded "is it 3?" oracle invites.
+// Unchanged means the action didn't land; anything else is Ghostty's answer and
+// we accept it.
 for attempt in 0..<2 {
+    if isPinned(observed) == wantPinned { exit(0) }
+
     _ = performGhosttyAction("toggle_window_float_on_top", pid: pid)
-    let settle = Date().addingTimeInterval(0.5)
+
+    let settle = Date().addingTimeInterval(0.4)
     while Date() < settle {
-        if currentLayer(of: pid) == wantLayer { exit(0) }
+        if let now = currentLayer(of: pid), now != observed {
+            observed = now
+            break
+        }
         usleep(20_000)
     }
-    if attempt == 0 { usleep(100_000) }
+    if attempt == 0 { usleep(80_000) }
 }
-exit(1)
+exit(isPinned(observed) == wantPinned ? 0 : 1)

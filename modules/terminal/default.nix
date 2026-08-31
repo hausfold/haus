@@ -137,9 +137,19 @@ in
 
   # haus.terminal.floatOnTop asks a popup's own Ghostty process to raise that
   # window's level, and an Apple event to another application is Automation.
-  # WHO is asking is the responsible process — Pounce, since its event tap owns
-  # ⌘Y/⌘G and its commands spawn the rest — so the grant is Pounce's, not this
-  # room's, even though this room is what wants it.
+  # WHO is asking is the SUMMONER — the responsible process macOS books the
+  # request against — so the grant is never this room's, even though this room
+  # is what wants it. There are two summoners and they are granted separately:
+  # pounce (the palette commands and the ⌘-chords its tap owns) and sketchybar
+  # (the agents pill's peek, which calls float-term.sh itself). A user who
+  # grants only the first still has an unpinned agent peek and no idea why,
+  # which is the whole reason both are named in `steps`.
+  #
+  # Listed whenever the option is on rather than gated on pounce existing: a
+  # bar-without-launcher machine has exactly one of the two summoners, and it is
+  # the one whose grant does NOT survive a version bump (sketchybar is an
+  # adhoc-signed store path; pounce is re-signed with a stable identity), so
+  # that is the machine that needs the card most.
   #
   # No `check`, for the deck's first rule: every API that reports an Automation
   # grant asks for it first, and a permission dialog fired by `haus doctor` is
@@ -149,17 +159,18 @@ in
   # being off.
   haus._contrib.permissions.terminal-float-on-top = lib.mkIf terminalCfg.floatOnTop {
     order = 32;
-    title = "Automation — pounce → Ghostty";
+    title = "Automation — Ghostty, for whatever summons a popup";
     why = ''
-      Keeping the ⌘Y peek panel, ⌘G's gh-dash and the palette's own windows
-      above the tiling means asking each popup's Ghostty process to raise its
-      window level, and macOS books that request against whatever summoned it.
+      Keeping the ⌘Y peek panel, ⌘G's gh-dash, the bar's agent peek and the
+      palette's own windows above the tiling means asking each popup's Ghostty
+      process to raise its window level, and macOS books that request against
+      whichever app summoned it rather than against haus.
     '';
     cost = "popups still open in front, then sink behind the first tiled window you click";
-    applies = "command -v pounce >/dev/null 2>&1";
     pane = panes.automation;
     steps = [
-      "Find Pounce in the list and turn Ghostty on underneath it"
+      "Turn Ghostty on underneath Pounce — that covers ⌘Y, ⌘G and every palette window"
+      "Turn Ghostty on underneath SketchyBar too, if you use the bar's agent peek — it summons its own popup and needs its own grant"
       "A popup already on screen keeps its old behaviour — summon a fresh one to check"
     ];
   };

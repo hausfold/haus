@@ -4,7 +4,7 @@
 # across the Rebuild System pounce command, the Super-y yazi peek panel, and
 # the agent-peek popup.
 #
-# Three subcommands:
+# Five subcommands:
 #
 #   geom [--tiled | --pct N | --w PX --h PX | --match-focused]
 #       Print "X Y W H": a window of the requested size, centered on the
@@ -650,31 +650,39 @@ ring() {
 # ── pin the window above the tiling ─────────────────────────────────────────
 # pin PID [--off] — set (or clear) the window's always-on-top level.
 #
-# NOT detached, unlike ring(): floatpin exits as soon as it has confirmed the
-# level moved (~0.3s in practice, capped by its own --timeout), and the caller
-# wants that confirmation before it claims focus — a popup pinned after the
-# raise would flicker up through the window it is about to cover. It fails
-# quietly by design: a denied Automation grant, a Ghostty too old for
-# `toggle_window_float_on_top`, or a window that never appeared all cost the
-# pin and nothing else, and a popup that opens un-pinned is the behaviour that
-# existed before this option did.
+# Detached, exactly like ring(), and for a stronger reason than "it must outlive
+# this script": NOTHING on the keystroke path may wait on it. floatpin asks
+# Ghostty over an Apple event, which is Automation-gated, and every way that ask
+# can go wrong is measured in seconds — a dismissed permission dialog, a Ghostty
+# that App-Naps before it answers, a popup that dies on launch. Inline, each of
+# those is dead time between your chord and a window you can type into, on EVERY
+# summon rather than once. Detached, they cost the pin and nothing else, which
+# is the behaviour that existed before this option did.
+#
+# Racing `raise` is fine and deliberate: a level is a property of the window,
+# not of the focus, so it lands correctly whether it arrives before or after the
+# window takes focus — and setting it on a window that is already frontmost is
+# invisible, which is why there is nothing to order here.
 pin() {
   local pid="${1:-}"
   shift || true
   [ -n "$pid" ] || return 0
   [ -x "${PIN_BIN:-}" ] || return 0  # haus.terminal.floatOnTop = false
-  "$PIN_BIN" --pid "$pid" "$@" >/dev/null 2>&1 || true
+  "$PIN_BIN" --pid "$pid" "$@" </dev/null >/dev/null 2>&1 &
 }
 
 # ── spawn a fresh centered instance ─────────────────────────────────────────
 spawn() {
-  local title="" command="" pin=0 cols="" rows="" exact=0 frame=""
+  # `pin_workspace`, not `pin`: bash keeps function and variable namespaces
+  # apart, so a `pin` local would not actually shadow pin() — but two things
+  # three lines apart meaning different things is a trap for the next reader.
+  local title="" command="" pin_workspace=0 cols="" rows="" exact=0 frame=""
   local -a size_args=() extra=()
   while [ $# -gt 0 ]; do
     case "$1" in
       --title)   title="$2"; shift 2 ;;
       --command) command="$2"; shift 2 ;;
-      --pin)     pin=1; shift ;;
+      --pin)     pin_workspace=1; shift ;;
       --cols)    cols="$2"; shift 2 ;;
       --rows)    rows="$2"; shift 2 ;;
       --pct)     size_args=(--pct "$2"); shift 2 ;;
@@ -720,7 +728,7 @@ spawn() {
   # instance, and the focused workspace so --pin can put the window there.
   local before source_ws=""
   before=$(pgrep -x ghostty 2>/dev/null | sort -u)
-  [ "$pin" = 1 ] && source_ws=$(aerospace list-workspaces --focused 2>/dev/null)
+  [ "$pin_workspace" = 1 ] && source_ws=$(aerospace list-workspaces --focused 2>/dev/null)
 
   local -a open_args=(--title="$title")
   [ -n "$cols" ] && open_args+=(--window-width="$cols")
@@ -789,9 +797,8 @@ spawn() {
   # its three tries are a race against that teardown. Putting an AX round trip
   # in front of it starts that race late for no gain — only the ring has to
   # follow the final frame.
-  # Pin BEFORE the raise, so the window is already at its final level when it
-  # takes focus: pinning after would lift it a second time, visibly, through
-  # whatever it had just been drawn over.
+  # Fired here rather than beside ring() only so it starts as early as possible;
+  # it is detached, so this costs nothing and orders nothing.
   pin "$new_pid"
 
   raise "$new_pid" "$wid"
@@ -837,5 +844,5 @@ case "${1:-}" in
   place) shift; place "$@" ;;
   ring)  shift; ring "$@" ;;
   pin)   shift; pin "$@" ;;
-  *) echo "usage: float-term.sh {geom|spawn|place|ring} …" >&2; exit 2 ;;
+  *) echo "usage: float-term.sh {geom|spawn|place|ring|pin} …" >&2; exit 2 ;;
 esac
