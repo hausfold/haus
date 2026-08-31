@@ -194,6 +194,34 @@ nix build ".#darwinConfigurations.$host.system"
 sudo -n HOMEBREW_MAKE_JOBS=1 ./result/sw/bin/darwin-rebuild switch --flake ".#$host"
 EOS
 
+# ---- 2.5 decrypt the Nix Store volume --------------------------------------
+# Determinate's installer encrypts the "Nix Store" volume and stashes the
+# passphrase in the System keychain for a boot-time auto-unlock — which on a
+# TAHOE GUEST never consumes it: at boot APFSUserAgent pops the "Enter a
+# password to unlock the disk 'Nix Store'" modal (log: _DMAPFSHintForCryptoUser
+# IntErr=2, no crypto-user hint), then determinate-nixd's
+# systems.determinate.nix-store daemon mounts /nix itself from the keychain
+# ~41s in. Nothing is blocked — SSH is up throughout — but the stale modal sits
+# on every clone's desktop forever, and an image whose first screenshot shows a
+# password dialog is not golden. Rather than reverse-engineer the hint lookup,
+# drop the encryption: a disposable lane VM gains nothing from FileVault, and
+# a decrypted volume cannot prompt (measured: zero DiskUnlock prompts after
+# decryption, /nix mounted, SSH up ~10s after reboot). Online decrypt of a
+# ~12GB store takes ~1 min; wait for it so a shutdown can't interrupt the roll.
+say "decrypting the Nix Store volume (kills the unlock modal clones would otherwise show)…"
+guest <<'EOS'
+set -euo pipefail
+PW=$(sudo -n security find-generic-password -l "disk2 encryption password" -w 2>/dev/null) \
+  || { echo "no keychain passphrase — the volume may already be decrypted" >&2; exit 0; }
+sudo -n diskutil apfs decryptVolume disk2s7 -passphrase "$PW" >/dev/null
+for _ in $(seq 1 60); do
+  diskutil info disk2s7 | grep -q 'FileVault:                 No' && exit 0
+  sleep 10
+done
+echo "volume still decrypting after 10 min — see diskutil apfs list" >&2
+exit 1
+EOS
+
 # ---- 3. the quiet pass -----------------------------------------------------
 # What the first boot leaves on the desktop, and what each part of this
 # removes, is in the workshop's `docs/agent-vm.md`. Order matters: grant first
