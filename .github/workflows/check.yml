@@ -301,7 +301,7 @@ jobs:
           # button that visibly does nothing. It is a @placeholder@ template and
           # lints anyway, for haus-notify.sh's reason: both substitutions are
           # assignment right-hand sides, so an unsubstituted copy still parses.
-          shellcheck --severity=warning bootstrap.sh modules/ai/fix.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/lidawake.sh test/lidawake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/ai/desktop-ask.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh modules/ai/statusline.sh modules/terminal/scripts/image-preview.sh modules/terminal/lanes/lane-open.sh modules/bar/sketchybar/barlib.sh
+          shellcheck --severity=warning bootstrap.sh modules/ai/fix.sh modules/core/haus-notify.sh modules/core/trill.sh modules/core/haus.sh modules/core/haus-show.sh modules/core/haus-activate.sh modules/core/awake.sh modules/core/lidawake.sh test/lidawake.sh modules/ai/statusline-refresh.sh modules/ai/desktop-guard.sh modules/terminal/lanes/lane-cwd.sh modules/terminal/lanes/lane-seen.sh modules/focus/focus.sh test/awake.sh test/focus-auto.sh test/haus-settings.sh test/haus-plan.sh test/haus-show.sh test/haus-add.sh modules/ai/scruff-cache.sh modules/launcher/commands/lanes.sh modules/ai/runtime/tart-adapter.sh script/build-golden-vm.sh modules/ai/statusline.sh modules/terminal/scripts/image-preview.sh modules/terminal/lanes/lane-open.sh modules/bar/sketchybar/barlib.sh
       - name: awake lifecycle tests
         run: bash test/awake.sh
       # lidawake's three failsafes, over a fake pmset and a fake clock. Every
@@ -379,15 +379,6 @@ jobs:
       # Neither a build nor a lint can see either. Pure function, no Mac needed.
       - name: desktop guard tests
         run: bats test/desktop-guard.bats
-
-      # The banner door on that guard — the hook that decides WHERE the
-      # question is put and what a banner answer becomes. Its one directional
-      # invariant (past the guard's "ask", every failure falls to the pane
-      # prompt, never to silence — these panes run permission mode "auto") is
-      # invisible to a build and only bites in a lane nobody is watching.
-      # Guard, trill, agent-state and the focus join are all stubs; no Mac.
-      - name: desktop ask tests
-        run: bats test/desktop-ask.bats
 
       # float-term's `recenter` — the pass that centres a spawned popup on the
       # size it actually is. Pure arithmetic over two rectangles with AX and the

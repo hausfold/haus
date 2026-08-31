@@ -43,14 +43,11 @@
  * the guard's other half matches computer-use tools, and pi has none.
  *
  * ── why the question goes to trill ──────────────────────────────────────────
- * The guard can only ever answer "ask", which for Claude Code means re-opening
- * the prompt IN THE PANE. That is the right answer for a watched pane and the
- * wrong one here: the whole reason
+ * Claude's guard can only ever answer "ask", which re-opens the prompt IN THE
+ * PANE. That is the right answer there and the wrong one here: the whole reason
  * a lane runs in its own window is that nobody is watching it, and a question
  * that can only be answered by finding the pane is a lane parked until you go
- * looking. (Claude Code has since grown the same banner door — modules/ai's
- * `agent-desktop-ask`, which asks trill exactly when the pane's window is NOT
- * the focused one. This file is where that shape was worked out first.) `trill ask` blocks, draws Allow/Deny pills, exits with the pill's
+ * looking. `trill ask` blocks, draws Allow/Deny pills, exits with the pill's
  * index, and — the part that matters — parks the unanswered question as a fin
  * on the screen edge instead of dropping it. So the question survives you being
  * elsewhere, and answering costs one click from wherever you are.
@@ -78,13 +75,11 @@
  * command as `HAUS_DESKTOP_OK=1 bash -c '<the same command>'`. It was doing as
  * it was told.
  *
- * That is the difference between a verdict a person reads and one the model
- * does: a guard that can only say "ask" is talking to a person, and a guard
- * that can BLOCK is talking to something that will read the refusal as a
- * puzzle. So the reason carries the why and one instruction — stop, hand it
- * back — and the env var lives in this header, where a human reads it. The
- * Claude side's `agent-desktop-ask` denies with the same wording, under the
- * same rule.
+ * That is the difference between this and the Claude Code side: a guard that
+ * can only say "ask" is talking to a person, and a guard that can BLOCK is
+ * talking to something that will read the refusal as a puzzle. So the reason
+ * carries the why and one instruction — stop, hand it back — and the env var
+ * lives in this header, where a human reads it.
  *
  * The wrapper in that rewrite was worth knowing about on its own, and it is
  * what the shared ruleset now peels: the patterns anchor per segment

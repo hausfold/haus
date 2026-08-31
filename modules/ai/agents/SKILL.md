@@ -111,9 +111,8 @@ Someone is sitting in front of this Mac. Do not foreground an app, move the
 pointer or send a keystroke **here** just to look at your own work. On a
 machine that ships `haus.ai.instructions` you already have that rule in your
 global instructions, and `agent-desktop-guard` puts the question back in front
-of a human when you try — as a trill banner with Allow/Deny pills when nobody
-is at the pane (pi always, Claude Code through `agent-desktop-ask`), as the
-pane's own permission prompt when someone is — but it holds either way.
+of a human when you try — as a permission prompt on Claude Code panes, as a
+trill banner with Allow/Deny pills on pi ones — but it holds either way.
 
 Take a **VM** instead, and reach for it *before* handing the feel-test back —
 asking the user a question is never what the VM replaces; driving this desktop

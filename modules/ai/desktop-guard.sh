@@ -32,11 +32,8 @@
 # off for that pane — for a long unattended run where 40 prompts is the problem.
 # Mirrors bench's BENCH_AGENT_SWITCH=1: a reminder, not a jail.
 #
-# Nothing wires this file as a hook directly any more. Claude Code's wired
-# PreToolUse hook (matching "Bash|mcp__computer-use__.*", set by modules/
-# terminal's home.activation.claudeCodeSettings) is `agent-desktop-ask`
-# (modules/ai/desktop-ask.sh), which pipes its stdin here and decides WHERE a
-# verdict's question is put — the pane prompt, or a trill banner. Contract:
+# Wired by modules/terminal (home.activation.claudeCodeSettings) as a PreToolUse
+# hook matching "Bash|mcp__computer-use__.*". Contract:
 # stdin is the hook JSON ({tool_name, tool_input, …}); stdout is either nothing
 # (no opinion — normal permission flow) or a hookSpecificOutput verdict; exit 0
 # always, because a nonzero exit from a PreToolUse hook means something else.
@@ -45,9 +42,9 @@
 # (modules/terminal/pi/desktop-guard.ts) runs this same binary from `tool_call`
 # with a synthesised {tool_name:"Bash"} payload, and blocks the call when the
 # verdict comes back "ask" and the human says Deny. So the contract above is a
-# real interface with two callers behind it, not a private detail of any one
-# hook — the asker and the extension both parse `permissionDecision` and
-# `permissionDecisionReason` by name, and the three files move together.
+# real interface with a second implementation behind it, not a private detail of
+# the Claude hook — the extension parses `permissionDecision` and
+# `permissionDecisionReason` by name, and both move together.
 PATH="/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/etc/profiles/per-user/$(id -un 2>/dev/null)/bin:/opt/homebrew/bin:/usr/bin:/bin:${PATH:-}"
 
 set -u

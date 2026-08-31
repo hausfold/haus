@@ -1692,7 +1692,7 @@ in
         # pi's half of the desktop guard — the thing that keeps an agent from
         # foregrounding an app, moving a window or redrawing the desktop while
         # somebody is typing into something else. Claude Code panes have had it
-        # as a PreToolUse hook (now `agent-desktop-ask`, merged below); pi had
+        # as a PreToolUse hook (the `agent-desktop-guard` merge below); pi had
         # NOTHING, because pi has no permission modes, no permission prompt and
         # no sandbox at all. `tool_call` is its seam: it fires before the tool,
         # it can block, and the handler may be async — so it can hold the turn
@@ -2261,14 +2261,10 @@ in
       # worktree events it is a general-purpose event that Claude, a plugin or you
       # may well have opinions on too, so the merge drops any stale copy of our own
       # handler by command path and re-appends one, leaving every other entry in
-      # place. It points at `agent-desktop-ask` (modules/ai), which asks
+      # place. It points at `agent-desktop-guard` (modules/ai), which re-asks
       # before a tool call moves the pointer, takes focus or redraws the desktop —
-      # in the pane when its window is focused, as a `trill ask` banner with
-      # Allow/Deny pills when it is not, the same door pi's asker opened first —
       # the counterweight to the `defaultMode = "auto"` two lines below, which is
-      # right for files and wrong for the screen. The `agent-desktop-guard`
-      # ruleset behind it refuses nothing on its own; only a Deny on the banner
-      # does.
+      # right for files and wrong for the screen. It refuses nothing.
       # FOUR events get `scruff hook notify` APPENDED the same way, and they are
       # two directions of one thing. Notification and Stop turn "this lane is
       # blocked on its user" / "this lane finished" into a trill banner — an ask
@@ -2280,16 +2276,12 @@ in
       #
       # The filter drops only what it is about to insert — the append's whole
       # safety is there (this is an append, not the assignment
-      # WorktreeCreate/Remove use, which self-heal). It filters on the exact
-      # spellings of the command, which is only safe because every settings.json
-      # on the machine has since been rewritten with them — dropping a spelling
+      # WorktreeCreate/Remove use, which self-heal). It filters on the one
+      # spelling of the command, which is only safe because every settings.json
+      # on the machine has since been rewritten with it — dropping a spelling
       # from the filter while entries using it are still in the file leaves
       # them in place beside the new one: every agent pane firing two
-      # notifications, forever. That is why PreToolUse filters TWO spellings:
-      # `agent-desktop-guard` was the wired hook before `agent-desktop-ask`
-      # wrapped it, every settings.json from before the switch still carries
-      # it, and left in place it would ask its pane question BESIDE the
-      # banner's — two questions per gated call, forever.
+      # notifications, forever.
       #
       # A third way down is not a hook at all and does not live here:
       # lanes/lane-seen.sh clears a lane's fin when you FOCUS its window, which
@@ -2322,7 +2314,7 @@ in
             if [ -s "$settings" ]; then base="$settings"; else base="$tmp.base"; printf "{}" > "$base"; fi
             ${pkgs.jq}/bin/jq ".hooks.WorktreeCreate = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook create\"}]}]
               | .hooks.WorktreeRemove = [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook remove\"}]}]
-              | .hooks.PreToolUse = (((.hooks.PreToolUse // []) | map(select([.hooks[]?.command] | (index(\"/run/current-system/sw/bin/agent-desktop-guard\") or index(\"/run/current-system/sw/bin/agent-desktop-ask\")) | not))) + [{matcher: \"Bash|mcp__computer-use__.*\", hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/agent-desktop-ask\"}]}])
+              | .hooks.PreToolUse = (((.hooks.PreToolUse // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/agent-desktop-guard\") | not))) + [{matcher: \"Bash|mcp__computer-use__.*\", hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/agent-desktop-guard\"}]}])
               | .hooks.Notification = (((.hooks.Notification // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
               | .hooks.Stop = (((.hooks.Stop // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
               | .hooks.UserPromptSubmit = (((.hooks.UserPromptSubmit // []) | map(select([.hooks[]?.command] | index(\"/run/current-system/sw/bin/scruff hook notify\") | not))) + [{hooks: [{type: \"command\", command: \"/run/current-system/sw/bin/scruff hook notify\"}]}])
