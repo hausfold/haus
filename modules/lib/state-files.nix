@@ -108,6 +108,35 @@
     };
   };
 
+  last-failure = {
+    dir = ".local/state/haus";
+    name = "last-failure";
+    # The breadcrumb a failed `haus rebuild` drops for `haus fix`. core writes
+    # it (modules/core/haus.sh's `rebuild_failed`) naming the phase, the host,
+    # the log and the byte offset of that phase's slice; the AI room's
+    # `haus-fix` is the only reader, and it is a COLD process — started from a
+    # trill pill minutes later, in another session, with nothing of the rebuild
+    # left in memory. That is the whole pair: no arguments cross, only this
+    # file.
+    #
+    # Registered because a rename in either half is silent in the way this file
+    # exists to catch. Rename it in core and every "Fix it" answers "nothing to
+    # fix — no failed rebuild recorded" for a rebuild that just failed in front
+    # of you; rename it in the AI room and the same, with the crumb sitting on
+    # disk. No log, no failed build.
+    #
+    # The three other files this feature writes are deliberately NOT here:
+    # `fix.log` and `fix.lock` are the AI room's alone, `fault-holder.pid` is
+    # core's alone, and each has exactly one speller — the good case the header
+    # describes.
+    literals = {
+      # Assembled from `$HAUS_LOG_DIR`, so the write itself is the line.
+      "modules/core/haus.sh" = "} >\"$HAUS_LOG_DIR/last-failure\"";
+      # Assembled from `$STATE`, same reason.
+      "modules/ai/fix.sh" = "CRUMB=\"$STATE/last-failure\"";
+    };
+  };
+
   lidawake-holds = {
     dir = ".local/state/haus";
     name = "lidawake/holds";

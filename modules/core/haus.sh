@@ -5,6 +5,7 @@
 # family repos or agent worktrees (that's the workshop's developer CLI, `bench`).
 #
 #   haus rebuild        build + switch this machine from your config  (-v for raw output) (the usual day)
+#   haus fix            hand the rebuild that just failed to a coding agent (needs the AI room)
 #   haus update [name]  pull the latest haus (or a pinned desktop) + apps, then rebuild
 #   haus rollback [N]    go back a generation (or to generation N)
 #   haus generations     list the generations you can roll back to
@@ -509,12 +510,18 @@ log_open() {
 }
 
 HAUS_PHASE_SLICE=""   # this phase's own log slice, for the summary line
+# Where that slice STARTS, in bytes. The slice itself is a string this shell is
+# about to exit with; the offset is what survives into
+# ~/.local/state/haus/last-failure, so `haus fix` can take the same slice out of
+# the same log in a process that was not here when it was written.
+HAUS_PHASE_OFF=0
 run_phase() {
   local label="$1"; shift
   local t0 rc=0 off=0
   mkdir -p "$HAUS_LOG_DIR"
   : >>"$HAUS_LOG"
   off="$(wc -c <"$HAUS_LOG" | tr -d ' ')"
+  HAUS_PHASE_OFF="$off"
   t0="$(now_ds)"
   phase_start "$label"
   if [ -n "$VERBOSE" ]; then
@@ -598,6 +605,11 @@ usage() {
 haus — the everyday CLI for a haus machine.
 
   haus rebuild        build + switch this machine from your config  (-v for raw output)
+  haus fix            hand the rebuild that just failed to a coding agent: it reads
+                      the error and what changed in your config, fixes it, verifies
+                      the config evaluates and commits. It never activates — that
+                      stays your 'haus rebuild'. Undo everything it did with
+                      'git -C ~/.config/nix revert HEAD'. Needs the AI room
   haus update [name]  pull the latest haus (or a pinned desktop's input) + apps,
                       then rebuild
   haus rollback [N]   go back a generation (or to generation N)
@@ -2026,9 +2038,218 @@ card_cancelled() {
   exit 130
 }
 
+# `haus fix` — hand the last failed rebuild to a coding agent. One line of
+# dispatch and nothing else: everything about WHICH agent, what it is told and
+# what it is allowed to do belongs to the AI room (modules/ai/fix.sh), which is
+# also the only room that knows whether this machine has agents at all. This
+# file's whole share of that question is the `command -v` below.
+cmd_fix() {
+  command -v haus-fix >/dev/null 2>&1 \
+    || die "no fixer on this machine — \`haus fix\` comes with the AI room (haus.ai.enable = true, then haus rebuild)."
+  exec haus-fix "$@"
+}
+
+# ---- the fix-it-with-AI CTA -------------------------------------------------
+# A rebuild that fails leaves you holding a nix trace and a machine that did not
+# change. The three ways out are all the same shape — read the error, find what
+# in $CONSUMER caused it, change that — and it is work a coding agent does well
+# from a standing start, because everything it needs (the failing phase, the log
+# slice, what changed since the last good rebuild) is already written down by
+# the time we get here.
+#
+# So: write that down where a cold process can find it, then put ONE offer in
+# front of the person. The offer runs `haus fix`, which is a line of dispatch
+# onto `haus-fix` — a binary the AI ROOM installs. That is the whole coupling,
+# and it is deliberately a `command -v`: core may not read `config.haus.ai.*`
+# (AGENTS.md), so this file cannot know whether agents are configured, only
+# whether a fixer is on PATH. No fixer, no offer, and the error prints exactly
+# as it always did.
+#
+# What the CTA needs, all four or it stays quiet:
+#   a fixer          `haus-fix`, from the AI room
+#   an undo          $CONSUMER is a git repo, so the agent's whole change is one
+#                    `git -C $CONSUMER revert HEAD` — see modules/ai/fix.sh
+#   a surface        a pane you are looking at, or a trill that answers
+#   your consent     HAUS_NO_FIX=1 turns the whole thing off
+FAULT_HOST=""   # the host this rebuild was for
+FAULT_DRV=""    # the system derivation, once we have one — the build phase's
+                # only evidence, since that phase writes nothing to the log
+
+# What `haus fix` reads: plain KEY=value, no newlines in any value, and read
+# back by name rather than sourced — a state file that can execute is a state
+# file that can be made to execute something else.
+fault_crumb() { # fault_crumb <class>
+  mkdir -p "$HAUS_LOG_DIR" 2>/dev/null || return 0
+  {
+    printf 'class=%s\n'    "$1"
+    printf 'host=%s\n'     "$FAULT_HOST"
+    printf 'consumer=%s\n' "$CONSUMER"
+    printf 'log=%s\n'      "$HAUS_LOG"
+    printf 'offset=%s\n'   "$HAUS_PHASE_OFF"
+    printf 'drv=%s\n'      "$FAULT_DRV"
+    printf 'gen=%s\n'      "${CARD_GEN:-$(current_gen || echo '?')}"
+    printf 'when=%s\n'     "$(date '+%Y-%m-%d %H:%M:%S')"
+  } >"$HAUS_LOG_DIR/last-failure" 2>/dev/null || true
+  return 0
+}
+
+# Which door. A pane you are SITTING AT gets rows in place — one keypress, no
+# mouse, and the error is still on screen above them. Anywhere else gets a
+# banner, because the whole point of the offer is that it survives you having
+# walked away. The window-to-session join is terminal's (the same one every
+# chord uses); with no join and no zmx session, a terminal is taken at face
+# value.
+fault_surface() { # -> pane | banner | none
+  local join focused
+  if [ -t 0 ] && [ -t 2 ] && command -v gum >/dev/null 2>&1; then
+    join="$HOME/.config/haus/term/focused-session.sh"
+    if [ -n "${ZMX_SESSION:-}" ] && [ -r "$join" ]; then
+      focused="$(bash "$join" 2>/dev/null || true)"
+      [ "$focused" = "$ZMX_SESSION" ] && { printf pane; return 0; }
+    else
+      printf pane; return 0
+    fi
+  fi
+  # Same gate as `card`: a machine that said "no banners" means this one too.
+  [ -n "${HAUS_NO_BANNER:-}" ] && { printf none; return 0; }
+  trill_bin >/dev/null 2>&1 && { printf banner; return 0; }
+  printf none
+}
+
+# The in-pane door. Timed out on purpose: a picker that waits forever holds a
+# prompt you may have walked away from, and gum returns 124 with no selection
+# rather than committing the row under the cursor (measured, gum 0.17).
+fault_rows() {
+  local pick
+  pick="$(gum choose --timeout=30s --header='Fix it with AI?' \
+    'Fix it with AI' 'Not now' 2>/dev/null)" || return 0
+  [ "$pick" = 'Fix it with AI' ] || return 0
+  haus-fix || true
+  return 0
+}
+
+# The banner door's waiting half, and the reason any of this is detached: a
+# `trill ask` parks as a fin until it is answered, which can be tomorrow, and
+# trill retracts an ask whose caller died. Closing the Ghostty window this
+# rebuild ran in HUPs the whole process group, so a holder that merely
+# outlived `haus` would take the fin with it. `trap "" HUP` is nohup, spelled
+# where we can also drop the coprocess and the rebuild's own traps.
+fault_holder() { # fault_holder <class>
+  local bin child rc
+  bin="$(trill_bin)" || return 0
+  "$bin" ask "$FAULT_HOST · rebuild failed" \
+    --pill "Fix it" \
+    --body "The $1 phase failed and nothing was changed. Hand it to an agent: it reads the error and what changed in $CONSUMER, fixes it, commits, and leaves \`haus rebuild\` to you." \
+    --subtitle "$1 phase" \
+    --source haus.rebuild.fault \
+    --symbol wrench.and.screwdriver \
+    --key haus-rebuild-fault >/dev/null 2>&1 &
+  child=$!
+  # SIGINT is what retracts an ask (trill's rule: a question with nobody behind
+  # it comes down), and TERM is what the NEXT failure sends this process.
+  trap 'kill -INT "$child" 2>/dev/null' TERM INT
+  wait "$child"; rc=$?
+  trap - TERM INT
+  # Reaped, not just signalled: a relayed INT leaves `wait` returning 143 with
+  # the child still winding down, and this process is about to exit.
+  wait "$child" 2>/dev/null
+  # 0 is the first (and only) pill. Everything else — dismissed, daemon gone,
+  # 75 nobody answered — means no.
+  [ "$rc" = 0 ] || return 0
+  haus-fix || true
+  return 0
+}
+
+# One holder at a time. The previous one is waiting on a fin that points at a
+# breadcrumb this failure has just overwritten, so it is answering the wrong
+# question; TERM makes it retract its own ask on the way out.
+fault_hold() {
+  local pidfile old
+  pidfile="$HAUS_LOG_DIR/fault-holder.pid"
+  old="$(cat "$pidfile" 2>/dev/null || true)"
+  case "$old" in
+    '' | *[!0-9]*) ;;
+    *)
+      kill -TERM "$old" 2>/dev/null || true
+      # WAITED for, briefly, and this is the ordering that matters: the old
+      # holder retracts its ask on the way out, and a retraction that landed
+      # after the new ask below could take the NEW fin down with it. Bounded,
+      # because this is a rebuild's exit path and a holder that will not go is
+      # not worth standing here for — trill's own same-key replacement is the
+      # backstop if we lose the race anyway.
+      for _ in 1 2 3 4 5 6 7 8 9 10; do
+        kill -0 "$old" 2>/dev/null || break
+        sleep 0.05
+      done
+      ;;
+  esac
+  # The detach, in one line of subshell: no HUP when the window closes, none of
+  # the rebuild's traps (the inherited EXIT one would fire card_stop in here),
+  # no copy of snug's write end (snug_close waits for EOF on it), and no fd on
+  # the terminal we are about to give back to the shell.
+  (
+    trap - EXIT INT TERM
+    trap '' HUP
+    snug_detach
+    fault_holder "$1"
+  ) </dev/null >/dev/null 2>&1 &
+  printf '%s\n' "$!" >"$pidfile" 2>/dev/null || true
+  return 0
+}
+
+fault_cta() { # fault_cta <class> — the offer, on whichever surface fits
+  [ -n "${HAUS_NO_FIX:-}" ] && return 0
+  # The only gate on the AI room there is or may be, from this file.
+  command -v haus-fix >/dev/null 2>&1 || return 0
+  # No git, no undo, no offer. modules/ai/fix.sh refuses on the same ground —
+  # this copy is so the refusal is never something you find out by pressing it.
+  git -C "$CONSUMER" rev-parse --git-dir >/dev/null 2>&1 || return 0
+  case "$(fault_surface)" in
+    pane)   fault_rows ;;
+    banner) fault_hold "$1" ;;
+  esac
+  return 0
+}
+
+# The one ending every failed rebuild takes. It is `die` with two things in
+# front of the exit: the card gets its fault, and the breadcrumb + offer get
+# written while the phase that failed is still known. The message is drawn
+# here rather than by `die` because the offer belongs UNDER the error it is
+# offering to fix, and `die` exits.
+rebuild_failed() { # rebuild_failed <resolve|build|activate>
+  local fault msg gen="${CARD_GEN:-?}"
+  case "$1" in
+    resolve)
+      fault="evaluation failed"
+      msg="evaluation failed — nothing was changed."
+      ;;
+    build)
+      fault="build failed"
+      msg="build failed — nothing was changed."
+      ;;
+    activate)
+      fault="activation failed — $gen is still on disk"
+      msg="activation failed partway — generation $gen is still on disk (haus rollback), and the log above says where it stopped."
+      ;;
+  esac
+  card_stop
+  card - "fault" "$fault"
+  fault_crumb "$1"
+  # Idempotent, and called on every class rather than just the build one:
+  # run_phase already closes the coprocess when a phase it owns fails, and the
+  # build phase has no run_phase to do it. nix keeps the terminal for that
+  # phase and has just written its own error to fd 2, so closing first is what
+  # puts the line below AFTER what nix said instead of on snug's own schedule.
+  snug_close
+  snug_emit fail "$msg" || ui_draw fail "$msg"
+  fault_cta "$1"
+  exit 1
+}
+
 cmd_rebuild() {
   local host drv sys old gen_before drvfile outfile difffile bt0
   host="$(host_name)"
+  FAULT_HOST="$host"
   guard_unguarded_fda "$host"
 
   old="$(cd /run/current-system 2>/dev/null && pwd -P || true)"
@@ -2043,8 +2264,11 @@ cmd_rebuild() {
   [ -n "$VERBOSE" ] || printf '\n' >&2
 
   run_phase resolve heal resolve_drv "$host" "$drvfile" \
-    || die "evaluation failed — nothing was changed."
+    || rebuild_failed resolve
   drv="$(cat "$drvfile")"; rm -f "$drvfile"
+  # What a build-phase failure has instead of a log slice: the derivation
+  # itself, so `haus fix` can reproduce the error rather than read it.
+  FAULT_DRV="$drv"
   phase_ok resolve "$HAUS_PHASE_ELAPSED"
 
   # Homebrew's half of the rebuild, alongside nix's rather than after it. Joined
@@ -2056,6 +2280,12 @@ cmd_rebuild() {
   # be able to say so. We only hide what we write down — this is the one phase
   # that narrates itself, so it keeps the terminal.
   bt0="$(now_ds)"
+  # The build phase has no run_phase, so nothing moves HAUS_PHASE_OFF past the
+  # resolve phase's slice. Park it at the END of the log: this phase keeps the
+  # terminal and writes nothing here, and an offset pointing at somebody else's
+  # output is worse evidence than none. (modules/ai/fix.sh reproduces the build
+  # for this class instead of slicing.)
+  HAUS_PHASE_OFF="$(wc -c <"$HAUS_LOG" 2>/dev/null | tr -d ' ')"
   # Name the card, then start the poller beside the build. These two
   # assignments are what arms the whole feature: `card` returns early on an
   # empty CARD_KEY, so without them every call below is a no-op and nothing
@@ -2065,12 +2295,7 @@ cmd_rebuild() {
   trap card_cancelled INT TERM
   card_watch "$drv"
   ( cd "$CONSUMER" && nix build --print-out-paths --out-link "$CONSUMER/result" "$drv^*" ) >"$outfile" \
-    || { card_stop; card - "fault" "build failed"
-         # nix keeps the terminal for this phase and has just written its own
-         # error to fd 2. `die` is the last line of the command, so close first
-         # and let it draw through ui.sh, in order after what nix said, rather
-         # than through a coprocess on its own schedule.
-         snug_close; die "build failed — nothing was changed."; }
+    || rebuild_failed build
   # Not `card_stop`: `bg_wait` below joins the homebrew half, which by its own
   # comment can run for minutes on a 200 MB cask. Hold the bar where the build
   # left it and keep beating, or the card would leave during the longest silent
@@ -2128,7 +2353,7 @@ cmd_rebuild() {
     # The running system predates haus-activate — take the old, slower route
     # once; the switch it performs is what installs the fast one.
     run_phase activate heal legacy_switch "$host"
-  fi || { card_stop; card - "fault" "activation failed — $gen_before is still on disk"; die "activation failed partway — generation $gen_before is still on disk (haus rollback), and the log above says where it stopped."; }
+  fi || rebuild_failed activate
   PHASE_STILL=""
   phase_ok activate "$HAUS_PHASE_ELAPSED" "$(activation_summary)"
 
@@ -4500,6 +4725,7 @@ esac
 
 case "${1:-status}" in
   rebuild)     cmd_rebuild ;;
+  fix)         shift; cmd_fix "$@" ;;
   update)      cmd_update "${2:-}" ;;
   rollback)    cmd_rollback "${2:-}" ;;
   generations) cmd_generations ;;
@@ -4523,5 +4749,5 @@ case "${1:-status}" in
   desktop)     cmd_desktop "${2:-}" ;;
   remove)      cmd_remove "${2:-}" "${3:-}" ;;
   -h|--help|help) usage ;;
-  *)           die "unknown command '$1' — try: rebuild update rollback generations status edit options set get unset reset plan diff capture revert-settings doctor permissions btm tour show add desktop remove" ;;
+  *)           die "unknown command '$1' — try: rebuild fix update rollback generations status edit options set get unset reset plan diff capture revert-settings doctor permissions btm tour show add desktop remove" ;;
 esac

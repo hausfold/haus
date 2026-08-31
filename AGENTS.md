@@ -848,11 +848,28 @@ mechanism, say so in one line.
   **`awake.sh`** (launchd-owned timed/indefinite macOS caffeinate assertions;
   bar's optional coffee pill is only its controller).
 
-  Four more live in **`modules/ai`**, which writes the system profile they land
+  Five more live in **`modules/ai`**, which writes the system profile they land
   in, because the room that owns a capability owns its payload:
   **`statusline.sh`** / `statusline-refresh.sh` (the agent HUD, reading `scruff`'s
   registry), **`agent-state`** (the one writer of agent state behind bar's
-  `agents` pill), and **`scruff-cache`** (the one warm copy of `scruff --json`).
+  `agents` pill), **`scruff-cache`** (the one warm copy of `scruff --json`) and
+  **`haus-fix`** (`modules/ai/fix.sh` — "Fix it with AI" for a rebuild that
+  failed).
+  - `haus-fix` is the one that reaches BACK into core, and the direction is what
+    keeps it legal. A failed `haus rebuild` writes
+    `~/.local/state/haus/last-failure` (the phase, the host, the log offset, the
+    derivation — registered in `modules/lib/state-files.nix`), puts one offer in
+    front of the person, and `haus fix` is a line of dispatch onto this binary.
+    **Core's whole test is `command -v haus-fix`** — never
+    `config.haus.ai.*`, which core may not read — so the room's own switch is
+    what decides whether there is a fixer to find, and a machine without one
+    prints the failure exactly as it always did. The CTA also needs `$CONSUMER`
+    to be a git repo, because the undo for everything the agent does is
+    `git -C ~/.config/nix revert HEAD`, and it runs the client with its
+    permission gate open on that basis alone. `haus.ai.default` and
+    `modules/lib/agent-oneshot.nix` are substituted in at build time; the script
+    verifies with `nix eval` rather than taking the agent's word, and never
+    activates — `haus rebuild` stays the person's.
   - `agent-state` has no source file of its own: `modules/ai` `readFile`s
     `modules/bar/sketchybar/plugins/agents-hook.sh`, the same script bar
     installs into the bar's plugin dir, so the PATH copy and the bar copy can
