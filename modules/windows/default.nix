@@ -435,8 +435,10 @@ let
 in
 lib.mkMerge [
   # ---- macOS's own window features (com.apple.WindowManager) ----------------
-  # OUTSIDE the `windows.enable` gate on purpose, and it is the only block here
-  # that is. These twelve keys are macOS's own Stage Manager / native tiling /
+  # OUTSIDE the `windows.enable` gate on purpose — one of two blocks here that
+  # are; the other is the stale-agent cleanup below, gated on `!enable` for the
+  # same reason a `mkIf` cannot clean up after itself. These twelve keys are
+  # macOS's own Stage Manager / native tiling /
   # desktop settings, not AeroSpace's, so a machine that turns the TILER off has
   # every reason to still want them — gating them behind the room switch would
   # make the two mutually exclusive in exactly the case where you want the other
