@@ -44,8 +44,6 @@
 #     "⌘ Space" so the hint still names the right key if a host moves it.
 {
   haus = {
-    apps.videoPlayer.enable = true;
-
     security.touchId = {
       enable = true;
       passwordlessRebuild = true;

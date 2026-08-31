@@ -17,10 +17,7 @@
 #                   `haus.ai.enable = true` in your host if you want them here
 #   theme.ports     writes theme files into apps this desktop never installed
 #   wallpaper       the desktop picture is not the shell
-#   apps.videoPlayer  an editorial app pick, and the one thing here you may miss
-#                   from haus: `haus.apps.videoPlayer.enable = true` brings
-#                   IINA back in one host line
-#   focus, tour      a Focus switch and a tutor both teach moves this
+#   focus, tour     a Focus switch and a tutor both teach moves this
 #                   selection doesn't ship
 {
   haus = {

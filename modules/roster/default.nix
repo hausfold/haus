@@ -124,8 +124,9 @@ let
   # Homebrew list options concatenate and `brew bundle` is idempotent, so naming
   # the same cask from two places has never produced an error — it produces two
   # copies of the truth and no warning. (Real case that motivated this: a pounce
-  # -generated `homebrew.casks = [ "iina" ]` alongside terminal's `pkgs.iina`, so
-  # IINA sat in BOTH /Applications and ~/Applications/Home Manager Apps.)
+  # -generated `homebrew.casks` line for an app another room already installed
+  # from nixpkgs, so one app sat in BOTH /Applications and ~/Applications/Home
+  # Manager Apps for months, and nothing anywhere said so.)
   #
   # Reading the FINAL merged lists is what makes this catch the interesting
   # case: not just two roster entries naming one cask, but a roster entry and a
@@ -150,8 +151,8 @@ let
   duplicateSources = duplicatesIn "cask" config.homebrew.casks ++ duplicatesIn "formula" config.homebrew.brews;
 
   # The same app from two DIFFERENT package managers — a cask and a nixpkgs
-  # build of the same thing. Undetectable by name (`iina` the cask vs
-  # `pkgs.iina`), so this only catches it within one entry, where it's
+  # build of the same thing. Undetectable by name (a cask's string vs a
+  # derivation), so this only catches it within one entry, where it's
   # unambiguous: two sources on one roster line is always a mistake.
   multiSourceEntries = map (e: e.id) (
     lib.filter (

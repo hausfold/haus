@@ -33,9 +33,9 @@
     # below read, and installs whatever each entry names. Ungated on purpose —
     # an entry that only wants to BE installed shouldn't need the tiler on.
     ./roster
-    # The editorial picks (a video player, and what opens a video), as roster
+    # The editorial picks (the GUI editors, the saved collections), as roster
     # entries. Right after ./roster because that's all it is — a room whose
-    # output is entries in the list above, plus the file types they claim.
+    # output is entries in the list above.
     ./apps
     # The AI room. Pure wiring — its assertions, and the contributions it makes
     # to the terminal, the bar and the launcher through the extension points

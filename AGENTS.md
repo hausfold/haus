@@ -53,7 +53,7 @@ config and the pounce/theme sources live elsewhere.
 
 | Want to change… | Repo |
 |---|---|
-| the desktop: macOS defaults, tiling (windows), the menu bar (bar), the shell (terminal), Touch ID + firewall (security), secrets plumbing (secrets), Pounce wiring (launcher), the notch shelf (shelf), Focus/DND (focus), the GitHub webhook bridge (github), accent + Light/Dark (theme), the generated desktop (wallpaper), the apps every machine gets + what opens which file type (apps) | `~/code/workshop/haus` ← **you are here** |
+| the desktop: macOS defaults, tiling (windows), the menu bar (bar), the shell (terminal), Touch ID + firewall (security), secrets plumbing (secrets), Pounce wiring (launcher), the notch shelf (shelf), Focus/DND (focus), the GitHub webhook bridge (github), accent + Light/Dark (theme), the generated desktop (wallpaper), the apps every machine gets (apps), what opens which file type (terminal) | `~/code/workshop/haus` ← **you are here** |
 | the pounce palette app or its command scripts | `~/code/workshop/pounce` |
 | colors / the theme palette | `~/code/workshop/nebelung` |
 | one machine's personal apps / identity / secrets | `~/.config/nix` (or that machine's own config) |
@@ -128,8 +128,8 @@ modules/
                           #   fires on the consumer's Mac — plenty of rooms assert
                           #   there, but each about its own values
   apps/                   # the EDITORIAL picks: apps the layer chooses for a finished
-                          #   machine (IINA today) + the file types they claim. Roster
-                          #   entries, so a cask of the same app still collides loudly
+                          #   machine (the GUI editors today). Roster entries, so a cask
+                          #   of the same app still collides loudly
     packs/                #   saved app collections, one switch each
                           #   (haus.apps.packs.<name>.enable). This repo's own data
                           #   files — a stranger's app collection is a room, not a pack
@@ -704,11 +704,21 @@ mechanism, say so in one line.
   `bar_position` do among the pills `sketchybarrc` writes by hand.
 - **A new default app pick** (an app the layer thinks a finished machine has,
   not one a room needs to do its job): it goes in `modules/apps` — one
-  `haus.apps.<thing>.enable` knob in its `options.nix`, one roster entry (never
-  a bare `home.packages` line), and if it should own file types, `duti` pins in
-  the same activation that `lsregister`s the bundle — binding a type
-  LaunchServices hasn't seen yet is a silent `-50`. An app a room NEEDS
-  (AeroSpace, SketchyBar, espanso) belongs to that room.
+  `haus.apps.<thing>.enable` knob in its `options.nix`, and one roster entry
+  (never a bare `home.packages` line). An app a room NEEDS (AeroSpace,
+  SketchyBar, espanso) belongs to that room.
+  - **It does not get to claim a file type.** `haus.terminal.hijackFileAssociations`
+    is the only list of types haus binds, and keeping it the only one is the
+    rule: two rice-owned apps claiming one type never settles, because both
+    claims re-run on every activation and macOS stops to ask which app wins —
+    every rebuild, forever. That is measured. The video player pick claimed
+    thirteen extensions until 2026-08-31, and because `.mts` and `.m2ts` resolve
+    to ONE shared AVCHD UTI the dialog came back on every single rebuild until
+    the two lists were reconciled by UTI rather than by spelling. If a pick
+    genuinely must own a type, add it to terminal's `editorExts` neighbourhood
+    where the one list lives — and know that a nixpkgs bundle needs
+    `lsregister` in the same activation, since its store path moves on every
+    version bump and binding a type LaunchServices hasn't seen is a silent `-50`.
 - **A pill with a dropdown toggles it as usual, then arms `barpop` in the
   background** — `sketchybar --set <item> popup.drawing=toggle; barpop arm
   <item> &` (the `popToggle` helper in `modules/bar/default.nix` writes exactly

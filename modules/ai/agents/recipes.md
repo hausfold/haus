@@ -74,34 +74,23 @@ haus.roster.xcode = { name = "Xcode"; appStoreId = 497799835; };
 haus.roster.slack.enable = false;
 ```
 
-That un-declares it: the launcher key, the pill and the cask entry go away. **The
-app itself stays on disk** — haus never deletes apps behind your back
-(`haus.homebrew.cleanup` defaults to `"none"`). Tell the user the second step:
+That un-declares it: the launcher key, the pill and the install entry go away.
+What happens to the app depends on where it came from, and the entry says which:
 
-```sh
-brew uninstall --zap slack
-```
+- **`cask` or `brew`** — **the app stays on disk.** haus never deletes a
+  Homebrew app behind your back (`haus.homebrew.cleanup` defaults to `"none"`).
+  Tell the user the second step:
 
-## "Videos open in the wrong app" / "I don't want IINA"
+  ```sh
+  brew uninstall --zap slack
+  ```
 
-haus ships IINA as the video player and hands it the video types macOS gives
-QuickTime, TV and your browser. Both halves are switches:
-
-```nix
-haus.apps.videoPlayer.enable = false;          # don't install it at all
-haus.apps.videoPlayer.claimFileTypes = false;  # install it, touch no associations
-```
-
-The associations are the ordinary user default (what Finder's Get Info ▸ Change
-All writes), so a rebuild with `claimFileTypes = false` stops re-applying them
-but does not put the old handler back — the user picks one once, in Finder.
-
-Only the everyday extensions are claimed (mp4, m4v, mov, mpg, mpeg, mkv, webm,
-avi, wmv, flv, 3gp, ogv, vob). Audio, `.gif`, playlists and the transport-stream
-trio `.ts`/`.mts`/`.m2ts` are never touched — the last three belong to the
-editor hijack, and letting IINA claim them too made macOS ask which app should
-win on every rebuild. To give a *different* player the same treatment, turn this
-off and add your own roster entry.
+- **`package`** (a nixpkgs build) — **the app goes on its own.** home-manager
+  linked it into `~/Applications/Home Manager Apps`, so the next generation
+  drops the symlink and there is no second step. Don't tell the user to run
+  `brew uninstall` on one: there is no cask, and the command errors.
+- **`appStoreId`** — the app stays; haus only ever fetched it. Deleting it is
+  Finder or `mas uninstall`.
 
 ## "Everything is too small"
 

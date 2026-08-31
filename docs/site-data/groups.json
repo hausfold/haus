@@ -20,7 +20,7 @@
     "order": 25
   },
   "apps": {
-    "blurb": "The apps haus picks for you, the saved collections you can switch on in one line, and the file types they claim — the ones a finished machine has rather than the ones a room needs to work. Each is one switch you can turn off; what it installs is a roster entry like any other, so you can retune or replace it by app id.",
+    "blurb": "The apps haus picks for you and the saved collections you can switch on in one line — the ones a finished machine has rather than the ones a room needs to work. Each is one switch you can turn off; what it installs is a roster entry like any other, so you can retune or replace it by app id.",
     "order": 23
   },
   "bar": {
@@ -286,20 +286,14 @@
       "owner": "appearance"
     },
     "apps": {
-      "blurb": "The apps haus picks for you, the saved collections you can switch on in one line, and the file types they claim — the ones a finished machine has rather than the ones a room needs to work. Each is one switch you can turn off; what it installs is a roster entry like any other, so you can retune or replace it by app id.",
+      "blurb": "The apps haus picks for you and the saved collections you can switch on in one line — the ones a finished machine has rather than the ones a room needs to work. Each is one switch you can turn off; what it installs is a roster entry like any other, so you can retune or replace it by app id.",
       "kind": "room",
-      "optionCount": 6,
+      "optionCount": 4,
       "options": {
         "haus.apps.cursor.enable": {
           "desktopSafe": true
         },
         "haus.apps.packs.writing.enable": {
-          "desktopSafe": true
-        },
-        "haus.apps.videoPlayer.claimFileTypes": {
-          "desktopSafe": true
-        },
-        "haus.apps.videoPlayer.enable": {
           "desktopSafe": true
         },
         "haus.apps.vscode.enable": {
@@ -1725,7 +1719,7 @@
         ],
         "cli": null
       },
-      "blurb": "The apps a finished machine has: the curated picks, the packs that switch a whole set on in one line, the file types they claim, App Store policy, and what a rebuild does to anything you installed by hand. The list they all land in is `haus.roster`, a shared surface below.",
+      "blurb": "The apps a finished machine has: the curated picks, the packs that switch a whole set on in one line, App Store policy, and what a rebuild does to anything you installed by hand. The list they all land in is `haus.roster`, a shared surface below.",
       "exports": [],
       "kind": "room",
       "namespaces": [
@@ -1733,7 +1727,7 @@
         "apps",
         "homebrew"
       ],
-      "optionCount": 11,
+      "optionCount": 9,
       "order": 10,
       "title": "Apps"
     },

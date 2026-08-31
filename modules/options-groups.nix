@@ -91,8 +91,6 @@ let
     apps = [
       "cursor.enable"
       "packs.writing.enable"
-      "videoPlayer.claimFileTypes"
-      "videoPlayer.enable"
       "vscode.enable"
       "zed.enable"
     ];
@@ -797,7 +795,7 @@ let
     };
     apps = {
       order = 23;
-      blurb = "The apps haus picks for you, the saved collections you can switch on in one line, and the file types they claim — the ones a finished machine has rather than the ones a room needs to work. Each is one switch you can turn off; what it installs is a roster entry like any other, so you can retune or replace it by app id.";
+      blurb = "The apps haus picks for you and the saved collections you can switch on in one line — the ones a finished machine has rather than the ones a room needs to work. Each is one switch you can turn off; what it installs is a roster entry like any other, so you can retune or replace it by app id.";
     };
 
     # ---- how it looks ---------------------------------------------------------
@@ -985,7 +983,7 @@ let
     apps = {
       title = "Apps";
       order = 10;
-      blurb = "The apps a finished machine has: the curated picks, the packs that switch a whole set on in one line, the file types they claim, App Store policy, and what a rebuild does to anything you installed by hand. The list they all land in is `haus.roster`, a shared surface below.";
+      blurb = "The apps a finished machine has: the curated picks, the packs that switch a whole set on in one line, App Store policy, and what a rebuild does to anything you installed by hand. The list they all land in is `haus.roster`, a shared surface below.";
       agent = {
         cli = null;
         # Deliberately NOT "install an app" / "add slack": those are

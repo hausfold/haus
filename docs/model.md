@@ -77,7 +77,7 @@ unknown dynamic children.**
 
 | Room | Scope |
 |---|---|
-| **Apps** | the roster, install sources, App Store policy, file associations |
+| **Apps** | the roster, install sources, App Store policy |
 | **Appearance** | theme, wallpaper, fonts, interface scale |
 | **Displays** | resolution and per-display behaviour |
 | **Development** | terminal, shell, multiplexer, editor, Git, CLI toolbelt, language runtimes |
