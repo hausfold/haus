@@ -59,6 +59,15 @@
 # pointer the way it could before. Gravity is a single hop again, with no
 # flicker through an intermediate workspace to fix that pointer up.
 #
+# WHERE the hop lands: the family before the world. A workspace and its pages
+# (T, T/<repo>, …) are one place split across screens, so emptying one member
+# pulls back to the most recent POPULATED member of the same family — even a
+# page never visited, which recency alone would rank last — and only when the
+# whole family is empty does it fall back to the most recently populated
+# workspace anywhere. Without that rule, closing the last lane on T/<repo>
+# yanked you clean out of the T family while a sibling repo's lanes were still
+# running one page over.
+#
 # Wired as a non-drawing item in sketchybarrc, subscribed to front_app_switched,
 # space_windows_change and aerospace_workspace_change.
 
@@ -180,7 +189,7 @@ echo "$nonce" > "$TOKEN"
 
     # Candidates = non-empty workspaces (excluding the one we're leaving),
     # ordered most-relevant first: recent history, then any other populated
-    # workspace. The target is the most recent — where you came from.
+    # workspace.
     ordered=()
     add() {
         local w=$1 c
@@ -192,7 +201,19 @@ echo "$nonce" > "$TOKEN"
     }
     while IFS= read -r ws; do add "$ws"; done < <(tail -r "$HIST" 2>/dev/null)
     for ws in $nonempty; do add "$ws"; done
-    D=${ordered[0]}
+
+    # Gravity stays in the family first. Emptying T/<repo> while the T family
+    # still has populated members must land on the most recent of THEM — a
+    # sibling page from the history, or one you never visited from the
+    # nonempty sweep — and only fall back to plain recency once the whole
+    # family is empty. `ordered` already runs history-then-anything, so the
+    # family pick is just its first member with the same base.
+    D=
+    base=${focused%%/*}
+    for w in "${ordered[@]}"; do
+        case "$w" in "$base" | "$base"/*) D=$w; break ;; esac
+    done
+    [ -n "$D" ] || D=${ordered[0]}
 
     # Nothing populated anywhere — every workspace is empty, so there's nowhere
     # better to be. Stay put rather than hop for the sake of hopping.
