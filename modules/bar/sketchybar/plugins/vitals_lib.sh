@@ -73,11 +73,6 @@ vitals_color() { # vitals_color <percent>
   fi
 }
 
-# A percentage as the graph wants it: 0…1, two decimals, clamped. sketchybar
-# draws a pushed value against the item's height with no scaling of its own, so
-# anything over 1 is simply drawn off the top of the pill and anything negative
-# vanishes — neither of which looks like an error, which is why both are handled
-# here instead of trusted upstream.
 # The same four steps as vitals_color, said as TONE NAMES — what a framework
 # widget names, since a converted pill may not reach for a palette entry (see
 # docs/bar-framework.md). The thresholds are deliberately the identical
@@ -98,6 +93,11 @@ vitals_tone() { # vitals_tone <percent>
   fi
 }
 
+# A percentage as the graph wants it: 0…1, two decimals, clamped. sketchybar
+# draws a pushed value against the item's height with no scaling of its own, so
+# anything over 1 is simply drawn off the top of the pill and anything negative
+# vanishes — neither of which looks like an error, which is why both are handled
+# here instead of trusted upstream.
 vitals_fraction() { # vitals_fraction <percent>
   awk -v p="${1:-0}" 'BEGIN {
     v = p / 100

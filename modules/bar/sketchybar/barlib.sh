@@ -285,12 +285,21 @@ _barlib_fraction() {
 #     straight to its handler. The graph has no time axis of its own (it is
 #     the last <width> values, evenly spaced), so a point pushed by the
 #     POINTER would shove the history sideways at the speed of a mouse. Under
-#     the old hand-written cpu pill that was a real bug and a comment; here it
-#     is simply unreachable.
+#     the old hand-written cpu pill that was a real bug and a guard; through
+#     the runtime's own dispatch it is unreachable.
 #
-# The batch still goes out on a diffed-away tick — barlib_main flushes
-# whether or not render ran — so a push from fetch costs the one call that
-# was already leaving.
+#     ⚠️ ONE handler can still reach it: barlib_tick runs fetch, which is the
+#     whole point of it (github's Refresh row). A graph widget that offers a
+#     refresh gesture is therefore back to pushing a point from the pointer —
+#     have that handler do its work and let the next tick draw it, or accept
+#     that the row is worth a data point.
+#
+# A graph pill costs one $SB call per tick even when the state is unchanged:
+# the push IS the traffic, where a quiet non-graph pill sends nothing at all.
+# That is the same one call the hand-written pill made, so it is a price
+# already being paid rather than a new one — but it is a price, and the
+# zero-traffic promise in this file's header is about widgets that do not
+# push.
 graph() {
     _BARLIB_ARGS+=(--push "$NAME" "$(_barlib_fraction "${1:-0}")")
     return 0
@@ -352,12 +361,24 @@ _BARLIB_ADV=602       # mono advance per point, ×1000
 # in the same slot, which `${#s}` counts as three bytes in the C locale a bar
 # plugin inherits and as one character anywhere else. Two columns, named by
 # the caller, beats a length that changes with $LANG.
+#
+# The advance is measured with awk, not bash arithmetic, because a font size
+# out of the generated sizes.sh is a DECIMAL ("14.0") and $(( )) errors on
+# one. It is cached against the size it was measured at, so a dropdown of a
+# heading plus twelve rows forks awk twice rather than thirteen times — a
+# popup is built inside a click, where the whole batch is one message and the
+# forks would be the only thing in it that isn't.
+_BARLIB_ADV_FOR=''
+_BARLIB_ADV_PX=''
 _barlib_name_pad() {
-    local cols adv
+    local cols
     cols=$((_BARLIB_COL_NAME - ${#1} - ${2:-0}))
     if [ "$cols" -lt 1 ]; then cols=1; fi
-    adv=$(awk -v s="${3:-13}" -v a="$_BARLIB_ADV" 'BEGIN { printf "%.0f", s * a }')
-    printf '%s' $(((cols * adv + _BARLIB_COL_GAP * 1000 + 500) / 1000))
+    if [ "${3:-13}" != "$_BARLIB_ADV_FOR" ]; then
+        _BARLIB_ADV_PX=$(awk -v s="${3:-13}" -v a="$_BARLIB_ADV" 'BEGIN { printf "%.0f", s * a }')
+        _BARLIB_ADV_FOR="${3:-13}"
+    fi
+    printf '%s' $(((cols * _BARLIB_ADV_PX + _BARLIB_COL_GAP * 1000 + 500) / 1000))
 }
 
 # Single-quote a value for embedding in a click_script. A row's URL or copy
@@ -414,9 +435,13 @@ popup_heading() {
     case "$count" in '' | *[!0-9]*) count=0 ;; esac
     if [ "$count" -gt 0 ]; then label="$label · $count"; fi
     if [ "$have_value" = 1 ]; then
-        # Glyph and title travel TOGETHER in the icon, both in the section's
-        # own hue: they are the same mark, and splitting them across the row's
-        # two colourable halves would spend the value's colour on a word. The
+        # Glyph and title travel TOGETHER in the icon, in ONE tone: they are
+        # the same mark, and splitting them across the row's two colourable
+        # halves would spend the value's colour on a word. That tone is the
+        # heading's `dim` unless the widget says otherwise — the ladder has no
+        # rung for a pill's own identity hue, deliberately, so a converted
+        # pill's dropdown title is grey where a hand-written one was often the
+        # pill's colour. The
         # value then lands on the column every row below it uses, so the
         # heading reads as the total of what follows rather than as a caption
         # sitting above it.

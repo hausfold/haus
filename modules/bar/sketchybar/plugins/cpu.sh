@@ -48,8 +48,9 @@ ICON=""
 # A dropdown row's --run re-enters this file. Both modes exit before
 # barlib_main: a CLI path that fell through would re-enter the dispatcher with
 # the click's own $SENDER still in the environment, which is the fork loop the
-# runtime's header warns about. Neither needs to close the popup — barlib's
-# rows close it themselves, ahead of whatever the row does.
+# runtime's header warns about. Neither closes the popup: every barlib row
+# runs its action and then closes, so the close is already in the row's own
+# click_script and doing it here would be the second one.
 case "${1:-}" in
 row)
   vitals_focus "${3:-}"

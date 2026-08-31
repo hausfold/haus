@@ -76,7 +76,7 @@ the single source for wiring — no parallel table edit. Keys:
 | `interval` | seconds | none | `update_freq`; omit for purely event-driven |
 | `popup` | `true`/`false` | `false` | the dropdown frame + align; unlocks `popup_*` |
 | `subscribes` | list | `system_woke` | bar events and haus signals (see Pubsub) |
-| `graph` | points | none | makes the item an `--add graph` of that width; see The graph |
+| `graph` | points | none | makes the item an `--add graph` of that width, and needs an `interval` (see `graph` under Components) |
 
 Planned keys, landing with the feature that consumes each: `permissions`
 (feeds the deck, replacing the `widgets.nix` column), `movable` (the
@@ -155,9 +155,18 @@ running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
   unreachable rather than merely discouraged: the graph has no time axis of
   its own — it is the last `width` values, evenly spaced — so a point pushed
   by the POINTER shoves the history sideways at the speed of a mouse. Under
-  the hand-written cpu pill that was a guard and a comment. The batch still
-  goes out on a diffed-away tick, so the push costs the call that was already
-  leaving.
+  the hand-written cpu pill that was a guard and a comment; through the
+  runtime's own dispatch it is unreachable.
+
+  ⚠️ One handler still reaches fetch on purpose: `barlib_tick`. A graph widget
+  offering a refresh gesture is back to pushing a point from the pointer — let
+  the next tick draw it, or accept that the row is worth a data point.
+
+  A graph pill costs one `$SB` call per tick even when its state is unchanged:
+  the push IS the traffic, where a quiet non-graph pill sends nothing at all.
+  It is the same one call the hand-written pill made rather than a new price,
+  but the zero-traffic promise elsewhere in this doc is about widgets that do
+  not push.
 
   `graph.color` is the widget's to name **in its Nix style, not its script**,
   and is then never touched again: the line is IDENTITY (which readout is
@@ -212,7 +221,15 @@ running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
   live readout, not an absence. A heading is the exception and takes the
   opposite half — its glyph and title travel together in one hue, because they
   are the same mark and splitting them would spend the value's colour on a
-  word. Every row closes the popup on click; `--open` /
+  word.
+
+  That heading hue is `dim` unless the widget says otherwise, and the visible
+  consequence is worth naming: the ladder has **no rung for a pill's own
+  identity colour** — on purpose, since a rung one widget wants is that
+  widget's hex laundered through the framework — so a converted pill's
+  dropdown title is grey where the hand-written one was often the pill's own.
+  Identity survives where it is legible as identity: the bar icon and the
+  graph line, both named in Nix. Every row closes the popup on click; `--open` /
   `--run` / `--copy` run *before* that close, and `--open`/`--copy` are
   single-quote-escaped because a PR title is data.
 - `barlib_tick` — run fetch/diff/render now, for a handler that just changed

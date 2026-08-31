@@ -65,7 +65,7 @@ in
   ];
 
   # parse <path> -> { interval : int|null, popup : bool, subscribes : [str],
-#                   graph : int|null }
+  #                   graph : int|null }
   # Defaults are the manifest's, not the option system's: a widget with no
   # header at all is legal (event-driven, system_woke only).
   parse =
