@@ -315,7 +315,7 @@ Lua (or Go daemon) runtime would consume, so nothing built now is thrown away.
    `github_update` undeclared — silently); and the runtime stripping
    `<item>.popup.<n>` back to the pill, because a popup row's `click_script`
    re-enters the widget with `NAME` set to the ROW.
-4. `permissions` / `movable` manifest keys, the tone-table golden check,
-   third-party framework widgets through `haus.bar.widgets`.
+4. `permissions` / `movable` manifest keys, third-party framework widgets
+   through `haus.bar.widgets`.
 5. Long tail: convert on touch. A converted pill deletes its block from
    `mkPluginBlocks`; the framework wins when `mkPluginBlocks` is empty.
