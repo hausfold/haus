@@ -501,9 +501,12 @@
       # `desktop-seam`. A collection file is this repo's own now, so "is it
       # data?" is a code-review question rather than a check.
       #
-      # `theme-variants` runs on EVERY system, Linux included: it's pure lib, the
-      # same property that lets options-json build on Linux CI. `catalogue` stays
-      # darwin-only — it evaluates real systems.
+      # `theme-variants` and `bar-tones` run on EVERY system, Linux included:
+      # they're pure lib and pure text, the same property that lets options-json
+      # build on Linux CI — which matters most for `bar-tones`, since the drift
+      # it catches is otherwise invisible on any machine (a widget paints grey
+      # and the reason goes to sketchybar's log). `catalogue` stays darwin-only
+      # — it evaluates real systems.
       checks = nixpkgs.lib.genAttrs allSystems (
         system:
         let
@@ -1262,6 +1265,104 @@
             two data files, one tour step each: B, A (merged, no error)
             two data files, one app each: obsidian, zotero (merged, no error)
           '';
+
+          # ---- bar-tones ------------------------------------------------------
+          # The tone ladder (modules/bar/tones.nix) is the bar's whole colour
+          # vocabulary, and a rung lives in FOUR files. One is GENERATED from
+          # the list (modules/bar/default.nix's colorsSh); the other three are
+          # hand-written, and all three fail SILENTLY when they drift —
+          # `tone()` deliberately does not error on a name it doesn't know,
+          # because a typo must cost a grey pill rather than a pill that stops
+          # painting, and its warning goes to sketchybar's log where nobody
+          # looks. So a rung added to tones.nix and forgotten in barlib.sh is a
+          # widget painting grey with nothing anywhere saying why.
+          #
+          # Hence this: the same golden-table shape as theme-variants below,
+          # over the three hand-written copies. Each row is a PAIR, never a
+          # bare name, because the likeliest hand-edit mistake in a ten-arm
+          # case statement is not dropping an arm — it is swapping two bodies,
+          # which inverts the severity ladder while leaving the list of names
+          # byte-identical. So barlib and the bats stub are pinned name → the
+          # TONE_* they resolve, and the doc name → the sentence tones.nix
+          # gives it, which is the other copy people edit by hand.
+          #
+          # ORDER is pinned too: the doc table is meant to read AS the ladder,
+          # quietest first, and an order that drifts is a table that has
+          # stopped being one.
+          #
+          # It reads the files as TEXT rather than evaluating a configuration,
+          # so it runs on every system (CI's Linux runner included) the way
+          # theme-variants does.
+          barTones = import ./modules/bar/tones.nix;
+
+          # Pull pairs back out of a file by regex over its text, one
+          # `<a> -> <b>` line per match. Each extractor is anchored on the
+          # SHAPE the real file has rather than on a marker comment — a marker
+          # is something you can move without moving the thing it marks.
+          barTonePairs =
+            re: text:
+            let
+              m = builtins.split re text;
+            in
+            nixpkgs.lib.concatMapStrings (g: (builtins.elemAt g 0) + " -> " + (builtins.elemAt g 1) + "\n") (
+              builtins.filter builtins.isList m
+            );
+
+          # barlib.sh — `tone()`'s case arms, name → the TONE_* the body reads.
+          # The optional `\{` catches the `''${TONE_X:-…}` generation-skew form
+          # without letting the fallback rung count as the answer. The trailing
+          # `*)` catch-all has no name and doesn't match, which is what we want.
+          barToneFromBarlib = barTonePairs "\n        ([a-z]+)\\) +printf '%s' \"\\$\\{?(TONE_[A-Z]+)" (
+            builtins.readFile ./modules/bar/sketchybar/barlib.sh
+          );
+
+          # test/barlib.bats — the colors.sh stub setup() writes, same pairing
+          # read the other way round: the TONE_* it defines, lower-cased back
+          # to the rung it is for.
+          barToneFromBats = barTonePairs "\nexport TONE_([A-Z]+)=(0x[0-9a-f]+)" (
+            builtins.readFile ./test/barlib.bats
+          );
+
+          # docs/bar-framework.md — the rows of the table under "Tones, not
+          # colors": `| `<name>` | <meaning> |`. Sliced to that ONE section and
+          # then to what precedes the next `##`, because the file has other
+          # tables with the same row shape (the `# widget:` manifest keys are
+          # one) and a check that swept them in would pin a list nobody meant
+          # to write. A renamed heading yields an EMPTY section rather than an
+          # eval error, so it fails as a diff naming the file like everything
+          # else here.
+          barToneDocSection =
+            let
+              parts = nixpkgs.lib.splitString "\n## Tones, not colors\n" (
+                builtins.readFile ./docs/bar-framework.md
+              );
+            in
+            if builtins.length parts < 2 then
+              ""
+            else
+              builtins.head (nixpkgs.lib.splitString "\n## " (builtins.elemAt parts 1));
+          barToneFromDoc = barTonePairs "\n\\| `([a-z]+)` \\| ([^|]*[^| ]) \\|" barToneDocSection;
+
+          # Every tone's `key` must be a real nebelung palette key. Checked
+          # rather than trusted, and checked HERE rather than in the bar module
+          # because `nebelung` reaches that module through the home-manager
+          # specialArgs, not its own args — and because a misspelt key is a
+          # haus-authoring mistake, which is a thing to catch before merge
+          # rather than on somebody's Mac. Unchecked it emits `export
+          # TONE_X=$OVERLYA1`: green at eval, green at every other check, green
+          # through the home-files build, and visible months later as an empty
+          # `icon.color=` with nothing anywhere saying why. Same failure
+          # `modules/lib/checked-ref.nix` exists for, one layer down.
+          barToneBadKeys = builtins.filter (t: t.key != null && !(nebelung.palette ? ${t.key})) barTones;
+
+          # What all three are diffed against.
+          barToneExpectedTones = nixpkgs.lib.concatMapStrings (
+            t: t.name + " -> TONE_" + nixpkgs.lib.toUpper t.name + "\n"
+          ) barTones;
+          barToneExpectedBats = nixpkgs.lib.concatMapStrings (
+            t: nixpkgs.lib.toUpper t.name + " -> " + t.stub + "\n"
+          ) barTones;
+          barToneExpectedDoc = nixpkgs.lib.concatMapStrings (t: t.name + " -> " + t.meaning + "\n") barTones;
 
           # ---- theme-variants -------------------------------------------------
           # modules/lib/nebelung.nix turns haus.theme.{flavor,contrast} into a
@@ -3449,6 +3550,27 @@
                   || { echo >&2; echo "left: modules/lib/reachability.nix's \`${class}\` keys · right: classify_key's \`${class}\` arm in modules/core/haus.sh" >&2; exit 1; }
               '') a11yClasses
             )}
+            touch $out
+          '';
+
+          # The ladder, pinned across the three files that hold a hand-written
+          # copy of it. See the `bar-tones` block in the `let` above for why a
+          # drift here is silent, and modules/bar/tones.nix for the ladder.
+          bar-tones = pkgs.runCommand "haus-bar-tones-ok" { } ''
+            ${nixpkgs.lib.optionalString (barToneBadKeys != [ ]) (
+              "echo 'modules/bar/tones.nix names palette keys nebelung does not have: "
+              + nixpkgs.lib.concatMapStringsSep ", " (t: "${t.name} -> ${t.key}") barToneBadKeys
+              + "' >&2; exit 1"
+            )}
+            echo "== modules/bar/sketchybar/barlib.sh (tone() case arms)"
+            diff -u ${pkgs.writeText "expected" barToneExpectedTones} \
+                    ${pkgs.writeText "barlib" barToneFromBarlib}
+            echo "== docs/bar-framework.md (the table under 'Tones, not colors')"
+            diff -u ${pkgs.writeText "expected" barToneExpectedDoc} \
+                    ${pkgs.writeText "doc" barToneFromDoc}
+            echo "== test/barlib.bats (the colors.sh stub in setup())"
+            diff -u ${pkgs.writeText "expected" barToneExpectedBats} \
+                    ${pkgs.writeText "bats" barToneFromBats}
             touch $out
           '';
 

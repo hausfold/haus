@@ -638,6 +638,17 @@ mechanism, say so in one line.
   and the whole popup dance (rebuild, batch, `barpop arm &`, the four row
   kinds' typography), so the bullets below about those only concern the
   pre-framework plugins — which remain valid and convert on touch.
+  - **The colour vocabulary is `modules/bar/tones.nix`** — the ten-rung tone
+    ladder, and it is the whole bar's rather than the framework's, drawn from
+    what every pill already spends its hexes on. A widget names a tone and
+    never a hex; what earns a NEW rung is a colour more than one pill already
+    spends on one job, and that file's entries name the pills so the claim can
+    be checked. Two traps it exists to close: `accent` follows
+    `haus.theme.accent`, whose enum contains `red`/`peach`/`yellow`/`green`,
+    so **nothing carrying meaning may name it** (a verb row is `action`); and
+    a rung lives in FOUR files, three of them hand-written, whose drift is
+    SILENT — `tone()` warns to sketchybar's log and paints grey. The
+    `bar-tones` flake check diffs all three against the list, names and order.
 - **A plugin that can end up on the SECOND bar must never write `sketchybar`.**
   `haus.bar.bottom.enable` draws a second bar along the bottom, and SketchyBar
   has no two-bars-in-one-process mode: an instance is named `basename(argv[0])`

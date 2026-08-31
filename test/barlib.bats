@@ -28,20 +28,26 @@ EOF
   chmod +x "$BATS_TEST_TMPDIR/bin/sb"
 
   # The three files barlib sources, minimal but shaped like the real ones:
-  # colors.sh carries the TONE_* ladder the generated file exports, bar.sh
+  # colors.sh carries the TONE_* ladder the generated file exports (the real
+  # one is modules/bar/tones.nix, and `bar-tones` diffs these names against
+  # it — a rung added there and not here paints grey in every test), bar.sh
   # sets $SB / $BAR_TOP / $BAR_BOTTOM the way the generated router does.
   cat >"$HOME/.config/sketchybar/colors.sh" <<EOF
 export FLAMINGO=0xffeebbcc
 export TONE_MUTE=0xff111111
+export TONE_DIM=0xff1a1a1a
+export TONE_TEXT=0xff777777
 export TONE_OK=0xff222222
 export TONE_BUSY=0xff333333
+export TONE_WATCH=0xff3a3a3a
 export TONE_WARN=0xff444444
 export TONE_BAD=0xff555555
+export TONE_ACTION=0xff5a5a5a
 export TONE_ACCENT=0xff666666
-export TONE_TEXT=0xff777777
 export TEXT=0xff777777
 export SUBTEXT0=0xff888888
 export OVERLAY0=0xff999999
+export OVERLAY1=0xffaaaaaa
 EOF
   cat >"$HOME/.config/sketchybar/sizes.sh" <<'EOF'
 export BAR_FONT="Test Font"
@@ -263,6 +269,53 @@ render() { pill --icon "" --tone text --label "3" --label-tone mute; }'
   [ "$status" -eq 0 ]
   grep -q 'icon.color=0xff777777' "$SB_LOG"
   grep -q 'label.color=0xff111111' "$SB_LOG"
+}
+
+@test "the two dim steps are two colours — mute is off, dim is quiet" {
+  export NAME=w SENDER=routine
+  run widget 'fetch() { emit n=1; }
+render() { pill --icon "" --tone dim --label "3" --label-tone mute; }'
+  [ "$status" -eq 0 ]
+  grep -q 'icon.color=0xff1a1a1a' "$SB_LOG"
+  grep -q 'label.color=0xff111111' "$SB_LOG"
+}
+
+@test "watch is its own rung between ok and warn, not either of them" {
+  export NAME=w SENDER=routine
+  # Deliberately NOT `run`: bats folds the command's stderr into $output, so a
+  # `2>file` on the `run` line captures nothing and every assertion against
+  # that file passes vacuously. The unknown-tone test above calls `widget`
+  # bare for the same reason — copy that shape, not this one's absence.
+  widget 'fetch() { emit n=1; }
+render() { pill --icon "" --tone watch; }' 2>"$BATS_TEST_TMPDIR/err"
+  grep -q 'icon.color=0xff3a3a3a' "$SB_LOG"
+  # Its own colour, and not reached through the unknown-tone fallback — which
+  # paints mute, and is the silent failure this whole check exists to prevent.
+  ! grep -q 'unknown tone' "$BATS_TEST_TMPDIR/err"
+}
+
+# The regression the `action` rung exists for. `accent` follows
+# haus.theme.accent, whose enum contains red/peach/yellow/green/sky — so a verb
+# row defaulting there was the alarm colour on those machines and nowhere else,
+# which is a bug nobody who did not own one of them could ever see.
+@test "a verb row is action, not the theme accent" {
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'popup_rows() { popup_action --icon "" --label "Refresh" --run "true"; }
+on_click() { popup_toggle; }'
+  [ "$status" -eq 0 ]
+  grep -q 'icon.color=0xff5a5a5a' "$SB_LOG"
+  ! grep -q 'icon.color=0xff666666' "$SB_LOG"
+}
+
+# A section title with no verdict is still a title. Every hand-written popup in
+# the bar draws one overlay1 and reserves overlay0 for the meta row under it.
+@test "a heading with no tone is dim, not mute" {
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'popup_rows() { popup_heading --icon "" --label "Open PRs"; }
+on_click() { popup_toggle; }'
+  [ "$status" -eq 0 ]
+  grep -q 'icon.color=0xff1a1a1a' "$SB_LOG"
+  ! grep -q 'icon.color=0xff111111' "$SB_LOG"
 }
 
 @test "popup rows ride ONE call with the popup.drawing that shows them" {

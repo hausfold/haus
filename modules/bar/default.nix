@@ -1333,6 +1333,29 @@ let
   # options.nix, for the reason sides.nix gives.
   bottomSides = import ./sides.nix;
 
+  # The tone ladder — a plain list, shared with flake.nix's `bar-tones` check
+  # so the generated colors.sh and the check read the same file.
+  barTones = import ./tones.nix;
+
+  # The ladder as colors.sh `export TONE_* = <palette var>` lines. Built HERE
+  # rather than inline in colorsSh for a reason that bit once: a multi-line
+  # interpolation inside a `''` block makes nixfmt re-indent the block, which
+  # moves its minimum indentation and so shifts EVERY line of the generated
+  # file — invisible in review, a whole-file diff in the user's ~.
+  #
+  # Each value is a colors.sh VARIABLE reference rather than a hex, so a
+  # palette change reaches the ladder with nothing here to edit. The `$` is
+  # CONCATENATED rather than written in front of the interpolation: `$${…}`
+  # inside a `"…"` string is an ESCAPED `${`, and the first version of this
+  # emitted the Nix expression itself into everybody's colors.sh, silently.
+  toneExports = lib.concatMapStringsSep "\n" (
+    t:
+    "# ${t.meaning}\n"
+    + "export TONE_${lib.toUpper t.name}="
+    + "$"
+    + lib.toUpper (if t.key == null then config.haus.theme.accent else t.key)
+  ) barTones;
+
   # The order pills are emitted in: the bundled ones in the fixed left-to-right
   # order above, then whatever a rice declared, alphabetically. A stranger's
   # widget lands outboard of haus's own rather than interleaved, which is the
@@ -2294,19 +2317,17 @@ lib.mkIf config.haus.bar.enable {
             name: hex: "export ${lib.toUpper name}=0xff${lib.removePrefix "#" hex}"
           ) nebelungPalette
         )}
-        # The tone ladder (docs/bar-framework.md): the semantic names barlib
-        # widgets paint with — resolved here so nebelung stays the only place
-        # a name becomes a hex, and TONE_ACCENT follows haus.theme.accent.
-        export TONE_MUTE=$OVERLAY0
-        # Not a verdict: the bar's ordinary foreground, for a readout that is
-        # news without being bad news. Distinct from TONE_MUTE, which is
-        # dimmed — a pill that can paint peach needs a way back to neutral.
-        export TONE_TEXT=$TEXT
-        export TONE_OK=$GREEN
-        export TONE_BUSY=$SKY
-        export TONE_WARN=$PEACH
-        export TONE_BAD=$RED
-        export TONE_ACCENT=''$${lib.toUpper config.haus.theme.accent}
+        # The tone ladder (modules/bar/tones.nix, docs/bar-framework.md): the
+        # semantic names barlib widgets paint with. GENERATED from that list
+        # (`toneExports` above) rather than typed here, so this file is one of
+        # the four the `bar-tones` check can no longer let drift — nebelung
+        # stays the only place a name becomes a hex, and each tone the only
+        # place a JOB becomes a name.
+        #
+        # `accent` is the one rung with no fixed key: it follows
+        # haus.theme.accent, which is why nothing that carries meaning may
+        # name it. tones.nix's last entry has the whole argument.
+        ${toneExports}
       '';
       # The far-left logo pill. BAR_LOGO_COLOR is resolved to a colors.sh
       # VARIABLE REFERENCE rather than a hex: the accent name is a palette key,
