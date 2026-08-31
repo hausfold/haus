@@ -35,10 +35,13 @@ source "$HOME/.config/sketchybar/barlib.sh"
 source "$HOME/.config/sketchybar/plugins/vitals_lib.sh"
 
 SELF="$HOME/.config/sketchybar/plugins/memory.sh"
-# Per-pill state, so this pill's rows are always "since MY last look" — see
-# barvitals.swift on why the two pills can't share one baseline. In the
-# session's own $TMPDIR (0700) rather than world-writable /tmp: a predictable
-# name in a shared directory is a symlink away from writing somewhere else.
+# Per-pill state, though nothing this pill draws is a delta: `top` in mem mode
+# is GIGABYTES, not a rate (barvitals.swift). The separate path is so this pill
+# cannot move the CPU pill's baseline — barvitals rewrites the state file on
+# every run, and a shared one would advance a baseline nobody measured against.
+# In the session's own $TMPDIR (0700) rather than world-writable /tmp: a
+# predictable name in a shared directory is a symlink away from writing
+# somewhere else.
 STATE="${TMPDIR:-/tmp}/bar-vitals-memory"
 
 # Nerd Font memory icon (nf-md-memory, U+F049D). Literal glyph, not printf

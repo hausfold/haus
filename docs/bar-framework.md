@@ -154,13 +154,15 @@ running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
   respect, icon and label and popup and click handlers all unchanged, plus a
   rolling window of the last `width` pushed values drawn behind the text. The
   width is a POINT COUNT, which is why the manifest refuses it without an
-  `interval`: the window is `width × interval` seconds wide, about two minutes
-  of cpu and six of memory at what those two ship with.
+  `interval`: the window is `width × interval` seconds wide — both shipped
+  pills carry 48 points, which is two minutes of cpu at its 2 s tick and four
+  minutes of memory at its 5 s one.
 
   ⚠️ **The history lives in the RUNNING item**, not in any file, so a bar
   reload starts the line empty and it fills in over the next window. Worth
   knowing before you see it: the first reload after a rebuild leaves a graph
-  pill flat for two minutes, and it is drawing exactly what it knows.
+  pill flat for a whole window — two minutes on cpu, four on memory — and it
+  is drawing exactly what it knows.
 
   ⚠️ **Call it from `fetch`, not `render`** — the one place the fetch/render
   split does not hold, and structural rather than stylistic. `render` is
@@ -314,8 +316,8 @@ Four of the ten are worth knowing before you pick one:
 - **Two dim steps.** `mute` is OFF; `dim` is quiet but present. Six pills
   already use both as a hierarchy — agents paints a popup section glyph
   `overlay1` and the meta row under it `overlay0` (as vitals_lib did before
-  the runtime took its rows), and `ai_usage.sh` writes that same two-tier
-  rule down as `descr` vs `meta`. One
+  the runtime took its rows), and `ai_usage.sh` writes that same two-tier rule
+  down as `descr` vs `meta`. One
   rung cannot say both, and a widget with only `mute` can only ever get
   greyer.
 - **`text` is deliberately not a verdict** — the way back to neutral after
@@ -423,10 +425,11 @@ Lua (or Go daemon) runtime would consume, so nothing built now is thrown away.
    maps the ladder `vitals_color` had climbed in hexes, one to one, which is
    what those rungs were widened for.
 5. ✅ **memory** — cpu's twin, and the conversion that ADDED nothing: it
-   spends `graph`, `--value` and the severity rungs exactly as cpu left them,
-   which is the first evidence the component set is a set rather than one
-   pill's needs generalized on the way past. What it took away is the point
-   of it — `vitals_lib.sh` lost `vitals_color`, the four row builders,
+   spends `graph`, `--value`, `dim` and three of the four severity rungs
+   exactly as it found them, which is the first evidence the component set is
+   a set rather than one pill's needs generalized on the way past. What it
+   took away is the point of it — `vitals_lib.sh` lost `vitals_color`, the
+   four row builders,
    `vitals_pop_add`, the popup show/open pair, `vitals_pill_of`,
    `vitals_metrics`/`vitals_name_pad`/`vitals_px` and `vitals_fraction`, and
    is now one sample, one ladder and the two things a row can DO.
