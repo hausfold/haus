@@ -5,8 +5,8 @@
 #          muted ● when clean) + its own PR number (left of the name, colored by
 #          PR state, same as the children) + worktree name, then flush right:
 #          the child-PR cluster (bare clickable numbers for every worktree this
-#          session spawned — there so they survive the row-2+ list being capped
-#          or clipped in a short pane) ·
+#          session spawned in ANOTHER repo — there so they survive the row-2+
+#          list being capped or clipped in a short pane) ·
 #          rice-nag (⇡N — commits your pinned haus is behind, `haus update`)
 #          · ctx% (green <100k tokens, yellow <200k, red beyond — banded on
 #          absolute tokens, not the percentage) · cost · permission-mode icon
@@ -15,15 +15,18 @@
 # Tint   : on Fable/Mythos only, every row gets a dark magenta background painted
 #          edge-to-edge, so the special model is legible from across a wall of
 #          panes without reading anything. Per-pane, hence safe — see TINT_FABLE.
-# Row 2+ : the worktrees THIS session spawned (its direct children via ⌘A /
-#          `claude --worktree`), across whatever repos they live in — each with
-#          the same status-as-bullet as row 1, then repo, PR number (colored by
-#          PR state), and name. Active rows lead; reapable ⏏ rows come last so
-#          Claude Code clipping never hides work that still needs attention.
+# Row 2+ : the worktrees THIS session spawned in OTHER repos (`scruff child`) —
+#          each with the same status-as-bullet as row 1, then repo, PR number
+#          (colored by PR state), and name. Active rows lead; reapable ⏏ rows
+#          come last so Claude Code clipping never hides work that still needs
+#          attention. A ⌘↵ lane in this pane's OWN repo is a sibling with a
+#          window of its own, not a child, and is not listed here — sibling().
 #
 # Lineage: `scruff hook create` records each worktree's parent (the cwd it was spawned
 # from) in its registry; the refresher carries that into panel.tsv, and a
-# session lists only the rows whose parent == its own cwd.
+# session lists the rows whose parent == its own cwd — MINUS the ones in its own
+# repo, which are ⌘↵ peers with panes of their own rather than children of it.
+# `parent` alone cannot tell those two apart; see sibling(), below.
 #
 # The status token is a single mutually-exclusive slot:
 #     ⏏  (warn)     branch is merged/landed → `scruff` reaps it on pane close
@@ -618,11 +621,27 @@ fi
 # go: it's the widest-varying segment, so everything after it stays put relative
 # to the right edge. Row 1 is the last line a growing input composer clips, so
 # these links stay reachable even when the per-worktree rows below scroll away.
+#
+# sibling: a panel row from THIS lane's own repo is a peer, not a child. scruff
+# records `parent` as the cwd that made the lane, so a lane opened with ⌘↵ from
+# this pane is parented to it byte-for-byte as a `scruff child` is (scruff
+# SPEC.md §2.2 — that field cannot answer "does it have a pane of its own", and
+# is why `chat` exists). The repo is the test, the same one `scruff`'s own
+# listing nests on: a `scruff child` lane lives somewhere else and has no window,
+# while a same-repo lane has its own and is subordinate to nothing. Filing one
+# here buried it under whichever pane pressed the key and ate the MAX_ROWS
+# budget that exists for real children — the rows with nowhere else to appear.
+#
+# Only inside a lane. A main-checkout or $HOME pane keeps every row it parents:
+# there the lanes ARE its repo's, and that pane is where a human looks for them.
+sibling() { [ "$is_wt" = 1 ] && [ -n "$slug" ] && [ "$1" = "$slug" ]; }
+
 prcluster=""
 if [ -f "$PANEL" ]; then
   while IFS=$'\t' read -r cslug cname _c3 _c4 _c5 _c6 cpr cparent; do
     [ -n "$cname" ] || continue
     [ "$cparent" = "$cwd" ] || continue          # only PRs this session spawned
+    sibling "$cslug" && continue                 # a ⌘↵ peer, not a child of mine
     [ -n "$cpr" ] && [ "$cpr" != "-" ] || continue
     cnum="${cpr%% *}"; cnum="${cnum#\#}"          # bare number, no '#'
     case "${cpr##* }" in open) ccol="$PR_OPEN";; merged*) ccol="$PR_MERGED";; closed) ccol="$PR_CLOSED";; *) ccol="$DIM";; esac
@@ -784,8 +803,9 @@ if [ -f "$PANEL" ]; then
 fi
 [ "$stale" = 1 ] && [ -x "$REFRESHER" ] && { nohup "$REFRESHER" >/dev/null 2>&1 & disown 2>/dev/null || true; }
 
-# --- ROW 2+ : the worktrees THIS session spawned (panel parent == cwd), plus, in
-# the $HOME pane only, orphan worktrees (no recorded parent) so nothing hides ----
+# --- ROW 2+ : the worktrees THIS session spawned in another repo (panel parent
+# == cwd, minus this lane's own repo — see sibling()), plus, in the $HOME pane
+# only, orphan worktrees (no recorded parent) so nothing hides ----------------
 [ -f "$PANEL" ] || exit 0
 # panel.tsv is stable in registry order. Preserve that order within each group,
 # but move the exact state render_status turns into ⏏ behind every active row
@@ -804,7 +824,7 @@ while IFS=$'\t' read -r pslug pname pahead pfiles pins pdel ppr pparent; do
   [ "$ppr" = "-" ] && ppr=""                    # decode empty-prstate sentinel
   orphan=0
   if [ "$pparent" = "$cwd" ]; then
-    :                                           # a worktree I spawned
+    sibling "$pslug" && continue                # a ⌘↵ peer, not a worktree I own
   elif [ "$is_home" = 1 ] && [ -z "$pparent" ]; then
     orphan=1                                    # unattributed — surfaced only at $HOME
   else
