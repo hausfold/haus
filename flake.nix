@@ -25,7 +25,8 @@
       inputs.catppuccin.follows = "catppuccin";
     };
 
-    # The command palette. Its overlay puts `pounce` + `pounce-commands` in pkgs.
+    # The command palette. Its overlay puts `pounce`, `pounce-commands` and
+    # `pounce-skill` in pkgs.
     # pounce compiles its DEFAULT nebelung palette in at build time (variants
     # load at runtime from ~/.config/pounce/themes/); point it at the rice's own
     # nebelung so that default can't drift from the rest of the theme.
@@ -35,7 +36,8 @@
       inputs.nebelung.follows = "nebelung";
     };
 
-    # The notch file shelf. Its overlay puts `perch` in pkgs; modules/shelf
+    # The notch file shelf. Its overlay puts `perch` and `perch-skill` in pkgs;
+    # modules/shelf
     # places the app at a fixed /Applications path. What gets BUILT is perch's
     # CI-built, notarized release ZIP (macOS 26 blocks a from-source Nix build —
     # see the perch repo), because perch's own flake pins that zip in

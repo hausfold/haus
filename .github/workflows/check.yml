@@ -101,7 +101,8 @@ jobs:
       #                            here and their names are proven by the Mac
       #                            pass below, not by CI
       #
-      # ⚠️ Those four were declared for Linux and missing from this list until
+      # ⚠️ Four of the checks above — not the skill names in the bullet just
+      # before this one — were declared for Linux and missing from this list until
       # 2026-08-23, which is the fourth rot and the first in the SAFE direction:
       # the checks were running and the census undercounted them. It said
       # fifteen and the eval said nineteen. `tool-skills` was added hours later,

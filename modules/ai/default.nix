@@ -35,7 +35,12 @@
   lib,
   pkgs,
   username,
-  inputs,
+  # Optional for the same reason `hostname` is read out of `args` below: this
+  # room is in `standaloneModule`'s foundation, so naming `inputs` as mandatory
+  # would make a consumer bare-importing `darwinModules.windows` fail with
+  # `attribute 'inputs' missing`. The only thing it feeds is nebelung's skill,
+  # and the `or null` on that lookup already degrades to installing none.
+  inputs ? { },
   ...
 }@args:
 
@@ -254,7 +259,8 @@ let
     revision this machine pins (`haus update` regenerates it), as is every other
     skill haus installed. `scruff/` and `handoff/` are scruff's, edited in
     hausfold/scruff; `factory/` and `nightshift/` are factory's, edited in
-    hausfold/factory;${lib.optionalString config.haus.notifications.compositor " `trill/` is trill's, here because `haus.notifications.compositor` is on;"} they arrive on a lock bump. Not everything beside them
+    hausfold/factory; `nebelung/` is nebelung's, and half of it is rendered from
+    that repo's palette files rather than written;${lib.optionalString config.haus.notifications.compositor " `trill/` is trill's, here because `haus.notifications.compositor` is on;"}${lib.optionalString config.haus.launcher.enable " `pounce/` is pounce's, here because `haus.launcher.enable` is on;"}${lib.optionalString config.haus.shelf.enable " `perch/` is perch's, here because `haus.shelf.enable` is on;"} they arrive on a lock bump. Not everything beside them
     is generated: ${clientScopeNote.${client}} that you can edit live with no
     rebuild. `ls -l` the path before assuming which kind it is.
 

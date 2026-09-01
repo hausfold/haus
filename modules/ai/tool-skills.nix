@@ -6,6 +6,7 @@
 # ship more than one: scruff ships `scruff` (drive the lane lifecycle) and `handoff`
 # (write the brief a `scruff spawn --prompt-file` lane opens on), factory ships
 # `factory` (the merge verbs) and `nightshift` (the loop that drives them).
+# pounce, perch, trill and nebelung ship one each, named for themselves.
 #
 # Split out of modules/ai/default.nix so `nix flake check` can build it. The
 # room installs the result as home files, which puts it on every machine's
