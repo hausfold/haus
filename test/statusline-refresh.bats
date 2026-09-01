@@ -41,12 +41,30 @@ setup() {
   export PATH="$BIN:$PATH"
 
   # ── shim: gh ───────────────────────────────────────────────────────────────
-  # One question is asked of gh: every PR in a repo, as JSON. FAKE_PRS is that
-  # answer verbatim; the default is the empty list, which is also what a real gh
-  # prints when it is unauthenticated or offline.
+  # The refresher asks gh two kinds of question — the repo-wide list, and the
+  # per-branch fallback (--head) it runs when the list misses a branch — and
+  # can ask about several repos in one pass. A test may therefore pin answers
+  # per repo (FAKE_PRS_ACME_ALPHA, from the -R slug with / and . folded to _)
+  # and per repo+fallback (FAKE_PRS_HEAD_ACME_ALPHA). Anything unset falls
+  # through to FAKE_PRS, which keeps every single-answer test unchanged.
   cat >"$BIN/gh" <<'EOF'
 #!/usr/bin/env bash
 printf 'gh %s\n' "$*" >>"${FAKE_GH_LOG:-/dev/null}"
+suffix=""; prev=""; is_head=0
+for a in "$@"; do
+  [ "$prev" = "-R" ] && suffix=$(printf '%s' "$a" | tr '/.' '__' | tr 'a-z' 'A-Z')
+  [ "$a" = "--head" ] && is_head=1
+  prev="$a"
+done
+answer=""
+if [ -n "$suffix" ]; then
+  if [ "$is_head" = 1 ]; then
+    eval "answer=\${FAKE_PRS_HEAD_${suffix}:-}"
+  else
+    eval "answer=\${FAKE_PRS_${suffix}:-}"
+  fi
+fi
+[ -n "$answer" ] && { printf '%s' "$answer"; exit 0; }
 printf '%s' "${FAKE_PRS:-[]}"
 EOF
   chmod +x "$BIN/gh"
@@ -160,6 +178,33 @@ fmtime() { statnum %m %Y "$1"; }   # mtime in epoch seconds
   FAKE_PRS='[{"number":7,"state":"MERGED","headRefName":"worktree-sparkle"}]' refresh
   [ "$status" -eq 0 ]
   [ "$(col sparkle 7)" = "#7 merged" ]
+}
+
+@test "a PR outside the repo-wide newest-100 window is recovered by the per-branch fallback" {
+  # The repo-wide pass only sees a repo's newest 100 PRs (gh lists newest-first),
+  # so in a busy repo a lane whose PR is older than that window rendered "-"
+  # forever: the row was there, the PR existed, and every renderer dropped the
+  # pill and the OSC 8 hyperlink.
+  local main dir; main="$(mkrepo alpha)"; dir="$(mkwt "$main" sparkle)"
+  FAKE_PRS='[]' FAKE_PRS_HEAD_ACME_ALPHA='[{"number":7,"state":"OPEN","headRefName":"worktree-sparkle"}]' refresh
+  [ "$status" -eq 0 ]
+  [ "$(col sparkle 7)" = "#7 open" ]
+  grep -q -- "--head worktree-sparkle" "$FAKE_GH_LOG"
+}
+
+@test "the per-branch fallback cache does not leak between repos sharing a branch name" {
+  # scruff child coins lane names per repo, so two live lanes in DIFFERENT repos
+  # share one branch name routinely. A branch-keyed fallback cache would answer
+  # alpha's PR for beta too — a bogus PR number and a hyperlink to the wrong
+  # repo — recurring every cache window. Keyed on slug+branch, each repo gets
+  # its own truth.
+  local a b; a="$(mkrepo alpha)"; b="$(mkrepo beta)"
+  mkwt "$a" sparkle >/dev/null
+  mkwt "$b" sparkle >/dev/null
+  FAKE_PRS='[]' FAKE_PRS_HEAD_ACME_ALPHA='[{"number":7,"state":"OPEN","headRefName":"worktree-sparkle"}]' refresh
+  [ "$status" -eq 0 ]
+  [ "$(awk -F'\t' -v s='acme/alpha' '$1==s{print $7}' "$PANEL")" = "#7 open" ]
+  [ "$(awk -F'\t' -v s='acme/beta' '$1==s{print $7}' "$PANEL")" = "-" ]
 }
 
 @test "a merged PR whose branch kept committing reads as merged+K, not merged" {

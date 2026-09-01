@@ -15,7 +15,10 @@
 #     files/ins/del = uncommitted working-tree delta (live checkouts only)
 #     prstate = "#7 open" | "#7 merged" | "#7 closed" | "#7 merged+3" | "-"
 #               ("-" = none; see below. merged+K = the PR merged and K commits
-#                landed on the branch SINCE — un-shipped work no PR covers.)
+#                landed on the branch SINCE — un-shipped work no PR covers.
+#                A PR outside the repo-wide --limit 100 window is recovered by
+#                the per-branch fallback (pr_json_for_branch), so "-" means gh
+#                found no PR for the branch, not "not in the newest 100".)
 #     parent  = the cwd this worktree was spawned FROM (registry col 5). The
 #               statusline shows a session only the rows whose parent == its cwd.
 #   Only IN-FLIGHT rows are written (ahead>0, or dirty, or has a PR).
@@ -197,6 +200,35 @@ pr_json_for_repo() { # $1=main ; echoes cached JSON of that repo's PRs
   cat "$cache"
 }
 
+pr_json_for_branch() { # $1=main $2=branch -> cached JSON of that branch's PRs
+  # The repo-wide pass in pr_state_for_branch fetches only the NEWEST 100 PRs
+  # (`--limit 100`), and gh lists them newest-first — so in a busy repo (haus
+  # crossed #600) a lane whose PR is older than that window falls off the list
+  # and renders "-" forever: the row is there, the PR exists on GitHub, and
+  # every renderer silently drops the pill and the hyperlink. This asks GitHub
+  # for exactly this branch's PRs and caches the answer on the same 120s
+  # cadence, so the cutoff costs one cheap call per no-PR row per cache window
+  # and never an answer.
+  local main="$1" branch="$2" slug cache age
+  slug=$(repo_slug "$main") || return 0
+  # Keyed on slug+branch, not branch alone: scruff child coins lane names per
+  # repo, so two live lanes in DIFFERENT repos share one branch name routinely
+  # — a branch-keyed cache would answer alpha's PR for beta too, a bogus PR
+  # number and a hyperlink to the wrong repo, recurring every cache window.
+  cache="$CACHE_DIR/pr-b-$(printf '%s:%s' "$slug" "$branch" | cksum | cut -d' ' -f1).json"
+  if [ -f "$cache" ]; then
+    age=$(( $(date +%s) - $(mtime "$cache") ))
+    [ "$age" -lt 120 ] && { cat "$cache"; return 0; }
+  fi
+  if gh pr list -R "$slug" --state all --head "$branch" --limit 20 \
+        --json number,state,headRefOid >"$cache.tmp" 2>/dev/null; then
+    mv "$cache.tmp" "$cache"
+  else
+    rm -f "$cache.tmp"; [ -f "$cache" ] || echo '[]' >"$cache"
+  fi
+  cat "$cache"
+}
+
 pr_state_for_branch() { # $1=main $2=branch -> "#N open|merged|closed|merged+K" or ""
   # `|| true`: a truncated cache (a gh run killed mid-write) makes jq exit 5, and
   # under `set -o pipefail` that status would propagate out of the `pr=$(…)`
@@ -204,6 +236,10 @@ pr_state_for_branch() { # $1=main $2=branch -> "#N open|merged|closed|merged+K" 
   # blank cell; it is never a reason to stop refreshing the panel.
   local main="$1" b="$2" raw num state oid tip k
   raw=$(pr_json_for_repo "$main" | jq -r --arg b "$b" '
+    map(select(.headRefName == $b)) | (.[0] // empty)
+    | "\(.number) \(.state|ascii_downcase) \(.headRefOid // "")"' 2>/dev/null || true)
+  # …and when the repo-wide window missed the branch, ask about it directly.
+  [ -n "$raw" ] || raw=$(pr_json_for_branch "$main" "$b" | jq -r --arg b "$b" '
     map(select(.headRefName == $b)) | (.[0] // empty)
     | "\(.number) \(.state|ascii_downcase) \(.headRefOid // "")"' 2>/dev/null || true)
   [ -n "$raw" ] || return 0
