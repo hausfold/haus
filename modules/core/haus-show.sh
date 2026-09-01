@@ -47,7 +47,8 @@ fi
 # Probed by the functions this script CALLS: a partial painter is a `command not
 # found` in the middle of a report, and the gate below would have licensed it.
 UI_READY=""
-type ui_glyph_bare ui__detect_profile ui__resolve_palette >/dev/null 2>&1 && UI_READY=1
+type ui_glyph_bare ui__detect_profile ui__resolve_palette \
+     ui_col ui_trow ui_table_data >/dev/null 2>&1 && UI_READY=1
 
 # ---- palette ----------------------------------------------------------------
 # Role names, not colours: C_* alias snug's GENERATED roles, so the hexes come
@@ -61,10 +62,15 @@ type ui_glyph_bare ui__detect_profile ui__resolve_palette >/dev/null 2>&1 && UI_
 # output, the two places a raw \033[38;5;103m is pure noise, and the two places
 # it must land on stdout. `die` keeps fd 2, as errors always have.
 #
-# Colour lives OUTSIDE every %-Ns width below, so alignment is identical with it
-# off. Those widths are still hardcoded (44 and 46 cells, plus their gutter):
-# this report is not a live region, so a narrow window soft-wraps it rather than
-# corrupting it, and folding them is the shared painter's job.
+# Every row with columns in it draws through `ui_col` + `ui_trow` +
+# `ui_table_data`, which are snug's and which budget those columns against the
+# real window: a path column takes what is there, gives up its FRONT when it has
+# to, and never pads to a width the format string picked. On a run with no ui.sh
+# — the raw script off the store path, with no wrapper to set HAUS_UI_SH — there
+# is no window to budget against and no painter to paint with, so each block
+# keeps the fixed 44/46-cell columns it had rather than growing a second layout
+# engine in here. Colour lives OUTSIDE those widths either way, so alignment is
+# identical with it off.
 C_OFF=; C_FOG=; C_OK=; C_WARN=; C_ERR=; C_MUT=
 if [ -n "$UI_READY" ]; then
   # ui.sh measured fd 2 at load, because that is where its own lines go. This
@@ -861,10 +867,25 @@ render_machine() {
   if [ "$n" -gt 0 ]; then
     printf '\n'
     note "$n $(leaves "$n") your own config outranks — the desktop does not move $(if [ "$n" = 1 ]; then printf it; else printf them; fi)"
-    emit overridden | while IFS=$'\t' read -r path cur prop type inside; do
-      printf '      %-44s %sstays %s%s   %s(it asks for %s)%s\n' \
-        "$path" "$C_FOG" "$cur" "$C_OFF" "$C_MUT" "$prop" "$C_OFF"
-    done
+    # A header row, against the family default, because these two values are
+    # only readable with a word in front of them and a table cell is data: the
+    # words that used to sit inside every row ("stays", "it asks for") are the
+    # column's, said once. `done < <(…)` and not a pipe — a pipeline's while
+    # loop is a subshell, and the rows it collects would not survive it.
+    if [ -n "$UI_READY" ]; then
+      ui_col option        20 3 path   left
+      ui_col stays          8 2 accent right
+      ui_col "it asks for"  8 2 muted  right
+    fi
+    while IFS=$'\t' read -r path cur prop type inside; do
+      if [ -n "$UI_READY" ]; then
+        ui_trow "$path" "$cur" "$prop"
+      else
+        printf '      %-44s %sstays %s%s   %s(it asks for %s)%s\n' \
+          "$path" "$C_FOG" "$cur" "$C_OFF" "$C_MUT" "$prop" "$C_OFF"
+      fi
+    done < <(emit overridden)
+    if [ -n "$UI_READY" ]; then ui_table_data 6 1; fi
   fi
 
   # 2. The changes, with the one merge rule a reader cannot infer from either
@@ -874,11 +895,39 @@ render_machine() {
   if [ "$n" -gt 0 ]; then
     printf '\n'
     field "changes" "$n $(leaves "$n")"
-    emit changes | while IFS=$'\t' read -r path cur prop type inside; do
-      printf '      %-44s %s%s → %s%s' "$path" "$C_FOG" "$cur" "$prop" "$C_OFF"
-      case "$type" in listOf) printf '   %s⚠ a list: replaced whole, not merged%s' "$C_WARN" "$C_OFF" ;; esac
-      printf '\n'
-    done
+    # The list rule marks its rows with ONE cell and says itself once, under the
+    # table. A sentence in a column is a sentence that gets cut — `⚠ a list:
+    # repla…` at eighty columns — and this is the one merge rule a reader cannot
+    # infer from either file, so it is the last thing that may lose its tail.
+    # The mark column is declared only when a row has one: a column's minimum is
+    # taken out of the window whether or not anything is ever drawn in it.
+    local lists; lists="$(jq -r '[.leaves[] | select(.verdict == "changes" and .type == "listOf")] | length' <<<"$becomes")"
+    if [ -n "$UI_READY" ]; then
+      ui_col option 20 3 path   left
+      ui_col now     8 2 accent right
+      ui_col becomes 8 2 accent right
+      if [ "$lists" -gt 0 ]; then ui_col list 1 1 warn never; fi
+    fi
+    while IFS=$'\t' read -r path cur prop type inside; do
+      if [ -n "$UI_READY" ]; then
+        local listmark=""
+        case "$type" in listOf) listmark="$G_WARN" ;; esac
+        if [ "$lists" -gt 0 ]; then ui_trow "$path" "$cur" "$prop" "$listmark"
+        else ui_trow "$path" "$cur" "$prop"; fi
+      else
+        printf '      %-44s %s%s → %s%s' "$path" "$C_FOG" "$cur" "$prop" "$C_OFF"
+        case "$type" in listOf) printf '   %s⚠ a list: replaced whole, not merged%s' "$C_WARN" "$C_OFF" ;; esac
+        printf '\n'
+      fi
+    done < <(emit changes)
+    if [ -n "$UI_READY" ]; then
+      ui_table_data 6 1
+      if [ "$lists" -gt 0 ]; then
+        dim "$G_WARN marks a list: replaced whole, not merged. A list your"
+        dim "machine already ranks above the desktop is REPLACED by it, so a"
+        dim "desktop's entries do not add to yours."
+      fi
+    fi
   fi
 
   # 3. The container leaves, where the values compare and the winner cannot be
@@ -888,10 +937,21 @@ render_machine() {
   if [ "$n" -gt 0 ]; then
     printf '\n'
     field "unranked" "$n $(leaves "$n") inside a list-like option"
-    emit unranked | while IFS=$'\t' read -r path cur prop type inside; do
-      printf '      %-44s %s%s → %s%s   %s(inside %s)%s\n' \
-        "$path" "$C_FOG" "$cur" "$prop" "$C_OFF" "$C_MUT" "$inside" "$C_OFF"
-    done
+    if [ -n "$UI_READY" ]; then
+      ui_col option 20 3 path   left
+      ui_col now     8 2 accent right
+      ui_col becomes 8 2 accent right
+      ui_col inside 10 2 muted  left
+    fi
+    while IFS=$'\t' read -r path cur prop type inside; do
+      if [ -n "$UI_READY" ]; then
+        ui_trow "$path" "$cur" "$prop" "$inside"
+      else
+        printf '      %-44s %s%s → %s%s   %s(inside %s)%s\n' \
+          "$path" "$C_FOG" "$cur" "$prop" "$C_OFF" "$C_MUT" "$inside" "$C_OFF"
+      fi
+    done < <(emit unranked)
+    if [ -n "$UI_READY" ]; then ui_table_data 6 1; fi
     dim "Entries inside a container have no option of their own to rank, so haus"
     dim "can show you the values and not which one wins. 'haus plan' settles it."
   fi
@@ -903,9 +963,18 @@ render_machine() {
   if [ "$n" -gt 0 ]; then
     printf '\n'
     note "$n $(leaves "$n") this machine's haus has never heard of"
-    emit unknown | while IFS=$'\t' read -r path cur prop type inside; do
-      printf '      %-44s %s%s%s\n' "$path" "$C_ERR" "$prop" "$C_OFF"
-    done
+    if [ -n "$UI_READY" ]; then
+      ui_col option    20 3 path left
+      ui_col "it sets"  8 2 err  right
+    fi
+    while IFS=$'\t' read -r path cur prop type inside; do
+      if [ -n "$UI_READY" ]; then
+        ui_trow "$path" "$prop"
+      else
+        printf '      %-44s %s%s%s\n' "$path" "$C_ERR" "$prop" "$C_OFF"
+      fi
+    done < <(emit unknown)
+    if [ -n "$UI_READY" ]; then ui_table_data 6 1; fi
     dim "The desktop was written against a different haus than you have pinned."
     dim "'haus update' moves your pin; nothing here changes the file."
   fi
@@ -918,10 +987,25 @@ render_machine() {
   if [ "$n" -gt 0 ]; then
     printf '\n'
     field "turns off" "$n $(leaves "$n") the desktop you have sets and this one does not"
-    jq -r '.drops[] | "\(.path)\t\(.current // "—")"' <<<"$becomes" | scrub |
-      while IFS=$'\t' read -r path cur; do
+    # Two columns, and the third thing the row used to say — "→ whatever haus
+    # decides" — moves under the table as one line. It was the same words on
+    # every row, which is a sentence about the block wearing a column's clothes.
+    if [ -n "$UI_READY" ]; then
+      ui_col option 20 3 path   left
+      ui_col "is now" 8 2 accent right
+    fi
+    while IFS=$'\t' read -r path cur; do
+      if [ -n "$UI_READY" ]; then
+        ui_trow "$path" "$cur"
+      else
         printf '      %-44s %s%s → whatever haus decides%s\n' "$path" "$C_FOG" "$cur" "$C_OFF"
-      done
+      fi
+    done < <(jq -r '.drops[] | "\(.path)\t\(.current // "—")"' <<<"$becomes" | scrub)
+    if [ -n "$UI_READY" ]; then
+      ui_table_data 6 1
+      dim "Each goes back to whatever haus decides: the module system keeps only"
+      dim "the winning definition, so the value underneath is not on this machine."
+    fi
   fi
 
   n="$(count unchanged)"
@@ -971,21 +1055,41 @@ render_desktop() {
   else
     field "sets" "$nsets option$(plural "$nsets") across $nrooms room$(plural "$nrooms")"
     printf '\n'
+    # One table per room, and no header row: a path and its value need no words
+    # in front of them, and the room's own title is already the heading. Each
+    # room budgets its own block, so a room of short paths does not carry the
+    # gutter a different room's longest one asked for.
     while IFS= read -r room; do
       printf '    %s%s%s\n' "$C_OK" \
         "$(jq -r --arg r "$room" '.rooms[] | select(.room == $r) | .title' <<<"$report" | scrub)" "$C_OFF"
-      jq -r --arg r "$room" '.sets[] | select(.room == $r) | "\(.path)\t\(.value)"' <<<"$report" | scrub |
-        while IFS=$'\t' read -r path value; do
+      if [ -n "$UI_READY" ]; then
+        ui_col option 20 3 path   left
+        ui_col value   8 2 accent right
+      fi
+      while IFS=$'\t' read -r path value; do
+        if [ -n "$UI_READY" ]; then
+          ui_trow "$path" "$value"
+        else
           printf '      %-46s %s%s%s\n' "$path" "$C_FOG" "$value" "$C_OFF"
-        done
+        fi
+      done < <(jq -r --arg r "$room" '.sets[] | select(.room == $r) | "\(.path)\t\(.value)"' <<<"$report" | scrub)
+      if [ -n "$UI_READY" ]; then ui_table_data 6; fi
     done < <(jq -r '.rooms[].room' <<<"$report")
     # A leaf no registry namespace owns cannot survive in a PASSING desktop —
     # the checker refuses it — but a failing one is exactly where a reader wants
     # to see it rather than have it silently dropped from the listing.
-    jq -r '.sets[] | select(.room == null) | "\(.path)\t\(.value)"' <<<"$report" | scrub |
-      while IFS=$'\t' read -r path value; do
+    if [ -n "$UI_READY" ]; then
+      ui_col option 20 3 path left
+      ui_col value   8 2 err  right
+    fi
+    while IFS=$'\t' read -r path value; do
+      if [ -n "$UI_READY" ]; then
+        ui_trow "$path" "$value"
+      else
         printf '      %-46s %s%s%s\n' "$path" "$C_ERR" "$value" "$C_OFF"
-      done
+      fi
+    done < <(jq -r '.sets[] | select(.room == null) | "\(.path)\t\(.value)"' <<<"$report" | scrub)
+    if [ -n "$UI_READY" ]; then ui_table_data 6; fi
     # Attribution, not decoration. The guard's unit is the store path, so a
     # fetched desktop could have read any file its publisher shipped beside it,
     # and a reader comparing this report against the one file on GitHub would

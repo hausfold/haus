@@ -686,7 +686,12 @@ run "$tmp/becomes.nix"
 expect_status 0 "becomes rendering"
 has "your own config outranks" "becomes rendering"
 has "replaced whole, not merged" "becomes rendering"
-has "inside haus.displays" "becomes rendering"
+# The container reason is the sentence under that block, not a word inside each
+# row: `inside` is a COLUMN head now, said once, and the row carries the
+# container's name alone. Asserting the sentence is what this comment always
+# meant, and it holds whether or not the machine running this has a painter.
+has "no option of their own to rank" "becomes rendering"
+has "haus.displays" "becomes rendering"
 has "never heard of" "becomes rendering"
 has "not a rebuild preview" "becomes rendering"
 

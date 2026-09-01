@@ -30,6 +30,12 @@ mkdir -p "$TMP/bin" "$TMP/home"
 
 # The engine as the module builds it: the same script, with the substitutions
 # default.nix makes. Anything else would test a copy.
+#
+# `@uiSh@` is pointed at a path that does not exist, on purpose: this suite is
+# about the DECISIONS focus makes, and a hermetic run of it must not depend on
+# whether the machine underneath has snug's share/ui.sh. `ui_load` then leaves
+# UI_READY empty, which is the plain-column half of every listing — the budgeted
+# half is wired and asserted in test/phase-painter.bats.
 build_engine() { # $1 = path to the scene table
     sed -e "s|@jq@|/usr/bin/jq|" \
         -e "s|@keyCode@|105|" \
@@ -42,6 +48,7 @@ build_engine() { # $1 = path to the scene table
         -e "s|@hooks@||" \
         -e "s|@scenes@|$1|" \
         -e "s|@switchAudio@||" \
+        -e "s|@uiSh@|$TMP/no-such-ui.sh|" \
         -e "s|@sketchybar@|$TMP/bin/sketchybar|" \
         "$ROOT/modules/focus/focus.sh" >"$TMP/focus"
     chmod +x "$TMP/focus"

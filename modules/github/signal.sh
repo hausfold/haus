@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # signal.sh — "has GitHub said anything, and may I stop asking it?"
 #
 # Two doors, one body. It is INSTALLED at ~/.config/haus/github/signal.sh to be
@@ -150,6 +150,23 @@ GH=$(command -v gh 2>/dev/null || true)
 # Set by do_refresh before anything writes a report row; declared here so `set -u`
 # has something to see on every other path through the file.
 REPORT_TMP=""
+
+# snug's bash painter, for the one report here with columns in it. Loaded past
+# the sourced-half guard on purpose: the bar surfaces source this file on a
+# timer and draw nothing, so they pay nothing for it. `HAUS_UI_SH` is set by the
+# `github-signal` wrapper (modules/github/default.nix), and an unreadable path
+# leaves the plain columns below exactly where they were.
+UI_READY=""
+# bash 4+ only: ui.sh half-loads under macOS's /bin/bash 3.2, which is why the
+# shebang above is `env bash` and why the version is checked rather than
+# assumed. The `github-signal` binary is built by `writeShellScriptBin` and so
+# already runs nixpkgs' bash; this guard is for the copy at
+# ~/.config/haus/github/signal.sh, run straight off disk.
+if [ "${BASH_VERSINFO[0]:-0}" -ge 4 ] && [ -r "${HAUS_UI_SH:-}" ]; then
+  # shellcheck source=/dev/null
+  source "$HAUS_UI_SH"
+fi
+type ui_col ui_trow ui_table_data ui_table_clear >/dev/null 2>&1 && UI_READY=1
 
 usage() {
   cat <<'EOF'
@@ -386,10 +403,37 @@ case "${1:-status}" in
     do_refresh >/dev/null 2>&1
     printf 'hooks\n'
     if [ -s "$HAUS_GH_REPORT" ]; then
+      # The verdicts are a table; the FIXES are not, and that split is the whole
+      # point. A fix is a `gh api -X POST …` line that runs to 250-odd
+      # characters, and any column holding it is a column that cuts it — the one
+      # thing in this report a reader is meant to copy would lose its tail at
+      # the first width that pinched. So the table carries the two short fields
+      # and every fix is printed whole under it, where the terminal wraps it
+      # instead. `%-28s` reserved 28 cells for a slug of nine; the budget hands
+      # them back.
+      if [ -n "$UI_READY" ]; then
+        ui_table_clear
+        ui_col scope   8 2 subject right
+        ui_col verdict 8 5 body    right
+      fi
+      HOOK_FIXES=()
       while IFS=$'\t' read -r scope verdict fix; do
-        printf '  %-28s %s\n' "$scope" "$verdict"
-        [ -n "$fix" ] && printf '  %-28s   fix: %s\n' "" "$fix"
+        if [ -n "$UI_READY" ]; then
+          ui_trow "$scope" "$verdict"
+          [ -n "$fix" ] && HOOK_FIXES+=("$scope"$'\t'"$fix")
+        else
+          printf '  %-28s %s\n' "$scope" "$verdict"
+          [ -n "$fix" ] && printf '  %-28s   fix: %s\n' "" "$fix"
+        fi
       done <"$HAUS_GH_REPORT"
+      if [ -n "$UI_READY" ]; then
+        ui_table_data 2
+        # `${a[@]+…}` because `set -u` is on and an empty array is the normal
+        # case: every hook fine is every hook with no fix.
+        for hookfix in ${HOOK_FIXES[@]+"${HOOK_FIXES[@]}"}; do
+          printf '  fix %s: %s\n' "${hookfix%%$'\t'*}" "${hookfix#*$'\t'}"
+        done
+      fi
     else
       printf '  none declared (haus.github.hooks)\n'
     fi

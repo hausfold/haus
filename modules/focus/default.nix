@@ -139,6 +139,7 @@ let
     mkdir -p $out/bin
     substitute ${./focus.sh} $out/bin/focus \
       --subst-var-by jq ${pkgs.jq}/bin/jq \
+      --subst-var-by uiSh ${pkgs.snug}/share/ui.sh \
       --subst-var-by sketchybar ${sketchybarBin} \
       --subst-var-by keyCode ${toString keyCode} \
       --subst-var-by slackEnabled ${if cfg.slack.enable then "1" else "0"} \

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # focus — one switch for quiet, and the named states around it. Turns macOS Do
 # Not Disturb on/off by pressing the symbolic hotkey nix-darwin declared (ID
 # 175, ⌃⌥⇧⌘F13), sets/restores your Slack status, and runs any host hooks. The
@@ -29,6 +29,40 @@ SCENE_ENTRY="$STATE_DIR/scene-entry"
 AUTO_STATE="$STATE_DIR/auto.json"
 SCENES="@scenes@"
 SWITCH_AUDIO="@switchAudio@" # empty unless some scene names an input device
+
+# ---- snug's bash painter, loaded only where a table is drawn ----------------
+# `focus` is its own binary and inherits nobody's environment: the bar plugin,
+# the pounce command and a person at a prompt all exec it directly, so the path
+# is substituted at build time rather than inherited the way `haus show` inherits
+# it from the `haus` wrapper. `HAUS_UI_SH` still wins when it is set, so a
+# working copy is one variable away.
+#
+# LAZY, and that is the whole reason this is a function rather than a source at
+# the top: the bar drives `focus` on a timer, and reading a thousand lines of
+# bash on a path that prints one word is a cost paid every tick for nothing.
+# Only the two listings below call it.
+UI_READY=""
+ui_load() {
+    [ -n "${UI_LOADED:-}" ] && return 0
+    UI_LOADED=1
+    # ui.sh is bash 4+, and this script's shebang is `env bash` for exactly that
+    # reason. `env` still finds macOS's /bin/bash 3.2 on a PATH with nothing
+    # else on it — a launchd or sketchybar context — where sourcing it would
+    # half-load with three `bad substitution` errors and leave a painter that
+    # answers `type` and then draws nothing. So the version is checked, not
+    # assumed, and 3.2 keeps the plain columns.
+    [ "${BASH_VERSINFO[0]:-0}" -ge 4 ] || return 0
+    local sh="${HAUS_UI_SH:-@uiSh@}"
+    if [ -r "$sh" ]; then
+        # shellcheck source=/dev/null
+        source "$sh"
+    fi
+    # Probed by the verbs these listings CALL: a pin whose ui.sh predates the
+    # bash table is a `command not found` halfway down a report, and the plain
+    # columns are still there for exactly that machine.
+    type ui_col ui_trow ui_table_data ui_table_clear >/dev/null 2>&1 && UI_READY=1
+    return 0
+}
 
 # The trigger probes, each overridable the way modules/core/awake.sh does it —
 # the suite (test/focus-auto.sh) stubs every one of them, which is how the
@@ -538,7 +572,26 @@ scene_status() {
 scene_list() {
     local now name desc
     now=$(scene_status)
+    ui_load
     printf 'scenes (* = on):\n'
+    if [ -n "$UI_READY" ]; then
+        ui_table_clear
+        # The `*` is a column, not a prefix: a name lands in the same place
+        # whether or not it is the one that is on, which is what makes the list
+        # scannable. `never` — a one-cell mark is right or it is absent.
+        ui_col on   1 1 ok      never
+        ui_col scene 6 2 subject right
+        ui_col what  8 5 muted   right
+        ui_trow "$([ "$now" = quiet ] && echo '*' || echo '')" quiet \
+            "the built-in — what focus on/off, the pill and the palette enter"
+        while IFS= read -r name; do
+            [ -n "$name" ] || continue
+            desc=$(scene_field "$name" .description)
+            ui_trow "$([ "$now" = "$name" ] && echo '*' || echo '')" "$name" "$desc"
+        done < <(scene_names)
+        ui_table_data 2
+        return 0
+    fi
     printf '  %s %-14s %s\n' "$([ "$now" = quiet ] && echo '*' || echo ' ')" quiet \
         "the built-in — what focus on/off, the pill and the palette enter"
     while IFS= read -r name; do
@@ -883,6 +936,13 @@ auto_probe() {
     printf '  now on     %s%s\n' "$(scene_status)" \
         "$([ -n "$owner" ] && [ "$owner" = "$active" ] && echo ' (entered by the daemon)' || echo '')"
     printf 'scenes with a condition:\n'
+    ui_load
+    if [ -n "$UI_READY" ]; then
+        ui_table_clear
+        ui_col scene  6 2 subject right
+        ui_col when   8 5 muted   right
+        ui_col holds  5 1 accent  never
+    fi
     while IFS= read -r name; do
         [ -n "$name" ] || continue
         scene_has_when "$name" || continue
@@ -900,8 +960,10 @@ auto_probe() {
             1) mark="-" ;;
             *) mark="can't tell — a probe above is blank" ;;
         esac
-        printf '  %-14s %-46s %s\n' "$name" "$cond" "$mark"
+        if [ -n "$UI_READY" ]; then ui_trow "$name" "$cond" "$mark"
+        else printf '  %-14s %-46s %s\n' "$name" "$cond" "$mark"; fi
     done < <(scene_names)
+    if [ -n "$UI_READY" ]; then ui_table_data 2; fi
     printf 'A condition that holds is not the same as one that fires: entry happens on\n'
     printf 'the edge where it turns true, and only from a Mac with no scene on.\n'
 }
