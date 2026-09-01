@@ -143,6 +143,13 @@ let
   # theoretical one, and the helper catches it: they would collide in the
   # room's `listToAttrs` too, and failing at the earlier of the two is the
   # honest one.
+  #
+  # The collision this file CANNOT catch is a host that hand-wires
+  # `~/.claude/skills/<name>` itself: two definitions of one `home.file` path
+  # are a home-manager *eval* conflict rather than a last-wins, so such a host
+  # drops its own copy in the same rebuild that adds a name here. Every name in
+  # the list lands in one shared per-client skills directory, which is what
+  # makes that possible at all.
   checked = checkedRef.collect {
     name = "haus-tool-skills";
     refs = map (skill: {
