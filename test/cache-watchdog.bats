@@ -11,8 +11,15 @@
 # and the next real burn gets swiped away as notification spam.
 #
 # The subject is a pure function — cumulative state + one turn's usage in,
-# state + optional alert out — so every case here is data, and the suite needs
-# no pi, no proxy and no API call.
+# state + optional alert out — so most cases here are data, and the suite
+# needs no pi, no proxy and no API call. The three that exercise the wiring
+# (the off switch, the events it registers, the reset) hand the default export
+# a fake `pi` that records `on()` calls, which is the whole surface pi gives
+# an extension.
+#
+# ⚠️ `run node …` sets `$status`, NOT `$?` — `$?` is always `run`'s own 0, so
+# a `[ "$?" -eq 0 ]` after one is an assertion that cannot fail. Two of these
+# cases were written that way and tested nothing; assert on `$status`.
 
 bats_require_minimum_version 1.5.0
 
@@ -22,8 +29,8 @@ setup() {
 
 # lane <script> <threshold> — runs the given turn script through observe(),
 # one JSON line per alert. The script is a JS expression array of usage
-# objects; a number n in it expands to `n` turns of the PREVIOUS usage
-# (the incident lane's writes grow, which is the shape repetition models).
+# objects; a number n in it expands to `n` MORE turns of the previous usage,
+# which is how a long stretch of one shape stays one token wide here.
 lane() {
   node -e '
     import(process.argv[1]).then((m) => {
@@ -45,10 +52,15 @@ lane() {
   ' "$WD" "$1" "$2"
 }
 
-# The incident, at 1/100 scale: reads frozen at 423 from turn 2 on, writes
-# growing ~63 tokens a turn as the tail climbs. Threshold 10k ≈ the real
-# lane's cumulative-write curve compressed.
+# The incident, at 1/100 scale: reads frozen at 423 from turn 2 on, a constant
+# 63-token write while the head holds, then a 126-token one as the tail gets
+# longer. Threshold 10k ≈ the real lane's cumulative-write curve compressed.
 FREEZE='[{"cacheWrite":430,"cacheRead":0},{"cacheWrite":63,"cacheRead":423},63,{"cacheWrite":126,"cacheRead":423},200]'
+
+# pi's EMPTY_USAGE, byte for byte — the usage on the assistant message
+# `handleRunFailure` synthesises for an aborted or failed run
+# (@earendil-works/pi-agent-core's agent.js, pi 0.84.3). Every field zero.
+ABORT='{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}}'
 
 # ---- the line between quiet and loud ----------------------------------------
 
@@ -68,19 +80,6 @@ FREEZE='[{"cacheWrite":430,"cacheRead":0},{"cacheWrite":63,"cacheRead":423},63,{
   run lane '[{"cacheWrite":43000,"cacheRead":0}]' 10000
   [ "$status" -eq 0 ]
   [ -z "$output" ]
-}
-
-@test "turns without usage are skipped, not crashed on" {
-  run node -e '
-    import(process.argv[1]).then((m) => {
-      let state = null;
-      for (const usage of [null, {output: 100}, {}]) {
-        state = m.observe(state, usage, 20000).state;
-      }
-      if (state.write !== 0 || state.turns !== 0) process.exit(1);
-    });
-  ' "$WD"
-  [ "$?" -eq 0 ]
 }
 
 @test "one stale turn after an idle gap is not burn" {
@@ -103,13 +102,58 @@ FREEZE='[{"cacheWrite":430,"cacheRead":0},{"cacheWrite":63,"cacheRead":423},63,{
   [ -z "$output" ]
 }
 
+# ---- turns with nothing in them ---------------------------------------------
+
+@test "a turn with no usage at all moves nothing" {
+  # null, undefined, {} and pi's own EMPTY_USAGE are all "no data": no write,
+  # no turn counted, and — the load-bearing half — the read baseline is left
+  # at its -1 sentinel rather than being pulled down to 0.
+  run node -e '
+    import(process.argv[1]).then((m) => {
+      let state = null;
+      for (const usage of [null, undefined, {}, JSON.parse(process.argv[2])]) {
+        state = m.observe(state, usage, 20000).state;
+      }
+      const want = JSON.stringify(m.empty());
+      if (JSON.stringify(state) !== want) {
+        console.error(JSON.stringify(state) + " !== " + want);
+        process.exit(1);
+      }
+    });
+  ' "$WD" "$ABORT"
+  [ "$status" -eq 0 ]
+}
+
+@test "an abort mid-freeze does not reset the stale clock" {
+  # THE regression. pi fires turn_end for every aborted and failed run with
+  # EMPTY_USAGE attached, and one Esc is routine on an interactive lane. Read
+  # as data, its cacheRead:0 collapses the read baseline, so the next real
+  # turn's 423 looks like growth and the clock restarts — on a lane that is
+  # interrupted every few turns the alarm can then NEVER fire. Here the abort
+  # lands 30 turns into the freeze and the run still reports one banner whose
+  # stale count spans the whole stretch, abort included.
+  local script="[{\"cacheWrite\":430,\"cacheRead\":0},{\"cacheWrite\":63,\"cacheRead\":423},30,$ABORT,{\"cacheWrite\":63,\"cacheRead\":423},32,{\"cacheWrite\":126,\"cacheRead\":423},200]"
+  run lane "$script" 10000
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 1 ]
+  [ "$(echo "${lines[0]}" | jq -r '.tier')" = "1" ]
+  # Exactly two turns in this lane are not stale — the baseline and the one
+  # that first reads the head back — so a clock that never reset reports
+  # `stale == turns - 2`, which is 107 of 109 here. The code this replaced
+  # restarted at the abort and reported 76: the same banner, thirty-one turns
+  # of burn later, on a lane interrupted only ONCE. Interrupt every ten and it
+  # never fires.
+  [ "$(echo "${lines[0]}" | jq -r '.turns')" = "109" ]
+  [ "$(echo "${lines[0]}" | jq -r '.stale')" = "107" ]
+}
+
 # ---- the degenerate mode, which is the reason this file exists ---------------
 
 @test "the frozen-head pattern stays silent until the threshold, then fires once" {
   run lane "$FREEZE" 10000
   [ "$status" -eq 0 ]
-  # 14 turns of frozen reads before cumulative writes cross 10k — quiet the
-  # whole way, then exactly ONE tier-1 banner.
+  # Quiet the whole way while cumulative writes climb to 10k, then exactly
+  # ONE tier-1 banner.
   [ "${#lines[@]}" -eq 1 ]
   [ "$(echo "${lines[0]}" | jq -r '.tier')" = "1" ]
   [ "$(echo "${lines[0]}" | jq -r '.stale')" -ge 10 ]
@@ -133,35 +177,105 @@ FREEZE='[{"cacheWrite":430,"cacheRead":0},{"cacheWrite":63,"cacheRead":423},63,{
   [ "$(echo "${lines[1]}" | jq -r '.tier')" = "2" ]
 }
 
-# ---- configuration -----------------------------------------------------------
+# ---- what the banner says ----------------------------------------------------
+
+@test "the banner names the frozen stretch, and drops the dollars it does not have" {
+  # pi prices a turn from its own model catalogue; an id it does not know
+  # (which a proxy can hand it) prices at zero. "~$0 this session" would read
+  # as an argument against the alarm, so the clause goes rather than lies.
+  run node -e '
+    import(process.argv[1]).then((m) => {
+      const priced = m.bannerBody({ tier: 1, write: 22_200_000, stale: 380, cost: 221.78, turns: 417 });
+      const free = m.bannerBody({ tier: 1, write: 22_200_000, stale: 380, cost: 0, turns: 417 });
+      if (!priced.includes("380 of 417 turns")) process.exit(1);
+      if (!priced.includes("22.2M tokens")) process.exit(1);
+      if (!priced.includes("(~$222 this session)")) process.exit(1);
+      if (free.includes("$")) process.exit(1);
+      if (!free.includes("22.2M tokens —")) process.exit(1);
+    });
+  ' "$WD"
+  [ "$status" -eq 0 ]
+}
+
+# ---- configuration and wiring ------------------------------------------------
 
 @test "HAUS_PI_CACHE_WASTE_TOKENS moves the threshold" {
   # The incident lane at the 5M default needs ~650 growing turns to cross;
-  # at 10k it fires inside the first twenty — same shape, same verdict, one
+  # at 10k it fires inside the first hundred — same shape, same verdict, one
   # API call of test data instead of six hundred.
-  out="$(HAUS_PI_CACHE_WASTE_TOKENS=10000 node -e '
+  run env HAUS_PI_CACHE_WASTE_TOKENS=10000 node -e '
     import(process.argv[1]).then((m) => {
+      const threshold = m.wasteThreshold();
       let state = null, alert = null, turns = 0;
       while (!alert && turns < 1000) {
         turns++;
         const usage = turns === 1
           ? { cacheWrite: 430, cacheRead: 0 }
           : { cacheWrite: 430 + turns * 63, cacheRead: 423 };
-        alert = m.observe(state, usage, m.wasteThreshold()).alert;
-        state = m.observe(state, usage, m.wasteThreshold()).state;
+        ({ state, alert } = m.observe(state, usage, threshold));
       }
       console.log(JSON.stringify({ alert, turns }));
     });
-  ' "$WD")"
-  [ "$(echo "$out" | jq -r '.alert.tier')" = "1" ]
-  [ "$(echo "$out" | jq -r '.turns')" -lt 100 ]
+  ' "$WD"
+  [ "$status" -eq 0 ]
+  [ "$(echo "$output" | jq -r '.alert.tier')" = "1" ]
+  [ "$(echo "$output" | jq -r '.turns')" -lt 100 ]
 }
 
-@test "an unset threshold is 5M" {
-  env -u HAUS_PI_CACHE_WASTE_TOKENS node -e '
+@test "an unset threshold is 5M, and a junk one falls back to it" {
+  run env -u HAUS_PI_CACHE_WASTE_TOKENS node -e '
     import(process.argv[1]).then((m) => {
       if (m.wasteThreshold() !== 5000000) process.exit(1);
+      for (const raw of ["", "0", "-1", "nonsense"]) {
+        if (m.wasteThreshold({ HAUS_PI_CACHE_WASTE_TOKENS: raw }) !== 5000000) process.exit(1);
+      }
+      if (m.wasteThreshold({ HAUS_PI_CACHE_WASTE_TOKENS: "250000" }) !== 250000) process.exit(1);
     });
   ' "$WD"
-  [ "$?" -eq 0 ]
+  [ "$status" -eq 0 ]
+}
+
+@test "HAUS_PI_CACHE_WATCHDOG=0 registers nothing at all" {
+  # The off switch has to be OFF, not merely quiet: an extension that still
+  # subscribes is one that still runs on every turn of every session.
+  run env HAUS_PI_CACHE_WATCHDOG=0 node -e '
+    import(process.argv[1]).then((m) => {
+      const seen = [];
+      m.default({ on: (name) => seen.push(name) });
+      if (seen.length !== 0) process.exit(1);
+      if (m.watchdogEnabled({ HAUS_PI_CACHE_WATCHDOG: "0" })) process.exit(1);
+      if (!m.watchdogEnabled({})) process.exit(1);
+      if (!m.watchdogEnabled({ HAUS_PI_CACHE_WATCHDOG: "1" })) process.exit(1);
+    });
+  ' "$WD"
+  [ "$status" -eq 0 ]
+}
+
+@test "the extension subscribes to session_start and turn_end, and a restart re-zeroes" {
+  # session_start must clear the window: a resumed pi is a fresh bill, and a
+  # carried-over stale clock would fire the first banner on somebody else's
+  # burn. Driving the real handlers also proves a turn_end whose event has no
+  # message — pi's own shape for a failure it could not even build — costs
+  # nothing rather than throwing out of the event loop.
+  run env -u HAUS_PI_CACHE_WATCHDOG HAUS_PI_CACHE_WASTE_TOKENS=1000 node -e '
+    import(process.argv[1]).then((m) => {
+      const on = {};
+      m.default({ on: (name, fn) => { on[name] = fn; } });
+      if (typeof on.session_start !== "function") process.exit(1);
+      if (typeof on.turn_end !== "function") process.exit(1);
+      on.turn_end({});
+      on.turn_end({ message: {} });
+      on.turn_end(undefined);
+      // Freeze hard enough to arm the clock, then restart before it fires.
+      on.turn_end({ message: { usage: { cacheWrite: 400, cacheRead: 0 } } });
+      for (let i = 0; i < 20; i++) {
+        on.turn_end({ message: { usage: { cacheWrite: 10, cacheRead: 423 } } });
+      }
+      on.session_start();
+      // Nothing here may throw; a banner spawn on a machine with no
+      // haus-notify is swallowed by the error listener, so reaching this line
+      // at all is the assertion.
+    });
+  ' "$WD"
+  [ "$status" -eq 0 ]
 }
