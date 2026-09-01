@@ -1689,6 +1689,22 @@ in
             ]
             (builtins.readFile ./pi/agent-state.ts);
 
+        # pi's cache-burn watchdog — the alarm half of the prompt-cache room
+        # above. The affinity header makes meridian resume instead of replay,
+        # and the resume path has a degenerate mode where a lane's reads stop
+        # growing (the replay only ever hits a frozen head) while every turn
+        # re-writes the whole growing tail at 1-hour-TTL prices — measured at
+        # $221.78 of a $233.45 session. Nothing pi can set moves that number,
+        # so this file watches per-turn usage and banners through haus-notify
+        # when the signature appears; its own header carries the full story.
+        # A .mjs SOURCE rendered to a .ts NAME: the bytes are plain JS (a TS
+        # subset, so the transpile is a no-op) and test/cache-watchdog.bats
+        # imports the source file directly — the tested bytes and the rendered
+        # bytes cannot drift.
+        ".pi/agent/extensions/haus-cache-watchdog.ts".text =
+          builtins.replaceStrings [ "@HAUS_NOTIFY@" ] [ "/run/current-system/sw/bin/haus-notify" ]
+            (builtins.readFile ./pi/cache-watchdog.mjs);
+
         # pi's half of the desktop guard — the thing that keeps an agent from
         # foregrounding an app, moving a window or redrawing the desktop while
         # somebody is typing into something else. Claude Code panes have had it

@@ -54,7 +54,11 @@
         conversation every turn instead of resuming its SDK session — see
         `modules/terminal/pi/agent-state.ts`. It never makes a client address
         this proxy; it only stops one that already does from paying for every
-        cache write twice. `HAUS_PI_SESSION_AFFINITY=0` turns it off.
+        cache write twice. `HAUS_PI_SESSION_AFFINITY=0` turns it off. The
+        resume path has a degenerate mode — a session whose cache reads stop
+        growing while every turn re-writes the tail — and
+        `haus-cache-watchdog.ts` banners it; `HAUS_PI_CACHE_WATCHDOG=0` turns
+        the banner off.
       '';
     };
 

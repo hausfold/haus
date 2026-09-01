@@ -372,6 +372,15 @@ jobs:
       # shape again; needs only git + jq + bats.
       - name: statusline render tests
         run: bats test/statusline.bats
+      # pi's prompt-cache alarm. Both of ITS failure modes are silent too, and
+      # one of them is expensive: too quiet and a degenerate lane re-writes its
+      # whole context every turn at 1-hour-TTL prices with nothing on screen
+      # (measured: $221.78 of a $233.45 session), too loud and the next real
+      # burn gets swiped away as spam. Pure function over usage counters plus a
+      # fake `pi` for the wiring — needs only node (on the image) + bats + jq.
+      - name: cache watchdog tests
+        run: bats test/cache-watchdog.bats
+
       # The PreToolUse guard, whose two failure modes are both silent and both
       # bad: prompting for something the user cannot see (a lane's headless VM
       # over ssh) trains click-through on the prompts that matter, and missing a
