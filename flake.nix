@@ -25,7 +25,8 @@
       inputs.catppuccin.follows = "catppuccin";
     };
 
-    # The command palette. Its overlay puts `pounce` + `pounce-commands` in pkgs.
+    # The command palette. Its overlay puts `pounce`, `pounce-commands` and
+    # `pounce-skill` in pkgs.
     # pounce compiles its DEFAULT nebelung palette in at build time (variants
     # load at runtime from ~/.config/pounce/themes/); point it at the rice's own
     # nebelung so that default can't drift from the rest of the theme.
@@ -35,7 +36,8 @@
       inputs.nebelung.follows = "nebelung";
     };
 
-    # The notch file shelf. Its overlay puts `perch` in pkgs; modules/shelf
+    # The notch file shelf. Its overlay puts `perch` and `perch-skill` in pkgs;
+    # modules/shelf
     # places the app at a fixed /Applications path. What gets BUILT is perch's
     # CI-built, notarized release ZIP (macOS 26 blocks a from-source Nix build —
     # see the perch repo), because perch's own flake pins that zip in
@@ -4294,33 +4296,41 @@
           # every machine's rebuild path and belongs in `checks` for the reason
           # spelled out above `.#agent-skill`.
           #
-          # `scruff-skill` and `factory-skill` come off the flake inputs rather
-          # than off `pkgs`: the `pkgs` here is a bare `legacyPackages` with no
-          # overlays applied, while the room reads the same derivations through
-          # those tools' own overlays. factory outputs Linux too, so unlike
-          # trill below it needs no platform gate — its two skill names are
-          # proved on CI's runner like scruff's.
+          # Every skill derivation comes off the flake inputs rather than off
+          # `pkgs`: the `pkgs` here is a bare `legacyPackages` with no overlays
+          # applied, while the room reads all but nebelung's through those
+          # tools' own overlays. nebelung ships no overlay at all — haus
+          # consumes it as a palette — so the room reaches its skill through
+          # `inputs`, which is the one derivation named the same way in both
+          # places.
           #
-          # trill is DARWIN ONLY — its flake outputs no Linux systems, while
-          # this set spans allSystems — so Linux gets `null` and the entry drops
-          # out of the list. `trillEnabled` is deliberately not passed: the room
-          # gates the INSTALL on `haus.notifications.compositor`, and this check
-          # has to prove
-          # trill's skill name whatever any one machine turns on, or the name
-          # rots until the first person switches the room on.
+          # trill, pounce and perch are DARWIN ONLY — their flakes output no
+          # Linux systems, while this set spans allSystems — so Linux gets
+          # `null` and those entries drop out of the list. nebelung outputs all
+          # four, so its name is proved on CI's runner like scruff's.
           #
-          # ⚠️ That proof is DARWIN's alone. CI runs `nix flake check` on Linux,
-          # where the null above drops the entry and the name is checked by
-          # nobody — so it rides on `nix flake check` from a Mac before a PR,
-          # the same pre-merge pass the *-reach tables already make
-          # non-optional (.github/workflows/check.yml says so at its census).
+          # None of the three `*Enabled` switches is passed: the room gates each
+          # INSTALL on its own room switch (`haus.notifications.compositor`,
+          # `haus.launcher.enable`, `haus.shelf.enable`), and this check has to
+          # prove every skill name whatever any one machine turns on, or a name
+          # rots until the first person switches that room on.
+          #
+          # ⚠️ For those three that proof is DARWIN's alone. CI runs `nix flake
+          # check` on Linux, where the nulls above drop the entries and the
+          # names are checked by nobody — so it rides on `nix flake check` from
+          # a Mac before a PR, the same pre-merge pass the *-reach tables
+          # already make non-optional (.github/workflows/check.yml says so at
+          # its census).
           tool-skills =
             (import ./modules/ai/tool-skills.nix {
               inherit pkgs;
               inherit (nixpkgs) lib;
               scruff-skill = scruff.packages.${system}.scruff-skill;
               factory-skill = factory.packages.${system}.factory-skill;
+              nebelung-skill = nebelung.packages.${system}.nebelung-skill or null;
               trill-skill = if isDarwin then trill.packages.${system}.trill-skill else null;
+              pounce-skill = if isDarwin then pounce.packages.${system}.pounce-skill else null;
+              perch-skill = if isDarwin then perch.packages.${system}.perch-skill else null;
             }).checked;
 
           # `nix build .#agent-skill` — the skill that teaches an agent to change

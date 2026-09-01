@@ -6,6 +6,7 @@
 # ship more than one: scruff ships `scruff` (drive the lane lifecycle) and `handoff`
 # (write the brief a `scruff spawn --prompt-file` lane opens on), factory ships
 # `factory` (the merge verbs) and `nightshift` (the loop that drives them).
+# pounce, perch, trill and nebelung ship one each, named for themselves.
 #
 # Split out of modules/ai/default.nix so `nix flake check` can build it. The
 # room installs the result as home files, which puts it on every machine's
@@ -24,8 +25,13 @@
   lib,
   scruff-skill,
   factory-skill,
+  nebelung-skill ? null,
   trill-skill ? null,
   trillEnabled ? true,
+  pounce-skill ? null,
+  pounceEnabled ? true,
+  perch-skill ? null,
+  perchEnabled ? true,
 }:
 let
   checkedRef = import ../lib/checked-ref.nix { inherit lib pkgs; };
@@ -48,9 +54,11 @@ let
   # is where that is written down.
   #
   # A null `drv` is the other gate, and it is a platform fact rather than a
-  # choice: trill's flake outputs darwin systems only, while this repo's
-  # `packages` and `checks` both span allSystems, so flake.nix hands us `null`
-  # on Linux and the entry drops out rather than breaking the eval.
+  # choice: trill's, pounce's and perch's flakes output darwin systems only,
+  # while this repo's `packages` and `checks` both span allSystems, so flake.nix
+  # hands us `null` on Linux and those entries drop out rather than breaking the
+  # eval. nebelung outputs all four systems, so it is null only against a lock
+  # older than its skill.
   toolSkills = [
     {
       drv = scruff-skill;
@@ -78,10 +86,33 @@ let
         "nightshift"
       ];
     }
+    # nebelung is the one entry with no binary behind it, and it is ungated for
+    # that reason: the palette is the machine's theme whatever rooms are on, so
+    # there is no switch that could make this skill dishonest. Half of it is
+    # rendered from `palette/*.hex.json` at build time, so the hexes an agent
+    # quotes are THIS lock's, not a number copied once.
+    {
+      drv = nebelung-skill;
+      names = [ "nebelung" ];
+    }
     {
       drv = trill-skill;
       enable = trillEnabled;
       names = [ "trill" ];
+    }
+    # pounce and perch are the launcher and shelf rooms' apps, both off by
+    # default, and the skill follows the ROOM rather than the binary — same
+    # reasoning as trill's, and the same consequence: a machine running a
+    # hand-installed pounce or perch with the room off gets no skill for it.
+    {
+      drv = pounce-skill;
+      enable = pounceEnabled;
+      names = [ "pounce" ];
+    }
+    {
+      drv = perch-skill;
+      enable = perchEnabled;
+      names = [ "perch" ];
     }
   ];
 
@@ -113,6 +144,13 @@ let
   # theoretical one, and the helper catches it: they would collide in the
   # room's `listToAttrs` too, and failing at the earlier of the two is the
   # honest one.
+  #
+  # The collision this file CANNOT catch is a host that hand-wires
+  # `~/.claude/skills/<name>` itself: two definitions of one `home.file` path
+  # are a home-manager *eval* conflict rather than a last-wins, so such a host
+  # drops its own copy in the same rebuild that adds a name here. Every name in
+  # the list lands in one shared per-client skills directory, which is what
+  # makes that possible at all.
   checked = checkedRef.collect {
     name = "haus-tool-skills";
     refs = map (skill: {

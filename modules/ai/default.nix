@@ -35,6 +35,12 @@
   lib,
   pkgs,
   username,
+  # Optional for the same reason `hostname` is read out of `args` below: this
+  # room is in `standaloneModule`'s foundation, so naming `inputs` as mandatory
+  # would make a consumer bare-importing `darwinModules.windows` fail with
+  # `attribute 'inputs' missing`. The only thing it feeds is nebelung's skill,
+  # and the `or null` on that lookup already degrades to installing none.
+  inputs ? { },
   ...
 }@args:
 
@@ -253,7 +259,8 @@ let
     revision this machine pins (`haus update` regenerates it), as is every other
     skill haus installed. `scruff/` and `handoff/` are scruff's, edited in
     hausfold/scruff; `factory/` and `nightshift/` are factory's, edited in
-    hausfold/factory;${lib.optionalString config.haus.notifications.compositor " `trill/` is trill's, here because `haus.notifications.compositor` is on;"} they arrive on a lock bump. Not everything beside them
+    hausfold/factory; `nebelung/` is nebelung's, and half of it is rendered from
+    that repo's palette files rather than written;${lib.optionalString config.haus.notifications.compositor " `trill/` is trill's, here because `haus.notifications.compositor` is on;"}${lib.optionalString config.haus.launcher.enable " `pounce/` is pounce's, here because `haus.launcher.enable` is on;"}${lib.optionalString config.haus.shelf.enable " `perch/` is perch's, here because `haus.shelf.enable` is on;"} they arrive on a lock bump. Not everything beside them
     is generated: ${clientScopeNote.${client}} that you can edit live with no
     rebuild. `ls -l` the path before assuming which kind it is.
 
@@ -436,15 +443,32 @@ let
   # ./tool-skills.nix — split out so `nix flake check` can build the thing this
   # room puts on every machine's rebuild path (`.#tool-skills`).
   #
-  # `trillEnabled` is the one thing this file adds to the list: scruff is on every
-  # machine, trill's room is off by default, and an agent skill for an app this
-  # Mac doesn't have is worse than none (the workshop's `docs/agent-surface.md`
-  # §4). Gated HERE rather than in that file so the `.#tool-skills` check still
-  # proves trill's skill name whatever any one machine turns on.
+  # The three room switches are the one thing this file adds to the list:
+  # scruff, factory and nebelung are on every machine, while trill's, pounce's
+  # and perch's rooms are off by default, and an agent skill for an app this Mac
+  # doesn't have is worse than none (the workshop's `docs/agent-surface.md` §4).
+  # Gated HERE rather than in that file so the `.#tool-skills` check still
+  # proves every skill name whatever any one machine turns on.
+  #
+  # nebelung is the one derivation that can't come off `pkgs`: it ships no
+  # overlay — haus consumes it as a palette rather than as packages — so the
+  # room reaches its skill through `inputs`, the same channel `nix flake
+  # check` uses. `or null` for the same reason `nebelung.ports or { }` has one
+  # in flake.nix: a lock pinned before the output existed degrades to no
+  # nebelung skill instead of failing the eval.
   toolSkills = import ./tool-skills.nix {
     inherit pkgs lib;
-    inherit (pkgs) scruff-skill factory-skill trill-skill;
+    inherit (pkgs)
+      scruff-skill
+      factory-skill
+      trill-skill
+      pounce-skill
+      perch-skill
+      ;
+    nebelung-skill = inputs.nebelung.packages.${pkgs.stdenv.hostPlatform.system}.nebelung-skill or null;
     trillEnabled = config.haus.notifications.compositor;
+    pounceEnabled = config.haus.launcher.enable;
+    perchEnabled = config.haus.shelf.enable;
   };
   inherit (toolSkills) toolSkillList;
 

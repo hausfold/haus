@@ -477,17 +477,22 @@ in
         have open?" or "hand this off to a fresh session" reaches for `scruff`
         rather than `git worktree`.
 
-        Five skills on any machine: `haus` (this machine's setup), scruff's
+        Six skills on any machine: `haus` (this machine's setup), scruff's
         own two — `scruff` (the lane lifecycle) and `handoff` (turning work into a
         brief a cold session can act on, ending on the clipboard or in a new
-        lane) — and factory's two: `factory` (the merge verbs) and `nightshift`
-        (the loop that drives them while nobody is watching). A tool whose room
-        is OPTIONAL adds its own only when that room is on: `trill` (sending a notification) arrives with
-        `haus.notifications.compositor`,
-        because a skill for an app this Mac doesn't have is worse than none.
-        That switch is about the ROOM, not about the app: `haus-notify` and the
-        `trill` command find a hand-installed Trill.app at runtime whatever this
-        option says, and such a machine gets no `trill` skill until the room is
+        lane) — factory's two: `factory` (the merge verbs) and `nightshift`
+        (the loop that drives them while nobody is watching) — and `nebelung`
+        (this machine's exact palette, rendered from the lock rather than
+        remembered). A tool whose room is OPTIONAL adds its own only when that
+        room is on: `trill` (sending a notification) with
+        `haus.notifications.compositor`, `pounce` (driving the command palette)
+        with `haus.launcher.enable`, `perch` (putting files on the notch shelf)
+        with `haus.shelf.enable` — because a skill for an app this Mac doesn't
+        have is worse than none.
+        Those switches are about the ROOM, not about the app: `haus-notify` and
+        the `trill` command find a hand-installed Trill.app at runtime whatever
+        this option says, and a machine running a hand-installed pounce, perch
+        or Trill.app with the room off gets no skill for it until the room is
         switched on.
         Each tool names its own skills; haus only decides that they are
         installed.
