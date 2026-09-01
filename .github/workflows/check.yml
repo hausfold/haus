@@ -93,11 +93,12 @@ jobs:
       #   tool-skills              every skill name modules/ai lists is one the
       #                            pinned tool actually ships — a home file, so
       #                            a wrong name is a failed `haus rebuild`.
-      #                            ⚠️ scruff's and factory's four only, HERE:
-      #                            both flakes output Linux, so this runner
-      #                            proves those names. trill outputs darwin
-      #                            systems alone, so its skill drops out of the
-      #                            list here and its name is proven by the Mac
+      #                            ⚠️ scruff's two, factory's two and
+      #                            nebelung's one, HERE: those flakes output
+      #                            Linux, so this runner proves those names.
+      #                            trill, pounce and perch output darwin systems
+      #                            alone, so their skills drop out of the list
+      #                            here and their names are proven by the Mac
       #                            pass below, not by CI
       #
       # ⚠️ Those four were declared for Linux and missing from this list until

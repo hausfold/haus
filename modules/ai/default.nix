@@ -35,6 +35,7 @@
   lib,
   pkgs,
   username,
+  inputs,
   ...
 }@args:
 
@@ -436,15 +437,32 @@ let
   # ./tool-skills.nix — split out so `nix flake check` can build the thing this
   # room puts on every machine's rebuild path (`.#tool-skills`).
   #
-  # `trillEnabled` is the one thing this file adds to the list: scruff is on every
-  # machine, trill's room is off by default, and an agent skill for an app this
-  # Mac doesn't have is worse than none (the workshop's `docs/agent-surface.md`
-  # §4). Gated HERE rather than in that file so the `.#tool-skills` check still
-  # proves trill's skill name whatever any one machine turns on.
+  # The three room switches are the one thing this file adds to the list:
+  # scruff, factory and nebelung are on every machine, while trill's, pounce's
+  # and perch's rooms are off by default, and an agent skill for an app this Mac
+  # doesn't have is worse than none (the workshop's `docs/agent-surface.md` §4).
+  # Gated HERE rather than in that file so the `.#tool-skills` check still
+  # proves every skill name whatever any one machine turns on.
+  #
+  # nebelung is the one derivation that can't come off `pkgs`: it ships no
+  # overlay — haus consumes it as a palette rather than as packages — so the
+  # room reaches its skill through `inputs`, the same channel `nix flake
+  # check` uses. `or null` for the same reason `nebelung.ports or { }` has one
+  # in flake.nix: a lock pinned before the output existed degrades to no
+  # nebelung skill instead of failing the eval.
   toolSkills = import ./tool-skills.nix {
     inherit pkgs lib;
-    inherit (pkgs) scruff-skill factory-skill trill-skill;
+    inherit (pkgs)
+      scruff-skill
+      factory-skill
+      trill-skill
+      pounce-skill
+      perch-skill
+      ;
+    nebelung-skill = inputs.nebelung.packages.${pkgs.stdenv.hostPlatform.system}.nebelung-skill or null;
     trillEnabled = config.haus.notifications.compositor;
+    pounceEnabled = config.haus.launcher.enable;
+    perchEnabled = config.haus.shelf.enable;
   };
   inherit (toolSkills) toolSkillList;
 
