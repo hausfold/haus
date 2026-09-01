@@ -381,11 +381,17 @@ _barlib_name_pad() {
     printf '%s' $(((cols * _BARLIB_ADV_PX + _BARLIB_COL_GAP * 1000 + 500) / 1000))
 }
 
-# Single-quote a value for embedding in a click_script. A row's URL or copy
-# text is DATA — a PR title with an apostrophe in it must not end the quote
-# and hand the rest to the shell. `--run` deliberately does not go through
-# this: it is a command, and quoting it would break it.
-_barlib_shq() {
+# popup_quote <value> — single-quote a value for embedding in a click_script.
+# A row's URL or copy text is DATA — a PR title with an apostrophe in it must
+# not end the quote and hand the rest to the shell.
+#
+# `--run` deliberately does not go through this: it is a whole command, and
+# quoting it would break it. That is exactly why this is PUBLIC rather than a
+# `_barlib_` internal — a widget that builds a `--run` out of a fixed binary
+# and some fetched data (github's "Fix with AI" rows: a branch name and a URL,
+# both GitHub's to choose) has to quote the data half itself, and the
+# alternative to lending it this one is every such widget writing its own sed.
+popup_quote() {
     printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
 }
 
@@ -478,7 +484,7 @@ popup_row() {
             --icon) icon=$2; shift 2 ;;
             --tone) icon_tone=$2; tone_set=1; shift 2 ;;
             --value) value=$2; have_value=1; shift 2 ;;
-            --open) action="/usr/bin/open $(_barlib_shq "$2")"; shift 2 ;;
+            --open) action="/usr/bin/open $(popup_quote "$2")"; shift 2 ;;
             --run) action=$2; shift 2 ;;
             *) echo "barlib: popup_row: unknown flag '$1' — dropped" >&2; shift ;;
         esac
@@ -533,7 +539,7 @@ popup_action() {
             --icon) icon=$2; shift 2 ;;
             --tone) icon_tone=$2; shift 2 ;;
             --run) action=$2; shift 2 ;;
-            --copy) action="printf '%s' $(_barlib_shq "$2") | pbcopy"; shift 2 ;;
+            --copy) action="printf '%s' $(popup_quote "$2") | pbcopy"; shift 2 ;;
             *) echo "barlib: popup_action: unknown flag '$1' — dropped" >&2; shift ;;
         esac
     done
