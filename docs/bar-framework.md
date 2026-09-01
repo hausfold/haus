@@ -1,14 +1,14 @@
 # The bar framework
 
-> Status: **phases 1–4b shipped** — `barlib.sh` (the runtime: dispatch, state
-> diff, `pill`, `graph`, tones, marks, the four popup row kinds and their value
+> Status: **phases 1–4c shipped** — `barlib.sh` (the runtime: dispatch, state
+> diff, `pill`, `graph`, tones, marks, the six popup row kinds and their value
 > column, `bar_emit`), the `# widget:` parser (`modules/bar/manifest.nix`),
 > `frameworkBlock` in `modules/bar/default.nix`, and `clock` + `github` +
-> `cpu` + `memory` + `ai_usage` converted, pinned by `test/barlib.bats`.
-> Sections below marked **planned** are what is left: `slider` and `badge`, and
-> third-party framework widgets. The code is normative where the two disagree;
-> a planned key is an EVAL ERROR today, not a silent no-op, so nothing here
-> can be half-used by accident.
+> `cpu` + `memory` + `ai_usage` + `media` converted, pinned by
+> `test/barlib.bats`. Sections below marked **planned** are what is left:
+> `badge`, and third-party framework widgets. The code is normative where the
+> two disagree; a planned key is an EVAL ERROR today, not a silent no-op, so
+> nothing here can be half-used by accident.
 
 ## Why
 
@@ -121,8 +121,11 @@ running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
    - `mouse.clicked` → `on_click` / `on_right_click` / `on_middle_click` /
      `on_{cmd,alt,shift,ctrl}_click` (from `$BUTTON`/`$MODIFIER`; the button
      outranks the modifier, and an unhandled chord falls back to `on_click`)
-   - `mouse.scrolled` → `on_scroll`; `mouse.entered`/`exited` →
-     `on_hover`/`on_unhover`
+   - `mouse.scrolled` → `on_scroll`; `mouse.entered` → `on_hover`;
+     `mouse.exited` *and* `mouse.exited.global` → `on_unhover` (the per-item
+     one is missed when the pointer is flicked straight off the bar, and a
+     widget whose hover state is a latch is then stuck in it — so the handler
+     has to be idempotent, which "the pointer is not here" already is)
    - anything else → `fetch`, then diff, then maybe `render`
 
 **Reactive means: state → diff → render → one batched apply.**
@@ -138,11 +141,15 @@ running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
 
 **Components shipped**:
 
-- `pill --icon --label [--tone] [--label-tone] [--hide]` — the standard
-  readout, one or two tones. `--tone` paints the icon and `--label-tone` the
-  label, which **is** the two-tone pill (github's octocat saying how bad while
-  the number says how many) — there is no separate component, passing both
-  flags is it. `--hide` performs the `drawing=off updates=on` pair; the
+- `pill --icon --label [--tone] [--mark] [--label-tone] [--hide]` — the
+  standard readout, one or two tones. `--tone` paints the icon and
+  `--label-tone` the label, which **is** the two-tone pill (github's octocat
+  saying how bad while the number says how many) — there is no separate
+  component, passing both flags is it. `--mark` is the icon half again off the
+  IDENTITY axis (see *Marks* below), for a pill whose glyph says WHICH SUBJECT
+  rather than how it is going — media's note/podcast/video glyph is what
+  earned it — and it is last-wins against `--tone`, so `--mark plum --tone dim`
+  is a pill saying "this is a podcast, and it is paused". `--hide` performs the `drawing=off updates=on` pair; the
   one-way door ceases to exist as a mistake a widget can make. **Empty means
   absent for both halves**: an empty `--icon` is `icon.drawing=off`, an empty
   `--label` is `label.drawing=off` *and* re-centres the icon (the bar's
@@ -206,6 +213,15 @@ running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
   attribute to a pill.
 - `sb_set <prop>=<val>…` — the raw-property escape, still batched. Later args
   in the batch win, so an `sb_set` after a `pill` call overrides it.
+- `sb_now <prop>=<val>…` — the same properties, sent immediately instead of
+  riding the batch, and **for a detached job only**. A widget that backgrounds
+  a timer (media's hover marquee turns `scroll_texts` back off eight seconds
+  later) is running long after `barlib_main` flushed and exited, so an
+  `sb_set` from there accumulates into an array nobody will ever send — a
+  title that sweeps forever, with nothing on any stream. `barlib_flush` is the
+  other half of the same problem from the other end: a CLI mode whose work was
+  on the POPUP rather than on the pill (media's seek moves a knob and changes
+  nothing the pill says) wants the batch sent without a `barlib_tick`'s fetch.
 - **the dropdown** — `popup_rows()` declares the contents; `popup_open` /
   `popup_close` / `popup_toggle` drive it from a click handler. The runtime
   owns the `--remove` of the old rows, the row item ids, the one batched
@@ -215,19 +231,79 @@ running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
   a click. Closing never rebuilds: a popup that re-lays-out on the way out is
   how you click the wrong row.
 
-  **Four row kinds**, and their typography belongs to the runtime:
+  **Six row kinds**, and their typography belongs to the runtime:
 
   | kind | weight/size | height | for |
   |---|---|---|---|
-  | `popup_heading --label [--icon] [--icon-font] [--tone] [--mark] [--count] [--value]` | Bold, label | 32 | a section title; `--count` appends ` · n` when above zero |
-  | `popup_row --label [--icon] [--tone] [--value] [--open <url>] [--run <cmd>]` | Regular, small | 25 | a thing you can act on; a `mute` tone dims the text too |
+  | `popup_heading --label [--icon] [--icon-font] [--tone] [--mark] [--label-tone] [--count] [--value] [--max-chars] [--marquee]` | Bold, label | 32 | a section title; `--count` appends ` · n` when above zero |
+  | `popup_row --label [--icon] [--tone] [--value] [--open <url>] [--run <cmd>] [--max-chars] [--marquee]` | Regular, small | 25 | a thing you can act on; a `mute` tone dims the text too |
   | `popup_action --label [--icon] [--tone] [--run <cmd>] [--copy <text>]` | Bold, small | 25 | a verb — Refresh, a command to copy |
   | `popup_note --label` | Italic, tiny | 20 | an aside — "nothing", "+4 more" |
+  | `popup_slider --percentage [--width] [--icon] [--label] [--tone] [--mark] [--run <cmd>]` | tiny captions | 25 | a track you AIM — media's scrubber |
+  | `popup_image --source --box [--scale] [--corner] [--pad-left] [--run <cmd>]` | — | the box | a row that is entirely a picture |
 
-  Four because that is what every popup in this bar already was. A widget
+  Four of them because that is what every popup in this bar already was; the
+  last two because media needed them and nothing before it did. A widget
   naming `":Bold:${FS_SMALL}"` itself is the hardcoded-hex mistake one layer
-  up, so the fifth kind someone needs is a kind to **add**, not a `--font` to
-  add to the signature.
+  up, so the seventh kind someone needs is a kind to **add**, not a `--font`
+  to add to the signature.
+
+  **`popup_slider` is the one CONTROL among them, and the one row that does
+  not close the popup.** Everything else in a dropdown is a menu item — you
+  read it, you click it, it gets out of the way. A scrubber is the opposite
+  gesture: scrubbing is something you do TWICE when the first landing was a
+  second out, and a dropdown that vanishes under the pointer makes the
+  correction impossible — you would have to reopen it, find the bar again and
+  aim at a knob that has moved. So a slider's `click_script` is its `--run`
+  alone, with no close appended, and **the only way to get that is to be a
+  slider**. A `--keep-open` on `popup_row` would have been the same code and a
+  much worse rule: every dropdown in the bar would then have a way to leave
+  itself up, and the reason exactly one row may is that exactly one row is
+  something you aim.
+
+  It is also the one row that is not an `--add item`: `--add slider <id>
+  <parent> <width>` is an item TYPE, the same shape `frameworkBlock` uses for
+  `--add graph`, and every other property behaves identically. The runtime
+  subscribes it to `mouse.clicked`, which is what makes sketchybar hand the
+  click's position back as `$PERCENTAGE`. ⚠️ **That percentage is a whole
+  0…100, where `graph`'s is a 0…1 fraction** — same clamp, different scale,
+  two lines apart in a widget that draws both.
+
+  The fill and the knob take a `--tone` or a `--mark` (default `action`: a
+  slider nobody has coloured is still a thing you reach for); the unfilled
+  track is `surface1` and is the runtime's, because it is the groove rather
+  than a value.
+
+  **`popup_image` has two shapes**, both of them media's. `--box <n>` alone is
+  a WELL — a fixed n-point square with the image drawn in it, the cover art.
+  `--box <n> --pad-left <px>` is a CORNER MARK: no fixed width, and the
+  padding both offsets the image rightwards *and* grows the item to fit, so a
+  row whose only content is the image draws it hard against the right edge of
+  a row exactly as wide as the popup already was. That is the only right-align
+  sketchybar has — a popup is a stack of LEFT-aligned items, every item's
+  background is as wide as its own content, and there is no alignment
+  property. The `<px>` is a MEASUREMENT of the drawn popup, so it cannot come
+  from the row that made it (see `$POPUP_ID` below).
+
+  **`--max-chars` caps a label and `--marquee` sweeps the overflow**, and they
+  are two flags rather than one because they answer different questions. The
+  cap is what keeps one long title from setting the width of the whole
+  dropdown; the sweep is motion, which `haus.appearance.reduceMotion` turns
+  off — and with it off the row simply clips at the cap. Folding them together
+  would make "don't move" mean "and be as wide as you like". ⚠️ A `width`
+  would not do the cap's job: sketchybar's is a STATIC size, so setting one
+  pads a three-word title out to the same wide box.
+
+  **`$POPUP_ID` and `$POPUP_CLICKED` name a row, and `popup_set <id> <prop>=…`
+  reaches it.** The runtime numbers its own rows, so a widget that has to
+  touch one again gets the id from it: `$POPUP_ID` is the row just added (read
+  it immediately — the next row overwrites it), and `$POPUP_CLICKED` is the id
+  the runtime stripped off `$NAME` on the way into a row's `click_script`. Two
+  jobs need this and no component can cover either: a row that CHANGES ITSELF
+  on a click (sketchybar does not move a slider's knob of its own accord, so
+  it would sit where it was until the popup was next rebuilt), and a row
+  placed from a measurement that only exists once the popup has been drawn.
+  Anything else wanting it is a component that is missing.
 
   `--icon-font` on a heading is the one exception, and it is a different axis
   rather than a crack in that rule: it says which font the GLYPH exists in,
@@ -291,9 +367,11 @@ running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
   widget's hex laundered through the framework — so a converted pill's
   dropdown title is grey where the hand-written one was often the pill's own.
   Identity survives where it is legible as identity: the bar icon and the
-  graph line, both named in Nix. Every row closes the popup on click; `--open` /
-  `--run` / `--copy` run *before* that close, and `--open`/`--copy` are
-  single-quote-escaped because a PR title is data.
+  graph line, both named in Nix — and, since media converted, a `--mark` on
+  either, for the subject a widget only learns at runtime. Every row but the
+  slider closes the popup on click; `--open` / `--run` / `--copy` run *before*
+  that close, and `--open`/`--copy` are single-quote-escaped because a PR
+  title is data.
 - `barlib_tick` — run fetch/diff/render now, for a handler that just changed
   the world (github's right-click refresh). Still diffed: a refresh that turns
   up the same numbers costs nothing.
@@ -314,18 +392,20 @@ looks. The **widgets** are deliberately not: `fetch` emits state that `render`
 reads as plain variables, so every framework widget trips SC2154 by design.
 
 **Components planned** (each lands with the first conversion that needs it,
-and that rule is what the two below are still waiting on rather than a
+and that rule is what the one below is still waiting on rather than a
 backlog):
 
-- `slider` — media's scrub bar, and it is a **popup row kind** rather than a
-  bar component: the only slider in this bar is `media.popup.seek`, added
-  inside the dropdown. So it lands beside `popup_row`, when media converts.
 - `badge` — no consumer. The one thing in this bar called a badge is media's
-  app-icon overlay on the ARTWORK, composited into an image rather than drawn
-  by sketchybar, so it is not this component under another name. Left listed
-  because a count riding the corner of a pill is a shape the bar will
-  eventually want; building it before something asks would be the guess the
-  manifest's known-key rule exists to refuse.
+  app-icon mark in the corner of its dropdown, which is `popup_image
+  --pad-left` and is a POPUP row rather than an overlay on a pill, so it is
+  not this component under another name. Left listed because a count riding
+  the corner of a pill is a shape the bar will eventually want; building it
+  before something asks would be the guess the manifest's known-key rule
+  exists to refuse.
+
+`slider` was the other one, and it landed with media (below) — as a popup row
+kind, which is what it always was: the only slider in this bar is the one
+inside that dropdown.
 
 ## Tones, not colors
 
@@ -409,10 +489,13 @@ row, which app is playing, which agent owns this pane.
 
 | mark | meaning |
 |---|---|
-| `warm` | Anthropic's clay — Claude, and Claude behind another harness |
-| `teal` | OpenAI's green-teal — Codex, and GPT behind another harness |
-| `violet` | Gemini's blue-violet |
-| `plum` | a subject with no mark of its own — the catch-all |
+| `warm` | Anthropic's clay — Claude, Claude elsewhere, and VLC |
+| `rust` | a muted red — video in a browser tab |
+| `pink` | music with no app of its own — and media's catch-all kind |
+| `violet` | Gemini's blue-violet — and a video file playing locally |
+| `blue` | music in a browser tab |
+| `teal` | OpenAI's green-teal — Codex, GPT elsewhere, and Spotify |
+| `plum` | a subject with no mark of its own — the catch-all, and podcasts |
 
 The set is `modules/bar/marks.nix`, and it exists because the ladder could not
 be made to hold it. Identity has no JOB, which is the whole thing a rung names:
@@ -436,9 +519,17 @@ machines the logo and a mark do wear one hue. Two identity colours coinciding
 lies about nothing; the verdicts are what must stay disjoint.
 
 What earns a mark is the ladder's own bar: **a colour the bar already spends,
-in more than one pill, on one job.** All four are `ai-provider.sh`'s, which
-`ai_usage.sh` and `agents.sh` both draw from — a fifth waits for a second
-consumer, exactly as `badge` waits for a first.
+in more than one pill, on one job.** Four are `ai-provider.sh`'s, which
+`ai_usage.sh` and `agents.sh` both draw from. The other three arrived with the
+second consumer this axis was waiting for, and they are the invariant above
+stated as a bug rather than a rule: `media.sh` had been spending seven raw
+palette keys on WHAT IS PLAYING since it was written, and four of them were
+`green`, `peach`, `red` and `sapphire` — so a Spotify pill was painted `ok`,
+VLC was painted `warn`, and a YouTube tab was painted `bad`, for the whole time
+each was playing perfectly. The conversion re-hued those four and left the two
+already off the ladder (`mauve`, `lavender`) exactly where they were. An eighth
+mark waits for a THIRD consumer, exactly as `badge` waits for a first — media
+wanting a hue is not on its own an argument for one.
 
 ⚠️ **`--mark` and `--tone` are last-wins on one heading**, not an error
 together. `--mark warm --tone dim` is a widget saying "this is Claude, and its
@@ -573,11 +664,64 @@ Lua (or Go daemon) runtime would consume, so nothing built now is thrown away.
    default. The pill's own `icon.padding_left` went 10 → 8, the bar's. None
    is worth a flag on a component; all four are worth knowing before you
    convert the next pill and wonder what moved.
-7. Third-party framework widgets through `haus.bar.widgets.<name>.script`:
+7. ✅ **media** — the biggest pill on the bar (1513 lines over four files),
+   and the one the last planned component was waiting for. `popup_slider` is
+   the whole reason it went next: the only slider in this bar is media's
+   scrubber, and the component could not be designed without the pill that
+   would spend it. Two structural things came out of that and neither was in
+   the schema — `--add slider` is an item TYPE and `_barlib_pop_add`
+   hardcoded `--add item`, and the slider is the one row in the bar that must
+   NOT close the popup on click. The second is the design: scrubbing is
+   something you do twice when the first landing was a second out. Making it
+   the KIND's property rather than a `--keep-open` flag is what keeps every
+   other dropdown honest.
+
+   `popup_image` came with it, and it earned a kind rather than a pile of
+   `sb_set`s by having two consumers inside one pill — the cover well and the
+   corner badge, which are the same item with `--box` sized versus
+   `--pad-left` offset. So did `--max-chars`/`--marquee` (a row of DATA can be
+   longer than the dropdown, and the cap and the motion are separate
+   questions), `pill --mark` (this pill's glyph is which SUBJECT, not how it
+   is going), `sb_now` (the marquee's detached timer draws after the batch
+   has gone), `barlib_flush` (the seek's CLI mode changes a popup row and
+   nothing the pill says), `popup_set` + `$POPUP_ID`/`$POPUP_CLICKED` (the
+   two rows a widget has to reach again), and `mouse.exited.global` routing
+   (a pointer flicked off the bar misses the per-item event, and this pill's
+   hover state is a latch).
+
+   **It is the conversion that changed how the pill LOOKS, and marks are
+   why.** Four of the seven hues it spent on what is playing were the tone
+   ladder's — Spotify was `ok`, VLC was `warn`, a video in a browser tab was
+   `bad`, music in one was `action` — so the pill had been painting a verdict
+   on a perfectly healthy track since it was written. `bar-marks` is what
+   turns that from prose into a refusal, and three marks (`rust`, `pink`,
+   `blue`) landed to re-hue them.
+
+   What it took away: `media_render`, `media_color`, the popup's whole `ROW`
+   geometry array and its `row()` builder, the `--remove`/`--add` batch, the
+   `popup.drawing` query and flip, the `barpop` arm, the `close` CLI mode and
+   the nested BUTTON/MODIFIER case statement. The pill also got something the
+   hand-written one could not: its stream's repaint is DIFFED now, so a
+   payload that says nothing new — media-control republishes on every seek and
+   every rate change — costs no sketchybar traffic at all.
+
+   **What moved, visibly**, beyond the four hues. The dropdown's title is a
+   `popup_heading`, so it is 32 pt rather than 26 and Bold at label size; the
+   transport rows lost their per-row SUBTEXT1/SUBTEXT0 pairing to `popup_row`'s
+   two greys, and Play/Pause is a `popup_action` in `action` rather than the
+   kind's accent — the affordance reading, not the identity one. The
+   artist/album line keeps only the 18 pt an empty icon and its padding
+   reserve, rather than the 38 pt it used to hand-set, so it sits left of
+   where the title's text starts instead of under it. The badge no
+   longer measures twice per open: the pad is remembered in
+   `~/.local/state/haus/media/badge-pad`, so it survives a bar reload and the
+   only open that can be wrong is the first one on a machine that has never
+   opened the dropdown.
+8. Third-party framework widgets through `haus.bar.widgets.<name>.script`:
    the header is read the same way, and it is a store path, so `readFile`
    works. It is what makes barlib a framework rather than an internal
    refactor, and nothing else is blocking it.
-8. Long tail: convert on touch. A converted pill's entry in `mkPluginBlocks`
+9. Long tail: convert on touch. A converted pill's entry in `mkPluginBlocks`
    shrinks to a `frameworkBlock` call carrying only what is IDENTITY — its
    hue, its padding — because the ladder deliberately has no rung for "this
    widget's own colour". The framework wins when every entry in

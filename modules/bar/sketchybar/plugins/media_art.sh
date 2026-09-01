@@ -137,5 +137,5 @@ rm -f "$BMP" 2>/dev/null
 # Only when the tint is actually wanted — otherwise the artwork was fetched for
 # the dropdown alone and nothing on the bar changed.
 if [ "${BAR_MEDIA_ARTWORK_TINT:-0}" = "1" ] && media_read_now; then
-    media_render
+    media_paint
 fi
