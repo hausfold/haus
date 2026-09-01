@@ -76,11 +76,24 @@ HAUS_GH_REPORT="$HAUS_GH_STATE/coverage.tsv"
 # mtime in epoch seconds, 0 when the file isn't there. `stat -f %m` is BSD,
 # which is where this runs — but the same two lines as `statusline.sh`'s
 # `mtime` and `statusline-refresh.sh`'s, because test/github-signal.bats runs
-# this on a GNU box in CI and the three readers of this seam have to agree.
-# The exit status cannot pick the fallback on its own: on GNU coreutils -f is
-# --file-system and %m is the MOUNT POINT, so it prints "/" and exits 0. Accept
-# the BSD answer only when it is numeric, then try GNU, then insist on digits
-# so the caller's arithmetic cannot blow up.
+# this on a GNU box in CI and this file is sourced into both of them.
+#
+# Why the status is thrown away. On GNU coreutils -f is --file-system and takes
+# NO argument, so `%m` is parsed as a second FILE operand: stdout is a
+# filesystem block for the real file, stderr an error about `%m`, and the exit
+# is 1. Honouring it — which is what `|| m=0` here used to do — answers 0 for
+# every file and never reaches the GNU branch, so `haus_gh_covers` returned
+# "not covered" for everything on Linux. Fail-closed, which is the safe
+# direction and exactly why nobody noticed. Swallow the status and judge the
+# TEXT instead: accept the BSD answer only when it is numeric, then try GNU,
+# then insist on digits so the caller's arithmetic cannot blow up.
+#
+# Two other readers of this seam still carry the BSD-only shape —
+# `modules/ai/scruff-cache.sh`'s `mtime` and the two inline ones in
+# `modules/bar/sketchybar/plugins/github.sh`. Both are macOS-only and neither
+# runs in CI, so neither is wrong today; point a suite at one and it will be.
+# One fork more than the old version on the missing-file path (three, not two),
+# paid only when the bridge is on and no delivery has arrived yet.
 haus_gh_mtime() {
   local m
   m=$(stat -f %m "$1" 2>/dev/null || true)

@@ -46,11 +46,17 @@ EOF
 
 # ---- the two things this suite has to ask the OS for ------------------------
 # The scripts under test run on macOS; this suite also runs on the GNU box in
-# CI, and both of these flags mean something different there. `stat -f` is
-# --file-system (it prints the mount point and exits 0, so exit status cannot
-# pick the fallback) and `date -v` does not exist at all. Same shape as
-# statusline.sh's own `mtime` and statusline-refresh.sh's `at_utc`: try BSD,
-# accept it only if the answer looks right, else GNU.
+# CI, and both of these flags mean something different there. `date -v` does
+# not exist. `stat -f` is --file-system and takes NO argument, so `%m` is read
+# as a second FILE operand: a filesystem block on stdout, an error on stderr,
+# exit 1 (measured on coreutils 9.11). Neither answer can be picked by exit
+# status — honouring it hands you 0 for every file — so both helpers judge the
+# TEXT. Same shape as statusline.sh's own `mtime` and statusline-refresh.sh's
+# `at_utc`: try BSD, accept it only if the answer looks right, else GNU.
+#
+# `touch_stamp` round-trips through LOCAL time in both branches, because
+# `touch -t` parses local. CI runs UTC so it cannot bite there; a macOS run
+# inside the repeated hour of a DST fall-back could see cases 24-29 flip.
 
 mtime_of() { # mtime_of <file> — epoch seconds, 0 when unknown
   local m

@@ -77,11 +77,16 @@ else
 fi
 
 mtime() { # mtime <file> — modification time in epoch seconds, 0 when unknown
-  # `stat -f %m` is BSD/macOS, which is where this runs. On GNU coreutils -f means
-  # --file-system and %m is the MOUNT POINT, so it prints "/" and exits 0 — the
-  # fallback cannot be selected by exit status alone. Accept the BSD result only
-  # when it is numeric, then try GNU stat; finally insist on digits so the caller's
-  # arithmetic remains safe under `set -e`.
+  # `stat -f %m` is BSD/macOS, which is where this runs. On GNU coreutils -f is
+  # --file-system and takes NO argument, so `%m` is parsed as a second FILE
+  # operand: stdout gets a filesystem block for the real file, stderr an error
+  # about `%m`, and the exit status is 1. Measured on coreutils 9.11 — an
+  # earlier version of this comment said it printed "/" and exited 0, which it
+  # does not. The conclusion is the same and the reason is better: honouring
+  # that status would give you 0 (fail-closed, but WRONG, and it never reaches
+  # the GNU branch), so swallow it and judge the TEXT. Accept the BSD result
+  # only when it is numeric, then try GNU stat; finally insist on digits so the
+  # caller's arithmetic remains safe under `set -e`.
   local m
   m=$(stat -f %m "$1" 2>/dev/null || true)
   case "$m" in '' | *[!0-9]*) m=$(stat -c %Y "$1" 2>/dev/null || echo 0) ;; esac
