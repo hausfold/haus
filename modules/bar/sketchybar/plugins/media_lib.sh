@@ -4,10 +4,19 @@
 # KIND of thing it is, which glyph and colour that earns, and where the little
 # bit of state they pass between each other lives.
 #
-# Sourced, never run. media_stream.sh (the live renderer), media.sh (the tick and
-# the click router) and the dropdown media.sh builds all classify the same track
-# the same way — a glyph table written twice is a glyph table that ends up being
-# two, which is the same reason colors.sh and sizes.sh are generated once.
+# Sourced, never run. media.sh (the WIDGET — the pill, its gestures and its
+# dropdown), media_stream.sh (the live feed) and media_art.sh (the cover) all
+# classify the same track the same way — a glyph table written twice is a glyph
+# table that ends up being two, which is the same reason colors.sh and sizes.sh
+# are generated once.
+#
+# What is NOT here any more is the rendering. media.sh is a framework widget
+# (docs/bar-framework.md), so the pill's paint is its `render()` and barlib owns
+# the batching, the state diff and every colour; `media_paint` at the bottom of
+# this file is how the two processes that are not the widget ask for one. Four
+# more things went the same way: the popup's row geometry and fonts are barlib's
+# row kinds, its scrubber is `popup_slider`, its cover and badge are
+# `popup_image`, and `media_color`'s palette keys are `media_mark`'s marks.
 #
 # THE THING THIS FILE CANNOT DO, so nobody re-discovers it the hard way: name the
 # SITE a browser is playing. media-control's payload is
@@ -68,7 +77,7 @@ BAR_MEDIA_ART_TARGET=68
 # occupying a full-width menu row read as a list ENTRY — something you were meant
 # to click, wedged between two things you actually click — rather than as the
 # aside it is. It now floats in the dropdown's bottom-right corner instead,
-# below the last transport row and pushed right by media_badge_align, which is
+# below the last transport row and pushed right by media_badge_pad, which is
 # what the two numbers below are for: the row's height, and the scale the icon is
 # drawn at inside it. `background.image.scale` is a factor on the image's own
 # PIXELS — the same relationship media_art.sh computes per cover — and SketchyBar
@@ -78,8 +87,8 @@ BAR_MEDIA_BADGE_BOX=28
 BAR_MEDIA_BADGE_SCALE=0.9
 
 # How far the badge sits from the dropdown's right edge, and the widest a popup
-# row is ever assumed to be when its width can't be read back (see
-# media_badge_align). The floor matters more than it looks: too small and the
+# row is ever assumed to be when its width has never been read back (see
+# media_badge_pad). The floor matters more than it looks: too small and the
 # badge lands mid-row instead of in the corner; too large and IT becomes the
 # widest item and stretches the whole dropdown to fit.
 BAR_MEDIA_BADGE_INSET=12
@@ -171,20 +180,33 @@ media_icon_override() {
     printf '%s\n' "$BAR_MEDIA_ICONS" | awk -F'\t' -v k="$1" '$1 == k { print $2; exit }'
 }
 
-# The accent a kind earns, as a colors.sh name resolved by the caller. Brand
-# colours are deliberately NOT used: the bar is one palette (nebelung), and a
-# Spotify green sampled from Spotify's own brand sheet is the one pill on the
-# strip that doesn't belong to the rice. These are the palette's nearest members.
-media_color() {
+# The MARK a kind earns — barlib's identity axis (modules/bar/marks.nix), not a
+# palette key and not a hex. Brand colours are deliberately not used either:
+# the bar is one palette (nebelung), and a Spotify green sampled from Spotify's
+# own brand sheet is the one pill on the strip that doesn't belong to the rice.
+#
+# ⚠️ FOUR OF THESE MOVED when the pill converted, and the reason is the one
+# thing marks exist to enforce: identity and status never share a hue. This
+# table named `GREEN`, `PEACH`, `RED` and `SAPPHIRE` — which are the ladder's
+# `ok`, `warn`, `bad` and `action` — so a Spotify pill was painted with the
+# all-clear, VLC with a warning and a YouTube tab with the alarm, for as long
+# as each was playing perfectly. `mauve` and `lavender` were already off the
+# ladder and kept their colour exactly (`plum`, `violet`), as did `pink`.
+#
+# The kinds are still coarse on purpose — see this file's header for why the
+# payload cannot support more — so the marks are too. A rice that wants
+# YouTube to look like YouTube overrides the GLYPH through
+# haus.bar.media.icons; the hue stays the rice's.
+media_mark() {
     case "$1" in
-    music) printf '%s' "$PINK" ;;
-    spotify) printf '%s' "$GREEN" ;;
-    podcast) printf '%s' "$MAUVE" ;;
-    video) printf '%s' "$LAVENDER" ;;
-    vlc) printf '%s' "$PEACH" ;;
-    browser.video) printf '%s' "$RED" ;;
-    browser.music) printf '%s' "$SAPPHIRE" ;;
-    *) printf '%s' "$PINK" ;;
+    music) printf '%s' pink ;;
+    spotify) printf '%s' teal ;;
+    podcast) printf '%s' plum ;;
+    video) printf '%s' violet ;;
+    vlc) printf '%s' warm ;;
+    browser.video) printf '%s' rust ;;
+    browser.music) printf '%s' blue ;;
+    *) printf '%s' pink ;;
     esac
 }
 
@@ -227,36 +249,74 @@ media_app_name() {
 # an item whose only content is the image, given a padding equal to the
 # dropdown's width minus the badge, draws that badge hard against the right edge
 # of a row exactly as wide as the popup already was — no wider, so it never
-# stretches the dropdown.
+# stretches the dropdown. `popup_image --pad-left` is that shape; this is the
+# number it takes.
 #
 # Which means we need the popup's width, and only SketchyBar knows it. The two
 # rows that can be the widest are the title and its artist/album subtitle (both
 # capped at BAR_MEDIA_POPUP_MAX_CHARS, so a long one settles there); everything
-# below them is a short labelled row or the fixed-width slider, which is what the
-# floor is for.
+# below them is a short labelled row or the fixed-width scrubber, which is what
+# the floor is for.
 #
 # THE CATCH, which cost a round of head-scratching: a popup item has NO
 # bounding_rects until the popup has actually been drawn once. Freshly built and
 # still hidden, every row queries back as an empty rect list — so measuring
-# before the reveal, which is what you'd want, silently measures nothing and
-# falls through to the floor. Hence the return code: the caller reveals the
-# popup and calls again when this said it had nothing to go on, which is only
-# ever the first open after a rebuild. Every later open measures up front and
-# lands the badge before anything is on screen.
-media_badge_align() {
-    local widest="$BAR_MEDIA_BADGE_MIN_WIDTH" w item measured=1 pad
-    for item in media.popup.title media.popup.sub; do
+# before the reveal, which is what you'd want, silently measures nothing.
+#
+# So the answer is REMEMBERED rather than re-derived. The measurement happens
+# after the popup is on screen and is written to a file; the next open reads it
+# back and places the badge correctly before anything is drawn, which is the
+# whole point — a badge that jumps into its corner a moment after the dropdown
+# appears is worse than one that was never there. The file outlives a bar reload
+# and a rebuild, so the one open that can be wrong is the first one on a machine
+# that has never opened this dropdown at all, and it corrects itself on the way
+# out.
+BAR_MEDIA_BADGE_PAD="$BAR_MEDIA_STATE_DIR/badge-pad"
+
+# What to place the badge at NOW, from the last measurement or from the floor.
+media_badge_pad() {
+    local pad
+    pad="$(cat "$BAR_MEDIA_BADGE_PAD" 2>/dev/null)"
+    case "$pad" in
+    '' | *[!0-9]*) pad=$((BAR_MEDIA_BADGE_MIN_WIDTH - BAR_MEDIA_BADGE_BOX - BAR_MEDIA_BADGE_INSET)) ;;
+    esac
+    [ "$pad" -lt 0 ] && pad=0
+    printf '%s' "$pad"
+}
+
+# media_badge_measure <badge-row> <candidate-row>… — read the drawn popup back,
+# remember the answer, and nudge the badge if it moved. A row that queries back
+# with no rects is a popup that has not been drawn yet, and the whole call is
+# then a no-op: it must never overwrite a good measurement with the floor.
+#
+# The ids are barlib's, so they are passed in rather than known here — the
+# runtime numbers its own rows, and $POPUP_ID is what a widget catches them
+# with. The `--set` rides the widget's batch through popup_set; the `--query`
+# does not, because a read is not traffic and there is nothing to batch it with.
+#
+# ⚠️ This is the ONE function in this file that needs barlib sourced, and this
+# file is also sourced by media_stream.sh and media_art.sh, which do not source
+# it. That is fine only because neither calls this — media.sh's `on_click` is
+# the sole caller. Anything else added here that reaches for a `popup_*` breaks
+# that, silently, in a process whose stderr goes nowhere.
+media_badge_measure() {
+    local badge="$1" widest="$BAR_MEDIA_BADGE_MIN_WIDTH" w item measured=0 pad
+    shift
+    [ -n "$badge" ] || return 0
+    for item in "$@"; do
+        [ -n "$item" ] || continue
         w="$($SB --query "$item" 2>/dev/null |
             jq -r '[.bounding_rects[]?.size[0]] | max // empty' 2>/dev/null)"
         w="${w%%.*}"
         [ -n "$w" ] || continue
-        measured=0
+        measured=1
         [ "$w" -gt "$widest" ] 2>/dev/null && widest="$w"
     done
+    [ "$measured" = 1 ] || return 0
     pad=$((widest - BAR_MEDIA_BADGE_BOX - BAR_MEDIA_BADGE_INSET))
     [ "$pad" -lt 0 ] && pad=0
-    $SB --set media.popup.appicon background.image.padding_left="$pad" 2>/dev/null
-    return "$measured"
+    printf '%s' "$pad" >"$BAR_MEDIA_BADGE_PAD"
+    popup_set "$badge" background.image.padding_left="$pad"
 }
 
 # Bring the source forward — and, when the source is a browser, the TAB, not just
@@ -568,70 +628,34 @@ media_change_key() {
 # to spend and mouse.entered/exited are the only two things that ever write it.
 media_hovered() { [ -f "$BAR_MEDIA_STATE_DIR/hover" ]; }
 
-# Paint the pill from whatever media_read_now last put in MEDIA_*. Lives here,
-# not in the streamer, because the tick repaints too: a long-form countdown has
-# to move while the stream is silent (nothing about a video CHANGES between
-# minute 12 and minute 13, so no payload arrives to trigger a repaint).
-media_render() {
-    local kind icon color label label_color label_drawing dur elapsed remain tint
-
-    # No session at all: gone, not an empty box — the way the pill has always
-    # behaved. The dropdown goes with it, or it would be left describing a track
-    # that stopped existing.
-    if [ -z "$MEDIA_TITLE" ]; then
-        $SB --set media drawing=off popup.drawing=off
-        return
-    fi
-
-    kind="$(media_kind "$MEDIA_BUNDLE" "$MEDIA_TITLE" "$MEDIA_ARTIST" "$MEDIA_ALBUM" "$MEDIA_DURATION")"
-    icon="$(media_icon "$kind" "$MEDIA_BUNDLE")"
-    color="$(media_color "$kind")"
-
-    # The artwork tint, when it's on and a track has one: a colour sampled from
-    # the cover and then SNAPPED to the nearest nebelung member (see
-    # media_art.sh). So the pill picks up the record's mood without ever drawing
-    # a colour that isn't in the rice's palette.
-    if [ "${BAR_MEDIA_ARTWORK_TINT:-0}" = "1" ] && [ -r "$BAR_MEDIA_TINT" ]; then
-        tint="$(cat "$BAR_MEDIA_TINT" 2>/dev/null)"
-        case "$tint" in 0x????????) color="$tint" ;; esac
-    fi
-
-    label="$MEDIA_TITLE"
-    [ -n "$MEDIA_ARTIST" ] && label="$MEDIA_TITLE — $MEDIA_ARTIST"
-
-    # Long-form gets a countdown instead of a scrolling title. An hour-long video
-    # or a podcast is a thing you already know the name of; what you keep
-    # glancing at the bar for is how much of it is left.
-    dur="${MEDIA_DURATION%%.*}"
-    if [ -n "$dur" ] && [ "$dur" -ge "$BAR_MEDIA_LONGFORM" ] 2>/dev/null; then
-        elapsed="$(media_elapsed_now "$MEDIA_ELAPSED" "$MEDIA_STAMP" "$MEDIA_PLAYING" "$MEDIA_RATE")"
-        remain=$((dur - ${elapsed:-0}))
-        [ "$remain" -lt 0 ] && remain=0
-        label="$MEDIA_TITLE  ·  -$(media_fmt_remaining "$remain")"
-    fi
-
-    # Paused stays on the bar (Control Center keeps it too — it's how you find
-    # your way back to it) but dims, so "playing" is still readable at a glance
-    # without spending a second glyph on it.
-    label_color="$TEXT"
-    if [ "$MEDIA_PLAYING" != "true" ]; then
-        label_color="$OVERLAY1"
-        color="$OVERLAY1"
-    fi
-
-    # Collapsed: the glyph alone until the pointer arrives. Worth having because
-    # the bar's centre span is under the notch on a MacBook and every character
-    # of title is rent — see haus.bar.media.collapse.
-    label_drawing=on
-    if [ "${BAR_MEDIA_COLLAPSE:-0}" = "1" ] && ! media_hovered; then
-        label_drawing=off
-    fi
-
-    $SB --set media \
-        icon="$icon" \
-        icon.color="$color" \
-        label="$label" \
-        label.color="$label_color" \
-        label.drawing="$label_drawing" \
-        drawing=on
+# Repaint the pill, by re-entering the WIDGET.
+#
+# The pill's own render lives in media.sh now — it is a framework widget
+# (docs/bar-framework.md), so `render()` is barlib's to call and the state it
+# reads is barlib's to diff. Two things outside that widget still have reason to
+# ask for a repaint, and neither can call the function:
+#
+#   * media_stream.sh, on every payload. That is the whole point of the stream —
+#     a track change or a play/pause repaints in the instant it happens rather
+#     than on a poll.
+#   * media_art.sh, when a cover lands after the track did and the artwork tint
+#     is on, so the pill picks up the record's colour a beat later.
+#
+# ⚠️ `env -u SENDER` is the rule in barlib.sh's header, and it is load-bearing
+# here twice over: the streamer is spawned from a `script=` run and the art
+# fetch from the streamer, so BOTH carry a $SENDER the runtime routes on. A
+# child that inherited `mouse.clicked` would land in the click handler that
+# started this chain. The `paint` CLI mode ending in `exit 0` is the second half
+# of the same guard, exactly as github's `fetch` mode is.
+#
+# Not backgrounded: the stream wants its payloads painted IN ORDER, and this is
+# one fork against a 200 ms debounce.
+#
+# It is DIFFED on the other side, which the old in-process render was not — so a
+# payload that changes nothing about what the pill says now costs zero
+# sketchybar traffic instead of a full repaint. media-control re-publishes on
+# every seek and every rate change; most of those said nothing new.
+media_paint() {
+    (env -u SENDER -u BUTTON -u MODIFIER \
+        "$HOME/.config/sketchybar/plugins/media.sh" paint >/dev/null 2>&1)
 }

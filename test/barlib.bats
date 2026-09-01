@@ -46,13 +46,17 @@ export TONE_BAD=0xff555555
 export TONE_ACTION=0xff5a5a5a
 export TONE_ACCENT=0xff666666
 export MARK_WARM=0xff7a0001
-export MARK_TEAL=0xff7a0002
+export MARK_RUST=0xff7a0005
+export MARK_PINK=0xff7a0006
 export MARK_VIOLET=0xff7a0003
+export MARK_BLUE=0xff7a0007
+export MARK_TEAL=0xff7a0002
 export MARK_PLUM=0xff7a0004
 export TEXT=0xff777777
 export SUBTEXT0=0xff888888
 export OVERLAY0=0xff999999
 export OVERLAY1=0xffaaaaaa
+export SURFACE1=0xffbbbbbb
 EOF
   cat >"$HOME/.config/sketchybar/sizes.sh" <<'EOF'
 export BAR_FONT="Test Font"
@@ -739,4 +743,219 @@ pad_for() {
   '
   grep -q 'icon=C icon.color=0xff444444' "$SB_LOG"
   grep -q 'label=CPU label.color=0xff777777' "$SB_LOG"
+}
+
+# ---- the scrubber -----------------------------------------------------------
+# The one row kind that is a CONTROL. Everything here is about the two ways it
+# differs from a menu item, both of which fail silently: an `--add item` slider
+# is an ordinary row with no track in it, and a slider that closes the popup is
+# a scrubber you can only aim once.
+
+@test "a slider is an --add slider with a width, not an --add item" {
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'popup_rows() { popup_slider --percentage 40 --width 150; }
+on_click() { popup_open; }'
+  [ "$status" -eq 0 ]
+  grep -q -- '--add slider w.popup.0 popup.w 150' "$SB_LOG"
+  ! grep -q -- '--add item w.popup.0' "$SB_LOG"
+}
+
+@test "a slider does NOT close the popup, and every other row still does" {
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'popup_rows() {
+  popup_slider --percentage 10 --run "/bin/echo seek"
+  popup_row --label "R" --run "/bin/echo row"
+}
+on_click() { popup_open; }'
+  [ "$status" -eq 0 ]
+  local batch
+  batch=$(grep -- '--add slider' "$SB_LOG")
+  # Scrubbing is something you do twice. The slider carries its action ALONE.
+  [[ "$batch" == *"click_script=/bin/echo seek "* ]]
+  [[ "$batch" != *"click_script=/bin/echo seek; "* ]]
+  # The ordinary row beside it is unchanged — the exception is the kind's, not
+  # a flag any row can reach for.
+  [[ "$batch" == *"click_script=/bin/echo row; "*"popup.drawing=off"* ]]
+}
+
+@test "a slider subscribes to mouse.clicked, which is what makes PERCENTAGE" {
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'popup_rows() { popup_slider --percentage 50; }
+on_click() { popup_open; }'
+  [ "$status" -eq 0 ]
+  grep -q -- '--subscribe w.popup.0 mouse.clicked' "$SB_LOG"
+}
+
+@test "a slider percentage is 0-100, clamped, and never a fraction" {
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'popup_rows() {
+  popup_slider --percentage 140
+  popup_slider --percentage ""
+}
+on_click() { popup_open; }'
+  [ "$status" -eq 0 ]
+  local batch
+  batch=$(grep -- '--add slider' "$SB_LOG")
+  [[ "$batch" == *"slider.percentage=100"* ]]
+  [[ "$batch" == *"slider.percentage=0"* ]]
+  # graph's 0…1 fraction next door is the trap this pins: 100, not 1.00.
+  [[ "$batch" != *"slider.percentage=1.00"* ]]
+}
+
+@test "a slider's fill takes a mark, and the track stays the runtime's groove" {
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'popup_rows() { popup_slider --percentage 50 --mark teal; }
+on_click() { popup_open; }'
+  [ "$status" -eq 0 ]
+  local batch
+  batch=$(grep -- '--add slider' "$SB_LOG")
+  [[ "$batch" == *"slider.highlight_color=0xff7a0002"* ]]
+  [[ "$batch" == *"slider.knob.color=0xff7a0002"* ]]
+  [[ "$batch" == *"slider.background.color=0xffbbbbbb"* ]]
+}
+
+@test "a slider with no colour is action — a thing you reach for" {
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'popup_rows() { popup_slider --percentage 50; }
+on_click() { popup_open; }'
+  [ "$status" -eq 0 ]
+  grep -q 'slider.highlight_color=0xff5a5a5a' "$SB_LOG"
+}
+
+# ---- a picture --------------------------------------------------------------
+
+@test "popup_image sizes a well and offsets a corner mark, never both" {
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'popup_rows() {
+  popup_image --source /tmp/cover.png --box 84 --scale 0.16
+  popup_image --source app.Zen --box 28 --scale 0.9 --pad-left 140
+}
+on_click() { popup_open; }'
+  [ "$status" -eq 0 ]
+  local batch
+  batch=$(grep -- '--add item' "$SB_LOG")
+  [[ "$batch" == *"--set w.popup.0 width=84"* ]]
+  [[ "$batch" != *"--set w.popup.0 background.image.padding_left"* ]]
+  [[ "$batch" == *"--set w.popup.1 background.image.padding_left=140"* ]]
+  [[ "$batch" != *"--set w.popup.1 width="* ]]
+  [[ "$batch" == *"background.image=/tmp/cover.png"* ]]
+  [[ "$batch" == *"background.image=app.Zen"* ]]
+}
+
+@test "popup_image with no box draws nothing rather than a zero-height row" {
+  # A box is the row's HEIGHT too, so a missing one is not a small picture —
+  # it is an invisible row that reads as "the cover didn't load".
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'popup_rows() { popup_image --source /tmp/cover.png; }
+on_click() { popup_open; }'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"--box <points> is required"* ]]
+  ! grep -q -- '--add item w.popup.0' "$SB_LOG"
+}
+
+@test "popup_image with no source draws nothing rather than an empty box" {
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'popup_rows() { popup_image --box 84; }
+on_click() { popup_open; }'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no --source"* ]]
+  ! grep -q -- '--add item w.popup.0' "$SB_LOG"
+}
+
+# ---- reaching a row again ---------------------------------------------------
+
+@test "POPUP_ID names the row just added, and popup_set reaches it" {
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'popup_rows() {
+  popup_row --label "first"
+  popup_row --label "second"
+  MINE="$POPUP_ID"
+}
+on_click() { popup_open; popup_set "$MINE" background.image.padding_left=99; }'
+  [ "$status" -eq 0 ]
+  grep -q -- '--set w.popup.1 background.image.padding_left=99' "$SB_LOG"
+}
+
+@test "popup_set with no row id warns instead of setting the whole bar" {
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'on_click() { popup_set "" label=nope; }'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no row id"* ]]
+  [ "$(calls)" = 0 ]
+}
+
+@test "a click from a popup row leaves its id in POPUP_CLICKED" {
+  # The seek's whole mechanism: a click_script is a SPAWN, so the fresh process
+  # knows which slider it belongs to only from the NAME the runtime strips.
+  export NAME=w.popup.3 SENDER=mouse.clicked BUTTON=left PERCENTAGE=64
+  run widget 'on_click() { popup_set "$POPUP_CLICKED" slider.percentage="$PERCENTAGE"; }'
+  [ "$status" -eq 0 ]
+  grep -q -- '--set w.popup.3 slider.percentage=64' "$SB_LOG"
+}
+
+# ---- a long label -----------------------------------------------------------
+
+@test "--max-chars caps a row and --marquee is what makes it sweep" {
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'popup_rows() {
+  popup_heading --label "a very long title indeed" --max-chars 30 --marquee
+  popup_row --label "artist — album" --max-chars 30
+}
+on_click() { popup_open; }'
+  [ "$status" -eq 0 ]
+  local batch
+  batch=$(grep -- '--add item' "$SB_LOG")
+  [[ "$batch" == *"--set w.popup.0 label.max_chars=30 --set w.popup.0 scroll_texts=on"* ]]
+  # The cap without the motion: reduceMotion turns the sweep off and the row
+  # clips, which it can only do if the two are separate properties.
+  [[ "$batch" == *"--set w.popup.1 label.max_chars=30"* ]]
+  [[ "$batch" != *"--set w.popup.1 scroll_texts"* ]]
+}
+
+@test "a row that names neither is untouched, not capped at zero" {
+  export NAME=w SENDER=mouse.clicked BUTTON=left
+  run widget 'popup_rows() { popup_row --label "R"; }
+on_click() { popup_open; }'
+  [ "$status" -eq 0 ]
+  ! grep -q 'label.max_chars' "$SB_LOG"
+  ! grep -q 'scroll_texts' "$SB_LOG"
+}
+
+# ---- the pill's own identity ------------------------------------------------
+
+@test "pill --mark paints the glyph off the identity axis, not the ladder" {
+  NAME=w SENDER=routine widget '
+    fetch() { emit m=violet; }
+    render() { pill --icon P --label x --mark "$m"; }
+  '
+  grep -q 'icon.color=0xff7a0003' "$SB_LOG"
+}
+
+@test "pill --mark and --tone are last-wins, so a paused pill greys" {
+  NAME=w SENDER=routine widget '
+    fetch() { emit n=1; }
+    render() { pill --icon P --label x --mark plum --tone dim; }
+  '
+  grep -q 'icon.color=0xff1a1a1a' "$SB_LOG"
+  ! grep -q 'icon.color=0xff7a0004' "$SB_LOG"
+}
+
+# ---- the detached half ------------------------------------------------------
+
+@test "sb_now sends immediately, where sb_set would ride a batch nobody flushes" {
+  export NAME=w SENDER=mouse.entered
+  run widget 'on_hover() { ( sb_now scroll_texts=off ) & wait; }'
+  [ "$status" -eq 0 ]
+  grep -q -- '--set w scroll_texts=off' "$SB_LOG"
+}
+
+# ---- the pointer leaving --------------------------------------------------
+
+@test "mouse.exited.global lands on on_unhover too" {
+  # The per-item event is MISSED when the pointer is flicked straight off the
+  # bar, and a widget whose hover state is a latch is then stuck in it.
+  export NAME=w SENDER=mouse.exited.global
+  run widget 'on_unhover() { sb_set label.drawing=off; }'
+  [ "$status" -eq 0 ]
+  grep -q -- '--set w label.drawing=off' "$SB_LOG"
 }

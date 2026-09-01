@@ -21,8 +21,9 @@
 #   the cache. The button outranks the modifier (⌘-right-click is a right
 #   click); an unhandled chord falls back to on_click.
 #   popup_rows() optional — the dropdown's contents, in popup_heading /
-#             popup_row / popup_action / popup_note calls. Never called on a
-#             tick: popup_open runs it, which a click handler asks for.
+#             popup_row / popup_action / popup_note / popup_slider /
+#             popup_image calls. Never called on a tick: popup_open runs it,
+#             which a click handler asks for.
 #
 # ⚠️ A WIDGET THAT DETACHES A COPY OF ITSELF must strip $SENDER (and $BUTTON /
 # $MODIFIER) from the child's environment, and must not let that child reach
@@ -62,8 +63,25 @@ source "$HOME/.config/sketchybar/bar.sh"
 # the pill — silently, since setting popup.drawing on a row is legal and does
 # nothing. The row ids are the runtime's own (`<item>.popup.<n>`), so the
 # runtime is exactly who can undo it.
+#
+# And who can hand it back: $POPUP_CLICKED keeps the id the strip removed, for
+# the one row that CHANGES ITSELF on a click instead of acting and closing.
+# That is the slider — sketchybar does not move a knob on a click of its own
+# accord, so the seek handler has to, and it is running in a fresh process
+# whose only evidence of which row it belongs to is the NAME this line ate.
+# Empty on every other entry, which is what `popup_set` checks.
+#
+# A plain global rather than an export: barlib is SOURCED into the widget's
+# shell, and exporting would hand the id down to every child that widget
+# spawns — including another row's click_script, which belongs to a different
+# row. Read by widgets only, hence the disable.
+POPUP_CLICKED=''
+# shellcheck disable=SC2034
 case "${NAME:-}" in
-    *.popup.*) NAME="${NAME%%.popup.*}" ;;
+    *.popup.*)
+        POPUP_CLICKED="$NAME"
+        NAME="${NAME%%.popup.*}"
+        ;;
 esac
 
 _BARLIB_STATE=()
@@ -146,11 +164,14 @@ tone() {
 mark() {
     case "$1" in
         warm)   printf '%s' "${MARK_WARM:-$TONE_MUTE}" ;;
-        teal)   printf '%s' "${MARK_TEAL:-$TONE_MUTE}" ;;
+        rust)   printf '%s' "${MARK_RUST:-$TONE_MUTE}" ;;
+        pink)   printf '%s' "${MARK_PINK:-$TONE_MUTE}" ;;
         violet) printf '%s' "${MARK_VIOLET:-$TONE_MUTE}" ;;
+        blue)   printf '%s' "${MARK_BLUE:-$TONE_MUTE}" ;;
+        teal)   printf '%s' "${MARK_TEAL:-$TONE_MUTE}" ;;
         plum)   printf '%s' "${MARK_PLUM:-$TONE_MUTE}" ;;
         *)
-            echo "barlib: unknown mark '$1' (warm|teal|violet|plum) — using plum" >&2
+            echo "barlib: unknown mark '$1' (warm|rust|pink|violet|blue|teal|plum) — using plum" >&2
             printf '%s' "${MARK_PLUM:-$TONE_MUTE}"
             ;;
     esac
@@ -201,11 +222,18 @@ sb_set() {
     _BARLIB_ARGS+=(--set "$NAME" "$@")
 }
 
-# Apply everything accumulated so far, as one call, and empty the batch.
-# barlib_main calls this last; popup_open calls it early because barpop has to
-# arm against rows that already exist. Calling it twice is harmless — the
+# barlib_flush — apply everything accumulated so far, as one call, and empty
+# the batch. barlib_main calls it last; popup_open calls it early because barpop
+# has to arm against rows that already exist. Calling it twice is harmless — the
 # second finds nothing to send.
-_barlib_flush() {
+#
+# Public, unlike the rest of the plumbing, for the CLI mode whose work was on
+# the POPUP rather than on the pill: media's seek moves a slider's knob and
+# nothing about what the pill SAYS, so `barlib_tick` would fetch, diff, find
+# nothing and flush — the right answer reached through a fetch nobody asked
+# for. A batch nobody sends is a knob that snaps back under your finger, which
+# is the failure this is public to prevent.
+barlib_flush() {
     if [ ${#_BARLIB_ARGS[@]} -gt 0 ]; then
         "$SB" "${_BARLIB_ARGS[@]}"
         _BARLIB_ARGS=()
@@ -213,12 +241,19 @@ _barlib_flush() {
     return 0
 }
 
-# pill --icon <glyph> --label <text> [--tone <tone>] [--label-tone <tone>]
-#      [--hide]
+# pill --icon <glyph> --label <text> [--tone <tone>] [--mark <mark>]
+#      [--label-tone <tone>] [--hide]
 # The standard readout, one or two tones: --tone paints the icon and
 # --label-tone the label, which is the whole of the "two-tone pill" — the
 # octocat saying how BAD while the number says how MANY. There is no separate
 # component for it; passing both flags is it.
+#
+# --mark is the icon half again, off the IDENTITY axis instead of the ladder,
+# for a pill whose glyph says WHICH SUBJECT rather than how it is going: the
+# media pill's note/podcast/video glyph is what earned it. It is last-wins
+# against --tone exactly as it is on a heading, which is what lets a pill say
+# "this is a podcast, and it is paused" as `--mark plum` followed by
+# `--tone dim` — one glyph with two things to say and an order to say them in.
 #
 # --hide performs the drawing=off/updates=on PAIR — the one-way door (a hidden
 # item stops receiving events under the bars' updates=when_shown default)
@@ -238,12 +273,14 @@ _barlib_flush() {
 # style keeps it otherwise, and can take it back either way with an sb_set
 # after the pill call — later --set args in the batch win.
 pill() {
-    local icon='' label='' icon_tone='' label_tone='' hide=0 have_icon=0 have_label=0
+    local icon='' label='' icon_tone='' icon_mark='' label_tone='' hide=0
+    local have_icon=0 have_label=0
     while [ $# -gt 0 ]; do
         case "$1" in
             --icon) icon=$2; have_icon=1; shift 2 ;;
             --label) label=$2; have_label=1; shift 2 ;;
-            --tone) icon_tone=$2; shift 2 ;;
+            --tone) icon_tone=$2; icon_mark=''; shift 2 ;;
+            --mark) icon_mark=$2; icon_tone=''; shift 2 ;;
             --label-tone) label_tone=$2; shift 2 ;;
             --hide) hide=1; shift ;;
             *)
@@ -278,8 +315,27 @@ pill() {
             sb_set icon.padding_left="${PAD_ICON_L:-8}" icon.padding_right="${PAD_ICON_R:-4}"
         fi
     fi
-    if [ -n "$icon_tone" ]; then sb_set icon.color="$(tone "$icon_tone")"; fi
+    if [ -n "$icon_mark" ]; then
+        sb_set icon.color="$(mark "$icon_mark")"
+    elif [ -n "$icon_tone" ]; then
+        sb_set icon.color="$(tone "$icon_tone")"
+    fi
     if [ -n "$label_tone" ]; then sb_set label.color="$(tone "$label_tone")"; fi
+    return 0
+}
+
+# sb_now <prop>=<val>… — the same raw properties as sb_set, sent RIGHT NOW
+# instead of riding the batch.
+#
+# For a DETACHED job and nothing else. A widget that backgrounds a timer —
+# media's hover marquee is the shipped one, a sweep that turns scroll_texts
+# back off eight seconds later — is running long after barlib_main flushed and
+# exited, so an sb_set from there accumulates into an array nobody will ever
+# send. That is the silent failure this exists to remove; the batching rule
+# still holds for everything on the tick and click paths, where the whole
+# point is that twelve --sets ride one process.
+sb_now() {
+    "$SB" --set "$NAME" "$@"
     return 0
 }
 
@@ -462,15 +518,54 @@ popup_quote() {
 # One row. Every row closes the popup when clicked — a dropdown you have to
 # dismiss separately from acting on it is a dropdown you dismiss by mistake —
 # so `action` is prepended to that close rather than replacing it.
-_barlib_pop_add() { # _barlib_pop_add <height> <font> <action> <set-args…>
-    local height=$1 font=$2 action=$3
-    shift 3
+#
+# ⚠️ THE SLIDER IS THE ONE EXCEPTION, and it is the kind's property rather than
+# a flag any row may pass. Scrubbing is something you do TWICE when the first
+# landing was a second out, and a dropdown that vanishes under the pointer
+# makes the correction impossible — you would have to reopen the popup, find
+# the bar again and aim at a knob that has moved. So a slider's click_script is
+# its action ALONE, with no close appended, and the only way to get that is to
+# be a slider. A `--keep-open` on `popup_row` would have been the same code and
+# a much worse rule: every dropdown in this bar would then have a way to leave
+# itself up, and the reason exactly one row may is that exactly one row is a
+# CONTROL you aim rather than a thing you press.
+#
+# <kind> is which of them this is. Only `slider:<width>` branches — the other
+# five are one word of self-description in the emission, and the next kind that
+# needs to behave differently adds an arm here rather than a flag upstream.
+# The slider is also the one that is not an `--add item`: `--add slider <id>
+# <parent> <width>` is an item TYPE, the same shape `frameworkBlock` uses for
+# `--add graph`, and every other property below behaves identically. It is
+# subscribed to mouse.clicked because that is what makes sketchybar hand the
+# click's position back as $PERCENTAGE — the whole mechanism of a seek.
+#
+# $POPUP_ID is the id of the row just added, for the rare widget that has to
+# reach one again after the batch has gone out (media measures its dropdown
+# and nudges an image into the corner). Read it immediately; the next row
+# overwrites it.
+POPUP_ID=''
+_barlib_pop_add() { # _barlib_pop_add <kind> <height> <font> <action> <set-args…>
+    local kind=$1 height=$2 font=$3 action=$4
+    shift 4
+    local width=''
+    case "$kind" in
+        slider:*)
+            width=${kind#slider:}
+            kind=slider
+            ;;
+    esac
+    POPUP_ID="${NAME}.popup.${_BARLIB_POP_I}"
     local close="$SB --set $NAME popup.drawing=off"
     local click="$close"
     if [ -n "$action" ]; then click="$action; $close"; fi
+    if [ "$kind" = slider ]; then
+        click="$action"
+        _BARLIB_ARGS+=(--add slider "$POPUP_ID" "popup.${NAME}" "$width")
+    else
+        _BARLIB_ARGS+=(--add item "$POPUP_ID" "popup.${NAME}")
+    fi
     _BARLIB_ARGS+=(
-        --add item "${NAME}.popup.${_BARLIB_POP_I}" "popup.${NAME}"
-        --set "${NAME}.popup.${_BARLIB_POP_I}"
+        --set "$POPUP_ID"
         icon="" icon.padding_left=10 icon.padding_right=8
         label="" label.padding_left=0 label.padding_right=14
         label.font="$font"
@@ -478,11 +573,67 @@ _barlib_pop_add() { # _barlib_pop_add <height> <font> <action> <set-args…>
         click_script="$click"
         "$@"
     )
+    if [ "$kind" = slider ]; then
+        _BARLIB_ARGS+=(--subscribe "$POPUP_ID" mouse.clicked)
+    fi
     _BARLIB_POP_I=$((_BARLIB_POP_I + 1))
 }
 
+# popup_set <row-id> <prop>=<val>… — raw properties on ONE popup row, batched
+# like everything else. The dropdown's counterpart to `sb_set`, and it is the
+# escape hatch for the same two jobs a component cannot cover:
+#
+#   * a row that CHANGES ITSELF on a click. The slider's knob is the whole
+#     list: sketchybar does not move it on a click of its own accord, so it
+#     would sit where it was until the popup was next rebuilt — i.e. until the
+#     next time you opened it. The handler passes $POPUP_CLICKED, which is the
+#     id the runtime stripped off $NAME on the way in.
+#   * a row placed from a MEASUREMENT, which can only be taken once the popup
+#     has been drawn — so it cannot be an argument to the row that made it.
+#     The id comes from $POPUP_ID, captured when the row was added.
+#
+# Anything else wanting this is a component that is missing; file the gap.
+popup_set() {
+    local id=$1
+    shift
+    if [ -z "$id" ]; then
+        echo "barlib: popup_set: no row id — nothing to set" >&2
+        return 0
+    fi
+    _BARLIB_ARGS+=(--set "$id" "$@")
+    return 0
+}
+
+# _barlib_pop_cap <max-chars> <marquee 0|1> — the two label properties a row
+# of DATA wants and a row of the widget's own words does not, applied to the
+# row $POPUP_ID names.
+#
+# They are separate on purpose. max_chars is a CAP — it is what keeps one long
+# title from setting the width of the whole dropdown, and a row that loses it
+# is a popup as wide as the worst string the machine can produce. scroll_texts
+# is MOTION, which is a taste (and an accessibility) question: haus.appearance
+# .reduceMotion turns media's off, and with it off the row simply clips at the
+# cap. Folding them into one flag would make "don't move" mean "and be as wide
+# as you like".
+#
+# ⚠️ A `width` would not do the cap's job: sketchybar's is a STATIC size, not a
+# maximum, so setting one pads a three-word title out to the same wide box. Two
+# separate --sets on the same batched call, so an unwanted one is simply absent
+# rather than set to a value meaning "off".
+_barlib_pop_cap() {
+    if [ "${1:-0}" -gt 0 ] 2>/dev/null; then
+        _BARLIB_ARGS+=(--set "$POPUP_ID" label.max_chars="$1")
+    fi
+    if [ "${2:-0}" = 1 ]; then
+        _BARLIB_ARGS+=(--set "$POPUP_ID" scroll_texts=on)
+    fi
+    return 0
+}
+
 # popup_heading --label <text> [--icon <glyph>] [--icon-font <font>]
-#               [--tone <tone>] [--mark <mark>] [--count <n>] [--value <text>]
+#               [--tone <tone>] [--mark <mark>] [--label-tone <tone>]
+#               [--count <n>] [--value <text>]
+#               [--max-chars <n>] [--marquee]
 # --count appends " · n" when n is above zero: a section that says "open PRs"
 # over eight rows leaves you counting them to find out whether eight is all of
 # them, and the rows below may be a truncation.
@@ -516,7 +667,7 @@ _barlib_pop_add() { # _barlib_pop_add <height> <font> <action> <set-args…>
 # lives in, which is a fact about the glyph and not a choice about the row.
 popup_heading() {
     local label='' icon='' icon_font='' tone_name=dim mark_name='' count=0
-    local value='' have_value=0 label_tone=''
+    local value='' have_value=0 label_tone='' cap=0 marquee=0
     while [ $# -gt 0 ]; do
         case "$1" in
             --label) label=$2; shift 2 ;;
@@ -527,6 +678,8 @@ popup_heading() {
             --label-tone) label_tone=$2; shift 2 ;;
             --count) count=$2; shift 2 ;;
             --value) value=$2; have_value=1; shift 2 ;;
+            --max-chars) cap=$2; shift 2 ;;
+            --marquee) marquee=1; shift ;;
             *) echo "barlib: popup_heading: unknown flag '$1' — dropped" >&2; shift ;;
         esac
     done
@@ -567,26 +720,28 @@ popup_heading() {
         fi
         _barlib_unpad "$value"
         _barlib_name_pad "$label" "$((_blib_cols - _BARLIB_LEAD))" "${FS_LABEL:-13}"
-        _barlib_pop_add "$_BARLIB_H_HEADING" "${BAR_FONT:-}:Bold:${FS_LABEL:-}" '' \
+        _barlib_pop_add heading "$_BARLIB_H_HEADING" "${BAR_FONT:-}:Bold:${FS_LABEL:-}" '' \
             icon="$_blib_name" icon.color="$icon_color" \
             icon.font="${BAR_FONT:-}:Bold:${FS_LABEL:-}" \
             icon.padding_left=10 \
             icon.padding_right="$_BARLIB_PAD" \
             label="$_BARLIB_UNPADDED" label.color="$label_color"
+        _barlib_pop_cap "$cap" "$marquee"
         return 0
     fi
     # The default is spelled out rather than left inherited, so there is one
     # code path instead of two: it is byte-identical to the icon.font every
     # popup row already gets from sketchybarrc's `--default`, so a heading
     # that names no font draws exactly as it did before this flag existed.
-    _barlib_pop_add "$_BARLIB_H_HEADING" "${BAR_FONT:-}:Bold:${FS_LABEL:-}" '' \
+    _barlib_pop_add heading "$_BARLIB_H_HEADING" "${BAR_FONT:-}:Bold:${FS_LABEL:-}" '' \
         icon="$icon" icon.color="$icon_color" \
         icon.font="${icon_font:-${BAR_FONT:-}:Bold:${FS_ICON:-}}" \
         label="$label" label.color="$label_color"
+    _barlib_pop_cap "$cap" "$marquee"
 }
 
-# popup_row --label <text> [--icon <glyph>] [--tone <tone>]
-#           [--open <url>] [--run <command>]
+# popup_row --label <text> [--icon <glyph>] [--tone <tone>] [--value <text>]
+#           [--open <url>] [--run <command>] [--max-chars <n>] [--marquee]
 # A `mute` row loses a shade of its TEXT too, not only its glyph colour:
 # otherwise a list of eight reads as eight equal claims on you when two of
 # them are their author saying "not yet". Only `mute` — a `dim` row keeps its
@@ -594,6 +749,7 @@ popup_heading() {
 # something; it is the glyph that is subordinate, not the sentence.
 popup_row() {
     local label='' icon='' icon_tone=mute action='' value='' have_value=0 tone_set=0
+    local cap=0 marquee=0
     while [ $# -gt 0 ]; do
         case "$1" in
             --label) label=$2; shift 2 ;;
@@ -602,6 +758,8 @@ popup_row() {
             --value) value=$2; have_value=1; shift 2 ;;
             --open) action="/usr/bin/open $(popup_quote "$2")"; shift 2 ;;
             --run) action=$2; shift 2 ;;
+            --max-chars) cap=$2; shift 2 ;;
+            --marquee) marquee=1; shift ;;
             *) echo "barlib: popup_row: unknown flag '$1' — dropped" >&2; shift ;;
         esac
     done
@@ -626,19 +784,21 @@ popup_row() {
         # mechanism — but it is a shape worth knowing is available.
         _barlib_unpad "$value"
         _barlib_name_pad "$label" "$((_blib_cols - _BARLIB_LEAD))" "${FS_SMALL:-12}"
-        _barlib_pop_add "$_BARLIB_H_ROW" "${BAR_FONT:-}:Bold:${FS_SMALL:-}" "$action" \
+        _barlib_pop_add row "$_BARLIB_H_ROW" "${BAR_FONT:-}:Bold:${FS_SMALL:-}" "$action" \
             icon="$_blib_name" icon.color="$(tone dim)" \
             icon.font="${BAR_FONT:-}:Regular:${FS_SMALL:-}" \
             icon.padding_left="$_BARLIB_ROW_INDENT" \
             icon.padding_right="$_BARLIB_PAD" \
             label="$_BARLIB_UNPADDED" label.color="$(tone "$icon_tone")"
+        _barlib_pop_cap "$cap" "$marquee"
         return 0
     fi
     local lcolor="${SUBTEXT0:-}"
     if [ "$icon_tone" = mute ]; then lcolor="${OVERLAY0:-}"; fi
-    _barlib_pop_add "$_BARLIB_H_ROW" "${BAR_FONT:-}:Regular:${FS_SMALL:-}" "$action" \
+    _barlib_pop_add row "$_BARLIB_H_ROW" "${BAR_FONT:-}:Regular:${FS_SMALL:-}" "$action" \
         icon="$icon" icon.color="$(tone "$icon_tone")" \
         label="$label" label.color="$lcolor"
+    _barlib_pop_cap "$cap" "$marquee"
 }
 
 # popup_action --label <text> [--icon <glyph>] [--tone <tone>]
@@ -666,9 +826,156 @@ popup_action() {
             *) echo "barlib: popup_action: unknown flag '$1' — dropped" >&2; shift ;;
         esac
     done
-    _barlib_pop_add "$_BARLIB_H_ROW" "${BAR_FONT:-}:Bold:${FS_SMALL:-}" "$action" \
+    _barlib_pop_add action "$_BARLIB_H_ROW" "${BAR_FONT:-}:Bold:${FS_SMALL:-}" "$action" \
         icon="$icon" icon.color="$(tone "$icon_tone")" \
         label="$label" label.color="${SUBTEXT0:-}"
+}
+
+# ---- the scrubber -----------------------------------------------------------
+# popup_slider --percentage <0-100> [--width <points>] [--icon <text>]
+#              [--label <text>] [--tone <tone>] [--mark <mark>] [--run <cmd>]
+#
+# The fifth row kind, and the only CONTROL among them: a track you aim at
+# rather than a thing you press. Everything above is a menu item — you read it,
+# you click it, the dropdown gets out of the way. A scrubber is the opposite
+# gesture, which is why it is a kind rather than a `popup_row` with a bar drawn
+# in it, and why `_barlib_pop_add` gives it the one click_script in this file
+# with no close appended. Read the ⚠️ there; it is the whole design.
+#
+# --icon and --label are the two CAPTIONS, left and right of the track — the
+# elapsed time and the total, in the shipped consumer. They are plain text in
+# the note's tiny face rather than glyphs, because a scrubber's flanks are
+# where a duration goes and nothing else has asked to be there.
+#
+# The tone/mark pair paints the FILLED half and the knob together, and defaults
+# to `action`: a slider nobody has coloured is still a thing you reach for. The
+# unfilled track is `surface1` and is the runtime's, the way the row fonts are
+# — it is the groove, not a value. Media names a mark instead, because its
+# scrubber is the same hue as the glyph on the pill and the title above it: one
+# subject, three places, one colour.
+#
+# ⚠️ THE PERCENTAGE IS NOT A FRACTION. `graph` clamps to 0…1 because sketchybar
+# scales a pushed point against the item's height; `slider.percentage` is a
+# whole 0…100 and a 0.42 there is a bar that never leaves its left edge. Same
+# clamp, different scale, and they are two lines apart in a widget that draws
+# both — so this one takes what it is named for and says so.
+#
+# The click hands the position back as $PERCENTAGE, to a FRESH process (a
+# click_script is a spawn, not a call). What that process can do about it is
+# `popup_set "$POPUP_CLICKED" slider.percentage=…` — see popup_set for why the
+# knob is the widget's to move.
+_BARLIB_SLIDER_W=150
+# The knob is a runtime constant rather than a flag: it is typography, the same
+# as the row fonts, and a second consumer wanting a different one is a flag to
+# add then rather than a decision to hand out now.
+_BARLIB_SLIDER_KNOB='󰝥'
+popup_slider() {
+    local pct=0 width="$_BARLIB_SLIDER_W" icon='' label=''
+    local tone_name=action mark_name='' action=''
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --percentage) pct=$2; shift 2 ;;
+            --width) width=$2; shift 2 ;;
+            --icon) icon=$2; shift 2 ;;
+            --label) label=$2; shift 2 ;;
+            --tone) tone_name=$2; mark_name=''; shift 2 ;;
+            --mark) mark_name=$2; shift 2 ;;
+            --run) action=$2; shift 2 ;;
+            *) echo "barlib: popup_slider: unknown flag '$1' — dropped" >&2; shift ;;
+        esac
+    done
+    case "$pct" in '' | *[!0-9]*) pct=0 ;; esac
+    if [ "$pct" -gt 100 ]; then pct=100; fi
+    local fill
+    if [ -n "$mark_name" ]; then
+        fill=$(mark "$mark_name")
+    else
+        fill=$(tone "$tone_name")
+    fi
+    _barlib_pop_add "slider:$width" "$_BARLIB_H_ROW" \
+        "${BAR_FONT:-}:Regular:${FS_TINY:-}" "$action" \
+        icon="$icon" icon.color="${SUBTEXT0:-}" \
+        icon.font="${BAR_FONT:-}:Regular:${FS_TINY:-}" \
+        icon.padding_left=10 icon.padding_right=8 \
+        label="$label" label.color="${SUBTEXT0:-}" \
+        label.padding_left=8 label.padding_right=12 \
+        slider.percentage="$pct" \
+        slider.background.height=4 \
+        slider.background.corner_radius=2 \
+        slider.background.color="${SURFACE1:-}" \
+        slider.highlight_color="$fill" \
+        slider.knob="$_BARLIB_SLIDER_KNOB" slider.knob.color="$fill"
+}
+
+# ---- a picture --------------------------------------------------------------
+# popup_image --source <path|app.Name> --box <points> [--scale <n>]
+#             [--corner <n>] [--pad-left <px>] [--run <command>]
+#
+# The sixth kind: a row that is entirely an IMAGE — no icon, no label, no
+# padding of its own. Two shapes, both in the shipped consumer, which is what
+# earned it a kind rather than a pile of sb_sets:
+#
+#   * a WELL — `--box <n>` alone. The item is a fixed n-point square and the
+#     image is drawn in it. Media's cover art.
+#   * a CORNER MARK — `--box <n> --pad-left <px>`. No fixed width; the padding
+#     both offsets the image rightwards AND grows the item to fit, so an item
+#     whose only content is the image draws it hard against the right edge of a
+#     row exactly as wide as the popup already was. That is the only right-align
+#     sketchybar has: a popup is a stack of LEFT-aligned items, every item's
+#     background is as wide as its own content, and there is no alignment
+#     property. Media's app-icon badge.
+#
+# The <px> is a MEASUREMENT of the drawn popup, so it cannot come from here —
+# a row cannot know how wide the rows below it will be, and nothing has any
+# width at all until the popup has been on screen once. The widget takes it,
+# because the widget knows which of its own rows can be the widest; $POPUP_ID
+# and `popup_set` are how it puts the answer back.
+#
+# `--source` is a file path or SketchyBar's own `app.<Name>` form, which
+# resolves against the RUNNING application — so a widget drawing one has to
+# have checked that the app is running, or it draws nothing and says nothing.
+popup_image() {
+    local source='' box=0 scale=1 corner=6 pad='' action=''
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --source) source=$2; shift 2 ;;
+            --box) box=$2; shift 2 ;;
+            --scale) scale=$2; shift 2 ;;
+            --corner) corner=$2; shift 2 ;;
+            --pad-left) pad=$2; shift 2 ;;
+            --run) action=$2; shift 2 ;;
+            *) echo "barlib: popup_image: unknown flag '$1' — dropped" >&2; shift ;;
+        esac
+    done
+    if [ -z "$source" ]; then
+        echo "barlib: popup_image: no --source — nothing to draw" >&2
+        return 0
+    fi
+    # A box is the row's HEIGHT as well as its width, so a missing one is not a
+    # small picture — it is a zero-height row that is added, laid out and
+    # invisible, which reads as "the cover didn't load" rather than as a bug.
+    case "$box" in
+        '' | 0 | *[!0-9]*)
+            echo "barlib: popup_image: --box <points> is required — nothing to draw" >&2
+            return 0
+            ;;
+    esac
+    _barlib_pop_add image "$box" "${BAR_FONT:-}:Regular:${FS_SMALL:-}" "$action" \
+        icon.drawing=off icon.padding_left=0 icon.padding_right=0 \
+        label.drawing=off label.padding_left=0 label.padding_right=0 \
+        background.drawing=on background.color=0x00000000 \
+        background.image="$source" \
+        background.image.scale="$scale" \
+        background.image.corner_radius="$corner" \
+        background.image.drawing=on
+    # A well is SIZED; a corner mark is OFFSET. Setting both would pin the item
+    # to the box and then push the image out of it.
+    if [ -n "$pad" ]; then
+        _BARLIB_ARGS+=(--set "$POPUP_ID" background.image.padding_left="$pad")
+    else
+        _BARLIB_ARGS+=(--set "$POPUP_ID" width="$box")
+    fi
+    return 0
 }
 
 # popup_note --label <text> — the aside. No icon, no click of its own.
@@ -680,7 +987,7 @@ popup_note() {
             *) echo "barlib: popup_note: unknown flag '$1' — dropped" >&2; shift ;;
         esac
     done
-    _barlib_pop_add "$_BARLIB_H_NOTE" "${BAR_FONT:-}:Italic:${FS_TINY:-}" '' \
+    _barlib_pop_add note "$_BARLIB_H_NOTE" "${BAR_FONT:-}:Italic:${FS_TINY:-}" '' \
         icon="" label="$label" label.color="${OVERLAY0:-}"
 }
 
@@ -711,7 +1018,7 @@ popup_open() {
     _BARLIB_POP_I=0
     if declare -F popup_rows >/dev/null 2>&1; then popup_rows; fi
     sb_set popup.drawing=on
-    _barlib_flush
+    barlib_flush
     SKETCHYBAR_BIN="$SB" /run/current-system/sw/bin/barpop arm "$NAME" 2>/dev/null &
     return 0
 }
@@ -827,7 +1134,7 @@ barlib_tick() {
     # then exits without reaching barlib_main, and a batch nobody sends is a
     # pill that silently did not repaint. Calling it inside a handler is still
     # fine — barlib_main's own flush then finds nothing left to send.
-    _barlib_flush
+    barlib_flush
     return 0
 }
 
@@ -839,9 +1146,17 @@ barlib_main() {
         mouse.clicked) _barlib_click ;;
         mouse.scrolled) if declare -F on_scroll >/dev/null 2>&1; then on_scroll; fi ;;
         mouse.entered) if declare -F on_hover >/dev/null 2>&1; then on_hover; fi ;;
-        mouse.exited) if declare -F on_unhover >/dev/null 2>&1; then on_unhover; fi ;;
+        # .global is the same event with belt and braces on: the per-item
+        # mouse.exited can be MISSED when the pointer is flicked straight off
+        # the bar, and a widget whose hover state is a latch (media's pill
+        # un-collapses on hover) is then stuck in it until the next one. Both
+        # land on the same handler, so on_unhover has to be idempotent — which
+        # "the pointer is not here" already is.
+        mouse.exited | mouse.exited.global)
+            if declare -F on_unhover >/dev/null 2>&1; then on_unhover; fi
+            ;;
         *) _barlib_tick ;;
     esac
-    _barlib_flush
+    barlib_flush
     return 0
 }

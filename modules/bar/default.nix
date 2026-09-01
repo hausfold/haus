@@ -621,44 +621,40 @@ let
       done
     '';
     # SketchyBar's media_change event is dead on macOS 15.4+, so a detached
-    # media-control stream owns repainting. updates=on lets a hidden media pill
-    # keep running its watchdog tick and recover a dead stream — and the tick is
-    # also what advances a long-form countdown, which no payload announces (see
-    # plugins/media.sh), hence 30s rather than the old 60.
+    # media-control stream owns repainting. The header in media.sh carries the
+    # interval and the four mouse events; what is left here is the pill's
+    # IDENTITY and the two properties the framework has no opinion about.
+    #
+    # updates=on lets a hidden media pill keep running its watchdog tick and
+    # recover a dead stream — and that tick is also what advances a long-form
+    # countdown, which no payload announces. It is spelled here rather than
+    # left to `pill --hide`'s pairing because the pill ships `drawing=off`: it
+    # has to be able to hear a tick before it has ever drawn anything.
     #
     # scroll_texts is deliberately NOT set on here: a long title never scrolls
     # on its own, not even right after a track changes. Hover is the only thing
     # that starts a sweep, and once started it's a one-shot that runs to
     # completion regardless of hover — see media.sh's start_marquee.
-    media = ''
-      ${sb} --add item media ${side} \
-          --set media \
-              icon= \
-              icon.color=$PINK \
-              updates=on \
-              update_freq=30 \
-              background.color=$SURFACE0 \
-              background.padding_left=8 \
-              background.padding_right=8 \
-              label.max_chars=${toString cfg.media.width} \
-              drawing=off \
-              popup.background.border_width=2 \
-              popup.background.corner_radius=10 \
-              popup.background.border_color=$SURFACE0 \
-              popup.background.color=$MANTLE \
-              ${popupAlign side} \
-              popup.horizontal=off \
-              script="$HOME/.config/sketchybar/plugins/media.sh" \
-              click_script="$HOME/.config/sketchybar/plugins/media.sh click" \
-          --subscribe media mouse.clicked mouse.entered mouse.exited mouse.exited.global mouse.scrolled system_woke
-      # Exec'd rather than sourced, with its output on /dev/null — so
-      # media_stream.sh has to carry the +x bit in git (home.file copies the
-      # source mode verbatim). Without it both this launch and media.sh's
-      # watchdog restart fail silently and the pill simply never lights up.
-      # media_art.sh is launched the same way, from the streamer, and needs it
-      # for the same reason; media_lib.sh is sourced, so it stays 644.
-      ("$HOME/.config/sketchybar/plugins/media_stream.sh" >/dev/null 2>&1 &)
-    '';
+    media =
+      frameworkBlock sb side "media" {
+        "icon" = "";
+        "icon.color" = "$PINK";
+        "updates" = "on";
+        "drawing" = "off";
+        "background.padding_left" = "8";
+        "background.padding_right" = "8";
+        "label.max_chars" = toString cfg.media.width;
+        "popup.horizontal" = "off";
+      }
+      + ''
+        # Exec'd rather than sourced, with its output on /dev/null — so
+        # media_stream.sh has to carry the +x bit in git (home.file copies the
+        # source mode verbatim). Without it both this launch and media.sh's
+        # watchdog restart fail silently and the pill simply never lights up.
+        # media_art.sh is launched the same way, from the streamer, and needs it
+        # for the same reason; media_lib.sh is sourced, so it stays 644.
+        ("$HOME/.config/sketchybar/plugins/media_stream.sh" >/dev/null 2>&1 &)
+      '';
     # updates=on is load-bearing: battery.sh hides the pill over the configured
     # threshold, and a when_shown item could never notice charge later dropped.
     battery = ''
