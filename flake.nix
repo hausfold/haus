@@ -101,6 +101,23 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # The unattended merge tool — `factory shift` merges the pull requests a
+    # filter you reviewed can vouch for, while nobody is watching. The AI room
+    # ships it on PATH beside `scruff`, because it is the same capability seen
+    # from the other end: scruff opens the lanes, factory closes the ones nobody
+    # needed to read. Its authority lives entirely OUTSIDE this layer — a
+    # machine-local `~/.config/factory/config.json` and a lease file — so
+    # nothing here decides what may merge, and no `haus.*` option gates it.
+    #
+    # ⚠️ Third repo on trill's and snug's footing: a flake input and a lock
+    # source WITHOUT being one of the workshop `bench`'s `FAMILY` repos. Adding
+    # an input is not the same act as putting a repo on the ship chain — the 🚨
+    # by that array is the argument.
+    factory = {
+      url = "github:hausfold/factory";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     nix-index-database = {
       url = "github:nix-community/nix-index-database";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -120,6 +137,7 @@
       trill,
       scruff,
       snug,
+      factory,
       nix-index-database,
     }:
     let
@@ -180,6 +198,7 @@
                 trill.overlays.default
                 scruff.overlays.default
                 snug.overlays.default
+                factory.overlays.default
               ];
             }
             home-manager.darwinModules.home-manager
@@ -2481,6 +2500,7 @@
                     trill.overlays.default
                     scruff.overlays.default
                     snug.overlays.default
+                    factory.overlays.default
                   ];
                 }
                 home-manager.darwinModules.home-manager
@@ -2559,6 +2579,7 @@
                         trill.overlays.default
                         scruff.overlays.default
                         snug.overlays.default
+                        factory.overlays.default
                       ];
                     }
                     home-manager.darwinModules.home-manager
@@ -4273,9 +4294,12 @@
           # every machine's rebuild path and belongs in `checks` for the reason
           # spelled out above `.#agent-skill`.
           #
-          # `scruff-skill` comes off the flake input rather than off `pkgs`: the
-          # `pkgs` here is a bare `legacyPackages` with no overlays applied,
-          # while the room reads the same derivation through scruff's overlay.
+          # `scruff-skill` and `factory-skill` come off the flake inputs rather
+          # than off `pkgs`: the `pkgs` here is a bare `legacyPackages` with no
+          # overlays applied, while the room reads the same derivations through
+          # those tools' own overlays. factory outputs Linux too, so unlike
+          # trill below it needs no platform gate — its two skill names are
+          # proved on CI's runner like scruff's.
           #
           # trill is DARWIN ONLY — its flake outputs no Linux systems, while
           # this set spans allSystems — so Linux gets `null` and the entry drops
@@ -4295,6 +4319,7 @@
               inherit pkgs;
               inherit (nixpkgs) lib;
               scruff-skill = scruff.packages.${system}.scruff-skill;
+              factory-skill = factory.packages.${system}.factory-skill;
               trill-skill = if isDarwin then trill.packages.${system}.trill-skill else null;
             }).checked;
 

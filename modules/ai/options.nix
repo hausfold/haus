@@ -30,6 +30,9 @@ in
       defaultText = lib.literalExpression "false";
       description = ''
         The AI room: coding-agent *tooling*. `scruff` (agent worktrees),
+        `factory` (merge the pull requests a filter you typed can vouch for,
+        while nobody is watching — its policy and its merge lease are
+        machine-local files, never options here),
         `agent-state` (the status writer behind the `agents` bar pill),
         the agent-worktree statusline, `tart` and the adapter that drives it
         (SPEC.md §5.5 — `scruff runtime up|enter|down --backend tart` stands a
@@ -474,11 +477,12 @@ in
         have open?" or "hand this off to a fresh session" reaches for `scruff`
         rather than `git worktree`.
 
-        Three skills on any machine: `haus` (this machine's setup), and scruff's
+        Five skills on any machine: `haus` (this machine's setup), scruff's
         own two — `scruff` (the lane lifecycle) and `handoff` (turning work into a
         brief a cold session can act on, ending on the clipboard or in a new
-        lane). A tool whose room is OPTIONAL adds its own only when that room is
-        on: `trill` (sending a notification) arrives with
+        lane) — and factory's two: `factory` (the merge verbs) and `nightshift`
+        (the loop that drives them while nobody is watching). A tool whose room
+        is OPTIONAL adds its own only when that room is on: `trill` (sending a notification) arrives with
         `haus.notifications.compositor`,
         because a skill for an app this Mac doesn't have is worse than none.
         That switch is about the ROOM, not about the app: `haus-notify` and the

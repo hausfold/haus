@@ -252,7 +252,8 @@ let
     `~/${agentHomes.${client}.skills}/haus/` is generated too, from the haus
     revision this machine pins (`haus update` regenerates it), as is every other
     skill haus installed. `scruff/` and `handoff/` are scruff's, edited in
-    hausfold/scruff;${lib.optionalString config.haus.notifications.compositor " `trill/` is trill's, here because `haus.notifications.compositor` is on;"} they arrive on a lock bump. Not everything beside them
+    hausfold/scruff; `factory/` and `nightshift/` are factory's, edited in
+    hausfold/factory;${lib.optionalString config.haus.notifications.compositor " `trill/` is trill's, here because `haus.notifications.compositor` is on;"} they arrive on a lock bump. Not everything beside them
     is generated: ${clientScopeNote.${client}} that you can edit live with no
     rebuild. `ls -l` the path before assuming which kind it is.
 
@@ -442,7 +443,7 @@ let
   # proves trill's skill name whatever any one machine turns on.
   toolSkills = import ./tool-skills.nix {
     inherit pkgs lib;
-    inherit (pkgs) scruff-skill trill-skill;
+    inherit (pkgs) scruff-skill factory-skill trill-skill;
     trillEnabled = config.haus.notifications.compositor;
   };
   inherit (toolSkills) toolSkillList;
@@ -980,6 +981,24 @@ in
       # `scruff hook create` / `scruff hook remove`. Its bash predecessor `wt.sh`
       # has been retired entirely; there is no fallback to roll back to.
       scruff
+
+      # `factory` — the same capability from the other end. scruff opens the
+      # lanes; factory closes the pull requests nobody needed to read, merging
+      # only what a filter the user typed can vouch for and leaving everything
+      # with taste in it for the morning. On PATH beside `scruff` because the
+      # two agent skills this room installs (`factory`, `nightshift`) are
+      # instructions for driving it, and an instruction whose binary is not
+      # there is worse than no instruction — the same argument `tart` above
+      # rides on.
+      #
+      # Nothing here configures it, and that is deliberate rather than an
+      # omission: what may merge is AUTHORITY, so it lives in a machine-local
+      # `~/.config/factory/config.json` and a lease file that no pull request
+      # can edit. A repo-shaped `haus.*` option would be the wrong shape even
+      # if it were safe — the policy describes a fleet, not a machine's
+      # desktop. `factory doctor` is what tells a machine whether it can run a
+      # shift; this room only guarantees the verb exists.
+      factory
 
       # `tart` — the VM half of the same tool. A lane that needs to SEE a
       # change work (the palette, the bar, a keybind, an installer run) takes
