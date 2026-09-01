@@ -813,30 +813,19 @@ let
     # meant a feed's poll rate decided which provider the pill showed.
     # update_freq is the while-visible backstop that rolls a window over to 0% at
     # its reset. Starts hidden until the first row lands.
-    aiUsage = ''
-      ${sb} --add item ai_usage ${side} \
-          --set ai_usage \
-              update_freq=15 \
-              drawing=off \
-              icon.padding_left=10 \
-              icon.padding_right=4 \
-              label.padding_right=10 \
-              label.font="${barFont}:Bold:${sizes.label}" \
-              popup.background.border_width=2 \
-              popup.background.corner_radius=10 \
-              popup.background.border_color=$SURFACE0 \
-              popup.background.color=$MANTLE \
-              ${popupAlign side} \
-              popup.horizontal=off \
-              script="$HOME/.config/sketchybar/plugins/ai_usage.sh" \
-              click_script="$HOME/.config/sketchybar/plugins/ai_usage.sh" \
-          --subscribe ai_usage mouse.clicked system_woke
-      # One kick at bar start, backgrounded. The item is drawing=off until a first
-      # row exists and a hidden item's update_freq never ticks — so on a machine
-      # driving Codex or Opencode this is what pulls the first row and reveals the
-      # pill at all. After that the plugin's own TTL keeps the feeds warm.
-      ("$HOME/.config/sketchybar/plugins/ai_usage.sh" >/dev/null 2>&1 &)
-    '';
+    # What is left here is IDENTITY and the one thing a widget cannot say about
+    # itself: it starts HIDDEN. `updates=on` is the other half of that pair and
+    # is load-bearing — both bars default to `updates=when_shown`, under which a
+    # hidden item is not dispatched to at all, so its own update_freq would
+    # never tick and nothing would ever reveal it. With the pairing, the pill
+    # ticks while invisible and shows itself the moment a feed lands; that is
+    # what retired the one-shot kick this block used to carry, and it is the
+    # same door `pill --hide` closes from the script side.
+    aiUsage = frameworkBlock sb side "ai_usage" {
+      "drawing" = "off";
+      "updates" = "on";
+      "label.padding_right" = "10";
+    };
     # System readouts. A hand-written pill's colour comes from the --set here
     # (the palette vars are live via colors.sh, sourced by sketchybarrc before
     # this file) and its script only refreshes icon+label on its update_freq
@@ -1376,6 +1365,15 @@ let
     + "$"
     + lib.toUpper (if t.key == null then config.haus.theme.accent else t.key)
   ) barTones;
+
+  # The IDENTITY axis beside the ladder — modules/bar/marks.nix, and the same
+  # generation for the same reason. Every mark has a fixed palette key (unlike
+  # `accent`, which is the ladder's one runtime-resolved rung), so this needs
+  # no config read at all.
+  barMarks = import ./marks.nix;
+  markExports = lib.concatMapStringsSep "\n" (
+    m: "# ${m.meaning}\n" + "export MARK_${lib.toUpper m.name}=" + "$" + lib.toUpper m.key
+  ) barMarks;
 
   # The order pills are emitted in: the bundled ones in the fixed left-to-right
   # order above, then whatever a rice declared, alphabetically. A stranger's
@@ -2349,6 +2347,12 @@ lib.mkIf config.haus.bar.enable {
         # haus.theme.accent, which is why nothing that carries meaning may
         # name it. tones.nix's last entry has the whole argument.
         ${toneExports}
+        # The mark set (modules/bar/marks.nix): the IDENTITY axis, for a
+        # subject the bar cannot know until it runs — which AI client wrote
+        # this row, which app is playing. Generated the same way, and pinned
+        # by `bar-marks`, which also refuses a mark whose palette key is
+        # already a tone's: identity and status never share a hue.
+        ${markExports}
       '';
       # The far-left logo pill. BAR_LOGO_COLOR is resolved to a colors.sh
       # VARIABLE REFERENCE rather than a hex: the accent name is a palette key,
@@ -2516,8 +2520,8 @@ lib.mkIf config.haus.bar.enable {
       # The plugins directory is deliberately in the hash. Most plugins are
       # re-exec'd per tick and would take a change without any reload, so
       # including them costs a bar flash on rebuilds that didn't strictly need
-      # one — but several (tour.sh init, media_stream.sh, ai_usage.sh) only ever
-      # run from the rc at init, and a bar silently stale after a plugin edit is
+      # one — but a couple (tour.sh init, media_stream.sh) only ever run from
+      # the rc at init, and a bar silently stale after a plugin edit is
       # the exact failure this exists to end. A visible flash beats invisible
       # staleness.
       #

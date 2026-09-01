@@ -60,13 +60,14 @@
     meaning = "present but subordinate — a heading, a row's name, a descriptor";
     # The second dim step, and the bar has had it all along: agents paints a
     # popup SECTION icon overlay1 and its META row overlay0, as vitals_lib
-    # did before the runtime took its rows; ai_usage.sh writes that same
-    # two-tier rule down as
-    # `descr` vs `meta`; memory/cpu's "everything else", calendar's meta
-    # glyph and empty-state label, page's counter and media_lib's inactive
-    # source are all the brighter one. `mute` cannot do this job — it is the
-    # OFF step, so a heading painted with it reads as absent rather than
-    # quiet, and a widget with only one dim rung can only ever get greyer.
+    # and ai_usage did before the runtime took their rows — ai_usage wrote
+    # the same two-tier rule down as `descr` vs `meta`, and both halves are
+    # `popup_row` and `popup_note` now; memory/cpu's "everything else",
+    # calendar's meta glyph and empty-state label, page's counter and
+    # media_lib's inactive source are all the brighter one. `mute` cannot do
+    # this job — it is the OFF step, so a heading painted with it reads as
+    # absent rather than quiet, and a widget with only one dim rung can only
+    # ever get greyer.
   }
   {
     name = "text";
@@ -96,12 +97,14 @@
     # The missing MIDDLE of the severity ladder. Two pills wrote the four
     # steps out in a comment and then in code — `GREEN → YELLOW → PEACH →
     # RED`, on identical thresholds, in vitals_lib.sh's `vitals_color` and
-    # ai_usage.sh's `pct_color` (the first of those is gone now: both vitals
-    # pills are converted, and `vitals_tone` says the same ladder in tones) —
-    # and battery.sh spends yellow across its whole 20-80% band. The tone
-    # ladder had three severity rungs against their four, so `pct_color`
-    # could not be written in tones at all: the first pill to convert would
-    # have had to keep a hardcoded hex, which is the exact thing the
+    # ai_usage.sh's `pct_color`. Both are gone now: all three pills are
+    # converted, and `vitals_tone` and `pct_tone` say the same ladder in
+    # tone names. battery.sh is the one left, spending yellow across its
+    # whole 20-80% band.
+    #
+    # The ladder had three severity rungs against their four, so neither
+    # function could be written in tones at all: the first pill to convert
+    # would have had to keep a hardcoded hex, which is the exact thing the
     # framework exists to delete. 50% CPU is not "wants a human here".
     #
     # It is NOT github's `auth` — see the `auth` case in github.sh's
@@ -132,10 +135,15 @@
     # `accent` row directly below, which is what an affordance falls back to
     # without it.
     #
-    # ai_usage also spends sapphire, on MONEY (a figure that must not be
-    # green-as-in-safe). That is a different job, and this rung does not
-    # claim it; when ai_usage converts, the question is whether a spend is
-    # its own rung, not whether it is an affordance.
+    # ai_usage spent sapphire on MONEY too (a figure that must not be
+    # green-as-in-safe), and that was a different job this rung never
+    # claimed. ai_usage has converted, and the answer was NO: a spend is
+    # `text`. It failed the bar at the top of this file — one pill, one
+    # place — and the two things its own comment asked sapphire for ("a
+    # quantity, no verdict" and "not mistakable for a client's brand hue")
+    # are both true of `text`, which is the rung that already means a live
+    # readout carrying no alarm. The colour lost is real; the rung it would
+    # have cost was that pill's hex laundered through the framework.
   }
   {
     name = "accent";

@@ -126,6 +126,36 @@ tone() {
     esac
 }
 
+# ---- marks ------------------------------------------------------------------
+# The IDENTITY axis, beside the ladder: which subject is this, for one the bar
+# cannot know until it runs. `modules/bar/marks.nix` is the set and the whole
+# argument; `bar-marks` in flake.nix diffs this case statement against it and
+# refuses a mark whose palette key is also a tone's, which is the invariant —
+# identity and status never share a hue.
+#
+# A widget names a mark exactly where it would otherwise have to spell a hex:
+# a popup heading whose subject is chosen at runtime. `--tone` is still the
+# only thing that may carry a VERDICT, and the two flags are last-wins on
+# purpose — `--mark warm --tone mute` is how a widget greys out a block whose
+# feed died without losing the mark it would draw when the feed comes back.
+#
+# The fallback is `plum`, the catch-all mark, and NOT grey: grey is what a
+# dead feed is painted, so an unrecognised subject drawn in it would read as
+# stale rather than as unfamiliar. Same leniency as tone() and for the same
+# reason — a typo costs the wrong hue, never a pill that stops painting.
+mark() {
+    case "$1" in
+        warm)   printf '%s' "${MARK_WARM:-$TONE_MUTE}" ;;
+        teal)   printf '%s' "${MARK_TEAL:-$TONE_MUTE}" ;;
+        violet) printf '%s' "${MARK_VIOLET:-$TONE_MUTE}" ;;
+        plum)   printf '%s' "${MARK_PLUM:-$TONE_MUTE}" ;;
+        *)
+            echo "barlib: unknown mark '$1' (warm|teal|violet|plum) — using plum" >&2
+            printf '%s' "${MARK_PLUM:-$TONE_MUTE}"
+            ;;
+    esac
+}
+
 # ---- state ------------------------------------------------------------------
 # Emitted keys become shell VARIABLES in render's scope, so a key that names
 # something the runtime itself lives on would clobber it — `emit state=busy`
@@ -362,14 +392,29 @@ _BARLIB_ADV=602       # mono advance per point, ×1000
 # plugin inherits and as one character anywhere else. Two columns, named by
 # the caller, beats a length that changes with $LANG.
 #
+# It goes NEGATIVE, and that is the other half: a value that right-aligns its
+# own number asks for leading blanks a label may not carry (_barlib_unpad
+# below), and paying for them here is what turns them back into space the row
+# actually gets. So the argument is "columns the name owes the gutter",
+# whichever side of zero that lands on.
+#
 # The advance is measured with awk, not bash arithmetic, because a font size
 # out of the generated sizes.sh is a DECIMAL ("14.0") and $(( )) errors on
 # one. It is cached against the size it was measured at, so a dropdown of a
 # heading plus twelve rows forks awk twice rather than thirteen times — a
 # popup is built inside a click, where the whole batch is one message and the
 # forks would be the only thing in it that isn't.
+#
+# ⚠️ Which is why this SETS A GLOBAL rather than printing. It printed until
+# ai_usage converted, and every call site was `$(_barlib_name_pad …)` — a
+# SUBSHELL, so the cache above was written in a process that exited one line
+# later and the next row measured the advance again. The comment was simply
+# false: a 17-row dropdown forked awk 15 times, on the click path, for one
+# number that never changes within a popup. `_barlib_unpad` below states the
+# same rule from the other end. Read the answer out of $_BARLIB_PAD.
 _BARLIB_ADV_FOR=''
 _BARLIB_ADV_PX=''
+_BARLIB_PAD=0
 _barlib_name_pad() {
     local cols
     cols=$((_BARLIB_COL_NAME - ${#1} - ${2:-0}))
@@ -378,7 +423,26 @@ _barlib_name_pad() {
         _BARLIB_ADV_PX=$(awk -v s="${3:-13}" -v a="$_BARLIB_ADV" 'BEGIN { printf "%.0f", s * a }')
         _BARLIB_ADV_FOR="${3:-13}"
     fi
-    printf '%s' $(((cols * _BARLIB_ADV_PX + _BARLIB_COL_GAP * 1000 + 500) / 1000))
+    _BARLIB_PAD=$(((cols * _BARLIB_ADV_PX + _BARLIB_COL_GAP * 1000 + 500) / 1000))
+}
+
+# A value that RIGHT-aligns its number — ` 7%` under `46%`, ` 733M` under
+# `6.14B` — asks for leading blanks, and a label is the one place they cannot
+# go: sketchybar sizes an item from the TRIMMED string and then draws the
+# untrimmed one, so the row loses exactly its own indent off the right edge.
+# (A no-break space is trimmed just the same. That is the obvious fix and it
+# does not work.) It is the same trap as padding with trailing spaces, which
+# the value column already exists to avoid — so the runtime honours leading
+# blanks the only way that works, by turning them back into the column count
+# the caller is already paying for in padding.
+#
+# Sets two globals rather than printing: `$(_barlib_unpad …)` is a subshell
+# and the count would never come back out of one.
+_BARLIB_UNPADDED=''
+_BARLIB_LEAD=0
+_barlib_unpad() { # _barlib_unpad <value> → _BARLIB_UNPADDED, _BARLIB_LEAD
+    _BARLIB_UNPADDED="${1#"${1%%[! ]*}"}"
+    _BARLIB_LEAD=$(( ${#1} - ${#_BARLIB_UNPADDED} ))
 }
 
 # popup_quote <value> — single-quote a value for embedding in a click_script.
@@ -417,27 +481,63 @@ _barlib_pop_add() { # _barlib_pop_add <height> <font> <action> <set-args…>
     _BARLIB_POP_I=$((_BARLIB_POP_I + 1))
 }
 
-# popup_heading --label <text> [--icon <glyph>] [--tone <tone>] [--count <n>]
+# popup_heading --label <text> [--icon <glyph>] [--icon-font <font>]
+#               [--tone <tone>] [--mark <mark>] [--count <n>] [--value <text>]
 # --count appends " · n" when n is above zero: a section that says "open PRs"
 # over eight rows leaves you counting them to find out whether eight is all of
 # them, and the rows below may be a truncation.
 # The default is `dim`, not `mute`: a section title with no verdict of its own
-# is still a title. Every hand-written popup in this bar already draws one that
-# way — vitals_lib, agents, calendar and ai_usage all paint the section glyph
-# overlay1 and reserve overlay0 for the meta row under it — and `mute` here
-# made the heading read as absent rather than quiet.
+# is still a title. Every popup in this bar already drew one that way — agents
+# and calendar still paint the section glyph overlay1 and reserve overlay0 for
+# the meta row under it, as vitals_lib and ai_usage did before they converted —
+# and `mute` here made the heading read as absent rather than quiet.
+#
+# --mark is the IDENTITY half (see mark() above), for a heading whose subject
+# the bar cannot know until it runs. --tone and --mark are LAST-WINS rather
+# than an error together: `--mark warm --tone mute` is a widget saying "this
+# is Claude, and its feed is dead", which is one heading with two things to
+# say and a legitimate order to say them in.
+#
+# --label-tone paints the LABEL half, and defaults to the ordinary foreground
+# — which is what every heading drew before the flag existed, so nothing moves
+# unless a widget asks. It is the same two-tone shape `pill` has and exists for
+# the same job one layer down: a section whose subject has gone quiet greys as
+# a BLOCK, mark and title together. A dim mark under a full-brightness name
+# reads as a rendering bug rather than as a feed that stopped reporting, and
+# `--tone dim` alone could only ever reach the mark. In the two-column form the
+# label half is the VALUE, and the flag colours that — it is "the label's
+# tone" either way.
+#
+# --icon-font is for a glyph that does not exist in the bar's own face —
+# sketchybar-app-font's `:claude:` and `:openai:` are the shipped case. It is
+# NOT a typography flag: the runtime still owns the weight and the size of
+# everything a heading draws, and the fifth row KIND someone needs is still a
+# kind to add rather than a --font to add here. This is which font the GLYPH
+# lives in, which is a fact about the glyph and not a choice about the row.
 popup_heading() {
-    local label='' icon='' icon_tone=dim count=0 value='' have_value=0
+    local label='' icon='' icon_font='' tone_name=dim mark_name='' count=0
+    local value='' have_value=0 label_tone=''
     while [ $# -gt 0 ]; do
         case "$1" in
             --label) label=$2; shift 2 ;;
             --icon) icon=$2; shift 2 ;;
-            --tone) icon_tone=$2; shift 2 ;;
+            --icon-font) icon_font=$2; shift 2 ;;
+            --tone) tone_name=$2; mark_name=''; shift 2 ;;
+            --mark) mark_name=$2; shift 2 ;;
+            --label-tone) label_tone=$2; shift 2 ;;
             --count) count=$2; shift 2 ;;
             --value) value=$2; have_value=1; shift 2 ;;
             *) echo "barlib: popup_heading: unknown flag '$1' — dropped" >&2; shift ;;
         esac
     done
+    local icon_color
+    if [ -n "$mark_name" ]; then
+        icon_color=$(mark "$mark_name")
+    else
+        icon_color=$(tone "$tone_name")
+    fi
+    local label_color="${TEXT:-}"
+    if [ -n "$label_tone" ]; then label_color=$(tone "$label_tone"); fi
     case "$count" in '' | *[!0-9]*) count=0 ;; esac
     if [ "$count" -gt 0 ]; then label="$label · $count"; fi
     if [ "$have_value" = 1 ]; then
@@ -451,22 +551,38 @@ popup_heading() {
         # value then lands on the column every row below it uses, so the
         # heading reads as the total of what follows rather than as a caption
         # sitting above it.
+        #
+        # ⚠️ That merge is also why --icon-font cannot apply here: the glyph and
+        # the title share ONE item, so a glyph-only face would draw the title as
+        # tofu. Warned and ignored rather than silently dropping the glyph — a
+        # mark in the wrong face is a thing someone reports, a mark that is
+        # missing is a thing nobody notices.
+        if [ -n "$icon_font" ]; then
+            echo "barlib: popup_heading: --icon-font is ignored with --value (glyph and title share one item)" >&2
+        fi
         local _blib_name="$label" _blib_cols=0
         if [ -n "$icon" ]; then
             _blib_name="$icon $label"
             _blib_cols=2
         fi
+        _barlib_unpad "$value"
+        _barlib_name_pad "$label" "$((_blib_cols - _BARLIB_LEAD))" "${FS_LABEL:-13}"
         _barlib_pop_add "$_BARLIB_H_HEADING" "${BAR_FONT:-}:Bold:${FS_LABEL:-}" '' \
-            icon="$_blib_name" icon.color="$(tone "$icon_tone")" \
+            icon="$_blib_name" icon.color="$icon_color" \
             icon.font="${BAR_FONT:-}:Bold:${FS_LABEL:-}" \
             icon.padding_left=10 \
-            icon.padding_right="$(_barlib_name_pad "$label" "$_blib_cols" "${FS_LABEL:-13}")" \
-            label="$value" label.color="${TEXT:-}"
+            icon.padding_right="$_BARLIB_PAD" \
+            label="$_BARLIB_UNPADDED" label.color="$label_color"
         return 0
     fi
+    # The default is spelled out rather than left inherited, so there is one
+    # code path instead of two: it is byte-identical to the icon.font every
+    # popup row already gets from sketchybarrc's `--default`, so a heading
+    # that names no font draws exactly as it did before this flag existed.
     _barlib_pop_add "$_BARLIB_H_HEADING" "${BAR_FONT:-}:Bold:${FS_LABEL:-}" '' \
-        icon="$icon" icon.color="$(tone "$icon_tone")" \
-        label="$label" label.color="${TEXT:-}"
+        icon="$icon" icon.color="$icon_color" \
+        icon.font="${icon_font:-${BAR_FONT:-}:Bold:${FS_ICON:-}}" \
+        label="$label" label.color="$label_color"
 }
 
 # popup_row --label <text> [--icon <glyph>] [--tone <tone>]
@@ -503,12 +619,19 @@ popup_row() {
             _blib_name="$icon $label"
             _blib_cols=2
         fi
+        # An EMPTY --label is a continuation row: the name column is left
+        # blank and the value still lands on it, so the second line of a block
+        # sits under the first instead of beside it. It needs no branch of its
+        # own — an empty icon still reserves its padding, which is the whole
+        # mechanism — but it is a shape worth knowing is available.
+        _barlib_unpad "$value"
+        _barlib_name_pad "$label" "$((_blib_cols - _BARLIB_LEAD))" "${FS_SMALL:-12}"
         _barlib_pop_add "$_BARLIB_H_ROW" "${BAR_FONT:-}:Bold:${FS_SMALL:-}" "$action" \
             icon="$_blib_name" icon.color="$(tone dim)" \
             icon.font="${BAR_FONT:-}:Regular:${FS_SMALL:-}" \
             icon.padding_left="$_BARLIB_ROW_INDENT" \
-            icon.padding_right="$(_barlib_name_pad "$label" "$_blib_cols" "${FS_SMALL:-12}")" \
-            label="$value" label.color="$(tone "$icon_tone")"
+            icon.padding_right="$_BARLIB_PAD" \
+            label="$_BARLIB_UNPADDED" label.color="$(tone "$icon_tone")"
         return 0
     fi
     local lcolor="${SUBTEXT0:-}"

@@ -29,7 +29,7 @@ jobs:
       # example left to eval (see flake.nix `allSystems`).
       - run: nix eval .#darwinConfigurations.example.system.drvPath
       # The platform-independent checks are declared for Linux too precisely so
-      # they can run HERE — TWENTY of them, everything in flake.nix's `checks`
+      # they can run HERE — TWENTY-FOUR of them, everything in flake.nix's `checks`
       # before the `optionalAttrs (hasSuffix "-darwin" system)` line, which is
       # the only thing that decides the split and the only place to re-derive
       # this list from:
@@ -61,6 +61,22 @@ jobs:
       #   site-data-current        docs/site-data/ vs the derivation the site reads
       #   bar-rc-executable       the rc files' +x bit
       #   bar-plugins-executable  the plugins' +x bit
+      #   bar-tones                the TONE ladder (modules/bar/tones.nix) vs the
+      #                            three hand-written copies of it — barlib.sh's
+      #                            `tone()`, the doc table, the bats stub. Up here
+      #                            because the drift it catches is invisible on
+      #                            every machine: `tone()` deliberately does not
+      #                            error, so a forgotten rung paints grey and says
+      #                            why only in sketchybar's log
+      #   bar-marks                the same for the IDENTITY axis
+      #                            (modules/bar/marks.nix), plus the one thing that
+      #                            axis has and the ladder does not: a mark may not
+      #                            land on a hue a tone spends on a VERDICT, or a
+      #                            popup heading silently claims a state
+      #   roster-bin-paths         every roster entry's binary is where the roster
+      #                            says it is
+      #   state-files              modules/lib/state-files.nix vs what the rooms
+      #                            actually write under ~/.local/state/haus
       #   wallpaper                the odd one out: it BUILDS the generated
       #                            desktop and asserts its size and colour count,
       #                            the only automated thing that can notice the
@@ -107,6 +123,13 @@ jobs:
       # the checks were running and the census undercounted them. It said
       # fifteen and the eval said nineteen. `tool-skills` was added hours later,
       # in the census's own edit, which is the habit this comment is asking for.
+      #
+      # ⚠️ It rotted the same way again, and was found the same way: the census
+      # said twenty and the eval said twenty-four. `bar-tones`, `roster-bin-paths`
+      # and `state-files` had been running unlisted for weeks; `bar-marks` was
+      # added and listed in the same change, which is the habit working. Re-derive
+      # from the eval, never from this list:
+      #   nix eval --json .#checks.x86_64-linux --apply builtins.attrNames
       #
       # All but the last two mirror a rule that lives in another repo, in a
       # generated dotfile, in a shell script, or in a README — where drift is

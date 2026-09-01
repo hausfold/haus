@@ -1,12 +1,12 @@
 # The bar framework
 
-> Status: **phases 1–4a shipped** — `barlib.sh` (the runtime: dispatch, state
-> diff, `pill`, `graph`, tones, the four popup row kinds and their value
+> Status: **phases 1–4b shipped** — `barlib.sh` (the runtime: dispatch, state
+> diff, `pill`, `graph`, tones, marks, the four popup row kinds and their value
 > column, `bar_emit`), the `# widget:` parser (`modules/bar/manifest.nix`),
 > `frameworkBlock` in `modules/bar/default.nix`, and `clock` + `github` +
-> `cpu` + `memory` converted, pinned by `test/barlib.bats`. Sections below marked
-> **planned** are what is left: the remaining manifest keys, `slider` and
-> `badge`, third-party widgets. The code is normative where the two disagree;
+> `cpu` + `memory` + `ai_usage` converted, pinned by `test/barlib.bats`.
+> Sections below marked **planned** are what is left: `slider` and `badge`, and
+> third-party framework widgets. The code is normative where the two disagree;
 > a planned key is an EVAL ERROR today, not a silent no-op, so nothing here
 > can be half-used by accident.
 
@@ -79,10 +79,18 @@ the single source for wiring — no parallel table edit. Keys:
 | `subscribes` | list | `system_woke` | bar events and haus signals (see Pubsub) |
 | `graph` | points | none | makes the item an `--add graph` of that width, and needs an `interval` (see `graph` under Components) |
 
-Planned keys, landing with the feature that consumes each: `permissions`
-(feeds the deck, replacing the `widgets.nix` column), `movable` (the
-bottom-bar gate). The parser's known-key set is grown only in the same change
-that implements a key, so writing a planned key today is an eval error naming
+There are no planned keys. `permissions` and `movable` were listed here until
+`ai_usage` converted and the list was checked against what had shipped
+underneath it: `haus.bar.widgets.<name>.permissions` and `.placement` are
+already OPTIONS, which is the only place a third party's widget could declare
+either, and for the bundled pills `widgets.nix` has to keep both columns while
+thirty-odd hand-written plugins still feed the permission deck from it. A
+header key would have been a second source for the four converted pills and
+nothing else — and `movable` would have read `= true` in every header ever
+written, since `claudeUsage` (an alias, not a pill) is the sole `false`.
+
+The parser's known-key set is still grown only in the same change that
+implements a key, so writing a key it does not know is an eval error naming
 the file — never a header that parses green and wires nothing.
 
 Unknown keys are an **eval error**, not a silent ignore — the lesson
@@ -211,7 +219,7 @@ running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
 
   | kind | weight/size | height | for |
   |---|---|---|---|
-  | `popup_heading --label [--icon] [--tone] [--count] [--value]` | Bold, label | 32 | a section title; `--count` appends ` · n` when above zero |
+  | `popup_heading --label [--icon] [--icon-font] [--tone] [--mark] [--count] [--value]` | Bold, label | 32 | a section title; `--count` appends ` · n` when above zero |
   | `popup_row --label [--icon] [--tone] [--value] [--open <url>] [--run <cmd>]` | Regular, small | 25 | a thing you can act on; a `mute` tone dims the text too |
   | `popup_action --label [--icon] [--tone] [--run <cmd>] [--copy <text>]` | Bold, small | 25 | a verb — Refresh, a command to copy |
   | `popup_note --label` | Italic, tiny | 20 | an aside — "nothing", "+4 more" |
@@ -220,6 +228,17 @@ running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
   naming `":Bold:${FS_SMALL}"` itself is the hardcoded-hex mistake one layer
   up, so the fifth kind someone needs is a kind to **add**, not a `--font` to
   add to the signature.
+
+  `--icon-font` on a heading is the one exception, and it is a different axis
+  rather than a crack in that rule: it says which font the GLYPH exists in,
+  not how the row is set. `:claude:` and `:openai:` live in
+  sketchybar-app-font and are tofu anywhere else, so a widget drawing an app
+  mark has no way to say what it means without it — while the weight, the
+  size and the height of everything the heading draws stay the runtime's. It
+  is refused with `--value`, because there the glyph and the title share one
+  item and a glyph-only face would draw the title as tofu too; that is a
+  warning on stderr and the glyph kept, since a mark in the wrong face gets
+  reported and a missing one does not.
 
   **`--open` and `--copy` quote their argument; `--run` does not.** A URL or a
   copy string is data and the runtime single-quotes it, so a PR title with an
@@ -240,6 +259,21 @@ running it by hand (`BAR_ITEM=clock ./clock.sh`) is the debugging story.
   padding. A name longer than the column gets the minimum gap and pushes its
   own value right: one ragged row, rather than a dropdown sized for the worst
   name on the machine.
+
+  **Leading blanks in a value are alignment, and survive.** `printf '%3s%%'`
+  is how a widget right-aligns `  7%` under ` 46%` so both `%` land on one x,
+  and a label is the one place those blanks cannot go — trimmed when the item
+  is sized, drawn when it isn't, so the row loses exactly its own indent off
+  the right edge. (A no-break space is trimmed just the same. That is the
+  obvious fix and it does not work.) So the runtime strips them and pays for
+  them in the name's padding instead, which is the same mechanism the column
+  already is. `ai_usage` is where this came from, and it had the arithmetic
+  twice before the runtime took it.
+
+  **An empty `--label` is a continuation row**, whose value lands on the
+  column with no name beside it — the second line of a block that wrapped.
+  It needs no branch of its own, because an empty icon still reserves its
+  padding, but it is a shape to know is there.
 
   ⚠️ **With a `--value` the tone follows the NUMBER, not the glyph** — the
   name is the question (`user`, `load`, `Safari`) and is always dim, the value
@@ -324,20 +358,24 @@ Four of the ten are worth knowing before you pick one:
 
 - **Two dim steps.** `mute` is OFF; `dim` is quiet but present. Six pills
   already use both as a hierarchy — agents paints a popup section glyph
-  `overlay1` and the meta row under it `overlay0` (as vitals_lib did before
-  the runtime took its rows), and `ai_usage.sh` writes that same two-tier rule
-  down as `descr` vs `meta`. One
-  rung cannot say both, and a widget with only `mute` can only ever get
-  greyer.
+  `overlay1` and the meta row under it `overlay0`, as vitals_lib and ai_usage
+  did before the runtime took their rows (ai_usage wrote that same two-tier
+  rule down as `descr` vs `meta`, and both halves are `popup_row` and
+  `popup_note` now). One rung cannot say both, and a widget with only `mute`
+  can only ever get greyer.
 - **`text` is deliberately not a verdict** — the way back to neutral after
   painting peach. github's `info` sources are it: a count that is news
-  without being bad news.
+  without being bad news. So is ai_usage's MONEY, which spent a hand-picked
+  sapphire until it converted: a figure with no ceiling can never be
+  ok-as-in-safe, and a spend did not earn a rung of its own by the bar at the
+  top of this section.
 - **Four severity steps, not three:** ok → `watch` → `warn` → `bad`.
   `vitals_lib.sh` and `ai_usage.sh` each wrote `GREEN → YELLOW → PEACH → RED`
   in a comment and then in code, on identical thresholds, and battery spends
   yellow across its whole 20–80% band. 50% CPU is not "wants a human here",
   and without a name for it the first of those pills to convert would have had
-  to keep a hardcoded hex.
+  to keep a hardcoded hex. Both are gone now — `vitals_tone` and `pct_tone`
+  say the same ladder in tone names — and battery is the one copy left.
 - 🚨 **`action` is a thing you press; `accent` is identity and nothing else.**
   `accent` follows `haus.theme.accent`, an enum of fourteen names that
   contains `red`, `peach`, `yellow`, `green` and `sky` — so on somebody's
@@ -362,6 +400,64 @@ from it, and the `bar-tones` flake check diffs `tone()`'s case arms in
 `test/barlib.bats`'s `setup()` — names *and* order — against the same list.
 Adding a rung means editing `tones.nix` and then the three the check names
 for you.
+
+## Marks, for what a tone cannot say
+
+A tone answers *how is it going*. A **mark** answers *which one is this*, for a
+subject the bar cannot know until it runs — which AI client wrote this usage
+row, which app is playing, which agent owns this pane.
+
+| mark | meaning |
+|---|---|
+| `warm` | Anthropic's clay — Claude, and Claude behind another harness |
+| `teal` | OpenAI's green-teal — Codex, and GPT behind another harness |
+| `violet` | Gemini's blue-violet |
+| `plum` | a subject with no mark of its own — the catch-all |
+
+The set is `modules/bar/marks.nix`, and it exists because the ladder could not
+be made to hold it. Identity has no JOB, which is the whole thing a rung names:
+two providers drawn side by side need to be tellable apart and unmistakable for
+a verdict, and there is nothing left for a name to mean. So the names are hue
+families deliberately — the one place in the bar where naming a colour after
+its colour is right, because a mark carries no claim and that is precisely what
+makes it safe on a mark. (`claude` and `openai` was the other candidate: it
+drags vendor knowledge into the bar's colour vocabulary, and media's app marks
+would follow it with `spotify`, `safari`, `zen`.)
+
+**Identity and status never share a hue**, and that is the invariant the file
+buys. `ai-provider.sh` has said so in prose since it was written — *paint a
+header icon YELLOW and the popup silently starts claiming a provider is at 60%
+of something* — and prose is what it stayed; nothing stopped the next mark from
+landing on `yellow`. `bar-marks` fails on a mark whose palette key is also a
+tone's, so the two vocabularies cannot converge by hand-edit. `accent` is
+excluded from that diff: it has no fixed key, it follows `haus.theme.accent`,
+and that enum contains `mauve`, `flamingo`, `teal` and `lavender` — so on some
+machines the logo and a mark do wear one hue. Two identity colours coinciding
+lies about nothing; the verdicts are what must stay disjoint.
+
+What earns a mark is the ladder's own bar: **a colour the bar already spends,
+in more than one pill, on one job.** All four are `ai-provider.sh`'s, which
+`ai_usage.sh` and `agents.sh` both draw from — a fifth waits for a second
+consumer, exactly as `badge` waits for a first.
+
+⚠️ **`--mark` and `--tone` are last-wins on one heading**, not an error
+together. `--mark warm --tone dim` is a widget saying "this is Claude, and its
+feed is dead", which is one heading with two things to say and a legitimate
+order to say them in. Grey is what a dead feed looks like everywhere in this
+bar, so a heading that kept its brand hue while its numbers greyed would be
+half a block still asserting.
+
+An unknown mark falls back to `plum` rather than to grey — the opposite
+direction from `tone()`, and for a reason the dropdown shows: grey is what a
+dead feed is painted, so an unrecognised subject drawn in it would read as
+stale rather than as unfamiliar. It is still a warning to sketchybar's log and
+never a pill that stops painting.
+
+⚠️ A mark lives in **four files**, the same four a rung does and with the same
+silent failure, so `bar-marks` diffs `mark()`'s case arms in `barlib.sh`, the
+table above and the `colors.sh` stub in `test/barlib.bats` against
+`marks.nix` — names *and* order — while `modules/bar/default.nix` generates
+the `MARK_*` exports from it.
 
 ## Pubsub
 
@@ -447,9 +543,41 @@ Lua (or Go daemon) runtime would consume, so nothing built now is thrown away.
    it is the one vitals pill that never calls `vitals_tone` — it maps its own
    three levels onto `ok`/`warn`/`bad` instead. Naming a TONE is all the
    framework asks; where the tone comes from is the widget's business.
-6. `permissions` / `movable` manifest keys, third-party framework widgets
-   through `haus.bar.widgets`.
-7. Long tail: convert on touch. A converted pill's entry in `mkPluginBlocks`
+6. ✅ **ai_usage** — the first pill whose SUBJECT is chosen at runtime, and
+   the conversion that added an axis rather than a component. Its dropdown
+   heads each block with the client's brand mark, from a table `agents.sh`
+   draws from too, and the ladder has no rung for that on purpose — so
+   `marks.nix` is the identity vocabulary beside it, with `bar-marks`
+   enforcing the one thing ai-provider.sh had only ever asserted in prose:
+   identity and status never share a hue. Two smaller things came with it,
+   both because the pill had them written twice: `--icon-font` on a heading
+   (`:claude:` is tofu in the bar's own face) and leading blanks in a
+   `--value` surviving as alignment instead of being trimmed and clipped.
+   It answered the question `tones.nix` had left open under `action` — a
+   spend is `text`, not a rung — and it is the pill that shows what
+   `drawing=off` costs without its pair: it shipped a one-shot kick at bar
+   start purely because a hidden item does not tick, and `updates=on` deleted
+   it. What it took away: `pct_color`, `pop_add`, `header`, `row`,
+   `row_cont`, `meta`, `unpad`/`LEAD`, `desc_pad`/`px`, the column constants,
+   the row heights, the popup rebuild, the barpop arming and the `$SB` query
+   — about 250 lines, none of them about AI usage.
+
+   **What a conversion costs, visibly.** Handing a pill's layout to the
+   runtime means taking the runtime's numbers, and four showed up here. The
+   dropdown's value column moved ~65 pt right, because `_BARLIB_COL_NAME` is
+   16 and this pill's widest descriptor is `monthly` — it pays for cpu's
+   process names, which is what a shared constant costs and the argument for
+   making the column per-popup if a third pill wants it narrower. Token rows
+   went Regular → Bold (`--value` rows are Bold, full stop) and SUBTEXT1 →
+   `dim`. The `∑` glyph grew from `FS_LABEL` to `FS_ICON`, the heading
+   default. The pill's own `icon.padding_left` went 10 → 8, the bar's. None
+   is worth a flag on a component; all four are worth knowing before you
+   convert the next pill and wonder what moved.
+7. Third-party framework widgets through `haus.bar.widgets.<name>.script`:
+   the header is read the same way, and it is a store path, so `readFile`
+   works. It is what makes barlib a framework rather than an internal
+   refactor, and nothing else is blocking it.
+8. Long tail: convert on touch. A converted pill's entry in `mkPluginBlocks`
    shrinks to a `frameworkBlock` call carrying only what is IDENTITY — its
    hue, its padding — because the ladder deliberately has no rung for "this
    widget's own colour". The framework wins when every entry in

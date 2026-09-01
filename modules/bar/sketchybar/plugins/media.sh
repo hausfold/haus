@@ -84,8 +84,9 @@ start_marquee() {
 # Built on open, from the state file, never kept warm: a popup nobody has opened
 # is a set of items sketchybar still lays out on every repaint. Every row is
 # accumulated into ARGS and handed over in ONE call, so it appears fully formed
-# instead of growing a row at a time — the same lesson ai_usage.sh's dropdown
-# learned the visible way.
+# instead of growing a row at a time — the lesson ai_usage.sh's dropdown
+# learned the visible way, and barlib's `popup_open` has owned for every
+# converted pill since.
 build_popup() {
     local kind icon accent art scale sub elapsed dur pct label_app badge popup_scroll
     media_read_now || return 1
