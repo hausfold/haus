@@ -58,10 +58,12 @@
 # items. They ARE clickable: each one's click_script is this script, so the
 # popup opens from anywhere on the pill.
 #
-# ── the popup: same grammar as ai_usage.sh's dropdown ─────────────────────────
-# Borrowed from the aiUsage pill (see its header comment for the full
-# rationale) rather than reinvented: a brand-coloured mark identifies WHO and a
-# ladder-coloured value says WHAT STATE. One thing this popup adds that
+# ── the popup: the framework's grammar, still written out by hand ────────────
+# Borrowed from the aiUsage pill rather than reinvented: a brand-coloured MARK
+# identifies WHO and a ladder-coloured value says WHAT STATE. Both halves are
+# vocabulary now — modules/bar/marks.nix and modules/bar/tones.nix — and
+# ai_usage says them through `popup_heading --mark` since it converted, which
+# is what this pill's rows become when it does. One thing this popup adds that
 # aiUsage's doesn't need: every row in an agent's block shares one click target
 # (go-to/peek), not just one — a header a few pixels tall is a bad target for
 # "this is the pane I meant".
@@ -406,9 +408,12 @@ ago() { # ago <seconds> — "4m" / "1h 12m" / "2d", how long an agent has sat in
   }'
 }
 
-# ── the column grid — identical math to ai_usage.sh, see its comment for why
-# a label can't be indented with leading spaces (sketchybar trims on size and
-# draws untrimmed, so a leading run of spaces buys a clipped row, not a margin).
+# ── the column grid — the same math barlib's value column does, and the last
+# hand-written copy of it. See `_barlib_name_pad` / `_barlib_unpad` in
+# barlib.sh for why a label can't be indented with leading spaces (sketchybar
+# trims on size and draws untrimmed, so a leading run of spaces buys a clipped
+# row, not a margin). ai_usage.sh carried the other copy until it converted;
+# this one goes the same way when this pill does.
 ROW_INDENT=22                    # left margin of a value row, under its header
 DESC_COLS=4                      # widest descriptor still in use. Only the
                                   # summary row has one now (and it is empty),
@@ -605,8 +610,9 @@ pr_style() {
 # pill lands here.
 if [ "${SENDER:-}" = "mouse.clicked" ] || [ "${1:-}" = "click" ]; then
   # Closing is just hiding: a click while the popup is UP must not rebuild it
-  # first (see ai_usage.sh's identical guard — this pill had the same
-  # rebuild-then-toggle flash before this).
+  # first — this pill had the same rebuild-then-toggle flash before this. It is
+  # `popup_toggle` in barlib.sh now, for every converted pill at once; ai_usage
+  # carried the twin of this guard until it converted.
   if [ "$("$SB" --query "$POPUP" 2>/dev/null | jq -r '.popup.drawing')" = "on" ]; then
     "$SB" --set "$POPUP" popup.drawing=off
     exit 0

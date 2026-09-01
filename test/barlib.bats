@@ -28,10 +28,11 @@ EOF
   chmod +x "$BATS_TEST_TMPDIR/bin/sb"
 
   # The three files barlib sources, minimal but shaped like the real ones:
-  # colors.sh carries the TONE_* ladder the generated file exports (the real
-  # one is modules/bar/tones.nix, and `bar-tones` diffs these names against
-  # it — a rung added there and not here paints grey in every test), bar.sh
-  # sets $SB / $BAR_TOP / $BAR_BOTTOM the way the generated router does.
+  # colors.sh carries the TONE_* ladder AND the MARK_* set the generated file
+  # exports (the real ones are modules/bar/tones.nix and modules/bar/marks.nix,
+  # and `bar-tones` / `bar-marks` diff these names against them — a rung or a
+  # mark added there and not here paints grey in every test), bar.sh sets
+  # $SB / $BAR_TOP / $BAR_BOTTOM the way the generated router does.
   cat >"$HOME/.config/sketchybar/colors.sh" <<EOF
 export FLAMINGO=0xffeebbcc
 export TONE_MUTE=0xff111111
@@ -44,6 +45,10 @@ export TONE_WARN=0xff444444
 export TONE_BAD=0xff555555
 export TONE_ACTION=0xff5a5a5a
 export TONE_ACCENT=0xff666666
+export MARK_WARM=0xff7a0001
+export MARK_TEAL=0xff7a0002
+export MARK_VIOLET=0xff7a0003
+export MARK_PLUM=0xff7a0004
 export TEXT=0xff777777
 export SUBTEXT0=0xff888888
 export OVERLAY0=0xff999999
@@ -51,6 +56,7 @@ export OVERLAY1=0xffaaaaaa
 EOF
   cat >"$HOME/.config/sketchybar/sizes.sh" <<'EOF'
 export BAR_FONT="Test Font"
+export FS_ICON=14
 export FS_LABEL=13
 export FS_SMALL=12
 export FS_TINY=10
@@ -583,4 +589,154 @@ exit 0'
   '
   grep -q 'icon=C ' "$SB_LOG"
   grep -q 'label=CPU · 3' "$SB_LOG"
+}
+
+# ---- marks: the identity axis ------------------------------------------------
+
+@test "a mark is not a tone — identity resolves off its own set" {
+  # modules/bar/marks.nix, and `bar-marks` pins these names against it the way
+  # `bar-tones` pins the ladder. The point of the separate resolver is that a
+  # widget CANNOT reach a verdict colour by naming a subject.
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_heading --icon C --label Claude --mark warm; }
+    on_click() { popup_open; }
+  '
+  grep -q 'icon=C icon.color=0xff7a0001' "$SB_LOG"
+}
+
+@test "an unknown mark is plum, not grey — grey means stale" {
+  # Same leniency as tone(), one direction different: an unrecognised subject
+  # is reporting perfectly well, and grey is what a DEAD feed is painted.
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_heading --icon C --label Nobody --mark chartreuse; }
+    on_click() { popup_open; }
+  ' 2>/dev/null
+  grep -q 'icon=C icon.color=0xff7a0004' "$SB_LOG"
+}
+
+@test "mark and tone are last-wins, so a dead feed keeps its heading grey" {
+  # `--mark warm --tone dim` is a widget saying "this is Claude, and its feed
+  # is dead" — one heading with two things to say and an order to say them in.
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() {
+      popup_heading --icon C --label Claude --mark warm --tone dim
+      popup_heading --icon O --label Codex --tone dim --mark teal
+    }
+    on_click() { popup_open; }
+  '
+  grep -q 'icon=C icon.color=0xff1a1a1a' "$SB_LOG"
+  grep -q 'icon=O icon.color=0xff7a0002' "$SB_LOG"
+}
+
+@test "--icon-font draws a glyph in a face the bar does not have" {
+  # sketchybar-app-font's :claude: is the shipped case: without this the mark
+  # is tofu. It is not a typography flag — the runtime still owns the weight
+  # and size of everything else the heading draws.
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_heading --icon ":claude:" --icon-font "app-font:Regular:16" --label Claude; }
+    on_click() { popup_open; }
+  '
+  grep -q 'icon.font=app-font:Regular:16' "$SB_LOG"
+}
+
+@test "a heading naming no font draws exactly as it did before the flag" {
+  # The default is spelled out rather than inherited so there is one code path;
+  # it has to be byte-identical to sketchybarrc's --default icon.font, or every
+  # existing framework heading changes size the day this flag lands.
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_heading --icon C --label CPU; }
+    on_click() { popup_open; }
+  '
+  grep -q 'icon.font=Test Font:Bold:14' "$SB_LOG"
+}
+
+@test "--icon-font is refused rather than ignored on a two-column heading" {
+  # Glyph and title share ONE item there, so a glyph-only face would draw the
+  # title as tofu. Warned and the glyph kept: a mark in the wrong face gets
+  # reported, a missing mark does not.
+  NAME=w SENDER=mouse.clicked run widget '
+    popup_rows() { popup_heading --icon C --label CPU --icon-font "app-font:Regular:16" --value "41%"; }
+    on_click() { popup_open; }
+  '
+  [[ "$output" == *"--icon-font is ignored with --value"* ]]
+  ! grep -q 'icon.font=app-font:Regular:16' "$SB_LOG"
+}
+
+# ---- alignment inside the value column ---------------------------------------
+
+# pad_for <value> — the icon.padding_right of the row whose VALUE is <value>.
+# Anchored on the value rather than the name because the row chrome carries an
+# `icon.padding_right=8 label=` of its own, and the fonts have spaces in them.
+pad_for() {
+  grep -oE "icon\.padding_right=[0-9]+ label=$1 " "$SB_LOG" |
+    head -1 | cut -d= -f2 | cut -d' ' -f1
+}
+
+@test "leading blanks in a value right-align it instead of clipping the row" {
+  # A label is sized TRIMMED and drawn untrimmed, so ` 7%` loses exactly its
+  # own indent off the right edge. The runtime pays for the alignment in the
+  # name's right padding instead — the same mechanism the column already is.
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() {
+      popup_row --label session --value "  7%"
+      popup_row --label weekly  --value " 46%"
+      popup_row --label weekly  --value "46%"
+    }
+    on_click() { popup_open; }
+  '
+  # The blanks are gone from the label…
+  grep -q 'label=7% ' "$SB_LOG"
+  grep -q 'label=46% ' "$SB_LOG"
+  ! grep -q 'label=  7%' "$SB_LOG"
+  # …and what they bought is that the two numbers land on ONE column: two
+  # leading blanks on a 7-character name and one on a 6-character name are the
+  # same x, which is the whole reason a widget writes `%3s` at all.
+  [ "$(pad_for '7%')" -eq "$(pad_for '46%')" ]
+  # The same value without them sits further left, so the padding is real and
+  # not a constant that happens to match.
+  narrow=$(grep -oE 'icon\.padding_right=[0-9]+ label=46% ' "$SB_LOG" | tail -1 | cut -d= -f2 | cut -d' ' -f1)
+  [ "$(pad_for '46%')" -gt "$narrow" ]
+}
+
+@test "an empty --label is a continuation row under the one above it" {
+  # The second line of a token block: no name, and the value still lands on
+  # the column. It needs no branch of its own — an empty icon still reserves
+  # its padding — but a widget has to be able to rely on that.
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() {
+      popup_row --label tokens --value "220Md"
+      popup_row --label "" --value "590Mm"
+    }
+    on_click() { popup_open; }
+  '
+  grep -q 'label=220Md ' "$SB_LOG"
+  grep -q 'label=590Mm ' "$SB_LOG"
+  # The nameless row buys back exactly the width the name would have taken, so
+  # its value starts where the value above it does rather than at the indent.
+  [ "$(pad_for '590Mm')" -gt "$(pad_for '220Md')" ]
+  grep -q 'icon= icon.color=0xff1a1a1a' "$SB_LOG"
+}
+
+@test "a heading greys as a BLOCK, mark and title together" {
+  # `--tone dim` alone reaches only the glyph, because the title is a separate
+  # colourable half. A dim mark under a full-brightness name reads as a
+  # rendering bug rather than as a feed that stopped reporting — which is what
+  # ai_usage's hand-written header took a fifth argument for.
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_heading --icon O --label Codex --tone dim --label-tone dim; }
+    on_click() { popup_open; }
+  '
+  grep -q 'icon=O icon.color=0xff1a1a1a' "$SB_LOG"
+  grep -q 'label=Codex label.color=0xff1a1a1a' "$SB_LOG"
+}
+
+@test "a heading that names no label tone is the ordinary foreground" {
+  # The default has to stay TEXT, or every heading github/cpu/memory already
+  # draw changes colour the day the flag lands.
+  NAME=w SENDER=mouse.clicked widget '
+    popup_rows() { popup_heading --icon C --label CPU --tone warn; }
+    on_click() { popup_open; }
+  '
+  grep -q 'icon=C icon.color=0xff444444' "$SB_LOG"
+  grep -q 'label=CPU label.color=0xff777777' "$SB_LOG"
 }

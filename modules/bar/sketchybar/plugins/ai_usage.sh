@@ -1,7 +1,16 @@
 #!/bin/bash
+# widget: interval = 15
+# widget: popup = true
+#
 # ai_usage.sh — the reader half of the `aiUsage` pill (opt-in via
 # haus.bar.items). Puts rate-limit gauges for AI providers (Claude Code,
 # Codex, etc.) or token API costs (Opencode, etc.) in the menu bar.
+#
+# A framework widget (docs/bar-framework.md): the header above is the whole of
+# its wiring, and barlib owns the bar instance, the batching, the state diff,
+# the dropdown and every colour. What is left here is the FEEDS — how a
+# provider reports, which one the pill speaks for, and what a percentage means
+# — which is the pill's actual subject.
 #
 # Subscription TSV lines:
 #     <5h %>\t<7d %>\t<5h resets epoch>\t<7d resets epoch>\t<written epoch>\t<provider>\t<model>\t<provider_id>\t<used epoch>
@@ -11,7 +20,11 @@
 # real use for: tab is IFS whitespace, so `read` collapses a run of empty middle
 # fields into one delimiter and shifts every later column left.
 # Token TSV lines (tokens-<provider>.tsv, optional, dropdown only):
-#     <today tokens>\t<all-time tokens>\t<written epoch>
+#     <day>\t<week>\t<month>\t<all time>\t<written epoch>
+# Five columns, and `read_tokens` takes all five or none: the four buckets are
+# computed INDEPENDENTLY rather than nested (statusline-refresh.sh), so a week
+# that started before the 1st holds tokens the month does not, and a file left
+# by an older rice has a different shape that would file the week under the day.
 #
 # ── written vs used, and why they are two columns ─────────────────────────────
 # Column 5 answers "how old are these NUMBERS" and column 9 answers "when did
@@ -28,66 +41,75 @@
 # rice, or a client whose writer this repo doesn't own — falls back to column 5,
 # which for a PUSHED feed is what it always meant.
 #
-# Two entry paths:
-#   • periodic / system_woke / refresh  → repaint main pill icon+label
-#   • mouse.clicked                     → open dropdown showing all reporting providers
+# ── how the dropdown says what it says ────────────────────────────────────────
+# Two rules, and the whole look still falls out of them — but both are the
+# framework's vocabulary now rather than this file's hexes.
 #
-# ── how the dropdown is drawn ─────────────────────────────────────────────────
-# Everything below obeys two rules, and the whole look falls out of them.
+# **A hue on a MARK means identity, a hue on a NUMBER means state.** The
+# heading wears the client's mark (`--mark`, from ai-provider.sh's shared
+# table, which the agents pill draws from too), and the severity ladder
+# appears only on values, on the same thresholds the pill paints ITSELF with
+# via the `pct_tone` both paths share. Before that split, 92% and 0% were the
+# same grey in the dropdown while the pill outside it was red: the one number
+# worth opening the popup for was the one it hid.
 #
-# **A hue on a mark means identity; a hue on a number means state.** The header
-# glyph carries the client's brand accent (provider_style's P_COLOR, picked from
-# the half of the palette the ladder never touches), and the ladder —
-# GREEN → YELLOW → PEACH → RED — appears only on values, on the same thresholds
-# the pill paints ITSELF with, via the pct_color() both paths now share. Before
-# this, 92% and 0% were the same grey in the dropdown while the pill outside it
-# was red: the one number worth opening the popup for was the one it hid.
+# **Type says rank, and nothing carries importance by position alone.** Which
+# is barlib's: `popup_heading` is which client, `popup_row --value` is a
+# question on the left and its answer on the right, `popup_note` is a
+# footnote. This file no longer owns a font, a height or a pixel of the value
+# column — the four row kinds do, once, for every pill on the bar.
 #
-# **Three weights of type, and nothing carries importance by position alone.**
-#   header  Bold  FS_LABEL, TEXT, brand icon, taller row  → which client
-#   value   Bold  FS_SMALL, ladder colour                 → the answer
-#   descr   Regular FS_SMALL, OVERLAY1, left column       → what the answer is of
-#   meta    Italic  FS_TINY, OVERLAY0, short row          → staleness, footnotes
-# A stale provider drops its values to OVERLAY0 too, so a block whose feed died
-# greys out as a whole exactly like the pill does — no row is left claiming a
-# number it can no longer stand behind.
+# A stale provider drops its heading to `dim` and its values to `mute`, so a
+# block whose feed died greys out as a whole exactly like the pill does — no
+# row is left claiming a number it can no longer stand behind. That two-tier
+# grey is the `dim`/`mute` pair, which this pill's own `descr`/`meta` rule is
+# one of the two that earned (modules/bar/tones.nix).
 #
-# The descriptor sits in the item's ICON and the value in its LABEL, because
-# that is the only way to give one row two colours. They line up in a column
-# because the gap is a PIXEL count derived from the monospace advance
-# (desc_pad), not trailing spaces — sketchybar trims a label's whitespace when
-# it sizes the item and then draws the untrimmed string, so padding with spaces
-# buys a clipped row (the same trap TOKEN_INDENT documents below).
+# ── what the conversion gave up, deliberately ─────────────────────────────────
+# Money was SAPPHIRE and is `text`; the ∑ block's mark was PINK and is the
+# heading default. Both were one pill's hex, and the ladder does not take a
+# rung for a colour one widget wants — the argument is in tones.nix under
+# `action`. The brand hues survived because two pills spend them, which is the
+# same rule pointing the other way.
 set -u
 export USER="${USER:-$(id -un)}"
 export PATH="/opt/homebrew/bin:/run/current-system/sw/bin:/etc/profiles/per-user/$USER/bin:$PATH"
-source "$HOME/.config/sketchybar/colors.sh"
-# $SB — which bar this pill lives on (haus.bar.bottom.items can move it to
-# the bottom bar, a separate SketchyBar instance addressed by its own
-# binary). BAR_ITEM is the fallback bar.sh needs on the HOOK path: invoked
-# from outside SketchyBar there is no $BAR_NAME to route on, and not every
-# caller sets $NAME either.
-BAR_ITEM=ai_usage
-source "$HOME/.config/sketchybar/bar.sh"
 
-source "$HOME/.config/sketchybar/sizes.sh"
-# provider_style() — the shared icon/font/name table, so the agents pill draws
+# BAR_ITEM is the fallback bar.sh and barlib need on the PUSH path: the
+# statusline invokes this file directly (`SENDER=refresh NAME=ai_usage`) from
+# outside SketchyBar, where there is no $BAR_NAME to route on. The pill is
+# movable via haus.bar.bottom.items, so a bare `sketchybar` would keep talking
+# to a top-bar item that is no longer there.
+BAR_ITEM=ai_usage
+source "$HOME/.config/sketchybar/barlib.sh"
+# provider_style() — the shared icon/mark/name table, so the agents pill draws
 # the same mark for a client that this pill draws for its usage.
 # shellcheck source=./ai-provider.sh
 source "$HOME/.config/sketchybar/plugins/ai-provider.sh"
 
 CACHE_DIR="${CLAUDE_STATUSLINE_CACHE:-$HOME/.cache/claude-statusline}"
-ITEM_NAME="${NAME:-ai_usage}"
+STALE=300                        # 5 min with no WRITE → mark the feed stale
+FEED_TTL=180                     # how often we re-pull the Codex/Opencode feeds
 
-pct_color() { # pct_color <pct> — the one ladder, so the pill and the row it
-  # explains can never disagree about whether 76% is worth worrying over. The
-  # stderr redirects are the same guard the pill's own comparison carries: a TSV
-  # field that isn't a number would otherwise print "integer expression
-  # expected" into sketchybar's log once per row, per open.
-  if   [ "${1:-0}" -ge 90 ] 2>/dev/null; then printf '%s' "$RED"
-  elif [ "${1:-0}" -ge 75 ] 2>/dev/null; then printf '%s' "$PEACH"
-  elif [ "${1:-0}" -ge 50 ] 2>/dev/null; then printf '%s' "$YELLOW"
-  else                                        printf '%s' "$GREEN"
+# BAR_AI_USAGE_PROVIDER — which client the pill speaks for, or `latest`.
+# shellcheck source=/dev/null
+[ -f "$HOME/.config/sketchybar/ai_usage_config.sh" ] && source "$HOME/.config/sketchybar/ai_usage_config.sh"
+PREFERRED="${BAR_AI_USAGE_PROVIDER:-latest}"
+
+# ── the ladder ────────────────────────────────────────────────────────────────
+# One function, so the pill and the row explaining it can never disagree about
+# whether 76% is worth worrying over. It is the same four steps the vitals
+# pills climb (`vitals_tone`), on the same thresholds — said in TONE NAMES,
+# because a framework widget names a tone and never a hex.
+#
+# The stderr redirects are the same guard the old `pct_color` carried: a TSV
+# field that isn't a number would otherwise print "integer expression expected"
+# into sketchybar's log once per row, per open.
+pct_tone() { # pct_tone <pct>
+  if   [ "${1:-0}" -ge 90 ] 2>/dev/null; then printf '%s' bad
+  elif [ "${1:-0}" -ge 75 ] 2>/dev/null; then printf '%s' warn
+  elif [ "${1:-0}" -ge 50 ] 2>/dev/null; then printf '%s' watch
+  else                                        printf '%s' ok
   fi
 }
 
@@ -109,9 +131,8 @@ gauge() { # gauge <pct> — a meter in block elements, sharing the row's colour
   # is; a full block reads as one bar, because it is.
   #
   # Bash, not awk, because this runs twice per provider on the click path and an
-  # awk fork costs ~2.4 ms on this machine — the popup's whole budget is ~12 ms
-  # to open (see the barpop note at the bottom of this file). Everything the
-  # meter needs is integer arithmetic the shell can already do.
+  # awk fork costs ~2.4 ms on this machine. Everything the meter needs is
+  # integer arithmetic the shell can already do.
   local p="${1:-0}" k i out=""
   [[ "$p" =~ ^[0-9]+$ ]] || p=0
   ((p > 100)) && p=100
@@ -132,6 +153,17 @@ ago() { # ago <seconds> — "90m", "5h 12m", "4d". The old row said `6962m ago`,
   }'
 }
 
+resets_at() { # resets_at <epoch> <now> — "resets 14:20" / "resets Thu 09:00"
+  # Rides in the same label as the value it belongs to, because one item draws
+  # one colour and the reset time is the quieter half of the same fact.
+  [ "${1:-0}" -gt "${2:-0}" ] 2>/dev/null || return 0
+  if [ $(($1 - $2)) -lt 86400 ]; then
+    printf 'resets %s' "$(date -r "$1" '+%H:%M')"
+  else
+    printf 'resets %s' "$(date -r "$1" '+%a %H:%M')"
+  fi
+}
+
 tokens_label() { # tokens_label <d> <w> <m> <all> — the token score, TWO periods
   # per line, printed as one line per output line:
   #
@@ -142,6 +174,11 @@ tokens_label() { # tokens_label <d> <w> <m> <all> — the token score, TWO perio
   # so they wrap into a 2×2 block. Cells are padded to a common width — number
   # right-aligned, period left — which in the bar's monospace font is what makes
   # the second line sit under the first instead of beside it.
+  #
+  # The LEADING blanks that right-alignment produces are barlib's problem now,
+  # not this file's: `popup_row --value` turns them back into padding, since a
+  # label is sized trimmed and drawn untrimmed. That used to be `unpad`/`LEAD`
+  # here, and it was the same arithmetic the value column already does.
   #
   # Numbers are three significant figures with the trailing zeros filed off, so a
   # cell stays the same handful of characters whether it reads 950K or 7.65B and
@@ -185,6 +222,7 @@ tokens_label() { # tokens_label <d> <w> <m> <all> — the token score, TWO perio
   }'
 }
 
+T_D=0; T_W=0; T_M=0; T_ALL=0
 read_tokens() { # read_tokens <file> — T_D/T_W/T_M/T_ALL, false if there's no row
   T_D=0; T_W=0; T_M=0; T_ALL=0
   [ -s "$1" ] || return 1
@@ -194,138 +232,62 @@ read_tokens() { # read_tokens <file> — T_D/T_W/T_M/T_ALL, false if there's no 
   # and reading it anyway would file the week's tokens under the day.
   [ -n "$at" ] || return 1
   T_D=${T_D:-0}; T_W=${T_W:-0}; T_M=${T_M:-0}; T_ALL=${T_ALL:-0}
+  return 0
 }
 
-# ── the column grid ───────────────────────────────────────────────────────────
-# Rows never indent with spaces in the text: sketchybar sizes an item from its
-# label with the leading whitespace trimmed and then draws the untrimmed string,
-# so a leading run of spaces buys nothing but a label clipped by exactly the
-# width of its own indent. (A no-break space is trimmed just the same — that was
-# the obvious fix and it does not work.) The same trimming is why the descriptor
-# column can't be right-padded to a common width either.
-#
-# So every horizontal measure here is a pixel count, DERIVED rather than written
-# down, from a MONOSPACE advance of ~0.602em at whatever size ui.scale settled
-# on. (Measured by hand against Hack, when the bar had a font of its own;
-# JetBrains Mono and Fira Code are 0.6em, so the number survived the switch to
-# haus.fonts.mono.name.) It is the one place in the bar that assumes a fixed
-# advance — name a proportional family there and the columns drift, which is an
-# alignment wobble in one popup rather than a broken bar.
-ROW_INDENT=22                    # left margin of a value row, under its header
-DESC_COLS=7                      # widest descriptor: `session` / `monthly`
-DESC_GAP=12                      # descriptor → value gutter
-# The advance in THOUSANDTHS of a point, so every measure below is integer
-# arithmetic the shell can do in-process. One awk at load time — and this file
-# is re-run on every 15-second tick, not just on a click, so the fork it isn't
-# doing is the one that would have been cheapest to overlook.
-ADV_M=$(awk -v s="${FS_SMALL:-13}" 'BEGIN { printf "%.0f", s * 602 }')
-px() { printf '%s' $((($1 + 500) / 1000)); }   # thousandths → points, rounded
-# Where the value column starts, in points from the popup's left edge. A
-# continuation row (the second line of the token block) has no descriptor of its
-# own and pads its LABEL to exactly here, which is what puts it under the line
-# above instead of beside it.
-TOKEN_INDENT=$(px $((ROW_INDENT * 1000 + DESC_COLS * ADV_M + DESC_GAP * 1000)))
-desc_pad() { # desc_pad <descriptor> [extra columns] — the icon's right padding
-  # that lands the value on the column, whatever this row happened to call
-  # itself, plus any leading blanks the value wanted and can't have (see unpad).
-  px $(((DESC_COLS - ${#1} + ${2:-0}) * ADV_M + DESC_GAP * 1000))
+# ── the feeds ─────────────────────────────────────────────────────────────────
+# Collect provider files: prefer usage-*.tsv over usage.tsv to avoid duplicates.
+# Sets FILES, and every caller checks ${#FILES[@]} before expanding it —
+# `"${FILES[@]}"` on an empty array is an unbound-variable abort under bash 3.2
+# and `set -u`, which is the shell the bar actually runs these with.
+FILES=()
+usage_files() {
+  local f
+  FILES=()
+  [ -d "$CACHE_DIR" ] || return 0
+  for f in "$CACHE_DIR"/usage-*.tsv; do
+    [ -s "$f" ] && FILES+=("$f")
+  done
+  if [ ${#FILES[@]} -eq 0 ] && [ -s "$CACHE_DIR/usage.tsv" ]; then
+    FILES+=("$CACHE_DIR/usage.tsv")
+  fi
+  return 0
 }
 
-# A value that right-aligns its number — ` 7%` under `46%`, ` 733M` under
-# `6.14B` — asks for leading blanks, which is the one thing a label may not
-# have: they are trimmed when the item is sized and then drawn anyway, so the
-# row loses exactly its own indent off the right edge. unpad turns them back
-# into what everything else here already is, a column count the caller pays for
-# in padding.
-#
-# It sets two globals rather than printing, because `$(unpad …)` is a subshell
-# and the count would never come back out of one.
-LEAD=0
-UNPADDED=""
-unpad() { # unpad <value> → sets UNPADDED (blanks stripped) and LEAD (how many)
-  UNPADDED="${1#"${1%%[! ]*}"}"
-  LEAD=$(( ${#1} - ${#UNPADDED} ))
-}
+# One row, parsed and judged. Sets ROW_*; nothing here draws.
+ROW_V5=0; ROW_VW=0; ROW_R5=0; ROW_RW=0; ROW_STAMP=0; ROW_USED=0
+ROW_PROV=claude; ROW_MODEL=""; ROW_PID=""
+ROW_IS_COST=0; ROW_AGE=0; ROW_STALE=0
+read_row() { # read_row <now> <file>
+  local now=$1
+  ROW_V5=0; ROW_VW=0; ROW_R5=0; ROW_RW=0; ROW_STAMP=0
+  ROW_PROV=claude; ROW_MODEL=""; ROW_PID=""; ROW_USED=""
+  # Column 9 is read even where the dropdown never shows it: without a variable
+  # to land in, `read` folds it into prov_id — the field provider_style picks a
+  # mark from — and every row draws the wrong client.
+  IFS=$'\t' read -r ROW_V5 ROW_VW ROW_R5 ROW_RW ROW_STAMP ROW_PROV ROW_MODEL ROW_PID ROW_USED <"$2" || true
+  ROW_V5=${ROW_V5:-0}; ROW_VW=${ROW_VW:-0}; ROW_R5=${ROW_R5:-0}; ROW_RW=${ROW_RW:-0}
+  ROW_STAMP=${ROW_STAMP:-0}; ROW_PROV=${ROW_PROV:-claude}
+  # No column 9 (or a non-numeric one) → the row predates the split, where the
+  # written stamp WAS the used stamp for every pushed feed. Validated twice, and
+  # the second one is not redundant: the fallback is ROW_STAMP, which is only
+  # defaulted and never checked, so a garbled row would otherwise reach `-gt`
+  # and print "integer expression expected" into the bar's log every tick.
+  case "${ROW_USED:-}" in '' | *[!0-9]*) ROW_USED=$ROW_STAMP ;; esac
+  case "${ROW_USED:-}" in '' | *[!0-9]*) ROW_USED=0 ;; esac
 
-# ── row rhythm ────────────────────────────────────────────────────────────────
-# Height is the other half of the hierarchy, and it costs nothing to read: a
-# header that stands 8 points taller than its rows separates two providers
-# without a rule between them, and a footnote that sits 4 shorter stops
-# pretending to be data. background.drawing stays off and the height still
-# applies — checked on the live popup, since every other background.height in
-# this module is on a pill that actually draws its box.
-H_HEADER=32
-H_ROW=25
-H_META=20
-
-# ── row builders ──────────────────────────────────────────────────────────────
-# All four append to ARGS and bump $i; nothing here talks to sketchybar, so the
-# whole popup is still one message (see the click path). Each takes the common
-# chrome first and the caller's overrides last, because --set applies left to
-# right and the last write of a property wins.
-pop_add() { # pop_add <property=value…>
-  ARGS+=(--add item "${ITEM_NAME}.popup.$i" "popup.${ITEM_NAME}"
-    --set "${ITEM_NAME}.popup.$i"
-      icon="" icon.padding_left=0 icon.padding_right=0
-      label="" label.padding_left=0 label.padding_right=14
-      background.drawing=off background.height="$H_ROW"
-      click_script="$SB --set ${ITEM_NAME} popup.drawing=off"
-    "$@")
-  i=$((i + 1))
+  ROW_IS_COST=0
+  if [ "$ROW_PROV" = "opencode" ] || [[ "$ROW_V5" =~ \. ]]; then
+    ROW_IS_COST=1
+  else
+    [ "$ROW_R5" -gt 0 ] && [ "$now" -ge "$ROW_R5" ] && ROW_V5=0
+    [ "$ROW_RW" -gt 0 ] && [ "$now" -ge "$ROW_RW" ] && ROW_VW=0
+  fi
+  ROW_AGE=$((now - ROW_STAMP))
+  ROW_STALE=0
+  [ "$ROW_STAMP" -gt 0 ] && [ "$ROW_AGE" -gt "$STALE" ] && ROW_STALE=1
+  return 0
 }
-
-header() { # header <icon> <font> <color> <name> [name-color] — which client the
-  # block is about. The name defaults to TEXT and only moves when the whole
-  # block is greyed: a dim mark under a bright name looks like a rendering bug
-  # rather than like a feed that stopped reporting.
-  pop_add icon="$1" icon.font="$2" icon.color="$3" \
-    icon.padding_left=10 icon.padding_right=8 \
-    label="$4" label.color="${5:-$TEXT}" label.font="${BAR_FONT}:Bold:${FS_LABEL}" \
-    background.height="$H_HEADER"
-}
-
-row() { # row <descriptor> <value> <color> [weight] — dim left column, coloured
-  # value. Weight is the third axis after size and hue: Bold is for a number
-  # that is a fraction of something you can run out of, Regular for one that
-  # just counts up.
-  unpad "$2"
-  pop_add icon="$1" icon.color="$OVERLAY1" \
-    icon.font="${BAR_FONT}:Regular:${FS_SMALL}" \
-    icon.padding_left="$ROW_INDENT" icon.padding_right="$(desc_pad "$1" "$LEAD")" \
-    label="$UNPADDED" label.color="$3" label.font="${BAR_FONT}:${4:-Bold}:${FS_SMALL}"
-}
-
-row_cont() { # row_cont <value> <color> [weight] — a value row whose descriptor is
-  # the one above it. No icon at all: an empty icon still reserves its padding,
-  # and the label carries the whole indent instead.
-  local indent; unpad "$1"
-  indent=$(px $((TOKEN_INDENT * 1000 + LEAD * ADV_M)))
-  pop_add label="$UNPADDED" label.color="$2" \
-    label.font="${BAR_FONT}:${3:-Bold}:${FS_SMALL}" \
-    label.padding_left="$indent"
-}
-
-meta() { # meta <text> — a footnote. Smallest, dimmest, shortest row there is.
-  pop_add label="$1" label.color="$OVERLAY0" \
-    label.font="${BAR_FONT}:Italic:${FS_TINY}" \
-    label.padding_left="$ROW_INDENT" background.height="$H_META"
-}
-
-token_block() { # token_block <d> <w> <m> <all> <color> [weight] — the score,
-  # labelled then indented under its own label.
-  local blk line first=1
-  blk=$(tokens_label "$1" "$2" "$3" "$4")
-  [ -n "$blk" ] || return 0
-  while IFS= read -r line; do
-    [ -n "$line" ] || continue
-    if [ "$first" = 1 ]; then row "tokens" "$line" "$5" "${6:-Regular}"; first=0
-    else                      row_cont "$line" "$5" "${6:-Regular}"
-    fi
-  done <<<"$blk"
-}
-STALE=300                        # 5 min with no render → mark stale
-FEED_TTL=180                     # how often we re-pull the Codex/Opencode feeds
-now=$(date +%s)
 
 # ── keep the PULLED feeds alive with no Claude session anywhere ───────────────
 # Claude's row is pushed here for free by its statusline on every render. Codex
@@ -335,212 +297,202 @@ now=$(date +%s)
 # Opencode the pill used to grey out and stay grey. Kick it here instead, on its
 # own TTL: --usage-only skips the panel and the `gh` traffic, and the refresher's
 # own mkdir-lock means a concurrent full pass just makes this one exit.
-kick="$CACHE_DIR/.usage-kick"
-kick_at=$(stat -f %m "$kick" 2>/dev/null || echo 0)
-case "$kick_at" in '' | *[!0-9]*) kick_at=0 ;; esac
-if [ $((now - kick_at)) -ge "$FEED_TTL" ] && command -v claude-statusline-refresh >/dev/null 2>&1; then
+#
+# ⚠️ `env -u SENDER …` on the detach, even though the child is another program:
+# the refresher invokes THIS FILE back when a row moves, and a $SENDER inherited
+# across that round trip is the runtime re-entering a handler it already left.
+# It is the rule in barlib.sh's header, and the cost of honouring it is nothing.
+kick_feeds() { # kick_feeds <now>
+  local kick="$CACHE_DIR/.usage-kick" kick_at
+  command -v claude-statusline-refresh >/dev/null 2>&1 || return 0
+  kick_at=$(stat -f %m "$kick" 2>/dev/null || echo 0)
+  case "$kick_at" in '' | *[!0-9]*) kick_at=0 ;; esac
+  [ $(($1 - kick_at)) -ge "$FEED_TTL" ] || return 0
   mkdir -p "$CACHE_DIR" && touch "$kick"
-  (claude-statusline-refresh --usage-only >/dev/null 2>&1 &)
-fi
+  (env -u SENDER -u BUTTON -u MODIFIER claude-statusline-refresh --usage-only >/dev/null 2>&1 &)
+  return 0
+}
 
-# Collect provider files: prefer usage-*.tsv over usage.tsv to avoid duplicates
-files=()
-if [ -d "$CACHE_DIR" ]; then
-  for f in "$CACHE_DIR"/usage-*.tsv; do
-    [ -s "$f" ] && files+=("$f")
-  done
-  if [ ${#files[@]} -eq 0 ] && [ -s "$CACHE_DIR/usage.tsv" ]; then
-    files+=("$CACHE_DIR/usage.tsv")
-  fi
-fi
-
-[ ${#files[@]} -gt 0 ] || exit 0
-
-[ -f "$HOME/.config/sketchybar/ai_usage_config.sh" ] && source "$HOME/.config/sketchybar/ai_usage_config.sh"
-PREFERRED="${BAR_AI_USAGE_PROVIDER:-latest}"
-
-# Determine active/preferred provider for the main pill. `latest` orders on
-# USED (column 9), not on written — see the header. The chosen row's WRITTEN
-# stamp is carried out separately as main_stamp, because that is still what
+# ── the tick ──────────────────────────────────────────────────────────────────
+# `latest` orders on USED (column 9), not on written — see the header. The
+# chosen row's WRITTEN stamp is carried separately, because that is still what
 # greys the pill.
-latest_used=-1
-main_stamp=0
-main_val5="0"
-main_valw="0"
-main_provider="claude"
-main_model=""
-main_provider_id=""
-is_cost=0
+fetch() {
+  local now f best_used=-1
+  local main_stamp=0 main_v5=0 main_vw=0 main_cost=0
+  local main_prov=claude main_model="" main_pid=""
+  now=$(date +%s)
+  kick_feeds "$now"
+  usage_files
 
-for f in "${files[@]}"; do
-  val5=0; valw=0; r5=0; rw=0; stamp=0; prov="claude"; model=""; prov_id=""; used=""
-  IFS=$'\t' read -r val5 valw r5 rw stamp prov model prov_id used < "$f" || true
-  val5=${val5:-0}; valw=${valw:-0}; r5=${r5:-0}; rw=${rw:-0}; stamp=${stamp:-0}; prov=${prov:-claude}
-  # No column 9 (or a non-numeric one) → the row predates the split, where the
-  # written stamp WAS the used stamp for every pushed feed. Validated twice, and
-  # the second one is not redundant: the fallback is `stamp`, which is only
-  # defaulted, never checked, so a garbled row would otherwise reach `-gt` and
-  # print "integer expression expected" into the bar's log every 15 seconds.
-  case "${used:-}" in '' | *[!0-9]*) used=$stamp ;; esac
-  case "${used:-}" in '' | *[!0-9]*) used=0 ;; esac
-
-  f_is_cost=0
-  if [ "$prov" = "opencode" ] || [[ "$val5" =~ \. ]]; then
-    f_is_cost=1
-  else
-    [ "$r5" -gt 0 ] && [ "$now" -ge "$r5" ] && val5=0
-    [ "$rw" -gt 0 ] && [ "$now" -ge "$rw" ] && valw=0
+  # No feed at all — hide, rather than leave the last number anyone reported
+  # sitting in the bar forever. The pill ships `drawing=off updates=on`, so a
+  # hidden one keeps ticking and reveals itself the moment a row lands; that
+  # pairing is what `pill --hide` writes, and it is why this widget needs no
+  # kick at bar start any more.
+  if [ ${#FILES[@]} -eq 0 ]; then
+    emit hidden=1
+    return 0
   fi
 
-  if [ "$PREFERRED" != "latest" ] && [ "$prov" = "$PREFERRED" ]; then
-    main_val5=$val5
-    main_valw=$valw
-    main_provider=$prov
-    main_model=${model:-}
-    main_provider_id=${prov_id:-}
-    is_cost=$f_is_cost
-    main_stamp=$stamp
-    break
-  elif [ "$used" -gt "$latest_used" ]; then
-    latest_used=$used
-    main_stamp=$stamp
-    main_val5=$val5
-    main_valw=$valw
-    main_provider=$prov
-    main_model=${model:-}
-    main_provider_id=${prov_id:-}
-    is_cost=$f_is_cost
-  fi
-done
-
-main_pct=0
-if [ "$is_cost" = 0 ]; then
-  main_pct=${main_val5:-0}
-  if [ "${main_valw:-0}" -gt "$main_pct" ] 2>/dev/null; then
-    main_pct=$main_valw
-  fi
-fi
-
-if [ "$is_cost" = 1 ]; then
-  COL=$SAPPHIRE
-else
-  COL=$(pct_color "$main_pct")
-fi
-
-age=$((now - main_stamp))
-stale=0; [ "$main_stamp" -gt 0 ] && [ "$age" -gt "$STALE" ] && stale=1
-[ "$stale" = 1 ] && COL=$OVERLAY1
-
-provider_style "$main_provider" "${main_provider_id:-$main_model}" "$FS_LABEL"
-ICON="$P_ICON"; IFONT="$P_FONT"
-
-if [ "$is_cost" = 1 ]; then
-  MAIN_LABEL="\$$main_val5"
-else
-  MAIN_LABEL="${main_pct}%"
-fi
-
-# ── click: show expanded info for all reporting providers ─────────────────────
-if [ "${SENDER:-}" = "mouse.clicked" ]; then
-  # Closing is just hiding: a click while the popup is UP must not rebuild the
-  # rows first. This pill draws ~16 of them, and the old code spent one
-  # sketchybar invocation per row — each one a re-layout of a popup the user can
-  # see — so closing it flashed through a shrink/regrow before finally toggling
-  # off. Query the current state and take the cheap path out; the rows are
-  # rebuilt on the way back IN, where the popup is hidden and nothing shows.
-  if [ "$("$SB" --query "$ITEM_NAME" 2>/dev/null | jq -r '.popup.drawing')" = "on" ]; then
-    "$SB" --set "$ITEM_NAME" popup.drawing=off
-    exit 0
-  fi
-
-  "$SB" --remove "/${ITEM_NAME}\.popup\..*/" 2>/dev/null
-  # Every row below is accumulated into ARGS and handed to ONE sketchybar call at
-  # the end, so the popup appears fully formed in a single repaint instead of
-  # growing a row at a time.
-  ARGS=()
-  i=0
-  for f in "${files[@]}"; do
-    # `used` is read even though the dropdown never shows it: without a variable
-    # to land in, `read` folds column 9 into prov_id — the field provider_style
-    # picks an icon from — and every multi-column row draws the wrong mark.
-    val5=0; valw=0; r5=0; rw=0; stamp=0; prov="claude"; model=""; prov_id=""; used=""
-    IFS=$'\t' read -r val5 valw r5 rw stamp prov model prov_id used < "$f" || true
-    val5=${val5:-0}; valw=${valw:-0}; r5=${r5:-0}; rw=${rw:-0}; stamp=${stamp:-0}; prov=${prov:-claude}
-
-    f_is_cost=0
-    if [ "$prov" = "opencode" ] || [[ "$val5" =~ \. ]]; then
-      f_is_cost=1
-    else
-      [ "$r5" -gt 0 ] && [ "$now" -ge "$r5" ] && val5=0
-      [ "$rw" -gt 0 ] && [ "$now" -ge "$rw" ] && valw=0
+  for f in "${FILES[@]}"; do
+    read_row "$now" "$f"
+    if [ "$PREFERRED" != "latest" ] && [ "$ROW_PROV" = "$PREFERRED" ]; then
+      main_v5=$ROW_V5; main_vw=$ROW_VW; main_stamp=$ROW_STAMP
+      main_prov=$ROW_PROV; main_model=$ROW_MODEL; main_pid=$ROW_PID
+      main_cost=$ROW_IS_COST
+      break
+    elif [ "$ROW_USED" -gt "$best_used" ]; then
+      best_used=$ROW_USED
+      main_v5=$ROW_V5; main_vw=$ROW_VW; main_stamp=$ROW_STAMP
+      main_prov=$ROW_PROV; main_model=$ROW_MODEL; main_pid=$ROW_PID
+      main_cost=$ROW_IS_COST
     fi
-    f_age=$((now - stamp))
-    f_stale=0; [ "$stamp" -gt 0 ] && [ "$f_age" -gt "$STALE" ] && f_stale=1
+  done
 
-    # FS_LABEL, not FS_SMALL: a header's name is drawn one step up from its
+  local label tone pct=0
+  if [ "$main_cost" = 1 ]; then
+    # Money is off the ladder by construction: there is no ceiling to be 90% of,
+    # so a spend can never be ok-as-in-safe without lying. `text` is the rung
+    # for a live readout carrying no alarm, which is exactly what a spend is.
+    label="\$$main_v5"
+    tone=text
+  else
+    pct=$main_v5
+    if [ "${main_vw:-0}" -gt "$pct" ] 2>/dev/null; then pct=$main_vw; fi
+    label="${pct}%"
+    tone=$(pct_tone "$pct")
+  fi
+  # A feed nobody has written to in five minutes: the pill goes quiet rather
+  # than keeping a confident colour on a number it can no longer check.
+  if [ "$main_stamp" -gt 0 ] && [ $((now - main_stamp)) -gt "$STALE" ]; then
+    tone=dim
+  fi
+
+  provider_style "$main_prov" "${main_pid:-$main_model}" "$FS_LABEL"
+  emit hidden=0 label="$label" tone="$tone" icon="$P_ICON" ifont="$P_FONT"
+}
+
+# The mark and the number wear the SAME tone here, unlike the vitals pills:
+# this pill's glyph is not its identity, it is which client the number is
+# about, and a Claude mark beside a red 94% has to be as urgent as the number
+# — they are one sentence. The client is still identified by the glyph itself.
+#
+# icon.font is an sb_set rather than a component flag because the FACE is
+# per-provider and chosen at runtime (`:claude:` lives in sketchybar-app-font,
+# ✦ and π in the bar's own), which is exactly the odd raw property the escape
+# is for.
+render() {
+  if [ "$hidden" = 1 ]; then
+    pill --hide
+    return 0
+  fi
+  pill --icon "$icon" --label "$label" --tone "$tone" --label-tone "$tone"
+  sb_set icon.font="$ifont"
+}
+
+# ── the dropdown ──────────────────────────────────────────────────────────────
+# Read again here rather than from the tick's state: popup_rows runs on a
+# CLICK, where fetch never ran and the framework's emitted variables do not
+# exist. One pass over the feeds serves every row, so no two are describing
+# different moments.
+
+# A stale block loses its mark, and that is the one place the two colour axes
+# meet: `--mark` and `--tone` are last-wins in barlib, so naming the tone
+# second is how a widget says "this is Claude, and its feed is dead". Grey is
+# what a dead feed looks like everywhere in this bar, and a heading that kept
+# its brand hue while its numbers greyed would be half a block still asserting.
+provider_heading() { # provider_heading <stale>
+  if [ "$1" = 1 ]; then
+    # Both halves, not just the mark: a dim glyph under a full-brightness name
+    # reads as a rendering bug rather than as a feed that stopped reporting.
+    popup_heading --icon "$P_ICON" --icon-font "$P_FONT" --label "$P_NAME" \
+      --tone dim --label-tone dim
+  else
+    popup_heading --icon "$P_ICON" --icon-font "$P_FONT" --label "$P_NAME" --mark "$P_MARK"
+  fi
+}
+
+# The score, labelled and then indented under its own label. A continuation
+# row is `--label ""`: the name column is left blank and the value still lands
+# on it, which is what puts the second line under the first instead of beside
+# it.
+token_block() { # token_block <d> <w> <m> <all> <tone>
+  local blk line first=1
+  blk=$(tokens_label "$1" "$2" "$3" "$4")
+  [ -n "$blk" ] || return 0
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    if [ "$first" = 1 ]; then
+      popup_row --label "tokens" --value "$line" --tone "$5"
+      first=0
+    else
+      popup_row --label "" --value "$line" --tone "$5"
+    fi
+  done <<<"$blk"
+  return 0
+}
+
+popup_rows() {
+  local now f when c5 cw t_tone
+  local g_d=0 g_w=0 g_m=0 g_all=0 g_n=0 tf
+  now=$(date +%s)
+  usage_files
+
+  if [ ${#FILES[@]} -eq 0 ]; then
+    popup_heading --label "AI usage"
+    popup_note --label "no provider is reporting"
+    return 0
+  fi
+
+  for f in "${FILES[@]}"; do
+    read_row "$now" "$f"
+    # FS_LABEL, not FS_SMALL: a heading's name is drawn one step up from its
     # rows, and the size passed here is what a NERD-FONT mark (Opencode's 󰏫,
     # Gemini's ✦) is drawn at. Ask for the row size and those clients get a
     # glyph smaller than their own name, while :claude:/:openai: — sized from
     # FS_APP_ICON — look right, so the mismatch shows on some providers only.
-    provider_style "$prov" "${prov_id:-$model}" "$FS_LABEL"
-    p_icon="$P_ICON"; p_font="$P_FONT"; p_name="$P_NAME"; p_color="$P_COLOR"
+    provider_style "$ROW_PROV" "${ROW_PID:-$ROW_MODEL}" "$FS_LABEL"
+    provider_heading "$ROW_STALE"
 
-    # A dead feed greys out as a BLOCK — mark, name and all — the same way the
-    # pill greys itself. Half a stale block still painted in confident red would
-    # be the popup asserting a number it stopped being able to check hours ago.
-    p_name_color="$TEXT"
-    [ "$f_stale" = 1 ] && { p_color="$OVERLAY1"; p_name_color="$OVERLAY1"; }
-
-    header "$p_icon" "$p_font" "$p_color" "$p_name" "$p_name_color"
-
-    if [ "$f_is_cost" = 1 ]; then
-      # Money is off the ladder by construction: there is no ceiling to be 90%
-      # of, so a spend can never be GREEN-as-in-safe without lying. SAPPHIRE
-      # says "a quantity, no verdict" — and it is the one accent that is neither
-      # a ladder rung nor any client's brand mark, so a blue number can't be
-      # misread as Codex's teal. A period that hasn't started yet stays grey
-      # rather than shouting $0.00 in colour.
-      c5="$SAPPHIRE"; cw="$SAPPHIRE"
-      [[ "$val5" =~ ^[0.]*$ ]] && c5="$OVERLAY1"
-      [[ "$valw" =~ ^[0.]*$ ]] && cw="$OVERLAY1"
-      [ "$f_stale" = 1 ] && { c5="$OVERLAY0"; cw="$OVERLAY0"; }
-      row "today"   "\$$val5" "$c5"
-      row "monthly" "\$$valw" "$cw"
+    if [ "$ROW_IS_COST" = 1 ]; then
+      # A period that hasn't started yet stays dim rather than shouting $0.00
+      # in the foreground colour.
+      c5=text; cw=text
+      [[ "$ROW_V5" =~ ^[0.]*$ ]] && c5=dim
+      [[ "$ROW_VW" =~ ^[0.]*$ ]] && cw=dim
+      if [ "$ROW_STALE" = 1 ]; then c5=mute; cw=mute; fi
+      popup_row --label "today" --value "\$$ROW_V5" --tone "$c5"
+      popup_row --label "monthly" --value "\$$ROW_VW" --tone "$cw"
     else
-      # `resets …` rides in the same label as the value it belongs to (one item
-      # draws one colour), separated by a `·` so the eye still reads it as the
-      # quieter half. The gauge is what makes 92% and 38% differ before you've
+      # `%3s%%` right-aligns the number so every gauge starts on one column;
+      # the leading blanks that produces are turned back into padding by
+      # `popup_row --value`, because a label is sized trimmed and drawn
+      # untrimmed. The gauge is what makes 92% and 38% differ before you have
       # read either number.
-      when=""
-      if [ "$r5" -gt "$now" ]; then
-        if [ $(($r5 - now)) -lt 86400 ]; then when="resets $(date -r "$r5" '+%H:%M')"
-        else                                  when="resets $(date -r "$r5" '+%a %H:%M')"; fi
-      fi
-      c5="$(pct_color "$val5")"; [ "$f_stale" = 1 ] && c5="$OVERLAY0"
-      row "session" "$(printf '%3s%%  %s' "$val5" "$(gauge "$val5")")${when:+  ·  $when}" "$c5"
+      when=$(resets_at "$ROW_R5" "$now")
+      c5=$(pct_tone "$ROW_V5"); [ "$ROW_STALE" = 1 ] && c5=mute
+      popup_row --label "session" --tone "$c5" \
+        --value "$(printf '%3s%%  %s' "$ROW_V5" "$(gauge "$ROW_V5")")${when:+  ·  $when}"
 
-      when_w=""
-      if [ "$rw" -gt "$now" ]; then
-        if [ $(($rw - now)) -lt 86400 ]; then when_w="resets $(date -r "$rw" '+%H:%M')"
-        else                                  when_w="resets $(date -r "$rw" '+%a %H:%M')"; fi
-      fi
-      cw="$(pct_color "$valw")"; [ "$f_stale" = 1 ] && cw="$OVERLAY0"
-      row "weekly" "$(printf '%3s%%  %s' "$valw" "$(gauge "$valw")")${when_w:+  ·  $when_w}" "$cw"
+      when=$(resets_at "$ROW_RW" "$now")
+      cw=$(pct_tone "$ROW_VW"); [ "$ROW_STALE" = 1 ] && cw=mute
+      popup_row --label "weekly" --tone "$cw" \
+        --value "$(printf '%3s%%  %s' "$ROW_VW" "$(gauge "$ROW_VW")")${when:+  ·  $when}"
     fi
 
     # Tokens: the score row. Every number above is a fraction of something you
     # are allowed; this is the raw count of tokens actually moved, which no
     # client shows anywhere and which nothing here throttles or warns on. Only
     # providers whose token feed exists get the row (see statusline-refresh.sh).
-    # It is drawn Regular in SUBTEXT1, deliberately quieter than the gauges: a
-    # count with no ceiling can't be urgent, and colouring it would make the
-    # ladder above it mean less.
-    if read_tokens "$CACHE_DIR/tokens-$prov.tsv"; then
-      t_col="$SUBTEXT1"; [ "$f_stale" = 1 ] && t_col="$OVERLAY0"
-      token_block "$T_D" "$T_W" "$T_M" "$T_ALL" "$t_col"
+    # `dim` deliberately: a count with no ceiling can't be urgent, and putting
+    # it on the ladder would make the gauges above it mean less.
+    if read_tokens "$CACHE_DIR/tokens-$ROW_PROV.tsv"; then
+      t_tone=dim; [ "$ROW_STALE" = 1 ] && t_tone=mute
+      token_block "$T_D" "$T_W" "$T_M" "$T_ALL" "$t_tone"
     fi
 
-    [ "$f_stale" = 1 ] && meta "as of $(ago "$f_age") ago"
+    [ "$ROW_STALE" = 1 ] && popup_note --label "as of $(ago "$ROW_AGE") ago"
   done
 
   # ── grand total ─────────────────────────────────────────────────────────────
@@ -548,40 +500,23 @@ if [ "${SENDER:-}" = "mouse.clicked" ]; then
   # you drive three clients is what YOU spent, not what any one of them did. Only
   # drawn when more than one provider reports: with a single feed this row would
   # be the row above it, restated.
-  g_d=0; g_w=0; g_m=0; g_all=0; g_n=0
+  #
+  # No mark: the sum is not a client, and the ladder has no rung for "this block
+  # is a summary" — it is set apart by being last and by its values being `text`
+  # where every provider's are `dim`.
   for tf in "$CACHE_DIR"/tokens-*.tsv; do
     read_tokens "$tf" || continue
-    g_d=$(( g_d + T_D )); g_w=$(( g_w + T_W ))
-    g_m=$(( g_m + T_M )); g_all=$(( g_all + T_ALL ))
-    g_n=$(( g_n + 1 ))
+    g_d=$((g_d + T_D)); g_w=$((g_w + T_W))
+    g_m=$((g_m + T_M)); g_all=$((g_all + T_ALL))
+    g_n=$((g_n + 1))
   done
   if [ "$g_n" -gt 1 ] && [ "$g_all" -gt 0 ]; then
-    # PINK on the ∑ and Bold on the numbers: this block is a summary of the ones
-    # above it, so it is set apart by WEIGHT rather than by a fourth hue. The
-    # sizes come from sizes.sh like every other row — they were hardcoded 14/13
-    # here, which pinned one block of the popup at ui.scale=1 while the rest of
-    # it grew.
-    header "∑" "${BAR_FONT}:Bold:${FS_LABEL}" "$PINK" "Everything"
-    token_block "$g_d" "$g_w" "$g_m" "$g_all" "$TEXT" "Bold"
+    popup_heading --icon "∑" --label "Everything"
+    token_block "$g_d" "$g_w" "$g_m" "$g_all" text
   fi
+  return 0
+}
 
-  # One message: every row, then reveal. Not `toggle` — the state was already
-  # settled above, and toggling off a popup whose rows we just rebuilt is exactly
-  # the double-open the flash came from if a stray click arrives mid-build.
-  [ ${#ARGS[@]} -gt 0 ] && "$SB" "${ARGS[@]}" 2>/dev/null
-  "$SB" --set "$ITEM_NAME" popup.drawing=on
-  # Then hand it to barpop so it also closes on the first click anywhere else —
-  # the dismissal sketchybar can't do, since it only hears clicks on its own
-  # items. Backgrounded and after the reveal, so opening costs what it did above.
-  # SKETCHYBAR_BIN is what barpop resolves its own client from: unset, it
-  # queries the TOP bar, finds no such item on a pill that moved to the
-  # bottom one, and exits before it ever arms — leaving a dropdown nothing
-  # closes but a second click on the pill.
-  SKETCHYBAR_BIN="$SB" /run/current-system/sw/bin/barpop arm "$ITEM_NAME" 2>/dev/null &
-  exit 0
-fi
+on_click() { popup_toggle; }
 
-# ── update: main pill icon + label + colour ───────────────────────────────────
-"$SB" --set ${ITEM_NAME} drawing=on icon="$ICON" icon.font="$IFONT" icon.color="$COL" \
-  label="$MAIN_LABEL" label.color="$COL"
-
+barlib_main "$@"

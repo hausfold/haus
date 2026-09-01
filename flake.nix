@@ -520,12 +520,12 @@
       # `desktop-seam`. A collection file is this repo's own now, so "is it
       # data?" is a code-review question rather than a check.
       #
-      # `theme-variants` and `bar-tones` run on EVERY system, Linux included:
-      # they're pure lib and pure text, the same property that lets options-json
-      # build on Linux CI — which matters most for `bar-tones`, since the drift
-      # it catches is otherwise invisible on any machine (a widget paints grey
-      # and the reason goes to sketchybar's log). `catalogue` stays darwin-only
-      # — it evaluates real systems.
+      # `theme-variants`, `bar-tones` and `bar-marks` run on EVERY system, Linux
+      # included: they're pure lib and pure text, the same property that lets
+      # options-json build on Linux CI — which matters most for the two colour
+      # ones, since the drift they catch is otherwise invisible on any machine
+      # (a widget paints the fallback and the reason goes to sketchybar's log).
+      # `catalogue` stays darwin-only — it evaluates real systems.
       checks = nixpkgs.lib.genAttrs allSystems (
         system:
         let
@@ -1383,6 +1383,62 @@
             t: nixpkgs.lib.toUpper t.name + " -> " + t.stub + "\n"
           ) barTones;
           barToneExpectedDoc = nixpkgs.lib.concatMapStrings (t: t.name + " -> " + t.meaning + "\n") barTones;
+
+          # ---- bar-marks ------------------------------------------------------
+          # The IDENTITY axis (modules/bar/marks.nix), pinned across the same
+          # three hand-written copies as the ladder and for the same reason —
+          # `mark()` warns to sketchybar's log and paints the catch-all, so a
+          # mark added in one file and forgotten in another is a heading in the
+          # wrong hue with nothing anywhere saying why.
+          #
+          # It carries one assertion the ladder's does not, and that assertion
+          # is why the mark set is a FILE rather than four more case arms:
+          # **identity and status never share a hue.** ai-provider.sh has said
+          # so in prose since it was written, and prose is what it stayed —
+          # nothing stopped the next client's mark from landing on `yellow`,
+          # after which a popup heading silently claims a provider is at 60% of
+          # something. Every mark key is diffed against every FIXED tone key
+          # here, so the two vocabularies cannot converge by hand-edit.
+          #
+          # `accent` is excluded from that diff on purpose: it has no fixed key,
+          # it follows haus.theme.accent, and that enum contains `mauve`,
+          # `flamingo`, `teal` and `lavender` — so on some machines the logo and
+          # a mark DO wear one hue. That is two IDENTITY colours coinciding,
+          # which lies about nothing; the verdict rungs are the ones that must
+          # stay disjoint.
+          barMarks = import ./modules/bar/marks.nix;
+
+          barMarkFromBarlib = barTonePairs "\n        ([a-z]+)\\) +printf '%s' \"\\$\\{?(MARK_[A-Z]+)" (
+            builtins.readFile ./modules/bar/sketchybar/barlib.sh
+          );
+          barMarkFromBats = barTonePairs "\nexport MARK_([A-Z]+)=(0x[0-9a-f]+)" (
+            builtins.readFile ./test/barlib.bats
+          );
+          barMarkDocSection =
+            let
+              parts = nixpkgs.lib.splitString "\n## Marks, for what a tone cannot say\n" (
+                builtins.readFile ./docs/bar-framework.md
+              );
+            in
+            if builtins.length parts < 2 then
+              ""
+            else
+              builtins.head (nixpkgs.lib.splitString "\n## " (builtins.elemAt parts 1));
+          barMarkFromDoc = barTonePairs "\n\\| `([a-z]+)` \\| ([^|]*[^| ]) \\|" barMarkDocSection;
+
+          barMarkBadKeys = builtins.filter (m: !(nebelung.palette ? ${m.key})) barMarks;
+          # A mark on a verdict's hue. `accent` is skipped — see above.
+          barMarkOnToneKeys = builtins.filter (
+            m: builtins.any (t: t.key != null && t.key == m.key) barTones
+          ) barMarks;
+
+          barMarkExpectedMarks = nixpkgs.lib.concatMapStrings (
+            m: m.name + " -> MARK_" + nixpkgs.lib.toUpper m.name + "\n"
+          ) barMarks;
+          barMarkExpectedBats = nixpkgs.lib.concatMapStrings (
+            m: nixpkgs.lib.toUpper m.name + " -> " + m.stub + "\n"
+          ) barMarks;
+          barMarkExpectedDoc = nixpkgs.lib.concatMapStrings (m: m.name + " -> " + m.meaning + "\n") barMarks;
 
           # ---- theme-variants -------------------------------------------------
           # modules/lib/nebelung.nix turns haus.theme.{flavor,contrast} into a
@@ -3597,6 +3653,34 @@
             echo "== test/barlib.bats (the colors.sh stub in setup())"
             diff -u ${pkgs.writeText "expected" barToneExpectedBats} \
                     ${pkgs.writeText "bats" barToneFromBats}
+            touch $out
+          '';
+
+          # The mark set, across the same three hand-written copies — plus the
+          # one thing this axis has that the ladder does not: identity and
+          # status may not share a hue. See the `bar-marks` block in the `let`
+          # above, and modules/bar/marks.nix for the set.
+          bar-marks = pkgs.runCommand "haus-bar-marks-ok" { } ''
+            ${nixpkgs.lib.optionalString (barMarkBadKeys != [ ]) (
+              "echo 'modules/bar/marks.nix names palette keys nebelung does not have: "
+              + nixpkgs.lib.concatMapStringsSep ", " (m: "${m.name} -> ${m.key}") barMarkBadKeys
+              + "' >&2; exit 1"
+            )}
+            ${nixpkgs.lib.optionalString (barMarkOnToneKeys != [ ]) (
+              "echo 'a MARK is on a hue the tone ladder spends on a VERDICT: "
+              + nixpkgs.lib.concatMapStringsSep ", " (m: "${m.name} -> ${m.key}") barMarkOnToneKeys
+              + ". Identity and status never share a hue — a heading in that colour"
+              + " silently claims a state. Pick another nebelung key.' >&2; exit 1"
+            )}
+            echo "== modules/bar/sketchybar/barlib.sh (mark() case arms)"
+            diff -u ${pkgs.writeText "expected" barMarkExpectedMarks} \
+                    ${pkgs.writeText "barlib" barMarkFromBarlib}
+            echo "== docs/bar-framework.md (the table under 'Marks, for what a tone cannot say')"
+            diff -u ${pkgs.writeText "expected" barMarkExpectedDoc} \
+                    ${pkgs.writeText "doc" barMarkFromDoc}
+            echo "== test/barlib.bats (the colors.sh stub in setup())"
+            diff -u ${pkgs.writeText "expected" barMarkExpectedBats} \
+                    ${pkgs.writeText "bats" barMarkFromBats}
             touch $out
           '';
 

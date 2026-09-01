@@ -21,17 +21,30 @@
 # The size is the caller's, because the same table is drawn at pill size in the
 # bar and one step down in a popup row. Callers pass $FS_LABEL / $FS_SMALL
 # (sizes.sh) rather than a number, so both follow haus.ui.scale.
-#     → sets P_ICON, P_FONT, P_NAME, P_COLOR
+#     → sets P_ICON, P_FONT, P_NAME, P_MARK, P_COLOR
 #
 # The sketchybar-app-font glyphs (:claude:, :openai:) are monochrome and take
 # icon.color like any other, so the caller stays free to paint them by state.
 #
-# P_COLOR is that client's BRAND accent, and it is deliberately drawn from the
-# half of the palette the status ladder never uses (GREEN/YELLOW/PEACH/RED are
-# reserved for how-full-is-it, everywhere in the bar). That is the whole rule
-# the dropdown's colour scheme rests on: **a hue on a mark means identity, a hue
-# on a number means state.** Paint a header icon YELLOW and the popup silently
-# starts claiming a provider is at 60% of something.
+# ── P_MARK and P_COLOR are the same answer, twice ─────────────────────────────
+# P_MARK is a barlib MARK NAME (modules/bar/marks.nix) — the identity axis
+# beside the tone ladder — and it is what a framework widget passes straight to
+# `popup_heading --mark`. P_COLOR is that same mark already resolved to a hex,
+# for a caller that has no barlib to resolve it: agents.sh, which is still
+# hand-written. Both come off the one case below, so the two cannot disagree.
+#
+# ⚠️ P_COLOR goes when agents.sh converts, exactly as vitals_lib's
+# `vitals_color` went when memory did — a hex half kept alive only while one
+# reader of a shared table is a framework widget and the other is not. Do not
+# add a caller to it; add one to P_MARK.
+#
+# The rule both spellings serve, and the reason the mark set exists at all:
+# **a hue on a mark means identity, a hue on a number means state.** Every mark
+# is drawn from the half of the palette the ladder never touches (green/yellow/
+# peach/red/sapphire are how-full-is-it, everywhere in the bar) — which used to
+# be this comment's promise and is now `bar-marks`'s assertion. Paint a header
+# icon YELLOW and the popup silently starts claiming a provider is at 60% of
+# something.
 
 # This file is a LIBRARY (ai_usage.sh and agents.sh source it), and the family
 # it draws in lives in the generated sizes.sh with the FS_* sizes. Both current
@@ -42,29 +55,33 @@
 [ -n "${BAR_FONT:-}" ] || source "$HOME/.config/sketchybar/sizes.sh"
 # Same story for the palette, now that the table names brand accents: under
 # `set -u` an unsourced colours.sh is not a wrong colour, it is the caller
-# exiting mid-repaint. Tested on FLAMINGO rather than on any old key because
-# that is the first accent this file dereferences — the guard should fail on
-# the same variable the code would.
+# exiting mid-repaint. Tested on MARK_WARM rather than on any old key because
+# that is the first thing this file dereferences — the guard should fail on
+# the same variable the code would, and the MARK_* block is the newest half of
+# colors.sh, so a stale generated file fails here rather than three lines in.
 # shellcheck source=/dev/null
-[ -n "${FLAMINGO:-}" ] || source "$HOME/.config/sketchybar/colors.sh"
+[ -n "${MARK_WARM:-}" ] || source "$HOME/.config/sketchybar/colors.sh"
 
 provider_style() {
   local prov="${1:-}" model="${2:-}" size="${3:-${FS_LABEL:-14.0}}"
   local appfont="sketchybar-app-font:Regular:${FS_APP_ICON:-16.0}"
   local nerd="${BAR_FONT}:Bold:$size"
-  # The accents, and why each: FLAMINGO is the palette's warm clay, the nearest
-  # neighbour to Anthropic's orange that isn't PEACH (a status colour); TEAL is
-  # OpenAI's green-teal; LAVENDER is Gemini's blue-violet; MAUVE is the
+  # The marks, and why each — the argument now lives in modules/bar/marks.nix,
+  # which is also where the palette key behind each name is: `warm` is the clay
+  # nearest Anthropic's orange that is not `warn`; `teal` is OpenAI's
+  # green-teal; `violet` is Gemini's blue-violet; `plum` is the
   # bring-your-own-key catch-all, which is also what an unknown client gets.
-  # SAPPHIRE is deliberately absent: ai_usage.sh spends it on money, and its
-  # claim to mean "a quantity, no verdict" only holds while no client wears it.
-  P_COLOR="$MAUVE"
+  #
+  # No mark is `action`'s sapphire, and that is structural now rather than
+  # tact: every mark's key is diffed against the ladder's by `bar-marks`, so a
+  # client can no longer be handed a hue that means something.
+  P_MARK=plum
   case "$prov" in
     claude)
-      P_ICON=":claude:"; P_FONT="$appfont"; P_NAME="Claude"; P_COLOR="$FLAMINGO"
+      P_ICON=":claude:"; P_FONT="$appfont"; P_NAME="Claude"; P_MARK=warm
       ;;
     codex | openai)
-      P_ICON=":openai:"; P_FONT="$appfont"; P_NAME="Codex"; P_COLOR="$TEAL"
+      P_ICON=":openai:"; P_FONT="$appfont"; P_NAME="Codex"; P_MARK=teal
       ;;
     opencode)
       # Opencode bills whichever provider you pointed it at, so the model — not
@@ -73,9 +90,9 @@ provider_style() {
       # accent follows the mark for the same reason: an Opencode row pointed at
       # Gemini should read as Gemini at a glance, not as "some API".
       case "$model" in
-        google* | gemini*)    P_ICON="✦";       P_FONT="$nerd";    P_NAME="Opencode (${model:-gemini})"; P_COLOR="$LAVENDER" ;;
-        anthropic* | claude*) P_ICON=":claude:"; P_FONT="$appfont"; P_NAME="Opencode (${model:-claude})"; P_COLOR="$FLAMINGO" ;;
-        openai* | gpt*)       P_ICON=":openai:"; P_FONT="$appfont"; P_NAME="Opencode (${model:-gpt})";    P_COLOR="$TEAL" ;;
+        google* | gemini*)    P_ICON="✦";       P_FONT="$nerd";    P_NAME="Opencode (${model:-gemini})"; P_MARK=violet ;;
+        anthropic* | claude*) P_ICON=":claude:"; P_FONT="$appfont"; P_NAME="Opencode (${model:-claude})"; P_MARK=warm ;;
+        openai* | gpt*)       P_ICON=":openai:"; P_FONT="$appfont"; P_NAME="Opencode (${model:-gpt})";    P_MARK=teal ;;
         "")                   P_ICON="󰏫";       P_FONT="$nerd";    P_NAME="Opencode" ;;
         *)                    P_ICON="󰏫";       P_FONT="$nerd";    P_NAME="Opencode (${model:-api})" ;;
       esac
@@ -86,9 +103,9 @@ provider_style() {
       # a Greek letter every terminal font has, which the nerd-font fallback
       # would otherwise have to guess at.
       case "$model" in
-        google* | gemini*)    P_ICON="✦";       P_FONT="$nerd";    P_NAME="pi (${model:-gemini})"; P_COLOR="$LAVENDER" ;;
-        anthropic* | claude*) P_ICON=":claude:"; P_FONT="$appfont"; P_NAME="pi (${model:-claude})"; P_COLOR="$FLAMINGO" ;;
-        openai* | gpt*)       P_ICON=":openai:"; P_FONT="$appfont"; P_NAME="pi (${model:-gpt})";    P_COLOR="$TEAL" ;;
+        google* | gemini*)    P_ICON="✦";       P_FONT="$nerd";    P_NAME="pi (${model:-gemini})"; P_MARK=violet ;;
+        anthropic* | claude*) P_ICON=":claude:"; P_FONT="$appfont"; P_NAME="pi (${model:-claude})"; P_MARK=warm ;;
+        openai* | gpt*)       P_ICON=":openai:"; P_FONT="$appfont"; P_NAME="pi (${model:-gpt})";    P_MARK=teal ;;
         "")                   P_ICON="π";       P_FONT="$nerd";    P_NAME="pi" ;;
         *)                    P_ICON="π";       P_FONT="$nerd";    P_NAME="pi (${model:-api})" ;;
       esac
@@ -98,5 +115,32 @@ provider_style() {
       # named none. Draw the generic writing-hand and say what it called itself.
       P_ICON="󰏫"; P_FONT="$nerd"; P_NAME="${prov:-agent}"
       ;;
+  esac
+  # The hex half, for the reader that has no barlib. One block at the end
+  # rather than a second column beside each arm, so P_MARK stays the single
+  # answer and this is visibly DERIVED from it — and so deleting it when
+  # agents.sh converts is deleting these lines and nothing else.
+  #
+  # ⚠️ Every read carries a `:-`, and that is barlib.sh's rule (its header,
+  # and every `MARK_*`/`TONE_*` read in `mark()` and `tone()`) rather than
+  # caution: colors.sh and the plugins are separate home.file entries, so a
+  # rebuild lands them in some order and there is a window where this file
+  # reads a MARK_* the live colors.sh has never heard of. Under `set -u` that
+  # is not a wrong colour — it is an abort, mid-repaint, that takes the whole
+  # batched --add with it and leaves NO sketchybar traffic at all. Both
+  # readers `set -u`, so an unguarded read here silently kills two pills at
+  # once. OVERLAY1 is the fallback because it is the grey a stale mark wears
+  # anyway, and it predates every name in this block.
+  #
+  # A `case` rather than an `eval` on an upper-cased name: it forks nothing,
+  # where `printf | tr` cost ~2.5 ms measured — once per tick, and once per
+  # feed on the click path, whose whole budget is ~12 ms to open the popup.
+  # (It also sidesteps `${P_MARK^^}`, which macOS's bash 3.2 takes as a
+  # syntax error rather than a no-op.)
+  case "$P_MARK" in
+    warm)   P_COLOR="${MARK_WARM:-${OVERLAY1:-}}" ;;
+    teal)   P_COLOR="${MARK_TEAL:-${OVERLAY1:-}}" ;;
+    violet) P_COLOR="${MARK_VIOLET:-${OVERLAY1:-}}" ;;
+    *)      P_COLOR="${MARK_PLUM:-${OVERLAY1:-}}" ;;
   esac
 }
