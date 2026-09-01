@@ -31,6 +31,12 @@ in
         7.0:1 for body text on its own, so it's legible before you reach for
         contrast = "high" (which takes it to 9.9:1).
 
+        An enum rather than a place to supply your own colours, and that is the
+        shape rather than an omission: nebelung renders each tool's port in a
+        derivation, so a hand-written palette would either have to re-render all
+        of them at rebuild time or reach only the tools haus injects colours into
+        directly — never the ones it points at a rendered theme file.
+
         It composes with `contrast`: the two axes give four palettes, and nebelung's
         CI measures each one's contrast ratio rather than eyeballing it.
 

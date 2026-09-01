@@ -1,12 +1,15 @@
 # ONE theme, whichever variant haus.theme.{flavor,contrast} selected —
-# terminal drops it at ~/.config/ghostty/themes/nebelung. This used to be
-# `dark:nebelung,light:Catppuccin Latte`, i.e. it followed macOS appearance and
-# fell back to STOCK Catppuccin in light mode, which meant a Mac running light
-# appearance never actually got the Nebelung palette. Now that nebelung renders a
-# light variant of its own, the rice's own option decides — and it decides for
-# bat, delta, lsd and yazi the same way, none of which can switch on appearance.
-# (Following macOS appearance with Nebelung on both sides is the roadmap's
-# `theme.scheme = "auto"`; it needs a runtime watcher, not a config line.)
+# terminal drops it at ~/.config/ghostty/themes/nebelung. haus's own option
+# decides the flavor, and decides it the same way for bat, delta, lsd and yazi,
+# none of which can switch on appearance — so one pin keeps the terminal and
+# everything drawing inside it on one palette.
+#
+# Ghostty COULD follow macOS appearance with no watcher and no runtime re-read:
+# `theme = dark:X,light:Y` is native, and ../../lib/nebelung.nix already names
+# both variants (darkVariant/lightVariant) for the launcher and the shelf — so
+# the cost is one more theme file installed beside this one. It doesn't, because
+# a terminal that flips polarity on its own leaves those four tools rendering
+# the other one INSIDE it. The window is the unit here, not the app.
 theme = nebelung
 
 font-family = @FONT_FAMILY@
