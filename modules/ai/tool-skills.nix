@@ -4,7 +4,8 @@
 # A tool's `<tool>-skill` derivation lays out `$out/<skill-name>/SKILL.md` (the
 # family standard, the workshop's `docs/agent-surface.md`), and a tool may
 # ship more than one: scruff ships `scruff` (drive the lane lifecycle) and `handoff`
-# (write the brief a `scruff spawn --prompt-file` lane opens on).
+# (write the brief a `scruff spawn --prompt-file` lane opens on), factory ships
+# `factory` (the merge verbs) and `nightshift` (the loop that drives them).
 #
 # Split out of modules/ai/default.nix so `nix flake check` can build it. The
 # room installs the result as home files, which puts it on every machine's
@@ -22,6 +23,7 @@
   pkgs,
   lib,
   scruff-skill,
+  factory-skill,
   trill-skill ? null,
   trillEnabled ? true,
 }:
@@ -55,6 +57,25 @@ let
       names = [
         "scruff"
         "handoff"
+      ];
+    }
+    # factory ships two skills and they are not two copies of one: `factory`
+    # teaches the verbs (what to run when the user says "merge the safe PRs"),
+    # `nightshift` teaches the LOOP that drives them — the cadence, the fixer
+    # cap, what to do with each line a pass printed. The tool is one pass at a
+    # time on purpose, so the thing that decides to call it again is judgement
+    # rather than a flag, and that judgement is what the second skill is.
+    #
+    # Ungated, like scruff's: the AI room puts `factory` on PATH on every
+    # machine that has the room at all, so the skill is never teaching an agent
+    # to drive a binary this Mac does not have. Whether a machine has a POLICY
+    # to run it against is a `~/.config/factory/config.json` question, outside
+    # this layer entirely — and `factory doctor` is what answers it.
+    {
+      drv = factory-skill;
+      names = [
+        "factory"
+        "nightshift"
       ];
     }
     {

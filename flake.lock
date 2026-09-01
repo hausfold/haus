@@ -18,6 +18,26 @@
         "type": "github"
       }
     },
+    "factory": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1788262569,
+        "narHash": "sha256-BAx0Flx+UcCLM9cNC2DghXAEDNgPnKNsMY10aKqjtl0=",
+        "owner": "hausfold",
+        "repo": "factory",
+        "rev": "e8e4e64fb5d5388d2b482dc21d7059476ee5c488",
+        "type": "github"
+      },
+      "original": {
+        "owner": "hausfold",
+        "repo": "factory",
+        "type": "github"
+      }
+    },
     "home-manager": {
       "inputs": {
         "nixpkgs": [
@@ -206,6 +226,7 @@
     "root": {
       "inputs": {
         "catppuccin": "catppuccin",
+        "factory": "factory",
         "home-manager": "home-manager",
         "nebelung": "nebelung",
         "nix-darwin": "nix-darwin",
